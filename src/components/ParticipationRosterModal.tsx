@@ -67,6 +67,20 @@ interface ParticipationRosterModalProps {
   activityKind?: string
 }
 
+/**
+ * Fold game guests (migration 271) into the team roster, first occurrence wins.
+ *
+ * One merged list rather than a separate "Guests" block: a coach reading this modal
+ * is picking who plays on Saturday, and a borrowed player is a candidate on exactly
+ * the same terms as a rostered one. The origin badge on the row carries the "this
+ * one is on loan" signal without splitting the list they have to scan.
+ */
+function mergeGameGuests(roster: Member[], guests: Member[]): Member[] {
+  if (guests.length === 0) return roster
+  const seen = new Set(roster.map((m) => String(m.id)))
+  return [...roster, ...guests.filter((g) => !seen.has(String(g.id)))]
+}
+
 /** Sort comparator: by first_name then last_name, locale-aware + case-insensitive. */
 function byFirstThenLastName<T extends { first_name?: string | null; last_name?: string | null }>(a: T, b: T): number {
   const cmp = (a.first_name ?? '').localeCompare(b.first_name ?? '', undefined, { sensitivity: 'base' })
@@ -191,6 +205,42 @@ export default function ParticipationRosterModal({
   const { t: ta } = useTranslation('absences')
   const { t: tt } = useTranslation('teams')
   const { members, teamsByMember, isLoading: membersLoading } = useMultiTeamMembers(teamIds)
+
+  // Players this game was opened to from outside its own roster (migration 271).
+  // They have no `member_teams` row on this team, so `useMultiTeamMembers` above
+  // cannot see them — yet they RSVP to this game and must show up in the same list
+  // as everyone else, because the coach reads this list to pick a squad.
+  const { data: gameGuestRows } = useCollection<{
+    id: string
+    member: Member | string
+    via_team: { id: string | number; name?: string } | string | null
+  }>('game_guests', {
+    filter: { game: { _eq: activityId ?? '' } },
+    fields: ['id', 'member.*', 'via_team.id', 'via_team.name'],
+    all: true,
+    enabled: open && activityType === 'game' && !!activityId,
+  })
+
+  const gameGuests: Member[] = useMemo(
+    () => (gameGuestRows ?? [])
+      .map((r) => asObj<Member>(r.member))
+      .filter((m): m is Member => m !== null)
+      .map((m) => ({ ...m, id: String(m.id) })),
+    [gameGuestRows],
+  )
+
+  /** memberId → the team they were borrowed from ('' when invited individually). */
+  const gameGuestOrigin = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const r of gameGuestRows ?? []) {
+      const mid = String(asObj<Member>(r.member)?.id ?? '')
+      if (!mid) continue
+      const team = asObj<{ id: string | number; name?: string }>(r.via_team)
+      map.set(mid, team?.name ?? '')
+    }
+    return map
+  }, [gameGuestRows])
+
   const [absences, setAbsences] = useState<Absence[]>([])
   const [staffMembers, setStaffMembers] = useState<Member[]>([])
   // Staff participation rows (is_staff=true) for this activity. Tracked
@@ -358,17 +408,19 @@ export default function ParticipationRosterModal({
   // instead of triggering a refetch flash.
   const rosterMembers: Member[] = isClubWide
     ? clubWideMembers
-    : members
-        .filter((mt) => {
-          const lvl = Number((mt as { guest_level?: number }).guest_level ?? 0)
-          if (lvl > 0 && activityType === 'game') return false
-          if (excludedSet && lvl > 0 && excludedSet.has(lvl)) return false
-          return true
-        })
-        .map((mt) => asObj<Member>(mt.member))
-        .filter((m): m is Member => m !== null)
-        .map(m => ({ ...m, id: String(m.id) }))
-        .sort(byFirstThenLastName)
+    : mergeGameGuests(
+        members
+          .filter((mt) => {
+            const lvl = Number((mt as { guest_level?: number }).guest_level ?? 0)
+            if (lvl > 0 && activityType === 'game') return false
+            if (excludedSet && lvl > 0 && excludedSet.has(lvl)) return false
+            return true
+          })
+          .map((mt) => asObj<Member>(mt.member))
+          .filter((m): m is Member => m !== null)
+          .map(m => ({ ...m, id: String(m.id) })),
+        gameGuests,
+      ).sort(byFirstThenLastName)
 
   const rosterMemberIds = rosterMembers.map((m) => m.id)
 
@@ -1866,6 +1918,20 @@ export default function ParticipationRosterModal({
                       </span>
                     )
                   })()}
+                  {/* Invited to THIS game from another team (migration 271). Distinct
+                      colour from the amber team-guest badge above: that one means
+                      "trains with us, may not play league games", this one means the
+                      opposite — invited precisely so they can play. */}
+                  {gameGuestOrigin.has(member.id) && (
+                    <span
+                      title={gameGuestOrigin.get(member.id)
+                        ? t('gameGuestFrom', { team: gameGuestOrigin.get(member.id) })
+                        : t('gameGuestIndividual')}
+                      className="inline-block rounded bg-sky-100 px-1 py-px text-[10px] font-medium leading-tight text-sky-700 dark:bg-sky-900/30 dark:text-sky-400"
+                    >
+                      {gameGuestOrigin.get(member.id) || t('gameGuestBadge')}
+                    </span>
+                  )}
                 </div>
 
                 {/* Status badge + edit controls */}

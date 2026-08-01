@@ -30,6 +30,7 @@ export default {
   game_deleted: 'Game cancelled: {{home_team}} vs {{away_team}} on {{date}}',
   game_reinstated: 'Game back on: {{home_team}} vs {{away_team}} on {{date}}',
   game_result: 'Result: {{home_team}} {{home_score}}:{{away_score}} {{away_team}}',
+  game_invite: '{{team}} called you up: {{matchup}} on {{date}}',
   training_created: 'New training on {{date}}, {{time}} @ {{hall}}',
   training_updated: 'Training updated on {{date}} @ {{hall}}',
   training_cancelled: 'Training cancelled on {{date}}',

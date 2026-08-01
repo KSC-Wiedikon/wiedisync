@@ -968,6 +968,35 @@ async function main() {
       { member: { member_teams: { team: { members: { member: { user: { _eq: '$CURRENT_USER' } } } } } } },
     ],
   }
+
+  // Game guests (migration 271). A game opened to another team / to individuals puts
+  // people in the same roster who share no `member_teams` row, so SAME_TEAM_AS_ME
+  // alone leaves holes in it from BOTH sides: the home team cannot read the guest's
+  // RSVP, and the guest cannot read the home team's. Two extra branches close it,
+  // each `_and`-ed with activity_type = 'game' so an invitation to one Saturday never
+  // widens into that person's trainings and events.
+  //
+  // Breadth is deliberately the same shape as SAME_TEAM_AS_ME itself — that rule
+  // already grants every participation row of anyone you share a team with, rather
+  // than row-correlating per activity, because a Directus filter cannot join
+  // `participations.activity_id` (a varchar, not an FK) back to `games`.
+  const SAME_GAME_AS_ME = [
+    // Their member is a guest on a game of a team I am on → I read their game RSVPs.
+    {
+      _and: [
+        { activity_type: { _eq: 'game' } },
+        { member: { game_guests: { game: { kscw_team: { members: { member: { user: { _eq: '$CURRENT_USER' } } } } } } } },
+      ],
+    },
+    // Their member is on a team whose game I am a guest of → I read their game RSVPs.
+    {
+      _and: [
+        { activity_type: { _eq: 'game' } },
+        { member: { member_teams: { team: { games: { guests: { member: { user: { _eq: '$CURRENT_USER' } } } } } } } },
+      ],
+    },
+  ]
+  const SAME_TEAM_OR_GAME_AS_ME = { _or: [...SAME_TEAM_AS_ME._or, ...SAME_GAME_AS_ME] }
   // 2026-05-12 audit #12: participations.last_*_edited_by are directus_users
   // UUIDs (migrations 046/047) which let Members enumerate Directus user
   // UUIDs by cross-referencing. Members get the timestamps but not the
@@ -986,8 +1015,34 @@ async function main() {
     'reason', 'reason_detail', 'affects', 'days_of_week',
     'last_edited_at', 'date_created', 'date_updated',
   ]
-  await setPermRead(MEMBER_POLICY, 'participations', SAME_TEAM_AS_ME, MEMBER_PARTICIPATION_FIELDS)
+  await setPermRead(MEMBER_POLICY, 'participations', SAME_TEAM_OR_GAME_AS_ME, MEMBER_PARTICIPATION_FIELDS)
+  // Absences stay on the narrower rule: a guest invitation is not a reason to read
+  // someone's absence reasons, and the roster only needs their RSVP.
   await setPermRead(MEMBER_POLICY, 'absences', SAME_TEAM_AS_ME, MEMBER_ABSENCE_FIELDS)
+
+  // ── Game guest invitations (migration 271) ──────────────────────
+  // Read-only for members; the coach-side writes are on LEADER (§7). Visible to the
+  // three parties with a stake in the invitation: the invitee, the game's own roster,
+  // and the other guests (they appear in one merged roster, so they must resolve each
+  // other). `game_guests` is also what `useUserVisibleGameIds` reads to decide whether
+  // a game belongs on your home page — without member read there, nothing shows up.
+  const GAME_GUEST_VISIBLE = {
+    _or: [
+      { member: { user: { _eq: '$CURRENT_USER' } } },
+      { game: { kscw_team: { members: { member: { user: { _eq: '$CURRENT_USER' } } } } } },
+      { game: { guests: { member: { user: { _eq: '$CURRENT_USER' } } } } },
+    ],
+  }
+  await setPermRead(MEMBER_POLICY, 'game_guests', GAME_GUEST_VISIBLE)
+
+  const GAME_GUEST_TEAM_VISIBLE = {
+    _or: [
+      { team: { members: { member: { user: { _eq: '$CURRENT_USER' } } } } },
+      { game: { kscw_team: { members: { member: { user: { _eq: '$CURRENT_USER' } } } } } },
+      { game: { guests: { member: { user: { _eq: '$CURRENT_USER' } } } } },
+    ],
+  }
+  await setPermRead(MEMBER_POLICY, 'game_guest_teams', GAME_GUEST_TEAM_VISIBLE)
 
   // ── slot_claims — keep open for now (calendar UI relies on it),
   // public read removed in 035; member read still permissive per audit decision.
@@ -1508,10 +1563,63 @@ async function main() {
       { member: { user: { _eq: '$CURRENT_USER' } } },
       { member: { member_teams: { team: { coach: { members_id: { user: { _eq: '$CURRENT_USER' } } } } } } },
       { member: { member_teams: { team: { team_responsible: { members_id: { user: { _eq: '$CURRENT_USER' } } } } } } },
+      // Guests of a game I lead (migration 271). They are on no team of mine, so the
+      // member_teams branches above miss them and the coach — the one person who has
+      // to pick the squad — would read a roster with the borrowed players blank.
+      // Narrowed to game RSVPs: lending me a player for one Saturday does not open
+      // their trainings and events to me.
+      {
+        _and: [
+          { activity_type: { _eq: 'game' } },
+          {
+            member: {
+              game_guests: {
+                game: {
+                  kscw_team: {
+                    _or: [
+                      { coach: { members_id: { user: { _eq: '$CURRENT_USER' } } } },
+                      { team_responsible: { members_id: { user: { _eq: '$CURRENT_USER' } } } },
+                    ],
+                  },
+                },
+              },
+            },
+          },
+        ],
+      },
     ],
   }
   await setPermRead(LEADER_POLICY, 'participations', COACH_OR_TR_OF_PARTICIPATION)
   await setPerm(LEADER_POLICY, 'participations', 'update', COACH_OR_TR_OF_PARTICIPATION)
+
+  // ── Game guest invitations (migration 271) ──────────────────────
+  // Opening a game to another team / to individual players is the coach's or TR's
+  // call on the game's OWN team — the side that has to field the squad. The invited
+  // team's coach deliberately gets no write here: two parties editing one opening
+  // makes "who invited this player" unanswerable, and the game_guests actor columns
+  // exist precisely to answer it.
+  //
+  // CREATE is unfiltered for the reason documented on setPerm: Directus cannot
+  // resolve a relational validation against a create payload and would reject every
+  // insert. The real scope gate is the BLOCKING kscw-hooks guard on
+  // game_guests.items.create / game_guest_teams.items.create — same arrangement as
+  // member_teams below.
+  const COACH_OR_TR_OF_GUEST_GAME = {
+    game: {
+      kscw_team: {
+        _or: [
+          { coach: { members_id: { user: { _eq: '$CURRENT_USER' } } } },
+          { team_responsible: { members_id: { user: { _eq: '$CURRENT_USER' } } } },
+        ],
+      },
+    },
+  }
+  for (const coll of ['game_guests', 'game_guest_teams']) {
+    await setPermRead(LEADER_POLICY, coll)
+    await setPerm(LEADER_POLICY, coll, 'create')
+    await setPerm(LEADER_POLICY, coll, 'update', COACH_OR_TR_OF_GUEST_GAME)
+    await setPerm(LEADER_POLICY, coll, 'delete', COACH_OR_TR_OF_GUEST_GAME)
+  }
 
   // Member teams — read all + CRUD. create/update/delete are TEAM-SCOPED by
   // BLOCKING kscw-hooks filters (actorLeadsTeam for create/update — 2026-07-05
@@ -1748,6 +1856,7 @@ async function main() {
   // Vorstand gets read-all on everything (overrides member's filtered reads)
   const VORSTAND_READ_ALL = [
     'members', 'member_teams', 'participations', 'absences',
+    'game_guests', 'game_guest_teams',
     'notifications', 'scorer_delegations', 'team_invites',
     'user_logs', 'feedback',
     'team_requests', 'push_subscriptions',
@@ -1824,6 +1933,9 @@ async function main() {
   const SPORT_ADMIN_FULL_CRUD = [
     'games', 'trainings', 'events', 'event_sessions', 'events_teams',
     'member_teams', 'participations', 'absences',
+    // Guest invitations (migration 271) — club-wide, so a sport admin can open or
+    // close a game for a coach who is away.
+    'game_guests', 'game_guest_teams',
     'rankings', 'sponsors', 'teams_sponsors',
     'hall_slots', 'hall_closures', 'hall_events', 'halls', 'hall_slots_teams',
     'slot_claims', 'notifications', 'feedback', 'scorer_delegations', 'referee_expenses',

@@ -212,7 +212,7 @@ async function loadRsvpRoster(database, game, gameId, season, captainId) {
     .select('member')
   const confirmedIds = new Set(confirmedRows.map((r) => Number(r.member)))
 
-  const rows = await squadRows(database, game.kscw_team, season)
+  const rows = await squadRows(database, game.kscw_team, season, gameId)
 
   const roster = rows
     .filter((r) => confirmedIds.has(Number(r.id)))
@@ -234,20 +234,47 @@ async function loadRsvpRoster(database, game, gameId, season, captainId) {
   return { source: 'rsvp', roster, coaches: [], closed_at: null }
 }
 
-/** The full squad of a team for a season — the pool the coach may add from. */
-function squadRows(database, teamId, season) {
-  return database('member_teams')
+/**
+ * The full squad available for one game — the pool the coach may add from, and the
+ * set the RSVP fallback resolves confirmations against.
+ *
+ * That is the team's season roster PLUS anyone the coach opened this game to
+ * (migration 271). Guests are the whole reason the emergency pool exists: a borrowed
+ * player has no `member_teams` row on this team, so without the union they RSVP
+ * "confirmed", vanish from the Einsatzliste, and are rejected as an invalid `added`
+ * player at line 515 — silently un-selectable for the one game they were invited to.
+ *
+ * `gameId` is optional so a caller with only a team in hand still gets the plain
+ * roster; every in-tree caller passes it.
+ */
+async function squadRows(database, teamId, season, gameId = null) {
+  const memberCols = [
+    'members.id as id',
+    'members.number as number',
+    'members.position as position',
+    'members.first_name as first_name',
+    'members.last_name as last_name',
+    'members.birthdate as birthdate',
+  ]
+
+  const rostered = await database('member_teams')
     .join('members', 'members.id', 'member_teams.member')
     .where('member_teams.team', teamId)
     .where('member_teams.season', season)
-    .select(
-      'members.id as id',
-      'members.number as number',
-      'members.position as position',
-      'members.first_name as first_name',
-      'members.last_name as last_name',
-      'members.birthdate as birthdate',
-    )
+    .select(memberCols)
+
+  if (gameId == null) return rostered
+
+  const guests = await database('game_guests')
+    .join('members', 'members.id', 'game_guests.member')
+    .where('game_guests.game', gameId)
+    .select(memberCols)
+
+  // The migration-271 skip trigger already keeps a player off `game_guests` when they
+  // are on the game's own team, but a season boundary can still put someone in both
+  // lists (rostered under a different season string). Dedupe on member id.
+  const seen = new Set(rostered.map((r) => Number(r.id)))
+  return [...rostered, ...guests.filter((g) => !seen.has(Number(g.id)))]
 }
 
 /**
@@ -417,7 +444,7 @@ export function registerScorerRoster(router, { database, logger }) {
       let bench = []
       if (access === 'coach' || access === 'admin') {
         const onSheet = new Set(sheet.roster.map((r) => r.member).filter((m) => m != null))
-        bench = (await squadRows(database, game.kscw_team, season))
+        bench = (await squadRows(database, game.kscw_team, season, gameId))
           .filter((r) => !onSheet.has(Number(r.id)))
           .map((r) => ({
             member: Number(r.id),
@@ -512,7 +539,7 @@ export function registerScorerRoster(router, { database, logger }) {
 
       // An added player must actually be in the team's squad this season. Without this a
       // coach could put any member of the club onto their sheet.
-      const squad = await squadRows(database, game.kscw_team, season)
+      const squad = await squadRows(database, game.kscw_team, season, gameId)
       const squadById = new Map(squad.map((r) => [Number(r.id), r]))
       const onBase = new Set(base.roster.map((r) => r.member).filter((m) => m != null))
       const validAdded = addedIds.filter((id) => squadById.has(id) && !onBase.has(id))

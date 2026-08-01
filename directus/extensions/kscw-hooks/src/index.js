@@ -60,6 +60,29 @@ function safeDateStr(input) {
   return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : null
 }
 
+/**
+ * Everyone expected at a game: its own roster PLUS the guests a coach opened it to
+ * (migration 271). A drop-in replacement for `JOIN member_teams mt ON mt.team =
+ * g.kscw_team` — it still exposes `mt.member` and `mt.guest_level`, so the surrounding
+ * query is unchanged. Requires the games table to be aliased `g`.
+ *
+ * Game guests report `guest_level = 0` deliberately: that column means "guest player of
+ * this TEAM" (someone training along who may not play league games — see
+ * trg_participations_guest_block), which is the opposite of a game guest, who was
+ * invited precisely in order to play. The existing `guest_level = 0` filters in these
+ * queries therefore include them, which is what we want.
+ *
+ * NOT used by the auto-confirm paths. Being lent to a game is not consent to play it —
+ * a guest answers for themselves. Used by the reminder and absence sweeps, where the
+ * whole point is to treat them like anyone else on the sheet.
+ */
+const GAME_SQUAD_JOIN = `JOIN (
+          SELECT g2.id AS game, mt2.member, COALESCE(mt2.guest_level, 0) AS guest_level
+          FROM games g2 JOIN member_teams mt2 ON mt2.team = g2.kscw_team
+          UNION
+          SELECT gg.game, gg.member, 0 FROM game_guests gg
+        ) mt ON mt.game = g.id`
+
 const PUSH_WORKER_URL = process.env.PUSH_WORKER_URL || 'https://kscw-push.lucanepa.workers.dev'
 const PUSH_AUTH_SECRET = process.env.PUSH_AUTH_SECRET || ''
 
@@ -1031,13 +1054,19 @@ export default ({ action, filter, init, schedule }, { services, database, logger
             -- from the game roster yet still inflate the card/modal RSVP
             -- tallies (declined count drifts above the roster). Mirror the
             -- auto-confirm guard (guest_level = 0) so we never seed them.
-            AND EXISTS (SELECT 1 FROM member_teams mt WHERE mt.team = g.kscw_team AND mt.member = ?::integer AND mt.guest_level = 0)
+            -- …but a GAME guest (migration 271) is the opposite case: invited to a
+            -- specific game precisely so they can play it, with no member_teams row on
+            -- that team at all. They belong in the sweep like any other player.
+            AND (
+              EXISTS (SELECT 1 FROM member_teams mt WHERE mt.team = g.kscw_team AND mt.member = ?::integer AND mt.guest_level = 0)
+              OR EXISTS (SELECT 1 FROM game_guests gg WHERE gg.game = g.id AND gg.member = ?::integer)
+            )
             AND NOT EXISTS (
               SELECT 1 FROM participations p
               WHERE p.activity_type = 'game' AND p.activity_id = g.id::text AND p.member = ?::integer
             )
           ON CONFLICT DO NOTHING
-        `, [memberId, absence.reason || '', absenceId, effectiveStart, endDate, memberId, memberId])
+        `, [memberId, absence.reason || '', absenceId, effectiveStart, endDate, memberId, memberId, memberId])
         declined += ins?.rowCount || 0
       }
 
@@ -3084,7 +3113,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         INSERT INTO participations (member, activity_type, activity_id, status, note, guest_count, is_staff, auto_declined_by, waitlisted_at)
         SELECT mt.member, 'game', g.id::text, 'declined', COALESCE(a.reason, ''), 0, false, a.id, '1970-01-01 00:00:00+00'::timestamptz
         FROM games g
-        JOIN member_teams mt ON mt.team = g.kscw_team
+        ${GAME_SQUAD_JOIN}
         JOIN absences a ON a.member = mt.member
         WHERE g.date >= CURRENT_DATE AND g.kscw_team IS NOT NULL
           AND COALESCE(g.status, '') NOT IN ('completed', 'postponed', 'cancelled')
@@ -3287,7 +3316,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
                COALESCE(g.date::text, ''),
                'game', g.id::text, g.kscw_team, false
         FROM games g
-        JOIN member_teams mt ON mt.team = g.kscw_team
+        ${GAME_SQUAD_JOIN}
         WHERE g.respond_by::date = ?::date
           AND g.kscw_team IS NOT NULL
           AND COALESCE(g.status, '') NOT IN ('completed', 'postponed', 'cancelled')
@@ -3404,7 +3433,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
                )::text,
                'game', g.id::text, g.kscw_team, false
         FROM games g
-        JOIN member_teams mt ON mt.team = g.kscw_team
+        ${GAME_SQUAD_JOIN}
         LEFT JOIN halls h ON h.id = g.hall
         WHERE g.date = ?::date AND g.kscw_team IS NOT NULL
           AND COALESCE(g.status, '') NOT IN ('completed', 'postponed', 'cancelled')
@@ -5236,6 +5265,138 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       throw kscwScopeError('You can only move members to teams you coach or are responsible for', 403, 'NOT_TEAM_LEADER')
     }
     return payload
+  })
+
+  // ── Game guest invitations (migration 271) ─────────────────────
+  // Opening a game to another team / to individual players. The Directus grant for
+  // CREATE is necessarily unfiltered (a relational validation cannot be resolved
+  // against a create payload — see the setPerm note in setup-permissions.mjs), so
+  // this BLOCKING filter is the real scope gate: you may only open a game whose own
+  // team you coach or are responsible for. Without it any coach could invite
+  // themselves onto any game in the club.
+  async function guestGameLeadGuard(payload, db, accountability, verb) {
+    if (!accountability?.user) return payload  // system context (trigger/cron/cascade)
+    if (accountability.admin) return payload
+    const gameId = toIdValue(payload?.game)
+    const game = gameId != null
+      ? await db('games').where('id', gameId).select('kscw_team').first()
+      : null
+    if (!game || !(await actorLeadsTeam(db, accountability, game.kscw_team))) {
+      throw kscwScopeError(`You can only ${verb} for a game of a team you coach or are responsible for`, 403, 'NOT_TEAM_LEADER')
+    }
+    return payload
+  }
+
+  // Actor capture. These rows are written through the items API, so Directus
+  // revision-logs them — but the roster UI wants to name the inviter inline without
+  // reading the revision trail, and the trigger that materializes a team opening into
+  // per-person rows copies these two columns down onto every child row.
+  async function stampInviter(payload, db, accountability) {
+    if (!accountability?.user) return payload
+    const me = await db('members').where('user', accountability.user)
+      .select('first_name', 'last_name', 'email').first()
+    if (!me) return payload
+    payload.invited_by_name = `${me.first_name ?? ''} ${me.last_name ?? ''}`.trim() || null
+    payload.invited_by_email = me.email ?? null
+    return payload
+  }
+
+  for (const coll of ['game_guests', 'game_guest_teams']) {
+    const verb = coll === 'game_guests' ? 'invite a player' : 'open a game to a team'
+    filter(`${coll}.items.create`, async (payload, _meta, { database: db, accountability }) => {
+      await guestGameLeadGuard(payload, db, accountability, verb)
+      return stampInviter(payload, db, accountability)
+    })
+  }
+
+  // Tell the invited player. This is the whole point of the feature — the game lands
+  // on their home page and calendar silently otherwise, and a cup game they were
+  // borrowed for is exactly the one they must not miss.
+  //
+  // Fires per materialized row, which covers both paths: an individual invite is one
+  // row, and a team opening is one row per player written by the migration-271
+  // trigger. Trigger-written rows carry no accountability, so the guard above lets
+  // them through and this action still runs.
+  async function notifyGameGuest(guestId) {
+    const guest = await database('game_guests').where('id', guestId)
+      .select('id', 'game', 'member', 'via_team').first()
+    if (!guest?.member || !guest.game) return
+
+    const game = await database('games').where('id', guest.game)
+      .select('id', 'home_team', 'away_team', 'date', 'kscw_team', 'status').first()
+    if (!game || !game.date) return
+    // A past or called-off game is not worth a push.
+    const dateStr = safeDateStr(game.date)
+    const today = safeDateStr(new Date())
+    if (!dateStr || (today && dateStr < today)) return
+    if (['completed', 'postponed', 'cancelled'].includes(game.status ?? '')) return
+
+    // Dormant accounts get the in-app row but no push, mirroring notifyTrainingCancelled.
+    const member = await database('members').where('id', guest.member)
+      .select('id', 'wiedisync_active').first()
+    if (!member) return
+
+    const teamRow = game.kscw_team != null
+      ? await database('teams').where('id', game.kscw_team).select('name').first()
+      : null
+    const teamName = teamRow?.name || ''
+    const matchup = `${game.home_team ?? ''} - ${game.away_team ?? ''}`.trim()
+    const dateFmt = dateStr.split('-').reverse().join('.')  // dd.mm.yyyy
+
+    await database('notifications').insert({
+      member: guest.member,
+      type: 'game_invite',
+      title: 'game_invite',
+      body: JSON.stringify({ team: teamName, matchup, date: dateFmt }),
+      activity_type: 'game',
+      activity_id: String(game.id),
+      team: game.kscw_team ?? null,
+      read: false,
+    })
+
+    if (!member.wiedisync_active) return
+    await sendLocalizedPush(
+      database,
+      [guest.member],
+      (ids, title, body) => sendPushToMembers(database, ids, title, body, `${FRONTEND_URL}/games`, `game-invite-${game.id}`, log),
+      'gameInvite.title',
+      'gameInvite.body',
+      { team: teamName, matchup, date: dateFmt },
+    )
+  }
+
+  async function notifyGuestIds(ids, source) {
+    for (const id of ids) {
+      try { await notifyGameGuest(id) }
+      catch (err) { log.error({ msg: `[game-guest-notify] ${source}: ${err.message}`, event: 'game_guest_notify', guestId: id, stack: err.stack }) }
+    }
+  }
+
+  // Individually invited player — one items-API insert, one notification.
+  action('game_guests.items.create', async ({ key, keys }) => {
+    await notifyGuestIds(Array.isArray(keys) ? keys : (key != null ? [key] : []), 'individual')
+  })
+
+  // A team opening materializes its per-person rows inside Postgres (migration 271),
+  // which never touches the items API — so `game_guests.items.create` above does NOT
+  // fire for them and the borrowed players would be invited in silence. Read the rows
+  // the trigger just wrote and notify from here instead. The trigger runs in the same
+  // transaction as this insert, so by the time an action hook (post-commit) runs they
+  // are all there.
+  action('game_guest_teams.items.create', async ({ key, keys }) => {
+    const openingIds = Array.isArray(keys) ? keys : (key != null ? [key] : [])
+    if (openingIds.length === 0) return
+    try {
+      const openings = await database('game_guest_teams').whereIn('id', openingIds).select('game', 'team')
+      if (openings.length === 0) return
+      const rows = await database('game_guests')
+        .whereIn('game', openings.map(o => o.game))
+        .whereIn('via_team', openings.map(o => o.team))
+        .select('id')
+      await notifyGuestIds(rows.map(r => r.id), 'team-opening')
+    } catch (err) {
+      log.error({ msg: `[game-guest-notify] opening: ${err.message}`, event: 'game_guest_notify', stack: err.stack })
+    }
   })
 
   // ── Hall-slot → trainings cascade ──────────────────────────────

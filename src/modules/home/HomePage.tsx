@@ -25,6 +25,7 @@ import AnnouncementRow from './components/AnnouncementRow'
 import AnnouncementDetailModal from './components/AnnouncementDetailModal'
 import { useAnnouncements } from '../../hooks/useAnnouncements'
 import { useUserVisibleEventIds } from '../../hooks/useUserVisibleEventIds'
+import { useUserVisibleGameIds } from '../../hooks/useUserVisibleGameIds'
 import ParticipationSummary from '../../components/ParticipationSummary'
 import { useBulkParticipationStatuses, useBulkParticipations } from '../../hooks/useBulkParticipationStatuses'
 import { useEffectiveSeason } from '../../hooks/useEffectiveSeason'
@@ -176,11 +177,28 @@ export default function HomePage() {
   // its space.
   const tickerScopeLoading = isAdmin ? allActiveTeamsLoading : memberTeamsLoading
 
-  // Build team filter for games
+  // Games this member was invited to as a guest (migration 271) — filed under
+  // another team, so the team filter below would drop them.
+  const { guestGameIds } = useUserVisibleGameIds(user?.id)
+
+  // Build team filter for games. A guest invitation makes the fixture "mine" for
+  // every purpose this page serves, so it is OR-ed in rather than kept in a
+  // separate block — the borrowed player sees it in their next-games list exactly
+  // where their own team's games are.
   const teamGameFilter = useMemo((): Record<string, unknown> | null => {
-    if (!hasTeams) return null
-    return { kscw_team: { _in: userTeamIds } }
-  }, [userTeamIds, hasTeams])
+    const parts: Record<string, unknown>[] = []
+    if (hasTeams) parts.push({ kscw_team: { _in: userTeamIds } })
+    if (guestGameIds.length > 0) parts.push({ id: { _in: guestGameIds } })
+    if (parts.length === 0) return null
+    return parts.length === 1 ? parts[0] : { _or: parts }
+  }, [userTeamIds, hasTeams, guestGameIds])
+
+  // "Do I have games of my own?" — the games/results blocks key off this instead of
+  // `hasTeams`, so a member with no roster at all (a borrowed junior, a returning
+  // player between teams) still gets their invited fixture rather than the club-wide
+  // fallback list. Trainings, rankings and team blocks stay on `hasTeams`: an
+  // invitation to one game is not a team.
+  const hasOwnGames = hasTeams || guestGameIds.length > 0
 
   // Season-scoped so games/results flip to the new season once its data lands
   // (falls back to the latest season with data in the gap before then).
@@ -217,7 +235,7 @@ export default function HomePage() {
     fields: ['*', 'kscw_team.*', 'kscw_team.coach.members_id', 'kscw_team.team_responsible.members_id', 'hall.*'],
     sort: ['date', 'time'],
     limit: 5,
-    enabled: showAllGames || !hasTeams,
+    enabled: showAllGames || !hasOwnGames,
   })
   const allNextGames = allNextGamesRaw ?? []
 
@@ -233,7 +251,7 @@ export default function HomePage() {
     fields: ['*', 'kscw_team.*', 'kscw_team.coach.members_id', 'kscw_team.team_responsible.members_id', 'hall.*'],
     sort: ['date', 'time'],
     limit: 5,
-    enabled: hasTeams && !showAllGames,
+    enabled: hasOwnGames && !showAllGames,
   })
   const myNextGames = myNextGamesRaw ?? []
 
@@ -248,7 +266,7 @@ export default function HomePage() {
     fields: ['*', 'kscw_team.*', 'kscw_team.coach.members_id', 'kscw_team.team_responsible.members_id', 'hall.*'],
     sort: ['-date', '-time'],
     limit: 5,
-    enabled: showAllResults || !hasTeams,
+    enabled: showAllResults || !hasOwnGames,
   })
   const allLatestResults = allLatestResultsRaw ?? []
 
@@ -264,7 +282,7 @@ export default function HomePage() {
     fields: ['*', 'kscw_team.*', 'kscw_team.coach.members_id', 'kscw_team.team_responsible.members_id', 'hall.*'],
     sort: ['-date', '-time'],
     limit: 5,
-    enabled: hasTeams && !showAllResults,
+    enabled: hasOwnGames && !showAllResults,
   })
   const myLatestResults = myLatestResultsRaw ?? []
 
@@ -291,8 +309,8 @@ export default function HomePage() {
   const nextTrainings = nextTrainingsRaw ?? []
 
   // Decide which games/results to show
-  const nextGames = hasTeams && !showAllGames ? myNextGames : allNextGames
-  const latestResults = hasTeams && !showAllResults ? myLatestResults : allLatestResults
+  const nextGames = hasOwnGames && !showAllGames ? myNextGames : allNextGames
+  const latestResults = hasOwnGames && !showAllResults ? myLatestResults : allLatestResults
 
   // Upcoming events — scope to user's teams + club-wide events.
   // Resolve event IDs via the events_teams junction (single-level filter) rather
@@ -736,7 +754,7 @@ export default function HomePage() {
                     title={t('latestResults')}
                     linkTo="/games"
                     linkLabel={t('allResults')}
-                    filterToggle={hasTeams ? {
+                    filterToggle={hasOwnGames ? {
                       active: !showAllResults,
                       label: t('myTeams'),
                       onToggle: () => setShowAllResults((v) => !v),
@@ -750,7 +768,7 @@ export default function HomePage() {
                 </div>
               )}
               {/* When trainings column is present, keep next games stacked here */}
-              {hasTeams && nextGames.length > 0 && (
+              {hasOwnGames && nextGames.length > 0 && (
                 <div>
                   <SectionHeader
                     title={t('nextGames')}
@@ -772,7 +790,7 @@ export default function HomePage() {
             </div>
           }
           gamesDate={latestResults[0]?.date ?? nextGames[0]?.date}
-          nextGamesSection={!hasTeams && nextGames.length > 0 ? (
+          nextGamesSection={!hasOwnGames && nextGames.length > 0 ? (
             <div className="min-w-0">
               <SectionHeader title={t('nextGames')} linkTo="/games" linkLabel={t('allGames')} />
               <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
@@ -782,7 +800,7 @@ export default function HomePage() {
               </div>
             </div>
           ) : undefined}
-          nextGamesDate={!hasTeams ? nextGames[0]?.date : undefined}
+          nextGamesDate={!hasOwnGames ? nextGames[0]?.date : undefined}
         />
       )}
 

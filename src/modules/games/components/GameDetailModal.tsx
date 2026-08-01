@@ -24,6 +24,7 @@ import { sanitizeUrl } from '../../../utils/sanitizeUrl'
 import DatePicker from '@/components/ui/DatePicker'
 import { currentLocale, formatDate, formatTime, formatDateTimeCompactZurich, parseRespondByTime, toUtcIsoFromDatetimeLocal, isWithinDutyLateWindow, gameKickoffMs } from '../../../utils/dateHelpers'
 import RefereeExpenseSection from './RefereeExpenseSection'
+import GameGuestSection from './GameGuestSection'
 import BroadcastButton from '../../broadcast/BroadcastButton'
 import { isFeatureEnabled } from '../../../utils/featureToggles'
 import { asObj, relId, teamCoachIds, memberDisplayName } from '../../../utils/relations'
@@ -922,6 +923,17 @@ export default function GameDetailModal({ game, onClose, readOnly }: GameDetailM
               )
             )}
           </div>
+        )}
+
+        {/* Players borrowed for this one fixture (migration 271). Rendered for
+            everyone when the game has guests — an unfamiliar name in the roster
+            needs an explanation — but only the game's own coach/TR can change it. */}
+        {kscwTeamId && game.status === 'scheduled' && (
+          <GameGuestSection
+            game={game}
+            kscwTeamId={kscwTeamId}
+            canEdit={!readOnly && (adminSeesContact || coachTeamIds.includes(kscwTeamId) || teamResponsibleIds.includes(kscwTeamId))}
+          />
         )}
       </div>
     </div>

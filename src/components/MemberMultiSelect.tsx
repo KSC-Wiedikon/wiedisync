@@ -8,9 +8,18 @@ import { memberDisplayName } from '../utils/relations'
 interface MemberMultiSelectProps {
   selected: string[]
   onChange: (ids: string[]) => void
+  /** When set, only these member IDs are offered. Used by the game guest picker to
+   *  narrow the club to same-sport players who aren't already on the game's roster —
+   *  offering the other 300 would make picking a stand-in an exercise in scrolling. */
+  restrictToIds?: string[] | null
+  /** memberId → short warning shown on the right of a candidate row (e.g. "Has a game
+   *  that day"). Advisory only: it never blocks the pick, because the two coaches, not
+   *  the app, decide whose fixture wins. */
+  noteByMember?: Map<string, string>
+  placeholder?: string
 }
 
-export default function MemberMultiSelect({ selected, onChange }: MemberMultiSelectProps) {
+export default function MemberMultiSelect({ selected, onChange, restrictToIds, noteByMember, placeholder }: MemberMultiSelectProps) {
   const { t } = useTranslation('invitations')
   const [search, setSearch] = useState('')
   const [open, setOpen] = useState(false)
@@ -22,7 +31,15 @@ export default function MemberMultiSelect({ selected, onChange }: MemberMultiSel
     sort: ['last_name', 'first_name'],
     limit: -1,
   })
-  const members = membersRaw ?? []
+  const allMembers = useMemo(() => membersRaw ?? [], [membersRaw])
+  const members = useMemo(() => {
+    if (!restrictToIds) return allMembers
+    const allowed = new Set(restrictToIds.map(String))
+    // Already-selected members stay in the pool so their chip can still resolve a
+    // name and be un-picked after the restriction narrows.
+    const keep = new Set([...allowed, ...selected.map(String)])
+    return allMembers.filter(m => keep.has(String(m.id)))
+  }, [allMembers, restrictToIds, selected])
 
   const filtered = useMemo(() => {
     if (!search) return members
@@ -71,7 +88,7 @@ export default function MemberMultiSelect({ selected, onChange }: MemberMultiSel
             value={search}
             onChange={e => { setSearch(e.target.value); setOpen(true) }}
             onFocus={() => setOpen(true)}
-            placeholder={t('searchMembers')}
+            placeholder={placeholder ?? t('searchMembers')}
             className="flex-1 bg-transparent text-sm outline-none dark:text-gray-100"
           />
         </div>
@@ -98,7 +115,9 @@ export default function MemberMultiSelect({ selected, onChange }: MemberMultiSel
                     {isSelected && <Check className="h-3 w-3" />}
                   </div>
                   <span className="dark:text-gray-100">{memberDisplayName(m)}</span>
-                  <span className="ml-auto text-xs text-muted-foreground">{m.email}</span>
+                  {noteByMember?.get(String(m.id))
+                    ? <span className="ml-auto text-xs font-medium text-amber-600 dark:text-amber-400">{noteByMember.get(String(m.id))}</span>
+                    : <span className="ml-auto text-xs text-muted-foreground">{m.email}</span>}
                 </button>
               )
             })}
