@@ -1,8 +1,10 @@
 import { useTranslation } from 'react-i18next'
-import { ScrollText } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
+import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '1.56.2'
+const APP_VERSION = '1.57.0'
 
 interface ChangelogEntry {
   version: string
@@ -11,6 +13,19 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.57.0',
+    date: '01.08.2026',
+    sections: [
+      {
+        title: 'New: hall sizes and photos in the hall finder',
+        items: [
+          'Every hall in the hall finder now shows its size — length, width and ceiling height, exactly as the city publishes it. All 104 halls have one, so it is finally possible to tell a full-size sport hall from a small gymnastics room without opening the city website for each.',
+          'A photo of the hall where the city has one on file (about half of them). Tap it to see it full size.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.56.2',
     date: '30.07.2026',
@@ -1153,6 +1168,8 @@ export { APP_VERSION }
 
 export default function ChangelogPage() {
   const { t } = useTranslation('nav')
+  const { t: tSupport } = useTranslation('support')
+  const donateVisible = useDonateVisible()
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -1192,6 +1209,18 @@ export default function ChangelogPage() {
           </div>
         ))}
       </div>
+
+      {/* Someone who just read what shipped is the warmest moment to ask —
+          and the only other place this is offered is the options menu. */}
+      {donateVisible && (
+        <Link
+          to="/support"
+          className="mt-8 flex min-h-[44px] items-center justify-center gap-2 rounded-lg border border-gray-200 px-4 py-3 text-sm text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-700 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+        >
+          <Coffee className="h-4 w-4" />
+          {tSupport('menuLabel')}
+        </Link>
+      )}
     </div>
   )
 }

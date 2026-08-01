@@ -408,6 +408,12 @@ const MEMBER_EDITABLE_FIELDS = [
   // enforced in the send paths, never the in-app notification bell.
   'email_notify_registrations', 'email_notify_join_requests',
   'email_notify_form_submissions', 'email_notify_announcements', 'email_notify_events',
+  // 2026-08-01 migration 270: the member's own "I checked, my data is correct"
+  // stamp for the annual pre-licence data check. Self-asserted BY DESIGN — the
+  // fact being recorded is "this person looked at their record and said yes",
+  // which only they can assert. Without the write grant Directus silently drops
+  // the field from their save and the gate reappears on every login.
+  'profile_verified_at',
 ]
 
 /**

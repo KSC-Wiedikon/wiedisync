@@ -257,6 +257,8 @@ export interface Member extends BaseRecord {
   communications_banned?: boolean
   push_preview_content?: boolean
   last_online_at?: string | null
+  /** Annual pre-licence data check (migration 270) — when the member last confirmed their profile. */
+  profile_verified_at?: string | null
   consent_decision?: ConsentDecision
   consent_prompted_at?: string | null
 

@@ -28,6 +28,11 @@ function toMin(hhmm) {
   return m ? Number(m[1]) * 60 + Number(m[2]) : null
 }
 
+// Dimensions are reported EXACTLY as the city publishes them (`size_label`,
+// e.g. "23,00 x 10,90 x 5,40 m"). Deliberately no derived "fits a volleyball
+// court" verdict: any such rule would be our guess dressed up as a fact, and
+// the coach reading the table knows better than a threshold does.
+
 /** Parse a window string ("18:00-22:00" or "18:00-20:00 / 20:30-22:00") to [[a,b],…] minutes. */
 function parseWindow(win) {
   if (!win) return []
@@ -110,6 +115,9 @@ export function registerHallenfinder(router, { database, logger }) {
         .select(
           'a.einrichtung_id', 'a.weekday', 'a.dates', 'a.scrape_window_to', 'a.scraped_at',
           'h.name', 'h.hall_type', 'h.address', 'h.plz', 'h.stadtkreis', 'h.stadtquartier', 'h.schulkreis',
+          // Migration 269 — dimensions, photo and rental contact.
+          'h.hall_type_label', 'h.size_label', 'h.length_m', 'h.width_m', 'h.height_m',
+          'h.partitions', 'h.photo_url', 'h.photo_thumb_url', 'h.contact_email',
         )
 
       let lastUpdated = null
@@ -140,6 +148,17 @@ export function registerHallenfinder(router, { database, logger }) {
           stadtkreis: r.stadtkreis,
           stadtquartier: r.stadtquartier,
           schulkreis: r.schulkreis,
+          // Migration 269. numeric(6,2) comes back from pg as a string —
+          // Number() it here so the frontend never formats "23.00" as text.
+          hallTypeLabel: r.hall_type_label ?? null,
+          sizeLabel: r.size_label ?? null,
+          lengthM: r.length_m === null || r.length_m === undefined ? null : Number(r.length_m),
+          widthM: r.width_m === null || r.width_m === undefined ? null : Number(r.width_m),
+          heightM: r.height_m === null || r.height_m === undefined ? null : Number(r.height_m),
+          partitions: Array.isArray(r.partitions) ? r.partitions : JSON.parse(r.partitions || '[]'),
+          photoUrl: r.photo_url ?? null,
+          photoThumbUrl: r.photo_thumb_url ?? null,
+          contactEmail: r.contact_email ?? null,
           weekday: r.weekday,
           weeksTotal: usable.length,
           weeksFree: satisfied.length,

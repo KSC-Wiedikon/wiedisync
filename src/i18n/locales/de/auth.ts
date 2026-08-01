@@ -124,6 +124,11 @@ export default {
   // Onboarding
   onboardingTitle: 'Willkommen beim KSC Wiedikon',
   onboardingSubtitle: 'Bitte vervollständige dein Profil, um fortzufahren.',
+  verifyTitle: 'Bitte überprüfe deine Daten',
+  verifyBody: 'Wir bearbeiten demnächst die Lizenzen für die nächste Saison. Bitte prüfe, ob unten alles stimmt — Adresse, E-Mail, Telefonnummer, Geburtsdatum, Nationalität, Herkunftsverband, Geschlecht, Spielposition und Trikotnummer sowie deine IBAN und AHV-Nummer, falls vorhanden.',
+  verifyReadOnly: 'Ausgegraute Felder wie Beitragskategorie und Lizenz kann nur der Verein ändern. Falls dort etwas nicht stimmt, melde dich bei Luca oder deinem TK.',
+  verifyMinors: 'Wenn du unter 16 bist, mach das bitte zusammen mit einem Elternteil.',
+  verifyConfirm: 'Alles ist korrekt',
   language: 'Sprache',
   languageGerman: 'Deutsch',
   languageEnglish: 'English',

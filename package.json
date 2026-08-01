@@ -1,7 +1,7 @@
 {
   "name": "wiedisync",
   "private": true,
-  "version": "1.56.2",
+  "version": "1.57.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -75,7 +75,9 @@
     "hallenfinder:scrape": "node directus/scripts/hallenfinder-scrape.mjs",
     "hallenfinder:sync:dev": "node directus/scripts/hallenfinder-scrape.mjs --emit-sql | ssh hetzner 'sudo docker exec -i kscw-postgres psql -U supabase_admin -d directus_kscw_dev -X -v ON_ERROR_STOP=1'",
     "hallenfinder:sync:prod": "node directus/scripts/hallenfinder-scrape.mjs --emit-sql | ssh hetzner 'sudo docker exec -i kscw-postgres psql -U supabase_admin -d postgres -X -v ON_ERROR_STOP=1'",
-    "hallenfinder:deploy": "rsync -avz directus/scripts/hallenfinder-scrape.mjs directus/scripts/hallenfinder-sync.sh hetzner:/tmp/hallenfinder-deploy/ && rsync -avz directus/scripts/hallenfinder/ hetzner:/tmp/hallenfinder-deploy/hallenfinder/ && ssh hetzner \"sudo mkdir -p /opt/hallenfinder-sync/hallenfinder && sudo cp -f /tmp/hallenfinder-deploy/hallenfinder-scrape.mjs /tmp/hallenfinder-deploy/hallenfinder-sync.sh /opt/hallenfinder-sync/ && sudo cp -f /tmp/hallenfinder-deploy/hallenfinder/*.mjs /opt/hallenfinder-sync/hallenfinder/ && sudo chmod +x /opt/hallenfinder-sync/hallenfinder-sync.sh && rm -rf /tmp/hallenfinder-deploy\"",
+    "hallenfinder:details:dev": "directus/scripts/hallenfinder-details-run.sh dev",
+    "hallenfinder:details:prod": "directus/scripts/hallenfinder-details-run.sh prod",
+    "hallenfinder:deploy": "rsync -avz directus/scripts/hallenfinder-scrape.mjs directus/scripts/hallenfinder-details.mjs directus/scripts/hallenfinder-sync.sh hetzner:/tmp/hallenfinder-deploy/ && rsync -avz directus/scripts/hallenfinder/ hetzner:/tmp/hallenfinder-deploy/hallenfinder/ && ssh hetzner \"sudo mkdir -p /opt/hallenfinder-sync/hallenfinder && sudo cp -f /tmp/hallenfinder-deploy/hallenfinder-scrape.mjs /tmp/hallenfinder-deploy/hallenfinder-details.mjs /tmp/hallenfinder-deploy/hallenfinder-sync.sh /opt/hallenfinder-sync/ && sudo cp -f /tmp/hallenfinder-deploy/hallenfinder/*.mjs /opt/hallenfinder-sync/hallenfinder/ && sudo chmod +x /opt/hallenfinder-sync/hallenfinder-sync.sh && rm -rf /tmp/hallenfinder-deploy\"",
     "docs:graph": "node docs/code-graph/extract-graph.mjs && node docs/code-graph/gen-layer1.mjs && node docs/code-graph/gen-html.mjs"
   },
   "dependencies": {

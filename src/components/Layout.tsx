@@ -7,6 +7,7 @@ import { useNotifications } from '../hooks/useNotifications'
 import { getCurrentSeason } from '../utils/dateHelpers'
 import { isAuthenticated } from '../lib/api'
 import { useAdminMode } from '../hooks/useAdminMode'
+import { useProfileReviewDue } from '../hooks/useProfileReviewDue'
 import BottomTabBar from './BottomTabBar'
 import MoreSheet from './MoreSheet'
 import NotificationPanel from './NotificationPanel'
@@ -23,6 +24,8 @@ export default function Layout() {
   const [moreOpen, setMoreOpen] = useState(false)
   const [notifPanelOpen, setNotifPanelOpen] = useState(false)
   const { user, isApproved, isProfileComplete, isImpersonating, isLoading, teamsLoading } = useAuth()
+  // Already excludes impersonation and unapproved accounts — see the hook.
+  const profileReviewDue = useProfileReviewDue()
   const { notifications, unreadCount, markAsRead, markAllAsRead, deleteNotification, clearAllRead } = useNotifications()
   const { t } = useTranslation('nav')
   const isDesktop = useIsDesktop()
@@ -137,6 +140,19 @@ export default function Layout() {
           open
           onClose={() => {}}
           onboarding
+          dismissable={false}
+        />
+      )}
+
+      {/* Annual pre-licence data check (migration 270) — same hard-gate
+          machinery, but only once the profile is COMPLETE: an incomplete
+          profile already has the onboarding gate above, and stacking both would
+          put two modals on screen asking for overlapping things. */}
+      {user && isApproved && isProfileComplete && profileReviewDue && (
+        <ProfileEditModal
+          open
+          onClose={() => {}}
+          verify
           dismissable={false}
         />
       )}
