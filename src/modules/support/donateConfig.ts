@@ -13,10 +13,27 @@ import { useAuth } from '../../hooks/useAuth'
 import { useCollection } from '../../lib/query'
 
 /**
- * Payrexx paylink — CHF, TWINT and card in one hosted page (~1.35–1.65% fee,
- * Swiss-hosted). Chosen over Buy Me a Coffee / Ko-fi because neither of those
- * settles in CHF or offers TWINT, which is what Swiss members actually reach
- * for. Paste the paylink here once the Payrexx page is live.
+ * Hosted payment page (Payrexx Donation or equivalent). EMPTY ON PURPOSE.
+ *
+ * A working page existed at
+ * `https://lucanepa.payrexx.com/en/pay?cid=e9af1e40&hide_description=1&donation%5Bpreselect_interval%5D=one_time`
+ * but Payrexx is a MERCHANT gateway — there is no private-person mode, so
+ * "Verify account" means registering as a business, with the bookkeeping and
+ * tax tail that follows. That is wildly disproportionate for coffee money, and
+ * it reframes a gift between two private people as a business taking payments.
+ * The TWINT rail below describes what is actually happening, for zero fees and
+ * zero onboarding.
+ *
+ * If a hosted page is ever wanted again, paste its URL here — the page renders
+ * whichever rails are configured. Two things to keep in mind:
+ *   • Use the plain URL, NOT Payrexx's embed snippet: it pulls jQuery from
+ *     cdnjs plus media.payrexx.com/modal/v1/modal.min.js, and our CSP is
+ *     `script-src 'self' …`, so both are blocked outright.
+ *   • That page was English-only — /de/, /fr/ and /it/ all 302 to /en/.
+ *
+ * ⚠ Different question entirely: a Payrexx account in the CLUB's name, for dues
+ * reconciled into the finance module, is perfectly appropriate — KSCW really is
+ * an organisation. That is a Vorstand decision, not this button.
  */
 export const PAYREXX_URL = ''
 
@@ -26,7 +43,7 @@ export const PAYREXX_URL = ''
  * the free rail is necessarily "type this number into the app".
  * Format for display, e.g. '+41 79 123 45 67'.
  */
-export const TWINT_NUMBER = ''
+export const TWINT_NUMBER = '079 789 18 17'
 
 /** True when at least one rail is configured — otherwise nothing is rendered. */
 export function donateConfigured(): boolean {
