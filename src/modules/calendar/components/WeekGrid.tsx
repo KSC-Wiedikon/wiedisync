@@ -11,7 +11,7 @@ import {
   dayHeaders,
 } from '../../../utils/dateUtils'
 import { formatDateCompactZurich } from '../../../utils/dateHelpers'
-import { blockClasses } from '../entryStyle'
+import { blockClasses, cancelledClasses } from '../entryStyle'
 import {
   HOUR_HEIGHT,
   TOP_PAD,
@@ -180,7 +180,7 @@ export default function WeekGrid({
                     key={e.id}
                     type="button"
                     onClick={() => onEntryClick?.(e)}
-                    className={`block w-full truncate rounded px-1 text-[10px] font-medium leading-[16px] transition-opacity hover:opacity-80 ${blockClasses(e)}`}
+                    className={`block w-full truncate rounded px-1 text-[10px] font-medium leading-[16px] transition-opacity hover:opacity-80 ${blockClasses(e)} ${cancelledClasses(e)}`}
                   >
                     {e.title}
                   </button>
@@ -253,7 +253,7 @@ export default function WeekGrid({
                     key={pe.entry.id}
                     type="button"
                     onClick={() => onEntryClick?.(pe.entry)}
-                    className={`absolute overflow-hidden rounded px-1 text-[10px] leading-tight transition-opacity hover:opacity-80 lg:text-xs ${blockClasses(pe.entry)}`}
+                    className={`absolute overflow-hidden rounded px-1 text-[10px] leading-tight transition-opacity hover:opacity-80 lg:text-xs ${blockClasses(pe.entry)} ${cancelledClasses(pe.entry)}`}
                     style={{
                       top: pe.top,
                       height: pe.height,

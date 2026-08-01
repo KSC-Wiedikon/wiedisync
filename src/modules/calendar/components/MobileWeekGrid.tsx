@@ -8,7 +8,7 @@ import {
 } from '../../../utils/dateUtils'
 import { formatDateCompactZurich } from '../../../utils/dateHelpers'
 import { addDays } from 'date-fns'
-import { blockClasses } from '../entryStyle'
+import { blockClasses, cancelledClasses } from '../entryStyle'
 import {
   HOUR_HEIGHT,
   TOP_PAD,
@@ -173,7 +173,7 @@ export default function MobileWeekGrid({
                       key={e.id}
                       type="button"
                       onClick={() => onEntryClick?.(e)}
-                      className={`block w-full truncate rounded px-1 text-[9px] font-medium leading-[14px] ${blockClasses(e)}`}
+                      className={`block w-full truncate rounded px-1 text-[9px] font-medium leading-[14px] ${blockClasses(e)} ${cancelledClasses(e)}`}
                     >
                       {e.title}
                     </button>
@@ -247,7 +247,7 @@ export default function MobileWeekGrid({
                     key={pe.entry.id}
                     type="button"
                     onClick={() => onEntryClick?.(pe.entry)}
-                    className={`absolute overflow-hidden rounded px-1 py-0.5 text-[10px] leading-tight ${blockClasses(pe.entry)}`}
+                    className={`absolute overflow-hidden rounded px-1 py-0.5 text-[10px] leading-tight ${blockClasses(pe.entry)} ${cancelledClasses(pe.entry)}`}
                     style={{
                       top: pe.top + 1,
                       height: pe.height - 2,

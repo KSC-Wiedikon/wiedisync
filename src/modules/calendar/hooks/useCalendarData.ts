@@ -100,6 +100,9 @@ function gameToEntry(
     startTime: game.time ? formatTime(game.time) : null,
     endTime: null,
     allDay: false,
+    // 'postponed' deliberately does NOT count: the fixture still exists and
+    // will be re-dated, whereas 'cancelled' means it is not being played.
+    cancelled: game.status === 'cancelled',
     description: [game.league, game.round].filter(Boolean).join(' | '),
     source: game,
   }
@@ -140,9 +143,12 @@ function trainingToEntry(training: Training & { team?: Team | string; hall?: { n
     allDay: false,
     location: expandedHall?.name ?? '',
     teamNames: expandedTeam ? [expandedTeam.name] : [],
-    description: training.cancelled
-      ? `Abgesagt: ${training.cancel_reason ?? ''}`
-      : training.notes ?? '',
+    // Cancellation travels as the `cancelled` flag, not baked into the text:
+    // the views render it (struck through) and `CalendarEntryModal` already has
+    // its own status row, so a prefix here would only duplicate — and the old
+    // one was a hardcoded German "Abgesagt:" served to all five locales.
+    cancelled: training.cancelled === true,
+    description: (training.cancelled ? training.cancel_reason : training.notes) ?? '',
     source: training,
   }
 }
@@ -169,6 +175,7 @@ function eventToEntry(event: Event): CalendarEntry {
     allDay: event.all_day || !!isMultiDay,
     location: event.location ?? '',
     teamNames: [],
+    cancelled: event.cancelled === true,
     description: event.description ?? '',
     source: event,
   }

@@ -90,6 +90,7 @@ export default {
   // Entry detail modal + grid overlays
   coach: 'Coach',
   cancelled: 'Cancelled',
+  cancelledGameDay: 'Cancelled — game day',
   moreCount: '+{{count}} more',
   absentCount: '{{count}} absent',
   eventTypeVerein: 'Club',

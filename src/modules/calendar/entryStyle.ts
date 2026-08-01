@@ -95,3 +95,17 @@ export function blockClasses(e: CalendarEntry): string {
   const c = barColors[colorKey(e)] ?? barColors.game
   return `${c.bg} ${c.text} ${c.darkBg} ${c.darkText}`
 }
+
+/**
+ * Label classes for a cancelled entry — struck through and dimmed; empty for a
+ * live one, so it composes into any className.
+ *
+ * Colour alone can't carry this: the palette above is keyed by *type*, and a
+ * cancelled training has to stay green enough to still read as a training.
+ * Apply it to whatever the view shows (time, title, or the whole row) rather
+ * than to the title alone — most grids hide the title at narrow widths, and a
+ * bare unstruck "18:00" is the same lie as before.
+ */
+export function cancelledClasses(e: CalendarEntry): string {
+  return e.cancelled ? 'line-through opacity-60' : ''
+}

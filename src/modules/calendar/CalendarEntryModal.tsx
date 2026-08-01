@@ -136,7 +136,10 @@ export default function CalendarEntryModal({ entry, onClose, onRefresh }: Calend
               <DetailRow label={t('common:hall')} value={entry.location} />
             )}
 
-            {entry.description && entry.type !== 'event' && entry.type !== 'absence' && (
+            {/* Trainings are excluded too: `renderTrainingDetails` below already
+                renders both the notes and the cancellation reason, and the
+                generic row was printing whichever of the two twice. */}
+            {entry.description && entry.type !== 'event' && entry.type !== 'absence' && entry.type !== 'training' && (
               <DetailRow label={t('common:details')} value={entry.description} />
             )}
 
@@ -247,7 +250,14 @@ function renderTrainingDetails(training: Training, t: (key: string) => string) {
   return (
     <>
       {training.cancelled && (
-        <DetailRow label={t('common:status')} value={training.cancel_reason || t('cancelled')} />
+        // The automatic cancels (migration 191 hall-block, 261 own game day)
+        // set no `cancel_reason` — they'd otherwise read as a bare "Cancelled"
+        // with no hint that a game is the reason, which is the question every
+        // member asks when they see it struck through next to a fixture.
+        <DetailRow
+          label={t('common:status')}
+          value={training.cancel_reason || (training.auto_shortened_by_game ? t('cancelledGameDay') : t('cancelled'))}
+        />
       )}
       {coachName && (
         <DetailRow label={t('coach')} value={coachName} />
