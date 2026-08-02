@@ -15,6 +15,7 @@ import AdminRoute from './components/AdminRoute'
 import GlobalAdminRoute from './components/GlobalAdminRoute'
 import SuperAdminRoute from './components/SuperAdminRoute'
 import GamesPage from './modules/games/GamesPage'
+import LivePage from './modules/live/LivePage'
 import TrainingsPage from './modules/trainings/TrainingsPage'
 import AbsencesPage from './modules/absences/AbsencesPage'
 import ScorerPage from './modules/scorer/ScorerPage'
@@ -166,6 +167,9 @@ export default function App() {
             <Route index element={<AuthRoute><HomePage /></AuthRoute>} />
             <Route path="calendar" element={<AuthRoute><CalendarPage /></AuthRoute>} />
             <Route path="games" element={<GamesPage />} />
+            {/* Public spectator page — no AuthRoute. Most viewers in the hall are
+                not logged in, and `live_scores` is granted to the Public policy. */}
+            <Route path="live" element={<LivePage />} />
             <Route path="trainings" element={<AuthRoute><TrainingsPage /></AuthRoute>} />
             <Route path="absences" element={<AuthRoute><AbsencesPage /></AuthRoute>} />
             <Route path="scorer" element={<AuthRoute><ScorerPage /></AuthRoute>} />

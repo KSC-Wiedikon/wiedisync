@@ -741,6 +741,13 @@ async function main() {
   // go through the /kscw/finance/* endpoints (gated in code via canManageFinance).
   const FINANCE_POLICY = await findOrCreatePolicy('KSCW Finance', { icon: 'account_balance', app_access: true })
 
+  // LedBox scoreboard publisher (migration 272). Held by ONE service user via a
+  // static token, never attached to a role — the hall's LED board authenticates
+  // with it to PATCH its own `live_scores` row. Scoped to that collection alone
+  // (create/read/update, no delete) and no app access: a leaked board token can
+  // rewrite the scoreboard and nothing else.
+  const LEDBOX_POLICY = await findOrCreatePolicy('KSCW LedBox Publisher', { icon: 'scoreboard', app_access: false })
+
   console.log(`  Member policy: ${MEMBER_POLICY}`)
   console.log(`  Team Responsible policy: ${LEADER_POLICY}`)
   console.log(`  Vorstand policy: ${VORSTAND_POLICY}`)
@@ -795,6 +802,8 @@ async function main() {
   await clearPolicyPermissions(FINANCE_POLICY, 'Finance')
   // Spielplaner is likewise held only by spielplaner users (§14) — no "wall" risk.
   await clearPolicyPermissions(SPIELPLANER_POLICY, 'Spielplaner')
+  // LedBox publisher holds exactly one collection — safe to clear and recreate.
+  await clearPolicyPermissions(LEDBOX_POLICY, 'LedBox Publisher')
 
   // ── 5. Public permissions ──────────────────────────────────────
 
@@ -889,10 +898,26 @@ async function main() {
     await setPermRead(PUBLIC_POLICY, 'directus_files', { folder: { _null: true } })
     await setPerm(PUBLIC_POLICY, 'directus_files', 'create')
 
+    // Live scoreboard (migration 272) — the /live page is a PUBLIC spectator view
+    // and most viewers in the hall are not logged in. The row holds nothing but a
+    // match score, two team names and their colours, so it is public in full.
+    await setPermRead(PUBLIC_POLICY, 'live_scores')
+
     console.log(`  ✓ Public permissions set`)
   } else {
     console.log('\n5. ⚠ No public policy found — skipping public permissions')
   }
+
+  // ── 5b. LedBox scoreboard publisher ────────────────────────────
+  // The board's write path. create (self-heals a missing row) + read (a PATCH
+  // response reads the row back) + update (every score change). NO delete, and
+  // nothing outside `live_scores`.
+
+  console.log('\n5b. LedBox publisher permissions...')
+  await setPerm(LEDBOX_POLICY, 'live_scores', 'create')
+  await setPerm(LEDBOX_POLICY, 'live_scores', 'read')
+  await setPerm(LEDBOX_POLICY, 'live_scores', 'update')
+  console.log('  ✓ LedBox publisher permissions set')
 
   // ── 6. Member permissions ──────────────────────────────────────
 

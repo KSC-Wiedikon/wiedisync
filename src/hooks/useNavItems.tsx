@@ -4,7 +4,7 @@ import { useAdminMode } from './useAdminMode'
 import { messagingFeatureEnabled } from '../utils/messagingFeatureFlag'
 import { SCHEDULING_ORIGIN } from '../lib/api'
 import {
-  Home, Calendar, UserX, PenSquare, PartyPopper, Users,
+  Home, Calendar, UserX, PenSquare, PartyPopper, Users, Radio,
   Building2, CalendarClock, Activity, ClipboardList, ClipboardCheck,
   HeartPulse, MessageSquare, Inbox, Mail, Banknote, BarChart3, UserPlus, Bug, Database, Megaphone, Newspaper, Flag, ScrollText, Terminal, Gavel, Wallet, Landmark, ReceiptText, FileWarning, FolderSync, GraduationCap, ArrowRightLeft,
 } from 'lucide-react'
@@ -38,6 +38,9 @@ export function useNavItems(isLoggedIn: boolean, isApproved: boolean, memberId?:
     { to: '/', label: t('home'), icon: <Home className={iconClass} /> },
     { to: '/calendar', label: t('calendar'), icon: <Calendar className={iconClass} /> },
     { to: '/games', label: t('games'), icon: <WhistleIcon className={iconClass} /> },
+    // Live scoreboard — public like /games: spectators in the hall follow it
+    // without an account (the `live_scores` read is on the Public policy).
+    { to: '/live', label: t('live'), icon: <Radio className={iconClass} /> },
   ]
   // Primary = the daily "what's happening" views (these mirror the mobile bottom
   // tab bar). In the desktop top navbar Home stays a direct link and the rest are

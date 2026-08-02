@@ -1,0 +1,7 @@
+# Local dev secrets for `wrangler dev`. Copy to `.dev.vars` (gitignored) and fill in.
+# In production this is set with:  npx wrangler secret put RELAY_TOKEN
+#
+# Shared secret the board bridge must present as `Authorization: Bearer <token>`
+# on POST /publish/:channel. Generate a strong one, e.g.:
+#   node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
+RELAY_TOKEN=replace-with-a-long-random-string-min-24-chars

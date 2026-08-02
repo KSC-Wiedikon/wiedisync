@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-08-01T16:10:57.840Z
+-- Generated:   2026-08-02T22:22:55.428Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -23,7 +23,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict zYvSQKSDyjt2IcUwzU6glmNp0b2UIDfQbHrMAyBF8mjtZ072feQCvePPs72tDUH
+\restrict xS7sSy6i2wg6eIKkfGo2LYt1SeF3sf9w4gef33ybGaaeV0wbUWyQuPZifg8IMlG
 
 -- Dumped from database version 16.14 (Debian 16.14-1.pgdg13+1)
 -- Dumped by pg_dump version 16.14 (Debian 16.14-1.pgdg13+1)
@@ -5337,6 +5337,135 @@ CREATE TABLE public.kscw_migrations (
 
 
 --
+-- Name: live_scores; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.live_scores (
+    channel character varying(64) NOT NULL,
+    sport character varying(16) DEFAULT 'volleyball'::character varying NOT NULL,
+    status character varying(16) DEFAULT 'idle'::character varying NOT NULL,
+    event character varying(32),
+    ts bigint DEFAULT 0 NOT NULL,
+    over boolean DEFAULT false NOT NULL,
+    period integer DEFAULT 0 NOT NULL,
+    side_a character varying(8) DEFAULT 'left'::character varying NOT NULL,
+    team_a_name character varying(120),
+    team_a_short character varying(16),
+    team_a_color character varying(16),
+    team_b_name character varying(120),
+    team_b_short character varying(16),
+    team_b_color character varying(16),
+    points_a integer DEFAULT 0 NOT NULL,
+    points_b integer DEFAULT 0 NOT NULL,
+    sets_won_a integer DEFAULT 0 NOT NULL,
+    sets_won_b integer DEFAULT 0 NOT NULL,
+    timeouts_a integer DEFAULT 0 NOT NULL,
+    timeouts_b integer DEFAULT 0 NOT NULL,
+    subs_a integer DEFAULT 0 NOT NULL,
+    subs_b integer DEFAULT 0 NOT NULL,
+    fouls_a integer DEFAULT 0 NOT NULL,
+    fouls_b integer DEFAULT 0 NOT NULL,
+    serving_team character varying(8),
+    set_results jsonb DEFAULT '[]'::jsonb NOT NULL,
+    date_updated timestamp with time zone,
+    CONSTRAINT live_scores_serving_check CHECK (((serving_team IS NULL) OR ((serving_team)::text = ANY ((ARRAY['left'::character varying, 'right'::character varying])::text[])))),
+    CONSTRAINT live_scores_sport_check CHECK (((sport)::text = ANY ((ARRAY['volleyball'::character varying, 'beach'::character varying, 'basketball'::character varying])::text[]))),
+    CONSTRAINT live_scores_status_check CHECK (((status)::text = ANY ((ARRAY['idle'::character varying, 'live'::character varying, 'final'::character varying])::text[])))
+);
+
+
+--
+-- Name: TABLE live_scores; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.live_scores IS 'Published state of a physical LedBox scoreboard, one row per channel. Written by the board''s static publisher token, read publicly by /live. Sport-agnostic superset — see the `sport` column.';
+
+
+--
+-- Name: COLUMN live_scores.channel; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.live_scores.channel IS 'Manual PK = the physical scoreboard. The board overwrites this row; it never appends.';
+
+
+--
+-- Name: COLUMN live_scores.sport; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.live_scores.sport IS 'volleyball | beach | basketball — selects how /live renders the row.';
+
+
+--
+-- Name: COLUMN live_scores.status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.live_scores.status IS 'Publication lifecycle: idle (no match) | live | final. The page trusts this over `over`.';
+
+
+--
+-- Name: COLUMN live_scores.ts; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.live_scores.ts IS 'ms epoch of the change. The app drops any frame whose ts is older than the last one applied.';
+
+
+--
+-- Name: COLUMN live_scores.over; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.live_scores.over IS 'The scoring firmware''s own match-over flag. A hint; `status` is authoritative.';
+
+
+--
+-- Name: COLUMN live_scores.period; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.live_scores.period IS 'Basketball period: 1..4 = Q1..Q4, 5+ = overtime. Unused by volleyball/beach (the set number is set_results length + 1).';
+
+
+--
+-- Name: COLUMN live_scores.subs_a; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.live_scores.subs_a IS 'Volleyball substitutions this set. Beach has no substitutions — /live hides it there.';
+
+
+--
+-- Name: COLUMN live_scores.subs_b; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.live_scores.subs_b IS 'Volleyball substitutions this set. Beach has no substitutions — /live hides it there.';
+
+
+--
+-- Name: COLUMN live_scores.fouls_a; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.live_scores.fouls_a IS 'Basketball team fouls in the CURRENT period. 5+ puts the opponent in the bonus.';
+
+
+--
+-- Name: COLUMN live_scores.fouls_b; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.live_scores.fouls_b IS 'Basketball team fouls in the CURRENT period. 5+ puts the opponent in the bonus.';
+
+
+--
+-- Name: COLUMN live_scores.serving_team; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.live_scores.serving_team IS 'Volleyball/beach: which side serves. Basketball: the possession arrow — same left/right semantics, so no extra column.';
+
+
+--
+-- Name: COLUMN live_scores.set_results; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.live_scores.set_results IS 'Completed sets, oldest first: [{"a":25,"b":20}, …]. Volleyball/beach only.';
+
+
+--
 -- Name: member_teams; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -9514,6 +9643,14 @@ ALTER TABLE ONLY public.identity_documents
 
 ALTER TABLE ONLY public.kscw_migrations
     ADD CONSTRAINT kscw_migrations_pkey PRIMARY KEY (filename);
+
+
+--
+-- Name: live_scores live_scores_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.live_scores
+    ADD CONSTRAINT live_scores_pkey PRIMARY KEY (channel);
 
 
 --
@@ -13759,5 +13896,5 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict zYvSQKSDyjt2IcUwzU6glmNp0b2UIDfQbHrMAyBF8mjtZ072feQCvePPs72tDUH
+\unrestrict xS7sSy6i2wg6eIKkfGo2LYt1SeF3sf9w4gef33ybGaaeV0wbUWyQuPZifg8IMlG
 
