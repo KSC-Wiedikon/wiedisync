@@ -102,9 +102,26 @@ await setPerm(LEDBOX_POLICY, 'live_scores', 'read')     // PATCH reads the row b
 await setPerm(LEDBOX_POLICY, 'live_scores', 'update')   // every score change
 ```
 
-No delete, no app access, nothing outside `live_scores` — a leaked board token can
-rewrite the scoreboard and nothing else. Verified on dev: `DELETE` → 403,
-`GET /items/members` → 403.
+No delete, no app access, and no *granted* permission outside `live_scores`.
+Verified on both: `DELETE /items/live_scores/kscw` → 403.
+
+⚠️ **What the token can nonetheless read.** Directus policies are additive and the
+**Public** policy applies to authenticated requests too, so the board token also
+gets every public grant. On prod that means `members` limited to
+`id, first_name, last_name, photo` — the public team-page set. It is **not**
+identical to what an anonymous visitor sees: the website name-privacy hook
+(`kscw-hooks/src/index.js`, migration 116) abbreviates the surname only when
+`!currentUser`, so an anonymous reader gets `Oscar B.` while any token-bearing
+request gets `Oscar Bizard`. Phone, email, birthdate and AHV stay hidden either
+way (those gates don't depend on the caller being anonymous).
+
+So a leaked board token exposes full member surnames + photos — data every
+logged-in member already sees, but more than the public site publishes. There is
+no way to subtract it from the publisher policy (Directus has no deny rule); the
+fix, if wanted, is to make that hook minimise for any user with no linked
+`members` row rather than only for anonymous ones. That is a change to a shared
+security hook affecting every service account, so it is deliberately **not** bundled
+into this feature. Treat the token as a password and rotate it if the board is lost.
 
 The policy is held by one service user, **`ledbox-board@kscw.ch`**, via
 `directus_access` (never attached to a role). Its static token lives on

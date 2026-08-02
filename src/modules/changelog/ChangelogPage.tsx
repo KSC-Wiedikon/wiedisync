@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '1.59.0'
+const APP_VERSION = '1.60.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,20 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.60.0',
+    date: '03.08.2026',
+    sections: [
+      {
+        title: 'New: follow a match live from the scoreboard',
+        items: [
+          "The hall's scoreboard now feeds a live page in the app. Open Live and you see the same score the LED board in the hall is showing, updating on its own every few seconds \u2014 no refreshing, and no need to be logged in, so you can share the link with family and friends.",
+          'It works for volleyball, beach volleyball and basketball. Volleyball shows the points in the current set, sets won, timeouts, substitutions, who is serving and the scores of the sets already played; beach shows both players of a pair; basketball shows the running score, the quarter, team fouls with the bonus and the possession arrow.',
+          'The page tells you what it is doing \u2014 whether it is live, finished, or waiting for a match to start.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.59.0',
     date: '01.08.2026',
