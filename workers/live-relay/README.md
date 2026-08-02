@@ -1,4 +1,20 @@
-# kscw-live-relay
+# kscw-live-relay — ⛔ PAID ALTERNATIVE, NOT USED
+
+> **This directory is NOT the shipping design. It is kept only as the documented
+> scale escape-hatch.**
+>
+> Live scoring now runs on the club's **existing free Directus** — the board
+> publishes to a `live_scores` item and the app reads it (~3s poll + optional
+> realtime). No Cloudflare Worker, no Durable Object, no paid Workers plan.
+> See `../../.planning/live-scoring-DESIGN.md` and
+> `../../src/modules/live/DIRECTUS-SETUP.md`.
+>
+> **Do not deploy this.** Durable Objects require a paid Workers plan, which the
+> club won't buy. This relay only becomes relevant if polling ever can't keep up
+> (many simultaneous matches / hundreds of concurrent viewers). Everything below
+> describes that unused alternative.
+
+---
 
 Cloudflare **Worker + Durable Object** that relays the LedBox scoreboard's live
 state to the wiedisync **Live** page.

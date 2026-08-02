@@ -1,3 +1,9 @@
+// ⛔ PAID ALTERNATIVE — NOT USED. Live scoring ships on the club's free Directus
+// (board → `live_scores` item; app polls + optional realtime). This Worker +
+// Durable Object needs a PAID Workers plan and is retained ONLY as the scale
+// escape-hatch (see ../README.md + ../../.planning/live-scoring-DESIGN.md). Do
+// not deploy.
+//
 // KSCW live-scoring relay — Worker entry (router + CORS + publish auth).
 //
 // Routes (channel defaults to DEFAULT_CHANNEL when the last segment is omitted):
@@ -74,7 +80,7 @@ export default {
     let res: Response
     try {
       res = await stub.fetch(internal)
-    } catch (err) {
+    } catch {
       return json({ error: 'relay unavailable' }, 502, allowOrigin)
     }
 

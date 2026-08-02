@@ -3,6 +3,7 @@ export default {
   activities: 'Aktivitäte',
   calendar: 'Kaländer',
   games: 'Spiel & Resultat',
+  live: 'Live-Aazeigtafle',
   gamesShort: 'Spiel',
   trainings: 'Trainig',
   absences: 'Absänze',

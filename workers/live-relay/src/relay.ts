@@ -1,3 +1,9 @@
+// ⛔ PAID ALTERNATIVE — NOT USED. Live scoring ships on the club's free Directus
+// (board → `live_scores` item; app polls + optional realtime). This Durable
+// Object needs a PAID Workers plan and is retained ONLY as the scale
+// escape-hatch (see ../README.md + ../../.planning/live-scoring-DESIGN.md). Do
+// not deploy.
+//
 // LiveMatchRelay — one Durable Object per channel (one physical scoreboard).
 //
 // Responsibilities:

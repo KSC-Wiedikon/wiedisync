@@ -3,6 +3,7 @@ export default {
   activities: 'Aktivitäten',
   calendar: 'Kalender',
   games: 'Spiele & Resultate',
+  live: 'Live-Anzeigetafel',
   gamesShort: 'Spiele',
   trainings: 'Trainings',
   absences: 'Absenzen',

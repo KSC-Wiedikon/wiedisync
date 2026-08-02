@@ -60,7 +60,15 @@ export default function LivePage() {
           <h1 className="text-xl font-bold text-foreground sm:text-2xl">{t('title')}</h1>
           <p className="text-sm text-muted-foreground">{t('subtitle')}</p>
         </div>
-        <StatusPill tone={tone} label={label} />
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Which game is on the board — the layout differs per sport, so name it. */}
+          {envelope?.match && (
+            <span className="rounded-full border bg-card px-3 py-1 text-xs font-semibold text-muted-foreground">
+              {t(`sport_${envelope.match.sport}`)}
+            </span>
+          )}
+          <StatusPill tone={tone} label={label} />
+        </div>
       </header>
 
       {hasMatch ? (
