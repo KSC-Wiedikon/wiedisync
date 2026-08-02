@@ -2,6 +2,15 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.61.0 — 2026-08-03
+
+### Improved: the live scoreboard page
+- **The hall scoreboard now actually feeds the page.** The board publishes every score change itself, so Live shows a real match without anyone doing anything — for volleyball, beach volleyball and basketball alike.
+- **A final screen when the match ends**, naming the winner and the result, above the full board.
+- **Recent matches on the scoreboard** are listed underneath, so the page is still worth opening once a match has finished.
+- **A "live now" link on the games page** while a match is being scored, so you don't have to go looking for it.
+- Small touch: the score gives a brief bump when a point lands (skipped if you've asked your device to reduce motion).
+
 ## v1.60.0 — 2026-08-03
 
 ### New: follow a match live from the scoreboard

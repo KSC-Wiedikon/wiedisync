@@ -6,11 +6,16 @@ import { toTeams } from '../scoreboard'
 import type { BoardState, TeamView } from '../types'
 import TeamIdentity from './TeamIdentity'
 
-/** 1..4 = Q1..Q4, 5+ = overtime (OT, OT2, …). 0 means the board isn't publishing it. */
+/**
+ * 1..4 = Q1..Q4, 5+ = overtime (OT1, OT2, …). 0 means the board isn't publishing it.
+ *
+ * Mirrors `periodLabel()` in the board's basketballSource.js exactly — including
+ * OT1 rather than a bare OT — so the phone and the LED panel in the hall never
+ * disagree about which period is being played.
+ */
 function periodLabel(period: number, t: TFunction<'live'>): string | null {
   if (!period || period < 1) return null
-  if (period <= 4) return t('quarter', { n: period })
-  return period === 5 ? t('overtime') : t('overtimeN', { n: period - 4 })
+  return period <= 4 ? t('quarter', { n: period }) : t('overtimeN', { n: period - 4 })
 }
 
 function TeamColumn({ team, align }: { team: TeamView; align: 'start' | 'end' }) {
@@ -21,7 +26,14 @@ function TeamColumn({ team, align }: { team: TeamView; align: 'start' | 'end' })
       {/* No indicator slot here: a badge beside the chip squeezes the team code to
           "BC…" on a phone. The bonus gets its own line under the meta instead. */}
       <TeamIdentity team={team} align={align} sport="basketball" />
-      <div className="mt-1 text-6xl font-black tabular-nums leading-none transition-colors motion-reduce:transition-none sm:text-7xl">
+      {/* Keyed on the score so a basket restarts the bump animation — see VolleyballBoard. */}
+      <div
+        key={team.points}
+        className={cn(
+          'mt-1 text-6xl font-black tabular-nums leading-none animate-score-bump sm:text-7xl',
+          end ? 'origin-right' : 'origin-left',
+        )}
+      >
         {team.points}
       </div>
       <p className={cn('mt-2 text-[11px] text-muted-foreground', end ? 'text-right' : 'text-left')}>

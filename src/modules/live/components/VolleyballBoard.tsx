@@ -35,8 +35,15 @@ function TeamColumn({
         sport={isBeach ? 'beach' : 'volleyball'}
         indicator={team.serving ? <ServingDot label={t('serving')} /> : null}
       />
-      {/* transition-colors keeps the number change gentle; disabled under reduced motion */}
-      <div className="mt-1 text-6xl font-black tabular-nums leading-none transition-colors motion-reduce:transition-none sm:text-7xl">
+      {/* `key` on the score remounts this node when a point lands, which restarts
+          the bump animation — no state, no timers. Honours reduced motion. */}
+      <div
+        key={team.points}
+        className={cn(
+          'mt-1 text-6xl font-black tabular-nums leading-none animate-score-bump sm:text-7xl',
+          end ? 'origin-right' : 'origin-left',
+        )}
+      >
         {team.points}
       </div>
       <p className={cn('mt-2 text-[11px] text-muted-foreground', end ? 'text-right' : 'text-left')}>
