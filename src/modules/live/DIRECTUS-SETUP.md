@@ -131,17 +131,20 @@ Directory → the user → Token → Generate → Save).
 
 ---
 
-## 4. (Optional) Realtime — instant push for logged-in members
+## 4. Realtime — instant push for logged-in members
 
-Polling (~3s) is the default and works for everyone with no server config. To
-also get instant WebSocket pushes for **logged-in** viewers, enable realtime on
-the Directus container:
+**Already enabled on dev and prod** (`WEBSOCKETS_ENABLED=true`, present in both
+`/opt/directus-kscw*/.env` and the running containers — verified 2026-08-03 by
+opening `wss://directus{,-dev}.kscw.ch/websocket` from a real browser: both
+connect). Nothing to do.
 
-```
-WEBSOCKETS_ENABLED=true
-```
+⚠️ Probing that endpoint with **curl returns 404** even though it works — the
+prod/dev hosts sit behind a Cloudflare firewall that rejects non-browser clients
+(see `INFRA.md` → scripted calls need a browser User-Agent). Direct to the
+container, `curl` gets the expected `101 Switching Protocols`. Don't chase that
+404; test realtime from a browser.
 
-(restart the container). The app's shared Directus client subscribes to
+Polling (~3s) remains the baseline and works for everyone. The app's shared client subscribes to
 `live_scores` automatically; it authenticates over the session cookie
 (handshake), so realtime accelerates the page only for authenticated members —
 anonymous spectators keep getting the 3s poll. No CSP change is needed: both

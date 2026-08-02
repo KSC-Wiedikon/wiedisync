@@ -33,6 +33,7 @@ import { Calendar, Trophy, BarChart3, LayoutGrid } from 'lucide-react'
 import { TourPageButton } from '../guide/TourPageButton'
 import { useReportPageLoading } from '../../hooks/usePageReady'
 import { useUserVisibleGameIds } from '../../hooks/useUserVisibleGameIds'
+import LiveNowBanner from '../live/components/LiveNowBanner'
 
 /**
  * `guestGameIds` are the fixtures this member was invited to as a guest (migration
@@ -414,6 +415,11 @@ export default function GamesPage() {
       <div className="flex items-center gap-2">
         <h1 className="text-xl font-bold text-gray-900 sm:text-2xl dark:text-gray-100">{t('title')}</h1>
         <TourPageButton />
+      </div>
+
+      {/* Renders nothing unless the hall scoreboard is mid-match. */}
+      <div className="mt-4">
+        <LiveNowBanner />
       </div>
 
       <div className="mt-6 space-y-4">

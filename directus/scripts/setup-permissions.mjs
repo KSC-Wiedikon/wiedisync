@@ -903,6 +903,10 @@ async function main() {
     // match score, two team names and their colours, so it is public in full.
     await setPermRead(PUBLIC_POLICY, 'live_scores')
 
+    // Recent finished matches (migration 273) — same audience and same content
+    // class as the live board above: scores and team names, nothing personal.
+    await setPermRead(PUBLIC_POLICY, 'live_history')
+
     console.log(`  ✓ Public permissions set`)
   } else {
     console.log('\n5. ⚠ No public policy found — skipping public permissions')
@@ -917,6 +921,14 @@ async function main() {
   await setPerm(LEDBOX_POLICY, 'live_scores', 'create')
   await setPerm(LEDBOX_POLICY, 'live_scores', 'read')
   await setPerm(LEDBOX_POLICY, 'live_scores', 'update')
+  // History is APPEND-ONLY for the board: create, and deliberately NO update or
+  // delete. A device in a hall may add a finished match; correcting or removing one
+  // is an admin action.
+  // (No read grant here either — but note the token can still READ it, because the
+  // Public grant above applies to authenticated requests too and Directus policies
+  // are additive with no deny rule. Harmless: the collection is public anyway.
+  // Append-only is enforced by the absence of update/delete, which IS effective.)
+  await setPerm(LEDBOX_POLICY, 'live_history', 'create')
   console.log('  ✓ LedBox publisher permissions set')
 
   // ── 6. Member permissions ──────────────────────────────────────

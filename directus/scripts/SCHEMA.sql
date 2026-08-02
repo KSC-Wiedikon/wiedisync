@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-08-02T22:22:55.428Z
+-- Generated:   2026-08-02T23:23:16.526Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -23,7 +23,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict xS7sSy6i2wg6eIKkfGo2LYt1SeF3sf9w4gef33ybGaaeV0wbUWyQuPZifg8IMlG
+\restrict qarCHprnj05QJXqOpECoi1khfYZtcoEC2Ko3BD6SgHRyh8mw32fyHiZshcwCWUV
 
 -- Dumped from database version 16.14 (Debian 16.14-1.pgdg13+1)
 -- Dumped by pg_dump version 16.14 (Debian 16.14-1.pgdg13+1)
@@ -5337,6 +5337,60 @@ CREATE TABLE public.kscw_migrations (
 
 
 --
+-- Name: live_history; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.live_history (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    channel character varying(64) NOT NULL,
+    sport character varying(16) DEFAULT 'volleyball'::character varying NOT NULL,
+    team_a_name character varying(120),
+    team_a_short character varying(16),
+    team_a_color character varying(16),
+    team_b_name character varying(120),
+    team_b_short character varying(16),
+    team_b_color character varying(16),
+    points_a integer DEFAULT 0 NOT NULL,
+    points_b integer DEFAULT 0 NOT NULL,
+    sets_won_a integer DEFAULT 0 NOT NULL,
+    sets_won_b integer DEFAULT 0 NOT NULL,
+    period integer DEFAULT 0 NOT NULL,
+    set_results jsonb DEFAULT '[]'::jsonb NOT NULL,
+    ts bigint DEFAULT 0 NOT NULL,
+    finished_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT live_history_sport_check CHECK (((sport)::text = ANY ((ARRAY['volleyball'::character varying, 'beach'::character varying, 'basketball'::character varying])::text[])))
+);
+
+
+--
+-- Name: TABLE live_history; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.live_history IS 'Append-only log of matches the LedBox scoreboard finished. Written by the board''s publisher token (create only), read publicly by /live. NOT the club match record — `games` is.';
+
+
+--
+-- Name: COLUMN live_history.channel; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.live_history.channel IS 'Which physical board produced this. No FK to live_scores — history must outlive a board being removed.';
+
+
+--
+-- Name: COLUMN live_history.ts; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.live_history.ts IS 'The board''s own ms-epoch clock at match end. Kept for correlation with live_scores; not trusted for ordering.';
+
+
+--
+-- Name: COLUMN live_history.finished_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.live_history.finished_at IS 'Server clock at insert. The UI sorts on this, not on `ts`, so a board with a wrong clock cannot reorder the list.';
+
+
+--
 -- Name: live_scores; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -9646,6 +9700,14 @@ ALTER TABLE ONLY public.kscw_migrations
 
 
 --
+-- Name: live_history live_history_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.live_history
+    ADD CONSTRAINT live_history_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: live_scores live_scores_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -11199,6 +11261,13 @@ CREATE INDEX idx_trainings_auto_cancelled_by_closure ON public.trainings USING b
 --
 
 CREATE INDEX idx_trainings_auto_cancelled_by_trial ON public.trainings USING btree (auto_cancelled_by_trial) WHERE (auto_cancelled_by_trial IS NOT NULL);
+
+
+--
+-- Name: live_history_channel_finished_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX live_history_channel_finished_idx ON public.live_history USING btree (channel, finished_at DESC);
 
 
 --
@@ -13896,5 +13965,5 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict xS7sSy6i2wg6eIKkfGo2LYt1SeF3sf9w4gef33ybGaaeV0wbUWyQuPZifg8IMlG
+\unrestrict qarCHprnj05QJXqOpECoi1khfYZtcoEC2Ko3BD6SgHRyh8mw32fyHiZshcwCWUV
 

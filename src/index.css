@@ -146,6 +146,18 @@
   animation: game-pulse 2s ease-in-out infinite;
 }
 
+/* Live scoreboard: a brief bump when a point lands. Retriggered by keying the
+   element on the score, so it needs no state and no timers — a remount restarts
+   the animation. Deliberately tiny: /live is watched for minutes at a time. */
+@keyframes score-bump {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.12); }
+  100% { transform: scale(1); }
+}
+.animate-score-bump {
+  animation: score-bump 420ms ease-out;
+}
+
 /* Sheet & overlay animations — GPU-accelerated (transform + opacity only) */
 @keyframes sheet-slide-up {
   from { transform: translateY(100%); }
@@ -252,6 +264,7 @@ input[type="number"] {
 /* Accessibility: respect reduced motion preference */
 @media (prefers-reduced-motion: reduce) {
   .animate-game-pulse { animation: none; }
+  .animate-score-bump { animation: none; }
   /* Keep the ticker static (readable in place) rather than looping once and
      scrolling its content off-screen under the global iteration-count clamp. */
   .animate-marquee,

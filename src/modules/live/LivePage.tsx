@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import { formatTimeZurich } from '../../utils/dateHelpers'
+import FinalSummary from './components/FinalSummary'
+import RecentMatches from './components/RecentMatches'
 import Scoreboard from './components/Scoreboard'
 import { useLiveMatch } from './useLiveMatch'
 
@@ -73,6 +75,7 @@ export default function LivePage() {
 
       {hasMatch ? (
         <>
+          {envelope!.status === 'final' && <FinalSummary state={envelope!.match!} />}
           <Scoreboard state={envelope!.match!} />
 
           <div className="mt-3 flex min-h-5 flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
@@ -94,6 +97,9 @@ export default function LivePage() {
           <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">{t('noMatchHint')}</p>
         </div>
       )}
+
+      {/* Renders nothing until the board has finished at least one match. */}
+      <RecentMatches channel={channel} />
     </div>
   )
 }
