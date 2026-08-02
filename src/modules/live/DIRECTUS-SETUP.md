@@ -205,11 +205,12 @@ Both environments are done (2026-08-03). Two things to remember:
   token does not** — the clone brings prod's `directus_users` across, so after a
   refresh the board's dev config needs the token re-pinned (or just re-run the
   `ledbox-board@kscw.ch` token generation on dev).
-- The permissions were applied on both environments by a **targeted script**, not
-  a full `npm run db:setup-perms:*` run — dev still fails that on the keyless
-  licence, and on prod a full reconcile during a feature deploy was unnecessary
-  risk. The declarative blocks in `setup-permissions.mjs` (§2, §3 above) are still
-  the source of truth and the next full run reconciles to exactly this state.
+- **Prod has had a full `npm run db:setup-perms:prod` reconcile** (2026-08-03,
+  535 grants / 0 errors, `directus_permissions` row count unchanged at 572 before
+  and after), so the declarative blocks in §2/§3 are verified to reproduce exactly
+  this state. **Dev** was done with a targeted script only — it still fails the
+  full run on the keyless licence — but the same blocks apply there on the next
+  licensed run.
 
 ---
 
