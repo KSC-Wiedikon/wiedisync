@@ -8,8 +8,9 @@ just the club's existing Directus.
 Design rationale: `../../../.planning/live-scoring-DESIGN.md`.
 Board publisher code: `ledbox-bridge/src/livePush.proposal.js` (standalone).
 
-**Status:** the collection, the public read, the publisher policy and the service
-token are LIVE on **dev** (2026-08-02). Prod is pending approval — see §7.
+**Status:** LIVE on **dev and prod** (2026-08-03, v1.60.0) — collection, public
+read, publisher policy and a service token per environment. Each environment has
+its **own** token; they are not interchangeable.
 
 ---
 
@@ -195,17 +196,20 @@ Then open `/live` and watch it update within ~3s.
 
 ---
 
-## 7. Promoting to prod
+## 7. Environment notes
 
-⚠️ The dev DB is overwritten nightly by a scrubbed prod clone (03:00 UTC), so
-**anything that exists only on dev is gone the next morning.** To promote:
+Both environments are done (2026-08-03). Two things to remember:
 
-1. `npm run db:migrate:prod` — creates the collection + seeds the `kscw` row.
-2. `npm run db:setup-perms:prod` — applies the §2 public read and the §3 publisher
-   policy. (Per `INFRA.md`, run it with the admin **user**, not the static token.)
-3. Create the `ledbox-board@kscw.ch` service user on prod, attach the "KSCW LedBox
-   Publisher" policy, generate its static token — prod gets its **own** token.
-4. `npm run db:baseline:prod` to rebaseline `SCHEMA.sql`, and commit it.
+- ⚠️ The dev DB is overwritten nightly by a scrubbed prod clone (03:00 UTC).
+  `live_scores` now survives that (it exists on prod), but the **dev publisher
+  token does not** — the clone brings prod's `directus_users` across, so after a
+  refresh the board's dev config needs the token re-pinned (or just re-run the
+  `ledbox-board@kscw.ch` token generation on dev).
+- The permissions were applied on both environments by a **targeted script**, not
+  a full `npm run db:setup-perms:*` run — dev still fails that on the keyless
+  licence, and on prod a full reconcile during a feature deploy was unnecessary
+  risk. The declarative blocks in `setup-permissions.mjs` (§2, §3 above) are still
+  the source of truth and the next full run reconciles to exactly this state.
 
 ---
 
