@@ -1,0 +1,47 @@
+{
+  // KSCW live-scoring relay — Cloudflare Worker + Durable Object.
+  //
+  // Board bridge  --HTTP POST /publish/:channel-->  this Worker  --> LiveMatchRelay (DO)
+  //                                                                        |
+  //   wiedisync Live page  <--SSE  GET /subscribe/:channel--  this Worker  +
+  //
+  // The two existing workers in this repo (../push, ../sentry-tunnel) use
+  // wrangler.toml. This one uses jsonc because Durable Object bindings +
+  // migrations + observability read far more clearly with inline comments,
+  // and jsonc is Cloudflare's currently-recommended config format. Either works.
+  //
+  // NOT DEPLOYED YET. See ./README.md and ../../.planning/live-scoring-ROADMAP.md.
+  "name": "kscw-live-relay",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-03-01",
+
+  // Structured logs in the CF dashboard (matches the observability posture the
+  // repo already expects for its Workers).
+  "observability": { "enabled": true },
+
+  // One Durable Object class. Each *channel* (one physical scoreboard) maps to
+  // exactly one DO instance via idFromName(channel) — the coordination atom.
+  "durable_objects": {
+    "bindings": [
+      { "name": "LIVE", "class_name": "LiveMatchRelay" }
+    ]
+  },
+
+  // SQLite-backed storage (required for ctx.storage.sql + free-tier eligibility).
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["LiveMatchRelay"] }
+  ],
+
+  // Public, non-secret config. RELAY_TOKEN is NOT here — it is a secret:
+  //   npx wrangler secret put RELAY_TOKEN
+  // ALLOWED_ORIGINS gates cross-origin subscribe/publish (comma-separated).
+  "vars": {
+    "ALLOWED_ORIGINS": "https://wiedisync.kscw.ch,https://wiedisync.pages.dev,http://localhost:1234",
+    // Default channel when a request omits one. One board today → "kscw".
+    "DEFAULT_CHANNEL": "kscw"
+  }
+
+  // To bind a custom route instead of the *.workers.dev URL (recommended so the
+  // CSP connect-src entry is stable — see the design doc), add e.g.:
+  // "routes": [{ "pattern": "live.kscw.ch/*", "zone_name": "kscw.ch" }]
+}
