@@ -2,6 +2,15 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.63.0 — 2026-08-03
+
+### Improved: choosing who a club email goes to
+- **Audiences are clickable chips** showing how many people each one reaches, instead of a dropdown you had to open to see what existed.
+- **You can combine them** — pick "All coaches" and two teams and it goes out once to everyone, with nobody receiving it twice.
+- **Sections and teams are separate choices.** "Volleyball section" reaches everyone in the section including coaches and staff; "Volleyball players" reaches only those on a team right now.
+- **Former members can be reached** too, for the rare club-wide announcement that warrants it.
+- **Bounced addresses and spam complaints are remembered and skipped automatically**, which protects delivery of everything else the club sends — including password reset emails.
+
 ## v1.62.0 — 2026-08-03
 
 ### New: the club can email a whole group at once

@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '1.62.0'
+const APP_VERSION = '1.63.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,22 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.63.0',
+    date: '03.08.2026',
+    sections: [
+      {
+        title: 'Improved: choosing who a club email goes to',
+        items: [
+          'Audiences are now clickable chips showing how many people each one reaches, instead of a dropdown you had to open to see what existed.',
+          'You can combine them \u2014 pick "All coaches" and two teams and it goes out once to everyone, with nobody receiving it twice.',
+          'Sections and teams are now separate choices. "Volleyball section" reaches everyone in the section including coaches and staff; "Volleyball players" reaches only those on a team right now.',
+          'Former members can be reached too, for the rare club-wide announcement that warrants it.',
+          'Addresses that bounce, or where someone marks the email as spam, are now remembered and skipped automatically \u2014 which protects delivery of everything else the club sends, including password reset emails.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.62.0',
     date: '03.08.2026',
