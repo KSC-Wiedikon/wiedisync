@@ -143,10 +143,20 @@ export function registerSesNotify(router, { database, logger }) {
         return res.json({ success: true, confirmed: true })
       }
 
-      if (msg.Type !== 'Notification') return res.json({ success: true, ignored: msg.Type })
+      if (msg.Type !== 'Notification') {
+        log.info(`[ses-notify] ignored message type ${msg.Type}`)
+        return res.json({ success: true, ignored: msg.Type })
+      }
 
       let event
-      try { event = JSON.parse(msg.Message) } catch { return res.json({ success: true, ignored: 'unparseable' }) }
+      try {
+        event = JSON.parse(msg.Message)
+      } catch {
+        // Truncated so a malformed payload can be identified without dumping a
+        // whole message (which may carry recipient addresses) into the log.
+        log.warn({ msg: `[ses-notify] Notification body was not JSON: ${String(msg.Message).slice(0, 200)}` })
+        return res.json({ success: true, ignored: 'unparseable' })
+      }
 
       const sesMessageId = event?.mail?.messageId || null
       let added = 0
@@ -183,10 +193,15 @@ export function registerSesNotify(router, { database, logger }) {
           })) added++
         }
       } else {
-        return res.json({ success: true, ignored: event.notificationType || event.eventType || 'unknown' })
+        const kind = event.notificationType || event.eventType || 'unknown'
+        log.info(`[ses-notify] ignored event type ${kind}`)
+        return res.json({ success: true, ignored: kind })
       }
 
-      if (added > 0) log.info(`[ses-notify] suppressed ${added} address(es)`)
+      // Log every processed event, not just the ones that changed something —
+      // "SES delivered a bounce and we did nothing" and "SES never delivered
+      // anything" are completely different problems and must not look alike.
+      log.info(`[ses-notify] processed ${event.notificationType || event.eventType}: ${added} new suppression(s)`)
       res.json({ success: true, suppressed: added })
     } catch (err) {
       log.error({ msg: `[ses-notify] ${err.message}`, endpoint: 'ses/notify', stack: err.stack })
