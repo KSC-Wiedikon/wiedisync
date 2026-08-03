@@ -607,6 +607,7 @@ export default {
   mailboxSending: 'Envoi…',
   mailboxSent: 'E-mail envoyé',
   // Group send (club mailbox only) — audience picker + dry-run preview.
+  mailboxBackToInbox: 'Retour à la boîte de réception',
   mailboxGroupSend: 'Écrire à un groupe',
   mailboxGroupLabel: 'Groupe',
   mailboxGroupsLoadFailed: 'Impossible de charger les groupes',

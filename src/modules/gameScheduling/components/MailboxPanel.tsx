@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Paperclip, Users, X } from 'lucide-react'
+import { ArrowLeft, Paperclip, Users, X } from 'lucide-react'
 import { useConfirm } from '../../../components/ConfirmProvider'
 import { Badge } from '../../../components/ui/badge'
 import { Button } from '../../../components/ui/button'
@@ -409,6 +409,13 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
       .filter(Boolean)
       .join(' / ')
     setCompose({ to: opp.contact_email || '', cc: '', subject, html: '', attachments: [], mode: 'new' })
+    // Close the opponent thread dialog explicitly. `new` now renders the
+    // full-screen composer, which returns before this dialog's JSX — pulling
+    // an open Radix dialog out of the tree that way skips its close handling
+    // and can leave the body scroll-locked. Clearing focus lets it close
+    // normally, and Cancel then returns to the list rather than re-opening a
+    // thread the operator has already acted on.
+    onClearFocus()
   }
 
   const correspondent = (msg: MailboxMessage) =>
@@ -530,6 +537,202 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
       <span className="text-xs text-gray-400 tabular-nums dark:text-gray-500">{count}</span>
     </button>
   )
+
+  // ── Composer surface ──────────────────────────────────────────────────
+  // New mail and group send take over the panel as their own screen instead
+  // of opening a dialog. The audience picker alone renders ~45 chips, and
+  // stacked with a subject field and a rich-text editor it overflowed the
+  // `sm:max-w-xl` dialog — the Send button ended up below the fold with no
+  // way to scroll to it, i.e. the feature was unreachable at that width.
+  // Reply/reply-all/forward keep the dialog: they open from a message you
+  // are reading, carry no picker, and stay short.
+  const composeFullScreen = !!compose && (compose.mode === 'new' || compose.mode === 'group')
+
+  const composeTitle = (c: ComposeState) =>
+    c.mode === 'reply' ? t('mailboxReply')
+      : c.mode === 'replyAll' ? t('mailboxReplyAll')
+        : c.mode === 'forward' ? t('mailboxForward')
+          : c.mode === 'group' ? t('mailboxGroupSend')
+            : t('mailboxNew')
+
+  // Recipients half: an audience picker for a group send, typed To/Cc
+  // otherwise. Split out so the dialog and the full-screen surface render
+  // byte-identical fields rather than drifting into two versions.
+  const composeRecipients = (c: ComposeState) =>
+    c.mode === 'group' ? (
+      <div>
+        <label className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('mailboxGroupLabel')}</label>
+        <AudiencePicker
+          groups={groups}
+          selected={c.groups ?? []}
+          onToggle={(key) => {
+            const cur = c.groups ?? []
+            setCompose({ ...c, groups: cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key] })
+          }}
+          onClear={() => setCompose({ ...c, groups: [] })}
+          labelFor={groupLabel}
+        />
+        <GroupPreview preview={previewData} loading={previewLoading} selected={(c.groups ?? []).length > 0} />
+      </div>
+    ) : (
+      <>
+        <div>
+          <label className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('mailboxTo')}</label>
+          <input
+            type="text"
+            value={c.to}
+            onChange={(e) => setCompose({ ...c, to: e.target.value })}
+            className="mt-1 w-full rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+          />
+        </div>
+        <div>
+          <label className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('mailboxCc')}</label>
+          <input
+            type="text"
+            value={c.cc}
+            onChange={(e) => setCompose({ ...c, cc: e.target.value })}
+            placeholder={t('mailboxCcPlaceholder')}
+            className="mt-1 w-full rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500"
+          />
+        </div>
+      </>
+    )
+
+  // Message half: subject, body, attachments.
+  const composeMessage = (c: ComposeState) => (
+    <>
+      {c.mode === 'forward' && (c.forwardAttachCount ?? 0) > 0 && (
+        <p className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+          <Paperclip className="h-3.5 w-3.5" />
+          {t('mailboxForwardAttachments', { count: c.forwardAttachCount })}
+        </p>
+      )}
+      <div>
+        <label className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('mailboxSubject')}</label>
+        <input
+          type="text"
+          value={c.subject}
+          onChange={(e) => setCompose({ ...c, subject: e.target.value })}
+          maxLength={300}
+          className="mt-1 w-full rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+        />
+      </div>
+      <div>
+        <label className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('mailboxBody')}</label>
+        <div className="mt-1">
+          <RichTextEditor
+            value={c.html}
+            onChange={(html) => setCompose({ ...c, html })}
+            placeholder={t('mailboxBody')}
+            minHeight={composeFullScreen ? '16rem' : '10rem'}
+          />
+        </div>
+        {c.mode === 'group' && (
+          // The merge tokens are passed as VALUES, not written into the
+          // translation: a literal {{vorname}} in a locale string would
+          // be interpolated away by i18next before it ever rendered.
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            {t('mailboxGroupMergeHint', { first: '{{vorname}}', last: '{{nachname}}' })}
+          </p>
+        )}
+      </div>
+      <div>
+        <label className="inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-700 hover:bg-gray-50 sm:min-h-9 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">
+          <Paperclip className="h-4 w-4" />
+          {t('mailboxAttach')}
+          <input
+            type="file"
+            multiple
+            className="hidden"
+            onChange={(e) => { addAttachments(e.target.files); e.target.value = '' }}
+          />
+        </label>
+        {c.attachments.length > 0 && (
+          <ul className="mt-2 space-y-1">
+            {c.attachments.map((f, i) => (
+              <li key={`${f.name}-${f.size}-${i}`} className="flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-xs dark:border-gray-700 dark:bg-gray-900">
+                <Paperclip className="h-3.5 w-3.5 flex-shrink-0 text-gray-400" />
+                <span className="min-w-0 flex-1 truncate text-gray-700 dark:text-gray-200">{f.name}</span>
+                <span className="flex-shrink-0 text-gray-400 dark:text-gray-500">{formatBytes(f.size)}</span>
+                <button
+                  type="button"
+                  onClick={() => removeAttachment(i)}
+                  aria-label={t('mailboxRemoveAttachment')}
+                  title={t('mailboxRemoveAttachment')}
+                  className="flex-shrink-0 rounded p-0.5 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </>
+  )
+
+  const composeActions = (c: ComposeState) => (
+    <>
+      <Button size="sm" variant="outline" onClick={() => setCompose(null)}>{t('cancel')}</Button>
+      {c.mode === 'group' ? (
+        // Gated on a resolved, non-empty preview: without it there is
+        // no way to know how many people a click would mail.
+        <Button
+          size="sm"
+          onClick={() => void handleSendGroup()}
+          disabled={sending || previewLoading || !previewData || previewData.recipient_count === 0 || !c.subject.trim() || !c.html.trim()}
+        >
+          {sending ? t('mailboxSending')
+            : previewData ? t('mailboxGroupSendCount', { count: previewData.recipient_count })
+            : t('mailboxSend')}
+        </Button>
+      ) : (
+        <Button
+          size="sm"
+          onClick={() => void handleSend()}
+          disabled={sending || !c.to.trim() || !c.subject.trim() || !c.html.trim()}
+        >
+          {sending ? t('mailboxSending') : t('mailboxSend')}
+        </Button>
+      )}
+    </>
+  )
+
+  // Full-screen composer replaces the list entirely — the message list is not
+  // useful while writing, and leaving it mounted underneath is what forced the
+  // cramped dialog in the first place.
+  if (composeFullScreen && compose) {
+    return (
+      <Card>
+        <CardHeader className="flex flex-row items-center gap-2 space-y-0">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setCompose(null)}
+            aria-label={t('mailboxBackToInbox')}
+            title={t('mailboxBackToInbox')}
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <CardTitle>{composeTitle(compose)}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {/* Two columns once there is room: the audience picker is tall, and
+              side-by-side keeps the subject + editor in view while chips are
+              toggled. Single column on <lg and for plain new mail. */}
+          <div className={compose.mode === 'group' ? 'grid items-start gap-6 lg:grid-cols-2' : 'space-y-3'}>
+            <div className="space-y-3">{composeRecipients(compose)}</div>
+            <div className="space-y-3">{composeMessage(compose)}</div>
+          </div>
+          {/* Sticky so Send stays reachable no matter how far down the chip
+              list the operator has scrolled — the original bug in miniature. */}
+          <div className="sticky bottom-0 -mx-6 -mb-6 mt-4 flex items-center justify-end gap-2 rounded-b-lg border-t border-gray-200 bg-card px-6 py-3 dark:border-gray-700">
+            {composeActions(compose)}
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
 
   return (
     <>
@@ -714,149 +917,20 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
         </DialogContent>
       </Dialog>
 
-      {/* Compose / reply / reply-all / forward */}
-      <Dialog open={!!compose} onOpenChange={(o) => { if (!o) setCompose(null) }}>
+      {/* Reply / reply-all / forward. New mail and group send are handled by
+          the full-screen composer above and never reach this dialog. */}
+      <Dialog open={!!compose && !composeFullScreen} onOpenChange={(o) => { if (!o) setCompose(null) }}>
         <DialogContent className="sm:max-w-xl">
           <DialogHeader>
-            <DialogTitle>
-              {compose?.mode === 'reply' ? t('mailboxReply')
-                : compose?.mode === 'replyAll' ? t('mailboxReplyAll')
-                : compose?.mode === 'forward' ? t('mailboxForward')
-                : compose?.mode === 'group' ? t('mailboxGroupSend')
-                : t('mailboxNew')}
-            </DialogTitle>
+            <DialogTitle>{compose ? composeTitle(compose) : t('mailboxNew')}</DialogTitle>
             <DialogDescription className="sr-only">{t('mailboxNew')}</DialogDescription>
           </DialogHeader>
           {compose && (
-            <div className="space-y-3">
-              {compose.mode === 'group' ? (
-                <div>
-                  <label className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('mailboxGroupLabel')}</label>
-                  <AudiencePicker
-                    groups={groups}
-                    selected={compose.groups ?? []}
-                    onToggle={(key) => {
-                      const cur = compose.groups ?? []
-                      setCompose({ ...compose, groups: cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key] })
-                    }}
-                    onClear={() => setCompose({ ...compose, groups: [] })}
-                    labelFor={groupLabel}
-                  />
-                  <GroupPreview preview={previewData} loading={previewLoading} selected={(compose.groups ?? []).length > 0} />
-                </div>
-              ) : (
-                <>
-                  <div>
-                    <label className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('mailboxTo')}</label>
-                    <input
-                      type="text"
-                      value={compose.to}
-                      onChange={(e) => setCompose({ ...compose, to: e.target.value })}
-                      className="mt-1 w-full rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('mailboxCc')}</label>
-                    <input
-                      type="text"
-                      value={compose.cc}
-                      onChange={(e) => setCompose({ ...compose, cc: e.target.value })}
-                      placeholder={t('mailboxCcPlaceholder')}
-                      className="mt-1 w-full rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500"
-                    />
-                  </div>
-                </>
-              )}
-              {compose.mode === 'forward' && (compose.forwardAttachCount ?? 0) > 0 && (
-                <p className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
-                  <Paperclip className="h-3.5 w-3.5" />
-                  {t('mailboxForwardAttachments', { count: compose.forwardAttachCount })}
-                </p>
-              )}
-              <div>
-                <label className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('mailboxSubject')}</label>
-                <input
-                  type="text"
-                  value={compose.subject}
-                  onChange={(e) => setCompose({ ...compose, subject: e.target.value })}
-                  maxLength={300}
-                  className="mt-1 w-full rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('mailboxBody')}</label>
-                <div className="mt-1">
-                  <RichTextEditor
-                    value={compose.html}
-                    onChange={(html) => setCompose({ ...compose, html })}
-                    placeholder={t('mailboxBody')}
-                    minHeight="10rem"
-                  />
-                </div>
-                {compose.mode === 'group' && (
-                  // The merge tokens are passed as VALUES, not written into the
-                  // translation: a literal {{vorname}} in a locale string would
-                  // be interpolated away by i18next before it ever rendered.
-                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    {t('mailboxGroupMergeHint', { first: '{{vorname}}', last: '{{nachname}}' })}
-                  </p>
-                )}
-              </div>
-              <div>
-                <label className="inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-700 hover:bg-gray-50 sm:min-h-9 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">
-                  <Paperclip className="h-4 w-4" />
-                  {t('mailboxAttach')}
-                  <input
-                    type="file"
-                    multiple
-                    className="hidden"
-                    onChange={(e) => { addAttachments(e.target.files); e.target.value = '' }}
-                  />
-                </label>
-                {compose.attachments.length > 0 && (
-                  <ul className="mt-2 space-y-1">
-                    {compose.attachments.map((f, i) => (
-                      <li key={`${f.name}-${f.size}-${i}`} className="flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-xs dark:border-gray-700 dark:bg-gray-900">
-                        <Paperclip className="h-3.5 w-3.5 flex-shrink-0 text-gray-400" />
-                        <span className="min-w-0 flex-1 truncate text-gray-700 dark:text-gray-200">{f.name}</span>
-                        <span className="flex-shrink-0 text-gray-400 dark:text-gray-500">{formatBytes(f.size)}</span>
-                        <button
-                          type="button"
-                          onClick={() => removeAttachment(i)}
-                          aria-label={t('mailboxRemoveAttachment')}
-                          title={t('mailboxRemoveAttachment')}
-                          className="flex-shrink-0 rounded p-0.5 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-200"
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
+            <div className="max-h-[70vh] space-y-3 overflow-y-auto">
+              {composeRecipients(compose)}
+              {composeMessage(compose)}
               <div className="flex items-center justify-end gap-2">
-                <Button size="sm" variant="outline" onClick={() => setCompose(null)}>{t('cancel')}</Button>
-                {compose.mode === 'group' ? (
-                  // Gated on a resolved, non-empty preview: without it there is
-                  // no way to know how many people a click would mail.
-                  <Button
-                    size="sm"
-                    onClick={() => void handleSendGroup()}
-                    disabled={sending || previewLoading || !previewData || previewData.recipient_count === 0 || !compose.subject.trim() || !compose.html.trim()}
-                  >
-                    {sending ? t('mailboxSending')
-                      : previewData ? t('mailboxGroupSendCount', { count: previewData.recipient_count })
-                      : t('mailboxSend')}
-                  </Button>
-                ) : (
-                  <Button
-                    size="sm"
-                    onClick={() => void handleSend()}
-                    disabled={sending || !compose.to.trim() || !compose.subject.trim() || !compose.html.trim()}
-                  >
-                    {sending ? t('mailboxSending') : t('mailboxSend')}
-                  </Button>
-                )}
+                {composeActions(compose)}
               </div>
             </div>
           )}

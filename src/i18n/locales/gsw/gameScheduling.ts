@@ -608,6 +608,7 @@ export default {
   mailboxSending: 'Wird gschickt…',
   mailboxSent: 'E-Mail gschickt',
   // Group send (club mailbox only) — audience picker + dry-run preview.
+  mailboxBackToInbox: 'Zrugg zum Poschtiigang',
   mailboxGroupSend: 'Gruppe aaschriibe',
   mailboxGroupLabel: 'Gruppe',
   mailboxGroupsLoadFailed: 'Gruppe hend nöd chöne glade werde',
