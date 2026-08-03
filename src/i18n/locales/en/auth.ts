@@ -319,6 +319,20 @@ export default {
   idForgetDevice: 'Forget my key on this device',
   idError: 'Your encryption key could not be loaded.',
 
+  // Crop / rotate the photo before it is encrypted
+  idCropTitle: 'Adjust your document',
+  idCropHint: 'Drag to move, pinch or use the slider to zoom, and rotate if needed.',
+  idCropZoom: 'Zoom',
+  idCropRotateLeft: 'Rotate left',
+  idCropRotateRight: 'Rotate right',
+  idCropShape: 'Document shape',
+  idCropAspect_card: 'ID card',
+  idCropAspect_landscape: 'Landscape',
+  idCropAspect_portrait: 'Portrait',
+  idCropCancel: 'Cancel',
+  idCropConfirm: 'Use this photo',
+  idCropFailed: 'The image could not be processed. Please try another photo.',
+
   // Change password (keeps the encryption key alive)
   pwCurrent: 'Current password',
   pwNew: 'New password',

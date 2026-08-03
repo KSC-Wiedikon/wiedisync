@@ -7,10 +7,36 @@ import { useConfirm } from '@/components/ConfirmProvider'
 import { useAuth } from '../../hooks/useAuth'
 import { useIdentityKeys } from '../../hooks/useIdentityKeys'
 import { API_URL, kscwApi } from '../../lib/api'
+import { captureApiError } from '../../lib/sentry'
 import { decryptDocument, encryptDocument, unwrapContentKey, wrapContentKeyFor, type Envelope } from '../../lib/e2ee'
 import { formatDateZurich } from '../../utils/dateHelpers'
+import IdentityCropDialog from './IdentityCropDialog'
 
 const MAX_BYTES = 8 * 1024 * 1024
+
+/**
+ * Can this browser actually render the picked image?
+ *
+ * `image/*` is not a promise that the decoder exists: an iPhone HEIC opened on Android Chrome
+ * has an image MIME type and decodes nowhere. The crop editor would show a black frame and
+ * then fail on the canvas draw, which is worse than not offering it.
+ */
+async function canDecode(file: File): Promise<boolean> {
+  const url = URL.createObjectURL(file)
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const img = new Image()
+      img.onload = () => resolve()
+      img.onerror = () => reject(new Error('decode failed'))
+      img.src = url
+    })
+    return true
+  } catch {
+    return false
+  } finally {
+    URL.revokeObjectURL(url)
+  }
+}
 
 interface Recipient {
   member: number
@@ -37,6 +63,13 @@ interface DocResponse {
  *
  * The password prompt below is NOT a login. It unlocks the private key that this device
  * stores afterwards, so it is asked for once per device, not once per page load.
+ *
+ * ⚠ EVERY <Button> HERE NEEDS type="button". This section renders inside ProfileEditForm's
+ * <form> (the `beforeActions` slot), and shadcn's Button sets no type — so the HTML default
+ * `submit` applies. Without it, tapping "Upload" opened the file picker AND submitted the
+ * profile form, whose onSaved navigates away from /profile/edit; the picker's onChange then
+ * landed on an unmounted component and the upload silently never fired. Four members hit
+ * this on 2026-08-03 with zero server-side trace — the POST never left the browser.
  */
 export default function IdentityDocumentSection() {
   const { t } = useTranslation('auth')
@@ -52,6 +85,8 @@ export default function IdentityDocumentSection() {
   const [doc, setDoc] = useState<DocResponse['data'] | null>(null)
   const [preview, setPreview] = useState<string | null>(null)
   const [checked, setChecked] = useState(false)
+  /** A picked image waiting to be cropped/rotated. PDFs skip this and upload as-is. */
+  const [pending, setPending] = useState<File | null>(null)
 
   // Revoke the object URL when it changes or the section unmounts — a decrypted ID left in
   // a live blob URL is exactly the thing this feature exists to avoid leaving lying around.
@@ -150,12 +185,36 @@ export default function IdentityDocumentSection() {
       toast.success(t('idUploaded', { count: staff }))
       setPreview(null)
       await loadDoc()
-    } catch {
+    } catch (err) {
+      // Report it. The two kscwApi legs log themselves, but the raw fetch above and the
+      // crypto before it do not — so a failed upload used to leave NO trace anywhere: no
+      // log line, no Sentry event, and (because the POST never left the browser) nothing
+      // server-side either. That is what made the 2026-08-03 reports unfalsifiable.
+      captureApiError(err, {
+        operation: 'identityUpload',
+        endpoint: '/identity/upload',
+        method: 'POST',
+        payload: { mime: file.type, size: file.size },
+      })
       toast.error(t('idUploadFailed'))
     } finally {
       setBusy(false)
       if (fileRef.current) fileRef.current.value = ''
     }
+  }
+
+  /**
+   * A freshly picked file. Images go to the crop/rotate editor first — a phone shot of an ID
+   * is nearly always sideways, or a small card on a big table — and the editor hands back the
+   * flattened JPEG to upload.
+   *
+   * A PDF has nothing to crop, and an undecodable image has nothing to show, so both skip the
+   * editor and upload as they are rather than dead-ending in it.
+   */
+  const handlePicked = async (file: File) => {
+    if (file.size > MAX_BYTES) { toast.error(t('idTooLarge')); return }
+    if (file.type.startsWith('image/') && await canDecode(file)) { setPending(file); return }
+    await handleUpload(file)
   }
 
   const handleView = async () => {
@@ -231,12 +290,12 @@ export default function IdentityDocumentSection() {
               autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') void handleKeyAction() }}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void handleKeyAction() } }}
               placeholder={t('idPasswordPlaceholder')}
               aria-label={t('idPasswordPlaceholder')}
               className="h-11 flex-1 rounded-md border bg-background px-3 text-sm dark:bg-gray-800"
             />
-            <Button onClick={() => void handleKeyAction()} loading={busy} disabled={!password}>
+            <Button type="button" onClick={() => void handleKeyAction()} loading={busy} disabled={!password}>
               <Lock className="mr-1.5 h-4 w-4" aria-hidden="true" />
               {state === 'none' ? t('idSetup') : t('idUnlock')}
             </Button>
@@ -272,15 +331,15 @@ export default function IdentityDocumentSection() {
 
               <div className="flex flex-wrap gap-2">
                 {!preview && (
-                  <Button variant="outline" onClick={() => void handleView()} loading={busy}>
+                  <Button type="button" variant="outline" onClick={() => void handleView()} loading={busy}>
                     {t('idView')}
                   </Button>
                 )}
-                <Button variant="outline" onClick={() => fileRef.current?.click()} disabled={busy}>
+                <Button type="button" variant="outline" onClick={() => fileRef.current?.click()} disabled={busy}>
                   <Upload className="mr-1.5 h-4 w-4" aria-hidden="true" />
                   {t('idReplace')}
                 </Button>
-                <Button variant="destructive" onClick={() => void handleDelete()} disabled={busy}>
+                <Button type="button" variant="destructive" onClick={() => void handleDelete()} disabled={busy}>
                   <Trash2 className="mr-1.5 h-4 w-4" aria-hidden="true" />
                   {t('idDelete')}
                 </Button>
@@ -288,7 +347,7 @@ export default function IdentityDocumentSection() {
             </>
           ) : (
             <div className="flex flex-wrap items-center gap-2">
-              <Button onClick={() => fileRef.current?.click()} loading={busy}>
+              <Button type="button" onClick={() => fileRef.current?.click()} loading={busy}>
                 <Upload className="mr-1.5 h-4 w-4" aria-hidden="true" />
                 {t('idUpload')}
               </Button>
@@ -309,9 +368,23 @@ export default function IdentityDocumentSection() {
             type="file"
             accept="image/*,application/pdf"
             className="hidden"
-            onChange={(e) => { const f = e.target.files?.[0]; if (f) void handleUpload(f) }}
+            onChange={(e) => {
+              const f = e.target.files?.[0]
+              // Clear the input here, not after the upload: the editor can be cancelled, and
+              // a stale value would make re-picking the SAME photo fire no change event.
+              e.target.value = ''
+              if (f) void handlePicked(f)
+            }}
           />
         </div>
+      )}
+
+      {pending && (
+        <IdentityCropDialog
+          file={pending}
+          onCancel={() => setPending(null)}
+          onConfirm={(cropped) => { setPending(null); void handleUpload(cropped) }}
+        />
       )}
 
       {state === 'error' && <p className="text-xs text-destructive">{t('idError')}</p>}

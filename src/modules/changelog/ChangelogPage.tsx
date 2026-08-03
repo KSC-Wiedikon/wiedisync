@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '1.63.0'
+const APP_VERSION = '1.63.1'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,20 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.63.1',
+    date: '04.08.2026',
+    sections: [
+      {
+        title: 'Fixed: uploading your ID from a phone',
+        items: [
+          'Uploading an identity document works again. Tapping "Upload document" opened the camera or photo library but then bounced you back to your profile, and the photo you took was silently discarded — nothing was saved and no error was shown. Every attempt since 28.07 failed this way.',
+          'You can now crop and rotate the photo before it is saved. A phone shot of an ID is usually sideways, or a small card on a big table; you can straighten it, zoom in and trim away the background, with presets for an ID card, landscape or portrait.',
+          'As before, the picture is encrypted on your own device — the club still cannot read it, and now only the part you kept is stored at all.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.63.0',
     date: '03.08.2026',

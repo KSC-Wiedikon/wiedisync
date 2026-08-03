@@ -316,6 +316,20 @@ export default {
   idForgetDevice: 'Schlüssel auf diesem Gerät vergessen',
   idError: 'Dein Schlüssel konnte nicht geladen werden.',
 
+  // Zuschneiden / drehen, bevor verschlüsselt wird
+  idCropTitle: 'Dokument anpassen',
+  idCropHint: 'Zum Verschieben ziehen, zum Zoomen zwei Finger oder den Regler, bei Bedarf drehen.',
+  idCropZoom: 'Zoom',
+  idCropRotateLeft: 'Nach links drehen',
+  idCropRotateRight: 'Nach rechts drehen',
+  idCropShape: 'Dokumentformat',
+  idCropAspect_card: 'Ausweis',
+  idCropAspect_landscape: 'Querformat',
+  idCropAspect_portrait: 'Hochformat',
+  idCropCancel: 'Abbrechen',
+  idCropConfirm: 'Dieses Foto verwenden',
+  idCropFailed: 'Das Bild konnte nicht verarbeitet werden. Bitte versuche ein anderes Foto.',
+
   // Passwort ändern (Schlüssel bleibt erhalten)
   pwCurrent: 'Aktuelles Passwort',
   pwNew: 'Neues Passwort',

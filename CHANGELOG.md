@@ -2,6 +2,12 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.63.1 — 2026-08-04
+
+### Fixed: uploading your ID from a phone
+- **Uploading an identity document works again.** Tapping "Upload document" opened the camera or photo library but then bounced you back to your profile, and the photo you took was silently discarded — nothing was saved and no error was shown. Every attempt since 28.07 failed this way.
+- **You can now crop and rotate the photo before it is saved.** A phone shot of an ID is usually sideways, or a small card on a big table; you can straighten it, zoom in and trim away the background, with presets for an ID card, landscape or portrait. As before, the picture is encrypted on your own device — the club still cannot read it, and now only the part you kept is stored at all.
+
 ## v1.63.0 — 2026-08-03
 
 ### Improved: choosing who a club email goes to
