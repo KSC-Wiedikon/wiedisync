@@ -18,6 +18,10 @@ import {
   parseCountryCodes, serializeCountryCodes,
 } from '../../../utils/countries'
 import CountryMultiSelect from '../../../components/CountryMultiSelect'
+import {
+  TRAINER_LICENCE_CODES, TRAINER_LICENCE_I18N_KEYS,
+  parseTrainerLicences, serializeTrainerLicences,
+} from '../../../utils/trainerLicences'
 import { MEMBER_FIELD_LABELS } from './memberFieldLabels'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
@@ -91,7 +95,7 @@ const FIELD_GROUPS: FieldGroup[] = [
   {
     id: 'licences',
     label: 'Licences',
-    keys: ['license_nr', 'licence_activated', 'licence_validated', 'licence_category', 'licence_activation_date', 'licence_validation_date', 'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'otn1_bb', 'otn2_bb', 'referee_bb'],
+    keys: ['license_nr', 'licence_activated', 'licence_validated', 'licence_category', 'licence_activation_date', 'licence_validation_date', 'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'otn1_bb', 'otn2_bb', 'referee_bb', 'trainer_licences'],
   },
   {
     id: 'privacy',
@@ -408,6 +412,10 @@ function DisplayValue({ value, kind, fieldKey }: { value: unknown; kind: FieldKi
   if (fieldKey === 'federation_of_origin') {
     return <FederationValue value={String(value)} />
   }
+  // Coaching education (migration 274) → labelled chips in canonical order.
+  if (fieldKey === 'trainer_licences') {
+    return <TrainerLicencesValue value={String(value)} />
+  }
   // Derived ClubDesk name, still free-text (German) → viewer's language.
   if (fieldKey === 'nationalitaet') {
     return <span className="break-words text-foreground">{localizeCountryName(String(value))}</span>
@@ -439,6 +447,18 @@ function DisplayValue({ value, kind, fieldKey }: { value: unknown; kind: FieldKi
     return <p className="whitespace-pre-wrap break-words text-foreground">{String(value)}</p>
   }
   return <span className="break-words text-foreground">{formatDisplay(value, kind)}</span>
+}
+
+/** Coaching education — stored codes rendered as their proper labels ("J+S"). */
+function TrainerLicencesValue({ value }: { value: string }) {
+  const { t } = useTranslation('auth')
+  const codes = parseTrainerLicences(value)
+  if (codes.length === 0) return <span className="text-muted-foreground">—</span>
+  return (
+    <span className="break-words text-foreground">
+      {codes.map((c) => t(TRAINER_LICENCE_I18N_KEYS[c])).join(', ')}
+    </span>
+  )
 }
 
 /** 'NONE' is an explicit "never licensed elsewhere", not a missing answer. */
@@ -473,6 +493,33 @@ function FieldEditor({
         onChange={(codes) => onChange(serializeCountryCodes(codes))}
         helperText={t('auth:nationalitaetHint')}
       />
+    )
+  }
+
+  // Coaching education: multi-select over a closed 4-value set, stored as a
+  // comma-separated string. Checkboxes rather than a text input — the DB CHECK
+  // would 400 on a typo and the admin would have to guess the accepted spelling.
+  if (fieldKey === 'trainer_licences') {
+    const selected = parseTrainerLicences(typeof value === 'string' ? value : '')
+    return (
+      <div className="flex flex-wrap gap-3">
+        {TRAINER_LICENCE_CODES.map((code) => (
+          <label key={code} className="flex cursor-pointer items-center gap-1.5 text-sm text-foreground">
+            <input
+              type="checkbox"
+              checked={selected.includes(code)}
+              onChange={(e) => {
+                const next = e.target.checked
+                  ? [...selected, code]
+                  : selected.filter((c) => c !== code)
+                onChange(serializeTrainerLicences(next))
+              }}
+              className="size-4 accent-primary"
+            />
+            {t(`auth:${TRAINER_LICENCE_I18N_KEYS[code]}`)}
+          </label>
+        ))}
+      </div>
     )
   }
 

@@ -309,6 +309,7 @@ export default {
   memberFilterSectionGender: 'Sexe',
   memberFilterSectionPositions: 'Positions',
   memberFilterSectionLicences: 'Licences',
+  memberFilterSectionTrainerLicences: "Formation d'entraîneur",
   memberFilterSectionRoles: 'Rôles',
   memberFilterSectionLanguages: 'Langue',
   memberFilterSectionBirthdateVis: 'Visibilité naissance',

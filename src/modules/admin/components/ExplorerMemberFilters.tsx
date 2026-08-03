@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Filter, X } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '../../../components/ui/popover'
 import type { MemberPosition } from '../../../types'
+import { TRAINER_LICENCE_CODES, TRAINER_LICENCE_I18N_KEYS } from '../../../utils/trainerLicences'
 import {
   BIRTHDATE_VIS,
   BOOL_FIELDS,
@@ -30,7 +31,7 @@ interface Props {
 }
 
 export default function ExplorerMemberFilters({ value, onChange }: Props) {
-  const { t } = useTranslation(['admin', 'common', 'invitations', 'teams'])
+  const { t } = useTranslation(['admin', 'common', 'invitations', 'teams', 'auth'])
   const activeCount = countActiveFilters(value)
 
   const setBool = (field: BoolField, tri: Tri) =>
@@ -194,6 +195,19 @@ export default function ExplorerMemberFilters({ value, onChange }: Props) {
                 active={value.licences.includes(l)}
                 onClick={() => onChange({ ...value, licences: toggleIn(value.licences, l) })}
                 label={t(`invitations:role_${l}` as const)}
+              />
+            ))}
+          </PillRow>
+        </Section>
+
+        <Section title={t('memberFilterSectionTrainerLicences')}>
+          <PillRow>
+            {TRAINER_LICENCE_CODES.map((c) => (
+              <Pill
+                key={c}
+                active={value.trainerLicences.includes(c)}
+                onClick={() => onChange({ ...value, trainerLicences: toggleIn(value.trainerLicences, c) })}
+                label={t(`auth:${TRAINER_LICENCE_I18N_KEYS[c]}`)}
               />
             ))}
           </PillRow>

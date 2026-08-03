@@ -252,6 +252,15 @@ export default {
   federationOfOriginNone: 'None / not licensed with a national federation at 14',
   federationOfOriginHint: 'The national federation that licensed you at age 14 — not necessarily where you first played.',
   nationalitaetHint: 'Select all that apply.',
+  // Coaching education (migration 274). "J+S" is the federal Jugend+Sport
+  // programme and keeps its Swiss name in every locale — it is a brand, not a
+  // description, and translating it would make it unrecognisable.
+  trainerLicences: 'Coaching qualification',
+  trainerLicencesHint: 'Select all that apply — J+S is separate from the C/B/A ladder.',
+  trainerLicenceJS: 'J+S',
+  trainerLicenceC: 'Trainer C',
+  trainerLicenceB: 'Trainer B',
+  trainerLicenceA: 'Trainer A',
   sex: 'Sex',
   ahvNummer: 'AHV number',
   beitragskategorie: 'Fee category',

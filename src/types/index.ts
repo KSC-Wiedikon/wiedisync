@@ -153,6 +153,11 @@ export interface Member extends BaseRecord {
   otn1_bb: boolean
   otn2_bb: boolean
   referee_bb: boolean
+  /** Coaching education (migration 274): ordered comma-separated subset of
+   *  JS/C/B/A, e.g. "JS,B". NULL = none / not recorded. Parse with
+   *  `parseTrainerLicences()` from src/utils/trainerLicences.ts — never split
+   *  it by hand, the helper also drops corrupt tokens and fixes the order. */
+  trainer_licences?: string | null
   coach_approved_team: boolean
   requested_team: string
   language: 'english' | 'german' | 'french' | 'italian' | 'swiss_german' | ''

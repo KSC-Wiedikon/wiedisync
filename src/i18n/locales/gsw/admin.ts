@@ -515,6 +515,7 @@ export default {
   memberFilterSectionGender: 'Gschlecht',
   memberFilterSectionPositions: 'Positione',
   memberFilterSectionLicences: 'Lizänze',
+  memberFilterSectionTrainerLicences: 'Trainerusbildig',
   memberFilterSectionRoles: 'Rolle',
   memberFilterSectionLanguages: 'Sproch',
   memberFilterSectionBirthdateVis: 'Geburtsdatum-Sichtbarkeit',

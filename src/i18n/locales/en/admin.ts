@@ -722,6 +722,7 @@ export default {
   memberFilterSectionGender: 'Gender',
   memberFilterSectionPositions: 'Positions',
   memberFilterSectionLicences: 'Licences',
+  memberFilterSectionTrainerLicences: 'Coaching qualification',
   memberFilterSectionRoles: 'Roles',
   memberFilterSectionLanguages: 'Language',
   memberFilterSectionBirthdateVis: 'Birthdate visibility',

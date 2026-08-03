@@ -23,6 +23,7 @@ import { useReportPageLoading } from '../../hooks/usePageReady'
 import type { MemberTeam, Team, Absence, LicenceType, Fine } from '../../types'
 import { formatFineAmount } from '../../hooks/useFines'
 import { licencesOf } from '../../types'
+import { TRAINER_LICENCE_I18N_KEYS, parseTrainerLicences } from '../../utils/trainerLicences'
 import { updateRecord, deleteRecord } from '../../lib/api'
 import { asObj } from '../../utils/relations'
 
@@ -511,6 +512,26 @@ export default function ProfilePage() {
                   {lics.map((l) => (
                     <span key={l} className="inline-flex rounded-full bg-gold-100 px-2.5 py-0.5 text-xs font-medium text-gold-900 dark:bg-gold-400/20 dark:text-gold-300">
                       {tt(LICENCE_LABELS[l])}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-1 text-sm font-medium text-gray-900 dark:text-gray-100">—</p>
+              )
+            })()}
+          </div>
+          {/* Coaching education (migration 274) — its own card rather than more
+              chips in the licences one: J+S / C / B / A is a different kind of
+              credential from the scorer/referee flags and reads as noise mixed in. */}
+          <div className="rounded-lg border bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+            <p className="text-sm text-gray-500 dark:text-gray-400">{t('trainerLicences')}</p>
+            {(() => {
+              const codes = parseTrainerLicences(user.trainer_licences)
+              return codes.length > 0 ? (
+                <div className="mt-1 flex flex-wrap gap-1.5">
+                  {codes.map((c) => (
+                    <span key={c} className="inline-flex rounded-full bg-gold-100 px-2.5 py-0.5 text-xs font-medium text-gold-900 dark:bg-gold-400/20 dark:text-gold-300">
+                      {t(TRAINER_LICENCE_I18N_KEYS[c])}
                     </span>
                   ))}
                 </div>
