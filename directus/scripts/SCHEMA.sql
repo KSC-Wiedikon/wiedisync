@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-08-02T23:23:16.526Z
+-- Generated:   2026-08-03T10:51:29.145Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -23,7 +23,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict qarCHprnj05QJXqOpECoi1khfYZtcoEC2Ko3BD6SgHRyh8mw32fyHiZshcwCWUV
+\restrict AWHMEabhRrKKeXODdPuzIVZcY54T3imk0f3Mqa0LWGJTh8htsJcyOMmAE0cAhbs
 
 -- Dumped from database version 16.14 (Debian 16.14-1.pgdg13+1)
 -- Dumped by pg_dump version 16.14 (Debian 16.14-1.pgdg13+1)
@@ -776,6 +776,39 @@ BEGIN
       AND g.date >= CURRENT_DATE;
   END IF;
   RETURN NULL;
+END;
+$$;
+
+
+--
+-- Name: members_normalize_trainer_licences(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.members_normalize_trainer_licences() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  normalized text;
+BEGIN
+  IF NEW.trainer_licences IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  SELECT string_agg(code, ',' ORDER BY rank, code)
+    INTO normalized
+    FROM (
+      SELECT DISTINCT
+             upper(btrim(tok)) AS code,
+             CASE upper(btrim(tok))
+               WHEN 'JS' THEN 1 WHEN 'C' THEN 2 WHEN 'B' THEN 3 WHEN 'A' THEN 4
+               ELSE 9  -- unknown → sorts last, then the CHECK rejects the row
+             END AS rank
+        FROM unnest(string_to_array(NEW.trainer_licences, ',')) AS tok
+       WHERE btrim(tok) <> ''
+    ) AS codes;
+
+  NEW.trainer_licences := NULLIF(COALESCE(normalized, ''), '');
+  RETURN NEW;
 END;
 $$;
 
@@ -2346,7 +2379,8 @@ CREATE TABLE public.clubdesk_export (
     wiedisync_id text,
     js_id text,
     federation_of_origin text,
-    gast text
+    gast text,
+    trainer_lizenz text
 );
 
 
@@ -2355,6 +2389,13 @@ CREATE TABLE public.clubdesk_export (
 --
 
 COMMENT ON COLUMN public.clubdesk_export.gast IS 'ClubDesk "Gast" checkbox (Ja/Nein) as exported. Written ONLY by wiedisync''s sync-up push; staged here so computeClubdeskDrift can compare it against the current-season roster. Never flows back into members — member_teams.guest_level is the source of truth.';
+
+
+--
+-- Name: COLUMN clubdesk_export.trainer_lizenz; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.clubdesk_export.trainer_lizenz IS 'ClubDesk "Trainer Lizenz" free-text cell as exported — the coaching qualification in ClubDesk''s own wording, comma-separated ("J+S, B"). Parsed back into members.trainer_licences codes (JS/C/B/A) fill-only by the down-sync, and re-rendered on the way up by trainerLicenceCell. Free text rather than a picklist on purpose: a member can hold J+S AND a ladder rung.';
 
 
 --
@@ -5658,10 +5699,12 @@ CREATE TABLE public.members (
     in_vis_checked_at timestamp with time zone,
     vis_player_no integer,
     profile_verified_at timestamp with time zone,
+    trainer_licences character varying(20),
     CONSTRAINT members_federation_of_origin_fmt CHECK (((federation_of_origin IS NULL) OR ((federation_of_origin)::text = 'NONE'::text) OR ((federation_of_origin)::text ~ '^[A-Z]{2}$'::text))),
     CONSTRAINT members_license_nr_fmt CHECK (((license_nr IS NULL) OR (((license_nr)::text ~ '^[0-9]+$'::text) AND ((license_nr)::text <> '0'::text)))),
     CONSTRAINT members_nationalitaet_codes_fmt CHECK (((nationalitaet_codes IS NULL) OR ((nationalitaet_codes)::text ~ '^[A-Z]{2}(,[A-Z]{2})*$'::text))),
     CONSTRAINT members_role_values_valid CHECK ((role <@ '["user", "admin", "superuser", "vb_admin", "bb_admin", "vorstand", "website_admin", "finance"]'::jsonb)),
+    CONSTRAINT members_trainer_licences_fmt CHECK (((trainer_licences IS NULL) OR ((trainer_licences)::text ~ '^(JS|C|B|A)(,(JS|C|B|A))*$'::text))),
     CONSTRAINT members_transfer_status_chk CHECK (((transfer_status IS NULL) OR ((transfer_status)::text = ANY ((ARRAY['pending'::character varying, 'done'::character varying])::text[]))))
 );
 
@@ -6063,6 +6106,13 @@ COMMENT ON COLUMN public.members.vis_player_no IS 'FIVB VIS player number, captu
 --
 
 COMMENT ON COLUMN public.members.profile_verified_at IS 'When the member last confirmed their own profile is correct (the annual pre-licence data check). NULL = never confirmed. Compared against app_settings key=''profile_review'' value=<ISO date>; older than that ⇒ the hard confirmation gate shows at next login.';
+
+
+--
+-- Name: COLUMN members.trainer_licences; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.trainer_licences IS 'Coaching education (Trainerausbildung) held by this member: ordered, comma-separated subset of JS (Jugend+Sport Leiter/in), C, B, A. Multi-valued by design — J+S is a separate track from the federation C/B/A ladder, so "JS,B" is an ordinary value. NULL = none / not recorded. Normalized to canonical order by trigger members_normalize_trainer_licences_trg. WIEDISYNC-OWNED and synced BOTH WAYS with ClubDesk''s "Trainer Lizenz" free-text field (migration 275): the push renders these codes as the club wording ("J+S, B") echo-protected, and the down-sync parses that text back fill-only. Do not confuse with ClubDesk''s "JS ID", which is the J+S Personennummer and maps to members.js_id.';
 
 
 --
@@ -11901,6 +11951,13 @@ CREATE TRIGGER form_submissions_update_guard BEFORE UPDATE ON public.form_submis
 
 
 --
+-- Name: members members_normalize_trainer_licences_trg; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER members_normalize_trainer_licences_trg BEFORE INSERT OR UPDATE OF trainer_licences ON public.members FOR EACH ROW EXECUTE FUNCTION public.members_normalize_trainer_licences();
+
+
+--
 -- Name: members members_sync_nationality_trg; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -13965,5 +14022,5 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict qarCHprnj05QJXqOpECoi1khfYZtcoEC2Ko3BD6SgHRyh8mw32fyHiZshcwCWUV
+\unrestrict AWHMEabhRrKKeXODdPuzIVZcY54T3imk0f3Mqa0LWGJTh8htsJcyOMmAE0cAhbs
 
