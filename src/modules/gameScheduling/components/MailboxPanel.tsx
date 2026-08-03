@@ -96,8 +96,9 @@ interface ComposeState {
   forwardFromId?: number
   /** Count of attachments carried over from the forwarded message (UI hint). */
   forwardAttachCount?: number
-  /** Group send: the selected audience key (`team:<id>` or a fixed group key). */
-  group?: string
+  /** Group send: selected audience keys (`team:<id>` or fixed group keys).
+   *  Multi-select — the send goes to their union, deduped by address. */
+  groups?: string[]
   mode: ComposeMode
 }
 
@@ -159,10 +160,13 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
   const [preview, setPreview] = useState<{ group: string; data: MailboxBulkPreview | null } | null>(null)
   const { fetchGroups, previewBulk, sendBulk } = mailbox
 
-  const composeGroup = compose?.mode === 'group' ? compose.group : undefined
-  const previewCurrent = !!composeGroup && preview?.group === composeGroup
+  // Selection is order-independent, so the cache key is the SORTED join —
+  // toggling A then B must not re-resolve what B then A already resolved.
+  const composeGroups = compose?.mode === 'group' ? (compose.groups ?? []) : []
+  const composeKey = composeGroups.length > 0 ? [...composeGroups].sort().join('|') : ''
+  const previewCurrent = !!composeKey && preview?.group === composeKey
   const previewData = previewCurrent ? preview?.data ?? null : null
-  const previewLoading = !!composeGroup && !previewCurrent
+  const previewLoading = !!composeKey && !previewCurrent
 
   useEffect(() => {
     if (compose?.mode !== 'group' || groups) return
@@ -182,30 +186,30 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
   // operator can see who a send would reach before committing to it, so it runs
   // automatically rather than behind a button they might skip.
   useEffect(() => {
-    if (!composeGroup || preview?.group === composeGroup) return
+    if (!composeKey || preview?.group === composeKey) return
     let cancelled = false
     void (async () => {
       try {
-        const p = await previewBulk(composeGroup)
-        // Store the group alongside the result: a slow response for a
-        // previously-selected group must never be shown against the new one.
-        if (!cancelled) setPreview({ group: composeGroup, data: p })
+        const p = await previewBulk(composeKey.split('|'))
+        // Store the selection alongside the result: a slow response for a
+        // previous selection must never be shown against the current one.
+        if (!cancelled) setPreview({ group: composeKey, data: p })
       } catch {
         if (!cancelled) {
-          setPreview({ group: composeGroup, data: null })
+          setPreview({ group: composeKey, data: null })
           toast.error(t('mailboxPreviewFailed'))
         }
       }
     })()
     return () => { cancelled = true }
-  }, [composeGroup, preview?.group, previewBulk, t])
+  }, [composeKey, preview?.group, previewBulk, t])
 
   /** Human label for a group key: teams show their roster name (data, never
    *  translated), fixed groups resolve through i18n. */
   const groupLabel = (g: MailboxGroup) => g.name ?? t(`mailboxGroup_${g.key.replace(/[:.]/g, '_')}`)
 
   const handleSendGroup = async () => {
-    if (!compose || !compose.group || !previewData) return
+    if (!compose || !compose.groups?.length || !previewData) return
     if (previewData.recipient_count === 0) return
     // Mass mail is irreversible and goes to real members — confirm with the
     // resolved number, not the group name, so the operator sees the blast size.
@@ -216,7 +220,7 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
     if (!ok) return
     try {
       const result = await sendBulk({
-        group: compose.group,
+        groups: compose.groups,
         subject: compose.subject,
         html: compose.html,
         attachments: compose.attachments,
@@ -549,7 +553,7 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => setCompose({ to: '', cc: '', subject: '', html: '', attachments: [], group: '', mode: 'group' })}
+                  onClick={() => setCompose({ to: '', cc: '', subject: '', html: '', attachments: [], groups: [], mode: 'group' })}
                 >
                   <Users className="mr-1.5 h-4 w-4" />
                   {t('mailboxGroupSend')}
@@ -728,26 +732,17 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
               {compose.mode === 'group' ? (
                 <div>
                   <label className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('mailboxGroupLabel')}</label>
-                  {/* dark:bg-gray-800 is required — <option> inherits the select's
-                      background, so bg-transparent renders a white dropdown in dark mode. */}
-                  <select
-                    value={compose.group || ''}
-                    onChange={(e) => setCompose({ ...compose, group: e.target.value })}
-                    className="mt-1 w-full rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
-                  >
-                    <option value="">{t('mailboxGroupPlaceholder')}</option>
-                    {groups?.groups.map((g) => (
-                      <option key={g.key} value={g.key}>{`${groupLabel(g)} (${g.count})`}</option>
-                    ))}
-                    {(groups?.teams.length ?? 0) > 0 && (
-                      <optgroup label={t('mailboxGroupTeams')}>
-                        {groups?.teams.map((g) => (
-                          <option key={g.key} value={g.key}>{`${groupLabel(g)} (${g.count})`}</option>
-                        ))}
-                      </optgroup>
-                    )}
-                  </select>
-                  <GroupPreview preview={previewData} loading={previewLoading} selected={!!compose.group} />
+                  <AudiencePicker
+                    groups={groups}
+                    selected={compose.groups ?? []}
+                    onToggle={(key) => {
+                      const cur = compose.groups ?? []
+                      setCompose({ ...compose, groups: cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key] })
+                    }}
+                    onClear={() => setCompose({ ...compose, groups: [] })}
+                    labelFor={groupLabel}
+                  />
+                  <GroupPreview preview={previewData} loading={previewLoading} selected={(compose.groups ?? []).length > 0} />
                 </div>
               ) : (
                 <>
@@ -868,6 +863,101 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
         </DialogContent>
       </Dialog>
     </>
+  )
+}
+
+/** Chip rows, in display order. Keys match `section` on the server's group
+ *  catalogue; anything with an unrecognised section falls into 'roles'. */
+const AUDIENCE_SECTIONS = ['everyone', 'sektion', 'players', 'roles', 'teams', 'former'] as const
+
+/**
+ * Audience picker — toggle chips grouped into rows.
+ *
+ * Chips rather than a dropdown because the catalogue is the useful part: an
+ * operator needs to SEE that "all scorers" and "all referees" exist, and how
+ * big each is, without opening a list and reading it one line at a time. Counts
+ * ride on the chip for the same reason.
+ *
+ * Multi-select unions the audiences and dedupes by address server-side, so
+ * picking "All coaches" + "D1" mails a coach of D1 exactly once.
+ */
+function AudiencePicker({
+  groups,
+  selected,
+  onToggle,
+  onClear,
+  labelFor,
+}: {
+  groups: MailboxGroupsResponse | null
+  selected: string[]
+  onToggle: (key: string) => void
+  onClear: () => void
+  labelFor: (g: MailboxGroup) => string
+}) {
+  const { t } = useTranslation('gameScheduling')
+  const bySection = useMemo(() => {
+    const map = new Map<string, MailboxGroup[]>()
+    for (const g of [...(groups?.groups ?? []), ...(groups?.teams ?? [])]) {
+      const key = (AUDIENCE_SECTIONS as readonly string[]).includes(g.section) ? g.section : 'roles'
+      if (!map.has(key)) map.set(key, [])
+      map.get(key)!.push(g)
+    }
+    return map
+  }, [groups])
+
+  if (!groups) {
+    return (
+      <p className="mt-2 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+        <InlineSpinner /> {t('mailboxGroupsLoading')}
+      </p>
+    )
+  }
+
+  return (
+    <div className="mt-1 space-y-2">
+      {AUDIENCE_SECTIONS.filter((s) => bySection.has(s)).map((section) => (
+        <div key={section}>
+          <p className="mb-1 text-[11px] font-medium text-gray-400 dark:text-gray-500">
+            {t(`mailboxSection_${section}`)}
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {bySection.get(section)!.map((g) => {
+              const on = selected.includes(g.key)
+              const empty = g.count === 0
+              return (
+                <button
+                  key={g.key}
+                  type="button"
+                  aria-pressed={on}
+                  disabled={empty}
+                  onClick={() => onToggle(g.key)}
+                  // min-h-11 on mobile keeps the touch target at 44px.
+                  className={`inline-flex min-h-11 items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition-colors sm:min-h-8 ${
+                    on
+                      ? 'border-brand-500 bg-brand-500 text-white'
+                      : empty
+                        ? 'cursor-not-allowed border-gray-200 bg-gray-50 text-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-600'
+                        : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  <span>{labelFor(g)}</span>
+                  <span className={on ? 'text-white/80' : 'text-gray-400 dark:text-gray-500'}>{g.count}</span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      ))}
+      {selected.length > 0 && (
+        <button
+          type="button"
+          onClick={onClear}
+          className="text-xs text-gray-500 underline hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+        >
+          {t('mailboxGroupClear', { count: selected.length })}
+        </button>
+      )}
+    </div>
   )
 }
 

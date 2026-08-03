@@ -59,7 +59,7 @@ import nodemailer from 'nodemailer'
 import MailComposer from 'nodemailer/lib/mail-composer/index.js'
 import { escHtml } from './email-template.js'
 import { writeUserLog } from './activity-log.js'
-import { MAILBOX_GROUPS, resolveMemberAudience, teamAudienceCounts } from './audience.js'
+import { MAILBOX_GROUPS, resolveClubdeskRecipients, resolveMemberAudience, teamAudienceCounts } from './audience.js'
 import {
   SCHEDULING_SIGNATURE_LIGHT_HTML, SCHEDULING_SIGNATURE_TEXT,
   SCHEDULING_SIGNATURE_BASKETBALL_LIGHT_HTML, SCHEDULING_SIGNATURE_BASKETBALL_TEXT,
@@ -1094,15 +1094,20 @@ export function registerSchedulingMailbox(router, { database, logger }) {
   // gate grants is_spielplaner, which must never imply the ability to mail the
   // whole club.
 
-  /** Resolve a group key (fixed group or `team:<id>`) to an audience spec. */
-  function specForGroup(key) {
+  /** Resolve a group key (fixed group or `team:<id>`) to how it should be
+   *  resolved: an audience spec against `members`, or the ClubDesk contact
+   *  register. Unknown keys return null and the caller rejects the whole
+   *  request — a typo must never silently shrink OR widen the audience. */
+  function sourceForGroup(key) {
     const raw = String(key || '')
     if (raw.startsWith('team:')) {
       const id = Number(raw.slice(5))
       if (!Number.isFinite(id)) return null
-      return { audience_type: 'teams', audience_teams: [id] }
+      return { spec: { audience_type: 'teams', audience_teams: [id] } }
     }
-    return MAILBOX_GROUPS.find(g => g.key === raw)?.spec ?? null
+    const g = MAILBOX_GROUPS.find(x => x.key === raw)
+    if (!g) return null
+    return g.source === 'clubdesk' ? { clubdeskStatus: g.status } : { spec: g.spec }
   }
 
   /**
@@ -1118,16 +1123,33 @@ export function registerSchedulingMailbox(router, { database, logger }) {
    *   - a duplicate address (shared family inboxes — 693 member addresses are
    *     only 671 distinct, so without this some households get N copies)
    */
-  async function resolveRecipients(spec, label) {
-    const memberIds = await resolveMemberAudience(database, log, spec, label)
-    if (memberIds.length === 0) return { recipients: [], audienceSize: 0, skipped: { noEmail: 0, optedOut: 0, duplicate: 0 } }
-    const rows = await database('members')
-      .whereIn('id', memberIds)
-      .select('id', 'email', 'first_name', 'last_name', 'email_notify_announcements')
+  async function resolveRecipients(sources, label) {
+    // UNION across every selected chip, then dedupe once over the combined set.
+    // Deduping per-group instead would mail a coach who is also a captain twice
+    // when both chips are on — which is precisely the case multi-select makes
+    // easy to hit.
+    const memberIds = new Set()
+    const clubdeskRows = []
+    for (const src of sources) {
+      if (src.clubdeskStatus) {
+        clubdeskRows.push(...await resolveClubdeskRecipients(database, src.clubdeskStatus))
+      } else {
+        for (const id of await resolveMemberAudience(database, log, src.spec, label)) memberIds.add(id)
+      }
+    }
+
+    const memberRows = memberIds.size > 0
+      ? await database('members').whereIn('id', [...memberIds])
+        .select('id', 'email', 'first_name', 'last_name', 'email_notify_announcements')
+      : []
+
     const skipped = { noEmail: 0, optedOut: 0, duplicate: 0 }
     const seen = new Set()
     const recipients = []
-    for (const r of rows) {
+
+    // Members first, so that when a person appears in BOTH a member group and
+    // the ClubDesk one, the member row wins and their opt-out still applies.
+    for (const r of memberRows) {
       const email = String(r.email || '').trim()
       if (!email) { skipped.noEmail++; continue }
       if (!r.email_notify_announcements) { skipped.optedOut++; continue }
@@ -1136,7 +1158,16 @@ export function registerSchedulingMailbox(router, { database, logger }) {
       seen.add(kEmail)
       recipients.push({ id: r.id, email, first_name: r.first_name || '', last_name: r.last_name || '' })
     }
-    return { recipients, audienceSize: memberIds.length, skipped }
+    // ClubDesk contacts carry no opt-out column, so there is nothing to honour
+    // beyond List-Unsubscribe — see resolveClubdeskRecipients.
+    for (const r of clubdeskRows) {
+      const kEmail = r.email.toLowerCase()
+      if (seen.has(kEmail)) { skipped.duplicate++; continue }
+      seen.add(kEmail)
+      recipients.push(r)
+    }
+
+    return { recipients, audienceSize: memberIds.size + clubdeskRows.length, skipped }
   }
 
   /** ClubDesk-style merge fields. Substituted per recipient AFTER sanitisation,
@@ -1157,11 +1188,13 @@ export function registerSchedulingMailbox(router, { database, logger }) {
     try {
       const [teams, ...counts] = await Promise.all([
         teamAudienceCounts(database),
-        ...MAILBOX_GROUPS.map(g => resolveMemberAudience(database, log, g.spec, `mailbox/${g.key}`).then(ids => ids.length)),
+        ...MAILBOX_GROUPS.map(g => (g.source === 'clubdesk'
+          ? resolveClubdeskRecipients(database, g.status).then(rows => rows.length)
+          : resolveMemberAudience(database, log, g.spec, `mailbox/${g.key}`).then(ids => ids.length))),
       ])
       res.json({
-        groups: MAILBOX_GROUPS.map((g, i) => ({ key: g.key, count: counts[i] })),
-        teams: teams.map(t => ({ key: `team:${t.id}`, name: t.name, sport: t.sport, count: t.count })),
+        groups: MAILBOX_GROUPS.map((g, i) => ({ key: g.key, section: g.section ?? 'roles', count: counts[i] })),
+        teams: teams.map(t => ({ key: `team:${t.id}`, section: 'teams', name: t.name, sport: t.sport, count: t.count })),
       })
     } catch (err) { fail(res, 'mailbox/groups', err, req) }
   })
@@ -1189,12 +1222,37 @@ export function registerSchedulingMailbox(router, { database, logger }) {
         }
       }
 
-      const groupKey = String(body.group || '')
-      const spec = specForGroup(groupKey)
-      if (!spec) return res.status(400).json({ error: 'Unknown group' })
+      // `groups` is the multi-select form (a JSON array or a comma list, since
+      // multipart fields are strings); `group` stays accepted as the original
+      // single-value shape.
+      let groupKeys = []
+      if (body.groups != null && String(body.groups) !== '') {
+        if (Array.isArray(body.groups)) groupKeys = body.groups.map(String)
+        else {
+          try {
+            const parsed = JSON.parse(String(body.groups))
+            groupKeys = Array.isArray(parsed) ? parsed.map(String) : []
+          } catch { groupKeys = String(body.groups).split(',') }
+        }
+      } else if (body.group) {
+        groupKeys = [String(body.group)]
+      }
+      groupKeys = [...new Set(groupKeys.map(k => k.trim()).filter(Boolean))]
+      if (groupKeys.length === 0) return res.status(400).json({ error: 'No group selected' })
+
+      // Reject on the FIRST unknown key rather than resolving what we recognise:
+      // silently ignoring a chip the client thinks it selected would send to a
+      // smaller audience than the operator just confirmed.
+      const sources = []
+      for (const k of groupKeys) {
+        const src = sourceForGroup(k)
+        if (!src) return res.status(400).json({ error: `Unknown group: ${k}` })
+        sources.push(src)
+      }
+      const groupKey = groupKeys.join(', ')
 
       const dryRun = body.dry_run === true || String(body.dry_run) === 'true'
-      const { recipients, audienceSize, skipped } = await resolveRecipients(spec, `mailbox/${groupKey}`)
+      const { recipients, audienceSize, skipped } = await resolveRecipients(sources, `mailbox/${groupKey}`)
 
       if (dryRun) {
         // Names, never addresses: the preview answers "how many and roughly
@@ -1202,6 +1260,7 @@ export function registerSchedulingMailbox(router, { database, logger }) {
         return res.json({
           dry_run: true,
           group: groupKey,
+          groups: groupKeys,
           audience_size: audienceSize,
           recipient_count: recipients.length,
           skipped,

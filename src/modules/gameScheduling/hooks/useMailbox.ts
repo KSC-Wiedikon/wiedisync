@@ -62,6 +62,8 @@ export interface MailboxReplyPayload {
  *  own name, which is data and never translated. */
 export interface MailboxGroup {
   key: string
+  /** Which chip row it belongs to: everyone | sektion | players | roles | teams | former. */
+  section: string
   count: number
   /** Teams only — the roster name to display verbatim. */
   name?: string
@@ -79,7 +81,9 @@ export interface MailboxGroupsResponse {
  *  two is exactly what `skipped` explains. */
 export interface MailboxBulkPreview {
   dry_run: true
+  /** Joined key list, for display/logging. */
   group: string
+  groups: string[]
   audience_size: number
   recipient_count: number
   skipped: { noEmail: number; optedOut: number; duplicate: number }
@@ -99,7 +103,8 @@ export interface MailboxBulkResult {
 }
 
 export interface MailboxBulkPayload {
-  group: string
+  /** One or more audience keys — sent as a union, deduped by address. */
+  groups: string[]
   subject: string
   html: string
   attachments?: File[]
@@ -534,9 +539,9 @@ export interface UseMailboxReturn {
   assignThread: (ids: number[], opponentId: number | null) => Promise<void>
   /** Club mailbox only — the group-send catalogue with live audience counts. */
   fetchGroups: () => Promise<MailboxGroupsResponse>
-  /** Club mailbox only — resolve a group WITHOUT sending, so the composer can
-   *  show who it would reach. Always call this before sendBulk. */
-  previewBulk: (group: string) => Promise<MailboxBulkPreview>
+  /** Club mailbox only — resolve the selected audiences WITHOUT sending, so the
+   *  composer can show who they would reach. Always call this before sendBulk. */
+  previewBulk: (groups: string[]) => Promise<MailboxBulkPreview>
   /** Club mailbox only — send one personalised message per recipient. */
   sendBulk: (payload: MailboxBulkPayload) => Promise<MailboxBulkResult>
 }
@@ -667,10 +672,10 @@ export function useMailbox(enabled: boolean = true, sport: MailboxAccount = 'vol
     return await kscwApi<MailboxGroupsResponse>(mailboxUrl(sport, '/groups'))
   }, [sport])
 
-  const previewBulk = useCallback(async (group: string) => {
+  const previewBulk = useCallback(async (groups: string[]) => {
     return await kscwApi<MailboxBulkPreview>(mailboxUrl(sport, '/bulk'), {
       method: 'POST',
-      body: { group, dry_run: true },
+      body: { groups, dry_run: true },
     })
   }, [sport])
 
@@ -680,7 +685,9 @@ export function useMailbox(enabled: boolean = true, sport: MailboxAccount = 'vol
       // Multipart for the same reason sendReply uses it: attachments would blow
       // past Directus's 1 MB JSON body cap.
       const fd = new FormData()
-      fd.append('group', payload.group)
+      // JSON-encoded: multipart fields are strings, and a team name could
+      // never contain a comma but a future group key might.
+      fd.append('groups', JSON.stringify(payload.groups))
       fd.append('subject', payload.subject)
       fd.append('html', payload.html)
       for (const f of payload.attachments || []) fd.append('attachments', f, f.name)

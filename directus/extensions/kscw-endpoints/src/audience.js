@@ -181,21 +181,45 @@ export async function teamAudienceCounts(database) {
  * from here, because every user-facing string belongs in i18n (5 locales) and
  * this module has no locale context.
  */
+// `section` groups chips in the UI. `source: 'clubdesk'` reads the ClubDesk
+// contact register instead of `members` — see resolveClubdeskRecipients.
 export const MAILBOX_GROUPS = [
-  { key: 'all', spec: { audience_type: 'all_members' } },
-  { key: 'sport:volleyball', spec: { audience_type: 'sport', audience_sport: 'volleyball' } },
-  { key: 'sport:basketball', spec: { audience_type: 'sport', audience_sport: 'basketball' } },
-  { key: 'fn:coach', spec: { audience_type: 'roles', audience_roles: ['fn:coach'] } },
-  { key: 'fn:team_responsible', spec: { audience_type: 'roles', audience_roles: ['fn:team_responsible'] } },
-  { key: 'fn:captain', spec: { audience_type: 'roles', audience_roles: ['fn:captain'] } },
-  { key: 'qual:scorer_vb', spec: { audience_type: 'roles', audience_roles: ['qual:scorer_vb'] } },
-  { key: 'qual:referee_vb', spec: { audience_type: 'roles', audience_roles: ['qual:referee_vb'] } },
-  { key: 'qual:referee_bb', spec: { audience_type: 'roles', audience_roles: ['qual:referee_bb'] } },
+  { key: 'all', section: 'everyone', spec: { audience_type: 'all_members' } },
+  // Sektion vs sport are NOT the same audience and both are wanted. Sektion is
+  // the club's own structure (everyone filed under Volleyball: players, coaches,
+  // staff, passive members, people between teams — 279 on prod); sport is
+  // players on an active team this season (200). Offering only the latter, as
+  // this first did, silently drops 79 volleyball people from "email volleyball".
+  { key: 'sektion:volleyball', section: 'sektion', spec: { audience_type: 'sektion', audience_sektion: 'Volleyball' } },
+  { key: 'sektion:basketball', section: 'sektion', spec: { audience_type: 'sektion', audience_sektion: 'Basketball' } },
+  // The club-level section — members filed under neither sport (110 on prod),
+  // who belong to no sport chip at all and were previously unreachable except
+  // via "All members".
+  { key: 'sektion:kscw', section: 'sektion', spec: { audience_type: 'sektion', audience_sektion: 'KSCW' } },
+  { key: 'sport:volleyball', section: 'players', spec: { audience_type: 'sport', audience_sport: 'volleyball' } },
+  { key: 'sport:basketball', section: 'players', spec: { audience_type: 'sport', audience_sport: 'basketball' } },
+  { key: 'fn:coach', section: 'roles', spec: { audience_type: 'roles', audience_roles: ['fn:coach'] } },
+  { key: 'fn:team_responsible', section: 'roles', spec: { audience_type: 'roles', audience_roles: ['fn:team_responsible'] } },
+  { key: 'fn:captain', section: 'roles', spec: { audience_type: 'roles', audience_roles: ['fn:captain'] } },
+  { key: 'qual:scorer_vb', section: 'roles', spec: { audience_type: 'roles', audience_roles: ['qual:scorer_vb'] } },
+  { key: 'qual:referee_vb', section: 'roles', spec: { audience_type: 'roles', audience_roles: ['qual:referee_vb'] } },
+  { key: 'qual:referee_bb', section: 'roles', spec: { audience_type: 'roles', audience_roles: ['qual:referee_bb'] } },
   // All BB officials: the coarse otn_bb flag AND the two levels — migration 228
   // split them and the 6 pre-split holders only have the coarse one, so naming
   // just the levels would drop them.
-  { key: 'qual:officials_bb', spec: { audience_type: 'roles', audience_roles: ['qual:otr1_bb', 'qual:otr2_bb', 'qual:otn_bb', 'qual:otn1_bb', 'qual:otn2_bb'] } },
-  { key: 'role:vorstand', spec: { audience_type: 'roles', audience_roles: ['role:vorstand'] } },
+  { key: 'qual:officials_bb', section: 'roles', spec: { audience_type: 'roles', audience_roles: ['qual:otr1_bb', 'qual:otr2_bb', 'qual:otn_bb', 'qual:otn1_bb', 'qual:otn2_bb'] } },
+  { key: 'role:vorstand', section: 'roles', spec: { audience_type: 'roles', audience_roles: ['role:vorstand'] } },
+  // ⚠ The ONLY group not sourced from `members`. Former members are not member
+  // rows — ClubDesk holds 428 of them and wiedisync holds none once the stale
+  // active flags are cleared — so this reads the contact register directly.
+  //
+  // ⚠ Two consequences the caller must not forget: these contacts have no
+  // email_notify_announcements column, so there is NO per-person opt-out to
+  // honour (only the List-Unsubscribe header), and the addresses are cold —
+  // people who left as long ago as 2018. Bounces from this group land on the
+  // same SES identity that sends password resets, invitations and expense mail.
+  // Bounce/complaint handling is the outstanding follow-up (SECURITY/DEVLOG).
+  { key: 'former_members', section: 'former', source: 'clubdesk', status: 'Ehemaliges Mitglied' },
 ]
 
 /**
@@ -269,6 +293,24 @@ export async function resolveMemberAudience(database, log, spec, label = 'audien
         .select('m.id')
       return rows.map(r => r.id).filter(Boolean)
     }
+    // A whole club section (members.sektion), inside the register. Broader than
+    // 'sport' on purpose: 'sport' walks active rosters and so reaches players
+    // only, while a section holds its coaches, staff, passive members and
+    // everyone currently between teams too.
+    case 'sektion': {
+      if (!spec.audience_sektion) {
+        log?.warn?.({ msg: `[${label}] audience_type=sektion but audience_sektion is null — skipping fanout` })
+        return []
+      }
+      const rows = await database('members as m')
+        .join('clubdesk_people as cp', database.raw('cp.clubdesk_id::text = m.clubdesk_id::text'))
+        .where('m.kscw_membership_active', true)
+        .whereIn('cp.status', MEMBER_REGISTER_STATUSES)
+        .where('m.sektion', spec.audience_sektion)
+        .distinct('m.id')
+        .select('m.id')
+      return rows.map(r => r.id).filter(Boolean)
+    }
     case 'teams': {
       const teamIds = parseJsonArray(spec.audience_teams).map(Number).filter(Number.isFinite)
       if (teamIds.length === 0) {
@@ -301,4 +343,38 @@ export async function resolveMemberAudience(database, log, spec, label = 'audien
       return []
     }
   }
+}
+
+/**
+ * Recipients drawn from the ClubDesk contact register rather than `members`.
+ *
+ * Exists for one audience: former members. They are not member rows — the club
+ * carries 428 of them in ClubDesk and (once the stale active flags are cleared)
+ * none in wiedisync — so there is nothing to resolve to a member ID.
+ *
+ * ⚠ Returns the SAME shape as the members path so the caller can union and
+ * dedupe the two, but the guarantees differ and the difference matters:
+ *
+ *   - There is no `email_notify_announcements` here, so no per-person opt-out
+ *     exists to honour. The List-Unsubscribe header is the only opt-out these
+ *     recipients get.
+ *   - `status='Verstorben'` is excluded explicitly. It is a single row today,
+ *     and mailing it is the kind of mistake a club does not get to take back.
+ *   - The addresses are cold (departures back to 2018), so this is the audience
+ *     most likely to bounce, on the same SES identity that carries password
+ *     resets and invitations.
+ */
+export async function resolveClubdeskRecipients(database, status) {
+  const rows = await database('clubdesk_people')
+    .where('status', status)
+    .whereNot('status', 'Verstorben')
+    .whereNotNull('email')
+    .whereRaw("BTRIM(email) <> ''")
+    .select('clubdesk_id', 'email', 'vorname', 'nachname')
+  return rows.map(r => ({
+    id: `cd:${r.clubdesk_id}`,
+    email: String(r.email).trim(),
+    first_name: r.vorname || '',
+    last_name: r.nachname || '',
+  }))
 }
