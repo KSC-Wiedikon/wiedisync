@@ -647,6 +647,8 @@ export default {
   mailboxPreviewCount_other: '{{count}} members will receive this email',
   mailboxPreviewExcluded: 'Of {{audience}} in the group: {{noEmail}} without an email address, {{optedOut}} opted out, {{duplicate}} on a shared address',
   mailboxPreviewSample: 'For example: {{names}}',
+  mailboxPreviewSuppressed: '{{count}} address is skipped because it bounced or was marked as spam',
+  mailboxPreviewSuppressed_other: '{{count}} addresses are skipped because they bounced or were marked as spam',
   mailboxPreviewEmpty: 'Nobody in this group can be emailed',
   mailboxGroupMergeHint: 'Tip: {{first}} and {{last}} are replaced with each recipient’s name.',
   mailboxGroupConfirm: 'Send this email to {{count}} member? Each one gets their own copy and this cannot be undone.',

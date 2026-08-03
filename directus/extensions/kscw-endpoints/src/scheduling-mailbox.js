@@ -60,6 +60,7 @@ import MailComposer from 'nodemailer/lib/mail-composer/index.js'
 import { escHtml } from './email-template.js'
 import { writeUserLog } from './activity-log.js'
 import { MAILBOX_GROUPS, resolveClubdeskRecipients, resolveMemberAudience, teamAudienceCounts } from './audience.js'
+import { loadSuppressed } from './email-suppression.js'
 import {
   SCHEDULING_SIGNATURE_LIGHT_HTML, SCHEDULING_SIGNATURE_TEXT,
   SCHEDULING_SIGNATURE_BASKETBALL_LIGHT_HTML, SCHEDULING_SIGNATURE_BASKETBALL_TEXT,
@@ -1122,6 +1123,9 @@ export function registerSchedulingMailbox(router, { database, logger }) {
    *     too rather than routing around it)
    *   - a duplicate address (shared family inboxes — 693 member addresses are
    *     only 671 distinct, so without this some households get N copies)
+   *   - a suppressed address (SES told us it hard-bounced, or the recipient
+   *     marked us as spam) — re-mailing those is what costs the SES identity
+   *     its reputation, and that identity also carries password resets
    */
   async function resolveRecipients(sources, label) {
     // UNION across every selected chip, then dedupe once over the combined set.
@@ -1143,9 +1147,14 @@ export function registerSchedulingMailbox(router, { database, logger }) {
         .select('id', 'email', 'first_name', 'last_name', 'email_notify_announcements')
       : []
 
-    const skipped = { noEmail: 0, optedOut: 0, duplicate: 0 }
+    const skipped = { noEmail: 0, optedOut: 0, duplicate: 0, suppressed: 0 }
     const seen = new Set()
     const recipients = []
+
+    const suppressedSet = await loadSuppressed(database, [
+      ...memberRows.map(r => r.email),
+      ...clubdeskRows.map(r => r.email),
+    ])
 
     // Members first, so that when a person appears in BOTH a member group and
     // the ClubDesk one, the member row wins and their opt-out still applies.
@@ -1154,6 +1163,7 @@ export function registerSchedulingMailbox(router, { database, logger }) {
       if (!email) { skipped.noEmail++; continue }
       if (!r.email_notify_announcements) { skipped.optedOut++; continue }
       const kEmail = email.toLowerCase()
+      if (suppressedSet.has(kEmail)) { skipped.suppressed++; continue }
       if (seen.has(kEmail)) { skipped.duplicate++; continue }
       seen.add(kEmail)
       recipients.push({ id: r.id, email, first_name: r.first_name || '', last_name: r.last_name || '' })
@@ -1162,6 +1172,7 @@ export function registerSchedulingMailbox(router, { database, logger }) {
     // beyond List-Unsubscribe — see resolveClubdeskRecipients.
     for (const r of clubdeskRows) {
       const kEmail = r.email.toLowerCase()
+      if (suppressedSet.has(kEmail)) { skipped.suppressed++; continue }
       if (seen.has(kEmail)) { skipped.duplicate++; continue }
       seen.add(kEmail)
       recipients.push(r)

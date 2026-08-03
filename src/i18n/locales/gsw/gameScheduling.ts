@@ -617,6 +617,8 @@ export default {
   mailboxPreviewCount_other: '{{count}} Mitglieder überchömed die E-Mail',
   mailboxPreviewExcluded: 'Vo {{audience}} i de Gruppe: {{noEmail}} ohni E-Mail-Adress, {{optedOut}} abgmäldet, {{duplicate}} mit gteilter Adress',
   mailboxPreviewSample: 'Zum Bispil: {{names}}',
+  mailboxPreviewSuppressed: '{{count}} Adress wird übersprunge (nöd zuestellbar oder als Spam markiert)',
+  mailboxPreviewSuppressed_other: '{{count}} Adresse werded übersprunge (nöd zuestellbar oder als Spam markiert)',
   mailboxPreviewEmpty: 'Niemert i dere Gruppe cha aagschriebe werde',
   mailboxGroupMergeHint: 'Tipp: {{first}} und {{last}} werded dur de Name vo de Empfänger ersetzt.',
   mailboxGroupConfirm: 'Die E-Mail a {{count}} Mitglied schicke? Jedi Person überchunt e eigeni Kopie – das cha me nöd rückgängig mache.',

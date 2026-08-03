@@ -86,7 +86,7 @@ export interface MailboxBulkPreview {
   groups: string[]
   audience_size: number
   recipient_count: number
-  skipped: { noEmail: number; optedOut: number; duplicate: number }
+  skipped: { noEmail: number; optedOut: number; duplicate: number; suppressed: number }
   /** First names + last initial only — never addresses. */
   sample: string[]
 }
@@ -98,7 +98,7 @@ export interface MailboxBulkResult {
   recipient_count: number
   sent: number
   failed: number
-  skipped: { noEmail: number; optedOut: number; duplicate: number }
+  skipped: { noEmail: number; optedOut: number; duplicate: number; suppressed: number }
   errors: { email: string; error: string }[]
 }
 

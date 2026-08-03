@@ -984,7 +984,7 @@ function GroupPreview({ preview, loading, selected }: { preview: MailboxBulkPrev
   }
   if (!preview) return null
   const { skipped } = preview
-  const excluded = skipped.noEmail + skipped.optedOut + skipped.duplicate
+  const excluded = skipped.noEmail + skipped.optedOut + skipped.duplicate + (skipped.suppressed ?? 0)
   return (
     <div className="mt-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-xs dark:border-gray-700 dark:bg-gray-900">
       <p className="font-semibold text-gray-900 dark:text-gray-100">
@@ -998,6 +998,11 @@ function GroupPreview({ preview, loading, selected }: { preview: MailboxBulkPrev
             optedOut: skipped.optedOut,
             duplicate: skipped.duplicate,
           })}
+        </p>
+      )}
+      {(skipped.suppressed ?? 0) > 0 && (
+        <p className="mt-1 text-amber-600 dark:text-amber-400">
+          {t('mailboxPreviewSuppressed', { count: skipped.suppressed })}
         </p>
       )}
       {preview.sample.length > 0 && (

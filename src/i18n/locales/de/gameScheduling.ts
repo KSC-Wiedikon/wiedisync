@@ -645,6 +645,8 @@ export default {
   mailboxPreviewCount_other: '{{count}} Mitglieder erhalten diese E-Mail',
   mailboxPreviewExcluded: 'Von {{audience}} in der Gruppe: {{noEmail}} ohne E-Mail-Adresse, {{optedOut}} abgemeldet, {{duplicate}} mit geteilter Adresse',
   mailboxPreviewSample: 'Zum Beispiel: {{names}}',
+  mailboxPreviewSuppressed: '{{count}} Adresse wird übersprungen (unzustellbar oder als Spam markiert)',
+  mailboxPreviewSuppressed_other: '{{count}} Adressen werden übersprungen (unzustellbar oder als Spam markiert)',
   mailboxPreviewEmpty: 'Niemand in dieser Gruppe kann angeschrieben werden',
   mailboxGroupMergeHint: 'Tipp: {{first}} und {{last}} werden durch den Namen der Empfänger ersetzt.',
   mailboxGroupConfirm: 'Diese E-Mail an {{count}} Mitglied senden? Jede Person erhält eine eigene Kopie – das lässt sich nicht rückgängig machen.',

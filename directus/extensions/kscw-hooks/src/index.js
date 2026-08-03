@@ -28,6 +28,7 @@ import { bbRequiredDocs, fibaNatCode } from '../../kscw-endpoints/src/bb-docs.js
 import { gameStartMs } from '../../kscw-endpoints/src/scorer-roster.js'
 import { currentSeasonShort, seasonStartYear } from '../../kscw-endpoints/src/season.js'
 import { parseJsonArray, resolveMemberAudience } from '../../kscw-endpoints/src/audience.js'
+import { loadSuppressed } from '../../kscw-endpoints/src/email-suppression.js'
 import { registerAuditHook } from './audit.js'
 import { sanitizeAnnouncementHtml } from './sanitize-html.js'
 import { snapshotSlot, cascadeSlotUpdate, generateInitialTrainings, topUpIndefiniteSlots, addTrainingSkip, clearTrainingSkip } from './slot-cascade.js'
@@ -1581,12 +1582,21 @@ export default ({ action, filter, init, schedule }, { services, database, logger
           const schema = await getSchema()
           const { MailService } = services
           const mailService = new MailService({ schema, knex: database })
-          const recipients = await database('members')
+          const candidates = await database('members')
             .whereIn('id', memberIds)
             .whereNotNull('email')
             // Migration 156: respect per-member opt-out. Push fanout is unaffected.
             .where('email_notify_announcements', true)
             .select('id', 'email', 'first_name', 'language')
+          // Migration 277: never re-mail an address SES reported as a permanent
+          // bounce or a spam complaint. Announcements are the highest-volume
+          // sender on the shared SES identity, so this is where repeated
+          // delivery to dead addresses would do the reputational damage.
+          const annSuppressed = await loadSuppressed(database, candidates.map(r => r.email))
+          const recipients = candidates.filter(r => !annSuppressed.has(String(r.email).trim().toLowerCase()))
+          if (candidates.length !== recipients.length) {
+            log.info(`[announcements] ${candidates.length - recipients.length} suppressed address(es) skipped`)
+          }
 
           let sent = 0
           let failed = 0

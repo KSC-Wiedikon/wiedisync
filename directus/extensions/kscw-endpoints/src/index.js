@@ -33,6 +33,7 @@ import { registerImpersonate } from './impersonate.js'
 import { registerJsExport } from './js-export.js'
 import { registerGameScheduling } from './game-scheduling.js'
 import { registerSchedulingMailbox } from './scheduling-mailbox.js'
+import { registerSesNotify } from './ses-notify.js'
 import { registerContactForm } from './contact-form.js'
 import { registerWebPush, sendPushToMember, sendPushToMembers } from './web-push.js'
 import { FRONTEND_URL } from './email-template.js'
@@ -2370,6 +2371,7 @@ export default {
     registerJsExport(router, ctx)
     registerGameScheduling(router, ctx)
     registerSchedulingMailbox(router, ctx)
+    registerSesNotify(router, ctx)
     registerContactForm(router, ctx)
     registerWebPush(router, ctx)
     registerStats(router, ctx)

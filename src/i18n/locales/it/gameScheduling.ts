@@ -617,6 +617,8 @@ export default {
   mailboxPreviewCount_other: '{{count}} membri riceveranno questa e-mail',
   mailboxPreviewExcluded: 'Su {{audience}} nel gruppo: {{noEmail}} senza indirizzo e-mail, {{optedOut}} disiscritti, {{duplicate}} con indirizzo condiviso',
   mailboxPreviewSample: 'Ad esempio: {{names}}',
+  mailboxPreviewSuppressed: '{{count}} indirizzo viene saltato (non recapitabile o segnalato come spam)',
+  mailboxPreviewSuppressed_other: '{{count}} indirizzi vengono saltati (non recapitabili o segnalati come spam)',
   mailboxPreviewEmpty: 'Nessuno in questo gruppo può essere contattato',
   mailboxGroupMergeHint: 'Suggerimento: {{first}} e {{last}} vengono sostituiti con il nome di ogni destinatario.',
   mailboxGroupConfirm: 'Inviare questa e-mail a {{count}} membro? Ognuno riceve la propria copia e l’operazione è irreversibile.',
