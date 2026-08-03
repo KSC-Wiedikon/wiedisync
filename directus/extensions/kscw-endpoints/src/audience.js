@@ -175,7 +175,7 @@ export async function teamAudienceCounts(database) {
  * this module has no locale context.
  */
 export const MAILBOX_GROUPS = [
-  { key: 'all', spec: { audience_type: 'all' } },
+  { key: 'all', spec: { audience_type: 'all_members' } },
   { key: 'sport:volleyball', spec: { audience_type: 'sport', audience_sport: 'volleyball' } },
   { key: 'sport:basketball', spec: { audience_type: 'sport', audience_sport: 'basketball' } },
   { key: 'fn:coach', spec: { audience_type: 'roles', audience_roles: ['fn:coach'] } },
@@ -209,6 +209,16 @@ export async function resolveMemberAudience(database, log, spec, label = 'audien
   switch (spec.audience_type) {
     case 'all': {
       const rows = await database('members').where('wiedisync_active', true).select('id')
+      return rows.map(r => r.id).filter(Boolean)
+    }
+    // Every CLUB member, not every app user. 'all' above means the latter —
+    // right for an announcement, which is a post in an app you must be able to
+    // open, but wrong for email: on prod that is 204 of 695 active members, so
+    // a mailbox group labelled "All members" would quietly reach 29% of the
+    // club. Kept as its own type rather than loosening 'all', which would
+    // silently widen every existing audience_type='all' announcement.
+    case 'all_members': {
+      const rows = await database('members').where('kscw_membership_active', true).select('id')
       return rows.map(r => r.id).filter(Boolean)
     }
     case 'sport': {
