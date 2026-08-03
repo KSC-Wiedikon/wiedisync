@@ -685,42 +685,6 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
         </div>
       </FormField>
 
-      {/* Trainerausbildung (migration 274) — toggle chips, not a dropdown: the
-          set is four items and multi-select, so every option fits on screen and
-          the current answer is readable without opening anything. */}
-      <FormField label={t('trainerLicences')} helperText={t('trainerLicencesHint')}>
-        <div className="flex flex-wrap gap-2">
-          {TRAINER_LICENCE_CODES.map((code) => {
-            const active = trainerLicences.includes(code)
-            return (
-              <button
-                key={code}
-                type="button"
-                role="checkbox"
-                aria-checked={active}
-                onClick={() => {
-                  setTrainerLicences((prev) =>
-                    prev.includes(code)
-                      ? prev.filter((c) => c !== code)
-                      : parseTrainerLicences([...prev, code].join(',')),
-                  )
-                }}
-                className={`flex min-h-[44px] items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors ${
-                  active
-                    ? 'border-primary bg-primary/10 font-medium text-foreground'
-                    : 'border-gray-300 bg-white text-gray-700 hover:border-brand-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-brand-500'
-                }`}
-              >
-                <span className={`flex size-4 shrink-0 items-center justify-center rounded-[4px] border shadow-xs ${active ? 'border-primary bg-primary text-primary-foreground' : 'border-input bg-background dark:bg-input/30'}`}>
-                  {active && <CheckIcon className="size-3.5" />}
-                </span>
-                {t(TRAINER_LICENCE_I18N_KEYS[code])}
-              </button>
-            )
-          })}
-        </div>
-      </FormField>
-
       {/* ClubDesk personal data — in onboarding the block is always expanded
           (not collapsible): address + nationality are part of the required
           core contact set, so hiding them would make the gate unpassable. */}
@@ -809,6 +773,45 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
                 onChange={setFederationOfOrigin}
                 searchPlaceholder={tc('searchCountry')}
               />
+            </FormField>
+
+            {/* Trainerausbildung (migration 274) — lives in this block because
+                it is pushed to ClubDesk's "Trainer Lizenz" column (migration
+                275), like everything else here. Toggle chips rather than a
+                dropdown: the set is four items and multi-select, so every option
+                fits on screen and the current answer reads without opening
+                anything. Optional, so it does not affect the onboarding gate. */}
+            <FormField label={t('trainerLicences')} helperText={t('trainerLicencesHint')}>
+              <div className="flex flex-wrap gap-2">
+                {TRAINER_LICENCE_CODES.map((code) => {
+                  const active = trainerLicences.includes(code)
+                  return (
+                    <button
+                      key={code}
+                      type="button"
+                      role="checkbox"
+                      aria-checked={active}
+                      onClick={() => {
+                        setTrainerLicences((prev) =>
+                          prev.includes(code)
+                            ? prev.filter((c) => c !== code)
+                            : parseTrainerLicences([...prev, code].join(',')),
+                        )
+                      }}
+                      className={`flex min-h-[44px] items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors ${
+                        active
+                          ? 'border-primary bg-primary/10 font-medium text-foreground'
+                          : 'border-gray-300 bg-white text-gray-700 hover:border-brand-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-brand-500'
+                      }`}
+                    >
+                      <span className={`flex size-4 shrink-0 items-center justify-center rounded-[4px] border shadow-xs ${active ? 'border-primary bg-primary text-primary-foreground' : 'border-input bg-background dark:bg-input/30'}`}>
+                        {active && <CheckIcon className="size-3.5" />}
+                      </span>
+                      {t(TRAINER_LICENCE_I18N_KEYS[code])}
+                    </button>
+                  )
+                })}
+              </div>
             </FormField>
 
             {/* AHV Nummer */}
