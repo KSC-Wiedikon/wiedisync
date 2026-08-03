@@ -10,6 +10,7 @@
 
 import type { Member, MemberPosition } from '../../../types'
 import type { CacheShape } from './explorerHelpers'
+import { parseTrainerLicences, type TrainerLicence } from '../../../utils/trainerLicences'
 
 export type Tri = 'any' | 'yes' | 'no'
 export type SportKey = 'volleyball' | 'basketball' | 'other'
@@ -56,6 +57,11 @@ export type PresenceField = (typeof PRESENCE_FIELDS)[number]
 export const LICENCE_TYPES = ['scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'otn1_bb', 'otn2_bb', 'referee_bb'] as const
 export type LicenceKey = (typeof LICENCE_TYPES)[number]
 
+// Coaching education (migration 274). Its own filter dimension rather than more
+// entries in LICENCE_TYPES: those are booleans on the row, this is one
+// comma-separated column, so the match below reads it differently.
+export type TrainerLicenceKey = TrainerLicence
+
 export const ROLE_TYPES = ['superuser', 'admin', 'vorstand', 'vb_admin', 'bb_admin', 'user'] as const
 export type RoleKey = (typeof ROLE_TYPES)[number]
 
@@ -78,6 +84,7 @@ export interface MemberFilterState {
   bools: Partial<Record<BoolField, Tri>>
   presence: Partial<Record<PresenceField, Tri>>
   licences: LicenceKey[]
+  trainerLicences: TrainerLicenceKey[]
   roles: RoleKey[]
   sports: SportKey[]
   sex: SexKey[]
@@ -91,6 +98,7 @@ export const EMPTY_FILTERS: MemberFilterState = {
   bools: {},
   presence: {},
   licences: [],
+  trainerLicences: [],
   roles: [],
   sports: [],
   sex: [],
@@ -105,6 +113,7 @@ export function countActiveFilters(f: MemberFilterState): number {
   for (const v of Object.values(f.bools)) if (v && v !== 'any') n++
   for (const v of Object.values(f.presence)) if (v && v !== 'any') n++
   n += f.licences.length
+  n += f.trainerLicences.length
   n += f.roles.length
   n += f.sports.length
   n += f.sex.length
@@ -170,6 +179,13 @@ export function applyMemberFilters(
     if (filters.licences.length > 0) {
       // Migration 067: licences are now per-flag booleans on the member row.
       if (!filters.licences.some((l) => mr[l] === true)) return false
+    }
+
+    if (filters.trainerLicences.length > 0) {
+      // Migration 274: one comma-separated column, so parse before matching.
+      // OR semantics, same as every other chip row here.
+      const held = parseTrainerLicences(mr.trainer_licences as string | null | undefined)
+      if (!filters.trainerLicences.some((c) => held.includes(c))) return false
     }
 
     if (filters.roles.length > 0) {

@@ -93,6 +93,15 @@ const HEADER_TO_COL = {
   // (migration 223), so the down-sync pass below parses the string back into a
   // code and only ever FILLS an unanswered member row.
   'Federation of Origin': 'federation_of_origin',
+  // Trainer Lizenz — coaching education (J+S and/or the C/B/A ladder). Custom
+  // ClubDesk field created 2026-08-03 as **free text** (not the Auswahl it
+  // started as) precisely so the multi-value form fits: wiedisync stores a SET
+  // (migration 274) and a single-select cell would force a lossy collapse.
+  // Two-way: wiedisync owns it (members declare it in their profile) and pushes
+  // ClubDesk's wording via trainerLicenceCell, while the pass below parses the
+  // register's text back into codes and only ever FILLS a member who never
+  // answered — same rule as ahv_nummer / anrede.
+  'Trainer Lizenz': 'trainer_lizenz',
   // Gast — ClubDesk Ja/Nein checkbox created 2026-07-27, filled ONLY by
   // wiedisync's push (the roster in `member_teams.guest_level` is the sole
   // source; see CD_PUSH_CONTACT_HEADERS in clubdesk-update.js). Staged here
@@ -125,7 +134,7 @@ const TARGET_COLS = [
   'ahv_nummer','passivmitglied','offiziellen_100er','gruppe_2','funktion_2',
   'gruppen_2','jg','clubdesk_id','zuletzt_geaendert_am','zuletzt_geaendert_von',
   'gruppen_bracketed','rolle_bracketed','wiedisync_id','js_id','federation_of_origin',
-  'gast',
+  'gast','trainer_lizenz',
 ]
 
 // ── 1. Decode CSV (CP1252 → UTF-8) ──────────────────────────────────
@@ -646,6 +655,53 @@ const psqlInput =
   'COMMIT;\n' +
   "SELECT 'members_with_federation_of_origin' AS metric,\n" +
   '  (SELECT count(*) FROM members WHERE federation_of_origin IS NOT NULL) AS value;\n' +
+  // ── Apply ClubDesk "Trainer Lizenz" → members.trainer_licences ────────────
+  // ClubDesk holds the human wording as FREE TEXT ("J+S, B"), wiedisync an
+  // ordered code list ("JS,B", migration 274) — so the cell is parsed back into
+  // codes here, the mirror image of trainerLicenceCell on the push side.
+  // Parsing lives in SQL rather than JS because the register lands in the
+  // staging table first; by the time this runs there is no JS value to touch.
+  //
+  // ⚠ 'J+S' must be lifted out BEFORE the bare rungs are matched, or its '+'
+  // splits it into junk. Rungs then match as WHOLE letters — `[^a-z]` on both
+  // sides — so the 'a' inside "Trainer"/"Ausbildung" and the 'b' inside
+  // "Basketball" are not mistaken for qualifications. Canonical order (JS,C,B,A)
+  // is imposed by the rank, so ClubDesk's own ordering never matters.
+  //
+  // FILL-ONLY, and strictly so, for the same reason as federation_of_origin
+  // above: the member declares this in their own profile, so wiedisync owns it
+  // from the first answer onward and the push echoes ClubDesk's cell back when
+  // we have none. A stale register value must never overwrite a member's answer.
+  // A cell that resolves to no code at all is skipped rather than stored —
+  // migration 274's CHECK would reject a bad code and abort the whole import.
+  'BEGIN;\n' +
+  'WITH cd0 AS (\n' +
+  '  SELECT DISTINCT ON (btrim(clubdesk_id)) btrim(clubdesk_id) AS cdid,\n' +
+  '         lower(btrim(trainer_lizenz)) AS raw\n' +
+  '  FROM clubdesk_export\n' +
+  "  WHERE NULLIF(btrim(clubdesk_id),'') IS NOT NULL\n" +
+  "    AND NULLIF(btrim(trainer_lizenz),'') IS NOT NULL\n" +
+  '  ORDER BY btrim(clubdesk_id), row_id DESC),\n' +
+  'cd1 AS (\n' +
+  '  SELECT cdid, raw,\n' +
+  "         regexp_replace(raw, 'j\\s*\\+?\\s*s|jugend\\s*\\+?\\s*sport', ' ', 'g') AS rungs\n" +
+  '  FROM cd0),\n' +
+  'cd AS (\n' +
+  '  SELECT cd1.cdid, (\n' +
+  "    SELECT string_agg(code, ',' ORDER BY rank)\n" +
+  '    FROM (\n' +
+  "      SELECT 'JS' AS code, 0 AS rank WHERE cd1.raw  ~ 'j\\s*\\+?\\s*s|jugend\\s*\\+?\\s*sport'\n" +
+  "      UNION ALL SELECT 'C', 1 WHERE cd1.rungs ~ '(^|[^a-z])c([^a-z]|$)'\n" +
+  "      UNION ALL SELECT 'B', 2 WHERE cd1.rungs ~ '(^|[^a-z])b([^a-z]|$)'\n" +
+  "      UNION ALL SELECT 'A', 3 WHERE cd1.rungs ~ '(^|[^a-z])a([^a-z]|$)'\n" +
+  '    ) t) AS lic\n' +
+  '  FROM cd1)\n' +
+  'UPDATE members m SET trainer_licences = cd.lic\n' +
+  '  FROM cd WHERE btrim(m.clubdesk_id) = cd.cdid\n' +
+  '    AND cd.lic IS NOT NULL AND m.trainer_licences IS NULL;\n' +
+  'COMMIT;\n' +
+  "SELECT 'members_with_trainer_licences' AS metric,\n" +
+  '  (SELECT count(*) FROM members WHERE trainer_licences IS NOT NULL) AS value;\n' +
   // ── Apply ClubDesk contact fields + birthdate by clubdesk_id — fill-only ──
   // The licence/email+name contact pass above predates the clubdesk_id linker and
   // misses linked members whose wiedisync email differs from ClubDesk (kid with an

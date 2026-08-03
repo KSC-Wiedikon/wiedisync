@@ -357,6 +357,10 @@ const MEMBER_VISIBLE_FIELDS = [
   'position', 'user',
   // Per-flag licence booleans (migration 067; legacy `licences` json dropped in 119).
   'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'otn1_bb', 'otn2_bb', 'referee_bb',
+  // Coaching education (migration 274) — same tier as the licence booleans
+  // above: a sporting credential, not PII. Club-wide readable so a coach's
+  // qualification can show on their profile card and on team views.
+  'trainer_licences',
   'coach_approved_team', 'role', 'language',
   'requested_team', 'birthdate_visibility', 'hide_phone', 'hide_email',
   'license_nr', 'sex', 'licence_category', 'licence_activated', 'licence_validated',
@@ -383,6 +387,11 @@ const MEMBER_EDITABLE_FIELDS = [
   'position', 'number', 'website_visible', 'website_name_private',
   // Per-flag licence booleans (migration 067; legacy `licences` json dropped in 119).
   'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'otn1_bb', 'otn2_bb', 'referee_bb',
+  // 2026-08-03 migration 274: coaching education (Trainerausbildung), an
+  // ordered comma-separated subset of JS/C/B/A. Self-asserted like the licence
+  // booleans — the club has no machine source for it (ClubDesk has no such
+  // column; its "JS ID" is the J+S person number and maps to members.js_id).
+  'trainer_licences',
   'requested_team',
   // ClubDesk personal data fields.
   // 2026-07-25 migrations 223/224: nationality became CODED. `nationalitaet_codes`

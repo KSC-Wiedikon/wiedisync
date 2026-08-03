@@ -24,6 +24,10 @@ import {
   parseCountryCodes, serializeCountryCodes,
 } from '../../utils/countries'
 import { federationOptions } from '../../utils/federations'
+import {
+  TRAINER_LICENCE_CODES, TRAINER_LICENCE_I18N_KEYS,
+  parseTrainerLicences, serializeTrainerLicences, type TrainerLicence,
+} from '../../utils/trainerLicences'
 import { CheckIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { logActivity } from '../../utils/logActivity'
@@ -86,6 +90,9 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
   const [selectedPositions, setSelectedPositions] = useState<MemberPosition[]>([])
   const [positionDropdownOpen, setPositionDropdownOpen] = useState(false)
+  // Coaching education (migration 274). Multi-select: J+S is a separate track
+  // from the C/B/A ladder, so holding both is normal.
+  const [trainerLicences, setTrainerLicences] = useState<TrainerLicence[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [resetSent, setResetSent] = useState(false)
@@ -133,6 +140,7 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
       setLanguage((user.language as BackendLanguage) || 'german')
       setSelectedPositions(coercePositions(user.position))
       setPositionDropdownOpen(false)
+      setTrainerLicences(parseTrainerLicences(user.trainer_licences))
       setPhotoFile(null)
       setPhotoPreview(null)
       setError('')
@@ -322,6 +330,10 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
         website_name_private: websiteNamePrivate,
         language,
         position: selectedPositions.length > 0 ? selectedPositions : ['other'],
+        // Coaching education (migration 274). wiedisync-owned, and pushed to
+        // ClubDesk's "Trainer Lizenz" free-text column (migration 275) — so it
+        // also rides the ClubDesk diff below.
+        trainer_licences: serializeTrainerLicences(trainerLicences),
       }
       if (birthdate) {
         payload.birthdate = birthdate
@@ -393,6 +405,16 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
         federation_of_origin: {
           old: user.federation_of_origin ?? '',
           new: federationOfOrigin,
+        },
+        // Coaching education — diffed as CODES for the same reason as the two
+        // fields above: the endpoint renders them twice server-side (ClubDesk's
+        // "J+S, B" for the register, the reader's language for the admin email).
+        // ⚠ Must stay in step with the EDITABLE set in clubdesk-update.js — a
+        // field diffed here but missing there makes a change to ONLY this field
+        // return 400 "No editable fields to update".
+        trainer_licences: {
+          old: serializeTrainerLicences(parseTrainerLicences(user.trainer_licences)) ?? '',
+          new: serializeTrainerLicences(trainerLicences) ?? '',
         },
         sex: { old: user.sex || '', new: sex },
         ahv_nummer: { old: user.ahv_nummer || '', new: ahvCanonical },
@@ -660,6 +682,42 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
               </div>
             </>
           )}
+        </div>
+      </FormField>
+
+      {/* Trainerausbildung (migration 274) — toggle chips, not a dropdown: the
+          set is four items and multi-select, so every option fits on screen and
+          the current answer is readable without opening anything. */}
+      <FormField label={t('trainerLicences')} helperText={t('trainerLicencesHint')}>
+        <div className="flex flex-wrap gap-2">
+          {TRAINER_LICENCE_CODES.map((code) => {
+            const active = trainerLicences.includes(code)
+            return (
+              <button
+                key={code}
+                type="button"
+                role="checkbox"
+                aria-checked={active}
+                onClick={() => {
+                  setTrainerLicences((prev) =>
+                    prev.includes(code)
+                      ? prev.filter((c) => c !== code)
+                      : parseTrainerLicences([...prev, code].join(',')),
+                  )
+                }}
+                className={`flex min-h-[44px] items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors ${
+                  active
+                    ? 'border-primary bg-primary/10 font-medium text-foreground'
+                    : 'border-gray-300 bg-white text-gray-700 hover:border-brand-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-brand-500'
+                }`}
+              >
+                <span className={`flex size-4 shrink-0 items-center justify-center rounded-[4px] border shadow-xs ${active ? 'border-primary bg-primary text-primary-foreground' : 'border-input bg-background dark:bg-input/30'}`}>
+                  {active && <CheckIcon className="size-3.5" />}
+                </span>
+                {t(TRAINER_LICENCE_I18N_KEYS[code])}
+              </button>
+            )
+          })}
         </div>
       </FormField>
 

@@ -728,6 +728,7 @@ export default {
   memberFilterSectionGender: 'Geschlecht',
   memberFilterSectionPositions: 'Positionen',
   memberFilterSectionLicences: 'Lizenzen',
+  memberFilterSectionTrainerLicences: 'Trainerausbildung',
   memberFilterSectionRoles: 'Rollen',
   memberFilterSectionLanguages: 'Sprache',
   memberFilterSectionBirthdateVis: 'Geburtsdatum-Sichtbarkeit',

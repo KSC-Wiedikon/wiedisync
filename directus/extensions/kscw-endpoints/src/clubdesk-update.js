@@ -31,31 +31,31 @@ const FIELD_LABELS = {
     first_name: 'Vorname', last_name: 'Nachname', email: 'E-Mail', phone: 'Telefon',
     birthdate: 'Geburtsdatum', anrede: 'Anrede', adresse: 'Adresse', plz: 'PLZ', ort: 'Ort',
     nationalitaet: 'Nationalität', sex: 'Geschlecht', ahv_nummer: 'AHV-Nummer',
-    federation_of_origin: 'Herkunftsverband', iban: 'IBAN',
+    federation_of_origin: 'Herkunftsverband', trainer_licences: 'Trainerausbildung', iban: 'IBAN',
   },
   gsw: {
     first_name: 'Vorname', last_name: 'Nachname', email: 'E-Mail', phone: 'Telefon',
     birthdate: 'Geburtsdatum', anrede: 'Aaräde', adresse: 'Adrässe', plz: 'PLZ', ort: 'Ort',
     nationalitaet: 'Nationalität', sex: 'Gschlächt', ahv_nummer: 'AHV-Nummer',
-    federation_of_origin: 'Herkunftsverband', iban: 'IBAN',
+    federation_of_origin: 'Herkunftsverband', trainer_licences: 'Trainerusbildig', iban: 'IBAN',
   },
   en: {
     first_name: 'First name', last_name: 'Last name', email: 'Email', phone: 'Phone',
     birthdate: 'Date of birth', anrede: 'Salutation', adresse: 'Address', plz: 'Zip', ort: 'City',
     nationalitaet: 'Nationality', sex: 'Sex', ahv_nummer: 'AHV number',
-    federation_of_origin: 'Federation of origin', iban: 'IBAN',
+    federation_of_origin: 'Federation of origin', trainer_licences: 'Coaching qualification', iban: 'IBAN',
   },
   fr: {
     first_name: 'Prénom', last_name: 'Nom', email: 'E-mail', phone: 'Téléphone',
     birthdate: 'Date de naissance', anrede: 'Salutation', adresse: 'Adresse', plz: 'NPA', ort: 'Localité',
     nationalitaet: 'Nationalité', sex: 'Sexe', ahv_nummer: "Numéro d'AVS",
-    federation_of_origin: "Fédération d'origine", iban: 'IBAN',
+    federation_of_origin: "Fédération d'origine", trainer_licences: "Formation d'entraîneur", iban: 'IBAN',
   },
   it: {
     first_name: 'Nome', last_name: 'Cognome', email: 'E-mail', phone: 'Telefono',
     birthdate: 'Data di nascita', anrede: 'Appellativo', adresse: 'Indirizzo', plz: 'CAP', ort: 'Località',
     nationalitaet: 'Nazionalità', sex: 'Sesso', ahv_nummer: 'Numero AVS',
-    federation_of_origin: 'Federazione di origine', iban: 'IBAN',
+    federation_of_origin: 'Federazione di origine', trainer_licences: 'Formazione da allenatore', iban: 'IBAN',
   },
 }
 
@@ -237,6 +237,16 @@ const CD_PUSH_CONTACT_HEADERS = [
   // Echo-protected exactly like Nationalität: an unanswered wiedisync field
   // sends ClubDesk's own value back instead of an empty cell.
   'Federation of Origin',
+  // Trainer Lizenz (custom ClubDesk field, 2026-08-03): coaching education —
+  // J+S plus/or the C/B/A ladder (members.trainer_licences, migration 274).
+  // Members declare it in their own profile and ClubDesk has no other source,
+  // so WIEDISYNC owns it. ⚠ The field is deliberately **Text**, not the Auswahl
+  // picklist it was first created as: wiedisync stores a SET (J+S is a separate
+  // track from the ladder, so "JS,B" is ordinary) and a single-select cell would
+  // have forced a lossy collapse. trainerLicenceCell renders the set in
+  // ClubDesk's own wording ("J+S, B"). Echo-protected exactly like Federation of
+  // Origin — an unanswered member sends ClubDesk's cell back, never a blank.
+  'Trainer Lizenz',
   'AHV Nummer',
   // Wiedisync ID (custom ClubDesk text field, 2026-07-07): wiedisync's member
   // UUID (members.uuid, migration 184 — globally unique, visually distinct from
@@ -654,6 +664,91 @@ export function nationalityCell(codes, countryNames) {
   return list.map((c) => (countryNames && countryNames.get(c)) || c).join(', ')
 }
 
+// members.trainer_licences → the ClubDesk cell, and back.
+//
+// wiedisync stores an ordered code list ("JS,C,B,A", migration 274); ClubDesk's
+// "Trainer Lizenz" is free text read by board members, so it gets the wording
+// the club itself used when the field was still a picklist: J+S for the
+// Jugend+Sport track and the bare rung letter for the federation ladder.
+//   'JS,B' → 'J+S, B'      'JS' → 'J+S'      'A' → 'A'      NULL/'' → ''
+// Unknown codes are dropped rather than guessed at, and an empty result lets
+// the caller's echo-back send ClubDesk's own cell — so this can never blank the
+// register.
+const TRAINER_LICENCE_CD_LABELS = { JS: 'J+S', C: 'C', B: 'B', A: 'A' }
+const TRAINER_LICENCE_RANK = { JS: 0, C: 1, B: 2, A: 3 }
+
+export function trainerLicenceCell(codes) {
+  return parseTrainerLicenceCodes(codes).map((c) => TRAINER_LICENCE_CD_LABELS[c]).join(', ')
+}
+
+/**
+ * Parse a stored code list into canonical order. Mirrors
+ * `parseTrainerLicences()` in src/utils/trainerLicences.ts — ⚠ keep the two in
+ * step; the frontend helper cannot be imported here (different build).
+ */
+export function parseTrainerLicenceCodes(value) {
+  const seen = []
+  for (const raw of String(value ?? '').split(',')) {
+    const code = raw.trim().toUpperCase()
+    if (code in TRAINER_LICENCE_RANK && !seen.includes(code)) seen.push(code)
+  }
+  return seen.sort((a, b) => TRAINER_LICENCE_RANK[a] - TRAINER_LICENCE_RANK[b])
+}
+
+/**
+ * ClubDesk's free-text cell → wiedisync's code list, for the down-sync and the
+ * drift comparison. Tolerant on purpose: the column is hand-editable, so it has
+ * to survive "J+S, B", "J+S/B", "js b", "Trainer B", "A, B" and stray
+ * whitespace. Anything it cannot recognise yields '' rather than a guess —
+ * migration 274's CHECK would reject a bad code and abort the whole import.
+ *
+ * ⚠ Order matters in the token scan: 'J+S' must be tried before the bare
+ * letters, or the 'S' in "J+S" is never reached and the '+' splits it into
+ * junk. Bare-letter matching is anchored to whole tokens for the same reason —
+ * a substring scan would find a 'B' inside "Basketball".
+ */
+export function parseTrainerLicenceCell(text) {
+  const raw = String(text ?? '').trim()
+  if (!raw) return ''
+  // Lift every J+S spelling out FIRST and replace it with a bare token: the
+  // '+' would otherwise be eaten as a separator and the 'S' left as junk.
+  const lifted = raw.replace(/j\s*\+?\s*s|jugend\s*\+?\s*sport/gi, ' JS ')
+  const found = []
+  // Split on every separator the hand-edited cell might use. Whole tokens only
+  // -- a substring scan would find a 'B' inside 'Basketball'.
+  for (const tok of lifted.split(/[\s,;/|+]+/)) {
+    const t = tok.trim().toUpperCase()
+    if (!t) continue
+    // 'Trainer B' / 'Stufe C' arrive as two tokens; the word carries no code.
+    if (t === 'TRAINER' || t === 'STUFE' || t === 'LEITER') continue
+    if ((t === 'JS' || t in TRAINER_LICENCE_RANK) && !found.includes(t)) found.push(t)
+  }
+  return found.sort((a, b) => TRAINER_LICENCE_RANK[a] - TRAINER_LICENCE_RANK[b]).join(',')
+}
+
+/**
+ * Reader-facing rendering for the admin change email, in the recipient's own
+ * language — the same split federations.js makes: `trainerLicenceCell` writes
+ * ClubDesk's German cell, this writes what a human reads.
+ *
+ * ⚠ 'J+S' is NOT translated in any locale: Jugend+Sport is a federal programme
+ * name, i.e. a brand, and an "F+S"/"G+S" would be unrecognisable. Only the
+ * ladder rungs take the local word for "coach". Mirrors the `auth` i18n keys
+ * trainerLicence{JS,C,B,A} in the frontend — keep the two in step.
+ */
+const TRAINER_LICENCE_DISPLAY = {
+  de: { JS: 'J+S', C: 'Trainer C', B: 'Trainer B', A: 'Trainer A' },
+  gsw: { JS: 'J+S', C: 'Trainer C', B: 'Trainer B', A: 'Trainer A' },
+  en: { JS: 'J+S', C: 'Trainer C', B: 'Trainer B', A: 'Trainer A' },
+  fr: { JS: 'J+S', C: 'Entraîneur C', B: 'Entraîneur B', A: 'Entraîneur A' },
+  it: { JS: 'J+S', C: 'Allenatore C', B: 'Allenatore B', A: 'Allenatore A' },
+}
+
+export function trainerLicenceDisplay(codes, loc) {
+  const map = TRAINER_LICENCE_DISPLAY[loc] || TRAINER_LICENCE_DISPLAY.en
+  return parseTrainerLicenceCodes(codes).map((c) => map[c]).join(', ')
+}
+
 // The Lizenzart cell carries the PLAYING licence type (RLL/JLL/Senior/U n/…).
 // Basketplan's licence list also files pure officials under a category —
 // 'Offizielle/r' — but that is an OFFICIALS licence, which ClubDesk models in
@@ -702,6 +797,12 @@ export function buildPushCsv(members, { create = false, countryNames = null } = 
       // has not answered — same "an empty wiedisync field can never blank the
       // register" guarantee, one hop later.
       federationCell(m.federation_of_origin, countryNames) || String(m.federation_of_origin_cd || '').trim(),
+      // Trainer Lizenz — same one-hop echo as Federation of Origin above, and
+      // for the same reason: wiedisync stores CODES ("JS,B") while ClubDesk's
+      // cell holds the human wording ("J+S, B"), so ClubDesk's raw value is
+      // stashed in m.trainer_licences_cd rather than assigned back onto the
+      // coded column (which a CHECK constraint would reject anyway).
+      trainerLicenceCell(m.trainer_licences) || String(m.trainer_licences_cd || '').trim(),
       ahvOut,
       // Wiedisync ID — the member UUID (migration 184), wiedisync-owned: never
       // echoed, never blank. Pre-184 pushes carried the numeric members.id; the
@@ -770,7 +871,7 @@ export function buildPushCsv(members, { create = false, countryNames = null } = 
 const PUSH_FIELDS = [
   'id', 'uuid', 'first_name', 'last_name', 'email', 'phone', 'adresse', 'plz',
   'ort', 'birthdate', 'sex', 'iban', 'anrede', 'nationalitaet',
-  'federation_of_origin', 'ahv_nummer',
+  'federation_of_origin', 'trainer_licences', 'ahv_nummer',
   'clubdesk_id', 'clubdesk_push_changes',
   'beitragskategorie', 'wiedisync_active',
   'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'otn1_bb', 'otn2_bb', 'referee_bb',
@@ -1121,6 +1222,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
         const echoRows = cdids.length ? await database.raw(`
           SELECT DISTINCT ON (BTRIM(clubdesk_id)) BTRIM(clubdesk_id) AS cdid,
                  iban, anrede, nationalitaet, ahv_nummer, federation_of_origin,
+                 trainer_lizenz,
                  beitragskategorie, eintritt, mitgliederbeitrag, lizenznummer, lizenzart
           FROM clubdesk_export WHERE BTRIM(clubdesk_id) = ANY(?) ORDER BY BTRIM(clubdesk_id), row_id
         `, [cdids]) : { rows: [] }
@@ -1140,6 +1242,11 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
           // emit an empty cell, i.e. exactly the blanking this guard prevents.
           // buildPushCsv falls back to this raw value when the member has no answer.
           if (!String(m.federation_of_origin || '').trim()) m.federation_of_origin_cd = String(cd.federation_of_origin || '').trim()
+          // Trainer Lizenz — one-hop echo for the same reason as the line above:
+          // members.trainer_licences holds CODES under a CHECK constraint while
+          // ClubDesk's cell holds the human wording, so assigning it back here
+          // would both fail the constraint and emit the blank it guards against.
+          if (!String(m.trainer_licences || '').trim()) m.trainer_licences_cd = String(cd.trainer_lizenz || '').trim()
           // Fill-only billing mirrors (2026-07-27, see CD_PUSH_HEADERS): stashed
           // UNCONDITIONALLY, because here the precedence is reversed — ClubDesk's
           // own value always wins in buildPushCsv, and wiedisync's derivation is
@@ -1593,7 +1700,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
     const res = await database.raw(`
       SELECT m.id, m.first_name, m.last_name, m.email, m.phone, m.adresse, m.plz, m.ort,
              m.birthdate, m.sex, m.iban, m.anrede, m.nationalitaet, m.ahv_nummer,
-             m.federation_of_origin,
+             m.federation_of_origin, m.trainer_licences,
              m.clubdesk_id, m.clubdesk_push_pending,
              cd.vorname AS cd_vorname, cd.nachname AS cd_nachname, cd.email AS cd_email,
              cd.email_alternativ AS cd_email_alt, cd.telefon_privat AS cd_tel_priv,
@@ -1601,13 +1708,14 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
              cd.ort AS cd_ort, cd.geburtsdatum AS cd_geburtsdatum, cd.geschlecht AS cd_geschlecht,
              cd.iban AS cd_iban, cd.anrede AS cd_anrede, cd.nationalitaet AS cd_nationalitaet,
              cd.ahv_nummer AS cd_ahv_nummer, cd.federation_of_origin AS cd_federation_of_origin,
+             cd.trainer_lizenz AS cd_trainer_lizenz,
              cd.gast AS cd_gast
       FROM members m
       JOIN (
         SELECT DISTINCT ON (BTRIM(clubdesk_id)) BTRIM(clubdesk_id) AS cdid, vorname, nachname,
                email, email_alternativ, telefon_privat, telefon_mobil, adresse, plz, ort,
                geburtsdatum, geschlecht, iban, anrede, nationalitaet, ahv_nummer,
-               federation_of_origin, gast
+               federation_of_origin, trainer_lizenz, gast
         FROM clubdesk_export
         WHERE NULLIF(BTRIM(clubdesk_id), '') IS NOT NULL
         ORDER BY BTRIM(clubdesk_id), row_id
@@ -1712,6 +1820,19 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       cmpEcho('federation_of_origin', fedCd, r.cd_federation_of_origin, driftLower(fedCd), driftLower(r.cd_federation_of_origin))
       const ahvDigits = (v) => String(v ?? '').replace(/\D/g, '')
       cmpEcho('ahv_nummer', r.ahv_nummer, r.cd_ahv_nummer, ahvDigits(r.ahv_nummer), ahvDigits(r.cd_ahv_nummer))
+      // Trainer Lizenz: compare CODE SETS, not the rendered strings. ClubDesk's
+      // cell is hand-editable free text, so "J+S, B", "B, J+S" and "j+s / b" all
+      // mean the same thing and must not report as a conflict — parsing both
+      // sides through parseTrainerLicenceCell normalizes order, case and
+      // separators in one step. DISPLAY still shows the rendered wording so the
+      // admin sees what would actually land in the cell. Echo-protected like the
+      // fields above → conflict-or-fill, never blank_risk.
+      const trainerW = trainerLicenceCell(r.trainer_licences)
+      cmpEcho(
+        'trainer_licences', trainerW, r.cd_trainer_lizenz,
+        parseTrainerLicenceCodes(r.trainer_licences).join(','),
+        parseTrainerLicenceCell(r.cd_trainer_lizenz),
+      )
       // Gast: wiedisync-owned and TOTAL (gastCell always yields Ja or Nein), so
       // plain cmp is safe — the blank_risk branch is unreachable by construction,
       // and a member who stops (or starts) being a guest surfaces as a normal
@@ -2358,7 +2479,10 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
           // Member-editable since 2026-07-25 (migrations 223/228): nationality is
           // a derived German string over a code list, federation_of_origin an ISO
           // code. The email renders the CODES, so both columns are read here.
-          'nationalitaet', 'nationalitaet_codes', 'federation_of_origin')
+          'nationalitaet', 'nationalitaet_codes', 'federation_of_origin',
+          // Member-editable since 2026-08-03 (migration 274). Stored as codes; the
+          // email renders them, ClubDesk gets its own wording.
+          'trainer_licences')
       if (!member || String(member.id) !== String(member_id)) {
         return res.status(403).json({ error: 'Forbidden' })
       }
@@ -2384,7 +2508,8 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       // to federation_of_origin on the day it shipped. Keep this set in step with
       // `clubdeskFields` in ProfileEditForm.tsx.
       const EDITABLE = new Set(['first_name', 'last_name', 'email', 'phone', 'birthdate',
-        'adresse', 'plz', 'ort', 'sex', 'nationalitaet', 'federation_of_origin'])
+        'adresse', 'plz', 'ort', 'sex', 'nationalitaet', 'federation_of_origin',
+        'trainer_licences'])
       const sexLabel = sexPushLabel(member.sex)
 
       // Team names for the CSV + the member's sport, which the federation label
@@ -2443,14 +2568,16 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
           : field === 'sex' ? sexPushLabel(v)
             : field === 'nationalitaet' ? nationalityCell(v, countryNames)
               : field === 'federation_of_origin' ? federationCell(v, countryNames)
-                : String(v ?? '')
+                : field === 'trainer_licences' ? trainerLicenceCell(v)
+                  : String(v ?? '')
       /** Reader-facing value in `loc` — the admin email only, never ClubDesk. */
       const displayValue = (field, v, loc) =>
         field === 'birthdate' ? fmtBd(v)
           : field === 'sex' ? sexDisplay(v, loc)
             : field === 'nationalitaet' ? countryCodesDisplay(v, loc, countryDisp)
               : field === 'federation_of_origin' ? federationDisplay(v, fedSport, loc, countryDisp)
-                : String(v ?? '')
+                : field === 'trainer_licences' ? trainerLicenceDisplay(v, loc)
+                  : String(v ?? '')
       const safeChanges = rawChanges.map((c) => ({
         field: c.field,
         old_value: pushValue(c.field, c.old),

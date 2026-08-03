@@ -55,6 +55,9 @@ export const MEMBER_FIELD_LABELS: Record<string, string> = {
   otn1_bb: 'OTN 1 (basketball)',
   otn2_bb: 'OTN 2 (basketball)',
   referee_bb: 'Referee (basketball)',
+  // Coaching education (migration 274) — sport-agnostic, unlike everything
+  // above it. Stored as a comma-separated subset of JS/C/B/A.
+  trainer_licences: 'Coaching qualification',
   // Consent / privacy
   consent_decision: 'Consent decision',
   consent_prompted_at: 'Consent prompted at',

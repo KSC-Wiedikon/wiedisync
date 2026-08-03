@@ -93,6 +93,8 @@ export function useExplorerCache(scope: ExplorerScope) {
             // otn1_bb/otn2_bb are the OTN levels added by migration 228; otn_bb
             // stays as the coarse legacy flag, so all three are fetched.
             'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'otn1_bb', 'otn2_bb', 'referee_bb',
+            // Coaching education (migration 274) — comma-separated JS/C/B/A.
+            'trainer_licences',
             'birthdate_visibility', 'consent_decision', 'consent_prompted_at',
             'requested_team', 'coach_approved_team', 'is_spielplaner', 'wiedisync_active',
             'shell', 'shell_expires', 'shell_reminder_sent',

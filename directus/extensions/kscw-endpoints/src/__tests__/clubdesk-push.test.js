@@ -18,7 +18,7 @@
  * Hermetic — pure functions, no DB or network.
  */
 import { describe, it, expect } from 'vitest'
-import { buildPushCsv, CD_PUSH_CREATE_HEADERS, CD_KATEGORIE_MAP, mapKategorie, deriveGruppen, deriveStatus, deriveMitgliederbeitrag, deriveOffiziellenLizenz, deriveSektion, deriveSchiedsrichter, federationCell, nationalityCell, gastCell } from '../clubdesk-update.js'
+import { buildPushCsv, CD_PUSH_CREATE_HEADERS, CD_KATEGORIE_MAP, mapKategorie, deriveGruppen, deriveStatus, deriveMitgliederbeitrag, deriveOffiziellenLizenz, deriveSektion, deriveSchiedsrichter, federationCell, nationalityCell, gastCell, trainerLicenceCell, trainerLicenceDisplay, parseTrainerLicenceCell, parseTrainerLicenceCodes } from '../clubdesk-update.js'
 
 const kacper = {
   first_name: 'Kacper', last_name: 'Krawczyński', email: 'k@example.com',
@@ -36,7 +36,7 @@ describe('buildPushCsv (update set)', () => {
     // 2026-07-27 as FILL-ONLY extras at the END (after Gast) — ClubDesk's own
     // value always wins, so they can only ever fill an empty register cell.
     // Lizenznummer/Lizenzart followed the same day under the same rule.
-    expect(header).toBe('[Id];E-Mail;Telefon Privat;Adresse;PLZ;Ort;Geburtsdatum;Geschlecht;IBAN;Anrede;Nationalität;Federation of Origin;AHV Nummer;Wiedisync ID;Gast;Beitragskategorie;Eintritt;Mitgliederbeitrag;Lizenznummer;Lizenzart')
+    expect(header).toBe('[Id];E-Mail;Telefon Privat;Adresse;PLZ;Ort;Geburtsdatum;Geschlecht;IBAN;Anrede;Nationalität;Federation of Origin;Trainer Lizenz;AHV Nummer;Wiedisync ID;Gast;Beitragskategorie;Eintritt;Mitgliederbeitrag;Lizenznummer;Lizenzart')
     // Names must NEVER ride on an update row: [Id] is the upsert key (spike-proven
     // 2026-07-08) and a name column would overwrite the register's legal name.
     expect(header).not.toContain('Vorname')
@@ -45,7 +45,7 @@ describe('buildPushCsv (update set)', () => {
     expect(header).not.toContain('Gruppen')
     expect(header).not.toContain('Status')
     const cells = row.split(';')
-    expect(cells).toHaveLength(20)
+    expect(cells).toHaveLength(21)
     expect(cells[0]).toBe('1001283')  // ClubDesk's own [Id] = members.clubdesk_id
     expect(row).not.toContain('Kacper')
     expect(row).not.toContain('Krawczyński')
@@ -65,15 +65,15 @@ describe('buildPushCsv (update set)', () => {
     expect(row[8]).toBe('CH93')      // IBAN — invalid (mod-97 fail) passes through raw, never blanked
     expect(row[9]).toBe('Herr')      // Anrede
     expect(row[10]).toBe('Schweiz')  // Nationalität
-    expect(row[12]).toBe('756.1.2.3') // AHV Nummer — unrewritable passes through raw
-    expect(row[13]).toBe('531')      // Wiedisync ID: numeric id fallback (pre-184 rows)
+    expect(row[13]).toBe('756.1.2.3') // AHV Nummer — unrewritable passes through raw
+    expect(row[14]).toBe('531')      // Wiedisync ID: numeric id fallback (pre-184 rows)
     // members.uuid (migration 184) wins over the numeric id
     const uuid = 'a3e1f0b2-4c5d-4e6f-8a9b-0c1d2e3f4a5b'
     const withUuid = buildPushCsv([{ ...kacper, id: 531, uuid }]).trim().split('\n')[1].split(';')
-    expect(withUuid[13]).toBe(uuid)
+    expect(withUuid[14]).toBe(uuid)
     const empty = buildPushCsv([kacper]).trim().split('\n')[1].split(';')
-    expect([empty[9], empty[10], empty[11], empty[12]]).toEqual(['', '', '', '']) // /up echo-fills these
-    expect(empty[13]).toBe('') // no uuid/id on the fixture → empty
+    expect([empty[9], empty[10], empty[11], empty[12], empty[13]]).toEqual(['', '', '', '', '']) // /up echo-fills these
+    expect(empty[14]).toBe('') // no uuid/id on the fixture → empty
   })
 
   it('maps Federation of Origin to ClubDesk German, keeps the NONE sentinel, echoes when unanswered', () => {
@@ -134,7 +134,7 @@ describe('buildPushCsv (update set)', () => {
     expect(row[1]).toBe('k@example.com')
     expect(row[2]).toBe('+41 79 123 45 67')
     expect(row[8]).toBe('CH9300762011623852957')
-    expect(row[12]).toBe('756.1234.5678.97')
+    expect(row[13]).toBe('756.1234.5678.97')
     // unrewritable values pass through raw — the push never blanks what it can't parse
     const raw = buildPushCsv([{ ...kacper, phone: '01 451 60 38' }]).trim().split('\n')[1].split(';')
     expect(raw[2]).toBe('01 451 60 38')
@@ -162,7 +162,7 @@ describe('buildPushCsv (update set)', () => {
 })
 
 describe('buildPushCsv (update set — fill-only billing cells, 2026-07-27)', () => {
-  // Cells [15..17] = Beitragskategorie / Eintritt / Mitgliederbeitrag. ClubDesk's
+  // Cells [16..18] = Beitragskategorie / Eintritt / Mitgliederbeitrag. ClubDesk's
   // own value (the /up-stashed *_cd mirror) ALWAYS wins — sending it back is a
   // no-op on import — and wiedisync's value goes out only when the register's
   // cell is empty (the contact-created-ClubDesk-side-then-linked case, member
@@ -176,41 +176,41 @@ describe('buildPushCsv (update set — fill-only billing cells, 2026-07-27)', ()
       eintritt_cd: '09.03.2025', // ClubDesk export string, dd.mm.yyyy — never reparsed
       mitgliederbeitrag_cd: '250', // manual per-person override — sacred
     })
-    expect(cells[15]).toBe('VB Studenten/Lehrlinge') // NOT wiedisync's 'VB Erwerbstätige'
-    expect(cells[16]).toBe('09.03.2025')             // NOT the registration date
-    expect(cells[17]).toBe('250')                    // NOT the derived 540
+    expect(cells[16]).toBe('VB Studenten/Lehrlinge') // NOT wiedisync's 'VB Erwerbstätige'
+    expect(cells[17]).toBe('09.03.2025')             // NOT the registration date
+    expect(cells[18]).toBe('250')                    // NOT the derived 540
   })
 
   it('fills from wiedisync when ClubDesk is empty — mapped Kategorie, dd.mm.yyyy Eintritt, derived Beitrag with the +100 no-licence surcharge', () => {
     // kacper: VB Erwerbstätige, no scorer_vb → adult surcharge applies (440+100).
     const cells = cellsOf({})
-    expect(cells[15]).toBe('VB Erwerbstätige')
-    expect(cells[16]).toBe('27.06.2026') // m.eintritt (registration submitted_at) → dd.mm.yyyy
-    expect(cells[17]).toBe('540')
+    expect(cells[16]).toBe('VB Erwerbstätige')
+    expect(cells[17]).toBe('27.06.2026') // m.eintritt (registration submitted_at) → dd.mm.yyyy
+    expect(cells[18]).toBe('540')
     // A licensed scorer pays the base fee.
-    expect(cellsOf({ scorer_vb: true })[17]).toBe('440')
+    expect(cellsOf({ scorer_vb: true })[18]).toBe('440')
     // The legacy form Kategorie is MAPPED to ClubDesk's wording exactly like
     // the create path; the fee still derives from the RAW category, under BB
     // rules (a VB scorer licence does not lift the BB officials surcharge).
     const mapped = cellsOf({ beitragskategorie: 'BB Junior:innen', scorer_vb: true })
-    expect(mapped[15]).toBe('BB Jugend Meisterschaft')
-    expect(mapped[17]).toBe('410') // youth 310 + 100 (U16+ by birthdate, no BB officials licence)
+    expect(mapped[16]).toBe('BB Jugend Meisterschaft')
+    expect(mapped[18]).toBe('410') // youth 310 + 100 (U16+ by birthdate, no BB officials licence)
     // A pure guest is billed the guest rate on the fill, same flag as the Gast cell.
-    expect(cellsOf({ is_guest: true })[17]).toBe('330') // 440 − 110, never the surcharge
+    expect(cellsOf({ is_guest: true })[18]).toBe('330') // 440 − 110, never the surcharge
   })
 
   it('each cell echoes independently — a register-set Kategorie never blocks an Eintritt fill', () => {
     const cells = cellsOf({ beitragskategorie_cd: 'VB Erwerbstätige', eintritt_cd: '', mitgliederbeitrag_cd: '440' })
-    expect(cells[15]).toBe('VB Erwerbstätige') // echo
-    expect(cells[16]).toBe('27.06.2026')       // fill
-    expect(cells[17]).toBe('440')              // echo
+    expect(cells[16]).toBe('VB Erwerbstätige') // echo
+    expect(cells[17]).toBe('27.06.2026')       // fill
+    expect(cells[18]).toBe('440')              // echo
   })
 
   it('ClubDesk empty + no wiedisync value → empty cells (a harmless no-op on import)', () => {
     const cells = cellsOf({ beitragskategorie: null, eintritt: null })
-    expect(cells[15]).toBe('')
     expect(cells[16]).toBe('')
-    expect(cells[17]).toBe('') // unknown/empty category is never guessed at
+    expect(cells[17]).toBe('')
+    expect(cells[18]).toBe('') // unknown/empty category is never guessed at
   })
 
   // Cells [18..19] = Lizenznummer / Lizenzart (2026-07-27) — same precedence:
@@ -223,19 +223,19 @@ describe('buildPushCsv (update set — fill-only billing cells, 2026-07-27)', ()
       license_nr: '846309', licence_category: 'U 10',
       lizenznummer_cd: '812847', lizenzart_cd: 'RLL',
     })
-    expect(echoed[18]).toBe('812847') // NOT wiedisync's 846309
-    expect(echoed[19]).toBe('RLL')    // NOT wiedisync's U 10
+    expect(echoed[19]).toBe('812847') // NOT wiedisync's 846309
+    expect(echoed[20]).toBe('RLL')    // NOT wiedisync's U 10
     const filled = cellsOf({ license_nr: '846309', licence_category: 'U 10' })
-    expect(filled[18]).toBe('846309')
-    expect(filled[19]).toBe('U 10')
+    expect(filled[19]).toBe('846309')
+    expect(filled[20]).toBe('U 10')
     // Each cell independent — a register-set number never blocks an art fill.
     const mixed = cellsOf({ license_nr: '846309', licence_category: 'U 10', lizenznummer_cd: '812847' })
-    expect(mixed[18]).toBe('812847')
-    expect(mixed[19]).toBe('U 10')
+    expect(mixed[19]).toBe('812847')
+    expect(mixed[20]).toBe('U 10')
     // Nothing anywhere → empty cells, never a guess.
     const empty = cellsOf({})
-    expect(empty[18]).toBe('')
     expect(empty[19]).toBe('')
+    expect(empty[20]).toBe('')
   })
 
   it("suppresses 'Offizielle/r' from Lizenzart — an officials licence is not a playing licence", () => {
@@ -243,15 +243,15 @@ describe('buildPushCsv (update set — fill-only billing cells, 2026-07-27)', ()
     // ClubDesk models that in its own Offiziellen Lizenz field (OTR/OTN
     // levels) — pushing it as Lizenzart would misfile the qualification.
     const cells = cellsOf({ license_nr: '759984', licence_category: 'Offizielle/r' })
-    expect(cells[18]).toBe('759984') // the number still fills
-    expect(cells[19]).toBe('')       // the art cell stays empty
+    expect(cells[19]).toBe('759984') // the number still fills
+    expect(cells[20]).toBe('')       // the art cell stays empty
     // A register-set Lizenzart still echoes through unchanged.
-    expect(cellsOf({ licence_category: 'Offizielle/r', lizenzart_cd: 'RLL' })[19]).toBe('RLL')
+    expect(cellsOf({ licence_category: 'Offizielle/r', lizenzart_cd: 'RLL' })[20]).toBe('RLL')
     // Same rule on the CREATE set.
     const createRow = buildPushCsv([{ ...kacper, license_nr: '759984', licence_category: 'Offizielle/r' }], { create: true })
       .trim().split('\n')[1].split(';')
-    expect(createRow[25]).toBe('759984')
-    expect(createRow[26]).toBe('')
+    expect(createRow[26]).toBe('759984')
+    expect(createRow[27]).toBe('')
   })
 })
 
@@ -264,31 +264,31 @@ describe('buildPushCsv (create set)', () => {
     // the cells shift against ClubDesk's mapper). CREATE rows carry the real
     // wiedisync name (a new contact needs one) and never an [Id] (an unknown
     // [Id] hard-aborts ClubDesk's whole import).
-    expect(header).toBe('Vorname;Nachname;E-Mail;Telefon Privat;Adresse;PLZ;Ort;Geburtsdatum;Geschlecht;IBAN;Anrede;Nationalität;Federation of Origin;AHV Nummer;Wiedisync ID;Gast;Telefon Mobil;Beitragskategorie;Eintritt;Gruppen;Status;Offiziellen Lizenz;Mitgliederbeitrag;Sektion;Schiedsrichter;Lizenznummer;Lizenzart')
+    expect(header).toBe('Vorname;Nachname;E-Mail;Telefon Privat;Adresse;PLZ;Ort;Geburtsdatum;Geschlecht;IBAN;Anrede;Nationalität;Federation of Origin;Trainer Lizenz;AHV Nummer;Wiedisync ID;Gast;Telefon Mobil;Beitragskategorie;Eintritt;Gruppen;Status;Offiziellen Lizenz;Mitgliederbeitrag;Sektion;Schiedsrichter;Lizenznummer;Lizenzart')
     expect(header).toBe(CD_PUSH_CREATE_HEADERS.join(';'))
     expect(header).not.toContain('[Id]')
     // header/cell count equality — catches a header/cells drift in either direction
     expect(row.split(';')).toHaveLength(header.split(';').length)
     const cells = row.split(';')
-    expect(cells).toHaveLength(27)
+    expect(cells).toHaveLength(28)
     expect(cells[9]).toBe('CH9300762011623852957') // IBAN
-    // [10..13] = Anrede/Nationalität/Federation of Origin/AHV Nummer (empty on this fixture); [14] = Wiedisync ID; [15] = Gast; create extras start at [16]
-    expect(cells[16]).toBe('+41 79 000 00 00')      // Telefon Mobil = Privat
-    expect(cells[17]).toBe('VB Erwerbstätige')       // Beitragskategorie
-    expect(cells[18]).toBe('27.06.2026')             // Eintritt
-    expect(cells[19]).toBe('VB H1 (Spieler*in)')     // Gruppen
-    expect(cells[20]).toBe('Aktivmitglied')          // Status
-    expect(cells[21]).toBe('VB SC')                  // Offiziellen Lizenz (scorer, not VB SR)
-    expect(cells[22]).toBe('440')                    // Mitgliederbeitrag
-    expect(cells[23]).toBe('Volleyball')             // Sektion
-    expect(cells[24]).toBe('Ja')                     // Schiedsrichter (referee)
-    expect(cells[25]).toBe('183931')                 // Lizenznummer (issuing authority)
-    expect(cells[26]).toBe('RLL')                    // Lizenzart
+    // [10..14] = Anrede/Nationalität/Federation of Origin/Trainer Lizenz/AHV Nummer (empty on this fixture); [15] = Wiedisync ID; [16] = Gast; create extras start at [17]
+    expect(cells[17]).toBe('+41 79 000 00 00')      // Telefon Mobil = Privat
+    expect(cells[18]).toBe('VB Erwerbstätige')       // Beitragskategorie
+    expect(cells[19]).toBe('27.06.2026')             // Eintritt
+    expect(cells[20]).toBe('VB H1 (Spieler*in)')     // Gruppen
+    expect(cells[21]).toBe('Aktivmitglied')          // Status
+    expect(cells[22]).toBe('VB SC')                  // Offiziellen Lizenz (scorer, not VB SR)
+    expect(cells[23]).toBe('440')                    // Mitgliederbeitrag
+    expect(cells[24]).toBe('Volleyball')             // Sektion
+    expect(cells[25]).toBe('Ja')                     // Schiedsrichter (referee)
+    expect(cells[26]).toBe('183931')                 // Lizenznummer (issuing authority)
+    expect(cells[27]).toBe('RLL')                    // Lizenzart
   })
 
   it('Telefon Mobil mirrors Telefon Privat (one number → both)', () => {
     const cells = buildPushCsv([kacper], { create: true }).trim().split('\n')[1].split(';')
-    expect(cells[3]).toBe(cells[16]) // Privat === Mobil
+    expect(cells[3]).toBe(cells[17]) // Privat === Mobil
   })
 
   it('empty create-set optional cells stay empty (safe on a new contact)', () => {
@@ -300,21 +300,21 @@ describe('buildPushCsv (create set)', () => {
     // Lizenzart. 15 (Gast) is deliberately NOT in this list — it is the one
     // contact column that is never empty (gastCell asserts 'Nein'), asserted
     // separately below.
-    for (const i of [9, 10, 11, 12, 13, 14, 16, 17, 18, 19, 20, 25, 26]) expect(cells[i]).toBe('')
+    for (const i of [9, 10, 11, 12, 13, 14, 15, 17, 18, 19, 20, 21, 26, 27]) expect(cells[i]).toBe('')
   })
 
   it('neutralises formula injection in the category cell', () => {
     const row = buildPushCsv([{ ...kacper, beitragskategorie: '=SUM(A1)' }], { create: true })
       .trim().split('\n')[1]
-    expect(row.split(';')[17]).toBe("'=SUM(A1)")
+    expect(row.split(';')[18]).toBe("'=SUM(A1)")
   })
 
   it('multi-team Gruppen stays one cell (comma is safe in semicolon CSV)', () => {
     const row = buildPushCsv([{ ...kacper, gruppen: 'VB H1 (Spieler*in), VB H2 (Spieler*in)' }], { create: true })
       .trim().split('\n')[1]
     const cells = row.split(';')
-    expect(cells).toHaveLength(27)
-    expect(cells[19]).toBe('VB H1 (Spieler*in), VB H2 (Spieler*in)')
+    expect(cells).toHaveLength(28)
+    expect(cells[20]).toBe('VB H1 (Spieler*in), VB H2 (Spieler*in)')
   })
 })
 
@@ -534,5 +534,111 @@ describe('federationCell / nationalityCell (the PUSH shape of the coded fields)'
     // Legacy free text (or an older frontend's label) passes through rather than
     // vanishing from the change preview.
     expect(nationalityCell('Deutschland', CD_NAMES)).toBe('Deutschland')
+  })
+})
+
+describe('trainerLicenceCell (members.trainer_licences → the ClubDesk cell)', () => {
+  it('renders the club wording, not the stored codes', () => {
+    expect(trainerLicenceCell('JS')).toBe('J+S')
+    expect(trainerLicenceCell('JS,B')).toBe('J+S, B')
+    expect(trainerLicenceCell('A')).toBe('A')
+  })
+
+  it('imposes canonical order so the cell is stable regardless of stored order', () => {
+    expect(trainerLicenceCell('B,JS')).toBe('J+S, B')
+    expect(trainerLicenceCell('A,B,C,JS')).toBe('J+S, C, B, A')
+  })
+
+  it('yields an empty cell for the empty states — the caller echo then protects the register', () => {
+    expect(trainerLicenceCell(null)).toBe('')
+    expect(trainerLicenceCell(undefined)).toBe('')
+    expect(trainerLicenceCell('')).toBe('')
+  })
+
+  it('drops unknown codes rather than guessing a spelling ClubDesk never had', () => {
+    expect(trainerLicenceCell('D')).toBe('')
+    expect(trainerLicenceCell('JS,D')).toBe('J+S')
+  })
+})
+
+describe('parseTrainerLicenceCell (the ClubDesk cell → codes, for down-sync + drift)', () => {
+  it('round-trips everything trainerLicenceCell can emit', () => {
+    for (const codes of ['JS', 'JS,C', 'JS,C,B,A', 'B', 'A', 'JS,B']) {
+      expect(parseTrainerLicenceCell(trainerLicenceCell(codes))).toBe(codes)
+    }
+  })
+
+  it('survives the hand-edited spellings a free-text column invites', () => {
+    expect(parseTrainerLicenceCell('J+S, B')).toBe('JS,B')
+    expect(parseTrainerLicenceCell('b, j+s')).toBe('JS,B')      // order normalized
+    expect(parseTrainerLicenceCell('J+S / B')).toBe('JS,B')
+    expect(parseTrainerLicenceCell('J + S')).toBe('JS')
+    expect(parseTrainerLicenceCell('Jugend+Sport, Trainer A')).toBe('JS,A')
+    expect(parseTrainerLicenceCell('Trainer B')).toBe('B')
+    expect(parseTrainerLicenceCell('Stufe C')).toBe('C')
+    expect(parseTrainerLicenceCell('JS;C')).toBe('JS,C')
+  })
+
+  it('does not find rungs inside ordinary words — the false-positive that would forge a qualification', () => {
+    expect(parseTrainerLicenceCell('Basketball Trainer')).toBe('')
+    expect(parseTrainerLicenceCell('Ausbildung')).toBe('')
+    expect(parseTrainerLicenceCell('keine')).toBe('')
+  })
+
+  it('returns empty for the empty states', () => {
+    expect(parseTrainerLicenceCell(null)).toBe('')
+    expect(parseTrainerLicenceCell('   ')).toBe('')
+  })
+
+  it('only ever emits values migration 274 CHECK accepts', () => {
+    const dbCheck = /^(JS|C|B|A)(,(JS|C|B|A))*$/
+    for (const cell of ['J+S, B', 'Trainer A', 'j+s/c/b/a', 'Stufe C', 'JS']) {
+      expect(parseTrainerLicenceCell(cell)).toMatch(dbCheck)
+    }
+  })
+})
+
+describe('trainerLicenceDisplay (admin email, reader language)', () => {
+  it('never translates J+S — it is a federal programme name, not a description', () => {
+    for (const loc of ['de', 'gsw', 'en', 'fr', 'it']) {
+      expect(trainerLicenceDisplay('JS', loc)).toBe('J+S')
+    }
+  })
+
+  it('translates the ladder rungs', () => {
+    expect(trainerLicenceDisplay('JS,B', 'de')).toBe('J+S, Trainer B')
+    expect(trainerLicenceDisplay('JS,B', 'fr')).toBe('J+S, Entraîneur B')
+    expect(trainerLicenceDisplay('JS,B', 'it')).toBe('J+S, Allenatore B')
+  })
+
+  it('falls back to English for an unknown locale rather than printing raw codes', () => {
+    expect(trainerLicenceDisplay('B', 'xx')).toBe('Trainer B')
+  })
+})
+
+describe('parseTrainerLicenceCodes', () => {
+  it('matches the frontend helper: canonical order, de-duplicated, unknowns dropped', () => {
+    expect(parseTrainerLicenceCodes('a,b,c,js')).toEqual(['JS', 'C', 'B', 'A'])
+    expect(parseTrainerLicenceCodes('C,C')).toEqual(['C'])
+    expect(parseTrainerLicenceCodes('D')).toEqual([])
+  })
+})
+
+describe('buildPushCsv — Trainer Lizenz column', () => {
+  it('sends the rendered cell, and echoes ClubDesk own value when the member has not answered', () => {
+    const csv = buildPushCsv([
+      { id: 1, clubdesk_id: '100', trainer_licences: 'JS,B' },
+      { id: 2, clubdesk_id: '101', trainer_licences: null, trainer_licences_cd: 'J+S, C' },
+      { id: 3, clubdesk_id: '102', trainer_licences: null },
+    ])
+    const lines = csv.split('\n')
+    const header = lines[0].split(';')
+    const col = header.indexOf('Trainer Lizenz')
+    expect(col).toBeGreaterThan(-1)
+    expect(lines[1].split(';')[col]).toBe('J+S, B')
+    // Echo: an unanswered member must never blank the register.
+    expect(lines[2].split(';')[col]).toBe('J+S, C')
+    // Nothing on either side → empty cell, which ClubDesk treats as a no-op.
+    expect(lines[3].split(';')[col]).toBe('')
   })
 })
