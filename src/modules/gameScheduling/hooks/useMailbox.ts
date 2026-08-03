@@ -73,6 +73,29 @@ export interface MailboxGroup {
 export interface MailboxGroupsResponse {
   groups: MailboxGroup[]
   teams: MailboxGroup[]
+  /** The signature the server appends to every send. Rendered read-only in the
+   *  composer so the operator can see what is already there and doesn't type a
+   *  second sign-off under one they were never shown. */
+  signature_html?: string
+}
+
+/** One individually-picked recipient, from expanding an audience into chips.
+ *  `member` rows are addressed by id; `clubdesk` rows (former members, who have
+ *  no member row) by address, re-validated against the register on send. */
+export interface MailboxRecipient {
+  id: number | string
+  kind: 'member' | 'clubdesk'
+  name: string
+  email: string
+}
+
+export interface MailboxExpandResponse {
+  groups: string[]
+  audience_size: number
+  skipped: { noEmail: number; optedOut: number; duplicate: number; suppressed: number }
+  /** Exactly the people who would be mailed — anyone filtered out for a missing
+   *  address, an opt-out or a suppression is already gone. */
+  recipients: MailboxRecipient[]
 }
 
 /** Result of a `dry_run` group send — what WOULD be mailed, mailing nothing.
@@ -89,6 +112,8 @@ export interface MailboxBulkPreview {
   skipped: { noEmail: number; optedOut: number; duplicate: number; suppressed: number }
   /** First names + last initial only — never addresses. */
   sample: string[]
+  cc_count?: number
+  bcc_count?: number
 }
 
 export interface MailboxBulkResult {
@@ -98,16 +123,33 @@ export interface MailboxBulkResult {
   recipient_count: number
   sent: number
   failed: number
+  /** Addresses that received the SINGLE Cc/Bcc copy — counted apart from
+   *  `sent`, which stays the number of members reached. */
+  cc_sent?: number
   skipped: { noEmail: number; optedOut: number; duplicate: number; suppressed: number }
   errors: { email: string; error: string }[]
 }
 
-export interface MailboxBulkPayload {
-  /** One or more audience keys — sent as a union, deduped by address. */
+/** Recipient selection: collapsed audiences plus individually-picked people.
+ *  Both are unioned and deduped server-side, so a person who is in a selected
+ *  group AND picked individually is still mailed exactly once. */
+export interface MailboxRecipientSelection {
   groups: string[]
+  /** Member ids picked individually (from an expanded audience). */
+  members?: number[]
+  /** Register addresses picked individually (former members have no member id). */
+  emails?: string[]
+}
+
+export interface MailboxBulkPayload extends MailboxRecipientSelection {
   subject: string
   html: string
   attachments?: File[]
+  /** ONE copy goes to these, sent once after the personalised run — not a
+   *  header on each message. See the endpoint comment: a Cc carried on every
+   *  message would deliver N copies to whoever was cc'd. */
+  cc?: string
+  bcc?: string
 }
 
 /**
@@ -514,6 +556,7 @@ interface MailboxListResponse {
   unread: number
   messages: MailboxMessage[]
   last_sync: string | null
+  signature_html?: string
 }
 
 export interface UseMailboxReturn {
@@ -522,6 +565,10 @@ export interface UseMailboxReturn {
   messages: MailboxMessage[]
   unread: number
   lastSync: string | null
+  /** The signature this account appends to every outgoing message. Shown
+   *  read-only in the composer so an operator doesn't add a second sign-off
+   *  underneath one they were never shown. Null until the first list resolves. */
+  signatureHtml: string | null
   isLoading: boolean
   syncing: boolean
   sending: boolean
@@ -539,9 +586,11 @@ export interface UseMailboxReturn {
   assignThread: (ids: number[], opponentId: number | null) => Promise<void>
   /** Club mailbox only — the group-send catalogue with live audience counts. */
   fetchGroups: () => Promise<MailboxGroupsResponse>
-  /** Club mailbox only — resolve the selected audiences WITHOUT sending, so the
-   *  composer can show who they would reach. Always call this before sendBulk. */
-  previewBulk: (groups: string[]) => Promise<MailboxBulkPreview>
+  /** Club mailbox only — resolve the selection WITHOUT sending, so the
+   *  composer can show who it would reach. Always call this before sendBulk. */
+  previewBulk: (sel: MailboxRecipientSelection) => Promise<MailboxBulkPreview>
+  /** Club mailbox only — resolve audiences into individual recipients. */
+  expandGroups: (groups: string[]) => Promise<MailboxExpandResponse>
   /** Club mailbox only — send one personalised message per recipient. */
   sendBulk: (payload: MailboxBulkPayload) => Promise<MailboxBulkResult>
 }
@@ -551,6 +600,7 @@ export function useMailbox(enabled: boolean = true, sport: MailboxAccount = 'vol
   const [messages, setMessages] = useState<MailboxMessage[]>([])
   const [unread, setUnread] = useState(0)
   const [lastSync, setLastSync] = useState<string | null>(null)
+  const [signatureHtml, setSignatureHtml] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
   const [sending, setSending] = useState(false)
@@ -567,6 +617,7 @@ export function useMailbox(enabled: boolean = true, sport: MailboxAccount = 'vol
       setMessages(Array.isArray(resp.messages) ? resp.messages : [])
       setUnread(Number(resp.unread) || 0)
       setLastSync(resp.last_sync)
+      setSignatureHtml(resp.signature_html ?? null)
     } finally {
       if (seq === fetchSeq.current) setIsLoading(false)
     }
@@ -672,10 +723,23 @@ export function useMailbox(enabled: boolean = true, sport: MailboxAccount = 'vol
     return await kscwApi<MailboxGroupsResponse>(mailboxUrl(sport, '/groups'))
   }, [sport])
 
-  const previewBulk = useCallback(async (groups: string[]) => {
+  const previewBulk = useCallback(async (sel: MailboxRecipientSelection) => {
     return await kscwApi<MailboxBulkPreview>(mailboxUrl(sport, '/bulk'), {
       method: 'POST',
-      body: { groups, dry_run: true },
+      body: {
+        groups: sel.groups,
+        members: sel.members ?? [],
+        emails: sel.emails ?? [],
+        dry_run: true,
+      },
+    })
+  }, [sport])
+
+  /** Resolve audiences to the individual people in them, for the To-field chips. */
+  const expandGroups = useCallback(async (groups: string[]) => {
+    return await kscwApi<MailboxExpandResponse>(mailboxUrl(sport, '/expand'), {
+      method: 'POST',
+      body: { groups },
     })
   }, [sport])
 
@@ -688,6 +752,10 @@ export function useMailbox(enabled: boolean = true, sport: MailboxAccount = 'vol
       // JSON-encoded: multipart fields are strings, and a team name could
       // never contain a comma but a future group key might.
       fd.append('groups', JSON.stringify(payload.groups))
+      fd.append('members', JSON.stringify(payload.members ?? []))
+      fd.append('emails', JSON.stringify(payload.emails ?? []))
+      if (payload.cc) fd.append('cc', payload.cc)
+      if (payload.bcc) fd.append('bcc', payload.bcc)
       fd.append('subject', payload.subject)
       fd.append('html', payload.html)
       for (const f of payload.attachments || []) fd.append('attachments', f, f.name)
@@ -714,5 +782,5 @@ export function useMailbox(enabled: boolean = true, sport: MailboxAccount = 'vol
     }
   }, [refetch, sport])
 
-  return { configured, messages, unread, lastSync, isLoading, syncing, sending, refetch, sync, loadMessage, sendReply, searchMessages, assignThread, fetchGroups, previewBulk, sendBulk }
+  return { configured, messages, unread, lastSync, signatureHtml, isLoading, syncing, sending, refetch, sync, loadMessage, sendReply, searchMessages, assignThread, fetchGroups, previewBulk, expandGroups, sendBulk }
 }

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { ArrowLeft, Paperclip, Users, X } from 'lucide-react'
+import { ArrowLeft, ChevronDown, Paperclip, Users, X } from 'lucide-react'
 import { useConfirm } from '../../../components/ConfirmProvider'
 import { Badge } from '../../../components/ui/badge'
 import { Button } from '../../../components/ui/button'
@@ -24,6 +24,7 @@ import {
   type MailboxGroupsResponse,
   type MailboxMessage,
   type MailboxMessageFull,
+  type MailboxRecipient,
   type MessageClassification,
   type OpponentContacts,
   type UseMailboxReturn,
@@ -31,6 +32,9 @@ import {
 import type { GameSchedulingOpponent } from '../../../types'
 
 const COLLAPSED_COUNT = 10
+
+/** Above this, expanding an audience into individual chips asks first. */
+const EXPAND_CONFIRM_THRESHOLD = 60
 
 /** Compose modes — new mail, reply, reply-all, forward, or a group send.
  *  `group` addresses an audience (a team, all Schreiber, …) instead of typed
@@ -96,9 +100,16 @@ interface ComposeState {
   forwardFromId?: number
   /** Count of attachments carried over from the forwarded message (UI hint). */
   forwardAttachCount?: number
+  /** Blind-carbon-copy recipients. Group send only, and like `cc` they receive
+   *  ONE copy rather than one per recipient — see the bulk endpoint. */
+  bcc?: string
   /** Group send: selected audience keys (`team:<id>` or fixed group keys).
    *  Multi-select — the send goes to their union, deduped by address. */
   groups?: string[]
+  /** Group send: people picked individually, by expanding an audience into
+   *  chips. Held alongside `groups`, not instead of it — an operator can mail
+   *  two whole teams plus three named people, and the server unions the lot. */
+  picked?: MailboxRecipient[]
   mode: ComposeMode
 }
 
@@ -158,12 +169,28 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
   // instead would mean writing state synchronously inside the effect below,
   // which is the cascading-render pattern the hooks lint rule rejects.
   const [preview, setPreview] = useState<{ group: string; data: MailboxBulkPreview | null } | null>(null)
-  const { fetchGroups, previewBulk, sendBulk } = mailbox
+  const { fetchGroups, previewBulk, expandGroups, sendBulk } = mailbox
+  // Server-side constant, delivered with the message list — so it is present in
+  // every compose mode and every mailbox, not just where /groups was fetched.
+  const signatureHtml = mailbox.signatureHtml
 
-  // Selection is order-independent, so the cache key is the SORTED join —
-  // toggling A then B must not re-resolve what B then A already resolved.
+  // Selection is order-independent, so the cache key is SORTED — toggling A
+  // then B must not re-resolve what B then A already resolved. The key encodes
+  // the whole selection (audiences + individually-picked people) rather than
+  // just the group list, and is complete enough to rebuild the request from:
+  // the effect below parses it back instead of closing over `compose`, which
+  // changes on every keystroke in the subject and would re-resolve constantly.
+  // Cc/Bcc are deliberately NOT in the key — they never change who is
+  // resolved, so typing an address must not re-run the audience query.
   const composeGroups = compose?.mode === 'group' ? (compose.groups ?? []) : []
-  const composeKey = composeGroups.length > 0 ? [...composeGroups].sort().join('|') : ''
+  const composePicked = compose?.mode === 'group' ? (compose.picked ?? []) : []
+  const composeKey = (composeGroups.length > 0 || composePicked.length > 0)
+    ? JSON.stringify({
+      g: [...composeGroups].sort(),
+      m: composePicked.filter((r) => r.kind === 'member').map((r) => Number(r.id)).sort((a, b) => a - b),
+      e: composePicked.filter((r) => r.kind === 'clubdesk').map((r) => r.email).sort(),
+    })
+    : ''
   const previewCurrent = !!composeKey && preview?.group === composeKey
   const previewData = previewCurrent ? preview?.data ?? null : null
   const previewLoading = !!composeKey && !previewCurrent
@@ -190,7 +217,8 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
     let cancelled = false
     void (async () => {
       try {
-        const p = await previewBulk(composeKey.split('|'))
+        const sel = JSON.parse(composeKey) as { g: string[]; m: number[]; e: string[] }
+        const p = await previewBulk({ groups: sel.g, members: sel.m, emails: sel.e })
         // Store the selection alongside the result: a slow response for a
         // previous selection must never be shown against the current one.
         if (!cancelled) setPreview({ group: composeKey, data: p })
@@ -208,8 +236,40 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
    *  translated), fixed groups resolve through i18n. */
   const groupLabel = (g: MailboxGroup) => g.name ?? t(`mailboxGroup_${g.key.replace(/[:.]/g, '_')}`)
 
+  /** Replace one audience chip with a chip per person in it, so the operator
+   *  can drop individuals. The audience itself is removed from `groups` in the
+   *  same update — leaving both would re-add everyone they just took out. */
+  const handleExpandGroup = async (key: string) => {
+    // "All members" is 671 people. Rendering that many chips unannounced turns
+    // a single click into a wall of names and a janky page, so anything large
+    // asks first — the operator almost always wants the audience, not 671
+    // individually-removable rows.
+    const cat = [...(groups?.groups ?? []), ...(groups?.teams ?? [])].find((x) => x.key === key)
+    if ((cat?.count ?? 0) > EXPAND_CONFIRM_THRESHOLD) {
+      const ok = await confirm({ message: t('mailboxExpandLarge', { count: cat?.count ?? 0 }) })
+      if (!ok) return
+    }
+    try {
+      const resp = await expandGroups([key])
+      setCompose((prev) => {
+        if (!prev) return prev
+        const seen = new Set((prev.picked ?? []).map((r) => String(r.id)))
+        const merged = [...(prev.picked ?? [])]
+        for (const r of resp.recipients) {
+          if (seen.has(String(r.id))) continue
+          seen.add(String(r.id))
+          merged.push(r)
+        }
+        return { ...prev, groups: (prev.groups ?? []).filter((k) => k !== key), picked: merged }
+      })
+    } catch {
+      toast.error(t('mailboxExpandFailed'))
+    }
+  }
+
   const handleSendGroup = async () => {
-    if (!compose || !compose.groups?.length || !previewData) return
+    if (!compose || !previewData) return
+    if (!compose.groups?.length && !compose.picked?.length) return
     if (previewData.recipient_count === 0) return
     // Mass mail is irreversible and goes to real members — confirm with the
     // resolved number, not the group name, so the operator sees the blast size.
@@ -219,8 +279,13 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
     })
     if (!ok) return
     try {
+      const picked = compose.picked ?? []
       const result = await sendBulk({
-        groups: compose.groups,
+        groups: compose.groups ?? [],
+        members: picked.filter((r) => r.kind === 'member').map((r) => Number(r.id)),
+        emails: picked.filter((r) => r.kind === 'clubdesk').map((r) => r.email),
+        cc: compose.cc || undefined,
+        bcc: compose.bcc || undefined,
         subject: compose.subject,
         html: compose.html,
         attachments: compose.attachments,
@@ -558,21 +623,122 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
   // Recipients half: an audience picker for a group send, typed To/Cc
   // otherwise. Split out so the dialog and the full-screen surface render
   // byte-identical fields rather than drifting into two versions.
+  /** Display label for a selected audience key, resolved out of the catalogue. */
+  const keyLabel = (key: string) => {
+    const g = [...(groups?.groups ?? []), ...(groups?.teams ?? [])].find((x) => x.key === key)
+    return g ? groupLabel(g) : key
+  }
+  const keyCount = (key: string) =>
+    [...(groups?.groups ?? []), ...(groups?.teams ?? [])].find((x) => x.key === key)?.count
+
   const composeRecipients = (c: ComposeState) =>
     c.mode === 'group' ? (
-      <div>
-        <label className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('mailboxGroupLabel')}</label>
-        <AudiencePicker
-          groups={groups}
-          selected={c.groups ?? []}
-          onToggle={(key) => {
-            const cur = c.groups ?? []
-            setCompose({ ...c, groups: cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key] })
-          }}
-          onClear={() => setCompose({ ...c, groups: [] })}
-          labelFor={groupLabel}
-        />
-        <GroupPreview preview={previewData} loading={previewLoading} selected={(c.groups ?? []).length > 0} />
+      <div className="space-y-3">
+        <div>
+          <label className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('mailboxTo')}</label>
+          {/* The To box holds whole audiences AND individual people side by
+              side. An audience chip can be unfolded into its members, which is
+              the only way to drop one person from an otherwise-right group. */}
+          <div className="mt-1 flex min-h-11 flex-wrap items-center gap-1.5 rounded-md border border-gray-300 bg-white p-2 dark:border-gray-600 dark:bg-gray-900">
+            {(c.groups ?? []).length === 0 && (c.picked ?? []).length === 0 && (
+              <span className="px-1 text-sm text-gray-400 dark:text-gray-500">{t('mailboxRecipientsEmpty')}</span>
+            )}
+            {(c.groups ?? []).map((key) => (
+              <span
+                key={key}
+                className="inline-flex min-h-8 items-center gap-1 rounded-full border border-brand-500 bg-brand-500 px-2.5 py-0.5 text-xs text-white"
+              >
+                <Users className="h-3 w-3 flex-shrink-0" />
+                <span>{keyLabel(key)}</span>
+                {keyCount(key) != null && <span className="text-white/80">{keyCount(key)}</span>}
+                <button
+                  type="button"
+                  onClick={() => void handleExpandGroup(key)}
+                  aria-label={t('mailboxExpandGroup')}
+                  title={t('mailboxExpandGroup')}
+                  className="rounded p-0.5 hover:bg-white/20"
+                >
+                  <ChevronDown className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCompose({ ...c, groups: (c.groups ?? []).filter((k) => k !== key) })}
+                  aria-label={t('mailboxRemoveRecipient')}
+                  title={t('mailboxRemoveRecipient')}
+                  className="rounded p-0.5 hover:bg-white/20"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </span>
+            ))}
+            {(c.picked ?? []).map((r) => (
+              <span
+                key={String(r.id)}
+                title={r.email}
+                className="inline-flex min-h-8 items-center gap-1 rounded-full border border-gray-300 bg-gray-100 px-2.5 py-0.5 text-xs text-gray-700 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+              >
+                <span>{r.name}</span>
+                <button
+                  type="button"
+                  onClick={() => setCompose({ ...c, picked: (c.picked ?? []).filter((p) => String(p.id) !== String(r.id)) })}
+                  aria-label={t('mailboxRemoveRecipient')}
+                  title={t('mailboxRemoveRecipient')}
+                  className="rounded p-0.5 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </span>
+            ))}
+          </div>
+          <GroupPreview
+            preview={previewData}
+            loading={previewLoading}
+            selected={(c.groups ?? []).length > 0 || (c.picked ?? []).length > 0}
+          />
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <label className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('mailboxCc')}</label>
+            <input
+              type="text"
+              value={c.cc}
+              onChange={(e) => setCompose({ ...c, cc: e.target.value })}
+              placeholder={t('mailboxCcPlaceholder')}
+              className="mt-1 w-full rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('mailboxBcc')}</label>
+            <input
+              type="text"
+              value={c.bcc ?? ''}
+              onChange={(e) => setCompose({ ...c, bcc: e.target.value })}
+              placeholder={t('mailboxCcPlaceholder')}
+              className="mt-1 w-full rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500"
+            />
+          </div>
+        </div>
+        {/* Stated inline, not in a tooltip: the natural assumption is that Cc
+            behaves like Cc on a normal mail, and here it cannot — one copy is
+            the whole point, and getting it wrong means N copies to one person. */}
+        {((c.cc ?? '').trim() || (c.bcc ?? '').trim()) && (
+          <p className="text-xs text-gray-500 dark:text-gray-400">{t('mailboxCcOnceHint')}</p>
+        )}
+
+        <div>
+          <label className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('mailboxGroupLabel')}</label>
+          <AudiencePicker
+            groups={groups}
+            selected={c.groups ?? []}
+            onToggle={(key) => {
+              const cur = c.groups ?? []
+              setCompose({ ...c, groups: cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key] })
+            }}
+            onClear={() => setCompose({ ...c, groups: [], picked: [] })}
+            labelFor={groupLabel}
+          />
+        </div>
       </div>
     ) : (
       <>
@@ -636,6 +802,26 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
           </p>
         )}
       </div>
+      {/* The club signature has always been appended server-side, but the
+          composer never showed it — so an operator writing into an empty
+          editor had every reason to add their own sign-off under one they
+          could not see. Read-only on purpose: it is not editable per-message,
+          and rendering it as an input would imply it is.
+          `dangerouslySetInnerHTML` is safe here: this markup is a server-side
+          constant from scheduling-signature.js, never user input. */}
+      {signatureHtml && (
+        <div>
+          <label className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('mailboxSignatureLabel')}</label>
+          <div className="mt-1 rounded-md border border-dashed border-gray-300 bg-gray-50 p-3 dark:border-gray-600 dark:bg-gray-900/50">
+            {/* Emails render on white in every client; pinning it here keeps
+                the crest and the blue text legible in the app's dark theme. */}
+            <div className="overflow-x-auto rounded bg-white p-2">
+              <div dangerouslySetInnerHTML={{ __html: signatureHtml }} />
+            </div>
+            <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{t('mailboxSignatureHint')}</p>
+          </div>
+        </div>
+      )}
       <div>
         <label className="inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-700 hover:bg-gray-50 sm:min-h-9 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">
           <Paperclip className="h-4 w-4" />

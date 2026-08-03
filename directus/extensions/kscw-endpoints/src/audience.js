@@ -364,6 +364,38 @@ export async function resolveMemberAudience(database, log, spec, label = 'audien
  *     most likely to bounce, on the same SES identity that carries password
  *     resets and invitations.
  */
+/**
+ * Resolve explicitly-picked addresses back to register contacts.
+ *
+ * The composer lets an operator expand an audience into individual chips and
+ * drop the ones they don't want; what comes back is a list of plain addresses.
+ * An address arriving from a client is NOT a recipient. Accepting it verbatim
+ * would turn an admin-only club endpoint into a general-purpose mail relay that
+ * merely happens to be authenticated — and one that sends with the club's SES
+ * identity, the same identity that carries password resets.
+ *
+ * So every address is matched back against the ClubDesk register and anything
+ * unknown is dropped rather than mailed. Callers get back the register's own
+ * name for the contact, so the merge fields stay trustworthy too.
+ */
+export async function resolveRegisterEmails(database, emails) {
+  const wanted = [...new Set(
+    (emails || []).map(e => String(e || '').trim().toLowerCase()).filter(Boolean),
+  )]
+  if (wanted.length === 0) return []
+  const rows = await database('clubdesk_people')
+    .whereNot('status', 'Verstorben')
+    .whereNotNull('email')
+    .whereIn(database.raw('LOWER(BTRIM(email))'), wanted)
+    .select('clubdesk_id', 'email', 'vorname', 'nachname')
+  return rows.map(r => ({
+    id: `cd:${r.clubdesk_id}`,
+    email: String(r.email).trim(),
+    first_name: r.vorname || '',
+    last_name: r.nachname || '',
+  }))
+}
+
 export async function resolveClubdeskRecipients(database, status) {
   const rows = await database('clubdesk_people')
     .where('status', status)

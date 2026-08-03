@@ -59,7 +59,7 @@ import nodemailer from 'nodemailer'
 import MailComposer from 'nodemailer/lib/mail-composer/index.js'
 import { escHtml } from './email-template.js'
 import { writeUserLog } from './activity-log.js'
-import { MAILBOX_GROUPS, resolveClubdeskRecipients, resolveMemberAudience, teamAudienceCounts } from './audience.js'
+import { MAILBOX_GROUPS, resolveClubdeskRecipients, resolveMemberAudience, resolveRegisterEmails, teamAudienceCounts } from './audience.js'
 import { loadSuppressed } from './email-suppression.js'
 import {
   SCHEDULING_SIGNATURE_LIGHT_HTML, SCHEDULING_SIGNATURE_TEXT,
@@ -781,7 +781,11 @@ export function registerSchedulingMailbox(router, { database, logger }) {
       await applyReadState(acct, memberId, rows)
       const unread = await unreadCount(acct, memberId)
       const sync = await database('sync_runs').where({ source: 'mailbox_sync' }).first().catch(() => null)
-      res.json({ configured: true, unread, messages: rows, last_sync: sync?.last_run_at || null })
+      // The signature the server appends to every outgoing message from this
+      // account. Returned here — on the call every panel already makes — so the
+      // composer can SHOW it in all modes (reply included) without a second
+      // request, and without paying for /groups, which resolves ~45 audiences.
+      res.json({ configured: true, unread, messages: rows, last_sync: sync?.last_run_at || null, signature_html: acct.signatureHtml })
     } catch (err) { fail(res, 'mailbox/list', err, req) }
   }
   router.get('/admin/terminplanung/mailbox', listHandler(schedulingAccount))
@@ -1127,7 +1131,7 @@ export function registerSchedulingMailbox(router, { database, logger }) {
    *     marked us as spam) — re-mailing those is what costs the SES identity
    *     its reputation, and that identity also carries password resets
    */
-  async function resolveRecipients(sources, label) {
+  async function resolveRecipients(sources, label, explicit = null) {
     // UNION across every selected chip, then dedupe once over the combined set.
     // Deduping per-group instead would mail a coach who is also a captain twice
     // when both chips are on — which is precisely the case multi-select makes
@@ -1140,6 +1144,17 @@ export function registerSchedulingMailbox(router, { database, logger }) {
       } else {
         for (const id of await resolveMemberAudience(database, log, src.spec, label)) memberIds.add(id)
       }
+    }
+
+    // Individually-picked recipients, from an audience the operator expanded
+    // into chips. They join the same set as the group-resolved ones and go
+    // through every filter below, so expanding an audience can never be a way
+    // to reach someone who opted out or whose address is suppressed.
+    if (explicit?.memberIds?.length) {
+      for (const id of explicit.memberIds) memberIds.add(id)
+    }
+    if (explicit?.emails?.length) {
+      clubdeskRows.push(...await resolveRegisterEmails(database, explicit.emails))
     }
 
     const memberRows = memberIds.size > 0
@@ -1206,8 +1221,85 @@ export function registerSchedulingMailbox(router, { database, logger }) {
       res.json({
         groups: MAILBOX_GROUPS.map((g, i) => ({ key: g.key, section: g.section ?? 'roles', count: counts[i] })),
         teams: teams.map(t => ({ key: `team:${t.id}`, section: 'teams', name: t.name, sport: t.sport, count: t.count })),
+        // The signature the server appends to every send. Returned so the
+        // composer can SHOW it: it has always been added, but an operator
+        // writing into an empty editor had no way to know that, and would
+        // reasonably type their own sign-off underneath the one they cannot see.
+        signature_html: acct.signatureHtml,
       })
     } catch (err) { fail(res, 'mailbox/groups', err, req) }
+  })
+
+  /** Parse the `groups` field, which arrives as a JSON array, a comma list or a
+   *  single `group` — multipart fields are strings, so all three shapes exist. */
+  function parseGroupKeys(body) {
+    let keys = []
+    if (body.groups != null && String(body.groups) !== '') {
+      if (Array.isArray(body.groups)) keys = body.groups.map(String)
+      else {
+        try {
+          const parsed = JSON.parse(String(body.groups))
+          keys = Array.isArray(parsed) ? parsed.map(String) : []
+        } catch { keys = String(body.groups).split(',') }
+      }
+    } else if (body.group) {
+      keys = [String(body.group)]
+    }
+    return [...new Set(keys.map(k => k.trim()).filter(Boolean))]
+  }
+
+  /** JSON-or-comma list of scalars, same multipart reasoning as parseGroupKeys. */
+  function parseList(value) {
+    if (value == null || String(value) === '') return []
+    if (Array.isArray(value)) return value.map(String)
+    try {
+      const parsed = JSON.parse(String(value))
+      return Array.isArray(parsed) ? parsed.map(String) : []
+    } catch { return String(value).split(',') }
+  }
+
+  // POST /kscw/admin/mailbox/expand — resolve audiences to the individual
+  // people in them, so the composer can render them as removable chips.
+  //
+  // This deliberately returns addresses, unlike the dry-run preview (which
+  // returns counts and first-name samples only). The difference is intent: the
+  // preview answers "how many and roughly who" for a blast that stays a blast,
+  // whereas expanding is the operator taking manual control of the recipient
+  // list and needing to see exactly who is on it. Same admin-only gate either
+  // way, and the club's admins can already read member addresses in the admin
+  // area — this exposes nothing they could not already list.
+  router.post('/admin/mailbox/expand', async (req, res) => {
+    const acct = pinnedAdmin()
+    if (!(await authForAccount(req, acct.sport))) return res.status(403).json({ error: 'Admin only' })
+    try {
+      const body = req.body || {}
+      const groupKeys = parseGroupKeys(body)
+      if (groupKeys.length === 0) return res.status(400).json({ error: 'No group selected' })
+
+      const sources = []
+      for (const k of groupKeys) {
+        const src = sourceForGroup(k)
+        if (!src) return res.status(400).json({ error: `Unknown group: ${k}` })
+        sources.push(src)
+      }
+
+      // Same resolver as the send, so the chips the operator sees are exactly
+      // the people who would be mailed — anyone filtered out for a missing
+      // address, an opt-out or a suppression never appears as a chip at all.
+      const { recipients, audienceSize, skipped } = await resolveRecipients(sources, `mailbox/expand/${groupKeys.join(', ')}`)
+
+      res.json({
+        groups: groupKeys,
+        audience_size: audienceSize,
+        skipped,
+        recipients: recipients.map(r => ({
+          id: r.id,
+          kind: typeof r.id === 'string' && r.id.startsWith('cd:') ? 'clubdesk' : 'member',
+          name: [r.first_name, r.last_name].filter(Boolean).join(' ').trim() || r.email,
+          email: r.email,
+        })),
+      })
+    } catch (err) { fail(res, 'mailbox/expand', err, req) }
   })
 
   // POST /kscw/admin/mailbox/bulk — preview or send to a group.
@@ -1236,20 +1328,20 @@ export function registerSchedulingMailbox(router, { database, logger }) {
       // `groups` is the multi-select form (a JSON array or a comma list, since
       // multipart fields are strings); `group` stays accepted as the original
       // single-value shape.
-      let groupKeys = []
-      if (body.groups != null && String(body.groups) !== '') {
-        if (Array.isArray(body.groups)) groupKeys = body.groups.map(String)
-        else {
-          try {
-            const parsed = JSON.parse(String(body.groups))
-            groupKeys = Array.isArray(parsed) ? parsed.map(String) : []
-          } catch { groupKeys = String(body.groups).split(',') }
-        }
-      } else if (body.group) {
-        groupKeys = [String(body.group)]
-      }
-      groupKeys = [...new Set(groupKeys.map(k => k.trim()).filter(Boolean))]
-      if (groupKeys.length === 0) return res.status(400).json({ error: 'No group selected' })
+      const groupKeys = parseGroupKeys(body)
+
+      // Individually-picked recipients from an expanded audience. `members` are
+      // member ids; `emails` are register contacts (former members have no
+      // member row) and are validated back against the register server-side.
+      const explicitMemberIds = [...new Set(
+        parseList(body.members).map(v => Number(v)).filter(n => Number.isInteger(n) && n > 0),
+      )]
+      const explicitEmails = [...new Set(
+        parseList(body.emails).map(v => String(v).trim()).filter(Boolean),
+      )]
+      const hasExplicit = explicitMemberIds.length > 0 || explicitEmails.length > 0
+
+      if (groupKeys.length === 0 && !hasExplicit) return res.status(400).json({ error: 'No recipient selected' })
 
       // Reject on the FIRST unknown key rather than resolving what we recognise:
       // silently ignoring a chip the client thinks it selected would send to a
@@ -1260,10 +1352,23 @@ export function registerSchedulingMailbox(router, { database, logger }) {
         if (!src) return res.status(400).json({ error: `Unknown group: ${k}` })
         sources.push(src)
       }
-      const groupKey = groupKeys.join(', ')
+      const groupKey = groupKeys.join(', ') || `${explicitMemberIds.length + explicitEmails.length} picked`
+
+      // Cc/Bcc get exactly ONE copy, sent once after the personalised run —
+      // they are NOT headers on each message. A group send is one message per
+      // recipient, so a Cc carried on every one would deliver N copies to
+      // whoever was cc'd (671 of them for "All members") and disclose nothing
+      // useful in return. One copy is what "keep the president in the loop"
+      // actually means, and it is the only reading that is safe by default.
+      const ccOnce = cleanAddresses(body.cc)
+      const bccOnce = cleanAddresses(body.bcc)
 
       const dryRun = body.dry_run === true || String(body.dry_run) === 'true'
-      const { recipients, audienceSize, skipped } = await resolveRecipients(sources, `mailbox/${groupKey}`)
+      const { recipients, audienceSize, skipped } = await resolveRecipients(
+        sources,
+        `mailbox/${groupKey}`,
+        hasExplicit ? { memberIds: explicitMemberIds, emails: explicitEmails } : null,
+      )
 
       if (dryRun) {
         // Names, never addresses: the preview answers "how many and roughly
@@ -1276,6 +1381,10 @@ export function registerSchedulingMailbox(router, { database, logger }) {
           recipient_count: recipients.length,
           skipped,
           sample: recipients.slice(0, 5).map(r => [r.first_name, (r.last_name || '').slice(0, 1)].filter(Boolean).join(' ').trim()),
+          // Echoed so the composer can state the one-copy rule against real
+          // numbers ("+1 copy to 2 others") rather than as a hopeful footnote.
+          cc_count: ccOnce.length,
+          bcc_count: bccOnce.length,
         })
       }
 
@@ -1344,6 +1453,36 @@ export function registerSchedulingMailbox(router, { database, logger }) {
           log.warn(`Mailbox group send: ${r.email} failed: ${err?.message}`)
         }
       }
+
+      // The single Cc/Bcc copy. Merge fields have no person to resolve against
+      // here, so they are stripped rather than left as raw {{vorname}} in a
+      // message a board member actually reads. Sent last so a failure here can
+      // never cost the run its real recipients, and counted separately so the
+      // reported "sent" stays the number of MEMBERS reached.
+      let ccSent = 0
+      if (ccOnce.length || bccOnce.length) {
+        const blank = { first_name: '', last_name: '' }
+        try {
+          await transport.sendMail({
+            from: { name: acct.fromName, address: acct.fromAddress },
+            to: acct.fromAddress,
+            cc: ccOnce.length ? ccOnce : undefined,
+            bcc: bccOnce.length ? bccOnce : undefined,
+            subject: applyMergeFields(subject, blank, false),
+            text: `[Group send: ${groupKey} (${sent} recipients)]\n\n${applyMergeFields(plainContent, blank, false)}\n\n${acct.signatureText}`,
+            html:
+              `<div style="font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;font-size:14px;line-height:1.5">` +
+              `${applyMergeFields(bodyContentHtml, blank, true)}` +
+              `</div><br>` + acct.signatureHtml,
+            attachments: attachments.length ? attachments : undefined,
+            headers: { 'List-Unsubscribe': unsubscribe },
+          })
+          ccSent = ccOnce.length + bccOnce.length
+        } catch (err) {
+          errors.push({ email: 'cc/bcc', error: String(err?.message || err).slice(0, 300) })
+          log.warn(`Mailbox group send: cc/bcc copy failed: ${err?.message}`)
+        }
+      }
       transport.close()
 
       // Archive ONE copy in Sent + one scheduling_emails row. Appending N copies
@@ -1391,6 +1530,7 @@ export function registerSchedulingMailbox(router, { database, logger }) {
           from_address: acct.fromAddress,
           from_name: acct.fromName,
           to_addresses: toSummary,
+          cc_addresses: [...ccOnce, ...bccOnce].join(',') || null,
           subject,
           body_text: `${toSummary}\n\n${plainContent}`,
           body_html: archiveHtml,
@@ -1421,11 +1561,17 @@ export function registerSchedulingMailbox(router, { database, logger }) {
           sent,
           failed: errors.length,
           attachments: attachments.length,
+          // Individually-picked recipients and the one-copy Cc/Bcc are part of
+          // "who did this reach", so the audit row has to carry them too.
+          picked_members: explicitMemberIds.length,
+          picked_emails: explicitEmails.length,
+          cc: ccOnce.length,
+          bcc: bccOnce.length,
         },
       })
 
-      log.info(`Mailbox group send "${groupKey}": ${sent} sent, ${errors.length} failed (audience ${audienceSize})`)
-      res.json({ success: true, id: sentId, group: groupKey, audience_size: audienceSize, recipient_count: recipients.length, sent, failed: errors.length, skipped, errors: errors.slice(0, 20) })
+      log.info(`Mailbox group send "${groupKey}": ${sent} sent, ${errors.length} failed (audience ${audienceSize}, cc/bcc ${ccSent})`)
+      res.json({ success: true, id: sentId, group: groupKey, audience_size: audienceSize, recipient_count: recipients.length, sent, failed: errors.length, cc_sent: ccSent, skipped, errors: errors.slice(0, 20) })
     } catch (err) { fail(res, 'mailbox/bulk', err, req) }
   })
 
