@@ -1511,6 +1511,19 @@ export default ({ action, filter, init, schedule }, { services, database, logger
 
     const ids = new Set()
 
+    // Two different activity gates, deliberately:
+    //
+    //   role:*  → wiedisync_active. members.role IS the app-permission column,
+    //             so an app concept gates on app membership. Widening it would
+    //             also turn `role:user` (617 rows) into a de-facto all-members
+    //             blast, which is what audience_type='all' is for.
+    //
+    //   fn:* / qual:*  → kscw_membership_active, matching the teams/sport
+    //             branches. A Schreiber is a Schreiber whether or not they ever
+    //             logged into wiedisync, and most never do: gating these on
+    //             wiedisync_active silently dropped 43 of 149 scorer_vb and 7 of
+    //             9 referee_bb from every send, reported as success. Real-world
+    //             functions and qualifications are not app opt-ins.
     if (roleNames.length > 0) {
       const rows = await database('members')
         .where('wiedisync_active', true)
@@ -1525,7 +1538,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
 
     if (quals.length > 0) {
       const rows = await database('members')
-        .where('wiedisync_active', true)
+        .where('kscw_membership_active', true)
         .where(function () { for (const col of quals) this.orWhere(col, true) })
         .select('id')
       rows.forEach(r => ids.add(r.id))
@@ -1548,9 +1561,10 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         rows.forEach(r => staff.add(r.id))
       }
       // The junctions carry no activity flag of their own, so gate on the member
-      // row the same way the role/qual branches do.
+      // row — kscw_membership_active, per the fn:/qual: rule above (the team
+      // itself was already filtered on t.active).
       if (staff.size > 0) {
-        const rows = await database('members').whereIn('id', [...staff]).where('wiedisync_active', true).select('id')
+        const rows = await database('members').whereIn('id', [...staff]).where('kscw_membership_active', true).select('id')
         rows.forEach(r => ids.add(r.id))
       }
     }
@@ -1618,8 +1632,9 @@ export default ({ action, filter, init, schedule }, { services, database, logger
           log.warn({ msg: '[announcements] audience_type=roles but audience_roles is empty — skipping fanout', annId: ann.id })
           return []
         }
-        // Roles are app-level concepts, so the wiedisync_active gate inside
-        // membersWithRoleTokens is the right one (not kscw_membership_active).
+        // The activity gate is per-namespace, not per-audience-type — role:* is
+        // an app concept (wiedisync_active), fn:*/qual:* are real-world ones
+        // (kscw_membership_active). See membersWithRoleTokens.
         return await membersWithRoleTokens(tokens)
       }
       default: {
