@@ -29,6 +29,13 @@ export const ANN_FUNCTIONS = ['coach', 'team_responsible', 'captain']
 // Targeting all OTN people = tick otn_bb + otn1_bb + otn2_bb.
 export const ANN_QUAL_COLUMNS = ['is_spielplaner', 'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'otn1_bb', 'otn2_bb', 'referee_bb']
 
+// ClubDesk `status` values that mean "is a member of the club" — the register
+// the GV invitation goes to. Everything else ClubDesk carries ('Ehemaliges
+// Mitglied', 'Kein Mitglied', 'Verstorben') is a contact, not a member.
+// ⚠ These are ClubDesk's German spellings and must match it exactly; a renamed
+// status there silently shrinks this audience rather than erroring.
+export const MEMBER_REGISTER_STATUSES = ['Aktivmitglied', 'Passivmitglied', 'Ehrenmitglied', 'Zwischenjahr']
+
 export function parseJsonArray(value) {
   if (Array.isArray(value)) return value
   if (typeof value === 'string') {
@@ -217,8 +224,26 @@ export async function resolveMemberAudience(database, log, spec, label = 'audien
     // a mailbox group labelled "All members" would quietly reach 29% of the
     // club. Kept as its own type rather than loosening 'all', which would
     // silently widen every existing audience_type='all' announcement.
+    //
+    // Membership is taken from the ClubDesk register (the club's legal member
+    // list), not from kscw_membership_active alone, because the two drift and
+    // this group is what a GV invitation goes to — the register is what decides
+    // who is a member. Measured 2026-08-03: the flag alone gives 695, of which
+    // 19 are people ClubDesk records as 'Ehemaliges Mitglied' (all paying
+    // 'Kein Beitrag', 16 with no roster spot) who would have been invited to a
+    // general assembly they left the club before. The register gives 671.
+    //
+    // ⚠ The drift runs BOTH ways — 4 people ClubDesk calls 'Kein Mitglied' hold
+    // active roster spots and real fee categories. They are deliberately out of
+    // this group (a non-member does not vote at the GV) but they are NOT a data
+    // error to "fix" by flipping them to member.
     case 'all_members': {
-      const rows = await database('members').where('kscw_membership_active', true).select('id')
+      const rows = await database('members as m')
+        .join('clubdesk_people as cp', database.raw('cp.clubdesk_id::text = m.clubdesk_id::text'))
+        .where('m.kscw_membership_active', true)
+        .whereIn('cp.status', MEMBER_REGISTER_STATUSES)
+        .distinct('m.id')
+        .select('m.id')
       return rows.map(r => r.id).filter(Boolean)
     }
     case 'sport': {
