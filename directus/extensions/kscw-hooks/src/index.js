@@ -27,6 +27,7 @@ import { mintSignupToken, signupInviteUrl, buildGuideHtml } from '../../kscw-end
 import { bbRequiredDocs, fibaNatCode } from '../../kscw-endpoints/src/bb-docs.js'
 import { gameStartMs } from '../../kscw-endpoints/src/scorer-roster.js'
 import { currentSeasonShort, seasonStartYear } from '../../kscw-endpoints/src/season.js'
+import { parseJsonArray, resolveMemberAudience } from '../../kscw-endpoints/src/audience.js'
 import { registerAuditHook } from './audit.js'
 import { sanitizeAnnouncementHtml } from './sanitize-html.js'
 import { snapshotSlot, cascadeSlotUpdate, generateInitialTrainings, topUpIndefiniteSlots, addTrainingSkip, clearTrainingSkip } from './slot-cascade.js'
@@ -1455,195 +1456,6 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     return t[code] || t.de || t.en || Object.values(t).find(v => v && v.title) || { title: '', body: '' }
   }
 
-  // Role tokens for audience_type='roles' (migration 219). Prefixed across three
-  // disjoint namespaces because "role" means three different things here: an
-  // app-permission value in members.role, a team function derived from a
-  // junction, and a qualification boolean on members.
-  const ANN_ROLE_ENUM = ['admin', 'superuser', 'vb_admin', 'bb_admin', 'vorstand', 'website_admin', 'finance', 'user']
-  const ANN_FUNCTIONS = ['coach', 'team_responsible', 'captain']
-  // `otn_bb` stays in the list alongside the levels (migration 228): it is the
-  // coarse "holds some OTN" flag and is still the only true one for the 6
-  // pre-split holders, so dropping it would silently shrink their audience.
-  // Targeting all OTN people = tick otn_bb + otn1_bb + otn2_bb.
-  const ANN_QUAL_COLUMNS = ['is_spielplaner', 'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'otn1_bb', 'otn2_bb', 'referee_bb']
-
-  function parseJsonArray(value) {
-    if (Array.isArray(value)) return value
-    if (typeof value === 'string') {
-      try { const p = JSON.parse(value); return Array.isArray(p) ? p : [] } catch { return [] }
-    }
-    return []
-  }
-
-  // Everyone attached to the given teams: players + coaches + team responsibles
-  // + captains. Column names differ per junction — member_teams uses
-  // member/team, the staff junctions use members_id/teams_id. Same shape as the
-  // forms fanout below.
-  async function membersOnTeams(teamIds) {
-    if (teamIds.length === 0) return []
-    const [players, coaches, trs, captains] = await Promise.all([
-      database('member_teams').whereIn('team', teamIds).select('member'),
-      database('teams_coaches').whereIn('teams_id', teamIds).select('members_id'),
-      database('teams_responsibles').whereIn('teams_id', teamIds).select('members_id'),
-      database('teams').whereIn('id', teamIds).whereNotNull('captain').select('captain'),
-    ])
-    return [...new Set([
-      ...players.map(r => r.member),
-      ...coaches.map(r => r.members_id),
-      ...trs.map(r => r.members_id),
-      ...captains.map(r => r.captain),
-    ].filter(Boolean))]
-  }
-
-  async function membersWithRoleTokens(tokens) {
-    const roleNames = []
-    const functions = []
-    const quals = []
-    for (const raw of tokens) {
-      const tok = String(raw || '')
-      // Unknown/unprefixed tokens are dropped rather than treated as a wildcard —
-      // a typo must never widen the audience.
-      if (tok.startsWith('role:') && ANN_ROLE_ENUM.includes(tok.slice(5))) roleNames.push(tok.slice(5))
-      else if (tok.startsWith('fn:') && ANN_FUNCTIONS.includes(tok.slice(3))) functions.push(tok.slice(3))
-      else if (tok.startsWith('qual:') && ANN_QUAL_COLUMNS.includes(tok.slice(5))) quals.push(tok.slice(5))
-      else log.warn({ msg: `[announcements] unknown audience_roles token "${tok}" — ignored` })
-    }
-
-    const ids = new Set()
-
-    // Two different activity gates, deliberately:
-    //
-    //   role:*  → wiedisync_active. members.role IS the app-permission column,
-    //             so an app concept gates on app membership. Widening it would
-    //             also turn `role:user` (617 rows) into a de-facto all-members
-    //             blast, which is what audience_type='all' is for.
-    //
-    //   fn:* / qual:*  → kscw_membership_active, matching the teams/sport
-    //             branches. A Schreiber is a Schreiber whether or not they ever
-    //             logged into wiedisync, and most never do: gating these on
-    //             wiedisync_active silently dropped 43 of 149 scorer_vb and 7 of
-    //             9 referee_bb from every send, reported as success. Real-world
-    //             functions and qualifications are not app opt-ins.
-    if (roleNames.length > 0) {
-      const rows = await database('members')
-        .where('wiedisync_active', true)
-        .where(function () {
-          // @> per role rather than the jsonb any-of operator ?| — knex reads a
-          // bare ? as a binding placeholder, and escaping it is easy to get wrong.
-          for (const name of roleNames) this.orWhereRaw('role::jsonb @> ?::jsonb', [JSON.stringify([name])])
-        })
-        .select('id')
-      rows.forEach(r => ids.add(r.id))
-    }
-
-    if (quals.length > 0) {
-      const rows = await database('members')
-        .where('kscw_membership_active', true)
-        .where(function () { for (const col of quals) this.orWhere(col, true) })
-        .select('id')
-      rows.forEach(r => ids.add(r.id))
-    }
-
-    if (functions.length > 0) {
-      const staff = new Set()
-      if (functions.includes('coach')) {
-        const rows = await database('teams_coaches as tc').join('teams as t', 't.id', 'tc.teams_id')
-          .where('t.active', true).select('tc.members_id as id')
-        rows.forEach(r => staff.add(r.id))
-      }
-      if (functions.includes('team_responsible')) {
-        const rows = await database('teams_responsibles as tr').join('teams as t', 't.id', 'tr.teams_id')
-          .where('t.active', true).select('tr.members_id as id')
-        rows.forEach(r => staff.add(r.id))
-      }
-      if (functions.includes('captain')) {
-        const rows = await database('teams').where('active', true).whereNotNull('captain').select('captain as id')
-        rows.forEach(r => staff.add(r.id))
-      }
-      // The junctions carry no activity flag of their own, so gate on the member
-      // row — kscw_membership_active, per the fn:/qual: rule above (the team
-      // itself was already filtered on t.active).
-      if (staff.size > 0) {
-        const rows = await database('members').whereIn('id', [...staff]).where('kscw_membership_active', true).select('id')
-        rows.forEach(r => ids.add(r.id))
-      }
-    }
-
-    return [...ids]
-  }
-
-  // An explicit switch, not an `!== 'all'` fallthrough: the old shape sent every
-  // non-'all' type down the sport branch, so a teams/roles post found no
-  // audience_sport, returned [], and was stamped fanned-out having mailed nobody.
-  // Every path must resolve deliberately, and an unrecognised type must fail
-  // closed rather than land in a neighbouring branch.
-  async function resolveAnnouncementAudience(ann) {
-    switch (ann.audience_type) {
-      case 'all': {
-        const rows = await database('members').where('wiedisync_active', true).select('id')
-        return rows.map(r => r.id).filter(Boolean)
-      }
-      case 'sport': {
-        // Sport-scoped fanout REQUIRES an explicit sport. A null audience_sport
-        // must NOT fall through to the all-members blast (the
-        // validateAnnouncementAudience filter rejects this for non-admins, but a
-        // system-context / future-scheduled row could still reach here) — return
-        // an empty audience so the post is marked fanned-out without club-wide mail.
-        if (!ann.audience_sport) {
-          log.warn({ msg: '[announcements] audience_type=sport but audience_sport is null — skipping fanout', annId: ann.id })
-          return []
-        }
-        // Reach EVERY member on an ACTIVE team of that sport in the current
-        // season, regardless of wiedisync_active. Club-wide sport comms
-        // (tournaments, discounts, federation news) should hit the whole sport,
-        // not just app opt-ins — but NOT ex-members or archived-season rosters
-        // (member_teams/teams have no season guard otherwise). Per-channel opt-out
-        // still applies inside the send loop (email requires a non-null address;
-        // push requires an active subscription).
-        const rows = await database('member_teams as mt')
-          .join('teams as t', 't.id', 'mt.team')
-          .join('members as m', 'm.id', 'mt.member')
-          .where('t.sport', ann.audience_sport)
-          .where('t.active', true)
-          .where('m.kscw_membership_active', true)
-          .distinct('m.id')
-          .select('m.id')
-        return rows.map(r => r.id).filter(Boolean)
-      }
-      case 'teams': {
-        const teamIds = parseJsonArray(ann.audience_teams).map(Number).filter(Number.isFinite)
-        if (teamIds.length === 0) {
-          log.warn({ msg: '[announcements] audience_type=teams but audience_teams is empty — skipping fanout', annId: ann.id })
-          return []
-        }
-        const candidates = await membersOnTeams(teamIds)
-        if (candidates.length === 0) return []
-        // Same activity gate as the sport branch: a targeted team's whole roster,
-        // app opt-in or not, but never ex-members.
-        const rows = await database('members')
-          .whereIn('id', candidates)
-          .where('kscw_membership_active', true)
-          .select('id')
-        return rows.map(r => r.id).filter(Boolean)
-      }
-      case 'roles': {
-        const tokens = parseJsonArray(ann.audience_roles)
-        if (tokens.length === 0) {
-          log.warn({ msg: '[announcements] audience_type=roles but audience_roles is empty — skipping fanout', annId: ann.id })
-          return []
-        }
-        // The activity gate is per-namespace, not per-audience-type — role:* is
-        // an app concept (wiedisync_active), fn:*/qual:* are real-world ones
-        // (kscw_membership_active). See membersWithRoleTokens.
-        return await membersWithRoleTokens(tokens)
-      }
-      default: {
-        log.warn({ msg: `[announcements] unrecognised audience_type "${ann.audience_type}" — skipping fanout`, annId: ann.id })
-        return []
-      }
-    }
-  }
-
   async function notifyAnnouncementPublished(annId) {
     try {
       if (!annId) return
@@ -1658,7 +1470,12 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       // is always on (push/email stay per-announcement toggles), so publishing
       // always proceeds to audience resolution.
 
-      const memberIds = await resolveAnnouncementAudience(ann)
+      // Shared with the club mailbox's group send (kscw-endpoints/src/audience.js)
+      // so both resolve the same audience from the same gates.
+      // The label carries the post id so a skipped-fanout warning still says
+      // WHICH announcement resolved to nobody (the resolver is shared now, so
+      // it can't reference ann.id itself).
+      const memberIds = await resolveMemberAudience(database, log, ann, `announcements #${annId}`)
       if (memberIds.length === 0) {
         await database('announcements').where('id', annId).update({ fanout_sent_at: new Date().toISOString() })
         return

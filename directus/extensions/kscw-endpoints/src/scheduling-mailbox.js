@@ -5,10 +5,14 @@
  * (incoming) + SES SMTP (outgoing). Migadu's send quota is never consumed —
  * only a human sending from Migadu webmail touches it.
  *
- * THREE accounts (see ACCOUNTS): volleyball@ / basketball@spielplanung.kscw.ch
- * for the Spielplanung dashboard, and admin@wiedisync.kscw.ch for club
- * correspondence (migration 222). The module name and the `scheduling_emails`
- * table predate the third — `account` is a partition key, not a sport.
+ * FOUR accounts (see ACCOUNTS): volleyball@ / basketball@spielplanung.kscw.ch
+ * for the Spielplanung dashboard, admin@wiedisync.kscw.ch for club
+ * correspondence (migration 222), and vis_transfers@mail.kscw.ch for transfer
+ * casework. The module name and the `scheduling_emails` table predate all but
+ * the first two — `account` is a partition key, not a sport.
+ *
+ * The club account additionally supports a GROUP SEND (see the bulk route at
+ * the bottom): pick an audience, get one personalised message per recipient.
  *
  * Routes come in two families, sharing the same handlers so they can't drift:
  *   /admin/terminplanung/mailbox*  → Spielplanung, account from ?sport=
@@ -55,6 +59,7 @@ import nodemailer from 'nodemailer'
 import MailComposer from 'nodemailer/lib/mail-composer/index.js'
 import { escHtml } from './email-template.js'
 import { writeUserLog } from './activity-log.js'
+import { MAILBOX_GROUPS, resolveMemberAudience, teamAudienceCounts } from './audience.js'
 import {
   SCHEDULING_SIGNATURE_LIGHT_HTML, SCHEDULING_SIGNATURE_TEXT,
   SCHEDULING_SIGNATURE_BASKETBALL_LIGHT_HTML, SCHEDULING_SIGNATURE_BASKETBALL_TEXT,
@@ -1071,6 +1076,288 @@ export function registerSchedulingMailbox(router, { database, logger }) {
   }
   router.post('/admin/terminplanung/mailbox/reply', replyHandler(schedulingAccount))
   router.post('/admin/mailbox/reply', replyHandler(pinnedAdmin))
+
+  // ── Group send (club mailbox only) ──────────────────────────────────────
+  //
+  // Mailing a team or a subgroup, the way ClubDesk does it. Two properties make
+  // this different from the reply handler above, and both are the point:
+  //
+  //  1. ONE MESSAGE PER RECIPIENT, never one message with N addresses in To.
+  //     A 149-address header discloses every member's address to every other
+  //     member, can't be personalised, and gives no per-recipient delivery
+  //     signal. The cost is N sends, which a pooled transport absorbs.
+  //  2. The audience comes from the SHARED resolver (audience.js) that the
+  //     announcement fanout uses, so "all Schreiber" means the same set of
+  //     people in both places.
+  //
+  // Deliberately registered on the /admin/mailbox family ONLY. The Spielplanung
+  // gate grants is_spielplaner, which must never imply the ability to mail the
+  // whole club.
+
+  /** Resolve a group key (fixed group or `team:<id>`) to an audience spec. */
+  function specForGroup(key) {
+    const raw = String(key || '')
+    if (raw.startsWith('team:')) {
+      const id = Number(raw.slice(5))
+      if (!Number.isFinite(id)) return null
+      return { audience_type: 'teams', audience_teams: [id] }
+    }
+    return MAILBOX_GROUPS.find(g => g.key === raw)?.spec ?? null
+  }
+
+  /**
+   * Members of `spec` who can actually receive mail, deduped by address.
+   *
+   * Three exclusions, each reported separately so the preview can explain the
+   * gap between "audience size" and "emails sent" instead of silently showing a
+   * smaller number:
+   *   - no email on the member record
+   *   - email_notify_announcements = false (the member's own opt-out; a group
+   *     mail from the club is the same kind of message, so it is honoured here
+   *     too rather than routing around it)
+   *   - a duplicate address (shared family inboxes — 693 member addresses are
+   *     only 671 distinct, so without this some households get N copies)
+   */
+  async function resolveRecipients(spec, label) {
+    const memberIds = await resolveMemberAudience(database, log, spec, label)
+    if (memberIds.length === 0) return { recipients: [], audienceSize: 0, skipped: { noEmail: 0, optedOut: 0, duplicate: 0 } }
+    const rows = await database('members')
+      .whereIn('id', memberIds)
+      .select('id', 'email', 'first_name', 'last_name', 'email_notify_announcements')
+    const skipped = { noEmail: 0, optedOut: 0, duplicate: 0 }
+    const seen = new Set()
+    const recipients = []
+    for (const r of rows) {
+      const email = String(r.email || '').trim()
+      if (!email) { skipped.noEmail++; continue }
+      if (!r.email_notify_announcements) { skipped.optedOut++; continue }
+      const kEmail = email.toLowerCase()
+      if (seen.has(kEmail)) { skipped.duplicate++; continue }
+      seen.add(kEmail)
+      recipients.push({ id: r.id, email, first_name: r.first_name || '', last_name: r.last_name || '' })
+    }
+    return { recipients, audienceSize: memberIds.length, skipped }
+  }
+
+  /** ClubDesk-style merge fields. Substituted per recipient AFTER sanitisation,
+   *  so a name can never inject markup. German and English spellings both work
+   *  because the composing admin may be writing in either. */
+  function applyMergeFields(str, r, esc) {
+    const first = esc ? escHtml(r.first_name) : r.first_name
+    const last = esc ? escHtml(r.last_name) : r.last_name
+    return String(str)
+      .replace(/\{\{\s*(vorname|first_name)\s*\}\}/gi, first)
+      .replace(/\{\{\s*(nachname|last_name)\s*\}\}/gi, last)
+  }
+
+  // GET /kscw/admin/mailbox/groups — the picker's catalogue, with live counts.
+  router.get('/admin/mailbox/groups', async (req, res) => {
+    const acct = pinnedAdmin()
+    if (!(await authForAccount(req, acct.sport))) return res.status(403).json({ error: 'Admin only' })
+    try {
+      const [teams, ...counts] = await Promise.all([
+        teamAudienceCounts(database),
+        ...MAILBOX_GROUPS.map(g => resolveMemberAudience(database, log, g.spec, `mailbox/${g.key}`).then(ids => ids.length)),
+      ])
+      res.json({
+        groups: MAILBOX_GROUPS.map((g, i) => ({ key: g.key, count: counts[i] })),
+        teams: teams.map(t => ({ key: `team:${t.id}`, name: t.name, sport: t.sport, count: t.count })),
+      })
+    } catch (err) { fail(res, 'mailbox/groups', err, req) }
+  })
+
+  // POST /kscw/admin/mailbox/bulk — preview or send to a group.
+  //
+  // `dry_run` is not an optional nicety: it is the only safe way to check who a
+  // send would reach, and CLAUDE.md forbids test-mailing real members. Always
+  // preview first; the frontend requires it before enabling Send.
+  router.post('/admin/mailbox/bulk', async (req, res) => {
+    const acct = pinnedAdmin()
+    if (!(await authForAccount(req, acct.sport))) return res.status(403).json({ error: 'Admin only' })
+    try {
+      if (!accountConfigured(acct)) return res.status(409).json({ error: 'Mailbox not configured' })
+
+      let body = req.body || {}
+      let uploads = []
+      if (String(req.headers['content-type'] || '').includes('multipart/form-data')) {
+        try {
+          const parsed = await parseMultipartReply(req)
+          body = parsed.fields
+          uploads = parsed.files
+        } catch (err) {
+          return res.status(413).json({ error: err.message || 'Attachment upload failed' })
+        }
+      }
+
+      const groupKey = String(body.group || '')
+      const spec = specForGroup(groupKey)
+      if (!spec) return res.status(400).json({ error: 'Unknown group' })
+
+      const dryRun = body.dry_run === true || String(body.dry_run) === 'true'
+      const { recipients, audienceSize, skipped } = await resolveRecipients(spec, `mailbox/${groupKey}`)
+
+      if (dryRun) {
+        // Names, never addresses: the preview answers "how many and roughly
+        // who", not "give me the club's mailing list".
+        return res.json({
+          dry_run: true,
+          group: groupKey,
+          audience_size: audienceSize,
+          recipient_count: recipients.length,
+          skipped,
+          sample: recipients.slice(0, 5).map(r => [r.first_name, (r.last_name || '').slice(0, 1)].filter(Boolean).join(' ').trim()),
+        })
+      }
+
+      const subject = String(body.subject || '').replace(/[\r\n]+/g, ' ').trim().slice(0, 300)
+      const rawHtml = String(body.html || '').slice(0, 200_000)
+      if (!subject || !rawHtml.trim()) return res.status(400).json({ error: 'subject and body required' })
+      if (recipients.length === 0) return res.status(400).json({ error: 'No valid recipient' })
+
+      const bodyContentHtml = sanitizeOutgoingHtml(rawHtml)
+      const plainContent = htmlToPlain(bodyContentHtml)
+
+      const attachments = uploads.map((u) => ({ filename: u.filename, content: u.content, contentType: u.contentType }))
+      if (attachments.length > ATTACH_MAX_FILES) return res.status(413).json({ error: 'Too many attachments' })
+      let attachTotal = 0
+      for (const a of attachments) {
+        const sz = a.content?.length || 0
+        if (sz > ATTACH_MAX_PER_FILE) return res.status(413).json({ error: 'Attachment too large' })
+        attachTotal += sz
+      }
+      if (attachTotal > ATTACH_MAX_TOTAL) return res.status(413).json({ error: 'Attachments exceed total size limit' })
+
+      // One POOLED transport for the whole run, unlike the reply handler's
+      // per-send transport: without pooling every message pays a fresh TCP+TLS
+      // handshake, which is what turns a 700-recipient send into minutes.
+      // rateLimit stays under SES's sending rate with headroom to spare.
+      const transport = nodemailer.createTransport({
+        host: process.env.EMAIL_SMTP_HOST,
+        port: Number(process.env.EMAIL_SMTP_PORT || 587),
+        secure: String(process.env.EMAIL_SMTP_SECURE) === 'true',
+        auth: { user: process.env.EMAIL_SMTP_USER, pass: process.env.EMAIL_SMTP_PASSWORD },
+        pool: true,
+        maxConnections: 5,
+        maxMessages: 100,
+        rateDelta: 1000,
+        rateLimit: 10,
+      })
+
+      // RFC 2369 mailto unsubscribe. No token infrastructure needed, and it
+      // gives mailbox providers the signal that keeps recipients hitting
+      // "unsubscribe" instead of "spam" — the complaint rate is what actually
+      // costs a sender its reputation.
+      const unsubscribe = `<mailto:${acct.fromAddress}?subject=Unsubscribe>`
+
+      let sent = 0
+      const errors = []
+      for (const r of recipients) {
+        try {
+          const html =
+            `<div style="font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;font-size:14px;line-height:1.5">` +
+            `${applyMergeFields(bodyContentHtml, r, true)}` +
+            `</div><br>` + acct.signatureHtml
+          const text = `${applyMergeFields(plainContent, r, false)}\n\n${acct.signatureText}`
+          await transport.sendMail({
+            from: { name: acct.fromName, address: acct.fromAddress },
+            to: r.email,
+            subject: applyMergeFields(subject, r, false),
+            text,
+            html,
+            attachments: attachments.length ? attachments : undefined,
+            headers: { 'List-Unsubscribe': unsubscribe },
+          })
+          sent++
+        } catch (err) {
+          // One bad address must not abort the run — record and continue.
+          errors.push({ email: r.email, error: String(err?.message || err).slice(0, 300) })
+          log.warn(`Mailbox group send: ${r.email} failed: ${err?.message}`)
+        }
+      }
+      transport.close()
+
+      // Archive ONE copy in Sent + one scheduling_emails row. Appending N copies
+      // would bury the mailbox under its own outbound mail; the row records the
+      // group and the counts, which is what an operator actually needs later.
+      const messageId = `<${crypto.randomUUID()}@${acct.msgIdDomain}>`
+      const archiveHtml =
+        `<div style="font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;font-size:14px;line-height:1.5">` +
+        `${bodyContentHtml}</div><br>` + acct.signatureHtml
+      const toSummary = `Group send: ${groupKey} (${sent} recipients)`
+      let folder = null
+      let imapUid = null
+      try {
+        const raw = await new MailComposer({
+          from: { name: acct.fromName, address: acct.fromAddress },
+          to: acct.fromAddress,
+          subject,
+          text: `${toSummary}\n\n${plainContent}\n\n${acct.signatureText}`,
+          html: archiveHtml,
+          attachments: attachments.length ? attachments : undefined,
+          messageId,
+          headers: { 'X-KSCW-Group-Send': groupKey, 'X-KSCW-Group-Recipients': String(sent) },
+        }).compile().build()
+        const client = imapClient(acct)
+        await client.connect()
+        try {
+          const sentFolder = await findSentFolder(client)
+          const appended = await client.append(sentFolder, raw, ['\\Seen'])
+          folder = sentFolder
+          imapUid = appended?.uid || null
+        } finally {
+          await client.logout().catch(() => {})
+        }
+      } catch (err) {
+        log.warn(`Mailbox group send: sent OK but Sent-folder append failed: ${err.message}`)
+      }
+
+      const [inserted] = await database('scheduling_emails')
+        .insert({
+          account: acct.sport,
+          message_id: stripBrackets(messageId),
+          direction: 'out',
+          folder,
+          imap_uid: imapUid,
+          from_address: acct.fromAddress,
+          from_name: acct.fromName,
+          to_addresses: toSummary,
+          subject,
+          body_text: `${toSummary}\n\n${plainContent}`,
+          body_html: archiveHtml,
+          has_attachments: attachments.length > 0,
+          attachments: attachments.length
+            ? JSON.stringify(attachments.map((a) => ({ filename: a.filename, contentType: a.contentType, size: a.content.length })))
+            : null,
+          date_sent: new Date().toISOString(),
+          read_at: new Date().toISOString(),
+        })
+        .onConflict(['account', 'message_id'])
+        .ignore()
+        .returning('id')
+      const sentId = inserted?.id ?? inserted ?? null
+
+      await writeUserLog(database, log, {
+        accountability: req.accountability,
+        action: 'send',
+        collection: 'scheduling_emails',
+        recordId: sentId,
+        data: {
+          kind: 'mailbox_group_send',
+          account: acct.sport,
+          group: groupKey,
+          subject,
+          audience_size: audienceSize,
+          recipients: recipients.length,
+          sent,
+          failed: errors.length,
+          attachments: attachments.length,
+        },
+      })
+
+      log.info(`Mailbox group send "${groupKey}": ${sent} sent, ${errors.length} failed (audience ${audienceSize})`)
+      res.json({ success: true, id: sentId, group: groupKey, audience_size: audienceSize, recipient_count: recipients.length, sent, failed: errors.length, skipped, errors: errors.slice(0, 20) })
+    } catch (err) { fail(res, 'mailbox/bulk', err, req) }
+  })
 
   // GET .../mailbox/attachment/:id/:index — stream one attachment live from IMAP
   // (content is never stored locally). 410 when the stored folder/uid no longer

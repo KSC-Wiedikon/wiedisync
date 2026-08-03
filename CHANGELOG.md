@@ -2,6 +2,14 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.62.0 — 2026-08-03
+
+### New: the club can email a whole group at once
+- **The club mailbox can now write to a whole group** — a team, all coaches, all scorers, all referees, the board, or every member — instead of pasting addresses together by hand.
+- **You see who it reaches before you send.** The recipient count is resolved up front, along with why anyone is left out (no address on file, unsubscribed, or sharing an address with someone already on the list).
+- **Everyone gets their own copy**, so nobody sees anyone else's address, and replies come back to the club mailbox where the whole board can follow them. Attachments are supported, and `{{vorname}}` greets each person by name.
+- **Group emails now reach members who have never signed in.** Previously a message to "all scorers" quietly went to only about two thirds of them, and to "all basketball referees" to barely a quarter.
+
 ## v1.61.0 — 2026-08-03
 
 ### Improved: the live scoreboard page

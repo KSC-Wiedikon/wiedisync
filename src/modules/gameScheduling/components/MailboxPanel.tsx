@@ -1,7 +1,8 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Paperclip, X } from 'lucide-react'
+import { Paperclip, Users, X } from 'lucide-react'
+import { useConfirm } from '../../../components/ConfirmProvider'
 import { Badge } from '../../../components/ui/badge'
 import { Button } from '../../../components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card'
@@ -18,6 +19,9 @@ import {
   threadIdsForMessage,
   type MailboxAttachment,
   type MailboxAccount,
+  type MailboxBulkPreview,
+  type MailboxGroup,
+  type MailboxGroupsResponse,
   type MailboxMessage,
   type MailboxMessageFull,
   type MessageClassification,
@@ -28,8 +32,11 @@ import type { GameSchedulingOpponent } from '../../../types'
 
 const COLLAPSED_COUNT = 10
 
-/** Compose modes — new mail, reply, reply-all, or forward. */
-type ComposeMode = 'new' | 'reply' | 'replyAll' | 'forward'
+/** Compose modes — new mail, reply, reply-all, forward, or a group send.
+ *  `group` addresses an audience (a team, all Schreiber, …) instead of typed
+ *  addresses, and is club-mailbox-only: the server registers the bulk route on
+ *  the /admin/mailbox family alone. */
+type ComposeMode = 'new' | 'reply' | 'replyAll' | 'forward' | 'group'
 
 /** Inbox = received (direction in), Sent = sent (direction out). */
 type Folder = 'inbox' | 'sent'
@@ -89,6 +96,8 @@ interface ComposeState {
   forwardFromId?: number
   /** Count of attachments carried over from the forwarded message (UI hint). */
   forwardAttachCount?: number
+  /** Group send: the selected audience key (`team:<id>` or a fixed group key). */
+  group?: string
   mode: ComposeMode
 }
 
@@ -135,6 +144,92 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
   const [detail, setDetail] = useState<MailboxMessageFull | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [compose, setCompose] = useState<ComposeState | null>(null)
+  const confirm = useConfirm()
+
+  // ── Group send (club mailbox only) ────────────────────────────────────
+  // Catalogue is fetched lazily the first time a group compose is opened —
+  // every entry costs an audience resolution server-side, so there is no point
+  // paying for it on a panel the operator only uses to read mail.
+  const isClubMailbox = sport === 'admin'
+  const [groups, setGroups] = useState<MailboxGroupsResponse | null>(null)
+  // Keyed by the group it describes, so "is this preview current?" is a
+  // comparison rather than a second piece of state. Storing a `loading` flag
+  // instead would mean writing state synchronously inside the effect below,
+  // which is the cascading-render pattern the hooks lint rule rejects.
+  const [preview, setPreview] = useState<{ group: string; data: MailboxBulkPreview | null } | null>(null)
+  const { fetchGroups, previewBulk, sendBulk } = mailbox
+
+  const composeGroup = compose?.mode === 'group' ? compose.group : undefined
+  const previewCurrent = !!composeGroup && preview?.group === composeGroup
+  const previewData = previewCurrent ? preview?.data ?? null : null
+  const previewLoading = !!composeGroup && !previewCurrent
+
+  useEffect(() => {
+    if (compose?.mode !== 'group' || groups) return
+    let cancelled = false
+    void (async () => {
+      try {
+        const resp = await fetchGroups()
+        if (!cancelled) setGroups(resp)
+      } catch {
+        if (!cancelled) toast.error(t('mailboxGroupsLoadFailed'))
+      }
+    })()
+    return () => { cancelled = true }
+  }, [compose?.mode, groups, fetchGroups, t])
+
+  // Resolve the selected audience on every change. This is the ONLY way an
+  // operator can see who a send would reach before committing to it, so it runs
+  // automatically rather than behind a button they might skip.
+  useEffect(() => {
+    if (!composeGroup || preview?.group === composeGroup) return
+    let cancelled = false
+    void (async () => {
+      try {
+        const p = await previewBulk(composeGroup)
+        // Store the group alongside the result: a slow response for a
+        // previously-selected group must never be shown against the new one.
+        if (!cancelled) setPreview({ group: composeGroup, data: p })
+      } catch {
+        if (!cancelled) {
+          setPreview({ group: composeGroup, data: null })
+          toast.error(t('mailboxPreviewFailed'))
+        }
+      }
+    })()
+    return () => { cancelled = true }
+  }, [composeGroup, preview?.group, previewBulk, t])
+
+  /** Human label for a group key: teams show their roster name (data, never
+   *  translated), fixed groups resolve through i18n. */
+  const groupLabel = (g: MailboxGroup) => g.name ?? t(`mailboxGroup_${g.key.replace(/[:.]/g, '_')}`)
+
+  const handleSendGroup = async () => {
+    if (!compose || !compose.group || !previewData) return
+    if (previewData.recipient_count === 0) return
+    // Mass mail is irreversible and goes to real members — confirm with the
+    // resolved number, not the group name, so the operator sees the blast size.
+    const ok = await confirm({
+      message: t('mailboxGroupConfirm', { count: previewData.recipient_count }),
+      danger: true,
+    })
+    if (!ok) return
+    try {
+      const result = await sendBulk({
+        group: compose.group,
+        subject: compose.subject,
+        html: compose.html,
+        attachments: compose.attachments,
+      })
+      setCompose(null)
+      setPreview(null)
+      if (result.failed > 0) toast.warning(t('mailboxGroupSentPartial', { sent: result.sent, failed: result.failed }))
+      else toast.success(t('mailboxGroupSent', { count: result.sent }))
+    } catch (err) {
+      const body = (err as { body?: { error?: string } })?.body
+      toast.error(body?.error || (err instanceof Error ? err.message : String(err)))
+    }
+  }
 
   // Classify the whole list once: contact match + KSCW team code / opponent
   // name, with thread inheritance for forwarded/stripped replies. Drives both
@@ -450,6 +545,16 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
               <Button size="sm" onClick={() => setCompose({ to: '', cc: '', subject: '', html: '', attachments: [], mode: 'new' })}>
                 {t('mailboxNew')}
               </Button>
+              {isClubMailbox && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setCompose({ to: '', cc: '', subject: '', html: '', attachments: [], group: '', mode: 'group' })}
+                >
+                  <Users className="mr-1.5 h-4 w-4" />
+                  {t('mailboxGroupSend')}
+                </Button>
+              )}
               <Button size="sm" variant="outline" onClick={() => void handleSync()} disabled={syncing}>
                 {syncing ? (
                   <span className="flex items-center gap-2">
@@ -613,31 +718,60 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
               {compose?.mode === 'reply' ? t('mailboxReply')
                 : compose?.mode === 'replyAll' ? t('mailboxReplyAll')
                 : compose?.mode === 'forward' ? t('mailboxForward')
+                : compose?.mode === 'group' ? t('mailboxGroupSend')
                 : t('mailboxNew')}
             </DialogTitle>
             <DialogDescription className="sr-only">{t('mailboxNew')}</DialogDescription>
           </DialogHeader>
           {compose && (
             <div className="space-y-3">
-              <div>
-                <label className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('mailboxTo')}</label>
-                <input
-                  type="text"
-                  value={compose.to}
-                  onChange={(e) => setCompose({ ...compose, to: e.target.value })}
-                  className="mt-1 w-full rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('mailboxCc')}</label>
-                <input
-                  type="text"
-                  value={compose.cc}
-                  onChange={(e) => setCompose({ ...compose, cc: e.target.value })}
-                  placeholder={t('mailboxCcPlaceholder')}
-                  className="mt-1 w-full rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500"
-                />
-              </div>
+              {compose.mode === 'group' ? (
+                <div>
+                  <label className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('mailboxGroupLabel')}</label>
+                  {/* dark:bg-gray-800 is required — <option> inherits the select's
+                      background, so bg-transparent renders a white dropdown in dark mode. */}
+                  <select
+                    value={compose.group || ''}
+                    onChange={(e) => setCompose({ ...compose, group: e.target.value })}
+                    className="mt-1 w-full rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                  >
+                    <option value="">{t('mailboxGroupPlaceholder')}</option>
+                    {groups?.groups.map((g) => (
+                      <option key={g.key} value={g.key}>{`${groupLabel(g)} (${g.count})`}</option>
+                    ))}
+                    {(groups?.teams.length ?? 0) > 0 && (
+                      <optgroup label={t('mailboxGroupTeams')}>
+                        {groups?.teams.map((g) => (
+                          <option key={g.key} value={g.key}>{`${groupLabel(g)} (${g.count})`}</option>
+                        ))}
+                      </optgroup>
+                    )}
+                  </select>
+                  <GroupPreview preview={previewData} loading={previewLoading} selected={!!compose.group} />
+                </div>
+              ) : (
+                <>
+                  <div>
+                    <label className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('mailboxTo')}</label>
+                    <input
+                      type="text"
+                      value={compose.to}
+                      onChange={(e) => setCompose({ ...compose, to: e.target.value })}
+                      className="mt-1 w-full rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('mailboxCc')}</label>
+                    <input
+                      type="text"
+                      value={compose.cc}
+                      onChange={(e) => setCompose({ ...compose, cc: e.target.value })}
+                      placeholder={t('mailboxCcPlaceholder')}
+                      className="mt-1 w-full rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500"
+                    />
+                  </div>
+                </>
+              )}
               {compose.mode === 'forward' && (compose.forwardAttachCount ?? 0) > 0 && (
                 <p className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
                   <Paperclip className="h-3.5 w-3.5" />
@@ -664,6 +798,14 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
                     minHeight="10rem"
                   />
                 </div>
+                {compose.mode === 'group' && (
+                  // The merge tokens are passed as VALUES, not written into the
+                  // translation: a literal {{vorname}} in a locale string would
+                  // be interpolated away by i18next before it ever rendered.
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    {t('mailboxGroupMergeHint', { first: '{{vorname}}', last: '{{nachname}}' })}
+                  </p>
+                )}
               </div>
               <div>
                 <label className="inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-700 hover:bg-gray-50 sm:min-h-9 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">
@@ -699,19 +841,84 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
               </div>
               <div className="flex items-center justify-end gap-2">
                 <Button size="sm" variant="outline" onClick={() => setCompose(null)}>{t('cancel')}</Button>
-                <Button
-                  size="sm"
-                  onClick={() => void handleSend()}
-                  disabled={sending || !compose.to.trim() || !compose.subject.trim() || !compose.html.trim()}
-                >
-                  {sending ? t('mailboxSending') : t('mailboxSend')}
-                </Button>
+                {compose.mode === 'group' ? (
+                  // Gated on a resolved, non-empty preview: without it there is
+                  // no way to know how many people a click would mail.
+                  <Button
+                    size="sm"
+                    onClick={() => void handleSendGroup()}
+                    disabled={sending || previewLoading || !previewData || previewData.recipient_count === 0 || !compose.subject.trim() || !compose.html.trim()}
+                  >
+                    {sending ? t('mailboxSending')
+                      : previewData ? t('mailboxGroupSendCount', { count: previewData.recipient_count })
+                      : t('mailboxSend')}
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    onClick={() => void handleSend()}
+                    disabled={sending || !compose.to.trim() || !compose.subject.trim() || !compose.html.trim()}
+                  >
+                    {sending ? t('mailboxSending') : t('mailboxSend')}
+                  </Button>
+                )}
               </div>
             </div>
           )}
         </DialogContent>
       </Dialog>
     </>
+  )
+}
+
+/**
+ * Who a group send would actually reach.
+ *
+ * Shows the resolved recipient count AND the exclusions behind it, because the
+ * interesting number is usually the gap: "team of 14 → 11 emails" is alarming
+ * until you can see it is 3 members with no address on file. Silently showing
+ * 11 would hide a data problem the club can fix.
+ *
+ * Names are first name + last initial — enough to sanity-check the audience,
+ * never a dump of the club's address list.
+ */
+function GroupPreview({ preview, loading, selected }: { preview: MailboxBulkPreview | null; loading: boolean; selected: boolean }) {
+  const { t } = useTranslation('gameScheduling')
+  if (!selected) return null
+  if (loading) {
+    return (
+      <p className="mt-2 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+        <InlineSpinner /> {t('mailboxPreviewLoading')}
+      </p>
+    )
+  }
+  if (!preview) return null
+  const { skipped } = preview
+  const excluded = skipped.noEmail + skipped.optedOut + skipped.duplicate
+  return (
+    <div className="mt-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-xs dark:border-gray-700 dark:bg-gray-900">
+      <p className="font-semibold text-gray-900 dark:text-gray-100">
+        {t('mailboxPreviewCount', { count: preview.recipient_count })}
+      </p>
+      {excluded > 0 && (
+        <p className="mt-1 text-gray-500 dark:text-gray-400">
+          {t('mailboxPreviewExcluded', {
+            audience: preview.audience_size,
+            noEmail: skipped.noEmail,
+            optedOut: skipped.optedOut,
+            duplicate: skipped.duplicate,
+          })}
+        </p>
+      )}
+      {preview.sample.length > 0 && (
+        <p className="mt-1 text-gray-500 dark:text-gray-400">
+          {t('mailboxPreviewSample', { names: preview.sample.join(', ') })}
+        </p>
+      )}
+      {preview.recipient_count === 0 && (
+        <p className="mt-1 font-medium text-amber-600 dark:text-amber-400">{t('mailboxPreviewEmpty')}</p>
+      )}
+    </div>
   )
 }
 

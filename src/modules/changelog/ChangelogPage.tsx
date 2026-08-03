@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '1.61.0'
+const APP_VERSION = '1.62.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,21 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.62.0',
+    date: '03.08.2026',
+    sections: [
+      {
+        title: 'New: the club can email a whole group at once',
+        items: [
+          'The club mailbox can now write to a whole group \u2014 a team, all coaches, all scorers, all referees, the board, or every member \u2014 instead of pasting addresses together by hand.',
+          'Before anything is sent you see exactly how many people will receive it, and why anyone is left out (no address on file, unsubscribed, or sharing an address with someone else already on the list).',
+          'Everyone gets their own copy, so nobody sees anyone else\u2019s address, and replies come back to the club mailbox where the whole board can follow them. You can attach files, and write {{vorname}} to greet each person by name.',
+          'Group emails now reach members who have never signed in to Wiedisync. Previously a message to "all scorers" quietly went to only about two thirds of them, and to "all basketball referees" to barely a quarter.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.61.0',
     date: '03.08.2026',

@@ -57,6 +57,54 @@ export interface MailboxReplyPayload {
   attachments?: File[]
 }
 
+/** One selectable audience in the club mailbox's group send. Fixed groups carry
+ *  a stable `key` the UI translates; team groups (`team:<id>`) carry the team's
+ *  own name, which is data and never translated. */
+export interface MailboxGroup {
+  key: string
+  count: number
+  /** Teams only — the roster name to display verbatim. */
+  name?: string
+  sport?: string | null
+}
+
+export interface MailboxGroupsResponse {
+  groups: MailboxGroup[]
+  teams: MailboxGroup[]
+}
+
+/** Result of a `dry_run` group send — what WOULD be mailed, mailing nothing.
+ *  `audience_size` is the resolved audience; `recipient_count` is what survives
+ *  the no-email / opted-out / duplicate-address filters, so the gap between the
+ *  two is exactly what `skipped` explains. */
+export interface MailboxBulkPreview {
+  dry_run: true
+  group: string
+  audience_size: number
+  recipient_count: number
+  skipped: { noEmail: number; optedOut: number; duplicate: number }
+  /** First names + last initial only — never addresses. */
+  sample: string[]
+}
+
+export interface MailboxBulkResult {
+  success: true
+  group: string
+  audience_size: number
+  recipient_count: number
+  sent: number
+  failed: number
+  skipped: { noEmail: number; optedOut: number; duplicate: number }
+  errors: { email: string; error: string }[]
+}
+
+export interface MailboxBulkPayload {
+  group: string
+  subject: string
+  html: string
+  attachments?: File[]
+}
+
 /**
  * A mailbox account a hook/call targets — one Migadu mailbox each. `admin` is
  * the club-admin box (admin@wiedisync.kscw.ch,
@@ -484,6 +532,13 @@ export interface UseMailboxReturn {
   /** Pin an email chain to an opponent row (null clears it), overriding
    *  auto-classification. `ids` is the whole thread (see threadIdsForMessage). */
   assignThread: (ids: number[], opponentId: number | null) => Promise<void>
+  /** Club mailbox only — the group-send catalogue with live audience counts. */
+  fetchGroups: () => Promise<MailboxGroupsResponse>
+  /** Club mailbox only — resolve a group WITHOUT sending, so the composer can
+   *  show who it would reach. Always call this before sendBulk. */
+  previewBulk: (group: string) => Promise<MailboxBulkPreview>
+  /** Club mailbox only — send one personalised message per recipient. */
+  sendBulk: (payload: MailboxBulkPayload) => Promise<MailboxBulkResult>
 }
 
 export function useMailbox(enabled: boolean = true, sport: MailboxAccount = 'volleyball'): UseMailboxReturn {
@@ -604,5 +659,53 @@ export function useMailbox(enabled: boolean = true, sport: MailboxAccount = 'vol
     await refetch()
   }, [refetch, sport])
 
-  return { configured, messages, unread, lastSync, isLoading, syncing, sending, refetch, sync, loadMessage, sendReply, searchMessages, assignThread }
+  // ── Group send (club mailbox only) ────────────────────────────────────
+  // The server registers these on the /admin/mailbox family only, so calling
+  // them from a Spielplanung account 404s rather than mailing the club.
+
+  const fetchGroups = useCallback(async () => {
+    return await kscwApi<MailboxGroupsResponse>(mailboxUrl(sport, '/groups'))
+  }, [sport])
+
+  const previewBulk = useCallback(async (group: string) => {
+    return await kscwApi<MailboxBulkPreview>(mailboxUrl(sport, '/bulk'), {
+      method: 'POST',
+      body: { group, dry_run: true },
+    })
+  }, [sport])
+
+  const sendBulk = useCallback(async (payload: MailboxBulkPayload) => {
+    setSending(true)
+    try {
+      // Multipart for the same reason sendReply uses it: attachments would blow
+      // past Directus's 1 MB JSON body cap.
+      const fd = new FormData()
+      fd.append('group', payload.group)
+      fd.append('subject', payload.subject)
+      fd.append('html', payload.html)
+      for (const f of payload.attachments || []) fd.append('attachments', f, f.name)
+      const res = await fetch(`${API_URL}/kscw${mailboxUrl(sport, '/bulk')}`, {
+        method: 'POST',
+        credentials: 'include',
+        body: fd,
+      })
+      if (!res.ok) {
+        let message = `Send failed (${res.status})`
+        try {
+          const j = (await res.json()) as { error?: string }
+          if (j?.error) message = j.error
+        } catch { /* non-JSON error body */ }
+        const err = new Error(message) as Error & { body?: { error?: string } }
+        err.body = { error: message }
+        throw err
+      }
+      const result = (await res.json()) as MailboxBulkResult
+      await refetch()
+      return result
+    } finally {
+      setSending(false)
+    }
+  }, [refetch, sport])
+
+  return { configured, messages, unread, lastSync, isLoading, syncing, sending, refetch, sync, loadMessage, sendReply, searchMessages, assignThread, fetchGroups, previewBulk, sendBulk }
 }
