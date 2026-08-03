@@ -681,6 +681,21 @@ const EXPECTED_VALIDATION_ENDPOINTS = new Set([
   '/register',
 ])
 
+// Same carve-out, matched on the response's `code` instead of the path, for
+// endpoints whose URL carries a record id (`/identity/document/:id`) and so can
+// never match an exact-path Set.
+//
+// These are "asked a question, answer is none" responses, not failures. The
+// identity-document check runs for every member opening /profile/edit, and most
+// members have no document on file — so a normal empty state was generating a
+// Sentry event and a console.error per profile visit, which is both misleading
+// (it reads as `api_error` on a page that is working correctly) and self-
+// defeating: that volume helps trip the sentry-tunnel worker's 60/min per-IP
+// cap, and the 429s it causes drop REAL errors that happen in the same burst.
+const EXPECTED_ERROR_CODES = new Set([
+  'no_document',
+])
+
 /**
  * Call a custom KSCW endpoint.
  *
@@ -759,6 +774,8 @@ export async function kscwApi<T = unknown>(
     // reporting the sub-500 to Sentry/JSONL is just noise. `err.code`/`err.body`
     // were already parsed above, so the caller's catch keeps its control flow.
     if (res.status < 500 && EXPECTED_VALIDATION_ENDPOINTS.has(path.split('?')[0])) throw err
+    // Same rationale, keyed on the parsed response code for id-bearing paths.
+    if (res.status < 500 && err.code && EXPECTED_ERROR_CODES.has(err.code)) throw err
     captureApiError(err, {
       operation: 'kscwApi',
       endpoint: path,
