@@ -36,14 +36,16 @@ test('emit-sql exits 0 and produces the staging load', () => {
   // + federation_of_origin, added 2026-07-25 (migration 223) for the
   // transfer-certificate federation down-sync; + gast, added 2026-07-27
   // (migration 244) so drift detection can see the register's copy of the
-  // guest flag wiedisync pushes).
+  // guest flag wiedisync pushes; + trainer_lizenz, added 2026-08-03 (migration
+  // 275) for the two-way coaching-education sync).
   const copyLine = sql.split('\n').find((l) => l.startsWith('\\copy clubdesk_export('));
   assert.ok(copyLine, 'missing \\copy line');
-  assert.equal(copyLine.slice(copyLine.indexOf('(') + 1, copyLine.indexOf(')')).split(',').length, 66);
+  assert.equal(copyLine.slice(copyLine.indexOf('(') + 1, copyLine.indexOf(')')).split(',').length, 67);
   assert.ok(copyLine.includes('wiedisync_id'), 'wiedisync_id missing from staging load');
   assert.ok(copyLine.includes('js_id'), 'js_id missing from staging load');
   assert.ok(copyLine.includes('federation_of_origin'), 'federation_of_origin missing from staging load');
   assert.ok(copyLine.includes('gast'), 'gast missing from staging load');
+  assert.ok(copyLine.includes('trainer_lizenz'), 'trainer_lizenz missing from staging load');
 });
 
 test('member-create pass sits between the linker and the sex pass', () => {

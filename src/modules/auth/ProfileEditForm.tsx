@@ -330,9 +330,9 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
         website_name_private: websiteNamePrivate,
         language,
         position: selectedPositions.length > 0 ? selectedPositions : ['other'],
-        // Coaching education (migration 274). wiedisync-owned — deliberately
-        // absent from the ClubDesk diff below: the register has no
-        // Trainerausbildung column, so there is nothing to notify an admin about.
+        // Coaching education (migration 274). wiedisync-owned, and pushed to
+        // ClubDesk's "Trainer Lizenz" free-text column (migration 275) — so it
+        // also rides the ClubDesk diff below.
         trainer_licences: serializeTrainerLicences(trainerLicences),
       }
       if (birthdate) {
@@ -405,6 +405,16 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
         federation_of_origin: {
           old: user.federation_of_origin ?? '',
           new: federationOfOrigin,
+        },
+        // Coaching education — diffed as CODES for the same reason as the two
+        // fields above: the endpoint renders them twice server-side (ClubDesk's
+        // "J+S, B" for the register, the reader's language for the admin email).
+        // ⚠ Must stay in step with the EDITABLE set in clubdesk-update.js — a
+        // field diffed here but missing there makes a change to ONLY this field
+        // return 400 "No editable fields to update".
+        trainer_licences: {
+          old: serializeTrainerLicences(parseTrainerLicences(user.trainer_licences)) ?? '',
+          new: serializeTrainerLicences(trainerLicences) ?? '',
         },
         sex: { old: user.sex || '', new: sex },
         ahv_nummer: { old: user.ahv_nummer || '', new: ahvCanonical },
