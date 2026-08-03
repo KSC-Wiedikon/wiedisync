@@ -76,10 +76,21 @@ export default function Layout() {
           internal scrolling — main stops scrolling and drops its padding so the
           page fills the viewport exactly (no outer scrollbar). */}
       <div className="flex flex-1 flex-col overflow-hidden">
+        {/* `relative` is load-bearing, not cosmetic. Radix primitives (Switch, Select,
+            RadioGroup …) each render a visually-hidden native form control with
+            `position: absolute` for form participation. An absolutely-positioned box is
+            laid out against its nearest POSITIONED ancestor — with none, that is the
+            initial containing block, so those hidden inputs escape this scroll box's
+            `overflow` clip entirely and stretch <html>'s scrollable height to wherever
+            the lowest one sits. The result is a second, document-level scrollbar next to
+            main's own, and a dead void below the content equal to how far down the page
+            the last switch/select falls (461px on a phone at /profile/edit, where the
+            Privacy card's last Switch sat at y=1313). Making main the containing block
+            keeps them clipped here. */}
         <main className={
           isDesktop && location.pathname.startsWith('/admin/explore')
-            ? 'flex min-h-0 flex-1 flex-col overflow-hidden'
-            : `flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 lg:p-8 ${!isDesktop ? 'pb-24' : ''}`
+            ? 'relative flex min-h-0 flex-1 flex-col overflow-hidden'
+            : `relative flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 lg:p-8 ${!isDesktop ? 'pb-24' : ''}`
         }>
           {isAdminMode && !onScheduling && (
             <div
