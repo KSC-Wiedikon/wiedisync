@@ -112,6 +112,7 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
   const { user, isCoachOf, isStaffOnly, canParticipateIn, isGuestIn, coachTeamIds, teamResponsibleIds, hasAdminAccessToTeam } = useAuth()
   const confirm = useConfirm()
   const [rosterOpen, setRosterOpen] = useState(false)
+  const [participationListOpen, setParticipationListOpen] = useState(false)
   const [idsOpen, setIdsOpen] = useState(false)
   const [editingDeadline, setEditingDeadline] = useState(false)
   const [deadlineValue, setDeadlineValue] = useState(() => {
@@ -319,6 +320,10 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
   const myMemberId = user?.id ? String(user.id) : ''
   const isAssignedScorer = !!myMemberId && [game.scorer_member, game.scorer_scoreboard_member, game.bb_scorer_member]
     .some((v) => v != null && String(relId(v)) === myMemberId)
+  // Scorers and the team's own staff have their roster button hijacked to a match
+  // sheet, which is a different question from "who is coming" — so they get both
+  // buttons. Everyone else has one, and it is the participation list.
+  const rosterIsMatchSheet = isAssignedScorer || isTeamStaff
   const canReportLate = !!user && game.status === 'scheduled' && game.type === 'home'
     && (adminSeesContact || coachTeamIds.includes(kscwTeamId) || teamResponsibleIds.includes(kscwTeamId))
   const sportWord = kscwSport === 'basketball' ? t('scoreboardBasketball') : t('scoreboardVolleyball')
@@ -634,11 +639,23 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
           <div className="border-t dark:border-gray-700 px-6 py-3">
             <Button
               variant="outline"
-              onClick={() => setRosterOpen(true)}
+              onClick={() => (rosterIsMatchSheet ? setRosterOpen(true) : setParticipationListOpen(true))}
               className="w-full"
             >
-              {t('participationRoster')}
+              {rosterIsMatchSheet ? t('pregameTitle') : t('participationRoster')}
             </Button>
+
+            {/* The RSVP list, for the people whose button above is a match sheet.
+                A coach or admin still needs to see who has answered what. */}
+            {rosterIsMatchSheet && (
+              <Button
+                variant="outline"
+                onClick={() => setParticipationListOpen(true)}
+                className="mt-2 w-full"
+              >
+                {t('participationRoster')}
+              </Button>
+            )}
 
             {/* Show IDs — coach/TR only. The documents are end-to-end encrypted: the app
                 decrypts them on this device with the coach's own key, and the club cannot
@@ -964,21 +981,22 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
       rosterOpen && (
         <PreGameRosterModal key={game.id} gameId={game.id} onClose={() => setRosterOpen(false)} />
       )
-    ) : (
-      <ParticipationRosterModal
-        open={rosterOpen}
-        onClose={() => setRosterOpen(false)}
-        activityType="game"
-        activityId={game?.id ?? ''}
-        activityDate={game?.date ?? ''}
-        teamIds={kscwTeamId ? [kscwTeamId] : []}
-        title={t('participationRoster')}
-        activityKind={game ? `${homeLabel ?? ''} vs ${awayLabel ?? ''}`.trim() : undefined}
-        respondBy={game?.respond_by}
-        activityStartTime={game?.time}
-        showRsvpTime={isFeatureEnabled(kscwTeamObj?.features_enabled, 'show_rsvp_time')}
-      />
-    )}
+    ) : null}
+    {/* Always mounted, never behind the match-sheet branch: every one of its queries
+        is gated on `open`, so a closed instance costs nothing. */}
+    <ParticipationRosterModal
+      open={participationListOpen}
+      onClose={() => setParticipationListOpen(false)}
+      activityType="game"
+      activityId={game?.id ?? ''}
+      activityDate={game?.date ?? ''}
+      teamIds={kscwTeamId ? [kscwTeamId] : []}
+      title={t('participationRoster')}
+      activityKind={game ? `${homeLabel ?? ''} vs ${awayLabel ?? ''}`.trim() : undefined}
+      respondBy={game?.respond_by}
+      activityStartTime={game?.time}
+      showRsvpTime={isFeatureEnabled(kscwTeamObj?.features_enabled, 'show_rsvp_time')}
+    />
     </>
   )
 }
