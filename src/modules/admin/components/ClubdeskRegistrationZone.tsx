@@ -99,7 +99,11 @@ export default function ClubdeskRegistrationZone({ registrationId }: { registrat
       refetch()
     } catch (e) {
       const body = (e as { body?: { state?: string; code?: string; error?: string } })?.body
-      if (body?.state === 'queued' || body?.state === 'running') {
+      // `code` before `state`: a sync-down block also reports a queued/running
+      // state (the DOWN one), which would otherwise read as "sync-up running".
+      if (body?.code === 'down_in_progress') {
+        toast.info(t('clubdeskUpBlockedByDown'))
+      } else if (body?.state === 'queued' || body?.state === 'running') {
         toast.info(t('clubdeskUpInProgress'))
       } else if (body?.code === 'not_eligible') {
         toast.info(t('cdRegStatusChanged'))

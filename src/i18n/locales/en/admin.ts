@@ -420,6 +420,7 @@ export default {
   clubdeskSyncFailed: 'Sync failed.',
   clubdeskSyncTimeout: 'Sync is taking longer than expected — it keeps running in the background.',
   clubdeskSyncInProgress: 'A sync is already in progress.',
+  clubdeskSyncBlockedByUp: 'A sync-up is running — wait for it to finish.',
   clubdeskLastSync: 'Last synced {{time}}',
 
   // ClubDesk sync up (superadmin)
@@ -504,6 +505,9 @@ export default {
   clubdeskUpFailed: 'Sync up failed.',
   clubdeskUpTimeout: 'Taking longer than expected — it keeps running in the background.',
   clubdeskUpInProgress: 'A sync-up is already in progress.',
+  clubdeskUpBlockedByDown: 'A sync-down is running',
+  clubdeskUpBlockedByDownNote: 'The push is built from the ClubDesk snapshot the sync-down is refreshing right now, so it has to wait. Try again once the sync-down is done.',
+  clubdeskUpBlockedRetry: 'Try again',
   clubdeskUpClose: 'Close',
   cdRegZoneTitle: 'ClubDesk sync',
   cdRegChecking: 'Checking ClubDesk…',

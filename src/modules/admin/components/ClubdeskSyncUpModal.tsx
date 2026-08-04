@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Loader2, ArrowUpFromLine, AlertTriangle, CheckCircle2, EyeOff } from 'lucide-react'
+import { Loader2, ArrowUpFromLine, ArrowDownToLine, AlertTriangle, CheckCircle2, EyeOff, RefreshCw } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -16,11 +16,15 @@ interface FieldChange { field: string; old_value?: string | null; new_value?: st
 // offers mute instead of silently re-listing the member on every open.
 interface ChangedMember { id: number; first_name: string; last_name: string; email: string; clubdesk_id: string; changes: FieldChange[]; stale?: boolean }
 interface UnlinkedMember { id: number; first_name: string; last_name: string; email: string; likely_non_member: boolean; would_duplicate?: boolean; beitragskategorie?: string | null; offiziellen_lizenz?: string | null; mitgliederbeitrag?: string | null }
-interface Preview { changed: ChangedMember[]; unlinked: UnlinkedMember[] }
+// blocked_by_down: a sync-down is queued/running. The server returns an EMPTY
+// preview in that case rather than computing one — everything below (stale-link,
+// blank-risk, would-duplicate) reads the clubdesk_export snapshot the down run is
+// in the middle of replacing, and /up refuses the push anyway.
+interface Preview { changed: ChangedMember[]; unlinked: UnlinkedMember[]; blocked_by_down?: string }
 interface UpResult { total?: number | null; neu?: number | null; veraendert?: number | null; committed?: boolean }
 interface UpStatus { state: 'idle' | 'queued' | 'running' | 'done' | 'failed'; message: string | null; result: UpResult | null }
 
-type Phase = 'loading' | 'review' | 'pushing' | 'done' | 'error'
+type Phase = 'loading' | 'review' | 'pushing' | 'done' | 'error' | 'blocked'
 
 /**
  * One field change, rendered identically in the mobile stack and the desktop
@@ -56,6 +60,7 @@ export default function ClubdeskSyncUpModal({ open, onOpenChange, onDone }: {
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [result, setResult] = useState<UpResult | null>(null)
   const [error, setError] = useState('')
+  const openRef = useRef(false)
 
   const resetState = useCallback(() => {
     setPhase('loading'); setPreview({ changed: [], unlinked: [] }); setSelected(new Set()); setResult(null); setError('')
@@ -69,14 +74,18 @@ export default function ClubdeskSyncUpModal({ open, onOpenChange, onDone }: {
     onOpenChange(v)
   }, [phase, onOpenChange, resetState])
 
-  // Load the preview when opened. setState happens only in async callbacks, never
-  // synchronously in the effect body.
-  useEffect(() => {
-    if (!open) return
-    let alive = true
+  // Load the preview. Extracted from the effect so the blocked panel can retry
+  // it without closing and re-opening the modal. The caller passes its own
+  // liveness check, and owns the phase → 'loading' transition: setting it in
+  // here would be a synchronous setState in the effect body below (the rule the
+  // effect's own comment already called out, now enforced by eslint).
+  const loadPreview = useCallback((isAlive: () => boolean) => {
     kscwApi<Preview>('/clubdesk-member-sync/up-preview')
       .then((p) => {
-        if (!alive) return
+        if (!isAlive()) return
+        // A sync-down holds the pipeline — the preview is empty by design and
+        // the push would be refused, so show why instead of "nothing to push".
+        if (p.blocked_by_down) { setPreview({ changed: [], unlinked: [] }); setPhase('blocked'); return }
         setPreview(p)
         const sel = new Set<number>()
         p.changed.forEach((m) => { if (!m.stale) sel.add(m.id) })
@@ -88,9 +97,23 @@ export default function ClubdeskSyncUpModal({ open, onOpenChange, onDone }: {
         setSelected(sel)
         setPhase('review')
       })
-      .catch((e) => { if (alive) { setError((e as { body?: { error?: string } })?.body?.error || (e as Error).message); setPhase('error') } })
-    return () => { alive = false }
-  }, [open])
+      .catch((e) => { if (isAlive()) { setError((e as { body?: { error?: string } })?.body?.error || (e as Error).message); setPhase('error') } })
+  }, [])
+
+  // Load the preview when opened. setState happens only in async callbacks, never
+  // synchronously in the effect body — phase is already 'loading' here (initial
+  // state, and `resetState` restores it on close).
+  //
+  // Liveness lives in a ref rather than an effect-local `let` so the blocked
+  // panel's retry can share it: closing the modal mid-retry must discard the
+  // response, otherwise it lands on the freshly reset state and the next open
+  // shows a stale preview.
+  useEffect(() => {
+    if (!open) return
+    openRef.current = true
+    loadPreview(() => openRef.current)
+    return () => { openRef.current = false }
+  }, [open, loadPreview])
 
   const toggle = useCallback((id: number) => {
     setSelected((prev) => {
@@ -142,9 +165,14 @@ export default function ClubdeskSyncUpModal({ open, onOpenChange, onDone }: {
       toast.success(t('clubdeskUpDoneToast'))
       await onDone?.()
     } catch (e) {
-      const state = (e as { body?: { state?: string } })?.body?.state
-      if (state === 'queued' || state === 'running') { toast.info(t('clubdeskUpInProgress')); resetState(); onOpenChange(false); return }
-      setError((e as { body?: { error?: string } })?.body?.error || (e as Error).message || t('clubdeskUpFailed'))
+      const body = (e as { body?: { state?: string; code?: string; error?: string } })?.body
+      // `code` before `state`: the sync-down block carries the DOWN state
+      // (queued/running), so a bare state check would blame the wrong direction.
+      // A down-sync can start between opening the modal and pressing push, so
+      // this path is reachable even though the preview checked it too.
+      if (body?.code === 'down_in_progress') { setPhase('blocked'); return }
+      if (body?.state === 'queued' || body?.state === 'running') { toast.info(t('clubdeskUpInProgress')); resetState(); onOpenChange(false); return }
+      setError(body?.error || (e as Error).message || t('clubdeskUpFailed'))
       setPhase('error')
     }
   }, [selected, t, onDone, onOpenChange, resetState])
@@ -165,6 +193,20 @@ export default function ClubdeskSyncUpModal({ open, onOpenChange, onDone }: {
         {phase === 'loading' && (
           <div className="flex items-center justify-center gap-2 py-12 text-sm text-gray-500 dark:text-gray-400">
             <Loader2 className="h-4 w-4 animate-spin" />{t('clubdeskUpLoading')}
+          </div>
+        )}
+
+        {phase === 'blocked' && (
+          <div className="flex flex-col items-center justify-center gap-3 py-10 text-center">
+            <ArrowDownToLine className="h-8 w-8 text-amber-600 dark:text-amber-400" />
+            <p className="text-sm font-medium">{t('clubdeskUpBlockedByDown')}</p>
+            <p className="max-w-sm text-xs text-gray-500 dark:text-gray-400">{t('clubdeskUpBlockedByDownNote')}</p>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => { setPhase('loading'); loadPreview(() => openRef.current) }} className="gap-2">
+                <RefreshCw className="h-4 w-4" />{t('clubdeskUpBlockedRetry')}
+              </Button>
+              <Button variant="ghost" onClick={() => handleOpenChange(false)}>{t('clubdeskUpClose')}</Button>
+            </div>
           </div>
         )}
 

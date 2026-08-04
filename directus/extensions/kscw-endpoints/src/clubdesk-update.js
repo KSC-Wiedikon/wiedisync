@@ -957,6 +957,26 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
     return ['superuser', 'admin', 'vorstand', 'vb_admin', 'bb_admin'].some((r) => roles.includes(r))
   }
 
+  // ── Down ↔ up mutual exclusion (2026-08-04) ─────────────────────────────────
+  // down and up are separate columns of the same singleton row, guarded by
+  // separate dispatcher crons with separate claim locks — so before this guard
+  // NOTHING stopped a superadmin from queueing both in the same minute. They
+  // never collided on ClubDesk itself (both scrapes serialise on the shared
+  // blocking `.sync.lock`), but two ordering hazards were real:
+  //   (a) the up payload — stale-link guard, blank-risk drift, would-duplicate
+  //       name match, echo-back — is computed against `clubdesk_export`, i.e.
+  //       the LAST COMPLETED sync-down, at the moment /up is called. Queueing
+  //       both together builds the push against the pre-down snapshot, so the
+  //       refresh the operator just asked for does nothing for it (exactly the
+  //       "contact deleted since the last sync-down" abort the up dispatcher
+  //       warns about).
+  //   (b) the up dispatcher takes `.sync.lock` PER SCRAPE (preview-update,
+  //       preview-create, commit-create, commit-update), so a down run can slot
+  //       in BETWEEN the dry-run preview and the commit.
+  // Hence: whichever direction is queued/running blocks the other, both ways.
+  const SYNC_BUSY = ['queued', 'running']
+  const isBusy = (state) => SYNC_BUSY.includes(state)
+
   // ── On-demand ClubDesk MEMBER sync (superadmin "Sync down" button) ──────────
   // POST sets a request flag on the singleton clubdesk_member_sync row; a host
   // dispatcher cron (clubdesk-member-dispatch.sh) claims it, runs clubdesk-sync.sh,
@@ -965,12 +985,15 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
     try {
       if (!(await superGate(req))) return res.status(403).json({ error: 'Forbidden' })
       const s = await database('clubdesk_member_sync').where('id', 1)
-        .first('down_state', 'down_message', 'down_requested_at', 'down_finished_at')
+        .first('down_state', 'down_message', 'down_requested_at', 'down_finished_at', 'up_state')
       return res.json({
         state: s?.down_state || 'idle',
         message: s?.down_message || null,
         requested_at: s?.down_requested_at || null,
         finished_at: s?.down_finished_at || null,
+        // The button greys itself out while a sync-up holds the pipeline (the
+        // POST below refuses it anyway — this just makes the block visible).
+        up_state: s?.up_state || 'idle',
       })
     } catch (err) {
       log.error({ msg: `clubdesk-member-sync status: ${err.message}`, endpoint: 'clubdesk-member-sync', stack: err.stack })
@@ -981,9 +1004,15 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
   router.post('/clubdesk-member-sync', async (req, res) => {
     try {
       if (!(await superGate(req))) return res.status(403).json({ error: 'Forbidden' })
-      const s = await database('clubdesk_member_sync').where('id', 1).first('down_state')
-      if (['queued', 'running'].includes(s?.down_state)) {
+      const s = await database('clubdesk_member_sync').where('id', 1).first('down_state', 'up_state')
+      if (isBusy(s?.down_state)) {
         return res.status(409).json({ error: 'A sync is already in progress', state: s.down_state })
+      }
+      // A down run between the up's dry-run preview and its commit (hazard (b)
+      // above) would refresh clubdesk_export under a push that already passed
+      // its preview — refuse until the push settles.
+      if (isBusy(s?.up_state)) {
+        return res.status(409).json({ error: 'A sync-up is in progress — wait for it to finish', state: s.up_state, code: 'up_in_progress' })
       }
       await database('clubdesk_member_sync').where('id', 1).update({
         down_requested_at: new Date(), down_state: 'queued', down_message: null, down_finished_at: null,
@@ -1032,6 +1061,18 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
   router.get('/clubdesk-member-sync/up-preview', async (req, res) => {
     try {
       if (!(await superGate(req))) return res.status(403).json({ error: 'Forbidden' })
+      // Short-circuit while a sync-down holds the pipeline. Two reasons to bail
+      // BEFORE the queries below rather than after: (1) /up would refuse the
+      // push anyway, so a full preview is wasted work the operator can't act
+      // on; (2) the down import reloads the snapshot as
+      // `BEGIN; TRUNCATE clubdesk_export; \copy …; COMMIT` — every
+      // clubdesk_export read below would block on that ACCESS EXCLUSIVE lock
+      // until the import commits, hanging the modal on a spinner for the whole
+      // run. Reported as a blocked state so the modal says why.
+      const busy = await database('clubdesk_member_sync').where('id', 1).first('down_state')
+      if (isBusy(busy?.down_state)) {
+        return res.json({ changed: [], unlinked: [], blocked_by_down: busy.down_state })
+      }
       const changedRows = await database('members')
         .where('clubdesk_push_pending', true).whereNotNull('clubdesk_id')
         // Muted members (clubdesk_sync_exclude, migration 190 — e.g. the System
@@ -1119,9 +1160,17 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       if (!(await superGate(req))) return res.status(403).json({ error: 'Forbidden' })
       const ids = Array.isArray(req.body?.member_ids) ? req.body.member_ids.map(Number).filter((n) => Number.isInteger(n)) : []
       if (!ids.length) return res.status(400).json({ error: 'member_ids required' })
-      const s = await database('clubdesk_member_sync').where('id', 1).first('up_state')
-      if (['queued', 'running'].includes(s?.up_state)) {
+      const s = await database('clubdesk_member_sync').where('id', 1).first('up_state', 'down_state')
+      if (isBusy(s?.up_state)) {
         return res.status(409).json({ error: 'A sync-up is already in progress', state: s.up_state })
+      }
+      // Everything below (stale-link guard, blank-risk drift, would-duplicate
+      // match, echo-back) reads clubdesk_export — the LAST COMPLETED sync-down.
+      // Pushing against a snapshot a running down-sync is about to replace is
+      // hazard (a) above: the payload is frozen here, so the refresh cannot help
+      // it. Refuse and let the operator re-open the modal once the down settles.
+      if (isBusy(s?.down_state)) {
+        return res.status(409).json({ error: 'A sync-down is in progress — wait for it to finish, then review the push again', state: s.down_state, code: 'down_in_progress' })
       }
       const fetched = await database('members').whereIn('id', ids)
         .select([...PUSH_FIELDS, 'clubdesk_push_pending', 'clubdesk_pushed_at', 'clubdesk_sync_exclude'])

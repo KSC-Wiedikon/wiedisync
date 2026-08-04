@@ -420,6 +420,7 @@ export default {
   clubdeskSyncFailed: 'Synchronisation fehlgeschlagen.',
   clubdeskSyncTimeout: 'Die Synchronisation dauert länger als erwartet — sie läuft im Hintergrund weiter.',
   clubdeskSyncInProgress: 'Eine Synchronisation läuft bereits.',
+  clubdeskSyncBlockedByUp: 'Ein Hochsynchronisieren läuft — bitte warten, bis es fertig ist.',
   clubdeskLastSync: 'Zuletzt synchronisiert {{time}}',
 
   // ClubDesk hochsynchronisieren (Superadmin)
@@ -504,6 +505,9 @@ export default {
   clubdeskUpFailed: 'Hochsynchronisieren fehlgeschlagen.',
   clubdeskUpTimeout: 'Dauert länger als erwartet — läuft im Hintergrund weiter.',
   clubdeskUpInProgress: 'Ein Hochsynchronisieren läuft bereits.',
+  clubdeskUpBlockedByDown: 'Eine Synchronisation von ClubDesk läuft',
+  clubdeskUpBlockedByDownNote: 'Der Push basiert auf dem ClubDesk-Stand, den die laufende Synchronisation gerade aktualisiert — er muss deshalb warten. Nach Abschluss erneut versuchen.',
+  clubdeskUpBlockedRetry: 'Erneut versuchen',
   clubdeskUpClose: 'Schliessen',
   cdRegZoneTitle: 'ClubDesk-Sync',
   cdRegChecking: 'ClubDesk wird geprüft…',
