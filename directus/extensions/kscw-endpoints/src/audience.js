@@ -167,7 +167,9 @@ export async function membersWithRoleTokens(database, log, tokens, opts = {}) {
  * the number shown in the picker is the number that gets mailed.
  */
 export async function teamAudienceCounts(database) {
-  const teams = await database('teams').where('active', true).select('id', 'name', 'sport').orderBy('name')
+  // `gender` rides along purely for display: the picker groups the ~29 team
+  // chips by sport then gender, which is the only way that row stays scannable.
+  const teams = await database('teams').where('active', true).select('id', 'name', 'sport', 'gender').orderBy('name')
   if (teams.length === 0) return []
   const teamIds = teams.map(t => t.id)
   const [players, coaches, trs, captains, active] = await Promise.all([
@@ -187,7 +189,7 @@ export async function teamAudienceCounts(database) {
   for (const r of coaches) add(r.teams_id, r.members_id)
   for (const r of trs) add(r.teams_id, r.members_id)
   for (const r of captains) add(r.id, r.captain)
-  return teams.map(t => ({ id: t.id, name: t.name, sport: t.sport, count: perTeam.get(t.id)?.size ?? 0 }))
+  return teams.map(t => ({ id: t.id, name: t.name, sport: t.sport, gender: t.gender, count: perTeam.get(t.id)?.size ?? 0 }))
 }
 
 /**

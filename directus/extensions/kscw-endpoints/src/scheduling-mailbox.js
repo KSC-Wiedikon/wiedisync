@@ -1256,7 +1256,7 @@ export function registerSchedulingMailbox(router, { database, logger }) {
 
       res.json({
         groups: MAILBOX_GROUPS.map((g, i) => ({ key: g.key, section: g.section ?? 'roles', count: counts[i] })),
-        teams: teams.map(t => ({ key: `team:${t.id}`, section: 'teams', name: t.name, sport: t.sport, count: t.count })),
+        teams: teams.map(t => ({ key: `team:${t.id}`, section: 'teams', name: t.name, sport: t.sport, gender: t.gender, count: t.count })),
         seasons,
         // The signature the server appends to every send. Returned so the
         // composer can SHOW it: it has always been added, but an operator

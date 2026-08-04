@@ -71,6 +71,9 @@ export interface MailboxGroup {
   /** Teams only — the roster name to display verbatim. */
   name?: string
   sport?: string | null
+  /** Teams only — 'f' | 'm' | 'mixed'. Display only: the picker buckets the
+   *  team chips by sport then gender. */
+  gender?: string | null
 }
 
 export interface MailboxGroupsResponse {

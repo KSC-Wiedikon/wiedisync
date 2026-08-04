@@ -1012,9 +1012,12 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
             <div className="space-y-3">{composeRecipients(compose)}</div>
             <div className="space-y-3">{composeMessage(compose)}</div>
           </div>
-          {/* Sticky so Send stays reachable no matter how far down the chip
-              list the operator has scrolled — the original bug in miniature. */}
-          <div className="sticky bottom-0 -mx-6 -mb-6 mt-4 flex items-center justify-end gap-2 rounded-b-lg border-t border-gray-200 bg-card px-6 py-3 dark:border-gray-700">
+          {/* The card's own footer, in normal flow. It was sticky at first so
+              Send stayed reachable, but pinned to the viewport it read as a
+              floating bar belonging to the page rather than to this card. The
+              composer is its own full-height screen, so scrolling to the end
+              reaches Send anyway. */}
+          <div className="-mx-6 -mb-6 mt-6 flex items-center justify-end gap-2 rounded-b-lg border-t border-gray-200 bg-card px-6 py-3 dark:border-gray-700">
             {composeActions(compose)}
           </div>
         </CardContent>
@@ -1232,6 +1235,13 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
  *  catalogue; anything with an unrecognised section falls into 'roles'. */
 const AUDIENCE_SECTIONS = ['season', 'everyone', 'sektion', 'players', 'roles', 'teams', 'former'] as const
 
+// Teams are the one section too long to read as a single row — 29 active teams
+// against at most 8 chips anywhere else — so it is split into sport × gender
+// buckets. Anything with an unknown sport or gender sorts to the end rather
+// than disappearing.
+const TEAM_SPORT_ORDER = ['volleyball', 'basketball']
+const TEAM_GENDER_ORDER = ['f', 'm', 'mixed']
+
 /**
  * Audience picker — toggle chips grouped into rows.
  *
@@ -1267,11 +1277,75 @@ function AudiencePicker({
     return map
   }, [groups])
 
+  // Teams split into sport × gender buckets, in club order: volleyball first,
+  // women before men, mixed last. Alphabetical within a bucket.
+  const teamBuckets = useMemo(() => {
+    const buckets = new Map<string, MailboxGroup[]>()
+    for (const g of bySection.get('teams') ?? []) {
+      const key = `${g.sport ?? ''}|${g.gender ?? ''}`
+      if (!buckets.has(key)) buckets.set(key, [])
+      buckets.get(key)!.push(g)
+    }
+    const rank = (key: string) => {
+      const [sport, gender] = key.split('|')
+      const s = TEAM_SPORT_ORDER.indexOf(sport)
+      const gd = TEAM_GENDER_ORDER.indexOf(gender)
+      return [s < 0 ? TEAM_SPORT_ORDER.length : s, gd < 0 ? TEAM_GENDER_ORDER.length : gd]
+    }
+    return [...buckets.entries()]
+      .sort(([a], [b]) => {
+        const [as, ag] = rank(a)
+        const [bs, bg] = rank(b)
+        return as - bs || ag - bg || a.localeCompare(b)
+      })
+      .map(([key, teams]) => ({
+        key,
+        teams: [...teams].sort((x, y) => (x.name ?? '').localeCompare(y.name ?? '')),
+      }))
+  }, [bySection])
+
   if (!groups) {
     return (
       <p className="mt-2 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
         <InlineSpinner /> {t('mailboxGroupsLoading')}
       </p>
+    )
+  }
+
+  /** "Volleyball · Women". Falls back to the raw value so a sport or gender
+   *  added in Directus shows up as itself rather than as a missing key. */
+  const bucketLabel = (key: string) => {
+    const [sport, gender] = key.split('|')
+    const parts = [
+      sport ? t(`mailboxTeamsSport_${sport}`, { defaultValue: sport }) : '',
+      gender ? t(`gender_${gender}`, { defaultValue: gender }) : '',
+    ].filter(Boolean)
+    return parts.length > 0 ? parts.join(' · ') : t('mailboxTeamsOther')
+  }
+
+  const chip = (g: MailboxGroup) => {
+    const on = selected.includes(g.key)
+    // count === null means "no size of its own" (season), not "empty".
+    const empty = g.count === 0
+    return (
+      <button
+        key={g.key}
+        type="button"
+        aria-pressed={on}
+        disabled={empty}
+        onClick={() => onToggle(g.key)}
+        // min-h-11 on mobile keeps the touch target at 44px.
+        className={`inline-flex min-h-11 items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition-colors sm:min-h-8 ${
+          on
+            ? 'border-brand-500 bg-brand-500 text-white'
+            : empty
+              ? 'cursor-not-allowed border-gray-200 bg-gray-50 text-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-600'
+              : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700'
+        }`}
+      >
+        <span>{labelFor(g)}</span>
+        {g.count != null && <span className={on ? 'text-white/80' : 'text-gray-400 dark:text-gray-500'}>{g.count}</span>}
+      </button>
     )
   }
 
@@ -1282,33 +1356,18 @@ function AudiencePicker({
           <p className="mb-1 text-[11px] font-medium text-gray-400 dark:text-gray-500">
             {t(`mailboxSection_${section}`)}
           </p>
-          <div className="flex flex-wrap gap-1.5">
-            {bySection.get(section)!.map((g) => {
-              const on = selected.includes(g.key)
-              // count === null means "no size of its own" (season), not "empty".
-              const empty = g.count === 0
-              return (
-                <button
-                  key={g.key}
-                  type="button"
-                  aria-pressed={on}
-                  disabled={empty}
-                  onClick={() => onToggle(g.key)}
-                  // min-h-11 on mobile keeps the touch target at 44px.
-                  className={`inline-flex min-h-11 items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition-colors sm:min-h-8 ${
-                    on
-                      ? 'border-brand-500 bg-brand-500 text-white'
-                      : empty
-                        ? 'cursor-not-allowed border-gray-200 bg-gray-50 text-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-600'
-                        : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700'
-                  }`}
-                >
-                  <span>{labelFor(g)}</span>
-                  {g.count != null && <span className={on ? 'text-white/80' : 'text-gray-400 dark:text-gray-500'}>{g.count}</span>}
-                </button>
-              )
-            })}
-          </div>
+          {section === 'teams' ? (
+            <div className="space-y-1.5">
+              {teamBuckets.map((bucket) => (
+                <div key={bucket.key}>
+                  <p className="mb-1 pl-0.5 text-[11px] text-gray-400 dark:text-gray-500">{bucketLabel(bucket.key)}</p>
+                  <div className="flex flex-wrap gap-1.5">{bucket.teams.map(chip)}</div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex flex-wrap gap-1.5">{bySection.get(section)!.map(chip)}</div>
+          )}
         </div>
       ))}
       {selected.length > 0 && (
