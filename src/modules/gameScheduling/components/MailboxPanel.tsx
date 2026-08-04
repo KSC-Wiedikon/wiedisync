@@ -103,9 +103,14 @@ interface ComposeState {
   /** Blind-carbon-copy recipients. Group send only, and like `cc` they receive
    *  ONE copy rather than one per recipient — see the bulk endpoint. */
   bcc?: string
-  /** Group send: selected audience keys (`team:<id>` or fixed group keys).
-   *  Multi-select — the send goes to their union, deduped by address. */
-  groups?: string[]
+  /** Group send: committed audience filters. Each entry is a drilled path whose
+   *  audiences INTERSECT ("Volleyball" + "All coaches" = the 20 volleyball
+   *  coaches); the entries themselves UNION, so several filters mix freely. */
+  clauses?: string[][]
+  /** The filter currently being drilled, not yet added to the recipients. Kept
+   *  apart from `clauses` so narrowing never changes who the mail goes to until
+   *  the operator commits it. */
+  draft?: string[]
   /** Group send: people picked individually, by expanding an audience into
    *  chips. Held alongside `groups`, not instead of it — an operator can mail
    *  two whole teams plus three named people, and the server unions the lot. */
@@ -182,15 +187,25 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
   // changes on every keystroke in the subject and would re-resolve constantly.
   // Cc/Bcc are deliberately NOT in the key — they never change who is
   // resolved, so typing an address must not re-run the audience query.
-  const composeGroups = compose?.mode === 'group' ? (compose.groups ?? []) : []
+  const composeClauses = compose?.mode === 'group' ? (compose.clauses ?? []) : []
   const composePicked = compose?.mode === 'group' ? (compose.picked ?? []) : []
-  const composeKey = (composeGroups.length > 0 || composePicked.length > 0)
+  const composeKey = (composeClauses.length > 0 || composePicked.length > 0)
     ? JSON.stringify({
-      g: [...composeGroups].sort(),
+      c: composeClauses.map((cl) => [...cl].sort()).sort((a, b) => a.join().localeCompare(b.join())),
       m: composePicked.filter((r) => r.kind === 'member').map((r) => Number(r.id)).sort((a, b) => a - b),
       e: composePicked.filter((r) => r.kind === 'clubdesk').map((r) => r.email).sort(),
     })
     : ''
+
+  // The filter being drilled gets its own resolution, so the operator sees what
+  // a narrowing step costs BEFORE committing it. Separate from the recipients
+  // preview above: that one answers "who gets this mail", this one answers
+  // "how big is the thing I am about to add".
+  const composeDraft = compose?.mode === 'group' ? (compose.draft ?? []) : []
+  const draftKey = composeDraft.length > 0 ? JSON.stringify([...composeDraft].sort()) : ''
+  const [draftPreview, setDraftPreview] = useState<{ key: string; count: number | null } | null>(null)
+  const draftCurrent = !!draftKey && draftPreview?.key === draftKey
+  const draftCount = draftCurrent ? draftPreview?.count ?? null : null
   const previewCurrent = !!composeKey && preview?.group === composeKey
   const previewData = previewCurrent ? preview?.data ?? null : null
   const previewLoading = !!composeKey && !previewCurrent
@@ -217,8 +232,8 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
     let cancelled = false
     void (async () => {
       try {
-        const sel = JSON.parse(composeKey) as { g: string[]; m: number[]; e: string[] }
-        const p = await previewBulk({ groups: sel.g, members: sel.m, emails: sel.e })
+        const sel = JSON.parse(composeKey) as { c: string[][]; m: number[]; e: string[] }
+        const p = await previewBulk({ groups: [], clauses: sel.c, members: sel.m, emails: sel.e })
         // Store the selection alongside the result: a slow response for a
         // previous selection must never be shown against the current one.
         if (!cancelled) setPreview({ group: composeKey, data: p })
@@ -232,6 +247,22 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
     return () => { cancelled = true }
   }, [composeKey, preview?.group, previewBulk, t])
 
+  // Resolve the draft filter's size. Same latest-wins keying as above.
+  useEffect(() => {
+    if (!draftKey || draftPreview?.key === draftKey) return
+    let cancelled = false
+    void (async () => {
+      try {
+        const keys = JSON.parse(draftKey) as string[]
+        const p = await previewBulk({ groups: [], clauses: [keys] })
+        if (!cancelled) setDraftPreview({ key: draftKey, count: p.recipient_count })
+      } catch {
+        if (!cancelled) setDraftPreview({ key: draftKey, count: null })
+      }
+    })()
+    return () => { cancelled = true }
+  }, [draftKey, draftPreview?.key, previewBulk])
+
   /** Human label for a group key: teams show their roster name (data, never
    *  translated), fixed groups resolve through i18n. */
   const groupLabel = (g: MailboxGroup) => g.name ?? t(`mailboxGroup_${g.key.replace(/[:.]/g, '_')}`)
@@ -239,18 +270,20 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
   /** Replace one audience chip with a chip per person in it, so the operator
    *  can drop individuals. The audience itself is removed from `groups` in the
    *  same update — leaving both would re-add everyone they just took out. */
-  const handleExpandGroup = async (key: string) => {
-    // "All members" is 671 people. Rendering that many chips unannounced turns
-    // a single click into a wall of names and a janky page, so anything large
-    // asks first — the operator almost always wants the audience, not 671
-    // individually-removable rows.
-    const cat = [...(groups?.groups ?? []), ...(groups?.teams ?? [])].find((x) => x.key === key)
-    if ((cat?.count ?? 0) > EXPAND_CONFIRM_THRESHOLD) {
-      const ok = await confirm({ message: t('mailboxExpandLarge', { count: cat?.count ?? 0 }) })
+  const handleExpandClause = async (clause: string[]) => {
+    // A single chip can be 671 people. Rendering that many names unannounced
+    // turns one click into a wall of chips, so anything large asks first — the
+    // operator usually wants the audience, not 671 removable rows.
+    const est = clause.length === 1
+      ? [...(groups?.groups ?? []), ...(groups?.teams ?? [])].find((x) => x.key === clause[0])?.count ?? 0
+      : 0
+    if (est > EXPAND_CONFIRM_THRESHOLD) {
+      const ok = await confirm({ message: t('mailboxExpandLarge', { count: est }) })
       if (!ok) return
     }
     try {
-      const resp = await expandGroups([key])
+      const resp = await expandGroups(clause)
+      const sig = [...clause].sort().join('|')
       setCompose((prev) => {
         if (!prev) return prev
         const seen = new Set((prev.picked ?? []).map((r) => String(r.id)))
@@ -260,7 +293,11 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
           seen.add(String(r.id))
           merged.push(r)
         }
-        return { ...prev, groups: (prev.groups ?? []).filter((k) => k !== key), picked: merged }
+        return {
+          ...prev,
+          clauses: (prev.clauses ?? []).filter((cl) => [...cl].sort().join('|') !== sig),
+          picked: merged,
+        }
       })
     } catch {
       toast.error(t('mailboxExpandFailed'))
@@ -269,7 +306,7 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
 
   const handleSendGroup = async () => {
     if (!compose || !previewData) return
-    if (!compose.groups?.length && !compose.picked?.length) return
+    if (!compose.clauses?.length && !compose.picked?.length) return
     if (previewData.recipient_count === 0) return
     // Mass mail is irreversible and goes to real members — confirm with the
     // resolved number, not the group name, so the operator sees the blast size.
@@ -281,7 +318,8 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
     try {
       const picked = compose.picked ?? []
       const result = await sendBulk({
-        groups: compose.groups ?? [],
+        groups: [],
+        clauses: compose.clauses ?? [],
         members: picked.filter((r) => r.kind === 'member').map((r) => Number(r.id)),
         emails: picked.filter((r) => r.kind === 'clubdesk').map((r) => r.email),
         cc: compose.cc || undefined,
@@ -640,20 +678,24 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
               side. An audience chip can be unfolded into its members, which is
               the only way to drop one person from an otherwise-right group. */}
           <div className="mt-1 flex min-h-11 flex-wrap items-center gap-1.5 rounded-md border border-gray-300 bg-white p-2 dark:border-gray-600 dark:bg-gray-900">
-            {(c.groups ?? []).length === 0 && (c.picked ?? []).length === 0 && (
+            {(c.clauses ?? []).length === 0 && (c.picked ?? []).length === 0 && (
               <span className="px-1 text-sm text-gray-400 dark:text-gray-500">{t('mailboxRecipientsEmpty')}</span>
             )}
-            {(c.groups ?? []).map((key) => (
+            {(c.clauses ?? []).map((clause, ci) => (
               <span
-                key={key}
+                key={clause.join('|')}
                 className="inline-flex min-h-8 items-center gap-1 rounded-full border border-brand-500 bg-brand-500 px-2.5 py-0.5 text-xs text-white"
               >
                 <Users className="h-3 w-3 flex-shrink-0" />
-                <span>{keyLabel(key)}</span>
-                {keyCount(key) != null && <span className="text-white/80">{keyCount(key)}</span>}
+                {/* The whole drilled path, so a narrowed filter never reads as
+                    the broad audience it was narrowed from. */}
+                <span>{clause.map(keyLabel).join(' · ')}</span>
+                {clause.length === 1 && keyCount(clause[0]) != null && (
+                  <span className="text-white/80">{keyCount(clause[0])}</span>
+                )}
                 <button
                   type="button"
-                  onClick={() => void handleExpandGroup(key)}
+                  onClick={() => void handleExpandClause(clause)}
                   aria-label={t('mailboxExpandGroup')}
                   title={t('mailboxExpandGroup')}
                   className="rounded p-0.5 hover:bg-white/20"
@@ -662,7 +704,7 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
                 </button>
                 <button
                   type="button"
-                  onClick={() => setCompose({ ...c, groups: (c.groups ?? []).filter((k) => k !== key) })}
+                  onClick={() => setCompose({ ...c, clauses: (c.clauses ?? []).filter((_, i) => i !== ci) })}
                   aria-label={t('mailboxRemoveRecipient')}
                   title={t('mailboxRemoveRecipient')}
                   className="rounded p-0.5 hover:bg-white/20"
@@ -693,7 +735,7 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
           <GroupPreview
             preview={previewData}
             loading={previewLoading}
-            selected={(c.groups ?? []).length > 0 || (c.picked ?? []).length > 0}
+            selected={(c.clauses ?? []).length > 0 || (c.picked ?? []).length > 0}
           />
         </div>
 
@@ -726,18 +768,78 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
           <p className="text-xs text-gray-500 dark:text-gray-400">{t('mailboxCcOnceHint')}</p>
         )}
 
-        <div>
+        {/* Drill builder. Each chip picked here NARROWS the filter rather than
+            adding a separate audience — "Volleyball" then "All coaches" is the
+            20 volleyball coaches, not 309 people. Committing it as one chip is
+            what lets several narrowed filters be mixed in one message. */}
+        <div className="rounded-md border border-gray-200 p-3 dark:border-gray-700">
           <label className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('mailboxGroupLabel')}</label>
-          <AudiencePicker
-            groups={groups}
-            selected={c.groups ?? []}
-            onToggle={(key) => {
-              const cur = c.groups ?? []
-              setCompose({ ...c, groups: cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key] })
-            }}
-            onClear={() => setCompose({ ...c, groups: [], picked: [] })}
-            labelFor={groupLabel}
-          />
+
+          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+            {(c.draft ?? []).length === 0 ? (
+              <span className="text-xs text-gray-400 dark:text-gray-500">{t('mailboxDrillStart')}</span>
+            ) : (
+              (c.draft ?? []).map((key, i) => (
+                <span key={key} className="inline-flex items-center gap-1">
+                  {i > 0 && <span className="text-gray-400 dark:text-gray-500">›</span>}
+                  <span className="inline-flex min-h-8 items-center gap-1 rounded-full border border-gray-300 bg-gray-100 px-2.5 py-0.5 text-xs text-gray-700 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
+                    {keyLabel(key)}
+                    <button
+                      type="button"
+                      onClick={() => setCompose({ ...c, draft: (c.draft ?? []).filter((k) => k !== key) })}
+                      aria-label={t('mailboxRemoveRecipient')}
+                      title={t('mailboxRemoveRecipient')}
+                      className="rounded p-0.5 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </span>
+                </span>
+              ))
+            )}
+          </div>
+
+          {(c.draft ?? []).length > 0 && (
+            <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-gray-200 pt-2 dark:border-gray-700">
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                {draftCount == null
+                  ? <span className="inline-flex items-center gap-1.5"><InlineSpinner /> {t('mailboxPreviewLoading')}</span>
+                  : t('mailboxDrillCount', { count: draftCount })}
+              </span>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={draftCount === 0}
+                onClick={() => {
+                  const draft = c.draft ?? []
+                  const sig = [...draft].sort().join('|')
+                  const existing = c.clauses ?? []
+                  // Adding the same filter twice is a no-op, not a duplicate —
+                  // the send would dedupe anyway, but two identical chips read
+                  // as "twice as many people".
+                  const next = existing.some((cl) => [...cl].sort().join('|') === sig)
+                    ? existing
+                    : [...existing, draft]
+                  setCompose({ ...c, clauses: next, draft: [] })
+                }}
+              >
+                {t('mailboxDrillAdd')}
+              </Button>
+            </div>
+          )}
+
+          <div className="mt-2">
+            <AudiencePicker
+              groups={groups}
+              selected={c.draft ?? []}
+              onToggle={(key) => {
+                const cur = c.draft ?? []
+                setCompose({ ...c, draft: cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key] })
+              }}
+              onClear={() => setCompose({ ...c, draft: [] })}
+              labelFor={groupLabel}
+            />
+          </div>
         </div>
       </div>
     ) : (
@@ -942,7 +1044,7 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => setCompose({ to: '', cc: '', subject: '', html: '', attachments: [], groups: [], mode: 'group' })}
+                  onClick={() => setCompose({ to: '', cc: '', bcc: '', subject: '', html: '', attachments: [], clauses: [], draft: [], mode: 'group' })}
                 >
                   <Users className="mr-1.5 h-4 w-4" />
                   {t('mailboxGroupSend')}

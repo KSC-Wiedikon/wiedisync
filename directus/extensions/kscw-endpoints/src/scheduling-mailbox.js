@@ -1131,19 +1131,41 @@ export function registerSchedulingMailbox(router, { database, logger }) {
    *     marked us as spam) — re-mailing those is what costs the SES identity
    *     its reputation, and that identity also carries password resets
    */
-  async function resolveRecipients(sources, label, explicit = null) {
-    // UNION across every selected chip, then dedupe once over the combined set.
-    // Deduping per-group instead would mail a coach who is also a captain twice
-    // when both chips are on — which is precisely the case multi-select makes
-    // easy to hit.
+  /**
+   * Resolve a recipient selection to mailable people.
+   *
+   * `clauses` is a list of AND-clauses that are OR'd together — the shape the
+   * composer's drill-down produces. Within a clause the audiences INTERSECT
+   * ("Volleyball" ▸ "All coaches" = the 20 volleyball coaches); across clauses
+   * they UNION ("…plus everyone on D1").
+   *
+   * Intersection is what makes a filter like "volleyball coaches" expressible
+   * at all: no single chip means both, and adding a sport-scoped chip per role
+   * would multiply the catalogue without ever covering the next combination
+   * someone wants. Union across clauses is what makes them mixable.
+   *
+   * Dedupe happens ONCE over the fully combined set, never per clause — a coach
+   * of D1 reached by both a role clause and a team clause is still mailed once.
+   */
+  async function resolveRecipients(clauses, label, explicit = null) {
     const memberIds = new Set()
     const clubdeskRows = []
-    for (const src of sources) {
-      if (src.clubdeskStatus) {
-        clubdeskRows.push(...await resolveClubdeskRecipients(database, src.clubdeskStatus))
-      } else {
-        for (const id of await resolveMemberAudience(database, log, src.spec, label)) memberIds.add(id)
+
+    for (const clause of clauses) {
+      const memberSets = []
+      for (const src of clause) {
+        if (src.clubdeskStatus) {
+          // Former members are register contacts, not member rows, so they can
+          // never intersect with a member audience — the endpoint rejects that
+          // mix rather than letting it resolve to a silent empty set.
+          clubdeskRows.push(...await resolveClubdeskRecipients(database, src.clubdeskStatus))
+        } else {
+          memberSets.push(new Set(await resolveMemberAudience(database, log, src.spec, label)))
+        }
       }
+      if (memberSets.length === 0) continue
+      const narrowed = memberSets.reduce((acc, s) => new Set([...acc].filter(id => s.has(id))))
+      for (const id of narrowed) memberIds.add(id)
     }
 
     // Individually-picked recipients, from an audience the operator expanded
@@ -1248,6 +1270,57 @@ export function registerSchedulingMailbox(router, { database, logger }) {
     return [...new Set(keys.map(k => k.trim()).filter(Boolean))]
   }
 
+  /**
+   * Parse the recipient selection into AND-clauses.
+   *
+   * Accepts `clauses` (a JSON array of key arrays — the drill-down's shape) and
+   * falls back to flat `groups`/`group`, where each key becomes its own
+   * one-key clause. That fallback is what keeps every previously-built
+   * selection resolving exactly as it did: N independent keys OR'd together.
+   */
+  function parseClauses(body) {
+    if (body.clauses != null && String(body.clauses) !== '') {
+      let raw = body.clauses
+      if (!Array.isArray(raw)) {
+        try { raw = JSON.parse(String(body.clauses)) } catch { raw = [] }
+      }
+      if (Array.isArray(raw)) {
+        const out = []
+        for (const c of raw) {
+          const keys = [...new Set((Array.isArray(c) ? c : [c]).map(k => String(k).trim()).filter(Boolean))]
+          if (keys.length) out.push(keys)
+        }
+        if (out.length) return out
+      }
+    }
+    return parseGroupKeys(body).map(k => [k])
+  }
+
+  /** Resolve clause key-lists to source descriptors, or an error string. */
+  function sourcesForClauses(clauses) {
+    const out = []
+    for (const keys of clauses) {
+      const srcs = []
+      for (const k of keys) {
+        const src = sourceForGroup(k)
+        // Reject on the FIRST unknown key rather than resolving what we
+        // recognise: silently ignoring a chip the client thinks it selected
+        // would send to a different audience than the operator confirmed.
+        if (!src) return { error: `Unknown group: ${k}` }
+        srcs.push(src)
+      }
+      // A clause mixing former members with member audiences would intersect a
+      // register-contact list against member ids and quietly resolve to the
+      // member half only. Rejecting is the honest answer; "former members who
+      // are also coaches" is not a thing the data can express.
+      if (srcs.length > 1 && srcs.some(s => s.clubdeskStatus)) {
+        return { error: 'Former members cannot be combined with other audiences in one filter' }
+      }
+      out.push(srcs)
+    }
+    return { sources: out }
+  }
+
   /** JSON-or-comma list of scalars, same multipart reasoning as parseGroupKeys. */
   function parseList(value) {
     if (value == null || String(value) === '') return []
@@ -1273,23 +1346,20 @@ export function registerSchedulingMailbox(router, { database, logger }) {
     if (!(await authForAccount(req, acct.sport))) return res.status(403).json({ error: 'Admin only' })
     try {
       const body = req.body || {}
-      const groupKeys = parseGroupKeys(body)
-      if (groupKeys.length === 0) return res.status(400).json({ error: 'No group selected' })
+      const clauses = parseClauses(body)
+      if (clauses.length === 0) return res.status(400).json({ error: 'No group selected' })
 
-      const sources = []
-      for (const k of groupKeys) {
-        const src = sourceForGroup(k)
-        if (!src) return res.status(400).json({ error: `Unknown group: ${k}` })
-        sources.push(src)
-      }
+      const resolved = sourcesForClauses(clauses)
+      if (resolved.error) return res.status(400).json({ error: resolved.error })
 
       // Same resolver as the send, so the chips the operator sees are exactly
       // the people who would be mailed — anyone filtered out for a missing
       // address, an opt-out or a suppression never appears as a chip at all.
-      const { recipients, audienceSize, skipped } = await resolveRecipients(sources, `mailbox/expand/${groupKeys.join(', ')}`)
+      const label = clauses.map(c => c.join(' + ')).join(', ')
+      const { recipients, audienceSize, skipped } = await resolveRecipients(resolved.sources, `mailbox/expand/${label}`)
 
       res.json({
-        groups: groupKeys,
+        groups: clauses.flat(),
         audience_size: audienceSize,
         skipped,
         recipients: recipients.map(r => ({
@@ -1325,10 +1395,9 @@ export function registerSchedulingMailbox(router, { database, logger }) {
         }
       }
 
-      // `groups` is the multi-select form (a JSON array or a comma list, since
-      // multipart fields are strings); `group` stays accepted as the original
-      // single-value shape.
-      const groupKeys = parseGroupKeys(body)
+      // `clauses` is the drill-down's shape (AND within, OR across); flat
+      // `groups`/`group` still work and become one-key clauses.
+      const clauses = parseClauses(body)
 
       // Individually-picked recipients from an expanded audience. `members` are
       // member ids; `emails` are register contacts (former members have no
@@ -1341,18 +1410,17 @@ export function registerSchedulingMailbox(router, { database, logger }) {
       )]
       const hasExplicit = explicitMemberIds.length > 0 || explicitEmails.length > 0
 
-      if (groupKeys.length === 0 && !hasExplicit) return res.status(400).json({ error: 'No recipient selected' })
+      if (clauses.length === 0 && !hasExplicit) return res.status(400).json({ error: 'No recipient selected' })
 
-      // Reject on the FIRST unknown key rather than resolving what we recognise:
-      // silently ignoring a chip the client thinks it selected would send to a
-      // smaller audience than the operator just confirmed.
-      const sources = []
-      for (const k of groupKeys) {
-        const src = sourceForGroup(k)
-        if (!src) return res.status(400).json({ error: `Unknown group: ${k}` })
-        sources.push(src)
-      }
-      const groupKey = groupKeys.join(', ') || `${explicitMemberIds.length + explicitEmails.length} picked`
+      const resolved = sourcesForClauses(clauses)
+      if (resolved.error) return res.status(400).json({ error: resolved.error })
+      const sources = resolved.sources
+      // Human label for logs, the Sent-folder summary and the audit row. AND
+      // within a clause reads as "+", OR across them as ", " — so a drilled
+      // filter archives as "sektion:volleyball + fn:coach", not as two
+      // independent audiences it was never equivalent to.
+      const groupKey = clauses.map(c => c.join(' + ')).join(', ')
+        || `${explicitMemberIds.length + explicitEmails.length} picked`
 
       // Cc/Bcc get exactly ONE copy, sent once after the personalised run —
       // they are NOT headers on each message. A group send is one message per
@@ -1376,7 +1444,8 @@ export function registerSchedulingMailbox(router, { database, logger }) {
         return res.json({
           dry_run: true,
           group: groupKey,
-          groups: groupKeys,
+          groups: clauses.flat(),
+          clauses,
           audience_size: audienceSize,
           recipient_count: recipients.length,
           skipped,

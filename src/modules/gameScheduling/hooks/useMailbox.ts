@@ -134,6 +134,10 @@ export interface MailboxBulkResult {
  *  Both are unioned and deduped server-side, so a person who is in a selected
  *  group AND picked individually is still mailed exactly once. */
 export interface MailboxRecipientSelection {
+  /** AND-clauses that OR together — the drill-down's shape. Within a clause the
+   *  audiences intersect ("Volleyball" ▸ "All coaches" = volleyball coaches);
+   *  across clauses they union. Falls back to `groups` when absent. */
+  clauses?: string[][]
   groups: string[]
   /** Member ids picked individually (from an expanded audience). */
   members?: number[]
@@ -589,8 +593,8 @@ export interface UseMailboxReturn {
   /** Club mailbox only — resolve the selection WITHOUT sending, so the
    *  composer can show who it would reach. Always call this before sendBulk. */
   previewBulk: (sel: MailboxRecipientSelection) => Promise<MailboxBulkPreview>
-  /** Club mailbox only — resolve audiences into individual recipients. */
-  expandGroups: (groups: string[]) => Promise<MailboxExpandResponse>
+  /** Club mailbox only — resolve ONE clause into its individual recipients. */
+  expandGroups: (clause: string[]) => Promise<MailboxExpandResponse>
   /** Club mailbox only — send one personalised message per recipient. */
   sendBulk: (payload: MailboxBulkPayload) => Promise<MailboxBulkResult>
 }
@@ -727,7 +731,7 @@ export function useMailbox(enabled: boolean = true, sport: MailboxAccount = 'vol
     return await kscwApi<MailboxBulkPreview>(mailboxUrl(sport, '/bulk'), {
       method: 'POST',
       body: {
-        groups: sel.groups,
+        clauses: sel.clauses ?? sel.groups.map((g) => [g]),
         members: sel.members ?? [],
         emails: sel.emails ?? [],
         dry_run: true,
@@ -736,10 +740,12 @@ export function useMailbox(enabled: boolean = true, sport: MailboxAccount = 'vol
   }, [sport])
 
   /** Resolve audiences to the individual people in them, for the To-field chips. */
-  const expandGroups = useCallback(async (groups: string[]) => {
+  const expandGroups = useCallback(async (clause: string[]) => {
     return await kscwApi<MailboxExpandResponse>(mailboxUrl(sport, '/expand'), {
       method: 'POST',
-      body: { groups },
+      // A single clause: expanding "Volleyball ▸ coaches" must yield the 20
+      // people in the intersection, not everyone in either audience.
+      body: { clauses: [clause] },
     })
   }, [sport])
 
@@ -751,7 +757,7 @@ export function useMailbox(enabled: boolean = true, sport: MailboxAccount = 'vol
       const fd = new FormData()
       // JSON-encoded: multipart fields are strings, and a team name could
       // never contain a comma but a future group key might.
-      fd.append('groups', JSON.stringify(payload.groups))
+      fd.append('clauses', JSON.stringify(payload.clauses ?? payload.groups.map((g) => [g])))
       fd.append('members', JSON.stringify(payload.members ?? []))
       fd.append('emails', JSON.stringify(payload.emails ?? []))
       if (payload.cc) fd.append('cc', payload.cc)
