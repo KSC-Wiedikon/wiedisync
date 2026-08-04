@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '1.63.1'
+const APP_VERSION = '1.63.2'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,20 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.63.2',
+    date: '04.08.2026',
+    sections: [
+      {
+        title: 'Fixed: saying whether you are coming to a game',
+        items: [
+          'Players called up from another team can now answer. Opening a game to another team put the fixture on all their calendars but gave them no Yes / Maybe / No buttons, so nobody could actually say whether they were coming. Their replies now count towards the game’s tally like everyone else’s.',
+          'The Yes / Maybe / No buttons are back on the games list. Since 10.06 they only appeared once you opened a game, so answering straight from the list was impossible. The same fault also meant a coach’s reply was counted as a player’s instead of being filed under staff, and that players who may not play league games were not held back.',
+          'Attendance counts appear together with the rest of a game, instead of a moment later, and no longer nudge everything below them as they arrive.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.63.1',
     date: '04.08.2026',

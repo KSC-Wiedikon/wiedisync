@@ -2,6 +2,13 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.63.2 — 2026-08-04
+
+### Fixed: saying whether you are coming to a game
+- **Players called up from another team can now answer.** Opening a game to another team put the fixture on all their calendars but gave them no Yes / Maybe / No buttons, so nobody could actually say whether they were coming. Their replies now count towards the game's tally like everyone else's.
+- **The Yes / Maybe / No buttons are back on the games list.** Since 10.06 they only appeared once you opened a game, so answering straight from the list was impossible. The same fault also meant a coach's reply was counted as a player's instead of being filed under staff, and that players who may not play league games were not held back.
+- **Attendance counts appear together with the rest of a game**, instead of a moment later, and no longer nudge everything below them as they arrive.
+
 ## v1.63.1 — 2026-08-04
 
 ### Fixed: uploading your ID from a phone

@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { fetchAllItems } from '../lib/api'
+import { useMemo } from 'react'
+import { useCollection } from '../lib/query'
 import { relId } from '../utils/relations'
 
 interface Result {
@@ -10,8 +10,8 @@ interface Result {
 }
 
 /**
- * Resolve which games the current user can see through a guest invitation
- * (migration 271), returned as a flat ID array.
+ * Resolve which games the current user can see — and RSVP to — through a guest
+ * invitation (migration 271), returned as a flat ID array.
  *
  * Every personal game surface — home, calendar, the games list — filters on
  * `kscw_team ∈ my teams`, which is exactly the filter a borrowed player fails: a
@@ -23,49 +23,35 @@ interface Result {
  * relation, and Directus cannot reliably AND a frontend filter with a policy filter
  * through one alias — it silently returns [] for non-admins while looking correct to
  * an admin. Same pattern as useUserVisibleEventIds / useMultiTeamMembers.
+ *
+ * Runs through React Query rather than a private `useState` + `fetch` effect so that
+ * every caller shares one request: the page builds its visibility filter from it AND
+ * each GameCard asks it whether to render RSVP buttons, which is one identical query
+ * key and therefore one round-trip no matter how many cards are on screen.
  */
 export function useUserVisibleGameIds(userId: string | undefined, enabled = true): Result {
-  const [guestGameIds, setGuestGameIds] = useState<string[]>([])
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<Error | null>(null)
+  const { data, isLoading, error } = useCollection<{ game: string | number }>('game_guests', {
+    // Keep the key stable across callers: same filter/fields object shape everywhere.
+    filter: { member: { _eq: userId ?? '' } },
+    fields: ['game'],
+    all: true,
+    enabled: enabled && !!userId,
+  })
 
-  const key = `${enabled ? '1' : '0'}|${userId ?? ''}`
+  const guestGameIds = useMemo(
+    () => [...new Set((data ?? []).map(r => relId(r.game)).filter(Boolean))],
+    [data],
+  )
 
-  // Reset-on-input-change during render (React's adjust-state-during-render pattern),
-  // so a re-enable can't serve the previous member's ids while its fetch is in flight.
-  const [prevKey, setPrevKey] = useState(key)
-  if (prevKey !== key) {
-    setPrevKey(key)
-    if (!enabled || !userId) {
-      setGuestGameIds([])
-      setIsLoading(false)
-    }
-  }
+  return { guestGameIds, isLoading, error: error ?? null }
+}
 
-  useEffect(() => {
-    if (!enabled || !userId) return
-    let cancelled = false
-    async function load() {
-      setIsLoading(true)
-      setError(null)
-      try {
-        const rows = await fetchAllItems<{ game: string | number }>('game_guests', {
-          filter: { member: { _eq: userId } },
-          fields: ['game'],
-        })
-        if (cancelled) return
-        setGuestGameIds([...new Set(rows.map(r => relId(r.game)).filter(Boolean))])
-      } catch (err) {
-        if (cancelled) return
-        setError(err instanceof Error ? err : new Error(String(err)))
-      } finally {
-        if (!cancelled) setIsLoading(false)
-      }
-    }
-    load()
-    return () => { cancelled = true }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key])
-
-  return { guestGameIds, isLoading, error }
+/**
+ * Was the current member called up to this specific game? Drives the RSVP buttons:
+ * `canParticipateIn(game.kscw_team)` is team-scoped and a guest is, by definition, not
+ * on that team's roster — without this they can see the fixture but not answer it.
+ */
+export function useIsCalledUpToGame(userId: string | undefined, gameId: string | undefined): boolean {
+  const { guestGameIds } = useUserVisibleGameIds(userId, !!userId)
+  return !!gameId && guestGameIds.includes(String(gameId))
 }

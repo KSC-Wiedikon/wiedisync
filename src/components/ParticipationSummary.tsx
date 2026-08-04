@@ -11,6 +11,25 @@ import type { Participation } from '../types'
 // current prod record ID when unset.
 const MIXED_TOURNAMENT_EVENT_ID = import.meta.env.VITE_MIXED_TOURNAMENT_EVENT_ID ?? '5'
 
+/** Same box metrics as the live `bars` counters — keep the two in step. */
+const BAR_BOX = 'flex min-w-[3.25rem] items-center justify-center gap-1 rounded-md px-2 py-1'
+
+/** Placeholder for the three RSVP rectangles while their fetch is in flight. */
+function ParticipationBarsSkeleton() {
+  return (
+    <div className="flex animate-pulse flex-col items-start gap-0.5 lg:flex-row lg:items-center lg:gap-2" aria-hidden="true">
+      <div className="flex items-center gap-1">
+        {['bg-green-50 dark:bg-green-900/20', 'bg-yellow-50 dark:bg-yellow-900/20', 'bg-red-50 dark:bg-red-900/20'].map((tint) => (
+          <div key={tint} className={`${BAR_BOX} ${tint}`}>
+            <span className="h-3 w-3 rounded-full bg-gray-300 dark:bg-gray-600" />
+            <span className="h-4 w-2 rounded-sm bg-gray-300 dark:bg-gray-600" />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 interface ParticipationSummaryProps {
   activityType: Participation['activity_type']
   activityId: string
@@ -127,6 +146,13 @@ export default function ParticipationSummary({
   const allGuests = confirmedGuests + staffConfirmedGuests + declinedGuests + staffDeclinedGuests
   const confirmedTotal = confirmed + allGuests + extraConfirmed
   const hasGuestBreakdown = allGuests > 0
+
+  // `bars` sits in the middle of a layout (under the RSVP buttons in the game
+  // detail panel, in the card's footer row), so the placeholder has to occupy the
+  // same footprint as the real counters — swapping a one-character "…" for three
+  // rectangles reflows everything below it once the fetch lands. Render the boxes
+  // greyed instead: they appear with the rest of the UI and fill in on arrival.
+  if (bars && isLoading && data.length === 0) return <ParticipationBarsSkeleton />
 
   // Don't hide during loading — only hide when fetch completed with no data.
   // `alwaysShow` keeps the counters visible (0/0/0) even for empty activities.

@@ -12,6 +12,7 @@ import ParticipationWarningBadge from '../../../components/ParticipationWarningB
 import type { Warning } from '../../../utils/participationWarnings'
 import { useAuth } from '../../../hooks/useAuth'
 import { useAdminMode } from '../../../hooks/useAdminMode'
+import { useIsCalledUpToGame } from '../../../hooks/useUserVisibleGameIds'
 import type { Participation } from '../../../types'
 import { asObj, relId, teamCoachIds } from '../../../utils/relations'
 import CancelActivityButton from '../../../components/CancelActivityButton'
@@ -84,8 +85,15 @@ export default function GameCard({ game, onClick, variant = 'card', participatio
   const { t } = useTranslation('games')
   const { user, canParticipateIn, isCoachOf, teamResponsibleIds, isStaffOnly, isGuestIn } = useAuth()
   const { effectiveIsAdmin } = useAdminMode()
-  const canParticipate = !!user && !!game.kscw_team && canParticipateIn(game.kscw_team)
+  // A called-up player (migration 271) has no member_teams row on the team whose
+  // fixture this is, so canParticipateIn — which is team-scoped — says no. They were
+  // borrowed precisely so they can answer it, hence the OR.
+  const isCalledUp = useIsCalledUpToGame(user?.id, game.id)
+  // relId, not the raw value: surfaces that expand `kscw_team.*` (the games list)
+  // hand us the team OBJECT, and every one of these checks compares against an
+  // array of id strings — so they all quietly answered false there.
   const teamIdForPerms = relId(game.kscw_team)
+  const canParticipate = !!user && !!teamIdForPerms && (canParticipateIn(teamIdForPerms) || isCalledUp)
   const canManage = !!user && (effectiveIsAdmin || isCoachOf(teamIdForPerms) || teamResponsibleIds.includes(teamIdForPerms))
   const canDelete = canManage && game.source === 'manual'
   const expanded = game as unknown as ExpandedGame
@@ -370,8 +378,8 @@ export default function GameCard({ game, onClick, variant = 'card', participatio
                   respondBy={game.respond_by}
                   activityTime={game.time}
                   existingParticipation={myParticipation}
-                  isStaff={!!game.kscw_team && isStaffOnly(game.kscw_team)}
-                  guestExcluded={!!game.kscw_team && isGuestIn(game.kscw_team)}
+                  isStaff={!!teamIdForPerms && isStaffOnly(teamIdForPerms)}
+                  guestExcluded={!!teamIdForPerms && isGuestIn(teamIdForPerms)}
                   onSaved={onParticipationSaved}
                 />
               )}

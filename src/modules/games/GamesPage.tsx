@@ -527,7 +527,11 @@ export default function GamesPage() {
         )}
       </div>
 
-      <GameDetailModal game={selectedGame} onClose={() => setSelectedGame(null)} />
+      <GameDetailModal
+        game={selectedGame}
+        onClose={() => setSelectedGame(null)}
+        participations={selectedGame ? participationsByGame.get(selectedGame.id) : undefined}
+      />
 
       <ParticipationRosterModal
         open={rosterGame !== null}

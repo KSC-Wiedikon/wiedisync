@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { MessageSquare, X, Check, AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
-import type { Game, Team, Hall, Member, BaseRecord } from '../../../types'
+import type { Game, Team, Hall, Member, BaseRecord, Participation } from '../../../types'
 import { Button } from '@/components/ui/button'
 import TeamChip from '../../../components/TeamChip'
 import { teamNameToColorKey } from '../../../utils/teamColors'
@@ -13,6 +13,7 @@ import RosterModal from '../../scorer/components/RosterModal'
 import PreGameRosterModal from './PreGameRosterModal'
 import ShowIdsModal from './ShowIdsModal'
 import { useAuth } from '../../../hooks/useAuth'
+import { useIsCalledUpToGame } from '../../../hooks/useUserVisibleGameIds'
 import { useParticipation } from '../../../hooks/useParticipation'
 import { useMyCoveringAbsence } from '../../../hooks/useMyCoveringAbsence'
 import { useAbsenceNoteText } from '../../../hooks/useAbsenceNoteText'
@@ -41,6 +42,12 @@ interface GameDetailModalProps {
   game: Game | null
   onClose: () => void
   readOnly?: boolean
+  /**
+   * Participations the opening surface has already fetched for this game. Passing
+   * them renders the RSVP counters on the panel's first paint; without it the
+   * summary opens its own request and the rectangles arrive a round-trip late.
+   */
+  participations?: Participation[]
 }
 
 type ExpandedGame = Game & {
@@ -100,7 +107,7 @@ const NOMINATION_STATUS_TONE: Record<NominationStatus, string> = {
   failed: 'border-red-300 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200',
 }
 
-export default function GameDetailModal({ game, onClose, readOnly }: GameDetailModalProps) {
+export default function GameDetailModal({ game, onClose, readOnly, participations }: GameDetailModalProps) {
   const { t } = useTranslation('games')
   const { user, isCoachOf, isStaffOnly, canParticipateIn, isGuestIn, coachTeamIds, teamResponsibleIds, hasAdminAccessToTeam } = useAuth()
   const confirm = useConfirm()
@@ -123,7 +130,10 @@ export default function GameDetailModal({ game, onClose, readOnly }: GameDetailM
   const [pushingNomination, setPushingNomination] = useState(false)
   const dialogRef = useRef<HTMLDivElement>(null)
   const { update: updateGame } = useMutation<Game>('games')
-  const canParticipate = !!user && !!game?.kscw_team && canParticipateIn(relId(game.kscw_team))
+  // Called-up players (migration 271) are not on this team's roster, so the
+  // team-scoped canParticipateIn misses them — see useIsCalledUpToGame.
+  const isCalledUp = useIsCalledUpToGame(user?.id, game?.id)
+  const canParticipate = !!user && !!game?.kscw_team && (canParticipateIn(relId(game.kscw_team)) || isCalledUp)
   const isStaffParticipant = !!game?.kscw_team && isStaffOnly(relId(game.kscw_team))
   const { effectiveStatus, hasAbsence, note: savedNote, setStatus, saveConfirmed, dismissConfirmed } = useParticipation(
     'game',
@@ -588,7 +598,7 @@ export default function GameDetailModal({ game, onClose, readOnly }: GameDetailM
             </div>
             {/* RSVP tallies on their own full-width row, centred under the buttons */}
             <div className="flex w-full justify-center pt-1">
-              <ParticipationSummary activityType="game" activityId={game.id} bars coachMemberIds={teamCoachIds(kscwTeamObj)} />
+              <ParticipationSummary activityType="game" activityId={game.id} bars alwaysShow participations={participations} coachMemberIds={teamCoachIds(kscwTeamObj)} />
             </div>
             {/* Participation note */}
             {effectiveStatus && (

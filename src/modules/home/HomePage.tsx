@@ -804,7 +804,11 @@ export default function HomePage() {
         />
       )}
 
-      <GameDetailModal game={selectedGame} onClose={() => setSelectedGame(null)} />
+      <GameDetailModal
+        game={selectedGame}
+        onClose={() => setSelectedGame(null)}
+        participations={selectedGame ? getParticipations('game', selectedGame.id) : undefined}
+      />
       <TrainingDetailModal training={selectedTraining} onClose={() => setSelectedTraining(null)} />
       <EventDetailModal event={selectedEvent} onClose={() => setSelectedEvent(null)} />
 
