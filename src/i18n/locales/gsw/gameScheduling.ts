@@ -621,6 +621,7 @@ export default {
   mailboxDrillStart: "Wähl e Zielgruppe und grenz si wiiter ii",
   mailboxDrillCount: "{{count}} Persone passed",
   mailboxDrillAdd: "Zu de Empfänger hinzuefüege",
+  mailboxSection_season: "Saison",
   mailboxGroupSend: 'Gruppe aaschriibe',
   mailboxGroupLabel: 'Gruppe',
   mailboxGroupsLoadFailed: 'Gruppe hend nöd chöne glade werde',

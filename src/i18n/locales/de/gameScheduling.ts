@@ -649,6 +649,7 @@ export default {
   mailboxDrillStart: "Wähle eine Zielgruppe und grenze sie weiter ein",
   mailboxDrillCount: "{{count}} Personen passen",
   mailboxDrillAdd: "Zu Empfängern hinzufügen",
+  mailboxSection_season: "Saison",
   mailboxGroupSend: 'Gruppe anschreiben',
   mailboxGroupLabel: 'Gruppe',
   mailboxGroupsLoadFailed: 'Gruppen konnten nicht geladen werden',

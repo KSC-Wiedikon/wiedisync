@@ -62,9 +62,12 @@ export interface MailboxReplyPayload {
  *  own name, which is data and never translated. */
 export interface MailboxGroup {
   key: string
-  /** Which chip row it belongs to: everyone | sektion | players | roles | teams | former. */
+  /** Which chip row it belongs to: everyone | sektion | players | roles | teams |
+   *  former | season. */
   section: string
-  count: number
+  /** null for season chips — a season filters other audiences rather than being
+   *  an audience with a size of its own. */
+  count: number | null
   /** Teams only — the roster name to display verbatim. */
   name?: string
   sport?: string | null
@@ -73,6 +76,8 @@ export interface MailboxGroup {
 export interface MailboxGroupsResponse {
   groups: MailboxGroup[]
   teams: MailboxGroup[]
+  /** Present only when the club has more than one season on file. */
+  seasons?: MailboxGroup[]
   /** The signature the server appends to every send. Rendered read-only in the
    *  composer so the operator can see what is already there and doesn't type a
    *  second sign-off under one they were never shown. */

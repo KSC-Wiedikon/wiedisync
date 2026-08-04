@@ -620,6 +620,7 @@ export default {
   mailboxDrillStart: "Choisis un public, puis affine-le",
   mailboxDrillCount: "{{count}} personnes correspondent",
   mailboxDrillAdd: "Ajouter aux destinataires",
+  mailboxSection_season: "Saison",
   mailboxGroupSend: 'Écrire à un groupe',
   mailboxGroupLabel: 'Groupe',
   mailboxGroupsLoadFailed: 'Impossible de charger les groupes',

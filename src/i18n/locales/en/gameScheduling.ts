@@ -651,6 +651,7 @@ export default {
   mailboxDrillStart: "Pick an audience, then narrow it further",
   mailboxDrillCount: "{{count}} people match",
   mailboxDrillAdd: "Add to recipients",
+  mailboxSection_season: "Season",
   mailboxGroupSend: 'Email a group',
   mailboxGroupLabel: 'Group',
   mailboxGroupsLoadFailed: 'Could not load the groups',

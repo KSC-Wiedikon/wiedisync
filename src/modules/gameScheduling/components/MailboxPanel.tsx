@@ -275,7 +275,7 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
     // turns one click into a wall of chips, so anything large asks first — the
     // operator usually wants the audience, not 671 removable rows.
     const est = clause.length === 1
-      ? [...(groups?.groups ?? []), ...(groups?.teams ?? [])].find((x) => x.key === clause[0])?.count ?? 0
+      ? [...(groups?.seasons ?? []), ...(groups?.groups ?? []), ...(groups?.teams ?? [])].find((x) => x.key === clause[0])?.count ?? 0
       : 0
     if (est > EXPAND_CONFIRM_THRESHOLD) {
       const ok = await confirm({ message: t('mailboxExpandLarge', { count: est }) })
@@ -663,11 +663,11 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
   // byte-identical fields rather than drifting into two versions.
   /** Display label for a selected audience key, resolved out of the catalogue. */
   const keyLabel = (key: string) => {
-    const g = [...(groups?.groups ?? []), ...(groups?.teams ?? [])].find((x) => x.key === key)
+    const g = [...(groups?.seasons ?? []), ...(groups?.groups ?? []), ...(groups?.teams ?? [])].find((x) => x.key === key)
     return g ? groupLabel(g) : key
   }
   const keyCount = (key: string) =>
-    [...(groups?.groups ?? []), ...(groups?.teams ?? [])].find((x) => x.key === key)?.count
+    [...(groups?.seasons ?? []), ...(groups?.groups ?? []), ...(groups?.teams ?? [])].find((x) => x.key === key)?.count
 
   const composeRecipients = (c: ComposeState) =>
     c.mode === 'group' ? (
@@ -1230,7 +1230,7 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
 
 /** Chip rows, in display order. Keys match `section` on the server's group
  *  catalogue; anything with an unrecognised section falls into 'roles'. */
-const AUDIENCE_SECTIONS = ['everyone', 'sektion', 'players', 'roles', 'teams', 'former'] as const
+const AUDIENCE_SECTIONS = ['season', 'everyone', 'sektion', 'players', 'roles', 'teams', 'former'] as const
 
 /**
  * Audience picker — toggle chips grouped into rows.
@@ -1259,7 +1259,7 @@ function AudiencePicker({
   const { t } = useTranslation('gameScheduling')
   const bySection = useMemo(() => {
     const map = new Map<string, MailboxGroup[]>()
-    for (const g of [...(groups?.groups ?? []), ...(groups?.teams ?? [])]) {
+    for (const g of [...(groups?.seasons ?? []), ...(groups?.groups ?? []), ...(groups?.teams ?? [])]) {
       const key = (AUDIENCE_SECTIONS as readonly string[]).includes(g.section) ? g.section : 'roles'
       if (!map.has(key)) map.set(key, [])
       map.get(key)!.push(g)
@@ -1285,6 +1285,7 @@ function AudiencePicker({
           <div className="flex flex-wrap gap-1.5">
             {bySection.get(section)!.map((g) => {
               const on = selected.includes(g.key)
+              // count === null means "no size of its own" (season), not "empty".
               const empty = g.count === 0
               return (
                 <button
@@ -1303,7 +1304,7 @@ function AudiencePicker({
                   }`}
                 >
                   <span>{labelFor(g)}</span>
-                  <span className={on ? 'text-white/80' : 'text-gray-400 dark:text-gray-500'}>{g.count}</span>
+                  {g.count != null && <span className={on ? 'text-white/80' : 'text-gray-400 dark:text-gray-500'}>{g.count}</span>}
                 </button>
               )
             })}

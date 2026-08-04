@@ -73,3 +73,37 @@ export function intersectSets(sets) {
   if (!sets || sets.length === 0) return new Set()
   return sets.reduce((acc, s) => new Set([...acc].filter(v => s.has(v))))
 }
+
+/** Audience keys whose meaning depends on which season's teams you look at. */
+const SEASON_SCOPED_PREFIXES = ['sport:', 'fn:', 'team:']
+
+export const SEASON_KEY_PREFIX = 'season:'
+
+/**
+ * Split a clause into its season modifier and the audiences it scopes.
+ *
+ * A season is NOT another audience to intersect with. "Last season" is not a
+ * set of people you AND against coaches — it changes which teams the word
+ * "coach" refers to. Modelling it as a set would give coaches-of-active-teams
+ * who also appear on a 2025/26 roster, which is a different and much smaller
+ * group than "the people who coached last season".
+ *
+ * Returns `{ season, keys, seasonScopable }`. `seasonScopable` is false when no
+ * remaining key actually varies by season (all members, a section, a
+ * qualification, former members) — the caller rejects that combination rather
+ * than silently returning the unscoped audience.
+ */
+export function splitSeason(clauseKeys) {
+  const keys = []
+  let season = null
+  for (const k of clauseKeys) {
+    if (String(k).startsWith(SEASON_KEY_PREFIX)) {
+      // Last one wins; the UI only ever offers a single season chip.
+      season = String(k).slice(SEASON_KEY_PREFIX.length).trim() || null
+    } else {
+      keys.push(k)
+    }
+  }
+  const seasonScopable = keys.some(k => SEASON_SCOPED_PREFIXES.some(p => String(k).startsWith(p)))
+  return { season, keys, seasonScopable }
+}

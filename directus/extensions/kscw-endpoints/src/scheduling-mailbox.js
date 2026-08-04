@@ -60,7 +60,7 @@ import MailComposer from 'nodemailer/lib/mail-composer/index.js'
 import { escHtml } from './email-template.js'
 import { writeUserLog } from './activity-log.js'
 import { MAILBOX_GROUPS, resolveClubdeskRecipients, resolveMemberAudience, resolveRegisterEmails, teamAudienceCounts } from './audience.js'
-import { intersectSets, parseClauses, parseList } from './mailbox-audience-select.js'
+import { intersectSets, parseClauses, parseList, splitSeason } from './mailbox-audience-select.js'
 import { loadSuppressed } from './email-suppression.js'
 import {
   SCHEDULING_SIGNATURE_LIGHT_HTML, SCHEDULING_SIGNATURE_TEXT,
@@ -1153,15 +1153,16 @@ export function registerSchedulingMailbox(router, { database, logger }) {
     const clubdeskRows = []
 
     for (const clause of clauses) {
+      const { srcs, season } = clause
       const memberSets = []
-      for (const src of clause) {
+      for (const src of srcs) {
         if (src.clubdeskStatus) {
           // Former members are register contacts, not member rows, so they can
           // never intersect with a member audience — the endpoint rejects that
           // mix rather than letting it resolve to a silent empty set.
           clubdeskRows.push(...await resolveClubdeskRecipients(database, src.clubdeskStatus))
         } else {
-          memberSets.push(new Set(await resolveMemberAudience(database, log, src.spec, label)))
+          memberSets.push(new Set(await resolveMemberAudience(database, log, src.spec, label, { season })))
         }
       }
       if (memberSets.length === 0) continue
@@ -1241,9 +1242,22 @@ export function registerSchedulingMailbox(router, { database, logger }) {
           ? resolveClubdeskRecipients(database, g.status).then(rows => rows.length)
           : resolveMemberAudience(database, log, g.spec, `mailbox/${g.key}`).then(ids => ids.length))),
       ])
+      // Season chips. Offered only when the club actually has more than one
+      // season on file — a single-season club would just see a chip that
+      // narrows nothing. Newest first; no count, because a season is a filter
+      // on other audiences rather than an audience with a size of its own.
+      const seasonRows = await database('teams')
+        .whereNotNull('season')
+        .distinct('season')
+        .orderBy('season', 'desc')
+      const seasons = seasonRows.length > 1
+        ? seasonRows.map(r => ({ key: `season:${r.season}`, section: 'season', name: r.season, count: null }))
+        : []
+
       res.json({
         groups: MAILBOX_GROUPS.map((g, i) => ({ key: g.key, section: g.section ?? 'roles', count: counts[i] })),
         teams: teams.map(t => ({ key: `team:${t.id}`, section: 'teams', name: t.name, sport: t.sport, count: t.count })),
+        seasons,
         // The signature the server appends to every send. Returned so the
         // composer can SHOW it: it has always been added, but an operator
         // writing into an empty editor had no way to know that, and would
@@ -1256,7 +1270,18 @@ export function registerSchedulingMailbox(router, { database, logger }) {
   /** Resolve clause key-lists to source descriptors, or an error string. */
   function sourcesForClauses(clauses) {
     const out = []
-    for (const keys of clauses) {
+    for (const clauseKeys of clauses) {
+      // A season is a MODIFIER on the rest of the clause, not a member of it.
+      const { season, keys, seasonScopable } = splitSeason(clauseKeys)
+      if (season && !seasonScopable) {
+        // Nothing left in the clause varies by season (a section, a
+        // qualification, all members, former members). Silently returning the
+        // unscoped audience would hand back a different set than the chip says.
+        return { error: `Season ${season} cannot be applied to this audience` }
+      }
+      if (season && keys.length === 0) {
+        return { error: `Season ${season} needs an audience to filter` }
+      }
       const srcs = []
       for (const k of keys) {
         const src = sourceForGroup(k)
@@ -1273,7 +1298,7 @@ export function registerSchedulingMailbox(router, { database, logger }) {
       if (srcs.length > 1 && srcs.some(s => s.clubdeskStatus)) {
         return { error: 'Former members cannot be combined with other audiences in one filter' }
       }
-      out.push(srcs)
+      out.push({ srcs, season })
     }
     return { sources: out }
   }

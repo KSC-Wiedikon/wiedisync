@@ -621,6 +621,7 @@ export default {
   mailboxDrillStart: "Scegli un pubblico, poi restringilo",
   mailboxDrillCount: "{{count}} persone corrispondono",
   mailboxDrillAdd: "Aggiungi ai destinatari",
+  mailboxSection_season: "Stagione",
   mailboxGroupSend: 'Scrivere a un gruppo',
   mailboxGroupLabel: 'Gruppo',
   mailboxGroupsLoadFailed: 'Impossibile caricare i gruppi',

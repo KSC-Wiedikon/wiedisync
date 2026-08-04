@@ -5,6 +5,7 @@ import {
   parseClauses,
   parseGroupKeys,
   parseList,
+  splitSeason,
 } from '../../extensions/kscw-endpoints/src/mailbox-audience-select.js'
 
 // These functions decide who a mass mail reaches. A mistake here is invisible
@@ -92,4 +93,57 @@ test('parseList: handles JSON, comma strings and arrays', () => {
 
 test('parseGroupKeys: dedupes, trims and drops blanks', () => {
   assert.deepEqual(parseGroupKeys({ groups: ' a , a ,, b ' }), ['a', 'b'])
+})
+
+// ── Season is a modifier, not an audience ────────────────────────────────
+// The distinction matters: as a set, "2025/26" AND "coaches" would mean
+// current coaches who also appear on a 2025/26 roster. As a modifier it means
+// the people who coached in 2025/26 — a different, larger, correct group.
+
+test('splitSeason: lifts the season out and keeps the audiences', () => {
+  const { season, keys, seasonScopable } = splitSeason(['season:2025/26', 'fn:coach'])
+  assert.equal(season, '2025/26')
+  assert.deepEqual(keys, ['fn:coach'])
+  assert.equal(seasonScopable, true)
+})
+
+test('splitSeason: no season chip leaves the clause untouched', () => {
+  const { season, keys } = splitSeason(['fn:coach', 'sektion:volleyball'])
+  assert.equal(season, null)
+  assert.deepEqual(keys, ['fn:coach', 'sektion:volleyball'])
+})
+
+test('splitSeason: sport and team keys are season-scopable', () => {
+  assert.equal(splitSeason(['season:2025/26', 'sport:volleyball']).seasonScopable, true)
+  assert.equal(splitSeason(['season:2025/26', 'team:12']).seasonScopable, true)
+})
+
+test('splitSeason: register-based audiences are NOT season-scopable', () => {
+  // A section, a qualification or the whole register are not seasonal facts.
+  // The endpoint rejects these rather than quietly ignoring the season and
+  // returning a different audience than the chip claims.
+  for (const key of ['sektion:volleyball', 'qual:scorer_vb', 'all', 'former_members']) {
+    assert.equal(splitSeason(['season:2025/26', key]).seasonScopable, false, key)
+  }
+})
+
+test('splitSeason: a season with nothing to scope leaves no keys', () => {
+  const { season, keys, seasonScopable } = splitSeason(['season:2025/26'])
+  assert.equal(season, '2025/26')
+  assert.deepEqual(keys, [])
+  assert.equal(seasonScopable, false)
+})
+
+test('splitSeason: a blank season value is treated as absent', () => {
+  assert.equal(splitSeason(['season:', 'fn:coach']).season, null)
+})
+
+test('splitSeason: season survives parseClauses end to end', () => {
+  const body = { clauses: JSON.stringify([['season:2025/26', 'sport:volleyball']]) }
+  const [clause] = parseClauses(body)
+  assert.deepEqual(splitSeason(clause), {
+    season: '2025/26',
+    keys: ['sport:volleyball'],
+    seasonScopable: true,
+  })
 })

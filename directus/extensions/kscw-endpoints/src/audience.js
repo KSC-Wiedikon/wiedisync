@@ -65,7 +65,12 @@ export async function membersOnTeams(database, teamIds) {
   ].filter(Boolean))]
 }
 
-export async function membersWithRoleTokens(database, log, tokens) {
+/**
+ * @param {object} [opts]
+ * @param {string} [opts.season] Resolve fn:* against this season's teams instead
+ *   of the active ones. Omitted = current season, i.e. the historical behaviour.
+ */
+export async function membersWithRoleTokens(database, log, tokens, opts = {}) {
   const roleNames = []
   const functions = []
   const quals = []
@@ -116,18 +121,29 @@ export async function membersWithRoleTokens(database, log, tokens) {
 
   if (functions.length > 0) {
     const staff = new Set()
+    // Season scoping replaces the active-team gate rather than adding to it:
+    // last season's teams are all active=false, so ANDing the two would always
+    // resolve to nobody — a silent empty send, the exact failure this feature
+    // exists to avoid.
+    const seasonScope = (qb) => (opts.season ? qb.where('t.season', opts.season) : qb.where('t.active', true))
+
     if (functions.includes('coach')) {
-      const rows = await database('teams_coaches as tc').join('teams as t', 't.id', 'tc.teams_id')
-        .where('t.active', true).select('tc.members_id as id')
+      const rows = await seasonScope(
+        database('teams_coaches as tc').join('teams as t', 't.id', 'tc.teams_id'),
+      ).select('tc.members_id as id')
       rows.forEach(r => staff.add(r.id))
     }
     if (functions.includes('team_responsible')) {
-      const rows = await database('teams_responsibles as tr').join('teams as t', 't.id', 'tr.teams_id')
-        .where('t.active', true).select('tr.members_id as id')
+      const rows = await seasonScope(
+        database('teams_responsibles as tr').join('teams as t', 't.id', 'tr.teams_id'),
+      ).select('tr.members_id as id')
       rows.forEach(r => staff.add(r.id))
     }
     if (functions.includes('captain')) {
-      const rows = await database('teams').where('active', true).whereNotNull('captain').select('captain as id')
+      const rows = await (opts.season
+        ? database('teams').where('season', opts.season)
+        : database('teams').where('active', true)
+      ).whereNotNull('captain').select('captain as id')
       rows.forEach(r => staff.add(r.id))
     }
     // The junctions carry no activity flag of their own, so gate on the member
@@ -236,7 +252,7 @@ export const MAILBOX_GROUPS = [
  * Every path must resolve deliberately, and an unrecognised type must fail
  * closed rather than land in a neighbouring branch.
  */
-export async function resolveMemberAudience(database, log, spec, label = 'audience') {
+export async function resolveMemberAudience(database, log, spec, label = 'audience', opts = {}) {
   switch (spec.audience_type) {
     case 'all': {
       const rows = await database('members').where('wiedisync_active', true).select('id')
@@ -287,7 +303,9 @@ export async function resolveMemberAudience(database, log, spec, label = 'audien
         .join('teams as t', 't.id', 'mt.team')
         .join('members as m', 'm.id', 'mt.member')
         .where('t.sport', spec.audience_sport)
-        .where('t.active', true)
+        // See the note in membersWithRoleTokens: season REPLACES the active
+        // gate, it does not narrow it — an archived season has active=false.
+        .where(function () { if (opts.season) this.where('t.season', opts.season); else this.where('t.active', true) })
         .where('m.kscw_membership_active', true)
         .distinct('m.id')
         .select('m.id')
@@ -336,7 +354,7 @@ export async function resolveMemberAudience(database, log, spec, label = 'audien
       // The activity gate is per-namespace, not per-audience-type — role:* is
       // an app concept (wiedisync_active), fn:*/qual:* are real-world ones
       // (kscw_membership_active). See membersWithRoleTokens.
-      return await membersWithRoleTokens(database, log, tokens)
+      return await membersWithRoleTokens(database, log, tokens, opts)
     }
     default: {
       log?.warn?.({ msg: `[${label}] unrecognised audience_type "${spec.audience_type}" — skipping fanout` })
