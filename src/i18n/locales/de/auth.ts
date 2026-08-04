@@ -164,7 +164,8 @@ export default {
   resettingPassword: 'Wird gespeichert...',
   resetSuccess: 'Dein Passwort wurde erfolgreich geändert. Du kannst dich jetzt anmelden.',
   resetError: 'Der Link ist ungültig oder abgelaufen. Bitte fordere einen neuen Link an.',
-  noAccountFound: 'Kein Konto mit dieser E-Mail gefunden. Erstelle zuerst ein Konto.',
+  noAccountFound: 'Kein Konto mit dieser E-Mail-Adresse gefunden.',
+  noAccountFoundHint: 'Falls du bereits Mitglied bist, versuche es mit der Adresse, die der Club von dir hinterlegt hat — sie kann von dieser abweichen. Andernfalls erstelle ein Konto.',
 
   // OTP verification
   otpSentTo: 'Code gesendet an {{email}}',
@@ -193,6 +194,9 @@ export default {
   settingPassword: 'Passwort wird gesetzt...',
   passwordSetSuccess: 'Passwort erfolgreich gesetzt!',
   passwordTooShort: 'Das Passwort muss mindestens 8 Zeichen lang sein.',
+  passwordNeedsLetterAndNumber: 'Das Passwort muss mindestens einen Buchstaben und eine Zahl oder ein Sonderzeichen enthalten.',
+  passwordTooCommon: 'Dieses Passwort ist zu häufig. Bitte wähle ein stärkeres.',
+  passwordRequirements: 'Mindestens 8 Zeichen, mit einem Buchstaben und einer Zahl oder einem Sonderzeichen.',
   passwordResetSent: 'Prüfe deine E-Mails, um dein Passwort festzulegen.',
   passwordResetSuccess: 'Dein Passwort wurde erfolgreich geändert. Du kannst dich jetzt anmelden.',
 

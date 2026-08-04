@@ -7,6 +7,7 @@ import { FormInput } from '@/components/FormField'
 import { Button } from '@/components/ui/button'
 import { OtpInput } from '@/components/OtpInput'
 import { LANGUAGES } from '@/i18n/languageConfig'
+import { PASSWORD_MIN_LENGTH, checkPassword, passwordErrorKeyFromCode, passwordIssueKey } from '@/lib/passwordRules'
 
 type Phase = 'email' | 'otp' | 'set-password' | 'success'
 
@@ -15,9 +16,18 @@ export default function SetPasswordPage() {
   const { theme } = useTheme()
   const [searchParams] = useSearchParams()
   const initialEmail = searchParams.get('email') ?? ''
+  // Reset links mailed by /kscw/password-request land here as
+  // `/set-password?token=…`. This param went unread until 2026-08-05, so every
+  // emailed link silently dumped the member on the OTP form instead of the
+  // password form — the backend's token mode was unreachable from the app and
+  // the tokens it issued were never consumed. With a token we skip straight to
+  // the password step and let the token stand in for the OTP.
+  const resetToken = searchParams.get('token') ?? ''
 
-  // Skip straight to OTP phase if email provided via query param
-  const [phase, setPhase] = useState<Phase>(initialEmail ? 'otp' : 'email')
+  // Token → password form directly; email → OTP; otherwise ask for the email.
+  const [phase, setPhase] = useState<Phase>(
+    resetToken ? 'set-password' : initialEmail ? 'otp' : 'email',
+  )
   const [email, setEmail] = useState(initialEmail)
   const [password, setPassword] = useState('')
   const [passwordConfirm, setPasswordConfirm] = useState('')
@@ -26,9 +36,10 @@ export default function SetPasswordPage() {
   const [loading, setLoading] = useState(false)
   const autoSentRef = useRef(false)
 
-  // Auto-send OTP when starting on otp phase with pre-filled email
+  // Auto-send OTP when starting on otp phase with pre-filled email. A reset
+  // token is its own proof of address — don't also mail a code.
   useEffect(() => {
-    if (initialEmail && !autoSentRef.current) {
+    if (initialEmail && !resetToken && !autoSentRef.current) {
       autoSentRef.current = true
       handleSendOtp()
     }
@@ -81,8 +92,12 @@ export default function SetPasswordPage() {
     e.preventDefault()
     setError(null)
 
-    if (password.length < 8) {
-      setError(t('passwordTooShort'))
+    // Mirror the backend rules before spending a round trip — the server
+    // enforces letter + digit/special too, and a 400 from it used to surface as
+    // a bogus "link expired".
+    const issue = checkPassword(password)
+    if (issue) {
+      setError(t(passwordIssueKey(issue)))
       return
     }
     if (password !== passwordConfirm) {
@@ -94,11 +109,20 @@ export default function SetPasswordPage() {
     try {
       await kscwApi('/set-password', {
         method: 'POST',
-        body: { password, email: email.trim().toLowerCase() },
+        // A reset token authenticates the request on its own; the OTP flow
+        // identifies the account by the address it just verified.
+        body: resetToken ? { password, token: resetToken } : { password, email: email.trim().toLowerCase() },
       })
       setPhase('success')
     } catch (err) {
-      if ((err as Error & { code?: string }).code === 'no_account') {
+      const code = (err as Error & { code?: string }).code
+      const passwordKey = passwordErrorKeyFromCode(code)
+      if (passwordKey) {
+        // A rule the mirror can't check (common-password list). Say which rule
+        // failed instead of blaming the link.
+        setNoAccount(false)
+        setError(t(passwordKey))
+      } else if (code === 'no_account') {
         setNoAccount(true)
         setError(t('noAccountFound'))
       } else {
@@ -191,7 +215,7 @@ export default function SetPasswordPage() {
                     placeholder={t('passwordPlaceholder')}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    minLength={8}
+                    minLength={PASSWORD_MIN_LENGTH}
                     required
                     autoComplete="new-password"
                     autoFocus
@@ -203,20 +227,31 @@ export default function SetPasswordPage() {
                     placeholder={t('passwordPlaceholder')}
                     value={passwordConfirm}
                     onChange={(e) => setPasswordConfirm(e.target.value)}
-                    minLength={8}
+                    minLength={PASSWORD_MIN_LENGTH}
                     required
                     autoComplete="new-password"
                   />
+
+                  {/* State the rules up front — they used to be discoverable
+                      only by tripping over a 400 that named the wrong cause. */}
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{t('passwordRequirements')}</p>
 
                   {error && (
                     <div className="text-sm text-red-600 dark:text-red-400">
                       <p>{error}</p>
                       {noAccount && (
-                        <p className="mt-2">
-                          <Link to="/signup" className="font-medium text-brand-600 hover:text-brand-500 dark:text-brand-400">
-                            {t('signUp')} →
-                          </Link>
-                        </p>
+                        <>
+                          {/* Members whose club address differs from the one
+                              they typed land here (a personal Gmail vs. the
+                              address on file). Signing up would create a
+                              duplicate, so offer that second. */}
+                          <p className="mt-2 text-gray-500 dark:text-gray-400">{t('noAccountFoundHint')}</p>
+                          <p className="mt-2">
+                            <Link to="/signup" className="font-medium text-brand-600 hover:text-brand-500 dark:text-brand-400">
+                              {t('signUp')} →
+                            </Link>
+                          </p>
+                        </>
                       )}
                     </div>
                   )}

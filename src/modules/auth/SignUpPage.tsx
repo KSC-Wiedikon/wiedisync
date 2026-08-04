@@ -18,6 +18,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import LanguageSelect from '@/components/LanguageSelect'
 import type { Team } from '../../types'
 import { createRecord, kscwApi, updateRecord } from '../../lib/api'
+import { checkPassword, passwordErrorKeyFromCode, passwordIssueKey } from '../../lib/passwordRules'
 
 const TURNSTILE_SITE_KEY = '0x4AAAAAACoYmx3xiDfRbmv9'
 const CLUB_SIGNUP_URL = 'https://kscw.ch/weiteres/anmeldung'
@@ -137,8 +138,9 @@ export default function SignUpPage() {
   async function handleInviteRedeem(e: React.FormEvent) {
     e.preventDefault()
     setError('')
-    if (password.length < 8) {
-      setError(t('passwordTooShort'))
+    const pwIssue = checkPassword(password)
+    if (pwIssue) {
+      setError(t(passwordIssueKey(pwIssue)))
       return
     }
     if (password !== passwordConfirm) {
@@ -168,7 +170,13 @@ export default function SignUpPage() {
       // kscwApi encodes the HTTP status at the end of the message
       // (`API <path>: <status>`); network errors carry no status (→ 0).
       const status = Number(/: (\d{3})$/.exec(apiErr.message ?? '')?.[1] ?? 0)
-      if (apiErr.code === 'invalid_token' || apiErr.code === 'already_claimed') {
+      const passwordKey = passwordErrorKeyFromCode(apiErr.code)
+      if (passwordKey) {
+        // Password rules now travel as a `password_*` code, so they no longer
+        // fall into the code-less branch below that used to print the backend's
+        // English text verbatim. Translated, and names the failing rule.
+        setError(t(passwordKey))
+      } else if (apiErr.code === 'invalid_token' || apiErr.code === 'already_claimed') {
         setInviteErrorCode(apiErr.code)
         setStep('invite-error')
       } else if (apiErr.code === 'no_email') {
@@ -276,8 +284,9 @@ export default function SignUpPage() {
     e.preventDefault()
     setError('')
 
-    if (password.length < 8) {
-      setError(t('passwordTooShort'))
+    const pwIssue = checkPassword(password)
+    if (pwIssue) {
+      setError(t(passwordIssueKey(pwIssue)))
       return
     }
     if (password !== passwordConfirm) {
@@ -337,7 +346,10 @@ export default function SignUpPage() {
       // inbox) — /set-password returns code 'email_in_use'. Surface the
       // actionable message instead of the generic failure.
       const apiErr = err as Error & { code?: string }
-      if (apiErr.code === 'email_in_use') {
+      const passwordKey = passwordErrorKeyFromCode(apiErr.code)
+      if (passwordKey) {
+        setError(t(passwordKey))
+      } else if (apiErr.code === 'email_in_use') {
         setError(t('inviteEmailInUse'))
       } else {
         setError(t('registrationFailed'))

@@ -113,17 +113,34 @@ const COMMON_PASSWORDS = new Set([
   'abc12345', 'changeme', 'testtest',
 ])
 
+// Returns null when valid, otherwise a ready-to-send 400 body carrying BOTH a
+// human-readable `error` and a stable machine `code`.
+//
+// The code matters: without it the frontend cannot tell a rejected password
+// apart from a dead reset link, and it guessed wrong. On 2026-08-04 a member
+// picked a letters-only password, /set-password 400'd on the rule below, and
+// SetPasswordPage's catch-all showed "This link is invalid or expired" — so she
+// requested two fresh reset emails chasing a link problem that never existed.
+// The `password_*` codes let each surface show the actual rule, translated.
+//
+// Keep the rules in step with `checkPassword()` in src/lib/passwordRules.ts —
+// that mirror is what stops these from ever reaching the network. Only
+// COMMON_PASSWORDS is server-only (the list shouldn't ship to the browser), so
+// `password_too_common` is the one code the mirror can't pre-empt.
 function validatePassword(password) {
   if (!password || password.length < 8) {
-    return 'Password must be at least 8 characters'
+    return { error: 'Password must be at least 8 characters', code: 'password_too_short' }
   }
   if (COMMON_PASSWORDS.has(password.toLowerCase())) {
-    return 'Password is too common — please choose a stronger one'
+    return { error: 'Password is too common — please choose a stronger one', code: 'password_too_common' }
   }
   const hasLetter = /[a-zA-Z]/.test(password)
   const hasDigitOrSpecial = /[0-9!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)
   if (!hasLetter || !hasDigitOrSpecial) {
-    return 'Password must contain at least one letter and one number or special character'
+    return {
+      error: 'Password must contain at least one letter and one number or special character',
+      code: 'password_weak',
+    }
   }
   return null // valid
 }
@@ -1328,7 +1345,7 @@ export default {
         const { password, email: rawEmail, token } = req.body
         const pwError = validatePassword(password)
         if (pwError) {
-          return res.status(400).json({ error: pwError })
+          return res.status(400).json(pwError)
         }
 
         const schema = await getSchema()
@@ -1491,7 +1508,7 @@ export default {
         }
         const pwError = validatePassword(password)
         if (pwError) {
-          return res.status(400).json({ error: pwError })
+          return res.status(400).json(pwError)
         }
         const email = rawEmail.toLowerCase().trim()
 

@@ -2,6 +2,14 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.65.0 — 2026-08-05
+
+### Fixed: setting a new password
+- **Choosing a new password works again.** The form accepted any password of 8 characters or more, but the server also requires a number or a symbol — so a password made only of letters was rejected *after* you pressed save, and the app blamed the reset link instead of the password. At least one member spent a quarter of an hour requesting fresh links to fix a link that was never broken.
+- **The rules are now written under the password field**, and if a password is turned down the app says which rule it missed, in your language.
+- **The "Set password" link in the reset email now opens the password form.** Until now it landed you back at the code-by-email screen, so the mail was effectively a dead end.
+- **A clearer answer when the address is not on file.** If we cannot find an account for the address you typed, the app now suggests trying the address the club has on file for you. Members whose personal address differs from their club one were told no account existed and pointed at signing up, which would have created a duplicate.
+
 ## v1.64.0 — 2026-08-04
 
 ### Club emails: picking who gets them

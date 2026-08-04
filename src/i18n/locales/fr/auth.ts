@@ -162,7 +162,8 @@ export default {
   resettingPassword: 'Enregistrement...',
   resetSuccess: 'Votre mot de passe a ete modifie avec succes. Vous pouvez maintenant vous connecter.',
   resetError: 'Ce lien est invalide ou expire. Veuillez demander un nouveau lien de reinitialisation.',
-  noAccountFound: 'Aucun compte trouvé avec cet e-mail. Créez d\'abord un compte.',
+  noAccountFound: 'Aucun compte trouvé avec cette adresse e-mail.',
+  noAccountFoundHint: 'Si vous êtes déjà membre, essayez l\'adresse que le club a enregistrée pour vous — elle peut être différente de celle-ci. Sinon, créez un compte.',
 
   // OTP verification
   otpSentTo: 'Code envoyé à {{email}}',
@@ -191,6 +192,9 @@ export default {
   settingPassword: 'Définition du mot de passe...',
   passwordSetSuccess: 'Mot de passe défini avec succès !',
   passwordTooShort: 'Le mot de passe doit contenir au moins 8 caractères.',
+  passwordNeedsLetterAndNumber: 'Le mot de passe doit contenir au moins une lettre et un chiffre ou un caractère spécial.',
+  passwordTooCommon: 'Ce mot de passe est trop courant. Veuillez en choisir un plus robuste.',
+  passwordRequirements: 'Au moins 8 caractères, avec une lettre et un chiffre ou un caractère spécial.',
   passwordResetSent: 'Vérifiez vos e-mails pour définir votre mot de passe.',
   passwordResetSuccess: 'Votre mot de passe a été modifié avec succès. Vous pouvez maintenant vous connecter.',
 

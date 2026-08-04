@@ -162,7 +162,8 @@ export default {
   resettingPassword: 'Salvataggio...',
   resetSuccess: 'La tua password è stata cambiata con successo. Ora puoi accedere.',
   resetError: 'Questo link non è valido o è scaduto. Richiedi un nuovo link di reset.',
-  noAccountFound: 'Nessun account trovato con questa email. Crea prima un account.',
+  noAccountFound: 'Nessun account trovato con questo indirizzo email.',
+  noAccountFoundHint: 'Se sei già socio, prova con l\'indirizzo che il club ha registrato per te — potrebbe essere diverso da questo. Altrimenti crea un account.',
 
   // OTP verification
   otpSentTo: 'Codice inviato a {{email}}',
@@ -191,6 +192,9 @@ export default {
   settingPassword: 'Impostazione password...',
   passwordSetSuccess: 'Password impostata con successo!',
   passwordTooShort: 'La password deve contenere almeno 8 caratteri.',
+  passwordNeedsLetterAndNumber: 'La password deve contenere almeno una lettera e un numero o un carattere speciale.',
+  passwordTooCommon: 'Questa password è troppo comune. Scegline una più sicura.',
+  passwordRequirements: 'Almeno 8 caratteri, con una lettera e un numero o un carattere speciale.',
   passwordResetSent: 'Controlla la tua email per impostare la password.',
   passwordResetSuccess: 'La tua password è stata cambiata con successo. Ora puoi accedere.',
 

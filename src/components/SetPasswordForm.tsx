@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { kscwApi } from '../lib/api'
 import { FormInput } from '@/components/FormField'
 import { Button } from '@/components/ui/button'
+import { PASSWORD_MIN_LENGTH, checkPassword, passwordErrorKeyFromCode, passwordIssueKey } from '@/lib/passwordRules'
 
 interface SetPasswordFormProps {
   title: string
@@ -23,8 +24,9 @@ export function SetPasswordForm({ title, description, email, onSuccess }: SetPas
     e.preventDefault()
     setError(null)
 
-    if (password.length < 8) {
-      setError(t('passwordTooShort'))
+    const issue = checkPassword(password)
+    if (issue) {
+      setError(t(passwordIssueKey(issue)))
       return
     }
 
@@ -42,7 +44,15 @@ export function SetPasswordForm({ title, description, email, onSuccess }: SetPas
       onSuccess()
     } catch (err: unknown) {
       // Directus/API errors come back in English and are often unfriendly —
-      // show a localized generic message instead of the raw server text.
+      // show a localized generic message instead of the raw server text. The
+      // exception is a rejected password: a generic "something went wrong"
+      // there leaves the member with no idea what to change, so translate the
+      // specific rule off the backend's code.
+      const passwordKey = passwordErrorKeyFromCode((err as Error & { code?: string }).code)
+      if (passwordKey) {
+        setError(t(passwordKey))
+        return
+      }
       console.error('Set-password failed:', err)
       setError(t('common:error'))
     } finally {
@@ -63,7 +73,7 @@ export function SetPasswordForm({ title, description, email, onSuccess }: SetPas
         placeholder={t('passwordPlaceholder')}
         value={password}
         onChange={(e) => setPassword(e.target.value)}
-        minLength={8}
+        minLength={PASSWORD_MIN_LENGTH}
         required
         autoComplete="new-password"
       />
@@ -74,10 +84,12 @@ export function SetPasswordForm({ title, description, email, onSuccess }: SetPas
         placeholder={t('passwordPlaceholder')}
         value={passwordConfirm}
         onChange={(e) => setPasswordConfirm(e.target.value)}
-        minLength={8}
+        minLength={PASSWORD_MIN_LENGTH}
         required
         autoComplete="new-password"
       />
+
+      <p className="text-xs text-gray-500 dark:text-gray-400">{t('passwordRequirements')}</p>
 
       {error && (
         <p className="text-sm text-destructive">{error}</p>

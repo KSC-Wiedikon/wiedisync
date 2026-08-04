@@ -164,7 +164,8 @@ export default {
   resettingPassword: 'Saving...',
   resetSuccess: 'Your password has been changed successfully. You can now sign in.',
   resetError: 'This link is invalid or expired. Please request a new reset link.',
-  noAccountFound: 'No account found with this email. Create an account first.',
+  noAccountFound: 'No account found with this email address.',
+  noAccountFoundHint: 'If you are already a member, try the address the club has on file for you — it may differ from this one. Otherwise create an account.',
 
   // OTP verification
   otpSentTo: 'Code sent to {{email}}',
@@ -193,6 +194,9 @@ export default {
   settingPassword: 'Setting password...',
   passwordSetSuccess: 'Password set successfully!',
   passwordTooShort: 'Password must be at least 8 characters.',
+  passwordNeedsLetterAndNumber: 'Password must contain at least one letter and one number or special character.',
+  passwordTooCommon: 'This password is too common. Please choose a stronger one.',
+  passwordRequirements: 'At least 8 characters, with one letter and one number or special character.',
   passwordResetSent: 'Check your email to set your password.',
   passwordResetSuccess: 'Your password has been changed successfully. You can now sign in.',
 

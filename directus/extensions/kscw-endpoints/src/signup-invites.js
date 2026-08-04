@@ -320,7 +320,7 @@ export function registerSignupInvites(router, { database, logger, services, getS
       const { token, password, language } = req.body || {}
       if (!token) return res.status(400).json({ error: 'token required' })
       const pwError = validatePassword(password)
-      if (pwError) return res.status(400).json({ error: pwError })
+      if (pwError) return res.status(400).json(pwError)
 
       const row = await database('signup_tokens')
         .where('token_hash', hashSignupToken(String(token)))

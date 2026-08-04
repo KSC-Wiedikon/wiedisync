@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '1.64.0'
+const APP_VERSION = '1.65.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,21 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.65.0',
+    date: '05.08.2026',
+    sections: [
+      {
+        title: 'Fixed: setting a new password',
+        items: [
+          'Choosing a new password works again. The form accepted any password of 8 characters or more, but the server also requires a number or a symbol — so a password made only of letters was rejected after you pressed save, and the app blamed the reset link instead of the password. At least one member spent a quarter of an hour requesting fresh links to fix a link that was never broken.',
+          'The rules are now written under the password field, and if a password is turned down the app says which rule it missed, in your language.',
+          'The "Set password" link in the reset email now opens the password form. Until now it landed you back at the code-by-email screen, so the mail was effectively a dead end.',
+          'If we cannot find an account for the address you typed, the app now suggests trying the address the club has on file for you. Members whose personal address differs from their club one were told no account existed and pointed at signing up, which would have created a duplicate.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.64.0',
     date: '04.08.2026',

@@ -164,7 +164,8 @@ export default {
   resettingPassword: 'Wird gspeichert...',
   resetSuccess: 'Dis Passwort isch gänderet worde. Du chasch dich jetzt ilogge.',
   resetError: 'De Link isch ungültig oder abgloffe. Bitte fordere en neue Link aa.',
-  noAccountFound: 'Käs Konto mit dere E-Mail gfunde. Erstell zersch es Konto.',
+  noAccountFound: 'Käs Konto mit dere E-Mail-Adress gfunde.',
+  noAccountFoundHint: 'Wänn du scho Mitglied bisch, probier d Adress, wo de Club vo dir hinterleit hät — die cha andersch sii als die da. Susch erstell es Konto.',
 
   // OTP verification
   otpSentTo: 'Code gschickt an {{email}}',
@@ -193,6 +194,9 @@ export default {
   settingPassword: 'Passwort wird gsetzt...',
   passwordSetSuccess: 'Passwort erfolgriich gsetzt!',
   passwordTooShort: 'S\'Passwort muess mindestens 8 Zeiche lang sii.',
+  passwordNeedsLetterAndNumber: 'S\'Passwort muess mindestens ein Buechstabe und ei Zahl oder es Sonderzeiche ha.',
+  passwordTooCommon: 'Das Passwort isch z hüüfig. Bitte nimm es stärchers.',
+  passwordRequirements: 'Mindestens 8 Zeiche, mit eim Buechstabe und einere Zahl oder emene Sonderzeiche.',
   passwordResetSent: 'Lueg i dini E-Mails zum dis Passwort feschtlege.',
   passwordResetSuccess: 'Dis Passwort isch erfolgriich gänderet worde. Du chasch dich jetzt aamelde.',
 
