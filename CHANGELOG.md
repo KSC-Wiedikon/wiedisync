@@ -2,6 +2,15 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.64.0 — 2026-08-04
+
+### Club emails: picking who gets them
+- **Picking two teams now means both of them.** Choosing D1 and D2 used to ask for the people who are on *both* rosters — almost nobody — so a mail meant for 39 players would have reached a handful. Anything picked from the same row is now added together, while picking across rows still narrows: **Volleyball** plus **Coaches** is still the volleyball coaches.
+- **Every option shows what it would make the audience, live.** Choose Volleyball and the Coaches count drops from 30 to 15 in front of you, so you can see what a filter costs before committing to it.
+- **Write to members by type** — active, passive, honorary, gap year — **or to guest players**, alongside the existing "all members".
+- **Scorers, referees and officials now mean the people who actually do the job for the club**, taken from the ClubDesk groups, rather than everyone who happens to hold the licence. The basketball officials list alone was 31 people too broad.
+- **The composer opens on the current season**, and the season sits next to the options it applies to.
+
 ## v1.63.3 — 2026-08-04
 
 ### Fixed: seeing who has answered a game

@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '1.63.3'
+const APP_VERSION = '1.64.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,22 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.64.0',
+    date: '04.08.2026',
+    sections: [
+      {
+        title: 'Club emails: picking who gets them',
+        items: [
+          'Picking two teams now means both of them. Choosing D1 and D2 used to ask for the people who are on both rosters — almost nobody — so a mail meant for 39 players would have reached a handful. Anything picked from the same row is now added together, while picking across rows still narrows: Volleyball plus Coaches is still the volleyball coaches.',
+          'Every option shows what it would make the audience, live. Choose Volleyball and the Coaches count drops from 30 to 15 in front of you, so you can see what a filter costs before committing to it.',
+          'You can now write to members by type — active, passive, honorary, gap year — or to guest players, alongside the existing “all members”.',
+          'Scorers, referees and officials now mean the people who actually do the job for the club, taken from the ClubDesk groups, rather than everyone who happens to hold the licence. The basketball officials list alone was 31 people too broad.',
+          'The composer opens on the current season, and the season sits next to the options it applies to.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.63.3',
     date: '04.08.2026',
