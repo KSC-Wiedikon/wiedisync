@@ -155,6 +155,7 @@ export default {
   homeBookings: 'Heimspiel',
   awayProposals: 'Uswärtsvorschläg',
   noBookingsYet: 'No käni Buechige',
+  noGameThisSide: 'Kes Spiel uf dere Site',
   confirmProposal: 'Vorschlag bestätige',
   deleteGame: 'Spiel lösche',
   deletingGame: 'Wird glöscht…',

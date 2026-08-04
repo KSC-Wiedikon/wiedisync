@@ -72,8 +72,12 @@ interface FixtureLeg {
 // Legs for one side of an opponent card: one per fixture (a NULL-keyed legacy
 // booking belongs to the FIRST fixture — mirrors the backend keying), plus
 // bookings whose fixture is no longer in the feed so a confirmed game never
-// vanishes. No fixtures and no bookings → a single empty leg (awaiting
-// proposals — the pre-multi-game layout).
+// vanishes. No fixtures and no bookings ANYWHERE in the pairing → a single empty
+// leg (awaiting proposals — the pre-multi-game layout, and the only shape a
+// non-SVRZ/manual opponent ever has).
+// ⚠ The empty-leg fallback is keyed on the WHOLE pairing, not this side: a
+// pairing with fixtures on one side only (single-round group) would otherwise
+// grow a phantom game on the empty side — "1 fixture" rendering as 2 games.
 function buildFixtureLegs(oppGames: OpponentGame[], oppBookings: ExpandedBooking[], isHome: boolean): FixtureLeg[] {
   const side = oppGames.filter((g) => g.is_home_kscw === isHome)
   const sideBookings = oppBookings.filter((b) => b.type === (isHome ? 'home_slot_pick' : 'away_proposal'))
@@ -90,7 +94,10 @@ function buildFixtureLegs(oppGames: OpponentGame[], oppBookings: ExpandedBooking
     if (used.has(String(b.id))) continue
     legs.push({ key: `bk-${b.id}`, svrzGameId: b.svrz_game_id ?? null, number: null, seq: legs.length + 1, sideCount: side.length, booking: b })
   }
-  if (legs.length === 0) {
+  // Keyed on oppGames (the pairing's synced fixtures), NOT oppBookings: a manual
+  // opponent with only an away booking still needs its empty home leg — that leg
+  // is what ManualBookingForm offers as the "home game" target.
+  if (legs.length === 0 && oppGames.length === 0) {
     legs.push({ key: isHome ? 'legacy-home' : 'legacy-away', svrzGameId: null, number: null, seq: 1, sideCount: 1 })
   }
   return legs.map((l) => ({ ...l, sideCount: legs.length }))
@@ -1462,6 +1469,9 @@ function TeamBookingsContent({
               <div className="flex flex-col">
                 <h4 className="mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">{t('homeBookings')}</h4>
                 <div className="flex flex-1 flex-col gap-3">
+                  {homeLegs.length === 0 && (
+                    <span className="text-sm text-gray-400">{t('noGameThisSide')}</span>
+                  )}
                   {homeLegs.map((leg) => (
                     <div key={leg.key} className="flex flex-1 flex-col">
                       {(leg.sideCount > 1 || leg.number != null) && (
@@ -1498,6 +1508,9 @@ function TeamBookingsContent({
               <div className="flex flex-col">
                 <h4 className="mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">{t('awayProposals')}</h4>
                 <div className="flex flex-1 flex-col gap-3">
+                  {awayLegs.length === 0 && (
+                    <span className="text-sm text-gray-400">{t('noGameThisSide')}</span>
+                  )}
                   {awayLegs.map((leg) => (
                     <div key={leg.key} className="flex flex-1 flex-col">
                       {(leg.sideCount > 1 || leg.number != null) && (

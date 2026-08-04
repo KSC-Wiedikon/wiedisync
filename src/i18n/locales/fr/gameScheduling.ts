@@ -155,6 +155,7 @@ export default {
   homeBookings: 'Reservations a domicile',
   awayProposals: 'Propositions a l\'exterieur',
   noBookingsYet: 'Aucune reservation pour le moment',
+  noGameThisSide: 'Aucun match de ce côté',
   confirmProposal: 'Confirmer la proposition',
   deleteGame: 'Supprimer le match',
   deletingGame: 'Suppression…',

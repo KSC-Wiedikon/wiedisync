@@ -152,6 +152,7 @@ export default {
   homeBookings: 'Heimspiele',
   awayProposals: 'Auswärtsvorschläge',
   noBookingsYet: 'Noch keine Buchungen',
+  noGameThisSide: 'Kein Spiel auf dieser Seite',
   confirmProposal: 'Vorschlag bestätigen',
   deleteGame: 'Spiel löschen',
   deletingGame: 'Wird gelöscht…',

@@ -155,6 +155,7 @@ export default {
   homeBookings: 'Prenotazioni casa',
   awayProposals: 'Proposte trasferta',
   noBookingsYet: 'Nessuna prenotazione',
+  noGameThisSide: 'Nessuna partita da questo lato',
   confirmProposal: 'Conferma proposta',
   deleteGame: 'Elimina partita',
   deletingGame: 'Eliminazione…',

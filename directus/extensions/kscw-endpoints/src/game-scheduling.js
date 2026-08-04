@@ -4995,6 +4995,24 @@ export function registerGameScheduling(router, { database, logger, services, get
   const ACTIVE_INVITE_STATUSES = ['invited', 'viewed', 'booked', 'active']
   const KSCW_SVRZ_CLUB_ID = process.env.KSCW_SVRZ_CLUB_ID || '912530'
 
+  // ─── Cup fixtures never enter Terminplanung ────────────────────────────────
+  // The tool negotiates the SEASON schedule with a fixed set of league opponents.
+  // Cup rounds (national "Mobiliar Volley Cup", regional "Züri Cup") are drawn
+  // late, dated by the association / the drawn home club, and settled straight in
+  // VolleyManager — there is nothing to negotiate, and a cup pairing is a SINGLE
+  // fixture, so letting one in also produced a phantom second leg on the empty
+  // side of the card (2026-08-04: D1 "Appenzeller Bären 1" showed 2 games for one
+  // Cup R1 tie, plus an auto-minted invite).
+  // ⚠ `league_short` CANNOT detect this — it holds the *team's* league category
+  // ("2L"), so a cup tie is indistinguishable from a league game there. The
+  // competition name only lives in `league_name` ("#7244 | Mobiliar Volley Cup |
+  // ♀"), matched with the same wide net as sv-sync's CUP_RE / the frontend's
+  // detectCupMatch(). Cup games still reach the member calendar via sv-sync
+  // (`/indoor/games?includeCup=true`) — this filter is scheduling-only.
+  // `!~*` is NULL-propagating, so a fixture with no league label would be dropped
+  // silently — spell the NULL case out and keep it.
+  const excludeCupFixtures = (q) => q.whereRaw("(league_name is null or league_name !~* '(cup|pokal|coupe|coppa)')")
+
   // ─── Stable team-ID matching (VM is the source of truth for names) ──────────
   // SVRZ fixture labels ("KSC Wiedikon DU23-1") can lag VM's renames: when a
   // junior team changes Stärkeklasse it becomes e.g. DU23-2 in VM (which owns
@@ -5048,6 +5066,7 @@ export function registerGameScheduling(router, { database, logger, services, get
     // (the FIRST fixture of a side also "owns" legacy NULL-svrz_game_id bookings).
     const baseQuery = () => database('svrz_games')
       .whereIn('status', ['open', 'waitingForApproval'])
+      .modify(excludeCupFixtures)
       .modify((q) => { if (svrzSeasonName) q.where('season_name', svrzSeasonName) })
       .orderBy([
         { column: 'starting_date_time', order: 'asc' },
@@ -5569,6 +5588,7 @@ export function registerGameScheduling(router, { database, logger, services, get
         .where(function () {
           this.where('home_club_id', KSCW_SVRZ_CLUB_ID).orWhere('away_club_id', KSCW_SVRZ_CLUB_ID)
         })
+        .modify(excludeCupFixtures)
         .modify((q) => { if (svrzSeasonName) q.where('season_name', svrzSeasonName) })
         .orderBy('starting_date_time')
       const normTeamId = (s) =>
@@ -5767,6 +5787,7 @@ export function registerGameScheduling(router, { database, logger, services, get
       .where(function () {
         this.where('home_club_id', KSCW_SVRZ_CLUB_ID).orWhere('away_club_id', KSCW_SVRZ_CLUB_ID)
       })
+      .modify(excludeCupFixtures)
       .modify((q) => { if (svrzSeasonName) q.where('season_name', svrzSeasonName) })
       // Same deterministic order as opponentSvrzFixtures — the placeholder
       // starting_date_time is identical across unscheduled fixtures, so the id
@@ -6565,11 +6586,14 @@ export function registerGameScheduling(router, { database, logger, services, get
       const boundary = rueckrundeStart(seasonRow)
       const svrzSeasonName = String(seasonRow.season || '').split('/')[0].trim()
 
-      // All-KSCW fixtures this season (both sides our club).
+      // All-KSCW fixtures this season (both sides our club). Cups excluded like
+      // everywhere else in the tool — Art. 27 anchoring is a Vor-/Rückrunde rule,
+      // and a cup derby isn't ours to schedule anyway.
       const games = await database('svrz_games')
         .whereIn('status', ['open', 'waitingForApproval'])
         .where('home_club_id', KSCW_SVRZ_CLUB_ID)
         .where('away_club_id', KSCW_SVRZ_CLUB_ID)
+        .modify(excludeCupFixtures)
         .modify((q) => { if (svrzSeasonName) q.where('season_name', svrzSeasonName) })
         .orderBy('starting_date_time')
 

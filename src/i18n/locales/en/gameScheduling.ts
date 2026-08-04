@@ -152,6 +152,7 @@ export default {
   homeBookings: 'Home Bookings',
   awayProposals: 'Away Proposals',
   noBookingsYet: 'No bookings yet',
+  noGameThisSide: 'No game on this side',
   confirmProposal: 'Confirm Proposal',
   deleteGame: 'Delete game',
   deletingGame: 'Deleting…',
