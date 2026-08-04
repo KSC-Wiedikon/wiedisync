@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '1.63.2'
+const APP_VERSION = '1.63.3'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,18 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.63.3',
+    date: '04.08.2026',
+    sections: [
+      {
+        title: 'Fixed: seeing who has answered a game',
+        items: [
+          'Coaches, team responsibles and admins can reach a game’s attendance list again. For them the roster button opened the match sheet and nothing else, so the people most likely to ask who has replied had no way to see it from the game. There are now two buttons — “Match sheet” and “View roster” — and the first one finally says what it does. Everyone else still has the single button, unchanged.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.63.2',
     date: '04.08.2026',

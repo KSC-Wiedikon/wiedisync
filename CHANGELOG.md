@@ -2,6 +2,11 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.63.3 — 2026-08-04
+
+### Fixed: seeing who has answered a game
+- **Coaches, team responsibles and admins can reach a game's attendance list again.** For them the roster button opened the match sheet and nothing else, so the people most likely to ask who has replied had no way to see it from the game. There are now two buttons — **Match sheet** and **View roster** — and the first one finally says what it does. Everyone else still has the single button, unchanged.
+
 ## v1.63.2 — 2026-08-04
 
 ### Fixed: saying whether you are coming to a game
