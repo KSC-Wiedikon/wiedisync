@@ -1,11 +1,13 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  combineClauseSets,
   intersectSets,
   parseClauses,
   parseGroupKeys,
   parseList,
   splitSeason,
+  unionSets,
 } from '../../extensions/kscw-endpoints/src/mailbox-audience-select.js'
 
 // These functions decide who a mass mail reaches. A mistake here is invisible
@@ -146,4 +148,86 @@ test('splitSeason: season survives parseClauses end to end', () => {
     keys: ['sport:volleyball'],
     seasonScopable: true,
   })
+})
+
+// ── combineClauseSets: OR within a section, AND across sections ──────────────
+// The rule that decides whether clicking two chips widens or empties a send.
+
+test('unionSets: merges, dedupes, and empty input is nobody', () => {
+  assert.deepEqual([...unionSets([new Set([1, 2]), new Set([2, 3])])].sort(), [1, 2, 3])
+  assert.equal(unionSets([]).size, 0)
+  assert.equal(unionSets(undefined).size, 0)
+})
+
+test('two chips in the SAME section union — D1 + D2 is both rosters, not neither', () => {
+  // The regression this rule exists for: under the old intersect-everything
+  // reading this returned 0 people while the operator had just picked 39.
+  const out = combineClauseSets([
+    { section: 'teams', set: new Set([1, 2, 3]) },
+    { section: 'teams', set: new Set([4, 5]) },
+  ])
+  assert.deepEqual([...out].sort(), [1, 2, 3, 4, 5])
+})
+
+test('two chips in DIFFERENT sections intersect — volleyball ▸ coaches stays a narrowing', () => {
+  const out = combineClauseSets([
+    { section: 'sektion', set: new Set([1, 2, 3, 4]) },
+    { section: 'roles', set: new Set([3, 4, 5]) },
+  ])
+  assert.deepEqual([...out].sort(), [3, 4])
+})
+
+test('mixed: sections OR inside, then AND across', () => {
+  // "(D1 or D2) and volleyball" — 5 is on D2 but is not volleyball.
+  const out = combineClauseSets([
+    { section: 'teams', set: new Set([1, 2]) },
+    { section: 'teams', set: new Set([2, 5]) },
+    { section: 'sektion', set: new Set([1, 2, 3]) },
+  ])
+  assert.deepEqual([...out].sort(), [1, 2])
+})
+
+test('mutually exclusive statuses union instead of cancelling out', () => {
+  // Active ∧ Passive is empty by definition — shipping the membership
+  // sub-chips under an AND rule would have made every pair send to nobody.
+  const out = combineClauseSets([
+    { section: 'everyone', set: new Set([1, 2]) },
+    { section: 'everyone', set: new Set([3]) },
+  ])
+  assert.deepEqual([...out].sort(), [1, 2, 3])
+})
+
+test('a section that resolves to nobody empties the clause, it does not widen it', () => {
+  const out = combineClauseSets([
+    { section: 'teams', set: new Set([1, 2]) },
+    { section: 'roles', set: new Set() },
+  ])
+  assert.equal(out.size, 0)
+})
+
+test('empty input is nobody, NOT everyone', () => {
+  assert.equal(combineClauseSets([]).size, 0)
+  assert.equal(combineClauseSets(undefined).size, 0)
+})
+
+test('a section-less entry still ANDs rather than silently widening', () => {
+  // Defensive: an unclassified key must not land in the same bucket as a real
+  // section and union itself into the audience.
+  const out = combineClauseSets([
+    { section: 'teams', set: new Set([1, 2, 3]) },
+    { set: new Set([3, 9]) },
+  ])
+  assert.deepEqual([...out], [3])
+})
+
+test('one chip alone resolves to exactly itself', () => {
+  const out = combineClauseSets([{ section: 'roles', set: new Set([7, 8]) }])
+  assert.deepEqual([...out].sort(), [7, 8])
+})
+
+test('re-adding a chip already in the draft is idempotent', () => {
+  // group-counts computes "draft + this chip" for every chip, including ones
+  // already picked; that must report the current total, not double anything.
+  const d1 = { section: 'teams', set: new Set([1, 2]) }
+  assert.deepEqual([...combineClauseSets([d1, d1])].sort(), [1, 2])
 })

@@ -45,6 +45,17 @@ type ComposeMode = 'new' | 'reply' | 'replyAll' | 'forward' | 'group'
 /** Inbox = received (direction in), Sent = sent (direction out). */
 type Folder = 'inbox' | 'sent'
 
+// ⚠ Both MIRROR `mailbox-audience-select.js` — keep them in step. A season is a
+// modifier rather than an audience, and it can only scope audiences whose
+// membership actually varies by season: rosters, sports and the team-derived
+// functions. A section, a qualification or the register do not, and the server
+// REJECTS that combination outright rather than quietly returning the unscoped
+// audience — so the picker has to drop the season itself, visibly, instead of
+// letting the operator build a filter that cannot resolve.
+const SEASON_KEY_PREFIX = 'season:'
+const SEASON_SCOPED_PREFIXES = ['sport:', 'fn:', 'team:']
+const isSeasonScopable = (key: string) => SEASON_SCOPED_PREFIXES.some((p) => key.startsWith(p))
+
 // Outgoing-attachment caps (mirrored server-side in scheduling-mailbox.js).
 const ATTACH_MAX_FILES = 10
 const ATTACH_MAX_TOTAL = 10 * 1024 * 1024 // 10 MB total
@@ -174,7 +185,7 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
   // instead would mean writing state synchronously inside the effect below,
   // which is the cascading-render pattern the hooks lint rule rejects.
   const [preview, setPreview] = useState<{ group: string; data: MailboxBulkPreview | null } | null>(null)
-  const { fetchGroups, previewBulk, expandGroups, sendBulk } = mailbox
+  const { fetchGroups, fetchGroupCounts, previewBulk, expandGroups, sendBulk } = mailbox
   // Server-side constant, delivered with the message list — so it is present in
   // every compose mode and every mailbox, not just where /groups was fetched.
   const signatureHtml = mailbox.signatureHtml
@@ -202,7 +213,13 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
   // preview above: that one answers "who gets this mail", this one answers
   // "how big is the thing I am about to add".
   const composeDraft = compose?.mode === 'group' ? (compose.draft ?? []) : []
-  const draftKey = composeDraft.length > 0 ? JSON.stringify([...composeDraft].sort()) : ''
+  // A season alone is not an audience — it is a modifier on one (the server
+  // rejects `season:X` with nothing to scope). The draft therefore only counts
+  // as "something is selected" once a real audience chip is in it, or opening
+  // the composer on the seeded season would show a resolution error where the
+  // operator has not yet picked anything.
+  const draftAudienceKeys = composeDraft.filter((k) => !k.startsWith(SEASON_KEY_PREFIX))
+  const draftKey = draftAudienceKeys.length > 0 ? JSON.stringify([...composeDraft].sort()) : ''
   const [draftPreview, setDraftPreview] = useState<{ key: string; count: number | null } | null>(null)
   const draftCurrent = !!draftKey && draftPreview?.key === draftKey
   const draftCount = draftCurrent ? draftPreview?.count ?? null : null
@@ -216,13 +233,51 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
     void (async () => {
       try {
         const resp = await fetchGroups()
-        if (!cancelled) setGroups(resp)
+        if (cancelled) return
+        setGroups(resp)
+        // Open scoped to the current season. Seeded here rather than at the
+        // click that opens the composer because the catalogue (and therefore
+        // which season is current) is only known after this fetch. `seasons` is
+        // newest-first and is present only when the club has more than one on
+        // file — with a single season there is nothing to scope and nothing to
+        // seed.
+        const current = resp.seasons?.[0]?.key
+        if (current) {
+          setCompose((c) => (
+            c && c.mode === 'group' && (c.draft ?? []).length === 0 ? { ...c, draft: [current] } : c
+          ))
+        }
       } catch {
         if (!cancelled) toast.error(t('mailboxGroupsLoadFailed'))
       }
     })()
     return () => { cancelled = true }
   }, [compose?.mode, groups, fetchGroups, t])
+
+  // Live chip counts — what each chip would make the audience if added to the
+  // current draft. Same latest-wins keying as the previews: a slow response for
+  // an older draft must never paint numbers against the current one.
+  const [liveCounts, setLiveCounts] = useState<{ key: string; counts: Record<string, number> } | null>(null)
+  const countsKey = compose?.mode === 'group' ? JSON.stringify([...composeDraft].sort()) : ''
+  const countsCurrent = !!countsKey && liveCounts?.key === countsKey
+
+  useEffect(() => {
+    if (!countsKey || liveCounts?.key === countsKey) return
+    let cancelled = false
+    void (async () => {
+      try {
+        const resp = await fetchGroupCounts(JSON.parse(countsKey) as string[])
+        if (!cancelled) setLiveCounts({ key: countsKey, counts: resp.counts })
+      } catch {
+        // Counts are decoration on top of a catalogue that already loaded.
+        // Falling back to the static numbers is right; blanking them would
+        // read as "this audience is empty", which is a lie that could stop an
+        // operator sending a mail they should send.
+        if (!cancelled) setLiveCounts({ key: countsKey, counts: {} })
+      }
+    })()
+    return () => { cancelled = true }
+  }, [countsKey, liveCounts?.key, fetchGroupCounts])
 
   // Resolve the selected audience on every change. This is the ONLY way an
   // operator can see who a send would reach before committing to it, so it runs
@@ -799,7 +854,11 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
             )}
           </div>
 
-          {(c.draft ?? []).length > 0 && (
+          {/* Gated on a real audience, not merely on a non-empty draft: with the
+              current season seeded the draft is never empty, and a season alone
+              resolves to nothing — so this row would sit on a spinner that never
+              finishes before the operator had picked anything. */}
+          {draftAudienceKeys.length > 0 && (
             <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-gray-200 pt-2 dark:border-gray-700">
               <span className="text-xs text-gray-500 dark:text-gray-400">
                 {draftCount == null
@@ -832,9 +891,33 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
             <AudiencePicker
               groups={groups}
               selected={c.draft ?? []}
+              counts={countsCurrent ? liveCounts?.counts ?? null : null}
               onToggle={(key) => {
                 const cur = c.draft ?? []
-                setCompose({ ...c, draft: cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key] })
+                if (cur.includes(key)) {
+                  setCompose({ ...c, draft: cur.filter((k) => k !== key) })
+                  return
+                }
+                let next = [...cur, key]
+                // Only one season at a time — picking a second replaces the
+                // first rather than producing a clause the server reads as
+                // "last one wins", which would silently discard the visible chip.
+                if (key.startsWith(SEASON_KEY_PREFIX)) {
+                  next = [...cur.filter((k) => !k.startsWith(SEASON_KEY_PREFIX)), key]
+                } else if (!isSeasonScopable(key)) {
+                  // The seeded season cannot scope this audience. Drop it and
+                  // SAY so — leaving it in builds a filter the send rejects,
+                  // and removing it quietly would change the audience under an
+                  // operator who watched themselves select a season.
+                  const season = cur.find((k) => k.startsWith(SEASON_KEY_PREFIX))
+                  if (season) {
+                    next = next.filter((k) => !k.startsWith(SEASON_KEY_PREFIX))
+                    toast.info(t('mailboxSeasonDropped', {
+                      season: season.slice(SEASON_KEY_PREFIX.length),
+                    }))
+                  }
+                }
+                setCompose({ ...c, draft: next })
               }}
               onClear={() => setCompose({ ...c, draft: [] })}
               labelFor={groupLabel}
@@ -1256,12 +1339,17 @@ const TEAM_GENDER_ORDER = ['f', 'm', 'mixed']
 function AudiencePicker({
   groups,
   selected,
+  counts,
   onToggle,
   onClear,
   labelFor,
 }: {
   groups: MailboxGroupsResponse | null
   selected: string[]
+  /** Live per-chip totals for the current draft, or null while they resolve /
+   *  if the call failed. Keys absent from the map (former members) keep their
+   *  static catalogue count. */
+  counts: Record<string, number> | null
   onToggle: (key: string) => void
   onClear: () => void
   labelFor: (g: MailboxGroup) => string
@@ -1325,8 +1413,15 @@ function AudiencePicker({
 
   const chip = (g: MailboxGroup) => {
     const on = selected.includes(g.key)
-    // count === null means "no size of its own" (season), not "empty".
-    const empty = g.count === 0
+    // The live number is what this chip would make the audience, so it can go
+    // UP (same-section chips union) as well as down. Falls back to the static
+    // catalogue count while the first response is in flight.
+    const live = counts?.[g.key]
+    const shown = live ?? g.count
+    // count === null means "no size of its own" (season), not "empty". A
+    // selected chip is never disabled — the operator must always be able to
+    // undo the click that emptied the audience.
+    const empty = shown === 0 && !on
     return (
       <button
         key={g.key}
@@ -1344,7 +1439,7 @@ function AudiencePicker({
         }`}
       >
         <span>{labelFor(g)}</span>
-        {g.count != null && <span className={on ? 'text-white/80' : 'text-gray-400 dark:text-gray-500'}>{g.count}</span>}
+        {shown != null && <span className={on ? 'text-white/80' : 'text-gray-400 dark:text-gray-500'}>{shown}</span>}
       </button>
     )
   }

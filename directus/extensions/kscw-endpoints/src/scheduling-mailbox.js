@@ -60,7 +60,7 @@ import MailComposer from 'nodemailer/lib/mail-composer/index.js'
 import { escHtml } from './email-template.js'
 import { writeUserLog } from './activity-log.js'
 import { MAILBOX_GROUPS, resolveClubdeskRecipients, resolveMemberAudience, resolveRegisterEmails, teamAudienceCounts } from './audience.js'
-import { intersectSets, parseClauses, parseList, splitSeason } from './mailbox-audience-select.js'
+import { combineClauseSets, parseClauses, parseList, splitSeason } from './mailbox-audience-select.js'
 import { loadSuppressed } from './email-suppression.js'
 import {
   SCHEDULING_SIGNATURE_LIGHT_HTML, SCHEDULING_SIGNATURE_TEXT,
@@ -1109,11 +1109,16 @@ export function registerSchedulingMailbox(router, { database, logger }) {
     if (raw.startsWith('team:')) {
       const id = Number(raw.slice(5))
       if (!Number.isFinite(id)) return null
-      return { spec: { audience_type: 'teams', audience_teams: [id] } }
+      return { section: 'teams', spec: { audience_type: 'teams', audience_teams: [id] } }
     }
     const g = MAILBOX_GROUPS.find(x => x.key === raw)
     if (!g) return null
-    return g.source === 'clubdesk' ? { clubdeskStatus: g.status } : { spec: g.spec }
+    // `section` rides along because it is what decides OR vs AND at resolve
+    // time (combineClauseSets) — it is not merely a display grouping.
+    const section = g.section ?? 'roles'
+    return g.source === 'clubdesk'
+      ? { section, clubdeskStatus: g.status }
+      : { section, spec: g.spec }
   }
 
   /**
@@ -1135,15 +1140,18 @@ export function registerSchedulingMailbox(router, { database, logger }) {
   /**
    * Resolve a recipient selection to mailable people.
    *
-   * `clauses` is a list of AND-clauses that are OR'd together — the shape the
-   * composer's drill-down produces. Within a clause the audiences INTERSECT
-   * ("Volleyball" ▸ "All coaches" = the 20 volleyball coaches); across clauses
-   * they UNION ("…plus everyone on D1").
+   * `clauses` is a list of clauses that are OR'd together — the shape the
+   * composer's drill-down produces. WITHIN a clause the rule is OR inside a
+   * section, AND across sections: "Sections ▸ Volleyball" + "Roles ▸ Coaches"
+   * is the 20 volleyball coaches, while "Teams ▸ D1" + "Teams ▸ D2" is all 39
+   * of them rather than the empty set of people on both rosters. Across clauses
+   * everything unions ("…plus everyone on D1").
    *
-   * Intersection is what makes a filter like "volleyball coaches" expressible
-   * at all: no single chip means both, and adding a sport-scoped chip per role
-   * would multiply the catalogue without ever covering the next combination
-   * someone wants. Union across clauses is what makes them mixable.
+   * The cross-section intersection is what makes a filter like "volleyball
+   * coaches" expressible at all: no single chip means both, and adding a
+   * sport-scoped chip per role would multiply the catalogue without ever
+   * covering the next combination someone wants. See combineClauseSets for why
+   * the within-section half is a union — and for the one query it costs.
    *
    * Dedupe happens ONCE over the fully combined set, never per clause — a coach
    * of D1 reached by both a role clause and a team clause is still mailed once.
@@ -1154,19 +1162,22 @@ export function registerSchedulingMailbox(router, { database, logger }) {
 
     for (const clause of clauses) {
       const { srcs, season } = clause
-      const memberSets = []
+      const entries = []
       for (const src of srcs) {
         if (src.clubdeskStatus) {
           // Former members are register contacts, not member rows, so they can
-          // never intersect with a member audience — the endpoint rejects that
-          // mix rather than letting it resolve to a silent empty set.
+          // never intersect with a member audience — sourcesForClauses rejects
+          // that mix rather than letting it resolve to a silent empty set.
           clubdeskRows.push(...await resolveClubdeskRecipients(database, src.clubdeskStatus))
         } else {
-          memberSets.push(new Set(await resolveMemberAudience(database, log, src.spec, label, { season })))
+          entries.push({
+            section: src.section,
+            set: new Set(await resolveMemberAudience(database, log, src.spec, label, { season })),
+          })
         }
       }
-      if (memberSets.length === 0) continue
-      const narrowed = intersectSets(memberSets)
+      if (entries.length === 0) continue
+      const narrowed = combineClauseSets(entries)
       for (const id of narrowed) memberIds.add(id)
     }
 
@@ -1267,6 +1278,74 @@ export function registerSchedulingMailbox(router, { database, logger }) {
     } catch (err) { fail(res, 'mailbox/groups', err, req) }
   })
 
+  // Member-set index behind the live chip counts, keyed by season because
+  // sport:/fn:/team: audiences mean different people in a different one.
+  //
+  // ⚠ Built by calling the CANONICAL resolveMemberAudience once per key, NOT by
+  // a second and much faster set of GROUP BY passes. The fast version would be
+  // ~5 queries instead of ~50, but it would be a SECOND definition of who is in
+  // an audience, and the number painted on a chip would drift from the dry-run
+  // preview that actually gates the send — an operator would confirm one figure
+  // and mail another. audience.js was extracted precisely so announcements and
+  // the mailbox could not disagree about this; do not reintroduce it here for
+  // speed. The TTL cache is what makes the honest version affordable.
+  const AUDIENCE_INDEX_TTL_MS = 60_000
+  const audienceIndexCache = new Map()
+
+  async function audienceIndex(season) {
+    const cacheKey = season || '_'
+    const hit = audienceIndexCache.get(cacheKey)
+    if (hit && Date.now() - hit.at < AUDIENCE_INDEX_TTL_MS) return hit.sets
+
+    const teams = await teamAudienceCounts(database)
+    const specs = [
+      // Former members are excluded: they are register contacts with no member
+      // id, so they cannot take part in the set maths at all. The frontend
+      // keeps showing their static count, which is the only true one for them.
+      ...MAILBOX_GROUPS.filter(g => g.source !== 'clubdesk')
+        .map(g => ({ key: g.key, section: g.section ?? 'roles', spec: g.spec })),
+      ...teams.map(t => ({
+        key: `team:${t.id}`,
+        section: 'teams',
+        spec: { audience_type: 'teams', audience_teams: [t.id] },
+      })),
+    ]
+    const resolved = await Promise.all(specs.map(async s => [
+      s.key,
+      { section: s.section, set: new Set(await resolveMemberAudience(database, log, s.spec, `mailbox/counts/${s.key}`, { season })) },
+    ]))
+    const sets = new Map(resolved)
+    audienceIndexCache.set(cacheKey, { at: Date.now(), sets })
+    return sets
+  }
+
+  // POST /kscw/admin/mailbox/group-counts — for every chip, how big the audience
+  // would BECOME if it were added to the current draft.
+  //
+  // Not "how many of the draft are also in this chip": under OR-within-a-section
+  // a chip from a section already in the draft ENLARGES the audience, and the
+  // number has to say so or it would read as a narrowing that isn't happening.
+  // combineClauseSets is the same function the send uses, so the arithmetic on
+  // the chip and the arithmetic in the preview cannot diverge.
+  router.post('/admin/mailbox/group-counts', async (req, res) => {
+    const acct = pinnedAdmin()
+    if (!(await authForAccount(req, acct.sport))) return res.status(403).json({ error: 'Admin only' })
+    try {
+      const { season, keys } = splitSeason(parseList((req.body || {}).draft))
+      const sets = await audienceIndex(season)
+
+      // Unknown draft keys are ignored rather than rejected: this endpoint only
+      // paints numbers on chips, and a stale key must not blank the whole row.
+      // The send path still rejects unknown keys outright — that is where an
+      // unrecognised chip has to be fatal.
+      const draftEntries = keys.map(k => sets.get(k)).filter(Boolean)
+
+      const counts = {}
+      for (const [key, entry] of sets) counts[key] = combineClauseSets([...draftEntries, entry]).size
+      res.json({ counts, season: season || null })
+    } catch (err) { fail(res, 'mailbox/group-counts', err, req) }
+  })
+
   /** Resolve clause key-lists to source descriptors, or an error string. */
   function sourcesForClauses(clauses) {
     const out = []
@@ -1291,11 +1370,16 @@ export function registerSchedulingMailbox(router, { database, logger }) {
         if (!src) return { error: `Unknown group: ${k}` }
         srcs.push(src)
       }
-      // A clause mixing former members with member audiences would intersect a
-      // register-contact list against member ids and quietly resolve to the
-      // member half only. Rejecting is the honest answer; "former members who
-      // are also coaches" is not a thing the data can express.
-      if (srcs.length > 1 && srcs.some(s => s.clubdeskStatus)) {
+      // A clause mixing former members with member audiences from ANOTHER
+      // section would intersect a register-contact list against member ids and
+      // quietly resolve to the member half only. Rejecting is the honest
+      // answer; "former members who are also coaches" is not a thing the data
+      // can express. Keyed on sections rather than on `srcs.length` because
+      // same-section keys now union — a union of register contacts and members
+      // would be well-defined, so only the cross-section case is impossible.
+      // (Today `former` is alone in its section, so this rejects exactly what
+      // the old length check did.)
+      if (srcs.some(s => s.clubdeskStatus) && new Set(srcs.map(s => s.section || '_')).size > 1) {
         return { error: 'Former members cannot be combined with other audiences in one filter' }
       }
       out.push({ srcs, season })

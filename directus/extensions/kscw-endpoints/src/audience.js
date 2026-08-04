@@ -203,6 +203,18 @@ export async function teamAudienceCounts(database) {
 // contact register instead of `members` — see resolveClubdeskRecipients.
 export const MAILBOX_GROUPS = [
   { key: 'all', section: 'everyone', spec: { audience_type: 'all_members' } },
+  // The cohorts all_members is made of, offered individually. They share the
+  // 'everyone' section, so under the picker's OR-within-a-section rule clicking
+  // two of them unions — which is the only sensible reading, since a person
+  // holds exactly one register status and intersecting two is empty by
+  // definition. ⚠ Ehemalige are NOT here: they live in their own 'former'
+  // section because they are ClubDesk contacts rather than member rows and
+  // cannot be intersected with a member audience at all.
+  { key: 'status:aktiv', section: 'everyone', spec: { audience_type: 'register_status', audience_status: 'Aktivmitglied' } },
+  { key: 'status:passiv', section: 'everyone', spec: { audience_type: 'register_status', audience_status: 'Passivmitglied' } },
+  { key: 'status:ehren', section: 'everyone', spec: { audience_type: 'register_status', audience_status: 'Ehrenmitglied' } },
+  { key: 'status:zwischenjahr', section: 'everyone', spec: { audience_type: 'register_status', audience_status: 'Zwischenjahr' } },
+  { key: 'guests', section: 'everyone', spec: { audience_type: 'guests' } },
   // Sektion vs sport are NOT the same audience and both are wanted. Sektion is
   // the club's own structure (everyone filed under Volleyball: players, coaches,
   // staff, passive members, people between teams — 279 on prod); sport is
@@ -284,6 +296,43 @@ export async function resolveMemberAudience(database, log, spec, label = 'audien
         .join('clubdesk_people as cp', database.raw('cp.clubdesk_id::text = m.clubdesk_id::text'))
         .where('m.kscw_membership_active', true)
         .whereIn('cp.status', MEMBER_REGISTER_STATUSES)
+        .distinct('m.id')
+        .select('m.id')
+      return rows.map(r => r.id).filter(Boolean)
+    }
+    // ONE register status, so the picker can offer the cohorts that make up
+    // all_members individually (a GV invitation goes to everyone; a "your dues
+    // are due" mail does not go to Ehrenmitglieder). Same join and same activity
+    // gate as all_members — this is that audience narrowed to one status, never
+    // a second definition of membership.
+    case 'register_status': {
+      if (!spec.audience_status) {
+        log?.warn?.({ msg: `[${label}] audience_type=register_status but audience_status is null — skipping fanout` })
+        return []
+      }
+      const rows = await database('members as m')
+        .join('clubdesk_people as cp', database.raw('cp.clubdesk_id::text = m.clubdesk_id::text'))
+        .where('m.kscw_membership_active', true)
+        .where('cp.status', spec.audience_status)
+        .distinct('m.id')
+        .select('m.id')
+      return rows.map(r => r.id).filter(Boolean)
+    }
+    // Guest players: `member_teams.guest_level > 0` = "trains with us, may not
+    // play league games". ⚠ NOT the same word as `game_guests` (a player
+    // borrowed for one fixture) — see [[game-guests-rsvp-gate]].
+    //
+    // ⚠ Deliberately NOT gated on the register: 3 of them are ClubDesk
+    // 'Kein Beitrag' ex-members who still train, and they are exactly who a
+    // "guests" chip is for. The kscw_membership_active gate stays, so this
+    // reaches active participants only.
+    case 'guests': {
+      const rows = await database('member_teams as mt')
+        .join('teams as t', 't.id', 'mt.team')
+        .join('members as m', 'm.id', 'mt.member')
+        .where('mt.guest_level', '>', 0)
+        .where(function () { if (opts.season) this.where('t.season', opts.season); else this.where('t.active', true) })
+        .where('m.kscw_membership_active', true)
         .distinct('m.id')
         .select('m.id')
       return rows.map(r => r.id).filter(Boolean)

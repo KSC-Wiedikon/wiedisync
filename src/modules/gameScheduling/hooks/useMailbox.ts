@@ -76,6 +76,14 @@ export interface MailboxGroup {
   gender?: string | null
 }
 
+/** Live chip counts for a given draft. `counts` omits former members — they are
+ *  register contacts with no member id, so they take no part in the set maths
+ *  and keep their static catalogue count. */
+export interface MailboxGroupCounts {
+  counts: Record<string, number>
+  season: string | null
+}
+
 export interface MailboxGroupsResponse {
   groups: MailboxGroup[]
   teams: MailboxGroup[]
@@ -598,6 +606,10 @@ export interface UseMailboxReturn {
   assignThread: (ids: number[], opponentId: number | null) => Promise<void>
   /** Club mailbox only — the group-send catalogue with live audience counts. */
   fetchGroups: () => Promise<MailboxGroupsResponse>
+  /** Club mailbox only — for every chip, how big the audience would BECOME if
+   *  that chip were added to `draft`. Not an intersection count: a chip from a
+   *  section already in the draft unions, so its number goes UP. */
+  fetchGroupCounts: (draft: string[]) => Promise<MailboxGroupCounts>
   /** Club mailbox only — resolve the selection WITHOUT sending, so the
    *  composer can show who it would reach. Always call this before sendBulk. */
   previewBulk: (sel: MailboxRecipientSelection) => Promise<MailboxBulkPreview>
@@ -735,6 +747,13 @@ export function useMailbox(enabled: boolean = true, sport: MailboxAccount = 'vol
     return await kscwApi<MailboxGroupsResponse>(mailboxUrl(sport, '/groups'))
   }, [sport])
 
+  const fetchGroupCounts = useCallback(async (draft: string[]) => {
+    return await kscwApi<MailboxGroupCounts>(mailboxUrl(sport, '/group-counts'), {
+      method: 'POST',
+      body: { draft },
+    })
+  }, [sport])
+
   const previewBulk = useCallback(async (sel: MailboxRecipientSelection) => {
     return await kscwApi<MailboxBulkPreview>(mailboxUrl(sport, '/bulk'), {
       method: 'POST',
@@ -796,5 +815,5 @@ export function useMailbox(enabled: boolean = true, sport: MailboxAccount = 'vol
     }
   }, [refetch, sport])
 
-  return { configured, messages, unread, lastSync, signatureHtml, isLoading, syncing, sending, refetch, sync, loadMessage, sendReply, searchMessages, assignThread, fetchGroups, previewBulk, expandGroups, sendBulk }
+  return { configured, messages, unread, lastSync, signatureHtml, isLoading, syncing, sending, refetch, sync, loadMessage, sendReply, searchMessages, assignThread, fetchGroups, fetchGroupCounts, previewBulk, expandGroups, sendBulk }
 }

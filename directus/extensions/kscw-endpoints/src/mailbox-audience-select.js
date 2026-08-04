@@ -74,6 +74,51 @@ export function intersectSets(sets) {
   return sets.reduce((acc, s) => new Set([...acc].filter(v => s.has(v))))
 }
 
+/**
+ * Union a list of Sets. Empty input yields an empty Set, for the same reason
+ * intersectSets does: "nothing selected" must mean nobody, never everybody.
+ */
+export function unionSets(sets) {
+  const out = new Set()
+  for (const s of sets || []) for (const v of s) out.add(v)
+  return out
+}
+
+/**
+ * Combine one clause's resolved sets: OR within a section, AND across sections.
+ *
+ * Every section except Roles is a DIMENSION — a person has exactly one value for
+ * it — so intersecting two chips from the same row asks a question that can
+ * never be answered. `D1` ∧ `D2` is "on both rosters" (~nobody when the operator
+ * meant all 39 of them); `Aktivmitglied` ∧ `Passivmitglied` is empty by
+ * definition, which would have shipped the membership sub-chips broken. Union
+ * within the row is what the operator means by clicking two of them.
+ *
+ * Across rows the intersection is kept, because that is the narrowing the drill
+ * builder exists for: Sections ▸ Volleyball, Roles ▸ Coaches = volleyball
+ * coaches, which no single chip expresses.
+ *
+ * ⚠ The one thing this gives up: Roles is NOT a dimension (coach, scorer,
+ * referee… are independent booleans), so "scorers who are also referees" is no
+ * longer expressible in one clause. That is an analytics question rather than a
+ * mailing one — you mail your scorers or your referees, not the overlap — and
+ * paying for it with an always-empty result in the other five rows was the worse
+ * trade. If it is ever wanted it needs its own control, not this default.
+ *
+ * `entries` is `[{ section, set }]`; a missing section groups under '_' so an
+ * unclassified key still ANDs rather than silently widening the audience.
+ */
+export function combineClauseSets(entries) {
+  if (!entries || entries.length === 0) return new Set()
+  const bySection = new Map()
+  for (const { section, set } of entries) {
+    const key = section || '_'
+    if (!bySection.has(key)) bySection.set(key, [])
+    bySection.get(key).push(set)
+  }
+  return intersectSets([...bySection.values()].map(unionSets))
+}
+
 /** Audience keys whose meaning depends on which season's teams you look at. */
 const SEASON_SCOPED_PREFIXES = ['sport:', 'fn:', 'team:']
 
