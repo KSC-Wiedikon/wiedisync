@@ -231,13 +231,19 @@ export const MAILBOX_GROUPS = [
   { key: 'fn:coach', section: 'roles', spec: { audience_type: 'roles', audience_roles: ['fn:coach'] } },
   { key: 'fn:team_responsible', section: 'roles', spec: { audience_type: 'roles', audience_roles: ['fn:team_responsible'] } },
   { key: 'fn:captain', section: 'roles', spec: { audience_type: 'roles', audience_roles: ['fn:captain'] } },
-  { key: 'qual:scorer_vb', section: 'roles', spec: { audience_type: 'roles', audience_roles: ['qual:scorer_vb'] } },
-  { key: 'qual:referee_vb', section: 'roles', spec: { audience_type: 'roles', audience_roles: ['qual:referee_vb'] } },
-  { key: 'qual:referee_bb', section: 'roles', spec: { audience_type: 'roles', audience_roles: ['qual:referee_bb'] } },
-  // All BB officials: the coarse otn_bb flag AND the two levels — migration 228
-  // split them and the 6 pre-split holders only have the coarse one, so naming
-  // just the levels would drop them.
-  { key: 'qual:officials_bb', section: 'roles', spec: { audience_type: 'roles', audience_roles: ['qual:otr1_bb', 'qual:otr2_bb', 'qual:otn_bb', 'qual:otn1_bb', 'qual:otn2_bb'] } },
+  // Scorers, referees and officials are the club's ClubDesk GROUPS, not the
+  // qual:* licence columns. "Who does this for us" is the mailing question;
+  // "who holds the licence" is a different one, and answering it here mailed 31
+  // people who do not officiate. See audience_type 'clubdesk_group' for the
+  // measurements and for the hand-maintenance caveat that comes with it.
+  //
+  // ⚠ The group names are ClubDesk's own spelling, asterisks and all. They are
+  // matched exactly, so a rename in ClubDesk silently empties the chip — the
+  // count on the chip is the check.
+  { key: 'cdgroup:scorer_vb', section: 'roles', spec: { audience_type: 'clubdesk_group', audience_group: 'VB Schreiber*innen' } },
+  { key: 'cdgroup:referee_vb', section: 'roles', spec: { audience_type: 'clubdesk_group', audience_group: 'VB Schiedsrichter*innen' } },
+  { key: 'cdgroup:referee_bb', section: 'roles', spec: { audience_type: 'clubdesk_group', audience_group: 'BB Schiedsrichter' } },
+  { key: 'cdgroup:officials_bb', section: 'roles', spec: { audience_type: 'clubdesk_group', audience_group: 'BB Offiziellen' } },
   { key: 'role:vorstand', section: 'roles', spec: { audience_type: 'roles', audience_roles: ['role:vorstand'] } },
   // ⚠ The ONLY group not sourced from `members`. Former members are not member
   // rows — ClubDesk holds 428 of them and wiedisync holds none once the stale
@@ -333,6 +339,42 @@ export async function resolveMemberAudience(database, log, spec, label = 'audien
         .where('mt.guest_level', '>', 0)
         .where(function () { if (opts.season) this.where('t.season', opts.season); else this.where('t.active', true) })
         .where('m.kscw_membership_active', true)
+        .distinct('m.id')
+        .select('m.id')
+      return rows.map(r => r.id).filter(Boolean)
+    }
+    // Membership of a ClubDesk GROUP — the club's own curated list of who
+    // actually does a job, as opposed to the qual:* columns, which say who
+    // holds the licence for it. For mail those are different questions and the
+    // group is the right one: measured 2026-08-04, the officials licence
+    // reaches 148 people while 'BB Offiziellen' holds 117, so the licence
+    // version was mailing 31 people who do not officiate for the club. The
+    // group is a strict SUBSET of the licence in every case (nobody is in a
+    // group without the licence), so this only ever narrows.
+    //
+    // ⚠ ClubDesk Gruppen are MAINTAINED BY HAND (CSV import cannot write them —
+    // see [[clubdesk-group-assignment]]). That is the trade: curated but able
+    // to lag, against the qual columns' automatic-but-over-broad VM/Basketplan
+    // sync. A new scorer who is never added to the group will not be mailed.
+    //
+    // ⚠ Groups live ONLY on clubdesk_export.gruppen_bracketed —
+    // clubdesk_people.gruppen is empty for all 1151 rows — so this joins a
+    // different table than the register-status audiences above.
+    case 'clubdesk_group': {
+      if (!spec.audience_group) {
+        log?.warn?.({ msg: `[${label}] audience_type=clubdesk_group but audience_group is null — skipping fanout` })
+        return []
+      }
+      const rows = await database('members as m')
+        .join('clubdesk_export as ce', database.raw('ce.clubdesk_id::text = m.clubdesk_id::text'))
+        .where('m.kscw_membership_active', true)
+        // Exact element match after splitting, never a LIKE: a substring test
+        // would make one group silently absorb another the day someone adds
+        // "BB Offiziellen 2".
+        .whereRaw(
+          'EXISTS (SELECT 1 FROM unnest(string_to_array(ce.gruppen_bracketed, \',\')) g WHERE btrim(g) = ?)',
+          [spec.audience_group],
+        )
         .distinct('m.id')
         .select('m.id')
       return rows.map(r => r.id).filter(Boolean)

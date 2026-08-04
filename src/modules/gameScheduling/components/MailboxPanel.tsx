@@ -1315,8 +1315,14 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
 }
 
 /** Chip rows, in display order. Keys match `section` on the server's group
- *  catalogue; anything with an unrecognised section falls into 'roles'. */
-const AUDIENCE_SECTIONS = ['season', 'everyone', 'sektion', 'players', 'roles', 'teams', 'former'] as const
+ *  catalogue; anything with an unrecognised section falls into 'roles'.
+ *
+ *  Season sits directly above players / roles / teams because those are the
+ *  only rows it can scope — a section, a qualification or the register are not
+ *  seasonal facts, and picking one drops the season. Leading the picker with a
+ *  chip that most of the rows below it reject read as though it scoped
+ *  everything. */
+const AUDIENCE_SECTIONS = ['everyone', 'sektion', 'season', 'players', 'roles', 'teams', 'former'] as const
 
 // Teams are the one section too long to read as a single row — 29 active teams
 // against at most 8 chips anywhere else — so it is split into sport × gender
@@ -1450,6 +1456,11 @@ function AudiencePicker({
         <div key={section}>
           <p className="mb-1 text-[11px] font-medium text-gray-400 dark:text-gray-500">
             {t(`mailboxSection_${section}`)}
+            {/* Says what the chip reaches, so its disappearance when an
+                incompatible audience is picked is expected rather than a bug. */}
+            {section === 'season' && (
+              <span className="ml-1.5 font-normal normal-case">{t('mailboxSeasonScopeHint')}</span>
+            )}
           </p>
           {section === 'teams' ? (
             <div className="space-y-1.5">
