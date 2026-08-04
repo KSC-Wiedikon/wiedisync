@@ -60,6 +60,7 @@ import MailComposer from 'nodemailer/lib/mail-composer/index.js'
 import { escHtml } from './email-template.js'
 import { writeUserLog } from './activity-log.js'
 import { MAILBOX_GROUPS, resolveClubdeskRecipients, resolveMemberAudience, resolveRegisterEmails, teamAudienceCounts } from './audience.js'
+import { intersectSets, parseClauses, parseList } from './mailbox-audience-select.js'
 import { loadSuppressed } from './email-suppression.js'
 import {
   SCHEDULING_SIGNATURE_LIGHT_HTML, SCHEDULING_SIGNATURE_TEXT,
@@ -1164,7 +1165,7 @@ export function registerSchedulingMailbox(router, { database, logger }) {
         }
       }
       if (memberSets.length === 0) continue
-      const narrowed = memberSets.reduce((acc, s) => new Set([...acc].filter(id => s.has(id))))
+      const narrowed = intersectSets(memberSets)
       for (const id of narrowed) memberIds.add(id)
     }
 
@@ -1252,50 +1253,6 @@ export function registerSchedulingMailbox(router, { database, logger }) {
     } catch (err) { fail(res, 'mailbox/groups', err, req) }
   })
 
-  /** Parse the `groups` field, which arrives as a JSON array, a comma list or a
-   *  single `group` — multipart fields are strings, so all three shapes exist. */
-  function parseGroupKeys(body) {
-    let keys = []
-    if (body.groups != null && String(body.groups) !== '') {
-      if (Array.isArray(body.groups)) keys = body.groups.map(String)
-      else {
-        try {
-          const parsed = JSON.parse(String(body.groups))
-          keys = Array.isArray(parsed) ? parsed.map(String) : []
-        } catch { keys = String(body.groups).split(',') }
-      }
-    } else if (body.group) {
-      keys = [String(body.group)]
-    }
-    return [...new Set(keys.map(k => k.trim()).filter(Boolean))]
-  }
-
-  /**
-   * Parse the recipient selection into AND-clauses.
-   *
-   * Accepts `clauses` (a JSON array of key arrays — the drill-down's shape) and
-   * falls back to flat `groups`/`group`, where each key becomes its own
-   * one-key clause. That fallback is what keeps every previously-built
-   * selection resolving exactly as it did: N independent keys OR'd together.
-   */
-  function parseClauses(body) {
-    if (body.clauses != null && String(body.clauses) !== '') {
-      let raw = body.clauses
-      if (!Array.isArray(raw)) {
-        try { raw = JSON.parse(String(body.clauses)) } catch { raw = [] }
-      }
-      if (Array.isArray(raw)) {
-        const out = []
-        for (const c of raw) {
-          const keys = [...new Set((Array.isArray(c) ? c : [c]).map(k => String(k).trim()).filter(Boolean))]
-          if (keys.length) out.push(keys)
-        }
-        if (out.length) return out
-      }
-    }
-    return parseGroupKeys(body).map(k => [k])
-  }
-
   /** Resolve clause key-lists to source descriptors, or an error string. */
   function sourcesForClauses(clauses) {
     const out = []
@@ -1319,16 +1276,6 @@ export function registerSchedulingMailbox(router, { database, logger }) {
       out.push(srcs)
     }
     return { sources: out }
-  }
-
-  /** JSON-or-comma list of scalars, same multipart reasoning as parseGroupKeys. */
-  function parseList(value) {
-    if (value == null || String(value) === '') return []
-    if (Array.isArray(value)) return value.map(String)
-    try {
-      const parsed = JSON.parse(String(value))
-      return Array.isArray(parsed) ? parsed.map(String) : []
-    } catch { return String(value).split(',') }
   }
 
   // POST /kscw/admin/mailbox/expand — resolve audiences to the individual
