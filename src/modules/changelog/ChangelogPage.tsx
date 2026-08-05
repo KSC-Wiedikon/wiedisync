@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '1.65.0'
+const APP_VERSION = '1.66.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,19 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.66.0',
+    date: '05.08.2026',
+    sections: [
+      {
+        title: 'Coaching qualifications and officials’ licences',
+        items: [
+          'Basketball coaches can now record their qualification. The profile only offered the volleyball ladder (Trainer C / B / A), so a Trainer 1 or Trainer 2 had nothing to select and the club’s register kept the answer to itself. The list now shows the rungs for your own sport, with J+S available to everyone.',
+          'Three referees were missing their licence in Wiedisync. Their names are spelled slightly differently in Basketplan, so the nightly import had never matched them and they were absent from the officials list despite holding a current licence. Their licence numbers are now on file, which is what stops it happening again.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.65.0',
     date: '05.08.2026',
