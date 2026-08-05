@@ -69,6 +69,8 @@ export default function SchedulingLayout() {
     ...(canPlanner ? [{ to: '/admin/spielplanung', label: t('gameplan'), Icon: ClipboardList }] : []),
   ]
   const basketballNav: NavItem[] = [
+    // Dashboard first, mirroring the volleyball tab order.
+    ...(canBasketball ? [{ to: '/admin/terminplanung/basketball/dashboard', label: t('dashboard'), Icon: LayoutDashboard }] : []),
     ...(canBasketball ? [{ to: '/admin/terminplanung/basketball', label: tb('tab'), Icon: CalendarCheck, end: true }] : []),
     ...(canBasketball ? [{ to: '/admin/terminplanung/basketball/calendar', label: tb('tabCalendar'), Icon: CalendarClock }] : []),
     ...(canBasketball ? [{ to: '/admin/terminplanung/basketball/settings', label: tb('tabSettings'), Icon: Settings }] : []),

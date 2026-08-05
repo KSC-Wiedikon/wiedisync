@@ -387,4 +387,16 @@ export default {
   bbPortalInvalidHint: 'Dieser Link ist unbekannt oder nicht mehr aktiv.',
   bbPortalExpired: 'Dieser Link ist abgelaufen.',
   bbPortalHelp: 'Fragen? Schreibt an',
+
+  // ── Dashboard-Tab (gleiche Seitenkomponente wie Volleyball, Basketball-Teil) ──
+  dashboardTitle: 'Basketball-Dashboard',
+  dashPlacedGames: 'Angesetzte Spiele',
+  dashCandidateSlots: 'Mögliche Slots',
+  dashOffered: 'Gegnern angeboten',
+  dashPortals: 'Klub-Links erstellt',
+  dashResponded: 'Klubs haben geantwortet',
+  dashPerTeam: 'Pro Team',
+  dashTeam: 'Team',
+  dashUnassignedWarning:
+    '{{count}} angesetzte Spiele haben noch keinen Gegnerklub — bitte zuordnen, bevor Links verschickt werden.',
 }

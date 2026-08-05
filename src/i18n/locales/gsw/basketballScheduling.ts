@@ -387,4 +387,16 @@ export default {
   bbPortalInvalidHint: 'De Link isch unbekannt oder nüme aktiv.',
   bbPortalExpired: 'De Link isch abglaufe.',
   bbPortalHelp: 'Frage? Schriibed a',
+
+  // ── Dashboard-Tab (gliichi Siitekomponänte wie Volleyball, Basketball-Teil) ──
+  dashboardTitle: 'Basketball-Dashboard',
+  dashPlacedGames: 'Aagsetzti Spiel',
+  dashCandidateSlots: 'Möglichi Slots',
+  dashOffered: 'De Gägner aabote',
+  dashPortals: 'Klub-Links gmacht',
+  dashResponded: 'Klubs händ gantwortet',
+  dashPerTeam: 'Pro Team',
+  dashTeam: 'Team',
+  dashUnassignedWarning:
+    '{{count}} aagsetzti Spiel händ no kein Gägnerklub — bitte zuetteile, bevor Links usegönd.',
 }

@@ -383,4 +383,16 @@ export default {
   bbPortalInvalidHint: 'This link is unknown or no longer active.',
   bbPortalExpired: 'This link has expired.',
   bbPortalHelp: 'Questions? Write to',
+
+  // ── Dashboard tab (same page component as volleyball, basketball body) ──
+  dashboardTitle: 'Basketball dashboard',
+  dashPlacedGames: 'Placed games',
+  dashCandidateSlots: 'Candidate slots',
+  dashOffered: 'Offered to opponents',
+  dashPortals: 'Club links issued',
+  dashResponded: 'Clubs replied',
+  dashPerTeam: 'Per team',
+  dashTeam: 'Team',
+  dashUnassignedWarning:
+    '{{count}} placed game(s) have no opponent club yet — assign one before sending links.',
 }

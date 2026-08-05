@@ -34,6 +34,12 @@ import { formatDateCompactZurich, formatDateTimeCompact } from '../../../utils/d
 import { buildMailtoHref } from '../../../utils/sanitizeUrl'
 import { kscwApi, fetchAllItems } from '../../../lib/api'
 import { useHalls } from '../../../hooks/useData'
+// Basketball half of this page (see BasketballDashboardBody at the bottom).
+import { useBasketballPlan } from '../hooks/useBasketballPlan'
+import { useBasketballSlots } from '../hooks/useBasketballSlots'
+import { useBasketballOffers } from '../hooks/useBasketballOffers'
+import { useBasketballClubPortals } from '../hooks/useBasketballClubPortals'
+import { BasketballCalendarPanel } from './BasketballCalendarPage'
 import { isSchedulableTeam } from '../utils/schedulableTeams'
 
 /** One SVRZ fixture for an opponent (from the svrz-clubs endpoint). */
@@ -213,7 +219,26 @@ function sourceKey(source: InviteSource | undefined): string {
   return 'sourceSelfRegistration'
 }
 
-export default function AdminDashboardPage() {
+/**
+ * ONE dashboard, two sports.
+ *
+ * The volleyball body below is coupled to the bilateral flow from its very first
+ * hook (`useAdminBookings` → proposals, confirmations, VM push, SVRZ fixtures).
+ * Basketball has none of that: ProBasket owns the schedule (physical
+ * Spielplansitzung + Basketplan) and there is no push-back, so those panels are
+ * not "hidden" for basketball — they have no data to show and no action to offer.
+ *
+ * Hence a dispatcher rather than conditional panels: React forbids conditional
+ * hooks, so keeping both bodies in one function would run every volleyball query
+ * on the basketball tab and then throw the results away. Each body owns its own
+ * hooks; the shell (route, nav tab, layout, season) is shared.
+ */
+export default function AdminDashboardPage({ sport = 'volleyball' }: { sport?: 'volleyball' | 'basketball' } = {}) {
+  if (sport === 'basketball') return <BasketballDashboardBody />
+  return <VolleyballDashboardBody />
+}
+
+function VolleyballDashboardBody() {
   const { t } = useTranslation('gameScheduling')
   const navigate = useNavigate()
   const { hasAdminAccessToSport, is_spielplaner } = useAuth()
@@ -1630,5 +1655,159 @@ function TeamBookingsContent({
       </DialogContent>
     </Dialog>
     </>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Basketball
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * The basketball half of the dashboard.
+ *
+ * Same shape as the volleyball body above — season header, summary tiles, per-team
+ * table, overview calendar — over basketball's own data. What is deliberately
+ * ABSENT, because ProBasket owns the schedule and there is no push-back: proposal
+ * inbox, confirm/decline, invite tracking, derby anchoring, SVRZ fixtures and
+ * VolleyManager push. Those are not hidden panels; there is nothing to put in them
+ * (user, 2026-08-05: "no VM push, no SVRZ stuff etc").
+ *
+ * Read-only by design. Every action lives on the tab that owns it — generating
+ * slots and editing rules on Settings, placing games on the Planner — so this page
+ * cannot become a second, diverging way to mutate the plan.
+ */
+function BasketballDashboardBody() {
+  const { t } = useTranslation('basketballScheduling')
+  const { season, isLoading: seasonLoading } = useGameSchedulingSeason()
+  const { teams, placements, vbGames, closureEntries, blockedDayReasons, isLoading: planLoading } =
+    useBasketballPlan(season)
+  const slots = useBasketballSlots(season?.id)
+  const offers = useBasketballOffers(season?.id)
+  const portals = useBasketballClubPortals(season?.id)
+
+  const isInitialLoading = seasonLoading || planLoading
+  useReportPageLoading(isInitialLoading)
+
+  const placed = useMemo(() => [...placements.values()], [placements])
+
+  // One row per team: what is planned, what is still only a candidate, and whether
+  // the opponent has been told. `offered` counts games published to an opponent
+  // club; `candidates` are generated possibilities nobody has acted on yet.
+  const perTeam = useMemo(() => {
+    const offeredByTeam = new Map<string, number>()
+    for (const g of offers.games ?? []) {
+      if (!g.offered || g.kscw_team == null) continue
+      const k = String(g.kscw_team)
+      offeredByTeam.set(k, (offeredByTeam.get(k) ?? 0) + 1)
+    }
+    return teams.map((tm) => {
+      const k = String(tm.id)
+      return {
+        id: k,
+        name: tm.name,
+        placed: placed.filter((p) => String(p.kscw_team ?? '') === k).length,
+        candidates: (slots.byTeam?.get(k) ?? []).length,
+        offered: offeredByTeam.get(k) ?? 0,
+      }
+    })
+  }, [teams, placed, slots.byTeam, offers.games])
+
+  const totals = useMemo(() => ({
+    placed: placed.length,
+    candidates: slots.slots?.length ?? 0,
+    offered: (offers.games ?? []).filter((g) => g.offered).length,
+    unassigned: (offers.unassigned ?? []).length,
+    clubs: (portals.clubs ?? []).length,
+    portals: (portals.portals ?? []).length,
+    // 'booked' is the portal's terminal answered state (BbPortalStatus:
+    // invited | viewed | booked | revoked | expired) — there is no 'responded'.
+    responded: (portals.portals ?? []).filter((p) => p.status === 'booked').length,
+  }), [placed, slots.slots, offers.games, offers.unassigned, portals.clubs, portals.portals])
+
+  if (isInitialLoading) return null
+  if (!season) {
+    return <div className="text-center text-gray-500 dark:text-gray-400">{t('noSeason')}</div>
+  }
+
+  const tile = 'rounded-lg border border-border bg-card px-4 py-3'
+  const tileNum = 'text-2xl font-bold tabular-nums'
+
+  return (
+    <div className="space-y-6">
+      <header className="flex flex-col gap-1">
+        <h1 className="text-xl font-bold sm:text-2xl">{t('dashboardTitle')}</h1>
+        <p className="text-sm text-muted-foreground">{formatSeasonShort(season.season)}</p>
+      </header>
+
+      {/* Summary — planned vs merely possible vs communicated. Kept to what the
+          section actually asks about; a number nobody acts on is noise. */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        <div className={tile}>
+          <div className={tileNum}>{totals.placed}</div>
+          <div className="text-xs text-muted-foreground">{t('dashPlacedGames')}</div>
+        </div>
+        <div className={tile}>
+          <div className={tileNum}>{totals.candidates}</div>
+          <div className="text-xs text-muted-foreground">{t('dashCandidateSlots')}</div>
+        </div>
+        <div className={tile}>
+          <div className={tileNum}>{totals.offered}</div>
+          <div className="text-xs text-muted-foreground">{t('dashOffered')}</div>
+        </div>
+        <div className={tile}>
+          <div className={tileNum}>
+            {totals.portals}
+            <span className="text-base font-normal text-muted-foreground">/{totals.clubs}</span>
+          </div>
+          <div className="text-xs text-muted-foreground">{t('dashPortals')}</div>
+        </div>
+        <div className={tile}>
+          <div className={tileNum}>{totals.responded}</div>
+          <div className="text-xs text-muted-foreground">{t('dashResponded')}</div>
+        </div>
+      </div>
+
+      {totals.unassigned > 0 && (
+        <p className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+          ⚠ {t('dashUnassignedWarning', { count: totals.unassigned })}
+        </p>
+      )}
+
+      {/* Per-team status — a record list, so a table (CLAUDE.md). */}
+      <section className="space-y-2">
+        <h2 className="text-lg font-semibold">{t('dashPerTeam')}</h2>
+        <div className="overflow-x-auto rounded-lg border border-border">
+          <Table>
+            <TableBody>
+              <TableRow className="bg-muted/50 font-medium">
+                <TableCell className="whitespace-normal break-words">{t('dashTeam')}</TableCell>
+                <TableCell className="text-right">{t('dashPlacedGames')}</TableCell>
+                <TableCell className="text-right">{t('dashCandidateSlots')}</TableCell>
+                <TableCell className="text-right">{t('dashOffered')}</TableCell>
+              </TableRow>
+              {perTeam.map((r) => (
+                <TableRow key={r.id} className="min-h-[44px]">
+                  <TableCell className="whitespace-normal break-words font-medium">{r.name}</TableCell>
+                  <TableCell className="text-right tabular-nums">{r.placed}</TableCell>
+                  <TableCell className="text-right tabular-nums">{r.candidates}</TableCell>
+                  <TableCell className="text-right tabular-nums">{r.offered}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </section>
+
+      {/* The same calendar component the Planner and Calendar tabs use — one
+          calendar, not a third rendering of the same season. */}
+      <BasketballCalendarPanel
+        seasonName={season.season}
+        teams={teams}
+        placements={placements}
+        vbGames={vbGames}
+        closureEntries={closureEntries}
+        blockedDayReasons={blockedDayReasons}
+      />
+    </div>
   )
 }
