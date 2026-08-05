@@ -116,6 +116,40 @@ export const PROBASKET_LEAGUE_GRIDS_2026_27 = {
   KIDS_MINIS: [{ start: '2026-09-19', end: '2026-12-13' }],
 }
 
+/**
+ * Synthetic league for a team with NO `basketball_team_rules` row.
+ *
+ * User rule 2026-08-05: "for teams with no rules: means open to all: generate every
+ * slot." A missing row used to SKIP the team entirely; it now means the opposite —
+ * no TEAM-level restriction at all. To make "every slot" honest the window has to be
+ * the widest any league gets, not the JUN_REG default (which ends 13.12.2026 and
+ * would quietly under-generate for e.g. the two Classics squads).
+ *
+ * ⚠ "Open" removes only the team's OWN preferences (weekday, start window, hall tier,
+ * category, blocked dates). The club-wide hard rules still bind — Spielsamstage cap,
+ * ProBasket blackouts, hall closures, volleyball occupancy, an already-taken pitch,
+ * a partner playing at the same time. Those are facts about the hall, not preferences.
+ */
+export const OPEN_LEAGUE = 'OPEN'
+
+/** Union of every league grid, merged into minimal non-overlapping ranges. */
+export function widestGrid(gridsByLeague) {
+  const ranges = Object.values(gridsByLeague || {}).flat()
+    .filter((r) => r?.start && r?.end)
+    .map((r) => ({ start: r.start, end: r.end }))
+    .sort((a, b) => a.start.localeCompare(b.start))
+  const out = []
+  for (const r of ranges) {
+    const last = out[out.length - 1]
+    // Merge overlapping OR adjacent ranges; a one-day gap between two league phases
+    // is an artefact of per-league end dates, not a day the hall is unavailable.
+    if (last && r.start <= addDays(last.end, 1)) {
+      if (r.end > last.end) last.end = r.end
+    } else out.push({ ...r })
+  }
+  return out
+}
+
 export const PROBASKET_GRIDS_BY_SEASON = { '2026/27': PROBASKET_LEAGUE_GRIDS_2026_27 }
 
 /** Fallback league window — junior regional 1. Phase (the documented default). */
@@ -463,13 +497,19 @@ export function hardReject(cand, team, ctx) {
   if (team.blockedDates.has(date)) return REJECT_CODES.BLOCKED_RULE
 
   // ── Hall preference tiers. hard=true → only the rank-1 option exists for this team. ──
-  if (!hallTierFor(team.halls, hall)) return REJECT_CODES.HALL_NOT_ALLOWED
+  // ── Hall tier. An `open` team (no rules row) may use any court. ──
+  if (!team.open && !hallTierFor(team.halls, hall)) return REJECT_CODES.HALL_NOT_ALLOWED
 
-  // ── Club timeslot→category matrix. A pitch with no matrix entry is not offered at all. ──
+  // ── Club timeslot→category matrix. A pitch with no matrix entry is not offered at all.
+  //    An `open` team has no category to match, so the matrix cannot judge it: it is
+  //    offered every pitch the weekday grid defines. Still gated on the pitch EXISTING,
+  //    so a time nobody plays at is never invented. ──
   const slot = ctx.timeslotByKey.get(`${dow}|${time}`)
   if (!slot) return REJECT_CODES.CATEGORY_NOT_ALLOWED
-  const allowed = slot.allow.includes(team.category) || slot.tolerate.includes(team.category)
-  if (!allowed) return REJECT_CODES.CATEGORY_NOT_ALLOWED
+  if (!team.open) {
+    const allowed = slot.allow.includes(team.category) || slot.tolerate.includes(team.category)
+    if (!allowed) return REJECT_CODES.CATEGORY_NOT_ALLOWED
+  }
 
   // ── The planner marked this team unavailable on this date (basketball_hall_availability). ──
   if (ctx.unavailableTeamDates.has(`${team.team}|${date}`)) return REJECT_CODES.TEAM_UNAVAILABLE
@@ -669,7 +709,11 @@ export function registerBasketballSlots(router, { database, logger }) {
       if (s?.date) spielsamstagStatus.set(String(s.date).slice(0, 10), String(s.status || 'desired'))
     }
 
-    const gridsByLeague = PROBASKET_GRIDS_BY_SEASON[season.season] || PROBASKET_GRIDS_BY_SEASON['2026/27']
+    const baseGrids = PROBASKET_GRIDS_BY_SEASON[season.season] || PROBASKET_GRIDS_BY_SEASON['2026/27']
+    // OPEN = the union of every league window, for teams with no rules row ("open to
+    // all"). Added here rather than to the PROBASKET_* literal so it stays derived: a
+    // new or edited league window widens it automatically instead of drifting.
+    const gridsByLeague = { ...baseGrids, [OPEN_LEAGUE]: widestGrid(baseGrids) }
     const blackouts = blackoutsForCanton(
       PROBASKET_BLACKOUTS_BY_SEASON[season.season] || PROBASKET_BLACKOUTS_2026_27,
       KSCW_CANTON,
@@ -805,6 +849,34 @@ export function registerBasketballSlots(router, { database, logger }) {
     }
   }
 
+  /**
+   * The rule for a team with NO `basketball_team_rules` row: open to everything.
+   *
+   * Deliberately NOT "the defaults of a real rule" — `open: true` makes hardReject skip
+   * the hall-tier and category gates outright, because a team with no configuration has
+   * no hall preference and no category to match. Giving it a plausible-looking category
+   * instead would quietly exclude it from pitches the matrix reserves for other groups,
+   * which is the opposite of what "open to all" means.
+   */
+  function openTeamRule(teamId, ctx) {
+    return {
+      id: null,
+      team: teamId,
+      league: OPEN_LEAGUE,
+      category: null,
+      open: true,
+      ferien_hard: false,        // 'ferien' binds only interregional + 1./2. Liga; unknown ⇒ soft
+      allowed_dows: [...PLAY_DOW],
+      preferred_dows: [],
+      start_min: null,
+      start_max: null,
+      start_hard: false,
+      halls: { hard: false, tiers: [] },   // never consulted while open:true
+      own_back_to_back: true,
+      blockedDates: new Set(),
+    }
+  }
+
   /** Normalise a basketball_team_rules row + expand its blocked rules against the ctx. */
   function prepareTeamRule(row, ctx) {
     const league = String(row.league || DEFAULT_LEAGUE)
@@ -830,10 +902,14 @@ export function registerBasketballSlots(router, { database, logger }) {
 
   // ── POST /kscw/terminplanung/admin/basketball/generate-slots ──────────────────────────
   //
-  // Body: { season_id }. (Re)generates the candidate inventory for every ENABLED team that
-  // has a basketball_team_rules row. A team with NO row is skipped entirely — that is the
-  // documented "not slot-generated" state, not a bug (MU8/MU10/DU12/HU12 and the Classics
-  // squads are Turnier formats with no home fixtures, and the two DU18 squads are unresolved).
+  // Body: { season_id }. (Re)generates the candidate inventory for EVERY active basketball
+  // team.
+  //   · a team WITH an enabled basketball_team_rules row is planned against that row;
+  //   · a team with NO row is "open to all" (user rule 2026-08-05) — every pitch the
+  //     weekday grid defines, over the widest league window, with no weekday/start/hall/
+  //     category/blocked-date restriction. It is NOT skipped, which is what it used to be.
+  //   · a row explicitly `enabled = false` IS still skipped — that is the deliberate
+  //     opt-out, and it must stay distinguishable from "nobody has configured me yet".
   //
   // Idempotent by construction:
   //   · rows are keyed by (season, kscw_team, date, time, hall) — the table's unique;
@@ -853,16 +929,38 @@ export function registerBasketballSlots(router, { database, logger }) {
 
       const ctx = await loadGeneratorContext(season)
 
-      const ruleRows = await database('basketball_team_rules')
-        .where('season', seasonId).where('enabled', true)
+      const allRows = await database('basketball_team_rules')
+        .where('season', seasonId)
         .orderBy('team')
-      if (!ruleRows.length) {
+      const ruleByTeam = new Map(allRows.map((r) => [String(r.team), r]))
+      const enabledRows = allRows.filter((r) => r.enabled === true)
+
+      // Every ACTIVE basketball team is planned, not just the configured ones.
+      const activeTeams = await database('teams')
+        .where('sport', 'basketball').where('active', true)
+        .select('id', 'name')
+        .orderBy('id')
+
+      const teams = []
+      const openTeams = []
+      for (const t of activeTeams) {
+        const row = ruleByTeam.get(String(t.id))
+        // An explicit enabled=false is an opt-out and stays skipped; only the ABSENCE
+        // of a row means "open to all".
+        if (row && row.enabled !== true) continue
+        if (row) { teams.push(prepareTeamRule(row, ctx)); continue }
+        teams.push(openTeamRule(t.id, ctx))
+        openTeams.push(t.name || String(t.id))
+      }
+      if (!teams.length) {
         return res.status(400).json({
-          error: 'no_team_rules',
-          message: 'No enabled basketball team rules for this season — configure the constraint matrix first.',
+          error: 'no_teams',
+          message: 'No active basketball teams to plan for this season.',
         })
       }
-      const teams = ruleRows.map((r) => prepareTeamRule(r, ctx))
+      if (openTeams.length) {
+        log.info({ msg: `[bb-slots] ${openTeams.length} team(s) planned as OPEN (no rules row): ${openTeams.join(', ')}` })
+      }
 
       const { rows, perTeam } = planSlots(teams, ctx)
       if (rows.length > MAX_GENERATED_SLOTS) {
