@@ -25,6 +25,7 @@ import SetPasswordPage from './modules/auth/SetPasswordPage'
 import PublicTerminplanungPage from './modules/gameScheduling/pages/PublicTerminplanungPage'
 import OpponentFlowPage from './modules/gameScheduling/pages/OpponentFlowPage'
 import ClubFlowPage from './modules/gameScheduling/pages/ClubFlowPage'
+import BasketballClubFlowPage from './modules/gameScheduling/pages/BasketballClubFlowPage'
 import AdminSetupPage from './modules/gameScheduling/pages/AdminSetupPage'
 import AdminDashboardPage from './modules/gameScheduling/pages/AdminDashboardPage'
 import MailboxPage from './modules/gameScheduling/pages/MailboxPage'
@@ -79,6 +80,13 @@ export default function SchedulingApp() {
                           teams. Static `club` segment outranks the dynamic :token, and
                           tokens are 32-hex so they never collide with the literal. */}
                       <Route path="terminplanung/club/:token" element={<ClubFlowPage />} />
+                      {/* Basketball per-club portal. The invite mail embeds
+                          /terminplanung/bb/<token>, which is TWO segments — the
+                          dynamic `terminplanung/:token` below matches exactly one,
+                          so without this route a pasted link fell through to the
+                          catch-all. Static `bb` outranks the dynamic segment and
+                          32-hex tokens never collide with the literal. */}
+                      <Route path="terminplanung/bb/:token" element={<BasketballClubFlowPage />} />
                       <Route path="terminplanung/:token" element={<OpponentFlowPage />} />
 
                       {/* Auth (pre-SSO login on this origin) */}

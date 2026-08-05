@@ -2337,6 +2337,25 @@ async function main() {
   await setPerm(TERMINPLANUNG_POLICY, 'team_links', 'update')
   await setPerm(TERMINPLANUNG_POLICY, 'team_links', 'delete')
 
+  // ── Basketball slot rules + club registry (migrations 278/279) ──────────
+  //   • basketball_team_rules — the per-team constraint matrix behind slot
+  //     generation. useBasketballTeamRules reads via useCollection and writes
+  //     with createRecord/updateRecord/deleteRecord → full CRUD.
+  await setPermCRUD(TERMINPLANUNG_POLICY, 'basketball_team_rules')
+  //   • basketplan_clubs — READ ONLY on purpose. The list is served by the gated
+  //     endpoint (GET /kscw/admin/terminplanung/bb/clubs) rather than the items
+  //     API because it carries third-party contact PII; read is still needed
+  //     because Directus returns the patched row on the one items-API write.
+  //     Consequence: editing a club's contact email is full-admin-only — a
+  //     Spielplaner gets a 403, surfaced in the dialog's error state. Widen with
+  //     `setPerm(TERMINPLANUNG_POLICY, 'basketplan_clubs', 'update')` only if
+  //     Spielplaner are meant to edit other clubs' contact details.
+  await setPermRead(TERMINPLANUNG_POLICY, 'basketplan_clubs')
+  // NOT granted, deliberately: basketball_slots and game_scheduling_club_portals
+  // are endpoint-only (never touched via the items API); migration 280's new
+  // basketball_slot_plan columns ride the existing CRUD grant (fields '*'); and
+  // game_scheduling_seasons.bb_slot_config rides the §9b update grant.
+
   console.log(`  ✓ Terminplanung permissions set`)
 
   // ── 9c. Finance permissions ────────────────────────────────────

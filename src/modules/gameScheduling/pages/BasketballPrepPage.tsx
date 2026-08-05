@@ -13,10 +13,14 @@ import {
   AUTOMATIC_SCHEDULING_BB_SOURCE_IDS,
   PROBASKET_KEY_DATES,
   PROBASKET_CONTACT_EMAIL,
+  HALL_A,
+  HALL_B,
+  HALL_AB,
 } from '../utils/probasketSeason'
 import { exportBasketballAvailability } from '../lib/basketballAvailabilityExport'
 import PlaceGameModal from '../components/PlaceGameModal'
 import { BasketballCalendarPanel } from './BasketballCalendarPage'
+import { useBasketballSlots, type BasketballSlot } from '../hooks/useBasketballSlots'
 import type { BasketballSlotPlan, Team } from '../../../types'
 
 // Weekday abbreviation follows the UI language (Sun/Sa/So/…); the full date stays
@@ -66,6 +70,17 @@ export default function BasketballPrepPage() {
   const wantedBbSourceId = selectedTeam?.bb_source_id ?? null
   if (wantedBbSourceId !== bbSourceId) setBbSourceId(wantedBbSourceId)
 
+  // The GENERATED candidate inventory for the selected team (basketball_slots,
+  // migration 278). Read-only here: the grid ranks and explains the suggestions, the
+  // Settings page is where they are (re)generated.
+  const {
+    byTeam: slotsByTeam, suggestionAt, isLoading: slotsLoading, error: slotsError,
+  } = useBasketballSlots(season?.id, {
+    teamId,
+    // No team selected means no grid either — do not pull the whole season's inventory.
+    enabled: !!teamId,
+  })
+
   const [modal, setModal] = useState<ModalSlot | null>(null)
   const [exporting, setExporting] = useState(false)
   const [showCalendar, setShowCalendar] = useState(true)
@@ -96,6 +111,46 @@ export default function BasketballPrepPage() {
   // How the selected team's window was resolved — a 'default' league or a 'derived'
   // grid means the dates below are an inference, not an official ProBasket template.
   const leagueSource = probasketLeagueForTeam(selectedTeam?.bb_source_id ?? null).source
+
+  const mySlots = useMemo(
+    () => (teamId ? slotsByTeam.get(String(teamId)) ?? [] : []),
+    [slotsByTeam, teamId],
+  )
+  const suggestionCount = useMemo(() => mySlots.filter((s) => s.status === 'available').length, [mySlots])
+
+  const dowByDate = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const cd of candidateDates) m.set(cd.date, cd.dow)
+    return m
+  }, [candidateDates])
+
+  /**
+   * Suggestions the world has moved past: the generator offered them, but the court is
+   * no longer free (a volleyball booking, a closure or a placement landed since). They
+   * are not hidden — a stale count with a "re-generate" hint is honest, silently
+   * dropping them would make the inventory look smaller than it is.
+   */
+  const staleCount = useMemo(() => {
+    let n = 0
+    for (const s of mySlots) {
+      if (s.status !== 'available') continue
+      const dow = dowByDate.get(s.date)
+      if (dow == null) continue
+      const { cells } = slotView(s.date, dow, s.time)
+      const needed = s.hall === HALL_AB ? [HALL_A, HALL_B] : [s.hall]
+      const free = needed.every((h) => cells.find((c) => c.hall === h)?.status === 'free')
+      if (!free) n++
+    }
+    return n
+  }, [mySlots, dowByDate, slotView])
+
+  /** "Why this score": every soft term that produced it, translated, as a tooltip. */
+  const scoreTitle = (slot: BasketballSlot): string => {
+    const parts = slot.score_reasons.map(
+      (r) => `${t(`score_${r.code}`, { defaultValue: r.code })} ${r.delta > 0 ? '+' : ''}${r.delta}`,
+    )
+    return `${t('whyThisScore')}: ${parts.join(' · ') || '–'}`
+  }
 
   async function doExport(mode: 'team' | 'auto') {
     const exportTeams: Team[] =
@@ -212,10 +267,33 @@ export default function BasketballPrepPage() {
         </div>
       )}
 
+      {/* Generated candidate slots for the selected team (Settings → Slot generation). */}
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        {/* "None generated" and "could not load" are different facts — a missing
+            backend must never read as an empty inventory. */}
+        {slotsError ? (
+          <span className="rounded bg-amber-100 px-2 py-0.5 text-amber-900 dark:bg-amber-900/40 dark:text-amber-200">
+            {t('backendUnavailable')}
+          </span>
+        ) : slotsLoading ? null : suggestionCount > 0 ? (
+          <span className="rounded bg-indigo-100 px-2 py-0.5 font-medium text-indigo-900 dark:bg-indigo-900/40 dark:text-indigo-200">
+            {t('suggestionsFor', { count: suggestionCount, team: selectedTeam?.name ?? '' })}
+          </span>
+        ) : (
+          <span className="text-muted-foreground">{t('suggestionsNone')}</span>
+        )}
+        {staleCount > 0 && (
+          <span className="rounded bg-amber-100 px-2 py-0.5 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+            {t('suggestionsStale', { count: staleCount })}
+          </span>
+        )}
+      </div>
+
       {/* Legend */}
       <div className="flex flex-wrap items-center gap-2 text-xs">
         <span className="font-medium text-muted-foreground">{t('legend')}:</span>
         <span className="rounded px-2 py-0.5 bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300">{t('statusFree')}</span>
+        <span className="rounded px-2 py-0.5 bg-indigo-100 text-indigo-900 dark:bg-indigo-900/40 dark:text-indigo-200">{t('statusSuggested')}</span>
         <span className="rounded px-2 py-0.5 bg-brand-100 text-brand-800 dark:bg-brand-900/40 dark:text-brand-200">{t('statusGame')}</span>
         <span className="rounded px-2 py-0.5 bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">{t('statusVbUsing')}</span>
         <span className="rounded px-2 py-0.5 bg-gray-200 text-gray-700 dark:bg-gray-800 dark:text-gray-300">{t('statusUnavailable')}</span>
@@ -347,15 +425,37 @@ export default function BasketballPrepPage() {
                                 </div>
                               )
                             }
+                            // Free pitch. When the generator offered this exact court to
+                            // the selected team, the cell carries its rank and the soft
+                            // terms behind it — a hand-placed game (brand colour above)
+                            // stays visually distinct from a machine suggestion.
+                            const sug = suggestionAt(cd.date, time, cell.hall)
                             return (
                               <button
                                 key={cell.hall}
                                 type="button"
+                                title={sug ? scoreTitle(sug.slot) : undefined}
                                 onClick={() => setModal({ date: cd.date, dow: cd.dow, time, hall: cell.hall, canCombineAB, existing: null })}
-                                className={`${base} border-dashed border-emerald-300 bg-emerald-50/50 text-emerald-800 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-300${hlRing}`}
+                                className={`${base} ${
+                                  sug
+                                    ? 'border-indigo-300 bg-indigo-50 text-indigo-900 hover:bg-indigo-100 dark:border-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-200'
+                                    : 'border-dashed border-emerald-300 bg-emerald-50/50 text-emerald-800 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-300'
+                                }${hlRing}`}
                               >
-                                <div className="font-medium">{cell.hall}</div>
-                                <div>＋ {t('putGameHere')}</div>
+                                <div className="flex items-center justify-between gap-1 font-medium">
+                                  <span>
+                                    {cell.hall}
+                                    {sug?.combined ? ` → ${HALL_AB}` : ''}
+                                  </span>
+                                  {sug && (
+                                    <span className="rounded bg-indigo-200 px-1 text-[10px] tabular-nums text-indigo-900 dark:bg-indigo-800 dark:text-indigo-100">
+                                      {sug.slot.score}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="truncate">
+                                  {sug ? `${sug.top ? '★ ' : ''}${t('suggested')}` : `＋ ${t('putGameHere')}`}
+                                </div>
                               </button>
                             )
                           })}

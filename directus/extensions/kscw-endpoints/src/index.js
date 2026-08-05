@@ -32,6 +32,8 @@ import { registerChangePassword } from './change-password.js'
 import { registerImpersonate } from './impersonate.js'
 import { registerJsExport } from './js-export.js'
 import { registerGameScheduling } from './game-scheduling.js'
+import { registerBasketballSlots } from './basketball-slots.js'
+import { registerBasketballPortal } from './basketball-portal.js'
 import { registerSchedulingMailbox } from './scheduling-mailbox.js'
 import { registerSesNotify } from './ses-notify.js'
 import { registerContactForm } from './contact-form.js'
@@ -2388,6 +2390,8 @@ export default {
     registerImpersonate(router, ctx)
     registerJsExport(router, ctx)
     registerGameScheduling(router, ctx)
+    registerBasketballSlots(router, ctx)
+    registerBasketballPortal(router, ctx)
     registerSchedulingMailbox(router, ctx)
     registerSesNotify(router, ctx)
     registerContactForm(router, ctx)

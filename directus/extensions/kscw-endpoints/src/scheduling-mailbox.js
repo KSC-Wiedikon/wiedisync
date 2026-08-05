@@ -79,7 +79,10 @@ const SYNC_DAYS = Number(process.env.SCHEDULING_MAILBOX_SYNC_DAYS || 60)
 // pair. Outgoing mail is sent from each account's own address (DKIM-aligned for
 // spielplanung.kscw.ch) with its own branded signature. FROM_NAME stays in sync
 // with SCHEDULING_FROM_NAME in game-scheduling.js for the volleyball account.
-const ACCOUNTS = {
+// Exported so other modules send FROM the same identity instead of re-declaring
+// it (basketball-portal.js uses ACCOUNTS.basketball for the club-portal mail).
+// Read-only for consumers — mutating an entry would silently reconfigure IMAP.
+export const ACCOUNTS = {
   volleyball: {
     sport: 'volleyball',
     imapUser: process.env.SCHEDULING_IMAP_USER || 'volleyball@spielplanung.kscw.ch',

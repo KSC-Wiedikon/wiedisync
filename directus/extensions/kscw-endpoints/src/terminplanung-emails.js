@@ -410,3 +410,156 @@ export function inviteEmail(vars) {
 
   return { subject, text, html }
 }
+
+// ── Basketball club portal (ProBasket pre-agreement, WSR Art. 18) ───────────
+//
+// GERMAN ONLY, and deliberately so. The volleyball invite is bilingual DE/EN
+// because SVRZ reaches Romandie clubs; ProBasket is the Nord-Ostschweizer
+// Basketballverband and every club in KSCW's 15 groups corresponds in German —
+// including the cross-border ones (Feldkirch Baskets, BV Bregenz 1983,
+// BBC Schaan). A second language here would be noise, not service.
+//
+// The business case, verbatim from the association's own invitation
+// (Einladung Spielplansitzung 05.09.2026):
+//   "WSR Art. 18 Spielplansitzung … Einzige Ausnahme ist, wenn die Spiele bis
+//    zur Spielplansitzung, im Einverständnis jeweils beider Klubs, abgemacht
+//    wurden und bei der Geschäftsstelle vorliegen. Spiele die bis nach der
+//    Spielplansitzung nicht fixiert wurden, werden durch die Betriebsleitung
+//    Meisterschaft mit einer Umtriebsgebühr in der Höhe von CHF 50 pro Spiel
+//    fixiert."
+// And the exclusion, from "Anleitung Spielplanung Vorrunde 2026":
+//   "In folgenden Ligen wird dieser Prozess angewandt: − Herren 1. Liga
+//    − Damen 1. Liga − Alle interregionalen U14 bis U22 Ligen … Die Klubs
+//    liefern bis zum 17. August 2026 dem Verband an info@probasket.ch alle
+//    verfügbaren Hallenslots."
+// Those leagues are scheduled by ProBasket from that Excel, so the mail says
+// outright that they are not covered — a portal there would be dead UI.
+
+/** ProBasket key dates quoted in the copy, dd.mm.yyyy per the KSCW date rule. */
+const BB_SPIELPLANSITZUNG = '05.09.2026'
+const BB_AVAILABILITY_DUE = '17.08.2026'
+
+/**
+ * The basketball club-portal INVITE (and its reminder variant).
+ *
+ * @param {object} vars
+ *   - club     opponent club name (subject line + nothing else; the greeting stays
+ *              generic because contact_email may list two addresses)
+ *   - season   season label, e.g. "2026/27"
+ *   - url      the tokenised portal link
+ *   - expires  pre-formatted dd.mm.yyyy expiry (optional)
+ *   - reminder true → the follow-up variant
+ * @returns {{ subject: string, text: string, html: string }}
+ */
+export function bbClubInviteEmail(vars) {
+  const { club = '', season = '', url = '', expires = '', reminder = false } = vars || {}
+  const subject = club
+    ? `Spielplanung ${season} – KSC Wiedikon / ${club}`.trim()
+    : `Spielplanung ${season} – KSC Wiedikon`.trim()
+
+  const lead =
+    `KSC Wiedikon möchte die Spiele gegen eure Teams wenn möglich schon vor der Spielplansitzung vom ${BB_SPIELPLANSITZUNG} fixieren. ` +
+    `Nach WSR Art. 18 entfällt die Anwesenheitspflicht für Spiele, die bis dahin im Einverständnis beider Klubs abgemacht sind und der Geschäftsstelle vorliegen.`
+  const rem = 'Falls bei euch bereits alles abgemacht ist, könnt ihr diese E-Mail ignorieren.'
+  const linkLead = 'Unter dem folgenden Link findet ihr unsere Heimspieltermine in der Kantonsschule Wiedikon. Ihr könnt jeden Termin bestätigen, ablehnen oder eine Alternative vorschlagen.'
+  const steps = [
+    'Pro Spiel einen Termin bestätigen oder ablehnen.',
+    'Passt kein Termin, schlagt ihr im Feld darunter eine Alternative vor.',
+    'Für die Auswärtsspiele bei euch tragt ihr eure Wunschdaten in die Bemerkung ein – wir melden uns dazu.',
+  ]
+  const scope = `Der Link gilt für alle eure Teams gegen KSC Wiedikon${expires ? ` und ist bis ${expires} gültig` : ''}.`
+  const exclusion =
+    `Nicht enthalten sind die Spiele der Damen 1. Liga und der Herren 1. Liga: Für diese Ligen erstellt ProBasket den Spielplan ` +
+    `automatisch aus den bis am ${BB_AVAILABILITY_DUE} gemeldeten Hallenverfügbarkeiten.`
+  const fee = `Bis zur Spielplansitzung vom ${BB_SPIELPLANSITZUNG} können wir die Termine ohne Umtriebsgebühr fixieren.`
+
+  const text =
+    `Hallo,\n\n` +
+    `${lead}\n\n` +
+    (reminder ? `${rem}\n\n` : '') +
+    `${linkLead}\n${url}\n\n` +
+    `So geht ihr vor:\n` +
+    steps.map((s) => `• ${s}`).join('\n') + `\n\n` +
+    `${scope}\n\n` +
+    `${exclusion}\n\n` +
+    (reminder ? `${fee}\n\n` : '') +
+    `Bei Fragen antwortet einfach auf diese E-Mail.\n\n` +
+    `Sportliche Grüsse\nKSC Wiedikon, Spielplanung Basketball`
+
+  const stepsHtml =
+    `<ul style="font-size:14px;color:#e2e8f0;line-height:1.6;margin:0 0 12px;padding-left:20px">` +
+    steps.map((s) => `<li style="margin:0 0 4px">${escHtml(s)}</li>`).join('') +
+    `</ul>`
+
+  const body =
+    para(lead) +
+    (reminder ? paraStrong(rem) : '') +
+    para(linkLead) +
+    stepsHtml +
+    para(scope) +
+    buildAlertBox('info', 'Nicht enthalten: Damen 1. Liga und Herren 1. Liga', exclusion) +
+    '<div style="height:12px;font-size:0;line-height:0">&nbsp;</div>' +
+    (reminder ? para(fee) : '') +
+    para('Bei Fragen antwortet einfach auf diese E-Mail.')
+
+  const html = buildEmailLayout(body, {
+    title: reminder ? 'Spielplanung – Erinnerung' : 'Spielplanung Basketball',
+    subtitle: season ? `Saison ${season}` : undefined,
+    sport: 'bb',
+    greeting: 'Hallo,',
+    footerExtra: 'Sportliche Grüsse · KSC Wiedikon',
+    signatureHtml: buildSchedSignatureRows('de', 'bb'),
+    ctaUrl: url,
+    ctaLabel: 'Termine ansehen und bestätigen',
+  })
+
+  return { subject, text, html }
+}
+
+/**
+ * Receipt sent back to the opponent club after they answer in the portal.
+ *
+ * @param {object} vars
+ *   - club  opponent club name
+ *   - rows  [{ date, time, hall, game, status }] — all strings, already
+ *           Swiss-formatted and already translated to German by the caller
+ * @returns {{ subject: string, text: string, html: string }}
+ */
+export function bbClubResponseReceiptEmail(vars) {
+  const { club = '', rows = [] } = vars || {}
+  const subject = club
+    ? `Rückmeldung erhalten – KSC Wiedikon / ${club}`.trim()
+    : 'Rückmeldung erhalten – KSC Wiedikon'
+  const lead = 'Danke – wir haben eure Rückmeldung erhalten:'
+  const outro = `Die abgemachten Spiele melden wir bis zur Spielplansitzung vom ${BB_SPIELPLANSITZUNG} der Geschäftsstelle.`
+
+  const line = (r) => [[r.date, r.time].filter(Boolean).join(', '), r.hall, r.game, r.status].filter(Boolean).join(' · ')
+  const text =
+    `Hallo,\n\n` +
+    `${lead}\n` +
+    rows.map((r) => `• ${line(r)}`).join('\n') + `\n\n` +
+    `${outro}\n\n` +
+    `Bei Fragen antwortet einfach auf diese E-Mail.\n\n` +
+    `Sportliche Grüsse\nKSC Wiedikon, Spielplanung Basketball`
+
+  const card = buildInfoCard(rows.map((r) => ({
+    label: [r.date, r.time].filter(Boolean).join(', '),
+    value: [r.game, r.hall, r.status].filter(Boolean).join(' · '),
+  })))
+
+  const body =
+    para(lead) + card +
+    '<div style="height:12px;font-size:0;line-height:0">&nbsp;</div>' +
+    para(outro) +
+    para('Bei Fragen antwortet einfach auf diese E-Mail.')
+
+  const html = buildEmailLayout(body, {
+    title: 'Rückmeldung erhalten',
+    sport: 'bb',
+    greeting: 'Hallo,',
+    footerExtra: 'Sportliche Grüsse · KSC Wiedikon',
+    signatureHtml: buildSchedSignatureRows('de', 'bb'),
+  })
+
+  return { subject, text, html }
+}
