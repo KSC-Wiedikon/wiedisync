@@ -1009,9 +1009,9 @@ export default {
   // re-reads the database, "Check VIS now" asks FIVB.
   trVisCheckNow: 'Check VIS now',
   trVisCheckRunning: 'Checking VIS…',
-  trVisCheckHint: 'Asks FIVB whether these members are in the VIS player index of their federation of origin, and updates the badges. Takes a few minutes — it pulls a whole federation roster at a time. Runs automatically on the 1st of each month.',
+  trVisCheckHint: 'Asks FIVB whether these members are in the VIS player index of their federation of origin, and updates the badges. Takes a few seconds — it pulls a whole federation roster at a time. Runs automatically on the 1st of each month.',
   trRefreshHint: 'Reloads this page from the database. It does not query VIS — use "Check VIS now" for that.',
-  trVisCheckStarted: 'VIS check started — this takes a few minutes',
+  trVisCheckStarted: 'VIS check started — usually a few seconds',
   trVisCheckDone: 'VIS check done — {{checked}} checked, {{inVis}} in VIS, {{notFound}} not found',
   trVisCheckFailed: 'VIS check failed',
   trVisCheckUnavailable: 'VIS access is not configured on this environment',

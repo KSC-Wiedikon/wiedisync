@@ -28,8 +28,15 @@
  *
  * SHAPE — 202 + poll, like /admin/vm-sync. A full run pulls one whole federation
  * roster per federation of origin present in the cohort (VIS ignores name
- * filters, see the script), Swiss Volley's being the largest, so it takes
- * minutes: far past what a Cloudflare-tunnelled request will hold open.
+ * filters, see the script). Measured on 2026-08-05: 24 federations, ~464
+ * members, 3.8s end to end — so the async shape is not about the average case.
+ * It is that this is one HTTP round trip per federation against a third party
+ * we do not control, on a route behind a Cloudflare tunnel that will cut a held
+ * request at ~100s. A slow VIS day must show a spinner, not a 524.
+ *
+ * ⚠ That measurement also undercuts the monthly cron's stated rationale ("30
+ * federation rosters is a heavy read"). It is not heavy. If the cadence is ever
+ * revisited, this is the number to revisit it with.
  *
  *   POST /kscw/admin/vis-player-check → 202 { status: 'started' }
  *                                       409 { status: 'skipped', reason }
