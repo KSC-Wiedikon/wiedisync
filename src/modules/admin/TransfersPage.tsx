@@ -426,7 +426,14 @@ function NameCell({ m, teamNames }: { m: TransferMember; teamNames?: string[] })
 
 export default function TransfersPage() {
   const { t } = useTranslation('admin')
-  const { user } = useAuth()
+  const { user, hasAdminAccessToSport } = useAuth()
+  /**
+   * Who may TRIGGER the VIS check — the same set the endpoint's gate admits
+   * (global admin / superuser / vb_admin), and deliberately narrower than who
+   * may READ this page: `isAdmin` includes `bb_admin`, VIS is FIVB's index, and
+   * a button that is visible but 403s is worse than one that is absent.
+   */
+  const canRunVisCheck = hasAdminAccessToSport('volleyball')
   const { update } = useMutation('members')
 
   // The active sport lives in the URL (`?sport=`) so a view is shareable and
@@ -1519,7 +1526,7 @@ export default function TransfersPage() {
             only — on the basketball tab it would query the wrong sport's
             governing body. */}
         <div className="flex flex-wrap items-center gap-2">
-          {sport === 'volleyball' && (
+          {sport === 'volleyball' && canRunVisCheck && (
             <button
               onClick={() => { void runVisCheck() }}
               disabled={visRunning}
