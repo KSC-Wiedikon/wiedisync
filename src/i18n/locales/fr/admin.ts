@@ -608,7 +608,7 @@ export default {
   trVisBasketballHint: 'VIS est l’index des joueurs de la FIVB (volleyball) et les contacts indiqués ici sont des fédérations nationales de volleyball. Un transfert FIBA passe par un autre organisme — à lire uniquement comme une piste.',
   trVisCheckNow: 'Vérifier VIS maintenant',
   trVisCheckRunning: 'Vérification de VIS…',
-  trVisCheckHint: 'Demande à la FIVB si ces membres figurent dans l’index des joueurs VIS de leur fédération d’origine, puis met à jour les badges. Cela prend quelques secondes — l’effectif complet d’une fédération est chargé à chaque fois. S’exécute automatiquement le 1er de chaque mois.',
+  trVisCheckHint: 'Demande à la FIVB si ces membres figurent dans l’index des joueurs VIS de leur fédération d’origine, puis met à jour les badges. Cela prend quelques secondes — l’effectif complet d’une fédération est chargé à chaque fois. S’exécute automatiquement chaque lundi.',
   trRefreshHint: 'Recharge cette page depuis la base de données. VIS n’est pas interrogé — utilisez « Vérifier VIS maintenant » pour cela.',
   trVisCheckStarted: 'Vérification VIS lancée — généralement quelques secondes',
   trVisCheckDone: 'Vérification VIS terminée — {{checked}} vérifiés, {{inVis}} dans VIS, {{notFound}} introuvables',

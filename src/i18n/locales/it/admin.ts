@@ -608,7 +608,7 @@ export default {
   trVisBasketballHint: 'VIS è l’indice giocatori della FIVB (pallavolo) e i contatti indicati qui sono federazioni nazionali di pallavolo. Un trasferimento FIBA passa da un altro ente — da leggere solo come indizio.',
   trVisCheckNow: 'Verifica VIS adesso',
   trVisCheckRunning: 'Verifica di VIS…',
-  trVisCheckHint: 'Chiede alla FIVB se questi membri sono nell’indice giocatori VIS della loro federazione di origine e aggiorna i badge. Richiede alcuni secondi — ogni volta viene scaricato l’intero organico di una federazione. Viene eseguita automaticamente il 1° di ogni mese.',
+  trVisCheckHint: 'Chiede alla FIVB se questi membri sono nell’indice giocatori VIS della loro federazione di origine e aggiorna i badge. Richiede alcuni secondi — ogni volta viene scaricato l’intero organico di una federazione. Viene eseguita automaticamente ogni lunedì.',
   trRefreshHint: 'Ricarica questa pagina dal database. VIS non viene interrogato — per farlo usa «Verifica VIS adesso».',
   trVisCheckStarted: 'Verifica VIS avviata — di solito alcuni secondi',
   trVisCheckDone: 'Verifica VIS completata — {{checked}} verificati, {{inVis}} in VIS, {{notFound}} non trovati',

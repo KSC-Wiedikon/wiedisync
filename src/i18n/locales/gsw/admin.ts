@@ -742,7 +742,7 @@ export default {
   trVisBasketballHint: 'VIS isch de Spilerindex vo de FIVB (Volleyball), und d Kontäkt do sind nationali Volleyballverbänd. En FIBA-Transfer lauft über en anderi Stell — bitte nur als Hiiwiis läse.',
   trVisCheckNow: 'VIS jetzt prüefe',
   trVisCheckRunning: 'VIS wird prüeft…',
-  trVisCheckHint: 'Frögt bi de FIVB naa, öb die Mitglieder im VIS-Spilerindex vo ihrem Herkunftsverband stönd, und aktualisiert d Badges. Duuret es paar Sekunde — es wird jewiils en ganze Verbandskader glade. Lauft automatisch am 1. vo jedem Monet.',
+  trVisCheckHint: 'Frögt bi de FIVB naa, öb die Mitglieder im VIS-Spilerindex vo ihrem Herkunftsverband stönd, und aktualisiert d Badges. Duuret es paar Sekunde — es wird jewiils en ganze Verbandskader glade. Lauft automatisch jede Määntig.',
   trRefreshHint: 'Lädt die Siite us de Datebank neu. VIS wird debii nöd abgfrögt — defür «VIS jetzt prüefe» bruuche.',
   trVisCheckStarted: 'VIS-Prüefig gstartet — meischtens es paar Sekunde',
   trVisCheckDone: 'VIS-Prüefig fertig — {{checked}} prüeft, {{inVis}} i VIS, {{notFound}} nöd gfunde',
