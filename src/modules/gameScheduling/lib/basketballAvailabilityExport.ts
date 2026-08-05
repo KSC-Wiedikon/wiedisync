@@ -1,22 +1,43 @@
 import { downloadBytes, exportFilename } from './scheduleExport'
 import {
-  slotsForDate,
-  slotEndTime,
+  probasketConfigForSeason,
+  probasketCandidateDates,
   timeToExcelFraction,
   parseYmd,
   HALL_A,
   HALL_B,
   HALL_C,
-  type CandidateDate,
 } from '../utils/probasketSeason'
+import {
+  dayHallAvailability,
+  availabilityWindows,
+  MAX_AVAILABILITY_WINDOWS,
+  EMPTY_HALL_BLOCKERS,
+  type HallBlockers,
+} from '../utils/hallOccupancy'
 import { KSCW_TEAM_GROUP, BB_GROUPS } from '../data/basketballGroups'
 import type { Team, GameSchedulingSeason } from '../../../types'
-import type { DateInfo } from '../hooks/useBasketballPlan'
 
 // Generates the ProBasket "Angabe Verfügbarkeiten" workbook — one worksheet per team,
 // mirroring the official template (Klub / Team / Kategorie header, Halle 1/2/3, then a
 // row per candidate date with either "x" under Nicht verfügbar or up to three hall
 // availability windows). Drop-in for the 17-Aug submission to info@probasket.ch.
+//
+// ⚠ Two rules that were wrong before and matter to the association:
+//  1. The date grid is PER LEAGUE, not per season. A 1.-Liga sheet runs
+//     Fr 25.09.2026 → So 09.05.2027 (93 rows); a junior sheet stops on 13.12.2026
+//     (38 rows). One workbook can legitimately hold both, so the grid is resolved
+//     inside the per-team loop from `teams.bb_source_id`.
+//  2. Free times are grouped into MAXIMAL CONTIGUOUS runs. Emitting
+//     `from = first free … to = end(last free)` declares the blocked middle as
+//     available and gets us a fixture we cannot host.
+//
+// TODO: **DU18 B** ("KSC Wiedikon DU18 B", registered in group "DU18/U20 Rookie") has
+// no `teams` row and no known Basketplan / bb_source_id, so this workbook cannot carry
+// a sheet for it — ProBasket expects one Verfügbarkeiten sheet per REGISTERED team.
+// Whoever files the 17-Aug submission must either add the team row first (then it
+// appears here automatically) or hand-add the sheet. Do NOT reuse 7182: that id is
+// DU16. See `utils/probasketSeason.ts → BB_SOURCE_LEAGUE_OVERRIDES`.
 
 const DOW_LABEL: Record<number, string> = { 5: 'FR', 6: 'SA', 0: 'SO' }
 const MONTHS = [
@@ -26,11 +47,10 @@ const MONTHS = [
 
 export interface BasketballExportArgs {
   season: GameSchedulingSeason | null
-  /** Teams to export (one sheet each). */
+  /** Teams to export (one sheet each). Each gets its own league date grid. */
   teams: Team[]
-  candidateDates: CandidateDate[]
-  dateInfoByDate: Map<string, DateInfo>
-  vbHallsByDate: Map<string, Set<string>>
+  /** Season-wide closures / club blocks / booked volleyball slots (`useBasketballPlan`). */
+  blockers?: HallBlockers
   /** Per-team date `unavailable` overrides, keyed via availKey. */
   availability: Map<string, { unavailable?: boolean }>
   availKey: (teamId: string | number, date: string) => string
@@ -55,10 +75,16 @@ export async function exportBasketballAvailability(args: BasketballExportArgs): 
   const ExcelJS = await import('exceljs')
   const wb = new ExcelJS.Workbook()
   const used = new Set<string>()
+  const blockers = args.blockers ?? EMPTY_HALL_BLOCKERS
+  // The three halls the template's "Halle 1/2/3" header names.
   const HALLS = [HALL_A, HALL_B, HALL_C]
 
   const teams = args.teams.length ? args.teams : []
   for (const team of teams) {
+    // Per-league window: 1. Liga gets the 93-row senior grid, juniors the 38-row one.
+    const config = probasketConfigForSeason(args.season?.season, { bbSourceId: team.bb_source_id })
+    const candidateDates = config ? probasketCandidateDates(config) : []
+
     const ws = wb.addWorksheet(sheetName(team.name, used))
     ws.columns = [
       { width: 6 }, { width: 12 }, { width: 14 },
@@ -93,7 +119,7 @@ export async function exportBasketballAvailability(args: BasketballExportArgs): 
 
     let r = 9
     let lastMonth = -1
-    for (const cd of args.candidateDates) {
+    for (const cd of candidateDates) {
       const d = parseYmd(cd.date)
       const mo = d.getMonth()
       if (mo !== lastMonth) {
@@ -103,32 +129,30 @@ export async function exportBasketballAvailability(args: BasketballExportArgs): 
         r += 1
         lastMonth = mo
       }
-      const info = args.dateInfoByDate.get(cd.date)
       const teamOverride = args.availability.get(args.availKey(team.id, cd.date))?.unavailable === true
+      const day = dayHallAvailability(cd.date, cd.dow, blockers, !!cd.blackout)
       const row = ws.getRow(r)
       row.getCell(1).value = DOW_LABEL[cd.dow] ?? ''
       row.getCell(2).value =
         `${String(d.getDate()).padStart(2, '0')}.${String(mo + 1).padStart(2, '0')}.${d.getFullYear()}`
 
-      if (info?.fullyBlocked || teamOverride) {
+      if (day.noneFree || teamOverride) {
         row.getCell(3).value = 'x'
       } else {
-        const { times, halls } = slotsForDate(cd.dow)
-        const vb = args.vbHallsByDate.get(cd.date) ?? new Set<string>()
-        const from = timeToExcelFraction(times[0])
-        const to = timeToExcelFraction(slotEndTime(times[times.length - 1]))
+        const windows = availabilityWindows(
+          day.times,
+          day.freeByHall.filter((h) => HALLS.includes(h.hall)),
+          MAX_AVAILABILITY_WINDOWS,
+        )
         let col = 4
-        for (const hall of halls) {
-          if (!HALLS.includes(hall)) continue
-          if (vb.has(hall) || info?.closedHalls.has(hall) || info?.closedHalls.has('*')) continue
-          if (col > 10) break // template holds up to three hall windows
+        for (const w of windows) {
           const vFrom = row.getCell(col)
-          vFrom.value = from
+          vFrom.value = timeToExcelFraction(w.from)
           vFrom.numFmt = 'hh:mm'
           const vTo = row.getCell(col + 1)
-          vTo.value = to
+          vTo.value = timeToExcelFraction(w.to)
           vTo.numFmt = 'hh:mm'
-          row.getCell(col + 2).value = hall
+          row.getCell(col + 2).value = w.hall
           col += 3
         }
       }

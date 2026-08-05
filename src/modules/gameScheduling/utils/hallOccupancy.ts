@@ -1,0 +1,288 @@
+/**
+ * Hall occupancy maths for the Basketball prep view.
+ *
+ * Pure — no React, no network — so every rule below is unit-testable and shared by
+ * the on-screen slot grid (`useBasketballPlan`) and the ProBasket availability
+ * workbook (`basketballAvailabilityExport`). The two used to disagree, which is how
+ * a fully-booked volleyball Saturday could silently blank a whole date card.
+ *
+ * ── Why this exists ─────────────────────────────────────────────────────────────
+ * `game_scheduling_slots` is the VOLLEYBALL booking table. A booked row holds one KWI
+ * court for a concrete window (start_time … end_time). The first version of the prep
+ * view threw the time away and marked the hall busy for the entire day, so
+ * Sat 07.11.2026 — volleyball in KWI A, B and C at 13:30 — rendered as an empty card
+ * even though every court is free from 18:30. Basketball routinely plays after a
+ * volleyball afternoon; the block has to be time-aware.
+ */
+
+import { HALL_A, HALL_B, HALL_AB, slotEndTime, slotsForDate } from './probasketSeason'
+
+// ── Durations ────────────────────────────────────────────────────────────────
+
+/**
+ * How long a basketball game holds the court, in minutes. 4×10' running time plus
+ * breaks, timeouts and the post-game handshake lands at ~2h in ProBasket practice,
+ * and the fixed KWI weekend grid (11:00 / 13:30 / 16:00 / 18:30) is built on 2h30
+ * pitches, so 120 min is both realistic and never wider than one grid pitch.
+ * Same figure `slotEndTime()` uses for the export's "Zeit bis".
+ */
+export const BB_GAME_MINUTES = 120
+
+/**
+ * Fallback length of a volleyball booking whose `end_time` is missing. Prod has an
+ * end_time on all 80 booked rows today, but the column is nullable, so a null must
+ * degrade to "a normal match", never to "zero minutes".
+ */
+export const VB_DEFAULT_MINUTES = 120
+
+/**
+ * Dead time reserved either side of a volleyball booking, in minutes.
+ *
+ * A court is not handed over at the final whistle: the outgoing sport warms up
+ * beforehand and has to strike the net, poles and scorer's table afterwards, and the
+ * incoming sport needs the floor swept and the baskets lowered. 30 minutes is the
+ * changeover the KWI hall plan already assumes between two events in the same hall,
+ * and it makes the arithmetic land exactly on the fixed grid: a 13:30–15:30
+ * volleyball match occupies 13:00–16:00, which blocks the 13:30 basketball pitch and
+ * leaves the 11:00 and 16:00 pitches untouched.
+ */
+export const VB_CHANGEOVER_MINUTES = 30
+
+// ── Time helpers ─────────────────────────────────────────────────────────────
+
+/** 'HH:MM' or 'HH:MM:SS' → minutes since midnight. Returns null for anything else. */
+export function minutesOfDay(hhmm: string | null | undefined): number | null {
+  const m = String(hhmm ?? '').match(/^(\d{1,2}):(\d{2})/)
+  if (!m) return null
+  const h = Number(m[1])
+  const min = Number(m[2])
+  if (h > 23 || min > 59) return null
+  return h * 60 + min
+}
+
+/** Half-open interval overlap: touching at a boundary is NOT an overlap. */
+export function intervalsOverlap(aStart: number, aEnd: number, bStart: number, bEnd: number): boolean {
+  return aStart < bEnd && bStart < aEnd
+}
+
+// ── Hall identity ────────────────────────────────────────────────────────────
+
+/**
+ * Do two hall names fight over the same floor?
+ *
+ * 'KWI A+B' is the combined big court — the same physical space as KWI A plus KWI B
+ * with the divider open. So an A+B booking blocks A and B, and an A (or B) booking
+ * blocks A+B. KWI C is a separate hall and never collides with either.
+ */
+export function hallsCollide(a: string, b: string): boolean {
+  if (a === b) return true
+  const isHalf = (h: string) => h === HALL_A || h === HALL_B
+  if (a === HALL_AB && isHalf(b)) return true
+  if (b === HALL_AB && isHalf(a)) return true
+  return false
+}
+
+// ── Volleyball occupancy ─────────────────────────────────────────────────────
+
+/** One booked volleyball slot, already resolved to a hall NAME. */
+export interface VbBooking {
+  hall: string
+  /** 'HH:MM(:SS)'. **null/blank blocks the whole day** — never treat it as "free". */
+  start: string | null
+  /** 'HH:MM(:SS)'. Missing → `start` + `VB_DEFAULT_MINUTES`. */
+  end?: string | null
+}
+
+/** The minute window a volleyball booking takes a court out of service, changeover included. */
+export function vbBusyWindow(booking: VbBooking): { start: number; end: number } | null {
+  const start = minutesOfDay(booking.start)
+  if (start == null) return null // caller must treat this as an all-day block
+  const rawEnd = minutesOfDay(booking.end)
+  // An end at or before the start is corrupt (or crosses midnight) — fall back to a
+  // normal match length rather than producing a zero-width, blocking-nothing window.
+  const end = rawEnd != null && rawEnd > start ? rawEnd : start + VB_DEFAULT_MINUTES
+  return { start: start - VB_CHANGEOVER_MINUTES, end: end + VB_CHANGEOVER_MINUTES }
+}
+
+/**
+ * Is `hall` unusable for a basketball game starting at `bbStart` on this date?
+ *
+ * @param bookings every booked volleyball slot on that date (any hall).
+ * @param hall     the KWI court the basketball game would use.
+ * @param bbStart  'HH:MM' tip-off. The game runs `BB_GAME_MINUTES`.
+ */
+export function vbBlocksSlot(bookings: readonly VbBooking[], hall: string, bbStart: string): boolean {
+  const gameStart = minutesOfDay(bbStart)
+  if (gameStart == null) return false
+  const gameEnd = gameStart + BB_GAME_MINUTES
+  for (const b of bookings) {
+    if (!hallsCollide(b.hall, hall)) continue
+    const win = vbBusyWindow(b)
+    // No parsable start time → we cannot know when the court is free, so the
+    // conservative reading is "busy all day". Never silently frees the hall.
+    if (!win) return true
+    if (intervalsOverlap(win.start, win.end, gameStart, gameEnd)) return true
+  }
+  return false
+}
+
+// ── Per-date blockers ────────────────────────────────────────────────────────
+
+/**
+ * Everything that can take a KWI court away from basketball on a given date, in the
+ * raw per-date shape both the slot grid and the export consume. Kept season-wide (not
+ * limited to one league's candidate dates) so a workbook containing a junior team
+ * (grid ends 13.12.2026) and a 1.-Liga team (grid ends 09.05.2027) resolves both.
+ */
+export interface HallBlockers {
+  /** date → closed hall names; '*' means every hall that day. */
+  closedHallsByDate: Map<string, Set<string>>
+  /** Club-wide blackout days (superadmin "no home games at all"). */
+  clubBlockedDates: Set<string>
+  /** date → booked volleyball slots. */
+  vbBusyByDate: Map<string, VbBooking[]>
+}
+
+export const EMPTY_HALL_BLOCKERS: HallBlockers = {
+  closedHallsByDate: new Map(),
+  clubBlockedDates: new Set(),
+  vbBusyByDate: new Map(),
+}
+
+/** Why a date (or a single hall on it) cannot host a basketball game. */
+export type DateBlockReason = 'blackout' | 'club_block' | 'hall_closed' | 'volleyball'
+
+export type HallSlotStatus = 'unavailable' | 'vb' | 'free'
+
+/**
+ * Status of one (date, time, hall) pitch, ignoring basketball placements.
+ *
+ * 'unavailable' — a ProBasket blackout, a club-wide block or a hall closure. Nothing
+ *                 can be planned; the planner cannot change it from here.
+ * 'vb'          — volleyball holds that court over the pitch window (changeover included).
+ * 'free'        — placeable.
+ */
+export function hallStatusAt(
+  date: string,
+  time: string,
+  hall: string,
+  blockers: HallBlockers,
+  isBlackout: boolean,
+): HallSlotStatus {
+  if (isBlackout) return 'unavailable'
+  if (blockers.clubBlockedDates.has(date)) return 'unavailable'
+  const closed = blockers.closedHallsByDate.get(date)
+  if (closed && (closed.has('*') || closed.has(hall))) return 'unavailable'
+  if (vbBlocksSlot(blockers.vbBusyByDate.get(date) ?? [], hall, time)) return 'vb'
+  return 'free'
+}
+
+export interface DayHallAvailability {
+  /** The weekday's ordered pitch times (empty on a non-play weekday). */
+  times: string[]
+  /** Per hall offered that weekday: the pitch times where it is free. */
+  freeByHall: { hall: string; free: string[] }[]
+  /** No hall is free at any pitch — the date is effectively unavailable. */
+  noneFree: boolean
+  /** Best explanation for `noneFree`, strongest cause first. */
+  reason: DateBlockReason | null
+}
+
+/** Free pitches per hall for one candidate date, plus why the date is dead when it is. */
+export function dayHallAvailability(
+  date: string,
+  dow: number,
+  blockers: HallBlockers,
+  isBlackout: boolean,
+): DayHallAvailability {
+  const { times, halls } = slotsForDate(dow)
+  const freeByHall = halls.map((hall) => ({
+    hall,
+    free: times.filter((time) => hallStatusAt(date, time, hall, blockers, isBlackout) === 'free'),
+  }))
+  // A weekday basketball never plays offers no pitches at all — that is "not a
+  // candidate date", not "blocked", so it must not claim a blocking reason.
+  const noneFree = halls.length > 0 && times.length > 0 && freeByHall.every((h) => h.free.length === 0)
+  let reason: DateBlockReason | null = null
+  if (noneFree) {
+    const closed = blockers.closedHallsByDate.get(date)
+    reason = isBlackout
+      ? 'blackout'
+      : blockers.clubBlockedDates.has(date)
+        ? 'club_block'
+        : closed && halls.every((h) => closed.has('*') || closed.has(h))
+          ? 'hall_closed'
+          : 'volleyball'
+  }
+  return { times, freeByHall, noneFree, reason }
+}
+
+// ── Free-window grouping (ProBasket export) ──────────────────────────────────
+
+/**
+ * Split `freeTimes` into MAXIMAL CONTIGUOUS runs against the day's ordered pitch list.
+ *
+ * The export used to write `from = free[0] … to = end(free[last])`, which declares the
+ * blocked middle available: KWI B on Sat 12.12.2026 is free at 11:00, busy at 13:30 and
+ * free again at 16:00/18:30 — one window would have offered ProBasket 11:00–20:30 and
+ * booked us a game we cannot host.
+ */
+export function contiguousRuns(orderedTimes: readonly string[], freeTimes: Iterable<string>): string[][] {
+  const free = new Set(freeTimes)
+  const runs: string[][] = []
+  let current: string[] = []
+  for (const time of orderedTimes) {
+    if (free.has(time)) {
+      current.push(time)
+    } else if (current.length) {
+      runs.push(current)
+      current = []
+    }
+  }
+  if (current.length) runs.push(current)
+  return runs
+}
+
+/** One "Zeit von / Zeit bis / Halle" triple in the ProBasket template. */
+export interface AvailabilityWindow {
+  hall: string
+  /** 'HH:MM' — first free pitch of the run. */
+  from: string
+  /** 'HH:MM' — end of the last free pitch of the run. */
+  to: string
+  /** Number of pitches the run covers (used to rank when we must drop windows). */
+  pitches: number
+}
+
+/** The template holds exactly three (Zeit von, Zeit bis, Halle) column groups. */
+export const MAX_AVAILABILITY_WINDOWS = 3
+
+/**
+ * Every hall's free runs as template windows, capped at `max`.
+ *
+ * When more runs exist than the sheet can carry we keep the LONGEST ones (they give
+ * ProBasket the most room) and then print them in chronological order so the row reads
+ * left to right.
+ */
+export function availabilityWindows(
+  orderedTimes: readonly string[],
+  freeByHall: readonly { hall: string; free: readonly string[] }[],
+  max: number = MAX_AVAILABILITY_WINDOWS,
+): AvailabilityWindow[] {
+  const all: AvailabilityWindow[] = []
+  for (const { hall, free } of freeByHall) {
+    for (const run of contiguousRuns(orderedTimes, free)) {
+      all.push({ hall, from: run[0], to: slotEndTime(run[run.length - 1]), pitches: run.length })
+    }
+  }
+  if (all.length <= max) return all.sort(byStartThenHall)
+  return all
+    .slice()
+    .sort((a, b) => b.pitches - a.pitches || a.from.localeCompare(b.from) || a.hall.localeCompare(b.hall))
+    .slice(0, max)
+    .sort(byStartThenHall)
+}
+
+function byStartThenHall(a: AvailabilityWindow, b: AvailabilityWindow): number {
+  return a.from.localeCompare(b.from) || a.hall.localeCompare(b.hall)
+}

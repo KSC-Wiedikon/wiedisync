@@ -30,7 +30,8 @@
  * Directus 11 model: Roles → Policies → Permissions
  *   1. Ensure roles exist (rename old names if needed)
  *   2. Create/find access policies (one per role tier)
- *   3. Attach policies to roles
+ *   3. Attach policies to roles — AND prune every role-level attachment this
+ *      file does not declare (§3b reconcile, see DECLARED_ROLE_POLICIES)
  *   4. Create permissions on each policy
  *
  * Roles: Administrator, Superuser (admin_access), Sport Admin, Vorstand, Team Responsible, Member, Public
@@ -39,6 +40,8 @@
  *   DIRECTUS_URL=https://directus-dev.kscw.ch ADMIN_EMAIL=admin@kscw.ch ADMIN_PASSWORD=<password> node directus/scripts/setup-permissions.mjs
  *   # Or with static token:
  *   DIRECTUS_URL=https://directus-dev.kscw.ch DIRECTUS_TOKEN=<token> node directus/scripts/setup-permissions.mjs
+ *   # Report what the §3b reconcile WOULD delete, and delete nothing:
+ *   DIRECTUS_URL=… node directus/scripts/setup-permissions.mjs --reconcile-dry-run
  */
 
 // Auto-load .env.local (gitignored) so callers can keep dev/prod tokens
@@ -73,6 +76,18 @@ if (!STATIC_TOKEN && !ADMIN_PASSWORD) {
   console.error('Need DIRECTUS_TOKEN, DIRECTUS_DEV_TOKEN, DIRECTUS_PROD_TOKEN, or ADMIN_PASSWORD to authenticate')
   process.exit(1)
 }
+
+// ── §3b reconcile knobs ─────────────────────────────────────────────────────
+// The reconcile DELETES live permission grants, so it gets a report-only mode
+// (`--dry-run` is the convention of the other scripts in this directory) and a
+// blast-radius cap. Neither affects any other section of the script.
+const RECONCILE_DRY_RUN = process.argv.includes('--reconcile-dry-run')
+  || process.env.RECONCILE_DRY_RUN === '1'
+// Max UNDECLARED role→policy rows §3b will revoke in one run. Duplicate rows of
+// a DECLARED pair are exempt (a dedup always keeps one row, so it can never
+// revoke anything). A run that wants to revoke more than this is a policy
+// rename or a bug, not a hardening — it reports and skips instead.
+const RECONCILE_MAX_DELETES = Number(process.env.RECONCILE_MAX_DELETES || 25)
 
 let token = null
 let stats = { ok: 0, err: 0 }
@@ -184,6 +199,165 @@ async function attachPolicyToRole(roleId, policyId) {
       console.warn(`  ⚠ attach policy: ${e.message.slice(0, 80)}`)
     }
   }
+}
+
+/**
+ * Roles this reconcile must NEVER prune. Directus attaches the built-in
+ * `Administrator` policy to the Administrator role; deleting that row locks
+ * every root user out of their own instance, and no amount of re-running this
+ * script can put it back (it needs an admin token to write).
+ */
+const PROTECTED_ROLES = new Set(['Administrator'])
+
+/**
+ * §3b — reconcile ROLE-level policy attachments against the declared set.
+ *
+ * `attachPolicyToRole` only ever ADDS, so nothing ever pruned an attachment
+ * made by hand in the Directus UI. Prod consequently carried a
+ * `Sport Admin → KSCW Admin` row (admin_access = true, created 2026-03-29) that
+ * silently made every vb_admin / bb_admin a full Directus superadmin, plus ~49
+ * duplicate rows per (role, policy) accreted by pre-2026-06 runs of this script
+ * (the dedup guard inside `attachPolicyToRole` came later and only stops NEW
+ * duplicates). This pass makes section 3 declarative in BOTH directions:
+ * `DECLARED_ROLE_POLICIES` is the whole truth, and anything else at role level
+ * is deleted.
+ *
+ * Safety rails, in order of importance:
+ *   1. USER-level rows are never touched (the query pins `user IS NULL`). Those
+ *      are the orthogonal per-user policies — LEADER §10, TERMINPLANUNG §12,
+ *      FINANCE §13, SPIELPLANER §14 — each of which already runs its own
+ *      attach + stale-revoke reconcile. This pass would happily delete them all.
+ *   2. The PUBLIC row is never touched. It has role IS NULL *and* user IS NULL,
+ *      so a `user IS NULL` filter ALONE would delete the public policy
+ *      attachment and take every anonymous read (website, iCal) down with it —
+ *      hence `role _nnull` as well.
+ *   3. PROTECTED_ROLES (Administrator) are skipped entirely — see above.
+ *   4. Roles this script does not declare at all (e.g. the custom "Website
+ *      Admin") are left alone and merely REPORTED. Pruning a role we don't
+ *      model would be guessing.
+ *   5. Undeclared revocations are capped at RECONCILE_MAX_DELETES.
+ *   6. `--reconcile-dry-run` reports and deletes nothing.
+ *
+ * Logging: every revoked row is logged individually (role name → policy name +
+ * access id); duplicate deletions are logged per (role, policy) pair with the
+ * kept/deleted counts, because a full run drops ~430 of them.
+ *
+ * ⚠ Position: this runs INSIDE section 3, i.e. BEFORE the permission rebuild.
+ * So the two Sport Admin users lose the admin_access bypass at this point in
+ * the run and briefly share the same cleared-then-recreated policy window as
+ * everyone else (see the §4 comment). Sub-second, and the script is idempotent
+ * — if a later section throws, fix it and re-run.
+ */
+async function reconcileRoleAccess(declared, roleMap) {
+  const roleNameById = Object.fromEntries(Object.entries(roleMap).map(([name, id]) => [id, name]))
+  const policies = await api('GET', '/policies?limit=-1')
+  const policyById = Object.fromEntries((policies || []).map(p => [p.id, p]))
+
+  // Refuse to prune against an incomplete declaration — a missing role id here
+  // would silently reclassify that role's legitimate rows as "undeclared".
+  if (declared.length === 0 || declared.some(d => !d.roleId || !d.policyId)) {
+    console.warn('  ⚠ Reconcile SKIPPED — the declared role→policy set is empty or has unresolved ids.')
+    return
+  }
+
+  const declaredKeys = new Set(declared.map(d => `${d.roleId}|${d.policyId}`))
+  const managedRoleIds = new Set(declared.map(d => d.roleId))
+  const protectedRoleIds = new Set(
+    Object.entries(roleMap).filter(([name]) => PROTECTED_ROLES.has(name)).map(([, id]) => id),
+  )
+
+  const rows = await api(
+    'GET',
+    '/access?filter[role][_nnull]=true&filter[user][_null]=true&fields=id,role,policy&limit=-1',
+  ) || []
+
+  // Group the role-level rows by (role, policy) so duplicates collapse.
+  const groups = new Map()
+  for (const r of rows) {
+    const roleId = r.role && typeof r.role === 'object' ? r.role.id : r.role
+    const policyId = r.policy && typeof r.policy === 'object' ? r.policy.id : r.policy
+    if (!roleId || !policyId) continue
+    const key = `${roleId}|${policyId}`
+    const g = groups.get(key) || { roleId, policyId, ids: [] }
+    g.ids.push(r.id)
+    groups.set(key, g)
+  }
+
+  const label = (g) => {
+    const admin = policyById[g.policyId]?.admin_access ? ' [admin_access]' : ''
+    return `${roleNameById[g.roleId] || g.roleId} → ${policyById[g.policyId]?.name || g.policyId}${admin}`
+  }
+
+  const undeclared = []   // whole groups to revoke
+  const dupeGroups = []   // declared/untouched pairs carrying repeat rows
+  const untouched = []    // reported only
+
+  for (const g of groups.values()) {
+    const isDeclared = declaredKeys.has(`${g.roleId}|${g.policyId}`)
+    const isProtected = protectedRoleIds.has(g.roleId)
+    const isManaged = managedRoleIds.has(g.roleId)
+
+    if (!isDeclared && !isProtected && isManaged) {
+      undeclared.push(g)
+      continue
+    }
+    if (!isDeclared) {
+      untouched.push(`${label(g)} — ${isProtected ? 'protected role' : 'role not declared by this script'}, left as-is`)
+    }
+    // Keep the first row (sorted for determinism), drop the repeats.
+    if (g.ids.length > 1) {
+      const sorted = [...g.ids].sort()
+      dupeGroups.push({ label: label(g), keep: sorted[0], drop: sorted.slice(1) })
+    }
+  }
+
+  for (const line of untouched) console.log(`  · ${line}`)
+
+  const undeclaredRows = undeclared.reduce((n, g) => n + g.ids.length, 0)
+  if (undeclaredRows > RECONCILE_MAX_DELETES) {
+    console.warn(`  ⚠ Reconcile: ${undeclaredRows} undeclared role→policy row(s) exceed RECONCILE_MAX_DELETES=${RECONCILE_MAX_DELETES} — NOTHING revoked.`)
+    console.warn('    Review with --reconcile-dry-run, then raise the cap deliberately if the list is correct:')
+    for (const g of undeclared) console.warn(`      would revoke: ${label(g)} (${g.ids.length} row(s))`)
+  } else {
+    for (const g of undeclared) {
+      for (const id of g.ids) {
+        if (RECONCILE_DRY_RUN) {
+          console.log(`  [dry-run] would REVOKE ${label(g)} (access ${id})`)
+          continue
+        }
+        try {
+          await api('DELETE', `/access/${id}`)
+          console.log(`  ✓ REVOKED undeclared role policy: ${label(g)} (access ${id})`)
+        } catch (e) {
+          console.warn(`  ⚠ revoke ${label(g)}: ${e.message.slice(0, 120)}`)
+        }
+      }
+    }
+  }
+
+  let deduped = 0
+  for (const g of dupeGroups) {
+    if (RECONCILE_DRY_RUN) {
+      console.log(`  [dry-run] would dedup ${g.label}: keep 1, delete ${g.drop.length} duplicate row(s)`)
+      continue
+    }
+    let dropped = 0
+    for (const id of g.drop) {
+      try {
+        await api('DELETE', `/access/${id}`)
+        dropped++
+      } catch (e) {
+        console.warn(`  ⚠ dedup ${g.label}: ${e.message.slice(0, 120)}`)
+      }
+    }
+    if (dropped > 0) console.log(`  ✓ Deduped ${g.label}: kept 1, deleted ${dropped} duplicate row(s)`)
+    deduped += dropped
+  }
+
+  if (!RECONCILE_DRY_RUN && undeclaredRows === 0 && deduped === 0) {
+    console.log('  ✓ Role→policy attachments already match the declared set')
+  }
+  if (RECONCILE_DRY_RUN) console.log('  (dry run — nothing was deleted)')
 }
 
 /**
@@ -767,27 +941,62 @@ async function main() {
 
   console.log('\n3. Attaching policies to roles...')
 
-  // Member role → member policy
-  await attachPolicyToRole(roleMap['Member'], MEMBER_POLICY)
+  /**
+   * THE declared set of ROLE-level policy attachments. This list is the whole
+   * truth: §3b below deletes every role-level `directus_access` row that is not
+   * in it (see reconcileRoleAccess). Adding a line here grants a tier; removing
+   * a line REVOKES it on the next deploy.
+   *
+   * ⚠ Only ROLE-level rows belong here. The orthogonal policies (Terminplanung,
+   * Finance, Spielplaner, and the LEADER backfill) are attached to USERS, not
+   * roles, and are reconciled by §10 / §12 / §13 / §14. §3b never touches
+   * user-level rows.
+   *
+   * ⚠ `Administrator` is deliberately absent — Directus owns that role's
+   * built-in policy and §3b treats the role as protected (PROTECTED_ROLES).
+   *
+   * ⚠ `Sport Admin` is deliberately NOT given `KSCW Admin`. Prod carried
+   * exactly that row (hand-made 2026-03-29, admin_access = true), which turned
+   * every vb_admin / bb_admin into a full Directus superadmin — the escalation
+   * §3b now removes and keeps removed. Sport Admin's ceiling is the
+   * `KSCW Sport Admin` policy (§9): no members/teams delete, no schema access.
+   */
+  const DECLARED_ROLE_POLICIES = [
+    // Member role → member policy
+    { role: 'Member', policy: MEMBER_POLICY },
+    // Team Responsible → leader + member (inherits member permissions)
+    { role: 'Team Responsible', policy: LEADER_POLICY },
+    { role: 'Team Responsible', policy: MEMBER_POLICY },
+    // Vorstand → vorstand + member
+    { role: 'Vorstand', policy: VORSTAND_POLICY },
+    { role: 'Vorstand', policy: MEMBER_POLICY },
+    // Sport Admin → sport admin + leader + member (full chain, NO admin policy)
+    { role: 'Sport Admin', policy: SPORT_ADMIN_POLICY },
+    { role: 'Sport Admin', policy: LEADER_POLICY },
+    { role: 'Sport Admin', policy: MEMBER_POLICY },
+    // Superuser → admin policy only. admin_access = true bypasses every
+    // permission check, so the lower tiers add nothing; prod carried four
+    // redundant ones (Member / Team Responsible / Vorstand / Sport Admin) plus
+    // a stray `Website_admin`, all of which §3b now prunes. No effective
+    // change for a superuser — they already bypass all of it.
+    { role: 'Superuser', policy: ADMIN_POLICY },
+  ].map(d => ({ role: d.role, roleId: roleMap[d.role], policyId: d.policy }))
 
-  // Team Responsible → leader + member (inherits member permissions)
-  await attachPolicyToRole(roleMap['Team Responsible'], LEADER_POLICY)
-  await attachPolicyToRole(roleMap['Team Responsible'], MEMBER_POLICY)
-
-  // Vorstand → vorstand + member
-  await attachPolicyToRole(roleMap['Vorstand'], VORSTAND_POLICY)
-  await attachPolicyToRole(roleMap['Vorstand'], MEMBER_POLICY)
-
-  // Sport Admin → sport admin + leader + member (full chain)
-  await attachPolicyToRole(roleMap['Sport Admin'], SPORT_ADMIN_POLICY)
-  await attachPolicyToRole(roleMap['Sport Admin'], LEADER_POLICY)
-  await attachPolicyToRole(roleMap['Sport Admin'], MEMBER_POLICY)
-
-  // Superuser → admin policy (admin_access=true bypasses everything, but attach for consistency)
-  await attachPolicyToRole(roleMap['Superuser'], ADMIN_POLICY)
+  for (const d of DECLARED_ROLE_POLICIES) {
+    if (!d.roleId) {
+      console.warn(`  ⚠ role "${d.role}" not found — skipping its policy attachment`)
+      continue
+    }
+    await attachPolicyToRole(d.roleId, d.policyId)
+  }
 
   // Administrator → already has admin_access=true built-in
   console.log('  ✓ Done')
+
+  // ── 3b. Reconcile role-level attachments against the declared set ──
+
+  console.log(`\n3b. Reconciling role→policy attachments${RECONCILE_DRY_RUN ? ' (DRY RUN)' : ''}...`)
+  await reconcileRoleAccess(DECLARED_ROLE_POLICIES, roleMap)
 
   // ── 4. Clear old permissions for idempotent re-run ─────────────
 
@@ -2091,6 +2300,42 @@ async function main() {
   await setPerm(TERMINPLANUNG_POLICY, 'scheduling_blocks', 'create')
   await setPerm(TERMINPLANUNG_POLICY, 'scheduling_blocks', 'update')
   await setPerm(TERMINPLANUNG_POLICY, 'scheduling_blocks', 'delete')
+
+  // ── Basketball prep (migrations 214/216/218) ──────────────────────────────
+  //
+  // 2026-08-05: the basketball scheduling routes now gate on
+  // `is_spielplaner` OR a sport admin, exactly like the volleyball ones. That
+  // flag is precisely what §12 (and the kscw-hooks `is_spielplaner` action
+  // hook) attaches THIS policy for, so the frontend gate and this grant are the
+  // same set of people by construction. Until now these three collections were
+  // Sport-Admin-only (§9), so a Spielplaner reaching /basketball/prep loaded an
+  // EMPTY grid (planQ/availQ 403) and 403'd on every placement.
+  //
+  // Scope = exactly what the pages read/write, no more:
+  //   • basketball_slot_plan       — useBasketballPlan.placeGame (create+update
+  //     upsert on the (date,time,hall) key) and removeGame (delete) → full CRUD.
+  //   • basketball_hall_availability — setDateUnavailable upserts create+update
+  //     only; the "available again" path flips `unavailable` back to false
+  //     rather than deleting the row, so NO delete grant.
+  //   • team_links (sport-agnostic) — TeamLinksEditor add/update/remove →
+  //     create+update+delete. Read is already club-wide via KSCW Member, but is
+  //     repeated here on purpose so this policy stands on its own: a future
+  //     narrowing of the Member read must not silently empty the links editor.
+  //     Zero added exposure — identical scope to the grant that already exists.
+  //
+  // Everything else those pages touch is already readable and is NOT re-granted:
+  //   game_scheduling_seasons + game_scheduling_slots → §9b above;
+  //   teams, halls, hall_closures → MEMBER_READ_ALL (unfiltered, fields '*');
+  //   club-wide blocked dates → GET /terminplanung/admin/club-blocked-dates,
+  //   an endpoint gated in kscw-endpoints, not an items-API read.
+  await setPermCRUD(TERMINPLANUNG_POLICY, 'basketball_slot_plan')
+  await setPermRead(TERMINPLANUNG_POLICY, 'basketball_hall_availability')
+  await setPerm(TERMINPLANUNG_POLICY, 'basketball_hall_availability', 'create')
+  await setPerm(TERMINPLANUNG_POLICY, 'basketball_hall_availability', 'update')
+  await setPermRead(TERMINPLANUNG_POLICY, 'team_links')
+  await setPerm(TERMINPLANUNG_POLICY, 'team_links', 'create')
+  await setPerm(TERMINPLANUNG_POLICY, 'team_links', 'update')
+  await setPerm(TERMINPLANUNG_POLICY, 'team_links', 'delete')
 
   console.log(`  ✓ Terminplanung permissions set`)
 
