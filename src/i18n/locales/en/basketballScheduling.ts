@@ -213,6 +213,7 @@ export default {
   reject_category_not_allowed: 'Category not allowed at this time',
   reject_start_window: 'Outside the start window',
   reject_blocked_rule: 'Blocked date',
+  reject_not_a_spielsamstag: 'Not a game Saturday',
   reject_blackout_sperr: 'ProBasket blocked date',
   reject_blackout_ferien: 'Holidays',
   reject_club_block: 'Club-wide blocked date',

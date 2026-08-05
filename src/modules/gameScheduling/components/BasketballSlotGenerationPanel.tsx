@@ -34,12 +34,22 @@ interface Props {
   onClear: () => Promise<{ deleted: number } | null>
 }
 
-/** The reject codes the endpoint emits (kscw-endpoints/src/basketball-slots.js REJECT_CODES). */
+/**
+ * The reject codes the endpoint emits (kscw-endpoints/src/basketball-slots.js REJECT_CODES).
+ * Tie-break order only — the count sorts first.
+ *
+ * ⚠ Every code here needs a matching `reject_<code>` key in all five locales, or the raw
+ * key renders in the table. `not_a_spielsamstag` shipped in migration 285 without either
+ * and leaked "reject_not_a_spielsamstag · 196" into the UI; the locale parity check could
+ * not catch it because the key was missing from every locale equally.
+ * Guarded by directus/scripts/__tests__/basketball-reject-codes.test.mjs.
+ */
 const REJECT_ORDER = [
   'day_not_allowed',
   'category_not_allowed',
   'start_window',
   'blocked_rule',
+  'not_a_spielsamstag',
   'blackout_sperr',
   'blackout_ferien',
   'club_block',
