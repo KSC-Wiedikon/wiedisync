@@ -260,11 +260,14 @@ export default {
   // programme and keeps its Swiss name in every locale — it is a brand, not a
   // description, and translating it would make it unrecognisable.
   trainerLicences: 'Coaching qualification',
-  trainerLicencesHint: 'Select all that apply — J+S is separate from the C/B/A ladder.',
+  trainerLicencesHint: 'Select all that apply — J+S is separate from the coaching ladder.',
   trainerLicenceJS: 'J+S',
   trainerLicenceC: 'Trainer C',
   trainerLicenceB: 'Trainer B',
   trainerLicenceA: 'Trainer A',
+  trainerLicenceT1: 'Trainer 1',
+  trainerLicenceT2: 'Trainer 2',
+  trainerLicenceT3: 'Trainer 3',
   sex: 'Sex',
   ahvNummer: 'AHV number',
   beitragskategorie: 'Fee category',

@@ -330,6 +330,19 @@ describe('deriveOffiziellenLizenz', () => {
     expect(deriveOffiziellenLizenz({})).toBe('')
     expect(deriveOffiziellenLizenz(null)).toBe('')
   })
+
+  it('picks the HIGHEST rung when a member holds several — the single-value cell must not downgrade them', () => {
+    // 43 members hold both OTR rungs on prod (an upgraded official keeps the
+    // lower flag; Basketplan records both `*_since` dates). ClubDesk's picklist
+    // holds one value, so choosing the lower one would report a qualified OTR2
+    // as an OTR1 — which is what this order exists to prevent.
+    expect(deriveOffiziellenLizenz({ otr1_bb: true, otr2_bb: true })).toBe('OTR2')
+    expect(deriveOffiziellenLizenz({ otn1_bb: true, otn2_bb: true })).toBe('OTN2')
+    // The coarse legacy flag never wins over a resolved level.
+    expect(deriveOffiziellenLizenz({ otn_bb: true, otn2_bb: true })).toBe('OTN2')
+    // A referee who is also a table official still reports the OTR rung, highest first.
+    expect(deriveOffiziellenLizenz({ otr1_bb: true, otr2_bb: true, otn2_bb: true, otn_bb: true })).toBe('OTR2')
+  })
 })
 
 describe('deriveSchiedsrichter', () => {
@@ -547,6 +560,15 @@ describe('trainerLicenceCell (members.trainer_licences → the ClubDesk cell)', 
   it('imposes canonical order so the cell is stable regardless of stored order', () => {
     expect(trainerLicenceCell('B,JS')).toBe('J+S, B')
     expect(trainerLicenceCell('A,B,C,JS')).toBe('J+S, C, B, A')
+    expect(trainerLicenceCell('T2,JS')).toBe('J+S, Trainer 2')
+  })
+
+  it('spells the basketball rungs the way ClubDesk already holds them (migration 281)', () => {
+    expect(trainerLicenceCell('T1')).toBe('Trainer 1')
+    expect(trainerLicenceCell('T2')).toBe('Trainer 2')
+    expect(trainerLicenceCell('T3')).toBe('Trainer 3')
+    // The two ladders coexist in one cell and neither is rewritten as the other.
+    expect(trainerLicenceCell('B,T2')).toBe('B, Trainer 2')
   })
 
   it('yields an empty cell for the empty states — the caller echo then protects the register', () => {
@@ -563,7 +585,8 @@ describe('trainerLicenceCell (members.trainer_licences → the ClubDesk cell)', 
 
 describe('parseTrainerLicenceCell (the ClubDesk cell → codes, for down-sync + drift)', () => {
   it('round-trips everything trainerLicenceCell can emit', () => {
-    for (const codes of ['JS', 'JS,C', 'JS,C,B,A', 'B', 'A', 'JS,B']) {
+    for (const codes of ['JS', 'JS,C', 'JS,C,B,A', 'B', 'A', 'JS,B',
+                         'T1', 'T2', 'T3', 'JS,T2', 'C,T2', 'JS,C,B,A,T1,T2,T3']) {
       expect(parseTrainerLicenceCell(trainerLicenceCell(codes))).toBe(codes)
     }
   })
@@ -579,6 +602,27 @@ describe('parseTrainerLicenceCell (the ClubDesk cell → codes, for down-sync + 
     expect(parseTrainerLicenceCell('JS;C')).toBe('JS,C')
   })
 
+  it('reads the basketball rungs the register actually holds today (migration 281)', () => {
+    // The three live values in ClubDesk on 2026-08-05.
+    expect(parseTrainerLicenceCell('Trainer 1')).toBe('T1')
+    expect(parseTrainerLicenceCell('Trainer 2+')).toBe('T2')   // '+' is shorthand, not a rung
+    expect(parseTrainerLicenceCell('trainer 3')).toBe('T3')
+    expect(parseTrainerLicenceCell('J+S/Trainer 2')).toBe('JS,T2')
+    // Both ladders in one cell, each kept as itself.
+    expect(parseTrainerLicenceCell('Trainer 1, B')).toBe('B,T1')
+  })
+
+  it('keeps the word "Trainer" ambiguous between the ladders — only a digit makes it a BB rung', () => {
+    // The trap: 'Trainer' is on the skip list so 'Trainer B' yields B. Lifting
+    // 'Trainer <digit>' must not break that, and a bare digit is not a rung.
+    expect(parseTrainerLicenceCell('Trainer B')).toBe('B')
+    expect(parseTrainerLicenceCell('Trainer C')).toBe('C')
+    expect(parseTrainerLicenceCell('Trainer')).toBe('')
+    expect(parseTrainerLicenceCell('2')).toBe('')
+    expect(parseTrainerLicenceCell('Stufe 2')).toBe('')
+    expect(parseTrainerLicenceCell('Trainer 4')).toBe('')
+  })
+
   it('does not find rungs inside ordinary words — the false-positive that would forge a qualification', () => {
     expect(parseTrainerLicenceCell('Basketball Trainer')).toBe('')
     expect(parseTrainerLicenceCell('Ausbildung')).toBe('')
@@ -590,9 +634,10 @@ describe('parseTrainerLicenceCell (the ClubDesk cell → codes, for down-sync + 
     expect(parseTrainerLicenceCell('   ')).toBe('')
   })
 
-  it('only ever emits values migration 274 CHECK accepts', () => {
-    const dbCheck = /^(JS|C|B|A)(,(JS|C|B|A))*$/
-    for (const cell of ['J+S, B', 'Trainer A', 'j+s/c/b/a', 'Stufe C', 'JS']) {
+  it('only ever emits values migration 281 CHECK accepts', () => {
+    const dbCheck = /^(JS|C|B|A|T1|T2|T3)(,(JS|C|B|A|T1|T2|T3))*$/
+    for (const cell of ['J+S, B', 'Trainer A', 'j+s/c/b/a', 'Stufe C', 'JS',
+                        'Trainer 1', 'Trainer 2+', 'J+S, Trainer 3', 'Trainer 1, B']) {
       expect(parseTrainerLicenceCell(cell)).toMatch(dbCheck)
     }
   })
@@ -609,6 +654,13 @@ describe('trainerLicenceDisplay (admin email, reader language)', () => {
     expect(trainerLicenceDisplay('JS,B', 'de')).toBe('J+S, Trainer B')
     expect(trainerLicenceDisplay('JS,B', 'fr')).toBe('J+S, Entraîneur B')
     expect(trainerLicenceDisplay('JS,B', 'it')).toBe('J+S, Allenatore B')
+  })
+
+  it('translates the basketball rungs too — the number stays, the noun localizes', () => {
+    expect(trainerLicenceDisplay('T2', 'de')).toBe('Trainer 2')
+    expect(trainerLicenceDisplay('T2', 'fr')).toBe('Entraîneur 2')
+    expect(trainerLicenceDisplay('T2', 'it')).toBe('Allenatore 2')
+    expect(trainerLicenceDisplay('JS,T1', 'en')).toBe('J+S, Trainer 1')
   })
 
   it('falls back to English for an unknown locale rather than printing raw codes', () => {
