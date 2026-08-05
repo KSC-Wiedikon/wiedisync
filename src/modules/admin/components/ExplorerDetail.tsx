@@ -268,7 +268,7 @@ function renderMember(
           ]}
           rows={memberTeams.map((tm) => [
             <NavBtn type="teams" id={String(tm.id)} label={teamLabel(tm)} onClick={onNavigate} />,
-            String(tm.sport ?? '—'),
+            capitalize(String(tm.sport ?? '')) || '—',
             String(tm.season ?? '—'),
             [...(relations.get(String(tm.id)) ?? [])].join(', ') || '—',
           ])}

@@ -22,9 +22,15 @@ import {
   TRAINER_LICENCE_CODES, TRAINER_LICENCE_I18N_KEYS,
   parseTrainerLicences, serializeTrainerLicences,
 } from '../../../utils/trainerLicences'
+import { coercePositions, getPositionI18nKey, getSelectablePositions } from '../../../utils/memberPositions'
 import { MEMBER_FIELD_LABELS } from './memberFieldLabels'
+import {
+  MEMBER_MULTI_FIELDS, MEMBER_SELECT_FIELDS, MEMBER_SUGGEST_FIELDS, optionLabel,
+  type FieldOption,
+} from './memberFieldOptions'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import SearchableSelect from '@/components/ui/SearchableSelect'
 import DatePicker from '@/components/ui/DatePicker'
 import DateTimePicker from '@/components/ui/DateTimePicker'
@@ -127,7 +133,9 @@ const KEY_TO_GROUP: Record<string, string> = (() => {
   return m
 })()
 
-type FieldKind = 'bool' | 'number' | 'json' | 'date' | 'datetime' | 'longtext' | 'text'
+type FieldKind =
+  | 'bool' | 'number' | 'json' | 'date' | 'datetime' | 'longtext' | 'text'
+  | 'select' | 'multiselect' | 'suggest'
 
 const KIND_BADGE: Record<FieldKind, string> = {
   bool: 'boolean',
@@ -137,9 +145,19 @@ const KIND_BADGE: Record<FieldKind, string> = {
   datetime: 'datetime',
   longtext: 'text',
   text: 'text',
+  select: 'select',
+  multiselect: 'multi',
+  // Free text with suggestions — the badge stays honest about the column type.
+  suggest: 'text',
 }
 
 function detectKind(key: string, value: unknown): FieldKind {
+  // Closed value sets are keyed off the COLUMN, not the value: a varchar
+  // holding 'hidden' looks exactly like free text, and a NULL one carries no
+  // hint at all. Must stay ahead of the value heuristics below.
+  if (MEMBER_SELECT_FIELDS[key]) return 'select'
+  if (MEMBER_MULTI_FIELDS[key] || key === 'position') return 'multiselect'
+  if (MEMBER_SUGGEST_FIELDS[key]) return 'suggest'
   if (typeof value === 'boolean') return 'bool'
   if (typeof value === 'number') return 'number'
   if (Array.isArray(value)) return 'json'
@@ -337,8 +355,8 @@ export default function ExplorerMemberFields({ memberId, canEdit, reloadKey, onS
                 const kind = detectKind(key, original)
                 const isReadOnly = READ_ONLY_FIELDS.has(key)
                 const isDirty = !isReadOnly && !valueEquals(original, current)
-                // Wide cards for json/longtext so their content has room
-                const wide = kind === 'json' || kind === 'longtext'
+                // Wide cards for json/longtext/checkbox grids so content has room
+                const wide = kind === 'json' || kind === 'longtext' || kind === 'multiselect'
 
                 return (
                     <article
@@ -401,7 +419,7 @@ export default function ExplorerMemberFields({ memberId, canEdit, reloadKey, onS
 }
 
 function DisplayValue({ value, kind, fieldKey }: { value: unknown; kind: FieldKind; fieldKey?: string }) {
-  if (value == null || value === '') {
+  if (value == null || value === '' || (Array.isArray(value) && value.length === 0)) {
     return <span className="text-muted-foreground">—</span>
   }
   // Coded nationality (migration 223) → localized names, in stored order (the
@@ -419,6 +437,28 @@ function DisplayValue({ value, kind, fieldKey }: { value: unknown; kind: FieldKi
   // Derived ClubDesk name, still free-text (German) → viewer's language.
   if (fieldKey === 'nationalitaet') {
     return <span className="break-words text-foreground">{localizeCountryName(String(value))}</span>
+  }
+  // Closed value sets → the label, with the stored code on hover. `position`
+  // borrows the profile picker's own translations rather than a second list.
+  if (kind === 'multiselect' && fieldKey === 'position') {
+    return <PositionValue value={value} />
+  }
+  if (kind === 'multiselect' && fieldKey && MEMBER_MULTI_FIELDS[fieldKey]) {
+    const opts = MEMBER_MULTI_FIELDS[fieldKey]
+    const codes = Array.isArray(value) ? (value as unknown[]).map(String) : [String(value)]
+    return (
+      <span className="break-words text-foreground" title={codes.join(', ')}>
+        {codes.map((c) => optionLabel(opts, c)).join(', ')}
+      </span>
+    )
+  }
+  if (kind === 'select' && fieldKey && MEMBER_SELECT_FIELDS[fieldKey]) {
+    const code = String(value)
+    return (
+      <span className="break-words text-foreground" title={code}>
+        {optionLabel(MEMBER_SELECT_FIELDS[fieldKey].options, code)}
+      </span>
+    )
   }
   if (kind === 'bool') {
     return (
@@ -447,6 +487,23 @@ function DisplayValue({ value, kind, fieldKey }: { value: unknown; kind: FieldKi
     return <p className="whitespace-pre-wrap break-words text-foreground">{String(value)}</p>
   }
   return <span className="break-words text-foreground">{formatDisplay(value, kind)}</span>
+}
+
+/** Playing positions — reuses the profile picker's labels, not a second list.
+ *  Those keys live in the `teams` namespace, NOT `auth` (unlike the coaching
+ *  qualifications right below) — the wrong one renders the bare key. */
+function PositionValue({ value }: { value: unknown }) {
+  const { t } = useTranslation('teams')
+  const codes = coercePositions(value)
+  if (codes.length === 0) return <span className="text-muted-foreground">—</span>
+  return (
+    <span className="break-words text-foreground" title={codes.join(', ')}>
+      {codes.map((p) => {
+        const key = getPositionI18nKey(p)
+        return key ? t(key) : p
+      }).join(', ')}
+    </span>
+  )
 }
 
 /** Coaching education — stored codes rendered as their proper labels ("J+S"). */
@@ -480,7 +537,7 @@ function FieldEditor({
   value: unknown
   onChange: (v: unknown) => void
 }) {
-  const { t } = useTranslation(['admin', 'auth', 'common'])
+  const { t } = useTranslation(['admin', 'auth', 'common', 'teams'])
   const inputCls =
     'w-full rounded border border-border bg-background px-2 py-1 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none'
 
@@ -520,6 +577,78 @@ function FieldEditor({
           </label>
         ))}
       </div>
+    )
+  }
+
+  // Playing positions: the profile picker's own option set, so the explorer can
+  // never offer a position the app does not render (and vice versa). Any legacy
+  // value already on the record is kept selectable by getSelectablePositions.
+  if (fieldKey === 'position') {
+    const selected = coercePositions(value)
+    return (
+      <div className="flex flex-wrap gap-3">
+        {getSelectablePositions(undefined, value).map((p) => {
+          const i18nKey = getPositionI18nKey(p)
+          return (
+            <label key={p} className="flex cursor-pointer items-center gap-1.5 text-sm text-foreground">
+              <input
+                type="checkbox"
+                checked={selected.includes(p)}
+                onChange={(e) => {
+                  const next = e.target.checked
+                    ? [...selected, p]
+                    : selected.filter((c) => c !== p)
+                  onChange(next)
+                }}
+                className="size-4 accent-primary"
+              />
+              {i18nKey ? t(`teams:${i18nKey}`) : p}
+            </label>
+          )
+        })}
+      </div>
+    )
+  }
+
+  // Roles (jsonb array, gated by CHECK members_role_values_valid) — checkboxes
+  // rather than a JSON textarea: a typo there 400s on the constraint, and a
+  // valid-but-wrong string silently grants or drops access.
+  if (kind === 'multiselect' && MEMBER_MULTI_FIELDS[fieldKey]) {
+    return (
+      <MultiSelectEditor
+        options={MEMBER_MULTI_FIELDS[fieldKey]}
+        value={value}
+        onChange={onChange}
+      />
+    )
+  }
+
+  if (kind === 'select') {
+    const { options, nullable } = MEMBER_SELECT_FIELDS[fieldKey]
+    return (
+      <SelectEditor options={options} nullable={nullable} value={value} onChange={onChange} />
+    )
+  }
+
+  // Free text with a canonical suggestion list (datalist) — off-list values
+  // exist in the data and must stay typeable.
+  if (kind === 'suggest') {
+    const listId = `explorer-suggest-${fieldKey}`
+    return (
+      <>
+        <input
+          type="text"
+          list={listId}
+          value={String(value ?? '')}
+          onChange={(e) => onChange(e.target.value === '' ? null : e.target.value)}
+          className={inputCls}
+        />
+        <datalist id={listId}>
+          {MEMBER_SUGGEST_FIELDS[fieldKey].map((opt) => (
+            <option key={opt} value={opt} />
+          ))}
+        </datalist>
+      </>
     )
   }
 
@@ -622,5 +751,83 @@ function FieldEditor({
       onChange={(e) => onChange(e.target.value)}
       className={inputCls}
     />
+  )
+}
+
+// Radix Select refuses an empty-string item value, so "no value" travels as a
+// sentinel and is mapped back to null on the way out.
+const NONE_VALUE = '__none__'
+
+function SelectEditor({
+  options,
+  nullable,
+  value,
+  onChange,
+}: {
+  options: FieldOption[]
+  nullable: boolean
+  value: unknown
+  onChange: (v: unknown) => void
+}) {
+  const current = typeof value === 'string' && value !== '' ? value : ''
+  // An off-list value (legacy data, or a code added to the DB before this list)
+  // stays selected and selectable — otherwise opening the editor on such a row
+  // and saving anything else would silently overwrite it.
+  const shown = current && !options.some((o) => o.value === current)
+    ? [{ value: current, label: `${current} (unrecognised)` }, ...options]
+    : options
+  return (
+    <Select
+      value={current === '' ? NONE_VALUE : current}
+      onValueChange={(v) => onChange(v === NONE_VALUE ? null : v)}
+    >
+      <SelectTrigger className="h-8 w-full text-sm">
+        <SelectValue placeholder="—" />
+      </SelectTrigger>
+      <SelectContent>
+        {nullable && <SelectItem value={NONE_VALUE}>—</SelectItem>}
+        {shown.map((o) => (
+          <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  )
+}
+
+function MultiSelectEditor({
+  options,
+  value,
+  onChange,
+}: {
+  options: FieldOption[]
+  value: unknown
+  onChange: (v: unknown) => void
+}) {
+  const selected = Array.isArray(value) ? (value as unknown[]).map(String) : []
+  // Same off-list rule as SelectEditor — an unknown code keeps its checkbox.
+  const shown = [
+    ...options,
+    ...selected.filter((c) => !options.some((o) => o.value === c))
+      .map((c) => ({ value: c, label: `${c} (unrecognised)` })),
+  ]
+  return (
+    <div className="flex flex-wrap gap-3">
+      {shown.map((o) => (
+        <label key={o.value} className="flex cursor-pointer items-center gap-1.5 text-sm text-foreground">
+          <input
+            type="checkbox"
+            checked={selected.includes(o.value)}
+            onChange={(e) => {
+              const next = e.target.checked
+                ? [...selected, o.value]
+                : selected.filter((c) => c !== o.value)
+              onChange(next)
+            }}
+            className="size-4 accent-primary"
+          />
+          {o.label}
+        </label>
+      ))}
+    </div>
   )
 }
