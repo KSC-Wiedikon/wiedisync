@@ -672,9 +672,8 @@ export default {
   trNavTransfers: 'Transfers',
   trTitle: 'Internationali Transfers',
   trDescription: 'Mitglider, wo en internationale Transfer bruuched — gruppiert nach em Verband, wo si mit 14 lizenziert hät.',
-  trTabsLabel: 'Sportart',
-  trSportVolleyball: 'Volleyball',
-  trSportBasketball: 'Basketball',
+  // ⚠ Nur Volleyball — d Sportart-Umschaltig isch weg. FIBA-Transfers laufed
+  // über Swiss Basketball; alles uf dere Siite ghört zur FIVB.
   trRefresh: 'Aktualisiere',
   trNeedsTitle: 'Transfer nötig',
   trNeedsDescription: 'Mit 14 vomene Verband usserhalb vo de Schwiiz lizenziert. Swiss Volley verlangt vor em Iisatz es internationals Transferzertifikat — uf jeder Stuefe, au wo d Gebühr CHF 0 isch.',
@@ -711,6 +710,10 @@ export default {
   trHiddenNoTeam_other: '{{count}} Mitglider werded nöd zeigt, wil si i kem Team sind.',
   trHiddenGuests_one: '{{count}} Mitglid wird nöd zeigt, wills nur als Gast spilt — Gäscht hend kei Lizenz, drum entfallt de Transfer.',
   trHiddenGuests_other: '{{count}} Mitglider werded nöd zeigt, wil si nur als Gäscht spiled — Gäscht hend kei Lizenz, drum entfallt de Transfer.',
+  trHiddenBasketball_one: '{{count}} Basketball-Mitglid wird nöd zeigt — die Siite deckt nur Swiss-Volley-Transfers ab.',
+  trHiddenBasketball_other: '{{count}} Basketball-Mitglider werded nöd zeigt — die Siite deckt nur Swiss-Volley-Transfers ab.',
+  trHiddenU20_one: '{{count}} U20-Spiler*in wird nöd zeigt — DU20 und HU20 bruuched kein internationale Transfer.',
+  trHiddenU20_other: '{{count}} U20-Spiler*inne werded nöd zeigt — DU20 und HU20 bruuched kein internationale Transfer.',
   trInactive: 'Mitgliedschaft inaktiv',
   trLicenceValidated: 'Validiert',
   trLicenceNotValidated: 'Nöd validiert',
@@ -739,7 +742,6 @@ export default {
   trInVisCheckedAt: 'Prüeft am {{date}}',
   trVisSummaryTitle: 'Präsenz i VIS',
   trVisSummaryHint: '«In VIS nöd gfunde» isch en Hiiwiis, kei Urteil: Abglichen wird über de Name, und de Herkunftsverband chunnt bi de meiste Mitglieder us de Nationalität. Drum isch meischtens die Aanahm falsch und nöd de Verband suumig.',
-  trVisBasketballHint: 'VIS isch de Spilerindex vo de FIVB (Volleyball), und d Kontäkt do sind nationali Volleyballverbänd. En FIBA-Transfer lauft über en anderi Stell — bitte nur als Hiiwiis läse.',
   trVisCheckNow: 'VIS jetzt prüefe',
   trVisCheckRunning: 'VIS wird prüeft…',
   trVisCheckHint: 'Frögt bi de FIVB naa, öb die Mitglieder im VIS-Spilerindex vo ihrem Herkunftsverband stönd, und aktualisiert d Badges. Duuret es paar Sekunde — es wird jewiils en ganze Verbandskader glade. Lauft automatisch jede Määntig.',
@@ -772,5 +774,5 @@ export default {
 
   trSaveFailed: 'Spichere fehlgschlage',
   trEmptyTitle: 'Nüt z tue',
-  trEmptyDescription: 'Kei offeni Transfers und kei offeni Frooge für die Sportart.',
+  trEmptyDescription: 'Kei offeni Transfers und kei offeni Frooge.',
 } as const
