@@ -160,7 +160,17 @@ export default function App() {
           <Route path="join/:token" element={<JoinPage />} />
           <Route path="set-password" element={<SetPasswordPage />} />
           <Route path="terminplanung" element={<SchedulingRedirect />} />
+          {/* `terminplanung/:token` matches exactly ONE segment, so the two-segment
+              club-portal links (volleyball `/club/<token>`, basketball `/bb/<token>`)
+              need their own entries — this app has no catch-all, so an unmatched
+              path renders a blank page instead of redirecting. SchedulingRedirect
+              itself is untouched: it already forwards the full pathname.
+              ⚠ The one-segment volleyball OPPONENT link must stay listed too: it is
+              the live flow, and dropping it turned a pasted opponent link into a
+              blank page instead of a redirect. */}
           <Route path="terminplanung/:token" element={<SchedulingRedirect />} />
+          <Route path="terminplanung/club/:token" element={<SchedulingRedirect />} />
+          <Route path="terminplanung/bb/:token" element={<SchedulingRedirect />} />
           <Route path="f/:slug" element={<PublicFormPage />} />
 
           <Route element={<Layout />}>

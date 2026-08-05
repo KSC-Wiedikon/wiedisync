@@ -98,22 +98,46 @@ const DARK_I18N = {
   it: { role: 'Pianificazione pallavolo', wa: 'WhatsApp (urgenza, Luca)' },
 }
 
+// Basketball variant of the same footer. PLACEHOLDER, exactly like the light
+// card above: the basketball operators have not supplied scheduler names or a
+// WhatsApp number, so those two rows are omitted rather than inheriting the
+// VOLLEYBALL ones — "Luca · Martin · Hella" plus a volleyball WhatsApp line on a
+// basketball email would send an opponent club to the wrong people. Fill
+// `people` / `wa` here once the names are known.
+const DARK_I18N_BB = {
+  de: { role: 'Spielplanung Basketball' },
+  en: { role: 'Basketball scheduling' },
+  fr: { role: 'Planification basketball' },
+  it: { role: 'Pianificazione pallacanestro' },
+}
+
 /**
  * Dark-themed signature rows for the automated opponent emails. Returns a
  * `<tr>…</tr>` block injected into `buildEmailLayout` (via its `signatureHtml`
  * opt) just above the system footer bar — matching the dark card palette.
- * @param {string} lang opponent language (de/gsw/en/fr/it), falls back to de
+ *
+ * @param {string} lang  opponent language (de/gsw/en/fr/it), falls back to de
+ * @param {'vb'|'bb'} [sport='vb']  which Spielplanung identity signs the mail.
+ *   'vb' is the default so every existing caller stays byte-identical.
  */
-export function buildSchedSignatureRows(lang) {
-  const t = DARK_I18N[lang] || DARK_I18N.de
+export function buildSchedSignatureRows(lang, sport = 'vb') {
+  const bb = sport === 'bb' || sport === 'basketball'
+  const t = (bb ? DARK_I18N_BB : DARK_I18N)[lang] || (bb ? DARK_I18N_BB : DARK_I18N).de
+  const email = bb ? SIG_EMAIL_BB : SIG_EMAIL
+  const peopleRow = bb
+    ? ''
+    : `<div style="font-size:13px;font-weight:600;color:#e2e8f0;margin-top:8px">Luca &middot; Martin &middot; Hella</div>`
+  const waRow = bb || !t.wa
+    ? ''
+    : `<div style="font-size:13px;color:#94a3b8;margin-top:2px">${escHtml(t.wa)}: <a href="${SIG_WA_HREF}" style="color:#FFC832;text-decoration:none">+41 79 789 18 17</a></div>`
   return (
     `<tr><td style="padding:0 28px 22px">` +
     `<table width="100%" cellpadding="0" cellspacing="0"><tr><td style="border-top:1px solid #334155;padding-top:16px">` +
     `<div style="font-size:15px;font-weight:700;color:#ffffff">KSC Wiedikon</div>` +
     `<div style="font-size:13px;color:#94a3b8;margin-top:1px">${escHtml(t.role)}</div>` +
-    `<div style="font-size:13px;font-weight:600;color:#e2e8f0;margin-top:8px">Luca &middot; Martin &middot; Hella</div>` +
-    `<div style="font-size:13px;margin-top:6px"><a href="mailto:${SIG_EMAIL}" style="color:#FFC832;text-decoration:none">${SIG_EMAIL}</a></div>` +
-    `<div style="font-size:13px;color:#94a3b8;margin-top:2px">${escHtml(t.wa)}: <a href="${SIG_WA_HREF}" style="color:#FFC832;text-decoration:none">+41 79 789 18 17</a></div>` +
+    peopleRow +
+    `<div style="font-size:13px;margin-top:6px"><a href="mailto:${email}" style="color:#FFC832;text-decoration:none">${email}</a></div>` +
+    waRow +
     `</td></tr></table>` +
     `</td></tr>`
   )

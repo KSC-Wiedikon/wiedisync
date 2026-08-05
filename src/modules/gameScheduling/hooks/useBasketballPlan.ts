@@ -25,6 +25,13 @@ import {
   type CandidateDate,
   type ProbasketSeasonConfig,
 } from '../utils/probasketSeason'
+import {
+  hallStatusAt,
+  dayHallAvailability,
+  type HallBlockers,
+  type VbBooking,
+  type DateBlockReason,
+} from '../utils/hallOccupancy'
 
 export type SlotStatus = 'unavailable' | 'vb' | 'game' | 'free'
 
@@ -41,9 +48,17 @@ export interface DateInfo {
   blackout: string | null
   /** Hall names closed that day ('*' = all halls). */
   closedHalls: Set<string>
-  /** Whole day is unavailable (blackout, club-wide block, or all halls closed). */
+  /** Club-wide blackout day (superadmin block). */
+  clubBlocked: boolean
+  /**
+   * Nothing can be placed on this date — a ProBasket blackout, a club-wide block, a
+   * hall closure, OR volleyball holding every court at every pitch. The last case is
+   * the one the day-granular model used to hide behind an empty card.
+   */
   fullyBlocked: boolean
-  reason: string | null
+  /** Why (`reason`) and, for a blackout/closure, which one (`reasonDetail`). */
+  reason: DateBlockReason | null
+  reasonDetail: string | null
 }
 
 export interface PlaceGameInput {
@@ -55,7 +70,7 @@ export interface PlaceGameInput {
   note?: string | null
 }
 
-interface ClubBlock { start_date: string; end_date: string }
+interface ClubBlock { start_date: string; end_date: string; reason?: string | null }
 
 export const slotKey = (date: string, time: string, hall: string) => `${date}|${time}|${hall}`
 const availKey = (teamId: string | number, date: string) => `${teamId}|${date}`
@@ -65,23 +80,43 @@ function eachDay(start: string, end: string, cb: (ymd: string) => void) {
   for (const d = parseYmd(start); d <= last; d.setDate(d.getDate() + 1)) cb(toYmd(d))
 }
 
+export interface BasketballPlanOptions {
+  /**
+   * The selected team's `teams.bb_source_id`. ProBasket publishes a DIFFERENT
+   * availability window per league (the 1.-Liga grid runs to 09.05.2027, the junior
+   * one stops on 13.12.2026), so the candidate-date grid is per team. Omitted →
+   * the documented junior-regional default.
+   */
+  bbSourceId?: string | number | null
+}
+
 /**
  * Slot-grid planner data for the Basketball prep view: candidate dates, per-date
  * blackout/closure info, per-(date,time,hall) status (unavailable / vb / game / free)
  * with A+B combined-court occupancy, plus placement + availability writers.
  */
-export function useBasketballPlan(season: GameSchedulingSeason | null) {
+export function useBasketballPlan(season: GameSchedulingSeason | null, opts: BasketballPlanOptions = {}) {
   const { user } = useAuth()
   const seasonId = season?.id ?? null
+  const bbSourceId = opts.bbSourceId ?? null
   const config = useMemo<ProbasketSeasonConfig | null>(
-    () => probasketConfigForSeason(season?.season),
-    [season?.season],
+    () => probasketConfigForSeason(season?.season, { bbSourceId }),
+    [season?.season, bbSourceId],
   )
   const candidateDates = useMemo<CandidateDate[]>(
     () => (config ? probasketCandidateDates(config) : []),
     [config],
   )
   const hasSeason = seasonId != null && !!config
+  /**
+   * Closures/blockers are fetched season-wide (from 1 August of the season's first
+   * year) rather than from the selected team's grid start: the export can hold a
+   * junior AND a senior sheet in one workbook, and those two grids do not overlap.
+   */
+  const seasonFloor = useMemo(() => {
+    const y = parseInt(String(season?.season ?? '').slice(0, 4), 10)
+    return Number.isFinite(y) ? `${y}-08-01` : null
+  }, [season?.season])
 
   const teamsQ = useCollection<Team>('teams', {
     filter: { sport: { _eq: 'basketball' }, active: { _eq: true } },
@@ -110,13 +145,15 @@ export function useBasketballPlan(season: GameSchedulingSeason | null) {
   const hallsQ = useCollection<Hall>('halls', { fields: ['id', 'name'], sort: ['name'], all: true, staleTime: 120_000 })
   const closuresQ = useCollection<HallClosure>('hall_closures', {
     fields: ['hall', 'start_date', 'end_date', 'reason', 'source'],
-    filter: config ? { end_date: { _gte: config.vorrundeStart } } : undefined,
+    filter: seasonFloor ? { end_date: { _gte: seasonFloor } } : undefined,
     all: true,
-    enabled: !!config,
+    enabled: !!seasonFloor,
   })
   const vbSlotsQ = useCollection<GameSchedulingSlot>('game_scheduling_slots', {
     filter: { season: { _eq: seasonId }, status: { _eq: 'booked' } },
-    fields: ['id', 'date', 'status', 'hall', 'start_time'],
+    // end_time matters: without it a 13:30 volleyball match would block a 20:00
+    // basketball game (see utils/hallOccupancy.ts).
+    fields: ['id', 'date', 'status', 'hall', 'start_time', 'end_time'],
     all: true,
     enabled: hasSeason,
   })
@@ -135,58 +172,64 @@ export function useBasketballPlan(season: GameSchedulingSeason | null) {
 
   const teams = useMemo(() => teamsQ.data ?? [], [teamsQ.data])
 
-  // Per-date blackout / closed-hall / club-block info.
-  const dateInfoByDate = useMemo(() => {
-    const halls = hallsQ.data ?? []
-    const hallName = new Map<string, string>()
-    for (const h of halls) hallName.set(String(h.id), h.name)
-
-    const closedByDate = new Map<string, Set<string>>()
-    for (const c of closuresQ.data ?? []) {
-      const hn = c.hall ? hallName.get(String(c.hall)) ?? null : null
-      eachDay(c.start_date, c.end_date, (ymd) => {
-        const set = closedByDate.get(ymd) ?? new Set<string>()
-        set.add(hn ?? '*')
-        closedByDate.set(ymd, set)
-      })
-    }
-    const clubBlocked = new Set<string>()
-    for (const b of clubBlocksQ.data ?? []) eachDay(b.start_date, b.end_date, (ymd) => clubBlocked.add(ymd))
-
-    const info = new Map<string, DateInfo>()
-    for (const cd of candidateDates) {
-      const closedHalls = closedByDate.get(cd.date) ?? new Set<string>()
-      const { halls: dayHalls } = slotsForDate(cd.dow)
-      const allClosed = dayHalls.length > 0 && dayHalls.every((h) => closedHalls.has('*') || closedHalls.has(h))
-      const isClubBlocked = clubBlocked.has(cd.date)
-      const fullyBlocked = !!cd.blackout || isClubBlocked || allClosed
-      const reason = cd.blackout ? cd.blackout.label : isClubBlocked ? 'club_block' : allClosed ? 'closed' : null
-      info.set(cd.date, { blackout: cd.blackout?.label ?? null, closedHalls, fullyBlocked, reason })
-    }
-    return info
-  }, [hallsQ.data, closuresQ.data, clubBlocksQ.data, candidateDates])
-
-  // VB-occupied halls per date (conservative: a booked slot blocks that hall all day).
-  const vbHallsByDate = useMemo(() => {
-    const halls = hallsQ.data ?? []
-    const hallName = new Map<string, string>()
-    for (const h of halls) hallName.set(String(h.id), h.name)
-    const m = new Map<string, Set<string>>()
-    for (const s of vbSlotsQ.data ?? []) {
-      const hn = hallName.get(String(s.hall))
-      if (!hn) continue
-      const set = m.get(s.date) ?? new Set<string>()
-      set.add(hn)
-      m.set(s.date, set)
-    }
-    return m
-  }, [vbSlotsQ.data, hallsQ.data])
-
   const hallNameMap = useMemo(() => {
     const m = new Map<string, string>()
     for (const h of hallsQ.data ?? []) m.set(String(h.id), h.name)
     return m
   }, [hallsQ.data])
+
+  /**
+   * Season-wide per-date blockers (closures, club blackouts, booked volleyball slots)
+   * — deliberately NOT limited to the selected team's candidate dates, because the
+   * export resolves a different date grid per team from the very same blockers.
+   */
+  const blockers = useMemo<HallBlockers>(() => {
+    const closedHallsByDate = new Map<string, Set<string>>()
+    for (const c of closuresQ.data ?? []) {
+      const hn = c.hall ? hallNameMap.get(String(c.hall)) ?? null : null
+      eachDay(c.start_date, c.end_date, (ymd) => {
+        const set = closedHallsByDate.get(ymd) ?? new Set<string>()
+        set.add(hn ?? '*')
+        closedHallsByDate.set(ymd, set)
+      })
+    }
+    const clubBlockedDates = new Set<string>()
+    for (const b of clubBlocksQ.data ?? []) eachDay(b.start_date, b.end_date, (ymd) => clubBlockedDates.add(ymd))
+
+    const vbBusyByDate = new Map<string, VbBooking[]>()
+    for (const s of vbSlotsQ.data ?? []) {
+      const hn = hallNameMap.get(String(s.hall))
+      if (!hn) continue
+      const arr = vbBusyByDate.get(s.date) ?? []
+      // start_time null → hallOccupancy blocks the whole day (never silently free).
+      arr.push({ hall: hn, start: s.start_time ?? null, end: s.end_time ?? null })
+      vbBusyByDate.set(s.date, arr)
+    }
+    return { closedHallsByDate, clubBlockedDates, vbBusyByDate }
+  }, [closuresQ.data, clubBlocksQ.data, vbSlotsQ.data, hallNameMap])
+
+  // Per-date blackout / closure / club-block / volleyball info for the shown grid.
+  const dateInfoByDate = useMemo(() => {
+    const info = new Map<string, DateInfo>()
+    for (const cd of candidateDates) {
+      const closedHalls = blockers.closedHallsByDate.get(cd.date) ?? new Set<string>()
+      const day = dayHallAvailability(cd.date, cd.dow, blockers, !!cd.blackout)
+      info.set(cd.date, {
+        blackout: cd.blackout?.label ?? null,
+        closedHalls,
+        clubBlocked: blockers.clubBlockedDates.has(cd.date),
+        fullyBlocked: day.noneFree,
+        reason: day.reason,
+        reasonDetail:
+          day.reason === 'blackout'
+            ? cd.blackout?.label ?? null
+            : day.reason === 'hall_closed'
+              ? [...closedHalls].filter((h) => h !== '*').join(', ') || null
+              : null,
+      })
+    }
+    return info
+  }, [blockers, candidateDates])
 
   // Volleyball home games (booked slots) + hall closures — shown on the basketball
   // calendar for cross-sport hall coordination.
@@ -208,6 +251,23 @@ export function useBasketballPlan(season: GameSchedulingSeason | null) {
     [closuresQ.data, hallNameMap],
   )
 
+  /**
+   * date → "no game may be played" reason, for the calendar's blocked-day layer:
+   * ProBasket Ferien/Sperrdaten (already canton-resolved by the config) plus the
+   * club-wide superadmin blackout, which wins when both land on a day.
+   */
+  const blockedDayReasons = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const b of config?.blackouts ?? []) {
+      eachDay(b.start, b.end, (ymd) => { if (!m.has(ymd)) m.set(ymd, b.label) })
+    }
+    for (const b of clubBlocksQ.data ?? []) {
+      const reason = (b.reason ?? '').trim()
+      eachDay(b.start_date, b.end_date, (ymd) => m.set(ymd, reason || m.get(ymd) || ''))
+    }
+    return m
+  }, [config, clubBlocksQ.data])
+
   const placements = useMemo(() => {
     const m = new Map<string, BasketballSlotPlan>()
     for (const p of planQ.data ?? []) m.set(slotKey(p.date, p.time, p.hall), p)
@@ -224,26 +284,25 @@ export function useBasketballPlan(season: GameSchedulingSeason | null) {
   const slotView = useCallback(
     (date: string, dow: number, time: string): { cells: HallCell[]; canCombineAB: boolean } => {
       const info = dateInfoByDate.get(date)
-      const vb = vbHallsByDate.get(date) ?? new Set<string>()
       const { halls } = slotsForDate(dow)
       const combined = placements.get(slotKey(date, time, HALL_AB)) ?? null
+      const isBlackout = !!info?.blackout
       const cells: HallCell[] = halls.map((hall) => {
-        if (info?.blackout || info?.closedHalls.has('*') || info?.closedHalls.has(hall)) {
-          return { hall, status: 'unavailable', placement: null }
-        }
+        // An already-placed game wins over every blocker: it is a fact on the plan,
+        // and hiding it would make it unremovable.
         if (combined && (hall === HALL_A || hall === HALL_B)) {
           return { hall, status: 'game', placement: combined, viaCombined: true }
         }
         const own = placements.get(slotKey(date, time, hall)) ?? null
         if (own) return { hall, status: 'game', placement: own }
-        if (vb.has(hall)) return { hall, status: 'vb', placement: null }
-        return { hall, status: 'free', placement: null }
+        const status = hallStatusAt(date, time, hall, blockers, isBlackout)
+        return { hall, status, placement: null }
       })
       const aFree = cells.find((c) => c.hall === HALL_A)?.status === 'free'
       const bFree = cells.find((c) => c.hall === HALL_B)?.status === 'free'
       return { cells, canCombineAB: !!aFree && !!bFree }
     },
-    [dateInfoByDate, vbHallsByDate, placements],
+    [dateInfoByDate, blockers, placements],
   )
 
   // date → day-of-week, so highlightFor can look up a date's slot ordering for adjacency.
@@ -367,7 +426,9 @@ export function useBasketballPlan(season: GameSchedulingSeason | null) {
     candidateDates,
     teams,
     dateInfoByDate,
-    vbHallsByDate,
+    /** Season-wide raw blockers — the export re-resolves them per team's own grid. */
+    blockers,
+    blockedDayReasons,
     placements,
     availability,
     availKey,

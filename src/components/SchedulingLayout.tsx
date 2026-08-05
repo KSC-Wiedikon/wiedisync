@@ -43,10 +43,18 @@ export default function SchedulingLayout() {
   const canPlanner =
     isAdmin || is_spielplaner || spielplanerTeamIds.length > 0 ||
     coachTeamIds.length > 0 || teamResponsibleIds.length > 0
+  // Basketball scheduling (planner / calendar / settings) — same shape as
+  // volleyball's canTerminplanung: basketball sport admins OR club-wide
+  // Spielplaner. Must agree with BasketballAdminRoute and SchedulingHome or the
+  // tab shows a link the route guard bounces.
+  const canBasketball = hasAdminAccessToSport('basketball') || is_spielplaner
+  // ⚠ The basketball MAILBOX stays sport-admin-only on purpose: the mailbox
+  // route split is a security boundary (CLAUDE.md) and scheduling-mailbox.js
+  // requires bb_admin server-side, so widening it here would only produce a 403.
+  const canBasketballMailbox = hasAdminAccessToSport('basketball')
   // The mailbox tab is reachable by either sport's admins (basketball-only
   // bb_admins included), wider than the terminplanung dashboard.
-  const canBasketball = hasAdminAccessToSport('basketball')
-  const canMailbox = canTerminplanung || canBasketball
+  const canMailbox = canTerminplanung || canBasketballMailbox
 
   // Sport split: the URL carries the sport — /admin/terminplanung/volleyball* vs
   // /admin/terminplanung/basketball*. Each sport has its own tab set.
@@ -64,7 +72,9 @@ export default function SchedulingLayout() {
     ...(canBasketball ? [{ to: '/admin/terminplanung/basketball', label: tb('tab'), Icon: CalendarCheck, end: true }] : []),
     ...(canBasketball ? [{ to: '/admin/terminplanung/basketball/calendar', label: tb('tabCalendar'), Icon: CalendarClock }] : []),
     ...(canBasketball ? [{ to: '/admin/terminplanung/basketball/settings', label: tb('tabSettings'), Icon: Settings }] : []),
-    ...(canMailbox ? [{ to: '/admin/terminplanung/basketball/mailbox', label: t('mailbox'), Icon: Mail }] : []),
+    // Sport-admin-only (see canBasketballMailbox) — a Spielplaner planning
+    // basketball still has no basketball mailbox.
+    ...(canBasketballMailbox ? [{ to: '/admin/terminplanung/basketball/mailbox', label: t('mailbox'), Icon: Mail }] : []),
   ]
   const navItems: NavItem[] = activeSport === 'basketball' ? basketballNav : volleyballNav
 

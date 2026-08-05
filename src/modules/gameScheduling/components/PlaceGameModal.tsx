@@ -7,7 +7,7 @@ import { Input } from '../../../components/ui/input'
 import { Label } from '../../../components/ui/label'
 import { formatDateZurich } from '../../../utils/dateHelpers'
 import { HALL_A, HALL_B, HALL_AB } from '../utils/probasketSeason'
-import { opponentsFor, sexForGroup } from '../data/basketballGroups'
+import { opponentsFor, sexForGroup, hasGroupData } from '../data/basketballGroups'
 import type { Team, BasketballSlotPlan } from '../../../types'
 import type { PlaceGameInput } from '../hooks/useBasketballPlan'
 
@@ -46,6 +46,10 @@ export default function PlaceGameModal({
   const bbSource = team?.bb_source_id ?? null
   const sex = useMemo(() => (team ? sexForGroup(bbSource) : existing?.sex ?? null), [team, bbSource, existing])
   const opponents = useMemo(() => (team ? opponentsFor(bbSource) : []), [team, bbSource])
+  // The two ProBasket Classics squads are registered outside the Teamanmeldungen
+  // workbook, so no group — and therefore no opponent list — exists for them. An
+  // empty datalist is indistinguishable from a broken one, so say so instead.
+  const noGroupData = !!team && !hasGroupData(bbSource)
 
   const canBeCombined = (hall === HALL_A || hall === HALL_B) && (canCombineAB || existing?.hall === HALL_AB)
   const targetHall = canBeCombined && combined ? HALL_AB : hall
@@ -118,16 +122,25 @@ export default function PlaceGameModal({
         <div className="space-y-1">
           <Label>{t('opponent')}</Label>
           <Input
-            list="bb-opponents"
+            list={opponents.length ? 'bb-opponents' : undefined}
             value={opponent}
             onChange={(e) => setOpponent(e.target.value)}
-            placeholder={team ? t('opponentPlaceholder') : t('opponentPickTeamFirst')}
+            placeholder={
+              noGroupData
+                ? t('opponentTypeFree')
+                : team
+                  ? t('opponentPlaceholder')
+                  : t('opponentPickTeamFirst')
+            }
           />
-          <datalist id="bb-opponents">
-            {opponents.map((o) => (
-              <option key={o} value={o} />
-            ))}
-          </datalist>
+          {opponents.length > 0 && (
+            <datalist id="bb-opponents">
+              {opponents.map((o) => (
+                <option key={o} value={o} />
+              ))}
+            </datalist>
+          )}
+          {noGroupData && <p className="text-xs text-muted-foreground">{t('opponentNoGroupData')}</p>}
         </div>
 
         {canBeCombined && (

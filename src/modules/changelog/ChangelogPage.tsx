@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '1.67.0'
+const APP_VERSION = '1.68.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,24 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.68.0',
+    date: '05.08.2026',
+    sections: [
+      {
+        title: 'Basketball scheduling',
+        items: [
+          'Spielplaner can now open the basketball scheduling pages. The volleyball routes have always let a Spielplaner in; the basketball ones only ever accepted a basketball admin, so anyone given the Spielplaner role found the link simply did not work — and it then sent them to the volleyball planner instead of saying why. It now says why.',
+          'A team’s available dates now cover its own season. Every team was being offered the junior schedule, which ends on 13.12.2026 — so the two teams that play into May were declaring barely a third of the weekends the association asks about. The autumn and spring closures, Sport and Easter holidays included, are in as well.',
+          'Dates where the halls are taken no longer show up blank. A Saturday with volleyball in all three halls rendered as an empty box with no explanation; it now names the reason — volleyball, a hall closure, a holiday or a club blackout.',
+          'A volleyball match in the afternoon no longer blocks the whole day. Occupancy is worked out by the hour, so an evening basketball game in the same hall is offered normally, with the changeover time between the two respected.',
+          'The calendar is on the planning page itself, since away games can be placed almost anywhere and the two are read together.',
+          'Each team can carry its own rules — preferred start time, which days, which hall, who it must not clash with and who it should play alongside — and the planner proposes dates from them, showing why each one ranks where it does.',
+          'Opponent clubs can be sent their own link, one per club, where they see our available dates and reply. The same idea as the volleyball opponent links, adapted to how basketball is scheduled.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.67.0',
     date: '05.08.2026',

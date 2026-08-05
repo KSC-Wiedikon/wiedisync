@@ -3208,9 +3208,15 @@ export function registerGameScheduling(router, { database, logger, services, get
   // ─────────────────────────────────────────────────────────────────────
   const CLUB_PORTAL_VIEW_STATUSES = ['invited', 'viewed', 'booked']
 
+  // ⚠ `sport` is REQUIRED here. Since migration 280 this table holds BOTH sports'
+  // club portals, and tokens are globally unique — so a basketball token hitting
+  // the volleyball route would otherwise resolve to a real portal and be driven
+  // through the volleyball club flow. Every volleyball query on this table must
+  // carry this filter.
   async function clubPortalByToken(token) {
     return database('game_scheduling_club_portals')
       .where('token', token)
+      .where('sport', 'volleyball')
       .whereIn('status', CLUB_PORTAL_VIEW_STATUSES)
       .first()
   }
@@ -6452,8 +6458,9 @@ export function registerGameScheduling(router, { database, logger, services, get
     try {
       const season = Number(req.query.season)
       if (!season) return res.status(400).json({ error: 'season required' })
+      // sport filter: this table is shared with basketball since migration 280.
       const portals = await database('game_scheduling_club_portals')
-        .where('season', season).orderBy('club_name', 'asc')
+        .where('season', season).where('sport', 'volleyball').orderBy('club_name', 'asc')
       res.json({ portals })
     } catch (err) {
       log.error({ msg: `club-portals list: ${err.message}`, endpoint: 'admin/terminplanung/club-portals', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
@@ -6493,8 +6500,11 @@ export function registerGameScheduling(router, { database, logger, services, get
       for (const g of byClub.values()) {
         const emails = [...g.emails.values()].join(', ')
         const names = [...g.names].join(', ')
+        // sport filter: `club_id` is only unique WITHIN a sport (basketball stores
+        // basketplan_clubs.id here, volleyball an SVRZ club id — small integers
+        // that collide), and the uniqueness constraint is (season, sport, club_id).
         const existing = await database('game_scheduling_club_portals')
-          .where({ season, club_id: g.club_id }).first()
+          .where({ season, club_id: g.club_id, sport: 'volleyball' }).first()
         if (existing) {
           const patch = {}
           if ((existing.contact_email || '') !== emails) patch.contact_email = emails
@@ -6508,7 +6518,7 @@ export function registerGameScheduling(router, { database, logger, services, get
           continue
         }
         await database('game_scheduling_club_portals').insert({
-          season, club_id: g.club_id, club_name: g.club_name,
+          season, club_id: g.club_id, club_name: g.club_name, sport: 'volleyball',
           token: crypto.randomBytes(16).toString('hex'), status: 'invited',
           contact_email: emails, contact_name: names,
           expires_at: newInviteExpiry(seasonRow.season), created_by_admin: true,
@@ -6516,7 +6526,7 @@ export function registerGameScheduling(router, { database, logger, services, get
         created++
       }
       const portals = await database('game_scheduling_club_portals')
-        .where('season', season).orderBy('club_name', 'asc')
+        .where('season', season).where('sport', 'volleyball').orderBy('club_name', 'asc')
       res.json({ created, refreshed, portals })
     } catch (err) {
       log.error({ msg: `club-portals ensure: ${err.message}`, endpoint: 'admin/terminplanung/club-portals/ensure', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
@@ -6533,7 +6543,12 @@ export function registerGameScheduling(router, { database, logger, services, get
       if (!season) return res.status(400).json({ error: 'season required' })
       const seasonRow = await database('game_scheduling_seasons').where('id', season).first()
       if (!seasonRow) return res.status(404).json({ error: 'season not found' })
-      let q = database('game_scheduling_club_portals').where('season', season).whereNotIn('status', ['revoked', 'expired'])
+      // ⚠ sport filter is load-bearing: without it this VOLLEYBALL send would mail
+      // every BASKETBALL opponent club a volleyball invite carrying a basketball
+      // token (shared table since migration 280).
+      let q = database('game_scheduling_club_portals')
+        .where('season', season).where('sport', 'volleyball')
+        .whereNotIn('status', ['revoked', 'expired'])
       if (Array.isArray(ids) && ids.length) q = q.whereIn('id', ids)
       const portals = await q
       const fmtDate = (ts) => {
