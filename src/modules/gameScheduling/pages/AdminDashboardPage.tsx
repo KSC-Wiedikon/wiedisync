@@ -36,6 +36,7 @@ import { kscwApi, fetchAllItems } from '../../../lib/api'
 import { useHalls } from '../../../hooks/useData'
 // Basketball half of this page (see BasketballDashboardBody at the bottom).
 import { useBasketballPlan } from '../hooks/useBasketballPlan'
+import { homeGamesFor } from '../utils/bbHomeGames'
 import { useBasketballSlots } from '../hooks/useBasketballSlots'
 import { useBasketballOffers } from '../hooks/useBasketballOffers'
 import { useBasketballClubPortals } from '../hooks/useBasketballClubPortals'
@@ -1708,9 +1709,26 @@ function BasketballDashboardBody() {
         placed: placed.filter((p) => String(p.kscw_team ?? '') === k).length,
         candidates: (slots.byTeam?.get(k) ?? []).length,
         offered: offeredByTeam.get(k) ?? 0,
+        // Demand: home games under Hin+Rück, or null where the group is not final yet.
+        home: homeGamesFor(tm.bb_source_id),
       }
     })
   }, [teams, placed, slots.byTeam, offers.games])
+
+  /**
+   * Club-wide home-game demand — summed only over the teams whose group is final, with the
+   * rest counted separately. A single total that silently blended "7 real" with "unknown"
+   * would be the one number nobody could act on.
+   */
+  const homeDemand = useMemo(() => {
+    let known = 0
+    let unknownTeams = 0
+    for (const r of perTeam) {
+      if (r.home.count !== null) known += r.home.count
+      else unknownTeams += 1
+    }
+    return { known, unknownTeams }
+  }, [perTeam])
 
   const totals = useMemo(() => ({
     placed: placed.length,
@@ -1754,6 +1772,18 @@ function BasketballDashboardBody() {
           <div className={tileNum}>{totals.offered}</div>
           <div className="text-xs text-muted-foreground">{t('dashOffered')}</div>
         </div>
+        <div className={tile} title={t('dashHomeGamesHint')}>
+          <div className={tileNum}>
+            {homeDemand.known}
+            {homeDemand.unknownTeams > 0 && (
+              <span className="text-base font-normal text-muted-foreground">
+                {' '}
+                +{t('dashHomeGamesOpen', { count: homeDemand.unknownTeams })}
+              </span>
+            )}
+          </div>
+          <div className="text-xs text-muted-foreground">{t('dashHomeGames')}</div>
+        </div>
         <div className={tile}>
           <div className={tileNum}>
             {totals.portals}
@@ -1784,6 +1814,7 @@ function BasketballDashboardBody() {
                 <TableCell className="text-right">{t('dashPlacedGames')}</TableCell>
                 <TableCell className="text-right">{t('dashCandidateSlots')}</TableCell>
                 <TableCell className="text-right">{t('dashOffered')}</TableCell>
+                <TableCell className="text-right">{t('dashHomeGames')}</TableCell>
               </TableRow>
               {perTeam.map((r) => (
                 <TableRow key={r.id} className="min-h-[44px]">
@@ -1791,6 +1822,19 @@ function BasketballDashboardBody() {
                   <TableCell className="text-right tabular-nums">{r.placed}</TableCell>
                   <TableCell className="text-right tabular-nums">{r.candidates}</TableCell>
                   <TableCell className="text-right tabular-nums">{r.offered}</TableCell>
+                  {/* A dash is "not decided yet", never zero — see bbHomeGames.ts. */}
+                  <TableCell className="text-right tabular-nums">
+                    {r.home.count !== null ? (
+                      r.home.count
+                    ) : (
+                      <span
+                        className="text-muted-foreground"
+                        title={t(`homeGamesUnknown_${r.home.reason ?? 'no_group'}`)}
+                      >
+                        –
+                      </span>
+                    )}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
