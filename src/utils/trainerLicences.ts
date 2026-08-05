@@ -5,13 +5,27 @@
 // comma-separated code list in a single varchar, parsed on read and
 // serialized on write. See src/utils/countries.ts for the same pattern.
 //
-// The four values are NOT one ladder — J+S (Jugend+Sport Leiter/in) is the
-// federal track and C/B/A is the federation trainer ladder, so a member can
-// hold several ("JS,B" is an ordinary value).
+// The values are NOT one ladder. J+S (Jugend+Sport Leiter/in) is the federal
+// track; C/B/A is Swiss Volley's rung ladder; T1/T2/T3 ("Trainer 1/2/3",
+// migration 281) is Swiss Basketball's. A member can hold several across
+// tracks — "JS,B" and "JS,T2" are ordinary values — and the two sport ladders
+// are NOT interchangeable: T2 is not a synonym for B.
 
 /** Canonical order — also the order the DB trigger normalizes to. */
-export const TRAINER_LICENCE_CODES = ['JS', 'C', 'B', 'A'] as const
+export const TRAINER_LICENCE_CODES = ['JS', 'C', 'B', 'A', 'T1', 'T2', 'T3'] as const
 export type TrainerLicence = (typeof TRAINER_LICENCE_CODES)[number]
+
+/**
+ * Which rungs belong to which sport. J+S is deliberately in NEITHER list — it
+ * is the federal leader track and applies to both, so every caller offers it
+ * unconditionally. Used to narrow the profile picker to the member's own sport;
+ * it is a display filter only, never a validation rule (a member may legitimately
+ * hold both ladders, and the stored value must always render).
+ */
+export const TRAINER_LICENCE_CODES_BY_SPORT: Record<'volleyball' | 'basketball', readonly TrainerLicence[]> = {
+  volleyball: ['C', 'B', 'A'],
+  basketball: ['T1', 'T2', 'T3'],
+}
 
 const RANK: Record<string, number> = Object.fromEntries(
   TRAINER_LICENCE_CODES.map((c, i) => [c, i]),
@@ -39,12 +53,16 @@ export function serializeTrainerLicences(codes: readonly string[]): string | nul
 
 /**
  * i18n key (namespace `auth`) for a code. Labels are deliberately NOT derived
- * from the code — "JS" must render as "J+S" and the ladder levels read as
- * "Trainer C", which no formatting rule produces from the stored token.
+ * from the code — "JS" must render as "J+S", the volleyball rungs read as
+ * "Trainer C" and the basketball ones as "Trainer 1", none of which a formatting
+ * rule produces from the stored token.
  */
 export const TRAINER_LICENCE_I18N_KEYS: Record<TrainerLicence, string> = {
   JS: 'trainerLicenceJS',
   C: 'trainerLicenceC',
   B: 'trainerLicenceB',
   A: 'trainerLicenceA',
+  T1: 'trainerLicenceT1',
+  T2: 'trainerLicenceT2',
+  T3: 'trainerLicenceT3',
 }

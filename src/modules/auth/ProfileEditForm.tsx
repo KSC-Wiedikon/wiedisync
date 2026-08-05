@@ -25,7 +25,7 @@ import {
 } from '../../utils/countries'
 import { federationOptions } from '../../utils/federations'
 import {
-  TRAINER_LICENCE_CODES, TRAINER_LICENCE_I18N_KEYS,
+  TRAINER_LICENCE_CODES, TRAINER_LICENCE_CODES_BY_SPORT, TRAINER_LICENCE_I18N_KEYS,
   parseTrainerLicences, serializeTrainerLicences, type TrainerLicence,
 } from '../../utils/trainerLicences'
 import { CheckIcon } from 'lucide-react'
@@ -175,6 +175,26 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
     { value: NO_FEDERATION, label: t('federationOfOriginNone') },
     ...federationOptions(fedSport),
   ]
+
+  /**
+   * Coaching-qualification chips, narrowed to the member's own sport: the C/B/A
+   * rungs are Swiss Volley's and T1/T2/T3 are Swiss Basketball's (migration 281),
+   * so offering all six to everyone invites a volleyball coach to claim a
+   * basketball grade. J+S is federal and always offered. `both`/no sport sees
+   * every rung — there is no single right ladder for them.
+   *
+   * ⚠ Union with what the member ALREADY holds. Filtering is presentation only;
+   * a stored code that falls outside the current sport (a coach who switched
+   * sport, or an import) must still render, or the chip row would silently hide
+   * a value the member cannot then see or clear.
+   */
+  const trainerLicenceOptions = TRAINER_LICENCE_CODES.filter(
+    (code) =>
+      !fedSport ||
+      code === 'JS' ||
+      TRAINER_LICENCE_CODES_BY_SPORT[fedSport].includes(code) ||
+      trainerLicences.includes(code),
+  )
 
   /**
    * The member's STORED nationality as codes, falling back to resolving the
@@ -775,15 +795,17 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
               />
             </FormField>
 
-            {/* Trainerausbildung (migration 274) — lives in this block because
-                it is pushed to ClubDesk's "Trainer Lizenz" column (migration
-                275), like everything else here. Toggle chips rather than a
-                dropdown: the set is four items and multi-select, so every option
-                fits on screen and the current answer reads without opening
-                anything. Optional, so it does not affect the onboarding gate. */}
+            {/* Trainerausbildung (migration 274; BB rungs added by 281) — lives
+                in this block because it is pushed to ClubDesk's "Trainer Lizenz"
+                column (migration 275), like everything else here. Toggle chips
+                rather than a dropdown: the set is small and multi-select, so
+                every option fits on screen and the current answer reads without
+                opening anything. Narrowed to the member's sport by
+                trainerLicenceOptions. Optional, so it does not affect the
+                onboarding gate. */}
             <FormField label={t('trainerLicences')} helperText={t('trainerLicencesHint')}>
               <div className="flex flex-wrap gap-2">
-                {TRAINER_LICENCE_CODES.map((code) => {
+                {trainerLicenceOptions.map((code) => {
                   const active = trainerLicences.includes(code)
                   return (
                     <button

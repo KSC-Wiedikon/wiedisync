@@ -409,8 +409,19 @@ export function deriveOffiziellenLizenz(m) {
   // licence: a VB referee is AUTOMATICALLY a scorer (user 2026-07-07), so
   // scorer_vb OR referee_vb → VB SC. BB officials by level. Nothing → empty.
   if (m?.scorer_vb === true || m?.referee_vb === true) return 'VB SC'
-  if (m?.otr1_bb === true) return 'OTR1'
+  // ⚠ HIGHEST RUNG FIRST. wiedisync models the rungs as independent booleans and
+  // an upgraded official keeps the lower one — 43 members hold otr1_bb AND
+  // otr2_bb (measured on prod 2026-08-05), which is correct: Basketplan records
+  // both `otr1_since` and `otr2_since` for them. ClubDesk's picklist is
+  // single-valued, so this has to CHOOSE, and choosing the lower rung would
+  // report a qualified OTR2 official as an OTR1. Until 2026-08-05 the order was
+  // otr1 → otr2 and did exactly that; it was latent only because every one of
+  // those 43 is already linked, and UPDATE rows never carry this column
+  // (see CD_PUSH_HEADERS) — so only a CREATE could have shipped the downgrade.
+  // If this column is ever added to the UPDATE set, this order is what stops it
+  // rewriting 43 correct OTR2 cells.
   if (m?.otr2_bb === true) return 'OTR2'
+  if (m?.otr1_bb === true) return 'OTR1'
   // OTN gained levels 2026-07-25: Basketplan has always held "OTN 1 seit dem" /
   // "OTN 2 seit dem" as separate fields (migration 228), and the user added
   // matching OTN1/OTN2 options to the ClubDesk picklist, so the precise level can
@@ -421,8 +432,8 @@ export function deriveOffiziellenLizenz(m) {
   // it would blank their Offiziellen Lizenz cell in ClubDesk on the next push —
   // strictly worse than sending the imprecise value we have always sent. It
   // disappears on its own once the Basketplan import fills the levels.
-  if (m?.otn1_bb === true) return 'OTN1'
   if (m?.otn2_bb === true) return 'OTN2'
+  if (m?.otn1_bb === true) return 'OTN1'
   if (m?.otn_bb === true) return 'OTN'
   return ''
 }
@@ -666,16 +677,23 @@ export function nationalityCell(codes, countryNames) {
 
 // members.trainer_licences → the ClubDesk cell, and back.
 //
-// wiedisync stores an ordered code list ("JS,C,B,A", migration 274); ClubDesk's
-// "Trainer Lizenz" is free text read by board members, so it gets the wording
-// the club itself used when the field was still a picklist: J+S for the
-// Jugend+Sport track and the bare rung letter for the federation ladder.
-//   'JS,B' → 'J+S, B'      'JS' → 'J+S'      'A' → 'A'      NULL/'' → ''
+// wiedisync stores an ordered code list ("JS,C,B,A,T1,T2,T3", migrations 274 +
+// 281); ClubDesk's "Trainer Lizenz" is free text read by board members, so it
+// gets the wording the club itself used: J+S for the Jugend+Sport track, the
+// bare rung letter for Swiss Volley's ladder, and "Trainer n" for Swiss
+// Basketball's — which is exactly how the basketball coaches' cells already read.
+//   'JS,B' → 'J+S, B'   'JS' → 'J+S'   'A' → 'A'   'T2' → 'Trainer 2'   '' → ''
 // Unknown codes are dropped rather than guessed at, and an empty result lets
 // the caller's echo-back send ClubDesk's own cell — so this can never blank the
 // register.
-const TRAINER_LICENCE_CD_LABELS = { JS: 'J+S', C: 'C', B: 'B', A: 'A' }
-const TRAINER_LICENCE_RANK = { JS: 0, C: 1, B: 2, A: 3 }
+//
+// ⚠ The volleyball and basketball rungs are NOT interchangeable — 'T2' is not a
+// synonym for 'B'. Nothing here may map one onto the other.
+const TRAINER_LICENCE_CD_LABELS = {
+  JS: 'J+S', C: 'C', B: 'B', A: 'A',
+  T1: 'Trainer 1', T2: 'Trainer 2', T3: 'Trainer 3',
+}
+const TRAINER_LICENCE_RANK = { JS: 0, C: 1, B: 2, A: 3, T1: 4, T2: 5, T3: 6 }
 
 export function trainerLicenceCell(codes) {
   return parseTrainerLicenceCodes(codes).map((c) => TRAINER_LICENCE_CD_LABELS[c]).join(', ')
@@ -706,13 +724,24 @@ export function parseTrainerLicenceCodes(value) {
  * letters, or the 'S' in "J+S" is never reached and the '+' splits it into
  * junk. Bare-letter matching is anchored to whole tokens for the same reason —
  * a substring scan would find a 'B' inside "Basketball".
+ *
+ * ⚠ The basketball rungs must ALSO be lifted before tokenizing. "Trainer 2" is
+ * two tokens, and the word is on the skip list precisely so "Trainer B" yields
+ * B — so by the time the loop runs, the link between "Trainer" and "2" is gone
+ * and the digit is junk. Lifting it to a 'T2' token first keeps "Trainer B"
+ * working (no digit → no lift → still TRAINER + B) while "Trainer 2+" resolves.
+ * The trailing '+' the club types on "Trainer 2+" is dropped: it is shorthand in
+ * a free-text cell, not a fourth rung (user 2026-08-05).
  */
 export function parseTrainerLicenceCell(text) {
   const raw = String(text ?? '').trim()
   if (!raw) return ''
   // Lift every J+S spelling out FIRST and replace it with a bare token: the
   // '+' would otherwise be eaten as a separator and the 'S' left as junk.
-  const lifted = raw.replace(/j\s*\+?\s*s|jugend\s*\+?\s*sport/gi, ' JS ')
+  // Then the basketball rungs, for the reason in the block comment above.
+  const lifted = raw
+    .replace(/j\s*\+?\s*s|jugend\s*\+?\s*sport/gi, ' JS ')
+    .replace(/trainer\s*\.?\s*([123])/gi, ' T$1 ')
   const found = []
   // Split on every separator the hand-edited cell might use. Whole tokens only
   // -- a substring scan would find a 'B' inside 'Basketball'.
@@ -734,14 +763,14 @@ export function parseTrainerLicenceCell(text) {
  * ⚠ 'J+S' is NOT translated in any locale: Jugend+Sport is a federal programme
  * name, i.e. a brand, and an "F+S"/"G+S" would be unrecognisable. Only the
  * ladder rungs take the local word for "coach". Mirrors the `auth` i18n keys
- * trainerLicence{JS,C,B,A} in the frontend — keep the two in step.
+ * trainerLicence{JS,C,B,A,T1,T2,T3} in the frontend — keep the two in step.
  */
 const TRAINER_LICENCE_DISPLAY = {
-  de: { JS: 'J+S', C: 'Trainer C', B: 'Trainer B', A: 'Trainer A' },
-  gsw: { JS: 'J+S', C: 'Trainer C', B: 'Trainer B', A: 'Trainer A' },
-  en: { JS: 'J+S', C: 'Trainer C', B: 'Trainer B', A: 'Trainer A' },
-  fr: { JS: 'J+S', C: 'Entraîneur C', B: 'Entraîneur B', A: 'Entraîneur A' },
-  it: { JS: 'J+S', C: 'Allenatore C', B: 'Allenatore B', A: 'Allenatore A' },
+  de: { JS: 'J+S', C: 'Trainer C', B: 'Trainer B', A: 'Trainer A', T1: 'Trainer 1', T2: 'Trainer 2', T3: 'Trainer 3' },
+  gsw: { JS: 'J+S', C: 'Trainer C', B: 'Trainer B', A: 'Trainer A', T1: 'Trainer 1', T2: 'Trainer 2', T3: 'Trainer 3' },
+  en: { JS: 'J+S', C: 'Trainer C', B: 'Trainer B', A: 'Trainer A', T1: 'Trainer 1', T2: 'Trainer 2', T3: 'Trainer 3' },
+  fr: { JS: 'J+S', C: 'Entraîneur C', B: 'Entraîneur B', A: 'Entraîneur A', T1: 'Entraîneur 1', T2: 'Entraîneur 2', T3: 'Entraîneur 3' },
+  it: { JS: 'J+S', C: 'Allenatore C', B: 'Allenatore B', A: 'Allenatore A', T1: 'Allenatore 1', T2: 'Allenatore 2', T3: 'Allenatore 3' },
 }
 
 export function trainerLicenceDisplay(codes, loc) {

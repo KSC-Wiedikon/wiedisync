@@ -665,8 +665,17 @@ const psqlInput =
   // ⚠ 'J+S' must be lifted out BEFORE the bare rungs are matched, or its '+'
   // splits it into junk. Rungs then match as WHOLE letters — `[^a-z]` on both
   // sides — so the 'a' inside "Trainer"/"Ausbildung" and the 'b' inside
-  // "Basketball" are not mistaken for qualifications. Canonical order (JS,C,B,A)
-  // is imposed by the rank, so ClubDesk's own ordering never matters.
+  // "Basketball" are not mistaken for qualifications. Canonical order
+  // (JS,C,B,A,T1,T2,T3) is imposed by the rank, so ClubDesk's own ordering never
+  // matters.
+  //
+  // ⚠ The basketball rungs (migration 281) are matched on the word+digit pair
+  // "Trainer 1|2|3" and lifted OUT of `rungs` for the same reason as J+S: the
+  // volleyball rungs are matched afterwards on what remains, and "Trainer 1, B"
+  // must still yield B. A bare digit is deliberately NOT a rung — only the word
+  // makes it one. The '+' the club types on "Trainer 2+" is shorthand, not a
+  // fourth level, so it is dropped (user 2026-08-05).
+  // ⚠ 'T2' is not a synonym for 'B'; the two ladders never map onto each other.
   //
   // FILL-ONLY, and strictly so, for the same reason as federation_of_origin
   // above: the member declares this in their own profile, so wiedisync owns it
@@ -684,7 +693,9 @@ const psqlInput =
   '  ORDER BY btrim(clubdesk_id), row_id DESC),\n' +
   'cd1 AS (\n' +
   '  SELECT cdid, raw,\n' +
-  "         regexp_replace(raw, 'j\\s*\\+?\\s*s|jugend\\s*\\+?\\s*sport', ' ', 'g') AS rungs\n" +
+  '         regexp_replace(\n' +
+  "           regexp_replace(raw, 'j\\s*\\+?\\s*s|jugend\\s*\\+?\\s*sport', ' ', 'g'),\n" +
+  "           'trainer\\s*\\.?\\s*[123]', ' ', 'g') AS rungs\n" +
   '  FROM cd0),\n' +
   'cd AS (\n' +
   '  SELECT cd1.cdid, (\n' +
@@ -694,6 +705,9 @@ const psqlInput =
   "      UNION ALL SELECT 'C', 1 WHERE cd1.rungs ~ '(^|[^a-z])c([^a-z]|$)'\n" +
   "      UNION ALL SELECT 'B', 2 WHERE cd1.rungs ~ '(^|[^a-z])b([^a-z]|$)'\n" +
   "      UNION ALL SELECT 'A', 3 WHERE cd1.rungs ~ '(^|[^a-z])a([^a-z]|$)'\n" +
+  "      UNION ALL SELECT 'T1', 4 WHERE cd1.raw ~ 'trainer\\s*\\.?\\s*1'\n" +
+  "      UNION ALL SELECT 'T2', 5 WHERE cd1.raw ~ 'trainer\\s*\\.?\\s*2'\n" +
+  "      UNION ALL SELECT 'T3', 6 WHERE cd1.raw ~ 'trainer\\s*\\.?\\s*3'\n" +
   '    ) t) AS lic\n' +
   '  FROM cd1)\n' +
   'UPDATE members m SET trainer_licences = cd.lic\n' +
