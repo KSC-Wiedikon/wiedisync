@@ -42,4 +42,8 @@ export default {
   resultCount_one: '{{count}} Halle',
   resultCount_other: '{{count}} Hallen',
   durationOption: '{{h}} Std.',
+  exportXlsx: 'Excel exportieren',
+  exporting: 'Exportiere…',
+  exportFailed: 'Export fehlgeschlagen',
+  exportDone: '{{count}} Halle(n) exportiert',
 }

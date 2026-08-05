@@ -65,4 +65,8 @@ export default {
   resultCount_one: '{{count}} palestra',
   resultCount_other: '{{count}} palestre',
   durationOption: '{{h}} h',
+  exportXlsx: 'Esporta in Excel',
+  exporting: 'Esportazione…',
+  exportFailed: 'Esportazione non riuscita',
+  exportDone: '{{count}} palestra/e esportata/e',
 } as const
