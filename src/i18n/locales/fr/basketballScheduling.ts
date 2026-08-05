@@ -387,4 +387,16 @@ export default {
   bbPortalInvalidHint: 'Ce lien est inconnu ou n’est plus actif.',
   bbPortalExpired: 'Ce lien a expiré.',
   bbPortalHelp: 'Des questions ? Écrivez à',
+
+  // ── Onglet tableau de bord (même composant que le volleyball, partie basket) ──
+  dashboardTitle: 'Tableau de bord basketball',
+  dashPlacedGames: 'Matchs planifiés',
+  dashCandidateSlots: 'Créneaux possibles',
+  dashOffered: 'Proposés aux adversaires',
+  dashPortals: 'Liens de club créés',
+  dashResponded: 'Clubs ayant répondu',
+  dashPerTeam: 'Par équipe',
+  dashTeam: 'Équipe',
+  dashUnassignedWarning:
+    '{{count}} match(s) planifié(s) sans club adverse — à attribuer avant d’envoyer les liens.',
 }

@@ -120,10 +120,16 @@ export default function SchedulingApp() {
                           path="admin/terminplanung/mailbox"
                           element={<MailboxRoute><MailboxPage /></MailboxRoute>}
                         />
-                        {/* Basketball section — planner / calendar / settings / mailbox (bb-admin gated). */}
+                        {/* Basketball section — dashboard / planner / calendar / settings / mailbox. */}
                         <Route
                           path="admin/terminplanung/basketball"
                           element={<BasketballAdminRoute><BasketballPrepPage /></BasketballAdminRoute>}
+                        />
+                        {/* Same component as volleyball's dashboard, dispatched on sport —
+                            one page, two bodies. See AdminDashboardPage. */}
+                        <Route
+                          path="admin/terminplanung/basketball/dashboard"
+                          element={<BasketballAdminRoute><AdminDashboardPage sport="basketball" /></BasketballAdminRoute>}
                         />
                         <Route
                           path="admin/terminplanung/basketball/calendar"

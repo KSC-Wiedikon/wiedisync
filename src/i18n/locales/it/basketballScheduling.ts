@@ -387,4 +387,16 @@ export default {
   bbPortalInvalidHint: 'Questo link è sconosciuto o non è più attivo.',
   bbPortalExpired: 'Questo link è scaduto.',
   bbPortalHelp: 'Domande? Scrivete a',
+
+  // ── Scheda dashboard (stesso componente del volleyball, parte basket) ──
+  dashboardTitle: 'Dashboard pallacanestro',
+  dashPlacedGames: 'Partite fissate',
+  dashCandidateSlots: 'Slot possibili',
+  dashOffered: 'Proposti agli avversari',
+  dashPortals: 'Link club creati',
+  dashResponded: 'Club che hanno risposto',
+  dashPerTeam: 'Per squadra',
+  dashTeam: 'Squadra',
+  dashUnassignedWarning:
+    '{{count}} partite fissate senza club avversario — assegnarlo prima di inviare i link.',
 }
