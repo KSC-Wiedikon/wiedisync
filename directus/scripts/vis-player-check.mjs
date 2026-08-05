@@ -24,8 +24,13 @@
  *
  * ⚠ VIS ignores name filters (`Filter LastName` returns the full 130k index), so
  * presence is established by pulling the whole player roster of the relevant
- * federation and matching locally. That is why this is a MONTHLY job and not a
- * per-member lookup: ~30 federation rosters, a few thousand rows each.
+ * federation and matching locally — ~30 federation rosters, a few thousand rows
+ * each, rather than a per-member lookup.
+ *
+ * That was long assumed to be expensive enough to justify running this MONTHLY.
+ * It is not: measured 2026-08-05 on both envs, 24 federations / 464 members /
+ * ~3.6-3.8s end to end. The cron guard in `/opt/vis-sync/vis-sync.sh` moved to
+ * WEEKLY (Mondays, `date +%u` = 1) the same day.
  *
  * WHO IS CHECKED
  *   • Everyone with a federation of origin other than 'NONE' — INCLUDING 'CH'.
@@ -105,6 +110,25 @@ function psql(env, sql) {
 const norm = (s) => String(s || '').toLowerCase().normalize('NFD')
   .replace(/[̀-ͯ]/g, '').replace(/[^a-z]/g, '')
 
+/**
+ * The whole name as a SORTED token bag, so it no longer matters which side of
+ * the first/last split a middle name or a compound surname landed on.
+ *
+ * Real case that forced this (2026-08-05): member 729 is `Paula Fiorella` /
+ * `Farina`; VIS #243491 in the ARG index is `Paula` / `Fiorella Farina`. Same
+ * three tokens, opposite split — the exact key misses AND the prefix fallback
+ * below never fires, because that one requires the SURNAME to be exact.
+ *
+ * ⚠ Splits BEFORE stripping punctuation — `norm()` would fuse "Fiorella Farina"
+ * into one token and defeat the point.
+ */
+const nameTokens = (...parts) => parts
+  .flatMap((p) => String(p || '').split(/[^\p{L}]+/u))
+  .map((t) => t.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z]/g, ''))
+  .filter(Boolean)
+  .sort()
+const tokenKey = (first, last) => nameTokens(first, last).join(' ')
+
 async function visLogin() {
   const r = await fetch(`${PROXY}/auth/login`, {
     method: 'POST', headers: { 'content-type': 'application/json' },
@@ -170,17 +194,35 @@ async function main() {
       `<Request Type="${REQUEST_TYPE}" Properties="No"><Filter NoFederation="${fed.no}"/>` +
       `<Relation Name="Person" Properties="FirstName LastName"/></Request>`)
     const roster = new Map()
-    for (const p of j.data || []) if (p.person) roster.set(`${norm(p.person.lastName)}|${norm(p.person.firstName)}`, p.no)
-    rosters.set(iso, roster)
+    // ⚠ A Set per key, not a single number: the token bag deliberately collapses
+    // name variants, so two DIFFERENT players can land on one key. Where that
+    // happens the match is refused rather than guessed.
+    const byTokens = new Map()
+    for (const p of j.data || []) {
+      if (!p.person) continue
+      roster.set(`${norm(p.person.lastName)}|${norm(p.person.firstName)}`, p.no)
+      const tk = tokenKey(p.person.firstName, p.person.lastName)
+      if (!tk) continue
+      if (!byTokens.has(tk)) byTokens.set(tk, new Set())
+      byTokens.get(tk).add(p.no)
+    }
+    rosters.set(iso, { roster, byTokens })
     console.log(`  ${iso} (${fed.code}): ${roster.size} players`)
   }
 
   const found = [], notFound = []
   for (const m of members) {
-    const roster = rosters.get(m.foo)
-    if (!roster) continue // unmapped federation — leave the row untouched, not false
+    const entry = rosters.get(m.foo)
+    if (!entry) continue // unmapped federation — leave the row untouched, not false
+    const { roster, byTokens } = entry
     const key = `${norm(m.ln)}|${norm(m.fn)}`
     let no = roster.get(key)
+    if (!no) {
+      // Same tokens, split differently across first/last (see nameTokens). Only
+      // when it identifies exactly ONE player — a tie is left unmatched.
+      const cands = byTokens.get(tokenKey(m.fn, m.ln))
+      if (cands && cands.size === 1) no = [...cands][0]
+    }
     if (!no) {
       // VIS stores full legal given names ("Kacper Jan"); accept a prefix match
       // on the first name when the surname is exact.

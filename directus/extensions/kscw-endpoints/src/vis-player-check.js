@@ -9,7 +9,8 @@
  * every 31 the Transfers page showed a fixed answer, and its "Refresh" button —
  * a plain react-query refetch of `members` — could not change it. An admin who
  * has just asked a federation to enter a player had no way to ask "are they in
- * now?" short of waiting for the next month.
+ * now?" short of waiting for the next month. (That cron went WEEKLY — Mondays —
+ * on 2026-08-05 once the run was actually measured; see below.)
  *
  * ⚠ THIS IS A MIRROR of `directus/scripts/vis-player-check.mjs`. The VIS
  * protocol quirks, the ISO→FIVB code map, the who-is-checked rule and the
@@ -34,9 +35,9 @@
  * we do not control, on a route behind a Cloudflare tunnel that will cut a held
  * request at ~100s. A slow VIS day must show a spinner, not a 524.
  *
- * ⚠ That measurement also undercuts the monthly cron's stated rationale ("30
- * federation rosters is a heavy read"). It is not heavy. If the cadence is ever
- * revisited, this is the number to revisit it with.
+ * ⚠ That measurement is what retired the cron's stated rationale ("30 federation
+ * rosters is a heavy read"). It is not heavy, so the guard in vis-sync.sh moved
+ * from the 1st of the month to every Monday on 2026-08-05.
  *
  *   POST /kscw/admin/vis-player-check → 202 { status: 'started' }
  *                                       409 { status: 'skipped', reason }
@@ -87,6 +88,27 @@ const ISO2FIVB = {
 /** Accent- and punctuation-insensitive, so "Krawczyński" matches "Krawczynski". */
 const norm = (s) => String(s || '').toLowerCase().normalize('NFD')
   .replace(/[̀-ͯ]/g, '').replace(/[^a-z]/g, '')
+
+/**
+ * The whole name as a SORTED token bag, so it no longer matters which side of
+ * the first/last split a middle name or a compound surname landed on.
+ *
+ * Real case that forced this (2026-08-05): member 729 is `Paula Fiorella` /
+ * `Farina`; VIS #243491 in the ARG index is `Paula` / `Fiorella Farina`. Same
+ * three tokens, opposite split — so the exact key misses AND the prefix
+ * fallback below never fires, because that one requires the SURNAME to be
+ * exact. She read as "not in VIS" while sitting in the roster all along.
+ * Hispanic and Italian compound surnames make this a class, not a one-off.
+ *
+ * ⚠ Splits BEFORE stripping punctuation — `norm()` would fuse "Fiorella Farina"
+ * into one token and defeat the whole point.
+ */
+const nameTokens = (...parts) => parts
+  .flatMap((p) => String(p || '').split(/[^\p{L}]+/u))
+  .map((t) => t.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z]/g, ''))
+  .filter(Boolean)
+  .sort()
+const tokenKey = (first, last) => nameTokens(first, last).join(' ')
 
 async function visLogin() {
   const r = await fetch(`${PROXY}/auth/login`, {
@@ -173,18 +195,36 @@ export async function runVisPlayerCheck(database, log) {
       `<Request Type="${REQUEST_TYPE}" Properties="No"><Filter NoFederation="${fed.no}"/>` +
       `<Relation Name="Person" Properties="FirstName LastName"/></Request>`)
     const roster = new Map()
-    for (const p of j.data || []) if (p.person) roster.set(`${norm(p.person.lastName)}|${norm(p.person.firstName)}`, p.no)
-    rosters.set(iso, roster)
+    // ⚠ A Set per key, not a single number: the token bag deliberately collapses
+    // name variants, so two DIFFERENT players can land on one key. Where that
+    // happens the match is refused rather than guessed.
+    const byTokens = new Map()
+    for (const p of j.data || []) {
+      if (!p.person) continue
+      roster.set(`${norm(p.person.lastName)}|${norm(p.person.firstName)}`, p.no)
+      const tk = tokenKey(p.person.firstName, p.person.lastName)
+      if (!tk) continue
+      if (!byTokens.has(tk)) byTokens.set(tk, new Set())
+      byTokens.get(tk).add(p.no)
+    }
+    rosters.set(iso, { roster, byTokens })
     log?.info?.(`[vis] ${iso} (${fed.code}): ${roster.size} players`)
   }
 
   const found = []
   const notFound = []
   for (const m of members) {
-    const roster = rosters.get(m.federation_of_origin)
-    if (!roster) continue // unmapped federation — leave the row untouched, not false
+    const entry = rosters.get(m.federation_of_origin)
+    if (!entry) continue // unmapped federation — leave the row untouched, not false
+    const { roster, byTokens } = entry
     const key = `${norm(m.last_name)}|${norm(m.first_name)}`
     let no = roster.get(key)
+    if (!no) {
+      // Same tokens, split differently across first/last (see nameTokens). Only
+      // when it identifies exactly ONE player — a tie is left unmatched.
+      const cands = byTokens.get(tokenKey(m.first_name, m.last_name))
+      if (cands && cands.size === 1) no = [...cands][0]
+    }
     if (!no) {
       // VIS stores full legal given names ("Kacper Jan"); accept a prefix match
       // on the first name when the surname is exact.
