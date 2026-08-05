@@ -871,12 +871,15 @@ export default function TransfersPage() {
       }
     }
 
-    // Poll to completion. The deadline mirrors the endpoint's own run timeout
-    // plus a minute of slack, so the UI gives up slightly AFTER the server does
-    // rather than leaving a spinner that outlives the job.
+    // Poll to completion. 2s, because a measured run is ~4s (24 federation
+    // rosters, ~460 members) — a lazier cadence would spend most of the wait
+    // idling after the job had already finished. The deadline mirrors the
+    // endpoint's own run timeout plus a minute of slack, so the UI gives up
+    // slightly AFTER the server does rather than leaving a spinner that
+    // outlives the job.
     const deadline = Date.now() + 16 * 60_000
     for (;;) {
-      await new Promise((resolve) => { setTimeout(resolve, 5000) })
+      await new Promise((resolve) => { setTimeout(resolve, 2000) })
       if (visCancelled.current) return
       let status: VisCheckStatus
       try {
