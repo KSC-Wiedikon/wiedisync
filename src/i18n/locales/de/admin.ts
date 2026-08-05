@@ -931,9 +931,8 @@ export default {
   trNavTransfers: 'Transfers',
   trTitle: 'Internationale Transfers',
   trDescription: 'Mitglieder, die einen internationalen Transfer brauchen — gruppiert nach dem Verband, der sie mit 14 lizenziert hat.',
-  trTabsLabel: 'Sportart',
-  trSportVolleyball: 'Volleyball',
-  trSportBasketball: 'Basketball',
+  // ⚠ Nur Volleyball — die Sportart-Umschaltung ist entfernt. FIBA-Transfers
+  // laufen über Swiss Basketball; alles auf dieser Seite gehört zur FIVB.
   trRefresh: 'Aktualisieren',
   trNeedsTitle: 'Transfer nötig',
   trNeedsDescription: 'Mit 14 von einem Verband ausserhalb der Schweiz lizenziert. Swiss Volley verlangt vor dem Einsatz ein internationales Transferzertifikat — auf jeder Stufe, auch wo die Gebühr CHF 0 beträgt.',
@@ -970,6 +969,10 @@ export default {
   trHiddenNoTeam_other: '{{count}} Mitglieder werden nicht angezeigt, weil sie in keinem Team sind.',
   trHiddenGuests_one: '{{count}} Mitglied wird nicht angezeigt, weil es nur als Gast spielt — Gäste haben keine Lizenz, deshalb entfällt der Transfer.',
   trHiddenGuests_other: '{{count}} Mitglieder werden nicht angezeigt, weil sie nur als Gäste spielen — Gäste haben keine Lizenz, deshalb entfällt der Transfer.',
+  trHiddenBasketball_one: '{{count}} Basketball-Mitglied wird nicht angezeigt — diese Seite deckt nur Swiss-Volley-Transfers ab.',
+  trHiddenBasketball_other: '{{count}} Basketball-Mitglieder werden nicht angezeigt — diese Seite deckt nur Swiss-Volley-Transfers ab.',
+  trHiddenU20_one: '{{count}} U20-Spieler*in wird nicht angezeigt — DU20 und HU20 brauchen keinen internationalen Transfer.',
+  trHiddenU20_other: '{{count}} U20-Spieler*innen werden nicht angezeigt — DU20 und HU20 brauchen keinen internationalen Transfer.',
   trInactive: 'Mitgliedschaft inaktiv',
   trLicenceValidated: 'Validiert',
   trLicenceNotValidated: 'Nicht validiert',
@@ -1001,7 +1004,6 @@ export default {
   trInVisCheckedAt: 'Geprüft am {{date}}',
   trVisSummaryTitle: 'Präsenz in VIS',
   trVisSummaryHint: '«In VIS nicht gefunden» ist ein Hinweis, kein Urteil: Abgeglichen wird über den Namen, und der Herkunftsverband stammt bei den meisten Mitgliedern aus der Nationalität. Meist ist deshalb diese Annahme falsch und nicht der Verband säumig.',
-  trVisBasketballHint: 'VIS ist der Spielerindex der FIVB (Volleyball), und die Kontakte hier sind nationale Volleyballverbände. Ein FIBA-Transfer läuft über eine andere Stelle — bitte nur als Hinweis lesen.',
   trVisCheckNow: 'VIS jetzt prüfen',
   trVisCheckRunning: 'VIS wird geprüft…',
   trVisCheckHint: 'Fragt bei der FIVB nach, ob diese Mitglieder im VIS-Spielerindex ihres Herkunftsverbands stehen, und aktualisiert die Badges. Dauert einige Sekunden — es wird jeweils ein ganzer Verbandskader geladen. Läuft automatisch jeden Montag.',
@@ -1034,5 +1036,5 @@ export default {
 
   trSaveFailed: 'Speichern fehlgeschlagen',
   trEmptyTitle: 'Nichts zu tun',
-  trEmptyDescription: 'Keine offenen Transfers und keine offenen Fragen für diese Sportart.',
+  trEmptyDescription: 'Keine offenen Transfers und keine offenen Fragen.',
 } as const

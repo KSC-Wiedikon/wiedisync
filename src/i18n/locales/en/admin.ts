@@ -926,9 +926,9 @@ export default {
   trNavTransfers: 'Transfers',
   trTitle: 'International transfers',
   trDescription: 'Members who need an international transfer, grouped by the federation that licensed them at 14.',
-  trTabsLabel: 'Sport',
-  trSportVolleyball: 'Volleyball',
-  trSportBasketball: 'Basketball',
+  // ⚠ Volleyball only — the sport toggle is gone. FIBA transfers run through
+  // Swiss Basketball, and every mechanism on this page (VIS, the federation
+  // directory, the Swiss Volley licence check) is FIVB's.
   trRefresh: 'Refresh',
   trNeedsTitle: 'Needs a transfer',
   trNeedsDescription: 'Licensed at age 14 by a federation outside Switzerland. Swiss Volley requires an international transfer certificate before they may play here — at every level, even where the fee is CHF 0.',
@@ -972,6 +972,12 @@ export default {
   // eligibility to establish. Worded as the reason it is, not as an omission.
   trHiddenGuests_one: '{{count}} member is not shown because they only play as a guest — guests hold no licence, so no transfer applies.',
   trHiddenGuests_other: '{{count}} members are not shown because they only play as guests — guests hold no licence, so no transfer applies.',
+  trHiddenBasketball_one: '{{count}} basketball member is not shown — this page covers Swiss Volley transfers only.',
+  trHiddenBasketball_other: '{{count}} basketball members are not shown — this page covers Swiss Volley transfers only.',
+  // The U20 exemption. Per team, not per person: a U20 player who also plays a
+  // senior team stays on the list, because that licence does need the transfer.
+  trHiddenU20_one: '{{count}} U20 player is not shown — DU20 and HU20 need no international transfer.',
+  trHiddenU20_other: '{{count}} U20 players are not shown — DU20 and HU20 need no international transfer.',
   trInactive: 'Membership inactive',
   trLicenceValidated: 'Validated',
   trLicenceNotValidated: 'Not validated',
@@ -1004,7 +1010,6 @@ export default {
   trInVisCheckedAt: 'Checked {{date}}',
   trVisSummaryTitle: 'VIS presence',
   trVisSummaryHint: '"Not found in VIS" is a lead, not a verdict: the check matches by name, and for most members the federation of origin was derived from their nationality. It usually means that guess was wrong rather than that a federation is missing the player.',
-  trVisBasketballHint: 'VIS is the FIVB (volleyball) player index, and the contacts here are national volleyball federations. A FIBA transfer runs through a different body, so read this as a lead only.',
   // On-demand VIS check. The distinction these strings have to carry: Refresh
   // re-reads the database, "Check VIS now" asks FIVB.
   trVisCheckNow: 'Check VIS now',
@@ -1043,5 +1048,5 @@ export default {
 
   trSaveFailed: 'Could not save',
   trEmptyTitle: 'Nothing to work through',
-  trEmptyDescription: 'No open transfers and no open questions for this sport.',
+  trEmptyDescription: 'No open transfers and no open questions.',
 } as const

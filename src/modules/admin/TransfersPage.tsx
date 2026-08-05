@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import {
   AlertTriangle, Check, CheckCircle2, ChevronRight, Clock, Copy, ExternalLink, HelpCircle,
@@ -22,8 +21,32 @@ import { formatDateZurich, formatDateTimeCompact } from '../../utils/dateHelpers
 import { memberName, relId } from '../../utils/relations'
 import type { MemberTeam, Team } from '../../types'
 
-type Sport = 'volleyball' | 'basketball'
-const SPORTS: Sport[] = ['volleyball', 'basketball']
+/**
+ * VOLLEYBALL ONLY — the page had a sport toggle and no longer does.
+ *
+ * Everything this page is made of belongs to FIVB's apparatus: the VIS player
+ * index, the VIS federation directory, the prepared letters, and the Swiss
+ * Volley licence cross-check. A FIBA transfer runs federation to federation
+ * through Swiss Basketball and is not worked from here, so a basketball tab
+ * could only ever show a worklist nobody works, addressed to the wrong
+ * governing body. Basketball players are COUNTED in the header
+ * (`trHiddenBasketball`) rather than dropped in silence.
+ */
+const SPORT: Team['sport'] = 'volleyball'
+
+/**
+ * Volleyball teams whose players need no international transfer, by exact team
+ * name. Swiss Volley's U20 championship sits outside the ITC regime, so a
+ * member who plays only there is on nobody's worklist.
+ *
+ * ⚠ The exemption is per TEAM, not per person: an HU20 player who also plays
+ * 2. Liga still needs the transfer for that licence. So it only fires when
+ * EVERY volleyball team the member plays for is on this list.
+ *
+ * ⚠ Exact names, deliberately not a `U\d+` pattern — U23 is NOT exempt. MiniVB
+ * would be, but it has no roster at all; add it here if the programme returns.
+ */
+const NO_TRANSFER_VB_TEAM_NAMES = new Set(['DU20', 'HU20'])
 
 /**
  * `GET /kscw/admin/vis-player-check`. `result` is the LAST finished run in this
@@ -436,22 +459,6 @@ export default function TransfersPage() {
   const canRunVisCheck = hasAdminAccessToSport('volleyball')
   const { update } = useMutation('members')
 
-  // The active sport lives in the URL (`?sport=`) so a view is shareable and
-  // survives a refresh — same idiom as FinancePage's `?tab=` and Spielplanung's
-  // `?view=`. The URL is the single source of truth; an absent/unknown value
-  // falls back to volleyball. `replace: true` keeps the back button pointing at
-  // wherever the admin came from rather than stepping through tab switches.
-  const [searchParams, setSearchParams] = useSearchParams()
-  const sportParam = searchParams.get('sport')
-  const sport: Sport = sportParam === 'basketball' ? 'basketball' : 'volleyball'
-  const setSport = useCallback((next: Sport) => {
-    setSearchParams((prev) => {
-      const params = new URLSearchParams(prev)
-      params.set('sport', next)
-      return params
-    }, { replace: true })
-  }, [setSearchParams])
-
   // ── Data ──────────────────────────────────────────────────────────
   // Sport membership is derived from the member's teams. Teams are fetched
   // WITHOUT the `active` filter on purpose: a player parked on an archived team
@@ -557,8 +564,8 @@ export default function TransfersPage() {
    * guest on another still counts as a player.
    */
   const { sportsByMember, guestSportsByMember } = useMemo(() => {
-    const players = new Map<string, Set<Sport>>()
-    const guests = new Map<string, Set<Sport>>()
+    const players = new Map<string, Set<Team['sport']>>()
+    const guests = new Map<string, Set<Team['sport']>>()
     for (const j of junction) {
       const memberId = relId(j.member)
       const teamSport = sportByTeam.get(relId(j.team))
@@ -572,11 +579,14 @@ export default function TransfersPage() {
   }, [junction, sportByTeam])
 
   /**
-   * memberId → their PLAYER team names in the active sport, for the member
-   * cell. Same guest exclusion as `sportsByMember` (a guest membership is not
-   * the row's reason to be on this page), and sport-scoped because each table
-   * already is: on the volleyball tab a dual-sport member shows their
-   * volleyball teams — the ones the transfer in front of the admin is about.
+   * memberId → their VOLLEYBALL PLAYER team names, for the member cell. Same
+   * guest exclusion as `sportsByMember` (a guest membership is not the row's
+   * reason to be on this page), and volleyball-scoped like the page itself: a
+   * dual-sport member shows the teams the transfer in front of the admin is
+   * about, not their basketball ones.
+   *
+   * Also the input to the U20 exemption below, which is why the "player, in
+   * this sport" filtering lives in one place rather than two.
    */
   const teamNamesByMember = useMemo(() => {
     const map = new Map<string, string[]>()
@@ -584,7 +594,7 @@ export default function TransfersPage() {
       const memberId = relId(j.member)
       const teamId = relId(j.team)
       if (!memberId || (j.guest_level ?? 0) > 0) continue
-      if (sportByTeam.get(teamId) !== sport) continue
+      if (sportByTeam.get(teamId) !== SPORT) continue
       const name = nameByTeam.get(teamId)
       if (!name) continue
       const list = map.get(memberId)
@@ -593,35 +603,52 @@ export default function TransfersPage() {
     }
     for (const list of map.values()) list.sort((a, b) => a.localeCompare(b, 'de-CH'))
     return map
-  }, [junction, sportByTeam, nameByTeam, sport])
+  }, [junction, sportByTeam, nameByTeam])
 
   /**
-   * A member appears under a sport only when a team actually puts them there as
-   * a PLAYER (guest memberships do not count — see `sportsByMember`).
+   * Members exempt because EVERY volleyball team they play for is a U20 team —
+   * see `NO_TRANSFER_VB_TEAM_NAMES`. Built from `teamNamesByMember`, so it
+   * inherits the same player-only, volleyball-only scope.
    *
-   * Members on NO team used to surface under BOTH sports so nothing could hide
-   * — but a transfer is only owed by someone who plays, and the register carries
-   * enough team-less people (ehemalige, passive, parents) that they buried the
-   * cohort this page exists for. They are counted and named in the header
-   * instead, so dropping them stays visible rather than silent: give them a team
-   * and they reappear.
-   *
-   * A genuinely dual-sport member still appears twice, which is correct: two
-   * federations, two transfers (one shared status column is a schema limit,
-   * noted so nobody reads it as a bug).
+   * A member whose team has no name at all is deliberately NOT exempt: the
+   * absence of a name is not evidence of a junior team, and the safe default
+   * here is to leave someone ON the worklist.
    */
-  const inSport = useCallback(
-    (memberId: string, s: Sport) => sportsByMember.get(memberId)?.has(s) ?? false,
+  const u20OnlyMembers = useMemo(() => {
+    const set = new Set<string>()
+    for (const [memberId, names] of teamNamesByMember) {
+      if (names.length > 0 && names.every((n) => NO_TRANSFER_VB_TEAM_NAMES.has(n.trim()))) {
+        set.add(memberId)
+      }
+    }
+    return set
+  }, [teamNamesByMember])
+
+  /**
+   * A member appears on this page only when a team actually puts them in
+   * VOLLEYBALL as a PLAYER (guest memberships do not count — see
+   * `sportsByMember`).
+   *
+   * Members on NO team used to surface so nothing could hide — but a transfer
+   * is only owed by someone who plays, and the register carries enough
+   * team-less people (ehemalige, passive, parents) that they buried the cohort
+   * this page exists for. They are counted and named in the header instead, so
+   * dropping them stays visible rather than silent: give them a team and they
+   * reappear.
+   */
+  const playsVolleyball = useCallback(
+    (memberId: string) => sportsByMember.get(memberId)?.has(SPORT) ?? false,
     [sportsByMember],
   )
 
   /**
-   * Members who WOULD be on a worklist but are dropped by the team filter,
-   * reported in the header so the filter never silently swallows a real transfer.
+   * Members who WOULD be on a worklist but are not shown, reported in the
+   * header so a filter never silently swallows a real transfer.
    *
-   * The two reasons are counted SEPARATELY because they mean opposite things:
-   * "on no team" is a data gap to fix (give them a team and they reappear),
-   * while "guest only" is the correct answer (no licence, so no transfer).
+   * The three reasons are counted SEPARATELY because they mean different
+   * things: "on no team" is a data gap to fix (give them a team and they
+   * reappear), "guest only" is the correct answer (no licence, so no transfer),
+   * and "basketball" is a whole sport this page does not cover — see `SPORT`.
    *
    * Only the two WORKLIST cohorts count. A settled member never had a row to
    * lose, and the Swiss cohort is a reference list rather than work — counting
@@ -631,54 +658,64 @@ export default function TransfersPage() {
   const hidden = useMemo(() => {
     let noTeam = 0
     let guestOnly = 0
+    let basketball = 0
     for (const m of members) {
       const bucket = bucketOf(m)
       if (bucket !== 'needs' && bucket !== 'clarify') continue
       const id = String(m.id)
-      if (sportsByMember.get(id)?.size) continue
-      if (guestSportsByMember.get(id)?.size) guestOnly += 1
+      if (sportsByMember.get(id)?.has(SPORT)) continue
+      // Guest first: a volleyball guest is dropped for the licence reason, not
+      // for whatever else they may also play.
+      if (guestSportsByMember.get(id)?.has(SPORT)) guestOnly += 1
+      else if (sportsByMember.get(id)?.size || guestSportsByMember.get(id)?.size) basketball += 1
       else noTeam += 1
     }
-    return { noTeam, guestOnly }
+    return { noTeam, guestOnly, basketball }
   }, [members, sportsByMember, guestSportsByMember])
 
-  /** Per-sport buckets. Computed for BOTH sports so the tab labels carry counts. */
-  const bySport = useMemo(() => {
-    const empty = () => ({
+  /**
+   * The volleyball cohorts. `u20` is a COUNT, not a list: those members are
+   * exempt by the team they play in (`NO_TRANSFER_VB_TEAM_NAMES`), so there is
+   * no per-member state to keep and nothing to work — but they are reported in
+   * the header, because an exemption that is invisible is indistinguishable
+   * from a bug.
+   */
+  const cohorts = useMemo(() => {
+    const acc = {
       needs: [] as TransferMember[],
       clarify: [] as TransferMember[],
       swiss: [] as TransferMember[],
       settled: 0,
-    })
-    const acc: Record<Sport, ReturnType<typeof empty>> = {
-      volleyball: empty(),
-      basketball: empty(),
+      u20: 0,
     }
     for (const m of members) {
       const bucket = bucketOf(m)
       if (bucket === 'ignore') continue
-      for (const s of SPORTS) {
-        if (!inSport(String(m.id), s)) continue
-        if (bucket === 'needs') acc[s].needs.push(m)
-        else if (bucket === 'clarify') acc[s].clarify.push(m)
-        else if (bucket === 'swiss') acc[s].swiss.push(m)
-        else acc[s].settled += 1
+      const id = String(m.id)
+      if (!playsVolleyball(id)) continue
+      // The exemption only removes WORK. A U20 player with a Swiss or 'NONE'
+      // answer keeps their place in the settled tally and the Swiss reference
+      // list below — nothing about them changed, they were never work.
+      if ((bucket === 'needs' || bucket === 'clarify') && u20OnlyMembers.has(id)) {
+        acc.u20 += 1
+        continue
       }
+      if (bucket === 'needs') acc.needs.push(m)
+      else if (bucket === 'clarify') acc.clarify.push(m)
+      else if (bucket === 'swiss') acc.swiss.push(m)
+      else acc.settled += 1
     }
     return acc
-  }, [members, inSport])
+  }, [members, playsVolleyball, u20OnlyMembers])
 
-  // ── Licence validation (volleyball only) ──────────────────────────
+  // ── Licence validation ────────────────────────────────────────────
   // Swiss Volley validates the licence once the ITC has arrived, reconciled every
   // working day — so for a member who needs an ITC, `licence_validated = true` is
   // the downstream evidence that the transfer completed. There is no readable
   // FIVB transfer API for us (VIS gates transfer request types for guests, and
   // club access is a Swiss Volley UI login), so the Pending/Done toggle stays
   // manual and this is a cross-CHECK, not a replacement.
-  //
-  // Basketball has no equivalent — FIBA transfers run federation-to-federation —
-  // so the whole signal is hidden on that tab rather than shown as a dead column.
-  const vbNeeds = bySport.volleyball.needs
+  const vbNeeds = cohorts.needs
   const vmMatchKeys = useMemo(() => {
     const licences = new Set<string>()
     const emails = new Set<string>()
@@ -750,36 +787,28 @@ export default function TransfersPage() {
     return vmByMember.get(String(m.id))?.licence_validated === true ? 'validated' : 'unknown'
   }, [vmByMember])
 
-  const showLicence = sport === 'volleyball'
-
   // The two mismatches. Only the first is a hard problem: a transfer recorded as
   // done whose licence is not validated means the ITC has NOT landed and the
   // player is not eligible — fielding an unvalidated licence is sanctionable
   // (FIVB Disciplinary Regulations Art. 11.4).
   const blockedRows = useMemo(
-    () => (showLicence
-      ? vbNeeds.filter((m) => m.transfer_status === 'done' && validationOf(m) !== 'validated')
-      : []),
-    [showLicence, vbNeeds, validationOf],
+    () => vbNeeds.filter((m) => m.transfer_status === 'done' && validationOf(m) !== 'validated'),
+    [vbNeeds, validationOf],
   )
   const probablyDoneRows = useMemo(
-    () => (showLicence
-      ? vbNeeds.filter((m) => m.transfer_status === 'pending' && validationOf(m) === 'validated')
-      : []),
-    [showLicence, vbNeeds, validationOf],
+    () => vbNeeds.filter((m) => m.transfer_status === 'pending' && validationOf(m) === 'validated'),
+    [vbNeeds, validationOf],
   )
-
-  const active = bySport[sport]
 
   // Federation of origin drives the actionable grouping; nationality drives the
   // "to clarify" grouping, because those members have no federation answer yet.
   const needsGroups = useMemo(
     () => groupRows(
-      active.needs,
+      cohorts.needs,
       (m) => String(m.federation_of_origin ?? '').trim().toUpperCase(),
-      (code) => federationDisplay(code, sport) || code,
+      (code) => federationDisplay(code, SPORT) || code,
     ),
-    [active.needs, sport],
+    [cohorts.needs],
   )
   /**
    * The Swiss cohort under Swiss Volley itself. Always exactly one group (every
@@ -789,15 +818,15 @@ export default function TransfersPage() {
    */
   const swissGroups = useMemo(
     () => groupRows(
-      active.swiss,
+      cohorts.swiss,
       () => 'CH',
-      (code) => federationDisplay(code, sport) || code,
+      (code) => federationDisplay(code, SPORT) || code,
     ),
-    [active.swiss, sport],
+    [cohorts.swiss],
   )
   const clarifyGroups = useMemo(
     () => groupRows(
-      active.clarify,
+      cohorts.clarify,
       // The primary (first) nationality. None of these members holds CH — that is
       // what put them in this bucket — so the first code is the meaningful one.
       (m) => parseCountryCodes(m.nationalitaet_codes)[0] ?? '',
@@ -807,7 +836,7 @@ export default function TransfersPage() {
         return flag ? `${flag} ${label}` : label
       },
     ),
-    [active.clarify],
+    [cohorts.clarify],
   )
 
   // VIS presence across the ACTIONABLE cohort only — the settled and to-clarify
@@ -817,13 +846,13 @@ export default function TransfersPage() {
     let inVis = 0
     let notFound = 0
     let unchecked = 0
-    for (const m of active.needs) {
+    for (const m of cohorts.needs) {
       if (m.in_vis === true) inVis += 1
       else if (m.in_vis === false) notFound += 1
       else unchecked += 1
     }
     return { inVis, notFound, unchecked }
-  }, [active.needs])
+  }, [cohorts.needs])
 
   /**
    * Newest `in_vis_checked_at` anywhere in the loaded set — i.e. when the VIS
@@ -990,7 +1019,7 @@ export default function TransfersPage() {
 
   if (bootLoading) return null
 
-  const nothingToDo = active.needs.length === 0 && active.clarify.length === 0
+  const nothingToDo = cohorts.needs.length === 0 && cohorts.clarify.length === 0
 
   const statusButton = (
     m: TransferMember,
@@ -1182,13 +1211,7 @@ export default function TransfersPage() {
    * and the ONE letter that asks them to enter every player of theirs we cannot
    * open a transfer for yet.
    *
-   * ⚠ Volleyball only. `vis_federations` is FIVB's directory, so on the
-   * basketball tab this would address a national VOLLEYBALL federation about a
-   * basketball player — the contact row still shows (it is a usable lead, per
-   * `trVisBasketballHint`) but the prepared letter, which names Swiss Volley and
-   * the FIVB VIS index, does not.
-   *
-   * ⚠ The letter is also withheld from the SWISS group, where the contact is
+   * ⚠ The letter is withheld from the SWISS group, where the contact is
    * Swiss Volley itself: it would ask Swiss Volley to grant a transfer TO Swiss
    * Volley for players it already licensed. The contact stays, because "who do
    * we write to about a Swiss player missing from VIS" is a real question — the
@@ -1203,7 +1226,7 @@ export default function TransfersPage() {
     // checked. Both need the same thing from the federation, and splitting them
     // into two letters would ask the same people the same question twice.
     const pending = g.rows.filter((m) => m.in_vis !== true)
-    const canRequest = mode === 'needs' && sport === 'volleyball' && !!fed && pending.length > 0
+    const canRequest = mode === 'needs' && !!fed && pending.length > 0
     const body = canRequest ? visRequestText(pending, name) : ''
     // Prefilling the body is the nice case, but a 16-name letter blows past what
     // Windows will hand to a mail client. Rather than drop the link (the big
@@ -1361,10 +1384,7 @@ export default function TransfersPage() {
                   <TableHead>{t('trColMember')}</TableHead>
                   <TableHead className="hidden sm:table-cell">{t('trColNationality')}</TableHead>
                   <TableHead className="hidden md:table-cell">{t('trColLicence')}</TableHead>
-                  {withStatus && showLicence && <TableHead>{t('trColLicenceValidated')}</TableHead>}
-                  {/* Both sports, unlike the licence column: the VIS check runs
-                      on every member with a foreign federation of origin. See
-                      `trVisBasketballHint` for what that means on the BB tab. */}
+                  {withStatus && <TableHead>{t('trColLicenceValidated')}</TableHead>}
                   {withVis && <TableHead>{t('trColInVis')}</TableHead>}
                   {withStatus && <TableHead>{t('trColStatus')}</TableHead>}
                   <TableHead>{t('trColNote')}</TableHead>
@@ -1398,7 +1418,7 @@ export default function TransfersPage() {
                           </span>
                         )}
                       </TableCell>
-                      {withStatus && showLicence && (
+                      {withStatus && (
                         <TableCell className="align-top">{licenceCell(m)}</TableCell>
                       )}
                       {withVis && (
@@ -1503,8 +1523,8 @@ export default function TransfersPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('trTitle')}</h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t('trDescription')}</p>
-          {/* Say what the sport filter drops. A worklist that quietly omits
-              people is worse than one that is a little longer. */}
+          {/* Say what the filters drop. A worklist that quietly omits people is
+              worse than one that is a little longer. */}
           {hidden.noTeam > 0 && (
             <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
               {t('trHiddenNoTeam', { count: hidden.noTeam })}
@@ -1517,16 +1537,27 @@ export default function TransfersPage() {
               {t('trHiddenGuests', { count: hidden.guestOnly })}
             </p>
           )}
+          {/* Basketball has no tab here any more (see `SPORT`) — so say how many
+              members that costs, rather than letting a whole sport vanish. */}
+          {hidden.basketball > 0 && (
+            <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+              {t('trHiddenBasketball', { count: hidden.basketball })}
+            </p>
+          )}
+          {/* The U20 exemption, stated where the numbers are read. */}
+          {cohorts.u20 > 0 && (
+            <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+              {t('trHiddenU20', { count: cohorts.u20 })}
+            </p>
+          )}
         </div>
         {/* Two buttons that are NOT the same thing, and the labels have to say
             so: Refresh re-reads what the database already holds, "Check VIS
             now" goes and asks FIVB. Before the second one existed, an admin
             pressing the first and seeing a month-old date could only conclude
-            it was broken. VIS is FIVB's index, so the trigger is volleyball-
-            only — on the basketball tab it would query the wrong sport's
-            governing body. */}
+            it was broken. */}
         <div className="flex flex-wrap items-center gap-2">
-          {sport === 'volleyball' && canRunVisCheck && (
+          {canRunVisCheck && (
             <button
               onClick={() => { void runVisCheck() }}
               disabled={visRunning}
@@ -1549,39 +1580,6 @@ export default function TransfersPage() {
             {t('trRefresh')}
           </button>
         </div>
-      </div>
-
-      {/* Sport tabs — URL-persisted (`?sport=`) */}
-      {/* A button group with aria-pressed rather than role="tablist" — there is
-          no separate tabpanel per sport (the whole page re-derives), and an
-          incomplete tab pattern is worse for a screen reader than an honest
-          toggle group. Same shape as the app-wide SportToggle. */}
-      <div
-        role="group"
-        aria-label={t('trTabsLabel')}
-        className="mb-4 flex overflow-hidden rounded-lg border border-gray-300 dark:border-gray-600"
-      >
-        {SPORTS.map((s, i) => {
-          const open = bySport[s].needs.length + bySport[s].clarify.length
-          return (
-            <button
-              key={s}
-              type="button"
-              aria-pressed={sport === s}
-              onClick={() => setSport(s)}
-              className={`flex min-h-[44px] flex-1 items-center justify-center gap-2 px-3 py-2 text-sm font-medium transition-colors ${
-                sport === s
-                  ? 'bg-brand-100 text-brand-800 dark:bg-brand-700 dark:text-white'
-                  : 'text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700'
-              } ${i > 0 ? 'border-l border-gray-300 dark:border-gray-600' : ''}`}
-            >
-              {s === 'volleyball' ? t('trSportVolleyball') : t('trSportBasketball')}
-              <span className="rounded-full bg-white/70 px-2 py-0.5 text-xs font-semibold text-gray-700 dark:bg-gray-900/40 dark:text-gray-200">
-                {open}
-              </span>
-            </button>
-          )
-        })}
       </div>
 
       {/* Eligibility alarm — the highest-value thing on this page. A transfer we
@@ -1621,7 +1619,7 @@ export default function TransfersPage() {
           will otherwise get backwards. */}
       <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-800/30">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-          {active.needs.length > 0 && (
+          {cohorts.needs.length > 0 && (
             <>
               <span className="text-xs font-semibold text-gray-700 dark:text-gray-200">
                 {t('trVisSummaryTitle')}
@@ -1649,7 +1647,7 @@ export default function TransfersPage() {
             className="ml-auto inline-flex items-center gap-1.5 text-xs font-medium text-gray-600 dark:text-gray-300"
           >
             <ShieldCheck className="h-4 w-4 shrink-0 text-green-600 dark:text-green-400" aria-hidden="true" />
-            {t('trSettledCount', { count: active.settled + active.swiss.length })}
+            {t('trSettledCount', { count: cohorts.settled + cohorts.swiss.length })}
           </span>
         </div>
 
@@ -1657,26 +1655,18 @@ export default function TransfersPage() {
           {/* Dating the VIS numbers where they are read. Without it the pills
               above look live, and the whole page silently asserts a month-old
               answer as today's. */}
-          {sport === 'volleyball' && (
-            <p>
-              {lastVisCheck
-                ? t('trVisLastChecked', { date: formatDateTimeCompact(lastVisCheck) })
-                : t('trVisNeverChecked')}
-            </p>
-          )}
+          <p>
+            {lastVisCheck
+              ? t('trVisLastChecked', { date: formatDateTimeCompact(lastVisCheck) })
+              : t('trVisNeverChecked')}
+          </p>
           <p>{t('trSettledDescription')}</p>
           {/* The "false is not proof" caveat, stated where it is always visible
               — a per-row `title` alone is unreachable on a phone. */}
-          {active.needs.length > 0 && <p>{t('trVisSummaryHint')}</p>}
+          {cohorts.needs.length > 0 && <p>{t('trVisSummaryHint')}</p>}
           {/* The licence signal is a ONE-WAY implication and the wording has to
               say so, or an admin reads "not validated" as "the transfer failed". */}
-          {showLicence && <p>{t('trLicenceHint')}</p>}
-          {/* VIS is FIVB's index, so on the basketball tab both the badge and the
-              federation contact describe the wrong sport's governing body. Said
-              once per tab rather than repeated on every row. */}
-          {sport === 'basketball' && active.needs.length > 0 && (
-            <p className="text-amber-700 dark:text-amber-400">{t('trVisBasketballHint')}</p>
-          )}
+          <p>{t('trLicenceHint')}</p>
         </div>
       </div>
 
@@ -1699,13 +1689,13 @@ export default function TransfersPage() {
         ) : (
           <>
           {/* Cohort A — actionable transfers */}
-          {active.needs.length > 0 && (
+          {cohorts.needs.length > 0 && (
             <section>
               <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white">
                 <Clock className="h-4 w-4 text-amber-500" aria-hidden="true" />
                 {t('trNeedsTitle')}
                 <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-                  {active.needs.length}
+                  {cohorts.needs.length}
                 </span>
               </h2>
               <p className="mt-1 mb-3 text-sm text-gray-500 dark:text-gray-400">
@@ -1718,13 +1708,13 @@ export default function TransfersPage() {
           {/* Cohort B — never asked. Deliberately its own section with its own
               wording: this is a question to put to the member, not a transfer
               that is already running. */}
-          {active.clarify.length > 0 && (
+          {cohorts.clarify.length > 0 && (
             <section>
               <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white">
                 <HelpCircle className="h-4 w-4 text-blue-500" aria-hidden="true" />
                 {t('trClarifyTitle')}
                 <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
-                  {active.clarify.length}
+                  {cohorts.clarify.length}
                 </span>
               </h2>
               <p className="mt-1 mb-3 text-sm text-gray-500 dark:text-gray-400">
@@ -1736,21 +1726,15 @@ export default function TransfersPage() {
           </>
         )}
 
-        {/* Cohort C — Swiss Volley's own players.
-            ⚠ VOLLEYBALL ONLY. `vis_federations` and the VIS player index are
-            FIVB's, so on the basketball tab this section would list Swiss
-            basketballers under a volleyball federation and show them an "In VIS"
-            column that cannot say anything about them. They stay in the "needs
-            no transfer" tally there, which is the whole truth we have.
-            No transfer status: a Swiss age-14 licence means no INTERNATIONAL
-            transfer exists to track. */}
-        {sport === 'volleyball' && active.swiss.length > 0 && (
+        {/* Cohort C — Swiss Volley's own players. No transfer status: a Swiss
+            age-14 licence means no INTERNATIONAL transfer exists to track. */}
+        {cohorts.swiss.length > 0 && (
           <section>
             <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white">
               <ShieldCheck className="h-4 w-4 text-green-600 dark:text-green-400" aria-hidden="true" />
               {t('trSwissTitle')}
               <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400">
-                {active.swiss.length}
+                {cohorts.swiss.length}
               </span>
             </h2>
             <p className="mt-1 mb-3 text-sm text-gray-500 dark:text-gray-400">

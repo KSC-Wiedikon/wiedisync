@@ -538,9 +538,8 @@ export default {
   trNavTransfers: 'Trasferimenti',
   trTitle: 'Trasferimenti internazionali',
   trDescription: 'Membri che necessitano di un trasferimento internazionale, raggruppati per la federazione che li ha tesserati a 14 anni.',
-  trTabsLabel: 'Sport',
-  trSportVolleyball: 'Pallavolo',
-  trSportBasketball: 'Pallacanestro',
+  // ⚠ Solo pallavolo — il selettore dello sport è stato rimosso. Un trasferimento
+  // FIBA passa da Swiss Basketball; tutto ciò che segue appartiene alla FIVB.
   trRefresh: 'Aggiorna',
   trNeedsTitle: 'Trasferimento necessario',
   trNeedsDescription: 'Tesserati a 14 anni da una federazione fuori dalla Svizzera. Swiss Volley richiede un certificato di trasferimento internazionale prima dell’impiego — a ogni livello, anche dove la tassa è di CHF 0.',
@@ -577,6 +576,10 @@ export default {
   trHiddenNoTeam_other: '{{count}} membri non sono mostrati perché non fanno parte di nessuna squadra.',
   trHiddenGuests_one: '{{count}} membro non è mostrato perché gioca solo come ospite — gli ospiti non hanno tesseramento, quindi nessun trasferimento si applica.',
   trHiddenGuests_other: '{{count}} membri non sono mostrati perché giocano solo come ospiti — gli ospiti non hanno tesseramento, quindi nessun trasferimento si applica.',
+  trHiddenBasketball_one: '{{count}} membro di pallacanestro non è mostrato — questa pagina copre solo i trasferimenti Swiss Volley.',
+  trHiddenBasketball_other: '{{count}} membri di pallacanestro non sono mostrati — questa pagina copre solo i trasferimenti Swiss Volley.',
+  trHiddenU20_one: '{{count}} giocatore U20 non è mostrato — DU20 e HU20 non necessitano di alcun trasferimento internazionale.',
+  trHiddenU20_other: '{{count}} giocatori U20 non sono mostrati — DU20 e HU20 non necessitano di alcun trasferimento internazionale.',
   trInactive: 'Adesione non attiva',
   trLicenceValidated: 'Convalidata',
   trLicenceNotValidated: 'Non convalidata',
@@ -605,7 +608,6 @@ export default {
   trInVisCheckedAt: 'Verificato il {{date}}',
   trVisSummaryTitle: 'Presenza in VIS',
   trVisSummaryHint: '«Non trovato in VIS» è un indizio, non un verdetto: il confronto avviene sul nome e per la maggior parte dei membri la federazione di origine è stata dedotta dalla nazionalità. Di solito significa che quell’ipotesi è sbagliata, non che la federazione abbia dimenticato la persona.',
-  trVisBasketballHint: 'VIS è l’indice giocatori della FIVB (pallavolo) e i contatti indicati qui sono federazioni nazionali di pallavolo. Un trasferimento FIBA passa da un altro ente — da leggere solo come indizio.',
   trVisCheckNow: 'Verifica VIS adesso',
   trVisCheckRunning: 'Verifica di VIS…',
   trVisCheckHint: 'Chiede alla FIVB se questi membri sono nell’indice giocatori VIS della loro federazione di origine e aggiorna i badge. Richiede alcuni secondi — ogni volta viene scaricato l’intero organico di una federazione. Viene eseguita automaticamente ogni lunedì.',
@@ -638,7 +640,7 @@ export default {
 
   trSaveFailed: 'Salvataggio non riuscito',
   trEmptyTitle: 'Niente da fare',
-  trEmptyDescription: 'Nessun trasferimento aperto né domanda in sospeso per questo sport.',
+  trEmptyDescription: 'Nessun trasferimento aperto né domanda in sospeso.',
 
   // ── Backfilled 2026-07-27 — fr/it catch-up (was rendering in English) ──
   infraTitle: 'Infrastruttura',
