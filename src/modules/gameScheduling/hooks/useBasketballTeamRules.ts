@@ -14,9 +14,10 @@ import type { Team } from '../../../types'
  * writes raw knex). See migration 278's header for why this is a table and not a json blob
  * on the season row like volleyball's `team_slot_config`.
  *
- * ⚠ A team with NO row is NOT "a team without constraints" — it is a team that is not
- * slot-generated at all (the two DU18 squads today, whose Spark/Fire ↔ 1x/2x mapping is
- * unresolved). Callers must surface that as a gap, never as an empty rule set.
+ * ⚠ A team with NO row IS slot-generated — it is "open to all" and gets every pitch the
+ * hall allows (user rule 2026-08-05; see `openTeamRule` in `basketball-slots.js`). Only an
+ * explicit `enabled = false` opts a team out. Callers must surface a missing row as an
+ * open team, never as a gap or a skipped team — the generator plans it either way.
  *
  * The pure shapes (types, hall presets, defaults) live in `utils/basketballRules.ts` so
  * they are unit-testable without React.
