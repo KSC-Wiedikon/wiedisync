@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { AlertTriangle, ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react'
+import { ChevronDown, ChevronUp, Info, Plus, Trash2 } from 'lucide-react'
 import { Button } from '../../../components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../components/ui/table'
 import { useConfirm } from '../../../components/ConfirmProvider'
@@ -77,9 +77,9 @@ export default function BasketballTeamRulesPanel({
   const missing = useMemo(() => teams.filter((tm) => !byTeam.get(String(tm.id))), [teams, byTeam])
 
   /**
-   * Configured teams first, then the un-configured ones — on prod 8 of 17 active
-   * basketball teams have no rules (the tournament-only squads plus the two unresolved
-   * DU18 teams), and interleaving them by name buried the editable rows.
+   * Configured teams first, then the open ones — on prod 6 of 17 active basketball teams
+   * have no rules, and interleaving them by name buried the editable rows. Order only;
+   * an open team is planned exactly like a configured one.
    */
   const ordered = useMemo(() => {
     const configured = teams.filter((tm) => byTeam.get(String(tm.id)))
@@ -114,9 +114,10 @@ export default function BasketballTeamRulesPanel({
       <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('teamRules')}</h2>
       <p className="mt-1 mb-4 max-w-3xl text-xs text-gray-500 dark:text-gray-400">{t('teamRulesHint')}</p>
 
+      {/* Informational, not a warning — a team with no rules is offered every slot. */}
       {missing.length > 0 && (
-        <div className="mb-4 flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+        <div className="mb-4 flex items-start gap-2 rounded-md border border-sky-300 bg-sky-50 px-3 py-2 text-xs text-sky-900 dark:border-sky-800 dark:bg-sky-900/20 dark:text-sky-200">
+          <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
           <span>{t('teamRulesMissing', { teams: missing.map((m) => m.name).join(', ') })}</span>
         </div>
       )}
@@ -149,7 +150,7 @@ export default function BasketballTeamRulesPanel({
 
               if (!rule) {
                 return (
-                  <TableRow key={key} className="bg-amber-50/60 dark:bg-amber-900/10">
+                  <TableRow key={key} className="bg-sky-50/60 dark:bg-sky-900/10">
                     <TableCell className="min-h-11 whitespace-normal break-words font-medium">
                       {team.name}
                     </TableCell>
@@ -157,10 +158,10 @@ export default function BasketballTeamRulesPanel({
                         responsive ones get their own hidden cells, so the row keeps the
                         same shape as the header at every breakpoint. */}
                     <TableCell colSpan={4} className="whitespace-normal break-words text-xs">
-                      <span className="mr-2 rounded bg-amber-100 px-2 py-0.5 font-medium text-amber-900 dark:bg-amber-900/40 dark:text-amber-200">
-                        {t('notConfigured')}
+                      <span className="mr-2 rounded bg-sky-100 px-2 py-0.5 font-medium text-sky-900 dark:bg-sky-900/40 dark:text-sky-200">
+                        {t('openToAll')}
                       </span>
-                      <span className="text-gray-600 dark:text-gray-300">{t('notConfiguredHint')}</span>
+                      <span className="text-gray-600 dark:text-gray-300">{t('openToAllHint')}</span>
                     </TableCell>
                     <TableCell className="hidden sm:table-cell" />
                     <TableCell className="hidden sm:table-cell" />

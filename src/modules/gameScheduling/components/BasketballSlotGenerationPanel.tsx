@@ -67,11 +67,22 @@ export default function BasketballSlotGenerationPanel({
   const confirm = useConfirm()
 
   const hasSlots = slots.length > 0
-  const enabledTeams = useMemo(
-    () => teams.filter((tm) => rulesByTeam.get(String(tm.id))?.enabled),
+  /**
+   * Mirrors the endpoint's own loop (`basketball-slots.js` → POST generate): EVERY active
+   * team is planned — against its rules row if it has one, "open to all" if it has none.
+   * Only an explicit `enabled = false` opts a team out.
+   *
+   * ⚠ Do not narrow this back to `rule?.enabled` — that was the old "no row = skipped"
+   * model, and it disabled the Generate button for teams the generator plans regardless.
+   */
+  const plannedTeams = useMemo(
+    () => teams.filter((tm) => {
+      const rule = rulesByTeam.get(String(tm.id))
+      return !rule || rule.enabled
+    }),
     [teams, rulesByTeam],
   )
-  const unconfigured = useMemo(
+  const openTeams = useMemo(
     () => teams.filter((tm) => !rulesByTeam.get(String(tm.id))),
     [teams, rulesByTeam],
   )
@@ -82,16 +93,19 @@ export default function BasketballSlotGenerationPanel({
     return m
   }, [result])
 
+  /**
+   * Every active team gets a row, including the ones with no rules. They used to be
+   * filtered out until they happened to have slots, which hid exactly the teams the
+   * operator most needs to see the numbers for.
+   */
   const rows = useMemo(
     () =>
-      teams
-        .map((tm) => ({
-          team: tm,
-          rule: rulesByTeam.get(String(tm.id)) ?? null,
-          available: availableByTeam.get(String(tm.id)) ?? 0,
-          run: perTeamResult.get(String(tm.id)) ?? null,
-        }))
-        .filter((r) => r.rule || r.available > 0),
+      teams.map((tm) => ({
+        team: tm,
+        rule: rulesByTeam.get(String(tm.id)) ?? null,
+        available: availableByTeam.get(String(tm.id)) ?? 0,
+        run: perTeamResult.get(String(tm.id)) ?? null,
+      })),
     [teams, rulesByTeam, availableByTeam, perTeamResult],
   )
 
@@ -107,7 +121,7 @@ export default function BasketballSlotGenerationPanel({
       if (res) toast.success(t('slotsGenerated', { created: res.created, updated: res.updated, deleted: res.deleted }))
     } catch (err) {
       const body = (err as { body?: { error?: string } }).body
-      toast.error(body?.error === 'no_team_rules' ? t('generateNoRules') : t('generateError'))
+      toast.error(body?.error === 'no_teams' ? t('generateNoTeams') : t('generateError'))
     }
   }
 
@@ -137,7 +151,7 @@ export default function BasketballSlotGenerationPanel({
         <button
           type="button"
           onClick={handleGenerate}
-          disabled={disabled || generating || clearing || enabledTeams.length === 0}
+          disabled={disabled || generating || clearing || plannedTeams.length === 0}
           className={`min-h-11 shrink-0 rounded-md px-6 py-2.5 text-sm font-medium disabled:opacity-50 ${
             hasSlots ? 'bg-gold-400 text-brand-900 hover:bg-gold-500' : 'bg-green-600 text-white hover:bg-green-700'
           }`}
@@ -171,14 +185,15 @@ export default function BasketballSlotGenerationPanel({
         )}
       </div>
 
-      {enabledTeams.length === 0 && (
+      {plannedTeams.length === 0 && (
         <p className="mt-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
           {t('generateNoEnabledTeams')}
         </p>
       )}
-      {unconfigured.length > 0 && (
-        <p className="mt-3 text-xs text-amber-700 dark:text-amber-400">
-          ⚠ {t('generateSkipsUnconfigured', { teams: unconfigured.map((tm) => tm.name).join(', ') })}
+      {/* Informational, not a warning: an open team is a planned team. */}
+      {openTeams.length > 0 && (
+        <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
+          {t('generateOpenTeams', { teams: openTeams.map((tm) => tm.name).join(', ') })}
         </p>
       )}
 
@@ -206,8 +221,8 @@ export default function BasketballSlotGenerationPanel({
                   <TableCell className="whitespace-normal break-words font-medium">
                     {team.name}
                     {!rule && (
-                      <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[11px] text-amber-900 dark:bg-amber-900/40 dark:text-amber-200">
-                        {t('notConfigured')}
+                      <span className="ml-2 rounded bg-sky-100 px-1.5 py-0.5 text-[11px] text-sky-900 dark:bg-sky-900/40 dark:text-sky-200">
+                        {t('openToAll')}
                       </span>
                     )}
                     {rule && !rule.enabled && (

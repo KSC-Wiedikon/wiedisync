@@ -933,7 +933,6 @@ export function registerBasketballSlots(router, { database, logger }) {
         .where('season', seasonId)
         .orderBy('team')
       const ruleByTeam = new Map(allRows.map((r) => [String(r.team), r]))
-      const enabledRows = allRows.filter((r) => r.enabled === true)
 
       // Every ACTIVE basketball team is planned, not just the configured ones.
       const activeTeams = await database('teams')
