@@ -2,6 +2,18 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.67.0 — 2026-08-05
+
+### Hall finder: export to Excel
+- **A search result can now be taken away as a spreadsheet.** The table shows four of nineteen fields on a phone — the address, postcode, district, quarter, school district and caretaker contact are all hidden, and those are exactly what you need to actually chase a hall. The export carries every field, one row per hall.
+- **Hall dimensions come through as numbers**, not just as the city's "45,00 x 27,00 x 7,00 m" text, so you can sort or filter by length and find the halls that fit a full court.
+- **The search itself travels with the file** — the weekdays, time, minimum duration and district you searched for, the season, and the date the availability data is from. A list of "free halls" with no filter and no date is one nobody can act on a fortnight later.
+
+### International transfers: checking the FIVB index when you need it
+- **"Check VIS now" asks FIVB there and then.** The check used to run once a month, so for thirty days out of thirty-one the page showed a fixed answer and the Refresh button could only reload it — which read as though Refresh were broken. It now also runs automatically every week rather than monthly.
+- **The page says how old the VIS numbers are**, and the two buttons now explain which one re-reads our own data and which one goes and asks FIVB.
+- **A player already in the index is no longer reported as missing because of her name.** Where a middle name or a compound surname sat on the other side of the first-name/surname split, the match failed and the player looked absent from a register she was in all along.
+
 ## v1.66.0 — 2026-08-05
 
 ### Coaching qualifications and officials' licences
