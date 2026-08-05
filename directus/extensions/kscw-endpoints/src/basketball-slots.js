@@ -434,7 +434,9 @@ export function hardReject(cand, team, ctx) {
     if (b.kind === 'ferien' && team.ferien_hard) return REJECT_CODES.BLACKOUT_FERIEN
   }
 
-  // ── Club-wide superadmin blackout (scheduling_global_blocks) — sport-agnostic. ──
+  // ── Superadmin blackout (scheduling_global_blocks). The set is already filtered to
+  //    club-wide (sport IS NULL) + basketball rows by loadGeneratorContext — since
+  //    migration 286 a VOLLEYBALL-only block no longer reaches basketball. ──
   if (ctx.clubBlockedDates.has(date)) return REJECT_CODES.CLUB_BLOCK
 
   // ── Hall closures. A closure with no hall means the whole site is shut. A+B needs both. ──
@@ -717,7 +719,12 @@ export function registerBasketballSlots(router, { database, logger }) {
     }
 
     // ── Club-wide superadmin blackout (same source as GET /terminplanung/admin/club-blocked-dates). ──
+    // ⚠ `sport IS NULL OR sport = 'basketball'` — NEVER a bare equality. NULL means
+    //   club-wide (migration 286's default), so `where('sport','basketball')` would
+    //   silently drop every club-wide blackout and let a game land on a closed hall.
+    //   The column exists because a VOLLEYBALL U20 tournament was blocking basketball.
     const clubBlocks = await database('scheduling_global_blocks')
+      .where((q) => q.whereNull('sport').orWhere('sport', 'basketball'))
       .select(database.raw('start_date::text as start_date'), database.raw('end_date::text as end_date'))
     const clubBlockedDates = new Set()
     for (const b of clubBlocks) {
