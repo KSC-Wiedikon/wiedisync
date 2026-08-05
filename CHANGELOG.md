@@ -2,6 +2,12 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.66.0 — 2026-08-05
+
+### Coaching qualifications and officials' licences
+- **Basketball coaches can now record their qualification.** The profile only offered the volleyball ladder (Trainer C / B / A), so a Trainer 1 or Trainer 2 had nothing to select and the club's register kept the answer to itself. The list now shows the rungs for your own sport, with J+S available to everyone.
+- **Three referees were missing their licence in Wiedisync.** Their names are spelled slightly differently in Basketplan, so the nightly import had never matched them and they were absent from the officials list despite holding a current licence. Their licence numbers are now on file, which is what stops it happening again.
+
 ## v1.65.0 — 2026-08-05
 
 ### Fixed: setting a new password
