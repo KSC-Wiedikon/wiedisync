@@ -65,4 +65,8 @@ export default {
   resultCount_one: '{{count}} salle',
   resultCount_other: '{{count}} salles',
   durationOption: '{{h}} h',
+  exportXlsx: 'Exporter en Excel',
+  exporting: 'Exportation…',
+  exportFailed: 'L’exportation a échoué',
+  exportDone: '{{count}} salle(s) exportée(s)',
 } as const
