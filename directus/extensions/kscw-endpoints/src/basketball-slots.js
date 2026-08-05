@@ -365,6 +365,19 @@ export const REJECT_CODES = {
   TEAM_UNAVAILABLE: 'team_unavailable',
   PITCH_TAKEN: 'pitch_taken',
   PARTNER_SAME_TIME: 'partner_same_time',
+  NOT_A_SPIELSAMSTAG: 'not_a_spielsamstag',
+}
+
+/**
+ * The Saturday that identifies a candidate date's weekend.
+ *
+ * Spielsamstage are stored as the SATURDAY only, but basketball plays Fri/Sat/Sun,
+ * so a Friday and a Sunday belong to the same weekend as the Saturday between
+ * them. Fri → +1 day, Sat → itself, Sun → −1 day.
+ */
+export function weekendKey(ymd) {
+  const g = dowOf(ymd)
+  return g === 5 ? addDays(ymd, 1) : g === 0 ? addDays(ymd, -1) : ymd
 }
 
 /** Soft-score terms. Every delta is a constant so a re-run reproduces the score exactly. */
@@ -396,6 +409,20 @@ export function hardReject(cand, team, ctx) {
 
   // ── Team's own weekday allow-list. "weekends" means Friday is out, full stop. ──
   if (!team.allowed_dows.includes(dow)) return REJECT_CODES.DAY_NOT_ALLOWED
+
+  // ── CLUB-WIDE weekend cap (user rule 2026-08-05: "maximum number of weekends: 10.
+  //    In crisis: 11"). KWI only opens for basketball on the Spielsamstage the section
+  //    agreed, so a date outside that set is not a candidate for ANY team — this is a
+  //    hall-economics decision, not a per-team preference, which is why it sits here
+  //    rather than in the scoring. Without it the five senior teams sprawled across
+  //    22–26 weekends (their leagues run to April/May) while the six junior teams sat
+  //    at exactly 10 purely because their window is that short.
+  //    Opt-in: only enforced when the season config says so, so a season that has not
+  //    fixed its Spielsamstage yet keeps the old open behaviour instead of generating
+  //    nothing at all. ──
+  if (ctx.spielsamstagHard) {
+    if (!ctx.spielsamstagStatus.has(weekendKey(date))) return REJECT_CODES.NOT_A_SPIELSAMSTAG
+  }
 
   // ── ProBasket blackouts. 'sperr' binds everyone; 'ferien' only the interregional +
   //    1./2.-Seniorenliga teams. For everyone else a Ferien week is a soft penalty, because
@@ -756,8 +783,15 @@ export function registerBasketballSlots(router, { database, logger }) {
       .select('team', database.raw('date::text as date'))
     const unavailableTeamDates = new Set(avail.map((a) => `${a.team}|${String(a.date).slice(0, 10)}`))
 
+    // Club-wide weekend cap. `spielsamstage_hard` makes the Spielsamstag list a HARD
+    // filter for every team (see hardReject); `max_weekends` is carried for reporting
+    // so a mismatch between the agreed cap and the configured list is visible rather
+    // than silent.
+    const spielsamstagHard = cfg.spielsamstage_hard === true && spielsamstagStatus.size > 0
     return {
-      timeslotByKey, spielsamstagStatus, gridsByLeague, blackouts,
+      timeslotByKey, spielsamstagStatus, spielsamstagHard,
+      maxWeekends: Number.isFinite(Number(cfg.max_weekends)) ? Number(cfg.max_weekends) : null,
+      gridsByLeague, blackouts,
       closedHallsByDate, holidayRanges, clubBlockedDates, vbBusyByDate,
       placementsByPitch, bbPlacementCountByDate, exclusivePartners, adjacentPartners,
       unavailableTeamDates,

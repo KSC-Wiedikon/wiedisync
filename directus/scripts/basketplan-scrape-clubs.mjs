@@ -62,11 +62,20 @@ const BASE = 'https://www.basketplan.ch'
  * --dry-run finds no findClubById.do links on it, print the page title, find the
  * real list page BY HAND in a browser, and pin it here with a dated comment.
  */
-const CLUB_LIST_URL = `${BASE}/showClubs.do`
+// PINNED 2026-08-05 against the live site (logged in as KSC Wiedikon / club 166).
+// `showClubs.do` was the original guess and yields ZERO findClubById links; the
+// real federation-wide list is the "Clubs des Verbandes" nav entry below, which
+// returns 80 clubs as <a href="/findClubById.do?clubId=N">Name</a>.
+// ("Klub Suchen" = /showSearchClub.do is a search FORM — a dead end for a crawler
+// that is forbidden from submitting forms.)
+const CLUB_LIST_URL = `${BASE}/showClubLogosForFederation.do`
 const ALLOWED = [
   /^https:\/\/www\.basketplan\.ch\/showLogin\.do$/,
-  /^https:\/\/www\.basketplan\.ch\/showClubs\.do$/,
+  /^https:\/\/www\.basketplan\.ch\/showClubLogosForFederation\.do$/,
   /^https:\/\/www\.basketplan\.ch\/findClubById\.do\?clubId=\d+$/,
+  // Read-only person record. The club page carries NO mailto and no address —
+  // the functionary's email only exists here. See scrapePersonContact().
+  /^https:\/\/www\.basketplan\.ch\/findPersonById\.do\?personId=\d+$/,
 ]
 
 function assertAllowed(url) {
@@ -98,7 +107,19 @@ function psql(env, sqlText, extraArgs = []) {
   return r.stdout
 }
 
-const query = (env, sql) => psql(env, sql, ['-t', '-A', '-F', '\t']).trim()
+/**
+ * Rows out of psql, tab-separated, one per line.
+ *
+ * ⚠ The separator is built INSIDE the SQL (`|| E'\t' ||`), never passed as
+ * `-F '\t'`. `psql()` shells out via `spawnSync('ssh', [...])`, and ssh does not
+ * pass argv through — it JOINS the arguments with spaces and hands the result to
+ * a remote shell, which then word-splits it. A bare tab argument is whitespace to
+ * that shell, so it vanishes and psql dies with
+ * `option requires an argument -- 'F'`. The SQL text goes over stdin, where no
+ * shell can touch it, so an escape sequence there is safe.
+ * (Fixed 2026-08-05 — the original `['-t','-A','-F','\t']` had never run.)
+ */
+const query = (env, sql) => psql(env, sql, ['-t', '-A']).trim()
 export const lit = (v) => (v === null || v === undefined || v === '' ? 'NULL' : `'${String(v).replace(/'/g, "''")}'`)
 const num = (v) => (v === null || v === undefined || v === '' ? 'NULL' : String(Number(v)))
 
@@ -142,29 +163,107 @@ async function harvestClubList(page) {
 }
 
 /**
- * Read one club page's «Klub Funktionäre» block.
- * ⚠ UNVERIFIED SELECTORS — the row shape below is what the people scraper's
- * idiom implies, not what I have seen. Pin on the first --dry-run.
+ * Read the person record behind a functionary link.
+ *
+ * PINNED 2026-08-05 against personId 9049 (Gönültas Ekrem, the Spielplan contact
+ * of club 350 / BBZU). ⚠ This page renders as a LABEL/VALUE TEXT TABLE, not as a
+ * form — an `input[value]` sweep returns nothing, which is exactly how the first
+ * probe concluded "no data" on a page that has plenty. Read cell text, in pairs.
+ *
+ * Observed labels (German UI): "E-mail privat", "E-mail geschäftlich",
+ * "Telefon zu Hause", "Telefon geschäftlich", "Handy", "Lizenznummer".
+ * ⚠ Labels are LOCALE-DEPENDENT on this site (the licence list renders
+ * `Offizielle/r` vs `Ufficiale` depending on session language) — match loosely on
+ * `e-?mail` + a `privat|gesch` qualifier rather than on the exact German string.
+ */
+async function scrapePersonContact(page, personId) {
+  await go(page, `${BASE}/findPersonById.do?personId=${personId}`)
+  return page.evaluate(() => {
+    // ⚠ The table is NESTED: an outer <tr> wraps the whole "Generelle
+    // Informationen" block, so its first cell is a paragraph that CONTAINS the
+    // string "E-mail privat" and its second cell is the same paragraph again.
+    // A naive `pairs.find(key matches /e-mail.*privat/)` therefore hits that
+    // outer row first and returns the blob, which fails validation and silently
+    // falls back to the club inbox — the whole first dry-run mailed
+    // `president@aaraubasket.ch` instead of the scheduler's own address.
+    // A real label is short, so require that. (Fixed 2026-08-05.)
+    const LABEL_MAX = 40
+    const pairs = []
+    for (const tr of document.querySelectorAll('tr')) {
+      const cells = [...tr.querySelectorAll('td')].map((td) => (td.textContent || '').replace(/\s+/g, ' ').trim())
+      if (cells.length >= 2 && cells[0] && cells[0].length <= LABEL_MAX) pairs.push([cells[0], cells[1]])
+    }
+    const find = (re) => pairs.find(([k]) => re.test(k))?.[1]?.trim() || null
+    return {
+      privat: find(/e-?mail.*privat/i),
+      business: find(/e-?mail.*(gesch|business|prof)/i),
+      phone: find(/handy|mobile|natel/i) || find(/telefon.*(gesch|zu hause)/i) || null,
+    }
+  })
+}
+
+/**
+ * Read one club page's functionary block, then follow the chosen person.
+ *
+ * PINNED 2026-08-05 against club 350. Shape actually observed:
+ *   <tr><td>Spielplan</td><td><a href="/findPersonById.do?personId=9049">Gönültas Ekrem</a></td></tr>
+ * ⚠ There is NO mailto anywhere on the club page and no email column — the
+ * original stub looked for both and would have found nothing on every club. The
+ * functionary's address lives ONLY on the person page.
+ * ⚠ The club's own "Email geschäftlich" (input[name=email], e.g. info@bbzu.ch) is
+ * a CLUB inbox, not the Spielplan person. It is kept as the SECONDARY address so
+ * a mail still reaches the club when the person's own address is blank — never as
+ * the primary, or we would mail the general inbox and call it the scheduler.
  */
 async function scrapeClubContact(page, clubId) {
   await go(page, `${BASE}/findClubById.do?clubId=${clubId}`)
-  const rows = await page.evaluate(() =>
-    [...document.querySelectorAll('tr')].map((tr) => {
-      const cells = [...tr.querySelectorAll('td')].map((td) => (td.textContent || '').replace(/\s+/g, ' ').trim())
-      if (!cells.length) return null
-      const emails = [...tr.querySelectorAll('a[href^="mailto:"]')]
-        .map((a) => decodeURIComponent((a.getAttribute('href') || '').replace(/^mailto:/i, '').split('?')[0]).trim())
-        .filter(Boolean)
+  const { rows, clubEmail } = await page.evaluate(() => {
+    const out = []
+    for (const tr of document.querySelectorAll('tr')) {
+      const tds = [...tr.querySelectorAll('td')]
+      if (tds.length < 2 || tds.length > 6) continue
+      const cells = tds.map((td) => (td.textContent || '').replace(/\s+/g, ' ').trim())
       const personLink = tr.querySelector('a[href*="findPersonById.do"]')
-      const personId = (personLink?.getAttribute('href') || '').match(/personId=(\d+)/)?.[1] || null
-      // The role label is whichever cell is NOT the name and NOT an address.
-      const name = (personLink?.textContent || '').replace(/\s+/g, ' ').trim()
-        || cells.find((c) => /,/.test(c) && !/@/.test(c)) || ''
-      const role = cells.find((c) => c && c !== name && !/@/.test(c)) || ''
-      const phone = cells.find((c) => /^[+0][\d\s/.()-]{6,}$/.test(c)) || null
-      return { role, name, personId: personId ? Number(personId) : null, emails, phone }
-    }).filter(Boolean))
-  return { rows, picked: pickSchedulingContact(rows) }
+      if (!personLink) continue
+      const personId = (personLink.getAttribute('href') || '').match(/personId=(\d+)/)?.[1] || null
+      const name = (personLink.textContent || '').replace(/\s+/g, ' ').trim()
+      // Role is the first cell; the name cell is the one holding the link.
+      const role = cells[0] && cells[0] !== name ? cells[0] : (cells[1] !== name ? cells[1] : '')
+      if (!role || !personId) continue
+      out.push({ role, name, personId: Number(personId), emails: [], phone: null })
+    }
+    const ce = document.querySelector('input[name="email"]')?.value?.trim() || null
+    return { rows: out, clubEmail: ce && /@/.test(ce) ? ce : null }
+  })
+
+  // pickSchedulingContact requires an email to consider a row, but on this site
+  // emails only exist one navigation deeper. Choose on ROLE first, then resolve.
+  const byRole = pickSchedulingContact(rows.map((r) => ({ ...r, emails: ['pending'] })))
+  const chosen = byRole ? rows.find((r) => r.personId === byRole.personId && r.role === byRole.role) : null
+  let picked = null
+  if (chosen) {
+    const p = await scrapePersonContact(page, chosen.personId)
+    // ⚠ A single Basketplan email FIELD routinely holds SEVERAL addresses, and
+    // the separator is inconsistent — observed live: "a@x.ch;b@y.ch",
+    // "a@x.ch ; b@y.ch; c@z.ch", "a@x.ch, b@y.ch". Storing that verbatim puts a
+    // semicolon-joined string in a To: header, which most MTAs reject outright.
+    // Split, validate each, and keep the order the club wrote them in.
+    const splitEmails = (raw) =>
+      String(raw || '')
+        .split(/[;,]+|\s+/)
+        .map((s) => s.trim().replace(/^[<(]|[>)]$/g, ''))
+        .filter((s) => /^[^@\s]+@[^@\s]+\.[A-Za-z]{2,}$/.test(s))
+    // Priority: the scheduler's own addresses first (privat, then business), the
+    // club inbox only as a last resort — mailing info@ and calling it the
+    // Spielplan contact is exactly the mistake this whole scrape exists to avoid.
+    const emails = [...new Set([
+      ...splitEmails(p.privat),
+      ...splitEmails(p.business),
+      ...splitEmails(clubEmail),
+    ])]
+    picked = { ...chosen, emails, phone: p.phone, fromClubInbox: emails.length > 0 && !splitEmails(p.privat).length && !splitEmails(p.business).length }
+  }
+  return { rows, picked, clubEmail }
 }
 
 function buildApplySql(matches) {
@@ -202,7 +301,8 @@ async function main() {
     || Number(flags[flags.indexOf('--limit') + 1]) || 0
 
   // Registry as it stands. Also the whole of --report.
-  const rows = query(env, `SELECT id, name, bp_club_id, contact_source, coalesce(contact_email,'')
+  const rows = query(env, `SELECT id || E'\\t' || name || E'\\t' || coalesce(bp_club_id::text,'')
+                                || E'\\t' || contact_source || E'\\t' || coalesce(contact_email,'')
                              FROM public.basketplan_clubs
                             WHERE active AND NOT is_own_club
                             ORDER BY name;`)
@@ -248,15 +348,78 @@ async function main() {
       return
     }
 
-    // Match Basketplan's club names onto our registry. Exact normalised name
-    // only — a fuzzy match here mails a stranger. Unmatched names are printed.
+    // Match Basketplan's club names onto our registry. Exact normalised name,
+    // or an explicit reviewed alias — NEVER a fuzzy match, which mails a
+    // stranger. Unmatched names are printed.
     const byKey = new Map(rows.map((r) => [nameKey(r.name), r]))
+    // Alias: our registry name (from the ProBasket Teamanmeldungen "Klub"
+    // column) -> Basketplan clubId. The workbook abbreviates where Basketplan
+    // spells out, so ~half the registry cannot match on name alone.
+    // Every entry below was verified 2026-08-05 by reading that club's TEAM
+    // list out of Teamanmeldungen_26-27.xlsx and confirming it is the same club
+    // (e.g. Klub "BBZU" owns "BBZU Fever DU16"/"BBZU Heroes H3" -> Basketplan
+    // 350 "Basketball Zürich Unterland"). Do NOT extend this by guessing from
+    // the name: check the team list.
+    const CLUB_ID_ALIASES = {
+      'bbc schaan': 126,            // BBC Schaan Woodchucks
+      'bbzu': 350,                  // Basketball Zürich Unterland
+      'bca': 416,                   // BC Altstetten
+      'bc aka': 87,                 // BC Alte Kanti Aarau
+      'bc bears wil': 383,          // BC Bears Wil Basketball
+      'bc brunnen': 457,            // Basketballclub Brunnen
+      'bc fällanden red lions': 482,
+      'bcl rivers': 503,            // Basketballclub Landquart Rivers
+      'bc marmotas': 504,
+      'bc olympiakos': 174,         // BC Olympiakos Zürich
+      'bc rj lakers': 84,           // BC Rapperswil-Jona Lakers
+      'bc sarnen': 128,
+      'bc silvercoast': 502,
+      'bc uster': 458,
+      'bc winterthur': 69,
+      'bc zürich 93': 481,
+      'biq': 433,                   // Basketball im Quartier
+      'bsco': 404,                  // BSC Obfelden
+      'bs kriens': 277,             // Basketballschule Kriens
+      'bzo': 417,                   // Basketball Züri Oberland
+      'cvjm frauenfeld': 57,        // CVJM Basketball Frauenfeld
+      'gc zürich basketball': 54,   // Grasshopper Club Zürich Basketball Sektion
+      'grbb': 125,                  // Graubünden Basketball (GRBB Chur)
+      'griffins basketball': 395,   // Mörschwil Griffins Basketball
+      'ktv schaffhausen': 117,
+      'megas alexandros': 181,      // SVA Megas Alexandros
+      'oberthurgau pirates': 382,   // Basketball Oberthurgau
+      'scb': 308,                   // Swiss Central Basketball
+      'seeblick bears cham': 432,   // Ballsport Seeblick
+      'stingerz': 405,              // Stingerz Zürich
+      'tvrb': 42,                   // TV Reussbühl Basket
+      'unicorn 02 basket': 179,     // Unicorn 02 Basket Spreitenbach
+      'wallabies': 77,              // Goldcoast Wallabies Küsnacht-Erlenbach
+      'weinland bc': 498,           // Weinland Basketball Club
+      // ⚠ NOT MAPPABLE from this page: "BC Arlesheim" (plays D1LRA against our
+      // Lions but is a BASEL-region club, so it is absent from ProBasket's
+      // federation list). Enter its contact by hand in the settings page.
+    }
+    const byClubId = new Map(listed.map((c) => [c.clubId, c]))
     const matches = []; const unmatched = []
+    const claimed = new Set()
     for (const c of listed) {
       const hit = byKey.get(nameKey(c.name))
-      if (hit) matches.push({ ...c, dbName: hit.name }); else unmatched.push(c.name)
+      if (hit) { matches.push({ ...c, dbName: hit.name }); claimed.add(nameKey(hit.name)) }
+      else unmatched.push(c.name)
     }
-    console.log(`[bb-clubs] matched ${matches.length}/${listed.length} by exact name; ${unmatched.length} Basketplan clubs are not opponents of ours.`)
+    // Second pass: registry rows still unmatched, resolved through the alias map.
+    let aliased = 0
+    for (const r of rows) {
+      const k = nameKey(r.name)
+      if (claimed.has(k)) continue
+      const id = CLUB_ID_ALIASES[k]
+      const c = id ? byClubId.get(id) : null
+      if (!c) continue
+      matches.push({ ...c, dbName: r.name }); claimed.add(k); aliased++
+      console.log(`  · alias: "${r.name}" → Basketplan ${c.clubId} "${c.name}"`)
+    }
+    const stillMissing = rows.filter((r) => !claimed.has(nameKey(r.name))).map((r) => r.name)
+    console.log(`[bb-clubs] matched ${matches.length} clubs (${matches.length - aliased} by exact name, ${aliased} by alias). ${stillMissing.length} of our ${rows.length} opponents have no Basketplan entry: ${stillMissing.join(', ') || '—'}`)
 
     const targets = (limit ? matches.slice(0, limit) : matches)
     const resolved = []
