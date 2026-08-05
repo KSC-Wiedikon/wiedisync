@@ -998,7 +998,10 @@ export function registerGameScheduling(router, { database, logger, services, get
     // Club-wide blocked dates (superadmin blackout, migration 160) — no HOME games
     // for ANY team on these days. Fetched once; checked in validate() below for
     // every team, on top of each team's own scheduling_blocks.
+    // ⚠ sport IS NULL (club-wide) OR volleyball — never a bare equality, which would
+    //   drop the club-wide rows. See migration 286.
     const globalBlockRows = await database('scheduling_global_blocks')
+      .where((q) => q.whereNull('sport').orWhere('sport', 'volleyball'))
       .select(database.raw('start_date::text as s'), database.raw('end_date::text as e'))
     const globalBlockDates = new Set(globalBlockRows.flatMap((r) => expandDays(r.s, r.e)))
 
@@ -2032,6 +2035,9 @@ export function registerGameScheduling(router, { database, logger, services, get
           this.select(database.raw('1'))
             .from('scheduling_global_blocks as gb')
             .whereRaw('game_scheduling_slots.date BETWEEN gb.start_date AND gb.end_date')
+            // Migration 286: NULL sport = club-wide; a basketball-only block must not
+            // remove a volleyball slot (that is the bug the column was added for).
+            .whereRaw("(gb.sport IS NULL OR gb.sport = 'volleyball')")
         })
         // Hall closures (e.g. gcal-synced Hallen-geschlossen / external hall use)
         // block HOME slots whose own hall is closed that day — you can't host
@@ -3929,7 +3935,10 @@ export function registerGameScheduling(router, { database, logger, services, get
         // date, even via manual booking — remove the block first to override.
         {
           const blocked = await database('scheduling_global_blocks')
-            .whereRaw('? BETWEEN start_date AND end_date', [String(home.date)]).first('id')
+            .whereRaw('? BETWEEN start_date AND end_date', [String(home.date)])
+            // Migration 286: club-wide (NULL) or volleyball only.
+            .where((q) => q.whereNull('sport').orWhere('sport', 'volleyball'))
+            .first('id')
           if (blocked) return res.status(400).json({ error: 'This date is blocked club-wide (no home games). Remove the block to book it.' })
         }
         if (!home.start_time || !TIME_RE.test(String(home.start_time))) return res.status(400).json({ error: 'home.start_time must be HH:MM' })
@@ -4838,9 +4847,18 @@ export function registerGameScheduling(router, { database, logger, services, get
       // the scheduling calendar surfaces them so a blocked day isn't a mystery.
       // (POST/DELETE below stay superadmin-only.)
       if (!req.accountability?.user) return res.status(401).json({ error: 'Authentication required' })
+      // `?sport=` narrows to what that sport actually observes: its own blocks plus the
+      // club-wide ones. Omitted → every row, which is what a superadmin managing the
+      // list needs to see. Migration 286.
+      const wantSport = String(req.query?.sport || '').trim()
       const blocks = await database('scheduling_global_blocks')
+        .modify((q) => {
+          if (wantSport === 'volleyball' || wantSport === 'basketball') {
+            q.where((w) => w.whereNull('sport').orWhere('sport', wantSport))
+          }
+        })
         .select('id', database.raw('start_date::text as start_date'), database.raw('end_date::text as end_date'),
-          'reason', database.raw('date_created::text as date_created'))
+          'reason', 'sport', database.raw('date_created::text as date_created'))
         .orderBy('start_date')
       res.json({ blocks })
     } catch (err) {
@@ -4859,12 +4877,19 @@ export function registerGameScheduling(router, { database, logger, services, get
       let createdBy = null
       const uid = req.accountability?.user
       if (uid) { const mm = await database('members').where('user', uid).first('id'); createdBy = mm?.id || null }
+      // Migration 286: optional sport. Anything not exactly 'volleyball'/'basketball'
+      // — including absent, empty and junk — falls back to NULL = club-wide. Defaulting
+      // WIDE is the safe direction: an unscoped block keeps blocking everyone until
+      // someone narrows it deliberately, whereas defaulting to one sport would silently
+      // stop blocking the other.
+      const rawSport = String(req.body?.sport || '').trim()
+      const sport = rawSport === 'volleyball' || rawSport === 'basketball' ? rawSport : null
       const ins = await database('scheduling_global_blocks')
-        .insert({ start_date, end_date: end, reason: reason ? String(reason).slice(0, 500) : null, created_by: createdBy })
+        .insert({ start_date, end_date: end, reason: reason ? String(reason).slice(0, 500) : null, sport, created_by: createdBy })
         .returning('id')
       const id = ins[0]?.id ?? ins[0]
-      await writeUserLog(database, log, { accountability: req.accountability, action: 'create', collection: 'scheduling_global_blocks', recordId: id, data: { kind: 'club_block_create', start_date, end_date: end, reason: reason || null } })
-      res.json({ id, start_date, end_date: end, reason: reason || null })
+      await writeUserLog(database, log, { accountability: req.accountability, action: 'create', collection: 'scheduling_global_blocks', recordId: id, data: { kind: 'club_block_create', start_date, end_date: end, reason: reason || null, sport } })
+      res.json({ id, start_date, end_date: end, reason: reason || null, sport })
     } catch (err) {
       log.error({ msg: `club-blocked-dates create: ${err.message}`, endpoint: 'terminplanung/admin/club-blocked-dates', stack: err.stack })
       res.status(500).json({ error: 'Internal error' })
