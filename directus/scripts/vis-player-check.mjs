@@ -7,6 +7,16 @@
  * there, the club must first ask the federation of origin to enter them — a
  * different action, to a different party. This check is what tells the two apart.
  *
+ * ⚠ THIS SCRIPT IS MIRRORED by the endpoint
+ * `kscw-endpoints/src/vis-player-check.js`, which serves the "Check VIS now"
+ * button on /admin/transfers (2026-08-05). Two copies exist because this one
+ * reaches Postgres through `sudo docker exec … psql` — which does not exist
+ * inside the Directus container — and the extension bundle must not import
+ * across the `scripts/` bind-mount (a separate deploy unit, CLAUDE.md §4).
+ * **If you change the ISO→FIVB map, the cohort SELECT, the name-matching
+ * cascade or the write rule here, change it there in the same commit.** This
+ * script stays the monthly cron run; the endpoint is the same check on demand.
+ *
  * ⚠ READ-ONLY against VIS, by construction: the request type is a hardcoded
  * constant asserted against a read-verb allowlist at module load. The same proxy
  * serves Save/Sign/Confirm/Release/CancelVolleyTransfer, so a wrong type here

@@ -1,15 +1,16 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import {
   AlertTriangle, Check, CheckCircle2, ChevronRight, Clock, Copy, ExternalLink, HelpCircle,
-  Info, Mail, RefreshCcw, ShieldCheck, X,
+  Info, Mail, RefreshCcw, RadioTower, ShieldCheck, X,
 } from 'lucide-react'
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '../../components/ui/table'
 import { useCollection } from '../../lib/query'
+import { kscwApi } from '../../lib/api'
 import { useMutation } from '../../hooks/useMutation'
 import { useAuth } from '../../hooks/useAuth'
 import { useReportPageLoading } from '../../hooks/usePageReady'
@@ -23,6 +24,19 @@ import type { MemberTeam, Team } from '../../types'
 
 type Sport = 'volleyball' | 'basketball'
 const SPORTS: Sport[] = ['volleyball', 'basketball']
+
+/**
+ * `GET /kscw/admin/vis-player-check`. `result` is the LAST finished run in this
+ * container's lifetime, so it is null on a cold start even when `last` (the
+ * `sync_runs` heartbeat) has a date — the two answer different questions and
+ * only `result` carries the per-run tallies.
+ */
+type VisCheckStatus = {
+  running: boolean
+  startedAt: string | null
+  configured: boolean
+  result: { ok: boolean; checked?: number; inVis?: number; notFound?: number; error?: string } | null
+}
 
 /**
  * The VIS transfers app. There is NO per-player URL — VIS routes everything
@@ -804,6 +818,98 @@ export default function TransfersPage() {
     return { inVis, notFound, unchecked }
   }, [active.needs])
 
+  /**
+   * Newest `in_vis_checked_at` anywhere in the loaded set — i.e. when the VIS
+   * columns were last established. Across ALL members, not just the actionable
+   * cohort: one run writes every row it evaluated, so the newest timestamp is
+   * the run, and reading it off a filtered subset would understate it on a tab
+   * where nothing is actionable. Directus returns ISO-8601 UTC, which sorts
+   * lexicographically, so a string compare is the right one here.
+   */
+  const lastVisCheck = useMemo(() => {
+    let newest: string | null = null
+    for (const m of members) {
+      const at = m.in_vis_checked_at
+      if (at && (!newest || at > newest)) newest = at
+    }
+    return newest
+  }, [members])
+
+  // ── VIS check on demand ───────────────────────────────────────────
+  /**
+   * The monthly cron (`/opt/vis-sync/vis-sync.sh`, 1st of the month) used to be
+   * the ONLY writer of `in_vis` — so for 30 days of every 31 this page was
+   * frozen, and the header's Refresh button (a plain refetch of `members`)
+   * could not change that no matter how often it was pressed. This runs the
+   * real check.
+   *
+   * 202 + poll, not a request we hold open: a full pass pulls one whole
+   * federation roster per federation of origin in the cohort (VIS ignores name
+   * filters), Swiss Volley's being the largest, so it takes minutes — well past
+   * what the Cloudflare tunnel will keep alive.
+   */
+  const [visRunning, setVisRunning] = useState(false)
+  // Set on unmount so the poll loop stops touching state after the page is
+  // gone. A ref, not state: the loop must read the CURRENT value, and a stale
+  // closure over a state variable would keep polling forever.
+  const visCancelled = useRef(false)
+  useEffect(() => () => { visCancelled.current = true }, [])
+
+  const runVisCheck = useCallback(async () => {
+    setVisRunning(true)
+    try {
+      await kscwApi('/admin/vis-player-check', { method: 'POST' })
+      toast.info(t('trVisCheckStarted'))
+    } catch (err) {
+      const code = (err as { code?: string }).code
+      // Another admin (or this same page before a reload) already has a run in
+      // flight — follow that one rather than reporting a failure.
+      if (code !== 'vis_check_running') {
+        setVisRunning(false)
+        toast.error(code === 'vis_credentials_missing' ? t('trVisCheckUnavailable') : t('trVisCheckFailed'))
+        return
+      }
+    }
+
+    // Poll to completion. The deadline mirrors the endpoint's own run timeout
+    // plus a minute of slack, so the UI gives up slightly AFTER the server does
+    // rather than leaving a spinner that outlives the job.
+    const deadline = Date.now() + 16 * 60_000
+    for (;;) {
+      await new Promise((resolve) => { setTimeout(resolve, 5000) })
+      if (visCancelled.current) return
+      let status: VisCheckStatus
+      try {
+        status = await kscwApi<VisCheckStatus>('/admin/vis-player-check')
+      } catch {
+        setVisRunning(false)
+        toast.error(t('trVisCheckFailed'))
+        return
+      }
+      if (visCancelled.current) return
+      if (!status.running) {
+        setVisRunning(false)
+        // Pull the freshly written in_vis / vis_player_no / in_vis_checked_at.
+        await refetch()
+        if (status.result?.ok) {
+          toast.success(t('trVisCheckDone', {
+            checked: status.result.checked ?? 0,
+            inVis: status.result.inVis ?? 0,
+            notFound: status.result.notFound ?? 0,
+          }))
+        } else {
+          toast.error(t('trVisCheckFailed'))
+        }
+        return
+      }
+      if (Date.now() > deadline) {
+        setVisRunning(false)
+        toast.info(t('trVisCheckSlow'))
+        return
+      }
+    }
+  }, [refetch, t])
+
   // ── Writes ────────────────────────────────────────────────────────
   // Note drafts live here (not in the row) so typing never triggers a
   // render-phase state write from a prop — the React #301 pattern. They are
@@ -1402,15 +1508,37 @@ export default function TransfersPage() {
             </p>
           )}
         </div>
-        <button
-          onClick={() => { void refetch() }}
-          disabled={isFetching}
-          aria-busy={isFetching}
-          className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg bg-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-300 disabled:opacity-50 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
-        >
-          <RefreshCcw className={`h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} aria-hidden="true" />
-          {t('trRefresh')}
-        </button>
+        {/* Two buttons that are NOT the same thing, and the labels have to say
+            so: Refresh re-reads what the database already holds, "Check VIS
+            now" goes and asks FIVB. Before the second one existed, an admin
+            pressing the first and seeing a month-old date could only conclude
+            it was broken. VIS is FIVB's index, so the trigger is volleyball-
+            only — on the basketball tab it would query the wrong sport's
+            governing body. */}
+        <div className="flex flex-wrap items-center gap-2">
+          {sport === 'volleyball' && (
+            <button
+              onClick={() => { void runVisCheck() }}
+              disabled={visRunning}
+              aria-busy={visRunning}
+              title={t('trVisCheckHint')}
+              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 dark:bg-blue-700 dark:hover:bg-blue-600"
+            >
+              <RadioTower className={`h-3.5 w-3.5 ${visRunning ? 'animate-pulse' : ''}`} aria-hidden="true" />
+              {visRunning ? t('trVisCheckRunning') : t('trVisCheckNow')}
+            </button>
+          )}
+          <button
+            onClick={() => { void refetch() }}
+            disabled={isFetching}
+            aria-busy={isFetching}
+            title={t('trRefreshHint')}
+            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg bg-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-300 disabled:opacity-50 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
+          >
+            <RefreshCcw className={`h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} aria-hidden="true" />
+            {t('trRefresh')}
+          </button>
+        </div>
       </div>
 
       {/* Sport tabs — URL-persisted (`?sport=`) */}
@@ -1516,6 +1644,16 @@ export default function TransfersPage() {
         </div>
 
         <div className="mt-1.5 space-y-1 text-xs text-gray-500 dark:text-gray-400">
+          {/* Dating the VIS numbers where they are read. Without it the pills
+              above look live, and the whole page silently asserts a month-old
+              answer as today's. */}
+          {sport === 'volleyball' && (
+            <p>
+              {lastVisCheck
+                ? t('trVisLastChecked', { date: formatDateTimeCompact(lastVisCheck) })
+                : t('trVisNeverChecked')}
+            </p>
+          )}
           <p>{t('trSettledDescription')}</p>
           {/* The "false is not proof" caveat, stated where it is always visible
               — a per-row `title` alone is unreachable on a phone. */}

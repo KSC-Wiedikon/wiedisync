@@ -694,6 +694,11 @@ const EXPECTED_VALIDATION_ENDPOINTS = new Set([
 // cap, and the 429s it causes drop REAL errors that happen in the same burst.
 const EXPECTED_ERROR_CODES = new Set([
   'no_document',
+  // /admin/vis-player-check 409s: a run is already in flight, or VIS_USER/
+  // VIS_PASS are not set on this environment. Both are states the Transfers
+  // page renders inline — neither is a bug to file.
+  'vis_check_running',
+  'vis_credentials_missing',
 ])
 
 /**
