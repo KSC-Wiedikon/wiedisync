@@ -1,7 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { useBbClubPortal, type BbDecision, type BbPortalGame } from '../hooks/useBbClubPortal'
+import {
+  useBbClubPortal,
+  groupSlotsByDate,
+  type BbDecision,
+  type BbPortalGame,
+  type BbPortalFreeDate,
+} from '../hooks/useBbClubPortal'
 import Modal from '../../../components/Modal'
 import { Badge } from '../../../components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../components/ui/table'
@@ -84,6 +90,8 @@ export default function BasketballClubFlowPage() {
   // flows answer different questions — ours ("do you accept this game?") and theirs ("which
   // dates suit you?") — and the identity modal serves whichever opened it via `responderMode`.
   const [picked, setPicked] = useState<Set<number>>(() => new Set())
+  /** date → the slot id the club chose for it. Absent = take the day's best-ranked pitch. */
+  const [timeByDate, setTimeByDate] = useState<Record<string, number>>({})
   const [responderMode, setResponderMode] = useState<'respond' | 'propose'>('respond')
   const [responderOpen, setResponderOpen] = useState(false)
   const [responderName, setResponderName] = useState('')
@@ -166,6 +174,28 @@ export default function BasketballClubFlowPage() {
     const cur = drafts[String(id)]
     if (!cur) return
     setDraft(id, { alternatives: cur.alternatives.filter((_, i) => i !== idx) })
+  }
+
+  /**
+   * Which pitch a date resolves to: the club's explicit time choice, else the day's best.
+   * Keyed by date so switching the time on a ticked day moves the tick with it.
+   */
+  const chosenSlotFor = (d: BbPortalFreeDate) => {
+    const explicit = d.options.find((o) => o.id === timeByDate[d.date])
+    return explicit ?? d.options[0]
+  }
+
+  /** Change a day's time. If the day was already ticked, the tick follows the new pitch. */
+  const chooseTime = (d: BbPortalFreeDate, slotId: number) => {
+    const previous = chosenSlotFor(d).id
+    setTimeByDate((prev) => ({ ...prev, [d.date]: slotId }))
+    setPicked((prev) => {
+      if (!prev.has(previous)) return prev
+      const next = new Set(prev)
+      next.delete(previous)
+      next.add(slotId)
+      return next
+    })
   }
 
   const togglePick = (slotId: number) =>
@@ -498,30 +528,53 @@ export default function BasketballClubFlowPage() {
                           <TableHead className="w-10" />
                           <TableHead>{t('bbPortalColDate')}</TableHead>
                           <TableHead>{t('bbPortalColTime')}</TableHead>
-                          <TableHead className="hidden sm:table-cell">{t('bbPortalColHall')}</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {p.slots.map((s) => (
-                          <TableRow key={s.id} className="min-h-[44px]">
-                            <TableCell>
-                              <input
-                                type="checkbox"
-                                aria-label={`${s.date} ${s.time} ${s.hall}`}
-                                checked={picked.has(s.id)}
-                                onChange={() => togglePick(s.id)}
-                                className="h-5 w-5 accent-blue-600"
-                              />
-                            </TableCell>
-                            <TableCell className="whitespace-normal break-words font-medium">
-                              {formatDateZurich(s.date)}
-                            </TableCell>
-                            <TableCell className="tabular-nums">
-                              {s.time}{s.end_time ? `–${s.end_time}` : ''}
-                            </TableCell>
-                            <TableCell className="hidden whitespace-normal break-words sm:table-cell">{s.hall}</TableCell>
-                          </TableRow>
-                        ))}
+                        {groupSlotsByDate(p.slots).map((d) => {
+                          // One row per DATE. The chosen slot id is the club's explicit time
+                          // choice if it made one, else the day's best-ranked pitch.
+                          const chosen = chosenSlotFor(d)
+                          return (
+                            <TableRow key={d.date} className="min-h-[44px]">
+                              <TableCell>
+                                <input
+                                  type="checkbox"
+                                  aria-label={formatDateZurich(d.date)}
+                                  checked={picked.has(chosen.id)}
+                                  onChange={() => togglePick(chosen.id)}
+                                  className="h-5 w-5 accent-blue-600"
+                                />
+                              </TableCell>
+                              <TableCell className="whitespace-normal break-words font-medium">
+                                {formatDateZurich(d.date)}
+                              </TableCell>
+                              <TableCell>
+                                {d.options.length === 1 ? (
+                                  <span className="tabular-nums text-sm text-gray-600 dark:text-gray-300">
+                                    {d.options[0].time}
+                                  </span>
+                                ) : (
+                                  // Optional refinement, not a required decision — the club may
+                                  // simply tick the day. `dark:bg-gray-800` is mandatory: an
+                                  // <option> inherits the select's background (CLAUDE.md).
+                                  <select
+                                    aria-label={t('bbPortalColTime')}
+                                    value={String(chosen.id)}
+                                    onChange={(e) => chooseTime(d, Number(e.target.value))}
+                                    className="min-h-11 rounded-md border border-gray-300 bg-white px-2 py-1 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                                  >
+                                    {d.options.map((o) => (
+                                      <option key={o.id} value={o.id}>
+                                        {o.time}{o.end_time ? `–${o.end_time}` : ''} · {o.hall}
+                                      </option>
+                                    ))}
+                                  </select>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          )
+                        })}
                       </TableBody>
                     </Table>
                   </div>

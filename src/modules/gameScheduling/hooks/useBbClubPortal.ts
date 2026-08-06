@@ -62,6 +62,38 @@ export interface BbPortalFreeSlot {
   time: string
   end_time: string
   hall: string
+  /** The generator's ranking — higher is a better fit. Used to pick a date's default pitch. */
+  score: number | null
+}
+
+/** Every free pitch on one date, best first. The unit the club actually chooses. */
+export interface BbPortalFreeDate {
+  date: string
+  options: BbPortalFreeSlot[]
+}
+
+/**
+ * Collapse a team's free pitches to one entry per DATE, each option sorted best-first.
+ *
+ * ⚠ The inventory is one row per (date, time, hall), which is the generator's unit, not the
+ * club's. Rendering it raw gave a 2091-row page for a club sharing ten teams — across only 34
+ * distinct dates. A club decides whether it can travel on a day; the hall and tip-off are ours
+ * to settle.
+ */
+export function groupSlotsByDate(slots: BbPortalFreeSlot[]): BbPortalFreeDate[] {
+  const byDate = new Map<string, BbPortalFreeSlot[]>()
+  for (const s of slots) {
+    const list = byDate.get(s.date)
+    if (list) list.push(s)
+    else byDate.set(s.date, [s])
+  }
+  return [...byDate.entries()]
+    .map(([date, options]) => ({
+      date,
+      // Highest score first; a null score sorts last rather than winning by accident.
+      options: options.slice().sort((a, b) => (b.score ?? -Infinity) - (a.score ?? -Infinity)),
+    }))
+    .sort((a, b) => a.date.localeCompare(b.date))
 }
 
 /**

@@ -349,6 +349,9 @@ export function registerBasketballPortal(router, { database, logger }) {
         time: s.time || '',
         end_time: s.end_time || '',
         hall: s.hall || '',
+        // The generator's own ranking. Surfaced so the portal can default a date to its best
+        // pitch instead of asking a club to choose between halls it knows nothing about.
+        score: s.score == null ? null : Number(s.score),
       })
     }
 

@@ -366,7 +366,6 @@ export default {
   bbPortalNoFreeSlots: 'No free dates for this team at the moment.',
   bbPortalColDate: 'Date',
   bbPortalColTime: 'Time',
-  bbPortalColHall: 'Hall',
   bbPortalPickSubmit: 'Send {{count}} selected dates',
   bbPortalNothingPicked: 'Please tick at least one date first.',
   bbPortalProposed: 'Thank you — we have noted {{count}} dates.',

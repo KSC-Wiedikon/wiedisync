@@ -370,7 +370,6 @@ export default {
   bbPortalNoFreeSlots: 'Für das Team sind zurzeit kei Date frei.',
   bbPortalColDate: 'Datum',
   bbPortalColTime: 'Ziit',
-  bbPortalColHall: 'Halle',
   bbPortalPickSubmit: '{{count}} uusgwählti Date schicke',
   bbPortalNothingPicked: 'Bitte chrüzed zerscht mindeschtens es Datum aa.',
   bbPortalProposed: 'Danke — mir hend {{count}} Date notiert.',

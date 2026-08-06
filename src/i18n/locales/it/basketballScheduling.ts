@@ -370,7 +370,6 @@ export default {
   bbPortalNoFreeSlots: 'Al momento non ci sono date libere per questa squadra.',
   bbPortalColDate: 'Data',
   bbPortalColTime: 'Ora',
-  bbPortalColHall: 'Palestra',
   bbPortalPickSubmit: 'Invia le {{count}} date scelte',
   bbPortalNothingPicked: 'Segnate prima almeno una data.',
   bbPortalProposed: 'Grazie — abbiamo annotato {{count}} date.',
