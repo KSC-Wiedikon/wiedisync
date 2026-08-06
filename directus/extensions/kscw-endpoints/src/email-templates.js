@@ -143,10 +143,19 @@ export function validateTemplate(key, fields) {
   // Required placeholders are checked against the body as it will be SAVED. A
   // field left null on a partial update keeps its stored value, so the caller
   // passes the merged row, not the patch.
+  //
+  // ⚠ An EMPTY body is valid and must stay valid: blank means "fall back to the
+  // compiled-in copy" (mergeTemplate treats blank as unset), and that copy is
+  // guaranteed to carry the placeholder — migration 287 refuses to seed a row
+  // without it. Enforcing the requirement on an empty body made "restore
+  // defaults" impossible, because clearing the box is exactly how a reset is
+  // expressed.
   const body = typeof fields.body_html === 'string' ? fields.body_html : ''
-  for (const p of spec.required) {
-    if (!placeholdersIn(body).includes(p)) {
-      errors.push(`The message body must contain {{${p}}} — without it the email does not say which documents are missing.`)
+  if (body.trim()) {
+    for (const p of spec.required) {
+      if (!placeholdersIn(body).includes(p)) {
+        errors.push(`The message body must contain {{${p}}} — without it the email does not say which documents are missing.`)
+      }
     }
   }
 
