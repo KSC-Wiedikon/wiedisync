@@ -6,7 +6,7 @@ import { SCHEDULING_ORIGIN } from '../lib/api'
 import {
   Home, Calendar, UserX, PenSquare, PartyPopper, Users, Radio,
   Building2, CalendarClock, Activity, ClipboardList, ClipboardCheck,
-  HeartPulse, MessageSquare, Inbox, Mail, Banknote, BarChart3, UserPlus, Bug, Database, Megaphone, Newspaper, Flag, ScrollText, Terminal, Gavel, Wallet, Landmark, ReceiptText, FileWarning, FolderSync, GraduationCap, ArrowRightLeft,
+  HeartPulse, MessageSquare, Inbox, Mail, Banknote, BarChart3, UserPlus, Bug, Database, Megaphone, Newspaper, Flag, ScrollText, Terminal, Gavel, Wallet, Landmark, ReceiptText, FileWarning, FolderSync, GraduationCap, ArrowRightLeft, MailOpen,
 } from 'lucide-react'
 import WhistleIcon from '../components/WhistleIcon'
 
@@ -161,6 +161,10 @@ export function useNavItems(isLoggedIn: boolean, isApproved: boolean, memberId?:
           // whom the server 403s) and NOT isVorstand (board was rejected).
           ...(isGlobalAdmin ? [{ to: '/admin/mailbox', label: t('clubMailbox'), icon: <Mail className={iconClass} /> }] : []),
           ...(isAdmin ? [
+            // Editable transactional email copy (migration 287). isAdmin, matching
+            // the route's AdminRoute guard and the policy grants (Sport Admin +
+            // Vorstand hold email_templates CRUD).
+            { to: '/admin/email-templates', label: t('admin:etTitle'), icon: <MailOpen className={iconClass} /> },
             { to: '/admin/reports', label: t('moderationReports'), icon: <Flag className={iconClass} /> },
             { to: '/admin/volley-feedback', label: t('volleyFeedback'), icon: <MessageSquare className={iconClass} /> },
           ] : []),
