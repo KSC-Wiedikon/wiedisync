@@ -705,6 +705,42 @@ export function looksSecret(key: string): boolean {
 }
 
 /**
+ * Directus ALIASES on `members` — not columns. A `fields: ['*']` read returns
+ * the o2m ones alongside real columns, and until 2026-08-06 they landed in the
+ * amber "Unmapped columns" group reading as undescribed columns that an admin
+ * might reasonably conclude were dead and try to drop.
+ *
+ * ⚠ They are the opposite of dead. `member_teams` IS the club roster (1313 rows
+ * on prod — every player↔team assignment); `game_guests` holds the called-up
+ * players. Dropping either empties a core feature. `spielplaner_assignments` is
+ * legitimately empty (Spielplaner scope is club-wide unless narrowed), which is
+ * exactly what made it look disposable.
+ *
+ * Dropped from the record entirely rather than shown read-only: this form
+ * PATCHes `members`, and an o2m alias in a PATCH body is a RELATIONAL write —
+ * Directus would try to reconcile the junction from whatever it found — never a
+ * field edit. Roster editing has its own surface in ExplorerDetail.
+ *
+ * `grp_*` are Directus admin-app field groups (`alias,no-data,group`); they
+ * carry no value and never reach the record, but the prefix rule keeps a new one
+ * from ever surfacing as a phantom column.
+ *
+ * ⚠ Add any new relational alias here. The current set:
+ *   select field, special from directus_fields
+ *    where collection='members' and special ~ 'o2m|m2m|m2a';
+ */
+const MEMBER_RELATION_ALIASES: ReadonlySet<string> = new Set([
+  'member_teams',
+  'game_guests',
+  'spielplaner_assignments',
+])
+
+/** True for a key that is a Directus alias rather than a `members` column. */
+export function isRelationAlias(key: string): boolean {
+  return MEMBER_RELATION_ALIASES.has(key) || key.startsWith('grp_')
+}
+
+/**
  * Fallback for a column that exists on the record but not in MEMBER_FIELDS —
  * a migration landed before this file caught up. Never returns undefined: it
  * synthesises a `system`-group def so the column is still visible (there is no
@@ -774,6 +810,9 @@ export function sanitizeRecord(
   const record: Record<string, unknown> = {}
   const present: Record<string, boolean> = {}
   for (const [key, value] of Object.entries(raw)) {
+    // Relations are not fields. Dropped here, at the single entry point, so an
+    // alias cannot reach `draft`, `dirtyKeys`, the render plan, or a PATCH body.
+    if (isRelationAlias(key)) continue
     // Declared sensitive, OR an undescribed column whose NAME reads like key
     // material. The second half is what makes this deny-by-default: a token
     // column added by a migration this file has not caught up with is masked on
@@ -846,6 +885,9 @@ export function buildMemberFieldSections(opts: {
   // by group + subsection.
   const byGroup = new Map<MemberFieldGroupId, Map<MemberFieldSubsectionId | '', MemberFieldDef[]>>()
   for (const key of present) {
+    // sanitizeRecord already drops these; repeated here because this function is
+    // also reachable with a raw key list, and an alias must never render.
+    if (isRelationAlias(key)) continue
     const def = getFieldDef(key)
     let subs = byGroup.get(def.group)
     if (!subs) {
