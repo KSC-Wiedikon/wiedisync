@@ -37,6 +37,23 @@ const num = (s) => {
 }
 const norm = (s) => (s == null ? null : String(s).replace(/\s+/g, '').toUpperCase() || null)
 
+/**
+ * ISO 20022 lets a payer omit the end-to-end id, and banks then send a literal
+ * placeholder — 'NOTPROVIDED' is the standard one. It is NOT an identifier.
+ * Treating it as the transaction's uid gives every such credit the same value,
+ * and finance-camt.js dedupes on that uid: the first placeholder payment imports
+ * and every later one is silently counted as a duplicate and dropped. With a
+ * membership run of ~570 invoices largely paid by e-banking, that is most of the
+ * statement disappearing without an error.
+ */
+const PLACEHOLDER_REF = /^(?:notprovided|notavailable|unavailable|unknown|n\/?a|none|null|-+|0+)$/i
+/** Trimmed reference text, or null when it is absent or a known placeholder. */
+const realRef = (x) => {
+  const s = txt(x)
+  const t = s == null ? '' : s.trim()
+  return t && !PLACEHOLDER_REF.test(t) ? t : null
+}
+
 /** Status is BOOK either as a bare string or {Cd:'BOOK'}. Accept when absent. */
 function isBooked(ntry) {
   const s = ntry?.Sts
@@ -98,9 +115,19 @@ export function parseCamt(xml) {
         const amtNode = tx?.Amt ?? ntry.Amt
         const { reference, refType } = tx ? structuredRef(tx) : { reference: null, refType: null }
         const ustrd = tx ? arr(tx?.RmtInf?.Ustrd).map(txt).filter(Boolean).join(' ').trim() : ''
+        // Dedupe key, in descending order of how reliably unique it is:
+        //   1. the bank's own per-transaction reference — guaranteed unique
+        //   2. the entry reference plus this transaction's position within it —
+        //      unique per statement, and present far more often than a
+        //      payer-supplied end-to-end id
+        //   3. payer-supplied ids, only when they are not placeholders
+        // The old order put EndToEndId ahead of the entry reference, so a
+        // statement full of 'NOTPROVIDED' collapsed to a single importable row.
         const uid =
-          (tx && (txt(tx?.Refs?.AcctSvcrRef) || txt(tx?.Refs?.EndToEndId) || txt(tx?.Refs?.InstrId))) ||
-          (entryRef ? `${entryRef}#${i}` : null)
+          (tx && realRef(tx?.Refs?.AcctSvcrRef))
+          || (entryRef ? `${entryRef}#${i}` : null)
+          || (tx && (realRef(tx?.Refs?.EndToEndId) || realRef(tx?.Refs?.InstrId)))
+          || null
         credits.push({
           uid,
           amount: num(txt(amtNode)),

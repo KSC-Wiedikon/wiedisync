@@ -227,3 +227,68 @@ const hasReal = existsSync(REAL_FILE)
     console.log(`[real camt] type=${parsed.type} credits=${parsed.credits.length} withStructuredRef=${withRef}`)
   })
 })
+
+// ── The dedupe key ──────────────────────────────────────────────────────────
+// finance-camt.js dedupes imports on `uid` and silently `continue`s on a repeat,
+// with no details row. So a uid that is not actually unique does not surface as
+// an error — the money just never appears in the report. ISO 20022 lets a payer
+// omit the end-to-end id and Swiss banks then send the literal 'NOTPROVIDED',
+// which is exactly the shape of an ordinary e-banking transfer.
+const FIX_054_NOTPROVIDED = `<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.054.001.04">
+  <BkToCstmrDbtCdtNtfctn>
+    <Ntfctn>
+      <Ntry>
+        <Amt Ccy="CHF">880.00</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Sts><Cd>BOOK</Cd></Sts>
+        <ValDt><Dt>2026-09-01</Dt></ValDt>
+        <AcctSvcrRef>BANKENTRY-77</AcctSvcrRef>
+        <NtryDtls>
+          <TxDtls>
+            <Refs><EndToEndId>NOTPROVIDED</EndToEndId></Refs>
+            <Amt Ccy="CHF">440.00</Amt>
+            <RltdPties><Dbtr><Nm>Anna A</Nm></Dbtr></RltdPties>
+          </TxDtls>
+          <TxDtls>
+            <Refs><EndToEndId>NOTPROVIDED</EndToEndId></Refs>
+            <Amt Ccy="CHF">440.00</Amt>
+            <RltdPties><Dbtr><Nm>Beat B</Nm></Dbtr></RltdPties>
+          </TxDtls>
+        </NtryDtls>
+      </Ntry>
+    </Ntfctn>
+  </BkToCstmrDbtCdtNtfctn>
+</Document>`
+
+describe('parseCamt — uid is a real dedupe key', () => {
+  it('does not collapse two NOTPROVIDED credits onto one uid', () => {
+    const { credits } = parseCamt(FIX_054_NOTPROVIDED)
+    expect(credits).toHaveLength(2)
+    // The regression: both used to come back as 'NOTPROVIDED', so the importer
+    // counted the second as a duplicate and dropped CHF 440 without a word.
+    expect(credits[0].uid).not.toBe(credits[1].uid)
+    expect(new Set(credits.map((c) => c.uid)).size).toBe(2)
+    for (const c of credits) expect(String(c.uid).toLowerCase()).not.toContain('notprovided')
+  })
+
+  it('falls back to the entry reference plus position', () => {
+    const { credits } = parseCamt(FIX_054_NOTPROVIDED)
+    expect(credits.map((c) => c.uid)).toEqual(['BANKENTRY-77#0', 'BANKENTRY-77#1'])
+  })
+
+  it('still prefers a genuine per-transaction bank reference', () => {
+    const xml = FIX_054_NOTPROVIDED.replace(
+      '<Refs><EndToEndId>NOTPROVIDED</EndToEndId></Refs>',
+      '<Refs><AcctSvcrRef>TX-REAL-1</AcctSvcrRef><EndToEndId>NOTPROVIDED</EndToEndId></Refs>',
+    )
+    expect(parseCamt(xml).credits[0].uid).toBe('TX-REAL-1')
+  })
+
+  it('keeps a real payer-supplied id when there is no bank reference', () => {
+    const xml = FIX_054_NOTPROVIDED
+      .replace('<AcctSvcrRef>BANKENTRY-77</AcctSvcrRef>', '')
+      .replace('<Refs><EndToEndId>NOTPROVIDED</EndToEndId></Refs>', '<Refs><EndToEndId>E2E-REAL</EndToEndId></Refs>')
+    expect(parseCamt(xml).credits[0].uid).toBe('E2E-REAL')
+  })
+})
