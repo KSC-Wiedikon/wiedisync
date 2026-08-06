@@ -951,6 +951,63 @@ export function registerBasketballPortal(router, { database, logger }) {
   // draft → offered. `opponent_club` addresses the rows to a club in the same
   // call (the prep grid stores a free-text opponent TEAM; the portal needs the
   // CLUB). Rows already answered are never rewound.
+  // POST /kscw/admin/terminplanung/bb/club-proposals — a planner answers what a club picked.
+  //
+  // Body: { season, ids: [plan ids], decision: 'accept' | 'release' }
+  //
+  //   accept  → proposal_status 'accepted'. Both sides now agree on the date, which is the
+  //             whole deliverable of this module (WSR Art. 18) — it is still not a ProBasket
+  //             fixture, but it is the agreement that excuses us from the Spielplansitzung.
+  //   release → DELETE the row. That is deliberate, not a status flip: migration 278's
+  //             `…_0_release_slots` trigger only fires on DELETE, so deleting is the one thing
+  //             that puts the pitch back on every club's free list. A 'declined' row would
+  //             hold the slot forever.
+  //
+  // ⚠ Only `club_proposed` rows are touched. Answering an 'offered' row is the club's job via
+  // the portal, and rewriting an already-'accepted' one behind their back would silently
+  // change an agreement they were told was settled.
+  router.post('/admin/terminplanung/bb/club-proposals', async (req, res) => {
+    if (await denyUnlessBb(req, res)) return
+    try {
+      const season = Number(req.body?.season)
+      const ids = Array.isArray(req.body?.ids)
+        ? [...new Set(req.body.ids.map(Number).filter(Number.isFinite))] : []
+      const decision = String(req.body?.decision || '')
+      if (!season || !ids.length) return res.status(400).json({ error: 'season and ids required' })
+      if (decision !== 'accept' && decision !== 'release') {
+        return res.status(400).json({ error: 'decision must be accept or release' })
+      }
+
+      const rows = await database('basketball_slot_plan')
+        .where('season', season).whereIn('id', ids)
+        .select('id', 'proposal_status')
+      if (rows.length !== ids.length) return res.status(400).json({ error: 'invalid ids' })
+      const wrongState = rows.filter((r) => r.proposal_status !== 'club_proposed')
+      if (wrongState.length) {
+        return res.status(400).json({ error: 'not_club_proposed', ids: wrongState.map((r) => r.id) })
+      }
+
+      const nowIso = new Date().toISOString()
+      let affected
+      if (decision === 'accept') {
+        affected = await database('basketball_slot_plan')
+          .whereIn('id', ids).where('proposal_status', 'club_proposed')
+          .update({ proposal_status: 'accepted', responded_at: nowIso, date_updated: nowIso })
+      } else {
+        affected = await database('basketball_slot_plan')
+          .whereIn('id', ids).where('proposal_status', 'club_proposed')
+          .del()
+      }
+
+      await writeUserLog(database, log, {
+        accountability: req.accountability, action: decision === 'accept' ? 'update' : 'delete',
+        collection: 'basketball_slot_plan', recordId: null,
+        data: { action: `club_proposal_${decision}`, season, ids, affected },
+      })
+      res.json({ success: true, affected })
+    } catch (err) { fail(res, 'admin/terminplanung/bb/club-proposals', err, req) }
+  })
+
   router.post('/admin/terminplanung/bb/offer', async (req, res) => {
     if (await denyUnlessBb(req, res)) return
     try {
