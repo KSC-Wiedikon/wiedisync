@@ -27,6 +27,9 @@
 import { writeUserLog } from './activity-log.js'
 import { buildEmailLayout, buildInfoCard, buildAlertBox, FRONTEND_URL } from './email-template.js'
 import { renderInvoiceQrBillPdf } from './finance-qrbill.js'
+// A proper Swiss Rechnung (addressee, positions, total) rather than a bare
+// payment slip — see finance-invoice-pdf.js.
+import { renderInvoicePdf } from './finance-invoice-pdf.js'
 import { recomputeInvoice, deriveSettlement } from './finance-recompute.js'
 import { autopostInvoiceSafe, autopostTeamEntrySafe, autopostDuesRunSafe, removeAutopostForPaymentSafe, removeAutopostForTeamEntrySafe, FISCAL_YEAR_LOCK_NS } from './finance-autopost.js'
 // The club fee model, shared with the ClubDesk push so the two never disagree.
@@ -575,7 +578,10 @@ export function registerFinance(router, { database, logger, services, getSchema 
         // surcharge: birthdate gates the youth categories at U16+, the licence
         // flags say whether the duty is already covered. Omit them and every
         // surcharged member is silently under-billed by CHF 100.
-        'birthdate', 'scorer_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'otn1_bb', 'otn2_bb')
+        'birthdate', 'scorer_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'otn1_bb', 'otn2_bb',
+        // Copied onto the invoice at issue time so the document has an addressee
+        // and the QR bill can pre-fill "Zahlbar durch" (migration 293).
+        'adresse', 'plz', 'ort')
     if (onlyActive) mq = mq.where('kscw_membership_active', true)
     if (sektion) mq = mq.where('sektion', sektion)
     if (memberIds.length) mq = mq.whereIn('id', memberIds)
@@ -621,6 +627,9 @@ export function registerFinance(router, { database, logger, services, getSchema 
         email: m.email || null,
         category: m.beitragskategorie || null,
         sektion: m.sektion || null,
+        adresse: m.adresse || null,
+        plz: m.plz != null ? String(m.plz) : null,
+        ort: m.ort || null,
         base_amount: fee ? round2(fee.base) : null,
         surcharge: fee ? round2(fee.surcharge) : 0,
         guest_discount: fee ? round2(fee.guest_discount) : 0,
@@ -799,6 +808,16 @@ export function registerFinance(router, { database, logger, services, getSchema 
             amount: x.amount, status: 'open', due_date: dueDate,
             amount_paid: 0, open_amount: x.amount, fee_category: x.category,
             recipient_name: x.name, recipient_email: x.email,
+            recipient_address: x.adresse, recipient_zip: x.plz, recipient_city: x.ort,
+            // Positions, so the invoice answers "why 540 and not 440?" on the page
+            // instead of in a mail to the treasurer. Stored, not recomputed at
+            // render time: a licence granted in March must not silently restate
+            // what January's invoice charged.
+            lines: JSON.stringify([
+              { label: `${subject}${x.category ? ` · ${x.category}` : ''}`, amount: round2(x.base_amount) },
+              ...(x.surcharge > 0 ? [{ label: 'Zuschlag ohne Schreiberlizenz', amount: round2(x.surcharge) }] : []),
+              ...(x.guest_discount > 0 ? [{ label: 'Abzug Gastspieler*in', amount: round2(-x.guest_discount) }] : []),
+            ]),
             member: x.member, team: null, dues_run: runId, fiscal_year: r.fy.id,
             source: 'native', created_by_name: mem?.name || null, created_by_email: mem?.email || null,
           }).returning('id')
@@ -1016,11 +1035,10 @@ export function registerFinance(router, { database, logger, services, getSchema 
               // Render the QR-bill first so the body only promises a PDF when one attaches.
               const attachments = []
               try {
-                const message = [inv.number ? `Rechnungsnummer: ${inv.number}` : null, inv.subject].filter(Boolean).join('\n')
-                const pdf = await renderInvoiceQrBillPdf({
-                  amount, number: inv.number, recipientName: inv.recipient_name, subject: inv.subject,
-                  message, reference: inv.reference_type === 'SCOR' ? inv.reference : null,
-                })
+                // The whole invoice, not just the payment part: the member needs a
+                // document with a due date and the 440+100 breakdown, and the five
+                // members with no email get this same page printed and posted.
+                const pdf = await renderInvoicePdf({ ...inv, amount, title: inv.subject || 'Mitgliederbeitrag' })
                 attachments.push({ filename: `${inv.number || 'Rechnung'}.pdf`, content: pdf, contentType: 'application/pdf' })
               } catch (pe) { log.warn?.({ msg: `dues qr-bill render failed: ${pe.message}`, invoice: inv.number }) }
               const html = composeDuesEmail(inv, amount, run.label, { testMode: settings.test_mode, realRecipient: inv.recipient_email, hasAttachment: attachments.length > 0 })
