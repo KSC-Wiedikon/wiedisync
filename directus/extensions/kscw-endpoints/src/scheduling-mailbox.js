@@ -201,6 +201,11 @@ const LIST_LIMIT = 500
 // servers cap at ~25 MB, so 10 MB total is a safe, generous ceiling for the
 // PDFs/schedules opponents actually exchange. Enforced server-side regardless
 // of what the frontend allows.
+/** AWS SES refuses a message addressed to more than 50 recipients (To+Cc+Bcc
+ *  combined). The personalised group run is immune — it is one message per
+ *  person — but the single shared Cc/Bcc copy is not, and neither is the plain
+ *  reply/compose handler, which builds ONE envelope out of To+Cc. */
+const SES_MAX_RECIPIENTS_PER_MESSAGE = 50
 /** Ceiling on a single pasted recipient list (POST /admin/mailbox/lookup).
  *  The club has ~700 member addresses, so this is roomy for any real list while
  *  keeping the IN-clause a bounded query. */
@@ -926,6 +931,16 @@ export function registerSchedulingMailbox(router, { database, logger }) {
       const to = cleanAddresses(body.to).filter((a) => a.toLowerCase() !== self)
       const toSet = new Set(to.map((a) => a.toLowerCase()))
       const cc = cleanAddresses(body.cc).filter((a) => a.toLowerCase() !== self && !toSet.has(a.toLowerCase()))
+      // One message, one envelope — so this path carries the transport's
+      // per-message ceiling. Said plainly here, because the alternative is an
+      // SES rejection whose text does not mention the group send that exists
+      // precisely to mail more people than this.
+      if (to.length + cc.length > SES_MAX_RECIPIENTS_PER_MESSAGE) {
+        return res.status(400).json({
+          error: `A single email cannot have more than ${SES_MAX_RECIPIENTS_PER_MESSAGE} recipients `
+            + `(got ${to.length + cc.length}). Use "Email a group" — it sends one message per person.`,
+        })
+      }
       const subject = String(body.subject || '').replace(/[\r\n]+/g, ' ').trim().slice(0, 300)
 
       // Body: rich-text HTML (TipTap) is primary; fall back to a plain-text body
@@ -1238,6 +1253,26 @@ export function registerSchedulingMailbox(router, { database, logger }) {
     return { recipients, audienceSize: memberIds.size + clubdeskRows.length, skipped }
   }
 
+  /** A resolved recipient as the composer's To-field chip.
+   *
+   *  `first_name`/`last_name` ride along beside the joined `name` because the
+   *  composer sorts by surname, and splitting the joined string back apart
+   *  client-side gets compound names wrong ("Berke-Wenger", "van der Berg").
+   *  A contact with neither part is its own label: an address is what we know
+   *  about them, so an address is what the chip shows. */
+  function toRecipientChip(r) {
+    const first = (r.first_name || '').trim()
+    const last = (r.last_name || '').trim()
+    return {
+      id: r.id,
+      kind: typeof r.id === 'string' && String(r.id).startsWith('cd:') ? 'clubdesk' : 'member',
+      name: [first, last].filter(Boolean).join(' ') || r.email,
+      first_name: first,
+      last_name: last,
+      email: r.email,
+    }
+  }
+
   /** ClubDesk-style merge fields. Substituted per recipient AFTER sanitisation,
    *  so a name can never inject markup. German and English spellings both work
    *  because the composing admin may be writing in either. */
@@ -1425,12 +1460,7 @@ export function registerSchedulingMailbox(router, { database, logger }) {
         groups: clauses.flat(),
         audience_size: audienceSize,
         skipped,
-        recipients: recipients.map(r => ({
-          id: r.id,
-          kind: typeof r.id === 'string' && r.id.startsWith('cd:') ? 'clubdesk' : 'member',
-          name: [r.first_name, r.last_name].filter(Boolean).join(' ').trim() || r.email,
-          email: r.email,
-        })),
+        recipients: recipients.map(r => toRecipientChip(r)),
       })
     } catch (err) { fail(res, 'mailbox/expand', err, req) }
   })
@@ -1503,12 +1533,7 @@ export function registerSchedulingMailbox(router, { database, logger }) {
         if (suppressedSet.has(key)) { skipped.suppressed++; continue }
         if (seen.has(key)) { skipped.duplicate++; continue }
         seen.add(key)
-        recipients.push({
-          id: r.id,
-          kind: 'member',
-          name: [r.first_name, r.last_name].filter(Boolean).join(' ').trim() || email,
-          email,
-        })
+        recipients.push(toRecipientChip({ ...r, email }))
       }
       for (const r of registerRows) {
         const key = r.email.toLowerCase()
@@ -1516,12 +1541,7 @@ export function registerSchedulingMailbox(router, { database, logger }) {
         if (suppressedSet.has(key)) { skipped.suppressed++; continue }
         if (seen.has(key)) { skipped.duplicate++; continue }
         seen.add(key)
-        recipients.push({
-          id: r.id,
-          kind: 'clubdesk',
-          name: [r.first_name, r.last_name].filter(Boolean).join(' ').trim() || r.email,
-          email: r.email,
-        })
+        recipients.push(toRecipientChip(r))
       }
 
       res.json({
@@ -1593,6 +1613,17 @@ export function registerSchedulingMailbox(router, { database, logger }) {
       // actually means, and it is the only reading that is safe by default.
       const ccOnce = cleanAddresses(body.cc)
       const bccOnce = cleanAddresses(body.bcc)
+      // The Cc/Bcc copy is ONE message (that is the whole point of it), so
+      // unlike the personalised run it is bound by the transport's per-message
+      // recipient ceiling. Rejected here with a sentence the operator can act
+      // on, rather than let SES refuse the whole thing after the real
+      // recipients have already been mailed — that copy is sent last.
+      if (ccOnce.length + bccOnce.length > SES_MAX_RECIPIENTS_PER_MESSAGE) {
+        return res.status(400).json({
+          error: `Cc + Bcc is one shared copy and cannot exceed ${SES_MAX_RECIPIENTS_PER_MESSAGE} addresses `
+            + `(got ${ccOnce.length + bccOnce.length}). Add them as recipients instead — those are sent one message each.`,
+        })
+      }
 
       const dryRun = body.dry_run === true || String(body.dry_run) === 'true'
       const { recipients, audienceSize, skipped } = await resolveRecipients(

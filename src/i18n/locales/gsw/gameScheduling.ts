@@ -720,4 +720,14 @@ export default {
   mailboxPasteSuppressed: '{{count}} gsperrt (nöd zuestellbar oder als Spam gmäldet)',
   mailboxPasteNotFound: '{{count}} nöd im Vereinsregister',
   mailboxPasteFailed: 'Adresse hend nöd chöne nachgschlage werde',
+
+  // Gruppeversand — wohi e iigfüegti Liste gaht, und d Gränze vo de Kopie
+  mailboxPasteTargetLabel: 'Liste hinzuefüege zu',
+  mailboxPasteTargetTo: 'Empfänger',
+  mailboxPasteTargetCc: 'Kopie',
+  mailboxPasteTargetBcc: 'Blindkopie',
+  mailboxPasteTargetToHint: 'Jedi Person überchunnt iri eigeni Nachricht mit em Name dinn. Niemert gseht di andere Adresse, und abgmäldeti Mitglieder blibed usse.',
+  mailboxPasteTargetCopyHint: 'Ei gmeinsami Kopie, höchstens {{max}} Adresse. Bi de Kopie gsehnd sich d Empfänger gegesitig, bi de Blindkopie nöd.',
+  mailboxCcTooMany: 'Kopie und Blindkopie sind ei gmeinsami Kopie und fassed höchstens {{max}} Adresse (aktuell {{count}}). Füeg si lieber als Empfänger dezue — die überchömed je e eigeni Nachricht.',
+  mailboxToTooMany: 'Ei einzelni E-Mail cha höchstens {{max}} Empfänger ha (aktuell {{count}}). Nimm «Gruppe aaschriibe» — det gaht ei Nachricht pro Person use.',
 }

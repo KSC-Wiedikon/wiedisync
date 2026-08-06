@@ -782,4 +782,14 @@ export default {
   mailboxPasteSuppressed: '{{count}} blocked (bounced or reported as spam)',
   mailboxPasteNotFound: '{{count}} not in the club register',
   mailboxPasteFailed: 'Could not look up the addresses',
+
+  // Group send — where a pasted list lands, and the shared-copy ceiling
+  mailboxPasteTargetLabel: 'Add the list to',
+  mailboxPasteTargetTo: 'Recipients',
+  mailboxPasteTargetCc: 'Cc',
+  mailboxPasteTargetBcc: 'Bcc',
+  mailboxPasteTargetToHint: 'Everyone gets their own message, with their name filled in. Nobody sees the other addresses, and members who unsubscribed are left out.',
+  mailboxPasteTargetCopyHint: 'One shared copy, at most {{max}} addresses. Cc recipients see each other, Bcc recipients do not.',
+  mailboxCcTooMany: 'Cc and Bcc are one shared copy and cannot hold more than {{max}} addresses ({{count}} now). Add them as recipients instead — those are sent one message each.',
+  mailboxToTooMany: 'A single email cannot have more than {{max}} recipients ({{count}} now). Use "Email a group" — it sends one message per person.',
 }

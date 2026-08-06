@@ -768,4 +768,14 @@ export default {
   mailboxPasteSuppressed: '{{count}} bloccati (non recapitati o segnalati come spam)',
   mailboxPasteNotFound: '{{count}} non nel registro del club',
   mailboxPasteFailed: 'Impossibile cercare gli indirizzi',
+
+  // Invio di gruppo — dove finisce un elenco incollato e il limite della copia
+  mailboxPasteTargetLabel: 'Aggiungi l’elenco a',
+  mailboxPasteTargetTo: 'Destinatari',
+  mailboxPasteTargetCc: 'Copia',
+  mailboxPasteTargetBcc: 'Copia nascosta',
+  mailboxPasteTargetToHint: 'Ogni persona riceve il proprio messaggio, con il suo nome all’interno. Nessuno vede gli altri indirizzi e i membri che si sono disdetti restano esclusi.',
+  mailboxPasteTargetCopyHint: 'Una sola copia condivisa, al massimo {{max}} indirizzi. In copia i destinatari si vedono tra loro, in copia nascosta no.',
+  mailboxCcTooMany: 'Copia e copia nascosta sono una sola copia condivisa e non possono superare {{max}} indirizzi ({{count}} adesso). Aggiungili invece come destinatari — quelli ricevono un messaggio ciascuno.',
+  mailboxToTooMany: 'Una singola e-mail non può avere più di {{max}} destinatari ({{count}} adesso). Usa «Scrivi a un gruppo» — parte un messaggio per persona.',
 }
