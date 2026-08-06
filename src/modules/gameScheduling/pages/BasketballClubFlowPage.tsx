@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { useBbClubPortal, type BbDecision, type BbPortalGame } from '../hooks/useBbClubPortal'
 import Modal from '../../../components/Modal'
 import { Badge } from '../../../components/ui/badge'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../components/ui/table'
 import LanguageDropdown from '../../../components/LanguageDropdown'
 import { useReportPageLoading } from '../../../hooks/usePageReady'
 import { formatDateZurich } from '../../../utils/dateHelpers'
@@ -69,7 +70,8 @@ const STATUS_VARIANT: Record<BbPortalGame['status'], 'neutral' | 'success' | 'da
 export default function BasketballClubFlowPage() {
   const { token } = useParams<{ token: string }>()
   const { t, i18n } = useTranslation('basketballScheduling')
-  const { portal, games, keyDates, isLoading, error, respond, saveNote, setLanguage } = useBbClubPortal(token)
+  const { portal, games, pairings, keyDates, isLoading, error, respond, propose, saveNote, setLanguage } =
+    useBbClubPortal(token)
 
   const [drafts, setDrafts] = useState<Record<string, DraftDecision>>({})
   const [submitting, setSubmitting] = useState(false)
@@ -78,6 +80,11 @@ export default function BasketballClubFlowPage() {
   const [success, setSuccess] = useState('')
 
   // "Who is answering" modal — the backend requires a name + email on every response.
+  // Free pitches the club has ticked, by slot id. Separate from `drafts` because the two
+  // flows answer different questions — ours ("do you accept this game?") and theirs ("which
+  // dates suit you?") — and the identity modal serves whichever opened it via `responderMode`.
+  const [picked, setPicked] = useState<Set<number>>(() => new Set())
+  const [responderMode, setResponderMode] = useState<'respond' | 'propose'>('respond')
   const [responderOpen, setResponderOpen] = useState(false)
   const [responderName, setResponderName] = useState('')
   const [responderEmail, setResponderEmail] = useState('')
@@ -161,9 +168,30 @@ export default function BasketballClubFlowPage() {
     setDraft(id, { alternatives: cur.alternatives.filter((_, i) => i !== idx) })
   }
 
+  const togglePick = (slotId: number) =>
+    setPicked((prev) => {
+      const next = new Set(prev)
+      if (next.has(slotId)) next.delete(slotId)
+      else next.add(slotId)
+      return next
+    })
+
+  const openProposer = () => {
+    setFormError('')
+    setSuccess('')
+    if (!picked.size) {
+      setFormError(t('bbPortalNothingPicked'))
+      return
+    }
+    setResponderMode('propose')
+    setResponderError('')
+    setResponderOpen(true)
+  }
+
   const openResponder = () => {
     setFormError('')
     setSuccess('')
+    setResponderMode('respond')
     if (!decided.length) {
       setFormError(t('bbPortalNothingDecided'))
       return
@@ -195,6 +223,33 @@ export default function BasketballClubFlowPage() {
     setResponderOpen(false)
     setSubmitting(true)
     setFormError('')
+
+    if (responderMode === 'propose') {
+      try {
+        if (note.trim() !== (portal.club_note || '').trim()) await saveNote(note.trim())
+        const res = await propose([...picked].map((slot_id) => ({ slot_id })), { name, email })
+        setPicked(new Set())
+        // `rejected` means the backend refused ids that are not this club's — say so rather
+        // than reporting a clean success for a partial write.
+        setSuccess(
+          res.rejected > 0
+            ? t('bbPortalProposedPartial', { count: res.created, rejected: res.rejected })
+            : t('bbPortalProposed', { count: res.created }),
+        )
+      } catch (err) {
+        const body = (err as { body?: { error?: string } })?.body
+        const code = body?.error || ''
+        setFormError(
+          code === 'Link expired' ? t('bbPortalExpired')
+            : code === 'no_valid_picks' ? t('bbPortalPicksUnavailable')
+              : t('bbPortalSubmitError'),
+        )
+      } finally {
+        setSubmitting(false)
+      }
+      return
+    }
+
     try {
       const decisions: BbDecision[] = decided.map(([gameId, d]) => ({
         game_id: Number(gameId),
@@ -413,6 +468,76 @@ export default function BasketballClubFlowPage() {
           >
             {submitting ? t('bbPortalSending') : t('bbPortalSubmit', { count: decided.length })}
           </button>
+        )}
+
+        {/* Pick free dates. A record list you scan and select → <Table> per CLAUDE.md, unlike
+            the game cards above, which are proposals you act on individually. */}
+        {pairings.length > 0 && (
+          <div className="mb-6 rounded-xl border border-gray-200 bg-white p-4 sm:p-6 dark:border-gray-700 dark:bg-gray-800">
+            <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{t('bbPortalPickTitle')}</h2>
+            <p className="mb-4 text-xs text-gray-500 dark:text-gray-400">{t('bbPortalPickHint')}</p>
+
+            {pairings.map((p) => (
+              <div key={p.kscw_team} className="mb-5 last:mb-0">
+                <div className="mb-2 flex flex-wrap items-baseline gap-2">
+                  <span className="font-semibold text-gray-900 dark:text-gray-100">{p.kscw_team_name}</span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">{p.group_label || p.group}</span>
+                  {/* null means ProBasket has stated no count — never render it as 0. */}
+                  {p.home_games !== null && (
+                    <Badge variant="secondary">{t('bbPortalHomeGames', { count: p.home_games })}</Badge>
+                  )}
+                </div>
+
+                {p.slots.length === 0 ? (
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{t('bbPortalNoFreeSlots')}</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-10" />
+                          <TableHead>{t('bbPortalColDate')}</TableHead>
+                          <TableHead>{t('bbPortalColTime')}</TableHead>
+                          <TableHead className="hidden sm:table-cell">{t('bbPortalColHall')}</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {p.slots.map((s) => (
+                          <TableRow key={s.id} className="min-h-[44px]">
+                            <TableCell>
+                              <input
+                                type="checkbox"
+                                aria-label={`${s.date} ${s.time} ${s.hall}`}
+                                checked={picked.has(s.id)}
+                                onChange={() => togglePick(s.id)}
+                                className="h-5 w-5 accent-blue-600"
+                              />
+                            </TableCell>
+                            <TableCell className="whitespace-normal break-words font-medium">
+                              {formatDateZurich(s.date)}
+                            </TableCell>
+                            <TableCell className="tabular-nums">
+                              {s.time}{s.end_time ? `–${s.end_time}` : ''}
+                            </TableCell>
+                            <TableCell className="hidden whitespace-normal break-words sm:table-cell">{s.hall}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </div>
+            ))}
+
+            <button
+              type="button"
+              onClick={openProposer}
+              disabled={submitting || picked.size === 0}
+              className="mt-2 min-h-11 w-full rounded-md bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+            >
+              {submitting ? t('bbPortalSending') : t('bbPortalPickSubmit', { count: picked.size })}
+            </button>
+          </div>
         )}
 
         <div className="mb-6 rounded-xl border border-gray-200 bg-white p-4 sm:p-6 dark:border-gray-700 dark:bg-gray-800">
