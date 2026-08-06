@@ -249,8 +249,9 @@ export default function BasketballSlotGenerationPanel({
                   {/* Demand, not supply — a dash means "we refuse to guess", never "zero". */}
                   <TableCell className="tabular-nums">
                     {home.count !== null ? (
-                      <span title={t('homeGamesBasis', { size: home.groupSize, group: home.groupCode })}>
+                      <span title={t('homeGamesBasis', { games: home.gamesTotal, group: home.groupCode })}>
                         {home.count}
+                        {home.approximate && '–' + (home.count + 1)}
                       </span>
                     ) : (
                       <span
