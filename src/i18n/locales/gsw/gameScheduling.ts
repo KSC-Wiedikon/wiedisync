@@ -730,4 +730,15 @@ export default {
   mailboxPasteTargetCopyHint: 'Ei gmeinsami Kopie, höchstens {{max}} Adresse. Bi de Kopie gsehnd sich d Empfänger gegesitig, bi de Blindkopie nöd.',
   mailboxCcTooMany: 'Kopie und Blindkopie sind ei gmeinsami Kopie und fassed höchstens {{max}} Adresse (aktuell {{count}}). Füeg si lieber als Empfänger dezue — die überchömed je e eigeni Nachricht.',
   mailboxToTooMany: 'Ei einzelni E-Mail cha höchstens {{max}} Empfänger ha (aktuell {{count}}). Nimm «Gruppe aaschriibe» — det gaht ei Nachricht pro Person use.',
+
+  // Gruppeversand — Platzhalter
+  mailboxMergeMoreHint: 'Au verfüegbar: {{fields}}',
+  mailboxMergePreviewOpen: 'Nachricht aaluege',
+  mailboxMergePreviewHint: 'So, wie si bi drü echte Empfänger aachunnt.',
+  mailboxMergePreviewTitle: 'So chunnt d Nachricht aa',
+  mailboxMergePreviewSubtitle: 'Drü vo de {{count}} Empfänger, mit ihrne eigene Wärt iigsetzt.',
+  mailboxMergePreviewEmpty: 'No kein Empfänger für e Vorschau.',
+  mailboxMergePreviewFailed: 'Vorschau het nöd chöne erstellt werde',
+  mailboxMergeGapsTitle: 'Bi einigne Empfänger gits nüt iizsetze',
+  mailboxMergeGapRow: '{{field}} isch bi {{count}} vo ihne leer — die läsed de Satz mit ere Lücke.',
 }

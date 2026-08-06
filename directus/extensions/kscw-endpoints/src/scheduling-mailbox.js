@@ -62,6 +62,9 @@ import { writeUserLog } from './activity-log.js'
 import { MAILBOX_GROUPS, resolveClubdeskRecipients, resolveMemberAudience, resolveRegisterEmails, teamAudienceCounts } from './audience.js'
 import { combineClauseSets, parseClauses, parseList, splitSeason } from './mailbox-audience-select.js'
 import { loadSuppressed } from './email-suppression.js'
+import { deriveMitgliederbeitrag, guestMemberIdSet } from './clubdesk-update.js'
+import { currentSeasonShort } from './season.js'
+import { applyMergeFields, mergeValues, usedMergeFields } from './merge-fields.js'
 import {
   SCHEDULING_SIGNATURE_LIGHT_HTML, SCHEDULING_SIGNATURE_TEXT,
   SCHEDULING_SIGNATURE_BASKETBALL_LIGHT_HTML, SCHEDULING_SIGNATURE_BASKETBALL_TEXT,
@@ -1273,15 +1276,61 @@ export function registerSchedulingMailbox(router, { database, logger }) {
     }
   }
 
-  /** ClubDesk-style merge fields. Substituted per recipient AFTER sanitisation,
-   *  so a name can never inject markup. German and English spellings both work
-   *  because the composing admin may be writing in either. */
-  function applyMergeFields(str, r, esc) {
-    const first = esc ? escHtml(r.first_name) : r.first_name
-    const last = esc ? escHtml(r.last_name) : r.last_name
-    return String(str)
-      .replace(/\{\{\s*(vorname|first_name)\s*\}\}/gi, first)
-      .replace(/\{\{\s*(nachname|last_name)\s*\}\}/gi, last)
+  /**
+   * Attach the merge data that is not already on a resolved recipient.
+   *
+   * Runs as THREE queries for the whole run, never one per recipient. ClubDesk
+   * contacts (`cd:` ids) are skipped: they have no member row, so they keep
+   * name + email and resolve the rest to empty.
+   *
+   * ⚠ `fee_amount` is DERIVED (deriveMitgliederbeitrag), i.e. what wiedisync
+   * would bill, not what ClubDesk actually invoiced — the two differ wherever a
+   * treasurer typed an amount by hand. It is the right figure for an
+   * announcement about the coming season and the wrong one for "here is your
+   * invoice". An unknown category derives to '' and is never guessed.
+   */
+  async function enrichForMergeFields(recipients) {
+    const ids = recipients.map((r) => Number(r.id)).filter((n) => Number.isInteger(n) && n > 0)
+    if (ids.length === 0) return recipients
+    const season = currentSeasonShort()
+
+    const [rows, teamRows, guests] = await Promise.all([
+      database('members').whereIn('id', ids).select(
+        'id', 'beitragskategorie', 'birthdate',
+        // The licence flags deriveMitgliederbeitrag reads for the
+        // no-Schreiberlizenz surcharge. Passing the member row rather than null
+        // is what makes the surcharge appear at all.
+        'scorer_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'otn1_bb', 'otn2_bb',
+      ),
+      database('member_teams')
+        .join('teams', 'teams.id', 'member_teams.team')
+        .whereIn('member_teams.member', ids)
+        .andWhere('member_teams.season', season)
+        .select('member_teams.member', 'teams.name')
+        .orderBy('teams.name'),
+      guestMemberIdSet(database, ids, season),
+    ])
+
+    const byId = new Map(rows.map((r) => [Number(r.id), r]))
+    const teamsById = new Map()
+    for (const t of teamRows) {
+      const k = Number(t.member)
+      if (!teamsById.has(k)) teamsById.set(k, [])
+      if (t.name && !teamsById.get(k).includes(t.name)) teamsById.get(k).push(t.name)
+    }
+
+    return recipients.map((r) => {
+      const id = Number(r.id)
+      const m = byId.get(id)
+      if (!m) return r
+      const category = m.beitragskategorie || ''
+      return {
+        ...r,
+        fee_category: category,
+        fee_amount: category ? deriveMitgliederbeitrag(category, m, { isGuest: guests.has(id) }) : '',
+        teams: (teamsById.get(id) || []).join(', '),
+      }
+    })
   }
 
   // GET /kscw/admin/mailbox/groups — the picker's catalogue, with live counts.
@@ -1632,9 +1681,21 @@ export function registerSchedulingMailbox(router, { database, logger }) {
         hasExplicit ? { memberIds: explicitMemberIds, emails: explicitEmails } : null,
       )
 
+      // Read before the dry-run branch: the preview has to know which merge
+      // fields the message uses in order to say anything useful about them.
+      const subject = String(body.subject || '').replace(/[\r\n]+/g, ' ').trim().slice(0, 300)
+      const rawHtml = String(body.html || '').slice(0, 200_000)
+      const usedFields = usedMergeFields(subject, rawHtml)
+      // Merge data costs three queries, so it is fetched only when the message
+      // actually references a field — most sends reference none.
+      const merged = usedFields.length > 0 && recipients.length > 0
+        ? await enrichForMergeFields(recipients)
+        : recipients
+
       if (dryRun) {
         // Names, never addresses: the preview answers "how many and roughly
         // who", not "give me the club's mailing list".
+        const previewHtml = rawHtml.trim() ? sanitizeOutgoingHtml(rawHtml) : ''
         return res.json({
           dry_run: true,
           group: groupKey,
@@ -1648,11 +1709,25 @@ export function registerSchedulingMailbox(router, { database, logger }) {
           // numbers ("+1 copy to 2 others") rather than as a hopeful footnote.
           cc_count: ccOnce.length,
           bcc_count: bccOnce.length,
+          merge_fields: usedFields,
+          // How many recipients would receive a BLANK for each field the
+          // message uses. A fee category nobody priced renders empty rather
+          // than guessing, and 117 people reading "your fee is CHF " is the
+          // failure this number exists to prevent.
+          merge_gaps: Object.fromEntries(
+            usedFields.map((key) => [key, merged.filter((r) => !mergeValues(r)[key]).length]),
+          ),
+          // The message as three named recipients would actually receive it.
+          // Rendered through the SAME builder as the send, so the preview
+          // cannot drift from what goes out.
+          merge_samples: merged.slice(0, 3).map((r) => ({
+            name: [r.first_name, r.last_name].filter(Boolean).join(' ').trim() || r.email,
+            subject: applyMergeFields(subject, r, false),
+            html: previewHtml ? applyMergeFields(previewHtml, r, true) : '',
+          })),
         })
       }
 
-      const subject = String(body.subject || '').replace(/[\r\n]+/g, ' ').trim().slice(0, 300)
-      const rawHtml = String(body.html || '').slice(0, 200_000)
       if (!subject || !rawHtml.trim()) return res.status(400).json({ error: 'subject and body required' })
       if (recipients.length === 0) return res.status(400).json({ error: 'No valid recipient' })
 
@@ -1693,7 +1768,9 @@ export function registerSchedulingMailbox(router, { database, logger }) {
 
       let sent = 0
       const errors = []
-      for (const r of recipients) {
+      // The enriched copy, so {{mitgliederbeitrag}} and friends resolve for
+      // the real send exactly as they did in the preview.
+      for (const r of merged) {
         try {
           const html =
             `<div style="font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;font-size:14px;line-height:1.5">` +

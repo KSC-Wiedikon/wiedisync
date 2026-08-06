@@ -45,6 +45,29 @@ const EXPAND_CONFIRM_THRESHOLD = 60
  *  say so before the operator has written the email. */
 const SES_MAX_PER_MESSAGE = 50
 
+/** Merge tokens the group send understands, in the order the tip lists them.
+ *  Mirrors MERGE_FIELDS in kscw-endpoints/src/scheduling-mailbox.js — add to
+ *  both or the composer advertises a field the send does not substitute. */
+const MERGE_TOKEN_KEYS = ['name', 'email', 'feeCategory', 'feeAmount', 'team'] as const
+/** German and English spellings are BOTH accepted by the endpoint; which one
+ *  the tip shows follows the UI language, so an English-speaking operator is
+ *  not told to type German field names. */
+/** Server merge-field key → the spelling table's key, so a gap reported as
+ *  `fee_amount` is shown to the operator as the token they typed. */
+const MERGE_FIELD_TO_TOKEN: Record<string, string> = {
+  first_name: 'first', last_name: 'last', full_name: 'name',
+  email: 'email', fee_category: 'feeCategory', fee_amount: 'feeAmount', teams: 'team',
+}
+const MERGE_TOKEN_SPELLINGS: Record<string, { de: string; en: string }> = {
+  first: { de: 'vorname', en: 'first_name' },
+  last: { de: 'nachname', en: 'last_name' },
+  name: { de: 'name', en: 'name' },
+  email: { de: 'email', en: 'email' },
+  feeCategory: { de: 'beitragskategorie', en: 'fee_category' },
+  feeAmount: { de: 'mitgliederbeitrag', en: 'fee_amount' },
+  team: { de: 'team', en: 'team' },
+}
+
 /** Compose modes — new mail, reply, reply-all, forward, or a group send.
  *  `group` addresses an audience (a team, all Schreiber, …) instead of typed
  *  addresses, and is club-mailbox-only: the server registers the bulk route on
@@ -164,7 +187,7 @@ interface Props {
  * Messages are matched to opponents client-side by contact-address overlap.
  */
 export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentContacts, focusOpponent, onClearFocus, seasonName, kscwTeamLabelFor }: Props) {
-  const { t } = useTranslation('gameScheduling')
+  const { t, i18n } = useTranslation('gameScheduling')
   const { configured, messages, unread, lastSync, syncing, sending } = mailbox
   const [showAll, setShowAll] = useState(false)
   const [folder, setFolder] = useState<Folder>('inbox')
@@ -194,7 +217,7 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
   // instead would mean writing state synchronously inside the effect below,
   // which is the cascading-render pattern the hooks lint rule rejects.
   const [preview, setPreview] = useState<{ group: string; data: MailboxBulkPreview | null } | null>(null)
-  const { fetchGroups, fetchGroupCounts, previewBulk, expandGroups, lookupAddresses, sendBulk } = mailbox
+  const { fetchGroups, fetchGroupCounts, previewBulk, previewMerge, expandGroups, lookupAddresses, sendBulk } = mailbox
   // Paste-a-list recipient source. Held apart from the compose state because it
   // is a staging area, not a selection: nothing joins the audience until the
   // addresses have been resolved to people the send can actually reach.
@@ -206,6 +229,18 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
   // so the choice decides both who sees whom and whether the 50-address
   // per-message ceiling applies at all.
   const [pasteTarget, setPasteTarget] = useState<'to' | 'cc' | 'bcc'>('to')
+  // Rendered samples of the message as real recipients would receive it.
+  // Explicitly requested, never live: the request carries the body, and firing
+  // it on every keystroke would re-resolve the whole audience each time.
+  const [mergePreview, setMergePreview] = useState<MailboxBulkPreview | null>(null)
+  const [mergePreviewLoading, setMergePreviewLoading] = useState(false)
+
+  /** The token to show for a field, spelled for the UI language. */
+  const mergeToken = (key: string) => {
+    const pair = MERGE_TOKEN_SPELLINGS[key]
+    if (!pair) return `{{${key}}}`
+    return `{{${i18n.language?.startsWith('en') ? pair.en : pair.de}}}`
+  }
   // Server-side constant, delivered with the message list — so it is present in
   // every compose mode and every mailbox, not just where /groups was fetched.
   const signatureHtml = mailbox.signatureHtml
@@ -453,6 +488,31 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
       toast.error(body?.error || t('mailboxPasteFailed'))
     } finally {
       setPasteBusy(false)
+    }
+  }
+
+  /** Render the message as three real recipients would receive it, and count
+   *  who would get a blank for each field the message uses. */
+  const handlePreviewMerge = async (c: ComposeState) => {
+    setMergePreviewLoading(true)
+    try {
+      const picked = c.picked ?? []
+      const resp = await previewMerge(
+        {
+          clauses: c.clauses ?? [],
+          groups: (c.clauses ?? []).flat(),
+          members: picked.filter((r) => r.kind === 'member').map((r) => Number(r.id)),
+          emails: picked.filter((r) => r.kind === 'clubdesk').map((r) => r.email),
+        },
+        c.subject,
+        c.html,
+      )
+      setMergePreview(resp)
+    } catch (err) {
+      const body = (err as { body?: { error?: string } })?.body
+      toast.error(body?.error || t('mailboxMergePreviewFailed'))
+    } finally {
+      setMergePreviewLoading(false)
     }
   }
 
@@ -1177,12 +1237,35 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
           />
         </div>
         {c.mode === 'group' && (
-          // The merge tokens are passed as VALUES, not written into the
-          // translation: a literal {{vorname}} in a locale string would
-          // be interpolated away by i18next before it ever rendered.
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            {t('mailboxGroupMergeHint', { first: '{{vorname}}', last: '{{nachname}}' })}
-          </p>
+          <div className="mt-1 space-y-1">
+            {/* The merge tokens are passed as VALUES, not written into the
+                translation: a literal {{vorname}} in a locale string would
+                be interpolated away by i18next before it ever rendered.
+                The SPELLING follows the UI language — the endpoint accepts a
+                German and an English name for every field, and hardcoding the
+                German pair here is what made the feature look German-only to
+                an English-speaking operator. */}
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {t('mailboxGroupMergeHint', { first: mergeToken('first'), last: mergeToken('last') })}
+            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {t('mailboxMergeMoreHint', {
+                fields: MERGE_TOKEN_KEYS.map((k) => mergeToken(k)).join(' · '),
+              })}
+            </p>
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={mergePreviewLoading || !c.subject.trim() || !c.html.trim()
+                  || ((c.clauses ?? []).length === 0 && (c.picked ?? []).length === 0)}
+                onClick={() => void handlePreviewMerge(c)}
+              >
+                {mergePreviewLoading ? <InlineSpinner /> : t('mailboxMergePreviewOpen')}
+              </Button>
+              <span className="text-xs text-gray-500 dark:text-gray-400">{t('mailboxMergePreviewHint')}</span>
+            </div>
+          </div>
         )}
       </div>
       {/* The club signature has always been appended server-side, but the
@@ -1239,6 +1322,57 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
       </div>
     </>
   )
+
+  /** Three real recipients' copies, rendered by the server through the same
+   *  builder the send uses — so what is shown here cannot drift from what goes
+   *  out. Gaps are listed first: an empty merge field is the failure this
+   *  dialog exists to catch, and it is invisible in a rendered sample unless
+   *  that sample happens to be one of the affected people. */
+  const mergeSampleDialog = () => {
+    const gaps = Object.entries(mergePreview?.merge_gaps ?? {}).filter(([, n]) => n > 0)
+    return (
+      <Dialog open={!!mergePreview} onOpenChange={(o) => { if (!o) setMergePreview(null) }}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{t('mailboxMergePreviewTitle')}</DialogTitle>
+            <DialogDescription>
+              {t('mailboxMergePreviewSubtitle', { count: mergePreview?.recipient_count ?? 0 })}
+            </DialogDescription>
+          </DialogHeader>
+
+          {gaps.length > 0 && (
+            <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200">
+              <p className="font-medium">{t('mailboxMergeGapsTitle')}</p>
+              <ul className="mt-1 list-inside list-disc space-y-0.5">
+                {gaps.map(([key, n]) => (
+                  <li key={key}>{t('mailboxMergeGapRow', { field: mergeToken(MERGE_FIELD_TO_TOKEN[key] ?? key), count: n })}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <div className="max-h-[55vh] space-y-3 overflow-y-auto">
+            {(mergePreview?.merge_samples ?? []).map((s, i) => (
+              <div key={i} className="rounded-md border border-gray-200 p-3 dark:border-gray-700">
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{s.name}</p>
+                <p className="mt-1 text-sm font-medium text-gray-900 dark:text-gray-100">{s.subject}</p>
+                {/* Safe: this markup is the server's own sanitizeOutgoingHtml
+                    output with merge values HTML-escaped on the way in — the
+                    exact bytes the recipient's mail client will render. */}
+                <div
+                  className="prose prose-sm mt-2 max-w-none dark:prose-invert"
+                  dangerouslySetInnerHTML={{ __html: s.html }}
+                />
+              </div>
+            ))}
+            {(mergePreview?.merge_samples ?? []).length === 0 && (
+              <p className="text-sm text-gray-500 dark:text-gray-400">{t('mailboxMergePreviewEmpty')}</p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+    )
+  }
 
   /** Addresses on the single shared Cc/Bcc copy — the one part of a group send
    *  that is still one message, and so still capped. */
@@ -1319,6 +1453,7 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
             {composeActions(compose)}
           </div>
         </CardContent>
+        {mergeSampleDialog()}
       </Card>
     )
   }
