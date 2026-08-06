@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-08-06T08:00:59.548Z
+-- Generated:   2026-08-06T10:55:07.744Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -23,7 +23,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict sBeZE4f9VXW95clMJk6mEfBWbHcLmJzqsQNfEog3nV7dLs8i4dwVdIyxOeEy2aY
+\restrict lPmxCtTNjPEqtJi6b1wowrSTjhUsqRBlTALnpLEb3hFKrywyaj2g1YnrGEk0CmL
 
 -- Dumped from database version 16.14 (Debian 16.14-1.pgdg13+1)
 -- Dumped by pg_dump version 16.14 (Debian 16.14-1.pgdg13+1)
@@ -1976,6 +1976,104 @@ ALTER SEQUENCE public.app_settings_id_seq OWNED BY public.app_settings.id;
 
 
 --
+-- Name: basketball_group_teams; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.basketball_group_teams (
+    id integer NOT NULL,
+    group_id integer NOT NULL,
+    team_name text NOT NULL,
+    club_name text,
+    bp_club integer,
+    kscw_team integer
+);
+
+
+--
+-- Name: TABLE basketball_group_teams; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.basketball_group_teams IS 'One registered team per ProBasket group. kscw_team is non-null on our own rows (linked by bb_source_id, never by name). bp_club links an opponent to the Basketplan club registry by EXACT name; NULL means unmatched, never guessed.';
+
+
+--
+-- Name: basketball_group_teams_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.basketball_group_teams_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: basketball_group_teams_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.basketball_group_teams_id_seq OWNED BY public.basketball_group_teams.id;
+
+
+--
+-- Name: basketball_groups; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.basketball_groups (
+    id integer NOT NULL,
+    season integer NOT NULL,
+    code text NOT NULL,
+    label text NOT NULL,
+    sex character varying(6) NOT NULL,
+    format character varying(16) DEFAULT 'provisional'::character varying NOT NULL,
+    games_total integer,
+    modus text,
+    note text,
+    date_created timestamp with time zone DEFAULT now(),
+    date_updated timestamp with time zone,
+    CONSTRAINT basketball_groups_championship_has_games CHECK ((((format)::text <> 'championship'::text) OR (games_total IS NOT NULL))),
+    CONSTRAINT basketball_groups_format_check CHECK (((format)::text = ANY ((ARRAY['championship'::character varying, 'provisional'::character varying, 'tournament'::character varying])::text[]))),
+    CONSTRAINT basketball_groups_games_total_check CHECK (((games_total IS NULL) OR ((games_total >= 1) AND (games_total <= 60)))),
+    CONSTRAINT basketball_groups_sex_check CHECK (((sex)::text = ANY ((ARRAY['m'::character varying, 'f'::character varying, 'mixed'::character varying])::text[])))
+);
+
+
+--
+-- Name: TABLE basketball_groups; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.basketball_groups IS 'ProBasket groups we play in, projected from src/modules/gameScheduling/data/{basketballGroups.ts,bbGroupFormat.json} so endpoints can read them. games_total = the workbook Anzahl Spiele; home games = games_total/2, NEVER (team count - 1). Re-seed via directus/scripts/gen-287-seed.mjs.';
+
+
+--
+-- Name: COLUMN basketball_groups.games_total; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.basketball_groups.games_total IS 'Anzahl Spiele per team (home + away) from the ProBasket workbook. NULL = not stated. Home games = games_total/2; an odd value cannot split evenly.';
+
+
+--
+-- Name: basketball_groups_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.basketball_groups_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: basketball_groups_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.basketball_groups_id_seq OWNED BY public.basketball_groups.id;
+
+
+--
 -- Name: basketball_hall_availability; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -2048,7 +2146,7 @@ CREATE TABLE public.basketball_slot_plan (
     opponent_note text,
     counter_proposals jsonb,
     CONSTRAINT basketball_slot_plan_offer_needs_club_check CHECK ((((proposal_status)::text = 'draft'::text) OR (opponent_club IS NOT NULL))),
-    CONSTRAINT basketball_slot_plan_proposal_status_check CHECK (((proposal_status)::text = ANY ((ARRAY['draft'::character varying, 'offered'::character varying, 'accepted'::character varying, 'declined'::character varying, 'countered'::character varying])::text[])))
+    CONSTRAINT basketball_slot_plan_proposal_status_check CHECK (((proposal_status)::text = ANY (ARRAY['draft'::text, 'offered'::text, 'club_proposed'::text, 'accepted'::text, 'declined'::text, 'countered'::text])))
 );
 
 
@@ -2070,7 +2168,7 @@ COMMENT ON COLUMN public.basketball_slot_plan.opponent_club IS 'The opponent CLU
 -- Name: COLUMN basketball_slot_plan.proposal_status; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.basketball_slot_plan.proposal_status IS 'draft (internal, INVISIBLE to the opponent) → offered (published to the club portal) → accepted | declined | countered. The public payload filters proposal_status <> ''draft'' — that filter IS the visibility gate, there is no separate boolean.';
+COMMENT ON COLUMN public.basketball_slot_plan.proposal_status IS 'Who proposed and where it stands. draft/offered = KSCW proposed; club_proposed = the opponent picked a free pitch through its portal and a planner has not confirmed it; accepted/declined/countered = an answer to an offer. Every non-draft row CLAIMS its slot via trg_basketball_slot_plan_0_sync_slots, so a club_proposed date is held against other clubs until a planner deletes it — it is still not a ProBasket fixture.';
 
 
 --
@@ -9077,6 +9175,20 @@ ALTER TABLE ONLY public.app_settings ALTER COLUMN id SET DEFAULT nextval('public
 
 
 --
+-- Name: basketball_group_teams id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.basketball_group_teams ALTER COLUMN id SET DEFAULT nextval('public.basketball_group_teams_id_seq'::regclass);
+
+
+--
+-- Name: basketball_groups id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.basketball_groups ALTER COLUMN id SET DEFAULT nextval('public.basketball_groups_id_seq'::regclass);
+
+
+--
 -- Name: basketball_hall_availability id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -9786,6 +9898,38 @@ ALTER TABLE ONLY public.announcements
 
 ALTER TABLE ONLY public.app_settings
     ADD CONSTRAINT app_settings_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: basketball_group_teams basketball_group_teams_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.basketball_group_teams
+    ADD CONSTRAINT basketball_group_teams_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: basketball_group_teams basketball_group_teams_uniq; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.basketball_group_teams
+    ADD CONSTRAINT basketball_group_teams_uniq UNIQUE (group_id, team_name);
+
+
+--
+-- Name: basketball_groups basketball_groups_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.basketball_groups
+    ADD CONSTRAINT basketball_groups_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: basketball_groups basketball_groups_season_code_uniq; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.basketball_groups
+    ADD CONSTRAINT basketball_groups_season_code_uniq UNIQUE (season, code);
 
 
 --
@@ -11064,6 +11208,27 @@ CREATE INDEX absences_member_index ON public.absences USING btree (member);
 --
 
 CREATE INDEX announcement_recipients_member_idx ON public.announcement_recipients USING btree (member);
+
+
+--
+-- Name: basketball_group_teams_bp_club_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX basketball_group_teams_bp_club_idx ON public.basketball_group_teams USING btree (bp_club) WHERE (bp_club IS NOT NULL);
+
+
+--
+-- Name: basketball_group_teams_group_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX basketball_group_teams_group_idx ON public.basketball_group_teams USING btree (group_id);
+
+
+--
+-- Name: basketball_group_teams_kscw_team_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX basketball_group_teams_kscw_team_idx ON public.basketball_group_teams USING btree (kscw_team) WHERE (kscw_team IS NOT NULL);
 
 
 --
@@ -13166,6 +13331,38 @@ ALTER TABLE ONLY public.announcements
 
 
 --
+-- Name: basketball_group_teams basketball_group_teams_bp_club_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.basketball_group_teams
+    ADD CONSTRAINT basketball_group_teams_bp_club_fkey FOREIGN KEY (bp_club) REFERENCES public.basketplan_clubs(id) ON DELETE SET NULL;
+
+
+--
+-- Name: basketball_group_teams basketball_group_teams_group_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.basketball_group_teams
+    ADD CONSTRAINT basketball_group_teams_group_id_fkey FOREIGN KEY (group_id) REFERENCES public.basketball_groups(id) ON DELETE CASCADE;
+
+
+--
+-- Name: basketball_group_teams basketball_group_teams_kscw_team_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.basketball_group_teams
+    ADD CONSTRAINT basketball_group_teams_kscw_team_fkey FOREIGN KEY (kscw_team) REFERENCES public.teams(id) ON DELETE SET NULL;
+
+
+--
+-- Name: basketball_groups basketball_groups_season_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.basketball_groups
+    ADD CONSTRAINT basketball_groups_season_fkey FOREIGN KEY (season) REFERENCES public.game_scheduling_seasons(id) ON DELETE CASCADE;
+
+
+--
 -- Name: basketball_hall_availability basketball_hall_availability_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -14997,5 +15194,5 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict sBeZE4f9VXW95clMJk6mEfBWbHcLmJzqsQNfEog3nV7dLs8i4dwVdIyxOeEy2aY
+\unrestrict lPmxCtTNjPEqtJi6b1wowrSTjhUsqRBlTALnpLEb3hFKrywyaj2g1YnrGEk0CmL
 
