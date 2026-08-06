@@ -186,4 +186,9 @@ export default {
   keepBtn: 'Keep it',
   cancelConfirmBtn: 'Cancel it',
   reinstateConfirmBtn: 'Reinstate',
+
+  // Recipient chips (mail composer)
+  emailChipsPlaceholder: 'Type or paste addresses',
+  emailChipsRemove: 'Remove recipient',
+  emailChipsInvalid: 'Not a valid email address',
 } as const

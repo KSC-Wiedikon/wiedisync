@@ -186,4 +186,9 @@ export default {
   keepBtn: 'Behalten',
   cancelConfirmBtn: 'Absagen',
   reinstateConfirmBtn: 'Wiederherstellen',
+
+  // Empfänger-Chips (E-Mail-Verfassen)
+  emailChipsPlaceholder: 'Adressen eingeben oder einfügen',
+  emailChipsRemove: 'Empfänger entfernen',
+  emailChipsInvalid: 'Keine gültige E-Mail-Adresse',
 } as const
