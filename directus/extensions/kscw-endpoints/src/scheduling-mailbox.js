@@ -1458,7 +1458,15 @@ export function registerSchedulingMailbox(router, { database, logger }) {
       if (raw.length > LOOKUP_MAX_ADDRESSES) {
         return res.status(413).json({ error: `Too many addresses (max ${LOOKUP_MAX_ADDRESSES})` })
       }
-      const wanted = [...new Set(cleanAddresses(raw).map((e) => e.toLowerCase()))]
+      // Unwrap `Name <a@b.ch>` BEFORE cleanAddresses, which keeps only the bare
+      // shape and would drop that form without a word — the same silent loss
+      // the composer's chip field exists to prevent. The frontend already sends
+      // bare addresses; this is for anything that does not.
+      const unwrapped = raw.map((v) => {
+        const m = /^\s*.*<([^<>]+)>\s*$/.exec(String(v ?? ''))
+        return m ? m[1].trim() : v
+      })
+      const wanted = [...new Set(cleanAddresses(unwrapped).map((e) => e.toLowerCase()))]
       if (wanted.length === 0) return res.status(400).json({ error: 'No addresses' })
 
       const memberRows = await database('members')
