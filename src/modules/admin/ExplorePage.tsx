@@ -1,8 +1,9 @@
 // src/modules/admin/ExplorePage.tsx
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { LayoutGrid, ListTree, RefreshCw } from 'lucide-react'
+import { useConfirm } from '../../components/ConfirmProvider'
 import { useAuth } from '../../hooks/useAuth'
 import { useReportPageLoading } from '../../hooks/usePageReady'
 import { useExplorerCache } from './hooks/useExplorerCache'
@@ -30,6 +31,7 @@ function storedView(): ExplorerView {
 export default function ExplorePage() {
   const { t } = useTranslation('admin')
   const auth = useAuth()
+  const confirm = useConfirm()
   const scope = useMemo(
     () => getExplorerScope({
       isGlobalAdmin: auth.isGlobalAdmin,
@@ -84,16 +86,39 @@ export default function ExplorePage() {
     [data, memberFilters],
   )
 
+  // Unsaved-change guard. The member field editor reports its dirty count here,
+  // so clicking another member in the tree asks before throwing the edits away
+  // instead of discarding them silently. A ref, not state: this must not
+  // re-render the page on every keystroke in the editor.
+  const dirtyCountRef = useRef(0)
+  const handleDirtyChange = useCallback((count: number) => {
+    dirtyCountRef.current = count
+  }, [])
+
+  const confirmDiscard = useCallback(async () => {
+    const count = dirtyCountRef.current
+    if (count === 0) return true
+    const ok = await confirm({
+      title: t('explorerFieldsDiscardTitle'),
+      message: t('explorerFieldsDiscardMessage', { count }),
+      danger: true,
+    })
+    if (ok) dirtyCountRef.current = 0
+    return ok
+  }, [confirm, t])
+
   const handleSelect = useCallback(
-    (type: BucketKey, id: string) => {
+    async (type: BucketKey, id: string) => {
+      if (!(await confirmDiscard())) return
       setParams({ t: type, id, v: 'tree' }, { replace: false })
     },
-    [setParams],
+    [setParams, confirmDiscard],
   )
 
-  const handleBackToTree = useCallback(() => {
+  const handleBackToTree = useCallback(async () => {
+    if (!(await confirmDiscard())) return
     setParams({ v: 'tree' }, { replace: false })
-  }, [setParams])
+  }, [setParams, confirmDiscard])
 
   // Grid row → full detail view (tree mode with the member selected).
   const handleOpenDetail = useCallback(
@@ -219,6 +244,9 @@ export default function ExplorePage() {
             id={selectedId}
             onSelect={handleSelect}
             onBack={handleBackToTree}
+            onMutate={mutate}
+            onRefresh={handleRefresh}
+            onDirtyChange={handleDirtyChange}
           />
         </main>
       </div>

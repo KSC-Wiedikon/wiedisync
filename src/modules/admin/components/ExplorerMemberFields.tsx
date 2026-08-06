@@ -1,17 +1,35 @@
 // src/modules/admin/components/ExplorerMemberFields.tsx
 //
 // Full-fields view of a single member record for the Data Explorer.
-// Fetches the record with `fields: ['*']` so policy-readable columns appear
-// regardless of which subset the parent cache loads. Admins get an inline
-// "Edit" toggle that turns every field into a typed input (text / number /
-// switch / JSON textarea / date), with dirty-only PATCH on save.
+//
+// Everything about how a column renders — its group, its label, its help text,
+// which control edits it, whether it is read-only and WHY — comes from
+// `memberFieldSchema.ts`. This file used to guess all of that from the *value*
+// at render time (`detectKind`), which meant a NULL boolean rendered as a text
+// box, a NULL jsonb rendered as a text box that then wrote a string into a
+// jsonb column, and a long secret rendered as a textarea containing the
+// member's private key. A column's type is a property of the column, not of the
+// row you happen to be looking at.
+//
+// Three rules this file exists to hold:
+//   • The taxonomy is authoritative. The only value-sniffing left is the narrow
+//     fallback for a column that exists in Postgres but not yet in the schema —
+//     and that one is quarantined into a visible "Unmapped columns" group so it
+//     reads as a maintenance signal instead of being silently mislabelled.
+//   • Sport hiding is VISUAL ONLY. A hidden field stays in `draft`, stays in
+//     `dirtyKeys`, and is still PATCHed. `dirtyKeys` is computed from the record
+//     keys and never from the render plan, so visibility cannot reach it.
+//   • Sensitive columns never reach the DOM. `sanitizeRecord` replaces their
+//     value with the boolean "was it set" BEFORE it lands in React state, so
+//     there is nothing to leak into a screenshot, a devtools dump or a PATCH.
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Pencil, Save, X, Loader2 } from 'lucide-react'
-import { fetchItem, updateRecord } from '../../../lib/api'
+import { Pencil, Save, X, Loader2, Eye, EyeOff, AlertTriangle } from 'lucide-react'
+import { assetUrl, createRecord, deleteRecord, fetchItem, updateRecord } from '../../../lib/api'
 import { logActivity } from '../../../utils/logActivity'
+import { getCurrentSeason } from '../../../utils/dateHelpers'
 import { localizeCountryName } from '../../../utils/countryName'
 import {
   NO_FEDERATION, countryLabel, countryOptions, formatCountryCodes,
@@ -19,169 +37,99 @@ import {
 } from '../../../utils/countries'
 import CountryMultiSelect from '../../../components/CountryMultiSelect'
 import {
-  TRAINER_LICENCE_CODES, TRAINER_LICENCE_I18N_KEYS,
-  parseTrainerLicences, serializeTrainerLicences,
+  TRAINER_LICENCE_CODES, TRAINER_LICENCE_CODES_BY_SPORT, TRAINER_LICENCE_I18N_KEYS,
+  parseTrainerLicences, serializeTrainerLicences, type TrainerLicence,
 } from '../../../utils/trainerLicences'
 import { coercePositions, getPositionI18nKey, getSelectablePositions } from '../../../utils/memberPositions'
-import { MEMBER_FIELD_LABELS } from './memberFieldLabels'
+import { useConfirm } from '../../../components/ConfirmProvider'
+import type { Team } from '../../../types'
+import type { CacheShape } from './explorerHelpers'
+import { buildMemberTeamsMap, teamLabel } from './explorerHelpers'
+import {
+  MEMBER_FIELD_BY_KEY, NEVER_PATCH_KEYS, TEAMS_VIRTUAL_KEY,
+  buildMemberFieldSections, getFieldDef, isFieldReadOnly, sanitizeRecord,
+  type MemberFieldDef, type MemberFieldKind, type MemberFieldSection,
+} from './memberFieldSchema'
+import { resolveMemberSport, sportCovers, type MemberSport } from './memberSport'
 import {
   MEMBER_MULTI_FIELDS, MEMBER_SELECT_FIELDS, MEMBER_SUGGEST_FIELDS, optionLabel,
   type FieldOption,
 } from './memberFieldOptions'
+import MemberDangerZone from './MemberDangerZone'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import SearchableSelect from '@/components/ui/SearchableSelect'
 import DatePicker from '@/components/ui/DatePicker'
 import DateTimePicker from '@/components/ui/DateTimePicker'
+import EmailInput from '@/components/ui/EmailInput'
+import PhoneInput from '@/components/ui/PhoneInput'
+import AhvInput from '@/components/ui/AhvInput'
+import IbanInput from '@/components/ui/IbanInput'
+import PostalCodeInput from '@/components/ui/PostalCodeInput'
+import PhotoPicker from '@/components/ui/PhotoPicker'
+import { TeamPickerMulti, TeamPickerSingle, type TeamPickerOption } from '@/components/ui/TeamPicker'
 
 interface Props {
   memberId: string
+  /** For sport resolution and the team pickers. */
+  cache: CacheShape
   canEdit: boolean
+  /** Role-level delete gate. Narrowed here by the member's own sport (§4.5). */
+  canDelete: boolean
+  /** The viewer's own sport scope — 'both' for a global admin / dual sport admin. */
+  adminScope: MemberSport
+  /** Unlocks the `privileged` fields (role, is_spielplaner). */
+  isGlobalAdmin: boolean
+  /** The viewer's own member id — they may never delete themselves. */
+  viewerMemberId?: string | null
   /** Bumped by the page when the cache reloads — re-fetches the record. */
   reloadKey?: number
-  /** Notify parent so it can refresh the explorer cache. */
+  /** Junction writes from the teams multiselect update the shared cache. */
+  onMutate: (fn: (prev: CacheShape) => CacheShape) => void
+  /** Called after a successful field save so the parent can refresh its cache. */
   onSaved?: () => void
+  /** Called after a successful hard delete. */
+  onDeleted?: () => void
+  /** Reports the unsaved-change count up so the page can guard navigation. */
+  onDirtyChange?: (count: number) => void
+  /**
+   * The detail view's relations / sections tables. They render BETWEEN the
+   * field groups and the danger zone, so the danger zone is genuinely the last
+   * block of the page (spec §4.1) while the record state it mutates still lives
+   * in one component. Passing them as children beats duplicating the record
+   * fetch in the parent just to place one section.
+   */
+  children?: React.ReactNode
 }
 
-// Server-managed columns the admin should never overwrite from this UI.
-const READ_ONLY_FIELDS = new Set([
-  'id',
-  'user',
-  'date_created',
-  'date_updated',
-  'user_created',
-  'user_updated',
-  // Stamped by VM-sync / SV cron — editing here would just flap back.
-  'license_nr',
-  'licence_validated',
-  'licence_activated',
-  'licence_validation_date',
-  'licence_activation_date',
-  'licence_category',
-  // Auto-managed timestamps
-  'last_online_at',
-  'consent_prompted_at',
-  'shell_reminder_sent',
-  // DERIVED (migration 223): a DB trigger mirrors the first entry of
-  // `nationalitaet_codes` as the German name ClubDesk's picklist needs. Editing
-  // it by hand only drifts the two apart until the next codes write — edit
-  // `nationalitaet_codes` instead.
-  'nationalitaet',
-])
-
-function humanize(key: string): string {
-  const spaced = key.replace(/_/g, ' ').trim()
-  if (!spaced) return key
-  return spaced.charAt(0).toUpperCase() + spaced.slice(1)
-}
-
-function labelFor(key: string): string {
-  return MEMBER_FIELD_LABELS[key] ?? humanize(key)
-}
-
-// Semantic field groups — ordered for display. Keys not listed here land in
-// "Other" automatically.
-interface FieldGroup {
-  id: string
-  label: string
-  keys: string[]
-}
-const FIELD_GROUPS: FieldGroup[] = [
-  {
-    id: 'identity',
-    label: 'Identity',
-    keys: ['id', 'first_name', 'last_name', 'nickname', 'email', 'phone', 'sex', 'birthdate', 'birthdate_visibility', 'language', 'photo', 'number', 'position', 'role', 'user'],
-  },
-  {
-    id: 'membership',
-    label: 'Membership',
-    keys: ['kscw_membership_active', 'wiedisync_active', 'shell', 'shell_expires', 'shell_reminder_sent', 'requested_team', 'coach_approved_team', 'is_spielplaner'],
-  },
-  {
-    id: 'licences',
-    label: 'Licences',
-    keys: ['license_nr', 'licence_activated', 'licence_validated', 'licence_category', 'licence_activation_date', 'licence_validation_date', 'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'otn1_bb', 'otn2_bb', 'referee_bb', 'trainer_licences'],
-  },
-  {
-    id: 'privacy',
-    label: 'Consent & privacy',
-    keys: ['consent_decision', 'consent_prompted_at', 'hide_phone', 'hide_email', 'website_visible', 'push_preview_content'],
-  },
-  {
-    id: 'communications',
-    label: 'Communications',
-    keys: ['communications_team_chat_enabled', 'communications_dm_enabled', 'communications_banned', 'last_online_at'],
-  },
-  {
-    id: 'address',
-    label: 'Address & Swiss Volley admin',
-    keys: ['adresse', 'plz', 'ort', 'nationalitaet_codes', 'federation_of_origin', 'nationalitaet', 'vm_email', 'ahv_nummer', 'beitragskategorie'],
-  },
-  {
-    id: 'system',
-    label: 'System',
-    keys: ['status', 'date_created', 'date_updated', 'user_created', 'user_updated', 'sort'],
-  },
-]
-
-const KEY_TO_GROUP: Record<string, string> = (() => {
-  const m: Record<string, string> = {}
-  for (const g of FIELD_GROUPS) {
-    for (const k of g.keys) m[k] = g.id
-  }
-  return m
-})()
-
-type FieldKind =
-  | 'bool' | 'number' | 'json' | 'date' | 'datetime' | 'longtext' | 'text'
-  | 'select' | 'multiselect' | 'suggest'
-
-const KIND_BADGE: Record<FieldKind, string> = {
-  bool: 'boolean',
+/** Honest one-word type marker per kind — the chip on every field card. */
+const KIND_BADGE: Record<MemberFieldKind, string> = {
+  text: 'text',
+  longtext: 'text',
   number: 'number',
-  json: 'json',
+  bool: 'boolean',
   date: 'date',
   datetime: 'datetime',
-  longtext: 'text',
-  text: 'text',
+  json: 'json',
   select: 'select',
   multiselect: 'multi',
   // Free text with suggestions — the badge stays honest about the column type.
   suggest: 'text',
-}
-
-function detectKind(key: string, value: unknown): FieldKind {
-  // Closed value sets are keyed off the COLUMN, not the value: a varchar
-  // holding 'hidden' looks exactly like free text, and a NULL one carries no
-  // hint at all. Must stay ahead of the value heuristics below.
-  if (MEMBER_SELECT_FIELDS[key]) return 'select'
-  if (MEMBER_MULTI_FIELDS[key] || key === 'position') return 'multiselect'
-  if (MEMBER_SUGGEST_FIELDS[key]) return 'suggest'
-  if (typeof value === 'boolean') return 'bool'
-  if (typeof value === 'number') return 'number'
-  if (Array.isArray(value)) return 'json'
-  if (value && typeof value === 'object') return 'json'
-  // String hints by column name
-  if (typeof value === 'string') {
-    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(value)) return 'datetime'
-    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return 'date'
-    if (value.length > 120) return 'longtext'
-  }
-  if (key === 'birthdate' || key.endsWith('_date')) return 'date'
-  if (key.endsWith('_at')) return 'datetime'
-  // Heuristic: known long-text columns
-  if (['adresse'].includes(key)) return 'longtext'
-  return 'text'
-}
-
-function formatDisplay(value: unknown, kind: FieldKind): string {
-  if (value == null || value === '') return '—'
-  if (kind === 'bool') return value ? 'Yes' : 'No'
-  if (kind === 'json') {
-    try { return JSON.stringify(value, null, 2) } catch { return String(value) }
-  }
-  return String(value)
+  email: 'email',
+  phone: 'phone',
+  ahv: 'ahv',
+  iban: 'iban',
+  postalcode: 'text',
+  photo: 'photo',
+  team: 'team',
+  teamMulti: 'teams',
+  countryMulti: 'country',
+  country: 'country',
+  positions: 'multi',
+  trainerLicences: 'multi',
+  readonlyMasked: 'secret',
 }
 
 function valueEquals(a: unknown, b: unknown): boolean {
@@ -194,78 +142,305 @@ function valueEquals(a: unknown, b: unknown): boolean {
   return false
 }
 
-export default function ExplorerMemberFields({ memberId, canEdit, reloadKey, onSaved }: Props) {
+/**
+ * Fresh server record + whatever the operator has typed and not saved yet.
+ *
+ * An unsaved edit is a key whose PREVIOUS draft value differed from the
+ * PREVIOUS record value — the same definition `dirtyKeys` uses, minus the keys
+ * that can never be patched. Everything else takes the server's value, so a
+ * refresh still picks up changes made elsewhere. Keys are only carried over
+ * when the previous state belongs to the SAME member; after a navigation there
+ * is nothing to preserve.
+ */
+function mergeUnsavedEdits(
+  fresh: Record<string, unknown>,
+  live: { memberId: string; record: Record<string, unknown> | null; draft: Record<string, unknown> },
+  memberId: string,
+  isGlobalAdmin: boolean,
+): Record<string, unknown> {
+  const merged = { ...fresh }
+  if (live.memberId !== memberId || !live.record) return merged
+  for (const key of Object.keys(live.draft)) {
+    const def = getFieldDef(key)
+    if (def.virtual || NEVER_PATCH_KEYS.has(key)) continue
+    if (isFieldReadOnly(def, { isGlobalAdmin })) continue
+    if (!valueEquals(live.record[key], live.draft[key])) merged[key] = live.draft[key]
+  }
+  return merged
+}
+
+/** A `fields: ['*']` fetch returns a bare id, but an expanded M2O arrives as an
+ *  object. Normalise both to the id string so the pickers never get an object. */
+function relId(value: unknown): string | null {
+  if (value == null || value === '') return null
+  if (typeof value === 'object') {
+    const id = (value as { id?: unknown }).id
+    return id == null ? null : String(id)
+  }
+  return String(value)
+}
+
+const NO_SPORTS_REVEALED: ReadonlySet<'volleyball' | 'basketball'> = new Set()
+
+/**
+ * Target roles that put a member out of reach of anyone below a full admin.
+ * ⚠ Mirrors PRIVILEGED_TARGET_ROLES in kscw-endpoints/src/delete-impact.js —
+ * change both.
+ */
+const PRIVILEGED_TARGET_ROLES: ReadonlySet<string> = new Set([
+  'admin', 'superuser', 'vorstand', 'vb_admin', 'bb_admin', 'finance',
+])
+
+/** `members.role` is a jsonb string array, but a legacy row can hold a bare string. */
+function parseRoleList(raw: unknown): string[] {
+  if (Array.isArray(raw)) return raw.map(String)
+  if (typeof raw === 'string') {
+    const s = raw.trim()
+    if (s.startsWith('[')) {
+      try {
+        const parsed = JSON.parse(s)
+        return Array.isArray(parsed) ? parsed.map(String) : []
+      } catch { return [] }
+    }
+    return s ? [s] : []
+  }
+  return []
+}
+
+export default function ExplorerMemberFields({
+  memberId,
+  cache,
+  canEdit,
+  canDelete,
+  adminScope,
+  isGlobalAdmin,
+  viewerMemberId,
+  reloadKey,
+  onMutate,
+  onSaved,
+  onDeleted,
+  onDirtyChange,
+  children,
+}: Props) {
   const { t } = useTranslation('admin')
+  const confirm = useConfirm()
+
   const [record, setRecord] = useState<Record<string, unknown> | null>(null)
+  const [present, setPresent] = useState<Record<string, boolean>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [editMode, setEditMode] = useState(false)
   const [draft, setDraft] = useState<Record<string, unknown>>({})
   const [saving, setSaving] = useState(false)
+  const [revealedSports, setRevealedSports] =
+    useState<ReadonlySet<'volleyball' | 'basketball'>>(NO_SPORTS_REVEALED)
+  const [busyTeamIds, setBusyTeamIds] = useState<ReadonlySet<string>>(() => new Set())
 
-  const load = useCallback(async () => {
-    setLoading(true)
+  // Switching members resets the view state AND re-arms the loading gate.
+  // Render-phase adjustment rather than an effect: React's documented "reset
+  // state when a prop changes" pattern. Doing it here rather than inside
+  // `load()` is also what keeps the fetch effect free of a synchronous
+  // setState (react-hooks/set-state-in-effect is an error in this repo).
+  const [primedId, setPrimedId] = useState(memberId)
+  if (primedId !== memberId) {
+    setPrimedId(memberId)
+    setRecord(null)
     setError(null)
-    try {
-      const item = await fetchItem<Record<string, unknown>>('members', memberId, { fields: ['*'] })
-      setRecord(item)
-      setDraft({ ...item })
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    } finally {
-      setLoading(false)
-    }
-  }, [memberId])
-
-  // Reset edit mode whenever the loaded member changes — intentional sync reset.
-  /* eslint-disable react-hooks/set-state-in-effect */
-  useEffect(() => {
-    void load()
+    setLoading(true)
     setEditMode(false)
-  }, [load, reloadKey])
-  /* eslint-enable react-hooks/set-state-in-effect */
-
-  // All keys (flat) — for change counters
-  const keys = useMemo(() => (record ? Object.keys(record) : []), [record])
-
-  // Group keys by FIELD_GROUPS; unknown keys land in "Other" (rendered last).
-  // Within each group, preserve the order declared in FIELD_GROUPS.keys; any
-  // keys present on the record but not in the group's declared order fall to
-  // the end of that group, sorted by human label.
-  const groupedKeys = useMemo(() => {
-    if (!record) return [] as Array<{ id: string; label: string; keys: string[] }>
-    const present = new Set(Object.keys(record))
-    const sections: Array<{ id: string; label: string; keys: string[] }> = []
-
-    for (const g of FIELD_GROUPS) {
-      const ordered = g.keys.filter((k) => present.has(k))
-      if (ordered.length > 0) sections.push({ id: g.id, label: g.label, keys: ordered })
-    }
-
-    // Anything not mapped → "Other"
-    const otherKeys = Object.keys(record)
-      .filter((k) => !KEY_TO_GROUP[k])
-      .sort((a, b) => labelFor(a).localeCompare(labelFor(b)))
-    if (otherKeys.length > 0) {
-      sections.push({ id: 'other', label: 'Other', keys: otherKeys })
-    }
-
-    return sections
-  }, [record])
-
-  const dirtyKeys = useMemo(() => {
-    if (!record) return [] as string[]
-    return keys.filter((k) => !READ_ONLY_FIELDS.has(k) && !valueEquals(record[k], draft[k]))
-  }, [record, draft, keys])
-
-  const setField = (key: string, value: unknown) => setDraft((d) => ({ ...d, [key]: value }))
-
-  const handleCancel = () => {
-    if (record) setDraft({ ...record })
-    setEditMode(false)
+    setRevealedSports(NO_SPORTS_REVEALED)
+    setBusyTeamIds(new Set())
   }
 
-  const handleSave = async () => {
+  /**
+   * Live mirror of what is on screen, for `load()` to diff against after its
+   * await. A ref, not a dependency: `load` must not be re-created (and the fetch
+   * effect must not re-fire) on every keystroke in the editor.
+   */
+  const liveRef = useRef<{
+    memberId: string
+    record: Record<string, unknown> | null
+    draft: Record<string, unknown>
+  }>({ memberId, record: null, draft: {} })
+  useEffect(() => {
+    liveRef.current = { memberId, record, draft }
+  }, [memberId, record, draft])
+
+  /** Monotonic request id — only the newest response is allowed to land. */
+  const loadSeq = useRef(0)
+
+  // No state is written before the first `await`: a `reloadKey` bump is a
+  // background refresh and must not blank a record that is already on screen.
+  const load = useCallback(async () => {
+    const seq = ++loadSeq.current
+    try {
+      const item = await fetchItem<Record<string, unknown>>('members', memberId, { fields: ['*'] })
+      // A slower response for a member the operator has already navigated away
+      // from must not overwrite the one now on screen.
+      if (seq !== loadSeq.current) return
+      // Strip the four bearer/key-material columns before anything reaches
+      // React state — they must never exist in the DOM or in a PATCH payload.
+      const safe = sanitizeRecord(item)
+      setRecord(safe.record)
+      setPresent(safe.present)
+      // ⚠ NOT `{ ...safe.record }`. Any cache refresh bumps `reloadKey` and
+      // re-runs this — the header Refresh button, and every danger-zone toggle
+      // via onSaved — so a blind reset silently threw away whatever the
+      // operator had typed but not saved, with no prompt and the dirty count
+      // dropping to 0 behind the unsaved-change guard. The fresh server row
+      // wins for everything untouched; the operator's unsaved edits are
+      // re-applied on top.
+      setDraft(mergeUnsavedEdits(safe.record, liveRef.current, memberId, isGlobalAdmin))
+      setError(null)
+    } catch (err) {
+      if (seq !== loadSeq.current) return
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      if (seq === loadSeq.current) setLoading(false)
+    }
+  }, [memberId, isGlobalAdmin])
+
+  // The rule flags any setState reachable from an effect, even the ones that
+  // only run after the `await` (verified: both the try/catch/finally and the
+  // bare-await shapes are rejected). Fetch-then-store is exactly what an effect
+  // is for, and the reset above already keeps the render path stable — so this
+  // is the repo's usual scoped exemption, not a cascading-render bug.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { void load() }, [load, reloadKey])
+
+  // ── Derived ──────────────────────────────────────────────────────────
+
+  const keys = useMemo(() => (record ? Object.keys(record) : []), [record])
+
+  /**
+   * ⚠ Computed from the RECORD, never from the render plan — this is what makes
+   * "hiding is visual only" true. A dirty value in a collapsed sport block is
+   * still counted here and still ends up in the PATCH.
+   */
+  const dirtyKeys = useMemo(() => {
+    if (!record) return [] as string[]
+    return keys.filter((k) => {
+      const def = getFieldDef(k)
+      if (def.virtual || NEVER_PATCH_KEYS.has(k)) return false
+      if (isFieldReadOnly(def, { isGlobalAdmin })) return false
+      return !valueEquals(record[k], draft[k])
+    })
+  }, [record, draft, keys, isGlobalAdmin])
+
+  // Report unsaved changes up so ExplorePage can confirm before navigating away
+  // (otherwise clicking another member in the tree discards them silently).
+  useEffect(() => {
+    onDirtyChange?.(dirtyKeys.length)
+    return () => onDirtyChange?.(0)
+  }, [dirtyKeys.length, onDirtyChange])
+
+  const sport: MemberSport = useMemo(
+    () => resolveMemberSport(
+      {
+        id: memberId,
+        sektion: record?.sektion,
+        beitragskategorie: record?.beitragskategorie,
+      },
+      cache,
+    ),
+    [memberId, record, cache],
+  )
+
+  // Columns Postgres has but the schema does not. Quarantined out of the normal
+  // render plan and shown in their own group — an unmapped column is a bug to
+  // fix, not something to bury in "System & audit".
+  const unmappedKeys = useMemo(
+    () => keys.filter((k) => !MEMBER_FIELD_BY_KEY[k]).sort((a, b) => a.localeCompare(b)),
+    [keys],
+  )
+
+  const sections: MemberFieldSection[] = useMemo(() => {
+    if (!record) return []
+    const mapped = keys.filter((k) => MEMBER_FIELD_BY_KEY[k])
+    return buildMemberFieldSections({
+      presentKeys: [...mapped, TEAMS_VIRTUAL_KEY],
+      sport,
+      revealedSports,
+    })
+  }, [record, keys, sport, revealedSports])
+
+  const memberName = useMemo(() => {
+    if (!record) return `#${memberId}`
+    const name = [record.first_name, record.last_name].filter(Boolean).join(' ').trim()
+    return name || String(record.email || `#${memberId}`)
+  }, [record, memberId])
+
+  const rosterTeamIds = useMemo(
+    () => cache.memberTeams.get(memberId) ?? [],
+    [cache.memberTeams, memberId],
+  )
+
+  const teamOptions: TeamPickerOption[] = useMemo(() => {
+    const toOption = (tm: Team): TeamPickerOption => ({
+      id: String(tm.id),
+      // ⚠ The sport comes from `teams.sport`, never from the name: 'Herren 2 H3'
+      // and 'Damen D-Classics 1LR' are basketball teams.
+      label: teamLabel(tm),
+      sport: tm.sport === 'volleyball' || tm.sport === 'basketball' ? tm.sport : null,
+      season: tm.season ?? null,
+      active: tm.active ?? undefined,
+    })
+    const options = cache.teams.map(toOption)
+    // The member's OWN roster rows can point at a team the scoped, active-only
+    // list does not carry (a closed season, or the other sport). Those are
+    // added so the chip reads as the team it is instead of a bare "#412", and
+    // so the same row can be unticked from the dropdown. Nothing else widens
+    // the picker — an inactive team the member is NOT on stays out of it.
+    const known = new Set(options.map((o) => o.id))
+    for (const id of rosterTeamIds) {
+      if (known.has(id)) continue
+      const tm = cache.teamLookup.get(id)
+      if (!tm) continue
+      known.add(id)
+      options.push(toOption(tm))
+    }
+    return options
+  }, [cache.teams, cache.teamLookup, rosterTeamIds])
+
+  // Sport scope for the delete affordance. Resolved off the FULL record (which
+  // carries sektion + beitragskategorie), so it is strictly better informed than
+  // the cache-only resolution the caller could do. The server re-checks anyway.
+  const withinSportScope =
+    adminScope === 'both' || sport === 'both' || sport === adminScope
+  // Rank + self, mirroring the two checks POST /kscw/admin/delete-member makes
+  // (the server is the boundary; this only keeps the button off the screen).
+  // Deleting a member takes their login with it, so a sport admin doing it to a
+  // board member or another admin would be an account takedown of someone who
+  // outranks them — and nobody deletes their own record.
+  const targetIsPrivileged = useMemo(
+    () => parseRoleList(record?.role).some((r) => PRIVILEGED_TARGET_ROLES.has(r)),
+    [record],
+  )
+  const isSelf = viewerMemberId != null && String(viewerMemberId) === memberId
+  const canDeleteMember =
+    canDelete && withinSportScope && !isSelf && (isGlobalAdmin || !targetIsPrivileged)
+
+  // ── Write paths ──────────────────────────────────────────────────────
+
+  const setField = useCallback(
+    (key: string, value: unknown) => setDraft((d) => ({ ...d, [key]: value })),
+    [],
+  )
+
+  const handleCancel = useCallback(async () => {
+    if (dirtyKeys.length > 0) {
+      const ok = await confirm({
+        title: t('explorerFieldsDiscardTitle'),
+        message: t('explorerFieldsDiscardMessage', { count: dirtyKeys.length }),
+        danger: true,
+      })
+      if (!ok) return
+    }
+    if (record) setDraft({ ...record })
+    setEditMode(false)
+  }, [dirtyKeys.length, confirm, t, record])
+
+  const handleSave = useCallback(async () => {
     if (!record || dirtyKeys.length === 0) {
       setEditMode(false)
       return
@@ -274,10 +449,16 @@ export default function ExplorerMemberFields({ memberId, canEdit, reloadKey, onS
     try {
       const patch: Record<string, unknown> = {}
       for (const k of dirtyKeys) patch[k] = draft[k]
-      const updated = await updateRecord<Record<string, unknown>>('members', memberId, patch)
+      // `fields: ['*']` — without it Directus answers with its default field set
+      // and the record would silently change shape (and lose columns) on save.
+      const updated = await updateRecord<Record<string, unknown>>(
+        'members', memberId, patch, { fields: ['*'] },
+      )
       logActivity('update', 'members', memberId, patch)
-      setRecord(updated as Record<string, unknown>)
-      setDraft({ ...(updated as Record<string, unknown>) })
+      const safe = sanitizeRecord(updated)
+      setRecord(safe.record)
+      setPresent(safe.present)
+      setDraft({ ...safe.record })
       setEditMode(false)
       toast.success(t('explorerMemberFieldsSaved', { count: Object.keys(patch).length }))
       onSaved?.()
@@ -286,28 +467,165 @@ export default function ExplorerMemberFields({ memberId, canEdit, reloadKey, onS
     } finally {
       setSaving(false)
     }
-  }
+  }, [record, dirtyKeys, draft, memberId, t, onSaved])
 
+  /**
+   * Roster membership. Writes `member_teams` junction rows immediately — the
+   * same create/delete + optimistic `onMutate` path ExplorerGrid uses, not a
+   * second one. Coach / team-responsible / captain links are NOT touched here:
+   * they live in the relations table below, which can express three relation
+   * types where one chip field cannot.
+   */
+  const handleTeamsChange = useCallback(async (nextIds: string[]) => {
+    const currentIds = new Set(rosterTeamIds)
+    const nextSet = new Set(nextIds)
+    const added = nextIds.filter((id) => !currentIds.has(id))
+    const removed = rosterTeamIds.filter((id) => !nextSet.has(id))
+    // teamLookup, not cache.teams: a removal confirm for a past-season team
+    // must name the team, not print its id at the operator.
+    const labelOf = (teamId: string) => {
+      const team = cache.teams.find((tm) => String(tm.id) === teamId)
+        ?? cache.teamLookup.get(teamId)
+      return team ? teamLabel(team) : teamId
+    }
+    const markBusy = (teamId: string, busy: boolean) =>
+      setBusyTeamIds((prev) => {
+        const next = new Set(prev)
+        if (busy) next.add(teamId)
+        else next.delete(teamId)
+        return next
+      })
+
+    for (const teamId of removed) {
+      const row = cache.memberTeamRows.find((r) => r.member === memberId && r.team === teamId)
+      if (!row) continue
+      const teamName = labelOf(teamId)
+      const ok = await confirm({
+        message: t('explorerFieldsTeamsRemoveConfirm', { name: memberName, team: teamName }),
+        danger: true,
+      })
+      if (!ok) continue
+      markBusy(teamId, true)
+      try {
+        await deleteRecord('member_teams', row.id)
+        logActivity('delete', 'member_teams', row.id, { member: memberId, team: teamId })
+        onMutate((prev) => {
+          const memberTeamRows = prev.memberTeamRows.filter((r) => r.id !== row.id)
+          return { ...prev, memberTeamRows, memberTeams: buildMemberTeamsMap(memberTeamRows) }
+        })
+        toast.success(t('explorerFieldsTeamsRemoved', { team: teamName }))
+      } catch {
+        toast.error(t('explorerFieldsTeamsError'))
+      } finally {
+        markBusy(teamId, false)
+      }
+    }
+
+    for (const teamId of added) {
+      const teamName = labelOf(teamId)
+      markBusy(teamId, true)
+      try {
+        const created = await createRecord<{ id: string | number; guest_level: number | null; season: string | null }>(
+          'member_teams',
+          { member: memberId, team: teamId, season: getCurrentSeason() },
+        )
+        const newRow = {
+          id: String(created.id),
+          member: memberId,
+          team: teamId,
+          guest_level: created.guest_level ?? 0,
+          season: created.season ?? getCurrentSeason(),
+        }
+        logActivity('create', 'member_teams', newRow.id, { member: memberId, team: teamId })
+        onMutate((prev) => {
+          const memberTeamRows = [...prev.memberTeamRows, newRow]
+          return { ...prev, memberTeamRows, memberTeams: buildMemberTeamsMap(memberTeamRows) }
+        })
+        toast.success(t('explorerFieldsTeamsAdded', { team: teamName }))
+      } catch {
+        toast.error(t('explorerFieldsTeamsError'))
+      } finally {
+        markBusy(teamId, false)
+      }
+    }
+  }, [rosterTeamIds, cache.teams, cache.teamLookup, cache.memberTeamRows, memberId, memberName, confirm, t, onMutate])
+
+  const toggleSport = useCallback((gate: 'volleyball' | 'basketball') => {
+    setRevealedSports((prev) => {
+      const next = new Set(prev)
+      if (next.has(gate)) next.delete(gate)
+      else next.add(gate)
+      return next
+    })
+  }, [])
+
+  const handleStatusPatched = useCallback(
+    (patch: Record<string, unknown>, updated: Record<string, unknown>) => {
+      const safe = sanitizeRecord(updated)
+      setRecord(safe.record)
+      setPresent(safe.present)
+      // Keep the operator's in-flight edits; only the danger-zone keys change.
+      // `onSaved` refreshes the page cache, which re-runs load() — that path
+      // preserves unsaved edits too (mergeUnsavedEdits), so this is no longer
+      // undone two ticks later.
+      setDraft((d) => ({ ...d, ...patch }))
+      onSaved?.()
+    },
+    [onSaved],
+  )
+
+  /**
+   * The record is gone. Drop the unsaved-change count FIRST — otherwise the
+   * parent's navigation guard asks the operator whether to discard edits to a
+   * member that no longer exists, and answering No strands them on a dead id.
+   */
+  const handleDeleted = useCallback(() => {
+    if (record) setDraft({ ...record })
+    onDirtyChange?.(0)
+    onDeleted?.()
+  }, [record, onDirtyChange, onDeleted])
+
+  // ── Render ───────────────────────────────────────────────────────────
+
+  // The relations tables below do not depend on this fetch, so they still
+  // render while the record is loading or if it failed.
   if (loading && !record) {
     return (
-      <div className="mb-4 flex items-center gap-2 px-1 py-2 text-xs text-muted-foreground">
-        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-        {t('explorerMemberFieldsLoading')}
-      </div>
+      <>
+        <div className="mb-4 flex items-center gap-2 px-1 py-2 text-xs text-muted-foreground">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          {t('explorerMemberFieldsLoading')}
+        </div>
+        {children}
+      </>
     )
   }
 
   if (error || !record) {
     return (
-      <div className="mb-4 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-        {error ?? t('explorerMemberFieldsError')}
-      </div>
+      <>
+        <div className="mb-4 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+          {error ?? t('explorerMemberFieldsError')}
+        </div>
+        {children}
+      </>
     )
   }
 
+  const editing = editMode && canEdit
+  const editorCtx: EditorCtx = {
+    sport,
+    teamOptions,
+    rosterTeamIds,
+    busyTeamIds,
+    onTeamsChange: handleTeamsChange,
+    disabled: saving,
+  }
+
   return (
+    <>
     <section className="mb-4">
-      <header className="mb-3 flex items-center justify-between">
+      <header className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           {t('explorerMemberFieldsTitle')}
           <span className="ml-2 font-normal normal-case text-muted-foreground/70">
@@ -327,11 +645,11 @@ export default function ExplorerMemberFields({ memberId, canEdit, reloadKey, onS
                 ? t('explorerMemberFieldsNoChanges')
                 : t('explorerMemberFieldsChanges', { count: dirtyKeys.length })}
             </span>
-            <Button size="sm" variant="ghost" onClick={handleCancel} disabled={saving}>
+            <Button size="sm" variant="ghost" onClick={() => { void handleCancel() }} disabled={saving}>
               <X className="mr-1 h-3.5 w-3.5" />
               {t('cancel')}
             </Button>
-            <Button size="sm" onClick={handleSave} disabled={saving || dirtyKeys.length === 0}>
+            <Button size="sm" onClick={() => { void handleSave() }} disabled={saving || dirtyKeys.length === 0}>
               {saving ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Save className="mr-1 h-3.5 w-3.5" />}
               {t('save')}
             </Button>
@@ -339,158 +657,454 @@ export default function ExplorerMemberFields({ memberId, canEdit, reloadKey, onS
         )}
       </header>
 
-      <div className="space-y-5">
-        {groupedKeys.map((group) => (
-          <section key={group.id}>
-            <h3 className="mb-2 border-b border-border pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-              {group.label}
-              <span className="ml-2 font-normal normal-case text-muted-foreground/60">
-                {group.keys.length}
-              </span>
-            </h3>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {group.keys.map((key) => {
-                const original = record[key]
-                const current = draft[key]
-                const kind = detectKind(key, original)
-                const isReadOnly = READ_ONLY_FIELDS.has(key)
-                const isDirty = !isReadOnly && !valueEquals(original, current)
-                // Wide cards for json/longtext/checkbox grids so content has room
-                const wide = kind === 'json' || kind === 'longtext' || kind === 'multiselect'
+      <div className="space-y-6">
+        {sections.map((section) => {
+          // A toggle per gate the member is NOT in — it stays after revealing so
+          // the block can be collapsed again.
+          const gates = section.entries
+            .map((e) => e.subsection?.sportGate ?? null)
+            .filter((g): g is 'volleyball' | 'basketball' => !!g && !sportCovers(sport, g))
 
-                return (
-                    <article
-                    key={key}
-                    className={
-                      'flex flex-col gap-1.5 rounded-lg border p-3 transition-colors ' +
-                      (isDirty
-                        ? 'border-primary/60 bg-primary/5'
-                        : 'border-border bg-card hover:border-border/80') +
-                      (wide ? ' sm:col-span-2 lg:col-span-2' : '')
-                    }
-                  >
-                    {/* Card header — label + type / state badges */}
-                    <header className="flex items-start justify-between gap-2">
-                      <h4 className="text-sm font-medium text-foreground" title={key}>
-                        {labelFor(key)}
-                      </h4>
-                      <div className="flex shrink-0 items-center gap-1">
-                        {isReadOnly && (
-                          <span className="rounded bg-muted px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-muted-foreground">
-                            {t('explorerMemberFieldsReadonly')}
-                          </span>
-                        )}
-                        {isDirty && (
-                          <span className="rounded bg-primary/15 px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-primary">
-                            {t('explorerMemberFieldsDirty')}
-                          </span>
-                        )}
-                        <span
-                          className="rounded bg-muted px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-muted-foreground"
-                          title={KIND_BADGE[kind]}
+          return (
+            <section key={section.group.id}>
+              <header className="mb-2 flex flex-wrap items-end justify-between gap-2 border-b border-border pb-1.5">
+                <div className="min-w-0">
+                  <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    {section.group.label}
+                    <span className="ml-2 font-normal normal-case text-muted-foreground/60">
+                      {section.visibleCount}
+                    </span>
+                  </h3>
+                  <p className="mt-0.5 text-xs text-muted-foreground/80">{section.group.description}</p>
+                </div>
+                {gates.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {gates.map((gate) => {
+                      const revealed = revealedSports.has(gate)
+                      const key = revealed
+                        ? (gate === 'volleyball' ? 'explorerFieldsHideVolleyball' : 'explorerFieldsHideBasketball')
+                        : (gate === 'volleyball' ? 'explorerFieldsShowVolleyball' : 'explorerFieldsShowBasketball')
+                      return (
+                        <button
+                          key={gate}
+                          type="button"
+                          onClick={() => toggleSport(gate)}
+                          className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md border border-border bg-card px-3 text-xs font-medium text-muted-foreground transition-colors hover:border-primary hover:text-primary"
                         >
-                          {KIND_BADGE[kind]}
-                        </span>
-                      </div>
-                    </header>
+                          {revealed ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                          {t(key)}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </header>
 
-                    {/* Card body — value or input */}
-                    <div className="text-sm">
-                      {!editMode || isReadOnly ? (
-                        <DisplayValue value={original} kind={kind} fieldKey={key} />
-                      ) : (
-                        <FieldEditor
-                          fieldKey={key}
-                          kind={kind}
-                          value={current}
-                          onChange={(v) => setField(key, v)}
-                        />
+              {section.entries.map((entry) => {
+                const subId = entry.subsection?.id ?? '_'
+                if (entry.hiddenBySport) {
+                  return (
+                    <div key={subId} className="mb-3">
+                      {entry.subsection?.label && (
+                        <h4 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                          {entry.subsection.label}
+                        </h4>
                       )}
+                      <p className="mt-0.5 text-xs italic text-muted-foreground/70">
+                        {t('explorerFieldsHiddenBySport')}
+                      </p>
                     </div>
-                  </article>
+                  )
+                }
+                return (
+                  <div key={subId} className="mb-3">
+                    {entry.subsection?.label && (
+                      <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                        {entry.subsection.label}
+                      </h4>
+                    )}
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                      {entry.fields.map((def) => (
+                        <FieldCard
+                          key={def.key}
+                          def={def}
+                          record={record}
+                          draft={draft}
+                          present={present}
+                          editing={editing}
+                          isGlobalAdmin={isGlobalAdmin}
+                          ctx={editorCtx}
+                          onChange={setField}
+                        />
+                      ))}
+                    </div>
+                  </div>
                 )
               })}
+            </section>
+          )
+        })}
+
+        {/* Columns Postgres has that the taxonomy does not know about yet. Kept
+            visible and read-only: mislabelling one is worse than flagging it. */}
+        {unmappedKeys.length > 0 && (
+          <section>
+            <header className="mb-2 border-b border-amber-500/40 pb-1.5">
+              <h3 className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-400">
+                <AlertTriangle className="h-3.5 w-3.5" />
+                {t('explorerFieldsUnmappedColumn')}
+                <span className="font-normal normal-case text-muted-foreground/60">
+                  {unmappedKeys.length}
+                </span>
+              </h3>
+              <p className="mt-0.5 text-xs text-muted-foreground/80">
+                Present in the database but not described in memberFieldSchema.ts. Add them there.
+              </p>
+            </header>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {unmappedKeys.map((key) => (
+                <FieldCard
+                  key={key}
+                  def={getFieldDef(key)}
+                  record={record}
+                  draft={draft}
+                  present={present}
+                  editing={editing}
+                  isGlobalAdmin={isGlobalAdmin}
+                  ctx={editorCtx}
+                  onChange={setField}
+                />
+              ))}
             </div>
           </section>
-        ))}
+        )}
       </div>
     </section>
+
+    {/* Relations / sections tables sit between the fields and the danger zone. */}
+    {children}
+
+    <MemberDangerZone
+      memberId={memberId}
+      member={record}
+      canEditStatus={canEdit}
+      canDelete={canDeleteMember}
+      onPatched={handleStatusPatched}
+      onDeleted={handleDeleted}
+    />
+    </>
   )
 }
 
-function DisplayValue({ value, kind, fieldKey }: { value: unknown; kind: FieldKind; fieldKey?: string }) {
-  if (value == null || value === '' || (Array.isArray(value) && value.length === 0)) {
-    return <span className="text-muted-foreground">—</span>
-  }
-  // Coded nationality (migration 223) → localized names, in stored order (the
-  // first one is the primary / ClubDesk-pushed nationality).
-  if (fieldKey === 'nationalitaet_codes') {
-    return <span className="break-words text-foreground">{formatCountryCodes(String(value))}</span>
-  }
-  if (fieldKey === 'federation_of_origin') {
-    return <FederationValue value={String(value)} />
-  }
-  // Coaching education (migration 274) → labelled chips in canonical order.
-  if (fieldKey === 'trainer_licences') {
-    return <TrainerLicencesValue value={String(value)} />
-  }
-  // Derived ClubDesk name, still free-text (German) → viewer's language.
-  if (fieldKey === 'nationalitaet') {
-    return <span className="break-words text-foreground">{localizeCountryName(String(value))}</span>
-  }
-  // Closed value sets → the label, with the stored code on hover. `position`
-  // borrows the profile picker's own translations rather than a second list.
-  if (kind === 'multiselect' && fieldKey === 'position') {
-    return <PositionValue value={value} />
-  }
-  if (kind === 'multiselect' && fieldKey && MEMBER_MULTI_FIELDS[fieldKey]) {
-    const opts = MEMBER_MULTI_FIELDS[fieldKey]
-    const codes = Array.isArray(value) ? (value as unknown[]).map(String) : [String(value)]
-    return (
-      <span className="break-words text-foreground" title={codes.join(', ')}>
-        {codes.map((c) => optionLabel(opts, c)).join(', ')}
-      </span>
-    )
-  }
-  if (kind === 'select' && fieldKey && MEMBER_SELECT_FIELDS[fieldKey]) {
-    const code = String(value)
-    return (
-      <span className="break-words text-foreground" title={code}>
-        {optionLabel(MEMBER_SELECT_FIELDS[fieldKey].options, code)}
-      </span>
-    )
-  }
-  if (kind === 'bool') {
+// ── Field card ─────────────────────────────────────────────────────────
+
+interface EditorCtx {
+  sport: MemberSport
+  teamOptions: TeamPickerOption[]
+  rosterTeamIds: string[]
+  busyTeamIds: ReadonlySet<string>
+  onTeamsChange: (ids: string[]) => void | Promise<void>
+  disabled: boolean
+}
+
+function FieldCard({
+  def,
+  record,
+  draft,
+  present,
+  editing,
+  isGlobalAdmin,
+  ctx,
+  onChange,
+}: {
+  def: MemberFieldDef
+  record: Record<string, unknown>
+  draft: Record<string, unknown>
+  present: Record<string, boolean>
+  editing: boolean
+  isGlobalAdmin: boolean
+  ctx: EditorCtx
+  onChange: (key: string, value: unknown) => void
+}) {
+  const { t } = useTranslation('admin')
+  const readOnly = isFieldReadOnly(def, { isGlobalAdmin })
+  const original = record[def.key]
+  const current = draft[def.key]
+  const isDirty = !readOnly && !def.virtual && !valueEquals(original, current)
+  // A `privileged` field locked for a sport admin says so plainly rather than
+  // reusing the generic "read-only" wording.
+  const lockedByPrivilege = !!def.privileged && !isGlobalAdmin
+
+  return (
+    <article
+      className={
+        'flex flex-col gap-1.5 rounded-lg border p-3 transition-colors '
+        + (isDirty
+          ? 'border-primary/60 bg-primary/5'
+          : 'border-border bg-card hover:border-border/80')
+        + (def.wide ? ' sm:col-span-2' : '')
+      }
+    >
+      <header className="flex items-start justify-between gap-2">
+        <h4 className="text-sm font-medium text-foreground" title={def.key}>
+          {def.label}
+        </h4>
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-1">
+          {readOnly && (
+            <span
+              className="rounded bg-muted px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-muted-foreground"
+              title={def.provenance}
+            >
+              {lockedByPrivilege
+                ? t('explorerFieldsPrivilegedLocked')
+                : t('explorerMemberFieldsReadonly')}
+            </span>
+          )}
+          {def.overwrittenBy && (
+            <span
+              className="rounded bg-amber-100 px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-amber-800 dark:bg-amber-900/50 dark:text-amber-200"
+              title={def.overwrittenBy}
+            >
+              {t('explorerFieldsOverwritten')}
+            </span>
+          )}
+          {isDirty && (
+            <span className="rounded bg-primary/15 px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-primary">
+              {t('explorerMemberFieldsDirty')}
+            </span>
+          )}
+          <span className="rounded bg-muted px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-muted-foreground">
+            {KIND_BADGE[def.kind]}
+          </span>
+        </div>
+      </header>
+
+      <div className="text-sm">
+        {!editing || readOnly ? (
+          <DisplayValue def={def} value={original} present={present} ctx={ctx} />
+        ) : (
+          <FieldEditor
+            def={def}
+            value={current}
+            ctx={ctx}
+            onChange={(v) => onChange(def.key, v)}
+          />
+        )}
+      </div>
+
+      {def.help && <p className="text-xs text-muted-foreground">{def.help}</p>}
+
+      {/* "Why can't I edit this, and who wrote the value" — answered in the
+          product, not in a wiki. Visible on read-only fields, where there is
+          room for it and where the question actually gets asked. */}
+      {readOnly && def.provenance && (
+        <p className="text-xs italic text-muted-foreground/80">{def.provenance}</p>
+      )}
+
+      {/* The amber warning only matters while you are about to type into it. */}
+      {editing && !readOnly && def.overwrittenBy && (
+        <p className="text-xs text-amber-700 dark:text-amber-400">{def.overwrittenBy}</p>
+      )}
+    </article>
+  )
+}
+
+// ── Display ────────────────────────────────────────────────────────────
+
+function DisplayValue({
+  def,
+  value,
+  present,
+  ctx,
+}: {
+  def: MemberFieldDef
+  value: unknown
+  present: Record<string, boolean>
+  ctx: EditorCtx
+}) {
+  const { t } = useTranslation('admin')
+
+  // Secrets: the value was replaced with a boolean before it reached state, so
+  // there is literally nothing here to print.
+  if (def.kind === 'readonlyMasked' || def.sensitive) {
+    const isSet = present[def.key] === true
     return (
       <span
         className={
-          value
-            ? 'font-medium text-emerald-600 dark:text-emerald-400'
-            : 'font-medium text-red-600 dark:text-red-400'
+          'inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium '
+          + (isSet
+            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200'
+            : 'bg-muted text-muted-foreground')
         }
+        title={t('explorerFieldsSensitiveHidden')}
       >
-        {value ? 'Yes' : 'No'}
+        {isSet ? t('explorerFieldsSensitiveSet') : t('explorerFieldsSensitiveNotSet')}
       </span>
     )
   }
-  if (kind === 'json') {
-    const text = (() => {
-      try { return JSON.stringify(value, null, 2) } catch { return String(value) }
-    })()
+
+  // Roster membership lives in the junction table, not in a column, so it reads
+  // from the cache rather than from `value`.
+  if (def.kind === 'teamMulti') {
+    if (ctx.rosterTeamIds.length === 0) return <span className="text-muted-foreground">—</span>
     return (
-      <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-all rounded bg-muted/40 p-2 text-[11px] font-mono text-foreground">
-        {text}
-      </pre>
+      <span className="flex flex-wrap gap-1.5">
+        {ctx.rosterTeamIds.map((id) => {
+          const team = ctx.teamOptions.find((o) => o.id === id)
+          return (
+            <span
+              key={id}
+              className="inline-flex items-center gap-1 rounded-full border border-border bg-muted/60 px-2 py-0.5 text-xs text-foreground"
+            >
+              {team?.sport && (
+                <span className="text-[9px] font-semibold text-muted-foreground">
+                  {team.sport === 'volleyball' ? 'VB' : 'BB'}
+                </span>
+              )}
+              {team?.label ?? `#${id}`}
+            </span>
+          )
+        })}
+      </span>
     )
   }
-  if (kind === 'longtext') {
-    return <p className="whitespace-pre-wrap break-words text-foreground">{String(value)}</p>
+
+  // `false` must read "No" and `0` must read "0" — only null / '' / [] are empty.
+  if (value == null || value === '' || (Array.isArray(value) && value.length === 0)) {
+    return <span className="text-muted-foreground">—</span>
   }
-  return <span className="break-words text-foreground">{formatDisplay(value, kind)}</span>
+
+  switch (def.kind) {
+    case 'bool':
+      return (
+        <span
+          className={
+            value
+              ? 'font-medium text-emerald-600 dark:text-emerald-400'
+              : 'font-medium text-red-600 dark:text-red-400'
+          }
+        >
+          {value ? 'Yes' : 'No'}
+        </span>
+      )
+
+    case 'countryMulti':
+      // Stored order is meaningful: the first code is the primary and is the
+      // one pushed to ClubDesk.
+      return <span className="break-words text-foreground">{formatCountryCodes(String(value))}</span>
+
+    case 'country':
+      // Two different shapes share this kind: `federation_of_origin` holds an
+      // ISO-2 code (or the explicit 'NONE'), while the derived `nationalitaet`
+      // holds ClubDesk's German country NAME.
+      return def.key === 'federation_of_origin'
+        ? <FederationValue value={String(value)} />
+        : <span className="break-words text-foreground">{localizeCountryName(String(value))}</span>
+
+    case 'trainerLicences':
+      return <TrainerLicencesValue value={String(value)} />
+
+    case 'positions':
+      return <PositionValue value={value} />
+
+    case 'multiselect': {
+      const opts = MEMBER_MULTI_FIELDS[def.key]
+      const codes = Array.isArray(value) ? (value as unknown[]).map(String) : [String(value)]
+      return (
+        <span className="break-words text-foreground" title={codes.join(', ')}>
+          {(opts ? codes.map((c) => optionLabel(opts, c)) : codes).join(', ')}
+        </span>
+      )
+    }
+
+    case 'select': {
+      const field = MEMBER_SELECT_FIELDS[def.key]
+      const code = String(value)
+      return (
+        <span className="break-words text-foreground" title={code}>
+          {field ? optionLabel(field.options, code) : code}
+        </span>
+      )
+    }
+
+    case 'photo':
+      return <PhotoValue fileId={String(value)} alt={def.label} />
+
+    case 'team':
+      return <TeamValue teamId={relId(value)} teams={ctx.teamOptions} />
+
+    case 'date':
+      return <span className="break-words text-foreground">{formatDateDisplay(value)}</span>
+
+    case 'datetime':
+      return <span className="break-words text-foreground">{formatDateTimeDisplay(value)}</span>
+
+    case 'json': {
+      const text = (() => {
+        try { return JSON.stringify(value, null, 2) } catch { return String(value) }
+      })()
+      return (
+        <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-all rounded bg-muted/40 p-2 font-mono text-[11px] text-foreground">
+          {text}
+        </pre>
+      )
+    }
+
+    case 'longtext':
+      return <p className="whitespace-pre-wrap break-words text-foreground">{String(value)}</p>
+
+    default:
+      return <span className="break-words text-foreground">{String(value)}</span>
+  }
+}
+
+/** Swiss dd.mm.yyyy. Hardcodes the format rather than a locale-dependent one. */
+function formatDateDisplay(value: unknown): string {
+  const iso = String(value).slice(0, 10)
+  const [yyyy, mm, dd] = iso.split('-')
+  if (!yyyy || !mm || !dd) return String(value)
+  return `${dd}.${mm}.${yyyy}`
+}
+
+/** Swiss dd.mm.yyyy HH:MM, 24h, de-CH pinned. */
+function formatDateTimeDisplay(value: unknown): string {
+  const d = new Date(String(value))
+  if (Number.isNaN(d.getTime())) return String(value)
+  return d.toLocaleString('de-CH', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  }).replace(',', '')
+}
+
+/** Thumbnail + the file id, so a broken asset is still diagnosable. */
+function PhotoValue({ fileId, alt }: { fileId: string; alt: string }) {
+  const [broken, setBroken] = useState(false)
+  return (
+    <span className="inline-flex items-center gap-2">
+      {!broken && (
+        <img
+          src={assetUrl(fileId, 'width=96&height=96&fit=cover')}
+          alt={alt}
+          className="h-12 w-12 rounded-full border border-border object-cover"
+          onError={() => setBroken(true)}
+        />
+      )}
+      <span className="break-all font-mono text-[10px] text-muted-foreground">{fileId}</span>
+    </span>
+  )
+}
+
+function TeamValue({ teamId, teams }: { teamId: string | null; teams: TeamPickerOption[] }) {
+  const { t } = useTranslation('admin')
+  if (!teamId) {
+    return <span className="text-muted-foreground">{t('explorerFieldsRequestedTeamNone')}</span>
+  }
+  const team = teams.find((o) => o.id === teamId)
+  return <span className="break-words text-foreground">{team?.label ?? `#${teamId}`}</span>
 }
 
 /** Playing positions — reuses the profile picker's labels, not a second list.
- *  Those keys live in the `teams` namespace, NOT `auth` (unlike the coaching
+ *  ⚠ Those keys live in the `teams` namespace, NOT `auth` (unlike the coaching
  *  qualifications right below) — the wrong one renders the bare key. */
 function PositionValue({ value }: { value: unknown }) {
   const { t } = useTranslation('teams')
@@ -526,231 +1140,375 @@ function FederationValue({ value }: { value: string }) {
   return <span className="break-words text-foreground">{label}</span>
 }
 
+// ── Editors ────────────────────────────────────────────────────────────
+
 function FieldEditor({
-  fieldKey,
-  kind,
+  def,
   value,
+  ctx,
   onChange,
 }: {
-  fieldKey: string
-  kind: FieldKind
+  def: MemberFieldDef
   value: unknown
+  ctx: EditorCtx
   onChange: (v: unknown) => void
 }) {
   const { t } = useTranslation(['admin', 'auth', 'common', 'teams'])
-  const inputCls =
-    'w-full rounded border border-border bg-background px-2 py-1 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none'
+  const asText = typeof value === 'string' ? value : value == null ? '' : String(value)
+  // ⚠ The normalizing inputs keep a `lastEmitted` ref and resync only when the
+  // incoming value differs from what they last emitted. They emit `null` for
+  // empty, so they must be fed `null` too — handing them `''` makes every empty
+  // field look like an external change and fights the caret while typing.
+  const asNullable = typeof value === 'string' && value !== '' ? value : null
 
-  // Coded nationality: multi-select, order-preserving (first code is primary and
-  // is what gets pushed to ClubDesk). Stored as a comma-separated string.
-  if (fieldKey === 'nationalitaet_codes') {
-    return (
-      <CountryMultiSelect
-        selected={parseCountryCodes(typeof value === 'string' ? value : '')}
-        onChange={(codes) => onChange(serializeCountryCodes(codes))}
-        helperText={t('auth:nationalitaetHint')}
-      />
-    )
+  switch (def.kind) {
+    // Secrets are never editable and never even hold their value in memory.
+    case 'readonlyMasked':
+      return null
+
+    case 'email':
+      return <EmailInput value={asNullable} onChange={onChange} disabled={ctx.disabled} />
+
+    case 'phone':
+      return <PhoneInput value={asNullable} onChange={onChange} disabled={ctx.disabled} />
+
+    case 'ahv':
+      return <AhvInput value={asNullable} onChange={onChange} disabled={ctx.disabled} />
+
+    case 'iban':
+      return <IbanInput value={asNullable} onChange={onChange} disabled={ctx.disabled} />
+
+    case 'postalcode':
+      return <PostalCodeInput value={asNullable} onChange={onChange} disabled={ctx.disabled} />
+
+    case 'photo':
+      return (
+        <PhotoPicker
+          value={typeof value === 'string' ? value : null}
+          onChange={onChange}
+          alt={def.label}
+          disabled={ctx.disabled}
+        />
+      )
+
+    case 'teamMulti':
+      return (
+        <TeamPickerMulti
+          value={ctx.rosterTeamIds}
+          onChange={ctx.onTeamsChange}
+          teams={ctx.teamOptions}
+          busyIds={ctx.busyTeamIds}
+          disabled={ctx.disabled}
+        />
+      )
+
+    case 'team':
+      return (
+        <TeamPickerSingle
+          value={relId(value)}
+          // The column is an integer — convert at the boundary.
+          onChange={(id) => onChange(id == null ? null : Number(id))}
+          teams={ctx.teamOptions}
+          disabled={ctx.disabled}
+          emptyLabel={t('admin:explorerFieldsRequestedTeamNone')}
+        />
+      )
+
+    case 'countryMulti':
+      // Order-preserving: the first code is the primary and is what gets pushed
+      // to ClubDesk. Empty serialises to null, never ''.
+      return (
+        <CountryMultiSelect
+          selected={parseCountryCodes(typeof value === 'string' ? value : '')}
+          onChange={(codes) => onChange(serializeCountryCodes(codes))}
+          helperText={t('auth:nationalitaetHint')}
+        />
+      )
+
+    case 'country':
+      return (
+        <SearchableSelect
+          options={[{ value: NO_FEDERATION, label: t('admin:federationNone') }, ...countryOptions()]}
+          value={typeof value === 'string' ? value.trim().toUpperCase() : ''}
+          onChange={(v) => onChange(v === '' ? null : v)}
+          searchPlaceholder={t('common:searchCountry')}
+        />
+      )
+
+    case 'trainerLicences':
+      return <TrainerLicenceEditor value={value} sport={ctx.sport} onChange={onChange} />
+
+    case 'positions':
+      return <PositionsEditor value={value} sport={ctx.sport} onChange={onChange} />
+
+    case 'multiselect': {
+      const options = MEMBER_MULTI_FIELDS[def.key]
+      if (!options) return <JsonEditor value={value} onChange={onChange} />
+      return <MultiSelectEditor options={options} value={value} onChange={onChange} />
+    }
+
+    case 'select': {
+      const field = MEMBER_SELECT_FIELDS[def.key]
+      if (!field) return <TextEditor value={asText} onChange={onChange} />
+      return (
+        <SelectEditor
+          options={field.options}
+          nullable={field.nullable}
+          value={value}
+          onChange={onChange}
+        />
+      )
+    }
+
+    case 'suggest': {
+      // Free text with a canonical suggestion list — off-list values exist in
+      // the data (fee categories especially) and must stay typeable.
+      const listId = `explorer-suggest-${def.key}`
+      const suggestions = MEMBER_SUGGEST_FIELDS[def.key] ?? []
+      return (
+        <>
+          <Input
+            type="text"
+            list={listId}
+            className="min-h-[44px]"
+            value={asText}
+            disabled={ctx.disabled}
+            onChange={(e) => onChange(e.target.value === '' ? null : e.target.value)}
+          />
+          <datalist id={listId}>
+            {suggestions.map((opt) => <option key={opt} value={opt} />)}
+          </datalist>
+        </>
+      )
+    }
+
+    case 'bool': {
+      const on = Boolean(value)
+      return (
+        <div className="flex min-h-[44px] items-center gap-2">
+          <Switch checked={on} disabled={ctx.disabled} onCheckedChange={onChange} />
+          <span
+            className={
+              on
+                ? 'font-medium text-emerald-600 dark:text-emerald-400'
+                : 'font-medium text-red-600 dark:text-red-400'
+            }
+          >
+            {on ? 'Yes' : 'No'}
+          </span>
+        </div>
+      )
+    }
+
+    case 'number':
+      return (
+        <Input
+          type="number"
+          inputMode="numeric"
+          className="min-h-[44px]"
+          disabled={ctx.disabled}
+          value={value === null || value === undefined || value === '' ? '' : String(value)}
+          onChange={(e) => {
+            const raw = e.target.value
+            if (raw === '') { onChange(null); return }
+            const n = Number(raw)
+            // Keep the previous value rather than writing NaN into an integer.
+            if (Number.isNaN(n)) return
+            onChange(n)
+          }}
+        />
+      )
+
+    case 'date':
+      return (
+        <DatePicker
+          value={typeof value === 'string' ? value.slice(0, 10) : ''}
+          onChange={(v) => onChange(v || null)}
+          disabled={ctx.disabled}
+        />
+      )
+
+    case 'datetime':
+      return (
+        <DateTimePicker
+          value={toLocalPickerValue(value)}
+          onChange={(dt) => onChange(dt ? new Date(dt).toISOString() : null)}
+          disabled={ctx.disabled}
+        />
+      )
+
+    case 'json':
+      return <JsonEditor value={value} onChange={onChange} />
+
+    case 'longtext':
+      return (
+        <textarea
+          value={asText}
+          rows={3}
+          disabled={ctx.disabled}
+          onChange={(e) => onChange(e.target.value === '' ? null : e.target.value)}
+          className="min-h-[44px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm text-foreground shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+        />
+      )
+
+    default:
+      return <TextEditor value={asText} onChange={onChange} disabled={ctx.disabled} />
   }
+}
 
-  // Coaching education: multi-select over a closed 4-value set, stored as a
-  // comma-separated string. Checkboxes rather than a text input — the DB CHECK
-  // would 400 on a typo and the admin would have to guess the accepted spelling.
-  if (fieldKey === 'trainer_licences') {
-    const selected = parseTrainerLicences(typeof value === 'string' ? value : '')
-    return (
-      <div className="flex flex-wrap gap-3">
-        {TRAINER_LICENCE_CODES.map((code) => (
-          <label key={code} className="flex cursor-pointer items-center gap-1.5 text-sm text-foreground">
+/**
+ * Stored UTC ISO → the LOCAL `YYYY-MM-DDTHH:mm` string DateTimePicker speaks.
+ * ⚠ Not `iso.slice(0, 16)`: that hands the picker a UTC wall clock while the
+ * save path reads it back as local, so the value drifts an hour on every
+ * open/save round trip and the field never settles back to clean.
+ */
+function toLocalPickerValue(value: unknown): string {
+  if (typeof value !== 'string' || !value) return ''
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return value.slice(0, 16)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+/** Clearing a text field on a NULL column must write `null`, never `''`. */
+function TextEditor({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: string
+  onChange: (v: unknown) => void
+  disabled?: boolean
+}) {
+  return (
+    <Input
+      type="text"
+      className="min-h-[44px]"
+      value={value}
+      disabled={disabled}
+      onChange={(e) => onChange(e.target.value === '' ? null : e.target.value)}
+    />
+  )
+}
+
+function JsonEditor({ value, onChange }: { value: unknown; onChange: (v: unknown) => void }) {
+  const text = (() => {
+    if (value == null) return ''
+    if (typeof value === 'string') return value
+    try { return JSON.stringify(value, null, 2) } catch { return String(value) }
+  })()
+  return (
+    <textarea
+      value={text}
+      rows={Math.min(10, Math.max(3, text.split('\n').length))}
+      onChange={(e) => {
+        const raw = e.target.value
+        if (raw.trim() === '') { onChange(null); return }
+        // Unparseable text is stored raw rather than blocking the save — the
+        // operator can still fix it, and a hard block loses their work.
+        try { onChange(JSON.parse(raw)) } catch { onChange(raw) }
+      }}
+      className="min-h-[44px] w-full rounded-md border border-input bg-transparent px-3 py-2 font-mono text-xs text-foreground shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+    />
+  )
+}
+
+/**
+ * Playing positions — the profile picker's own option set, so the explorer can
+ * never offer a position the app does not render. A legacy value already on the
+ * record stays selectable.
+ */
+function PositionsEditor({
+  value,
+  sport,
+  onChange,
+}: {
+  value: unknown
+  sport: MemberSport
+  onChange: (v: unknown) => void
+}) {
+  const { t } = useTranslation('teams')
+  const selected = coercePositions(value)
+  // 'both' → undefined, which is how getPositionsForSport spells "offer all".
+  const sportArg = sport === 'both' ? undefined : (sport as Team['sport'])
+  return (
+    <div className="flex flex-wrap gap-x-4 gap-y-1">
+      {getSelectablePositions(sportArg, value).map((p) => {
+        const i18nKey = getPositionI18nKey(p)
+        return (
+          <label
+            key={p}
+            className="flex min-h-[44px] cursor-pointer items-center gap-2 text-sm text-foreground"
+          >
             <input
               type="checkbox"
-              checked={selected.includes(code)}
+              checked={selected.includes(p)}
               onChange={(e) => {
-                const next = e.target.checked
-                  ? [...selected, code]
-                  : selected.filter((c) => c !== code)
-                onChange(serializeTrainerLicences(next))
+                onChange(e.target.checked
+                  ? [...selected, p]
+                  : selected.filter((c) => c !== p))
               }}
-              className="size-4 accent-primary"
+              className="size-5 accent-primary"
             />
-            {t(`auth:${TRAINER_LICENCE_I18N_KEYS[code]}`)}
+            {i18nKey ? t(i18nKey) : p}
           </label>
-        ))}
-      </div>
-    )
-  }
+        )
+      })}
+    </div>
+  )
+}
 
-  // Playing positions: the profile picker's own option set, so the explorer can
-  // never offer a position the app does not render (and vice versa). Any legacy
-  // value already on the record is kept selectable by getSelectablePositions.
-  if (fieldKey === 'position') {
-    const selected = coercePositions(value)
-    return (
-      <div className="flex flex-wrap gap-3">
-        {getSelectablePositions(undefined, value).map((p) => {
-          const i18nKey = getPositionI18nKey(p)
-          return (
-            <label key={p} className="flex cursor-pointer items-center gap-1.5 text-sm text-foreground">
-              <input
-                type="checkbox"
-                checked={selected.includes(p)}
-                onChange={(e) => {
-                  const next = e.target.checked
-                    ? [...selected, p]
-                    : selected.filter((c) => c !== p)
-                  onChange(next)
-                }}
-                className="size-4 accent-primary"
-              />
-              {i18nKey ? t(`teams:${i18nKey}`) : p}
-            </label>
-          )
-        })}
-      </div>
-    )
-  }
-
-  // Roles (jsonb array, gated by CHECK members_role_values_valid) — checkboxes
-  // rather than a JSON textarea: a typo there 400s on the constraint, and a
-  // valid-but-wrong string silently grants or drops access.
-  if (kind === 'multiselect' && MEMBER_MULTI_FIELDS[fieldKey]) {
-    return (
-      <MultiSelectEditor
-        options={MEMBER_MULTI_FIELDS[fieldKey]}
-        value={value}
-        onChange={onChange}
-      />
-    )
-  }
-
-  if (kind === 'select') {
-    const { options, nullable } = MEMBER_SELECT_FIELDS[fieldKey]
-    return (
-      <SelectEditor options={options} nullable={nullable} value={value} onChange={onChange} />
-    )
-  }
-
-  // Free text with a canonical suggestion list (datalist) — off-list values
-  // exist in the data and must stay typeable.
-  if (kind === 'suggest') {
-    const listId = `explorer-suggest-${fieldKey}`
-    return (
-      <>
-        <input
-          type="text"
-          list={listId}
-          value={String(value ?? '')}
-          onChange={(e) => onChange(e.target.value === '' ? null : e.target.value)}
-          className={inputCls}
-        />
-        <datalist id={listId}>
-          {MEMBER_SUGGEST_FIELDS[fieldKey].map((opt) => (
-            <option key={opt} value={opt} />
-          ))}
-        </datalist>
-      </>
-    )
-  }
-
-  // Federation of origin: single code, plus the explicit 'NONE' answer.
-  if (fieldKey === 'federation_of_origin') {
-    return (
-      <SearchableSelect
-        options={[{ value: NO_FEDERATION, label: t('admin:federationNone') }, ...countryOptions()]}
-        value={typeof value === 'string' ? value.trim().toUpperCase() : ''}
-        onChange={(v) => onChange(v === '' ? null : v)}
-        searchPlaceholder={t('common:searchCountry')}
-      />
-    )
-  }
-
-  if (kind === 'bool') {
-    const on = Boolean(value)
-    return (
-      <div className="flex items-center gap-2">
-        <Switch checked={on} onCheckedChange={(checked) => onChange(checked)} />
-        <span
-          className={
-            on
-              ? 'font-medium text-emerald-600 dark:text-emerald-400'
-              : 'font-medium text-red-600 dark:text-red-400'
-          }
-        >
-          {on ? 'Yes' : 'No'}
-        </span>
-      </div>
-    )
-  }
-
-  if (kind === 'number') {
-    return (
-      <input
-        type="number"
-        value={value === null || value === undefined || value === '' ? '' : String(value)}
-        onChange={(e) => onChange(e.target.value === '' ? null : Number(e.target.value))}
-        className={inputCls}
-      />
-    )
-  }
-
-  if (kind === 'date') {
-    return (
-      <DatePicker
-        value={typeof value === 'string' ? value.slice(0, 10) : ''}
-        onChange={(v) => onChange(v || null)}
-      />
-    )
-  }
-
-  if (kind === 'datetime') {
-    const v = typeof value === 'string' ? value.slice(0, 16) : ''
-    return (
-      <DateTimePicker
-        value={v}
-        onChange={(dt) => onChange(dt ? new Date(dt).toISOString() : null)}
-      />
-    )
-  }
-
-  if (kind === 'json') {
-    const text = (() => {
-      if (value == null) return ''
-      try { return JSON.stringify(value, null, 2) } catch { return String(value) }
-    })()
-    return (
-      <textarea
-        value={text}
-        rows={Math.min(10, Math.max(3, text.split('\n').length))}
-        onChange={(e) => {
-          const raw = e.target.value
-          if (raw.trim() === '') { onChange(null); return }
-          try { onChange(JSON.parse(raw)) }
-          catch { onChange(raw) }
-        }}
-        className={`${inputCls} font-mono text-xs`}
-      />
-    )
-  }
-
-  if (kind === 'longtext') {
-    return (
-      <textarea
-        value={String(value ?? '')}
-        rows={3}
-        onChange={(e) => onChange(e.target.value)}
-        className={inputCls}
-      />
-    )
-  }
-
-  // text
+/**
+ * Coaching qualification. Checkboxes, never a text input — the DB CHECK would
+ * 400 on a typo and the admin would have to guess the accepted spelling.
+ * ⚠ J+S/C/B/A (Swiss Volley) and T1/T2/T3 (Swiss Basketball) are two separate
+ * ladders. T2 is NOT B. The offered set is the member's own sport plus whatever
+ * is already stored, so an off-sport legacy value can still be unticked.
+ */
+function TrainerLicenceEditor({
+  value,
+  sport,
+  onChange,
+}: {
+  value: unknown
+  sport: MemberSport
+  onChange: (v: unknown) => void
+}) {
+  const { t } = useTranslation('auth')
+  const selected = parseTrainerLicences(typeof value === 'string' ? value : '')
+  const base: readonly TrainerLicence[] =
+    sport === 'both' ? TRAINER_LICENCE_CODES : TRAINER_LICENCE_CODES_BY_SPORT[sport]
+  // Filtering the canonical list keeps JS/C/B/A/T1/T2/T3 order regardless of
+  // which set a code came from.
+  // ⚠ 'JS' is in NEITHER sport list by design (trainerLicences.ts): J+S is the
+  // federal leader track and applies to both, so every caller has to union it
+  // back in — exactly as ProfileEditForm does. Without this a volleyball coach
+  // who does not already hold J+S can never be given it.
+  const offered = TRAINER_LICENCE_CODES.filter(
+    (c) => c === 'JS' || base.includes(c) || selected.includes(c),
+  )
   return (
-    <input
-      type={fieldKey === 'email' ? 'email' : 'text'}
-      value={String(value ?? '')}
-      onChange={(e) => onChange(e.target.value)}
-      className={inputCls}
-    />
+    <div className="flex flex-wrap gap-x-4 gap-y-1">
+      {offered.map((code) => (
+        <label
+          key={code}
+          className="flex min-h-[44px] cursor-pointer items-center gap-2 text-sm text-foreground"
+        >
+          <input
+            type="checkbox"
+            checked={selected.includes(code)}
+            onChange={(e) => {
+              const next = e.target.checked
+                ? [...selected, code]
+                : selected.filter((c) => c !== code)
+              onChange(serializeTrainerLicences(next))
+            }}
+            className="size-5 accent-primary"
+          />
+          {t(TRAINER_LICENCE_I18N_KEYS[code])}
+        </label>
+      ))}
+    </div>
   )
 }
 
@@ -781,7 +1539,7 @@ function SelectEditor({
       value={current === '' ? NONE_VALUE : current}
       onValueChange={(v) => onChange(v === NONE_VALUE ? null : v)}
     >
-      <SelectTrigger className="h-8 w-full text-sm">
+      <SelectTrigger className="min-h-[44px] w-full text-sm">
         <SelectValue placeholder="—" />
       </SelectTrigger>
       <SelectContent>
@@ -807,23 +1565,26 @@ function MultiSelectEditor({
   // Same off-list rule as SelectEditor — an unknown code keeps its checkbox.
   const shown = [
     ...options,
-    ...selected.filter((c) => !options.some((o) => o.value === c))
+    ...selected
+      .filter((c) => !options.some((o) => o.value === c))
       .map((c) => ({ value: c, label: `${c} (unrecognised)` })),
   ]
   return (
-    <div className="flex flex-wrap gap-3">
+    <div className="flex flex-wrap gap-x-4 gap-y-1">
       {shown.map((o) => (
-        <label key={o.value} className="flex cursor-pointer items-center gap-1.5 text-sm text-foreground">
+        <label
+          key={o.value}
+          className="flex min-h-[44px] cursor-pointer items-center gap-2 text-sm text-foreground"
+        >
           <input
             type="checkbox"
             checked={selected.includes(o.value)}
             onChange={(e) => {
-              const next = e.target.checked
+              onChange(e.target.checked
                 ? [...selected, o.value]
-                : selected.filter((c) => c !== o.value)
-              onChange(next)
+                : selected.filter((c) => c !== o.value))
             }}
-            className="size-4 accent-primary"
+            className="size-5 accent-primary"
           />
           {o.label}
         </label>

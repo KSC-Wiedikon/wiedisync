@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '1.70.0'
+const APP_VERSION = '1.71.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,34 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.71.0',
+    date: '06.08.2026',
+    sections: [
+      {
+        title: 'The member data explorer, rebuilt',
+        items: [
+          'Every field now has a real name and a real home. The explorer showed the raw database column name for anything it had not been taught about, and dropped those fields into an unnamed pile at the bottom. All 100 fields of a member record are now labelled in plain language and grouped by what they are for — identity, contact, membership, playing and coaching, association admin, roles, finance, privacy, notifications, ClubDesk, transfer, and the machine-owned ones last.',
+          'Fields you cannot edit now say why. A locked field used to give no reason, so the only way to find out was to ask. Each one now names what writes it — a Swiss Volley or Basketplan sync, a database rule, or the app itself — so it is clear whether the value is wrong or simply not yours to change here.',
+          'The right keyboard for the right field. A phone number is entered with a country prefix picker and is tidied into the club\'s standard format as you leave the field; an AHV number gets its dots and is checked; postal code and jersey number open a number pad; a profile photo is picked and previewed rather than typed as a code; a team is chosen from a searchable list rather than by its ID.',
+          'Only the sport the member actually plays is shown. Licence and official fields for both sports were shown to everyone, so half of them were never relevant. The explorer now works out the member\'s sport from their teams — including coaches, who have no roster entry — and hides the other sport behind a toggle in case you need it.',
+          'Association admin is one place. Swiss Volley and Basketplan details now sit together under one heading instead of the old "Address & Swiss Volley admin" grouping, which had no room for basketball at all.',
+          'Teams can be changed from the member\'s page. A member\'s teams were read-only here and had to be edited elsewhere; they are now a multi-select on the record itself.',
+          'Secrets are never shown. Encryption keys and calendar tokens now read only as "Set" or "Not set" — the value itself is no longer sent to the page.',
+        ],
+      },
+      {
+        title: 'Removing a member, safely',
+        items: [
+          'Membership and app access can be switched off from the member\'s page, separately — someone can stop being a member while keeping their login, or the other way round.',
+          'A record can now be deleted outright, and the app shows you what goes with it first. Before anything happens you get a list of everything attached — attendances, absences, fines, invoices, team entries, the login — separated into what will be deleted along with it and what will block the deletion until it is dealt with. Only then, after typing DELETE, does it go ahead.',
+          'The same applies to events, trainings and games.',
+          'Deleting a member now also removes their login, which previously stayed behind and could still sign in.',
+          'You cannot delete yourself, and only a full administrator can remove another administrator or a board member. A section administrator can only remove people in their own sport.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.70.0',
     date: '06.08.2026',
