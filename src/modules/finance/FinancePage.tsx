@@ -327,7 +327,7 @@ export default function FinancePage() {
           </div>
 
           {/* ── Invoices (native create/manage + orphan member-linking) ── */}
-          {tab === 'invoices' && <InvoiceManager />}
+          {tab === 'invoices' && <InvoiceManager fiscalYearId={String(activeFyId)} fiscalYearLabel={activeFyLabel} />}
 
           {/* ── Dues run (recurring/batch membership-dues billing) ── */}
           {tab === 'dues' && <DuesRunManager fiscalYearId={String(activeFyId)} fiscalYearLabel={activeFyLabel} />}

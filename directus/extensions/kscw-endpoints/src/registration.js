@@ -7,6 +7,7 @@
 import { buildEmailLayout, buildInfoCard, formatDateCH, bucketEmailsByLocale, escHtml } from './email-template.js'
 import { normalizePhone, normalizeIban, normalizeAhv, normalizeEmail, titleCaseName } from './normalize.js'
 import { BB_SITUATIONS, bbRequiredDocs, fibaNatCode } from './bb-docs.js'
+import { writeUserLog } from './activity-log.js'
 import crypto from 'crypto'
 import { streamManagedFile } from './storage-read.js'
 import { Transform } from 'node:stream'
@@ -330,6 +331,118 @@ const T = {
 
 const REG_LOCALES = ['de', 'gsw', 'en', 'fr', 'it']
 function t(locale) { return T[locale] || T.de }
+
+// The public website (the nachreichen page lives there, not in the member app).
+const KSCW_WEBSITE_URL = process.env.KSCW_WEBSITE_URL || 'https://kscw.ch'
+
+// Human names for the registration document COLUMNS, per locale.
+// ⚠ Mirrors the LABELS map in kscw-website `public/js/anmeldung-dokumente.js` —
+// the family reads these names in the email and then has to recognise the same
+// upload slots on that page. Change both together or the two disagree.
+// "Player's Self Declaration" and "Acknowledgment of National Team Restriction"
+// are the official Swiss Basketball form titles and stay English everywhere.
+const DOC_LABELS = {
+  de: {
+    id_upload_front: 'ID / Pass — Vorderseite',
+    id_upload_back: 'ID / Pass — Rückseite',
+    bb_doc_lizenz: 'Lizenzantrag (unterschrieben)',
+    bb_doc_freibrief: 'Freibrief (unterschrieben)',
+    bb_doc_selfdecl: "Player's Self Declaration",
+    bb_doc_natdecl: 'Acknowledgment of National Team Restriction',
+    bb_doc_u18parents: 'Einverständnis der Eltern (U18)',
+    bb_doc_schoolcert: 'Schulbestätigung (optional)',
+  },
+  en: {
+    id_upload_front: 'ID / passport — front',
+    id_upload_back: 'ID / passport — back',
+    bb_doc_lizenz: 'Licence application (signed)',
+    bb_doc_freibrief: 'Release letter / Freibrief (signed)',
+    bb_doc_selfdecl: "Player's Self Declaration",
+    bb_doc_natdecl: 'Acknowledgment of National Team Restriction',
+    bb_doc_u18parents: 'Parental consent (U18)',
+    bb_doc_schoolcert: 'School enrolment certificate (optional)',
+  },
+  fr: {
+    id_upload_front: "Carte d'identité / passeport — recto",
+    id_upload_back: "Carte d'identité / passeport — verso",
+    bb_doc_lizenz: 'Demande de licence (signée)',
+    bb_doc_freibrief: 'Lettre de sortie / Freibrief (signée)',
+    bb_doc_selfdecl: "Player's Self Declaration",
+    bb_doc_natdecl: 'Acknowledgment of National Team Restriction',
+    bb_doc_u18parents: 'Autorisation parentale (U18)',
+    bb_doc_schoolcert: 'Attestation de scolarité (facultative)',
+  },
+  it: {
+    id_upload_front: "Carta d'identità / passaporto — fronte",
+    id_upload_back: "Carta d'identità / passaporto — retro",
+    bb_doc_lizenz: 'Richiesta di licenza (firmata)',
+    bb_doc_freibrief: 'Lettera di svincolo / Freibrief (firmata)',
+    bb_doc_selfdecl: "Player's Self Declaration",
+    bb_doc_natdecl: 'Acknowledgment of National Team Restriction',
+    bb_doc_u18parents: 'Consenso dei genitori (U18)',
+    bb_doc_schoolcert: 'Certificato di iscrizione scolastica (facoltativo)',
+  },
+}
+DOC_LABELS.gsw = DOC_LABELS.de
+
+// Copy for the staff-triggered "please (re-)upload your documents" email.
+// Deliberately says the club lost the files rather than implying the family
+// failed to send them — for the 2026-07 cohort that is simply what happened.
+const DOCS_T = {
+  de: {
+    subject: 'Bitte Dokumente erneut hochladen — KSC Wiedikon Basketball',
+    title: 'Dokumente fehlen',
+    subtitle: 'KSC Wiedikon Basketball',
+    greeting: (name) => `Hallo ${name},`,
+    intro: (name) => `wegen eines technischen Fehlers auf unserer Seite sind die Dokumente zur Anmeldung von <strong style="color:#e2e8f0">${escHtml(name)}</strong> bei uns nicht lesbar angekommen. Das liegt nicht an dir — wir müssen dich leider trotzdem bitten, sie noch einmal hochzuladen.`,
+    listHeader: 'Diese Dokumente fehlen uns noch:',
+    how: 'Über den Button unten kommst du direkt auf die Upload-Seite. Referenz und E-Mail sind bereits ausgefüllt — du musst nur noch die Dateien auswählen (JPG, PNG oder PDF, max. 10 MB pro Datei).',
+    refNote: (ref, email) => `Referenz: ${escHtml(ref)} · E-Mail: ${escHtml(email)}`,
+    help: 'Die Anmeldung selbst bleibt gültig — es fehlen nur die Dokumente für die Lizenz bei Swiss Basketball. Bei Fragen antworte einfach auf diese E-Mail oder schreib an <a href="mailto:kontakt@kscw.ch" style="color:#F97316">kontakt@kscw.ch</a>.',
+    cta: 'Dokumente hochladen',
+    footer: 'Vielen Dank — KSC Wiedikon Basketball',
+  },
+  en: {
+    subject: 'Please re-upload your documents — KSC Wiedikon Basketball',
+    title: 'Documents missing',
+    subtitle: 'KSC Wiedikon Basketball',
+    greeting: (name) => `Hi ${name},`,
+    intro: (name) => `because of a technical fault on our side, the documents for <strong style="color:#e2e8f0">${escHtml(name)}</strong>'s registration did not reach us in a readable state. This was not your mistake — but we do have to ask you to upload them once more.`,
+    listHeader: 'These documents are still missing:',
+    how: 'The button below takes you straight to the upload page. Your reference and email are already filled in — you only need to pick the files (JPG, PNG or PDF, max. 10 MB each).',
+    refNote: (ref, email) => `Reference: ${escHtml(ref)} · Email: ${escHtml(email)}`,
+    help: 'The registration itself stays valid — only the documents for the Swiss Basketball licence are missing. If anything is unclear, just reply to this email or write to <a href="mailto:kontakt@kscw.ch" style="color:#F97316">kontakt@kscw.ch</a>.',
+    cta: 'Upload documents',
+    footer: 'Thank you — KSC Wiedikon Basketball',
+  },
+  fr: {
+    subject: 'Merci de téléverser à nouveau tes documents — KSC Wiedikon Basketball',
+    title: 'Documents manquants',
+    subtitle: 'KSC Wiedikon Basketball',
+    greeting: (name) => `Salut ${name},`,
+    intro: (name) => `en raison d'une erreur technique de notre côté, les documents de l'inscription de <strong style="color:#e2e8f0">${escHtml(name)}</strong> ne nous sont pas parvenus dans un état lisible. Ce n'est pas de ta faute — nous devons malgré tout te demander de les téléverser une nouvelle fois.`,
+    listHeader: 'Ces documents nous manquent encore :',
+    how: 'Le bouton ci-dessous te mène directement à la page de téléversement. Ta référence et ton e-mail sont déjà remplis — il te suffit de choisir les fichiers (JPG, PNG ou PDF, 10 Mo max. par fichier).',
+    refNote: (ref, email) => `Référence : ${escHtml(ref)} · E-mail : ${escHtml(email)}`,
+    help: "L'inscription elle-même reste valable — seuls les documents pour la licence Swiss Basketball manquent. Pour toute question, réponds simplement à cet e-mail ou écris à <a href=\"mailto:kontakt@kscw.ch\" style=\"color:#F97316\">kontakt@kscw.ch</a>.",
+    cta: 'Téléverser les documents',
+    footer: 'Merci beaucoup — KSC Wiedikon Basketball',
+  },
+  it: {
+    subject: 'Per favore ricarica i tuoi documenti — KSC Wiedikon Basketball',
+    title: 'Documenti mancanti',
+    subtitle: 'KSC Wiedikon Basketball',
+    greeting: (name) => `Ciao ${name},`,
+    intro: (name) => `a causa di un errore tecnico da parte nostra, i documenti dell'iscrizione di <strong style="color:#e2e8f0">${escHtml(name)}</strong> non ci sono arrivati in forma leggibile. Non è colpa tua — dobbiamo comunque chiederti di caricarli un'altra volta.`,
+    listHeader: 'Ci mancano ancora questi documenti:',
+    how: 'Il pulsante qui sotto ti porta direttamente alla pagina di caricamento. Riferimento ed e-mail sono già compilati — devi solo scegliere i file (JPG, PNG o PDF, max. 10 MB ciascuno).',
+    refNote: (ref, email) => `Riferimento: ${escHtml(ref)} · E-mail: ${escHtml(email)}`,
+    help: "L'iscrizione resta valida — mancano solo i documenti per la licenza Swiss Basketball. Per domande rispondi a questa e-mail o scrivi a <a href=\"mailto:kontakt@kscw.ch\" style=\"color:#F97316\">kontakt@kscw.ch</a>.",
+    cta: 'Carica i documenti',
+    footer: 'Grazie mille — KSC Wiedikon Basketball',
+  },
+}
+DOCS_T.gsw = DOCS_T.de
 
 // Capitalize the first letter for display. The registration form stores
 // free-text gender ("männlich") and the membership_type enum ("basketball")
@@ -1099,6 +1212,134 @@ export function registerRegistration(router, { database, logger, services, getSc
         stack: err.stack,
       })
       res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  // POST /kscw/registration/:id/request-docs — staff-triggered "please (re-)upload
+  // your documents" email.
+  //
+  // Exists because documents can go missing AFTER a registration was approved and
+  // the applicant has no way to know: the 2026-07-04 Safari upload failure
+  // (create-before-upload, zero server enforcement) and the 2026-07-13 upload
+  // truncation (a `req.on('data')` counter ate the leading chunks of 36 files, all
+  // unrecoverable) both left approved members with an incomplete Swiss Basketball
+  // dossier. Re-opening the registration is the wrong repair — approval already
+  // created the member, the invite and the ClubDesk contact, and re-approving
+  // would re-fire all three. So the row stays `approved` and this only emails the
+  // applicant their prefilled link to the public nachreichen page, which the
+  // attach route already accepts for approved rows (fill-only).
+  //
+  // Staff-only and it does not mutate the registration — but it SENDS on the club's
+  // behalf to a real family, so it is actor-logged like any other state change
+  // (CLAUDE.md → audit logging).
+  router.post('/registration/:id/request-docs', async (req, res) => {
+    try {
+      if (!req.accountability?.user) {
+        return res.status(401).json({ error: 'Authentication required' })
+      }
+
+      // Permission: Directus admin, or app-role admin/superuser/vorstand, or the
+      // sport admin for this registration's sport.
+      const actor = await database('members')
+        .where('user', req.accountability.user)
+        .first('id', 'role', 'first_name', 'last_name')
+      const actorRoles = Array.isArray(actor?.role) ? actor.role
+        : (() => { try { return JSON.parse(actor?.role || '[]') } catch { return [] } })()
+
+      const id = Number(req.params.id)
+      if (!Number.isInteger(id) || id <= 0) {
+        return res.status(400).json({ error: 'Invalid registration id' })
+      }
+      const reg = await database('registrations').where('id', id)
+        .first('id', 'status', 'email', 'vorname', 'nachname', 'locale', 'membership_type',
+          'reference_number', 'nationalitaet_code', 'nationalitaet_codes', 'geburtsdatum',
+          'bb_situation', 'bb_recent_licence',
+          'id_upload_front', 'id_upload_back', 'bb_doc_lizenz', 'bb_doc_freibrief',
+          'bb_doc_selfdecl', 'bb_doc_natdecl', 'bb_doc_u18parents', 'bb_doc_schoolcert')
+      if (!reg) return res.status(404).json({ error: 'Registration not found' })
+
+      const sportRole = reg.membership_type === 'basketball' ? 'bb_admin'
+        : reg.membership_type === 'volleyball' ? 'vb_admin' : null
+      const allowed = req.accountability.admin === true
+        || actorRoles.includes('admin')
+        || actorRoles.includes('superuser')
+        || actorRoles.includes('vorstand')
+        || (!!sportRole && actorRoles.includes(sportRole))
+      if (!allowed) return res.status(403).json({ error: 'Not authorized' })
+
+      // Only pending/approved rows can still receive documents — the attach route
+      // enforces the same set, so mailing a link for a rejected row would send the
+      // family to a page that 404s.
+      if (!['pending', 'approved'].includes(reg.status)) {
+        return res.status(400).json({ error: 'Registration is not open', code: 'not_open' })
+      }
+      if (!reg.email || !reg.email.trim()) {
+        return res.status(400).json({ error: 'Registration has no email address', code: 'no_email' })
+      }
+      if (!reg.reference_number) {
+        return res.status(400).json({ error: 'Registration has no reference number', code: 'no_reference' })
+      }
+
+      // Same required-set rule as the create gate, doc-status and the approval
+      // hook — one source of truth, so the email never asks for a document the
+      // applicant does not owe.
+      const natCode = fibaNatCode(reg.nationalitaet_codes, reg.nationalitaet_code)
+      const required = reg.membership_type === 'basketball'
+        ? bbRequiredDocs(reg.bb_situation, natCode, reg.geburtsdatum, reg.bb_recent_licence)
+        : []
+      const missing = required.filter((f) => !reg[f])
+      if (!missing.length) {
+        return res.status(400).json({ error: 'No documents are missing', code: 'nothing_missing' })
+      }
+
+      const locale = REG_LOCALES.includes(reg.locale) ? reg.locale : 'de'
+      const d = DOCS_T[locale] || DOCS_T.de
+      const link = `${KSCW_WEBSITE_URL}/weiteres/anmeldung-dokumente?ref=${encodeURIComponent(reg.reference_number)}&email=${encodeURIComponent(reg.email)}`
+
+      const listHtml = missing
+        .map((f) => `<li style="margin:4px 0">${escHtml(DOC_LABELS[locale]?.[f] || DOC_LABELS.de[f] || f)}</li>`)
+        .join('')
+      const bodyHtml = `
+        <p>${d.intro(reg.vorname)}</p>
+        <p><strong style="color:#e2e8f0">${escHtml(d.listHeader)}</strong></p>
+        <ul style="padding-left:20px;margin:8px 0;color:#e2e8f0">${listHtml}</ul>
+        <p>${d.how}</p>
+        <p style="font-size:13px;color:#94a3b8">${d.refNote(reg.reference_number, reg.email)}</p>
+        <p>${d.help}</p>`
+
+      const { MailService } = services
+      const mail = new MailService({ schema: await getSchema(), knex: database })
+      await mail.send({
+        to: reg.email,
+        subject: d.subject,
+        html: buildEmailLayout(bodyHtml, {
+          sport: reg.membership_type,
+          title: d.title,
+          subtitle: d.subtitle,
+          greeting: d.greeting(reg.vorname),
+          ctaUrl: link,
+          ctaLabel: d.cta,
+          footerExtra: d.footer,
+        }),
+      })
+
+      await writeUserLog(database, log, {
+        accountability: req.accountability,
+        action: 'request_docs',
+        collection: 'registrations',
+        recordId: id,
+        data: { reference_number: reg.reference_number, email: reg.email, missing, locale },
+      })
+
+      log.info({ msg: 'Registration document request sent', id, ref: reg.reference_number, missing: missing.length })
+      return res.json({ success: true, email: reg.email, missing })
+    } catch (err) {
+      log.error({
+        msg: `registration/request-docs: ${err.message}`,
+        endpoint: 'registration/request-docs',
+        stack: err.stack,
+      })
+      return res.status(500).json({ error: 'Internal error' })
     }
   })
 

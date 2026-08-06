@@ -2,6 +2,14 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.69.0 — 2026-08-06
+
+### Registrations: asking for documents we lost
+- **An approved registration can now be asked for its missing documents.** Two upload faults in July destroyed or never stored the Swiss Basketball paperwork for seven registrations, and the families had no way of knowing — the registration looked approved and finished from their side.
+- **The request does not reopen the registration.** The person stays a member, keeps their team and their ClubDesk entry; only the documents are asked for. Reopening would have re-run the whole approval — a second welcome email, a second ClubDesk contact — for something that was never their mistake.
+- **The email lists only what is actually missing**, in the language the person registered in, and the link it carries already knows who they are. A Swiss junior is asked for three documents, a foreign one for five, and someone who only lacks the two declarations is asked for two.
+- **Documents already on file cannot be overwritten** by the upload page, so a re-send can never quietly replace something that was already checked.
+
 ## v1.68.0 — 2026-08-05
 
 ### Basketball scheduling

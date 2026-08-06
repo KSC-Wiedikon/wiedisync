@@ -352,8 +352,9 @@ function CamtReconcile({ onImported }: { onImported: () => void }) {
 }
 
 const ORPHAN_CAP = 100
+const LIST_CAP = 200
 
-export default function InvoiceManager() {
+export default function InvoiceManager({ fiscalYearId, fiscalYearLabel }: { fiscalYearId?: string; fiscalYearLabel?: string }) {
   const { t } = useTranslation('finance')
   const confirm = useConfirm()
   const { data: invoicesRaw, refetch } = useFinanceInvoices()
@@ -367,12 +368,32 @@ export default function InvoiceManager() {
   const [linkTarget, setLinkTarget] = useState<FinanceInvoice | null>(null)
   const [paymentTarget, setPaymentTarget] = useState<FinanceInvoice | null>(null)
   const [orphanSearch, setOrphanSearch] = useState('')
+  const [allSearch, setAllSearch] = useState('')
+  const [orphansAllYears, setOrphansAllYears] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
 
-  const native = useMemo(() => invoices.filter(isNativeInvoice), [invoices])
+  /** Everything billed in the fiscal year picked at the top of the page. */
+  const inYear = useMemo(
+    () => (fiscalYearId ? invoices.filter((i) => String(i.fiscal_year ?? '') === String(fiscalYearId)) : invoices),
+    [invoices, fiscalYearId],
+  )
+  const native = useMemo(() => inYear.filter(isNativeInvoice), [inYear])
+  const filteredAll = useMemo(() => {
+    if (!allSearch) return inYear
+    const q = allSearch.toLowerCase()
+    return inYear.filter((i) =>
+      (i.recipient_name || '').toLowerCase().includes(q) ||
+      (i.recipient_email || '').toLowerCase().includes(q) ||
+      (i.subject || '').toLowerCase().includes(q) ||
+      (i.number || '').toLowerCase().includes(q))
+  }, [inYear, allSearch])
+
+  // Unmatched is a cleanup queue, not a yearly report — it defaults to the selected
+  // year like everything else, but stays reachable across years via the toggle.
+  const orphanPool = orphansAllYears ? invoices : inYear
   const orphansAll = useMemo(
-    () => invoices.filter((i) => i.source !== 'native' && !i.member),
-    [invoices],
+    () => orphanPool.filter((i) => i.source !== 'native' && !i.member),
+    [orphanPool],
   )
   const orphans = useMemo(() => {
     if (!orphanSearch) return orphansAll
@@ -391,73 +412,133 @@ export default function InvoiceManager() {
   const statusLabel = (s: string | null) => {
     const map: Record<string, string> = {
       open: t('statusOpen'), pending_confirmation: t('statusPendingConfirmation'), partial: t('statusPartial'), paid: t('statusPaid'), cancelled: t('statusCancelled'),
+      // ClubDesk mirror rows carry the German status verbatim from the export.
+      Gestellt: t('statusIssued'), Bezahlt: t('statusPaid'), Storniert: t('statusCancelled'),
+      Abgeschrieben: t('statusWrittenOff'), 'Bezahlt (teilw. abgeschrieben)': t('statusPaidPartlyWrittenOff'),
     }
     return map[s ?? ''] ?? s ?? '–'
   }
 
+  /**
+   * Who created the invoice. Native rows carry the author; ClubDesk's export has
+   * no author column at all (cd_benutzer_id is the *recipient's* ClubDesk login),
+   * so a mirror row can only honestly say "ClubDesk".
+   */
+  const createdBy = (inv: FinanceInvoice) =>
+    isNativeInvoice(inv) ? (inv.created_by_name || inv.created_by_email || null) : null
+  /** ClubDesk's own creation date; date_created on a mirror row is just the last nightly re-insert. */
+  const createdOn = (inv: FinanceInvoice) => (isNativeInvoice(inv) ? inv.date_created : inv.cd_created_at)
+
   return (
     <div className="space-y-8">
-      {/* ── Native invoices ───────────────────────────────────── */}
+      {/* ── All invoices in the selected fiscal year (native + ClubDesk mirror) ── */}
       <section>
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t('nativeInvoices')}</h2>
-          <button type="button" onClick={() => setShowCreate(true)}
-            className="inline-flex items-center gap-1.5 rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700">
-            <Plus className="h-4 w-4" />{t('newInvoice')}
-          </button>
-        </div>
-        {native.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-gray-300 py-8 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">{t('noNativeInvoices')}</p>
-        ) : (
-          <div className="rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
-            <Table>
-              <TableHeader>
-                <TableRow className="border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/40">
-                  <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colNumber')}</TableHead>
-                  <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colRecipient')}</TableHead>
-                  <TableHead className="hidden sm:table-cell text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colSubject')}</TableHead>
-                  <TableHead className="text-right text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colAmount')}</TableHead>
-                  <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colStatus')}</TableHead>
-                  <TableHead className="text-right text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {native.map((inv) => (
-                  <TableRow key={inv.id} className="border-gray-200 dark:border-gray-700">
-                    <TableCell className="whitespace-nowrap text-xs text-gray-500 dark:text-gray-400">{inv.number}</TableCell>
-                    <TableCell className="whitespace-normal break-words text-gray-900 dark:text-gray-100">
-                      {inv.team ? t('billedToTeam', { team: teamNameById.get(String(inv.team)) ?? `#${inv.team}` }) : inv.recipient_name || '–'}
-                    </TableCell>
-                    <TableCell className="hidden sm:table-cell whitespace-normal break-words text-gray-600 dark:text-gray-400">{inv.subject}</TableCell>
-                    <TableCell className="text-right tabular-nums text-gray-900 dark:text-gray-100">{formatChf(inv.amount)}</TableCell>
-                    <TableCell className="whitespace-nowrap text-xs text-gray-600 dark:text-gray-300">{statusLabel(inv.status)}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-1.5">
-                        {['pending_confirmation', 'open', 'partial'].includes(inv.status ?? '') && (
-                          <button type="button" disabled={busyId === inv.id} onClick={() => act(inv.id, confirmInvoice)}
-                            className="inline-flex items-center gap-1 rounded-md bg-green-600 px-2 py-1 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-50">
-                            <Check className="h-3.5 w-3.5" />{t('confirmPaymentCta')}
-                          </button>
-                        )}
-                        {inv.status !== 'cancelled' && (
-                          <button type="button" onClick={() => setPaymentTarget(inv)}
-                            className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700">
-                            <Coins className="h-3.5 w-3.5" />{t('payButton')}
-                          </button>
-                        )}
-                        {inv.status !== 'paid' && inv.status !== 'cancelled' && (
-                          <button type="button" disabled={busyId === inv.id} onClick={async () => { if (await confirm({ message: t('cancelInvoiceSure'), danger: true })) act(inv.id, cancelInvoice) }}
-                            className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700">
-                            {t('cancelInvoiceCta')}
-                          </button>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+        <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+            {fiscalYearLabel ? t('allInvoicesYear', { year: fiscalYearLabel }) : t('allInvoices')}
+          </h2>
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-gray-400">
+              {filteredAll.length}{filteredAll.length !== inYear.length ? `/${inYear.length}` : ''}
+              {native.length > 0 ? ` · ${t('nativeCount', { count: native.length })}` : ''}
+            </span>
+            <button type="button" onClick={() => setShowCreate(true)}
+              className="inline-flex items-center gap-1.5 rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700">
+              <Plus className="h-4 w-4" />{t('newInvoice')}
+            </button>
           </div>
+        </div>
+        <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">{t('allInvoicesHint')}</p>
+        {inYear.length === 0 ? (
+          <p className="rounded-lg border border-dashed border-gray-300 py-8 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+            {fiscalYearLabel ? t('noInvoicesInYear', { year: fiscalYearLabel }) : t('noNativeInvoices')}
+          </p>
+        ) : (
+          <>
+            <div className="mb-2 flex items-center gap-2 rounded-md border border-gray-200 bg-transparent px-3 py-2 dark:border-gray-600">
+              <Search className="h-4 w-4 text-muted-foreground" />
+              <input value={allSearch} onChange={(e) => setAllSearch(e.target.value)} placeholder={t('invoiceSearchPlaceholder')}
+                className="flex-1 bg-transparent text-sm outline-none dark:text-gray-100" />
+            </div>
+            <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+              <Table>
+                <TableHeader>
+                  <TableRow className="border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/40">
+                    <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colNumber')}</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colRecipient')}</TableHead>
+                    <TableHead className="hidden md:table-cell text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colSubject')}</TableHead>
+                    <TableHead className="hidden sm:table-cell text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colDate')}</TableHead>
+                    <TableHead className="text-right text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colAmount')}</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colStatus')}</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colCreatedBy')}</TableHead>
+                    <TableHead className="text-right text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredAll.slice(0, LIST_CAP).map((inv) => {
+                    const nativeRow = isNativeInvoice(inv)
+                    const author = createdBy(inv)
+                    const created = createdOn(inv)
+                    return (
+                      <TableRow key={inv.id} className="border-gray-200 dark:border-gray-700">
+                        <TableCell className="whitespace-nowrap text-xs text-gray-500 dark:text-gray-400">{inv.number || '–'}</TableCell>
+                        <TableCell className="whitespace-normal break-words text-gray-900 dark:text-gray-100">
+                          {inv.team ? t('billedToTeam', { team: teamNameById.get(String(inv.team)) ?? `#${inv.team}` }) : inv.recipient_name || '–'}
+                          {!nativeRow && !inv.member && <span className="mt-0.5 block text-xs text-amber-600 dark:text-amber-400">{t('notLinked')}</span>}
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell whitespace-normal break-words text-gray-600 dark:text-gray-400">{inv.subject}</TableCell>
+                        <TableCell className="hidden sm:table-cell whitespace-nowrap text-gray-600 dark:text-gray-400">{inv.invoice_date ? formatDateCompactZurich(inv.invoice_date) : '–'}</TableCell>
+                        <TableCell className="text-right tabular-nums text-gray-900 dark:text-gray-100">{formatChf(inv.amount)}</TableCell>
+                        <TableCell className="whitespace-nowrap text-xs text-gray-600 dark:text-gray-300">{statusLabel(inv.status)}</TableCell>
+                        <TableCell className="whitespace-normal break-words text-xs">
+                          <span className={`inline-block rounded px-1.5 py-0.5 font-medium ${nativeRow
+                            ? 'bg-brand-50 text-brand-700 dark:bg-brand-900/40 dark:text-brand-300'
+                            : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'}`}>
+                            {nativeRow ? t('sourceNative') : t('sourceClubdesk')}
+                          </span>
+                          {/* ClubDesk exports no author, so a mirror row shows only its creation date. */}
+                          <span className="mt-0.5 block text-gray-500 dark:text-gray-400" title={nativeRow ? undefined : t('clubdeskNoAuthor')}>
+                            {[author ?? (nativeRow ? '–' : null), created ? formatDateCompactZurich(created) : null].filter(Boolean).join(' · ')}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-1.5">
+                            {nativeRow && ['pending_confirmation', 'open', 'partial'].includes(inv.status ?? '') && (
+                              <button type="button" disabled={busyId === inv.id} onClick={() => act(inv.id, confirmInvoice)}
+                                className="inline-flex items-center gap-1 rounded-md bg-green-600 px-2 py-1 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-50">
+                                <Check className="h-3.5 w-3.5" />{t('confirmPaymentCta')}
+                              </button>
+                            )}
+                            {nativeRow && inv.status !== 'cancelled' && (
+                              <button type="button" onClick={() => setPaymentTarget(inv)}
+                                className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700">
+                                <Coins className="h-3.5 w-3.5" />{t('payButton')}
+                              </button>
+                            )}
+                            {nativeRow && inv.status !== 'paid' && inv.status !== 'cancelled' && (
+                              <button type="button" disabled={busyId === inv.id} onClick={async () => { if (await confirm({ message: t('cancelInvoiceSure'), danger: true })) act(inv.id, cancelInvoice) }}
+                                className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700">
+                                {t('cancelInvoiceCta')}
+                              </button>
+                            )}
+                            {!nativeRow && !inv.member && (
+                              <button type="button" onClick={() => setLinkTarget(inv)}
+                                className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700">
+                                <Link2 className="h-3.5 w-3.5" />{t('linkToMember')}
+                              </button>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+            {filteredAll.length > LIST_CAP && (
+              <p className="mt-2 text-center text-xs text-gray-400">{t('invoiceShowingCap', { shown: LIST_CAP, total: filteredAll.length })}</p>
+            )}
+          </>
         )}
       </section>
 
@@ -466,13 +547,25 @@ export default function InvoiceManager() {
 
       {/* ── Unmatched ClubDesk invoices ──────────────────────────── */}
       <section>
-        <div className="mb-1 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t('orphanedInvoices')}</h2>
-          <span className="text-xs text-gray-400">{orphans.length}{orphans.length !== orphansAll.length ? `/${orphansAll.length}` : ''}</span>
+        <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+            {orphansAllYears || !fiscalYearLabel ? t('orphanedInvoices') : t('orphanedInvoicesYear', { year: fiscalYearLabel })}
+          </h2>
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-gray-400">{orphans.length}{orphans.length !== orphansAll.length ? `/${orphansAll.length}` : ''}</span>
+            {fiscalYearLabel && (
+              <label className="flex cursor-pointer items-center gap-1.5 text-xs text-gray-600 dark:text-gray-300">
+                <input type="checkbox" checked={orphansAllYears} onChange={(e) => setOrphansAllYears(e.target.checked)} className="h-4 w-4 rounded border-gray-300 dark:border-gray-600" />
+                {t('showAllYears')}
+              </label>
+            )}
+          </div>
         </div>
         <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">{t('orphanedHint')}</p>
         {orphansAll.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-gray-300 py-8 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">{t('noOrphans')}</p>
+          <p className="rounded-lg border border-dashed border-gray-300 py-8 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+            {orphansAllYears || !fiscalYearLabel ? t('noOrphans') : t('noOrphansInYear', { year: fiscalYearLabel })}
+          </p>
         ) : (
           <>
             <div className="mb-2 flex items-center gap-2 rounded-md border border-gray-200 bg-transparent px-3 py-2 dark:border-gray-600">

@@ -20,6 +20,7 @@ import {
 import CountryMultiSelect from '../../components/CountryMultiSelect'
 import SearchableSelect from '../../components/ui/SearchableSelect'
 import { toast } from 'sonner'
+import { useConfirm } from '../../components/ConfirmProvider'
 import {
   Dialog,
   DialogContent,
@@ -150,6 +151,16 @@ const fibaNatCode = (reg: Registration): string => {
 
 const countDocs = (reg: Registration): number => DOC_FIELDS.filter((k) => reg[k]).length
 
+// Required docs for a basketball registration, driven by the applicant's
+// licensing situation + nationality + age. Mirrors the server-side approval
+// gate (kscw-hooks) — this check just gives a clear toast instead of a failed
+// request. Module scope on purpose: it is a pure function of the row, and a
+// component-scope closure here makes the React Compiler bail on the whole page.
+const missingRequiredDocs = (reg: Registration): (keyof Registration)[] => {
+  if (reg.membership_type !== 'basketball') return []
+  return bbRequiredDocs(reg.bb_situation, fibaNatCode(reg), reg.geburtsdatum).filter((k) => !reg[k])
+}
+
 
 type StatusFilter = 'all' | 'pending' | 'approved' | 'rejected'
 
@@ -245,6 +256,7 @@ const SPORT_STYLES = {
 export default function AnmeldungenPage() {
   const { t } = useTranslation('admin')
   const { isGlobalAdmin, isVbAdmin, isBbAdmin } = useAuth()
+  const confirm = useConfirm()
   const [syncUpOpen, setSyncUpOpen] = useState(false)
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('pending')
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -349,15 +361,6 @@ export default function AnmeldungenPage() {
     onError: () => toast.error(t('anmeldungenUpdateError')),
   })
 
-  // Required docs for a basketball registration, driven by the applicant's
-  // licensing situation + nationality + age. Mirrors the server-side approval
-  // gate (kscw-hooks) — this check just gives a clear toast instead of a failed
-  // request.
-  const missingRequiredDocs = (reg: Registration): (keyof Registration)[] => {
-    if (reg.membership_type !== 'basketball') return []
-    return bbRequiredDocs(reg.bb_situation, fibaNatCode(reg), reg.geburtsdatum).filter((k) => !reg[k])
-  }
-
   const handleApprove = (reg: Registration) => {
     const missing = missingRequiredDocs(reg)
     if (missing.length) {
@@ -398,6 +401,34 @@ export default function AnmeldungenPage() {
     }
   }
 
+  // Ask the applicant to (re-)upload the documents we are still missing. The
+  // registration is NOT reopened — approval already created the member, the
+  // invite and the ClubDesk contact, so flipping it back to pending would
+  // re-fire all three. The backend just emails a prefilled link to the public
+  // nachreichen page, which accepts approved rows (fill-only).
+  const [requestingId, setRequestingId] = useState<string | null>(null)
+  const handleRequestDocs = async (reg: Registration) => {
+    if (requestingId) return
+    setRequestingId(reg.id)
+    try {
+      const res = await kscwApi<{ email: string; missing: string[] }>(
+        `/registration/${reg.id}/request-docs`,
+        { method: 'POST' },
+      )
+      toast.success(t('anmeldungenDocsRequestSent', { email: res.email ?? reg.email, count: res.missing?.length ?? 0 }))
+    } catch (err) {
+      const apiErr = err as Error & { code?: string }
+      if (apiErr.code === 'nothing_missing') toast.error(t('anmeldungenDocsRequestNothingMissing'))
+      else if (apiErr.code === 'no_email') toast.error(t('anmeldungenInviteNoEmail'))
+      else if (apiErr.code === 'not_open') toast.error(t('anmeldungenDocsRequestNotOpen'))
+      else toast.error(t('anmeldungenDocsRequestError'))
+    } finally {
+      setRequestingId(null)
+    }
+  }
+
+  const [bulkRequesting, setBulkRequesting] = useState(false)
+
   const confirmReject = () => {
     if (!rejectTarget || !rejectReason.trim()) return
     updateReg({ id: rejectTarget.id, data: { status: 'rejected', rejection_reason: rejectReason.trim() } }, {
@@ -428,6 +459,42 @@ export default function AnmeldungenPage() {
     () => registrations.filter(r => selectedIds.has(r.id)),
     [registrations, selectedIds],
   )
+
+  // Plain derivation of the memo above — not its own useMemo, and it must not
+  // re-read `registrations` (a `?? []` expression, so a fresh array each render):
+  // either one makes the React Compiler bail on preserving the memoization of
+  // `selectedRegistrations`. Same reason the bulk handler below is declared here
+  // rather than next to its single-row sibling.
+  const selectedDocsMissingCount = selectedRegistrations
+    .filter(r => missingRequiredDocs(r).length > 0).length
+
+  // Bulk version of handleRequestDocs. Sequential on purpose: each send is an
+  // outbound email to a real family, and a partial failure has to be reportable
+  // per row rather than lost in a Promise.all rejection.
+  const handleBulkRequestDocs = async () => {
+    const targets = selectedRegistrations.filter((r) => missingRequiredDocs(r).length > 0)
+    if (!targets.length) {
+      toast.error(t('anmeldungenDocsRequestNothingMissing'))
+      return
+    }
+    if (!(await confirm({
+      message: t('anmeldungenDocsRequestConfirm', { count: targets.length }),
+    }))) return
+    setBulkRequesting(true)
+    let sent = 0
+    const failed: string[] = []
+    for (const reg of targets) {
+      try {
+        await kscwApi(`/registration/${reg.id}/request-docs`, { method: 'POST' })
+        sent++
+      } catch {
+        failed.push(`${reg.vorname} ${reg.nachname}`)
+      }
+    }
+    setBulkRequesting(false)
+    if (sent) toast.success(t('anmeldungenDocsRequestBulkSent', { count: sent }))
+    if (failed.length) toast.error(t('anmeldungenDocsRequestBulkFailed', { names: failed.join(', ') }))
+  }
 
   const statusBadge = (status: string) => {
     switch (status) {
@@ -487,9 +554,19 @@ export default function AnmeldungenPage() {
           <span className="text-sm font-medium text-blue-800 dark:text-blue-200">
             {selectedIds.size} {t('anmeldungenSelected')}
           </span>
+          {selectedDocsMissingCount > 0 && (
+            <button
+              onClick={handleBulkRequestDocs}
+              disabled={bulkRequesting}
+              className="ml-auto inline-flex min-h-[44px] items-center gap-1.5 rounded-md bg-amber-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-40 sm:min-h-0"
+            >
+              <Upload className="h-3.5 w-3.5" />
+              {t('anmeldungenDocsRequestBulk', { count: selectedDocsMissingCount })}
+            </button>
+          )}
           <button
             onClick={() => downloadCSV(selectedRegistrations)}
-            className="ml-auto inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
+            className={`inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 ${selectedDocsMissingCount > 0 ? '' : 'ml-auto'}`}
           >
             <Download className="h-3.5 w-3.5" />
             {t('anmeldungenDownloadCSV')}
@@ -628,9 +705,12 @@ export default function AnmeldungenPage() {
                                     onApprove={() => handleApprove(reg)}
                                     onReject={() => openRejectModal(reg)}
                                     onResendInvite={() => handleResendInvite(reg)}
+                                    onRequestDocs={() => handleRequestDocs(reg)}
                                     onPreviewFile={setPreviewFile}
                                     isUpdating={isUpdating}
                                     isResending={resendingId === reg.id}
+                                    isRequestingDocs={requestingId === reg.id}
+                                    missingDocCount={missingRequiredDocs(reg).length}
                                   />
                                 </TableCell>
                               </TableRow>
@@ -748,9 +828,12 @@ function ExpandedDetails({
   onApprove,
   onReject,
   onResendInvite,
+  onRequestDocs,
   onPreviewFile,
   isUpdating,
   isResending,
+  isRequestingDocs,
+  missingDocCount,
 }: {
   reg: Registration
   t: (key: string) => string
@@ -758,9 +841,12 @@ function ExpandedDetails({
   onApprove: () => void
   onReject: () => void
   onResendInvite: () => void
+  onRequestDocs: () => void
   onPreviewFile: (file: { url: string; label: string }) => void
   isUpdating: boolean
   isResending: boolean
+  isRequestingDocs: boolean
+  missingDocCount: number
 }) {
   const [edits, setEdits] = useState<Record<string, string>>({})
   const [uploadingKey, setUploadingKey] = useState<keyof Registration | null>(null)
@@ -1140,6 +1226,20 @@ function ExpandedDetails({
             {t('anmeldungenResendInvite')}
           </button>
         ) : null}
+        {/* Documents can go missing after approval (the 2026-07 upload faults),
+            and the applicant has no way to find out — so this stays available on
+            pending AND approved rows. It does not change the status. */}
+        {missingDocCount > 0 && (reg.status === 'pending' || reg.status === 'approved') && (
+          <button
+            onClick={onRequestDocs}
+            disabled={isRequestingDocs || isUpdating}
+            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md bg-amber-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-40"
+            title={t('anmeldungenDocsRequestTitle')}
+          >
+            <Upload className="h-3.5 w-3.5" />
+            {t('anmeldungenDocsRequest')}
+          </button>
+        )}
       </div>
     </div>
   )

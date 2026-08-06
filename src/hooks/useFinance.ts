@@ -84,6 +84,10 @@ const INVOICE_FIELDS = [
   'reference', 'fee_category', 'closed_on', 'recipient_name', 'recipient_email', 'member', 'fiscal_year',
   'source', 'reference_type', 'team', 'reported_paid_at', 'reported_paid_method',
   'reported_paid_by', 'confirmed_at', 'confirmed_via', 'cancelled_at',
+  // Provenance for the invoice table's "Created by" column. cd_created_at is
+  // ClubDesk's own creation date — date_created on a mirror row is only when the
+  // nightly sync last re-inserted it, so never show that one for source='clubdesk'.
+  'created_by_name', 'created_by_email', 'date_created', 'cd_created_at',
 ]
 const TRANSACTION_FIELDS = [
   'id', 'clubdesk_id', 'typ', 'beleg', 'booking_date', 'text', 'debit_account_number', 'debit_account_name',

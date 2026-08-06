@@ -38,6 +38,13 @@ export interface FinanceInvoice {
   confirmed_at?: string | null
   confirmed_via?: 'sync' | 'manual' | string | null
   cancelled_at?: string | null
+  /** Author of a native invoice. ClubDesk's export carries no author field. */
+  created_by_name?: string | null
+  created_by_email?: string | null
+  /** Row insert time — for a ClubDesk mirror row this is the last nightly sync, NOT the invoice's creation. */
+  date_created?: string | null
+  /** ClubDesk's own creation timestamp (mirror rows only). */
+  cd_created_at?: string | null
 }
 
 /** Native-invoice lifecycle (rides the shared `status` column when source='native'). */

@@ -10,30 +10,51 @@ const DU18_A = '5697'
 const DU18_B = '7182'
 
 describe('homeGamesFor — the two teams with a filing deadline', () => {
-  it('Lions D1 needs one home game per opponent in an 8-team group', () => {
+  it('Lions D1 gets 9 from the workbook, NOT 7 from the group size', () => {
+    // The regression this file exists for. D1LRA lists EIGHT teams, so the old
+    // (size - 1) arithmetic said 7 — but the workbook states 18 Spiele, i.e. 9 home.
+    // Lions D1 files with ProBasket by 17.08.2026, so this is the expensive one to get wrong.
     const r = homeGamesFor(LIONS_D1)
     expect(r.groupCode).toBe('D1LRA')
     expect(r.groupSize).toBe(8)
-    expect(r.count).toBe(7)
+    expect(r.gamesTotal).toBe(18)
+    expect(r.count).toBe(9)
+    expect(r.count).not.toBe((r.groupSize ?? 0) - 1)
     expect(r.reason).toBeNull()
+    expect(r.approximate).toBe(false)
   })
 
-  it('Herren 1 needs 9 in a 10-team group', () => {
+  it('Herren 1 needs 9 (18 Spiele)', () => {
     const r = homeGamesFor(HERREN_1)
     expect(r.groupCode).toBe('H1LRA')
+    expect(r.gamesTotal).toBe(18)
     expect(r.count).toBe(9)
   })
 })
 
+describe('a stated game count does not require a settled group', () => {
+  it('DU14 gets 3 even though its group still lists the whole league', () => {
+    // DU14 Regional holds 11 teams (split at the Spielplansitzung) yet states 6 Spiele.
+    // Group composition and game count are independent — the old model conflated them and
+    // blanked this team.
+    const du14 = Object.keys(KSCW_TEAM_GROUP).find((id) => KSCW_TEAM_GROUP[id] === 'DU14 Regional')
+    const r = homeGamesFor(du14)
+    expect(r.groupSize).toBe(11)
+    expect(r.gamesTotal).toBe(6)
+    expect(r.count).toBe(3)
+  })
+})
+
 describe('homeGamesFor — refuses to invent a number', () => {
-  it('blanks a provisional whole-league superset rather than claiming 29 home games', () => {
-    // Herren 3 (Unicorns) sits in H4LRA, which lists 30 teams because the split happens at the
-    // Spielplansitzung. This is the case a naive size-1 gets catastrophically wrong.
+  it('blanks H4LRA, where the workbook states no game count at all', () => {
+    // Herren 3 (Unicorns): 30 teams listed and an EMPTY Anzahl Spiele. The naive size-1 would
+    // have claimed 29 home games.
     const unicorns = Object.keys(KSCW_TEAM_GROUP).find((id) => KSCW_TEAM_GROUP[id] === 'H4LRA')
     expect(unicorns).toBeDefined()
     const r = homeGamesFor(unicorns)
     expect(BB_GROUPS.H4LRA.teams.length).toBeGreaterThan(20)
     expect(r.count).toBeNull()
+    expect(r.gamesTotal).toBeNull()
     expect(r.reason).toBe('provisional')
     expect(r.groupSize).toBe(BB_GROUPS.H4LRA.teams.length)
   })

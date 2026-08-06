@@ -1,9 +1,18 @@
 /**
  * How many HOME games does a basketball team need this season?
  *
- * User rule 2026-08-05: *"for games offered assume it's one game home, one game away"* — a
- * Hin- und Rückrunde. Each opponent in the final group is played twice, once at KWI and once
- * away, so **home games = (teams in the group) − 1**.
+ * **home games = the workbook's `Anzahl Spiele` ÷ 2.**
+ *
+ * ⚠⚠ NOT `(group size − 1)`. That was the first implementation and it was wrong: the
+ * ProBasket workbook states the games per team outright and they do not follow from the group
+ * size — D1LRA lists 8 teams but 18 Spiele (a double round would be 14), D2LRA 10 teams but
+ * 16, DU14 Regional 11 teams but 6. The arithmetic put Lions D1 at 7 when the real figure is
+ * **9**, on one of the two teams that file with ProBasket by 17.08.2026. Source and the full
+ * numbers: `../data/bbGroupFormat.json`.
+ *
+ * The user's framing — *"for games offered assume it's one game home, one game away"* — still
+ * holds; it is what makes the split a half. It just does not license deriving the total from
+ * how many teams are listed.
  *
  * This is the demand side of the slot planner: the generator says how many dates we *can*
  * offer, this says how many we *must* fill. The comparison is what tells the section whether
@@ -27,18 +36,23 @@ export type BbGroupStatus = 'championship' | 'provisional' | 'tournament'
 export type BbHomeGamesReason = 'provisional' | 'tournament' | 'no_group'
 
 export interface BbHomeGames {
-  /** Home games under Hin+Rück, or null when the format does not allow a trustworthy figure. */
+  /** Home games = gamesTotal / 2, or null when the workbook states no game count. */
   count: number | null
   /** Present only when `count` is null. */
   reason: BbHomeGamesReason | null
   /** The BB_GROUPS key, for display/debugging. Null when the team maps to no group. */
   groupCode: string | null
-  /** Teams in the group as extracted — shown next to the count so an error is visible, not silent. */
+  /** Teams listed in the group. Context only — the count is NEVER derived from it. */
   groupSize: number | null
+  /** The workbook's `Anzahl Spiele` (games per team, home + away). Null when unstated. */
+  gamesTotal: number | null
+  /** True when gamesTotal is odd, so the home/away split cannot be exact (count is floored). */
+  approximate: boolean
 }
 
 const VALID_STATUSES: readonly string[] = ['championship', 'provisional', 'tournament']
-const RAW: Record<string, { status: string; note?: string }> = groupFormat.groups
+const RAW: Record<string, { status: string; note?: string; gamesTotal?: number; modus?: string }> =
+  groupFormat.groups
 
 /**
  * Narrowed at load rather than cast: a typo'd status in the JSON degrades to `provisional`
@@ -63,17 +77,27 @@ export function groupStatusOf(groupCode: string | null | undefined): BbGroupStat
 export function homeGamesFor(bbSourceId: string | number | null | undefined): BbHomeGames {
   const code = bbSourceId != null ? KSCW_TEAM_GROUP[String(bbSourceId)] : undefined
   const group = code ? BB_GROUPS[code] : undefined
-  if (!code || !group) return { count: null, reason: 'no_group', groupCode: code ?? null, groupSize: null }
+  const blank = (reason: BbHomeGamesReason, groupSize: number | null): BbHomeGames => ({
+    count: null, reason, groupCode: code ?? null, groupSize, gamesTotal: null, approximate: false,
+  })
+  if (!code || !group) return blank('no_group', null)
 
   const groupSize = group.teams.length
   const status = groupStatusOf(code)
-  if (status !== 'championship') {
-    return { count: null, reason: status === 'tournament' ? 'tournament' : 'provisional', groupCode: code, groupSize }
+  const total = RAW[code]?.gamesTotal
+
+  // The count comes from the workbook's stated Anzahl Spiele and from nothing else. No games
+  // figure → no answer, whatever the group size happens to be.
+  if (status !== 'championship' || typeof total !== 'number' || !Number.isFinite(total) || total < 2) {
+    return blank(status === 'tournament' ? 'tournament' : 'provisional', groupSize)
   }
 
-  // A one-team group would give 0; treat anything under two teams as unusable rather than as "no
-  // home games", which would read as a legitimate answer.
-  if (groupSize < 2) return { count: null, reason: 'provisional', groupCode: code, groupSize }
-
-  return { count: groupSize - 1, reason: null, groupCode: code, groupSize }
+  return {
+    count: Math.floor(total / 2),
+    reason: null,
+    groupCode: code,
+    groupSize,
+    gamesTotal: total,
+    approximate: total % 2 !== 0,
+  }
 }
