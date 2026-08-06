@@ -86,19 +86,26 @@ function CreateInvoiceModal({ open, onClose, onDone }: { open: boolean; onClose:
   const [subject, setSubject] = useState('')
   const [dueDate, setDueDate] = useState('')
   const [category, setCategory] = useState('')
+  const [discount, setDiscount] = useState('')
+  const [discountReason, setDiscountReason] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const { data: contacts } = useBillingContacts(open)
 
   function reset() {
     setRecipientType('member'); setMember(null); setTeamId(''); setContactId(''); setNewContact(false)
-    setCName(''); setCEmail(''); setCKind('sponsor'); setAmount(''); setSubject(''); setDueDate(''); setCategory(''); setError('')
+    setCName(''); setCEmail(''); setCKind('sponsor'); setAmount(''); setSubject(''); setDueDate(''); setCategory(''); setDiscount(''); setDiscountReason(''); setError('')
   }
   const amt = Number(amount.replace(',', '.'))
+  const disc = discount.trim() ? Number(discount.replace(',', '.')) : 0
+  // A discount equal to or above the amount would bill nothing (or owe the
+  // member money) — block it here as well as at the endpoint.
+  const discValid = !discount.trim() || (Number.isFinite(disc) && disc > 0 && disc < amt)
+  const net = discValid && disc > 0 ? Math.round((amt - disc) * 100) / 100 : amt
   const recipientValid = recipientType === 'member' ? !!member
     : recipientType === 'team' ? !!teamId
     : (newContact ? !!cName.trim() : !!contactId)
-  const valid = amt > 0 && !!subject.trim() && recipientValid
+  const valid = amt > 0 && !!subject.trim() && recipientValid && discValid
 
   async function submit() {
     if (!valid) return
@@ -118,6 +125,7 @@ function CreateInvoiceModal({ open, onClose, onDone }: { open: boolean; onClose:
         subject: subject.trim(),
         due_date: dueDate || null,
         fee_category: category.trim() || null,
+        ...(disc > 0 ? { discount_amount: disc, discount_reason: discountReason.trim() || undefined } : {}),
       })
       reset(); onDone(); onClose()
     } catch {
@@ -193,6 +201,23 @@ function CreateInvoiceModal({ open, onClose, onDone }: { open: boolean; onClose:
             <DatePicker id="inv-duedate" label={t('invoiceDueDate')} value={dueDate} onChange={setDueDate} />
           </div>
         </div>
+        {/* On-demand discount. Granted here rather than written off later, so the
+            member's own invoice shows the reduction as a line. */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label htmlFor="inv-discount" className={labelCls}>{t('invoiceDiscount')}</label>
+            <input id="inv-discount" value={discount} onChange={(e) => setDiscount(e.target.value)} inputMode="decimal" placeholder="0.00" className={inputCls} />
+          </div>
+          <div>
+            <label htmlFor="inv-discount-reason" className={labelCls}>{t('invoiceDiscountReason')}</label>
+            <input id="inv-discount-reason" value={discountReason} onChange={(e) => setDiscountReason(e.target.value)} placeholder={t('invoiceDiscountReasonPlaceholder')} className={inputCls} />
+          </div>
+        </div>
+        {discount.trim() !== '' && (
+          discValid
+            ? <p className="text-xs text-gray-600 dark:text-gray-400">{t('invoiceDiscountNet', { gross: formatChf(amt), net: formatChf(net) })}</p>
+            : <p className="text-xs text-red-600 dark:text-red-400">{t('invoiceDiscountTooBig')}</p>
+        )}
         <div>
           <label htmlFor="inv-category" className={labelCls}>{t('invoiceCategory')}</label>
           <input id="inv-category" value={category} onChange={(e) => setCategory(e.target.value)} placeholder={t('invoiceCategoryPlaceholder')} className={inputCls} />

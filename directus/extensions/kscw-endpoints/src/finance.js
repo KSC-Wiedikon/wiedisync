@@ -219,20 +219,41 @@ export function registerFinance(router, { database, logger, services, getSchema 
 
       const b = req.body || {}
       const recipientType = ['team', 'contact'].includes(b.recipient_type) ? b.recipient_type : 'member'
-      const amount = round2(b.amount)
+      // `amount` is the GROSS figure the treasurer typed; the discount comes off it.
+      const gross = round2(b.amount)
       const subject = (b.subject || '').toString().trim()
       const dueDate = /^\d{4}-\d{2}-\d{2}$/.test(b.due_date || '') ? b.due_date : null
       const feeCategory = (b.fee_category || '').toString().trim() || null
-      if (!(amount > 0)) return res.status(400).json({ error: 'amount must be greater than 0' })
+      if (!(gross > 0)) return res.status(400).json({ error: 'amount must be greater than 0' })
       if (!subject) return res.status(400).json({ error: 'subject is required' })
 
+      // An on-demand discount, granted at issue rather than written off later:
+      // the member's own invoice then shows the reduction as a line instead of
+      // silently owing less than it says.
+      const discountRaw = b.discount_amount == null ? 0 : round2(b.discount_amount)
+      const discount = Number.isFinite(discountRaw) && discountRaw > 0 ? discountRaw : 0
+      if (discount >= gross) return res.status(400).json({ error: 'discount must be smaller than the amount' })
+      const discountReason = (b.discount_reason || '').toString().trim().slice(0, 120) || 'Rabatt'
+      const amount = round2(gross - discount)
+      // Positions only when there is something to itemise — a plain invoice keeps
+      // rendering its single subject line (finance-invoice-pdf.js → invoiceLines).
+      const lines = discount > 0
+        ? JSON.stringify([{ label: subject, amount: gross }, { label: discountReason, amount: round2(-discount) }])
+        : null
+
       let memberId = null, teamId = null, contactId = null, recipientName = null, recipientEmail = null
+      let recipientAddress = null, recipientZip = null, recipientCity = null
       if (recipientType === 'member') {
         memberId = Number(b.member)
-        const tgt = Number.isInteger(memberId) ? await database('members').where('id', memberId).first('id', 'first_name', 'last_name', 'email') : null
+        const tgt = Number.isInteger(memberId) ? await database('members').where('id', memberId).first('id', 'first_name', 'last_name', 'email', 'adresse', 'plz', 'ort') : null
         if (!tgt) return res.status(400).json({ error: 'member not found' })
         recipientName = [tgt.first_name, tgt.last_name].filter(Boolean).join(' ').trim() || null
         recipientEmail = tgt.email || null
+        // Same as the dues run: copied at issue time so the PDF has an addressee
+        // and the QR bill can name the payer (migration 293).
+        recipientAddress = tgt.adresse || null
+        recipientZip = tgt.plz != null ? String(tgt.plz) : null
+        recipientCity = tgt.ort || null
       } else if (recipientType === 'team') {
         teamId = Number(b.team)
         const tgt = Number.isInteger(teamId) ? await database('teams').where('id', teamId).first('id', 'name') : null
@@ -262,8 +283,12 @@ export function registerFinance(router, { database, logger, services, getSchema 
         amount_paid: 0,
         open_amount: amount,
         fee_category: feeCategory,
+        lines,
         recipient_name: recipientName,
         recipient_email: recipientEmail,
+        recipient_address: recipientAddress,
+        recipient_zip: recipientZip,
+        recipient_city: recipientCity,
         member: memberId,
         team: teamId,
         contact: contactId,
@@ -283,7 +308,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
         if (updated) invoice = updated
       } catch (e) { log.warn?.({ msg: `scor reference gen failed: ${e.message}`, id: row.id }) }
 
-      await writeUserLog(database, log, { accountability: req.accountability, action: 'create', collection: 'finance_invoices', recordId: invoice.id, data: { kind: 'native_invoice', recipient_type: recipientType, member: memberId, team: teamId, amount, number } })
+      await writeUserLog(database, log, { accountability: req.accountability, action: 'create', collection: 'finance_invoices', recordId: invoice.id, data: { kind: 'native_invoice', recipient_type: recipientType, member: memberId, team: teamId, amount, number, ...(discount > 0 ? { gross, discount, discount_reason: discountReason } : {}) } })
       await autopostInvoiceSafe(database, log, invoice.id)
       return res.json({ invoice })
     } catch (e) { return err(res, req, 'create', e) }
@@ -579,6 +604,20 @@ export function registerFinance(router, { database, logger, services, getSchema 
     // covers re-billing a member the treasurer had to fix up after a run.
     const memberIds = Array.isArray(body.member_ids)
       ? [...new Set(body.member_ids.map(Number).filter(Number.isInteger))] : []
+    // Per-member discount, { "<memberId>": chf }. The club's existing practice is
+    // to bill full and write the difference off afterwards — 47 invoices and
+    // CHF 7'026 last season, most of them the CHF 100 no-Schreiberlizenz
+    // surcharge being waived. A write-off is invisible to the member (their
+    // invoice still says 540) and, on accrual, needs a bad-debt account the
+    // chart does not have. Granting it up front puts it on the bill as a line.
+    const discounts = new Map()
+    if (body.discounts && typeof body.discounts === 'object') {
+      for (const [k, v] of Object.entries(body.discounts)) {
+        const id = Number(k), chf = round2(v)
+        if (Number.isInteger(id) && Number.isFinite(chf) && chf > 0) discounts.set(id, chf)
+      }
+    }
+    const discountReason = (body.discount_reason || '').toString().trim().slice(0, 120) || 'Rabatt'
 
     const rates = await database('finance_dues_rates').where('fiscal_year', fy.id)
       .select('id', 'category', 'sektion', 'amount_chf', 'subject_template', 'active')
@@ -660,7 +699,12 @@ export function registerFinance(router, { database, logger, services, getSchema 
         base_amount: fee ? round2(fee.base) : null,
         surcharge: fee ? round2(fee.surcharge) : 0,
         guest_discount: fee ? round2(fee.guest_discount) : 0,
-        amount: fee ? round2(fee.amount) : null,
+        // Capped at the fee — a discount may take a bill to zero (the issue path
+        // then skips it as a zero-rate row) but never below, which would mint an
+        // invoice that owes the member money.
+        discount: fee ? Math.min(round2(discounts.get(Number(m.id)) || 0), round2(fee.amount)) : 0,
+        discount_reason: discounts.has(Number(m.id)) ? discountReason : null,
+        amount: fee ? round2(fee.amount - Math.min(round2(discounts.get(Number(m.id)) || 0), round2(fee.amount))) : null,
         subject_template: rate?.subject_template || null,
         already_billed: billed.has(Number(m.id)),
         clubdesk_billed: clubdeskBilled.has(Number(m.id)),
@@ -694,7 +738,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
         })),
       }
     }
-    return { fy, sektion, onlyActive, categories, memberIds, rows, uncovered }
+    return { fy, sektion, onlyActive, categories, memberIds, discountReason, rows, uncovered }
   }
 
   const duesTotals = (rows) => {
@@ -715,6 +759,8 @@ export function registerFinance(router, { database, logger, services, getSchema 
       surcharged: billable.filter((x) => (x.surcharge || 0) > 0).length,
       guest_discount_amount: round2(billable.reduce((s, x) => s + (x.guest_discount || 0), 0)),
       guests: billable.filter((x) => (x.guest_discount || 0) > 0).length,
+      discount_amount: round2(rows.reduce((s, x) => s + (x.discount || 0), 0)),
+      discounted: rows.filter((x) => (x.discount || 0) > 0).length,
       already_billed: rows.filter((x) => x.already_billed).length,
       clubdesk_billed: rows.filter((x) => !x.already_billed && x.clubdesk_billed).length,
       missing_rate: rows.filter((x) => x.missing_rate).length,
@@ -848,7 +894,9 @@ export function registerFinance(router, { database, logger, services, getSchema 
 
         const runIns = await trx('finance_dues_runs').insert({
           fiscal_year: r.fy.id, label,
-          filter_json: JSON.stringify({ categories: r.categories, sektion: r.sektion, only_active: r.onlyActive, due_date: dueDate, member_ids: r.memberIds.length ? r.memberIds : null }),
+          filter_json: JSON.stringify({ categories: r.categories, sektion: r.sektion, only_active: r.onlyActive, due_date: dueDate, member_ids: r.memberIds.length ? r.memberIds : null,
+            discounts: Object.fromEntries(r.rows.filter((x) => x.discount > 0).map((x) => [x.member, x.discount])),
+            discount_reason: r.discountReason }),
           status: 'issued', created_by_name: mem?.name || null, created_by_email: mem?.email || null,
         }).returning('id')
         const runId = runIns[0]?.id ?? runIns[0]
@@ -875,6 +923,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
               { label: `${subject}${x.category ? ` · ${x.category}` : ''}`, amount: round2(x.base_amount) },
               ...(x.surcharge > 0 ? [{ label: 'Zuschlag ohne Schreiberlizenz', amount: round2(x.surcharge) }] : []),
               ...(x.guest_discount > 0 ? [{ label: 'Abzug Gastspieler*in', amount: round2(-x.guest_discount) }] : []),
+              ...(x.discount > 0 ? [{ label: x.discount_reason || 'Rabatt', amount: round2(-x.discount) }] : []),
             ]),
             member: x.member, team: null, dues_run: runId, fiscal_year: r.fy.id,
             source: 'native', created_by_name: mem?.name || null, created_by_email: mem?.email || null,

@@ -82,6 +82,19 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
   const [runErr, setRunErr] = useState('')
   /** Members ticked in the preview. Empty = bill everyone billable. */
   const [picked, setPicked] = useState<Set<number>>(new Set())
+  /** Per-member CHF reduction granted for this run, keyed by member id. */
+  const [discounts, setDiscounts] = useState<Record<number, string>>({})
+  const [discountReason, setDiscountReason] = useState('')
+  /** Only positive, parseable entries reach the endpoint. */
+  const discountPayload = useMemo(() => {
+    const out: Record<number, number> = {}
+    for (const [k, v] of Object.entries(discounts)) {
+      const n = Number(String(v).replace(',', '.'))
+      if (Number.isFinite(n) && n > 0) out[Number(k)] = n
+    }
+    return out
+  }, [discounts])
+  const hasDiscounts = Object.keys(discountPayload).length > 0
   const togglePick = (id: number) => setPicked((p) => {
     const n = new Set(p)
     if (!n.delete(id)) n.add(id)
@@ -93,7 +106,10 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
     if (!selected.length) { setRunErr(t('duesNoCategories')); return }
     setPvBusy(true); setRunErr(''); setRunMsg('')
     try {
-      setPreview(await previewDuesRun({ fiscal_year: fyNum, categories: selected, only_active: onlyActive }))
+      setPreview(await previewDuesRun({
+        fiscal_year: fyNum, categories: selected, only_active: onlyActive,
+        ...(hasDiscounts ? { discounts: discountPayload, discount_reason: discountReason.trim() || null } : {}),
+      }))
     } catch (e) { setRunErr(apiErr(e, t('duesPreviewError'))) } finally { setPvBusy(false) }
   }
   async function issue() {
@@ -121,9 +137,10 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
       const r = await issueDuesRun({
         fiscal_year: fyNum, categories: selected, only_active: onlyActive, due_date: dueDate || null,
         member_ids: trial ? pickedRows.map((x) => x.member) : null,
+        ...(hasDiscounts ? { discounts: discountPayload, discount_reason: discountReason.trim() || null } : {}),
       })
       setRunMsg(t('duesIssued', { count: r.summary.created, amount: formatChf(r.run.total_amount) }))
-      setPreview(null); setSelected([]); setPicked(new Set())
+      setPreview(null); setSelected([]); setPicked(new Set()); setDiscounts({}); setDiscountReason('')
       await refetchRuns()
     } catch (e) { setRunErr(apiErr(e, t('duesIssueError'))) } finally { setIssuing(false) }
   }
@@ -299,6 +316,14 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
                     describes the categories that were picked. */}
                 {preview.totals.no_email > 0 && <span className="text-amber-700 dark:text-amber-400"> · {t('duesNoEmailNote', { count: preview.totals.no_email })}</span>}
               </p>
+              {hasDiscounts && (
+                <div>
+                  <label htmlFor="dues-discount-reason" className={labelCls}>{t('duesDiscountReason')}</label>
+                  <input id="dues-discount-reason" value={discountReason} onChange={(e) => setDiscountReason(e.target.value)}
+                    placeholder={t('invoiceDiscountReasonPlaceholder')} className={inputCls} />
+                </div>
+              )}
+
               {!!preview.uncovered && (preview.uncovered.no_category > 0 || preview.uncovered.category_not_selected > 0) && (
                 <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-700/60 dark:bg-amber-900/20 dark:text-amber-200">
                   <p className="font-semibold">{t('duesUncoveredTitle')}</p>
@@ -322,6 +347,7 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
                   {t('duesAdjustmentsNote', { base: formatChf(preview.totals.base_amount) })}
                   {preview.totals.surcharged > 0 && <span className="text-amber-700 dark:text-amber-400"> · {t('duesSurchargeNote', { count: preview.totals.surcharged, amount: formatChf(preview.totals.surcharge_amount) })}</span>}
                   {preview.totals.guests > 0 && <span className="text-emerald-700 dark:text-emerald-400"> · {t('duesGuestNote', { count: preview.totals.guests, amount: formatChf(preview.totals.guest_discount_amount) })}</span>}
+                  {preview.totals.discounted > 0 && <span className="text-emerald-700 dark:text-emerald-400"> · {t('duesDiscountNote', { count: preview.totals.discounted, amount: formatChf(preview.totals.discount_amount) })}</span>}
                 </p>
               )}
               <div className="rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
@@ -331,6 +357,7 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
                       <TableHead className="w-10 text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400"><span className="sr-only">{t('duesColPick')}</span></TableHead>
                       <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('duesColMember')}</TableHead>
                       <TableHead className="hidden sm:table-cell text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('duesColCategory')}</TableHead>
+                      <TableHead className="hidden md:table-cell text-right text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('duesColDiscount')}</TableHead>
                       <TableHead className="text-right text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('duesColAmount')}</TableHead>
                       <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colStatus')}</TableHead>
                     </TableRow>
@@ -353,15 +380,30 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
                             {r.missing_email && <span className="mt-0.5 block text-xs text-amber-600 dark:text-amber-400">{t('duesStatusNoEmail')}</span>}
                           </TableCell>
                           <TableCell className="hidden sm:table-cell whitespace-normal break-words text-gray-600 dark:text-gray-400">{r.category || '–'}{r.sektion ? ` · ${r.sektion}` : ''}</TableCell>
+                          {/* Grant a reduction on this one bill. Re-preview applies it —
+                              the club's habit of billing full and writing off later leaves
+                              the member holding an invoice that overstates what they owe. */}
+                          <TableCell className="hidden md:table-cell text-right">
+                            {s === 'willBill' || (r.discount ?? 0) > 0 ? (
+                              <input
+                                value={discounts[r.member] ?? ''}
+                                onChange={(e) => setDiscounts((p) => ({ ...p, [r.member]: e.target.value }))}
+                                inputMode="decimal" placeholder="0.00"
+                                aria-label={t('duesColDiscount')}
+                                className="w-20 rounded border border-gray-200 bg-transparent px-2 py-1 text-right text-xs tabular-nums outline-none focus:border-brand-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                              />
+                            ) : null}
+                          </TableCell>
                           <TableCell className="text-right tabular-nums text-gray-900 dark:text-gray-100">
                             {r.amount != null ? formatChf(r.amount) : '–'}
                             {/* Why it isn't the plain category rate. Without this the
                                 treasurer has no way to answer "why does she pay 540?". */}
-                            {r.amount != null && (r.surcharge > 0 || r.guest_discount > 0) && (
+                            {r.amount != null && (r.surcharge > 0 || r.guest_discount > 0 || (r.discount ?? 0) > 0) && (
                               <span className="mt-0.5 block text-xs font-normal text-gray-500 dark:text-gray-400">
                                 {formatChf(r.base_amount ?? 0)}
                                 {r.surcharge > 0 && <span className="text-amber-600 dark:text-amber-400"> + {formatChf(r.surcharge)}</span>}
                                 {r.guest_discount > 0 && <span className="text-emerald-600 dark:text-emerald-400"> − {formatChf(r.guest_discount)}</span>}
+                                {(r.discount ?? 0) > 0 && <span className="text-emerald-600 dark:text-emerald-400"> − {formatChf(r.discount)}</span>}
                                 <span className="block">{r.surcharge > 0 ? t('duesSurchargeWhy') : t('duesGuestWhy')}</span>
                               </span>
                             )}
