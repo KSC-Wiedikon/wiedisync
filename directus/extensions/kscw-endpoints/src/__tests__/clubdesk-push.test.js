@@ -18,7 +18,7 @@
  * Hermetic — pure functions, no DB or network.
  */
 import { describe, it, expect } from 'vitest'
-import { buildPushCsv, CD_PUSH_CREATE_HEADERS, CD_KATEGORIE_MAP, mapKategorie, deriveGruppen, deriveStatus, deriveMitgliederbeitrag, deriveOffiziellenLizenz, deriveSektion, deriveSchiedsrichter, federationCell, nationalityCell, gastCell, trainerLicenceCell, trainerLicenceDisplay, parseTrainerLicenceCell, parseTrainerLicenceCodes } from '../clubdesk-update.js'
+import { buildPushCsv, CD_PUSH_CREATE_HEADERS, CD_KATEGORIE_MAP, CD_BEITRAG_MAP, feeBreakdown, mapKategorie, deriveGruppen, deriveStatus, deriveMitgliederbeitrag, deriveOffiziellenLizenz, deriveSektion, deriveSchiedsrichter, federationCell, nationalityCell, gastCell, trainerLicenceCell, trainerLicenceDisplay, parseTrainerLicenceCell, parseTrainerLicenceCodes } from '../clubdesk-update.js'
 
 const kacper = {
   first_name: 'Kacper', last_name: 'Krawczyński', email: 'k@example.com',
@@ -692,5 +692,70 @@ describe('buildPushCsv — Trainer Lizenz column', () => {
     expect(lines[2].split(';')[col]).toBe('J+S, C')
     // Nothing on either side → empty cell, which ClubDesk treats as a no-op.
     expect(lines[3].split(';')[col]).toBe('')
+  })
+})
+
+// The native dues run bills from feeBreakdown, so the itemisation is not a
+// display detail — `amount` is what a member is actually invoiced. The
+// deriveMitgliederbeitrag suite above already pins the arithmetic; these pin
+// the two things only the dues run relies on: the split, and baseOverride.
+describe('feeBreakdown', () => {
+  const adultNoLic = { scorer_vb: false, otr1_bb: false }
+
+  it('itemises base and surcharge rather than just the total', () => {
+    expect(feeBreakdown('VB Erwerbstätige', adultNoLic))
+      .toEqual({ category: 'VB Erwerbstätige', base: 440, surcharge: 100, guest_discount: 0, amount: 540 })
+    expect(feeBreakdown('VB Erwerbstätige', { scorer_vb: true }))
+      .toEqual({ category: 'VB Erwerbstätige', base: 440, surcharge: 0, guest_discount: 0, amount: 440 })
+  })
+
+  it('agrees with deriveMitgliederbeitrag on every mapped category', () => {
+    // One engine or two: this is the test that says which.
+    for (const k of Object.keys(CD_BEITRAG_MAP)) {
+      for (const m of [null, adultNoLic, { scorer_vb: true, birthdate: '2000-01-01' }]) {
+        expect(String(feeBreakdown(k, m).amount)).toBe(deriveMitgliederbeitrag(k, m))
+        expect(String(feeBreakdown(k, m, { isGuest: true }).amount))
+          .toBe(deriveMitgliederbeitrag(k, m, { isGuest: true }))
+      }
+    }
+  })
+
+  it('a guest is discounted and never surcharged', () => {
+    expect(feeBreakdown('VB Erwerbstätige', adultNoLic, { isGuest: true }))
+      .toEqual({ category: 'VB Erwerbstätige', base: 440, surcharge: 0, guest_discount: 110, amount: 330 })
+  })
+
+  it('caps the guest discount at the base — no negative invoice', () => {
+    // 'VB Turnier KWI' is 110: the discount takes it to exactly 0, not below.
+    expect(feeBreakdown('VB Turnier KWI', null, { isGuest: true }))
+      .toEqual({ category: 'VB Turnier KWI', base: 110, surcharge: 0, guest_discount: 110, amount: 0 })
+    // 'Gratis' is 0: reporting a 110 discount off nothing would be a lie.
+    expect(feeBreakdown('Gratis', null, { isGuest: true }))
+      .toEqual({ category: 'Gratis', base: 0, surcharge: 0, guest_discount: 0, amount: 0 })
+  })
+
+  it('baseOverride replaces the base but keeps the surcharge rules', () => {
+    // What a season rate change looks like: schedule says 460, duty still owed.
+    expect(feeBreakdown('VB Erwerbstätige', adultNoLic, { baseOverride: 460 }))
+      .toEqual({ category: 'VB Erwerbstätige', base: 460, surcharge: 100, guest_discount: 0, amount: 560 })
+  })
+
+  it('accepts a Postgres numeric override, which arrives as a string', () => {
+    // knex/pg hands back `numeric` as '440.00'; a typeof check would drop it
+    // and silently fall through to the hardcoded map.
+    expect(feeBreakdown('VB Erwerbstätige', null, { baseOverride: '460.00' }).base).toBe(460)
+  })
+
+  it('bills an override for a category outside the map, unsurcharged', () => {
+    // e.g. 'VB Schüler*in Meisterschaft mit Abzug' — the treasurer sets a rate,
+    // and we do not invent a surcharge for a name the rules do not know.
+    expect(feeBreakdown('VB Schüler*in Meisterschaft mit Abzug', adultNoLic, { baseOverride: 200 }))
+      .toEqual({ category: 'VB Schüler*in Meisterschaft mit Abzug', base: 200, surcharge: 0, guest_discount: 0, amount: 200 })
+  })
+
+  it('returns null when there is no base — never a guessed amount', () => {
+    expect(feeBreakdown('Sponsor')).toBeNull()
+    expect(feeBreakdown(null)).toBeNull()
+    expect(feeBreakdown('Sponsor', null, { baseOverride: '' })).toBeNull()
   })
 })

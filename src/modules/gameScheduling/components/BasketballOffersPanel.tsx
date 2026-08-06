@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Loader2, Send, Undo2 } from 'lucide-react'
+import { Check, Loader2, Send, Trash2, Undo2 } from 'lucide-react'
 import { Button } from '../../../components/ui/button'
 import { Badge } from '../../../components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../components/ui/table'
@@ -34,11 +34,17 @@ interface Props {
   assignClub: (gameId: string | number, clubId: number | null) => Promise<void>
   offer: (ids: Array<string | number>, opponentClub?: number | null) => Promise<{ updated: number } | null>
   unoffer: (ids: Array<string | number>) => Promise<{ updated: number } | null>
+  answerClubProposal: (
+    ids: Array<string | number>,
+    decision: 'accept' | 'release',
+  ) => Promise<{ affected: number } | null>
 }
 
 const STATUS_VARIANT: Record<BbProposalStatus, 'neutral' | 'info' | 'success' | 'danger' | 'warning'> = {
   draft: 'neutral',
   offered: 'info',
+  // The one status that is waiting on US, so it reads as an action, not an outcome.
+  club_proposed: 'warning',
   accepted: 'success',
   declined: 'danger',
   countered: 'warning',
@@ -53,6 +59,7 @@ export default function BasketballOffersPanel({
   assignClub,
   offer,
   unoffer,
+  answerClubProposal,
 }: Props) {
   const { t } = useTranslation('basketballScheduling')
   const confirm = useConfirm()
@@ -86,6 +93,15 @@ export default function BasketballOffersPanel({
   const withdrawable = useMemo(
     () => selected.filter((g) => proposalStatusOf(g) === 'offered' && !g.responded_at),
     [selected],
+  )
+  /** Dates a club picked itself — the only rows a planner answers with accept/release. */
+  const clubProposed = useMemo(
+    () => selected.filter((g) => proposalStatusOf(g) === 'club_proposed'),
+    [selected],
+  )
+  const pendingClubPicks = useMemo(
+    () => games.filter((g) => proposalStatusOf(g) === 'club_proposed').length,
+    [games],
   )
 
   const handleAssign = async (game: BbOfferRow, clubId: number | null) => {
@@ -128,6 +144,31 @@ export default function BasketballOffersPanel({
     }
   }
 
+  const handleAcceptPicks = async () => {
+    if (!clubProposed.length) return
+    try {
+      const res = await answerClubProposal(clubProposed.map((g) => g.id), 'accept')
+      toast.success(t('clubPicksAccepted', { count: res?.affected ?? 0 }))
+      setChecked(new Set())
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err))
+    }
+  }
+
+  const handleReleasePicks = async () => {
+    if (!clubProposed.length) return
+    // Destructive and irreversible: releasing DELETES the row, which is the only way the
+    // pitch goes back on every club's free list. Say that plainly before doing it.
+    if (!(await confirm({ message: t('clubPicksReleaseConfirm', { count: clubProposed.length }), danger: true }))) return
+    try {
+      const res = await answerClubProposal(clubProposed.map((g) => g.id), 'release')
+      toast.success(t('clubPicksReleased', { count: res?.affected ?? 0 }))
+      setChecked(new Set())
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err))
+    }
+  }
+
   const selectClass =
     'min-h-11 w-full max-w-[16rem] rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100'
 
@@ -151,8 +192,32 @@ export default function BasketballOffersPanel({
           >
             <Undo2 className="h-4 w-4" aria-hidden /> {t('unofferSelected', { count: withdrawable.length })}
           </Button>
+          <Button
+            size="sm"
+            className="min-h-11"
+            disabled={busy || clubProposed.length === 0}
+            onClick={handleAcceptPicks}
+          >
+            <Check className="h-4 w-4" aria-hidden /> {t('clubPicksAccept', { count: clubProposed.length })}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="min-h-11 text-rose-600"
+            disabled={busy || clubProposed.length === 0}
+            onClick={handleReleasePicks}
+          >
+            <Trash2 className="h-4 w-4" aria-hidden /> {t('clubPicksRelease', { count: clubProposed.length })}
+          </Button>
         </div>
       </div>
+
+      {/* The one state waiting on us — easy to miss in a long table, so name it up front. */}
+      {pendingClubPicks > 0 && (
+        <p className="mt-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+          {t('clubPicksPending', { count: pendingClubPicks })}
+        </p>
+      )}
 
       {isLoading ? (
         <div className="py-8 text-center text-sm text-gray-400">

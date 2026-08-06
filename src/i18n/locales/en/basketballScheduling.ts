@@ -252,6 +252,12 @@ export default {
   backendUnavailable: 'The team rules and the slot inventory could not be loaded — the basketball scheduling backend may not be deployed for this environment yet.',
 
   // ── Opponent clubs: offers, portal links, invite email (migrations 279/280) ──
+  clubPicksPending: '{{count}} dates picked by opponent clubs are waiting for your answer.',
+  clubPicksAccept: 'Accept {{count}}',
+  clubPicksRelease: 'Release {{count}}',
+  clubPicksAccepted: '{{count}} dates agreed.',
+  clubPicksReleased: '{{count}} dates released.',
+  clubPicksReleaseConfirm: 'Release {{count}} dates the club picked? The proposal is deleted and the hall slot goes back to every club. This cannot be undone.',
   offersTitle: 'Games offered to opponents',
   offersHint:
     'A placed home game only reaches the opponent once it is addressed to a club and offered. Offered games show up on that club’s link; withdrawing works until the club has answered.',
@@ -269,6 +275,7 @@ export default {
   clubUnassigned: '— No club —',
   proposal_draft: 'Draft',
   proposal_offered: 'Offered',
+  proposal_club_proposed: 'Picked by the club',
   proposal_accepted: 'Confirmed',
   proposal_declined: 'Declined',
   proposal_countered: 'Alternative proposed',

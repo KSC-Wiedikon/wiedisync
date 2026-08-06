@@ -210,6 +210,7 @@ export default function BasketballSettingsPage() {
             assignClub={offers.assignClub}
             offer={offers.offer}
             unoffer={offers.unoffer}
+            answerClubProposal={offers.answerClubProposal}
           />
 
           <BasketballClubPortalsPanel

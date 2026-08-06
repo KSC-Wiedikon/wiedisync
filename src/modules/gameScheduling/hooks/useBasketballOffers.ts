@@ -18,7 +18,15 @@ import type { BasketballSlotPlan } from '../../../types'
  * a client cannot (never offer a guest game, never rewind an answered row).
  */
 
-export type BbProposalStatus = 'draft' | 'offered' | 'accepted' | 'declined' | 'countered'
+/** ⚠ Keep in step with the CHECK on basketball_slot_plan.proposal_status (migrations 280/289). */
+export type BbProposalStatus =
+  | 'draft'
+  | 'offered'
+  /** The opponent picked a free pitch through its portal; a planner has not answered yet. */
+  | 'club_proposed'
+  | 'accepted'
+  | 'declined'
+  | 'countered'
 
 export interface BbCounterProposal {
   date: string
@@ -133,6 +141,31 @@ export function useBasketballOffers(seasonId: string | number | null | undefined
   )
 
   /** offered → draft. Only rows the club has not answered yet (enforced server-side). */
+  /**
+   * Answer what a club picked through its portal.
+   *
+   * ⚠ 'release' DELETES the row. That is the only thing that frees the pitch again —
+   * migration 278's release-slots trigger fires on DELETE, so a 'declined' row would hold the
+   * slot forever while looking rejected. Callers must confirm before calling it.
+   */
+  const answerClubProposal = useCallback(
+    async (ids: Array<string | number>, decision: 'accept' | 'release') => {
+      if (!enabled || !ids.length) return null
+      setBusy(true)
+      try {
+        const res = await kscwApi<{ success: boolean; affected: number }>(
+          '/admin/terminplanung/bb/club-proposals',
+          { method: 'POST', body: { season: Number(seasonId), ids: ids.map(Number), decision } },
+        )
+        await refetch()
+        return res
+      } finally {
+        setBusy(false)
+      }
+    },
+    [enabled, seasonId, refetch],
+  )
+
   const unoffer = useCallback(
     async (ids: Array<string | number>) => {
       if (!enabled || !ids.length) return null
@@ -161,6 +194,7 @@ export function useBasketballOffers(seasonId: string | number | null | undefined
     assignClub,
     offer,
     unoffer,
+    answerClubProposal,
     refetch,
   }
 }

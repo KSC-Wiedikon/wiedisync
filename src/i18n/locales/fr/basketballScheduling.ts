@@ -256,6 +256,12 @@ export default {
   backendUnavailable: 'Les règles par équipe et les créneaux n’ont pas pu être chargés — le backend de planification basket n’est peut-être pas encore déployé dans cet environnement.',
 
   // ── Clubs adverses : propositions, liens du portail, e-mail d’invitation ──
+  clubPicksPending: '{{count}} dates choisies par des clubs adverses attendent votre réponse.',
+  clubPicksAccept: 'Accepter {{count}}',
+  clubPicksRelease: 'Libérer {{count}}',
+  clubPicksAccepted: '{{count}} dates convenues.',
+  clubPicksReleased: '{{count}} dates libérées.',
+  clubPicksReleaseConfirm: 'Libérer {{count}} dates choisies par le club ? La proposition est supprimée et le créneau redevient disponible pour tous les clubs. Action irréversible.',
   offersTitle: 'Matchs proposés aux adversaires',
   offersHint:
     'Un match à domicile placé n’atteint l’adversaire qu’une fois attribué à un club et proposé. Les matchs proposés apparaissent sur le lien de ce club ; on peut les retirer tant que le club n’a pas répondu.',
@@ -273,6 +279,7 @@ export default {
   clubUnassigned: '— Aucun club —',
   proposal_draft: 'Brouillon',
   proposal_offered: 'Proposé',
+  proposal_club_proposed: 'Choisi par le club',
   proposal_accepted: 'Confirmé',
   proposal_declined: 'Refusé',
   proposal_countered: 'Alternative proposée',

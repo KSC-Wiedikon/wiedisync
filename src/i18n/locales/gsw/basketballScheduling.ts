@@ -256,6 +256,12 @@ export default {
   backendUnavailable: 'D Team-Regle und de Slot-Beschtand händ nöd chöne glade werde — s Basketball-Backend isch i dere Umgebig villicht no nöd usgrollt.',
 
   // ── Gägnerklubs: Aagebot, Portal-Links, Iiladigsmail ──
+  clubPicksPending: '{{count}} vo Gegner-Klubs gwählti Date wartet uf eui Antwort.',
+  clubPicksAccept: '{{count}} aanäh',
+  clubPicksRelease: '{{count}} freigäh',
+  clubPicksAccepted: '{{count}} Date vereinbart.',
+  clubPicksReleased: '{{count}} Date freigäh.',
+  clubPicksReleaseConfirm: '{{count}} vom Klub gwählti Date freigäh? De Vorschlag wird glöscht und de Hallenslot staht wieder allne Klubs zur Verfüegig. Das cha me nöd rückgängig mache.',
   offersTitle: 'De Gägner aabotni Spiel',
   offersHint:
     'Es gsetzts Heimspiel chunnt erscht zum Gägner, wenn s eme Klub zuegordnet und aabote isch. Aabotni Spiel erschiined uf em Link vo dem Klub; zrugziehe gaht, solang de Klub nöd gantwortet hät.',
@@ -273,6 +279,7 @@ export default {
   clubUnassigned: '— Kein Klub —',
   proposal_draft: 'Entwurf',
   proposal_offered: 'Aabote',
+  proposal_club_proposed: 'Vom Klub gwählt',
   proposal_accepted: 'Bestätigt',
   proposal_declined: 'Abglehnt',
   proposal_countered: 'Alternative vorgschlage',

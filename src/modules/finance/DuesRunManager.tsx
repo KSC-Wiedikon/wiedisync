@@ -17,11 +17,16 @@ const labelCls = 'block text-xs font-medium uppercase tracking-wider text-gray-5
 const inputCls = 'mt-1 w-full rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm outline-none focus:border-brand-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100'
 const apiErr = (e: unknown, fallback: string) => (e as { body?: { error?: string } })?.body?.error || fallback
 
-/** Per-member row status badge in the preview. */
-function rowStatus(r: DuesPreviewRow): 'willBill' | 'alreadyBilled' | 'clubdeskBilled' | 'noRate' {
+/** Per-member row status badge in the preview.
+ *  `zeroRate` mirrors the issue endpoint's skip rule — a 0 CHF rate ('Gratis',
+ *  'Kein Beitrag') is a real rate, but issuing would mint an invoice for
+ *  nothing, so it never does. Showing those as "Will bill" made the preview
+ *  promise ~90 more invoices than the run creates. */
+function rowStatus(r: DuesPreviewRow): 'willBill' | 'alreadyBilled' | 'clubdeskBilled' | 'noRate' | 'zeroRate' {
   if (r.missing_rate) return 'noRate'
   if (r.already_billed) return 'alreadyBilled'
   if (r.clubdesk_billed) return 'clubdeskBilled'
+  if (!r.amount || r.amount <= 0) return 'zeroRate'
   return 'willBill'
 }
 const STATUS_TONE: Record<string, string> = {
@@ -29,6 +34,7 @@ const STATUS_TONE: Record<string, string> = {
   alreadyBilled: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
   clubdeskBilled: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300',
   noRate: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+  zeroRate: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300',
 }
 
 export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fiscalYearId: string; fiscalYearLabel: string }) {
@@ -74,7 +80,14 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
   const [issuing, setIssuing] = useState(false)
   const [runMsg, setRunMsg] = useState('')
   const [runErr, setRunErr] = useState('')
-  const toggleCat = (c: string) => { setPreview(null); setRunMsg(''); setSelected((p) => p.includes(c) ? p.filter((x) => x !== c) : [...p, c]) }
+  /** Members ticked in the preview. Empty = bill everyone billable. */
+  const [picked, setPicked] = useState<Set<number>>(new Set())
+  const togglePick = (id: number) => setPicked((p) => {
+    const n = new Set(p)
+    if (!n.delete(id)) n.add(id)
+    return n
+  })
+  const toggleCat = (c: string) => { setPreview(null); setRunMsg(''); setPicked(new Set()); setSelected((p) => p.includes(c) ? p.filter((x) => x !== c) : [...p, c]) }
 
   async function runPreview() {
     if (!selected.length) { setRunErr(t('duesNoCategories')); return }
@@ -85,23 +98,32 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
   }
   async function issue() {
     if (!preview) return
-    const billable = preview.totals.billable
+    // Nothing ticked = bill the whole billable cohort (the ordinary run). Tick a
+    // few and only those are billed — how you trial the run on one member before
+    // committing 570 real invoices.
+    const pickedRows = preview.rows.filter((r) => picked.has(r.member) && rowStatus(r) === 'willBill')
+    const trial = pickedRows.length > 0
+    const billable = trial ? pickedRows.length : preview.totals.billable
+    const amount = trial ? pickedRows.reduce((s, r) => s + (r.amount || 0), 0) : preview.totals.billable_amount
     if (!billable) return
     // High-stakes, irreversible batch (creates a payable QR-bill for every
     // billable member) — gate it behind the branded destructive confirm with a
     // count/amount summary instead of a reflexive browser popup.
     const ok = await confirm({
       title: t('duesIssueConfirmTitle'),
-      message: t('duesIssueSure', { count: billable, amount: formatChf(preview.totals.billable_amount) }),
+      message: t('duesIssueSure', { count: billable, amount: formatChf(amount) }),
       confirmLabel: t('duesIssueCta', { count: billable }),
       danger: true,
     })
     if (!ok) return
     setIssuing(true); setRunErr('')
     try {
-      const r = await issueDuesRun({ fiscal_year: fyNum, categories: selected, only_active: onlyActive, due_date: dueDate || null })
+      const r = await issueDuesRun({
+        fiscal_year: fyNum, categories: selected, only_active: onlyActive, due_date: dueDate || null,
+        member_ids: trial ? pickedRows.map((x) => x.member) : null,
+      })
       setRunMsg(t('duesIssued', { count: r.summary.created, amount: formatChf(r.run.total_amount) }))
-      setPreview(null); setSelected([])
+      setPreview(null); setSelected([]); setPicked(new Set())
       await refetchRuns()
     } catch (e) { setRunErr(apiErr(e, t('duesIssueError'))) } finally { setIssuing(false) }
   }
@@ -144,7 +166,7 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
     } catch { setRunErr(t('duesBillsError')) } finally { setBillBusy(null) }
   }
 
-  const statusLabel = (s: string) => ({ willBill: t('duesStatusWillBill'), alreadyBilled: t('duesStatusAlreadyBilled'), clubdeskBilled: t('duesStatusClubdeskBilled'), noRate: t('duesStatusNoRate') }[s] ?? s)
+  const statusLabel = (s: string) => ({ willBill: t('duesStatusWillBill'), alreadyBilled: t('duesStatusAlreadyBilled'), clubdeskBilled: t('duesStatusClubdeskBilled'), noRate: t('duesStatusNoRate'), zeroRate: t('duesStatusZeroRate') }[s] ?? s)
   const sektionLabel = (s: string | null) => s || t('duesSektionDefault')
   const sortedRates = useMemo(() => [...(ratesData?.rates ?? [])].sort((a, b) => a.category.localeCompare(b.category) || (a.sektion || '').localeCompare(b.sektion || '')), [ratesData])
 
@@ -272,12 +294,23 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
                   noRate: preview.totals.missing_rate,
                 })}
                 {preview.totals.clubdesk_billed > 0 && <span className="text-purple-700 dark:text-purple-400"> · {t('duesClubdeskBilledNote', { count: preview.totals.clubdesk_billed })}</span>}
+                {preview.totals.zero_rate > 0 && <span className="text-gray-500 dark:text-gray-400"> · {t('duesZeroRateNote', { count: preview.totals.zero_rate })}</span>}
                 {preview.totals.no_email > 0 && <span className="text-amber-700 dark:text-amber-400"> · {t('duesNoEmailNote', { count: preview.totals.no_email })}</span>}
               </p>
+              {/* The total is NOT the sum of the rate schedule — say so, with the
+                  two adjustments spelled out, so it reconciles on sight. */}
+              {(preview.totals.surcharged > 0 || preview.totals.guests > 0) && (
+                <p className="text-xs text-gray-600 dark:text-gray-400">
+                  {t('duesAdjustmentsNote', { base: formatChf(preview.totals.base_amount) })}
+                  {preview.totals.surcharged > 0 && <span className="text-amber-700 dark:text-amber-400"> · {t('duesSurchargeNote', { count: preview.totals.surcharged, amount: formatChf(preview.totals.surcharge_amount) })}</span>}
+                  {preview.totals.guests > 0 && <span className="text-emerald-700 dark:text-emerald-400"> · {t('duesGuestNote', { count: preview.totals.guests, amount: formatChf(preview.totals.guest_discount_amount) })}</span>}
+                </p>
+              )}
               <div className="rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
                 <Table>
                   <TableHeader>
                     <TableRow className="border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/40">
+                      <TableHead className="w-10 text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400"><span className="sr-only">{t('duesColPick')}</span></TableHead>
                       <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('duesColMember')}</TableHead>
                       <TableHead className="hidden sm:table-cell text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('duesColCategory')}</TableHead>
                       <TableHead className="text-right text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('duesColAmount')}</TableHead>
@@ -289,12 +322,32 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
                       const s = rowStatus(r)
                       return (
                         <TableRow key={r.member} className="border-gray-200 dark:border-gray-700">
+                          {/* Only a row that would actually be billed can be picked. */}
+                          <TableCell className="align-top">
+                            {s === 'willBill' && (
+                              <input type="checkbox" checked={picked.has(r.member)} onChange={() => togglePick(r.member)}
+                                aria-label={t('duesPickMember', { name: r.name || String(r.member) })}
+                                className="mt-1 h-4 w-4 cursor-pointer rounded border-gray-300 text-brand-600 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-700" />
+                            )}
+                          </TableCell>
                           <TableCell className="whitespace-normal break-words text-gray-900 dark:text-gray-100">
                             {r.name || '–'}
                             {r.missing_email && <span className="mt-0.5 block text-xs text-amber-600 dark:text-amber-400">{t('duesStatusNoEmail')}</span>}
                           </TableCell>
                           <TableCell className="hidden sm:table-cell whitespace-normal break-words text-gray-600 dark:text-gray-400">{r.category || '–'}{r.sektion ? ` · ${r.sektion}` : ''}</TableCell>
-                          <TableCell className="text-right tabular-nums text-gray-900 dark:text-gray-100">{r.amount != null ? formatChf(r.amount) : '–'}</TableCell>
+                          <TableCell className="text-right tabular-nums text-gray-900 dark:text-gray-100">
+                            {r.amount != null ? formatChf(r.amount) : '–'}
+                            {/* Why it isn't the plain category rate. Without this the
+                                treasurer has no way to answer "why does she pay 540?". */}
+                            {r.amount != null && (r.surcharge > 0 || r.guest_discount > 0) && (
+                              <span className="mt-0.5 block text-xs font-normal text-gray-500 dark:text-gray-400">
+                                {formatChf(r.base_amount ?? 0)}
+                                {r.surcharge > 0 && <span className="text-amber-600 dark:text-amber-400"> + {formatChf(r.surcharge)}</span>}
+                                {r.guest_discount > 0 && <span className="text-emerald-600 dark:text-emerald-400"> − {formatChf(r.guest_discount)}</span>}
+                                <span className="block">{r.surcharge > 0 ? t('duesSurchargeWhy') : t('duesGuestWhy')}</span>
+                              </span>
+                            )}
+                          </TableCell>
                           <TableCell><span className={`inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_TONE[s]}`}>{statusLabel(s)}</span></TableCell>
                         </TableRow>
                       )
@@ -302,11 +355,17 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
                   </TableBody>
                 </Table>
               </div>
-              <div className="flex justify-end">
+              <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-end">
+                {picked.size > 0 && (
+                  <p className="text-xs text-brand-700 dark:text-brand-300">
+                    {t('duesTrialRunNote', { count: picked.size })}
+                    <button type="button" onClick={() => setPicked(new Set())} className="ml-2 underline">{t('duesTrialClear')}</button>
+                  </p>
+                )}
                 <button type="button" disabled={!preview.totals.billable || issuing} onClick={issue}
-                  className="inline-flex items-center gap-1.5 rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50">
+                  className="inline-flex items-center justify-center gap-1.5 rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50">
                   {issuing ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
-                  {t('duesIssueCta', { count: preview.totals.billable })}
+                  {t('duesIssueCta', { count: picked.size || preview.totals.billable })}
                 </button>
               </div>
             </div>

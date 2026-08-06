@@ -256,6 +256,12 @@ export default {
   backendUnavailable: 'Die Team-Regeln und der Slot-Bestand konnten nicht geladen werden — das Basketball-Backend ist in dieser Umgebung möglicherweise noch nicht ausgerollt.',
 
   // ── Gegnerklubs: Angebote, Portal-Links, Einladungsmail (Migrationen 279/280) ──
+  clubPicksPending: '{{count}} von Gegner-Klubs gewählte Daten warten auf eure Antwort.',
+  clubPicksAccept: '{{count}} annehmen',
+  clubPicksRelease: '{{count}} freigeben',
+  clubPicksAccepted: '{{count}} Daten vereinbart.',
+  clubPicksReleased: '{{count}} Daten freigegeben.',
+  clubPicksReleaseConfirm: '{{count}} vom Klub gewählte Daten freigeben? Der Vorschlag wird gelöscht und der Hallenslot steht wieder allen Klubs zur Verfügung. Das lässt sich nicht rückgängig machen.',
   offersTitle: 'Den Gegnern angebotene Spiele',
   offersHint:
     'Ein gesetztes Heimspiel erreicht den Gegner erst, wenn es einem Klub zugeordnet und angeboten wurde. Angebotene Spiele erscheinen auf dem Link dieses Klubs; zurückziehen geht, solange der Klub nicht geantwortet hat.',
@@ -273,6 +279,7 @@ export default {
   clubUnassigned: '— Kein Klub —',
   proposal_draft: 'Entwurf',
   proposal_offered: 'Angeboten',
+  proposal_club_proposed: 'Vom Klub gewählt',
   proposal_accepted: 'Bestätigt',
   proposal_declined: 'Abgelehnt',
   proposal_countered: 'Alternative vorgeschlagen',
