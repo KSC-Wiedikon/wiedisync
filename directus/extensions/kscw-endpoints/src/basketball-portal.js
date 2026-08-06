@@ -76,8 +76,19 @@ const BB_ACCOUNT = ACCOUNTS.basketball
 /** Token statuses whose links still open. Mirrors CLUB_PORTAL_VIEW_STATUSES. */
 const PORTAL_VIEW_STATUSES = ['invited', 'viewed', 'booked']
 
-/** proposal_status values an opponent may see. 'draft' is the visibility gate. */
+/**
+ * proposal_status values an opponent may ANSWER (accept / decline / counter).
+ * 'draft' is the visibility gate; 'club_proposed' is deliberately absent — a club must not
+ * be able to "decline" a date it proposed itself.
+ */
 const OFFER_VISIBLE_STATUSES = ['offered', 'accepted', 'declined', 'countered']
+
+/**
+ * proposal_status values an opponent may SEE. Wider than the answerable set: a club's own
+ * picks must show up in its portal, otherwise it submits them and the pitches simply vanish
+ * from the free list with nothing to show for it.
+ */
+const PORTAL_VISIBLE_STATUSES = [...OFFER_VISIBLE_STATUSES, 'club_proposed']
 
 /** Responses the portal accepts. 'countered' is derived, never sent by the client. */
 const ALLOWED_RESPONSES = ['accepted', 'declined']
@@ -261,7 +272,7 @@ export function registerBasketballPortal(router, { database, logger }) {
       .leftJoin('teams as t', 't.id', 'p.kscw_team')
       .where('p.season', portal.season)
       .where('p.opponent_club', portal.bp_club)
-      .whereIn('p.proposal_status', OFFER_VISIBLE_STATUSES)
+      .whereIn('p.proposal_status', PORTAL_VISIBLE_STATUSES)
       .orderBy(['p.date', 'p.time'])
       .select(
         'p.id', 'p.date', 'p.time', 'p.hall', 'p.opponent', 'p.kscw_team_label',
@@ -269,6 +280,90 @@ export function registerBasketballPortal(router, { database, logger }) {
         'p.responded_at', 'p.note',
         't.name as kscw_team_name',
       )
+  }
+
+  /**
+   * The KSCW teams this club is paired with, and the pitches still free for each.
+   *
+   * This is the volleyball shape (`/terminplanung/slots/:token`) brought to basketball: the
+   * opponent sees what is FREE and picks, instead of only answering games we placed first.
+   *
+   * The pairing comes from shared ProBasket group membership (migration 287) because
+   * basketball has no fixture feed before the Spielplansitzung — there is nothing else to
+   * join on. `home_games` is the workbook's Anzahl Spiele halved; NULL whenever ProBasket has
+   * not stated one, never guessed from the group size (see bbHomeGames.ts / migration 287).
+   *
+   * ⚠ DISTINCT on (our team) is required, not cosmetic: a club can field two teams in one
+   * group (BC Zürich 93 in MixU12), which would otherwise repeat the pairing and multiply the
+   * slot list.
+   *
+   * ⚠ Free means: generated, still 'available', and unclaimed. Any plan row CLAIMS its pitch —
+   * migration 278's `trg_basketball_slot_plan_0_sync_slots` flips the slot to 'placed' on
+   * insert, and `…_release_slots` frees it again on delete. So a club's pick genuinely holds
+   * the pitch (which is what stops us promising one hall to two clubs), and a planner deleting
+   * the proposal releases it. It is still not a FIXTURE — ProBasket assigns those at the
+   * Spielplansitzung.
+   *
+   * ⚠ The `taken` set below is belt-and-braces for plan rows that never had a generated slot.
+   * It matches the hall string exactly, so it does NOT model the A+B ↔ A/B overlap; that
+   * collision is the generator's job (hallOccupancy.ts) and is out of scope here.
+   */
+  async function portalPairings(portal) {
+    const teams = await database('basketball_group_teams as opp')
+      .join('basketball_groups as g', 'g.id', 'opp.group_id')
+      .join('basketball_group_teams as mine', function () {
+        this.on('mine.group_id', '=', 'g.id').andOnNotNull('mine.kscw_team')
+      })
+      .join('teams as t', 't.id', 'mine.kscw_team')
+      .where('g.season', portal.season)
+      .where('opp.bp_club', portal.bp_club)
+      .distinct('t.id as team_id', 't.name as team_name', 'g.code as group_code',
+        'g.label as group_label', 'g.format as group_format', 'g.games_total')
+      .orderBy('t.name')
+
+    if (!teams.length) return []
+
+    const teamIds = teams.map((r) => r.team_id)
+    const [slots, claimed] = await Promise.all([
+      database('basketball_slots')
+        .where('season', portal.season)
+        .whereIn('kscw_team', teamIds)
+        .where('status', 'available')
+        .whereNull('plan')
+        .orderBy(['date', 'time'])
+        .select('id', 'kscw_team', 'date', 'time', 'end_time', 'hall', 'score'),
+      // Pitches already spoken for by a CONFIRMED game — those are gone for everyone.
+      database('basketball_slot_plan')
+        .where('season', portal.season)
+        .whereIn('proposal_status', ['offered', 'accepted'])
+        .select('date', 'time', 'hall'),
+    ])
+
+    const taken = new Set(claimed.map((c) => `${toYmd(c.date)}|${c.time}|${c.hall}`))
+    const byTeam = new Map(teamIds.map((id) => [String(id), []]))
+    for (const s of slots) {
+      if (taken.has(`${toYmd(s.date)}|${s.time}|${s.hall}`)) continue
+      byTeam.get(String(s.kscw_team))?.push({
+        id: s.id,
+        date: toYmd(s.date),
+        time: s.time || '',
+        end_time: s.end_time || '',
+        hall: s.hall || '',
+      })
+    }
+
+    return teams.map((r) => ({
+      kscw_team: r.team_id,
+      kscw_team_name: r.team_name || '',
+      group: r.group_code || '',
+      group_label: r.group_label || '',
+      // null, never 0 — "not stated yet" must not read as "no home games".
+      home_games: r.group_format === 'championship' && r.games_total
+        ? Math.floor(Number(r.games_total) / 2)
+        : null,
+      games_total: r.games_total ?? null,
+      slots: byTeam.get(String(r.team_id)) || [],
+    }))
   }
 
   const publicOffer = (r) => ({
@@ -344,9 +439,10 @@ export function registerBasketballPortal(router, { database, logger }) {
         portal.status = 'viewed'
       }
 
-      const [seasonRow, offers] = await Promise.all([
+      const [seasonRow, offers, pairings] = await Promise.all([
         database('game_scheduling_seasons').where('id', portal.season).first('id', 'season'),
         portalOffersQuery(portal),
+        portalPairings(portal),
       ])
 
       res.json({
@@ -361,6 +457,9 @@ export function registerBasketballPortal(router, { database, logger }) {
         // Quoted in the UI the same way they are quoted in the invite mail.
         key_dates: { spielplansitzung: '2026-09-05', availability_due: '2026-08-17' },
         games: offers.map(publicOffer),
+        // The teams this club plays and the pitches still free for each — what the club
+        // picks from. Empty when the club shares no group with us (migration 287).
+        pairings,
       })
     } catch (err) { fail(res, 'terminplanung/bb/club/:token', err, req) }
   })
@@ -475,6 +574,108 @@ export function registerBasketballPortal(router, { database, logger }) {
 
       res.json({ success: true, updated: applied.length })
     } catch (err) { fail(res, 'terminplanung/bb/club/respond', err, req) }
+  })
+
+  // POST /kscw/terminplanung/bb/club/propose/:token — the club picks free pitches.
+  //
+  // Body: { picks: [{ slot_id, note? }], responder_name, responder_email }
+  //
+  // The volleyball `propose-home` move, brought to basketball: instead of only answering games
+  // we placed, the club names dates that suit it and a planner confirms them afterwards.
+  //
+  // ⚠ A pick is not a FIXTURE — ProBasket assigns those at the Spielplansitzung — but it DOES
+  // hold the pitch: migration 278's sync-slots trigger claims the slot on insert, so the date
+  // leaves every other club's free list at once (first come, first served) and comes back only
+  // if a planner deletes the proposal. Rows land as `club_proposed` (migration 289).
+  //
+  // ⚠ slot_id is re-verified against THIS portal's pairings on every call; a body-supplied id
+  // is never trusted, exactly as the respond route re-verifies game ids.
+  router.post('/terminplanung/bb/club/propose/:token', async (req, res) => {
+    try {
+      if (!rateLimit(writeAttempts, req, 20, 15 * 60 * 1000)) {
+        return res.status(429).json({ error: 'Too many requests. Try again later.' })
+      }
+      const portal = await portalByToken(req.params.token)
+      if (!portal) return res.status(404).json({ error: 'Invalid or expired link' })
+      if (portalExpired(portal)) return res.status(400).json({ error: 'Link expired' })
+
+      const name = String(req.body?.responder_name || '').trim().slice(0, 200)
+      const email = String(req.body?.responder_email || '').trim().slice(0, 200)
+      if (!name || !email) return res.status(400).json({ error: 'responder_required' })
+      if (!EMAIL_RE.test(email)) return res.status(400).json({ error: 'invalid_email' })
+
+      const picks = Array.isArray(req.body?.picks) ? req.body.picks : []
+      if (!picks.length) return res.status(400).json({ error: 'picks_required' })
+      if (picks.length > 40) return res.status(400).json({ error: 'too_many_picks' })
+
+      // Only pitches this club is actually entitled to see may be picked. Rebuilding the
+      // pairings is the same authorisation the GET applies, so the two cannot drift.
+      const pairings = await portalPairings(portal)
+      const allowed = new Map()
+      for (const p of pairings) for (const s of p.slots) allowed.set(Number(s.id), { slot: s, pairing: p })
+
+      const wanted = [...new Set(picks.map((p) => Number(p?.slot_id)).filter(Number.isFinite))]
+      const usable = wanted.filter((id) => allowed.has(id))
+      if (!usable.length) return res.status(400).json({ error: 'no_valid_picks' })
+
+      const noteBySlot = new Map()
+      for (const p of picks) {
+        const id = Number(p?.slot_id)
+        if (Number.isFinite(id) && p?.note) noteBySlot.set(id, String(p.note).trim().slice(0, 500))
+      }
+
+      const nowIso = new Date().toISOString()
+      const created = []
+      for (const id of usable) {
+        const { slot, pairing } = allowed.get(id)
+        // Idempotent per (club, team, pitch): a club pressing submit twice must not create a
+        // second identical proposal.
+        const existing = await database('basketball_slot_plan')
+          .where({
+            season: portal.season, opponent_club: portal.bp_club, kscw_team: pairing.kscw_team,
+            date: slot.date, time: slot.time, hall: slot.hall,
+          })
+          .first('id')
+        if (existing) continue
+
+        const [row] = await database('basketball_slot_plan').insert({
+          season: portal.season,
+          date: slot.date,
+          time: slot.time,
+          hall: slot.hall,
+          kscw_team: pairing.kscw_team,
+          kscw_team_label: pairing.kscw_team_name,
+          opponent: portal.club_name || '',
+          opponent_club: portal.bp_club,
+          game_type: 'home',
+          proposal_status: 'club_proposed',
+          // The public routes have no accountability.user, so the actor is persisted on the
+          // row — CLAUDE.md's documented option (b) for token-authenticated writes.
+          responded_by_name: name,
+          responded_by_email: email,
+          responded_at: nowIso,
+          opponent_note: noteBySlot.get(id) || null,
+          date_created: nowIso,
+          date_updated: nowIso,
+        }).returning('id')
+        created.push(typeof row === 'object' ? row.id : row)
+      }
+
+      // ⚠ The portal status is deliberately NOT advanced here, exactly as the respond route
+      // leaves it alone. `portalByToken` only admits PORTAL_VIEW_STATUSES
+      // (invited/viewed/booked), so writing anything else — 'responded' was the obvious
+      // choice — would lock the club out of its own link the instant it submitted.
+      await database('game_scheduling_club_portals').where('id', portal.id)
+        .update({ date_updated: nowIso })
+
+      res.json({
+        success: true,
+        created: created.length,
+        // Distinguishes "already proposed" from "not yours" so the UI can say which.
+        skipped_existing: usable.length - created.length,
+        rejected: wanted.length - usable.length,
+      })
+    } catch (err) { fail(res, 'terminplanung/bb/club/propose', err, req) }
   })
 
   // POST /kscw/terminplanung/bb/club/note/:token — one shared club-level remark.
@@ -750,6 +951,63 @@ export function registerBasketballPortal(router, { database, logger }) {
   // draft → offered. `opponent_club` addresses the rows to a club in the same
   // call (the prep grid stores a free-text opponent TEAM; the portal needs the
   // CLUB). Rows already answered are never rewound.
+  // POST /kscw/admin/terminplanung/bb/club-proposals — a planner answers what a club picked.
+  //
+  // Body: { season, ids: [plan ids], decision: 'accept' | 'release' }
+  //
+  //   accept  → proposal_status 'accepted'. Both sides now agree on the date, which is the
+  //             whole deliverable of this module (WSR Art. 18) — it is still not a ProBasket
+  //             fixture, but it is the agreement that excuses us from the Spielplansitzung.
+  //   release → DELETE the row. That is deliberate, not a status flip: migration 278's
+  //             `…_0_release_slots` trigger only fires on DELETE, so deleting is the one thing
+  //             that puts the pitch back on every club's free list. A 'declined' row would
+  //             hold the slot forever.
+  //
+  // ⚠ Only `club_proposed` rows are touched. Answering an 'offered' row is the club's job via
+  // the portal, and rewriting an already-'accepted' one behind their back would silently
+  // change an agreement they were told was settled.
+  router.post('/admin/terminplanung/bb/club-proposals', async (req, res) => {
+    if (await denyUnlessBb(req, res)) return
+    try {
+      const season = Number(req.body?.season)
+      const ids = Array.isArray(req.body?.ids)
+        ? [...new Set(req.body.ids.map(Number).filter(Number.isFinite))] : []
+      const decision = String(req.body?.decision || '')
+      if (!season || !ids.length) return res.status(400).json({ error: 'season and ids required' })
+      if (decision !== 'accept' && decision !== 'release') {
+        return res.status(400).json({ error: 'decision must be accept or release' })
+      }
+
+      const rows = await database('basketball_slot_plan')
+        .where('season', season).whereIn('id', ids)
+        .select('id', 'proposal_status')
+      if (rows.length !== ids.length) return res.status(400).json({ error: 'invalid ids' })
+      const wrongState = rows.filter((r) => r.proposal_status !== 'club_proposed')
+      if (wrongState.length) {
+        return res.status(400).json({ error: 'not_club_proposed', ids: wrongState.map((r) => r.id) })
+      }
+
+      const nowIso = new Date().toISOString()
+      let affected
+      if (decision === 'accept') {
+        affected = await database('basketball_slot_plan')
+          .whereIn('id', ids).where('proposal_status', 'club_proposed')
+          .update({ proposal_status: 'accepted', responded_at: nowIso, date_updated: nowIso })
+      } else {
+        affected = await database('basketball_slot_plan')
+          .whereIn('id', ids).where('proposal_status', 'club_proposed')
+          .del()
+      }
+
+      await writeUserLog(database, log, {
+        accountability: req.accountability, action: decision === 'accept' ? 'update' : 'delete',
+        collection: 'basketball_slot_plan', recordId: null,
+        data: { action: `club_proposal_${decision}`, season, ids, affected },
+      })
+      res.json({ success: true, affected })
+    } catch (err) { fail(res, 'admin/terminplanung/bb/club-proposals', err, req) }
+  })
+
   router.post('/admin/terminplanung/bb/offer', async (req, res) => {
     if (await denyUnlessBb(req, res)) return
     try {

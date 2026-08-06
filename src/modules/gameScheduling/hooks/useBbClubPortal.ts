@@ -53,10 +53,44 @@ export interface BbPortalKeyDates {
   availability_due: string
 }
 
+/** One free pitch the club may pick. */
+export interface BbPortalFreeSlot {
+  id: number
+  /** 'YYYY-MM-DD'. */
+  date: string
+  /** 'HH:MM'. */
+  time: string
+  end_time: string
+  hall: string
+}
+
+/**
+ * One KSCW team this club shares a ProBasket group with, and the pitches still free for it.
+ *
+ * The pairing is derived from group membership (migration 287), because basketball has no
+ * fixture feed before the Spielplansitzung — there is nothing else to join a club to a team on.
+ */
+export interface BbPortalPairing {
+  kscw_team: number
+  kscw_team_name: string
+  group: string
+  group_label: string
+  /**
+   * Home games owed = the workbook's Anzahl Spiele halved.
+   * ⚠ `null` means ProBasket has not stated a count for this group yet — it does NOT mean
+   * zero, and must never be rendered as one.
+   */
+  home_games: number | null
+  games_total: number | null
+  slots: BbPortalFreeSlot[]
+}
+
 export interface BbPortalPayload {
   portal: BbPortalInfo
   key_dates: BbPortalKeyDates
   games: BbPortalGame[]
+  /** Empty when the club shares no group with us. */
+  pairings: BbPortalPairing[]
 }
 
 export interface BbDecision {
@@ -139,6 +173,36 @@ export function useBbClubPortal(token: string | undefined) {
     [token, refetch],
   )
 
+  /**
+   * The club picks free pitches (the volleyball `propose-home` move).
+   *
+   * ⚠ A pick HOLDS the pitch: the backend's plan row claims the slot via migration 278's
+   * sync-slots trigger, so the date leaves every other club's free list at once. It is still
+   * not a ProBasket fixture — those are assigned at the Spielplansitzung.
+   */
+  const propose = useCallback(
+    async (picks: Array<{ slot_id: number; note?: string }>, responder: BbResponder) => {
+      if (!token) throw new Error('No token')
+      const res = await kscwApi<{
+        success: boolean
+        created: number
+        skipped_existing: number
+        rejected: number
+      }>(`/terminplanung/bb/club/propose/${token}`, {
+        method: 'POST',
+        anonymous: true,
+        body: {
+          picks,
+          responder_name: responder.name,
+          responder_email: responder.email,
+        },
+      })
+      await refetch()
+      return res
+    },
+    [token, refetch],
+  )
+
   const saveNote = useCallback(
     async (note: string) => {
       if (!token) throw new Error('No token')
@@ -171,10 +235,14 @@ export function useBbClubPortal(token: string | undefined) {
   return {
     portal: data?.portal ?? null,
     games: data?.games ?? [],
+    // `?? []` and not `data?.pairings` — a caller mapping over undefined would crash the
+    // opponent's page, and an older backend simply omits the key.
+    pairings: data?.pairings ?? [],
     keyDates: data?.key_dates ?? null,
     isLoading,
     error,
     respond,
+    propose,
     saveNote,
     setLanguage,
     refetch,
