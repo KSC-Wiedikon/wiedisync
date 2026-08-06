@@ -53,6 +53,17 @@ function scorReference(idNum) {
   return `RF${String(98 - rem).padStart(2, '0')}${body}`
 }
 
+/**
+ * "Is this invoice a membership-dues bill?" — the double-bill guards' only
+ * reliable test. ClubDesk's mirror puts the contact's fee_category on every
+ * invoice they receive, so a camp fee is indistinguishable from dues by category
+ * alone; the subject is not. Verified on prod: 2365 dues invoices all match,
+ * and the 216 that do not are camp fees, training weekends, sponsoring and
+ * Freibrief costs. Native dues invoices use the same word (`Mitgliederbeitrag
+ * {fy}`, the default subject_template seeded by migration 291).
+ */
+const DUES_SUBJECT_SQL = "subject ILIKE '%mitgliederbeitrag%'"
+
 /** Pick the CHF dues rate for a member: a sektion-specific row wins over the
  *  category default (sektion NULL). Returns the matching rate row or null. */
 function pickRate(rates, category, sektion) {
@@ -593,25 +604,41 @@ export function registerFinance(router, { database, logger, services, getSchema 
     const guests = await guestMemberIdSet(database, members.map((m) => m.id), fy.label)
 
     // Members already holding a non-cancelled dues invoice this fiscal year.
+    // Not just dues-RUN invoices: a late joiner billed by hand through
+    // InvoiceManager carries dues_run NULL, so a later top-up run would issue a
+    // second membership invoice with its own SCOR reference and both would dun
+    // independently. An ad-hoc invoice counts when it looks like membership dues
+    // (same test as the ClubDesk guard below) — a fine or a camp fee must not
+    // suppress the member's actual dues bill.
     const billed = new Set((await database('finance_invoices')
-      .where('fiscal_year', fy.id).whereNotNull('dues_run').whereNotNull('member')
-      .whereNot('status', 'cancelled').pluck('member')).map(Number))
+      .where('fiscal_year', fy.id).whereNotNull('member')
+      .whereNot('status', 'cancelled')
+      .where((qb) => qb.whereNotNull('dues_run').orWhere((q) => q
+        .where('source', 'native').whereRaw(DUES_SUBJECT_SQL)))
+      .pluck('member')).map(Number))
 
     // Members ClubDesk already billed this fiscal year. Mirror rows carry
     // dues_run NULL (migration 138), so the native guard above is blind to
     // them — without this a native run double-bills a cohort ClubDesk has
     // already invoiced (surfaced 2026-07-07 when the ClubDesk down-sync began
-    // creating passive members, whose dues live in ClubDesk). A mirror invoice
-    // with a non-empty fee_category IS a membership-dues bill: the mirror's
-    // fee_category vocabulary equals members.beitragskategorie ('Passivmitglied',
-    // 'VB Erwerbstätige', …); blank fee_category = other invoice kinds and
-    // doesn't block. Mirror statuses are ClubDesk's German vocabulary — only
-    // 'Storniert' (cancelled) unblocks; 'Entwurf' (draft, about to be sent) and
-    // 'Abgeschrieben' (written off — the member WAS billed) both still count
-    // as ClubDesk-handled.
+    // creating passive members, whose dues live in ClubDesk).
+    //
+    // ⚠ The test is the SUBJECT, not fee_category. The mirror stamps the
+    // contact's category onto EVERY invoice they receive, so a camp fee carries
+    // 'BB Minis Turnier' just like a membership bill does. On prod that is 216
+    // invoices across 81 members — camp fees, training weekends, sponsoring,
+    // Freibrief costs — and in FY 2026/27 it would have skipped Fonzini (CHF 210)
+    // and Huwiler (CHF 310) from their membership bill because each holds a
+    // CHF 160 'Kosten Trainingscamp BB' invoice. All 2365 genuine dues invoices
+    // say 'Mitgliederbeitrag'; nothing else does.
+    //
+    // Mirror statuses are ClubDesk's German vocabulary — only 'Storniert'
+    // (cancelled) unblocks; 'Entwurf' (draft, about to be sent) and
+    // 'Abgeschrieben' (written off — the member WAS billed) still count as
+    // ClubDesk-handled.
     const clubdeskBilled = new Set((await database('finance_invoices')
       .where('fiscal_year', fy.id).where('source', 'clubdesk').whereNotNull('member')
-      .whereRaw("NULLIF(btrim(fee_category), '') IS NOT NULL")
+      .whereRaw(DUES_SUBJECT_SQL)
       .whereNot('status', 'Storniert').pluck('member')).map(Number))
 
     const rows = members.map((m) => {
@@ -641,7 +668,33 @@ export function registerFinance(router, { database, logger, services, getSchema 
         missing_email: !m.email,
       }
     })
-    return { fy, sektion, onlyActive, categories, memberIds, rows }
+    // Coverage: who is active but CANNOT be reached by this run. `rows` only
+    // describes the categories that were selected, so without this the preview
+    // is silent about the 10 active members with no fee category at all — 8 of
+    // whom hold past Mitgliederbeitrag invoices, so they demonstrably owe. A
+    // billing run that omits people must say so on the page.
+    let uncovered = { no_category: 0, category_not_selected: 0, members: [] }
+    if (!memberIds.length) {
+      let uq = database('members').where('kscw_membership_active', true)
+        .select('id', 'first_name', 'last_name', 'sektion', 'beitragskategorie')
+      if (sektion) uq = uq.where('sektion', sektion)
+      const all = await uq
+      const selected = new Set(categories.map((c) => c.toLowerCase()))
+      const missing = all.filter((m) => !selected.has(String(m.beitragskategorie ?? '').trim().toLowerCase()))
+      uncovered = {
+        no_category: missing.filter((m) => !String(m.beitragskategorie ?? '').trim()).length,
+        category_not_selected: missing.filter((m) => String(m.beitragskategorie ?? '').trim()).length,
+        // Named, not just counted — a count tells the treasurer a problem exists
+        // but not who to fix. Capped so a mis-selected run cannot return the club.
+        members: missing.slice(0, 50).map((m) => ({
+          member: m.id,
+          name: [m.first_name, m.last_name].filter(Boolean).join(' ').trim() || null,
+          sektion: m.sektion || null,
+          category: String(m.beitragskategorie ?? '').trim() || null,
+        })),
+      }
+    }
+    return { fy, sektion, onlyActive, categories, memberIds, rows, uncovered }
   }
 
   const duesTotals = (rows) => {
@@ -745,7 +798,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
       if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
       const r = await resolveDuesCohort(req.body || {})
       if (r.error) return res.status(400).json({ error: r.error })
-      return res.json({ fiscal_year: r.fy, rows: r.rows, totals: duesTotals(r.rows) })
+      return res.json({ fiscal_year: r.fy, rows: r.rows, totals: duesTotals(r.rows), uncovered: r.uncovered })
     } catch (e) { return err(res, req, 'dues-preview', e) }
   })
 
@@ -776,14 +829,19 @@ export function registerFinance(router, { database, logger, services, getSchema 
         // a transaction advisory lock, then RE-CHECK who is already billed inside
         // the lock (the cohort's `already_billed` was computed before the txn).
         await trx.raw('SELECT pg_advisory_xact_lock(?, ?)', [DUES_ISSUE_LOCK_NS, r.fy.id])
+        // Both guards must use the SAME predicates as resolveDuesCohort, or the
+        // preview and the run disagree about who gets billed.
         const billedNow = new Set((await trx('finance_invoices')
-          .where('fiscal_year', r.fy.id).whereNotNull('dues_run').whereNotNull('member')
-          .whereNot('status', 'cancelled').pluck('member')).map(Number))
+          .where('fiscal_year', r.fy.id).whereNotNull('member')
+          .whereNot('status', 'cancelled')
+          .where((qb) => qb.whereNotNull('dues_run').orWhere((q) => q
+            .where('source', 'native').whereRaw(DUES_SUBJECT_SQL)))
+          .pluck('member')).map(Number))
         // Re-check the ClubDesk-mirror guard too: the nightly finance sync (or a
         // manual import) may have landed mirror invoices since the preview.
         const clubdeskNow = new Set((await trx('finance_invoices')
           .where('fiscal_year', r.fy.id).where('source', 'clubdesk').whereNotNull('member')
-          .whereRaw("NULLIF(btrim(fee_category), '') IS NOT NULL")
+          .whereRaw(DUES_SUBJECT_SQL)
           .whereNot('status', 'Storniert').pluck('member')).map(Number))
         const toBill = billable.filter((x) => !billedNow.has(Number(x.member)) && !clubdeskNow.has(Number(x.member)))
         if (!toBill.length) return { runId: null, created: [], total: 0 }

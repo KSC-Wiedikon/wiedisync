@@ -295,8 +295,26 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
                 })}
                 {preview.totals.clubdesk_billed > 0 && <span className="text-purple-700 dark:text-purple-400"> · {t('duesClubdeskBilledNote', { count: preview.totals.clubdesk_billed })}</span>}
                 {preview.totals.zero_rate > 0 && <span className="text-gray-500 dark:text-gray-400"> · {t('duesZeroRateNote', { count: preview.totals.zero_rate })}</span>}
+                {/* A run that silently omits people must say so — the preview only
+                    describes the categories that were picked. */}
                 {preview.totals.no_email > 0 && <span className="text-amber-700 dark:text-amber-400"> · {t('duesNoEmailNote', { count: preview.totals.no_email })}</span>}
               </p>
+              {!!preview.uncovered && (preview.uncovered.no_category > 0 || preview.uncovered.category_not_selected > 0) && (
+                <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-700/60 dark:bg-amber-900/20 dark:text-amber-200">
+                  <p className="font-semibold">{t('duesUncoveredTitle')}</p>
+                  <p className="mt-0.5">
+                    {preview.uncovered.no_category > 0 && t('duesUncoveredNoCategory', { count: preview.uncovered.no_category })}
+                    {preview.uncovered.no_category > 0 && preview.uncovered.category_not_selected > 0 && ' · '}
+                    {preview.uncovered.category_not_selected > 0 && t('duesUncoveredNotSelected', { count: preview.uncovered.category_not_selected })}
+                  </p>
+                  {preview.uncovered.members.length > 0 && (
+                    <p className="mt-1 text-amber-800 dark:text-amber-300">
+                      {preview.uncovered.members.map((m) => m.name || `#${m.member}`).join(', ')}
+                    </p>
+                  )}
+                </div>
+              )}
+
               {/* The total is NOT the sum of the rate schedule — say so, with the
                   two adjustments spelled out, so it reconciles on sight. */}
               {(preview.totals.surcharged > 0 || preview.totals.guests > 0) && (

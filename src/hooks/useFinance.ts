@@ -486,6 +486,12 @@ export interface DuesPreviewResult {
     guest_discount_amount: number; guests: number
     already_billed: number; clubdesk_billed: number; missing_rate: number; zero_rate: number; no_email: number
   }
+  /** Active members this run cannot reach at all (absent when a trial run narrows to named members). */
+  uncovered?: {
+    no_category: number
+    category_not_selected: number
+    members: Array<{ member: number; name: string | null; sektion: string | null; category: string | null }>
+  }
 }
 export interface DuesRunInput {
   fiscal_year: number
