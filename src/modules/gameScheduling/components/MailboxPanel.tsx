@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableRow } from '../../../components/ui/ta
 import EmailChipsInput from '../../../components/ui/EmailChipsInput'
 import { hasInvalidAddress, parseAddressList } from '../../../components/ui/emailChips'
 import { recipientLabel, sortRecipients } from '../recipientSort'
+import { findMergeTokens, unknownMergeTokens } from '../../../utils/mergeTokens'
 import RichTextEditor from '../../../components/RichTextEditor'
 import InlineSpinner from '../../../components/InlineSpinner'
 import { formatDateTimeCompact } from '../../../utils/dateHelpers'
@@ -52,6 +53,41 @@ const MERGE_TOKEN_KEYS = ['name', 'email', 'feeCategory', 'feeAmount', 'team'] a
 /** German and English spellings are BOTH accepted by the endpoint; which one
  *  the tip shows follows the UI language, so an English-speaking operator is
  *  not told to type German field names. */
+/**
+ * The merge tokens in a plain-text field, echoed as chips.
+ *
+ * A text `<input>` cannot colour part of its own value, so the subject gets
+ * this instead of the inline highlighting the body has. Same two states and the
+ * same colours, so "recognised" reads identically in both places — the whole
+ * point is that the operator can see, before sending, that `{{first_name}}`
+ * will be substituted and `{{firstname}}` will not.
+ */
+function TokenReadout({ text }: { text: string }) {
+  const { t } = useTranslation('gameScheduling')
+  const tokens = findMergeTokens(text)
+  if (tokens.length === 0) return null
+  const seen = new Set<string>()
+  const unique = tokens.filter((tok) => !seen.has(tok.raw) && seen.add(tok.raw))
+  return (
+    <div className="mt-1 flex flex-wrap items-center gap-1.5">
+      {unique.map((tok) => (
+        <span
+          key={tok.raw}
+          title={tok.field ? t('mailboxTokenKnown') : t('mailboxTokenUnknown')}
+          className={tok.field
+            ? 'rounded bg-brand-100 px-1.5 py-0.5 font-mono text-xs text-brand-700 dark:bg-brand-500/25 dark:text-brand-200'
+            : 'rounded bg-red-100 px-1.5 py-0.5 font-mono text-xs text-red-700 line-through dark:bg-red-500/25 dark:text-red-300'}
+        >
+          {tok.raw}
+        </span>
+      ))}
+      <span className="text-xs text-gray-500 dark:text-gray-400">
+        {unique.every((tok) => tok.field) ? t('mailboxTokenAllKnown') : t('mailboxTokenSomeUnknown')}
+      </span>
+    </div>
+  )
+}
+
 /** Server merge-field key → the spelling table's key, so a gap reported as
  *  `fee_amount` is shown to the operator as the token they typed. */
 const MERGE_FIELD_TO_TOKEN: Record<string, string> = {
@@ -1225,6 +1261,10 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
           maxLength={300}
           className="mt-1 w-full rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
         />
+        {/* A text input cannot colour part of its own value, so the subject's
+            tokens are echoed underneath instead — same blue/red meaning as the
+            body, so "recognised" looks the same in both places. */}
+        {c.mode === 'group' && <TokenReadout text={c.subject} />}
       </div>
       <div>
         <label className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('mailboxBody')}</label>
@@ -1234,6 +1274,7 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
             onChange={(html) => setCompose({ ...c, html })}
             placeholder={t('mailboxBody')}
             minHeight={composeFullScreen ? '16rem' : '10rem'}
+            highlightMergeTokens={c.mode === 'group'}
           />
         </div>
         {c.mode === 'group' && (
@@ -1253,6 +1294,16 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
                 fields: MERGE_TOKEN_KEYS.map((k) => mergeToken(k)).join(' · '),
               })}
             </p>
+            {/* The body highlights inline, but an unrecognised token there is
+                easy to scroll past — so anything that would be sent verbatim is
+                also named once, in full, right under the editor. */}
+            {unknownMergeTokens(`${c.subject}\n${c.html}`).length > 0 && (
+              <p className="text-xs font-medium text-red-600 dark:text-red-400">
+                {t('mailboxMergeUnknownTokens', {
+                  tokens: [...new Set(unknownMergeTokens(`${c.subject}\n${c.html}`).map((x) => x.raw))].join(' '),
+                })}
+              </p>
+            )}
             <div className="flex flex-wrap items-center gap-2 pt-1">
               <Button
                 size="sm"

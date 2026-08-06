@@ -30,6 +30,13 @@ const CHANGELOG: ChangelogEntry[] = [
         ],
       },
       {
+        title: 'Club mailbox: merge fields you can see working',
+        items: [
+          'A recognised field turns blue as you type it. “{{first_name}}” in the message body is now highlighted the moment it is recognised, so there is no doubt left about whether it will be replaced or sent to 117 people exactly as written. The subject line, which cannot colour its own text, lists its fields underneath instead.',
+          'A field that is not recognised is struck through in red, and named again under the editor. This is the case that actually bites: “{{firstname}}” without the underscore is not a field, and until now nothing said so — it simply arrived in the inbox as written.',
+        ],
+      },
+      {
         title: 'Removing a member, safely',
         items: [
           'Membership and app access can be switched off from the member\'s page, separately — someone can stop being a member while keeping their login, or the other way round.',

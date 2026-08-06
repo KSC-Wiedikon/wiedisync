@@ -13,6 +13,10 @@ All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file 
 - **Teams can be changed from the member's page.** A member's teams were read-only here and had to be edited elsewhere; they are now a multi-select on the record itself.
 - **Secrets are never shown.** Encryption keys and calendar tokens now read only as "Set" or "Not set" — the value itself is no longer sent to the page.
 
+### Club mailbox: merge fields you can see working
+- **A recognised field turns blue as you type it.** `{{first_name}}` in the message body is now highlighted the moment it is recognised, so there is no doubt left about whether it will be replaced or sent to 117 people exactly as written. The subject line, which cannot colour its own text, lists its fields underneath instead.
+- **A field that is not recognised is struck through in red**, and named again under the editor. This is the case that actually bites: `{{firstname}}` without the underscore is not a field, and until now nothing said so — it simply arrived in the inbox as `{{firstname}}`.
+
 ### Removing a member, safely
 - **Membership and app access can be switched off from the member's page**, separately — someone can stop being a member while keeping their login, or the other way round.
 - **A record can now be deleted outright, and the app shows you what goes with it first.** Before anything happens you get a list of everything attached — attendances, absences, fines, invoices, team entries, the login — separated into what will be deleted along with it and what will block the deletion until it is dealt with. Only then, after typing DELETE, does it go ahead.

@@ -803,4 +803,11 @@ export default {
   mailboxMergePreviewFailed: 'Could not build the preview',
   mailboxMergeGapsTitle: 'Some recipients have nothing to fill in',
   mailboxMergeGapRow: '{{field}} is empty for {{count}} of them — they will read the sentence with a gap in it.',
+
+  // Merge-token recognition feedback
+  mailboxTokenKnown: 'Recognised — replaced with the recipient’s own value',
+  mailboxTokenUnknown: 'Not a known field — this will be sent exactly as written',
+  mailboxTokenAllKnown: 'will be replaced per recipient',
+  mailboxTokenSomeUnknown: 'the struck-through ones will be sent as written',
+  mailboxMergeUnknownTokens: 'Not a known field and will be sent exactly as written: {{tokens}}',
 }
