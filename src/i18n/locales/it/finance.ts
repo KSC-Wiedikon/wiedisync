@@ -14,6 +14,12 @@ export default {
   mirrorNote: 'Copia in sola lettura da ClubDesk – sincronizzata, non modificata qui.',
 
   // Reporting (schede + conti)
+  tabGroupsAria: 'Sezioni finanze',
+  tabGroupSummary: 'Riepilogo',
+  tabGroupBilling: 'Fatturazione',
+  tabGroupBooks: 'Contabilità',
+  tabGroupRecords: 'Anagrafiche',
+  tabGroupData: 'Dati',
   tabOverview: 'Panoramica',
   tabIncome: 'Conto economico',
   tabBalance: 'Bilancio',

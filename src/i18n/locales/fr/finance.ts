@@ -14,6 +14,12 @@ export default {
   mirrorNote: 'Copie en lecture seule de ClubDesk – synchronisée, pas modifiée ici.',
 
   // Reporting (onglets + comptes)
+  tabGroupsAria: 'Sections des finances',
+  tabGroupSummary: 'Résumé',
+  tabGroupBilling: 'Facturation',
+  tabGroupBooks: 'Comptabilité',
+  tabGroupRecords: 'Données de base',
+  tabGroupData: 'Données',
   tabOverview: 'Aperçu',
   tabIncome: 'Compte de résultat',
   tabBalance: 'Bilan',

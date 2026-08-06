@@ -15,6 +15,12 @@ export default {
   mirrorNote: 'Read-only mirror of ClubDesk — synced, not edited here.',
 
   // Reporting (dashboard tabs + statements)
+  tabGroupsAria: 'Finance sections',
+  tabGroupSummary: 'Summary',
+  tabGroupBilling: 'Billing',
+  tabGroupBooks: 'Books',
+  tabGroupRecords: 'Records',
+  tabGroupData: 'Data',
   tabOverview: 'Overview',
   tabIncome: 'Income statement',
   tabBalance: 'Balance sheet',

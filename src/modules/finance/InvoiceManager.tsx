@@ -440,7 +440,9 @@ export default function InvoiceManager({ fiscalYearId, fiscalYearLabel }: { fisc
           <div className="flex items-center gap-3">
             <span className="text-xs text-gray-400">
               {filteredAll.length}{filteredAll.length !== inYear.length ? `/${inYear.length}` : ''}
-              {native.length > 0 ? ` · ${t('nativeCount', { count: native.length })}` : ''}
+              {/* The key interpolates {{n}}, so it must be passed as `n` — passing
+                  `count` printed the literal "{{n}} from Wiedisync" in the header. */}
+              {native.length > 0 ? ` · ${t('nativeCount', { n: native.length })}` : ''}
             </span>
             <button type="button" onClick={() => setShowCreate(true)}
               className="inline-flex items-center gap-1.5 rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700">

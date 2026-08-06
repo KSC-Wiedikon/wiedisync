@@ -14,6 +14,12 @@ export default {
   mirrorNote: 'Schreibgeschützte Kopie aus ClubDesk – synchronisiert, nicht hier bearbeitet.',
 
   // Reporting (Dashboard-Tabs + Abschlüsse)
+  tabGroupsAria: 'Finanzbereiche',
+  tabGroupSummary: 'Übersicht',
+  tabGroupBilling: 'Verrechnung',
+  tabGroupBooks: 'Buchhaltung',
+  tabGroupRecords: 'Stammdaten',
+  tabGroupData: 'Daten',
   tabOverview: 'Übersicht',
   tabIncome: 'Erfolgsrechnung',
   tabBalance: 'Bilanz',
