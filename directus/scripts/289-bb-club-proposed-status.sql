@@ -13,10 +13,12 @@
 --
 -- Adds 'club_proposed': the club picked this pitch, a planner has not confirmed it yet.
 --
--- ⚠ Deliberately NOT a booking. ProBasket assigns the actual fixtures at the Spielplansitzung
--- (05.09.2026); until a planner confirms, a club_proposed row is a preference, and several
--- clubs may name the same pitch. The generator's inventory (`basketball_slots`) is therefore
--- NOT consumed here — a slot is only claimed when a plan row is confirmed.
+-- ⚠ Not a FIXTURE — ProBasket assigns those at the Spielplansitzung (05.09.2026) — but it
+-- DOES hold the pitch. Migration 278's `trg_basketball_slot_plan_0_sync_slots` claims the
+-- matching `basketball_slots` row on INSERT (status → 'placed'), and `…_release_slots` frees
+-- it on DELETE. So a club's pick removes that date from every other club's free list at once
+-- (first come, first served) and returns it only when a planner deletes the proposal. That is
+-- the desirable behaviour here: it stops the same hall being promised to two clubs.
 --
 -- ⚠ `basketball_slot_plan_offer_needs_club_check` already requires opponent_club on anything
 -- that is not a draft, which is exactly right for a club-initiated row: it always has a club.
@@ -41,7 +43,7 @@ ALTER TABLE basketball_slot_plan
   ]));
 
 COMMENT ON COLUMN basketball_slot_plan.proposal_status IS
-  'Who proposed and where it stands. draft/offered = KSCW proposed; club_proposed = the opponent picked a free pitch through its portal and a planner has not confirmed it; accepted/declined/countered = an answer to an offer. A club_proposed row is a preference, not a booking — ProBasket assigns fixtures at the Spielplansitzung.';
+  'Who proposed and where it stands. draft/offered = KSCW proposed; club_proposed = the opponent picked a free pitch through its portal and a planner has not confirmed it; accepted/declined/countered = an answer to an offer. Every non-draft row CLAIMS its slot via trg_basketball_slot_plan_0_sync_slots, so a club_proposed date is held against other clubs until a planner deletes it — it is still not a ProBasket fixture.';
 
 DO $$
 DECLARE ok boolean;

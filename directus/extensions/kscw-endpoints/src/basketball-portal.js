@@ -76,8 +76,19 @@ const BB_ACCOUNT = ACCOUNTS.basketball
 /** Token statuses whose links still open. Mirrors CLUB_PORTAL_VIEW_STATUSES. */
 const PORTAL_VIEW_STATUSES = ['invited', 'viewed', 'booked']
 
-/** proposal_status values an opponent may see. 'draft' is the visibility gate. */
+/**
+ * proposal_status values an opponent may ANSWER (accept / decline / counter).
+ * 'draft' is the visibility gate; 'club_proposed' is deliberately absent — a club must not
+ * be able to "decline" a date it proposed itself.
+ */
 const OFFER_VISIBLE_STATUSES = ['offered', 'accepted', 'declined', 'countered']
+
+/**
+ * proposal_status values an opponent may SEE. Wider than the answerable set: a club's own
+ * picks must show up in its portal, otherwise it submits them and the pitches simply vanish
+ * from the free list with nothing to show for it.
+ */
+const PORTAL_VISIBLE_STATUSES = [...OFFER_VISIBLE_STATUSES, 'club_proposed']
 
 /** Responses the portal accepts. 'countered' is derived, never sent by the client. */
 const ALLOWED_RESPONSES = ['accepted', 'declined']
@@ -261,7 +272,7 @@ export function registerBasketballPortal(router, { database, logger }) {
       .leftJoin('teams as t', 't.id', 'p.kscw_team')
       .where('p.season', portal.season)
       .where('p.opponent_club', portal.bp_club)
-      .whereIn('p.proposal_status', OFFER_VISIBLE_STATUSES)
+      .whereIn('p.proposal_status', PORTAL_VISIBLE_STATUSES)
       .orderBy(['p.date', 'p.time'])
       .select(
         'p.id', 'p.date', 'p.time', 'p.hall', 'p.opponent', 'p.kscw_team_label',
@@ -286,9 +297,16 @@ export function registerBasketballPortal(router, { database, logger }) {
    * group (BC Zürich 93 in MixU12), which would otherwise repeat the pairing and multiply the
    * slot list.
    *
-   * ⚠ Free means: generated, still 'available', and not already claimed by a plan row. A
-   * club_proposed row does NOT consume the pitch — several clubs may name the same date, and
-   * a planner decides. Only a confirmed plan takes it off the list.
+   * ⚠ Free means: generated, still 'available', and unclaimed. Any plan row CLAIMS its pitch —
+   * migration 278's `trg_basketball_slot_plan_0_sync_slots` flips the slot to 'placed' on
+   * insert, and `…_release_slots` frees it again on delete. So a club's pick genuinely holds
+   * the pitch (which is what stops us promising one hall to two clubs), and a planner deleting
+   * the proposal releases it. It is still not a FIXTURE — ProBasket assigns those at the
+   * Spielplansitzung.
+   *
+   * ⚠ The `taken` set below is belt-and-braces for plan rows that never had a generated slot.
+   * It matches the hall string exactly, so it does NOT model the A+B ↔ A/B overlap; that
+   * collision is the generator's job (hallOccupancy.ts) and is out of scope here.
    */
   async function portalPairings(portal) {
     const teams = await database('basketball_group_teams as opp')
@@ -565,9 +583,10 @@ export function registerBasketballPortal(router, { database, logger }) {
   // The volleyball `propose-home` move, brought to basketball: instead of only answering games
   // we placed, the club names dates that suit it and a planner confirms them afterwards.
   //
-  // ⚠ A pick is a PREFERENCE, not a booking. ProBasket assigns fixtures at the
-  // Spielplansitzung, so the slot inventory is not consumed here and two clubs may name the
-  // same pitch — a planner resolves it. Rows land as `club_proposed` (migration 289).
+  // ⚠ A pick is not a FIXTURE — ProBasket assigns those at the Spielplansitzung — but it DOES
+  // hold the pitch: migration 278's sync-slots trigger claims the slot on insert, so the date
+  // leaves every other club's free list at once (first come, first served) and comes back only
+  // if a planner deletes the proposal. Rows land as `club_proposed` (migration 289).
   //
   // ⚠ slot_id is re-verified against THIS portal's pairings on every call; a body-supplied id
   // is never trusted, exactly as the respond route re-verifies game ids.
