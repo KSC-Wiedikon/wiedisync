@@ -256,6 +256,12 @@ export default {
   backendUnavailable: 'Non è stato possibile caricare le regole per squadra e gli slot — il backend della pianificazione basket forse non è ancora stato distribuito in questo ambiente.',
 
   // ── Club avversari: proposte, link del portale, e-mail di invito ──
+  clubPicksPending: '{{count}} date scelte dai club avversari attendono la vostra risposta.',
+  clubPicksAccept: 'Accetta {{count}}',
+  clubPicksRelease: 'Libera {{count}}',
+  clubPicksAccepted: '{{count}} date concordate.',
+  clubPicksReleased: '{{count}} date liberate.',
+  clubPicksReleaseConfirm: 'Liberare {{count}} date scelte dal club? La proposta viene eliminata e lo slot torna disponibile per tutti i club. Non è reversibile.',
   offersTitle: 'Partite proposte agli avversari',
   offersHint:
     'Una partita in casa già collocata raggiunge l’avversario solo dopo essere stata assegnata a un club e proposta. Le partite proposte compaiono sul link di quel club; si possono ritirare finché il club non ha risposto.',
@@ -273,6 +279,7 @@ export default {
   clubUnassigned: '— Nessun club —',
   proposal_draft: 'Bozza',
   proposal_offered: 'Proposta',
+  proposal_club_proposed: 'Scelto dal club',
   proposal_accepted: 'Confermata',
   proposal_declined: 'Rifiutata',
   proposal_countered: 'Alternativa proposta',
