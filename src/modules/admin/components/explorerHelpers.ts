@@ -61,6 +61,16 @@ export interface CacheShape {
   events: EventRec[]
   trainings: Training[]
   games: Game[]
+  /**
+   * teamId → team, for EVERY team including past-season / inactive ones.
+   *
+   * `teams` above is the active, sport-scoped list the tree, the grid and the
+   * team pickers work from. Roster rows outlive it: a `member_teams` row from a
+   * closed season points at a team that is no longer active, and rendering that
+   * chip as a raw `#412` is how a member's own history reads as corrupt data.
+   * Label resolution only — never use this to populate a picker.
+   */
+  teamLookup: Map<string, Team>
   /** memberId → array of team ids (from member_teams junction — players) */
   memberTeams: Map<string, string[]>
   /** Raw member_teams junction rows (with ids) — the editable source the grid mutates. */

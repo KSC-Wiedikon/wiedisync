@@ -53,6 +53,7 @@ export function buildFilters(scope: ExplorerScope): CacheFilters {
 
 const EMPTY: CacheShape = {
   members: [], teams: [], events: [], trainings: [], games: [],
+  teamLookup: new Map(),
   memberTeams: new Map(), memberTeamRows: [], memberCoachTeams: new Map(), memberTrTeams: new Map(),
   coachRows: [], trRows: [], clubdeskInfo: new Map(),
   clubdeskSync: new Map(), regFiles: new Map(),
@@ -82,7 +83,7 @@ export function useExplorerCache(scope: ExplorerScope) {
     try {
       const f = buildFilters(scope)
       const cutoff = ninetyDaysAgoISO()
-      const [members, teams, events, trainings, games, junctions, coachJunctions, trJunctions, clubdeskRows, regRows, syncResp] = await Promise.all([
+      const [members, teams, allTeams, events, trainings, games, junctions, coachJunctions, trJunctions, clubdeskRows, regRows, syncResp] = await Promise.all([
         fetchAllItems<Member>('members', {
           filter: f.members,
           fields: [
@@ -120,6 +121,15 @@ export function useExplorerCache(scope: ExplorerScope) {
           fields: ['id', 'name', 'full_name', 'sport', 'gender', 'season', 'active', 'league', 'captain', 'coach', 'team_responsible'],
           sort: ['sport', 'name'],
         }),
+        // Label lookup only — every team, active or not, in either sport. A
+        // roster row from a closed season points at an inactive team that the
+        // scoped fetch above drops, and the member detail then rendered the
+        // chip as a bare "#412" (394 active members have such a row on prod).
+        // Narrow field set: this never feeds a picker or the tree.
+        fetchAllItems<Team>('teams', {
+          fields: ['id', 'name', 'full_name', 'sport', 'season', 'active'],
+          sort: ['sport', 'name'],
+        }).catch(() => [] as Team[]),
         fetchAllItems<EventRec>('events', {
           filter: { _and: [{ end_date: { _gte: cutoff } }, ...(f.events ? [f.events] : [])] },
           fields: ['id', 'title', 'event_type', 'start_date', 'end_date', 'participation_mode', 'teams.teams_id'],
@@ -246,9 +256,17 @@ export function useExplorerCache(scope: ExplorerScope) {
             return allTeamIds.some((teamId) => teamSportMap.get(teamId) === scope)
           })
 
+      // Every team by id. `allTeams` is the superset; the scoped `teams` rows
+      // are written last so a team present in both keeps the richer field set
+      // (captain / coach / league) the scoped fetch asks for.
+      const teamLookup = new Map<string, Team>()
+      for (const tm of allTeams) teamLookup.set(String(tm.id), tm)
+      for (const tm of teams) teamLookup.set(String(tm.id), tm)
+
       setData({
         members: filteredMembers,
         teams,
+        teamLookup,
         events,
         trainings,
         games,

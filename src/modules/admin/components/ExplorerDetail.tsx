@@ -1,7 +1,7 @@
 // src/modules/admin/components/ExplorerDetail.tsx
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ExternalLink, Eye } from 'lucide-react'
+import { ExternalLink, Eye, Trash2 } from 'lucide-react'
 import { API_URL } from '../../../lib/api'
 import type { BucketKey, CacheShape } from './explorerHelpers'
 import {
@@ -10,6 +10,9 @@ import {
 } from './explorerHelpers'
 import ExplorerSectionCard from './ExplorerSectionCard'
 import ExplorerMemberFields from './ExplorerMemberFields'
+import DeleteImpactModal from './DeleteImpactModal'
+import { Button } from '../../../components/ui/button'
+import type { MemberSport } from './memberSport'
 import { useRelatedEntities, type SectionKey } from '../hooks/useRelatedEntities'
 import { useAuth } from '../../../hooks/useAuth'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../components/ui/table'
@@ -20,6 +23,25 @@ interface Props {
   id: string | null
   onSelect: (type: BucketKey, id: string) => void
   onBack?: () => void
+  /** Local cache reducer — the same contract ExplorerGrid already uses. */
+  onMutate: (fn: (prev: CacheShape) => CacheShape) => void
+  /** Full refetch, used after a save or a delete. */
+  onRefresh: () => void
+  /** Bubbles the member editor's unsaved-change count so the page can guard navigation. */
+  onDirtyChange?: (count: number) => void
+}
+
+/** Everything the member field editor needs beyond the record itself. */
+interface MemberFieldsGate {
+  canEdit: boolean
+  canDelete: boolean
+  adminScope: MemberSport
+  isGlobalAdmin: boolean
+  viewerMemberId: string | null
+  onMutate: Props['onMutate']
+  onRefresh: Props['onRefresh']
+  onDirtyChange?: Props['onDirtyChange']
+  onBack?: Props['onBack']
 }
 
 function capitalize(s: string | null | undefined): string {
@@ -38,17 +60,46 @@ const SECTION_LABEL_KEY: Record<SectionKey, string> = {
   inactiveMembers: 'explorerSectionInactiveMembers',
 }
 
-export default function ExplorerDetail({ cache, type, id, onSelect, onBack }: Props) {
+export default function ExplorerDetail({
+  cache, type, id, onSelect, onBack, onMutate, onRefresh, onDirtyChange,
+}: Props) {
   const onNavigate = onSelect
   const { t } = useTranslation('admin')
   const { t: tCommon } = useTranslation('common')
   const related = useRelatedEntities()
-  const { isGlobalAdmin, isVorstand, isVbAdmin, isBbAdmin, canImpersonate, isImpersonating, startImpersonation } = useAuth()
+  const { user, isGlobalAdmin, isVorstand, isVbAdmin, isBbAdmin, canImpersonate, isImpersonating, startImpersonation } = useAuth()
   const showRestrictedSections = isGlobalAdmin || isVorstand
-  // Admin + Vorstand + sport admins get the inline edit affordance; Directus
-  // policy makes the final call (PATCH 403s for everyone else even if the
-  // button were shown — note Vorstand is read-only at the policy layer).
-  const canEditMember = isGlobalAdmin || isVorstand || isVbAdmin || isBbAdmin
+  // Global admins + sport admins only. Vorstand is deliberately NOT here: its
+  // policy has no `members.update` row, so offering Edit only produced a Save
+  // that 403'd and leaked a raw Directus message. This now matches
+  // ExplorePage's `canEditGrid`, which already had it right.
+  const canEditMember = isGlobalAdmin || isVbAdmin || isBbAdmin
+  // Role-level delete gate. ExplorerMemberFields narrows it further by the
+  // member's own sport (it holds the full record); the endpoint re-checks too.
+  const canDeleteMember = isGlobalAdmin || isVbAdmin || isBbAdmin
+  const adminScope: MemberSport =
+    isGlobalAdmin || (isVbAdmin && isBbAdmin) ? 'both'
+      : isVbAdmin ? 'volleyball'
+        : isBbAdmin ? 'basketball'
+          : 'both'
+  const memberGate: MemberFieldsGate = {
+    canEdit: canEditMember,
+    canDelete: canDeleteMember,
+    adminScope,
+    isGlobalAdmin,
+    viewerMemberId: user?.id != null ? String(user.id) : null,
+    onMutate,
+    onRefresh,
+    onDirtyChange,
+    onBack,
+  }
+  // Activity records (events / trainings / games) delete through the ordinary
+  // items API — Sport Admin already holds full CRUD on all three — behind the
+  // same impact preview + typed DELETE gate the member flow uses. Same role
+  // gate as editing: the sport scope of these records is already enforced by
+  // the explorer's scoped fetch (a vb_admin's cache holds no basketball games).
+  const canDeleteActivity = isGlobalAdmin || isVbAdmin || isBbAdmin
+  const onRecordDeleted = () => { onBack?.(); onRefresh() }
 
   const entity = useMemo(() => {
     if (!type || !id) return null
@@ -118,12 +169,71 @@ export default function ExplorerDetail({ cache, type, id, onSelect, onBack }: Pr
       </div>
 
       {/* Fields + sections per type */}
-      {type === 'members' && renderMember(entity as never, cache, onNavigate, related, t, showRestrictedSections, canEditMember)}
+      {type === 'members' && renderMember(entity as never, cache, onNavigate, related, t, showRestrictedSections, memberGate)}
       {type === 'teams' && renderTeam(entity as never, cache, onNavigate, related, t, tCommon)}
       {type === 'events' && renderEvent(entity as never, cache, onNavigate, related, t)}
       {type === 'trainings' && renderTraining(entity as never, cache, onNavigate, related, t)}
       {type === 'games' && renderGame(entity as never, cache, onNavigate, related, t, showRestrictedSections)}
+
+      {/* Hard delete for the activity records. Members carry their own danger
+          zone (status toggles + delete) inside ExplorerMemberFields; teams are
+          deliberately excluded — `teams.delete` is withheld at the policy layer
+          because a team drags seasons of roster, training and game history with
+          it (setup-permissions.mjs §9). */}
+      {canDeleteActivity && (type === 'events' || type === 'trainings' || type === 'games') && (
+        <RecordDangerZone
+          collection={type}
+          recordId={id}
+          recordLabel={title}
+          onDeleted={onRecordDeleted}
+        />
+      )}
     </div>
+  )
+}
+
+/**
+ * Danger zone for an event / training / game.
+ *
+ * Same shape and same rails as the member one (MemberDangerZone): the button
+ * only opens DeleteImpactModal, which counts every dependent row first — for a
+ * game that includes the derby callout, since an intra-club fixture is stored
+ * as TWO rows sharing one `game_id` and deleting one leaves the sibling behind
+ * — and then requires a typed `DELETE`. There is no status block here because
+ * these records have no equivalent of the four member status columns.
+ */
+function RecordDangerZone({
+  collection,
+  recordId,
+  recordLabel,
+  onDeleted,
+}: {
+  collection: 'events' | 'trainings' | 'games'
+  recordId: string
+  recordLabel: string
+  onDeleted: () => void
+}) {
+  const { t } = useTranslation('admin')
+  const [open, setOpen] = useState(false)
+
+  return (
+    <section className="mt-8 rounded-lg border border-destructive/40 bg-destructive/5 p-4">
+      <h2 className="text-base font-semibold text-destructive">{t('explorerDangerTitle')}</h2>
+      <p className="mb-3 text-xs text-muted-foreground">{t('explorerDangerRecordDescription')}</p>
+      <Button type="button" variant="destructive" icon={<Trash2 />} onClick={() => setOpen(true)}>
+        {t('explorerDangerDelete')}
+      </Button>
+      {open && (
+        <DeleteImpactModal
+          open={open}
+          collection={collection}
+          recordId={recordId}
+          recordLabel={recordLabel}
+          onCancel={() => setOpen(false)}
+          onDeleted={() => { setOpen(false); onDeleted() }}
+        />
+      )}
+    </section>
   )
 }
 
@@ -219,7 +329,7 @@ function renderMember(
   related: ReturnType<typeof useRelatedEntities>,
   t: TFn,
   showRestrictedSections: boolean,
-  canEditMember: boolean,
+  gate: MemberFieldsGate,
 ) {
   const memberIdStr = String(m.id)
   // Union of all team associations: player + coach + team-responsible + captain
@@ -249,15 +359,28 @@ function renderMember(
   const teamName = (tid: string) => cache.teams.find((x) => String(x.id) === tid)?.name ?? tid
 
   return (
-    <>
-      {/* Full-fields view: every readable column, admin-editable inline */}
-      <ExplorerMemberFields
-        memberId={memberIdStr}
-        canEdit={canEditMember}
-        reloadKey={cache.loadedAt ?? undefined}
-      />
-
-      {/* Teams table */}
+    // Every readable column, admin-editable inline. The relations tables are
+    // passed as children so they render between the fields and the danger
+    // zone — the danger zone must be the LAST block of the page, but it also
+    // has to sit with the record state it mutates.
+    <ExplorerMemberFields
+      memberId={memberIdStr}
+      cache={cache}
+      canEdit={gate.canEdit}
+      canDelete={gate.canDelete}
+      adminScope={gate.adminScope}
+      isGlobalAdmin={gate.isGlobalAdmin}
+      viewerMemberId={gate.viewerMemberId}
+      reloadKey={cache.loadedAt ?? undefined}
+      onMutate={gate.onMutate}
+      onSaved={gate.onRefresh}
+      onDirtyChange={gate.onDirtyChange}
+      onDeleted={() => { gate.onBack?.(); gate.onRefresh() }}
+    >
+      {/* Team relations — read-only on purpose. This table shows all FOUR
+          capacities (player, coach, team responsible, captain); the roster
+          field above edits only the player rows, because one chip field cannot
+          express which of the four a chip means without a role picker per chip. */}
       <ExplorerSectionCard title={t('explorerSectionTeams')} count={memberTeams.length} lazy={false}>
         <CompactTable
           cols={[
@@ -292,7 +415,7 @@ function renderMember(
           </ExplorerSectionCard>
         )
       })}
-    </>
+    </ExplorerMemberFields>
   )
 }
 

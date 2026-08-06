@@ -2268,7 +2268,7 @@ async function main() {
   await setPerm(SPORT_ADMIN_POLICY, 'poll_votes', 'create')
   await setPerm(SPORT_ADMIN_POLICY, 'poll_votes', 'update')
   await setPerm(SPORT_ADMIN_POLICY, 'poll_votes', 'delete')
-  // Restricted: read/create/update only on members + teams (delete blocked).
+  // Restricted: read/create/update on members + teams.
   // fields = '*' on both, which is what already covers the staff-only
   // `transfer_*` columns (migrations 234/235) that `/admin/transfers` writes —
   // see MEMBER_STAFF_ONLY_FIELDS above. Anything added to `members` becomes
@@ -2278,8 +2278,26 @@ async function main() {
     await setPerm(SPORT_ADMIN_POLICY, col, 'create')
     await setPermRead(SPORT_ADMIN_POLICY, col)
     await setPerm(SPORT_ADMIN_POLICY, col, 'update')
-    // No delete — migration 027.
   }
+  // members.delete — deliberately NOT granted (withheld since migration 027,
+  // and it stays withheld). The Data Explorer's danger zone (/admin/explore →
+  // member detail) deletes members through `POST /kscw/admin/delete-member`,
+  // which gates on role, on SPORT SCOPE (a vb_admin cannot delete a basketball
+  // member) and on RANK (nobody deletes themselves; only a full admin deletes a
+  // board member or another admin), then runs ItemsService with the caller's
+  // identity and escalated permissions.
+  //
+  // ⚠ Do not "fix" this by adding `setPerm(SPORT_ADMIN_POLICY, 'members',
+  // 'delete')`. A permission row here cannot express any of those three checks
+  // — one policy is shared by vb_admin and bb_admin, so no filter can tell the
+  // two sections apart — and an unfiltered row would hand every sport admin a
+  // plain `DELETE /items/members/:id` that skips the impact preview, the typed
+  // DELETE gate and all three server checks in one call.
+  //
+  // teams.delete is withheld for the same generation of reasons (migration
+  // 027). A team carries seasons of roster, training and game history behind
+  // cascading junctions; its blast radius is club-wide and it is deliberately
+  // out of scope for that flow.
 
   // Narrow ClubDesk register read for the explorer grid's derived member
   // columns (passive/honorary/former from gruppen_bracketed + the ClubDesk
