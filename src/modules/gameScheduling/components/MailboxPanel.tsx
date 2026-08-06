@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { ArrowLeft, ChevronDown, Paperclip, Users, X } from 'lucide-react'
+import { ArrowLeft, ChevronDown, ClipboardList, Paperclip, Users, X } from 'lucide-react'
 import { useConfirm } from '../../../components/ConfirmProvider'
 import { Badge } from '../../../components/ui/badge'
 import { Button } from '../../../components/ui/button'
@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../../components/ui/dialog'
 import { Table, TableBody, TableCell, TableRow } from '../../../components/ui/table'
 import EmailChipsInput from '../../../components/ui/EmailChipsInput'
-import { hasInvalidAddress } from '../../../components/ui/emailChips'
+import { hasInvalidAddress, parseAddressList } from '../../../components/ui/emailChips'
 import RichTextEditor from '../../../components/RichTextEditor'
 import InlineSpinner from '../../../components/InlineSpinner'
 import { formatDateTimeCompact } from '../../../utils/dateHelpers'
@@ -187,7 +187,13 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
   // instead would mean writing state synchronously inside the effect below,
   // which is the cascading-render pattern the hooks lint rule rejects.
   const [preview, setPreview] = useState<{ group: string; data: MailboxBulkPreview | null } | null>(null)
-  const { fetchGroups, fetchGroupCounts, previewBulk, expandGroups, sendBulk } = mailbox
+  const { fetchGroups, fetchGroupCounts, previewBulk, expandGroups, lookupAddresses, sendBulk } = mailbox
+  // Paste-a-list recipient source. Held apart from the compose state because it
+  // is a staging area, not a selection: nothing joins the audience until the
+  // addresses have been resolved to people the send can actually reach.
+  const [pasteOpen, setPasteOpen] = useState(false)
+  const [pasteText, setPasteText] = useState('')
+  const [pasteBusy, setPasteBusy] = useState(false)
   // Server-side constant, delivered with the message list — so it is present in
   // every compose mode and every mailbox, not just where /groups was fetched.
   const signatureHtml = mailbox.signatureHtml
@@ -358,6 +364,62 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
       })
     } catch {
       toast.error(t('mailboxExpandFailed'))
+    }
+  }
+
+  /** Resolve the pasted list and fold the people behind it into the picked
+   *  chips. Reports the gap out loud — a paste of 117 that becomes 114 chips
+   *  must say which three fell out and why, or the operator learns it from a
+   *  member who never got the mail. */
+  const handleAddPasted = async () => {
+    const parsed = parseAddressList(pasteText)
+    const usable = parsed.filter((p) => !p.invalid).map((p) => p.email)
+    const malformed = parsed.filter((p) => p.invalid).length
+    if (usable.length === 0) {
+      toast.error(t('mailboxPasteNoneValid'))
+      return
+    }
+    setPasteBusy(true)
+    try {
+      const resp = await lookupAddresses(usable)
+      let added = 0
+      setCompose((prev) => {
+        if (!prev) return prev
+        const seen = new Set((prev.picked ?? []).map((r) => String(r.id)))
+        const merged = [...(prev.picked ?? [])]
+        for (const r of resp.recipients) {
+          if (seen.has(String(r.id))) continue
+          seen.add(String(r.id))
+          merged.push(r)
+          added++
+        }
+        return { ...prev, picked: merged }
+      })
+      // Everything that did NOT become a chip, itemised. Opt-outs and
+      // suppressions are deliberate exclusions and stay excluded; unknown
+      // addresses are the operator's to fix, so they are named in full.
+      const notFound = resp.not_found ?? []
+      const dropped = [
+        malformed ? t('mailboxPasteMalformed', { count: malformed }) : '',
+        resp.skipped.optedOut ? t('mailboxPasteOptedOut', { count: resp.skipped.optedOut }) : '',
+        resp.skipped.suppressed ? t('mailboxPasteSuppressed', { count: resp.skipped.suppressed }) : '',
+        notFound.length ? t('mailboxPasteNotFound', { count: notFound.length }) : '',
+      ].filter(Boolean)
+      toast.success(
+        dropped.length
+          ? `${t('mailboxPasteAdded', { count: added })} — ${dropped.join(', ')}`
+          : t('mailboxPasteAdded', { count: added }),
+        notFound.length ? { description: notFound.join(', '), duration: 12000 } : undefined,
+      )
+      // Only the addresses that still need attention stay in the box, so a
+      // second Add cannot re-submit the ones already resolved.
+      setPasteText(notFound.join('\n'))
+      if (notFound.length === 0) setPasteOpen(false)
+    } catch (err) {
+      const body = (err as { body?: { error?: string } })?.body
+      toast.error(body?.error || t('mailboxPasteFailed'))
+    } finally {
+      setPasteBusy(false)
     }
   }
 
@@ -794,6 +856,58 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
             loading={previewLoading}
             selected={(c.clauses ?? []).length > 0 || (c.picked ?? []).length > 0}
           />
+
+          {/* Paste-a-list. The catalogue answers "mail this audience"; a
+              hand-curated list out of a spreadsheet is not a team, a role or a
+              season, and before this the only way to reach one was to expand a
+              broad audience and delete everyone else. Addresses are resolved to
+              people, so a pasted list is mailed on exactly the same terms as an
+              audience — one message each, merge fields, opt-outs honoured. */}
+          {!pasteOpen ? (
+            <button
+              type="button"
+              onClick={() => setPasteOpen(true)}
+              className="mt-2 inline-flex min-h-11 items-center gap-1.5 text-sm font-medium text-brand-600 hover:underline dark:text-brand-400"
+            >
+              <ClipboardList className="h-4 w-4" />
+              {t('mailboxPasteOpen')}
+            </button>
+          ) : (
+            <div className="mt-2 rounded-md border border-gray-200 p-3 dark:border-gray-700">
+              <label className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                {t('mailboxPasteLabel')}
+              </label>
+              <textarea
+                value={pasteText}
+                onChange={(e) => setPasteText(e.target.value)}
+                rows={5}
+                placeholder={t('mailboxPastePlaceholder')}
+                className="mt-1 w-full rounded-md border border-gray-300 bg-white px-2.5 py-1.5 font-mono text-xs text-gray-900 placeholder:text-gray-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500"
+              />
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                <span className="text-xs text-gray-500 dark:text-gray-400">
+                  {t('mailboxPasteCount', { count: parseAddressList(pasteText).length })}
+                </span>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => { setPasteOpen(false); setPasteText('') }}
+                    disabled={pasteBusy}
+                  >
+                    {t('cancel')}
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => void handleAddPasted()}
+                    disabled={pasteBusy || parseAddressList(pasteText).length === 0}
+                  >
+                    {pasteBusy ? <InlineSpinner /> : t('mailboxPasteAdd')}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">

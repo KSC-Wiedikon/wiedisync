@@ -114,6 +114,18 @@ export interface MailboxExpandResponse {
   recipients: MailboxRecipient[]
 }
 
+/** Result of resolving a pasted address list to recipient chips.
+ *  `recipients` are exactly the people the send would reach; the gap between
+ *  `requested` and them is explained by `skipped` + `not_found` rather than
+ *  left for the operator to notice. */
+export interface MailboxLookupResponse {
+  requested: number
+  recipients: MailboxRecipient[]
+  skipped: { noEmail: number; optedOut: number; duplicate: number; suppressed: number }
+  /** Addresses belonging to neither a member nor a register contact. */
+  not_found: string[]
+}
+
 /** Result of a `dry_run` group send — what WOULD be mailed, mailing nothing.
  *  `audience_size` is the resolved audience; `recipient_count` is what survives
  *  the no-email / opted-out / duplicate-address filters, so the gap between the
@@ -615,6 +627,8 @@ export interface UseMailboxReturn {
   previewBulk: (sel: MailboxRecipientSelection) => Promise<MailboxBulkPreview>
   /** Club mailbox only — resolve ONE clause into its individual recipients. */
   expandGroups: (clause: string[]) => Promise<MailboxExpandResponse>
+  /** Club mailbox only — resolve pasted addresses to recipient chips. */
+  lookupAddresses: (emails: string[]) => Promise<MailboxLookupResponse>
   /** Club mailbox only — send one personalised message per recipient. */
   sendBulk: (payload: MailboxBulkPayload) => Promise<MailboxBulkResult>
 }
@@ -776,6 +790,16 @@ export function useMailbox(enabled: boolean = true, sport: MailboxAccount = 'vol
     })
   }, [sport])
 
+  /** Resolve a pasted address list to the people behind it, for the To-field
+   *  chips. Members win over register contacts, and anyone the send would not
+   *  reach never becomes a chip. */
+  const lookupAddresses = useCallback(async (emails: string[]) => {
+    return await kscwApi<MailboxLookupResponse>(mailboxUrl(sport, '/lookup'), {
+      method: 'POST',
+      body: { emails },
+    })
+  }, [sport])
+
   const sendBulk = useCallback(async (payload: MailboxBulkPayload) => {
     setSending(true)
     try {
@@ -815,5 +839,5 @@ export function useMailbox(enabled: boolean = true, sport: MailboxAccount = 'vol
     }
   }, [refetch, sport])
 
-  return { configured, messages, unread, lastSync, signatureHtml, isLoading, syncing, sending, refetch, sync, loadMessage, sendReply, searchMessages, assignThread, fetchGroups, fetchGroupCounts, previewBulk, expandGroups, sendBulk }
+  return { configured, messages, unread, lastSync, signatureHtml, isLoading, syncing, sending, refetch, sync, loadMessage, sendReply, searchMessages, assignThread, fetchGroups, fetchGroupCounts, previewBulk, expandGroups, lookupAddresses, sendBulk }
 }

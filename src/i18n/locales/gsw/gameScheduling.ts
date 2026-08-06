@@ -706,4 +706,18 @@ export default {
 
   // Nur-Läse-Aasicht (Trainer / Teamverantwortlichi, v1)
   plannerReadOnly: 'Nur-Läse-Aasicht — du chasch de Spielplan aaluege, aber nüt ändere.',
+
+  // Gruppeversand — Adressliste iifüege
+  mailboxPasteOpen: 'Adressliste iifüege',
+  mailboxPasteLabel: 'Adresse',
+  mailboxPastePlaceholder: 'Eini pro Ziile oder mit Komma bzw. Semikolon trennt',
+  mailboxPasteCount: '{{count}} Adresse erkennt',
+  mailboxPasteAdd: 'Zu de Empfänger hinzuefüege',
+  mailboxPasteAdded: '{{count}} Empfänger hinzuegfüegt',
+  mailboxPasteNoneValid: 'Kei gültigi E-Mail-Adress gfunde',
+  mailboxPasteMalformed: '{{count}} nöd läsbar',
+  mailboxPasteOptedOut: '{{count}} hend Vereins-E-Mails abbstellt',
+  mailboxPasteSuppressed: '{{count}} gsperrt (nöd zuestellbar oder als Spam gmäldet)',
+  mailboxPasteNotFound: '{{count}} nöd im Vereinsregister',
+  mailboxPasteFailed: 'Adresse hend nöd chöne nachgschlage werde',
 }

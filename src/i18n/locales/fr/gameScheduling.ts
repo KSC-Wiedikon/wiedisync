@@ -753,4 +753,18 @@ export default {
   closedDatesAuto: '{{count}} automatiques',
   closedDatesManual: '{{count}} manuelles',
   closedDatesManage: 'Gérer les dates de fermeture',
+
+  // Envoi groupé — coller une liste d'adresses
+  mailboxPasteOpen: 'Coller une liste d’adresses',
+  mailboxPasteLabel: 'Adresses',
+  mailboxPastePlaceholder: 'Une par ligne, ou séparées par des virgules ou des points-virgules',
+  mailboxPasteCount: '{{count}} adresses reconnues',
+  mailboxPasteAdd: 'Ajouter aux destinataires',
+  mailboxPasteAdded: '{{count}} destinataires ajoutés',
+  mailboxPasteNoneValid: 'Aucune adresse e-mail valide trouvée',
+  mailboxPasteMalformed: '{{count}} illisibles',
+  mailboxPasteOptedOut: '{{count}} se sont désabonnés des e-mails du club',
+  mailboxPasteSuppressed: '{{count}} bloquées (non distribuées ou signalées comme spam)',
+  mailboxPasteNotFound: '{{count}} absentes du registre du club',
+  mailboxPasteFailed: 'Impossible de rechercher les adresses',
 }

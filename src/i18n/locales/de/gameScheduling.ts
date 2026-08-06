@@ -766,4 +766,18 @@ export default {
 
   // Nur-Lese-Ansicht (Trainer / Teamverantwortliche, v1)
   plannerReadOnly: 'Nur-Lese-Ansicht — du kannst den Spielplan ansehen, aber nichts ändern.',
+
+  // Gruppenversand — Adressliste einfügen
+  mailboxPasteOpen: 'Adressliste einfügen',
+  mailboxPasteLabel: 'Adressen',
+  mailboxPastePlaceholder: 'Eine pro Zeile oder durch Komma bzw. Semikolon getrennt',
+  mailboxPasteCount: '{{count}} Adressen erkannt',
+  mailboxPasteAdd: 'Zu Empfängern hinzufügen',
+  mailboxPasteAdded: '{{count}} Empfänger hinzugefügt',
+  mailboxPasteNoneValid: 'Keine gültige E-Mail-Adresse gefunden',
+  mailboxPasteMalformed: '{{count}} unlesbar',
+  mailboxPasteOptedOut: '{{count}} haben Vereins-E-Mails abbestellt',
+  mailboxPasteSuppressed: '{{count}} gesperrt (unzustellbar oder als Spam gemeldet)',
+  mailboxPasteNotFound: '{{count}} nicht im Vereinsregister',
+  mailboxPasteFailed: 'Adressen konnten nicht nachgeschlagen werden',
 }
