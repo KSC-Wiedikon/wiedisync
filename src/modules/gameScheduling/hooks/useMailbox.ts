@@ -147,6 +147,13 @@ export interface MailboxBulkPreview {
   sample: string[]
   cc_count?: number
   bcc_count?: number
+  /** Merge-field keys the subject/body actually reference. */
+  merge_fields?: string[]
+  /** Per field, how many recipients would receive a BLANK for it. */
+  merge_gaps?: Record<string, number>
+  /** The message as three named recipients would really receive it, rendered
+   *  through the same builder as the send. */
+  merge_samples?: { name: string; subject: string; html: string }[]
 }
 
 export interface MailboxBulkResult {
@@ -630,6 +637,8 @@ export interface UseMailboxReturn {
   /** Club mailbox only — resolve the selection WITHOUT sending, so the
    *  composer can show who it would reach. Always call this before sendBulk. */
   previewBulk: (sel: MailboxRecipientSelection) => Promise<MailboxBulkPreview>
+  /** Club mailbox only — the same dry run WITH the body, for merge-field samples. */
+  previewMerge: (sel: MailboxRecipientSelection, subject: string, html: string) => Promise<MailboxBulkPreview>
   /** Club mailbox only — resolve ONE clause into its individual recipients. */
   expandGroups: (clause: string[]) => Promise<MailboxExpandResponse>
   /** Club mailbox only — resolve pasted addresses to recipient chips. */
@@ -785,6 +794,29 @@ export function useMailbox(enabled: boolean = true, sport: MailboxAccount = 'vol
     })
   }, [sport])
 
+  /**
+   * Same dry run, but WITH the subject and body, so the server can render the
+   * message as real recipients would receive it and report which merge fields
+   * would come out blank.
+   *
+   * Deliberately a separate call rather than folding subject/html into
+   * `previewBulk`: that one re-runs whenever the audience changes, and carrying
+   * the body would re-resolve the whole audience on every keystroke.
+   */
+  const previewMerge = useCallback(async (sel: MailboxRecipientSelection, subject: string, html: string) => {
+    return await kscwApi<MailboxBulkPreview>(mailboxUrl(sport, '/bulk'), {
+      method: 'POST',
+      body: {
+        clauses: sel.clauses ?? sel.groups.map((g) => [g]),
+        members: sel.members ?? [],
+        emails: sel.emails ?? [],
+        subject,
+        html,
+        dry_run: true,
+      },
+    })
+  }, [sport])
+
   /** Resolve audiences to the individual people in them, for the To-field chips. */
   const expandGroups = useCallback(async (clause: string[]) => {
     return await kscwApi<MailboxExpandResponse>(mailboxUrl(sport, '/expand'), {
@@ -844,5 +876,5 @@ export function useMailbox(enabled: boolean = true, sport: MailboxAccount = 'vol
     }
   }, [refetch, sport])
 
-  return { configured, messages, unread, lastSync, signatureHtml, isLoading, syncing, sending, refetch, sync, loadMessage, sendReply, searchMessages, assignThread, fetchGroups, fetchGroupCounts, previewBulk, expandGroups, lookupAddresses, sendBulk }
+  return { configured, messages, unread, lastSync, signatureHtml, isLoading, syncing, sending, refetch, sync, loadMessage, sendReply, searchMessages, assignThread, fetchGroups, fetchGroupCounts, previewBulk, previewMerge, expandGroups, lookupAddresses, sendBulk }
 }

@@ -792,4 +792,15 @@ export default {
   mailboxPasteTargetCopyHint: 'One shared copy, at most {{max}} addresses. Cc recipients see each other, Bcc recipients do not.',
   mailboxCcTooMany: 'Cc and Bcc are one shared copy and cannot hold more than {{max}} addresses ({{count}} now). Add them as recipients instead — those are sent one message each.',
   mailboxToTooMany: 'A single email cannot have more than {{max}} recipients ({{count}} now). Use "Email a group" — it sends one message per person.',
+
+  // Group send — merge fields
+  mailboxMergeMoreHint: 'Also available: {{fields}}',
+  mailboxMergePreviewOpen: 'Preview message',
+  mailboxMergePreviewHint: 'See it as three real recipients would receive it.',
+  mailboxMergePreviewTitle: 'How the message will arrive',
+  mailboxMergePreviewSubtitle: 'Three of the {{count}} recipients, with their own values filled in.',
+  mailboxMergePreviewEmpty: 'No recipient to preview yet.',
+  mailboxMergePreviewFailed: 'Could not build the preview',
+  mailboxMergeGapsTitle: 'Some recipients have nothing to fill in',
+  mailboxMergeGapRow: '{{field}} is empty for {{count}} of them — they will read the sentence with a gap in it.',
 }

@@ -778,4 +778,15 @@ export default {
   mailboxPasteTargetCopyHint: 'Una sola copia condivisa, al massimo {{max}} indirizzi. In copia i destinatari si vedono tra loro, in copia nascosta no.',
   mailboxCcTooMany: 'Copia e copia nascosta sono una sola copia condivisa e non possono superare {{max}} indirizzi ({{count}} adesso). Aggiungili invece come destinatari — quelli ricevono un messaggio ciascuno.',
   mailboxToTooMany: 'Una singola e-mail non può avere più di {{max}} destinatari ({{count}} adesso). Usa «Scrivi a un gruppo» — parte un messaggio per persona.',
+
+  // Invio di gruppo — campi uniti
+  mailboxMergeMoreHint: 'Disponibili anche: {{fields}}',
+  mailboxMergePreviewOpen: 'Vedi il messaggio',
+  mailboxMergePreviewHint: 'Come lo riceveranno tre destinatari reali.',
+  mailboxMergePreviewTitle: 'Come arriverà il messaggio',
+  mailboxMergePreviewSubtitle: 'Tre degli {{count}} destinatari, con i loro valori inseriti.',
+  mailboxMergePreviewEmpty: 'Nessun destinatario da visualizzare per ora.',
+  mailboxMergePreviewFailed: 'Impossibile creare l’anteprima',
+  mailboxMergeGapsTitle: 'Per alcuni destinatari non c’è nulla da inserire',
+  mailboxMergeGapRow: '{{field}} è vuoto per {{count}} di loro — leggeranno la frase con un vuoto.',
 }

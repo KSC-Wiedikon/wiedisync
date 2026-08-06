@@ -790,4 +790,15 @@ export default {
   mailboxPasteTargetCopyHint: 'Eine gemeinsame Kopie, höchstens {{max}} Adressen. Bei Kopie sehen sich die Empfänger gegenseitig, bei Blindkopie nicht.',
   mailboxCcTooMany: 'Kopie und Blindkopie sind eine gemeinsame Kopie und fassen höchstens {{max}} Adressen (aktuell {{count}}). Füge sie stattdessen als Empfänger hinzu — die erhalten je eine eigene Nachricht.',
   mailboxToTooMany: 'Eine einzelne E-Mail kann höchstens {{max}} Empfänger haben (aktuell {{count}}). Nutze «Gruppe anschreiben» — dort geht eine Nachricht pro Person raus.',
+
+  // Gruppenversand — Platzhalter
+  mailboxMergeMoreHint: 'Ebenfalls verfügbar: {{fields}}',
+  mailboxMergePreviewOpen: 'Nachricht ansehen',
+  mailboxMergePreviewHint: 'So, wie sie bei drei echten Empfängern ankommt.',
+  mailboxMergePreviewTitle: 'So kommt die Nachricht an',
+  mailboxMergePreviewSubtitle: 'Drei der {{count}} Empfänger, mit ihren eigenen Werten eingesetzt.',
+  mailboxMergePreviewEmpty: 'Noch kein Empfänger für eine Vorschau.',
+  mailboxMergePreviewFailed: 'Vorschau konnte nicht erstellt werden',
+  mailboxMergeGapsTitle: 'Bei einigen Empfängern gibt es nichts einzusetzen',
+  mailboxMergeGapRow: '{{field}} ist bei {{count}} von ihnen leer — sie lesen den Satz mit einer Lücke.',
 }
