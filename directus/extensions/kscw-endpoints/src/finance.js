@@ -123,12 +123,33 @@ export function registerFinance(router, { database, logger, services, getSchema 
     return res.status(code).json({ error: 'Internal error' })
   }
 
-  /** Resolve the calling Directus user to a member row + parsed roles. */
+  /**
+   * Resolve the calling Directus user to a member row + parsed roles.
+   *
+   * A caller with NO members row still gets an identity (name/email from
+   * directus_users) but `id: null` and `roles: []`. canManageFinance lets an
+   * admin_access account through without a member row, so without this fallback
+   * every invoice, dues run and payment an admin touches is stamped with a blank
+   * created_by — a CHF 190k billing run with no recorded author. Surfaced by the
+   * first native dues run (dev, 2026-08-06): user_logs.user NULL, created_by_name ''.
+   *
+   * ⚠ `id` stays null on purpose — it is the MEMBER id, and callers use it to
+   * decide "is this invoice mine". Those sites test `mem?.id`, not `mem`.
+   */
   async function actingMember(req) {
     const userId = req.accountability?.user
     if (!userId) return null
     const m = await database('members').where('user', userId).first('id', 'first_name', 'last_name', 'email', 'role')
-    if (!m) return null
+    if (!m) {
+      const u = await database('directus_users').where('id', userId).first('first_name', 'last_name', 'email')
+      if (!u) return null
+      return {
+        id: null,
+        name: [u.first_name, u.last_name].filter(Boolean).join(' ').trim() || u.email || null,
+        email: u.email || null,
+        roles: [],
+      }
+    }
     const roles = Array.isArray(m.role) ? m.role : (m.role ? (() => { try { return JSON.parse(m.role) } catch { return [] } })() : [])
     return {
       id: m.id,
@@ -261,7 +282,9 @@ export function registerFinance(router, { database, logger, services, getSchema 
   router.get('/finance/my-invoices', async (req, res) => {
     try {
       const mem = await actingMember(req)
-      if (!mem) return res.status(401).json({ error: 'Unauthenticated' })
+      // `id`, not `mem` — an admin-only account now resolves to an identity with
+      // a null member id, and "my invoices" is meaningless without a member row.
+      if (!mem?.id) return res.status(401).json({ error: 'Unauthenticated' })
       const teamIds = await ledTeamIds(mem.id)
 
       const rows = await database('finance_invoices as fi')
@@ -286,7 +309,8 @@ export function registerFinance(router, { database, logger, services, getSchema 
   /** Load a native invoice the caller is the recipient of (member or team lead). */
   async function loadOwnNative(req, id) {
     const mem = await actingMember(req)
-    if (!mem) return { code: 401 }
+    // Recipient check needs a real member id (see actingMember's fallback).
+    if (!mem?.id) return { code: 401 }
     const inv = await database('finance_invoices').where('id', id).andWhere('source', 'native').first()
     if (!inv) return { code: 404 }
     let isRecipient = inv.member != null && Number(inv.member) === mem.id
