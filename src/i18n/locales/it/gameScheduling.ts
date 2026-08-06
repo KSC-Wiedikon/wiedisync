@@ -789,4 +789,11 @@ export default {
   mailboxMergePreviewFailed: 'Impossibile creare l’anteprima',
   mailboxMergeGapsTitle: 'Per alcuni destinatari non c’è nulla da inserire',
   mailboxMergeGapRow: '{{field}} è vuoto per {{count}} di loro — leggeranno la frase con un vuoto.',
+
+  // Riscontro sui campi riconosciuti
+  mailboxTokenKnown: 'Riconosciuto — sostituito con il valore del destinatario',
+  mailboxTokenUnknown: 'Campo sconosciuto — verrà inviato esattamente così',
+  mailboxTokenAllKnown: 'verrà sostituito per ogni destinatario',
+  mailboxTokenSomeUnknown: 'quelli barrati verranno inviati così come sono',
+  mailboxMergeUnknownTokens: 'Campo sconosciuto, verrà inviato esattamente così: {{tokens}}',
 }

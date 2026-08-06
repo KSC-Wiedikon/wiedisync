@@ -741,4 +741,11 @@ export default {
   mailboxMergePreviewFailed: 'Vorschau het nöd chöne erstellt werde',
   mailboxMergeGapsTitle: 'Bi einigne Empfänger gits nüt iizsetze',
   mailboxMergeGapRow: '{{field}} isch bi {{count}} vo ihne leer — die läsed de Satz mit ere Lücke.',
+
+  // Rückmäldig zu erkennte Platzhalter
+  mailboxTokenKnown: 'Erkennt — wird dur de Wärt vo de Person ersetzt',
+  mailboxTokenUnknown: 'Kes bekannts Fäld — wird genau so verschickt, wies daasteit',
+  mailboxTokenAllKnown: 'wird pro Empfänger ersetzt',
+  mailboxTokenSomeUnknown: 'die durchgstrichnige werded so verschickt, wies daasteid',
+  mailboxMergeUnknownTokens: 'Kes bekannts Fäld, wird genau so verschickt: {{tokens}}',
 }

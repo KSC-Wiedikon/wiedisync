@@ -801,4 +801,11 @@ export default {
   mailboxMergePreviewFailed: 'Vorschau konnte nicht erstellt werden',
   mailboxMergeGapsTitle: 'Bei einigen Empfängern gibt es nichts einzusetzen',
   mailboxMergeGapRow: '{{field}} ist bei {{count}} von ihnen leer — sie lesen den Satz mit einer Lücke.',
+
+  // Rückmeldung zu erkannten Platzhaltern
+  mailboxTokenKnown: 'Erkannt — wird durch den Wert der Person ersetzt',
+  mailboxTokenUnknown: 'Kein bekanntes Feld — wird genau so verschickt, wie es dasteht',
+  mailboxTokenAllKnown: 'wird pro Empfänger ersetzt',
+  mailboxTokenSomeUnknown: 'die durchgestrichenen werden so verschickt, wie sie dastehen',
+  mailboxMergeUnknownTokens: 'Kein bekanntes Feld, wird genau so verschickt: {{tokens}}',
 }

@@ -6,12 +6,18 @@ import { useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { isSafeAppLink } from '../utils/sanitizeUrl'
 import { usePrompt } from './ConfirmProvider'
+import { MergeTokenHighlight } from './mergeTokenHighlight'
 
 interface Props {
   value: string
   onChange: (html: string) => void
   placeholder?: string
   minHeight?: string
+  /** Colour `{{token}}` occurrences as you type — blue when the group send will
+   *  substitute them, red-struck when it will send them verbatim. Off by
+   *  default: only the group composer has merge fields, and everywhere else a
+   *  literal `{{…}}` is just text. */
+  highlightMergeTokens?: boolean
 }
 
 /**
@@ -19,7 +25,7 @@ interface Props {
  * RichText sanitisation whitelist (p, br, strong, em, u, s, a, ul, ol,
  * li, h1-h3, blockquote, span).
  */
-export default function RichTextEditor({ value, onChange, placeholder, minHeight = '8rem' }: Props) {
+export default function RichTextEditor({ value, onChange, placeholder, minHeight = '8rem', highlightMergeTokens = false }: Props) {
   const { t } = useTranslation('common')
   const prompt = usePrompt()
   const editor = useEditor({
@@ -33,6 +39,7 @@ export default function RichTextEditor({ value, onChange, placeholder, minHeight
         },
       }),
       Placeholder.configure({ placeholder: placeholder ?? '' }),
+      ...(highlightMergeTokens ? [MergeTokenHighlight] : []),
     ],
     content: value || '',
     onUpdate: ({ editor }) => {
