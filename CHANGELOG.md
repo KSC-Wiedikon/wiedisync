@@ -2,6 +2,14 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.70.0 — 2026-08-06
+
+### Club mailbox: paste a list of addresses
+- **Recipients are now chips.** Paste a whole column of addresses into To, Cc or Bcc and each one becomes its own removable chip — one per line, per comma or per semicolon, so a list copied out of a spreadsheet or another mail client no longer has to be tidied up by hand first.
+- **Addresses that carry a name are read correctly.** `Anna Muster <anna@example.ch>` was previously discarded without a word: the send only ever accepted a bare address, so a recipient pasted in that form silently never received the mail. The name is now stripped off and the address kept.
+- **An address that cannot be read is shown in red and blocks the send** instead of being dropped on the way out. Duplicates are merged, so the same person pasted twice gets one copy.
+- Enter, Tab, comma and semicolon finish the address you are typing; Backspace on an empty field takes the last chip back for editing.
+
 ## v1.69.0 — 2026-08-06
 
 ### Registrations: asking for documents we lost

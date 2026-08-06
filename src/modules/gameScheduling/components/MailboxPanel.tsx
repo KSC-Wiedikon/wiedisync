@@ -8,6 +8,8 @@ import { Button } from '../../../components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../../components/ui/dialog'
 import { Table, TableBody, TableCell, TableRow } from '../../../components/ui/table'
+import EmailChipsInput from '../../../components/ui/EmailChipsInput'
+import { hasInvalidAddress } from '../../../components/ui/emailChips'
 import RichTextEditor from '../../../components/RichTextEditor'
 import InlineSpinner from '../../../components/InlineSpinner'
 import { formatDateTimeCompact } from '../../../utils/dateHelpers'
@@ -797,22 +799,20 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
             <label className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('mailboxCc')}</label>
-            <input
-              type="text"
+            <EmailChipsInput
               value={c.cc}
-              onChange={(e) => setCompose({ ...c, cc: e.target.value })}
+              onChange={(cc) => setCompose({ ...c, cc })}
               placeholder={t('mailboxCcPlaceholder')}
-              className="mt-1 w-full rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500"
+              aria-label={t('mailboxCc')}
             />
           </div>
           <div>
             <label className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('mailboxBcc')}</label>
-            <input
-              type="text"
+            <EmailChipsInput
               value={c.bcc ?? ''}
-              onChange={(e) => setCompose({ ...c, bcc: e.target.value })}
+              onChange={(bcc) => setCompose({ ...c, bcc })}
               placeholder={t('mailboxCcPlaceholder')}
-              className="mt-1 w-full rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500"
+              aria-label={t('mailboxBcc')}
             />
           </div>
         </div>
@@ -929,21 +929,18 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
       <>
         <div>
           <label className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('mailboxTo')}</label>
-          <input
-            type="text"
+          <EmailChipsInput
             value={c.to}
-            onChange={(e) => setCompose({ ...c, to: e.target.value })}
-            className="mt-1 w-full rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+            onChange={(to) => setCompose({ ...c, to })}
+            aria-label={t('mailboxTo')}
           />
         </div>
         <div>
           <label className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('mailboxCc')}</label>
-          <input
-            type="text"
+          <EmailChipsInput
             value={c.cc}
-            onChange={(e) => setCompose({ ...c, cc: e.target.value })}
-            placeholder={t('mailboxCcPlaceholder')}
-            className="mt-1 w-full rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500"
+            onChange={(cc) => setCompose({ ...c, cc })}
+            aria-label={t('mailboxCc')}
           />
         </div>
       </>
@@ -1042,7 +1039,13 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
     </>
   )
 
-  const composeActions = (c: ComposeState) => (
+  // A recipient the send endpoint would discard blocks the send instead of
+  // going out to a shorter list than the composer shows — `cleanAddresses`
+  // drops what it cannot parse without saying so.
+  const composeActions = (c: ComposeState) => {
+    const badAddress = hasInvalidAddress(c.cc) || hasInvalidAddress(c.bcc)
+      || (c.mode !== 'group' && hasInvalidAddress(c.to))
+    return (
     <>
       <Button size="sm" variant="outline" onClick={() => setCompose(null)}>{t('cancel')}</Button>
       {c.mode === 'group' ? (
@@ -1051,7 +1054,7 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
         <Button
           size="sm"
           onClick={() => void handleSendGroup()}
-          disabled={sending || previewLoading || !previewData || previewData.recipient_count === 0 || !c.subject.trim() || !c.html.trim()}
+          disabled={sending || badAddress || previewLoading || !previewData || previewData.recipient_count === 0 || !c.subject.trim() || !c.html.trim()}
         >
           {sending ? t('mailboxSending')
             : previewData ? t('mailboxGroupSendCount', { count: previewData.recipient_count })
@@ -1061,13 +1064,14 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
         <Button
           size="sm"
           onClick={() => void handleSend()}
-          disabled={sending || !c.to.trim() || !c.subject.trim() || !c.html.trim()}
+          disabled={sending || badAddress || !c.to.trim() || !c.subject.trim() || !c.html.trim()}
         >
           {sending ? t('mailboxSending') : t('mailboxSend')}
         </Button>
       )}
     </>
-  )
+    )
+  }
 
   // Full-screen composer replaces the list entirely — the message list is not
   // useful while writing, and leaving it mounted underneath is what forced the

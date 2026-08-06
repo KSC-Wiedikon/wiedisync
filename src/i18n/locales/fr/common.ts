@@ -188,4 +188,9 @@ export default {
 
   // ── Backfilled 2026-07-27 — fr/it catch-up (was rendering in English) ──
   copied: 'Copié !',
+
+  // Puces de destinataires (composition d'e-mail)
+  emailChipsPlaceholder: 'Saisis ou colle des adresses',
+  emailChipsRemove: 'Retirer le destinataire',
+  emailChipsInvalid: 'Adresse e-mail non valide',
 } as const
