@@ -2176,6 +2176,12 @@ async function main() {
     await setPermCRUD(VORSTAND_POLICY, col)
   }
 
+  // Transactional email copy (migration 287) — the board writes to parents in the
+  // club's name, so it owns this wording too. The archive stays read-only for the
+  // same reason it is read-only for Sport Admin.
+  await setPermCRUD(VORSTAND_POLICY, 'email_templates')
+  await setPermRead(VORSTAND_POLICY, 'email_sends')
+
   console.log(`  ✓ Vorstand permissions set`)
 
   // ���─ 9. Sport Admin permissions ───��─────────────────────────────
@@ -2201,6 +2207,13 @@ async function main() {
     // NB: `poll_votes` NOT here — granted below with a non-anonymous read scope
     // (2026-07-02 audit #5/#14) while keeping create/update/delete for oversight.
     'polls', 'team_requests', 'registrations',
+    // Editable transactional email copy (migration 287). A sport admin owns the
+    // wording of the emails their own registrants receive. Read+write is safe
+    // because the compiled-in copy is the per-field fallback, the write hook
+    // rejects unknown/missing placeholders, and every edit stamps updated_by_*.
+    // ⚠ `email_sends` is NOT here — it is granted read-only just below, because
+    // the archive is evidence of what went out and must not be editable.
+    'email_templates',
     'game_scheduling_seasons', 'game_scheduling_slots',
     'game_scheduling_opponents', 'game_scheduling_bookings',
     'game_scheduling_club_portals',
@@ -2241,6 +2254,13 @@ async function main() {
   // SPORT_ADMIN_FULL_CRUD. The fanout writes these rows in system context, so
   // write access would buy nothing and would let a delivery record be forged.
   await setPermRead(SPORT_ADMIN_POLICY, 'announcement_recipients')
+  // Sent-email archive (migration 287) — READ only, same reasoning: the endpoint
+  // writes it at send time and it is the record of what a family was actually
+  // told. Editable evidence is not evidence. The kscw-hooks filter refuses
+  // update/delete as well, so this is belt and braces.
+  // ⚠ Rows contain the recipient's name + address inside body_html — never grant
+  // this to MEMBER_POLICY.
+  await setPermRead(SPORT_ADMIN_POLICY, 'email_sends')
   // poll_votes — read non-anonymous polls only (2026-07-02 audit #5/#14); keep
   // create/update/delete for oversight/correction. Anonymous results via the
   // counts endpoint. (Full Directus admins still bypass all filters by design.)
