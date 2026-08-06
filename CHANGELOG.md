@@ -10,6 +10,13 @@ All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file 
 - **An address that cannot be read is shown in red and blocks the send** instead of being dropped on the way out. Duplicates are merged, so the same person pasted twice gets one copy.
 - Enter, Tab, comma and semicolon finish the address you are typing; Backspace on an empty field takes the last chip back for editing.
 
+### Email wording is now yours to change
+- **The text of the emails the club sends to people who register can be edited in the app**, under Email templates. Until now every word lived in the code and changing one meant a deployment, so the wording was effectively frozen and out of reach of the people who actually write to parents.
+- **Each language is edited separately**, and a preview shows the message exactly as the recipient will see it — including changes you have not saved yet.
+- **Emptying a box puts the original wording back** rather than sending an email with a gap in it, and the message cannot be saved without the part that lists the missing documents. A mistake in an email that goes to families should not be possible to save, let alone send.
+- **A new Sent tab keeps every email the club has sent from a template**, exactly as it was received. Because the wording can now change, reading today's template would no longer tell you what someone was actually told in August.
+- **Replies now reach the club.** The emails are sent from a no-reply address while the text invited people to reply, so an answer went nowhere; replies are now directed to kontakt@kscw.ch.
+
 ## v1.69.0 — 2026-08-06
 
 ### Registrations: asking for documents we lost
