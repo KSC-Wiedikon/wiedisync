@@ -201,6 +201,10 @@ const LIST_LIMIT = 500
 // servers cap at ~25 MB, so 10 MB total is a safe, generous ceiling for the
 // PDFs/schedules opponents actually exchange. Enforced server-side regardless
 // of what the frontend allows.
+/** Ceiling on a single pasted recipient list (POST /admin/mailbox/lookup).
+ *  The club has ~700 member addresses, so this is roomy for any real list while
+ *  keeping the IN-clause a bounded query. */
+const LOOKUP_MAX_ADDRESSES = 1000
 const ATTACH_MAX_FILES = 10
 const ATTACH_MAX_PER_FILE = 10 * 1024 * 1024
 const ATTACH_MAX_TOTAL = 10 * 1024 * 1024
@@ -1429,6 +1433,106 @@ export function registerSchedulingMailbox(router, { database, logger }) {
         })),
       })
     } catch (err) { fail(res, 'mailbox/expand', err, req) }
+  })
+
+  // POST /kscw/admin/mailbox/lookup — pasted addresses → recipient chips.
+  //
+  // The catalogue answers "mail this audience"; this answers "mail these
+  // people", which is the case no chip combination covers: a hand-curated list
+  // out of a spreadsheet is not a team, a role or a season, and the only way to
+  // reach it before this was to expand a broad audience and delete the rest.
+  //
+  // Deliberately resolved to MEMBER ROWS rather than sent as raw addresses:
+  // that is what makes the pasted list behave like every other audience —
+  // {{vorname}} resolves, `email_notify_announcements` is honoured, suppressed
+  // addresses stay suppressed, and the send stays one message per person. An
+  // address that is nobody in the club is reported back, never silently mailed
+  // and never silently dropped.
+  router.post('/admin/mailbox/lookup', async (req, res) => {
+    const acct = pinnedAdmin()
+    if (!(await authForAccount(req, acct.sport))) return res.status(403).json({ error: 'Admin only' })
+    try {
+      const raw = Array.isArray(req.body?.emails) ? req.body.emails : []
+      // Bounded for the same reason the composer is: a paste is operator input,
+      // and an unbounded IN-list is a query someone can make arbitrarily large.
+      if (raw.length > LOOKUP_MAX_ADDRESSES) {
+        return res.status(413).json({ error: `Too many addresses (max ${LOOKUP_MAX_ADDRESSES})` })
+      }
+      // Unwrap `Name <a@b.ch>` BEFORE cleanAddresses, which keeps only the bare
+      // shape and would drop that form without a word — the same silent loss
+      // the composer's chip field exists to prevent. The frontend already sends
+      // bare addresses; this is for anything that does not.
+      const unwrapped = raw.map((v) => {
+        const m = /^\s*.*<([^<>]+)>\s*$/.exec(String(v ?? ''))
+        return m ? m[1].trim() : v
+      })
+      const wanted = [...new Set(cleanAddresses(unwrapped).map((e) => e.toLowerCase()))]
+      if (wanted.length === 0) return res.status(400).json({ error: 'No addresses' })
+
+      const memberRows = await database('members')
+        .whereIn(database.raw('LOWER(BTRIM(email))'), wanted)
+        .select('id', 'email', 'first_name', 'last_name', 'email_notify_announcements')
+
+      // Anything that is not a member may still be a register contact (a former
+      // member has no member row at all) — the same fallback the send uses for
+      // individually-picked addresses, so a chip made here is a chip the send
+      // can resolve.
+      const matchedMember = new Set(memberRows.map((r) => String(r.email).trim().toLowerCase()))
+      const registerRows = await resolveRegisterEmails(
+        database,
+        wanted.filter((e) => !matchedMember.has(e)),
+      )
+
+      // Same three exclusions as resolveRecipients, reported the same way: a
+      // chip that appears here is a person the send would actually reach.
+      const suppressedSet = await loadSuppressed(database, [
+        ...memberRows.map((r) => r.email),
+        ...registerRows.map((r) => r.email),
+      ])
+      const skipped = { noEmail: 0, optedOut: 0, duplicate: 0, suppressed: 0 }
+      const seen = new Set()
+      const recipients = []
+      const resolvedAddrs = new Set()
+
+      for (const r of memberRows) {
+        const email = String(r.email || '').trim()
+        const key = email.toLowerCase()
+        resolvedAddrs.add(key)
+        if (!email) { skipped.noEmail++; continue }
+        if (!r.email_notify_announcements) { skipped.optedOut++; continue }
+        if (suppressedSet.has(key)) { skipped.suppressed++; continue }
+        if (seen.has(key)) { skipped.duplicate++; continue }
+        seen.add(key)
+        recipients.push({
+          id: r.id,
+          kind: 'member',
+          name: [r.first_name, r.last_name].filter(Boolean).join(' ').trim() || email,
+          email,
+        })
+      }
+      for (const r of registerRows) {
+        const key = r.email.toLowerCase()
+        resolvedAddrs.add(key)
+        if (suppressedSet.has(key)) { skipped.suppressed++; continue }
+        if (seen.has(key)) { skipped.duplicate++; continue }
+        seen.add(key)
+        recipients.push({
+          id: r.id,
+          kind: 'clubdesk',
+          name: [r.first_name, r.last_name].filter(Boolean).join(' ').trim() || r.email,
+          email: r.email,
+        })
+      }
+
+      res.json({
+        requested: wanted.length,
+        recipients,
+        skipped,
+        // Named so the operator can fix the list rather than wonder about the
+        // gap between "I pasted 117" and "115 chips".
+        not_found: wanted.filter((e) => !resolvedAddrs.has(e)),
+      })
+    } catch (err) { fail(res, 'mailbox/lookup', err, req) }
   })
 
   // POST /kscw/admin/mailbox/bulk — preview or send to a group.

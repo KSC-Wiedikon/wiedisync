@@ -24,6 +24,7 @@ const CHANGELOG: ChangelogEntry[] = [
           'Addresses that carry a name are read correctly. “Anna Muster <anna@example.ch>” was previously discarded without a word: the send only ever accepted a bare address, so a recipient pasted in that form silently never received the mail. The name is now stripped off and the address kept.',
           'An address that cannot be read is shown in red and blocks the send instead of being dropped on the way out. Duplicates are merged, so the same person pasted twice gets one copy.',
           'Enter, Tab, comma and semicolon finish the address you are typing; Backspace on an empty field takes the last chip back for editing.',
+          'The group send takes a pasted list too. “Email a group” could only reach an audience the app already knows — a team, a role, a season. A hand-curated list out of a spreadsheet is none of those, and the only way to mail one was to expand a large audience and delete everyone else. You can now paste the addresses straight in: each is matched to the person behind it, and the send treats them exactly like any other audience — one message each rather than one message with everyone’s address in the header, with names filled in and anyone who has unsubscribed left out. It tells you before you send how many were recognised and names the ones that were not.',
         ],
       },
       {

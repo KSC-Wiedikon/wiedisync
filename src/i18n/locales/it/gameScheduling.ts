@@ -754,4 +754,18 @@ export default {
   closedDatesAuto: '{{count}} automatiche',
   closedDatesManual: '{{count}} manuali',
   closedDatesManage: 'Gestisci le date di chiusura',
+
+  // Invio di gruppo — incolla un elenco di indirizzi
+  mailboxPasteOpen: 'Incolla un elenco di indirizzi',
+  mailboxPasteLabel: 'Indirizzi',
+  mailboxPastePlaceholder: 'Uno per riga, oppure separati da virgole o punti e virgola',
+  mailboxPasteCount: '{{count}} indirizzi riconosciuti',
+  mailboxPasteAdd: 'Aggiungi ai destinatari',
+  mailboxPasteAdded: '{{count}} destinatari aggiunti',
+  mailboxPasteNoneValid: 'Nessun indirizzo e-mail valido trovato',
+  mailboxPasteMalformed: '{{count}} illeggibili',
+  mailboxPasteOptedOut: '{{count}} hanno disdetto le e-mail del club',
+  mailboxPasteSuppressed: '{{count}} bloccati (non recapitati o segnalati come spam)',
+  mailboxPasteNotFound: '{{count}} non nel registro del club',
+  mailboxPasteFailed: 'Impossibile cercare gli indirizzi',
 }

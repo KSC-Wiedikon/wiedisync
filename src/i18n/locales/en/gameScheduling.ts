@@ -768,4 +768,18 @@ export default {
 
   // Read-only planner view (coaches / team responsibles, v1)
   plannerReadOnly: 'Read-only view — you can browse the schedule but not make changes.',
+
+  // Group send — paste a list of addresses
+  mailboxPasteOpen: 'Paste a list of addresses',
+  mailboxPasteLabel: 'Addresses',
+  mailboxPastePlaceholder: 'One per line, or separated by commas or semicolons',
+  mailboxPasteCount: '{{count}} addresses recognised',
+  mailboxPasteAdd: 'Add to recipients',
+  mailboxPasteAdded: '{{count}} recipients added',
+  mailboxPasteNoneValid: 'No valid email address found',
+  mailboxPasteMalformed: '{{count}} unreadable',
+  mailboxPasteOptedOut: '{{count}} opted out of club emails',
+  mailboxPasteSuppressed: '{{count}} blocked (bounced or reported as spam)',
+  mailboxPasteNotFound: '{{count}} not in the club register',
+  mailboxPasteFailed: 'Could not look up the addresses',
 }
