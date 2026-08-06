@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '1.68.0'
+const APP_VERSION = '1.69.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,21 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.69.0',
+    date: '06.08.2026',
+    sections: [
+      {
+        title: 'Registrations: asking for documents we lost',
+        items: [
+          'An approved registration can now be asked for its missing documents. Two upload faults in July destroyed or never stored the Swiss Basketball paperwork for seven registrations, and the families had no way of knowing — the registration looked approved and finished from their side.',
+          'The request does not reopen the registration. The person stays a member, keeps their team and their ClubDesk entry; only the documents are asked for. Reopening would have re-run the whole approval — a second welcome email, a second ClubDesk contact — for something that was never their mistake.',
+          'The email lists only what is actually missing, in the language the person registered in, and the link it carries already knows who they are. A Swiss junior is asked for three documents, a foreign one for five, and someone who only lacks the two declarations is asked for two.',
+          'Documents already on file cannot be overwritten by the upload page, so a re-send can never quietly replace something that was already checked.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.68.0',
     date: '05.08.2026',
