@@ -17,9 +17,13 @@ const script = fileURLToPath(new URL('../import-clubdesk-finance.mjs', import.me
 
 const invFixture = join(tmpdir(), `clubdesk-finance-inv-${process.pid}.csv`);
 const bkFixture = join(tmpdir(), `clubdesk-finance-bk-${process.pid}.csv`);
+// ⚠ Two invoices for the SAME [Id]: that column is the recipient CONTACT's
+// ClubDesk id, not an invoice id. Deduping on it dropped 63% of the register
+// (see migration 288) — these two rows must both survive.
 const invBytes = Buffer.from([
   '[Id];Nummer;Rechnungsdatum;Betreff;Betrag;Status;Empfänger;E-Mail',
   'CD-1;R-1;01.07.2025;Beitrag;210;Bezahlt;Petra Müller;petra@example.ch',
+  'CD-1;R-2;01.07.2026;Beitrag;230;Gestellt;Petra Müller;petra@example.ch',
 ].join('\r\n') + '\r\n', 'latin1');
 const bkBytes = Buffer.from([
   'Datum;Soll (Nummer);Soll (Bezeichnung);Haben (Nummer);Haben (Bezeichnung);Betrag (CHF);Typ;Beleg;Text;ID',
@@ -40,6 +44,18 @@ test('emit-sql exits 0 and refreshes both clubdesk mirrors', () => {
   assert.ok(sql.includes("DELETE FROM finance_transactions WHERE source = 'clubdesk';"));
   assert.ok(sql.includes("DELETE FROM finance_invoices WHERE source = 'clubdesk';"));
   assert.ok(sql.includes('1234.50'), 'Swiss amount not normalised');
+});
+
+test('every invoice survives — [Id] is the recipient contact, not the invoice', () => {
+  // The regression that hid for months: one row per invoice, but both rows share
+  // the recipient's [Id], so a dedupe on [Id] keeps only one of them.
+  const values = sql.slice(sql.indexOf('-- 5. invoices'), sql.indexOf('-- 5b.'));
+  assert.ok(values.includes("'R-1'"), 'first invoice dropped');
+  assert.ok(values.includes("'R-2'"), 'second invoice of the same contact dropped');
+  // clubdesk_id must be the invoice number; the contact id rides in cd_contact_id.
+  assert.ok(values.includes('cd_contact_id'), 'cd_contact_id not written');
+  assert.ok(/\('R-2', 'R-2',/.test(values), 'clubdesk_id is not keyed on the invoice Nummer');
+  assert.ok(values.includes("'CD-1')"), 'recipient contact id not carried');
 });
 
 test('provenance rows carry the file sha256 and the same-file guard precedes them', () => {

@@ -8,6 +8,7 @@ import { buildEmailLayout, buildInfoCard, formatDateCH, bucketEmailsByLocale, es
 import { normalizePhone, normalizeIban, normalizeAhv, normalizeEmail, titleCaseName } from './normalize.js'
 import { BB_SITUATIONS, bbRequiredDocs, fibaNatCode } from './bb-docs.js'
 import { writeUserLog } from './activity-log.js'
+import { loadTemplate, mergeTemplate, renderTemplate, sanitizeTemplateHtml, recordEmailSend, validateTemplate } from './email-templates.js'
 import crypto from 'crypto'
 import { streamManagedFile } from './storage-read.js'
 import { Transform } from 'node:stream'
@@ -386,59 +387,74 @@ const DOC_LABELS = {
 DOC_LABELS.gsw = DOC_LABELS.de
 
 // Copy for the staff-triggered "please (re-)upload your documents" email.
+//
+// These are DEFAULTS, not the final word: /admin/email-templates stores an
+// editable row per locale under the key `registration_docs_request`, and each
+// field falls back to the value here when the row is missing or the box was left
+// empty (email-templates.js → mergeTemplate). Editing text must never be able to
+// break a send, so the compiled-in copy always remains reachable.
+//
 // Deliberately says the club lost the files rather than implying the family
 // failed to send them — for the 2026-07 cohort that is simply what happened.
+//
+// Placeholders: {{name}} {{documents}} {{reference}} {{email}} {{link}}.
+// {{documents}} expands to a <ul> of the missing document names and is REQUIRED
+// in body_html (the write hook rejects a body without it).
+// The editable-template key these defaults back. Must match TEMPLATE_KEYS in
+// email-templates.js and the seeded rows in migration 287.
+const DOCS_REQUEST_KEY = 'registration_docs_request'
+const DOCS_SUBTITLE = 'KSC Wiedikon Basketball'
 const DOCS_T = {
   de: {
     subject: 'Bitte Dokumente erneut hochladen — KSC Wiedikon Basketball',
     title: 'Dokumente fehlen',
-    subtitle: 'KSC Wiedikon Basketball',
-    greeting: (name) => `Hallo ${name},`,
-    intro: (name) => `wegen eines technischen Fehlers auf unserer Seite sind die Dokumente zur Anmeldung von <strong style="color:#e2e8f0">${escHtml(name)}</strong> bei uns nicht lesbar angekommen. Das liegt nicht an dir — wir müssen dich leider trotzdem bitten, sie noch einmal hochzuladen.`,
-    listHeader: 'Diese Dokumente fehlen uns noch:',
-    how: 'Über den Button unten kommst du direkt auf die Upload-Seite. Referenz und E-Mail sind bereits ausgefüllt — du musst nur noch die Dateien auswählen (JPG, PNG oder PDF, max. 10 MB pro Datei).',
-    refNote: (ref, email) => `Referenz: ${escHtml(ref)} · E-Mail: ${escHtml(email)}`,
-    help: 'Die Anmeldung selbst bleibt gültig — es fehlen nur die Dokumente für die Lizenz bei Swiss Basketball. Bei Fragen antworte einfach auf diese E-Mail oder schreib an <a href="mailto:kontakt@kscw.ch" style="color:#F97316">kontakt@kscw.ch</a>.',
-    cta: 'Dokumente hochladen',
+    greeting: 'Hallo {{name}},',
+    body_html: `<p>wegen eines technischen Fehlers auf unserer Seite sind die Dokumente zur Anmeldung von <strong style="color:#e2e8f0">{{name}}</strong> bei uns nicht lesbar angekommen. Das liegt nicht an dir — wir müssen dich leider trotzdem bitten, sie noch einmal hochzuladen.</p>
+<p><strong style="color:#e2e8f0">Diese Dokumente fehlen uns noch:</strong></p>
+{{documents}}
+<p>Über den Button unten kommst du direkt auf die Upload-Seite. Referenz und E-Mail sind bereits ausgefüllt — du musst nur noch die Dateien auswählen (JPG, PNG oder PDF, max. 10 MB pro Datei).</p>
+<p style="font-size:13px;color:#94a3b8">Referenz: {{reference}} · E-Mail: {{email}}</p>
+<p>Die Anmeldung selbst bleibt gültig — es fehlen nur die Dokumente für die Lizenz bei Swiss Basketball. Bei Fragen antworte einfach auf diese E-Mail oder schreib an <a href="mailto:kontakt@kscw.ch" style="color:#F97316">kontakt@kscw.ch</a>.</p>`,
+    cta_label: 'Dokumente hochladen',
     footer: 'Vielen Dank — KSC Wiedikon Basketball',
   },
   en: {
     subject: 'Please re-upload your documents — KSC Wiedikon Basketball',
     title: 'Documents missing',
-    subtitle: 'KSC Wiedikon Basketball',
-    greeting: (name) => `Hi ${name},`,
-    intro: (name) => `because of a technical fault on our side, the documents for <strong style="color:#e2e8f0">${escHtml(name)}</strong>'s registration did not reach us in a readable state. This was not your mistake — but we do have to ask you to upload them once more.`,
-    listHeader: 'These documents are still missing:',
-    how: 'The button below takes you straight to the upload page. Your reference and email are already filled in — you only need to pick the files (JPG, PNG or PDF, max. 10 MB each).',
-    refNote: (ref, email) => `Reference: ${escHtml(ref)} · Email: ${escHtml(email)}`,
-    help: 'The registration itself stays valid — only the documents for the Swiss Basketball licence are missing. If anything is unclear, just reply to this email or write to <a href="mailto:kontakt@kscw.ch" style="color:#F97316">kontakt@kscw.ch</a>.',
-    cta: 'Upload documents',
+    greeting: 'Hi {{name}},',
+    body_html: `<p>because of a technical fault on our side, the documents for <strong style="color:#e2e8f0">{{name}}</strong>'s registration did not reach us in a readable state. This was not your mistake — but we do have to ask you to upload them once more.</p>
+<p><strong style="color:#e2e8f0">These documents are still missing:</strong></p>
+{{documents}}
+<p>The button below takes you straight to the upload page. Your reference and email are already filled in — you only need to pick the files (JPG, PNG or PDF, max. 10 MB each).</p>
+<p style="font-size:13px;color:#94a3b8">Reference: {{reference}} · Email: {{email}}</p>
+<p>The registration itself stays valid — only the documents for the Swiss Basketball licence are missing. If anything is unclear, just reply to this email or write to <a href="mailto:kontakt@kscw.ch" style="color:#F97316">kontakt@kscw.ch</a>.</p>`,
+    cta_label: 'Upload documents',
     footer: 'Thank you — KSC Wiedikon Basketball',
   },
   fr: {
     subject: 'Merci de téléverser à nouveau tes documents — KSC Wiedikon Basketball',
     title: 'Documents manquants',
-    subtitle: 'KSC Wiedikon Basketball',
-    greeting: (name) => `Salut ${name},`,
-    intro: (name) => `en raison d'une erreur technique de notre côté, les documents de l'inscription de <strong style="color:#e2e8f0">${escHtml(name)}</strong> ne nous sont pas parvenus dans un état lisible. Ce n'est pas de ta faute — nous devons malgré tout te demander de les téléverser une nouvelle fois.`,
-    listHeader: 'Ces documents nous manquent encore :',
-    how: 'Le bouton ci-dessous te mène directement à la page de téléversement. Ta référence et ton e-mail sont déjà remplis — il te suffit de choisir les fichiers (JPG, PNG ou PDF, 10 Mo max. par fichier).',
-    refNote: (ref, email) => `Référence : ${escHtml(ref)} · E-mail : ${escHtml(email)}`,
-    help: "L'inscription elle-même reste valable — seuls les documents pour la licence Swiss Basketball manquent. Pour toute question, réponds simplement à cet e-mail ou écris à <a href=\"mailto:kontakt@kscw.ch\" style=\"color:#F97316\">kontakt@kscw.ch</a>.",
-    cta: 'Téléverser les documents',
+    greeting: 'Salut {{name}},',
+    body_html: `<p>en raison d'une erreur technique de notre côté, les documents de l'inscription de <strong style="color:#e2e8f0">{{name}}</strong> ne nous sont pas parvenus dans un état lisible. Ce n'est pas de ta faute — nous devons malgré tout te demander de les téléverser une nouvelle fois.</p>
+<p><strong style="color:#e2e8f0">Ces documents nous manquent encore :</strong></p>
+{{documents}}
+<p>Le bouton ci-dessous te mène directement à la page de téléversement. Ta référence et ton e-mail sont déjà remplis — il te suffit de choisir les fichiers (JPG, PNG ou PDF, 10 Mo max. par fichier).</p>
+<p style="font-size:13px;color:#94a3b8">Référence : {{reference}} · E-mail : {{email}}</p>
+<p>L'inscription elle-même reste valable — seuls les documents pour la licence Swiss Basketball manquent. Pour toute question, réponds simplement à cet e-mail ou écris à <a href="mailto:kontakt@kscw.ch" style="color:#F97316">kontakt@kscw.ch</a>.</p>`,
+    cta_label: 'Téléverser les documents',
     footer: 'Merci beaucoup — KSC Wiedikon Basketball',
   },
   it: {
     subject: 'Per favore ricarica i tuoi documenti — KSC Wiedikon Basketball',
     title: 'Documenti mancanti',
-    subtitle: 'KSC Wiedikon Basketball',
-    greeting: (name) => `Ciao ${name},`,
-    intro: (name) => `a causa di un errore tecnico da parte nostra, i documenti dell'iscrizione di <strong style="color:#e2e8f0">${escHtml(name)}</strong> non ci sono arrivati in forma leggibile. Non è colpa tua — dobbiamo comunque chiederti di caricarli un'altra volta.`,
-    listHeader: 'Ci mancano ancora questi documenti:',
-    how: 'Il pulsante qui sotto ti porta direttamente alla pagina di caricamento. Riferimento ed e-mail sono già compilati — devi solo scegliere i file (JPG, PNG o PDF, max. 10 MB ciascuno).',
-    refNote: (ref, email) => `Riferimento: ${escHtml(ref)} · E-mail: ${escHtml(email)}`,
-    help: "L'iscrizione resta valida — mancano solo i documenti per la licenza Swiss Basketball. Per domande rispondi a questa e-mail o scrivi a <a href=\"mailto:kontakt@kscw.ch\" style=\"color:#F97316\">kontakt@kscw.ch</a>.",
-    cta: 'Carica i documenti',
+    greeting: 'Ciao {{name}},',
+    body_html: `<p>a causa di un errore tecnico da parte nostra, i documenti dell'iscrizione di <strong style="color:#e2e8f0">{{name}}</strong> non ci sono arrivati in forma leggibile. Non è colpa tua — dobbiamo comunque chiederti di caricarli un'altra volta.</p>
+<p><strong style="color:#e2e8f0">Ci mancano ancora questi documenti:</strong></p>
+{{documents}}
+<p>Il pulsante qui sotto ti porta direttamente alla pagina di caricamento. Riferimento ed e-mail sono già compilati — devi solo scegliere i file (JPG, PNG o PDF, max. 10 MB ciascuno).</p>
+<p style="font-size:13px;color:#94a3b8">Riferimento: {{reference}} · E-mail: {{email}}</p>
+<p>L'iscrizione resta valida — mancano solo i documenti per la licenza Swiss Basketball. Per domande rispondi a questa e-mail o scrivi a <a href="mailto:kontakt@kscw.ch" style="color:#F97316">kontakt@kscw.ch</a>.</p>`,
+    cta_label: 'Carica i documenti',
     footer: 'Grazie mille — KSC Wiedikon Basketball',
   },
 }
@@ -611,6 +627,62 @@ const SELF_DOC_FIELDS = [
 
 export function registerRegistration(router, { database, logger, services, getSchema }) {
   const log = logger.child({ endpoint: 'registration' })
+
+  // Render the document-request email for one registration. Shared by the send
+  // route and the admin preview so the page can never show copy that differs from
+  // what the family would actually receive.
+  const buildDocsRequestEmail = async (reg, locale, missing, overrides = null) => {
+    const fallback = DOCS_T[locale] || DOCS_T.de
+    const stored = await loadTemplate(database, DOCS_REQUEST_KEY, locale, log)
+    // Precedence: unsaved editor overrides → stored row → compiled-in default,
+    // each resolved per field so a blank box anywhere falls through rather than
+    // producing an empty section.
+    const merged = mergeTemplate(fallback, mergeTemplate(stored || {}, overrides))
+
+    const link = `${KSCW_WEBSITE_URL}/weiteres/anmeldung-dokumente?ref=${encodeURIComponent(reg.reference_number)}&email=${encodeURIComponent(reg.email)}`
+    const listHtml = missing
+      .map((f) => `<li style="margin:4px 0">${escHtml(DOC_LABELS[locale]?.[f] || DOC_LABELS.de[f] || f)}</li>`)
+      .join('')
+
+    // ⚠ Two substitution passes, because the two destinations have opposite
+    // escaping contracts. `body_html` is injected into the layout RAW, so its
+    // values must arrive already escaped. Every other slot (subject, title,
+    // greeting, cta, footer) is either plain text or run through escHtml by
+    // buildEmailLayout itself — pre-escaping those would render a family called
+    // "Ruiz &amp; Sons" literally, with the entity visible.
+    const rawVars = {
+      name: reg.vorname || '',
+      documents: '', // list-only; rejected by validateTemplate outside the body
+      reference: reg.reference_number || '',
+      email: reg.email || '',
+      link,
+    }
+    const htmlVars = {
+      name: escHtml(rawVars.name),
+      documents: `<ul style="padding-left:20px;margin:8px 0;color:#e2e8f0">${listHtml}</ul>`,
+      reference: escHtml(rawVars.reference),
+      email: escHtml(rawVars.email),
+      link: escHtml(link),
+    }
+    const chrome = renderTemplate(
+      { subject: merged.subject, title: merged.title, greeting: merged.greeting, cta_label: merged.cta_label, footer: merged.footer },
+      rawVars,
+    )
+    const { body_html: body } = renderTemplate({ body_html: merged.body_html }, htmlVars)
+
+    return {
+      subject: chrome.subject,
+      html: buildEmailLayout(sanitizeTemplateHtml(body), {
+        sport: reg.membership_type,
+        title: chrome.title,
+        subtitle: DOCS_SUBTITLE,
+        greeting: chrome.greeting,
+        ctaUrl: link,
+        ctaLabel: chrome.cta_label,
+        footerExtra: chrome.footer,
+      }),
+    }
+  }
 
   // ── Member self-view of their own registration documents ────────────────────
   // After approval the registration row is kept and stamped with `member`, so a
@@ -1293,34 +1365,17 @@ export function registerRegistration(router, { database, logger, services, getSc
       }
 
       const locale = REG_LOCALES.includes(reg.locale) ? reg.locale : 'de'
-      const d = DOCS_T[locale] || DOCS_T.de
-      const link = `${KSCW_WEBSITE_URL}/weiteres/anmeldung-dokumente?ref=${encodeURIComponent(reg.reference_number)}&email=${encodeURIComponent(reg.email)}`
-
-      const listHtml = missing
-        .map((f) => `<li style="margin:4px 0">${escHtml(DOC_LABELS[locale]?.[f] || DOC_LABELS.de[f] || f)}</li>`)
-        .join('')
-      const bodyHtml = `
-        <p>${d.intro(reg.vorname)}</p>
-        <p><strong style="color:#e2e8f0">${escHtml(d.listHeader)}</strong></p>
-        <ul style="padding-left:20px;margin:8px 0;color:#e2e8f0">${listHtml}</ul>
-        <p>${d.how}</p>
-        <p style="font-size:13px;color:#94a3b8">${d.refNote(reg.reference_number, reg.email)}</p>
-        <p>${d.help}</p>`
+      const { subject, html } = await buildDocsRequestEmail(reg, locale, missing)
 
       const { MailService } = services
       const mail = new MailService({ schema: await getSchema(), knex: database })
       await mail.send({
         to: reg.email,
-        subject: d.subject,
-        html: buildEmailLayout(bodyHtml, {
-          sport: reg.membership_type,
-          title: d.title,
-          subtitle: d.subtitle,
-          greeting: d.greeting(reg.vorname),
-          ctaUrl: link,
-          ctaLabel: d.cta,
-          footerExtra: d.footer,
-        }),
+        subject,
+        html,
+        // EMAIL_FROM is wiedisync@noreply.kscw.ch, and the copy tells the family
+        // they can simply reply — without this that reply bounces into a void.
+        replyTo: OWNER_EMAIL,
       })
 
       await writeUserLog(database, log, {
@@ -1331,12 +1386,94 @@ export function registerRegistration(router, { database, logger, services, getSc
         data: { reference_number: reg.reference_number, email: reg.email, missing, locale },
       })
 
+      // Archive what actually went out. `user_logs` records that a send happened;
+      // this records the message, so "what exactly did we tell this family?" is
+      // answerable months later without reconstructing it from the template as it
+      // reads today (which may since have been edited).
+      await recordEmailSend(database, log, {
+        templateKey: DOCS_REQUEST_KEY,
+        locale,
+        to: reg.email,
+        subject,
+        html,
+        collection: 'registrations',
+        recordId: id,
+        actor,
+      })
+
       log.info({ msg: 'Registration document request sent', id, ref: reg.reference_number, missing: missing.length })
       return res.json({ success: true, email: reg.email, missing })
     } catch (err) {
       log.error({
         msg: `registration/request-docs: ${err.message}`,
         endpoint: 'registration/request-docs',
+        stack: err.stack,
+      })
+      return res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  // POST /kscw/registration/docs-request-preview — render the document-request
+  // email without sending it.
+  //
+  // The editor needs to show the message as the family will see it, and the only
+  // trustworthy way to do that is to run the real builder: a page that
+  // re-implements the rendering will drift from the sender the first time either
+  // side changes. Optional `overrides` lets the page preview UNSAVED edits, so a
+  // mistake is visible before it is stored, let alone sent.
+  router.post('/registration/docs-request-preview', async (req, res) => {
+    try {
+      if (!req.accountability?.user) {
+        return res.status(401).json({ error: 'Authentication required' })
+      }
+      const actor = await database('members')
+        .where('user', req.accountability.user)
+        .first('id', 'role')
+      const actorRoles = Array.isArray(actor?.role) ? actor.role
+        : (() => { try { return JSON.parse(actor?.role || '[]') } catch { return [] } })()
+      const allowed = req.accountability.admin === true
+        || ['admin', 'superuser', 'vorstand', 'bb_admin'].some((r) => actorRoles.includes(r))
+      if (!allowed) return res.status(403).json({ error: 'Not authorized' })
+
+      const locale = REG_LOCALES.includes(req.body?.locale) ? req.body.locale : 'de'
+      const overrides = req.body?.overrides && typeof req.body.overrides === 'object' ? req.body.overrides : null
+      if (overrides) {
+        // Same rules the write hook applies — previewing must not be a way to see
+        // what an invalid template would look like and assume it is sendable.
+        const errors = validateTemplate(DOCS_REQUEST_KEY, overrides)
+        if (errors.length) return res.status(400).json({ error: errors.join(' '), code: 'template_invalid', errors })
+      }
+
+      // Prefer a real registration that still owes documents, so the preview shows
+      // a genuine list rather than an invented one; fall back to a sample.
+      let reg = null
+      if (req.body?.registration_id) {
+        reg = await database('registrations').where('id', Number(req.body.registration_id))
+          .first('id', 'vorname', 'email', 'reference_number', 'membership_type', 'nationalitaet_code',
+            'nationalitaet_codes', 'geburtsdatum', 'bb_situation', 'bb_recent_licence',
+            'id_upload_front', 'id_upload_back', 'bb_doc_lizenz', 'bb_doc_freibrief',
+            'bb_doc_selfdecl', 'bb_doc_natdecl', 'bb_doc_u18parents', 'bb_doc_schoolcert')
+      }
+      let missing
+      if (reg) {
+        const natCode = fibaNatCode(reg.nationalitaet_codes, reg.nationalitaet_code)
+        const required = bbRequiredDocs(reg.bb_situation, natCode, reg.geburtsdatum, reg.bb_recent_licence)
+        missing = required.filter((f) => !reg[f])
+      }
+      if (!reg || !missing?.length) {
+        reg = {
+          vorname: 'Chiara', email: 'beispiel@example.ch', reference_number: 'REG-2026-0000',
+          membership_type: 'basketball',
+        }
+        missing = ['id_upload_front', 'id_upload_back', 'bb_doc_lizenz', 'bb_doc_selfdecl', 'bb_doc_natdecl']
+      }
+
+      const { subject, html } = await buildDocsRequestEmail(reg, locale, missing, overrides)
+      return res.json({ subject, html, sample: !req.body?.registration_id, missing })
+    } catch (err) {
+      log.error({
+        msg: `registration/docs-request-preview: ${err.message}`,
+        endpoint: 'registration/docs-request-preview',
         stack: err.stack,
       })
       return res.status(500).json({ error: 'Internal error' })

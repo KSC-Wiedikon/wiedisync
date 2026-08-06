@@ -506,6 +506,9 @@ export function registerFinance(router, { database, logger, services, getSchema 
       let removed = 0
       if (email) removed += await database('finance_invoice_member_overrides').whereRaw('lower(match_email) = ?', [email]).del()
       if (inv.clubdesk_id) removed += await database('finance_invoice_member_overrides').where('match_clubdesk_id', inv.clubdesk_id).del()
+      // Also drop a contact-level pin (migration 288) — otherwise the next sync
+      // re-applies it and the invoice silently re-links after an unlink.
+      if (inv.cd_contact_id) removed += await database('finance_invoice_member_overrides').where('match_cd_contact_id', inv.cd_contact_id).del()
       // Clear the member link the override had pinned so the next sync leaves it orphaned.
       let cleared = 0
       if (email) cleared += await database('finance_invoices').where('source', 'clubdesk').whereRaw('lower(recipient_email) = ?', [email]).update({ member: null, date_updated: new Date() })

@@ -25,6 +25,7 @@ import { buildEmailLayout, buildNewsletterEmail, buildInfoCard, buildAlertBox, b
 import { sendLocalizedPush, bucketMembersByLocale, tPush } from '../../kscw-endpoints/src/push-i18n.js'
 import { mintSignupToken, signupInviteUrl, buildGuideHtml } from '../../kscw-endpoints/src/signup-invites.js'
 import { bbRequiredDocs, fibaNatCode } from '../../kscw-endpoints/src/bb-docs.js'
+import { TEMPLATE_FIELDS, validateTemplate, sanitizeTemplateHtml } from '../../kscw-endpoints/src/email-templates.js'
 import { gameStartMs } from '../../kscw-endpoints/src/scorer-roster.js'
 import { currentSeasonShort, seasonStartYear } from '../../kscw-endpoints/src/season.js'
 import { parseJsonArray, resolveMemberAudience } from '../../kscw-endpoints/src/audience.js'
@@ -4365,6 +4366,73 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       }
     }
     return payload
+  })
+
+  // ── Email templates: validate + sanitize + stamp the editor ─────────────────
+  //
+  // Enforced in a hook rather than only in the admin page because the items API is
+  // reachable from the Directus admin app and any API client, and the output of a
+  // bad template lands in a real member's inbox. The rules are the ones a send
+  // cannot recover from on its own: an unknown placeholder would ship literally as
+  // "{{nmae}}", and a body without {{documents}} tells a family that something is
+  // missing without ever saying what.
+  //
+  // Validation runs against the MERGED row (stored values + this patch), not the
+  // patch alone — otherwise clearing only the subject would be judged as though the
+  // body were empty too.
+  const validateEmailTemplateWrite = async (payload, keys, db, accountability) => {
+    const touched = TEMPLATE_FIELDS.filter((f) => payload[f] !== undefined)
+    if (!touched.length && payload.template_key === undefined) return payload
+
+    const rows = keys?.length
+      ? await db('email_templates').whereIn('id', keys).select('id', 'template_key', ...TEMPLATE_FIELDS)
+      : [null]
+
+    for (const row of rows) {
+      const key = payload.template_key ?? row?.template_key
+      const merged = {}
+      for (const f of TEMPLATE_FIELDS) {
+        merged[f] = payload[f] !== undefined ? payload[f] : row?.[f]
+      }
+      const errors = validateTemplate(key, merged)
+      if (errors.length) {
+        throw kscwScopeError(errors.join(' '), 400, 'TEMPLATE_INVALID')
+      }
+    }
+
+    // Strip script/style/handlers on the way in, so the stored value is already
+    // safe for the admin preview to render. The send path sanitizes again — this
+    // is defence in depth, not a substitute.
+    if (typeof payload.body_html === 'string') {
+      payload.body_html = sanitizeTemplateHtml(payload.body_html)
+    }
+
+    // Who last touched the copy. These emails go out over the club's name, so
+    // "who changed this wording" has to be answerable.
+    if (accountability?.user) {
+      try {
+        const m = await db('members').where('user', accountability.user)
+          .first('id', 'first_name', 'last_name', 'email')
+        payload.updated_by_name = m ? [m.first_name, m.last_name].filter(Boolean).join(' ') || null : null
+        payload.updated_by_email = m?.email ?? null
+      } catch { /* stamping is best-effort; validation above is not */ }
+    }
+    payload.date_updated = new Date()
+    return payload
+  }
+
+  filter('email_templates.items.update', async (payload, meta, { accountability, database: db }) =>
+    validateEmailTemplateWrite(payload, meta?.keys, db, accountability))
+  filter('email_templates.items.create', async (payload, _meta, { accountability, database: db }) =>
+    validateEmailTemplateWrite(payload, null, db, accountability))
+
+  // The archive is written by the backend and read by staff — never edited, or it
+  // stops being evidence of what was actually sent.
+  filter('email_sends.items.update', async () => {
+    throw kscwScopeError('Sent emails are a record and cannot be edited.', 403, 'READ_ONLY')
+  })
+  filter('email_sends.items.delete', async () => {
+    throw kscwScopeError('Sent emails are a record and cannot be deleted.', 403, 'READ_ONLY')
   })
 
   // ── Cron: registration-document orphan sweep (04:30 UTC) ────────

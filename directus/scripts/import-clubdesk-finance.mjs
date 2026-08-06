@@ -172,13 +172,17 @@ const bookingValues = bk.rows.map(r => {
     `${sql(amount(v('Betrag (CHF)')))})`
 }).join(',\n  ')
 
-// Dedupe by ClubDesk [Id] — multi-position / collective invoices repeat the
-// invoice id across rows; finance_invoices is invoice-level (UNIQUE clubdesk_id),
-// and the columns we store are all invoice-level, so keeping the first row per id
-// is lossless. Skip rows with no [Id].
+// Dedupe by the invoice NUMBER (migration 288). ⚠ The export's `[Id]` column is
+// the *recipient contact's* ClubDesk id, NOT an invoice id — contact 1000262
+// carries it on all nine of her invoices. Deduping on it (as this did until
+// 2026-08-06) keeps only the newest invoice per person and silently drops the
+// rest: 972 of 2617 invoices imported, 1645 lost every night. `Nummer` is the
+// invoice identity; one export row = one invoice, so this collapses nothing in
+// practice and stays lossless if ClubDesk ever does repeat a number per position.
+// Skip rows with no Nummer.
 const seenInvoiceIds = new Set()
 const invRows = inv.rows.filter((r) => {
-  const id = clean(g(inv, r, '[Id]'))
+  const id = clean(g(inv, r, 'Nummer'))
   if (!id || seenInvoiceIds.has(id)) return false
   seenInvoiceIds.add(id)
   return true
@@ -187,13 +191,16 @@ const invDupCount = inv.rows.length - invRows.length
 
 const invoiceValues = invRows.map(r => {
   const v = (n) => g(inv, r, n)
-  return `(${sql(clean(v('[Id]')))}, ${sql(clean(v('Nummer')) || null)}, ${sql(date(v('Rechnungsdatum')))}, ` +
+  // clubdesk_id is the invoice Nummer; the recipient's [Id] rides along as
+  // cd_contact_id (migration 288) — see the dedupe note above.
+  return `(${sql(clean(v('Nummer')))}, ${sql(clean(v('Nummer')) || null)}, ${sql(date(v('Rechnungsdatum')))}, ` +
     `${sql(clean(v('Betreff')))}, ${sql(amount(v('Betrag')))}, ${sql(clean(v('Status')))}, ` +
     `${sql(clean(v('Mahnstatus')))}, ${sql(date(v('Fällig am')))}, ${sql(amount(v('Betrag Bezahlt')))}, ` +
     `${sql(amount(v('Offener Betrag')))}, ${sql(amount(v('Überbezahlt Betrag')))}, ${sql(amount(v('Abgeschrieben Betrag')))}, ` +
     `${sql(clean(v('Zahlungsart')))}, ${sql(clean(v('Referenznummer')))}, ${sql(clean(v('Beitragskategorie')))}, ` +
     `${sql(date(v('Abgeschlossen am')))}, ${sql(datetime(v('Erstellt am')))}, ${sql(datetime(v('Geändert am')))}, ` +
-    `${sql(clean(v('Empfänger')))}, ${sql(clean(v('E-Mail')))}, ${sql(clean(v('Benutzer-Id')))})`
+    `${sql(clean(v('Empfänger')))}, ${sql(clean(v('E-Mail')))}, ${sql(clean(v('Benutzer-Id')))}, ` +
+    `${sql(clean(v('[Id]')))})`
 }).join(',\n  ')
 
 const accountValues = [...accounts.entries()].map(([num, nm]) =>
@@ -279,22 +286,28 @@ INSERT INTO finance_invoices
   (clubdesk_id, number, invoice_date, subject, amount, status, dunning_status, due_date,
    amount_paid, open_amount, overpaid_amount, written_off_amount, payment_method, reference,
    fee_category, closed_on, cd_created_at, cd_changed_at, recipient_name, recipient_email,
-   cd_benutzer_id, member, fiscal_year, import_batch, source)
+   cd_benutzer_id, cd_contact_id, member, fiscal_year, import_batch, source)
 SELECT v.clubdesk_id, v.number, v.invoice_date::date, v.subject, v.amount::numeric(12,2), v.status,
    v.dunning_status, v.due_date::date, v.amount_paid::numeric(12,2), v.open_amount::numeric(12,2),
    v.overpaid::numeric(12,2), v.written_off::numeric(12,2), v.payment_method, v.reference,
    v.fee_category, v.closed_on::date,
    (v.cd_created::timestamp AT TIME ZONE 'Europe/Zurich'),
    (v.cd_changed::timestamp AT TIME ZONE 'Europe/Zurich'),
-   v.recipient_name, v.recipient_email, v.cd_benutzer_id,
-   (SELECT m.id FROM members m WHERE lower(m.email) = lower(NULLIF(v.recipient_email, '')) ORDER BY m.id LIMIT 1),
+   v.recipient_name, v.recipient_email, v.cd_benutzer_id, v.cd_contact_id,
+   -- Match the member by email, else by the recipient's ClubDesk contact id
+   -- (migration 288). The id fallback catches the invoices whose recipient has no
+   -- e-mail in ClubDesk — a large share of the rows the [Id] dedupe used to drop.
+   COALESCE(
+     (SELECT m.id FROM members m WHERE lower(m.email) = lower(NULLIF(v.recipient_email, '')) ORDER BY m.id LIMIT 1),
+     (SELECT m.id FROM members m WHERE m.clubdesk_id = NULLIF(v.cd_contact_id, '') ORDER BY m.id LIMIT 1)),
    (SELECT fy.id FROM finance_fiscal_years fy WHERE v.invoice_date::date BETWEEN fy.starts_on AND fy.ends_on ORDER BY fy.id LIMIT 1),
    :invoices_imp, 'clubdesk'
 FROM (VALUES
   ${invoiceValues}
 ) AS v(clubdesk_id, number, invoice_date, subject, amount, status, dunning_status, due_date,
        amount_paid, open_amount, overpaid, written_off, payment_method, reference, fee_category,
-       closed_on, cd_created, cd_changed, recipient_name, recipient_email, cd_benutzer_id);
+       closed_on, cd_created, cd_changed, recipient_name, recipient_email, cd_benutzer_id,
+       cd_contact_id);
 
 -- 5b. Re-apply treasurer member-link overrides (migration 129). The delete+
 -- reinsert above wipes any hand-set member FK on clubdesk rows, so re-pin them
@@ -307,6 +320,21 @@ DO $$ BEGIN
       FROM finance_invoice_member_overrides o
       WHERE fi.source = 'clubdesk' AND o.match_email IS NOT NULL
         AND lower(fi.recipient_email) = lower(o.match_email);
+  END IF;
+END $$;
+
+-- 5b (cont.). Contact- then invoice-level overrides (migration 288). Applied after the
+-- e-mail rule and in that order so the most specific pin wins: a contact pin
+-- covers every invoice of that ClubDesk contact, an invoice pin exactly one.
+-- match_cd_contact_id only exists post-288; match_clubdesk_id held a CONTACT id
+-- before it (288 moved those values across), so both are guarded on the column.
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns
+              WHERE table_name = 'finance_invoice_member_overrides' AND column_name = 'match_cd_contact_id') THEN
+    UPDATE finance_invoices fi SET member = o.member
+      FROM finance_invoice_member_overrides o
+      WHERE fi.source = 'clubdesk' AND o.match_cd_contact_id IS NOT NULL
+        AND fi.cd_contact_id = o.match_cd_contact_id;
     UPDATE finance_invoices fi SET member = o.member
       FROM finance_invoice_member_overrides o
       WHERE fi.source = 'clubdesk' AND o.match_clubdesk_id IS NOT NULL

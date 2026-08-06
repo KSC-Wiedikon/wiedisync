@@ -34,6 +34,7 @@ import RefereeExpensesPage from './modules/admin/RefereeExpensesPage'
 import ClubStatsPage from './modules/admin/ClubStatsPage'
 import VolleyFeedbackPage from './modules/admin/VolleyFeedbackPage'
 import AnmeldungenPage from './modules/admin/AnmeldungenPage'
+import EmailTemplatesPage from './modules/admin/EmailTemplatesPage'
 import HallenplanPage from './modules/hallenplan/HallenplanPage'
 import EmbedGamesPage from './modules/games/EmbedGamesPage'
 import LoginPage from './modules/auth/LoginPage'
@@ -220,6 +221,7 @@ export default function App() {
             <Route path="admin/club-stats" element={<AdminRoute><ClubStatsPage /></AdminRoute>} />
             <Route path="admin/volley-feedback" element={<AdminRoute><VolleyFeedbackPage /></AdminRoute>} />
             <Route path="admin/anmeldungen" element={<AdminRoute><AnmeldungenPage /></AdminRoute>} />
+            <Route path="admin/email-templates" element={<AdminRoute><EmailTemplatesPage /></AdminRoute>} />
             <Route path="admin/explore" element={<AdminRoute><ExplorePage /></AdminRoute>} />
             <Route path="admin/announcements" element={<AdminRoute><AnnouncementsPage /></AdminRoute>} />
             <Route path="admin/reports" element={<AdminRoute><Suspense fallback={null}><AdminReportsPage /></Suspense></AdminRoute>} />

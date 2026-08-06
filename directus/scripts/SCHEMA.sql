@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-08-03T10:51:29.145Z
+-- Generated:   2026-08-06T08:00:59.548Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -23,7 +23,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict AWHMEabhRrKKeXODdPuzIVZcY54T3imk0f3Mqa0LWGJTh8htsJcyOMmAE0cAhbs
+\restrict sBeZE4f9VXW95clMJk6mEfBWbHcLmJzqsQNfEog3nV7dLs8i4dwVdIyxOeEy2aY
 
 -- Dumped from database version 16.14 (Debian 16.14-1.pgdg13+1)
 -- Dumped by pg_dump version 16.14 (Debian 16.14-1.pgdg13+1)
@@ -76,6 +76,56 @@ CREATE TYPE public.svrz_push_status_enum AS ENUM (
     'pushed',
     'failed'
 );
+
+
+--
+-- Name: bb_slot_plan_release_slots(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.bb_slot_plan_release_slots() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  UPDATE public.basketball_slots
+     SET status = 'available', plan = NULL, date_updated = now()
+   WHERE plan = OLD.id;
+  RETURN OLD;
+END $$;
+
+
+--
+-- Name: bb_slot_plan_sync_slots(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.bb_slot_plan_sync_slots() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  -- The placement moved (or lost its KSCW team): free the slot it used to hold.
+  IF TG_OP = 'UPDATE' THEN
+    UPDATE public.basketball_slots
+       SET status = 'available', plan = NULL, date_updated = now()
+     WHERE plan = OLD.id
+       AND NOT (season = NEW.season
+                AND kscw_team IS NOT DISTINCT FROM NEW.kscw_team
+                AND date = NEW.date
+                AND "time" = NEW."time"
+                AND hall = NEW.hall);
+  END IF;
+  -- Claim the matching candidate, if the inventory happens to hold one. A placement into a
+  -- slot the generator never offered simply matches nothing — that is legal (the planner
+  -- may always overrule the generator) and must not raise.
+  IF NEW.kscw_team IS NOT NULL THEN
+    UPDATE public.basketball_slots
+       SET status = 'placed', plan = NEW.id, date_updated = now()
+     WHERE season = NEW.season
+       AND kscw_team = NEW.kscw_team
+       AND date = NEW.date
+       AND "time" = NEW."time"
+       AND hall = NEW.hall;
+  END IF;
+  RETURN NULL;
+END $$;
 
 
 --
@@ -801,6 +851,8 @@ BEGIN
              upper(btrim(tok)) AS code,
              CASE upper(btrim(tok))
                WHEN 'JS' THEN 1 WHEN 'C' THEN 2 WHEN 'B' THEN 3 WHEN 'A' THEN 4
+               -- Basketball ladder, after the volleyball rungs (migration 281).
+               WHEN 'T1' THEN 5 WHEN 'T2' THEN 6 WHEN 'T3' THEN 7
                ELSE 9  -- unknown → sorts last, then the CHECK rejects the row
              END AS rank
         FROM unnest(string_to_array(NEW.trainer_licences, ',')) AS tok
@@ -1986,7 +2038,17 @@ CREATE TABLE public.basketball_slot_plan (
     note text,
     created_by integer,
     date_created timestamp with time zone DEFAULT now() NOT NULL,
-    date_updated timestamp with time zone DEFAULT now() NOT NULL
+    date_updated timestamp with time zone DEFAULT now() NOT NULL,
+    opponent_club integer,
+    proposal_status character varying(16) DEFAULT 'draft'::character varying NOT NULL,
+    offered_at timestamp with time zone,
+    responded_at timestamp with time zone,
+    responded_by_name text,
+    responded_by_email text,
+    opponent_note text,
+    counter_proposals jsonb,
+    CONSTRAINT basketball_slot_plan_offer_needs_club_check CHECK ((((proposal_status)::text = 'draft'::text) OR (opponent_club IS NOT NULL))),
+    CONSTRAINT basketball_slot_plan_proposal_status_check CHECK (((proposal_status)::text = ANY ((ARRAY['draft'::character varying, 'offered'::character varying, 'accepted'::character varying, 'declined'::character varying, 'countered'::character varying])::text[])))
 );
 
 
@@ -1995,6 +2057,34 @@ CREATE TABLE public.basketball_slot_plan (
 --
 
 COMMENT ON TABLE public.basketball_slot_plan IS 'A basketball game placed into a fixed KWI hall slot for the ProBasket Spielplansitzung. One row per (season, date, time, hall). kscw_team (or kscw_team_label free-text) vs opponent (from the ProBasket Gruppeneinteilung, or free-text). Free slots + blackout/closure defaults are computed at display time, not stored. Edited via the Basketball prep view (Directus items API → auto actor log).';
+
+
+--
+-- Name: COLUMN basketball_slot_plan.opponent_club; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.basketball_slot_plan.opponent_club IS 'The opponent CLUB this placed game is offered to (basketplan_clubs). Groups a club''s offers under its single portal. The free-text `opponent` column keeps the TEAM name — display-only, and never a join key against Basketplan, which spells the same team differently from the workbook.';
+
+
+--
+-- Name: COLUMN basketball_slot_plan.proposal_status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.basketball_slot_plan.proposal_status IS 'draft (internal, INVISIBLE to the opponent) → offered (published to the club portal) → accepted | declined | countered. The public payload filters proposal_status <> ''draft'' — that filter IS the visibility gate, there is no separate boolean.';
+
+
+--
+-- Name: COLUMN basketball_slot_plan.responded_by_email; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.basketball_slot_plan.responded_by_email IS 'Who at the opponent club answered. The portal write is token-authenticated with no Directus user, so writeUserLog() cannot record an actor — this pair IS the audit trail (CLAUDE.md → Audit logging, option b).';
+
+
+--
+-- Name: COLUMN basketball_slot_plan.counter_proposals; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.basketball_slot_plan.counter_proposals IS 'jsonb array of {date, time} alternatives the opponent suggested when declining. NEVER auto-applied — a KSCW planner re-places the game in the prep grid.';
 
 
 --
@@ -2015,6 +2105,335 @@ CREATE SEQUENCE public.basketball_slot_plan_id_seq
 --
 
 ALTER SEQUENCE public.basketball_slot_plan_id_seq OWNED BY public.basketball_slot_plan.id;
+
+
+--
+-- Name: basketball_slots; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.basketball_slots (
+    id integer NOT NULL,
+    season integer NOT NULL,
+    kscw_team integer NOT NULL,
+    date date NOT NULL,
+    "time" character varying(5) NOT NULL,
+    end_time character varying(5) NOT NULL,
+    hall character varying(16) NOT NULL,
+    status character varying(16) DEFAULT 'available'::character varying NOT NULL,
+    source character varying(16) DEFAULT 'generated'::character varying NOT NULL,
+    score integer DEFAULT 0 NOT NULL,
+    score_reasons jsonb DEFAULT '[]'::jsonb NOT NULL,
+    plan integer,
+    generation_run uuid,
+    generated_at timestamp with time zone,
+    note text,
+    created_by integer,
+    date_created timestamp with time zone DEFAULT now() NOT NULL,
+    date_updated timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT basketball_slots_hall_chk CHECK (((hall)::text = ANY ((ARRAY['KWI A'::character varying, 'KWI B'::character varying, 'KWI C'::character varying, 'KWI A+B'::character varying])::text[]))),
+    CONSTRAINT basketball_slots_reasons_chk CHECK ((jsonb_typeof(score_reasons) = 'array'::text)),
+    CONSTRAINT basketball_slots_source_chk CHECK (((source)::text = ANY ((ARRAY['generated'::character varying, 'manual'::character varying])::text[]))),
+    CONSTRAINT basketball_slots_status_chk CHECK (((status)::text = ANY ((ARRAY['available'::character varying, 'placed'::character varying, 'blocked'::character varying])::text[]))),
+    CONSTRAINT basketball_slots_time_chk CHECK (((("time")::text ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'::text) AND ((end_time)::text ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'::text)))
+);
+
+
+--
+-- Name: TABLE basketball_slots; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.basketball_slots IS 'Generated basketball home-slot inventory: one row per (season, KSCW team, date, time, hall) that survives every HARD rule in basketball_team_rules + bb_slot_config. score = the SOFT ranking (higher is better); score_reasons = [{code,delta}] so the UI can explain it. Written only by POST /kscw/terminplanung/admin/basketball/generate-slots (raw knex + writeUserLog actor capture); re-running upserts on the identity key so it never duplicates. Distinct from basketball_slot_plan, which stays the hand-placed game grid.';
+
+
+--
+-- Name: COLUMN basketball_slots.hall; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.basketball_slots.hall IS 'KWI A | KWI B | KWI C | KWI A+B. A+B is the combined big court and consumes BOTH halves — the generator treats A/B and A+B as mutually exclusive when checking closures, volleyball bookings and existing placements.';
+
+
+--
+-- Name: COLUMN basketball_slots.status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.basketball_slots.status IS 'available | placed (a basketball_slot_plan game occupies it — see plan) | blocked (hand-parked; the generator never writes this). Kept in step with basketball_slot_plan by the two triggers below. NOTE: status and plan are deliberately NOT coupled by a CHECK — the FK''s ON DELETE SET NULL is itself an AFTER trigger and would trip such a CHECK on every placement delete.';
+
+
+--
+-- Name: COLUMN basketball_slots.source; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.basketball_slots.source IS 'generated (rewritten on every run) | manual (hand-added; the generator never deletes or overwrites it).';
+
+
+--
+-- Name: COLUMN basketball_slots.score_reasons; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.basketball_slots.score_reasons IS '[{"code":"preferred_day","delta":30}, …] — every soft term that produced `score`, so the planner can see WHY one slot outranks another. Codes are defined in kscw-endpoints/src/basketball-slots.js (SCORE_CODES).';
+
+
+--
+-- Name: COLUMN basketball_slots.generation_run; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.basketball_slots.generation_run IS 'uuid of the generator run that last wrote this row — lets an operator diff two runs and spot rows a re-run stopped producing.';
+
+
+--
+-- Name: basketball_slots_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.basketball_slots_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: basketball_slots_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.basketball_slots_id_seq OWNED BY public.basketball_slots.id;
+
+
+--
+-- Name: basketball_team_rules; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.basketball_team_rules (
+    id integer NOT NULL,
+    season integer NOT NULL,
+    team integer NOT NULL,
+    enabled boolean DEFAULT true NOT NULL,
+    category character varying(16) DEFAULT 'seniors'::character varying NOT NULL,
+    league character varying(16) DEFAULT 'JUN_REG'::character varying NOT NULL,
+    ferien_hard boolean DEFAULT false NOT NULL,
+    allowed_dows jsonb DEFAULT '[5, 6, 0]'::jsonb NOT NULL,
+    preferred_dows jsonb DEFAULT '[]'::jsonb NOT NULL,
+    start_min character varying(5),
+    start_max character varying(5),
+    start_hard boolean DEFAULT true NOT NULL,
+    halls jsonb DEFAULT '{"hard": false, "tiers": []}'::jsonb NOT NULL,
+    own_back_to_back boolean DEFAULT true NOT NULL,
+    blocked jsonb DEFAULT '[]'::jsonb NOT NULL,
+    note text,
+    created_by integer,
+    date_created timestamp with time zone DEFAULT now() NOT NULL,
+    date_updated timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT basketball_team_rules_category_chk CHECK (((category)::text = ANY ((ARRAY['seniors'::character varying, 'youth'::character varying, 'u18'::character varying])::text[]))),
+    CONSTRAINT basketball_team_rules_dows_chk CHECK (((allowed_dows <@ '[0, 5, 6]'::jsonb) AND (preferred_dows <@ '[0, 5, 6]'::jsonb))),
+    CONSTRAINT basketball_team_rules_json_shape_chk CHECK (((jsonb_typeof(allowed_dows) = 'array'::text) AND (jsonb_typeof(preferred_dows) = 'array'::text) AND (jsonb_typeof(blocked) = 'array'::text) AND (jsonb_typeof(halls) = 'object'::text))),
+    CONSTRAINT basketball_team_rules_league_chk CHECK (((league)::text = ANY ((ARRAY['H4LR'::character varying, 'D3LR'::character varying, 'H3LR'::character varying, 'D2LR'::character varying, 'H2LR'::character varying, 'D1LI'::character varying, 'H1LI'::character varying, 'BLS'::character varying, 'MIXED'::character varying, 'JUN_REG'::character varying, 'JUN_INTER'::character varying, 'HU14_INTER'::character varying, 'KIDS_MINIS'::character varying])::text[]))),
+    CONSTRAINT basketball_team_rules_start_max_chk CHECK (((start_max IS NULL) OR ((start_max)::text ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'::text))),
+    CONSTRAINT basketball_team_rules_start_min_chk CHECK (((start_min IS NULL) OR ((start_min)::text ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'::text))),
+    CONSTRAINT basketball_team_rules_start_order_chk CHECK (((start_min IS NULL) OR (start_max IS NULL) OR ((start_max)::text >= (start_min)::text)))
+);
+
+
+--
+-- Name: TABLE basketball_team_rules; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.basketball_team_rules IS 'Per basketball team, per season: the club constraint matrix that drives basketball slot generation (Google Sheet "Constrains BB Spielplanung"). One row per (season, team). NO row = the team is not slot-generated at all — deliberate: MU8/MU10/DU12/HU12 and the two Classics squads are Turnier/veteran formats with no home fixtures, and volleyball''s "absent config means both sources" default would flood the grid. Edited via Basketball to Settings through the Directus items API, which Directus actor-logs on its own.';
+
+
+--
+-- Name: COLUMN basketball_team_rules.enabled; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.basketball_team_rules.enabled IS 'Generate slots for this team. false = keep the rules but skip generation (same effect as no row, without losing the matrix).';
+
+
+--
+-- Name: COLUMN basketball_team_rules.category; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.basketball_team_rules.category IS 'seniors | youth | u18 — joins the team to the club timeslot matrix in game_scheduling_seasons.bb_slot_config.timeslots. EXPLICIT, never derived from the team name: "1xDU18"/"2xDU18" are u18 and "Herren 2 H3" is seniors despite what the names say.';
+
+
+--
+-- Name: COLUMN basketball_team_rules.league; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.basketball_team_rules.league IS 'ProBasket league code (ProbasketLeagueCode in src/modules/gameScheduling/utils/probasketSeason.ts) — decides the team''s availability-grid WINDOW, which is per league, not per season (the 1.-Liga grid runs to 09.05.2027, the junior one stops on 13.12.2026). Seeded from teams.bb_source_id via KSCW_TEAM_GROUP, NOT from teams.league, which is stale on prod (team 76 "Herren 2 H3" carries H3LS but is registered H2LRA for 26/27).';
+
+
+--
+-- Name: COLUMN basketball_team_rules.ferien_hard; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.basketball_team_rules.ferien_hard IS 'ProBasket "Spiel- und Sperrdaten 2026/2027", verbatim: "In folgenden Zeitfenster werden in allen interregionalen Ligen, sowie in der 1. / 2. Seniorenligen keine Spiele durch den Verband angesetzt. In allen anderen Ferien gilt eine grundsaetzliche Spielpflicht." true = a Ferien blackout HARD-blocks this team; false = it is only a soft score penalty. Sperrdaten ("Sperrdaten fuer alle") block everyone regardless of this flag. Explicit column, never derived from teams.league.';
+
+
+--
+-- Name: COLUMN basketball_team_rules.allowed_dows; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.basketball_team_rules.allowed_dows IS 'HARD allow-list of JS getDay values (5=Fri, 6=Sat, 0=Sun). Sheet "weekends" = [6,0]; default [5,6,0].';
+
+
+--
+-- Name: COLUMN basketball_team_rules.preferred_dows; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.basketball_team_rules.preferred_dows IS 'SOFT preference (scored, never filtered). Sheet "home friday" = [5] — a HOME preference only; it says nothing about away days.';
+
+
+--
+-- Name: COLUMN basketball_team_rules.start_min; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.basketball_team_rules.start_min IS 'Earliest tip-off HH:MM, INCLUSIVE. Sheet "start after 1.30" = 13:30. NULL = no lower bound.';
+
+
+--
+-- Name: COLUMN basketball_team_rules.start_max; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.basketball_team_rules.start_max IS 'Latest tip-off HH:MM, INCLUSIVE. Sheet "start before 1.30" = 13:30. NULL = no upper bound. Both bounds are inclusive by convention, so the Saturday 13:30 pitch is shared by the after-1.30 and before-1.30 camps. The sheet does not say whether 13:30 itself is allowed — inclusive is the reading that leaves DU14/HU14 more than three pitches a weekend. OPEN QUESTION for the sheet author.';
+
+
+--
+-- Name: COLUMN basketball_team_rules.start_hard; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.basketball_team_rules.start_hard IS 'true = the start window is a HARD filter (the slot is not generated); false = a SOFT penalty only. Seeded true: a soft window would still leave Sat 11:00 in Lions D1''s inventory, i.e. the constraint would do nothing. The sheet states no hardness — this is a judgement call, flip per team if wrong.';
+
+
+--
+-- Name: COLUMN basketball_team_rules.halls; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.basketball_team_rules.halls IS '{"hard":bool,"tiers":[{"rank":int,"options":["KWI A+B"],"last_resort":bool}]}. hard=true -> only rank-1 options are generated (sheet "A+B (hard)"). hard=false -> every listed tier is generated, higher ranks scored lower; a hall in NO tier is never generated. Empty tiers = all halls equal.';
+
+
+--
+-- Name: COLUMN basketball_team_rules.own_back_to_back; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.basketball_team_rules.own_back_to_back IS 'Sheet "Back-to-back allowed?" — may this team occupy a pitch adjacent to one of its OWN placed games the same day. false -> adjacent candidates are PENALISED, not removed (soft). NOTE: this is NOT team_links link_type=adjacent, which is a constraint BETWEEN two teams.';
+
+
+--
+-- Name: COLUMN basketball_team_rules.blocked; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.basketball_team_rules.blocked IS 'Array of blocked-date RULES, never expanded dates (the ZH holiday ranges refresh annually via schulferien-sync.js, so frozen dates guarantee drift). Kinds: {"kind":"before_date","date":"YYYY-MM-DD"} (sheet "until oct"); {"kind":"school_holidays","canton":"ZH","include_weekend_before":true} (sheet "holidays and weekend before", resolved at generation time against hall_closures WHERE source=''school_holidays''); {"kind":"date_range","start":"…","end":"…"}. All hard.';
+
+
+--
+-- Name: basketball_team_rules_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.basketball_team_rules_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: basketball_team_rules_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.basketball_team_rules_id_seq OWNED BY public.basketball_team_rules.id;
+
+
+--
+-- Name: basketplan_clubs; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.basketplan_clubs (
+    id integer NOT NULL,
+    bp_club_id integer,
+    name text NOT NULL,
+    short_name text,
+    is_own_club boolean DEFAULT false NOT NULL,
+    active boolean DEFAULT true NOT NULL,
+    contact_name text,
+    contact_email text,
+    contact_email_secondary text,
+    contact_phone text,
+    contact_role_label text,
+    contact_source character varying(16) DEFAULT 'none'::character varying NOT NULL,
+    contact_verified_at timestamp with time zone,
+    bp_person_id integer,
+    source character varying(16) DEFAULT 'workbook'::character varying NOT NULL,
+    note text,
+    last_synced_at timestamp with time zone,
+    date_created timestamp with time zone DEFAULT now() NOT NULL,
+    date_updated timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT basketplan_clubs_contact_source_check CHECK (((contact_source)::text = ANY ((ARRAY['none'::character varying, 'basketplan'::character varying, 'manual'::character varying])::text[]))),
+    CONSTRAINT basketplan_clubs_source_check CHECK (((source)::text = ANY ((ARRAY['workbook'::character varying, 'basketplan'::character varying, 'manual'::character varying])::text[])))
+);
+
+
+--
+-- Name: TABLE basketplan_clubs; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.basketplan_clubs IS 'Basketball opponent clubs + their ProBasket scheduling contact. Seeded by NAME from the ProBasket Teamanmeldungen workbook (sheet "Prov. Gruppeneinteilung" joined to "Klubübersicht"); bp_club_id and the contact block fill in later via the manual Basketplan scrape (directus/scripts/basketplan-scrape-clubs.mjs) or by hand. `id` — not bp_club_id — is the key everything references, because a club exists here before its Basketplan id is known. THIRD-PARTY PII in the contact_* columns: Sport Admin / Terminplanung only, never Member, Coach or Public.';
+
+
+--
+-- Name: COLUMN basketplan_clubs.bp_club_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.basketplan_clubs.bp_club_id IS 'Basketplan clubId — the ?clubId= parameter of findClubById.do (e.g. 350). NULL until the authenticated scrape resolves it; the page is session-gated (302 → showLogin.do, verified 05.08.2026), so the public bp-sync.js XML API can never supply it. KSC Wiedikon itself is 166.';
+
+
+--
+-- Name: COLUMN basketplan_clubs.is_own_club; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.basketplan_clubs.is_own_club IS 'TRUE for KSC Wiedikon. Portal minting excludes it — we never mail ourselves a scheduling link.';
+
+
+--
+-- Name: COLUMN basketplan_clubs.contact_email_secondary; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.basketplan_clubs.contact_email_secondary IS 'Second address on the SAME Basketplan functionary entry (their «Klub Funktionäre» row may carry two). Both addresses are comma-joined into game_scheduling_club_portals.contact_email at portal-mint time.';
+
+
+--
+-- Name: COLUMN basketplan_clubs.contact_source; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.basketplan_clubs.contact_source IS 'none = no contact known yet (the seeded state) | basketplan = scraped from «Klub Funktionäre» | manual = typed in by a KSCW planner. Never guessed: a club with contact_source=none is simply not mailable and must surface as such in the UI.';
+
+
+--
+-- Name: COLUMN basketplan_clubs.source; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.basketplan_clubs.source IS 'workbook = seeded from the ProBasket Teamanmeldungen club list | basketplan = discovered by the scrape | manual = added by hand.';
+
+
+--
+-- Name: basketplan_clubs_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.basketplan_clubs_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: basketplan_clubs_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.basketplan_clubs_id_seq OWNED BY public.basketplan_clubs.id;
 
 
 --
@@ -2607,6 +3026,160 @@ CREATE TABLE public.country_name_aliases (
 --
 
 COMMENT ON TABLE public.country_name_aliases IS 'Lowercased country-name spellings → ISO alpha-2. Parse direction only; never use for display or for the ClubDesk push (that is country_codes.name_de_clubdesk).';
+
+
+--
+-- Name: email_sends; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.email_sends (
+    id integer NOT NULL,
+    template_key character varying(64),
+    locale character varying(5),
+    to_email character varying(255),
+    subject text,
+    body_html text,
+    collection_name character varying(64),
+    record_id character varying(64),
+    sent_by integer,
+    sent_by_name character varying(255),
+    sent_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: TABLE email_sends; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.email_sends IS 'Archive of transactional emails actually sent: the rendered subject + body at send time. Exists because email_templates is editable — re-rendering later gives today''s wording, not what the recipient received. Written by kscw-endpoints only; read-only for staff. Holds PII (name + email in the body) — admin/superuser/sport-admin read only, never Member.';
+
+
+--
+-- Name: email_sends_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.email_sends_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: email_sends_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.email_sends_id_seq OWNED BY public.email_sends.id;
+
+
+--
+-- Name: email_suppressions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.email_suppressions (
+    id integer NOT NULL,
+    email character varying(255) NOT NULL,
+    reason character varying(32) NOT NULL,
+    subtype character varying(64),
+    detail text,
+    source character varying(32) DEFAULT 'ses'::character varying NOT NULL,
+    ses_message_id character varying(255),
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    released_at timestamp with time zone,
+    released_by integer,
+    CONSTRAINT email_suppressions_reason_chk CHECK (((reason)::text = ANY ((ARRAY['bounce'::character varying, 'complaint'::character varying, 'manual'::character varying])::text[])))
+);
+
+
+--
+-- Name: TABLE email_suppressions; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.email_suppressions IS 'Addresses SES told us to stop mailing (permanent bounce / complaint), plus manual entries. Consulted by every send path; written by POST /kscw/ses/notify. released_at un-suppresses without losing the history.';
+
+
+--
+-- Name: COLUMN email_suppressions.reason; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.email_suppressions.reason IS 'bounce = permanent only (transient bounces are NOT suppressed — a full mailbox is not a dead address); complaint = marked as spam; manual = added by an admin.';
+
+
+--
+-- Name: email_suppressions_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.email_suppressions_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: email_suppressions_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.email_suppressions_id_seq OWNED BY public.email_suppressions.id;
+
+
+--
+-- Name: email_templates; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.email_templates (
+    id integer NOT NULL,
+    template_key character varying(64) NOT NULL,
+    locale character varying(5) NOT NULL,
+    subject text,
+    title character varying(255),
+    greeting character varying(255),
+    body_html text,
+    cta_label character varying(120),
+    footer character varying(255),
+    updated_by_name character varying(255),
+    updated_by_email character varying(255),
+    date_updated timestamp with time zone,
+    CONSTRAINT email_templates_locale_chk CHECK (((locale)::text = ANY ((ARRAY['de'::character varying, 'gsw'::character varying, 'en'::character varying, 'fr'::character varying, 'it'::character varying])::text[])))
+);
+
+
+--
+-- Name: TABLE email_templates; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.email_templates IS 'Staff-editable copy for transactional emails, one row per (template_key, locale). The compiled-in copy in kscw-endpoints remains the per-FIELD fallback — a missing row or a cleared box restores the default, so editing text can never break a send. Placeholders are {{name}}-style; the kscw-hooks write filter rejects unknown ones and requires {{documents}} in body_html.';
+
+
+--
+-- Name: COLUMN email_templates.body_html; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.email_templates.body_html IS 'Message body, staff-authored HTML. MUST contain {{documents}}. Sanitized on write (script/style/iframe/on* handlers/javascript: URLs stripped) and again at send.';
+
+
+--
+-- Name: email_templates_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.email_templates_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: email_templates_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.email_templates_id_seq OWNED BY public.email_templates.id;
 
 
 --
@@ -3572,7 +4145,8 @@ CREATE TABLE public.finance_invoice_member_overrides (
     date_updated timestamp with time zone DEFAULT now() NOT NULL,
     user_created uuid,
     user_updated uuid,
-    CONSTRAINT finance_invoice_member_overrides_key_check CHECK (((match_email IS NOT NULL) OR (match_clubdesk_id IS NOT NULL)))
+    match_cd_contact_id character varying(64),
+    CONSTRAINT finance_invoice_member_overrides_key_check CHECK (((match_email IS NOT NULL) OR (match_clubdesk_id IS NOT NULL) OR (match_cd_contact_id IS NOT NULL)))
 );
 
 
@@ -3581,6 +4155,20 @@ CREATE TABLE public.finance_invoice_member_overrides (
 --
 
 COMMENT ON TABLE public.finance_invoice_member_overrides IS 'Treasurer-set member links for ClubDesk-mirror invoices the email match missed. Re-applied by import-clubdesk-finance.mjs after every sync so manual links persist. match_email links all invoices to that recipient email; match_clubdesk_id links one invoice.';
+
+
+--
+-- Name: COLUMN finance_invoice_member_overrides.match_clubdesk_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.finance_invoice_member_overrides.match_clubdesk_id IS 'Pin ONE invoice, by ClubDesk invoice number. Pre-288 rows held a contact id and were moved to match_cd_contact_id.';
+
+
+--
+-- Name: COLUMN finance_invoice_member_overrides.match_cd_contact_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.finance_invoice_member_overrides.match_cd_contact_id IS 'Pin every invoice of this ClubDesk CONTACT to the member (survives the nightly delete+reinsert).';
 
 
 --
@@ -3655,6 +4243,7 @@ CREATE TABLE public.finance_invoices (
     dunning_level smallint DEFAULT 0 NOT NULL,
     contact integer,
     currency character varying(3) DEFAULT 'CHF'::character varying NOT NULL,
+    cd_contact_id character varying(64),
     CONSTRAINT finance_invoices_native_status_check CHECK ((((source)::text <> 'native'::text) OR ((status)::text = ANY ((ARRAY['open'::character varying, 'pending_confirmation'::character varying, 'partial'::character varying, 'paid'::character varying, 'cancelled'::character varying])::text[])))),
     CONSTRAINT finance_invoices_source_check CHECK (((source)::text = ANY (ARRAY[('clubdesk'::character varying)::text, ('native'::character varying)::text])))
 );
@@ -3665,6 +4254,13 @@ CREATE TABLE public.finance_invoices (
 --
 
 COMMENT ON TABLE public.finance_invoices IS 'Member invoices/dues mirrored from the ClubDesk Rechnungen export. Invoice fields + a member link ONLY — AHV/IBAN/home address present in the source CSV are deliberately NOT mirrored (keep the finance module low-PII). number is NULL for draft (Entwurf) invoices; clubdesk_id ([Id]) is the stable upsert key. member matched on recipient_email, fallback cd_benutzer_id.';
+
+
+--
+-- Name: COLUMN finance_invoices.clubdesk_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.finance_invoices.clubdesk_id IS 'The ClubDesk invoice number (export column Nummer). Before migration 288 this wrongly held the recipient contact id, which capped the mirror at one invoice per person.';
 
 
 --
@@ -3707,6 +4303,13 @@ COMMENT ON COLUMN public.finance_invoices.email_sent_at IS 'When this native due
 --
 
 COMMENT ON COLUMN public.finance_invoices.dunning_level IS 'Highest dunning level issued for this native invoice (0=none, 1/2/3). Denormalised from finance_dunning_notices.';
+
+
+--
+-- Name: COLUMN finance_invoices.cd_contact_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.finance_invoices.cd_contact_id IS 'ClubDesk contact id of the recipient (the export''s [Id] column) — matches members.clubdesk_id. NOT the invoice identity; that is clubdesk_id (= the export''s Nummer).';
 
 
 --
@@ -4632,7 +5235,13 @@ CREATE TABLE public.game_scheduling_club_portals (
     expires_at timestamp with time zone,
     created_by_admin boolean DEFAULT true NOT NULL,
     date_created timestamp with time zone DEFAULT now() NOT NULL,
-    date_updated timestamp with time zone DEFAULT now() NOT NULL
+    date_updated timestamp with time zone DEFAULT now() NOT NULL,
+    sport character varying(16) DEFAULT 'volleyball'::character varying NOT NULL,
+    bp_club integer,
+    revoked_at timestamp with time zone,
+    reissued_at timestamp with time zone,
+    CONSTRAINT game_scheduling_club_portals_bp_club_sport_check CHECK (((((sport)::text = 'basketball'::text) AND (bp_club IS NOT NULL)) OR (((sport)::text <> 'basketball'::text) AND (bp_club IS NULL)))),
+    CONSTRAINT game_scheduling_club_portals_sport_check CHECK (((sport)::text = ANY ((ARRAY['volleyball'::character varying, 'basketball'::character varying])::text[])))
 );
 
 
@@ -4641,6 +5250,41 @@ CREATE TABLE public.game_scheduling_club_portals (
 --
 
 COMMENT ON TABLE public.game_scheduling_club_portals IS 'Per-club opponent scheduling portal. One row per (season, club_id) — the shared token behind /terminplanung/club/:token plus the club-level contact/language/status. Groups the club''s per-team game_scheduling_opponents rows (by season+club_id) so an opponent club gets ONE link covering all its teams vs KSCW. Only minted for seasons with game_scheduling_seasons.use_club_portals = true. Managed via the kscw game-scheduling endpoints (knex); public reads are token-gated in code.';
+
+
+--
+-- Name: COLUMN game_scheduling_club_portals.club_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.game_scheduling_club_portals.club_id IS 'Opponent club id. sport=volleyball → SVRZ club id (the non-912530 side of svrz_games). sport=basketball → basketplan_clubs.id as text (NOT the Basketplan clubId, which is often still unknown).';
+
+
+--
+-- Name: COLUMN game_scheduling_club_portals.sport; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.game_scheduling_club_portals.sport IS 'volleyball = the SVRZ per-fixture engine (migration 213). basketball = ProBasket pre-agreement on placed basketball_slot_plan rows (migration 280). The two sports have SEPARATE public endpoints (/kscw/terminplanung/club/* vs /kscw/terminplanung/bb/club/*) that each resolve tokens out of this one table.';
+
+
+--
+-- Name: COLUMN game_scheduling_club_portals.bp_club; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.game_scheduling_club_portals.bp_club IS 'basketplan_clubs.id for basketball portals (same value as club_id, typed + FK-enforced). NULL for volleyball, whose club_id is an SVRZ club id.';
+
+
+--
+-- Name: COLUMN game_scheduling_club_portals.revoked_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.game_scheduling_club_portals.revoked_at IS 'When an admin killed this link. status is flipped to ''revoked'' at the same time; the token lookup only accepts invited/viewed/booked.';
+
+
+--
+-- Name: COLUMN game_scheduling_club_portals.reissued_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.game_scheduling_club_portals.reissued_at IS 'When the token was last regenerated (new 32-hex token, status reset to invited, first_viewed_at cleared).';
 
 
 --
@@ -4823,7 +5467,8 @@ CREATE TABLE public.game_scheduling_seasons (
     season_opens date,
     season_closes date,
     vm_authority_date date,
-    use_club_portals boolean DEFAULT false NOT NULL
+    use_club_portals boolean DEFAULT false NOT NULL,
+    bb_slot_config jsonb DEFAULT '{}'::jsonb NOT NULL
 );
 
 
@@ -4853,6 +5498,13 @@ COMMENT ON COLUMN public.game_scheduling_seasons.season_closes IS 'Last date the
 --
 
 COMMENT ON COLUMN public.game_scheduling_seasons.vm_authority_date IS 'Date the Swiss Volley feed becomes authoritative for tool-scheduled games'' date/time/venue. Before it, the sync protects the agreed values against the feed placeholder; on/after it, the feed wins. NULL → protect indefinitely (until the game is completed).';
+
+
+--
+-- Name: COLUMN game_scheduling_seasons.bb_slot_config; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.game_scheduling_seasons.bb_slot_config IS 'Club-level basketball slot-generation config: {version, timeslots:[{dow,time,allow[],tolerate[]}], spielsamstage:[{date,status,note}]}. dow uses JS getDay (5=Fri, 6=Sat, 0=Sun); the TIMES are not authoritative here — they reference the fixed grid in src/modules/gameScheduling/utils/probasketSeason.ts (FRIDAY_SLOTS/SATURDAY_SLOTS/SUNDAY_SLOTS), so the two cannot drift. allow = the slot is meant for this category; tolerate = permitted but scored lower. spielsamstage.status: given (volleyball already booked KWI that weekend) | desired | fraglich | bei_bedarf. The per-LEAGUE season windows and the ProBasket Ferien/Sperrdaten are NOT stored here — they live in probasketSeason.ts and are mirrored by kscw-endpoints/src/basketball-slots.js.';
 
 
 --
@@ -5704,7 +6356,7 @@ CREATE TABLE public.members (
     CONSTRAINT members_license_nr_fmt CHECK (((license_nr IS NULL) OR (((license_nr)::text ~ '^[0-9]+$'::text) AND ((license_nr)::text <> '0'::text)))),
     CONSTRAINT members_nationalitaet_codes_fmt CHECK (((nationalitaet_codes IS NULL) OR ((nationalitaet_codes)::text ~ '^[A-Z]{2}(,[A-Z]{2})*$'::text))),
     CONSTRAINT members_role_values_valid CHECK ((role <@ '["user", "admin", "superuser", "vb_admin", "bb_admin", "vorstand", "website_admin", "finance"]'::jsonb)),
-    CONSTRAINT members_trainer_licences_fmt CHECK (((trainer_licences IS NULL) OR ((trainer_licences)::text ~ '^(JS|C|B|A)(,(JS|C|B|A))*$'::text))),
+    CONSTRAINT members_trainer_licences_fmt CHECK (((trainer_licences IS NULL) OR ((trainer_licences)::text ~ '^(JS|C|B|A|T1|T2|T3)(,(JS|C|B|A|T1|T2|T3))*$'::text))),
     CONSTRAINT members_transfer_status_chk CHECK (((transfer_status IS NULL) OR ((transfer_status)::text = ANY ((ARRAY['pending'::character varying, 'done'::character varying])::text[]))))
 );
 
@@ -6112,7 +6764,7 @@ COMMENT ON COLUMN public.members.profile_verified_at IS 'When the member last co
 -- Name: COLUMN members.trainer_licences; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.members.trainer_licences IS 'Coaching education (Trainerausbildung) held by this member: ordered, comma-separated subset of JS (Jugend+Sport Leiter/in), C, B, A. Multi-valued by design — J+S is a separate track from the federation C/B/A ladder, so "JS,B" is an ordinary value. NULL = none / not recorded. Normalized to canonical order by trigger members_normalize_trainer_licences_trg. WIEDISYNC-OWNED and synced BOTH WAYS with ClubDesk''s "Trainer Lizenz" free-text field (migration 275): the push renders these codes as the club wording ("J+S, B") echo-protected, and the down-sync parses that text back fill-only. Do not confuse with ClubDesk''s "JS ID", which is the J+S Personennummer and maps to members.js_id.';
+COMMENT ON COLUMN public.members.trainer_licences IS 'Coaching education (Trainerausbildung) held by this member: ordered, comma-separated subset of JS (Jugend+Sport Leiter/in), the Swiss Volley rungs C/B/A, and the Swiss Basketball rungs T1/T2/T3 (= "Trainer 1/2/3", migration 281). Multi-valued by design and ACROSS ladders — J+S is a separate track from either federation''s ladder, so "JS,B" and "JS,T2" are ordinary values. The two sport ladders are NOT interchangeable: T2 is not a synonym for B. NULL = none / not recorded. Normalized to canonical order by trigger members_normalize_trainer_licences_trg. Synced two-way with ClubDesk''s free-text "Trainer Lizenz" cell (its "JS ID" is a different thing and maps to members.js_id).';
 
 
 --
@@ -6939,8 +7591,17 @@ CREATE TABLE public.scheduling_global_blocks (
     reason text,
     created_by integer,
     date_created timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT scheduling_global_blocks_dates_check CHECK ((end_date >= start_date))
+    sport character varying(20),
+    CONSTRAINT scheduling_global_blocks_dates_check CHECK ((end_date >= start_date)),
+    CONSTRAINT scheduling_global_blocks_sport_chk CHECK (((sport IS NULL) OR ((sport)::text = ANY ((ARRAY['volleyball'::character varying, 'basketball'::character varying])::text[]))))
 );
+
+
+--
+-- Name: COLUMN scheduling_global_blocks.sport; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.scheduling_global_blocks.sport IS 'Which sport this blackout applies to. NULL = club-wide (both), the default and the safe fallback. Readers MUST test (sport IS NULL OR sport = <own sport>) — a bare equality drops the club-wide rows.';
 
 
 --
@@ -8430,6 +9091,27 @@ ALTER TABLE ONLY public.basketball_slot_plan ALTER COLUMN id SET DEFAULT nextval
 
 
 --
+-- Name: basketball_slots id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.basketball_slots ALTER COLUMN id SET DEFAULT nextval('public.basketball_slots_id_seq'::regclass);
+
+
+--
+-- Name: basketball_team_rules id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.basketball_team_rules ALTER COLUMN id SET DEFAULT nextval('public.basketball_team_rules_id_seq'::regclass);
+
+
+--
+-- Name: basketplan_clubs id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.basketplan_clubs ALTER COLUMN id SET DEFAULT nextval('public.basketplan_clubs_id_seq'::regclass);
+
+
+--
 -- Name: broadcasts id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -8448,6 +9130,27 @@ ALTER TABLE ONLY public.bugfix_jobs ALTER COLUMN id SET DEFAULT nextval('public.
 --
 
 ALTER TABLE ONLY public.clubdesk_export ALTER COLUMN row_id SET DEFAULT nextval('public.clubdesk_export_row_id_seq'::regclass);
+
+
+--
+-- Name: email_sends id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.email_sends ALTER COLUMN id SET DEFAULT nextval('public.email_sends_id_seq'::regclass);
+
+
+--
+-- Name: email_suppressions id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.email_suppressions ALTER COLUMN id SET DEFAULT nextval('public.email_suppressions_id_seq'::regclass);
+
+
+--
+-- Name: email_templates id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.email_templates ALTER COLUMN id SET DEFAULT nextval('public.email_templates_id_seq'::regclass);
 
 
 --
@@ -9118,11 +9821,51 @@ ALTER TABLE ONLY public.basketball_slot_plan
 
 
 --
+-- Name: basketball_slots basketball_slots_identity_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.basketball_slots
+    ADD CONSTRAINT basketball_slots_identity_unique UNIQUE (season, kscw_team, date, "time", hall);
+
+
+--
+-- Name: basketball_slots basketball_slots_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.basketball_slots
+    ADD CONSTRAINT basketball_slots_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: team_links basketball_team_links_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.team_links
     ADD CONSTRAINT basketball_team_links_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: basketball_team_rules basketball_team_rules_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.basketball_team_rules
+    ADD CONSTRAINT basketball_team_rules_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: basketball_team_rules basketball_team_rules_season_team_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.basketball_team_rules
+    ADD CONSTRAINT basketball_team_rules_season_team_unique UNIQUE (season, team);
+
+
+--
+-- Name: basketplan_clubs basketplan_clubs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.basketplan_clubs
+    ADD CONSTRAINT basketplan_clubs_pkey PRIMARY KEY (id);
 
 
 --
@@ -9235,6 +9978,38 @@ ALTER TABLE ONLY public.country_codes
 
 ALTER TABLE ONLY public.country_name_aliases
     ADD CONSTRAINT country_name_aliases_pkey PRIMARY KEY (alias);
+
+
+--
+-- Name: email_sends email_sends_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.email_sends
+    ADD CONSTRAINT email_sends_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: email_suppressions email_suppressions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.email_suppressions
+    ADD CONSTRAINT email_suppressions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: email_templates email_templates_key_locale_uniq; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.email_templates
+    ADD CONSTRAINT email_templates_key_locale_uniq UNIQUE (template_key, locale);
+
+
+--
+-- Name: email_templates email_templates_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.email_templates
+    ADD CONSTRAINT email_templates_pkey PRIMARY KEY (id);
 
 
 --
@@ -9614,11 +10389,11 @@ ALTER TABLE ONLY public.game_scheduling_club_portals
 
 
 --
--- Name: game_scheduling_club_portals game_scheduling_club_portals_season_club_unique; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: game_scheduling_club_portals game_scheduling_club_portals_season_sport_club_unique; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.game_scheduling_club_portals
-    ADD CONSTRAINT game_scheduling_club_portals_season_club_unique UNIQUE (season, club_id);
+    ADD CONSTRAINT game_scheduling_club_portals_season_sport_club_unique UNIQUE (season, sport, club_id);
 
 
 --
@@ -10306,6 +11081,62 @@ CREATE INDEX basketball_slot_plan_season_date_idx ON public.basketball_slot_plan
 
 
 --
+-- Name: basketball_slot_plan_season_oppclub_status_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX basketball_slot_plan_season_oppclub_status_idx ON public.basketball_slot_plan USING btree (season, opponent_club, proposal_status);
+
+
+--
+-- Name: basketball_slots_placed_unique; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX basketball_slots_placed_unique ON public.basketball_slots USING btree (season, date, "time", hall) WHERE ((status)::text = 'placed'::text);
+
+
+--
+-- Name: basketball_slots_plan_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX basketball_slots_plan_idx ON public.basketball_slots USING btree (plan) WHERE (plan IS NOT NULL);
+
+
+--
+-- Name: basketball_slots_season_date_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX basketball_slots_season_date_idx ON public.basketball_slots USING btree (season, date);
+
+
+--
+-- Name: basketball_slots_season_team_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX basketball_slots_season_team_idx ON public.basketball_slots USING btree (season, kscw_team);
+
+
+--
+-- Name: basketball_team_rules_season_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX basketball_team_rules_season_idx ON public.basketball_team_rules USING btree (season);
+
+
+--
+-- Name: basketplan_clubs_bp_club_id_unique; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX basketplan_clubs_bp_club_id_unique ON public.basketplan_clubs USING btree (bp_club_id) WHERE (bp_club_id IS NOT NULL);
+
+
+--
+-- Name: basketplan_clubs_name_unique; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX basketplan_clubs_name_unique ON public.basketplan_clubs USING btree (lower(btrim(name)));
+
+
+--
 -- Name: basketplan_people_licence_nr_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -10345,6 +11176,34 @@ CREATE INDEX country_codes_name_de_lower_idx ON public.country_codes USING btree
 --
 
 CREATE INDEX country_codes_name_en_lower_idx ON public.country_codes USING btree (lower(name_en));
+
+
+--
+-- Name: email_sends_record_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX email_sends_record_idx ON public.email_sends USING btree (collection_name, record_id);
+
+
+--
+-- Name: email_sends_sent_at_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX email_sends_sent_at_idx ON public.email_sends USING btree (sent_at DESC);
+
+
+--
+-- Name: email_suppressions_active_uniq; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX email_suppressions_active_uniq ON public.email_suppressions USING btree (email) WHERE (released_at IS NULL);
+
+
+--
+-- Name: email_suppressions_lookup; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX email_suppressions_lookup ON public.email_suppressions USING btree (email) WHERE (released_at IS NULL);
 
 
 --
@@ -10499,6 +11358,13 @@ CREATE UNIQUE INDEX finance_invoice_member_overrides_email_uidx ON public.financ
 --
 
 CREATE INDEX finance_invoice_member_overrides_member_idx ON public.finance_invoice_member_overrides USING btree (member);
+
+
+--
+-- Name: finance_invoices_cd_contact_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX finance_invoices_cd_contact_id_idx ON public.finance_invoices USING btree (cd_contact_id);
 
 
 --
@@ -10758,6 +11624,13 @@ CREATE INDEX game_scheduling_bookings_slot_index ON public.game_scheduling_booki
 --
 
 CREATE INDEX game_scheduling_bookings_svrz_game_id_index ON public.game_scheduling_bookings USING btree (svrz_game_id);
+
+
+--
+-- Name: game_scheduling_club_portals_season_sport_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX game_scheduling_club_portals_season_sport_idx ON public.game_scheduling_club_portals USING btree (season, sport);
 
 
 --
@@ -11979,6 +12852,20 @@ CREATE TRIGGER trg_activity_chat_event_delete AFTER DELETE ON public.events FOR 
 
 
 --
+-- Name: basketball_slot_plan trg_basketball_slot_plan_0_release_slots; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_basketball_slot_plan_0_release_slots BEFORE DELETE ON public.basketball_slot_plan FOR EACH ROW EXECUTE FUNCTION public.bb_slot_plan_release_slots();
+
+
+--
+-- Name: basketball_slot_plan trg_basketball_slot_plan_0_sync_slots; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_basketball_slot_plan_0_sync_slots AFTER INSERT OR UPDATE ON public.basketball_slot_plan FOR EACH ROW EXECUTE FUNCTION public.bb_slot_plan_sync_slots();
+
+
+--
 -- Name: events trg_events_0_purge_polymorphic; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -12319,11 +13206,51 @@ ALTER TABLE ONLY public.basketball_slot_plan
 
 
 --
+-- Name: basketball_slot_plan basketball_slot_plan_opponent_club_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.basketball_slot_plan
+    ADD CONSTRAINT basketball_slot_plan_opponent_club_fk FOREIGN KEY (opponent_club) REFERENCES public.basketplan_clubs(id) ON DELETE SET NULL;
+
+
+--
 -- Name: basketball_slot_plan basketball_slot_plan_season_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.basketball_slot_plan
     ADD CONSTRAINT basketball_slot_plan_season_fkey FOREIGN KEY (season) REFERENCES public.game_scheduling_seasons(id) ON DELETE CASCADE;
+
+
+--
+-- Name: basketball_slots basketball_slots_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.basketball_slots
+    ADD CONSTRAINT basketball_slots_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.members(id) ON DELETE SET NULL;
+
+
+--
+-- Name: basketball_slots basketball_slots_kscw_team_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.basketball_slots
+    ADD CONSTRAINT basketball_slots_kscw_team_fkey FOREIGN KEY (kscw_team) REFERENCES public.teams(id) ON DELETE CASCADE;
+
+
+--
+-- Name: basketball_slots basketball_slots_plan_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.basketball_slots
+    ADD CONSTRAINT basketball_slots_plan_fkey FOREIGN KEY (plan) REFERENCES public.basketball_slot_plan(id) ON DELETE SET NULL;
+
+
+--
+-- Name: basketball_slots basketball_slots_season_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.basketball_slots
+    ADD CONSTRAINT basketball_slots_season_fkey FOREIGN KEY (season) REFERENCES public.game_scheduling_seasons(id) ON DELETE CASCADE;
 
 
 --
@@ -12356,6 +13283,30 @@ ALTER TABLE ONLY public.team_links
 
 ALTER TABLE ONLY public.team_links
     ADD CONSTRAINT basketball_team_links_team_b_fkey FOREIGN KEY (team_b) REFERENCES public.teams(id) ON DELETE CASCADE;
+
+
+--
+-- Name: basketball_team_rules basketball_team_rules_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.basketball_team_rules
+    ADD CONSTRAINT basketball_team_rules_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.members(id) ON DELETE SET NULL;
+
+
+--
+-- Name: basketball_team_rules basketball_team_rules_season_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.basketball_team_rules
+    ADD CONSTRAINT basketball_team_rules_season_fkey FOREIGN KEY (season) REFERENCES public.game_scheduling_seasons(id) ON DELETE CASCADE;
+
+
+--
+-- Name: basketball_team_rules basketball_team_rules_team_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.basketball_team_rules
+    ADD CONSTRAINT basketball_team_rules_team_fkey FOREIGN KEY (team) REFERENCES public.teams(id) ON DELETE CASCADE;
 
 
 --
@@ -12428,6 +13379,22 @@ ALTER TABLE ONLY public.conversations
 
 ALTER TABLE ONLY public.country_name_aliases
     ADD CONSTRAINT country_name_aliases_code_fkey FOREIGN KEY (code) REFERENCES public.country_codes(code) ON DELETE CASCADE;
+
+
+--
+-- Name: email_sends email_sends_sent_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.email_sends
+    ADD CONSTRAINT email_sends_sent_by_fkey FOREIGN KEY (sent_by) REFERENCES public.members(id) ON DELETE SET NULL;
+
+
+--
+-- Name: email_suppressions email_suppressions_released_by_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.email_suppressions
+    ADD CONSTRAINT email_suppressions_released_by_fk FOREIGN KEY (released_by) REFERENCES public.members(id) ON DELETE SET NULL;
 
 
 --
@@ -12964,6 +13931,14 @@ ALTER TABLE ONLY public.game_rosters
 
 ALTER TABLE ONLY public.game_scheduling_bookings
     ADD CONSTRAINT game_scheduling_bookings_season_fkey FOREIGN KEY (season) REFERENCES public.game_scheduling_seasons(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: game_scheduling_club_portals game_scheduling_club_portals_bp_club_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.game_scheduling_club_portals
+    ADD CONSTRAINT game_scheduling_club_portals_bp_club_fk FOREIGN KEY (bp_club) REFERENCES public.basketplan_clubs(id) ON DELETE CASCADE;
 
 
 --
@@ -14022,5 +14997,5 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict AWHMEabhRrKKeXODdPuzIVZcY54T3imk0f3Mqa0LWGJTh8htsJcyOMmAE0cAhbs
+\unrestrict sBeZE4f9VXW95clMJk6mEfBWbHcLmJzqsQNfEog3nV7dLs8i4dwVdIyxOeEy2aY
 
