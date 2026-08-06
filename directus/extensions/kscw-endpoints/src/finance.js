@@ -685,7 +685,12 @@ export function registerFinance(router, { database, logger, services, getSchema 
       // The schedule supplies the season's BASE; the surcharge/guest rules are
       // per-member and cannot live in a (category, sektion) rate row.
       const fee = rate
-        ? feeBreakdown(m.beitragskategorie, m, { baseOverride: rate.amount_chf, isGuest: guests.has(Number(m.id)) })
+        ? feeBreakdown(m.beitragskategorie, m, {
+            baseOverride: rate.amount_chf,
+            isGuest: guests.has(Number(m.id)),
+            // Capping lives in the fee model, where it is unit-tested.
+            discount: discounts.get(Number(m.id)) || 0,
+          })
         : null
       return {
         member: m.id,
@@ -699,12 +704,9 @@ export function registerFinance(router, { database, logger, services, getSchema 
         base_amount: fee ? round2(fee.base) : null,
         surcharge: fee ? round2(fee.surcharge) : 0,
         guest_discount: fee ? round2(fee.guest_discount) : 0,
-        // Capped at the fee — a discount may take a bill to zero (the issue path
-        // then skips it as a zero-rate row) but never below, which would mint an
-        // invoice that owes the member money.
-        discount: fee ? Math.min(round2(discounts.get(Number(m.id)) || 0), round2(fee.amount)) : 0,
-        discount_reason: discounts.has(Number(m.id)) ? discountReason : null,
-        amount: fee ? round2(fee.amount - Math.min(round2(discounts.get(Number(m.id)) || 0), round2(fee.amount))) : null,
+        discount: fee ? round2(fee.discount) : 0,
+        discount_reason: fee && fee.discount > 0 ? discountReason : null,
+        amount: fee ? round2(fee.amount) : null,
         subject_template: rate?.subject_template || null,
         already_billed: billed.has(Number(m.id)),
         clubdesk_billed: clubdeskBilled.has(Number(m.id)),

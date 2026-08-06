@@ -704,9 +704,9 @@ describe('feeBreakdown', () => {
 
   it('itemises base and surcharge rather than just the total', () => {
     expect(feeBreakdown('VB Erwerbstätige', adultNoLic))
-      .toEqual({ category: 'VB Erwerbstätige', base: 440, surcharge: 100, guest_discount: 0, amount: 540 })
+      .toEqual({ category: 'VB Erwerbstätige', base: 440, surcharge: 100, discount: 0, guest_discount: 0, amount: 540 })
     expect(feeBreakdown('VB Erwerbstätige', { scorer_vb: true }))
-      .toEqual({ category: 'VB Erwerbstätige', base: 440, surcharge: 0, guest_discount: 0, amount: 440 })
+      .toEqual({ category: 'VB Erwerbstätige', base: 440, surcharge: 0, discount: 0, guest_discount: 0, amount: 440 })
   })
 
   it('agrees with deriveMitgliederbeitrag on every mapped category', () => {
@@ -722,22 +722,22 @@ describe('feeBreakdown', () => {
 
   it('a guest is discounted and never surcharged', () => {
     expect(feeBreakdown('VB Erwerbstätige', adultNoLic, { isGuest: true }))
-      .toEqual({ category: 'VB Erwerbstätige', base: 440, surcharge: 0, guest_discount: 110, amount: 330 })
+      .toEqual({ category: 'VB Erwerbstätige', base: 440, surcharge: 0, discount: 0, guest_discount: 110, amount: 330 })
   })
 
   it('caps the guest discount at the base — no negative invoice', () => {
     // 'VB Turnier KWI' is 110: the discount takes it to exactly 0, not below.
     expect(feeBreakdown('VB Turnier KWI', null, { isGuest: true }))
-      .toEqual({ category: 'VB Turnier KWI', base: 110, surcharge: 0, guest_discount: 110, amount: 0 })
+      .toEqual({ category: 'VB Turnier KWI', base: 110, surcharge: 0, discount: 0, guest_discount: 110, amount: 0 })
     // 'Gratis' is 0: reporting a 110 discount off nothing would be a lie.
     expect(feeBreakdown('Gratis', null, { isGuest: true }))
-      .toEqual({ category: 'Gratis', base: 0, surcharge: 0, guest_discount: 0, amount: 0 })
+      .toEqual({ category: 'Gratis', base: 0, surcharge: 0, discount: 0, guest_discount: 0, amount: 0 })
   })
 
   it('baseOverride replaces the base but keeps the surcharge rules', () => {
     // What a season rate change looks like: schedule says 460, duty still owed.
     expect(feeBreakdown('VB Erwerbstätige', adultNoLic, { baseOverride: 460 }))
-      .toEqual({ category: 'VB Erwerbstätige', base: 460, surcharge: 100, guest_discount: 0, amount: 560 })
+      .toEqual({ category: 'VB Erwerbstätige', base: 460, surcharge: 100, discount: 0, guest_discount: 0, amount: 560 })
   })
 
   it('accepts a Postgres numeric override, which arrives as a string', () => {
@@ -750,12 +750,58 @@ describe('feeBreakdown', () => {
     // e.g. 'VB Schüler*in Meisterschaft mit Abzug' — the treasurer sets a rate,
     // and we do not invent a surcharge for a name the rules do not know.
     expect(feeBreakdown('VB Schüler*in Meisterschaft mit Abzug', adultNoLic, { baseOverride: 200 }))
-      .toEqual({ category: 'VB Schüler*in Meisterschaft mit Abzug', base: 200, surcharge: 0, guest_discount: 0, amount: 200 })
+      .toEqual({ category: 'VB Schüler*in Meisterschaft mit Abzug', base: 200, surcharge: 0, discount: 0, guest_discount: 0, amount: 200 })
   })
 
   it('returns null when there is no base — never a guessed amount', () => {
     expect(feeBreakdown('Sponsor')).toBeNull()
     expect(feeBreakdown(null)).toBeNull()
     expect(feeBreakdown('Sponsor', null, { baseOverride: '' })).toBeNull()
+  })
+})
+
+// The treasurer's on-demand reduction. It lives in the fee model rather than in
+// the endpoint because it is part of "what does this member pay", and because
+// the endpoint is not importable on its own — this is the only place the cap can
+// be pinned by a test.
+describe('feeBreakdown — on-demand discount', () => {
+  const adultNoLic = { scorer_vb: false, otr1_bb: false }
+
+  it('reduces the amount and reports what was granted', () => {
+    // The club's most common case: waiving the CHF 100 surcharge, which it
+    // currently does by writing the amount off after billing.
+    const f = feeBreakdown('VB Erwerbstätige', adultNoLic, { discount: 100 })
+    expect(f).toMatchObject({ base: 440, surcharge: 100, discount: 100, amount: 440 })
+  })
+
+  it('caps at what is owed — a bill never goes negative', () => {
+    const f = feeBreakdown('Passivmitglied', null, { discount: 9999 })
+    expect(f).toMatchObject({ base: 40, discount: 40, amount: 0 })
+  })
+
+  it('caps against the POST-adjustment total, not the base', () => {
+    // Guest pays 330; a 400 discount may only take 330 off, not 440.
+    const f = feeBreakdown('VB Erwerbstätige', null, { isGuest: true, discount: 400 })
+    expect(f).toMatchObject({ base: 440, guest_discount: 110, discount: 330, amount: 0 })
+    // …and it stacks correctly on a surcharged bill: 440+100 = 540, less 40.
+    expect(feeBreakdown('VB Erwerbstätige', adultNoLic, { discount: 40 }).amount).toBe(500)
+  })
+
+  it('treats a typo as no discount rather than as a credit', () => {
+    for (const bad of [undefined, null, 0, -50, 'abc', NaN, '']) {
+      const f = feeBreakdown('VB Erwerbstätige', null, { discount: bad })
+      expect(f.discount).toBe(0)
+      expect(f.amount).toBe(440)
+    }
+  })
+
+  it('rounds to rappen', () => {
+    expect(feeBreakdown('VB Erwerbstätige', null, { discount: 10.005 }).amount).toBe(429.99)
+  })
+
+  it('leaves deriveMitgliederbeitrag untouched — the push never discounts', () => {
+    // deriveMitgliederbeitrag passes only isGuest, so a stray opts.discount on
+    // that path can never reach the ClubDesk cell.
+    expect(deriveMitgliederbeitrag('VB Erwerbstätige', adultNoLic, { discount: 500 })).toBe('540')
   })
 })
