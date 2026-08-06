@@ -558,19 +558,45 @@ export function isU16Plus(member, refYear = new Date().getFullYear()) {
   return (refYear - y) >= 15
 }
 
-export function deriveMitgliederbeitrag(kategorie, member = null, opts = {}) {
+/** CHF added when a member owes scorer/table duty but holds no licence. */
+export const NO_LICENCE_SURCHARGE = 100
+/** CHF taken off a pure guest's category fee — a guest does no scorer duty. */
+export const GUEST_DISCOUNT = 110
+
+/**
+ * The club's fee model, itemised: category base ± the two adjustments. Returns
+ * null when there is no base to work from — an unknown category is never given
+ * a guessed amount.
+ *
+ * `opts.baseOverride` lets a caller supply the base from elsewhere (the
+ * per-season `finance_dues_rates` schedule the native dues run bills from)
+ * while the adjustment RULES stay codified here. Without it the dues run and
+ * the ClubDesk push would be two fee engines that silently disagree — the flat
+ * schedule alone under-bills every member who owes the surcharge.
+ * A category outside the map is billable via the override, but never
+ * surcharged: the surcharge sets are keyed by the known category names.
+ */
+export function feeBreakdown(kategorie, member = null, opts = {}) {
   const k = String(kategorie ?? '').trim()
-  if (!Object.prototype.hasOwnProperty.call(CD_BEITRAG_MAP, k)) return '' // unknown → empty, never guessed
-  let amount = CD_BEITRAG_MAP[k]
-  // A guest (guest on a team, core on none) pays the base category fee minus
-  // CHF 110, floored at 0, and NEVER the no-Schreiber surcharge — a guest does
-  // no scorer duty (user 2026-07-15). This short-circuits the surcharge branch.
-  if (opts && opts.isGuest === true) {
-    return String(Math.max(0, amount - 110))
+  // Postgres `numeric` arrives as a string through pg — coerce, don't test typeof.
+  const raw = opts?.baseOverride
+  const override = raw === null || raw === undefined || raw === '' ? null : Number(raw)
+  const base = override !== null && Number.isFinite(override) ? override
+    : Object.prototype.hasOwnProperty.call(CD_BEITRAG_MAP, k) ? CD_BEITRAG_MAP[k]
+    : null
+  if (base === null) return null
+
+  // A guest (guest on a team, core on none) pays the base minus CHF 110,
+  // floored at 0, and NEVER the no-Schreiber surcharge (user 2026-07-15).
+  // This short-circuits the surcharge branch.
+  if (opts?.isGuest === true) {
+    const discount = Math.min(Math.max(base, 0), GUEST_DISCOUNT)
+    return { category: k, base, surcharge: 0, guest_discount: discount, amount: base - discount }
   }
   // member===null (flags unavailable) → base only, a safe default. Adult
   // category → surcharge on missing licence; youth category → surcharge only
   // when the member is U16+ (isU16Plus() === true).
+  let surcharge = 0
   if (member) {
     const isVb = k.startsWith('VB ')
     const hasLicence = isVb
@@ -579,9 +605,15 @@ export function deriveMitgliederbeitrag(kategorie, member = null, opts = {}) {
          // otn_bb is the coarse legacy flag; the levels are additive, never a swap.
          || member.otn_bb === true || member.otn1_bb === true || member.otn2_bb === true)
     const eligible = SURCHARGE_ADULT.has(k) || (SURCHARGE_YOUTH.has(k) && isU16Plus(member) === true)
-    if (eligible && !hasLicence) amount += 100
+    if (eligible && !hasLicence) surcharge = NO_LICENCE_SURCHARGE
   }
-  return String(amount)
+  return { category: k, base, surcharge, guest_discount: 0, amount: base + surcharge }
+}
+
+export function deriveMitgliederbeitrag(kategorie, member = null, opts = {}) {
+  // The ClubDesk push always bills the codified map — no baseOverride here.
+  const b = feeBreakdown(kategorie, member, { isGuest: opts?.isGuest === true })
+  return b ? String(b.amount) : '' // unknown → empty, never guessed
 }
 
 // Resolve which of the given members are GUESTS this season: at least one guest

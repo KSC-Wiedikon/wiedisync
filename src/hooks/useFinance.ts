@@ -463,6 +463,13 @@ export interface DuesPreviewRow {
   email: string | null
   category: string | null
   sektion: string | null
+  /** The season's rate for this category, before the per-member adjustments. */
+  base_amount: number | null
+  /** CHF 100 when the member owes scorer/table duty but holds no licence. */
+  surcharge: number
+  /** CHF 110 off for a pure guest (guest on a team, core on none). */
+  guest_discount: number
+  /** base + surcharge − discount: what the member is actually invoiced. */
   amount: number | null
   already_billed: boolean
   /** ClubDesk-mirror dues invoice exists for this member + fiscal year (double-bill guard). */
@@ -473,7 +480,12 @@ export interface DuesPreviewRow {
 export interface DuesPreviewResult {
   fiscal_year: { id: number; label: string }
   rows: DuesPreviewRow[]
-  totals: { members: number; billable: number; billable_amount: number; already_billed: number; clubdesk_billed: number; missing_rate: number; no_email: number }
+  totals: {
+    members: number; billable: number; billable_amount: number
+    base_amount: number; surcharge_amount: number; surcharged: number
+    guest_discount_amount: number; guests: number
+    already_billed: number; clubdesk_billed: number; missing_rate: number; zero_rate: number; no_email: number
+  }
 }
 export interface DuesRunInput {
   fiscal_year: number
@@ -482,6 +494,8 @@ export interface DuesRunInput {
   only_active?: boolean
   due_date?: string | null
   label?: string
+  /** Narrow the cohort to named members — a trial run before billing everyone. */
+  member_ids?: number[] | null
 }
 export const previewDuesRun = (input: DuesRunInput) =>
   kscwApi<DuesPreviewResult>('/finance/dues-runs/preview', { method: 'POST', body: input })
