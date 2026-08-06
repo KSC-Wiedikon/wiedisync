@@ -21,6 +21,7 @@ import {
   buildMemberFieldSections,
   getFieldDef,
   isFieldReadOnly,
+  isRelationAlias,
   sanitizeRecord,
   type MemberFieldGroupId,
   type MemberFieldKind,
@@ -316,6 +317,55 @@ describe('sanitizeRecord', () => {
     expect(getFieldDef('webhook_secret').sensitive).toBe(true)
     expect(getFieldDef('favourite_hall').kind).toBe('text')
     expect(getFieldDef('favourite_hall').sensitive).toBe(false)
+  })
+})
+
+// Directus o2m aliases arrive on a `fields: ['*']` read looking exactly like
+// columns. They surfaced in the amber "Unmapped columns" group on 2026-08-06 and
+// were nearly dropped as dead schema — `member_teams` is the entire club roster.
+describe('relation aliases are not fields', () => {
+  const ALIASES = ['member_teams', 'game_guests', 'spielplaner_assignments']
+
+  it.each(ALIASES)('%s is recognised as an alias, not a column', (key) => {
+    expect(isRelationAlias(key)).toBe(true)
+  })
+
+  it('treats any Directus field-group header as an alias', () => {
+    expect(isRelationAlias('grp_identity')).toBe(true)
+    expect(isRelationAlias('grp_anything_added_later')).toBe(true)
+  })
+
+  it('does not mistake a real column for an alias', () => {
+    for (const key of ['first_name', 'requested_team', 'beitragskategorie', 'iban']) {
+      expect(isRelationAlias(key)).toBe(false)
+    }
+  })
+
+  it('drops aliases from the record so they can never reach a PATCH body', () => {
+    const { record, present } = sanitizeRecord({
+      id: 1,
+      first_name: 'Ada',
+      member_teams: [2199],
+      game_guests: [],
+      spielplaner_assignments: [],
+      grp_identity: null,
+    })
+    for (const key of [...ALIASES, 'grp_identity']) {
+      expect(record).not.toHaveProperty(key)
+      expect(present).not.toHaveProperty(key)
+    }
+    expect(record.first_name).toBe('Ada')
+  })
+
+  it('never renders an alias as an unmapped column', () => {
+    const sections = buildMemberFieldSections({
+      presentKeys: ['first_name', ...ALIASES],
+      sport: 'both',
+      revealedSports: new Set(),
+    })
+    const rendered = sections.flatMap((s) => s.entries.flatMap((e) => e.fields.map((f) => f.key)))
+    for (const key of ALIASES) expect(rendered).not.toContain(key)
+    expect(rendered).toContain('first_name')
   })
 })
 
