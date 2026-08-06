@@ -103,6 +103,11 @@ export interface MailboxRecipient {
   kind: 'member' | 'clubdesk'
   name: string
   email: string
+  /** Sent alongside the joined `name` so the composer can sort by surname —
+   *  splitting `name` back apart gets compound surnames wrong. Empty for a
+   *  contact we hold nothing but an address for. */
+  first_name?: string
+  last_name?: string
 }
 
 export interface MailboxExpandResponse {

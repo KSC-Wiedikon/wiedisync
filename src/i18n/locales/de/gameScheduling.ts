@@ -780,4 +780,14 @@ export default {
   mailboxPasteSuppressed: '{{count}} gesperrt (unzustellbar oder als Spam gemeldet)',
   mailboxPasteNotFound: '{{count}} nicht im Vereinsregister',
   mailboxPasteFailed: 'Adressen konnten nicht nachgeschlagen werden',
+
+  // Gruppenversand — wohin eine eingefügte Liste geht, und die Grenze der Kopie
+  mailboxPasteTargetLabel: 'Liste hinzufügen zu',
+  mailboxPasteTargetTo: 'Empfänger',
+  mailboxPasteTargetCc: 'Kopie',
+  mailboxPasteTargetBcc: 'Blindkopie',
+  mailboxPasteTargetToHint: 'Jede Person erhält ihre eigene Nachricht mit ihrem Namen darin. Niemand sieht die anderen Adressen, und abgemeldete Mitglieder bleiben aussen vor.',
+  mailboxPasteTargetCopyHint: 'Eine gemeinsame Kopie, höchstens {{max}} Adressen. Bei Kopie sehen sich die Empfänger gegenseitig, bei Blindkopie nicht.',
+  mailboxCcTooMany: 'Kopie und Blindkopie sind eine gemeinsame Kopie und fassen höchstens {{max}} Adressen (aktuell {{count}}). Füge sie stattdessen als Empfänger hinzu — die erhalten je eine eigene Nachricht.',
+  mailboxToTooMany: 'Eine einzelne E-Mail kann höchstens {{max}} Empfänger haben (aktuell {{count}}). Nutze «Gruppe anschreiben» — dort geht eine Nachricht pro Person raus.',
 }

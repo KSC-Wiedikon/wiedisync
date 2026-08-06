@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Table, TableBody, TableCell, TableRow } from '../../../components/ui/table'
 import EmailChipsInput from '../../../components/ui/EmailChipsInput'
 import { hasInvalidAddress, parseAddressList } from '../../../components/ui/emailChips'
+import { recipientLabel, sortRecipients } from '../recipientSort'
 import RichTextEditor from '../../../components/RichTextEditor'
 import InlineSpinner from '../../../components/InlineSpinner'
 import { formatDateTimeCompact } from '../../../utils/dateHelpers'
@@ -37,6 +38,12 @@ const COLLAPSED_COUNT = 10
 
 /** Above this, expanding an audience into individual chips asks first. */
 const EXPAND_CONFIRM_THRESHOLD = 60
+/** Mirrors SES_MAX_RECIPIENTS_PER_MESSAGE in kscw-endpoints/src/scheduling-mailbox.js.
+ *  AWS SES refuses a message addressed to more than 50 recipients. The
+ *  personalised group run is immune (one message per person); the single shared
+ *  Cc/Bcc copy is not. Enforced server-side too — this only lets the composer
+ *  say so before the operator has written the email. */
+const SES_MAX_PER_MESSAGE = 50
 
 /** Compose modes — new mail, reply, reply-all, forward, or a group send.
  *  `group` addresses an audience (a team, all Schreiber, …) instead of typed
@@ -194,6 +201,11 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
   const [pasteOpen, setPasteOpen] = useState(false)
   const [pasteText, setPasteText] = useState('')
   const [pasteBusy, setPasteBusy] = useState(false)
+  // Which field the pasted list lands in. Not cosmetic: recipients are mailed
+  // ONE MESSAGE EACH, while Cc/Bcc on a group send is a single shared copy —
+  // so the choice decides both who sees whom and whether the 50-address
+  // per-message ceiling applies at all.
+  const [pasteTarget, setPasteTarget] = useState<'to' | 'cc' | 'bcc'>('to')
   // Server-side constant, delivered with the message list — so it is present in
   // every compose mode and every mailbox, not just where /groups was fetched.
   const signatureHtml = mailbox.signatureHtml
@@ -379,6 +391,27 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
       toast.error(t('mailboxPasteNoneValid'))
       return
     }
+
+    // Cc/Bcc take the addresses as they are: that copy is ONE message to a
+    // literal address list, so there is no person to resolve, no merge field to
+    // fill and no opt-out that applies. Only the recipient list is people.
+    if (pasteTarget !== 'to') {
+      setCompose((prev) => {
+        if (!prev) return prev
+        const existing = pasteTarget === 'cc' ? prev.cc : (prev.bcc ?? '')
+        const known = new Set(parseAddressList(existing).map((c) => c.email.toLowerCase()))
+        const merged = [
+          ...parseAddressList(existing).map((c) => c.email),
+          ...usable.filter((e) => !known.has(e.toLowerCase())),
+        ].join(', ')
+        return pasteTarget === 'cc' ? { ...prev, cc: merged } : { ...prev, bcc: merged }
+      })
+      toast.success(t('mailboxPasteAdded', { count: usable.length }))
+      setPasteText('')
+      setPasteOpen(false)
+      return
+    }
+
     setPasteBusy(true)
     try {
       const resp = await lookupAddresses(usable)
@@ -832,13 +865,17 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
                 </button>
               </span>
             ))}
-            {(c.picked ?? []).map((r) => (
+            {/* Sorted at RENDER time, not on insert: chips arrive from a paste
+                and from expanded audiences in whatever order each produced, and
+                sorting here keeps the list in surname order however it was
+                built up. */}
+            {sortRecipients(c.picked ?? []).map((r) => (
               <span
                 key={String(r.id)}
                 title={r.email}
                 className="inline-flex min-h-8 items-center gap-1 rounded-full border border-gray-300 bg-gray-100 px-2.5 py-0.5 text-xs text-gray-700 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
               >
-                <span>{r.name}</span>
+                <span>{recipientLabel(r)}</span>
                 <button
                   type="button"
                   onClick={() => setCompose({ ...c, picked: (c.picked ?? []).filter((p) => String(p.id) !== String(r.id)) })}
@@ -875,6 +912,36 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
           ) : (
             <div className="mt-2 rounded-md border border-gray-200 p-3 dark:border-gray-700">
               <label className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                {t('mailboxPasteTargetLabel')}
+              </label>
+              {/* Stated as three consequences, not three field names: the
+                  difference between them is one message each vs one shared
+                  copy, and that is not something "To / Cc / Bcc" conveys on a
+                  group send. */}
+              <div className="mt-1 flex flex-wrap gap-1.5">
+                {(['to', 'cc', 'bcc'] as const).map((target) => (
+                  <button
+                    key={target}
+                    type="button"
+                    onClick={() => setPasteTarget(target)}
+                    aria-pressed={pasteTarget === target}
+                    className={`min-h-11 rounded-md border px-3 py-1.5 text-sm ${
+                      pasteTarget === target
+                        ? 'border-brand-500 bg-brand-500 text-white'
+                        : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800'
+                    }`}
+                  >
+                    {t(target === 'to' ? 'mailboxPasteTargetTo' : target === 'cc' ? 'mailboxPasteTargetCc' : 'mailboxPasteTargetBcc')}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                {t(pasteTarget === 'to' ? 'mailboxPasteTargetToHint' : 'mailboxPasteTargetCopyHint', {
+                  max: SES_MAX_PER_MESSAGE,
+                })}
+              </p>
+
+              <label className="mt-3 block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                 {t('mailboxPasteLabel')}
               </label>
               <textarea
@@ -935,6 +1002,15 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
             the whole point, and getting it wrong means N copies to one person. */}
         {((c.cc ?? '').trim() || (c.bcc ?? '').trim()) && (
           <p className="text-xs text-gray-500 dark:text-gray-400">{t('mailboxCcOnceHint')}</p>
+        )}
+        {/* The other half of "one copy": one copy is one message, and a message
+            has a recipient ceiling. Said here rather than left to a send-time
+            rejection, because that copy is sent LAST — the real recipients
+            would already have been mailed by the time it failed. */}
+        {ccBccCount(c) > SES_MAX_PER_MESSAGE && (
+          <p className="text-xs font-medium text-red-600 dark:text-red-400">
+            {t('mailboxCcTooMany', { count: ccBccCount(c), max: SES_MAX_PER_MESSAGE })}
+          </p>
         )}
 
         {/* Drill builder. Each chip picked here NARROWS the filter rather than
@@ -1057,6 +1133,17 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
             aria-label={t('mailboxCc')}
           />
         </div>
+        {/* A plain compose is one envelope, so To+Cc share the ceiling. Named
+            here with the way out, because the alternative is an SES rejection
+            whose text has never heard of the group send. */}
+        {parseAddressList(c.to).length + parseAddressList(c.cc).length > SES_MAX_PER_MESSAGE && (
+          <p className="text-xs font-medium text-red-600 dark:text-red-400">
+            {t('mailboxToTooMany', {
+              count: parseAddressList(c.to).length + parseAddressList(c.cc).length,
+              max: SES_MAX_PER_MESSAGE,
+            })}
+          </p>
+        )}
       </>
     )
 
@@ -1153,12 +1240,22 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
     </>
   )
 
+  /** Addresses on the single shared Cc/Bcc copy — the one part of a group send
+   *  that is still one message, and so still capped. */
+  const ccBccCount = (c: ComposeState) =>
+    parseAddressList(c.cc).length + parseAddressList(c.bcc ?? '').length
+
   // A recipient the send endpoint would discard blocks the send instead of
   // going out to a shorter list than the composer shows — `cleanAddresses`
   // drops what it cannot parse without saying so.
   const composeActions = (c: ComposeState) => {
     const badAddress = hasInvalidAddress(c.cc) || hasInvalidAddress(c.bcc)
       || (c.mode !== 'group' && hasInvalidAddress(c.to))
+    // A plain compose is ONE envelope of To+Cc, so the ceiling applies to the
+    // whole thing there; on a group send only the shared copy is bounded.
+    const overCap = c.mode === 'group'
+      ? ccBccCount(c) > SES_MAX_PER_MESSAGE
+      : parseAddressList(c.to).length + parseAddressList(c.cc).length > SES_MAX_PER_MESSAGE
     return (
     <>
       <Button size="sm" variant="outline" onClick={() => setCompose(null)}>{t('cancel')}</Button>
@@ -1168,7 +1265,7 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
         <Button
           size="sm"
           onClick={() => void handleSendGroup()}
-          disabled={sending || badAddress || previewLoading || !previewData || previewData.recipient_count === 0 || !c.subject.trim() || !c.html.trim()}
+          disabled={sending || badAddress || overCap || previewLoading || !previewData || previewData.recipient_count === 0 || !c.subject.trim() || !c.html.trim()}
         >
           {sending ? t('mailboxSending')
             : previewData ? t('mailboxGroupSendCount', { count: previewData.recipient_count })
@@ -1178,7 +1275,7 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
         <Button
           size="sm"
           onClick={() => void handleSend()}
-          disabled={sending || badAddress || !c.to.trim() || !c.subject.trim() || !c.html.trim()}
+          disabled={sending || badAddress || overCap || !c.to.trim() || !c.subject.trim() || !c.html.trim()}
         >
           {sending ? t('mailboxSending') : t('mailboxSend')}
         </Button>

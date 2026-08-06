@@ -767,4 +767,14 @@ export default {
   mailboxPasteSuppressed: '{{count}} bloquées (non distribuées ou signalées comme spam)',
   mailboxPasteNotFound: '{{count}} absentes du registre du club',
   mailboxPasteFailed: 'Impossible de rechercher les adresses',
+
+  // Envoi groupé — où va une liste collée, et la limite de la copie partagée
+  mailboxPasteTargetLabel: 'Ajouter la liste à',
+  mailboxPasteTargetTo: 'Destinataires',
+  mailboxPasteTargetCc: 'Copie',
+  mailboxPasteTargetBcc: 'Copie cachée',
+  mailboxPasteTargetToHint: 'Chaque personne reçoit son propre message, avec son nom à l’intérieur. Personne ne voit les autres adresses, et les membres désabonnés sont exclus.',
+  mailboxPasteTargetCopyHint: 'Une seule copie partagée, {{max}} adresses au maximum. En copie les destinataires se voient entre eux, en copie cachée non.',
+  mailboxCcTooMany: 'La copie et la copie cachée forment une seule copie partagée et ne peuvent pas dépasser {{max}} adresses ({{count}} actuellement). Ajoute-les plutôt comme destinataires — ceux-là reçoivent un message chacun.',
+  mailboxToTooMany: 'Un e-mail ne peut pas avoir plus de {{max}} destinataires ({{count}} actuellement). Utilise « Écrire à un groupe » — un message part par personne.',
 }
