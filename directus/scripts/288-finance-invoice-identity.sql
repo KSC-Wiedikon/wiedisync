@@ -49,6 +49,9 @@ WHERE NOT EXISTS (
 -- the legacy values move to their own column and match_clubdesk_id becomes invoice-level.
 -- The move runs ONLY when the column is first added, so a re-run can never touch a
 -- genuinely invoice-level override written later.
+-- One atomic block: the key CHECK only accepts match_email / match_clubdesk_id, so
+-- widening it has to land before the values move, or the move nulls the only key
+-- the constraint can see and the whole migration aborts.
 DO $$
 BEGIN
   IF NOT EXISTS (
@@ -56,6 +59,11 @@ BEGIN
     WHERE table_name = 'finance_invoice_member_overrides' AND column_name = 'match_cd_contact_id'
   ) THEN
     ALTER TABLE finance_invoice_member_overrides ADD COLUMN match_cd_contact_id varchar(64);
+    ALTER TABLE finance_invoice_member_overrides
+      DROP CONSTRAINT IF EXISTS finance_invoice_member_overrides_key_check;
+    ALTER TABLE finance_invoice_member_overrides
+      ADD CONSTRAINT finance_invoice_member_overrides_key_check
+      CHECK (match_email IS NOT NULL OR match_clubdesk_id IS NOT NULL OR match_cd_contact_id IS NOT NULL);
     UPDATE finance_invoice_member_overrides
        SET match_cd_contact_id = match_clubdesk_id, match_clubdesk_id = NULL
      WHERE match_clubdesk_id IS NOT NULL;
