@@ -132,3 +132,41 @@ describe('bbClubResponseReceiptEmail', () => {
     expect(typeof html).toBe('string')
   })
 })
+
+/**
+ * The invite must describe the page the club will actually see.
+ *
+ * Since the opponent-picks flow (migrations 289/292) most invites open on a list of FREE dates
+ * with no offers at all, and the original copy told every club to "confirm or decline each
+ * game" — instructions for a section that would be empty. This goes to 63 clubs, so the branch
+ * is worth pinning.
+ */
+describe('bbClubInviteEmail — instructions match what the link shows', () => {
+  const BASE = { club: 'BC Uster', season: '2026/27', url: 'https://x/y', expires: '30.06.2027' }
+
+  it('tells a club with free pitches to pick dates, and says the pick is held', () => {
+    const { text } = bbClubInviteEmail({ ...BASE, pickable: 40, offers: 0 })
+    expect(text).toContain('noch frei')
+    expect(text).toContain('ankreuzen')
+    expect(text).toContain('sofort für euch reserviert')
+    // Must NOT tell them to confirm games that do not exist for them yet.
+    expect(text).not.toContain('Pro Spiel einen Termin bestätigen')
+  })
+
+  it('keeps the confirm/decline wording when we have offered games and nothing is pickable', () => {
+    const { text } = bbClubInviteEmail({ ...BASE, pickable: 0, offers: 3 })
+    expect(text).toContain('Pro Spiel einen Termin bestätigen')
+    expect(text).not.toContain('ankreuzen')
+  })
+
+  it('covers both when the club has offers AND free pitches', () => {
+    const { text } = bbClubInviteEmail({ ...BASE, pickable: 12, offers: 2 })
+    expect(text).toContain('ankreuzen')
+    expect(text).toContain('Pro Spiel einen Termin bestätigen')
+  })
+
+  it('defaults to the old confirm/decline copy when the caller passes no counts', () => {
+    const { text } = bbClubInviteEmail(BASE)
+    expect(text).toContain('Pro Spiel einen Termin bestätigen')
+  })
+})

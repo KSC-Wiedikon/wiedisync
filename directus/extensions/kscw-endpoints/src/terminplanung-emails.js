@@ -452,7 +452,16 @@ const BB_AVAILABILITY_DUE = '17.08.2026'
  * @returns {{ subject: string, text: string, html: string }}
  */
 export function bbClubInviteEmail(vars) {
-  const { club = '', season = '', url = '', expires = '', reminder = false } = vars || {}
+  const {
+    club = '', season = '', url = '', expires = '', reminder = false,
+    // How many free pitches the club can choose from, and how many games we already put to
+    // them. The instructions must match what the link actually shows: since the opponent-picks
+    // flow (migrations 289/292) most invites open on a list of free dates and NO offers at all,
+    // and telling such a club to "confirm or decline each game" describes an empty page.
+    pickable = 0, offers = 0,
+  } = vars || {}
+  const canPick = Number(pickable) > 0
+  const hasOffers = Number(offers) > 0
   const subject = club
     ? `Spielplanung ${season} – KSC Wiedikon / ${club}`.trim()
     : `Spielplanung ${season} – KSC Wiedikon`.trim()
@@ -461,12 +470,26 @@ export function bbClubInviteEmail(vars) {
     `KSC Wiedikon möchte die Spiele gegen eure Teams wenn möglich schon vor der Spielplansitzung vom ${BB_SPIELPLANSITZUNG} fixieren. ` +
     `Nach WSR Art. 18 entfällt die Anwesenheitspflicht für Spiele, die bis dahin im Einverständnis beider Klubs abgemacht sind und der Geschäftsstelle vorliegen.`
   const rem = 'Falls bei euch bereits alles abgemacht ist, könnt ihr diese E-Mail ignorieren.'
-  const linkLead = 'Unter dem folgenden Link findet ihr unsere Heimspieltermine in der Kantonsschule Wiedikon. Ihr könnt jeden Termin bestätigen, ablehnen oder eine Alternative vorschlagen.'
-  const steps = [
+  const linkLead = canPick
+    ? 'Unter dem folgenden Link seht ihr, welche Termine in der Kantonsschule Wiedikon für die Spiele gegen eure Teams noch frei sind. Ihr wählt selber aus, welche euch passen.'
+    : 'Unter dem folgenden Link findet ihr unsere Heimspieltermine in der Kantonsschule Wiedikon. Ihr könnt jeden Termin bestätigen, ablehnen oder eine Alternative vorschlagen.'
+
+  const pickSteps = [
+    'Pro Team die Daten ankreuzen, an denen ihr zu uns kommen könnt.',
+    // Said plainly because it is true: the plan row claims the slot immediately.
+    'Ein angekreuzter Termin wird sofort für euch reserviert – bitte wählt nur, was ihr wirklich spielen könnt.',
+    'Für die Auswärtsspiele bei euch tragt ihr eure Wunschdaten in die Bemerkung ein – wir melden uns dazu.',
+  ]
+  const answerSteps = [
     'Pro Spiel einen Termin bestätigen oder ablehnen.',
     'Passt kein Termin, schlagt ihr im Feld darunter eine Alternative vor.',
     'Für die Auswärtsspiele bei euch tragt ihr eure Wunschdaten in die Bemerkung ein – wir melden uns dazu.',
   ]
+  // Both lists when the club has each kind of row, so no instruction describes a section the
+  // link does not show.
+  const steps = canPick
+    ? (hasOffers ? [...pickSteps.slice(0, 2), ...answerSteps] : pickSteps)
+    : answerSteps
   const scope = `Der Link gilt für alle eure Teams gegen KSC Wiedikon${expires ? ` und ist bis ${expires} gültig` : ''}.`
   const exclusion =
     `Nicht enthalten sind die Spiele der Damen 1. Liga und der Herren 1. Liga: Für diese Ligen erstellt ProBasket den Spielplan ` +

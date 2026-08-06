@@ -399,6 +399,42 @@ export function registerBasketballPortal(router, { database, logger }) {
   }
 
   /** { [bp_club]: { offered, accepted, declined, countered } } for one season. */
+  /**
+   * Free pitches per opponent club — how much there is to PICK, as opposed to how much we
+   * have already offered.
+   *
+   * ⚠ Why this exists: the send guard used to ask only "have we offered this club anything?".
+   * Under the opponent-picks flow the answer is normally NO — the club is meant to choose from
+   * free pitches — so every invite was skipped as `no_offers` and nothing could ever be sent.
+   * A portal with 40 pitches to choose from is the normal case, not an empty one.
+   *
+   * Still returns 0 for a club we share no group with, so the anti-spam intent survives: an
+   * invite that would open onto an empty page is still not sent.
+   */
+  async function freePitchCountsBySeason(season) {
+    const rows = await database('basketball_group_teams as opp')
+      .join('basketball_groups as g', 'g.id', 'opp.group_id')
+      .join('basketball_group_teams as mine', function () {
+        this.on('mine.group_id', '=', 'g.id').andOnNotNull('mine.kscw_team')
+      })
+      .join('basketball_slots as s', function () {
+        this.on('s.kscw_team', '=', 'mine.kscw_team')
+          .andOn('s.season', '=', 'g.season')
+      })
+      .where('g.season', season)
+      .whereNotNull('opp.bp_club')
+      .where('s.status', 'available')
+      .whereNull('s.plan')
+      .groupBy('opp.bp_club')
+      // countDistinct: a club fielding two teams in one group would otherwise multiply the
+      // same pitch — the same duplication the portal payload guards against with DISTINCT.
+      .countDistinct('s.id as count')
+      .select('opp.bp_club')
+    const out = {}
+    for (const r of rows) out[String(r.bp_club)] = Number(r.count) || 0
+    return out
+  }
+
   async function offerCountsBySeason(season) {
     const rows = await database('basketball_slot_plan')
       .where('season', season)
@@ -904,13 +940,23 @@ export function registerBasketballPortal(router, { database, logger }) {
         .whereNotIn('status', ['revoked', 'expired'])
       if (Array.isArray(ids) && ids.length) q = q.whereIn('id', ids.map(Number).filter(Number.isFinite))
       const portals = await q
-      const counts = await offerCountsBySeason(Number(season))
+      const [counts, freePitches] = await Promise.all([
+        offerCountsBySeason(Number(season)),
+        freePitchCountsBySeason(Number(season)),
+      ])
 
       const previews = []; const failed = []; let sent = 0
       for (const portal of portals) {
         // A link with nothing on it reads as spam. Skip unless explicitly forced.
+        //
+        // ⚠ "Nothing on it" means no offers AND no pitches to pick. Testing offers alone
+        // predates the opponent-picks flow and skipped every club, since a club that has not
+        // been offered anything yet is exactly who the invite is for.
         const offers = counts[String(portal.bp_club)]?.total || 0
-        if (!offers && !allowEmpty) { failed.push({ id: portal.id, error: 'no_offers' }); continue }
+        const pickable = freePitches[String(portal.bp_club)] || 0
+        if (!offers && !pickable && !allowEmpty) {
+          failed.push({ id: portal.id, error: 'nothing_to_show' }); continue
+        }
 
         const { subject, text, html } = bbClubInviteEmail({
           club: portal.club_name || '',
@@ -918,8 +964,14 @@ export function registerBasketballPortal(router, { database, logger }) {
           url: portalUrl(portal.token),
           expires: fmtDate(portal.expires_at),
           reminder: !!reminder,
+          // Drives which instructions the mail gives: pick dates, answer ours, or both.
+          pickable,
+          offers,
         })
-        previews.push({ id: portal.id, to: portal.contact_email, club_name: portal.club_name, offers, subject, html, text })
+        previews.push({
+          id: portal.id, to: portal.contact_email, club_name: portal.club_name,
+          offers, pickable, subject, html, text,
+        })
         if (dryRun) continue
 
         if (!parseRecipients(portal.contact_email).length) {
