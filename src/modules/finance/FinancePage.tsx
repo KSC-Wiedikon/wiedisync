@@ -26,6 +26,23 @@ import type { FinanceReport } from './reportExport'
 
 type Tab = 'overview' | 'income' | 'budget' | 'balance' | 'ledger' | 'accounts' | 'invoices' | 'dues' | 'dunning' | 'expenses' | 'members' | 'teams' | 'sync'
 
+const TAB_LABEL: Record<Tab, string> = {
+  overview: 'tabOverview', income: 'tabIncome', budget: 'tabBudget', balance: 'tabBalance',
+  ledger: 'tabLedger', accounts: 'tabAccounts', invoices: 'tabInvoices', dues: 'tabDues',
+  dunning: 'tabDunning', expenses: 'tabExpenses', members: 'tabMembers', teams: 'tabTeams',
+  sync: 'tabSync',
+}
+
+/** Tabs grouped by the treasurer's job, not by which component was built first.
+ *  Billing leads because that is now where the club's invoices come from. */
+const TAB_GROUPS: Array<{ key: string; labelKey: string; tabs: Tab[] }> = [
+  { key: 'summary', labelKey: 'tabGroupSummary', tabs: ['overview'] },
+  { key: 'billing', labelKey: 'tabGroupBilling', tabs: ['dues', 'invoices', 'dunning'] },
+  { key: 'books', labelKey: 'tabGroupBooks', tabs: ['income', 'balance', 'budget', 'ledger', 'accounts'] },
+  { key: 'records', labelKey: 'tabGroupRecords', tabs: ['members', 'teams', 'expenses'] },
+  { key: 'data', labelKey: 'tabGroupData', tabs: ['sync'] },
+]
+
 /** On-demand "Sync now" — requests a ClubDesk finance import and polls until the
  *  host dispatcher reports done/failed (state changes in the handler, not an effect). */
 function SyncNowButton() {
@@ -310,21 +327,23 @@ export default function FinancePage() {
         </div>
       ) : (
         <>
-          <div className="flex flex-wrap gap-1.5">
-            <TabBtn active={tab === 'overview'} label={t('tabOverview')} onClick={() => setTab('overview')} />
-            <TabBtn active={tab === 'income'} label={t('tabIncome')} onClick={() => setTab('income')} />
-            <TabBtn active={tab === 'budget'} label={t('tabBudget')} onClick={() => setTab('budget')} />
-            <TabBtn active={tab === 'balance'} label={t('tabBalance')} onClick={() => setTab('balance')} />
-            <TabBtn active={tab === 'ledger'} label={t('tabLedger')} onClick={() => setTab('ledger')} />
-            <TabBtn active={tab === 'accounts'} label={t('tabAccounts')} onClick={() => setTab('accounts')} />
-            <TabBtn active={tab === 'invoices'} label={t('tabInvoices')} onClick={() => setTab('invoices')} />
-            <TabBtn active={tab === 'dues'} label={t('tabDues')} onClick={() => setTab('dues')} />
-            <TabBtn active={tab === 'dunning'} label={t('tabDunning')} onClick={() => setTab('dunning')} />
-            <TabBtn active={tab === 'expenses'} label={t('tabExpenses')} onClick={() => setTab('expenses')} />
-            <TabBtn active={tab === 'members'} label={t('tabMembers')} onClick={() => setTab('members')} />
-            <TabBtn active={tab === 'teams'} label={t('tabTeams')} onClick={() => setTab('teams')} />
-            <TabBtn active={tab === 'sync'} label={t('tabSync')} onClick={() => setTab('sync')} />
-          </div>
+          {/* Thirteen peer tabs in one row gave no clue which of them is a daily
+              job and which is a once-a-year one. Grouped by what the treasurer is
+              actually doing: bill people → keep the books → look things up →
+              move data. Tab ids and the ?tab= URL are unchanged, so existing
+              links and bookmarks still land in the right place. */}
+          <nav aria-label={t('tabGroupsAria')} className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-x-6 sm:gap-y-3">
+            {TAB_GROUPS.map((g) => (
+              <div key={g.key} className="min-w-0">
+                <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">{t(g.labelKey)}</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {g.tabs.map((id) => (
+                    <TabBtn key={id} active={tab === id} label={t(TAB_LABEL[id])} onClick={() => setTab(id)} />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </nav>
 
           {/* ── Invoices (native create/manage + orphan member-linking) ── */}
           {tab === 'invoices' && <InvoiceManager fiscalYearId={String(activeFyId)} fiscalYearLabel={activeFyLabel} />}

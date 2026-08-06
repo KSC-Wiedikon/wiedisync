@@ -48,6 +48,9 @@ export interface CreateInvoiceInput {
   subject: string
   due_date?: string | null
   fee_category?: string | null
+  /** On-demand reduction granted at issue; `amount` is the GROSS figure. */
+  discount_amount?: number
+  discount_reason?: string
 }
 export const createNativeInvoice = (input: CreateInvoiceInput) =>
   kscwApi<{ invoice: FinanceInvoice }>('/finance/invoices', { method: 'POST', body: input })
@@ -469,7 +472,10 @@ export interface DuesPreviewRow {
   surcharge: number
   /** CHF 110 off for a pure guest (guest on a team, core on none). */
   guest_discount: number
-  /** base + surcharge − discount: what the member is actually invoiced. */
+  /** On-demand reduction the treasurer granted for this run. */
+  discount: number
+  discount_reason: string | null
+  /** base + surcharge − discounts: what the member is actually invoiced. */
   amount: number | null
   already_billed: boolean
   /** ClubDesk-mirror dues invoice exists for this member + fiscal year (double-bill guard). */
@@ -484,7 +490,14 @@ export interface DuesPreviewResult {
     members: number; billable: number; billable_amount: number
     base_amount: number; surcharge_amount: number; surcharged: number
     guest_discount_amount: number; guests: number
+    discount_amount: number; discounted: number
     already_billed: number; clubdesk_billed: number; missing_rate: number; zero_rate: number; no_email: number
+  }
+  /** Active members this run cannot reach at all (absent when a trial run narrows to named members). */
+  uncovered?: {
+    no_category: number
+    category_not_selected: number
+    members: Array<{ member: number; name: string | null; sektion: string | null; category: string | null }>
   }
 }
 export interface DuesRunInput {
@@ -496,6 +509,9 @@ export interface DuesRunInput {
   label?: string
   /** Narrow the cohort to named members — a trial run before billing everyone. */
   member_ids?: number[] | null
+  /** Per-member reduction in CHF, keyed by member id. */
+  discounts?: Record<number, number> | null
+  discount_reason?: string | null
 }
 export const previewDuesRun = (input: DuesRunInput) =>
   kscwApi<DuesPreviewResult>('/finance/dues-runs/preview', { method: 'POST', body: input })

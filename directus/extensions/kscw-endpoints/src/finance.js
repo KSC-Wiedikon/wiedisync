@@ -27,6 +27,9 @@
 import { writeUserLog } from './activity-log.js'
 import { buildEmailLayout, buildInfoCard, buildAlertBox, FRONTEND_URL } from './email-template.js'
 import { renderInvoiceQrBillPdf } from './finance-qrbill.js'
+// A proper Swiss Rechnung (addressee, positions, total) rather than a bare
+// payment slip — see finance-invoice-pdf.js.
+import { renderInvoicePdf } from './finance-invoice-pdf.js'
 import { recomputeInvoice, deriveSettlement } from './finance-recompute.js'
 import { autopostInvoiceSafe, autopostTeamEntrySafe, autopostDuesRunSafe, removeAutopostForPaymentSafe, removeAutopostForTeamEntrySafe, FISCAL_YEAR_LOCK_NS } from './finance-autopost.js'
 // The club fee model, shared with the ClubDesk push so the two never disagree.
@@ -49,6 +52,17 @@ function scorReference(idNum) {
   }
   return `RF${String(98 - rem).padStart(2, '0')}${body}`
 }
+
+/**
+ * "Is this invoice a membership-dues bill?" — the double-bill guards' only
+ * reliable test. ClubDesk's mirror puts the contact's fee_category on every
+ * invoice they receive, so a camp fee is indistinguishable from dues by category
+ * alone; the subject is not. Verified on prod: 2365 dues invoices all match,
+ * and the 216 that do not are camp fees, training weekends, sponsoring and
+ * Freibrief costs. Native dues invoices use the same word (`Mitgliederbeitrag
+ * {fy}`, the default subject_template seeded by migration 291).
+ */
+const DUES_SUBJECT_SQL = "subject ILIKE '%mitgliederbeitrag%'"
 
 /** Pick the CHF dues rate for a member: a sektion-specific row wins over the
  *  category default (sektion NULL). Returns the matching rate row or null. */
@@ -205,20 +219,41 @@ export function registerFinance(router, { database, logger, services, getSchema 
 
       const b = req.body || {}
       const recipientType = ['team', 'contact'].includes(b.recipient_type) ? b.recipient_type : 'member'
-      const amount = round2(b.amount)
+      // `amount` is the GROSS figure the treasurer typed; the discount comes off it.
+      const gross = round2(b.amount)
       const subject = (b.subject || '').toString().trim()
       const dueDate = /^\d{4}-\d{2}-\d{2}$/.test(b.due_date || '') ? b.due_date : null
       const feeCategory = (b.fee_category || '').toString().trim() || null
-      if (!(amount > 0)) return res.status(400).json({ error: 'amount must be greater than 0' })
+      if (!(gross > 0)) return res.status(400).json({ error: 'amount must be greater than 0' })
       if (!subject) return res.status(400).json({ error: 'subject is required' })
 
+      // An on-demand discount, granted at issue rather than written off later:
+      // the member's own invoice then shows the reduction as a line instead of
+      // silently owing less than it says.
+      const discountRaw = b.discount_amount == null ? 0 : round2(b.discount_amount)
+      const discount = Number.isFinite(discountRaw) && discountRaw > 0 ? discountRaw : 0
+      if (discount >= gross) return res.status(400).json({ error: 'discount must be smaller than the amount' })
+      const discountReason = (b.discount_reason || '').toString().trim().slice(0, 120) || 'Rabatt'
+      const amount = round2(gross - discount)
+      // Positions only when there is something to itemise — a plain invoice keeps
+      // rendering its single subject line (finance-invoice-pdf.js → invoiceLines).
+      const lines = discount > 0
+        ? JSON.stringify([{ label: subject, amount: gross }, { label: discountReason, amount: round2(-discount) }])
+        : null
+
       let memberId = null, teamId = null, contactId = null, recipientName = null, recipientEmail = null
+      let recipientAddress = null, recipientZip = null, recipientCity = null
       if (recipientType === 'member') {
         memberId = Number(b.member)
-        const tgt = Number.isInteger(memberId) ? await database('members').where('id', memberId).first('id', 'first_name', 'last_name', 'email') : null
+        const tgt = Number.isInteger(memberId) ? await database('members').where('id', memberId).first('id', 'first_name', 'last_name', 'email', 'adresse', 'plz', 'ort') : null
         if (!tgt) return res.status(400).json({ error: 'member not found' })
         recipientName = [tgt.first_name, tgt.last_name].filter(Boolean).join(' ').trim() || null
         recipientEmail = tgt.email || null
+        // Same as the dues run: copied at issue time so the PDF has an addressee
+        // and the QR bill can name the payer (migration 293).
+        recipientAddress = tgt.adresse || null
+        recipientZip = tgt.plz != null ? String(tgt.plz) : null
+        recipientCity = tgt.ort || null
       } else if (recipientType === 'team') {
         teamId = Number(b.team)
         const tgt = Number.isInteger(teamId) ? await database('teams').where('id', teamId).first('id', 'name') : null
@@ -248,8 +283,12 @@ export function registerFinance(router, { database, logger, services, getSchema 
         amount_paid: 0,
         open_amount: amount,
         fee_category: feeCategory,
+        lines,
         recipient_name: recipientName,
         recipient_email: recipientEmail,
+        recipient_address: recipientAddress,
+        recipient_zip: recipientZip,
+        recipient_city: recipientCity,
         member: memberId,
         team: teamId,
         contact: contactId,
@@ -269,7 +308,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
         if (updated) invoice = updated
       } catch (e) { log.warn?.({ msg: `scor reference gen failed: ${e.message}`, id: row.id }) }
 
-      await writeUserLog(database, log, { accountability: req.accountability, action: 'create', collection: 'finance_invoices', recordId: invoice.id, data: { kind: 'native_invoice', recipient_type: recipientType, member: memberId, team: teamId, amount, number } })
+      await writeUserLog(database, log, { accountability: req.accountability, action: 'create', collection: 'finance_invoices', recordId: invoice.id, data: { kind: 'native_invoice', recipient_type: recipientType, member: memberId, team: teamId, amount, number, ...(discount > 0 ? { gross, discount, discount_reason: discountReason } : {}) } })
       await autopostInvoiceSafe(database, log, invoice.id)
       return res.json({ invoice })
     } catch (e) { return err(res, req, 'create', e) }
@@ -565,6 +604,20 @@ export function registerFinance(router, { database, logger, services, getSchema 
     // covers re-billing a member the treasurer had to fix up after a run.
     const memberIds = Array.isArray(body.member_ids)
       ? [...new Set(body.member_ids.map(Number).filter(Number.isInteger))] : []
+    // Per-member discount, { "<memberId>": chf }. The club's existing practice is
+    // to bill full and write the difference off afterwards — 47 invoices and
+    // CHF 7'026 last season, most of them the CHF 100 no-Schreiberlizenz
+    // surcharge being waived. A write-off is invisible to the member (their
+    // invoice still says 540) and, on accrual, needs a bad-debt account the
+    // chart does not have. Granting it up front puts it on the bill as a line.
+    const discounts = new Map()
+    if (body.discounts && typeof body.discounts === 'object') {
+      for (const [k, v] of Object.entries(body.discounts)) {
+        const id = Number(k), chf = round2(v)
+        if (Number.isInteger(id) && Number.isFinite(chf) && chf > 0) discounts.set(id, chf)
+      }
+    }
+    const discountReason = (body.discount_reason || '').toString().trim().slice(0, 120) || 'Rabatt'
 
     const rates = await database('finance_dues_rates').where('fiscal_year', fy.id)
       .select('id', 'category', 'sektion', 'amount_chf', 'subject_template', 'active')
@@ -575,7 +628,10 @@ export function registerFinance(router, { database, logger, services, getSchema 
         // surcharge: birthdate gates the youth categories at U16+, the licence
         // flags say whether the duty is already covered. Omit them and every
         // surcharged member is silently under-billed by CHF 100.
-        'birthdate', 'scorer_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'otn1_bb', 'otn2_bb')
+        'birthdate', 'scorer_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'otn1_bb', 'otn2_bb',
+        // Copied onto the invoice at issue time so the document has an addressee
+        // and the QR bill can pre-fill "Zahlbar durch" (migration 293).
+        'adresse', 'plz', 'ort')
     if (onlyActive) mq = mq.where('kscw_membership_active', true)
     if (sektion) mq = mq.where('sektion', sektion)
     if (memberIds.length) mq = mq.whereIn('id', memberIds)
@@ -587,25 +643,41 @@ export function registerFinance(router, { database, logger, services, getSchema 
     const guests = await guestMemberIdSet(database, members.map((m) => m.id), fy.label)
 
     // Members already holding a non-cancelled dues invoice this fiscal year.
+    // Not just dues-RUN invoices: a late joiner billed by hand through
+    // InvoiceManager carries dues_run NULL, so a later top-up run would issue a
+    // second membership invoice with its own SCOR reference and both would dun
+    // independently. An ad-hoc invoice counts when it looks like membership dues
+    // (same test as the ClubDesk guard below) — a fine or a camp fee must not
+    // suppress the member's actual dues bill.
     const billed = new Set((await database('finance_invoices')
-      .where('fiscal_year', fy.id).whereNotNull('dues_run').whereNotNull('member')
-      .whereNot('status', 'cancelled').pluck('member')).map(Number))
+      .where('fiscal_year', fy.id).whereNotNull('member')
+      .whereNot('status', 'cancelled')
+      .where((qb) => qb.whereNotNull('dues_run').orWhere((q) => q
+        .where('source', 'native').whereRaw(DUES_SUBJECT_SQL)))
+      .pluck('member')).map(Number))
 
     // Members ClubDesk already billed this fiscal year. Mirror rows carry
     // dues_run NULL (migration 138), so the native guard above is blind to
     // them — without this a native run double-bills a cohort ClubDesk has
     // already invoiced (surfaced 2026-07-07 when the ClubDesk down-sync began
-    // creating passive members, whose dues live in ClubDesk). A mirror invoice
-    // with a non-empty fee_category IS a membership-dues bill: the mirror's
-    // fee_category vocabulary equals members.beitragskategorie ('Passivmitglied',
-    // 'VB Erwerbstätige', …); blank fee_category = other invoice kinds and
-    // doesn't block. Mirror statuses are ClubDesk's German vocabulary — only
-    // 'Storniert' (cancelled) unblocks; 'Entwurf' (draft, about to be sent) and
-    // 'Abgeschrieben' (written off — the member WAS billed) both still count
-    // as ClubDesk-handled.
+    // creating passive members, whose dues live in ClubDesk).
+    //
+    // ⚠ The test is the SUBJECT, not fee_category. The mirror stamps the
+    // contact's category onto EVERY invoice they receive, so a camp fee carries
+    // 'BB Minis Turnier' just like a membership bill does. On prod that is 216
+    // invoices across 81 members — camp fees, training weekends, sponsoring,
+    // Freibrief costs — and in FY 2026/27 it would have skipped Fonzini (CHF 210)
+    // and Huwiler (CHF 310) from their membership bill because each holds a
+    // CHF 160 'Kosten Trainingscamp BB' invoice. All 2365 genuine dues invoices
+    // say 'Mitgliederbeitrag'; nothing else does.
+    //
+    // Mirror statuses are ClubDesk's German vocabulary — only 'Storniert'
+    // (cancelled) unblocks; 'Entwurf' (draft, about to be sent) and
+    // 'Abgeschrieben' (written off — the member WAS billed) still count as
+    // ClubDesk-handled.
     const clubdeskBilled = new Set((await database('finance_invoices')
       .where('fiscal_year', fy.id).where('source', 'clubdesk').whereNotNull('member')
-      .whereRaw("NULLIF(btrim(fee_category), '') IS NOT NULL")
+      .whereRaw(DUES_SUBJECT_SQL)
       .whereNot('status', 'Storniert').pluck('member')).map(Number))
 
     const rows = members.map((m) => {
@@ -613,7 +685,12 @@ export function registerFinance(router, { database, logger, services, getSchema 
       // The schedule supplies the season's BASE; the surcharge/guest rules are
       // per-member and cannot live in a (category, sektion) rate row.
       const fee = rate
-        ? feeBreakdown(m.beitragskategorie, m, { baseOverride: rate.amount_chf, isGuest: guests.has(Number(m.id)) })
+        ? feeBreakdown(m.beitragskategorie, m, {
+            baseOverride: rate.amount_chf,
+            isGuest: guests.has(Number(m.id)),
+            // Capping lives in the fee model, where it is unit-tested.
+            discount: discounts.get(Number(m.id)) || 0,
+          })
         : null
       return {
         member: m.id,
@@ -621,9 +698,14 @@ export function registerFinance(router, { database, logger, services, getSchema 
         email: m.email || null,
         category: m.beitragskategorie || null,
         sektion: m.sektion || null,
+        adresse: m.adresse || null,
+        plz: m.plz != null ? String(m.plz) : null,
+        ort: m.ort || null,
         base_amount: fee ? round2(fee.base) : null,
         surcharge: fee ? round2(fee.surcharge) : 0,
         guest_discount: fee ? round2(fee.guest_discount) : 0,
+        discount: fee ? round2(fee.discount) : 0,
+        discount_reason: fee && fee.discount > 0 ? discountReason : null,
         amount: fee ? round2(fee.amount) : null,
         subject_template: rate?.subject_template || null,
         already_billed: billed.has(Number(m.id)),
@@ -632,7 +714,33 @@ export function registerFinance(router, { database, logger, services, getSchema 
         missing_email: !m.email,
       }
     })
-    return { fy, sektion, onlyActive, categories, memberIds, rows }
+    // Coverage: who is active but CANNOT be reached by this run. `rows` only
+    // describes the categories that were selected, so without this the preview
+    // is silent about the 10 active members with no fee category at all — 8 of
+    // whom hold past Mitgliederbeitrag invoices, so they demonstrably owe. A
+    // billing run that omits people must say so on the page.
+    let uncovered = { no_category: 0, category_not_selected: 0, members: [] }
+    if (!memberIds.length) {
+      let uq = database('members').where('kscw_membership_active', true)
+        .select('id', 'first_name', 'last_name', 'sektion', 'beitragskategorie')
+      if (sektion) uq = uq.where('sektion', sektion)
+      const all = await uq
+      const selected = new Set(categories.map((c) => c.toLowerCase()))
+      const missing = all.filter((m) => !selected.has(String(m.beitragskategorie ?? '').trim().toLowerCase()))
+      uncovered = {
+        no_category: missing.filter((m) => !String(m.beitragskategorie ?? '').trim()).length,
+        category_not_selected: missing.filter((m) => String(m.beitragskategorie ?? '').trim()).length,
+        // Named, not just counted — a count tells the treasurer a problem exists
+        // but not who to fix. Capped so a mis-selected run cannot return the club.
+        members: missing.slice(0, 50).map((m) => ({
+          member: m.id,
+          name: [m.first_name, m.last_name].filter(Boolean).join(' ').trim() || null,
+          sektion: m.sektion || null,
+          category: String(m.beitragskategorie ?? '').trim() || null,
+        })),
+      }
+    }
+    return { fy, sektion, onlyActive, categories, memberIds, discountReason, rows, uncovered }
   }
 
   const duesTotals = (rows) => {
@@ -653,6 +761,8 @@ export function registerFinance(router, { database, logger, services, getSchema 
       surcharged: billable.filter((x) => (x.surcharge || 0) > 0).length,
       guest_discount_amount: round2(billable.reduce((s, x) => s + (x.guest_discount || 0), 0)),
       guests: billable.filter((x) => (x.guest_discount || 0) > 0).length,
+      discount_amount: round2(rows.reduce((s, x) => s + (x.discount || 0), 0)),
+      discounted: rows.filter((x) => (x.discount || 0) > 0).length,
       already_billed: rows.filter((x) => x.already_billed).length,
       clubdesk_billed: rows.filter((x) => !x.already_billed && x.clubdesk_billed).length,
       missing_rate: rows.filter((x) => x.missing_rate).length,
@@ -736,7 +846,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
       if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
       const r = await resolveDuesCohort(req.body || {})
       if (r.error) return res.status(400).json({ error: r.error })
-      return res.json({ fiscal_year: r.fy, rows: r.rows, totals: duesTotals(r.rows) })
+      return res.json({ fiscal_year: r.fy, rows: r.rows, totals: duesTotals(r.rows), uncovered: r.uncovered })
     } catch (e) { return err(res, req, 'dues-preview', e) }
   })
 
@@ -767,21 +877,28 @@ export function registerFinance(router, { database, logger, services, getSchema 
         // a transaction advisory lock, then RE-CHECK who is already billed inside
         // the lock (the cohort's `already_billed` was computed before the txn).
         await trx.raw('SELECT pg_advisory_xact_lock(?, ?)', [DUES_ISSUE_LOCK_NS, r.fy.id])
+        // Both guards must use the SAME predicates as resolveDuesCohort, or the
+        // preview and the run disagree about who gets billed.
         const billedNow = new Set((await trx('finance_invoices')
-          .where('fiscal_year', r.fy.id).whereNotNull('dues_run').whereNotNull('member')
-          .whereNot('status', 'cancelled').pluck('member')).map(Number))
+          .where('fiscal_year', r.fy.id).whereNotNull('member')
+          .whereNot('status', 'cancelled')
+          .where((qb) => qb.whereNotNull('dues_run').orWhere((q) => q
+            .where('source', 'native').whereRaw(DUES_SUBJECT_SQL)))
+          .pluck('member')).map(Number))
         // Re-check the ClubDesk-mirror guard too: the nightly finance sync (or a
         // manual import) may have landed mirror invoices since the preview.
         const clubdeskNow = new Set((await trx('finance_invoices')
           .where('fiscal_year', r.fy.id).where('source', 'clubdesk').whereNotNull('member')
-          .whereRaw("NULLIF(btrim(fee_category), '') IS NOT NULL")
+          .whereRaw(DUES_SUBJECT_SQL)
           .whereNot('status', 'Storniert').pluck('member')).map(Number))
         const toBill = billable.filter((x) => !billedNow.has(Number(x.member)) && !clubdeskNow.has(Number(x.member)))
         if (!toBill.length) return { runId: null, created: [], total: 0 }
 
         const runIns = await trx('finance_dues_runs').insert({
           fiscal_year: r.fy.id, label,
-          filter_json: JSON.stringify({ categories: r.categories, sektion: r.sektion, only_active: r.onlyActive, due_date: dueDate, member_ids: r.memberIds.length ? r.memberIds : null }),
+          filter_json: JSON.stringify({ categories: r.categories, sektion: r.sektion, only_active: r.onlyActive, due_date: dueDate, member_ids: r.memberIds.length ? r.memberIds : null,
+            discounts: Object.fromEntries(r.rows.filter((x) => x.discount > 0).map((x) => [x.member, x.discount])),
+            discount_reason: r.discountReason }),
           status: 'issued', created_by_name: mem?.name || null, created_by_email: mem?.email || null,
         }).returning('id')
         const runId = runIns[0]?.id ?? runIns[0]
@@ -799,6 +916,17 @@ export function registerFinance(router, { database, logger, services, getSchema 
             amount: x.amount, status: 'open', due_date: dueDate,
             amount_paid: 0, open_amount: x.amount, fee_category: x.category,
             recipient_name: x.name, recipient_email: x.email,
+            recipient_address: x.adresse, recipient_zip: x.plz, recipient_city: x.ort,
+            // Positions, so the invoice answers "why 540 and not 440?" on the page
+            // instead of in a mail to the treasurer. Stored, not recomputed at
+            // render time: a licence granted in March must not silently restate
+            // what January's invoice charged.
+            lines: JSON.stringify([
+              { label: `${subject}${x.category ? ` · ${x.category}` : ''}`, amount: round2(x.base_amount) },
+              ...(x.surcharge > 0 ? [{ label: 'Zuschlag ohne Schreiberlizenz', amount: round2(x.surcharge) }] : []),
+              ...(x.guest_discount > 0 ? [{ label: 'Abzug Gastspieler*in', amount: round2(-x.guest_discount) }] : []),
+              ...(x.discount > 0 ? [{ label: x.discount_reason || 'Rabatt', amount: round2(-x.discount) }] : []),
+            ]),
             member: x.member, team: null, dues_run: runId, fiscal_year: r.fy.id,
             source: 'native', created_by_name: mem?.name || null, created_by_email: mem?.email || null,
           }).returning('id')
@@ -1016,11 +1144,10 @@ export function registerFinance(router, { database, logger, services, getSchema 
               // Render the QR-bill first so the body only promises a PDF when one attaches.
               const attachments = []
               try {
-                const message = [inv.number ? `Rechnungsnummer: ${inv.number}` : null, inv.subject].filter(Boolean).join('\n')
-                const pdf = await renderInvoiceQrBillPdf({
-                  amount, number: inv.number, recipientName: inv.recipient_name, subject: inv.subject,
-                  message, reference: inv.reference_type === 'SCOR' ? inv.reference : null,
-                })
+                // The whole invoice, not just the payment part: the member needs a
+                // document with a due date and the 440+100 breakdown, and the five
+                // members with no email get this same page printed and posted.
+                const pdf = await renderInvoicePdf({ ...inv, amount, title: inv.subject || 'Mitgliederbeitrag' })
                 attachments.push({ filename: `${inv.number || 'Rechnung'}.pdf`, content: pdf, contentType: 'application/pdf' })
               } catch (pe) { log.warn?.({ msg: `dues qr-bill render failed: ${pe.message}`, invoice: inv.number }) }
               const html = composeDuesEmail(inv, amount, run.label, { testMode: settings.test_mode, realRecipient: inv.recipient_email, hasAttachment: attachments.length > 0 })

@@ -590,8 +590,8 @@ export function feeBreakdown(kategorie, member = null, opts = {}) {
   // floored at 0, and NEVER the no-Schreiber surcharge (user 2026-07-15).
   // This short-circuits the surcharge branch.
   if (opts?.isGuest === true) {
-    const discount = Math.min(Math.max(base, 0), GUEST_DISCOUNT)
-    return { category: k, base, surcharge: 0, guest_discount: discount, amount: base - discount }
+    const gd = Math.min(Math.max(base, 0), GUEST_DISCOUNT)
+    return withDiscount({ category: k, base, surcharge: 0, guest_discount: gd, amount: base - gd }, opts)
   }
   // member===null (flags unavailable) → base only, a safe default. Adult
   // category → surcharge on missing licence; youth category → surcharge only
@@ -607,7 +607,25 @@ export function feeBreakdown(kategorie, member = null, opts = {}) {
     const eligible = SURCHARGE_ADULT.has(k) || (SURCHARGE_YOUTH.has(k) && isU16Plus(member) === true)
     if (eligible && !hasLicence) surcharge = NO_LICENCE_SURCHARGE
   }
-  return { category: k, base, surcharge, guest_discount: 0, amount: base + surcharge }
+  return withDiscount({ category: k, base, surcharge, guest_discount: 0, amount: base + surcharge }, opts)
+}
+
+/**
+ * Apply the treasurer's on-demand reduction to a computed fee.
+ *
+ * Capped at what is owed: a discount may take a bill to exactly zero (the issue
+ * path then skips it as a zero-rate row) but never below, which would mint an
+ * invoice that owes the MEMBER money and a QR bill for a negative amount.
+ * Non-numeric, zero and negative requests are simply no discount — a typo in the
+ * preview must not silently become a credit.
+ */
+function withDiscount(fee, opts) {
+  const raw = Number(opts?.discount)
+  const wanted = Number.isFinite(raw) && raw > 0 ? Math.round(raw * 100) / 100 : 0
+  if (!wanted) return { ...fee, discount: 0, amount: Math.round(fee.amount * 100) / 100 }
+  const owed = Math.max(0, Math.round(fee.amount * 100) / 100)
+  const discount = Math.min(wanted, owed)
+  return { ...fee, discount, amount: Math.round((fee.amount - discount) * 100) / 100 }
 }
 
 export function deriveMitgliederbeitrag(kategorie, member = null, opts = {}) {

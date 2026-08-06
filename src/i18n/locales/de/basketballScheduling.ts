@@ -370,7 +370,6 @@ export default {
   bbPortalNoFreeSlots: 'Für dieses Team sind derzeit keine Daten frei.',
   bbPortalColDate: 'Datum',
   bbPortalColTime: 'Zeit',
-  bbPortalColHall: 'Halle',
   bbPortalPickSubmit: '{{count}} ausgewählte Daten senden',
   bbPortalNothingPicked: 'Bitte kreuzt zuerst mindestens ein Datum an.',
   bbPortalProposed: 'Danke — wir haben {{count}} Daten notiert.',
