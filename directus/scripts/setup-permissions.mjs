@@ -1877,11 +1877,19 @@ async function main() {
   }
 
   // Member teams — read all + CRUD. create/update/delete are TEAM-SCOPED by
-  // BLOCKING kscw-hooks filters (actorLeadsTeam for create/update — 2026-07-05
+  // BLOCKING kscw-hooks filters (actorMayManageTeam for create/update — 2026-07-05
   // audit MED #3; the pre-existing member_teams.items.delete guard for delete):
   // a coach may only edit rosters for teams they lead. The grants stay unfiltered
   // here because Directus can't row-filter a CREATE and the delete filter keys on
   // the junction id, not the team — the hooks are the real scope gate.
+  //
+  // ⚠ Those hook guards are also the ONLY thing that reads §9's Sport Admin
+  // grant on this collection. They bypass on `accountability.admin`, which
+  // Sport Admin has not held since §3b started pruning the hand-made
+  // `Sport Admin → KSCW Admin [admin_access]` row — so `actorMayManageTeam`
+  // carries the sport-scoped club-wide branch explicitly. If you add another
+  // collection to SPORT_ADMIN_FULL_CRUD that a hook guards on
+  // `accountability.admin` alone, the grant here will be dead on arrival.
   await setPermRead(LEADER_POLICY, 'member_teams')
   await setPerm(LEADER_POLICY, 'member_teams', 'create')
   await setPerm(LEADER_POLICY, 'member_teams', 'update')

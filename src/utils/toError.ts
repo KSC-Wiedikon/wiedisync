@@ -78,3 +78,37 @@ export function toError(error: unknown): Error {
 
   return new Error(String(error))
 }
+
+/** Codes whose message says nothing a translated generic doesn't say better. */
+const OPAQUE_CODES = new Set(['INTERNAL_SERVER_ERROR', 'UNKNOWN'])
+
+/**
+ * The server's own explanation of a REFUSAL, when there is one worth showing.
+ *
+ * Our kscw-hooks guards deny with a specific, actionable sentence ("You can
+ * only remove members from teams you coach or are responsible for") carried in
+ * a Directus error alongside a code like NOT_OWNER / NOT_TEAM_LEADER. Callers
+ * that blanket-catch into a translated `errorSaving` toast throw that sentence
+ * away and leave the user guessing why a button did nothing.
+ *
+ * Returns null — i.e. "use your own translated fallback" — for anything that
+ * isn't a deliberate, explainable rejection: network failures, and the
+ * INTERNAL_SERVER_ERROR fallback whose message is the opaque "An unexpected
+ * error occurred." Those say nothing a translated generic doesn't say better.
+ *
+ * ⚠ The messages are server-side English and are NOT translated. That is the
+ * accepted trade: a precise English reason beats a localized dead end. Anything
+ * a member (rather than staff) hits routinely deserves a real i18n key instead.
+ */
+export function serverDenialMessage(error: unknown): string | null {
+  if (!error || typeof error !== 'object') return null
+  const errors = (error as { errors?: unknown }).errors
+    ?? ((error as { cause?: { errors?: unknown } }).cause?.errors)
+  if (!Array.isArray(errors) || errors.length === 0) return null
+  const first = errors[0] as { message?: unknown; extensions?: { code?: unknown } } | undefined
+  const code = first?.extensions?.code
+  if (typeof code !== 'string' || OPAQUE_CODES.has(code)) return null
+  const message = first?.message
+  if (typeof message !== 'string' || !message.trim()) return null
+  return message.trim()
+}

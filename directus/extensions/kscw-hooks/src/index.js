@@ -261,8 +261,14 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         event: 'captcha_failed',
       })
       logWarning('captcha_failed', 'Turnstile verification failed', { collection })
+      // name = 'DirectusError' or Directus reports this as a 500 — see the
+      // kscwScopeError comment. A signup form needs to be told the CAPTCHA
+      // failed, not that the server broke.
       const err = new Error('Captcha verification failed')
+      err.name = 'DirectusError'
       err.status = 403
+      err.code = 'CAPTCHA_FAILED'
+      err.extensions = { code: 'CAPTCHA_FAILED' }
       throw err
     }
     return payload
@@ -1718,8 +1724,14 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // an announcement targeting the OTHER sport. Global admin/superuser
   // and members with BOTH sport roles bypass.
   function denyAudience(message) {
+    // name = 'DirectusError' — without it Directus swallows `message` and
+    // answers 500 for non-admins (see kscwScopeError). These messages name the
+    // exact audience rule that was broken; they are the whole point.
     const err = new Error(message)
+    err.name = 'DirectusError'
     err.status = 403
+    err.code = 'AUDIENCE_FORBIDDEN'
+    err.extensions = { code: 'AUDIENCE_FORBIDDEN' }
     throw err
   }
 
@@ -4741,8 +4753,18 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   //
   // Admins and service calls (no accountability.user) bypass.
   // Club-wide Spielplaners (members.is_spielplaner = true) bypass the team check.
+  // ⚠ `name = 'DirectusError'` is load-bearing, not cosmetic. Directus's error
+  // handler routes on `isDirectusError(err)`, which tests EXACTLY that name and
+  // nothing else — `.status` / `.code` / `.extensions` are read only once that
+  // test passes. A plain `new Error(...)` therefore falls into the fallback
+  // branch: HTTP 500, and for any non-admin caller the message is replaced with
+  // the opaque "An unexpected error occurred." So every guard below used to
+  // deny correctly and then report the denial as a server crash — the coach saw
+  // a generic error toast, and Sentry filled with 500s that were really 403s.
+  // (Verified against @directus/errors + api/src/middleware/error-handler.ts.)
   function kscwScopeError(message, status, code) {
     const err = new Error(message)
+    err.name = 'DirectusError'
     err.status = status
     err.code = code
     err.extensions = { code }
@@ -5092,8 +5114,9 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // but Directus delete filters key on the junction id, and a coach's delete
   // perm is NOT team-scoped here, so without this a coach could delete ANY
   // team's roster rows (cross-team roster tampering). A non-admin may delete a
-  // member_teams row only when (a) it's their own membership, or (b) they
-  // coach / are responsible for that row's team. System + admin pass.
+  // member_teams row only when (a) it's their own membership, (b) they coach /
+  // are responsible for that row's team, or (c) they hold club-wide authority
+  // over that team's sport (actorMayManageTeam). System + admin pass.
   filter('member_teams.items.delete', async (keys, _meta, { database: db, accountability }) => {
     if (!accountability?.user) return keys   // system context (cron/hook/cascade)
     if (accountability.admin) return keys     // admins bypass
@@ -5107,9 +5130,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       if (row.team == null) {
         throw kscwScopeError('You cannot delete these team memberships', 403, 'NOT_OWNER')
       }
-      const isCoach = await db('teams_coaches').where({ teams_id: row.team, members_id: editor.id }).first('id')
-      const isTR = isCoach || await db('teams_responsibles').where({ teams_id: row.team, members_id: editor.id }).first('id')
-      if (!isCoach && !isTR) {
+      if (!(await actorMayManageTeam(db, accountability, row.team))) {
         throw kscwScopeError('You can only remove members from teams you coach or are responsible for', 403, 'NOT_OWNER')
       }
     }
@@ -5138,11 +5159,52 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     return !!isTR
   }
 
+  /**
+   * The OTHER way to be allowed to edit a team's roster/staff: club-wide
+   * authority, held without coaching the team at all.
+   *
+   * `accountability.admin` covers only Directus superadmins. The Sport Admin
+   * tier (members.role ∋ vb_admin / bb_admin) is deliberately NOT one of those
+   * — prod carried a hand-made `Sport Admin → KSCW Admin [admin_access]` row
+   * until setup-permissions §3b started reconciling role→policy attachments and
+   * removed it. Every guard here that bypasses on `accountability.admin` alone
+   * therefore turned into a wall for vb_admin / bb_admin on that same day, even
+   * though §9 grants them member_teams / teams_coaches / teams_responsibles
+   * full CRUD club-wide (SPORT_ADMIN_FULL_CRUD) and the frontend still lets
+   * them open the roster editor (`isCoachOf` → `hasAdminAccessToTeam`). This
+   * closes that gap in the hooks rather than by handing the admin bypass back.
+   *
+   * Scoped to the admin's own sport: a vb_admin must not touch a basketball
+   * roster. A team with no `sport` (club-wide / unset) resolves to false for
+   * sport admins — the same conservative answer the frontend's
+   * `hasAdminAccessToTeam` gives — so nobody gets access by way of missing data.
+   */
+  async function actorHasClubWideTeamAccess(db, accountability, teamId) {
+    const me = await db('members').where('user', accountability.user).select('role').first()
+    const roles = Array.isArray(me?.role) ? me.role : []
+    if (roles.includes('admin') || roles.includes('superuser')) return true
+    const isVb = roles.includes('vb_admin')
+    const isBb = roles.includes('bb_admin')
+    if (!isVb && !isBb) return false
+    if (isVb && isBb) return true          // both sections — every team qualifies
+    if (teamId == null) return false
+    const team = await db('teams').where('id', teamId).first('sport')
+    if (team?.sport === 'volleyball') return isVb
+    if (team?.sport === 'basketball') return isBb
+    return false
+  }
+
+  /** Either route: leads the team, or outranks team scope for that sport. */
+  async function actorMayManageTeam(db, accountability, teamId) {
+    if (await actorHasClubWideTeamAccess(db, accountability, teamId)) return true
+    return actorLeadsTeam(db, accountability, teamId)
+  }
+
   for (const coll of ['teams_coaches', 'teams_responsibles']) {
     filter(`${coll}.items.create`, async (payload, _meta, { database: db, accountability }) => {
       if (!accountability?.user) return payload   // system context (cron/hook/cascade)
       if (accountability.admin) return payload     // admins bypass
-      if (!(await actorLeadsTeam(db, accountability, toIdValue(payload?.teams_id)))) {
+      if (!(await actorMayManageTeam(db, accountability, toIdValue(payload?.teams_id)))) {
         throw kscwScopeError('You can only assign staff to a team you coach or are responsible for', 403, 'NOT_TEAM_LEADER')
       }
       return payload
@@ -5156,7 +5218,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   filter('member_teams.items.create', async (payload, _meta, { database: db, accountability }) => {
     if (!accountability?.user) return payload
     if (accountability.admin) return payload
-    if (!(await actorLeadsTeam(db, accountability, toIdValue(payload?.team)))) {
+    if (!(await actorMayManageTeam(db, accountability, toIdValue(payload?.team)))) {
       throw kscwScopeError('You can only add members to a team you coach or are responsible for', 403, 'NOT_TEAM_LEADER')
     }
     return payload
@@ -5167,11 +5229,11 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     const ids = Array.isArray(meta?.keys) ? meta.keys : (meta?.key != null ? [meta.key] : [])
     const rows = ids.length ? await db('member_teams').whereIn('id', ids).select('team') : []
     for (const row of rows) {
-      if (!(await actorLeadsTeam(db, accountability, row.team))) {
+      if (!(await actorMayManageTeam(db, accountability, row.team))) {
         throw kscwScopeError('You can only edit rosters for teams you coach or are responsible for', 403, 'NOT_TEAM_LEADER')
       }
     }
-    if (payload?.team != null && !(await actorLeadsTeam(db, accountability, toIdValue(payload.team)))) {
+    if (payload?.team != null && !(await actorMayManageTeam(db, accountability, toIdValue(payload.team)))) {
       throw kscwScopeError('You can only move members to teams you coach or are responsible for', 403, 'NOT_TEAM_LEADER')
     }
     return payload

@@ -25,6 +25,7 @@ import { Button } from '../../components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import { fetchAllItems, fetchItems, kscwApi, updateRecord, uploadFile } from '../../lib/api'
 import { asObj, relId, memberFirstName } from '../../utils/relations'
+import { serverDenialMessage } from '../../utils/toError'
 import { useReportPageLoading } from '../../hooks/usePageReady'
 
 type LeadershipRole = 'coach' | 'captain' | 'team_responsible'
@@ -141,8 +142,8 @@ export default function RosterEditor() {
       toast.success(t('memberAdded', { name: displayName(member ?? {} as Member) }))
       setSearch('')
       refetch()
-    } catch {
-      toast.error(t('common:errorSaving'))
+    } catch (err) {
+      toast.error(serverDenialMessage(err) ?? t('common:errorSaving'))
     } finally {
       setAddingId(null)
     }
@@ -154,8 +155,12 @@ export default function RosterEditor() {
       await remove(removingId)
       setRemovingId(null)
       refetch()
-    } catch {
-      toast.error(t('common:errorSaving'))
+    } catch (err) {
+      // The kscw-hooks roster guards refuse with a specific reason ("You can
+      // only remove members from teams you coach or are responsible for").
+      // Swallowing it into `errorSaving` is why this surfaced as an unexplained
+      // dead button rather than a permission problem — see serverDenialMessage.
+      toast.error(serverDenialMessage(err) ?? t('common:errorSaving'))
     }
   }
 
