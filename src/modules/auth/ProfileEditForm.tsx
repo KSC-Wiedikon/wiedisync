@@ -437,8 +437,17 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
           new: serializeTrainerLicences(trainerLicences) ?? '',
         },
         sex: { old: user.sex || '', new: sex },
-        ahv_nummer: { old: user.ahv_nummer || '', new: ahvCanonical },
-        iban: { old: user.iban || '', new: ibanCanonical },
+        // ⚠ `ahv_nummer` and `iban` are deliberately NOT diffed here, even though
+        // both ARE pushed to ClubDesk (CD_PUSH_CONTACT_HEADERS). They reach the
+        // register through the members.update hook, which flags
+        // `clubdesk_push_pending` on the write above — /clubdesk-update refuses
+        // them by design (they are ClubDesk-authoritative and must not travel in
+        // a member-triggered CSV), so listing them here only meant that a member
+        // changing ONLY their AHV number or IBAN sent a change set the endpoint
+        // dropped to nothing and got `400 No editable fields to update` — an
+        // error toast on a save that had in fact succeeded and had already been
+        // queued for the push. Keep the rest of this object in step with the
+        // EDITABLE set in clubdesk-update.js.
       }
       // Normalize before diffing — `undefined`/`null`/`''`/whitespace must all
       // compare equal, otherwise an empty optional field (e.g. phone) emits a
