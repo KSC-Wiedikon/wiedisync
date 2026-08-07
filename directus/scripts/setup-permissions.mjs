@@ -2223,6 +2223,12 @@ async function main() {
     // team_links (migration 218, was basketball_team_links) is sport-agnostic — both the
     // basketball prep + volleyball Terminplanung settings write it; UI-scoped per sport.
     'basketball_hall_availability', 'basketball_slot_plan', 'team_links',
+    // basketball_team_rules (migration 278) — the per-team constraint matrix on
+    // /admin/terminplanung/basketball/settings. It shipped into the Terminplanung
+    // policy only (§9b), which rides on `is_spielplaner`; a bb_admin holds no such
+    // flag, so the settings page 403'd on load for exactly the people it is built
+    // for (observed 2026-08-07). Same tier as the three collections above it.
+    'basketball_team_rules',
     'sv_vm_check',
     // VIS mirrors (migrations 237/240/241) behind /admin/transfers, which is gated
     // to admin | superuser | vb_admin | bb_admin. The first two bypass policies,
@@ -2268,6 +2274,15 @@ async function main() {
   await setPerm(SPORT_ADMIN_POLICY, 'poll_votes', 'create')
   await setPerm(SPORT_ADMIN_POLICY, 'poll_votes', 'update')
   await setPerm(SPORT_ADMIN_POLICY, 'poll_votes', 'delete')
+  // basketplan_clubs (migration 279) — READ + UPDATE, no create/delete: the
+  // registry is populated by the Basketplan scrape, but the contact block on it
+  // is hand-maintained from the club-portals panel on the basketball settings
+  // page (`saveClubContact`). A Spielplaner deliberately gets read-only there
+  // (§9b); a sport admin is the tier above and already holds exactly this shape
+  // on `game_scheduling_opponents`, which carries the same class of third-party
+  // contact PII. Without the read the portals panel renders an empty club list.
+  await setPermRead(SPORT_ADMIN_POLICY, 'basketplan_clubs')
+  await setPerm(SPORT_ADMIN_POLICY, 'basketplan_clubs', 'update')
   // Restricted: read/create/update on members + teams.
   // fields = '*' on both, which is what already covers the staff-only
   // `transfer_*` columns (migrations 234/235) that `/admin/transfers` writes —
