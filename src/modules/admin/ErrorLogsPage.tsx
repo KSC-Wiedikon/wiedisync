@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
   FileWarning, RefreshCcw, ChevronDown, ChevronRight,
-  Search, X, AlertCircle, AlertTriangle, CheckCircle2,
+  Search, X, AlertCircle, AlertTriangle, CheckCircle2, Info,
   Archive, Star, BellOff, Trash2, RotateCcw,
 } from 'lucide-react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
@@ -31,7 +31,7 @@ interface ErrorAnnotation {
 
 interface ErrorLogEntry {
   ts: string
-  level: 'error' | 'warn'
+  level: 'error' | 'warn' | 'info'
   source: 'frontend' | null
   project: string
   event: string
@@ -76,7 +76,9 @@ interface ErrorFilters {
 }
 
 const PROJECTS = ['wiedisync', 'kscw-website']
-const LEVELS = ['error', 'warn']
+// `info` is the SQL-workspace audit trail, not a finding — the endpoint keeps it
+// out of the unfiltered view, so picking it here is the only way to see it.
+const LEVELS = ['error', 'warn', 'info']
 const EVENTS = [
   'api_error', 'auth_denied', 'auth_error', 'cron_error', 'client_error', 'unhandled_error',
   'unhandled_rejection', 'network_error', 'console_error', 'captcha_failed', 'push_send_failed',
@@ -88,6 +90,7 @@ function todayIso() {
 
 function levelIcon(level: string) {
   if (level === 'warn') return <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+  if (level === 'info') return <Info className="h-3.5 w-3.5 text-sky-500" />
   return <AlertCircle className="h-3.5 w-3.5 text-red-500" />
 }
 

@@ -297,7 +297,14 @@ export default {
 
         // Write to JSONL — add userId from auth if available, project tag for multi-app support
         writeErrorLog({
-          level: 'error',
+          // The client's own severity, when it declares one. `captureAuthError`
+          // and the unauthenticated-request carve-out in sentry.ts deliberately
+          // report at `warn` (a wrong password or a session evicted while the tab
+          // was backgrounded is expected), and hardcoding `error` here overrode
+          // every one of them — 32 of the entries in the 2026-08-02/03 logs were
+          // page-load bursts already classified as benign at source. Only the two
+          // known levels are honoured; anything else is an error.
+          level: body.level === 'warn' ? 'warn' : 'error',
           source: 'frontend',
           project: body.project || 'wiedisync',
           event: body.event || 'client_error',
@@ -2165,7 +2172,16 @@ export default {
         })
 
         // Apply filters (after enrichment so search covers _context fields)
+        //
+        // `level: 'info'` entries are AUDIT records, not errors — the SQL
+        // workspace writes one per statement executed (`sql_workspace` /
+        // `sql_workspace_ai`) so that raw-SQL access leaves a trail. They share
+        // the JSONL because it is the one durable append-only log, but they are
+        // not findings: on 2026-08-03 they were 14 of the day's 80 lines and read
+        // as errors on the admin page. Excluded from the default view; `?level=info`
+        // still returns them, which is how the audit trail stays reachable.
         if (levelFilter) entries = entries.filter(e => e.level === levelFilter)
+        else entries = entries.filter(e => e.level !== 'info')
         if (endpointFilter) entries = entries.filter(e => e.endpoint?.includes(endpointFilter))
         if (userIdFilter) entries = entries.filter(e => e.userId === userIdFilter)
         if (eventFilter) entries = entries.filter(e => e.event === eventFilter)
