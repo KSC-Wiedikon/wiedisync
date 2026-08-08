@@ -1,6 +1,7 @@
 // Finance data hooks (migration 114). Read-only mirror of ClubDesk Finanz.
 // Members read only their OWN invoices (policy-enforced); Vorstand reads all.
 
+import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useCollection } from '../lib/query'
 import { useAuth } from './useAuth'
@@ -449,6 +450,48 @@ export function isOpenInvoice(inv: FinanceInvoice): boolean {
   const status = (inv.status ?? '').toLowerCase()
   if (status.includes('storn') || status.includes('cancel')) return false
   return toNum(inv.open_amount) > 0
+}
+
+/**
+ * The recipient tapped "I've paid" and the club has not confirmed it yet.
+ * Native invoices record that on the status column; ClubDesk mirror rows keep
+ * ClubDesk's own wording there, so they carry it on reported_paid_at instead
+ * (backed by finance_invoice_self_reports — see migration 297).
+ */
+export function isReportedPaid(inv: FinanceInvoice): boolean {
+  if (!isOpenInvoice(inv)) return false
+  return inv.source === 'native' ? inv.status === 'pending_confirmation' : !!inv.reported_paid_at
+}
+
+/**
+ * Still owed AND still the member's move — the member-facing surfaces (open
+ * balance, QR-bill, home-page dues news) key off this rather than
+ * `isOpenInvoice`, so a self-reported bill stops nagging the moment it is
+ * reported. The board's books keep using `isOpenInvoice`: the money has not
+ * arrived yet, so the invoice IS still outstanding to the treasurer.
+ */
+export function isPayableInvoice(inv: FinanceInvoice): boolean {
+  return isOpenInvoice(inv) && !isReportedPaid(inv)
+}
+
+/** What the home page's "a bill is due" news row needs, or null when nothing is
+ *  payable — self-reported and settled invoices both resolve to null, which is
+ *  what makes the row disappear the moment the member marks a bill paid. */
+export interface DuesNews { count: number; total: number; dueDate: string | null }
+
+export function useDuesNews(): DuesNews | null {
+  const { data } = useMyInvoices()
+  return useMemo(() => {
+    const open = (data ?? []).filter(isPayableInvoice)
+    if (open.length === 0) return null
+    return {
+      count: open.length,
+      total: open.reduce((acc, i) => acc + toNum(i.open_amount), 0),
+      // Earliest deadline across the open bills — the one that actually bites.
+      // ISO dates sort lexicographically, so no parsing needed.
+      dueDate: open.map((i) => i.due_date).filter(Boolean).sort()[0] ?? null,
+    }
+  }, [data])
 }
 
 // ── Dues runs — recurring / batch membership-dues billing (migration 138) ──

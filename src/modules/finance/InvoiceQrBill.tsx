@@ -55,8 +55,17 @@ export default function InvoiceQrBill({ invoice }: { invoice: FinanceInvoice }) 
   return (
     <div className="py-2 text-center">
       <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{t('qrScanHint', { amount: formatChf(amount) })}</p>
-      {/* SVG is generated from controlled invoice data (no user markup, only QR rects). */}
-      <div className="mt-2 flex justify-center" dangerouslySetInnerHTML={{ __html: svg }} />
+      {/* The QR is drawn as black modules on a TRANSPARENT ground, so in dark mode
+          it sat black-on-near-black — unreadable to the eye and to a scanner, which
+          needs the light/dark contrast to find the finder patterns. The white plate
+          (and its quiet-zone padding) is part of the symbol, not decoration, so it
+          is deliberately NOT theme-aware. */}
+      <div className="mt-2 flex justify-center">
+        <div className="rounded-lg bg-white p-3 shadow-sm">
+          {/* SVG is generated from controlled invoice data (no user markup, only QR rects). */}
+          <div className="flex justify-center" dangerouslySetInnerHTML={{ __html: svg }} />
+        </div>
+      </div>
       <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">{t('payTwintNote')}</p>
     </div>
   )

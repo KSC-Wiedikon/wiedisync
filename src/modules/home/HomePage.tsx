@@ -23,6 +23,8 @@ import { asTeams, getEventDateBadgeParts } from '../events/eventHelpers'
 import DutyEventCard from '../events/DutyEventCard'
 import AnnouncementRow from './components/AnnouncementRow'
 import AnnouncementDetailModal from './components/AnnouncementDetailModal'
+import DuesNewsRow from './components/DuesNewsRow'
+import { useDuesNews } from '../../hooks/useFinance'
 import { useAnnouncements } from '../../hooks/useAnnouncements'
 import { useUserVisibleEventIds } from '../../hooks/useUserVisibleEventIds'
 import { useUserVisibleGameIds } from '../../hooks/useUserVisibleGameIds'
@@ -100,6 +102,10 @@ export default function HomePage() {
   const [beforeAbsencesDeadline] = useState(() => Date.now() < ABSENCES_ALERT_DEADLINE)
   const { notifications: allNotifs, unreadCount, markAsRead, markAllAsRead, deleteNotification, clearAllRead } = useNotifications()
   const { announcements } = useAnnouncements({ limit: 10 })
+  // An open bill leads the news feed. It is derived from the member's invoices
+  // (not a stored notification), so it clears itself once they pay or mark the
+  // bill paid — see DuesNewsRow.
+  const duesNews = useDuesNews()
 
   // Unified news feed: pinned announcements first, then notifications + remaining
   // announcements interleaved by timestamp (desc). Cap at 3 for the homepage card.
@@ -571,8 +577,8 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* News section — unified feed: announcements + notifications */}
-      {user && isApproved && feedItems.length > 0 && (
+      {/* News section — unified feed: open bill + announcements + notifications */}
+      {user && isApproved && (feedItems.length > 0 || duesNews) && (
         <div className="mb-6 lg:flex lg:flex-col lg:items-center">
           <SectionHeader
             title={tn('news')}
@@ -580,6 +586,7 @@ export default function HomePage() {
             linkLabel={tn('showAll')}
           />
           <div className="w-full overflow-hidden rounded-xl border border-gray-200 bg-white lg:max-w-2xl dark:border-gray-700 dark:bg-gray-800">
+            {duesNews && <DuesNewsRow news={duesNews} />}
             {feedItems.map((item) =>
               item.kind === 'announcement' ? (
                 <AnnouncementRow

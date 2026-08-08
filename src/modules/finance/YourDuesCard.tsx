@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import { Wallet } from 'lucide-react'
-import { useMyInvoices, toNum, formatChf, isOpenInvoice } from '../../hooks/useFinance'
+import { useMyInvoices, toNum, formatChf, isPayableInvoice } from '../../hooks/useFinance'
 
 /**
  * Home-page card: the member's open dues. Renders nothing when there's no open
@@ -15,7 +15,8 @@ export default function YourDuesCard() {
   const invoices = invoicesRaw ?? []
 
   const stats = useMemo(() => {
-    const open = invoices.filter(isOpenInvoice)
+    // Self-reported invoices are excluded — see isPayableInvoice.
+    const open = invoices.filter(isPayableInvoice)
     return { count: open.length, total: open.reduce((acc, i) => acc + toNum(i.open_amount), 0) }
   }, [invoices])
 

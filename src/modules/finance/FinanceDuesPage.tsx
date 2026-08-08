@@ -1,9 +1,10 @@
 import { Fragment, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ChevronDown, ChevronRight, Check, Clock } from 'lucide-react'
+import { toast } from 'sonner'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import { formatDateCompactZurich } from '../../utils/dateHelpers'
-import { useMyInvoices, useMyInvoicesMeta, toNum, formatChf, isOpenInvoice, isNativeInvoice, reportInvoicePaid } from '../../hooks/useFinance'
+import { useMyInvoices, useMyInvoicesMeta, toNum, formatChf, isPayableInvoice, isReportedPaid, isNativeInvoice, reportInvoicePaid } from '../../hooks/useFinance'
 import { useReportPageLoading } from '../../hooks/usePageReady'
 import type { FinanceInvoice } from './types'
 import InvoiceQrBill from './InvoiceQrBill'
@@ -15,6 +16,11 @@ import { TourPageButton } from '../guide/TourPageButton'
 function StatusBadge({ inv }: { inv: FinanceInvoice }) {
   const { t } = useTranslation('finance')
   const base = 'inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium'
+  // A self-reported ClubDesk row still says "Gestellt" in ClubDesk's own column —
+  // the member's own report is what the member needs to see here.
+  if (!isNativeInvoice(inv) && isReportedPaid(inv)) {
+    return <span className={`${base} bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300`}>{t('statusPendingConfirmation')}</span>
+  }
   if (isNativeInvoice(inv)) {
     const s = inv.status ?? ''
     const map: Record<string, [string, string]> = {
@@ -28,7 +34,7 @@ function StatusBadge({ inv }: { inv: FinanceInvoice }) {
     return <span className={`${base} ${cls}`}>{label}</span>
   }
   if (!inv.status) return null
-  const payable = isOpenInvoice(inv)
+  const payable = isPayableInvoice(inv)
   return (
     <span className={`${base} ${payable ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' : 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'}`}>
       {inv.status}
@@ -47,13 +53,15 @@ export default function FinanceDuesPage() {
   // Report to the app boot gate — see usePageReady.tsx
   useReportPageLoading(isLoading)
 
+  // Self-reported invoices drop out of the open balance on purpose: the member
+  // has done their part and should see CHF 0.00 until finance says otherwise.
   const openTotal = useMemo(
-    () => invoices.filter(isOpenInvoice).reduce((acc, i) => acc + toNum(i.open_amount), 0),
+    () => invoices.filter(isPayableInvoice).reduce((acc, i) => acc + toNum(i.open_amount), 0),
     [invoices],
   )
 
   // Guided-tour anchor: the first payable row doubles as the pay/QR affordance.
-  const firstPayableId = invoices.find(isOpenInvoice)?.id
+  const firstPayableId = invoices.find(isPayableInvoice)?.id
 
   async function handlePaid(id: string) {
     setSubmitting(id)
@@ -61,6 +69,11 @@ export default function FinanceDuesPage() {
       await reportInvoicePaid(id)
       await refetch()
       setPayRow(null)
+      toast.success(t('reportPaidDone'))
+    } catch {
+      // Without this the button just stopped spinning — a 409 (already settled
+      // in ClubDesk since the page loaded) looked like a dead button.
+      toast.error(t('reportPaidFailed'))
     } finally {
       setSubmitting(null)
     }
@@ -128,9 +141,8 @@ export default function FinanceDuesPage() {
             <TableBody>
               {invoices.map((inv, idx) => {
                 const open = toNum(inv.open_amount)
-                const payable = isOpenInvoice(inv)
-                const native = isNativeInvoice(inv)
-                const pending = native && inv.status === 'pending_confirmation'
+                const payable = isPayableInvoice(inv)
+                const pending = isReportedPaid(inv)
                 const expanded = payRow === inv.id
                 return (
                   <Fragment key={inv.id}>
@@ -171,20 +183,21 @@ export default function FinanceDuesPage() {
                       <TableRow className="border-gray-200 dark:border-gray-700">
                         <TableCell colSpan={6} className="bg-amber-50/40 dark:bg-amber-900/10">
                           <InvoiceQrBill invoice={inv} />
-                          {native && (
-                            <div className="flex flex-col items-center gap-1.5 pb-3">
-                              <button
-                                type="button"
-                                disabled={submitting === inv.id}
-                                onClick={() => handlePaid(inv.id)}
-                                className="inline-flex items-center gap-1.5 rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
-                              >
-                                <Check className="h-4 w-4" />
-                                {t('iPaid')}
-                              </button>
-                              <p className="max-w-sm text-center text-xs text-gray-500 dark:text-gray-400">{t('iPaidHint')}</p>
-                            </div>
-                          )}
+                          {/* Offered for ClubDesk mirror rows too — the report is kept
+                              in finance_invoice_self_reports so it outlives the nightly
+                              mirror rebuild (migration 297). */}
+                          <div className="flex flex-col items-center gap-1.5 pb-3">
+                            <button
+                              type="button"
+                              disabled={submitting === inv.id}
+                              onClick={() => handlePaid(inv.id)}
+                              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
+                            >
+                              <Check className="h-4 w-4" />
+                              {t('setAsPaid')}
+                            </button>
+                            <p className="max-w-sm text-center text-xs text-gray-500 dark:text-gray-400">{t('iPaidHint')}</p>
+                          </div>
                         </TableCell>
                       </TableRow>
                     )}
