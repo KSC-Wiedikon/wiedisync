@@ -262,6 +262,12 @@ export default {
   clubPicksAccepted: '{{count}} Date vereinbart.',
   clubPicksReleased: '{{count}} Date freigäh.',
   clubPicksReleaseConfirm: '{{count}} vom Klub gwählti Date freigäh? De Vorschlag wird glöscht und de Hallenslot staht wieder allne Klubs zur Verfüegig. Das cha me nöd rückgängig mache.',
+  datePrefsTitle: 'Vo de Klubs gmeldeti Date',
+  datePrefsHint: 'Was d Gegner-Klubs über ihre Link gmeldet hend. Das sind Verfüegbarkeite, kei Buechige — nüt devo reserviert en Hallenslot. Setzed s Spiel im Planer, sobald ihr entschide hend.',
+  datePrefsEmpty: 'Es het no kei Klub gantwortet.',
+  datePrefsAnswered: '{{count}} Klubs hend gantwortet.',
+  datePrefsColClubs: 'Verfüegbari Klubs',
+  datePrefsAllTeams: 'Alli Teams',
   offersTitle: 'De Gägner aabotni Spiel',
   offersHint:
     'Es gsetzts Heimspiel chunnt erscht zum Gägner, wenn s eme Klub zuegordnet und aabote isch. Aabotni Spiel erschiined uf em Link vo dem Klub; zrugziehe gaht, solang de Klub nöd gantwortet hät.',
