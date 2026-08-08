@@ -792,6 +792,20 @@ function DebouncedNumberInput({ value, onChange, suffix }: { value: number | und
 
 type UrlField = 'social_url' | 'facebook_url' | 'tiktok_url'
 
+/**
+ * Mixed youth squads — the MU teams (MU8, MU10). Only these get the
+ * girls/boys sub-toggles: a D/H team recruiting the other gender makes no
+ * sense, and the public Nachwuchs page only splits the MU cards.
+ *
+ * Matched on the name rather than teams.gender because gender is unset on the
+ * basketball youth teams, and the club's naming has been the reliable signal
+ * through two rounds of renames. Note HU12 currently plays a mixed league
+ * (MixU12M) and is deliberately excluded — it is still the boys' team.
+ */
+function isMixedYouthTeam(team: Team): boolean {
+  return /^MU\s*\d/i.test((team.name ?? '').trim())
+}
+
 function TeamSettingsSection({ team, onUpdate }: { team: Team; onUpdate: (s: TeamSettings) => void }) {
   const { t } = useTranslation('teams')
   const { update } = useMutation<Team>('teams')
@@ -800,6 +814,8 @@ function TeamSettingsSection({ team, onUpdate }: { team: Team; onUpdate: (s: Tea
   const [recruitingPositions, setRecruitingPositions] = useState<MemberPosition[]>(
     coercePositions(team.recruiting_positions),
   )
+  const [openForGirls, setOpenForGirls] = useState(team.open_for_girls ?? false)
+  const [openForBoys, setOpenForBoys] = useState(team.open_for_boys ?? false)
   const [showGuests, setShowGuests] = useState(team.show_guests_on_website ?? true)
   const [trialFormOpen, setTrialFormOpen] = useState(false)
   const [socialUrl, setSocialUrl] = useState(team.social_url ?? '')
@@ -848,6 +864,18 @@ function TeamSettingsSection({ team, onUpdate }: { team: Team; onUpdate: (s: Tea
     const next = !openForPlayers
     await update(team.id, { open_for_players: next })
     setOpenForPlayers(next)
+  }
+
+  const toggleOpenForGirls = async () => {
+    const next = !openForGirls
+    await update(team.id, { open_for_girls: next })
+    setOpenForGirls(next)
+  }
+
+  const toggleOpenForBoys = async () => {
+    const next = !openForBoys
+    await update(team.id, { open_for_boys: next })
+    setOpenForBoys(next)
   }
 
   const toggleRecruitingPosition = async (p: MemberPosition) => {
@@ -920,6 +948,21 @@ function TeamSettingsSection({ team, onUpdate }: { team: Team; onUpdate: (s: Tea
                   })}
               </div>
             </div>
+          )}
+          {/* Mixed youth squads are capped per gender, so they recruit girls and
+              boys separately. Turning on exactly one splits the team's card on
+              the public Nachwuchs page: that gender gets the contact form, the
+              other the waiting list. Both on (or both off, the default) recruit
+              without a split — see migration 298. */}
+          {openForPlayers && isMixedYouthTeam(team) && (
+            <>
+              <SettingRow label={t('featureOpenForGirls')} hint={t('featureOpenForGirlsHint')}>
+                <SwitchToggle checked={openForGirls} onChange={toggleOpenForGirls} />
+              </SettingRow>
+              <SettingRow label={t('featureOpenForBoys')} hint={t('featureOpenForBoysHint')}>
+                <SwitchToggle checked={openForBoys} onChange={toggleOpenForBoys} />
+              </SettingRow>
+            </>
           )}
           {openForPlayers && (
             <div className="flex items-center justify-between gap-4 px-4 py-3">

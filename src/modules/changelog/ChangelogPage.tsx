@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '1.71.0'
+const APP_VERSION = '1.72.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,20 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.72.0',
+    date: '08.08.2026',
+    sections: [
+      {
+        title: 'Mixed teams can take girls and boys separately',
+        items: [
+          'A mixed team fills up per gender, and "open for new players" could not say so. U8 and U10 are mixed, but the squad has room for girls and not boys, or the other way round — and the single switch either invited everyone or nobody. Mixed teams now have two more switches under it, one per gender.',
+          'The club website acts on them. With only one of the two on, the team\'s card on the Nachwuchs page splits in half: the gender being taken gets the green badge and the contact form, the other gets the "Team voll" badge and the waiting list. Turning both on — or leaving both off, which is where every team starts — shows the single "open for new players" row exactly as before, so nothing changes until a coach opts in.',
+          'Only mixed teams see the switches; a girls\' or boys\' team is unaffected.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.71.0',
     date: '06.08.2026',
