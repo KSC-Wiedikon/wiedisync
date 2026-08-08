@@ -320,9 +320,27 @@ export function registerFinance(router, { database, logger, services, getSchema 
   // for non-admins (CLAUDE.md → "M2M deep filter + policy walk").
   router.get('/finance/my-invoices', async (req, res) => {
     try {
-      const mem = await actingMember(req)
-      // `id`, not `mem` — an admin-only account now resolves to an identity with
-      // a null member id, and "my invoices" is meaningless without a member row.
+      const caller = await actingMember(req)
+      // ── "View as member" ────────────────────────────────────────────────
+      // Impersonation is CLIENT-SIDE ONLY: api.ts:220 — "the API calls still
+      // carry the superadmin's own session". So this endpoint used to resolve
+      // the SUPERADMIN's member row while the page claimed to be showing
+      // Nadine, and reported "You have no invoices" over a member holding an
+      // open CHF 440 bill. Silently showing the wrong person's finances is
+      // worse than the feature not existing, so honour an explicit ?member=,
+      // gated to exactly who may impersonate (impersonate.js): Directus admin,
+      // or the 'superuser' member role. Read-only — no write path takes this.
+      const asMember = Number(req.query.member)
+      let mem = caller
+      if (Number.isInteger(asMember) && asMember > 0 && asMember !== caller?.id) {
+        const mayViewAs = req.accountability?.admin === true || (caller?.roles || []).includes('superuser')
+        if (!mayViewAs) return res.status(403).json({ error: 'Forbidden' })
+        const tgt = await database('members').where('id', asMember).first('id', 'first_name', 'last_name', 'email')
+        if (!tgt) return res.status(404).json({ error: 'member not found' })
+        mem = { id: tgt.id, name: [tgt.first_name, tgt.last_name].filter(Boolean).join(' ').trim() || null, email: tgt.email || null, roles: [] }
+      }
+      // `id`, not `mem` — an admin-only account resolves to an identity with a
+      // null member id, and "my invoices" is meaningless without a member row.
       if (!mem?.id) return res.status(401).json({ error: 'Unauthenticated' })
       const teamIds = await ledTeamIds(mem.id)
 
