@@ -706,9 +706,16 @@ export function registerBasketballPortal(router, { database, logger }) {
         const wanted = [...new Set((Array.isArray(pick?.dates) ? pick.dates : [])
           .map((d) => String(d || '').slice(0, 10))
           .filter((d) => YMD_RE.test(d)))]
+        if (wanted.length > 200) return res.status(400).json({ error: 'too_many_picks' })
         const usable = wanted.filter((d) => allowed.has(d))
         rejected += wanted.length - usable.length
-        if (wanted.length > 200) return res.status(400).json({ error: 'too_many_picks' })
+
+        // ⚠ Asked for dates but NONE of them are ones we offer → refuse the whole pick rather
+        // than let REPLACE erase what the club said before. That combination means a stale page
+        // or a broken client, not "we withdraw everything", and wiping a club's answer because
+        // its browser was out of date is not a mistake it could even see happen.
+        // An explicitly EMPTY list is different, and still clears: that is a real withdrawal.
+        if (wanted.length && !usable.length) continue
 
         const note = pick?.note ? String(pick.note).trim().slice(0, 500) : null
 
