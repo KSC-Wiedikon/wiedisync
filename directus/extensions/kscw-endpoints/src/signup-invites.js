@@ -201,16 +201,30 @@ export function registerSignupInvites(router, { database, logger, services, getS
       if (member_id) {
         target = await database('members').where('id', member_id).first()
       } else if (registration_id) {
-        const reg = await database('registrations').where('id', registration_id).first('email', 'status', 'vorname')
+        const reg = await database('registrations').where('id', registration_id).first('email', 'status', 'vorname', 'member')
         if (!reg) return res.status(404).json({ error: 'Registration not found' })
         if (reg.status !== 'approved') {
           return res.status(400).json({ error: 'Registration is not approved', code: 'not_approved' })
         }
-        // Match on email AND first name — a family shares one email, so email
-        // alone could bind the invite to the parent instead of the registrant.
-        const emailRows = await database('members')
-          .whereRaw('LOWER(email) = ?', [String(reg.email || '').toLowerCase().trim()])
-        target = emailRows.find(r => firstNamesMatch(r.first_name, reg.vorname)) || null
+        // The approval hook stamps `registrations.member`, so the link is a fact
+        // rather than something to re-derive. Prefer it: the email join below
+        // silently stops working the moment the member edits their own address,
+        // which is routine for a junior who registered on a parent's address and
+        // then set their own (Neo Paladino / registration 8 — the register said
+        // jeannette.paladino@gmx.ch, the member row says neo.paladino@gmx.ch, and
+        // "resend invite" answered "Member not found" for a person who exists).
+        // All 28 approved registrations on prod carry the link today.
+        if (reg.member != null) {
+          target = await database('members').where('id', reg.member).first()
+        }
+        // Fallback for any row predating the link. Match on email AND first name
+        // — a family shares one address, so email alone could bind the invite to
+        // the parent instead of the registrant.
+        if (!target) {
+          const emailRows = await database('members')
+            .whereRaw('LOWER(email) = ?', [String(reg.email || '').toLowerCase().trim()])
+          target = emailRows.find(r => firstNamesMatch(r.first_name, reg.vorname)) || null
+        }
       } else {
         return res.status(400).json({ error: 'member_id or registration_id required' })
       }
