@@ -371,7 +371,7 @@ export default {
   bbPortalStep3: 'Per le partite da voi, indicate le date desiderate nell’osservazione.',
   bbPortalExpiresOn: 'Questo link è valido fino al {{date}}.',
   bbPortalPickTitle: 'Date che vi vanno bene',
-  bbPortalPickHint: 'Segnate le date in cui potreste venire da noi. Una data segnata viene riservata subito per voi: scegliete quindi solo ciò che potete davvero giocare. Non è ancora una fissazione definitiva: quella la fa ProBasket alla riunione calendario.',
+  bbPortalPickHint: 'Segnate tutte le date in cui potreste venire da noi — meglio se molte. Una data segnata non è una prenotazione e non blocca nessuno: ci dice quando potreste giocare. Orario e palestra li assegniamo noi quando arrivano tutte le risposte; le partite le fissa ProBasket alla riunione calendario.',
   bbPortalHomeGames: '{{count}} partite in casa',
   bbPortalNoFreeSlots: 'Al momento non ci sono date libere per questa squadra.',
   bbPortalColDate: 'Data',

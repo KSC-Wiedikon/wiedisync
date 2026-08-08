@@ -371,7 +371,7 @@ export default {
   bbPortalStep3: 'Für die Auswärtsspiele bei euch tragt ihr eure Wunschdaten in die Bemerkung ein.',
   bbPortalExpiresOn: 'Dieser Link ist bis {{date}} gültig.',
   bbPortalPickTitle: 'Daten, die euch passen',
-  bbPortalPickHint: 'Kreuzt die Daten an, an denen ihr zu uns kommen könntet. Ein angekreuztes Datum wird sofort für euch reserviert — wählt also nur, was ihr wirklich spielen könnt. Es ist noch keine definitive Ansetzung: die macht ProBasket an der Spielplansitzung.',
+  bbPortalPickHint: 'Kreuzt alle Daten an, an denen ihr zu uns kommen könntet — gerne mehrere. Ein angekreuztes Datum ist keine Reservation und blockiert niemanden; es zeigt uns, wann ihr spielen könntet. Uhrzeit und Halle teilen wir zu, sobald alle Rückmeldungen da sind; die Ansetzung macht ProBasket an der Spielplansitzung.',
   bbPortalHomeGames: '{{count}} Heimspiele',
   bbPortalNoFreeSlots: 'Für dieses Team sind derzeit keine Daten frei.',
   bbPortalColDate: 'Datum',
