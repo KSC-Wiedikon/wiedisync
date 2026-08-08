@@ -371,7 +371,7 @@ export default {
   bbPortalStep3: 'Für d Uswärtsspiel bi eu tröget ihr eui Wunschdate i d Bemerkig ii.',
   bbPortalExpiresOn: 'De Link isch bis {{date}} gültig.',
   bbPortalPickTitle: 'Date, wo euch passed',
-  bbPortalPickHint: 'Chrüzed d Date aa, wo ihr zu üs chömed chönted. Es aagchrüzts Datum wird sofort für euch reserviert — wähled also nur, was ihr würkli spiele chönd. Es isch no kei definitivi Aasetzig: die macht ProBasket a de Spielplansitzig.',
+  bbPortalPickHint: 'Chrüzed alli Date aa, wo ihr zu üs chömed chönted — gern mehreri. Es aagchrüzts Datum isch kei Reservation und blockiert niemert; es zeigt üs, wänn ihr spiele chönted. Ziit und Halle teiled mir zue, sobald alli Rückmeldige da sind; d Aasetzig macht ProBasket a de Spielplansitzig.',
   bbPortalHomeGames: '{{count}} Heimspiel',
   bbPortalNoFreeSlots: 'Für das Team sind zurzeit kei Date frei.',
   bbPortalColDate: 'Datum',

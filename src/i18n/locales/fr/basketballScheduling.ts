@@ -371,7 +371,7 @@ export default {
   bbPortalStep3: 'Pour les matchs chez vous, indiquez vos dates souhaitées dans la remarque.',
   bbPortalExpiresOn: 'Ce lien est valable jusqu’au {{date}}.',
   bbPortalPickTitle: 'Dates qui vous conviennent',
-  bbPortalPickHint: 'Cochez les dates auxquelles vous pourriez venir chez nous. Une date cochée est réservée pour vous immédiatement — ne choisissez donc que ce que vous pouvez réellement jouer. Ce n’est pas encore une fixation définitive : ProBasket s’en charge lors de la réunion du calendrier.',
+  bbPortalPickHint: 'Cochez toutes les dates auxquelles vous pourriez venir chez nous — le plus possible. Une date cochée n’est pas une réservation et ne bloque personne ; elle nous indique quand vous pourriez jouer. Nous attribuons l’heure et la salle une fois toutes les réponses reçues ; ProBasket fixe les matchs lors de la réunion du calendrier.',
   bbPortalHomeGames: '{{count}} matchs à domicile',
   bbPortalNoFreeSlots: 'Aucune date libre pour cette équipe pour le moment.',
   bbPortalColDate: 'Date',
