@@ -378,7 +378,28 @@ export function teamToM2M(payload: Record<string, unknown>, existingTeams?: unkn
   return { ...rest, teams: m2mUpdatePayload('teams_id', team as string[], existingTeams) }
 }
 
-/** Fetch a list of items. Returns the array directly. */
+/**
+ * True for "you may not read this collection" answers, in both the shapes
+ * Directus uses: a 401/403 status, and the FORBIDDEN body it returns for an
+ * unreadable collection ("You don't have permission to access collection X").
+ */
+function isAccessDenied(err: unknown): boolean {
+  const e = err as { status?: number; response?: { status?: number }; message?: string } | null
+  const status = e?.status ?? e?.response?.status
+  if (status === 401 || status === 403) return true
+  return /don't have permission to access|no permission to access|FORBIDDEN/i.test(e?.message ?? '')
+}
+
+/**
+ * Fetch a list of items. Returns the array directly.
+ *
+ * `optional: true` marks a fetch whose caller already treats "denied" as a
+ * legitimate answer — a cross-sport read the viewer may simply not hold, behind
+ * a `.catch(() => [])`. Those still THROW (the caller's catch drives the empty
+ * state), they just stop reporting an access denial as an `api_error`: a page
+ * that is working exactly as designed should not file a bug on every load. Real
+ * failures on the same call (a 500, a network drop) report as before.
+ */
 export async function fetchItems<T = Record<string, unknown>>(
   collection: string,
   query?: {
@@ -389,6 +410,7 @@ export async function fetchItems<T = Record<string, unknown>>(
     offset?: number
     deep?: Record<string, unknown>
     search?: string
+    optional?: boolean
   },
 ): Promise<T[]> {
   const q: Record<string, unknown> = {}
@@ -404,12 +426,20 @@ export async function fetchItems<T = Record<string, unknown>>(
       client.request<T[]>(readItems(collection, q as never)).then(stringifyIds),
     )
   } catch (err) {
-    captureApiError(err, { operation: 'fetchItems', collection, payload: q as Record<string, unknown> })
+    if (!(query?.optional && isAccessDenied(err))) {
+      captureApiError(err, { operation: 'fetchItems', collection, payload: q as Record<string, unknown> })
+    }
     throw err
   }
 }
 
-/** Fetch all items (no pagination). */
+/**
+ * Fetch all items (no pagination).
+ *
+ * Reporting lives entirely in `fetchItems` — this wrapper used to capture the
+ * SAME failure a second time, so every denied read filed two log entries (7
+ * blocked `basketball_team_rules` loads read as 14 errors on 2026-08-06).
+ */
 export async function fetchAllItems<T = Record<string, unknown>>(
   collection: string,
   query?: {
@@ -417,14 +447,10 @@ export async function fetchAllItems<T = Record<string, unknown>>(
     sort?: string[]
     fields?: string[]
     deep?: Record<string, unknown>
+    optional?: boolean
   },
 ): Promise<T[]> {
-  try {
-    return await fetchItems<T>(collection, { ...query, limit: -1 })
-  } catch (err) {
-    captureApiError(err, { operation: 'fetchAllItems', collection })
-    throw err
-  }
+  return fetchItems<T>(collection, { ...query, limit: -1 })
 }
 
 /** Fetch a single item by ID. */

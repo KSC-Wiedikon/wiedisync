@@ -586,14 +586,20 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         else await revokeTerminplanungAccessIfNotSpielplaner(id)
       }
     }
-    // IBAN saved via the items API (PayoutIbanCard profile card, finance
-    // explorer billing, Data Explorer) → flag the member for the next ClubDesk
-    // sync-up push. IBAN joined CD_PUSH_HEADERS 2026-07-06; these write paths
-    // do not self-flag like POST /clubdesk-update does. Only a NON-EMPTY IBAN
-    // flags: a cleared IBAN is deliberately not propagated — the push echoes
-    // ClubDesk's own value back instead (see clubdesk-update.js). Unlinked
-    // members skip the flag; their IBAN rides the CREATE push.
-    if (payload && 'iban' in payload && String(payload.iban || '').trim()) {
+    // IBAN / AHV number saved via the items API (PayoutIbanCard profile card,
+    // the profile edit modal, finance explorer billing, Data Explorer) → flag the
+    // member for the next ClubDesk sync-up push. Both columns are in
+    // CD_PUSH_CONTACT_HEADERS (IBAN 2026-07-06, AHV Nummer 2026-07-07) but these
+    // write paths do not self-flag the way POST /clubdesk-update does, and
+    // /clubdesk-update deliberately refuses both as ClubDesk-authoritative — so
+    // without this an edited AHV number reached the register only if some
+    // unrelated field happened to be flagged in the same season (added
+    // 2026-08-07; IBAN has been handled here since 2026-07-06). Only a NON-EMPTY
+    // value flags: a cleared field is deliberately not propagated — the push
+    // echoes ClubDesk's own value back instead (see clubdesk-update.js). Unlinked
+    // members skip the flag; their values ride the CREATE push.
+    for (const field of ['iban', 'ahv_nummer']) {
+      if (!payload || !(field in payload) || !String(payload[field] || '').trim()) continue
       for (const id of keys) {
         try {
           const m = await database('members').where('id', id).select('clubdesk_id', 'clubdesk_push_changes').first()
@@ -603,14 +609,14 @@ export default ({ action, filter, init, schedule }, { services, database, logger
             changes = Array.isArray(m.clubdesk_push_changes) ? m.clubdesk_push_changes
               : (m.clubdesk_push_changes ? JSON.parse(m.clubdesk_push_changes) : [])
           } catch { changes = [] }
-          changes = changes.filter((c) => c?.field !== 'iban')
-          changes.push({ field: 'iban', old_value: null, new_value: String(payload.iban).trim() })
+          changes = changes.filter((c) => c?.field !== field)
+          changes.push({ field, old_value: null, new_value: String(payload[field]).trim() })
           await database('members').where('id', id).update({
             clubdesk_push_pending: true,
             clubdesk_push_changes: JSON.stringify(changes),
           })
         } catch (err) {
-          logWarning('clubdesk_iban_flag', err.message, { memberId: id, stack: err.stack })
+          logWarning('clubdesk_contact_flag', err.message, { memberId: id, field, stack: err.stack })
         }
       }
     }
@@ -4741,8 +4747,19 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   //
   // Admins and service calls (no accountability.user) bypass.
   // Club-wide Spielplaners (members.is_spielplaner = true) bypass the team check.
+  // ⚠ `name = 'DirectusError'` is what makes the message reach the user, and it
+  // is the whole point of writing these messages. Directus's REST error handler
+  // runs every thrown error through `isDirectusError`, which tests nothing but
+  // `err.name === 'DirectusError'`. Anything else is logged at ERROR level and
+  // answered with a blanket 500 "An unexpected error occurred." — except for
+  // callers with `accountability.admin`, who DO get the real message. That
+  // asymmetry is why the hole survived: every one of these guards read correctly
+  // in admin testing and returned an unexplained 500 to the coach or sport admin
+  // it was written for (observed 2026-08-07 on member_teams + teams_coaches).
+  // With the name set, `status` and `message` are honoured as written.
   function kscwScopeError(message, status, code) {
     const err = new Error(message)
+    err.name = 'DirectusError'
     err.status = status
     err.code = code
     err.extensions = { code }
@@ -4839,9 +4856,10 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     if (team == null) {
       throw kscwScopeError('Team blocking requires a team', 400, 'INVALID_PAYLOAD')
     }
-    const isCoach = await db('teams_coaches').where({ teams_id: team, members_id: member.id }).first('id')
-    const isTR = await db('teams_responsibles').where({ teams_id: team, members_id: member.id }).first('id')
-    if (!isCoach && !isTR) {
+    // Coach/TR of the team — or a sport admin of that team's sport, which is
+    // the club-wide `scheduling_blocks` CRUD the Sport Admin policy grants
+    // ("club-wide CRUD for any team's blackouts").
+    if (!(await actorLeadsTeam(db, accountability, team))) {
       throw kscwScopeError('You can only block teams you coach or are responsible for', 403, 'FORBIDDEN')
     }
     return out
@@ -5052,6 +5070,14 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         const isCoach = await db('teams_coaches').whereIn('teams_id', teamIds).andWhere('members_id', editor.id).first()
         const isTR = isCoach || await db('teams_responsibles').whereIn('teams_id', teamIds).andWhere('members_id', editor.id).first()
         if (isCoach || isTR) return            // coach/TR of the member's team
+        // …or a sport admin of one of those teams' sport — same reasoning as
+        // actorIsSportAdminForTeam: the policy already grants participations +
+        // absences club-wide. `allowLeader: false` collections (poll_votes,
+        // push_subscriptions, team_requests, scorer_delegations) stay self-only
+        // — nobody votes or delegates on another member's behalf.
+        for (const teamId of teamIds) {
+          if (await actorIsSportAdminForTeam(db, accountability, teamId)) return
+        }
       }
     }
     throw kscwScopeError('You can only create this for yourself', 403, 'NOT_OWNER')
@@ -5107,9 +5133,8 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       if (row.team == null) {
         throw kscwScopeError('You cannot delete these team memberships', 403, 'NOT_OWNER')
       }
-      const isCoach = await db('teams_coaches').where({ teams_id: row.team, members_id: editor.id }).first('id')
-      const isTR = isCoach || await db('teams_responsibles').where({ teams_id: row.team, members_id: editor.id }).first('id')
-      if (!isCoach && !isTR) {
+      // Coach/TR of the row's team — or a sport admin of that team's sport.
+      if (!(await actorLeadsTeam(db, accountability, row.team))) {
         throw kscwScopeError('You can only remove members from teams you coach or are responsible for', 403, 'NOT_OWNER')
       }
     }
@@ -5135,7 +5160,37 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     const isCoach = await db('teams_coaches').where({ teams_id: teamId, members_id: editor.id }).first('id')
     if (isCoach) return true
     const isTR = await db('teams_responsibles').where({ teams_id: teamId, members_id: editor.id }).first('id')
-    return !!isTR
+    if (isTR) return true
+    return actorIsSportAdminForTeam(db, accountability, teamId)
+  }
+
+  // A sport admin (vb_admin / bb_admin) leads EVERY team of their own sport.
+  //
+  // The leader guards above exist to stop a coach of team A from writing team
+  // B's roster/staff — a sport admin is simply not that actor. The `KSCW Sport
+  // Admin` policy already grants member_teams / teams_coaches /
+  // teams_responsibles / fines / scheduling_blocks / participations / absences
+  // club-wide CRUD (setup-permissions.mjs §9 SPORT_ADMIN_FULL_CRUD), and the app
+  // shows them the roster editor + coach picker for every team of their sport
+  // (`hasAdminAccessToTeam` in AuthProvider). Without this the two layers
+  // disagreed: the UI offered the edit, the policy allowed it, and the hook
+  // killed it — as a bare 500 "An unexpected error occurred.", because these are
+  // filter-hook throws, not Directus permission denials. Surfaced 2026-08-07
+  // from a bb_admin editing the MU8 / 2xDU18 rosters and MU8's coaching staff.
+  //
+  // Deliberately sport-scoped and nothing more: a bb_admin still cannot touch a
+  // volleyball roster, a team with no sport matches nobody, and full
+  // admins/superusers never reach here (accountability.admin returns first).
+  async function actorIsSportAdminForTeam(db, accountability, teamId) {
+    if (teamId == null) return false
+    const me = await db('members').where('user', accountability.user).select('role').first()
+    const roles = Array.isArray(me?.role) ? me.role : []
+    const isVb = roles.includes('vb_admin')
+    const isBb = roles.includes('bb_admin')
+    if (!isVb && !isBb) return false
+    const team = await db('teams').where('id', teamId).select('sport').first()
+    if (!team) return false
+    return (team.sport === 'volleyball' && isVb) || (team.sport === 'basketball' && isBb)
   }
 
   for (const coll of ['teams_coaches', 'teams_responsibles']) {
@@ -5677,9 +5732,10 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     }
     const member = await db('members').where('user', accountability.user).first('id')
     if (!member) return // not a member — let Directus deny via its own policy
-    const isCoach = await db('teams_coaches').where({ teams_id: teamId, members_id: member.id }).first('id')
-    const isTR = isCoach || await db('teams_responsibles').where({ teams_id: teamId, members_id: member.id }).first('id')
-    if (!isCoach && !isTR) {
+    // Coach/TR of the team — or a sport admin of that team's sport, which is
+    // exactly the "override coach-only scope for cross-team rule edits +
+    // correction of bad fines" that the Sport Admin `fines` grant documents.
+    if (!(await actorLeadsTeam(db, accountability, teamId))) {
       throw kscwScopeError('You can only manage fines for teams you coach or are responsible for', 403, 'FORBIDDEN')
     }
   }

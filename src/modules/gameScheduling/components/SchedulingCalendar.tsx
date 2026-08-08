@@ -303,6 +303,9 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
     fetchAllItems<{ id: string; date: string; time?: string | null; opponent?: string | null; kscw_team_label?: string | null; kscw_team?: { name?: string } | null }>('basketball_slot_plan', {
       fields: ['id', 'date', 'time', 'opponent', 'kscw_team_label', 'kscw_team.name'],
       filter: { season: { _eq: season.id } },
+      // A viewer without basketball_slot_plan read is the expected case here,
+      // not a bug — see the `optional` contract on fetchItems.
+      optional: true,
     })
       .then((rows) => {
         if (cancelled) return

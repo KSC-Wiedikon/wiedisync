@@ -69,6 +69,9 @@ import { SCHEDULING_URL } from './email-template.js'
 import { writeUserLog } from './activity-log.js'
 import { ACCOUNTS } from './scheduling-mailbox.js'
 import { VALID_LANGS, bbClubInviteEmail, bbClubResponseReceiptEmail } from './terminplanung-emails.js'
+// The one definition of "these two hall names fight over the same floor". Imported rather than
+// re-implemented: a second copy is how A+B stops blocking A on one code path only.
+import { hallsCollide } from './basketball-slots.js'
 
 /** The mail identity — single source of truth lives in scheduling-mailbox.js. */
 const BB_ACCOUNT = ACCOUNTS.basketball
@@ -332,17 +335,38 @@ export function registerBasketballPortal(router, { database, logger }) {
         .whereNull('plan')
         .orderBy(['date', 'time'])
         .select('id', 'kscw_team', 'date', 'time', 'end_time', 'hall', 'score'),
-      // Pitches already spoken for by a CONFIRMED game — those are gone for everyone.
+      // Every placement in our hall, whatever its status and whichever team it belongs to.
+      // ⚠ Not just 'offered'/'accepted': a draft or a club_proposed row occupies the floor
+      // just as physically. And not just this pairing's team — the hall is shared.
       database('basketball_slot_plan')
         .where('season', portal.season)
-        .whereIn('proposal_status', ['offered', 'accepted'])
         .select('date', 'time', 'hall'),
     ])
 
-    const taken = new Set(claimed.map((c) => `${toYmd(c.date)}|${c.time}|${c.hall}`))
+    /**
+     * Placements indexed by date+time, so a candidate can be tested against every hall busy at
+     * that moment.
+     *
+     * ⚠ This is where A+B has to be honoured. The generator already respects it when building
+     * candidates (hallsCollide in basketball-slots.js), and the claim trigger does NOT: it
+     * matches `hall = NEW.hall` exactly, so booking 'KWI A+B' leaves the 'KWI A' and 'KWI B'
+     * rows at the same moment marked available. Verified on prod: 132 such co-offered pairs on
+     * 26.09 alone. With 64 clubs self-serving, two of them would otherwise pick the big court
+     * and one of its halves for the same hour.
+     */
+    const busyAt = new Map()
+    for (const c of claimed) {
+      const key = `${toYmd(c.date)}|${c.time}`
+      const halls = busyAt.get(key)
+      if (halls) halls.push(c.hall)
+      else busyAt.set(key, [c.hall])
+    }
+    const isBlocked = (date, time, hall) =>
+      (busyAt.get(`${date}|${time}`) || []).some((h) => hallsCollide(h, hall))
+
     const byTeam = new Map(teamIds.map((id) => [String(id), []]))
     for (const s of slots) {
-      if (taken.has(`${toYmd(s.date)}|${s.time}|${s.hall}`)) continue
+      if (isBlocked(toYmd(s.date), s.time, s.hall)) continue
       byTeam.get(String(s.kscw_team))?.push({
         id: s.id,
         date: toYmd(s.date),
@@ -665,8 +689,18 @@ export function registerBasketballPortal(router, { database, logger }) {
 
       const nowIso = new Date().toISOString()
       const created = []
+      // Halls this very submission has already taken, per date+time. `allowed` was computed
+      // once before the loop, so without this a single submit could tick 'KWI A+B' for one team
+      // and 'KWI A' for another at the same hour — both pass the pre-check, and the claim
+      // trigger's exact-hall match would not catch it either.
+      const claimedHere = new Map()
+      const conflicts = []
       for (const id of usable) {
         const { slot, pairing } = allowed.get(id)
+        const key = `${slot.date}|${slot.time}`
+        if ((claimedHere.get(key) || []).some((h) => hallsCollide(h, slot.hall))) {
+          conflicts.push(id); continue
+        }
         // Idempotent per (club, team, pitch): a club pressing submit twice must not create a
         // second identical proposal.
         const existing = await database('basketball_slot_plan')
@@ -698,6 +732,9 @@ export function registerBasketballPortal(router, { database, logger }) {
           date_updated: nowIso,
         }).returning('id')
         created.push(typeof row === 'object' ? row.id : row)
+        const held = claimedHere.get(key)
+        if (held) held.push(slot.hall)
+        else claimedHere.set(key, [slot.hall])
       }
 
       // ⚠ The portal status is deliberately NOT advanced here, exactly as the respond route
@@ -711,8 +748,12 @@ export function registerBasketballPortal(router, { database, logger }) {
         success: true,
         created: created.length,
         // Distinguishes "already proposed" from "not yours" so the UI can say which.
-        skipped_existing: usable.length - created.length,
+        skipped_existing: usable.length - created.length - conflicts.length,
         rejected: wanted.length - usable.length,
+        // Picks dropped because another pick in the SAME submission already took that floor
+        // (A+B against one of its halves). Reported separately so it is never mistaken for a
+        // duplicate, and so the count of what was actually stored stays truthful.
+        conflicted: conflicts.length,
       })
     } catch (err) { fail(res, 'terminplanung/bb/club/propose', err, req) }
   })

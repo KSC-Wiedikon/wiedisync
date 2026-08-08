@@ -2781,9 +2781,24 @@ ${buildChangesTable(locChanges, loc)}
       // manual fallback; the flag enables the automated push. Best-effort — a flag
       // failure must not fail the member's edit.
       try {
+        // MERGE, don't replace. The same profile save writes members first, and
+        // the members.update hook records `iban` / `ahv_nummer` there (this
+        // endpoint refuses both as ClubDesk-authoritative, so they can only
+        // arrive that way). Stringifying safeChanges over the top dropped those
+        // entries, and the superadmin sync-up modal then under-reported what the
+        // push was about to carry — the CSV itself is rebuilt from the members
+        // row, so nothing was ever mis-pushed, only mis-displayed.
+        let merged = []
+        try {
+          const prev = await database('members').where('id', member_id).first('clubdesk_push_changes')
+          merged = Array.isArray(prev?.clubdesk_push_changes) ? prev.clubdesk_push_changes
+            : (prev?.clubdesk_push_changes ? JSON.parse(prev.clubdesk_push_changes) : [])
+        } catch { merged = [] }
+        const nowFields = new Set(safeChanges.map((c) => c.field))
+        merged = merged.filter((c) => c?.field && !nowFields.has(c.field)).concat(safeChanges)
         await database('members').where('id', member_id).update({
           clubdesk_push_pending: true,
-          clubdesk_push_changes: JSON.stringify(safeChanges),
+          clubdesk_push_changes: JSON.stringify(merged),
         })
         // Audit: this raw-knex write bypasses Directus's activity/revision trail,
         // so record WHO flagged the member for the next ClubDesk sync-up push.
