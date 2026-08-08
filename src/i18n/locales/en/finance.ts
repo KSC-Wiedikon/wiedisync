@@ -94,6 +94,8 @@ export default {
   openBalance: 'Open balance',
   allSettled: 'All settled — nothing open.',
   noInvoices: 'You have no invoices.',
+  noInvoicesFree: 'Nothing to pay — your membership is free of charge.',
+  noInvoicesFreeHint: 'If you think that is wrong, contact the treasurer.',
   colInvoice: 'Invoice',
   colSubject: 'Subject',
   colStatus: 'Status',

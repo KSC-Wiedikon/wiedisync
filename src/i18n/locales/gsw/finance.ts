@@ -79,6 +79,8 @@ export default {
   openBalance: 'Offene Betrag',
   allSettled: 'Alles zahlt – nüt offe.',
   noInvoices: 'Du häsch kei Rächnige.',
+  noInvoicesFree: 'Nüt z zahle — dini Mitgliedschaft isch gratis.',
+  noInvoicesFreeHint: 'Wenns nöd stimmt, mäld di bim Kassier.',
   colInvoice: 'Rächnig',
   colSubject: 'Betreff',
   colStatus: 'Status',

@@ -30,11 +30,31 @@ export function useMyInvoices() {
   const { user } = useAuth()
   const q = useQuery({
     queryKey: ['finance', 'my-invoices', user?.id ?? null],
-    queryFn: () => kscwApi<{ invoices: FinanceInvoice[]; member_id: number }>('/finance/my-invoices'),
+    queryFn: () => kscwApi<MyInvoicesResponse>('/finance/my-invoices'),
     enabled: !!user,
     select: (r) => r.invoices,
   })
   return q
+}
+
+export interface MyInvoicesResponse {
+  invoices: FinanceInvoice[]
+  member_id: number
+  fee_category: string | null
+  /** The member's category prices at CHF 0 — they are never invoiced. */
+  no_fee: boolean
+}
+
+/** Same request as useMyInvoices (one cache entry), but keeps the envelope so
+ *  the page can explain WHY the list is empty instead of just that it is. */
+export function useMyInvoicesMeta() {
+  const { user } = useAuth()
+  return useQuery({
+    queryKey: ['finance', 'my-invoices', user?.id ?? null],
+    queryFn: () => kscwApi<MyInvoicesResponse>('/finance/my-invoices'),
+    enabled: !!user,
+    select: (r) => ({ fee_category: r.fee_category, no_fee: r.no_fee }),
+  })
 }
 
 // ── Native-invoice write actions (all hit the Vorstand/recipient-gated endpoints) ──

@@ -85,6 +85,8 @@ export default {
   openBalance: 'Saldo aperto',
   allSettled: 'Tutto pagato – niente in sospeso.',
   noInvoices: 'Non hai fatture.',
+  noInvoicesFree: 'Nulla da pagare — la tua affiliazione è gratuita.',
+  noInvoicesFreeHint: 'Se non è corretto, contatta il cassiere.',
   colInvoice: 'Fattura',
   colSubject: 'Oggetto',
   colStatus: 'Stato',

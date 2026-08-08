@@ -341,7 +341,19 @@ export function registerFinance(router, { database, logger, services, getSchema 
           'fi.confirmed_at', 'fi.confirmed_via', 'fi.cancelled_at', 't.name as team_name',
         )
         .orderBy([{ column: 'fi.invoice_date', order: 'desc' }, { column: 'fi.id', order: 'desc' }])
-      return res.json({ invoices: rows, member_id: mem.id })
+      // The member's fee category rides along so the page can tell "you owe
+      // nothing" apart from "nothing has been billed yet". A Gratis member shown
+      // a bare "You have no invoices." reads it as a fault and asks the
+      // treasurer — which is exactly what happened.
+      const cat = await database('members').where('id', mem.id).first('beitragskategorie')
+      const feeCategory = (cat?.beitragskategorie || '').trim() || null
+      return res.json({
+        invoices: rows,
+        member_id: mem.id,
+        fee_category: feeCategory,
+        // Categories that price at CHF 0 — the club never invoices these people.
+        no_fee: ['gratis', 'kein beitrag'].includes((feeCategory || '').toLowerCase()),
+      })
     } catch (e) { return err(res, req, 'my-invoices', e) }
   })
 
