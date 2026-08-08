@@ -12,9 +12,11 @@ import BasketballTeamRulesPanel from '../components/BasketballTeamRulesPanel'
 import BasketballTimeslotMatrixPanel, { type BbSlotConfig } from '../components/BasketballTimeslotMatrixPanel'
 import BasketballSlotGenerationPanel from '../components/BasketballSlotGenerationPanel'
 import BasketballOffersPanel from '../components/BasketballOffersPanel'
+import BasketballDatePrefsPanel from '../components/BasketballDatePrefsPanel'
 import BasketballClubPortalsPanel from '../components/BasketballClubPortalsPanel'
 import { useGameSchedulingSeason } from '../hooks/useGameSchedulingSeason'
 import { useBasketballPlan } from '../hooks/useBasketballPlan'
+import { useBasketballDatePrefs } from '../hooks/useBasketballDatePrefs'
 import { useBasketballTeamRules } from '../hooks/useBasketballTeamRules'
 import { useBasketballSlots } from '../hooks/useBasketballSlots'
 import { useBasketballOffers } from '../hooks/useBasketballOffers'
@@ -116,6 +118,9 @@ export default function BasketballSettingsPage() {
   // which club, and the per-club portal links + invite mail.
   const offers = useBasketballOffers(season?.id)
   const portals = useBasketballClubPortals(season?.id)
+  // What the clubs answered through their portals (migration 296) — availabilities, not
+  // bookings, so this panel only reads.
+  const datePrefs = useBasketballDatePrefs(season?.id)
 
   const selectClass = 'rounded-md border border-border bg-transparent px-3 py-2 text-sm dark:bg-gray-800'
 
@@ -211,6 +216,13 @@ export default function BasketballSettingsPage() {
             offer={offers.offer}
             unoffer={offers.unoffer}
             answerClubProposal={offers.answerClubProposal}
+          />
+
+          <BasketballDatePrefsPanel
+            groups={datePrefs.groups}
+            clubsAnswered={datePrefs.clubsAnswered}
+            isLoading={datePrefs.isLoading}
+            error={datePrefs.error}
           />
 
           <BasketballClubPortalsPanel

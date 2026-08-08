@@ -53,54 +53,27 @@ export interface BbPortalKeyDates {
   availability_due: string
 }
 
-/** One free pitch the club may pick. */
-export interface BbPortalFreeSlot {
-  id: number
+/**
+ * One date the club may say suits it, with the tip-offs that exist behind it.
+ *
+ * ⚠ The club commits to the DAY. `times` is shown so the page can say "11:00 or 13:30", not so
+ * the club has to choose one — the hall and tip-off are allocated by us once every answer is
+ * in. A pick holds nothing (migration 296).
+ */
+export interface BbPortalDate {
   /** 'YYYY-MM-DD'. */
   date: string
-  /** 'HH:MM'. */
-  time: string
-  end_time: string
-  hall: string
-  /** The generator's ranking — higher is a better fit. Used to pick a date's default pitch. */
-  score: number | null
-}
-
-/** Every free pitch on one date, best first. The unit the club actually chooses. */
-export interface BbPortalFreeDate {
-  date: string
-  options: BbPortalFreeSlot[]
+  /** The tip-offs available that day, for information only. */
+  times: string[]
+  /** True when this club has already told us the date suits it. */
+  chosen: boolean
 }
 
 /**
- * Collapse a team's free pitches to one entry per DATE, each option sorted best-first.
+ * One KSCW team this club shares a ProBasket group with, and the dates still open for it.
  *
- * ⚠ The inventory is one row per (date, time, hall), which is the generator's unit, not the
- * club's. Rendering it raw gave a 2091-row page for a club sharing ten teams — across only 34
- * distinct dates. A club decides whether it can travel on a day; the hall and tip-off are ours
- * to settle.
- */
-export function groupSlotsByDate(slots: BbPortalFreeSlot[]): BbPortalFreeDate[] {
-  const byDate = new Map<string, BbPortalFreeSlot[]>()
-  for (const s of slots) {
-    const list = byDate.get(s.date)
-    if (list) list.push(s)
-    else byDate.set(s.date, [s])
-  }
-  return [...byDate.entries()]
-    .map(([date, options]) => ({
-      date,
-      // Highest score first; a null score sorts last rather than winning by accident.
-      options: options.slice().sort((a, b) => (b.score ?? -Infinity) - (a.score ?? -Infinity)),
-    }))
-    .sort((a, b) => a.date.localeCompare(b.date))
-}
-
-/**
- * One KSCW team this club shares a ProBasket group with, and the pitches still free for it.
- *
- * The pairing is derived from group membership (migration 287), because basketball has no
- * fixture feed before the Spielplansitzung — there is nothing else to join a club to a team on.
+ * The pairing comes from group membership (migration 287) because basketball has no fixture
+ * feed before the Spielplansitzung — there is nothing else to join a club to a team on.
  */
 export interface BbPortalPairing {
   kscw_team: number
@@ -114,7 +87,7 @@ export interface BbPortalPairing {
    */
   home_games: number | null
   games_total: number | null
-  slots: BbPortalFreeSlot[]
+  dates: BbPortalDate[]
 }
 
 export interface BbPortalPayload {
@@ -206,19 +179,21 @@ export function useBbClubPortal(token: string | undefined) {
   )
 
   /**
-   * The club picks free pitches (the volleyball `propose-home` move).
+   * The club tells us which dates suit it, per team.
    *
-   * ⚠ A pick HOLDS the pitch: the backend's plan row claims the slot via migration 278's
-   * sync-slots trigger, so the date leaves every other club's free list at once. It is still
-   * not a ProBasket fixture — those are assigned at the Spielplansitzung.
+   * ⚠ This holds NOTHING — no hall slot, no block on any other club (migration 296). The
+   * planner allocates time and hall once every answer is in.
+   *
+   * ⚠ REPLACE semantics per team: send the team's WHOLE current set, because an omitted date
+   * is treated as withdrawn. Sending only what changed would silently delete the rest.
    */
   const propose = useCallback(
-    async (picks: Array<{ slot_id: number; note?: string }>, responder: BbResponder) => {
+    async (picks: Array<{ kscw_team: number; dates: string[]; note?: string }>, responder: BbResponder) => {
       if (!token) throw new Error('No token')
       const res = await kscwApi<{
         success: boolean
-        created: number
-        skipped_existing: number
+        stored: number
+        removed: number
         rejected: number
       }>(`/terminplanung/bb/club/propose/${token}`, {
         method: 'POST',

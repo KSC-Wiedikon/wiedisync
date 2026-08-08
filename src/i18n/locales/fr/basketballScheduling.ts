@@ -262,6 +262,12 @@ export default {
   clubPicksAccepted: '{{count}} dates convenues.',
   clubPicksReleased: '{{count}} dates libérées.',
   clubPicksReleaseConfirm: 'Libérer {{count}} dates choisies par le club ? La proposition est supprimée et le créneau redevient disponible pour tous les clubs. Action irréversible.',
+  datePrefsTitle: 'Dates annoncées par les clubs',
+  datePrefsHint: 'Ce que les clubs adverses ont répondu via leur lien. Ce sont des disponibilités, pas des réservations — rien ici ne bloque un créneau. Placez le match dans le planificateur une fois votre choix fait.',
+  datePrefsEmpty: 'Aucun club n’a encore répondu.',
+  datePrefsAnswered: '{{count}} clubs ont répondu.',
+  datePrefsColClubs: 'Clubs disponibles',
+  datePrefsAllTeams: 'Toutes les équipes',
   offersTitle: 'Matchs proposés aux adversaires',
   offersHint:
     'Un match à domicile placé n’atteint l’adversaire qu’une fois attribué à un club et proposé. Les matchs proposés apparaissent sur le lien de ce club ; on peut les retirer tant que le club n’a pas répondu.',

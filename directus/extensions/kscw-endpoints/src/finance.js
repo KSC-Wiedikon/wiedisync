@@ -375,12 +375,15 @@ export function registerFinance(router, { database, logger, services, getSchema 
     } catch (e) { return err(res, req, 'my-invoices', e) }
   })
 
-  /** Load a native invoice the caller is the recipient of (member or team lead). */
-  async function loadOwnNative(req, id) {
+  /** Load an invoice the caller is the recipient of (member or team lead).
+   *  `source` narrows it to one flavour; omit to accept native AND ClubDesk. */
+  async function loadOwnInvoice(req, id, source) {
     const mem = await actingMember(req)
     // Recipient check needs a real member id (see actingMember's fallback).
     if (!mem?.id) return { code: 401 }
-    const inv = await database('finance_invoices').where('id', id).andWhere('source', 'native').first()
+    const q = database('finance_invoices').where('id', id)
+    if (source) q.andWhere('source', source)
+    const inv = await q.first()
     if (!inv) return { code: 404 }
     let isRecipient = inv.member != null && Number(inv.member) === mem.id
     if (!isRecipient && inv.team != null) {
@@ -392,21 +395,66 @@ export function registerFinance(router, { database, logger, services, getSchema 
   }
 
   // ── POST /finance/invoices/:id/report-paid — recipient self-reports ─────
+  // Works on BOTH invoice sources, by two different mechanisms:
+  //   native   — the lifecycle lives on `status`: open → pending_confirmation.
+  //   clubdesk — `status` is ClubDesk's own wording and the whole mirror row is
+  //              rebuilt nightly, so the report is persisted in the side table
+  //              finance_invoice_self_reports (migration 297) and mirrored onto
+  //              reported_paid_* here; the importer re-applies it after each sync
+  //              and drops it once ClubDesk reports the invoice settled.
+  // Either way the member ends up in the same visible state — "pending
+  // confirmation", out of their open balance — until finance confirms.
   router.post('/finance/invoices/:id/report-paid', async (req, res) => {
     try {
       const id = Number(req.params.id)
-      const r = await loadOwnNative(req, id)
+      const r = await loadOwnInvoice(req, id)
       if (r.code) return res.status(r.code).json({ error: r.code === 403 ? 'Forbidden' : r.code === 404 ? 'Not found' : 'Unauthenticated' })
-      if (r.inv.status !== 'open') return res.status(409).json({ error: `Invoice is ${r.inv.status}, not open` })
       const method = PAY_METHODS.includes(req.body?.method) ? req.body.method : null
+      const now = new Date()
+
+      if (r.inv.source !== 'clubdesk') {
+        if (r.inv.status !== 'open') return res.status(409).json({ error: `Invoice is ${r.inv.status}, not open` })
+        const [row] = await database('finance_invoices').where('id', id).update({
+          status: 'pending_confirmation',
+          reported_paid_at: now,
+          reported_paid_method: method,
+          reported_paid_by: r.mem.id,
+          date_updated: now,
+        }).returning('*')
+        await writeUserLog(database, log, { accountability: req.accountability, action: 'update', collection: 'finance_invoices', recordId: id, data: { kind: 'report_paid', method } })
+        return res.json({ invoice: row })
+      }
+
+      // ── ClubDesk mirror row ──────────────────────────────────────────────
+      const cdStatus = String(r.inv.status || '').trim().toLowerCase()
+      if (cdStatus === 'bezahlt' || cdStatus.startsWith('storn') || round2(r.inv.open_amount ?? r.inv.amount) <= 0) {
+        return res.status(409).json({ error: `Invoice is ${r.inv.status || 'settled'}, not open` })
+      }
+      // No clubdesk_id means the row can't be re-found after the next sync, so
+      // the report would silently evaporate — refuse rather than pretend.
+      const cdId = String(r.inv.clubdesk_id || '').trim()
+      if (!cdId) return res.status(409).json({ error: 'Invoice cannot be self-reported (no ClubDesk id)' })
+
+      await database('finance_invoice_self_reports')
+        .insert({
+          match_clubdesk_id: cdId,
+          member: r.mem.id,
+          reported_at: now,
+          method,
+          reported_by_name: r.mem.name || null,
+          reported_by_email: r.mem.email || null,
+          date_created: now,
+          date_updated: now,
+        })
+        .onConflict('match_clubdesk_id')
+        .merge(['member', 'reported_at', 'method', 'reported_by_name', 'reported_by_email', 'date_updated'])
       const [row] = await database('finance_invoices').where('id', id).update({
-        status: 'pending_confirmation',
-        reported_paid_at: new Date(),
+        reported_paid_at: now,
         reported_paid_method: method,
         reported_paid_by: r.mem.id,
-        date_updated: new Date(),
+        date_updated: now,
       }).returning('*')
-      await writeUserLog(database, log, { accountability: req.accountability, action: 'update', collection: 'finance_invoices', recordId: id, data: { kind: 'report_paid', method } })
+      await writeUserLog(database, log, { accountability: req.accountability, action: 'update', collection: 'finance_invoices', recordId: id, data: { kind: 'report_paid', source: 'clubdesk', clubdesk_id: cdId, method } })
       return res.json({ invoice: row })
     } catch (e) { return err(res, req, 'report-paid', e) }
   })

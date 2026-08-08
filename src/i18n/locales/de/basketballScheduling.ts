@@ -262,6 +262,12 @@ export default {
   clubPicksAccepted: '{{count}} Daten vereinbart.',
   clubPicksReleased: '{{count}} Daten freigegeben.',
   clubPicksReleaseConfirm: '{{count}} vom Klub gewählte Daten freigeben? Der Vorschlag wird gelöscht und der Hallenslot steht wieder allen Klubs zur Verfügung. Das lässt sich nicht rückgängig machen.',
+  datePrefsTitle: 'Von den Klubs gemeldete Daten',
+  datePrefsHint: 'Was die Gegner-Klubs über ihren Link gemeldet haben. Das sind Verfügbarkeiten, keine Buchungen — nichts davon reserviert einen Hallenslot. Setzt das Spiel im Planer, sobald ihr entschieden habt.',
+  datePrefsEmpty: 'Es hat noch kein Klub geantwortet.',
+  datePrefsAnswered: '{{count}} Klubs haben geantwortet.',
+  datePrefsColClubs: 'Verfügbare Klubs',
+  datePrefsAllTeams: 'Alle Teams',
   offersTitle: 'Den Gegnern angebotene Spiele',
   offersHint:
     'Ein gesetztes Heimspiel erreicht den Gegner erst, wenn es einem Klub zugeordnet und angeboten wurde. Angebotene Spiele erscheinen auf dem Link dieses Klubs; zurückziehen geht, solange der Klub nicht geantwortet hat.',

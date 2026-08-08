@@ -475,9 +475,12 @@ export function bbClubInviteEmail(vars) {
     : 'Unter dem folgenden Link findet ihr unsere Heimspieltermine in der Kantonsschule Wiedikon. Ihr könnt jeden Termin bestätigen, ablehnen oder eine Alternative vorschlagen.'
 
   const pickSteps = [
-    'Pro Team die Daten ankreuzen, an denen ihr zu uns kommen könnt.',
-    // Said plainly because it is true: the plan row claims the slot immediately.
-    'Ein angekreuzter Termin wird sofort für euch reserviert – bitte wählt nur, was ihr wirklich spielen könnt.',
+    'Pro Team alle Daten ankreuzen, an denen ihr zu uns kommen könntet – gerne mehrere.',
+    // ⚠ Must NOT promise a reservation. A pick is an availability: it holds no hall slot and
+    // blocks no other club (migration 296). Saying otherwise would have 64 clubs racing for
+    // the same Saturdays and believing they had won one.
+    'Ein angekreuztes Datum ist noch keine Reservation – je mehr ihr angebt, desto eher finden wir eine Ansetzung, die für beide passt.',
+    'Uhrzeit und Halle teilen wir euch zu, sobald alle Rückmeldungen da sind.',
     'Für die Auswärtsspiele bei euch tragt ihr eure Wunschdaten in die Bemerkung ein – wir melden uns dazu.',
   ]
   const answerSteps = [

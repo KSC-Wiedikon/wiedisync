@@ -258,6 +258,12 @@ export default {
   clubPicksAccepted: '{{count}} dates agreed.',
   clubPicksReleased: '{{count}} dates released.',
   clubPicksReleaseConfirm: 'Release {{count}} dates the club picked? The proposal is deleted and the hall slot goes back to every club. This cannot be undone.',
+  datePrefsTitle: 'Dates the clubs offered',
+  datePrefsHint: 'What the opponent clubs answered through their links. These are availabilities, not bookings — nothing here holds a hall slot. Place the game in the planner once you have decided.',
+  datePrefsEmpty: 'No club has answered yet.',
+  datePrefsAnswered: '{{count}} clubs have answered.',
+  datePrefsColClubs: 'Clubs available',
+  datePrefsAllTeams: 'All teams',
   offersTitle: 'Games offered to opponents',
   offersHint:
     'A placed home game only reaches the opponent once it is addressed to a club and offered. Offered games show up on that club’s link; withdrawing works until the club has answered.',

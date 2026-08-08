@@ -2141,6 +2141,11 @@ async function main() {
     'finance_accounts', 'finance_fiscal_years', 'finance_budget_lines',
     'finance_transactions', 'finance_invoices', 'finance_payments', 'finance_imports',
     'finance_invoice_member_overrides',
+    // Member "I've paid" self-reports on ClubDesk-mirror invoices (migration
+    // 297) — read-only oversight ("who says they paid, and when?"). Written by
+    // /kscw/finance/invoices/:id/report-paid in system context; the importer
+    // clears a row once ClubDesk confirms the invoice settled.
+    'finance_invoice_self_reports',
     // Invoice PDF attachment links (migration 134) — board read for oversight.
     'finance_invoice_documents',
     // Member pay-outs / reimbursements (migration 137) — board read.
@@ -2435,6 +2440,9 @@ async function main() {
     'finance_accounts', 'finance_fiscal_years', 'finance_budget_lines',
     'finance_transactions', 'finance_invoices', 'finance_payments', 'finance_imports',
     'finance_invoice_member_overrides',
+    // Self-reported payments on ClubDesk-mirror invoices (migration 297) — the
+    // treasurer's "these members say they paid" list. Read-only; see above.
+    'finance_invoice_self_reports',
     // Dues-rate schedule + issued batches (migration 138) — read; writes via endpoints.
     'finance_dues_rates', 'finance_dues_runs',
     // Expense submissions (migration 177) — read; writes via PATCH /kscw/expenses/:id.

@@ -366,6 +366,32 @@ DO $$ BEGIN
   END IF;
 END $$;
 
+-- 5b3. Re-apply member "I've paid" self-reports onto the fresh mirror rows
+-- (migration 297). Same reason as 5b/5b2: the delete+reinsert above wipes
+-- reported_paid_*, so without this a member's self-report — and the cleared
+-- balance they saw — would come back as an open bill the next morning.
+--
+-- Settled invoices are dropped from the side table FIRST: once ClubDesk says
+-- 'Bezahlt' (or the open amount is gone) the mirror is the truth and the row no
+-- longer needs a self-report to explain itself. Guarded so the import still
+-- works before migration 297 ships.
+DO $$ BEGIN
+  IF to_regclass('public.finance_invoice_self_reports') IS NOT NULL THEN
+    DELETE FROM finance_invoice_self_reports s
+      USING finance_invoices fi
+      WHERE fi.source = 'clubdesk' AND fi.clubdesk_id = s.match_clubdesk_id
+        AND (lower(btrim(coalesce(fi.status, ''))) = 'bezahlt'
+             OR lower(btrim(coalesce(fi.status, ''))) LIKE 'storn%'
+             OR coalesce(fi.open_amount, fi.amount, 0) <= 0);
+    UPDATE finance_invoices fi SET
+        reported_paid_at = s.reported_at,
+        reported_paid_method = s.method,
+        reported_paid_by = s.member
+      FROM finance_invoice_self_reports s
+      WHERE fi.source = 'clubdesk' AND fi.clubdesk_id = s.match_clubdesk_id;
+  END IF;
+END $$;
+
 -- 5c. Phase 2: auto-confirm native invoices whose ClubDesk counterpart is paid.
 -- ClubDesk is the source of truth for payment. A native invoice carries a number
 -- (N-YYYY-NNNN) the treasurer reuses as the ClubDesk invoice Nummer or

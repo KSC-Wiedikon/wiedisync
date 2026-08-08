@@ -262,6 +262,12 @@ export default {
   clubPicksAccepted: '{{count}} date concordate.',
   clubPicksReleased: '{{count}} date liberate.',
   clubPicksReleaseConfirm: 'Liberare {{count}} date scelte dal club? La proposta viene eliminata e lo slot torna disponibile per tutti i club. Non è reversibile.',
+  datePrefsTitle: 'Date indicate dai club',
+  datePrefsHint: 'Quello che i club avversari hanno risposto tramite il loro link. Sono disponibilità, non prenotazioni — nulla qui occupa uno slot in palestra. Collocate la partita nel pianificatore quando avete deciso.',
+  datePrefsEmpty: 'Nessun club ha ancora risposto.',
+  datePrefsAnswered: '{{count}} club hanno risposto.',
+  datePrefsColClubs: 'Club disponibili',
+  datePrefsAllTeams: 'Tutte le squadre',
   offersTitle: 'Partite proposte agli avversari',
   offersHint:
     'Una partita in casa già collocata raggiunge l’avversario solo dopo essere stata assegnata a un club e proposta. Le partite proposte compaiono sul link di quel club; si possono ritirare finché il club non ha risposto.',
