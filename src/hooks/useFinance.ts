@@ -4,7 +4,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useCollection } from '../lib/query'
 import { useAuth } from './useAuth'
-import { kscwApi, fetchAllItems, API_URL } from '../lib/api'
+import { kscwApi, fetchAllItems, API_URL, isImpersonating } from '../lib/api'
 import type {
   FinanceInvoice, FinanceTransaction, FinanceAccount, FinanceFiscalYear, FinanceImport,
 } from '../modules/finance/types'
@@ -26,15 +26,45 @@ export function formatChf(v: unknown): string {
  * /finance/my-invoices endpoint — a server-side union that sidesteps the M2M
  * policy-walk-returns-empty trap a Directus filter would hit.
  */
+/** While "View as member" is active every request still carries the superadmin's
+ *  session (api.ts:220), so the endpoint has to be told whose finances to load —
+ *  otherwise it answers for the superadmin and the page shows the wrong person's
+ *  invoices, or none. `user` is already the impersonated member here. */
+function myInvoicesPath(memberId: string | number | undefined): string {
+  return isImpersonating() && memberId != null
+    ? `/finance/my-invoices?member=${encodeURIComponent(String(memberId))}`
+    : '/finance/my-invoices'
+}
+
 export function useMyInvoices() {
   const { user } = useAuth()
   const q = useQuery({
     queryKey: ['finance', 'my-invoices', user?.id ?? null],
-    queryFn: () => kscwApi<{ invoices: FinanceInvoice[]; member_id: number }>('/finance/my-invoices'),
+    queryFn: () => kscwApi<MyInvoicesResponse>(myInvoicesPath(user?.id)),
     enabled: !!user,
     select: (r) => r.invoices,
   })
   return q
+}
+
+export interface MyInvoicesResponse {
+  invoices: FinanceInvoice[]
+  member_id: number
+  fee_category: string | null
+  /** The member's category prices at CHF 0 — they are never invoiced. */
+  no_fee: boolean
+}
+
+/** Same request as useMyInvoices (one cache entry), but keeps the envelope so
+ *  the page can explain WHY the list is empty instead of just that it is. */
+export function useMyInvoicesMeta() {
+  const { user } = useAuth()
+  return useQuery({
+    queryKey: ['finance', 'my-invoices', user?.id ?? null],
+    queryFn: () => kscwApi<MyInvoicesResponse>(myInvoicesPath(user?.id)),
+    enabled: !!user,
+    select: (r) => ({ fee_category: r.fee_category, no_fee: r.no_fee }),
+  })
 }
 
 // ── Native-invoice write actions (all hit the Vorstand/recipient-gated endpoints) ──

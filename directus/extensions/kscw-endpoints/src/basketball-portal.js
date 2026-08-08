@@ -364,20 +364,32 @@ export function registerBasketballPortal(router, { database, logger }) {
     const isBlocked = (date, time, hall) =>
       (busyAt.get(`${date}|${time}`) || []).some((h) => hallsCollide(h, hall))
 
-    const byTeam = new Map(teamIds.map((id) => [String(id), []]))
+    /**
+     * Dates, not pitches.
+     *
+     * ⚠ The unit the club answers in is the DAY. A slot is (date, time, hall) and one Saturday
+     * carries up to three of them, so offering slots made the club choose a tip-off it has no
+     * opinion about — and, worse, holding one made that choice ours by ranking. The times are
+     * still sent, but only so the page can say "11:00 or 13:30"; the club commits to the day
+     * and we allocate the rest.
+     */
+    const byTeam = new Map(teamIds.map((id) => [String(id), new Map()]))
     for (const s of slots) {
-      if (isBlocked(toYmd(s.date), s.time, s.hall)) continue
-      byTeam.get(String(s.kscw_team))?.push({
-        id: s.id,
-        date: toYmd(s.date),
-        time: s.time || '',
-        end_time: s.end_time || '',
-        hall: s.hall || '',
-        // The generator's own ranking. Surfaced so the portal can default a date to its best
-        // pitch instead of asking a club to choose between halls it knows nothing about.
-        score: s.score == null ? null : Number(s.score),
-      })
+      const date = toYmd(s.date)
+      if (isBlocked(date, s.time, s.hall)) continue
+      const dates = byTeam.get(String(s.kscw_team))
+      if (!dates) continue
+      const entry = dates.get(date)
+      if (entry) entry.times.push(s.time || '')
+      else dates.set(date, { date, times: [s.time || ''] })
     }
+
+    // What this club has already told us, so the page can come back showing its own answers.
+    const prefs = await database('basketball_club_date_prefs')
+      .where('season', portal.season)
+      .where('bp_club', portal.bp_club)
+      .select('kscw_team', 'date')
+    const chosen = new Set(prefs.map((p) => `${p.kscw_team}|${toYmd(p.date)}`))
 
     return teams.map((r) => ({
       kscw_team: r.team_id,
@@ -389,7 +401,13 @@ export function registerBasketballPortal(router, { database, logger }) {
         ? Math.floor(Number(r.games_total) / 2)
         : null,
       games_total: r.games_total ?? null,
-      slots: byTeam.get(String(r.team_id)) || [],
+      dates: [...(byTeam.get(String(r.team_id))?.values() || [])]
+        .sort((a, b) => a.date.localeCompare(b.date))
+        .map((d) => ({
+          date: d.date,
+          times: [...new Set(d.times)].sort(),
+          chosen: chosen.has(`${r.team_id}|${d.date}`),
+        })),
     }))
   }
 
@@ -669,104 +687,65 @@ export function registerBasketballPortal(router, { database, logger }) {
 
       const picks = Array.isArray(req.body?.picks) ? req.body.picks : []
       if (!picks.length) return res.status(400).json({ error: 'picks_required' })
-      if (picks.length > 40) return res.status(400).json({ error: 'too_many_picks' })
 
-      // Only pitches this club is actually entitled to see may be picked. Rebuilding the
-      // pairings is the same authorisation the GET applies, so the two cannot drift.
+      // Rebuilding the pairings is the same authorisation the GET applies, so the two cannot
+      // drift: a club may only answer for its own teams, and only on dates we actually offer.
       const pairings = await portalPairings(portal)
-      const allowed = new Map()
-      for (const p of pairings) for (const s of p.slots) allowed.set(Number(s.id), { slot: s, pairing: p })
-
-      const wanted = [...new Set(picks.map((p) => Number(p?.slot_id)).filter(Number.isFinite))]
-      const usable = wanted.filter((id) => allowed.has(id))
-      if (!usable.length) return res.status(400).json({ error: 'no_valid_picks' })
-
-      const noteBySlot = new Map()
-      for (const p of picks) {
-        const id = Number(p?.slot_id)
-        if (Number.isFinite(id) && p?.note) noteBySlot.set(id, String(p.note).trim().slice(0, 500))
-      }
+      const allowedByTeam = new Map(
+        pairings.map((p) => [String(p.kscw_team), new Set(p.dates.map((d) => d.date))]),
+      )
 
       const nowIso = new Date().toISOString()
-      const created = []
-      // Halls this very submission has already taken, per date+time. `allowed` was computed
-      // once before the loop, so without this a single submit could tick 'KWI A+B' for one team
-      // and 'KWI A' for another at the same hour — both pass the pre-check, and the claim
-      // trigger's exact-hall match would not catch it either.
-      const claimedHere = new Map()
-      const conflicts = []
-      for (const id of usable) {
-        const { slot, pairing } = allowed.get(id)
-        const key = `${slot.date}|${slot.time}`
-        if ((claimedHere.get(key) || []).some((h) => hallsCollide(h, slot.hall))) {
-          conflicts.push(id); continue
-        }
-        // Idempotent per (club, team, pitch): a club pressing submit twice must not create a
-        // second identical proposal.
-        const existing = await database('basketball_slot_plan')
-          .where({
-            season: portal.season, opponent_club: portal.bp_club, kscw_team: pairing.kscw_team,
-            date: slot.date, time: slot.time, hall: slot.hall,
-          })
-          .first('id')
-        if (existing) continue
+      let stored = 0; let removed = 0; let rejected = 0
 
-        const inserted = await database('basketball_slot_plan').insert({
-          season: portal.season,
-          date: slot.date,
-          time: slot.time,
-          hall: slot.hall,
-          kscw_team: pairing.kscw_team,
-          kscw_team_label: pairing.kscw_team_name,
-          opponent: portal.club_name || '',
-          opponent_club: portal.bp_club,
-          game_type: 'home',
-          proposal_status: 'club_proposed',
-          // The public routes have no accountability.user, so the actor is persisted on the
-          // row — CLAUDE.md's documented option (b) for token-authenticated writes.
-          responded_by_name: name,
-          responded_by_email: email,
-          responded_at: nowIso,
-          opponent_note: noteBySlot.get(id) || null,
-          date_created: nowIso,
-          date_updated: nowIso,
-        }).returning('id')
-          // The floor-claim unique index (migration 295) is the ONLY thing that can decide a
-          // race: two clubs submitting the same hour at the same instant both pass the checks
-          // above, and Postgres refuses the loser here. Treat it as a normal outcome — the
-          // date simply went to someone else — not as a 500.
-          // ⚠ Returns null, and the destructuring therefore happens AFTER the null check —
-          // `const [row] = null` throws, which would turn a lost race into a 500.
-          .catch((err) => {
-            if (err?.code === '23505') return null
-            throw err
-          })
-        if (inserted === null) { conflicts.push(id); continue }
-        const row = Array.isArray(inserted) ? inserted[0] : inserted
-        created.push(typeof row === 'object' ? row.id : row)
-        const held = claimedHere.get(key)
-        if (held) held.push(slot.hall)
-        else claimedHere.set(key, [slot.hall])
+      for (const pick of picks) {
+        const teamId = Number(pick?.kscw_team)
+        const allowed = allowedByTeam.get(String(teamId))
+        if (!allowed) { rejected += 1; continue }
+
+        const wanted = [...new Set((Array.isArray(pick?.dates) ? pick.dates : [])
+          .map((d) => String(d || '').slice(0, 10))
+          .filter((d) => YMD_RE.test(d)))]
+        const usable = wanted.filter((d) => allowed.has(d))
+        rejected += wanted.length - usable.length
+        if (wanted.length > 200) return res.status(400).json({ error: 'too_many_picks' })
+
+        const note = pick?.note ? String(pick.note).trim().slice(0, 500) : null
+
+        // REPLACE semantics per (club, team): the page shows the club its current answer and
+        // submits the whole set, so unticking a date has to remove it. An additive write would
+        // make a mistake impossible to take back without ringing us up.
+        await database('basketball_club_date_prefs')
+          .where({ season: portal.season, bp_club: portal.bp_club, kscw_team: teamId })
+          .modify((q) => { if (usable.length) q.whereNotIn('date', usable) })
+          .del()
+          .then((n) => { removed += n })
+
+        for (const date of usable) {
+          await database('basketball_club_date_prefs')
+            .insert({
+              season: portal.season,
+              bp_club: portal.bp_club,
+              kscw_team: teamId,
+              date,
+              note,
+              responder_name: name,
+              responder_email: email,
+              date_created: nowIso,
+              date_updated: nowIso,
+            })
+            .onConflict(['season', 'bp_club', 'kscw_team', 'date'])
+            .merge({ note, responder_name: name, responder_email: email, date_updated: nowIso })
+          stored += 1
+        }
       }
 
-      // ⚠ The portal status is deliberately NOT advanced here, exactly as the respond route
-      // leaves it alone. `portalByToken` only admits PORTAL_VIEW_STATUSES
-      // (invited/viewed/booked), so writing anything else — 'responded' was the obvious
-      // choice — would lock the club out of its own link the instant it submitted.
       await database('game_scheduling_club_portals').where('id', portal.id)
         .update({ date_updated: nowIso })
 
-      res.json({
-        success: true,
-        created: created.length,
-        // Distinguishes "already proposed" from "not yours" so the UI can say which.
-        skipped_existing: usable.length - created.length - conflicts.length,
-        rejected: wanted.length - usable.length,
-        // Picks dropped because another pick in the SAME submission already took that floor
-        // (A+B against one of its halves). Reported separately so it is never mistaken for a
-        // duplicate, and so the count of what was actually stored stays truthful.
-        conflicted: conflicts.length,
-      })
+      // ⚠ Nothing is claimed here. These are availabilities; a planner allocates time and hall
+      // afterwards by creating the basketball_slot_plan row, which is what holds the floor.
+      res.json({ success: true, stored, removed, rejected })
     } catch (err) { fail(res, 'terminplanung/bb/club/propose', err, req) }
   })
 

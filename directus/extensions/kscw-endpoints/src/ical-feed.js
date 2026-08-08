@@ -434,6 +434,11 @@ export function registerICalFeed(router, { database, logger }) {
   // Personal iCal token — the caller's own subscription secret. The app reads it
   // to build the `?source=duties&token=…` link; lazily generated for members
   // created after migration 125.
+  // ⚠ DELIBERATELY IGNORES "View as member" — unlike /finance/my-invoices, which
+  // takes an explicit ?member= for support. This route returns AND MINTS a bearer
+  // token that grants ongoing calendar access; handing one to an impersonating
+  // superadmin would leak a long-lived secret and silently create it as a side
+  // effect. The real session's token is the only correct answer here.
   router.get('/me/ical-token', async (req, res) => {
     try {
       const userId = req.accountability?.user

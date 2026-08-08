@@ -699,6 +699,13 @@ export function registerRegistration(router, { database, logger, services, getSc
   }
 
   // GET /kscw/registration/my-docs — list the caller's own uploaded documents.
+  //
+  // ⚠ DELIBERATELY IGNORES "View as member". Impersonation is client-side (the
+  // request still carries the superadmin's session), and /finance/my-invoices
+  // was given an explicit ?member= so support can answer "does this member owe?".
+  // Do NOT copy that here: these are identity documents (ID copies, foreign-player
+  // declarations). A read-only viewing feature must not become a way to pull
+  // another member's papers. Same for the :field streaming route below.
   router.get('/registration/my-docs', async (req, res) => {
     try {
       const userId = req.accountability?.user

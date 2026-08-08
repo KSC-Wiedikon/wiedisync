@@ -90,6 +90,8 @@ export default {
   openBalance: 'Offener Betrag',
   allSettled: 'Alles bezahlt – nichts offen.',
   noInvoices: 'Du hast keine Rechnungen.',
+  noInvoicesFree: 'Nichts zu bezahlen — deine Mitgliedschaft ist beitragsfrei.',
+  noInvoicesFreeHint: 'Falls das nicht stimmt, melde dich beim Kassier.',
   colInvoice: 'Rechnung',
   colSubject: 'Betreff',
   colStatus: 'Status',

@@ -85,6 +85,8 @@ export default {
   openBalance: 'Solde ouvert',
   allSettled: 'Tout est réglé – rien d’ouvert.',
   noInvoices: 'Vous n’avez aucune facture.',
+  noInvoicesFree: 'Rien à payer — ton adhésion est gratuite.',
+  noInvoicesFreeHint: 'Si cela te semble incorrect, contacte le trésorier.',
   colInvoice: 'Facture',
   colSubject: 'Objet',
   colStatus: 'Statut',

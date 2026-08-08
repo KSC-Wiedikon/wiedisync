@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { ChevronDown, ChevronRight, Check, Clock } from 'lucide-react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import { formatDateCompactZurich } from '../../utils/dateHelpers'
-import { useMyInvoices, toNum, formatChf, isOpenInvoice, isNativeInvoice, reportInvoicePaid } from '../../hooks/useFinance'
+import { useMyInvoices, useMyInvoicesMeta, toNum, formatChf, isOpenInvoice, isNativeInvoice, reportInvoicePaid } from '../../hooks/useFinance'
 import { useReportPageLoading } from '../../hooks/usePageReady'
 import type { FinanceInvoice } from './types'
 import InvoiceQrBill from './InvoiceQrBill'
@@ -39,6 +39,7 @@ function StatusBadge({ inv }: { inv: FinanceInvoice }) {
 export default function FinanceDuesPage() {
   const { t } = useTranslation('finance')
   const { data: invoicesRaw, isLoading, refetch } = useMyInvoices()
+  const { data: meta } = useMyInvoicesMeta()
   const invoices = invoicesRaw ?? []
   const [payRow, setPayRow] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState<string | null>(null)
@@ -101,7 +102,15 @@ export default function FinanceDuesPage() {
         <div className="py-12 text-center text-sm text-gray-500 dark:text-gray-400">…</div>
       ) : invoices.length === 0 ? (
         <div data-tour="dues-list" className="rounded-lg border border-dashed border-gray-300 py-12 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
-          {t('noInvoices')}
+          {/* "You have no invoices." reads as a fault to someone who simply owes
+              nothing — a Gratis member (coach, staff) has never been billed and
+              never will be. Say which of the two it is. */}
+          {meta?.no_fee ? (
+            <>
+              <p className="text-gray-700 dark:text-gray-300">{t('noInvoicesFree')}</p>
+              <p className="mt-1 text-xs">{t('noInvoicesFreeHint')}</p>
+            </>
+          ) : t('noInvoices')}
         </div>
       ) : (
         <div data-tour="dues-list" className="rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
