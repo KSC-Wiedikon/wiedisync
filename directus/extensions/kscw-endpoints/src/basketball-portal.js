@@ -1060,6 +1060,48 @@ export function registerBasketballPortal(router, { database, logger }) {
   // ⚠ Only `club_proposed` rows are touched. Answering an 'offered' row is the club's job via
   // the portal, and rewriting an already-'accepted' one behind their back would silently
   // change an agreement they were told was settled.
+  // GET /kscw/admin/terminplanung/bb/date-prefs?season=1 — what every club answered.
+  //
+  // Read through an admin endpoint rather than the items API, like the rest of this module:
+  // the collection is registered with Directus for inspection, but granting a read rule per
+  // role in setup-permissions just to feed one panel is more surface than a gated select.
+  //
+  // Shaped per (team, date) because that is the planner's question — "who can come that day?"
+  // — not "what did this club say?", which the portal already answers.
+  router.get('/admin/terminplanung/bb/date-prefs', async (req, res) => {
+    if (await denyUnlessBb(req, res)) return
+    try {
+      const season = Number(req.query?.season)
+      if (!season) return res.status(400).json({ error: 'season required' })
+
+      const rows = await database('basketball_club_date_prefs as p')
+        .leftJoin('teams as t', 't.id', 'p.kscw_team')
+        .leftJoin('basketplan_clubs as c', 'c.id', 'p.bp_club')
+        .where('p.season', season)
+        .orderBy(['p.date', 't.name', 'c.name'])
+        .select(
+          'p.id', 'p.date', 'p.note', 'p.kscw_team', 'p.bp_club',
+          'p.responder_name', 'p.responder_email', 'p.date_updated',
+          't.name as kscw_team_name', 'c.name as club_name',
+        )
+
+      res.json({
+        prefs: rows.map((r) => ({
+          id: r.id,
+          date: toYmd(r.date),
+          kscw_team: r.kscw_team,
+          kscw_team_name: r.kscw_team_name || '',
+          bp_club: r.bp_club,
+          club_name: r.club_name || '',
+          note: r.note || '',
+          responder_name: r.responder_name || '',
+          responder_email: r.responder_email || '',
+          date_updated: r.date_updated || null,
+        })),
+      })
+    } catch (err) { fail(res, 'admin/terminplanung/bb/date-prefs', err, req) }
+  })
+
   router.post('/admin/terminplanung/bb/club-proposals', async (req, res) => {
     if (await denyUnlessBb(req, res)) return
     try {

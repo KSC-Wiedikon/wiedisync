@@ -148,7 +148,10 @@ describe('bbClubInviteEmail — instructions match what the link shows', () => {
     const { text } = bbClubInviteEmail({ ...BASE, pickable: 40, offers: 0 })
     expect(text).toContain('noch frei')
     expect(text).toContain('ankreuzen')
-    expect(text).toContain('sofort für euch reserviert')
+    // Must NOT promise a reservation — a pick holds nothing (migration 296).
+    expect(text).not.toContain('reserviert für')
+    expect(text).toContain('noch keine Reservation')
+    expect(text).toContain('Uhrzeit und Halle teilen wir euch zu')
     // Must NOT tell them to confirm games that do not exist for them yet.
     expect(text).not.toContain('Pro Spiel einen Termin bestätigen')
   })

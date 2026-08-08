@@ -3,10 +3,8 @@ import { useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
   useBbClubPortal,
-  groupSlotsByDate,
   type BbDecision,
   type BbPortalGame,
-  type BbPortalFreeDate,
 } from '../hooks/useBbClubPortal'
 import Modal from '../../../components/Modal'
 import { Badge } from '../../../components/ui/badge'
@@ -89,9 +87,14 @@ export default function BasketballClubFlowPage() {
   // Free pitches the club has ticked, by slot id. Separate from `drafts` because the two
   // flows answer different questions — ours ("do you accept this game?") and theirs ("which
   // dates suit you?") — and the identity modal serves whichever opened it via `responderMode`.
-  const [picked, setPicked] = useState<Set<number>>(() => new Set())
-  /** date → the slot id the club chose for it. Absent = take the day's best-ranked pitch. */
-  const [timeByDate, setTimeByDate] = useState<Record<string, number>>({})
+  /**
+   * Dates the club has ticked, as `${teamId}|${date}`. Seeded from what it told us before, so
+   * the page comes back showing its own answer rather than a blank sheet.
+   *
+   * ⚠ Null until the payload lands — an empty Set would look like "withdrew everything" and,
+   * with REPLACE semantics on submit, could erase a club's answer.
+   */
+  const [picked, setPicked] = useState<Set<string> | null>(null)
   const [responderMode, setResponderMode] = useState<'respond' | 'propose'>('respond')
   const [responderOpen, setResponderOpen] = useState(false)
   const [responderName, setResponderName] = useState('')
@@ -119,6 +122,22 @@ export default function BasketballClubFlowPage() {
     if (!didInitLang.current) return
     void setLanguage((i18n.language || '').split('-')[0].toLowerCase())
   }, [i18n.language, setLanguage])
+
+  /**
+   * Seed the ticks from what the club already told us, ONCE. Re-seeding on every payload would
+   * undo edits the moment a refetch landed; leaving it null until then keeps an empty Set from
+   * being read as "withdrew everything".
+   */
+  const didSeedPicks = useRef(false)
+  useEffect(() => {
+    if (didSeedPicks.current || !pairings.length) return
+    didSeedPicks.current = true
+    const seeded = new Set<string>()
+    for (const p of pairings) {
+      for (const d of p.dates) if (d.chosen) seeded.add(`${p.kscw_team}|${d.date}`)
+    }
+    setPicked(seeded)
+  }, [pairings])
 
   const isInitialLoading = isLoading && !portal
   useReportPageLoading(isInitialLoading)
@@ -176,40 +195,21 @@ export default function BasketballClubFlowPage() {
     setDraft(id, { alternatives: cur.alternatives.filter((_, i) => i !== idx) })
   }
 
-  /**
-   * Which pitch a date resolves to: the club's explicit time choice, else the day's best.
-   * Keyed by date so switching the time on a ticked day moves the tick with it.
-   */
-  const chosenSlotFor = (d: BbPortalFreeDate) => {
-    const explicit = d.options.find((o) => o.id === timeByDate[d.date])
-    return explicit ?? d.options[0]
-  }
+  const pickKey = (teamId: number, date: string) => `${teamId}|${date}`
 
-  /** Change a day's time. If the day was already ticked, the tick follows the new pitch. */
-  const chooseTime = (d: BbPortalFreeDate, slotId: number) => {
-    const previous = chosenSlotFor(d).id
-    setTimeByDate((prev) => ({ ...prev, [d.date]: slotId }))
+  const togglePick = (teamId: number, date: string) =>
     setPicked((prev) => {
-      if (!prev.has(previous)) return prev
-      const next = new Set(prev)
-      next.delete(previous)
-      next.add(slotId)
-      return next
-    })
-  }
-
-  const togglePick = (slotId: number) =>
-    setPicked((prev) => {
-      const next = new Set(prev)
-      if (next.has(slotId)) next.delete(slotId)
-      else next.add(slotId)
+      const next = new Set(prev ?? [])
+      const k = pickKey(teamId, date)
+      if (next.has(k)) next.delete(k)
+      else next.add(k)
       return next
     })
 
   const openProposer = () => {
     setFormError('')
     setSuccess('')
-    if (!picked.size) {
+    if (!picked || picked.size === 0) {
       setFormError(t('bbPortalNothingPicked'))
       return
     }
@@ -257,14 +257,24 @@ export default function BasketballClubFlowPage() {
     if (responderMode === 'propose') {
       try {
         if (note.trim() !== (portal.club_note || '').trim()) await saveNote(note.trim())
-        const res = await propose([...picked].map((slot_id) => ({ slot_id })), { name, email })
-        setPicked(new Set())
+        // REPLACE semantics: send every visible team with its WHOLE current set, including the
+        // empty ones — an omitted team keeps its old answer, and a team the club just cleared
+        // must actually be cleared.
+        // `picked ?? new Set()` is safe here and only here: openProposer already refused an
+        // unseeded or empty selection, so reaching this line means the club really did tick
+        // something. Anywhere else an empty Set would read as "withdraw everything".
+        const chosen = picked ?? new Set<string>()
+        const byTeam = pairings.map((p) => ({
+          kscw_team: p.kscw_team,
+          dates: p.dates.filter((d) => chosen.has(`${p.kscw_team}|${d.date}`)).map((d) => d.date),
+        }))
+        const res = await propose(byTeam, { name, email })
         // `rejected` means the backend refused ids that are not this club's — say so rather
         // than reporting a clean success for a partial write.
         setSuccess(
           res.rejected > 0
-            ? t('bbPortalProposedPartial', { count: res.created, rejected: res.rejected })
-            : t('bbPortalProposed', { count: res.created }),
+            ? t('bbPortalProposedPartial', { count: res.stored, rejected: res.rejected })
+            : t('bbPortalProposed', { count: res.stored }),
         )
       } catch (err) {
         const body = (err as { body?: { error?: string } })?.body
@@ -518,7 +528,7 @@ export default function BasketballClubFlowPage() {
                   )}
                 </div>
 
-                {p.slots.length === 0 ? (
+                {p.dates.length === 0 ? (
                   <p className="text-sm text-gray-500 dark:text-gray-400">{t('bbPortalNoFreeSlots')}</p>
                 ) : (
                   <div className="overflow-x-auto">
@@ -531,50 +541,27 @@ export default function BasketballClubFlowPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {groupSlotsByDate(p.slots).map((d) => {
-                          // One row per DATE. The chosen slot id is the club's explicit time
-                          // choice if it made one, else the day's best-ranked pitch.
-                          const chosen = chosenSlotFor(d)
-                          return (
-                            <TableRow key={d.date} className="min-h-[44px]">
-                              <TableCell>
-                                <input
-                                  type="checkbox"
-                                  aria-label={formatDateZurich(d.date)}
-                                  checked={picked.has(chosen.id)}
-                                  onChange={() => togglePick(chosen.id)}
-                                  className="h-5 w-5 accent-blue-600"
-                                />
-                              </TableCell>
-                              <TableCell className="whitespace-normal break-words font-medium">
-                                {formatDateZurich(d.date)}
-                              </TableCell>
-                              <TableCell>
-                                {d.options.length === 1 ? (
-                                  <span className="tabular-nums text-sm text-gray-600 dark:text-gray-300">
-                                    {d.options[0].time}
-                                  </span>
-                                ) : (
-                                  // Optional refinement, not a required decision — the club may
-                                  // simply tick the day. `dark:bg-gray-800` is mandatory: an
-                                  // <option> inherits the select's background (CLAUDE.md).
-                                  <select
-                                    aria-label={t('bbPortalColTime')}
-                                    value={String(chosen.id)}
-                                    onChange={(e) => chooseTime(d, Number(e.target.value))}
-                                    className="min-h-11 rounded-md border border-gray-300 bg-white px-2 py-1 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
-                                  >
-                                    {d.options.map((o) => (
-                                      <option key={o.id} value={o.id}>
-                                        {o.time}{o.end_time ? `–${o.end_time}` : ''} · {o.hall}
-                                      </option>
-                                    ))}
-                                  </select>
-                                )}
-                              </TableCell>
-                            </TableRow>
-                          )
-                        })}
+                        {p.dates.map((d) => (
+                          <TableRow key={d.date} className="min-h-[44px]">
+                            <TableCell>
+                              <input
+                                type="checkbox"
+                                aria-label={formatDateZurich(d.date)}
+                                checked={!!picked?.has(`${p.kscw_team}|${d.date}`)}
+                                onChange={() => togglePick(p.kscw_team, d.date)}
+                                className="h-5 w-5 accent-blue-600"
+                              />
+                            </TableCell>
+                            <TableCell className="whitespace-normal break-words font-medium">
+                              {formatDateZurich(d.date)}
+                            </TableCell>
+                            {/* Informational only — the club commits to the day, we allocate
+                                the tip-off and hall once every answer is in. */}
+                            <TableCell className="whitespace-normal break-words text-sm text-gray-600 tabular-nums dark:text-gray-300">
+                              {d.times.join(' · ')}
+                            </TableCell>
+                          </TableRow>
+                        ))}
                       </TableBody>
                     </Table>
                   </div>
@@ -585,10 +572,10 @@ export default function BasketballClubFlowPage() {
             <button
               type="button"
               onClick={openProposer}
-              disabled={submitting || picked.size === 0}
+              disabled={submitting || !picked || picked.size === 0}
               className="mt-2 min-h-11 w-full rounded-md bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
             >
-              {submitting ? t('bbPortalSending') : t('bbPortalPickSubmit', { count: picked.size })}
+              {submitting ? t('bbPortalSending') : t('bbPortalPickSubmit', { count: picked?.size ?? 0 })}
             </button>
           </div>
         )}
