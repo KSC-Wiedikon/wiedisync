@@ -69,6 +69,12 @@ export interface Team extends BaseRecord {
   open_for_players: boolean
   /** Positions the team is recruiting for (team-level). Empty/undefined = open to all. Shown on the public team page when open_for_players=true. */
   recruiting_positions?: MemberPosition[] | null
+  /** Mixed (MU) youth teams only, sub-toggles of open_for_players (migration 298).
+   *  Exactly one of the two set splits the website's Nachwuchs card: that gender
+   *  gets the contact form, the other the waiting list. Both set — or neither,
+   *  the default — recruit without a split. */
+  open_for_girls?: boolean | null
+  open_for_boys?: boolean | null
   features_enabled: TeamSettings
   /** Coach Dashboard: persisted From date (NULL = computed default). */
   dashboard_range_from?: string | null

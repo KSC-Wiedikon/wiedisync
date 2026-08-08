@@ -683,6 +683,10 @@ const PUBLIC_TEAM_FIELDS = [
   // page detect a "full" team and route to its waiting list instead of emailing
   // the coach/youth coordinator. The /kscw/contact endpoint also gates on this.
   'waitlist_url', 'waitlist_label',
+  // Mixed (MU) youth teams recruit girls and boys separately (migration 298).
+  // The basketball youth page splits those cards on these two: the gender being
+  // taken gets the contact form, the other the waiting list. Booleans, no PII.
+  'open_for_girls', 'open_for_boys',
 ]
 
 /** Coach Dashboard prefs — readable by Coach/Team Responsible/Admin via an explicit read row. NOT added to PUBLIC_TEAM_FIELDS. */
