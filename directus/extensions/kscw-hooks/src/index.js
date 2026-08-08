@@ -4441,6 +4441,20 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     throw kscwScopeError('Sent emails are a record and cannot be deleted.', 403, 'READ_ONLY')
   })
 
+  // Same reasoning for the audit trail itself. `user_logs` is append-only: the
+  // app writes entries via logActivity and the superadmin audit page reads them.
+  // Editing or deleting an entry lets the tier under audit rewrite its own
+  // history, so both are refused for everyone the policy layer applies to
+  // (audit 2026-08-08, finding 1 — the Sport Admin tier held unfiltered
+  // update/delete here until that pass). Admin accountability bypasses filter
+  // hooks, so a genuine root can still correct the table if it ever needs it.
+  filter('user_logs.items.update', async () => {
+    throw kscwScopeError('The audit log is a record and cannot be edited.', 403, 'READ_ONLY')
+  })
+  filter('user_logs.items.delete', async () => {
+    throw kscwScopeError('The audit log is a record and cannot be deleted.', 403, 'READ_ONLY')
+  })
+
   // ── Cron: registration-document orphan sweep (04:30 UTC) ────────
   // The eager-upload form puts files into the private registration folder
   // BEFORE the registration exists, so abandoned forms and re-picked files

@@ -1409,6 +1409,10 @@ export default {
             return res.status(400).json({ error: 'Invalid or expired request' })
           }
 
+          // Set when this branch ADOPTS a pre-existing directus_users row rather
+          // than creating a fresh one. Guarded below — see the takeover note.
+          let adoptedUserId = null
+
           let member = await database('members')
             .whereRaw('LOWER(email) = ?', [email]).first()
           // Fallback: check if email matches a VM-synced email (Volleymanager claim)
@@ -1431,6 +1435,7 @@ export default {
               return res.status(400).json({ error: 'No account found', code: 'no_account' })
             }
             userId = orphanUser.id
+            adoptedUserId = orphanUser.id
           } else {
             memberId = member.id
             // Normalise stored email to lowercase to prevent future case drift
@@ -1440,6 +1445,7 @@ export default {
             if (member.user) {
               // Member already linked to a Directus user — update password
               userId = member.user
+              adoptedUserId = member.user
             } else {
               // Member has no linked user yet. A stray directus_users row may
               // already hold this email (leftover partial signup, import, or the
@@ -1458,6 +1464,7 @@ export default {
                 .whereRaw('LOWER(email) = ?', [email]).first('id')
               if (sameEmailUser) {
                 userId = sameEmailUser.id
+                adoptedUserId = sameEmailUser.id
               } else if (someoneElseHasIt) {
                 return res.status(400).json({
                   error: 'This email already has an account — each account needs its own email address. Ask an admin to set a personal email for you first.',
@@ -1489,6 +1496,31 @@ export default {
                 }
               }
               await database('members').where('id', member.id).update({ user: userId })
+            }
+          }
+
+          // Mode 3 sets an INITIAL password. It must never overwrite an existing
+          // one: this branch runs UNAUTHENTICATED and finishes with
+          // `adminUsersService.updateOne(userId, { password })` under
+          // `accountability: { admin: true }`, so anyone who can produce a
+          // `verified` row for an address owns whatever account that address
+          // resolves to — including a Superuser's, or the member-row-less
+          // `admin@kscw.ch` via the orphan branch above. Until 2026-08-08 the
+          // Sport Admin tier held unfiltered CRUD on `email_verifications` and
+          // could simply forge that row (audit 2026-08-08, finding 1); the
+          // permission is gone now, but this is the load-bearing half — it holds
+          // even if the OTP store is compromised some other way.
+          // Anyone who already has a password goes through Mode 2 instead, which
+          // proves control of the mailbox Directus itself holds
+          // (`directus_users.email`, never `members.email` — see password-reset.js).
+          if (adoptedUserId) {
+            const existing = await database('directus_users')
+              .where('id', adoptedUserId).select('password').first()
+            if (existing?.password) {
+              return res.status(400).json({
+                error: 'This account already has a password — use "Forgot password" to reset it.',
+                code: 'password_already_set',
+              })
             }
           }
 
