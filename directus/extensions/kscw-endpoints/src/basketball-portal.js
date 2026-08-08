@@ -711,7 +711,7 @@ export function registerBasketballPortal(router, { database, logger }) {
           .first('id')
         if (existing) continue
 
-        const [row] = await database('basketball_slot_plan').insert({
+        const inserted = await database('basketball_slot_plan').insert({
           season: portal.season,
           date: slot.date,
           time: slot.time,
@@ -731,6 +731,18 @@ export function registerBasketballPortal(router, { database, logger }) {
           date_created: nowIso,
           date_updated: nowIso,
         }).returning('id')
+          // The floor-claim unique index (migration 295) is the ONLY thing that can decide a
+          // race: two clubs submitting the same hour at the same instant both pass the checks
+          // above, and Postgres refuses the loser here. Treat it as a normal outcome — the
+          // date simply went to someone else — not as a 500.
+          // ⚠ Returns null, and the destructuring therefore happens AFTER the null check —
+          // `const [row] = null` throws, which would turn a lost race into a 500.
+          .catch((err) => {
+            if (err?.code === '23505') return null
+            throw err
+          })
+        if (inserted === null) { conflicts.push(id); continue }
+        const row = Array.isArray(inserted) ? inserted[0] : inserted
         created.push(typeof row === 'object' ? row.id : row)
         const held = claimedHere.get(key)
         if (held) held.push(slot.hall)
