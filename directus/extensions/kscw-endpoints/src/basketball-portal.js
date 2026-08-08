@@ -857,9 +857,23 @@ export function registerBasketballPortal(router, { database, logger }) {
         .where('season', season).whereNotNull('opponent_club')
         .whereIn('proposal_status', OFFER_VISIBLE_STATUSES)
         .distinct('opponent_club').pluck('opponent_club')
+
+      // ⚠ Offers alone mint nothing under the opponent-picks flow — a club we have not offered
+      // anything to is exactly who needs a link. Every club sharing a ProBasket group with one
+      // of our teams (migration 287) is an opponent we will meet, so it gets a portal.
+      // Without this, "Refresh links" returned created:0 and the whole flow was unreachable.
+      const fromGroups = await database('basketball_group_teams as opp')
+        .join('basketball_groups as g', 'g.id', 'opp.group_id')
+        .join('basketball_group_teams as mine', function () {
+          this.on('mine.group_id', '=', 'g.id').andOnNotNull('mine.kscw_team')
+        })
+        .where('g.season', season)
+        .whereNotNull('opp.bp_club')
+        .distinct('opp.bp_club').pluck('opp.bp_club')
+
       const explicit = Array.isArray(req.body?.club_ids)
         ? req.body.club_ids.map(Number).filter(Number.isFinite) : []
-      const wanted = [...new Set([...fromOffers.map(Number), ...explicit])]
+      const wanted = [...new Set([...fromOffers.map(Number), ...fromGroups.map(Number), ...explicit])]
       if (!wanted.length) return res.json({ created: 0, refreshed: 0, skipped: [], portals: await portalsWithClubQuery(season) })
 
       const clubs = await database('basketplan_clubs').whereIn('id', wanted)
