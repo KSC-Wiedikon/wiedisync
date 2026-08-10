@@ -459,7 +459,7 @@ const FINANCE = block('finance', undefined, [
     virtual: true, readOnly: true,
     help: 'Base + scorer-licence surcharge − discounts, as the dues run and the ClubDesk push compute it.',
     provenance:
-      'Computed by feeBreakdown() on the server (GET /kscw/finance/members/:id/fee) from the fee category, this season’s rate schedule, the licence flags, the guest roster and the three override fields below. Nothing stores a total — edit the parts, not the sum.',
+      'Computed by feeBreakdown() on the server (GET /kscw/finance/members/:id/fee) from the fee category, this season’s rate schedule, the licence flags, the guest roster and the three override fields below (empty ones appear in edit mode). Nothing stores a total — edit the parts, not the sum.',
   },
   {
     key: 'fee_base_override', label: 'Fee base override (CHF)', kind: 'number',
