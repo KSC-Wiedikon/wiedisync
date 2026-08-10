@@ -1,10 +1,10 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile'
 import { ExternalLink } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { useTheme } from '../../hooks/useTheme'
+import { useTurnstile } from '../../lib/turnstile'
 import { useCollection } from '../../lib/query'
 import { Button } from '@/components/ui/button'
 import Modal from '@/components/Modal'
@@ -20,7 +20,6 @@ import type { Team } from '../../types'
 import { createRecord, kscwApi, updateRecord } from '../../lib/api'
 import { checkPassword, passwordErrorKeyFromCode, passwordIssueKey } from '../../lib/passwordRules'
 
-const TURNSTILE_SITE_KEY = '0x4AAAAAACoYmx3xiDfRbmv9'
 const CLUB_SIGNUP_URL = 'https://kscw.ch/weiteres/anmeldung'
 
 // Since open self-registration was closed (backend `registration_closed`),
@@ -68,8 +67,9 @@ export default function SignUpPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [showPrivacy, setShowPrivacy] = useState(false)
-  const [turnstileToken, setTurnstileToken] = useState('')
-  const turnstileRef = useRef<TurnstileInstance>(null)
+  // Fresh token per protected call — this page makes three (check-email,
+  // verify-email, OTP resend) and a Turnstile token is single-use.
+  const { widget: turnstileWidget, getToken: getTurnstileToken, ready: turnstileReady } = useTurnstile()
 
   // OTP state
   const [otpError, setOtpError] = useState('')
@@ -210,7 +210,7 @@ export default function SignUpPage() {
         existing_teams?: { name: string; sport?: string }[];
       }>('/check-email', {
         method: 'POST',
-        body: { email: email.trim().toLowerCase(), turnstile_token: turnstileToken },
+        body: { email: email.trim().toLowerCase(), turnstile_token: await getTurnstileToken() },
       })
 
       if (res.exists && res.claimed) {
@@ -220,7 +220,7 @@ export default function SignUpPage() {
       } else if (res.exists) {
         // Account exists but not claimed — show existing teams and send OTP
         if (res.existing_teams) setExistingTeams(res.existing_teams.map((t, i) => ({ ...t, id: String(i) })))
-        await kscwApi('/verify-email', { method: 'POST', body: { email: email.trim().toLowerCase(), lang: selectedLanguage } })
+        await kscwApi('/verify-email', { method: 'POST', body: { email: email.trim().toLowerCase(), lang: selectedLanguage, turnstile_token: await getTurnstileToken() } })
         setStep('otp-claim')
       } else {
         // Unknown email — open self-registration is closed. Point at the club
@@ -229,8 +229,6 @@ export default function SignUpPage() {
       }
     } catch {
       setError(t('registrationFailed'))
-      turnstileRef.current?.reset()
-      setTurnstileToken('')
     } finally {
       setLoading(false)
     }
@@ -255,7 +253,7 @@ export default function SignUpPage() {
   async function handleOtpClaimResend() {
     setOtpError('')
     try {
-      await kscwApi('/verify-email', { method: 'POST', body: { email: email.trim().toLowerCase(), lang: selectedLanguage } })
+      await kscwApi('/verify-email', { method: 'POST', body: { email: email.trim().toLowerCase(), lang: selectedLanguage, turnstile_token: await getTurnstileToken() } })
     } catch {
       setOtpError(t('registrationFailed'))
     }
@@ -566,23 +564,17 @@ export default function SignUpPage() {
                 <LanguageSelect value={selectedLanguage} onChange={handleLanguageChange} />
               </FormField>
 
-              <Turnstile
-                ref={turnstileRef}
-                siteKey={TURNSTILE_SITE_KEY}
-                onSuccess={setTurnstileToken}
-                onExpire={() => setTurnstileToken('')}
-                options={{ theme: 'auto', size: 'flexible' }}
-              />
+              {turnstileWidget}
 
               {error && (
                 <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
               )}
 
-              <Button type="submit" loading={loading} disabled={!turnstileToken} className="w-full">
+              <Button type="submit" loading={loading} disabled={!turnstileReady} className="w-full">
                 {loading ? t('checkingEmail') : t('continue')}
               </Button>
 
-              {!turnstileToken && !loading && (
+              {!turnstileReady && !loading && (
                 <p className="text-center text-xs text-amber-600 dark:text-amber-400">
                   {t('captchaLoading')}
                 </p>
