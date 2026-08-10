@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-08-06T10:55:07.744Z
+-- Generated:   2026-08-10T09:57:25.270Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -23,7 +23,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict lPmxCtTNjPEqtJi6b1wowrSTjhUsqRBlTALnpLEb3hFKrywyaj2g1YnrGEk0CmL
+\restrict Rww7J9chRHLbKVZMDXB5ltKFl1scp7NIuBdGYad57XCQTD86K31ggGaO8zJEv20
 
 -- Dumped from database version 16.14 (Debian 16.14-1.pgdg13+1)
 -- Dumped by pg_dump version 16.14 (Debian 16.14-1.pgdg13+1)
@@ -76,6 +76,43 @@ CREATE TYPE public.svrz_push_status_enum AS ENUM (
     'pushed',
     'failed'
 );
+
+
+--
+-- Name: bb_hall_floors(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.bb_hall_floors(hall text) RETURNS text[]
+    LANGUAGE sql IMMUTABLE
+    AS $$
+  SELECT CASE hall
+    WHEN 'KWI A'   THEN ARRAY['A']
+    WHEN 'KWI B'   THEN ARRAY['B']
+    WHEN 'KWI A+B' THEN ARRAY['A', 'B']
+    WHEN 'KWI C'   THEN ARRAY['C']
+    ELSE ARRAY[]::text[]
+  END;
+$$;
+
+
+--
+-- Name: bb_slot_plan_floor_claims(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.bb_slot_plan_floor_claims() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE floors text[];
+BEGIN
+  -- Rewrite rather than patch: the placement may have moved hall, date or time.
+  DELETE FROM basketball_floor_claims WHERE plan = NEW.id;
+  floors := bb_hall_floors(NEW.hall);
+  IF array_length(floors, 1) IS NOT NULL THEN
+    INSERT INTO basketball_floor_claims (plan, season, date, "time", floor)
+    SELECT NEW.id, NEW.season, NEW.date, NEW."time", unnest(floors);
+  END IF;
+  RETURN NULL;
+END $$;
 
 
 --
@@ -1973,6 +2010,72 @@ CREATE SEQUENCE public.app_settings_id_seq
 --
 
 ALTER SEQUENCE public.app_settings_id_seq OWNED BY public.app_settings.id;
+
+
+--
+-- Name: basketball_club_date_prefs; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.basketball_club_date_prefs (
+    id integer NOT NULL,
+    season integer NOT NULL,
+    bp_club integer NOT NULL,
+    kscw_team integer NOT NULL,
+    date date NOT NULL,
+    note text,
+    responder_name text,
+    responder_email text,
+    date_created timestamp with time zone DEFAULT now() NOT NULL,
+    date_updated timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: TABLE basketball_club_date_prefs; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.basketball_club_date_prefs IS 'Dates an opponent club says suit it, per KSCW team, collected through the club portal. A PREFERENCE, not a booking: it claims no hall slot and blocks no other club. The planner allocates time and hall afterwards by creating a basketball_slot_plan row, which is what actually holds the floor (migrations 278 + 295). Not linked to basketball_slots on purpose — regenerating the candidate inventory must not delete a club''s answer.';
+
+
+--
+-- Name: basketball_club_date_prefs_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.basketball_club_date_prefs_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: basketball_club_date_prefs_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.basketball_club_date_prefs_id_seq OWNED BY public.basketball_club_date_prefs.id;
+
+
+--
+-- Name: basketball_floor_claims; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.basketball_floor_claims (
+    plan integer NOT NULL,
+    season integer NOT NULL,
+    date date NOT NULL,
+    "time" character varying NOT NULL,
+    floor character(1) NOT NULL,
+    CONSTRAINT basketball_floor_claims_floor_check CHECK ((floor = ANY (ARRAY['A'::bpchar, 'B'::bpchar, 'C'::bpchar])))
+);
+
+
+--
+-- Name: TABLE basketball_floor_claims; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.basketball_floor_claims IS 'One row per (placement, physical KWI floor it occupies). Machinery, not data: maintained solely by trg_basketball_slot_plan_0_floor_claims. Its UNIQUE (season,date,time,floor) is what makes a double-booked hall impossible under concurrency — KWI A+B claims floors A and B, so it collides with either half. Halls outside KWI claim nothing.';
 
 
 --
@@ -4290,6 +4393,50 @@ ALTER SEQUENCE public.finance_invoice_member_overrides_id_seq OWNED BY public.fi
 
 
 --
+-- Name: finance_invoice_self_reports; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.finance_invoice_self_reports (
+    id integer NOT NULL,
+    match_clubdesk_id character varying(32) NOT NULL,
+    member integer NOT NULL,
+    reported_at timestamp with time zone DEFAULT now() NOT NULL,
+    method character varying(32),
+    reported_by_name character varying(255),
+    reported_by_email character varying(255),
+    date_created timestamp with time zone DEFAULT now() NOT NULL,
+    date_updated timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: TABLE finance_invoice_self_reports; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.finance_invoice_self_reports IS 'Member "I have paid" self-reports for ClubDesk-mirror invoices. Keyed on the ClubDesk invoice [Id] so the report survives the nightly delete+reinsert; import-clubdesk-finance.mjs re-applies it onto finance_invoices.reported_paid_* (step 5c) and deletes it once ClubDesk reports the invoice settled. Native invoices do not use this table — they self-report on the status column.';
+
+
+--
+-- Name: finance_invoice_self_reports_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.finance_invoice_self_reports_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: finance_invoice_self_reports_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.finance_invoice_self_reports_id_seq OWNED BY public.finance_invoice_self_reports.id;
+
+
+--
 -- Name: finance_invoices; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -4342,6 +4489,10 @@ CREATE TABLE public.finance_invoices (
     contact integer,
     currency character varying(3) DEFAULT 'CHF'::character varying NOT NULL,
     cd_contact_id character varying(64),
+    recipient_address character varying(255),
+    recipient_zip character varying(16),
+    recipient_city character varying(128),
+    lines jsonb,
     CONSTRAINT finance_invoices_native_status_check CHECK ((((source)::text <> 'native'::text) OR ((status)::text = ANY ((ARRAY['open'::character varying, 'pending_confirmation'::character varying, 'partial'::character varying, 'paid'::character varying, 'cancelled'::character varying])::text[])))),
     CONSTRAINT finance_invoices_source_check CHECK (((source)::text = ANY (ARRAY[('clubdesk'::character varying)::text, ('native'::character varying)::text])))
 );
@@ -4411,6 +4562,34 @@ COMMENT ON COLUMN public.finance_invoices.cd_contact_id IS 'ClubDesk contact id 
 
 
 --
+-- Name: COLUMN finance_invoices.recipient_address; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.finance_invoices.recipient_address IS 'Street address the invoice was addressed to, copied at issue time. Not joined from members: a later move must not rewrite where an old invoice went.';
+
+
+--
+-- Name: COLUMN finance_invoices.recipient_zip; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.finance_invoices.recipient_zip IS 'Postal code as at billing time (see recipient_address).';
+
+
+--
+-- Name: COLUMN finance_invoices.recipient_city; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.finance_invoices.recipient_city IS 'Town as at billing time (see recipient_address).';
+
+
+--
+-- Name: COLUMN finance_invoices.lines; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.finance_invoices.lines IS 'Invoice positions: [{"label":"Mitgliederbeitrag 2026/27","amount":440},{"label":"Zuschlag ohne Schreiberlizenz","amount":100}]. NULL = render one line from subject. Sum must equal amount.';
+
+
+--
 -- Name: finance_invoices_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
@@ -4452,6 +4631,13 @@ CREATE TABLE public.finance_ledger_settings (
     sync_finished_at timestamp with time zone,
     CONSTRAINT finance_ledger_settings_singleton CHECK ((id = 1))
 );
+
+
+--
+-- Name: COLUMN finance_ledger_settings.autopost_enabled; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.finance_ledger_settings.autopost_enabled IS 'Post native invoices/payments to the GL automatically (accrual). OFF since migration 294: season one on wiedisync issues invoices while ClubDesk keeps the books on cash basis. Turning this on requires bad_debt_account + expense_account to be mapped first.';
 
 
 --
@@ -6450,7 +6636,13 @@ CREATE TABLE public.members (
     vis_player_no integer,
     profile_verified_at timestamp with time zone,
     trainer_licences character varying(20),
+    fee_base_override numeric(10,2),
+    fee_surcharge_override numeric(10,2),
+    fee_discount numeric(10,2),
+    fee_discount_reason character varying(120),
     CONSTRAINT members_federation_of_origin_fmt CHECK (((federation_of_origin IS NULL) OR ((federation_of_origin)::text = 'NONE'::text) OR ((federation_of_origin)::text ~ '^[A-Z]{2}$'::text))),
+    CONSTRAINT members_fee_discount_reason_nonblank CHECK (((fee_discount_reason IS NULL) OR (btrim((fee_discount_reason)::text) <> ''::text))),
+    CONSTRAINT members_fee_override_range CHECK ((((fee_base_override IS NULL) OR ((fee_base_override >= (0)::numeric) AND (fee_base_override <= (10000)::numeric))) AND ((fee_surcharge_override IS NULL) OR ((fee_surcharge_override >= (0)::numeric) AND (fee_surcharge_override <= (10000)::numeric))) AND ((fee_discount IS NULL) OR ((fee_discount >= (0)::numeric) AND (fee_discount <= (10000)::numeric))))),
     CONSTRAINT members_license_nr_fmt CHECK (((license_nr IS NULL) OR (((license_nr)::text ~ '^[0-9]+$'::text) AND ((license_nr)::text <> '0'::text)))),
     CONSTRAINT members_nationalitaet_codes_fmt CHECK (((nationalitaet_codes IS NULL) OR ((nationalitaet_codes)::text ~ '^[A-Z]{2}(,[A-Z]{2})*$'::text))),
     CONSTRAINT members_role_values_valid CHECK ((role <@ '["user", "admin", "superuser", "vb_admin", "bb_admin", "vorstand", "website_admin", "finance"]'::jsonb)),
@@ -6863,6 +7055,34 @@ COMMENT ON COLUMN public.members.profile_verified_at IS 'When the member last co
 --
 
 COMMENT ON COLUMN public.members.trainer_licences IS 'Coaching education (Trainerausbildung) held by this member: ordered, comma-separated subset of JS (Jugend+Sport Leiter/in), the Swiss Volley rungs C/B/A, and the Swiss Basketball rungs T1/T2/T3 (= "Trainer 1/2/3", migration 281). Multi-valued by design and ACROSS ladders — J+S is a separate track from either federation''s ladder, so "JS,B" and "JS,T2" are ordinary values. The two sport ladders are NOT interchangeable: T2 is not a synonym for B. NULL = none / not recorded. Normalized to canonical order by trigger members_normalize_trainer_licences_trg. Synced two-way with ClubDesk''s free-text "Trainer Lizenz" cell (its "JS ID" is a different thing and maps to members.js_id).';
+
+
+--
+-- Name: COLUMN members.fee_base_override; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.fee_base_override IS 'Per-member Mitgliederbeitrag BASE in CHF, overriding the season rate (finance_dues_rates) and the codified category map (CD_BEITRAG_MAP) alike. NULL = derive from the category, which is the normal case. Set only for a genuine per-person exception the category cannot express ("Speziallizenz, einmalig so tief"). Consumed by feeBreakdown(), so the native dues run and the ClubDesk CREATE push bill the same number.';
+
+
+--
+-- Name: COLUMN members.fee_surcharge_override; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.fee_surcharge_override IS 'Per-member CHF no-Schreiberlizenz surcharge, overriding the rule (CHF 100 when the member owes table duty — adult category, or youth category and U16+ — and holds no scorer/OTR licence). NULL = apply the rule. 0 explicitly waives it, which is what the club previously did as a post-hoc write-off on 47 invoices. Consumed by feeBreakdown().';
+
+
+--
+-- Name: COLUMN members.fee_discount; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.fee_discount IS 'Standing per-member reduction in CHF taken off the computed fee. NULL/0 = none. Capped at what is owed by feeBreakdown() — a discount may take a bill to exactly zero, never below. A per-RUN discount passed to /finance/dues-runs/* wins over this for that run.';
+
+
+--
+-- Name: COLUMN members.fee_discount_reason; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.fee_discount_reason IS 'Label printed as the credit line on the invoice when fee_discount applies. NULL = the run''s wording, default "Rabatt".';
 
 
 --
@@ -8014,6 +8234,8 @@ CREATE TABLE public.teams (
     gender character varying(8),
     duty_credit integer DEFAULT 0 NOT NULL,
     clubdesk_group text,
+    open_for_girls boolean DEFAULT false,
+    open_for_boys boolean DEFAULT false,
     CONSTRAINT teams_gender_check CHECK (((gender IS NULL) OR ((gender)::text = ANY (ARRAY[('m'::character varying)::text, ('f'::character varying)::text, ('mixed'::character varying)::text])))),
     CONSTRAINT teams_season_format_check CHECK (((season IS NULL) OR ((season)::text ~ '^[0-9]{4}/[0-9]{2}$'::text)))
 );
@@ -8059,6 +8281,20 @@ COMMENT ON COLUMN public.teams.duty_credit IS 'Scorer-duty manual credit: duties
 --
 
 COMMENT ON COLUMN public.teams.clubdesk_group IS 'ClubDesk group token for this team (e.g. ''VB D1''). NULL = not configured yet (flagged by the ClubDesk group check); '''' = intentionally no ClubDesk group (league umbrella).';
+
+
+--
+-- Name: COLUMN teams.open_for_girls; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.teams.open_for_girls IS 'Mixed (MU) teams only: recruiting girls. Sub-toggle of open_for_players — ignored while that is false. Both this and open_for_boys false/true = the team recruits without a gender split.';
+
+
+--
+-- Name: COLUMN teams.open_for_boys; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.teams.open_for_boys IS 'Mixed (MU) teams only: recruiting boys. Sub-toggle of open_for_players — see open_for_girls.';
 
 
 --
@@ -9175,6 +9411,13 @@ ALTER TABLE ONLY public.app_settings ALTER COLUMN id SET DEFAULT nextval('public
 
 
 --
+-- Name: basketball_club_date_prefs id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.basketball_club_date_prefs ALTER COLUMN id SET DEFAULT nextval('public.basketball_club_date_prefs_id_seq'::regclass);
+
+
+--
 -- Name: basketball_group_teams id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -9410,6 +9653,13 @@ ALTER TABLE ONLY public.finance_invoice_documents ALTER COLUMN id SET DEFAULT ne
 --
 
 ALTER TABLE ONLY public.finance_invoice_member_overrides ALTER COLUMN id SET DEFAULT nextval('public.finance_invoice_member_overrides_id_seq'::regclass);
+
+
+--
+-- Name: finance_invoice_self_reports id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_invoice_self_reports ALTER COLUMN id SET DEFAULT nextval('public.finance_invoice_self_reports_id_seq'::regclass);
 
 
 --
@@ -9901,6 +10151,30 @@ ALTER TABLE ONLY public.app_settings
 
 
 --
+-- Name: basketball_club_date_prefs basketball_club_date_prefs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.basketball_club_date_prefs
+    ADD CONSTRAINT basketball_club_date_prefs_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: basketball_floor_claims basketball_floor_claims_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.basketball_floor_claims
+    ADD CONSTRAINT basketball_floor_claims_pkey PRIMARY KEY (plan, floor);
+
+
+--
+-- Name: basketball_floor_claims basketball_floor_claims_uniq; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.basketball_floor_claims
+    ADD CONSTRAINT basketball_floor_claims_uniq UNIQUE (season, date, "time", floor);
+
+
+--
 -- Name: basketball_group_teams basketball_group_teams_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -10026,6 +10300,14 @@ ALTER TABLE ONLY public.basketplan_nations
 
 ALTER TABLE ONLY public.basketplan_people
     ADD CONSTRAINT basketplan_people_pkey PRIMARY KEY (person_id);
+
+
+--
+-- Name: basketball_club_date_prefs bb_club_date_prefs_uniq; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.basketball_club_date_prefs
+    ADD CONSTRAINT bb_club_date_prefs_uniq UNIQUE (season, bp_club, kscw_team, date);
 
 
 --
@@ -10370,6 +10652,14 @@ ALTER TABLE ONLY public.finance_invoice_documents
 
 ALTER TABLE ONLY public.finance_invoice_member_overrides
     ADD CONSTRAINT finance_invoice_member_overrides_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: finance_invoice_self_reports finance_invoice_self_reports_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_invoice_self_reports
+    ADD CONSTRAINT finance_invoice_self_reports_pkey PRIMARY KEY (id);
 
 
 --
@@ -11309,6 +11599,20 @@ CREATE INDEX basketplan_people_licence_nr_idx ON public.basketplan_people USING 
 
 
 --
+-- Name: bb_club_date_prefs_club_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX bb_club_date_prefs_club_idx ON public.basketball_club_date_prefs USING btree (season, bp_club);
+
+
+--
+-- Name: bb_club_date_prefs_team_date_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX bb_club_date_prefs_team_date_idx ON public.basketball_club_date_prefs USING btree (season, kscw_team, date);
+
+
+--
 -- Name: blocks_blocker_index; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -11523,6 +11827,20 @@ CREATE UNIQUE INDEX finance_invoice_member_overrides_email_uidx ON public.financ
 --
 
 CREATE INDEX finance_invoice_member_overrides_member_idx ON public.finance_invoice_member_overrides USING btree (member);
+
+
+--
+-- Name: finance_invoice_self_reports_clubdesk_uidx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX finance_invoice_self_reports_clubdesk_uidx ON public.finance_invoice_self_reports USING btree (match_clubdesk_id);
+
+
+--
+-- Name: finance_invoice_self_reports_member_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX finance_invoice_self_reports_member_idx ON public.finance_invoice_self_reports USING btree (member);
 
 
 --
@@ -13017,6 +13335,13 @@ CREATE TRIGGER trg_activity_chat_event_delete AFTER DELETE ON public.events FOR 
 
 
 --
+-- Name: basketball_slot_plan trg_basketball_slot_plan_0_floor_claims; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_basketball_slot_plan_0_floor_claims AFTER INSERT OR UPDATE OF season, date, "time", hall ON public.basketball_slot_plan FOR EACH ROW EXECUTE FUNCTION public.bb_slot_plan_floor_claims();
+
+
+--
 -- Name: basketball_slot_plan trg_basketball_slot_plan_0_release_slots; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -13328,6 +13653,38 @@ ALTER TABLE ONLY public.announcements
 
 ALTER TABLE ONLY public.announcements
     ADD CONSTRAINT announcements_image_foreign FOREIGN KEY (image) REFERENCES public.directus_files(id) ON DELETE SET NULL;
+
+
+--
+-- Name: basketball_club_date_prefs basketball_club_date_prefs_bp_club_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.basketball_club_date_prefs
+    ADD CONSTRAINT basketball_club_date_prefs_bp_club_fkey FOREIGN KEY (bp_club) REFERENCES public.basketplan_clubs(id) ON DELETE CASCADE;
+
+
+--
+-- Name: basketball_club_date_prefs basketball_club_date_prefs_kscw_team_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.basketball_club_date_prefs
+    ADD CONSTRAINT basketball_club_date_prefs_kscw_team_fkey FOREIGN KEY (kscw_team) REFERENCES public.teams(id) ON DELETE CASCADE;
+
+
+--
+-- Name: basketball_club_date_prefs basketball_club_date_prefs_season_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.basketball_club_date_prefs
+    ADD CONSTRAINT basketball_club_date_prefs_season_fkey FOREIGN KEY (season) REFERENCES public.game_scheduling_seasons(id) ON DELETE CASCADE;
+
+
+--
+-- Name: basketball_floor_claims basketball_floor_claims_plan_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.basketball_floor_claims
+    ADD CONSTRAINT basketball_floor_claims_plan_fkey FOREIGN KEY (plan) REFERENCES public.basketball_slot_plan(id) ON DELETE CASCADE;
 
 
 --
@@ -13760,6 +14117,14 @@ ALTER TABLE ONLY public.finance_invoice_documents
 
 ALTER TABLE ONLY public.finance_invoice_member_overrides
     ADD CONSTRAINT finance_invoice_member_overrides_member_fkey FOREIGN KEY (member) REFERENCES public.members(id) ON DELETE CASCADE;
+
+
+--
+-- Name: finance_invoice_self_reports finance_invoice_self_reports_member_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_invoice_self_reports
+    ADD CONSTRAINT finance_invoice_self_reports_member_fkey FOREIGN KEY (member) REFERENCES public.members(id) ON DELETE CASCADE;
 
 
 --
@@ -15194,5 +15559,5 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict lPmxCtTNjPEqtJi6b1wowrSTjhUsqRBlTALnpLEb3hFKrywyaj2g1YnrGEk0CmL
+\unrestrict Rww7J9chRHLbKVZMDXB5ltKFl1scp7NIuBdGYad57XCQTD86K31ggGaO8zJEv20
 
