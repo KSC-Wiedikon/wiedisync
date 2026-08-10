@@ -191,4 +191,11 @@ export default {
   emailChipsPlaceholder: 'Adresse iigäh oder iifüege',
   emailChipsRemove: 'Empfänger entferne',
   emailChipsInvalid: 'Kei gültigi E-Mail-Adress',
+  // File preview (shared FilePreview / FilePreviewDialog)
+  filePreviewLoading: 'Vorschau wird glade…',
+  filePreviewFailed: 'Vorschau het nöd chöne glade werde',
+  filePreviewNone: 'Kei Vorschau für de Dateityp',
+  filePreviewOpenTab: 'I nöiem Tab uufmache',
+  filePreviewDownload: 'Abelade',
+  filePreviewAlt: 'Dokumänt',
 } as const

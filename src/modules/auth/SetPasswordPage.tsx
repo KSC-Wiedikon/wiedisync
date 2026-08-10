@@ -5,6 +5,7 @@ import { useTheme } from '../../hooks/useTheme'
 import { kscwApi } from '../../lib/api'
 import { FormInput } from '@/components/FormField'
 import { Button } from '@/components/ui/button'
+import { useTurnstile } from '../../lib/turnstile'
 import { OtpInput } from '@/components/OtpInput'
 import { LANGUAGES } from '@/i18n/languageConfig'
 import { PASSWORD_MIN_LENGTH, checkPassword, passwordErrorKeyFromCode, passwordIssueKey } from '@/lib/passwordRules'
@@ -35,16 +36,22 @@ export default function SetPasswordPage() {
   const [noAccount, setNoAccount] = useState(false)
   const [loading, setLoading] = useState(false)
   const autoSentRef = useRef(false)
+  const { widget: turnstileWidget, getToken: getTurnstileToken, ready: turnstileReady } = useTurnstile()
 
   // Auto-send OTP when starting on otp phase with pre-filled email. A reset
   // token is its own proof of address — don't also mail a code.
+  //
+  // Gated on `turnstileReady` rather than firing on mount: /verify-email is
+  // captcha-protected (audit finding 12), and on mount the widget has not solved
+  // yet — sending then would ask for a token that does not exist and 400 before
+  // the user has done anything. The ref still guarantees exactly one send.
   useEffect(() => {
-    if (initialEmail && !resetToken && !autoSentRef.current) {
+    if (initialEmail && !resetToken && turnstileReady && !autoSentRef.current) {
       autoSentRef.current = true
       handleSendOtp()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [turnstileReady])
 
   async function handleSendOtp(e?: FormEvent) {
     e?.preventDefault()
@@ -57,6 +64,7 @@ export default function SetPasswordPage() {
         body: {
           email: email.trim().toLowerCase(),
           lang: LANGUAGES.find((l) => l.code === i18n.language)?.backendValue ?? 'german',
+          turnstile_token: await getTurnstileToken(),
         },
       })
       setPhase('otp')
@@ -191,11 +199,16 @@ export default function SetPasswordPage() {
 
                   {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
-                  <Button type="submit" loading={loading} className="w-full">
+                  <Button type="submit" loading={loading} disabled={!turnstileReady} className="w-full">
                     {loading ? t('sendingOtp') : t('sendOtp')}
                   </Button>
                 </form>
               )}
+
+              {/* Mounted for BOTH phases: the OTP step offers a resend, which is
+                  the same captcha-gated endpoint, so unmounting the widget after
+                  the first send would break it. */}
+              {(phase === 'email' || phase === 'otp') && turnstileWidget}
 
               {phase === 'otp' && (
                 <OtpInput

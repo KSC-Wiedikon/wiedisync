@@ -346,7 +346,6 @@ export default {
   explorerGridSyncStale: 'Collegamento obsoleto',
   explorerGridSyncDeparted: 'Uscito',
   explorerGridSyncExcluded: 'Escluso',
-  explorerGridFileError: 'Impossibile aprire il file',
   explorerGridColSex: 'Sesso',
   explorerGridColLanguage: 'Lingua',
   explorerGridColNumber: 'Numero di maglia',
@@ -596,7 +595,6 @@ export default {
   anmeldungenDocUploadFailed: 'Caricamento non riuscito',
   anmeldungenDocTooLarge: 'File troppo grande (max 10 MB)',
   anmeldungenDocBadType: 'Tipo di file non supportato — usa JPG, PNG, WebP o PDF',
-  anmeldungenPdfOpenTab: 'PDF — apri in una nuova scheda',
   anmeldungenDocAlt: 'Documento',
   // Iscrizioni — reinvia l'invito WiediSync (righe approvate)
   etTitle: 'Modelli e-mail',

@@ -45,6 +45,8 @@ interface Card {
   missing?: boolean
   /** Watermark baked into the pixels; false → the CSS overlay carries it instead. */
   burned?: boolean
+  /** PDF scans can't go through <img> — they need the native viewer in a frame. */
+  isPdf?: boolean
 }
 
 /**
@@ -254,6 +256,7 @@ export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModa
             is_libero: r.is_libero,
             url: burned ?? URL.createObjectURL(new Blob([plain as BlobPart], { type: c.mime ?? 'image/jpeg' })),
             burned: burned != null,
+            isPdf: burned == null && c.mime === 'application/pdf',
           })
         } catch {
           // A dead envelope (the coach re-keyed since it was wrapped) fails here rather
@@ -380,11 +383,19 @@ export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModa
               </div>
 
               <div className="relative">
-                <img
-                  src={card.url ?? ''}
-                  alt={card.name}
-                  className="max-h-[55vh] w-full rounded-lg border bg-background object-contain"
-                />
+                {card.isPdf ? (
+                  <iframe
+                    src={card.url ?? ''}
+                    title={card.name}
+                    className="h-[55vh] w-full rounded-lg border bg-white"
+                  />
+                ) : (
+                  <img
+                    src={card.url ?? ''}
+                    alt={card.name}
+                    className="max-h-[55vh] w-full rounded-lg border bg-background object-contain"
+                  />
+                )}
                 {/* Fallback overlay for formats the canvas could not draw (PDF):
                     weaker than the burned-in mark, but the label is never absent. */}
                 {!card.burned && (

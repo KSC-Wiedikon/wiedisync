@@ -2,13 +2,14 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useQueryClient } from '@tanstack/react-query'
-import { CheckCircle2, Loader2, Receipt } from 'lucide-react'
+import { CheckCircle2, Loader2 } from 'lucide-react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import { Button } from '../../components/ui/button'
 import { Checkbox } from '../../components/ui/checkbox'
 import {
-  useTkExpenses, tkConfirmExpense, openExpenseReceipt, formatExpenseAmount, type FinanceExpense,
+  useTkExpenses, tkConfirmExpense, formatExpenseAmount, type FinanceExpense,
 } from '../../hooks/useFinance'
+import ReceiptButton from './ReceiptButton'
 import { formatDateCompactZurich } from '../../utils/dateHelpers'
 import { ExpenseStatusBadge } from './expenseShared'
 
@@ -69,14 +70,12 @@ function TkRow({ e, onDone }: { e: FinanceExpense; onDone: () => void }) {
       <TableCell>
         <ExpenseStatusBadge status={e.status} />
         {e.file && (
-          <button
-            type="button"
-            onClick={() => void openExpenseReceipt(e.id).catch(() => toast.error(t('expenseReceiptError')))}
+          <ReceiptButton
+            expenseId={e.id}
+            showLabel
+            iconClassName="h-3.5 w-3.5"
             className="mt-1 inline-flex min-h-[32px] items-center gap-1 rounded-md px-1.5 text-xs font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
-            title={t('expenseReceipt')}
-          >
-            <Receipt className="h-3.5 w-3.5" /><span className="hidden sm:inline">{t('expenseReceipt')}</span>
-          </button>
+          />
         )}
       </TableCell>
       <TableCell className="min-w-[220px]">

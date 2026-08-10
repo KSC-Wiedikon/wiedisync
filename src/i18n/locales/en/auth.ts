@@ -38,7 +38,6 @@ export default {
   activeAbsences: 'Active absences',
   myDocsTitle: 'My documents',
   myDocsSubtitle: 'Documents you uploaded when registering',
-  myDocsError: 'Could not open the document',
   showAll: 'Show all',
   noUpcomingActivities: 'No activities in the next 4 weeks.',
   noActiveAbsences: 'No active absences.',

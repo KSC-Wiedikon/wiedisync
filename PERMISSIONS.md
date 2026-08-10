@@ -149,6 +149,17 @@ Used throughout — repeated literally rather than via subqueries because Direct
 
 `teams`, `games`, `rankings`, `sponsors`, `event_sessions` (read filtered above), `hall_slots`, `hall_closures`, `hall_events`, `halls`, `hall_slots_teams`, `slot_claims`, `news`, `app_settings`, `teams_coaches`, `teams_responsibles`, `teams_sponsors`, `events_teams`, `events_members`, `directus_files`.
 
+⚠ **`polls` was on this list until 2026-08-10 and is no longer cross-club.** The old in-code justification — "team-scoped by app navigation" — predated chat polls and was never true of them: `POST /kscw/messaging/polls` creates rows with `team: null, conversation: <uuid>` (the DB codifies both parents in `chk_polls_team_or_conversation`), so navigation scoped nothing, and the unfiltered realtime subscription *pushed* every poll created anywhere in the club to every connected member. Any member could `GET /items/polls?filter[conversation][_nnull]=true` and read the question, options, deadline and author of every DM and group-chat poll. That defeated the boundary built for `messages` / `message_reactions` 300 lines later — the poll *message* was scoped and field-limited, while the poll *content* it points at was not. Voter identity was never exposed (`poll_votes` is `OWN_MEMBER`-scoped, `/kscw/polls/:id/results` checks membership); only the question text leaked. Now a two-parent scope reusing `MY_ACTIVE_MEMBERSHIP`, so a chat poll follows exactly the same archived-aware rule as the message carrying it:
+
+```js
+{ _or: [
+  { team: { members: { member: { user: { _eq: '$CURRENT_USER' } } } } },
+  { conversation: { members: MY_ACTIVE_MEMBERSHIP } },
+]}
+```
+
+**`forms` create/update are hook-guarded, not filter-guarded** (2026-08-10). Directus filters are no-ops on CREATE, so LEADER's `forms.create` is necessarily unfiltered — the same arrangement `member_teams` uses. The compensating `filter('forms.items.create'/'update')` guard in `kscw-hooks` **did not exist** until this date even though `setup-permissions.mjs` documented it as the enforcement point, so a coach could create a `club_wide` + `is_public` form: a notification and web push to every active member (repeatable per form), plus an anonymously submittable page at `/kscw/public/forms/:slug` whose harvested rows they read back via `FORMS_LEADER_SCOPE`. The guard now holds non-managers to `audience: 'teams'`, refuses `is_public`, requires every linked team to be one they lead, and stamps `created_by` server-side (it was client-supplied, and `authorizeManage`'s creator branch authorised on it). Manager tiers — admin/superuser (which bypass filter hooks entirely), vorstand, vb_admin, bb_admin — keep club-wide and public forms.
+
 ⚠ **`directus_files` is cross-club but NOT unfiltered — it is a DENY-list**, and that distinction has now cost two findings. The filter is `_or[ folder _null, folder _nin PRIVATE_FOLDERS ]`, where `PRIVATE_FOLDERS` (`setup-permissions.mjs`) is:
 
 | Folder | Holds |

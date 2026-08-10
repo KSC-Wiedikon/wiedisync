@@ -404,24 +404,12 @@ export function tkConfirmExpense(
   )
 }
 
-const RECEIPT_EXT: Record<string, string> = {
-  'application/pdf': 'pdf', 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp',
-}
-
-/** Download an expense receipt (endpoint checks owner-or-finance). Anchor-click
- *  download, NOT window.open — a popup after an async fetch gets blocked on iOS. */
-export async function openExpenseReceipt(id: string | number): Promise<void> {
-  const res = await fetch(`${API_URL}/kscw/expenses/${id}/receipt`, { credentials: 'include' })
-  if (!res.ok) throw new Error(`Receipt fetch failed (${res.status})`)
-  const blob = await res.blob()
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `expense-receipt-${id}.${RECEIPT_EXT[blob.type] ?? 'pdf'}`
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  setTimeout(() => URL.revokeObjectURL(url), 60_000)
+/** Receipt bytes for one expense (the endpoint checks owner-or-finance). Fed to
+ *  <FilePreview>, which fetches it credentialed and previews it in place —
+ *  receipts are photos and PDFs, and forcing a download to look at one was a
+ *  round trip through the Downloads folder on every phone. */
+export function expenseReceiptUrl(id: string | number): string {
+  return `${API_URL}/kscw/expenses/${id}/receipt`
 }
 
 /** Import/sync provenance history, newest first (board only). */

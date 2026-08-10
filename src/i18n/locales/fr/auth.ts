@@ -38,7 +38,6 @@ export default {
   activeAbsences: 'Absences en cours',
   myDocsTitle: 'Mes documents',
   myDocsSubtitle: 'Documents que tu as téléversés lors de l’inscription',
-  myDocsError: 'Impossible d’ouvrir le document',
   showAll: 'Tout afficher',
   noUpcomingActivities: 'Aucune activite dans les 4 prochaines semaines.',
   noActiveAbsences: 'Aucune absence en cours.',

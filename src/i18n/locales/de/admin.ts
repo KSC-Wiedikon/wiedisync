@@ -811,7 +811,6 @@ export default {
   explorerGridSyncStale: 'Verwaiste Verknüpfung',
   explorerGridSyncDeparted: 'Ausgetreten',
   explorerGridSyncExcluded: 'Ausgeschlossen',
-  explorerGridFileError: 'Datei konnte nicht geöffnet werden',
   explorerGridColSex: 'Geschlecht',
   explorerGridColLanguage: 'Sprache',
   explorerGridColNumber: 'Trikotnummer',
@@ -984,7 +983,6 @@ export default {
 
   // Registrations — file preview + doc count
   anmeldungenDocsCount: '{{count}} Dok.',
-  anmeldungenPdfOpenTab: 'PDF — in neuem Tab öffnen',
   anmeldungenDocAlt: 'Dokument',
 
   // Infra health — VPS resources, slow-query table, status details

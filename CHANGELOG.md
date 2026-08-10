@@ -2,6 +2,13 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.73.0 — 2026-08-10
+
+### Documents open where you are
+- **A PDF now opens inside the app instead of sending you somewhere else.** Registration documents, invoice attachments, expense receipts, form uploads and mailbox attachments used to hand you a new browser tab — or, for receipts and mail attachments, drop a file into your Downloads folder — just so you could read them. They now open in a window over the page, with the document itself on screen. Opening in a new tab and downloading are both still one click away.
+- **Photos and PDFs behave the same way.** Whatever was uploaded, the same window shows it, so there is no longer a rule to remember about which kind of file previews and which kind does not.
+- **An ID saved as a PDF could not be viewed at all.** Both the identity document on your own profile and the ID deck a coach opens at the match table only ever tried to show a picture, so a member who had uploaded a PDF scan showed a broken image to themselves and to the referee. Those now open properly.
+
 ## v1.72.0 — 2026-08-08
 
 ### Mixed teams can take girls and boys separately

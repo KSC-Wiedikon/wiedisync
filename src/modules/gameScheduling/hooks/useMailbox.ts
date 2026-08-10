@@ -576,23 +576,12 @@ export function messagesForOpponentThread(
 }
 
 /**
- * Download an attachment through the authed endpoint (a plain <a href> can't
- * carry the Bearer token). Streams live from IMAP server-side.
+ * Authed URL for one attachment (streamed live from IMAP server-side). Handed to
+ * <FilePreview>, which fetches it credentialed — a plain <a href> carries no
+ * auth — and previews it in place, download included.
  */
-export async function downloadMailboxAttachment(messageId: number, index: number, filename: string, account: MailboxAccount = 'volleyball'): Promise<void> {
-  const res = await fetch(`${API_URL}/kscw${mailboxUrl(account, `/attachment/${messageId}/${index}`)}`, {
-    credentials: 'include',
-  })
-  if (!res.ok) throw new Error(`Attachment download failed (${res.status})`)
-  const blob = await res.blob()
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  URL.revokeObjectURL(url)
+export function mailboxAttachmentUrl(messageId: number, index: number, account: MailboxAccount = 'volleyball'): string {
+  return `${API_URL}/kscw${mailboxUrl(account, `/attachment/${messageId}/${index}`)}`
 }
 
 interface MailboxListResponse {
@@ -709,7 +698,7 @@ export function useMailbox(enabled: boolean = true, sport: MailboxAccount = 'vol
 
   // Posts multipart/form-data (HTML body + attachment files) via a raw fetch —
   // kscwApi only speaks JSON, and attachments would exceed Directus's 1 MB JSON
-  // body limit. Carries the Bearer token like downloadMailboxAttachment.
+  // body limit. Credentialed like every other mailbox file route.
   const sendReply = useCallback(async (payload: MailboxReplyPayload) => {
     setSending(true)
     try {

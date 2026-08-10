@@ -552,7 +552,6 @@ export default {
   explorerGridSyncStale: 'Verwaisti Verknüpfig',
   explorerGridSyncDeparted: 'Uustrete',
   explorerGridSyncExcluded: 'Uusgschlosse',
-  explorerGridFileError: 'Datei het nöd chöne göffnet werde',
   explorerGridColSex: 'Gschlächt',
   explorerGridColLanguage: 'Sprach',
   explorerGridColNumber: 'Trikotnummere',
@@ -731,7 +730,6 @@ export default {
   anmeldungenDocUploadFailed: 'Upload het nöd klappt',
   anmeldungenDocTooLarge: 'Datei z gross (max. 10 MB)',
   anmeldungenDocBadType: 'Dateityp gaht nöd — bitte JPG, PNG, WebP oder PDF',
-  anmeldungenPdfOpenTab: 'PDF — i nöiem Tab uufmache',
   anmeldungenDocAlt: 'Dokumänt',
   // Aamäldige — WiediSync-Yladig nomal schicke (freigäh Zyle)
   etTitle: 'E-Mail-Vorlage',

@@ -678,7 +678,6 @@ export default {
   mailboxShowAll: 'Tout afficher ({{count}})',
   mailboxShowLess: 'Afficher moins',
   mailboxAttachments: 'Pièces jointes',
-  mailboxDownloadFailed: 'Échec du téléchargement',
   mailboxAssignLabel: 'Appartient à',
   mailboxAssignAuto: 'Détecté automatiquement',
   mailboxAssignPinned: 'Assigné manuellement',

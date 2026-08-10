@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useTheme } from '../../hooks/useTheme'
 import { Button } from '@/components/ui/button'
+import { useTurnstile } from '../../lib/turnstile'
 import { FormInput } from '@/components/FormField'
 import { OtpInput } from '../../components/OtpInput'
 import { SetPasswordForm } from '../../components/SetPasswordForm'
@@ -49,6 +50,11 @@ export default function JoinPage() {
   // route (`join/:token`) can't match without one, so this can only be the case
   // from the very first render — hence a lazy initial value, not an effect.
   const [phase, setPhase] = useState<Phase>(() => (token ? 'loading' : 'error'))
+  // /verify-email is captcha-gated (audit finding 12). The invite token in the
+  // URL is itself a strong gate, but the endpoint cannot see it — it only ever
+  // receives an email address — so this page presents a challenge like the
+  // other two callers do.
+  const { widget: turnstileWidget, getToken: getTurnstileToken, ready: turnstileReady } = useTurnstile()
   const [inviteInfo, setInviteInfo] = useState<InviteInfo | null>(null)
 
   const [firstName, setFirstName] = useState('')
@@ -86,7 +92,7 @@ export default function JoinPage() {
       setClaimedEmail(finalEmail)
 
       // Send OTP for email verification
-      await kscwApi('/verify-email', { method: 'POST', body: { email: finalEmail } })
+      await kscwApi('/verify-email', { method: 'POST', body: { email: finalEmail, turnstile_token: await getTurnstileToken() } })
       setPhase('otp')
     } catch {
       setSubmitError(t('join:error'))
@@ -111,7 +117,7 @@ export default function JoinPage() {
   async function handleOtpResend() {
     setOtpError('')
     try {
-      await kscwApi('/verify-email', { method: 'POST', body: { email: claimedEmail } })
+      await kscwApi('/verify-email', { method: 'POST', body: { email: claimedEmail, turnstile_token: await getTurnstileToken() } })
     } catch {
       setOtpError(t('auth:otpResendError'))
     }
@@ -195,7 +201,9 @@ export default function JoinPage() {
                   <p className="text-sm text-red-600 dark:text-red-400">{submitError}</p>
                 )}
 
-                <Button type="submit" loading={submitting} className="w-full">
+                {turnstileWidget}
+
+                <Button type="submit" loading={submitting} disabled={!turnstileReady} className="w-full">
                   {t('join:joinTeam')}
                 </Button>
               </form>

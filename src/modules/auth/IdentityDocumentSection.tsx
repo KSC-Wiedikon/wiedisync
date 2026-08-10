@@ -321,13 +321,23 @@ export default function IdentityDocumentSection() {
                 {!doc.uploaded_by_self && <> · {t('idUploadedByAdmin')}</>}
               </div>
 
-              {preview && (
+              {/* The upload accepts PDFs as well as photos — rendering one through
+                  <img> showed a broken icon. Preview off the SAME decrypted blob
+                  URL (not the shared FilePreview): a second copy of a plaintext ID
+                  in memory is exactly what the revoke-on-unmount dance avoids. */}
+              {preview && (doc.mime === 'application/pdf' ? (
+                <iframe
+                  src={preview}
+                  title={t('idTitle')}
+                  className="h-96 w-full rounded-md border bg-white"
+                />
+              ) : (
                 <img
                   src={preview}
                   alt={t('idTitle')}
                   className="max-h-80 w-full rounded-md border object-contain"
                 />
-              )}
+              ))}
 
               <div className="flex flex-wrap gap-2">
                 {!preview && (

@@ -191,4 +191,11 @@ export default {
   emailChipsPlaceholder: 'Type or paste addresses',
   emailChipsRemove: 'Remove recipient',
   emailChipsInvalid: 'Not a valid email address',
+  // File preview (shared FilePreview / FilePreviewDialog)
+  filePreviewLoading: 'Loading preview…',
+  filePreviewFailed: 'Preview could not be loaded',
+  filePreviewNone: 'No preview for this file type',
+  filePreviewOpenTab: 'Open in new tab',
+  filePreviewDownload: 'Download',
+  filePreviewAlt: 'Document',
 } as const

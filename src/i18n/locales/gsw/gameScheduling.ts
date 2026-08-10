@@ -679,7 +679,6 @@ export default {
   mailboxShowAll: 'Alli {{count}} azeige',
   mailboxShowLess: 'Weniger azeige',
   mailboxAttachments: 'Aahäng',
-  mailboxDownloadFailed: 'Download fehlgschlage',
   mailboxAssignLabel: 'Ghört zu',
   mailboxAssignAuto: 'Automatisch erkennt',
   mailboxAssignPinned: 'Manuell zuegwise',

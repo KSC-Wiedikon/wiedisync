@@ -20,7 +20,8 @@ import {
   toNum, formatChf, isOpenInvoice, FINANCE_INVOICE_FOLDER,
   type FinanceMember, type FinanceInvoiceDocument,
 } from '../../hooks/useFinance'
-import { updateRecord, createRecord, deleteRecord, uploadFile, openPrivateAsset } from '../../lib/api'
+import { updateRecord, createRecord, deleteRecord, uploadFile, assetUrl } from '../../lib/api'
+import { FilePreviewDialog } from '../../components/FilePreview'
 import { logActivity } from '../../utils/logActivity'
 import { isValidIban, normalizeIban } from '../../utils/iban'
 import MemberPayoutQrBill from './MemberPayoutQrBill'
@@ -165,10 +166,9 @@ function MemberDetail({ member, invoices, documents, canEdit, onBack, onSaved, o
     }
   }
 
-  const viewDoc = async (doc: FinanceInvoiceDocument) => {
-    try { await openPrivateAsset(doc.file) }
-    catch { toast.error(t('docOpenError')) }
-  }
+  // Preview in place — invoice attachments are almost always PDFs, and bouncing
+  // the treasurer into a new tab per document made reconciliation a tab graveyard.
+  const [previewDoc, setPreviewDoc] = useState<FinanceInvoiceDocument | null>(null)
   // Billing draft — component is keyed by member.id in the parent, so this
   // initializer reseeds whenever a different member is opened.
   const [draft, setDraft] = useState({
@@ -358,7 +358,7 @@ function MemberDetail({ member, invoices, documents, canEdit, onBack, onSaved, o
                         <span className="mt-1 flex flex-wrap items-center gap-1.5">
                           {docsFor(inv).map((d) => (
                             <span key={d.id} className="inline-flex items-center gap-1 rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-700">
-                              <button type="button" onClick={() => viewDoc(d)} title={d.label ?? t('viewPdf')} className="inline-flex items-center gap-1 text-xs text-brand-600 hover:underline dark:text-brand-300">
+                              <button type="button" onClick={() => setPreviewDoc(d)} title={d.label ?? t('viewPdf')} className="inline-flex items-center gap-1 text-xs text-brand-600 hover:underline dark:text-brand-300">
                                 <FileText className="h-3 w-3" />{t('viewPdf')}
                               </button>
                               {canEdit && (
@@ -393,6 +393,15 @@ function MemberDetail({ member, invoices, documents, canEdit, onBack, onSaved, o
           </div>
         )}
       </section>
+
+      <FilePreviewDialog
+        key={previewDoc?.id}
+        open={!!previewDoc}
+        onOpenChange={(o) => { if (!o) setPreviewDoc(null) }}
+        url={previewDoc ? assetUrl(previewDoc.file) : null}
+        label={previewDoc?.label ?? t('viewPdf')}
+        filename={previewDoc?.label ?? 'document.pdf'}
+      />
     </div>
   )
 }

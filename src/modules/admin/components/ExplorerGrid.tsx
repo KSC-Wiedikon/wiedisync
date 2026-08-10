@@ -41,6 +41,7 @@ import {
 import { LANGUAGES } from '../../../i18n/languageConfig'
 import { useConfirm } from '../../../components/ConfirmProvider'
 import CountryMultiSelect from '../../../components/CountryMultiSelect'
+import { FilePreviewDialog } from '../../../components/FilePreview'
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
@@ -146,21 +147,6 @@ const REG_DOC_LABEL_KEY: Record<string, string> = {
   bb_doc_natdecl: 'anmeldungenDocNatDecl',
   bb_doc_u18parents: 'anmeldungenDocU18Parents',
   bb_doc_schoolcert: 'anmeldungenDocSchoolCert',
-}
-
-// Fetch a private file (cookie auth) and open it in a new tab via a blob URL —
-// avoids relying on cross-site top-level asset navigation.
-async function openPrivateFile(url: string, onError: () => void): Promise<void> {
-  try {
-    const res = await fetch(url, { credentials: 'include' })
-    if (!res.ok) throw new Error(String(res.status))
-    const blob = await res.blob()
-    const obj = URL.createObjectURL(blob)
-    window.open(obj, '_blank', 'noopener')
-    window.setTimeout(() => URL.revokeObjectURL(obj), 60_000)
-  } catch {
-    onError()
-  }
 }
 
 // Full catalog — everything the explorer cache already loads (plus derived
@@ -1876,12 +1862,13 @@ function BoolToggleCell({
 }
 
 // Read-only reg-files cell: a popover of the member's retained registration
-// documents (post-approval). Each opens via the admin asset URL (board/admin
-// folder-scoped read). Blank when the member has none / the viewer can't read
-// registrations.
+// documents (post-approval). Picking one previews it in place (images inline,
+// PDFs in the native viewer) off the admin asset URL (board/admin folder-scoped
+// read). Blank when the member has none / the viewer can't read registrations.
 function RegFilesCell({ info }: { info: RegFileInfo | undefined }) {
   const { t } = useTranslation('admin')
   const [open, setOpen] = useState(false)
+  const [preview, setPreview] = useState<{ fileId: string; label: string } | null>(null)
   const docs = info?.docs ?? []
   if (docs.length === 0) return <span className="text-muted-foreground">—</span>
   return (
@@ -1904,7 +1891,7 @@ function RegFilesCell({ info }: { info: RegFileInfo | undefined }) {
               <button
                 key={d.fileId}
                 type="button"
-                onClick={() => { void openPrivateFile(assetUrl(d.fileId), () => toast.error(t('explorerGridFileError'))) }}
+                onClick={() => { setOpen(false); setPreview({ fileId: d.fileId, label }) }}
                 className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-muted"
               >
                 <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
@@ -1914,6 +1901,14 @@ function RegFilesCell({ info }: { info: RegFileInfo | undefined }) {
           })}
         </div>
       </PopoverContent>
+      <FilePreviewDialog
+        key={preview?.fileId}
+        open={!!preview}
+        onOpenChange={(o) => { if (!o) setPreview(null) }}
+        url={preview ? assetUrl(preview.fileId) : null}
+        label={preview?.label}
+        filename={preview?.label}
+      />
     </Popover>
   )
 }

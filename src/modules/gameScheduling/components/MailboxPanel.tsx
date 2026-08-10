@@ -13,12 +13,13 @@ import { hasInvalidAddress, parseAddressList } from '../../../components/ui/emai
 import { recipientLabel, sortRecipients } from '../recipientSort'
 import { findMergeTokens, unknownMergeTokens } from '../../../utils/mergeTokens'
 import RichTextEditor from '../../../components/RichTextEditor'
+import { FilePreviewDialog } from '../../../components/FilePreview'
 import InlineSpinner from '../../../components/InlineSpinner'
 import { formatDateTimeCompact } from '../../../utils/dateHelpers'
 import {
   chipOpponentForMessage,
   classifyMessages,
-  downloadMailboxAttachment,
+  mailboxAttachmentUrl,
   messagesForOwner,
   threadIdsForMessage,
   type MailboxAttachment,
@@ -2031,20 +2032,9 @@ function MailboxAttachments({ message, sport }: { message: MailboxMessageFull; s
     }
     return raw
   }, [message.attachments])
-  const [downloading, setDownloading] = useState<number | null>(null)
+  const [preview, setPreview] = useState<{ index: number; filename: string } | null>(null)
 
   if (attachments.length === 0) return null
-
-  const download = async (index: number, filename: string) => {
-    setDownloading(index)
-    try {
-      await downloadMailboxAttachment(message.id, index, filename, sport)
-    } catch {
-      toast.error(t('mailboxDownloadFailed'))
-    } finally {
-      setDownloading(null)
-    }
-  }
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -2053,13 +2043,22 @@ function MailboxAttachments({ message, sport }: { message: MailboxMessageFull; s
         <button
           key={i}
           type="button"
-          onClick={() => void download(i, a.filename)}
-          disabled={downloading !== null}
-          className="min-h-11 sm:min-h-0 rounded-md border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+          onClick={() => setPreview({ index: i, filename: a.filename })}
+          className="min-h-11 sm:min-h-0 rounded-md border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
         >
-          {downloading === i ? '…' : `📎 ${a.filename}`}
+          {`📎 ${a.filename}`}
         </button>
       ))}
+      {/* Opponent clubs send schedules as PDFs — read them here rather than in
+          the Downloads folder. Non-previewable types still offer a download. */}
+      <FilePreviewDialog
+        key={preview?.index}
+        open={!!preview}
+        onOpenChange={(o) => { if (!o) setPreview(null) }}
+        url={preview ? mailboxAttachmentUrl(message.id, preview.index, sport) : null}
+        label={preview?.filename}
+        filename={preview?.filename}
+      />
     </div>
   )
 }

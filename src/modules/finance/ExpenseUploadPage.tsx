@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useQueryClient } from '@tanstack/react-query'
 import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile'
-import { Upload, Loader2, FileText, X, Receipt } from 'lucide-react'
+import { Upload, Loader2, FileText, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import SearchableSelect from '@/components/ui/SearchableSelect'
@@ -15,7 +15,8 @@ import { kscwApi, uploadFile } from '../../lib/api'
 import { isValidIban, normalizeIban } from '../../utils/iban'
 import { formatAmountCH, parseAmount } from '../../utils/amount'
 import { CURRENCY_OPTIONS } from '../../utils/currencies'
-import { useMyExpenses, openExpenseReceipt, formatExpenseAmount } from '../../hooks/useFinance'
+import { useMyExpenses, formatExpenseAmount } from '../../hooks/useFinance'
+import ReceiptButton from './ReceiptButton'
 import { ExpenseStatusBadge } from './expenseShared'
 import { formatDateCompactZurich } from '../../utils/dateHelpers'
 import { TourPageButton } from '../guide/TourPageButton'
@@ -77,15 +78,11 @@ function MyExpensesTable() {
                 </TableCell>
                 <TableCell className="text-right">
                   {e.file && (
-                    <button
-                      type="button"
-                      onClick={() => void openExpenseReceipt(e.id).catch(() => toast.error(t('expenseReceiptError')))}
+                    <ReceiptButton
+                      expenseId={e.id}
+                      showLabel
                       className="inline-flex min-h-[44px] items-center gap-1 rounded-md px-2 text-xs font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
-                      title={t('expenseReceipt')}
-                    >
-                      <Receipt className="h-4 w-4" />
-                      <span className="hidden sm:inline">{t('expenseReceipt')}</span>
-                    </button>
+                    />
                   )}
                 </TableCell>
               </TableRow>
