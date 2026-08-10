@@ -551,8 +551,12 @@ async function checkMembers(): Promise<CollectionHealth> {
     // still being billed. Error when anyone is being billed; the honour list
     // being short is a warning.
     if ((honorary_drift || []).length > 0) {
-      const billed = (honorary_drift || []).filter((r) => r.kind === 'fee').length
-      const statusOnly = (honorary_drift || []).length - billed
+      // "Still billed" counts anyone in this set not on 'Gratis', not just the
+      // in-group half. Keying it off `kind` hid the worst row on prod: Zehnder
+      // is Ehrenmitglied by status, absent from the group AND paying
+      // Passivmitglied — classified 'status_only', so the fee half read 0.
+      const billed = (honorary_drift || []).filter((r) => r.kat !== 'Gratis').length
+      const statusOnly = (honorary_drift || []).filter((r) => r.kind === 'status_only').length
       issues.push({
         id: 'cd-honorary-drift',
         collection: 'members',
