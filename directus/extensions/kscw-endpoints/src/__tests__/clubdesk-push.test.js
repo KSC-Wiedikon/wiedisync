@@ -205,6 +205,41 @@ describe('buildPushCsv (update set — fill-only billing cells, 2026-07-27)', ()
     expect(cellsOf({ is_guest: true })[18]).toBe('330') // 440 − 110, never the surcharge
   })
 
+  // Mitgliederbeitrag stopped being unconditionally fill-only on 2026-08-10: a
+  // push that NAMES the field may correct the register. That gate is the whole
+  // safety story — measured on prod, an ungated "wiedisync wins" would have
+  // rewritten 113 per-person amounts the club decided by hand (waived zeroes,
+  // un-surcharged bases, 1.-Liga prices) to fix 11 stale basketball rows.
+  it('a pending push that NAMES mitgliederbeitrag overwrites the register (migration 305)', () => {
+    const cells = cellsOf({
+      beitragskategorie: 'BB Jugend Meisterschaft',
+      birthdate: '2008-05-01', // U16+ → the officials surcharge applies
+      scorer_vb: false, otr1_bb: false, otr2_bb: false,
+      mitgliederbeitrag_cd: '410', // the register, stale by the +10 increase
+      clubdesk_push_changes: [{ field: 'mitgliederbeitrag', old_value: '410', new_value: '420' }],
+    })
+    expect(cells[18]).toBe('420')
+  })
+
+  it('a push flagged for something ELSE leaves the register amount alone', () => {
+    // The exact failure this gate prevents: an IBAN-triggered push must not
+    // re-price 113 people as a side effect.
+    const cells = cellsOf({
+      mitgliederbeitrag_cd: '270', // a hand-set per-person amount
+      clubdesk_push_changes: [{ field: 'iban', old_value: null, new_value: 'CH…' }],
+    })
+    expect(cells[18]).toBe('270') // NOT the derived 540
+  })
+
+  it('naming the field cannot BLANK the register — an underivable fee still echoes', () => {
+    const cells = cellsOf({
+      beitragskategorie: 'Sponsor', // outside the map → derives nothing
+      mitgliederbeitrag_cd: '250',
+      clubdesk_push_changes: [{ field: 'mitgliederbeitrag', old_value: '250', new_value: '' }],
+    })
+    expect(cells[18]).toBe('250')
+  })
+
   it('each cell echoes independently — a register-set Kategorie never blocks an Eintritt fill', () => {
     const cells = cellsOf({ beitragskategorie_cd: 'VB Erwerbstätige', eintritt_cd: '', mitgliederbeitrag_cd: '440' })
     expect(cells[16]).toBe('VB Erwerbstätige') // echo

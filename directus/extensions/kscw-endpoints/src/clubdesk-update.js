@@ -1140,8 +1140,23 @@ export function buildPushCsv(members, { create = false, countryNames = null } = 
           clubdesk: m.eintritt_cd,
           fallback: fmtBirthdateDDMMYYYY(m.eintritt_registration),
         }),
-        String(m.mitgliederbeitrag_cd || '').trim()
-          || deriveMitgliederbeitrag(m.beitragskategorie, m, { isGuest: m.is_guest === true }),
+        // Mitgliederbeitrag: fill-only by default, exactly as before — ClubDesk's
+        // own amount echoes back and wiedisync's derivation only fills an empty
+        // register cell. The ONE licence to overwrite it is the same one the
+        // register triple uses: the member's pending push must NAME this field
+        // (2026-08-10). Nothing writes that entry automatically — not the hook,
+        // not a category edit — so it takes a deliberate act (today: migration
+        // 305, correcting 11 basketball rows the register missed at the +10
+        // increase). Without the gate this cell cannot be corrected at all;
+        // without the gate being *narrow*, a push flagged for an unrelated IBAN
+        // change would rewrite 113 per-person amounts the club decided by hand
+        // — measured on prod before this shipped, which is why it is not a
+        // simple "wiedisync wins".
+        registerCell('mitgliederbeitrag', {
+          changed,
+          wiedi: deriveMitgliederbeitrag(m.beitragskategorie, m, { isGuest: m.is_guest === true }),
+          clubdesk: m.mitgliederbeitrag_cd,
+        }),
         // Lizenznummer / Lizenzart, same fill-only precedence: the register's
         // own cell (stashed by /up) travels verbatim; wiedisync's authority-
         // sourced value goes out only where the register is empty.
