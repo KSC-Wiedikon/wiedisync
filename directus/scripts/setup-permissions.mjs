@@ -361,6 +361,92 @@ async function reconcileRoleAccess(declared, roleMap) {
 }
 
 /**
+ * Service accounts expected on the built-in `Administrator` role. These have no
+ * `members` row, so the app-role check below cannot vouch for them.
+ */
+const SYSTEM_ADMIN_EMAILS = new Set(['admin@kscw.ch', 'cron-service@kscw.ch'])
+
+/**
+ * §3c — audit membership of the built-in `Administrator` role.
+ *
+ * §3b closed the role→POLICY blind spot. This closes the adjacent one:
+ * `directus_users.role` itself. The only writer of that column in the tree is
+ * `syncMemberRole` → `resolveDirectusRole` (kscw-hooks/src/index.js), which can
+ * return at most Superuser | Sport Admin | Vorstand | Team Responsible | Member
+ * — `Administrator` is unreachable by code. So every Administrator holder was
+ * set by hand in the Directus UI, and nothing in `db:deploy`, `db:smoke` or any
+ * PERMISSIONS.md verification query has ever looked at them. Prod carried an
+ * ordinary member (`members.role = ["user"]`) on that role for months as a
+ * result (audit 2026-08-08, finding 2).
+ *
+ * REPORT-ONLY, deliberately. This pass never writes:
+ *   - Demoting an Administrator is a plausible lockout (the account doing the
+ *     demoting may be the only other root), and unlike a policy row it cannot be
+ *     restored by re-running this script.
+ *   - The legitimate remedy is to set the person's `members.role` so
+ *     `resolveDirectusRole` grants them `Superuser` declaratively, then drop the
+ *     hand-set Administrator — a two-step a human should drive.
+ * A holder is reported as EXPECTED when it is a known service account, or when
+ * its linked member carries `superuser`/`admin` in `members.role` (i.e. the app
+ * model already says this person is a root). Anything else is UNDECLARED and
+ * printed loudly.
+ */
+async function auditAdministratorRole(roleMap) {
+  const adminRoleId = roleMap['Administrator']
+  if (!adminRoleId) {
+    console.warn('  ⚠ No "Administrator" role found — skipping audit')
+    return
+  }
+
+  const users = await api('GET', `/users?filter[role][_eq]=${adminRoleId}&fields=id,email,status,last_access&limit=-1`) || []
+  if (users.length === 0) {
+    console.warn('  ⚠ Administrator role has NO members — that is almost certainly wrong')
+    return
+  }
+
+  // `_in` takes a bare comma-separated list. Passing a JSON array (`["a","b"]`)
+  // makes Directus hand the whole literal to Postgres as ONE uuid and 500 —
+  // which, before this pass was made non-fatal, halted the entire permission
+  // deploy at §3c. Encode each id: they are uuids, but the encode is what makes
+  // that an assumption the URL does not depend on.
+  const ids = users.map(u => encodeURIComponent(u.id)).join(',')
+  const members = await api('GET', `/items/members?filter[user][_in]=${ids}&fields=id,user,role&limit=-1`) || []
+  const memberByUser = Object.fromEntries(members.map(m => [m.user, m]))
+
+  const undeclared = []
+  for (const u of users) {
+    const m = memberByUser[u.id]
+    const appRoles = Array.isArray(m?.role) ? m.role : []
+    const isSystem = SYSTEM_ADMIN_EMAILS.has(String(u.email || '').toLowerCase())
+    const isAppRoot = appRoles.includes('superuser') || appRoles.includes('admin')
+    const who = m ? `member ${m.id}` : 'no member row'
+    const seen = u.last_access ? String(u.last_access).slice(0, 10) : 'never'
+
+    if (isSystem) {
+      console.log(`  · ${u.email} — service account (last access ${seen})`)
+    } else if (isAppRoot) {
+      console.log(`  · ${u.email} — ${who}, app role [${appRoles.join(', ')}] (last access ${seen})`)
+    } else {
+      undeclared.push({ u, m, appRoles, who, seen })
+    }
+  }
+
+  if (undeclared.length === 0) {
+    console.log(`  ✓ All ${users.length} Administrator holder(s) accounted for`)
+    return
+  }
+
+  console.warn(`  ⚠ ${undeclared.length} UNDECLARED Administrator holder(s) — full Directus root that no code path grants:`)
+  for (const { u, appRoles, who, seen } of undeclared) {
+    const app = appRoles.length ? `[${appRoles.join(', ')}]` : '[] (none)'
+    console.warn(`      ${u.email} — ${who}, app role ${app}, status ${u.status}, last access ${seen}`)
+  }
+  console.warn('    Either raise their members.role so resolveDirectusRole grants Superuser')
+  console.warn('    declaratively, or move them to the role their app tier implies. This pass')
+  console.warn('    never demotes automatically — see the note above auditAdministratorRole().')
+}
+
+/**
  * Fully remove a legacy/orphan policy by name: detach it from every role/user
  * (directus_access), delete its permission rows, then delete the policy.
  * Idempotent — a no-op once the policy is gone. Used to retire the old
@@ -1001,6 +1087,19 @@ async function main() {
 
   console.log(`\n3b. Reconciling role→policy attachments${RECONCILE_DRY_RUN ? ' (DRY RUN)' : ''}...`)
   await reconcileRoleAccess(DECLARED_ROLE_POLICIES, roleMap)
+
+  // ── 3c. Audit Administrator-role membership ────────────────────
+
+  console.log('\n3c. Auditing Administrator role membership...')
+  // §3c REPORTS; it must never be able to stop a permission deploy. It shipped
+  // with a malformed `_in` filter and the resulting 500 halted the whole run
+  // before section 4 — the permission rebuild never happened (2026-08-10).
+  // A read-only audit failing is worth a warning, never an outage.
+  try {
+    await auditAdministratorRole(roleMap)
+  } catch (e) {
+    console.warn(`  ⚠ Administrator audit failed (non-fatal): ${String(e.message).slice(0, 200)}`)
+  }
 
   // ── 4. Clear old permissions for idempotent re-run ─────────────
 
@@ -2209,8 +2308,10 @@ async function main() {
     'rankings', 'sponsors', 'teams_sponsors',
     'hall_slots', 'hall_closures', 'hall_events', 'halls', 'hall_slots_teams',
     'slot_claims', 'notifications', 'feedback', 'scorer_delegations', 'referee_expenses',
-    'team_invites', 'news', 'app_settings', 'user_logs',
-    'push_subscriptions', 'email_verifications',
+    'team_invites', 'news', 'app_settings',
+    'push_subscriptions',
+    // ⚠ `email_verifications` and `user_logs` are NOT here — see the two
+    // explicit grants below the loop. Do not re-add them.
     'teams_coaches', 'teams_responsibles', 'events_members',
     'volley_feedback',
     // NB: `poll_votes` NOT here — granted below with a non-anonymous read scope
@@ -2265,6 +2366,26 @@ async function main() {
   for (const col of SPORT_ADMIN_FULL_CRUD) {
     await setPermCRUD(SPORT_ADMIN_POLICY, col)
   }
+  // `email_verifications` — NO grant at all (audit 2026-08-08, finding 1).
+  // This is not operational data: it is the credential store backing the
+  // unauthenticated `POST /kscw/set-password` Mode 3, which treats any row with
+  // `verified = true` and a live `expires_at` as proof that the caller owns that
+  // address. Unfiltered CRU here (granted until 2026-08-08) therefore let a
+  // vb_admin/bb_admin forge the proof for ANY address — PATCH the email of a row
+  // they had legitimately verified, then claim the matching account, including a
+  // Superuser's. Every legitimate consumer (`/request-otp`, `/verify-email`,
+  // `/set-password`, `/register`, the delete-member cleanup) writes this table
+  // with raw knex on the system connection and needs no policy row.
+  // If a staff-facing read is ever wanted, scope it to id/email/date_created —
+  // never `code`, `verified` or `expires_at`.
+
+  // `user_logs` — CREATE + READ only, no update/delete (audit 2026-08-08,
+  // finding 1). This is the audit trail the superadmin page reads; unfiltered
+  // update/delete let the tier being audited rewrite or erase its own entries.
+  // The matching kscw-hooks refusal on update/delete is belt and braces.
+  await setPerm(SPORT_ADMIN_POLICY, 'user_logs', 'create')
+  await setPermRead(SPORT_ADMIN_POLICY, 'user_logs')
+
   // Announcement delivery log (migration 219) — READ only, deliberately not in
   // SPORT_ADMIN_FULL_CRUD. The fanout writes these rows in system context, so
   // write access would buy nothing and would let a delivery record be forged.
