@@ -38,7 +38,6 @@ export default {
   activeAbsences: 'Aktive Absenzen',
   myDocsTitle: 'Meine Dokumente',
   myDocsSubtitle: 'Dokumente, die du bei der Anmeldung hochgeladen hast',
-  myDocsError: 'Dokument konnte nicht geöffnet werden',
   showAll: 'Alle anzeigen',
   noUpcomingActivities: 'Keine Aktivitäten in den nächsten 4 Wochen.',
   noActiveAbsences: 'Keine aktiven Absenzen.',

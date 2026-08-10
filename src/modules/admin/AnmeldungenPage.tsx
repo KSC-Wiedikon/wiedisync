@@ -5,8 +5,8 @@ import { useCollection, useUpdate } from '../../lib/query'
 import { useAuth } from '../../hooks/useAuth'
 import { useReportPageLoading } from '../../hooks/usePageReady'
 import { assetUrl, kscwApi, uploadFile } from '../../lib/api'
-import { sanitizeUrl } from '../../utils/sanitizeUrl'
 import TeamChip from '../../components/TeamChip'
+import { FilePreviewDialog } from '../../components/FilePreview'
 import ClubdeskMemberSyncButton from './components/ClubdeskMemberSyncButton'
 import ClubdeskSyncUpModal from './components/ClubdeskSyncUpModal'
 import ClubdeskRegistrationZone from './components/ClubdeskRegistrationZone'
@@ -263,7 +263,7 @@ export default function AnmeldungenPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [rejectTarget, setRejectTarget] = useState<Registration | null>(null)
   const [rejectReason, setRejectReason] = useState('')
-  const [previewFile, setPreviewFile] = useState<{ url: string; label: string } | null>(null)
+  const [previewFile, setPreviewFile] = useState<{ fileId: string; label: string } | null>(null)
 
   const allowedSports = useMemo(() => {
     if (isGlobalAdmin) return ['volleyball', 'basketball', 'passive'] as const
@@ -767,55 +767,15 @@ export default function AnmeldungenPage() {
         </DialogContent>
       </Dialog>
 
-      {/* File preview modal */}
-      <Dialog open={!!previewFile} onOpenChange={(open) => { if (!open) setPreviewFile(null) }}>
-        <DialogContent className="sm:max-w-3xl max-h-[90vh]">
-          <DialogHeader>
-            <DialogTitle>{previewFile?.label}</DialogTitle>
-          </DialogHeader>
-          {previewFile && <FilePreview url={previewFile.url} />}
-        </DialogContent>
-      </Dialog>
-    </div>
-  )
-}
-
-// ── File preview component ─────────────────────────────────────
-function FilePreview({ url }: { url: string }) {
-  const { t } = useTranslation('admin')
-  // Try to render as image — if it fails (PDF/other), show a download prompt
-  const [isImage, setIsImage] = useState(true)
-  // 2026-05-12 audit #17: defence-in-depth — `url` is produced by assetUrl()
-  // which builds from API_URL + fileId. UUID format constraint makes
-  // injection unlikely; routing through sanitizeUrl makes the pattern
-  // consistent with sponsor / pr_url sinks elsewhere.
-  const safeUrl = sanitizeUrl(url)
-  if (!safeUrl) return null
-
-  return (
-    <div className="flex flex-col items-center gap-3">
-      {isImage ? (
-        <img
-          src={safeUrl}
-          alt={t('anmeldungenDocAlt')}
-          className="max-h-[70vh] w-auto rounded-md border border-gray-200 dark:border-gray-700"
-          onError={() => setIsImage(false)}
-        />
-      ) : (
-        <div className="flex flex-col items-center gap-3 py-8 text-gray-500 dark:text-gray-400">
-          <FileText className="h-12 w-12" />
-          <p className="text-sm">{t('anmeldungenPdfOpenTab')}</p>
-        </div>
-      )}
-      <a
-        href={safeUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400"
-      >
-        <ExternalLink className="h-3.5 w-3.5" />
-        {t('openInNewTab')}
-      </a>
+      {/* Document preview modal (images inline, PDFs in the native viewer) */}
+      <FilePreviewDialog
+        key={previewFile?.fileId}
+        open={!!previewFile}
+        onOpenChange={(open) => { if (!open) setPreviewFile(null) }}
+        url={previewFile ? assetUrl(previewFile.fileId) : null}
+        label={previewFile?.label}
+        filename={previewFile?.label}
+      />
     </div>
   )
 }
@@ -842,7 +802,7 @@ function ExpandedDetails({
   onReject: () => void
   onResendInvite: () => void
   onRequestDocs: () => void
-  onPreviewFile: (file: { url: string; label: string }) => void
+  onPreviewFile: (file: { fileId: string; label: string }) => void
   isUpdating: boolean
   isResending: boolean
   isRequestingDocs: boolean
@@ -1089,11 +1049,10 @@ function ExpandedDetails({
       )
     }
 
-    const url = assetUrl(fileId)
     return (
       <div key={key} className="flex min-h-11 items-center gap-2 rounded-md border border-orange-200 bg-orange-50 pr-2 text-sm text-orange-700 dark:border-orange-800 dark:bg-orange-950 dark:text-orange-300">
         <button
-          onClick={() => onPreviewFile({ url, label })}
+          onClick={() => onPreviewFile({ fileId, label })}
           className="flex min-w-0 flex-1 items-center gap-2 px-3 py-2 text-left hover:underline"
         >
           <FileText className="h-4 w-4 shrink-0" />

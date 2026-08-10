@@ -2,13 +2,14 @@ import { Fragment, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useQueryClient } from '@tanstack/react-query'
-import { CheckCircle2, Clock, Loader2, Pencil, Receipt, Save, Wallet, X } from 'lucide-react'
+import { CheckCircle2, Clock, Loader2, Pencil, Save, Wallet, X } from 'lucide-react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import DatePicker from '@/components/ui/DatePicker'
 import { FormInput, FormTextarea } from '../../components/FormField'
 import { useConfirm } from '../../components/ConfirmProvider'
 import { Button } from '../../components/ui/button'
-import { useAllExpenses, patchExpense, openExpenseReceipt, formatExpenseAmount, type FinanceExpense } from '../../hooks/useFinance'
+import { useAllExpenses, patchExpense, formatExpenseAmount, type FinanceExpense } from '../../hooks/useFinance'
+import ReceiptButton from './ReceiptButton'
 import { formatDateCompactZurich } from '../../utils/dateHelpers'
 import { ExpenseStatusBadge } from './expenseShared'
 
@@ -247,14 +248,10 @@ export default function ExpensesTab() {
                     <TableCell className="text-right">
                       <div className="flex flex-col items-end gap-1 sm:flex-row sm:items-center sm:justify-end">
                         {e.file && (
-                          <button
-                            type="button"
-                            onClick={() => void openExpenseReceipt(e.id).catch(() => toast.error(t('expenseReceiptError')))}
+                          <ReceiptButton
+                            expenseId={e.id}
                             className="inline-flex min-h-[44px] items-center gap-1 rounded-md px-2 text-xs font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
-                            title={t('expenseReceipt')}
-                          >
-                            <Receipt className="h-4 w-4" />
-                          </button>
+                          />
                         )}
                         <button
                           type="button"

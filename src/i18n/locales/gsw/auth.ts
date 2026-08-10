@@ -38,7 +38,6 @@ export default {
   activeAbsences: 'Aktivi Absänze',
   myDocsTitle: 'Mini Dokumänt',
   myDocsSubtitle: 'Dokumänt, wo du bi de Aamäldig ufeglade häsch',
-  myDocsError: 'Dokumänt het nöd chöne göffnet werde',
   showAll: 'Alli zeige',
   noUpcomingActivities: 'Nüt los i de nöchschte 4 Wuche.',
   noActiveAbsences: 'Käni aktive Absänze.',

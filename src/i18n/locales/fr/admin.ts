@@ -346,7 +346,6 @@ export default {
   explorerGridSyncStale: 'Lien obsolète',
   explorerGridSyncDeparted: 'Parti',
   explorerGridSyncExcluded: 'Exclu',
-  explorerGridFileError: 'Impossible d’ouvrir le fichier',
   explorerGridColSex: 'Sexe',
   explorerGridColLanguage: 'Langue',
   explorerGridColNumber: 'Numéro de maillot',
@@ -596,7 +595,6 @@ export default {
   anmeldungenDocUploadFailed: 'Échec du téléversement',
   anmeldungenDocTooLarge: 'Fichier trop volumineux (max. 10 Mo)',
   anmeldungenDocBadType: 'Type de fichier non pris en charge — utilise JPG, PNG, WebP ou PDF',
-  anmeldungenPdfOpenTab: 'PDF — ouvrir dans un nouvel onglet',
   anmeldungenDocAlt: 'Document',
   // Inscriptions — renvoyer l'invitation WiediSync (lignes approuvées)
   etTitle: 'Modèles d\'e-mail',

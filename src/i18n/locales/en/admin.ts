@@ -805,7 +805,6 @@ export default {
   explorerGridSyncStale: 'Stale link',
   explorerGridSyncDeparted: 'Departed',
   explorerGridSyncExcluded: 'Excluded',
-  explorerGridFileError: 'Could not open the file',
   explorerGridColSex: 'Sex',
   explorerGridColLanguage: 'Language',
   explorerGridColNumber: 'Jersey number',
@@ -978,7 +977,6 @@ export default {
 
   // Registrations — file preview + doc count
   anmeldungenDocsCount: '{{count}} docs',
-  anmeldungenPdfOpenTab: 'PDF — open in a new tab',
   anmeldungenDocAlt: 'Document',
 
   // Infra health — VPS resources, slow-query table, status details

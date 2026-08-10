@@ -6,6 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { FileText, FileSpreadsheet, Braces, FileDown, BellRing, Users } from 'lucide-react'
 import { useCollection } from '../../lib/query'
 import LoadingSpinner from '../../components/LoadingSpinner'
+import { FilePreviewDialog } from '../../components/FilePreview'
 import { kscwApi, assetUrl } from '../../lib/api'
 import { toCSV, toJSON, toXlsx, downloadText, downloadBlob } from '../admin/utils/exportResults'
 import { formatDateTimeCompactZurich } from '../../utils/dateHelpers'
@@ -62,6 +63,9 @@ export default function FormResponsesModal({ open, form, onClose }: Props) {
   const { t, i18n } = useTranslation('forms')
   const tableRef = useRef<HTMLDivElement>(null)
   const [pdfBusy, setPdfBusy] = useState(false)
+  // Uploaded answers are read here, not filed away — preview them in place
+  // (a form attachment is usually a scan or a PDF).
+  const [preview, setPreview] = useState<FileAnswer | null>(null)
   const [stats, setStats] = useState<FormStats | null>(null)
   const [reminding, setReminding] = useState(false)
   const [remindMsg, setRemindMsg] = useState('')
@@ -237,9 +241,13 @@ export default function FormResponsesModal({ open, form, onClose }: Props) {
                     {row.map((cell, ci) => (
                       <TableCell key={ci} className="align-top text-sm">
                         {isFileAnswer(cell) ? (
-                          <a href={assetUrl(cell.id)} target="_blank" rel="noreferrer" className="text-brand-600 hover:underline dark:text-brand-400">
+                          <button
+                            type="button"
+                            onClick={() => setPreview(cell)}
+                            className="text-left text-brand-600 hover:underline dark:text-brand-400"
+                          >
                             {cell.name || t('download')}
-                          </a>
+                          </button>
                         ) : (
                           String(cell ?? '')
                         )}
@@ -252,6 +260,15 @@ export default function FormResponsesModal({ open, form, onClose }: Props) {
           </div>
         )}
       </div>
+
+      <FilePreviewDialog
+        key={preview?.id}
+        open={!!preview}
+        onOpenChange={(o) => { if (!o) setPreview(null) }}
+        url={preview ? assetUrl(preview.id) : null}
+        label={preview?.name}
+        filename={preview?.name}
+      />
     </Modal>
   )
 }

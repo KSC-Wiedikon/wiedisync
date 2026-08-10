@@ -191,4 +191,11 @@ export default {
   emailChipsPlaceholder: 'Adressen eingeben oder einfügen',
   emailChipsRemove: 'Empfänger entfernen',
   emailChipsInvalid: 'Keine gültige E-Mail-Adresse',
+  // File preview (shared FilePreview / FilePreviewDialog)
+  filePreviewLoading: 'Vorschau wird geladen…',
+  filePreviewFailed: 'Vorschau konnte nicht geladen werden',
+  filePreviewNone: 'Keine Vorschau für diesen Dateityp',
+  filePreviewOpenTab: 'In neuem Tab öffnen',
+  filePreviewDownload: 'Herunterladen',
+  filePreviewAlt: 'Dokument',
 } as const

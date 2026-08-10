@@ -661,31 +661,6 @@ export async function uploadFile(file: File, folder?: string): Promise<{ id: str
   return { id: String(data.id), name: data.filename_download || file.name }
 }
 
-/**
- * Open a PRIVATE Directus asset (e.g. a finance invoice PDF in the private folder)
- * in a new tab. A plain /assets link only carries the session cookie same-site, so
- * fetch it credentialed → object URL → open. Caller should revoke the URL later or
- * let the tab own it. Throws on 403 (no access) / network error.
- */
-export async function openPrivateAsset(fileId: string): Promise<void> {
-  let res: Response
-  try {
-    res = await fetch(assetUrl(fileId), { credentials: 'include' })
-  } catch (err) {
-    captureApiError(err, { operation: 'openPrivateAsset', collection: 'directus_files', recordId: fileId })
-    throw err
-  }
-  if (!res.ok) {
-    const err = new Error(`Asset ${res.status}`)
-    captureApiError(err, { operation: 'openPrivateAsset', collection: 'directus_files', recordId: fileId, status: res.status })
-    throw err
-  }
-  const blob = await res.blob()
-  const url = URL.createObjectURL(blob)
-  window.open(url, '_blank', 'noopener')
-  setTimeout(() => URL.revokeObjectURL(url), 60_000)
-}
-
 /** Get a Directus asset URL (images, files). */
 export function assetUrl(fileId: string | null | undefined, transforms?: string): string {
   if (!fileId) return ''

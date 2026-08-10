@@ -193,4 +193,11 @@ export default {
   emailChipsPlaceholder: 'Saisis ou colle des adresses',
   emailChipsRemove: 'Retirer le destinataire',
   emailChipsInvalid: 'Adresse e-mail non valide',
+  // File preview (shared FilePreview / FilePreviewDialog)
+  filePreviewLoading: 'Chargement de l\'aperçu…',
+  filePreviewFailed: 'Impossible de charger l\'aperçu',
+  filePreviewNone: 'Aucun aperçu pour ce type de fichier',
+  filePreviewOpenTab: 'Ouvrir dans un nouvel onglet',
+  filePreviewDownload: 'Télécharger',
+  filePreviewAlt: 'Document',
 } as const

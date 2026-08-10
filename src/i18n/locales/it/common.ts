@@ -193,4 +193,11 @@ export default {
   emailChipsPlaceholder: 'Digita o incolla gli indirizzi',
   emailChipsRemove: 'Rimuovi destinatario',
   emailChipsInvalid: 'Indirizzo e-mail non valido',
+  // File preview (shared FilePreview / FilePreviewDialog)
+  filePreviewLoading: 'Caricamento dell\'anteprima…',
+  filePreviewFailed: 'Impossibile caricare l\'anteprima',
+  filePreviewNone: 'Nessuna anteprima per questo tipo di file',
+  filePreviewOpenTab: 'Apri in una nuova scheda',
+  filePreviewDownload: 'Scarica',
+  filePreviewAlt: 'Documento',
 } as const
