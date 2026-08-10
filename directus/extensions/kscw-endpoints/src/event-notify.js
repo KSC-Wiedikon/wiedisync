@@ -167,11 +167,10 @@ export function registerEventNotify(router, { services, database, getSchema, log
         // Licences — migration 067 split licences (json) into per-flag booleans.
         // role is whitelisted by the .includes() check above before reaching .where(),
         // which is the only safe way to pass a dynamic column name to Knex.
-        // Migration 228 added the OTN levels; `otn_bb` stays alongside them as
-        // the coarse "holds some OTN" flag (still the only true one for the 6
-        // pre-split holders), so an invite must list all three to reach every
-        // OTN official — never swap otn_bb out for the levels.
-        if (['scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'otn1_bb', 'otn2_bb', 'referee_bb'].includes(role)) {
+        // Migration 228 split OTN into its two Basketplan levels, so an invite
+        // must list both to reach every OTN official (migration 303 dropped the
+        // coarse `otn_bb` flag that used to sit alongside them).
+        if (['scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn1_bb', 'otn2_bb', 'referee_bb'].includes(role)) {
           const members = await db('members')
             .where(role, true)
             .select('id')

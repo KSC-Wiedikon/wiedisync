@@ -570,7 +570,7 @@ export default {
   cdRegRetry: 'Erneut versuchen',
 
   // Daten-Explorer
-  explorerTitle: 'Daten-Explorer',
+  explorerTitle: 'Datenbank',
   explorerRefresh: 'Neu laden',
   explorerRefreshedAt: 'Zuletzt geladen {{time}}',
   explorerSearchPlaceholder: 'Alle durchsuchen…',
@@ -737,6 +737,10 @@ export default {
   explorerDangerStatusSaved: 'Status aktualisiert',
   explorerDangerStatusError: 'Der Status konnte nicht aktualisiert werden',
 
+  explorerStatusDepartedTitle: 'Mitgliedschaft beenden?',
+  explorerStatusDepartedMessage: '{{name}} auf «{{status}}» setzen? Damit werden auch die Vereinsmitgliedschaft und der App-Zugang deaktiviert: Die Person verschwindet aus den Teamlisten, den Mailverteilern und dem Beitragslauf und kann sich nicht mehr anmelden.',
+  explorerStatusAustrittNeedsDeparted: 'Ein Austrittsdatum braucht einen Austritts-Status — wähle «Ehemaliges Mitglied», «Kein Mitglied» oder «Verstorben», oder lösche das Datum.',
+
   // Explorer-Gefahrenzone — endgültig löschen
   explorerDangerDelete: 'Endgültig löschen',
   explorerDangerDeleteTitle: '{{label}} endgültig löschen',
@@ -823,6 +827,9 @@ export default {
   explorerGridColVmEmail: 'VM-E-Mail',
   explorerGridColAhv: 'AHV-Nummer',
   explorerGridColFeeCategory: 'Beitragskategorie',
+  explorerGridColRegisterStatus: 'Mitgliedschaftsstatus',
+  explorerGridColEintritt: 'Eintritt',
+  explorerGridColAustritt: 'Austritt',
   explorerGridColRoles: 'Rollen',
   explorerGridGroupBy: 'Gruppieren nach',
   explorerGridGroupNone: 'Keine Gruppierung',
@@ -1180,4 +1187,6 @@ export default {
   anmeldungenLicenceStatusSaved: 'Lizenzstatus gespeichert',
   anmeldungenLicenceStatusFailed: 'Lizenzstatus konnte nicht gespeichert werden',
   memberFilterSectionLicenceStatus: 'Lizenzstatus',
+  memberFilterSectionRegisterStatus: 'Mitgliedschaftsstatus',
+  memberFilterRegisterStatusUnset: 'Nicht gesetzt',
 } as const

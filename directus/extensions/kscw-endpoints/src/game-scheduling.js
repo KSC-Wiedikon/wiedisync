@@ -3165,11 +3165,16 @@ export function registerGameScheduling(router, { database, logger, services, get
       if (!VALID_LANGS.includes(language)) {
         return res.status(400).json({ error: 'Invalid language' })
       }
-      const updated = await database('game_scheduling_opponents')
+      // Resolve first so expiry can be tested — the blind UPDATE could not.
+      const opp = await database('game_scheduling_opponents')
         .where('token', req.params.token)
         .whereIn('status', ['active', 'invited', 'viewed', 'booked'])
-        .update({ language })
-      if (!updated) return res.status(404).json({ error: 'Invalid link' })
+        .first('id', 'expires_at', 'status')
+      if (!opp) return res.status(404).json({ error: 'Invalid link' })
+      if (opp.status !== 'booked' && opp.expires_at && new Date() > new Date(opp.expires_at)) {
+        return res.status(400).json({ error: 'Link expired' })
+      }
+      await database('game_scheduling_opponents').where('id', opp.id).update({ language })
       res.json({ success: true })
     } catch (err) {
       log.error({ msg: `terminplanung/set-language: ${err.message}`, endpoint: 'terminplanung/set-language', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
@@ -3187,11 +3192,15 @@ export function registerGameScheduling(router, { database, logger, services, get
         return res.status(429).json({ error: 'Too many requests. Try again later.' })
       }
       const note = String(req.body?.note ?? '').slice(0, 2000)
-      const updated = await database('game_scheduling_opponents')
+      const opp = await database('game_scheduling_opponents')
         .where('token', req.params.token)
         .whereIn('status', ['active', 'invited', 'viewed', 'booked'])
-        .update({ opponent_note: note })
-      if (!updated) return res.status(404).json({ error: 'Invalid link' })
+        .first('id', 'expires_at', 'status')
+      if (!opp) return res.status(404).json({ error: 'Invalid link' })
+      if (opp.status !== 'booked' && opp.expires_at && new Date() > new Date(opp.expires_at)) {
+        return res.status(400).json({ error: 'Link expired' })
+      }
+      await database('game_scheduling_opponents').where('id', opp.id).update({ opponent_note: note })
       res.json({ success: true })
     } catch (err) {
       log.error({ msg: `terminplanung/note: ${err.message}`, endpoint: 'terminplanung/note', userId: req.accountability?.user || null, method: req.method, stack: err.stack })
@@ -3219,12 +3228,43 @@ export function registerGameScheduling(router, { database, logger, services, get
   // the volleyball route would otherwise resolve to a real portal and be driven
   // through the volleyball club flow. Every volleyball query on this table must
   // carry this filter.
+  /**
+   * `true` when a portal's link has lapsed. Mirrors basketball-portal.js's
+   * `portalExpired` — a booked portal stays readable so the club can see what
+   * they agreed to.
+   */
+  const clubPortalExpired = (portal) =>
+    portal.status !== 'booked' && portal.expires_at && new Date() > new Date(portal.expires_at)
+
+  /**
+   * Resolve a club portal by token.
+   *
+   * ⚠ Callers that WRITE must also reject an expired portal — use
+   * `clubPortalForWrite`. Nothing flips `status` when `expires_at` lapses (only
+   * the admin archive and the season rollover do), and there is no revoke
+   * endpoint for club portals at all, so `expires_at` is the ONLY retirement
+   * lever. Migration 094 pinned `expires_at = 2026-06-30` on live 2025/26 rows
+   * without touching status, so every un-archived token is expired-but-writable
+   * unless this is checked (audit 2026-08-08, finding 23).
+   */
   async function clubPortalByToken(token) {
     return database('game_scheduling_club_portals')
       .where('token', token)
       .where('sport', 'volleyball')
       .whereIn('status', CLUB_PORTAL_VIEW_STATUSES)
       .first()
+  }
+
+  /**
+   * Portal resolution for WRITE routes: same lookup, plus the expiry test, so a
+   * new write route cannot silently inherit the read behaviour. Returns null for
+   * "no such token" and the string 'expired' for a lapsed one, so the caller can
+   * answer 404 vs 400 without repeating the rule.
+   */
+  async function clubPortalForWrite(token) {
+    const portal = await clubPortalByToken(token)
+    if (!portal) return null
+    return clubPortalExpired(portal) ? 'expired' : portal
   }
 
   // The club's per-team opponent anchor rows for a portal (season + club_id).
@@ -3353,8 +3393,9 @@ export function registerGameScheduling(router, { database, logger, services, get
         return res.status(429).json({ error: 'Too many requests. Try again later.' })
       }
       const note = String(req.body?.note ?? '').slice(0, 2000)
-      const portal = await clubPortalByToken(req.params.token)
+      const portal = await clubPortalForWrite(req.params.token)
       if (!portal) return res.status(404).json({ error: 'Invalid link' })
+      if (portal === 'expired') return res.status(400).json({ error: 'Link expired' })
       const nowIso = new Date().toISOString()
       await database('game_scheduling_club_portals').where('id', portal.id)
         .update({ club_note: note, date_updated: nowIso })
@@ -3379,8 +3420,9 @@ export function registerGameScheduling(router, { database, logger, services, get
       }
       const language = String(req.body?.language || '').toLowerCase()
       if (!VALID_LANGS.includes(language)) return res.status(400).json({ error: 'Invalid language' })
-      const portal = await clubPortalByToken(req.params.token)
+      const portal = await clubPortalForWrite(req.params.token)
       if (!portal) return res.status(404).json({ error: 'Invalid link' })
+      if (portal === 'expired') return res.status(400).json({ error: 'Link expired' })
       await database('game_scheduling_club_portals').where('id', portal.id)
         .update({ language, date_updated: new Date().toISOString() })
       await database('game_scheduling_opponents')

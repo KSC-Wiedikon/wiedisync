@@ -12,6 +12,7 @@ import type { Member, MemberPosition } from '../../../types'
 import type { CacheShape } from './explorerHelpers'
 import { parseTrainerLicences, type TrainerLicence } from '../../../utils/trainerLicences'
 import { LICENCE_STATUSES, effectiveLicenceStatus, type LicenceStatus } from '../../../utils/licenceStatus'
+import { REGISTER_STATUS_VALUES, type RegisterStatus } from './memberFieldOptions'
 
 export type Tri = 'any' | 'yes' | 'no'
 export type SportKey = 'volleyball' | 'basketball' | 'other'
@@ -53,9 +54,9 @@ export const PRESENCE_FIELDS = [
 ] as const
 export type PresenceField = (typeof PRESENCE_FIELDS)[number]
 
-// `otn_bb` is the coarse legacy flag kept alongside the two levels (migration
-// 228) — filter on all three to catch every OTN holder.
-export const LICENCE_TYPES = ['scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'otn1_bb', 'otn2_bb', 'referee_bb'] as const
+// The two OTN levels (migration 228) replaced the coarse `otn_bb`, dropped by
+// migration 303 — filter on both to catch every OTN holder.
+export const LICENCE_TYPES = ['scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn1_bb', 'otn2_bb', 'referee_bb'] as const
 export type LicenceKey = (typeof LICENCE_TYPES)[number]
 
 // Coaching education (migration 274). Its own filter dimension rather than more
@@ -104,7 +105,17 @@ export interface MemberFilterState {
   birthdateVis: BirthdateVisKey[]
   consent: ConsentKey[]
   licenceStatus: LicenceStatus[]
+  /**
+   * Club register status (migration 302). Includes 'unset' — the members whose
+   * status wiedisync has never been told, which is a worklist in its own right
+   * (every one of them is a member with no linked ClubDesk contact).
+   */
+  registerStatus: RegisterStatusKey[]
 }
+
+export type RegisterStatusKey = RegisterStatus | 'unset'
+export const REGISTER_STATUS_KEYS: readonly RegisterStatusKey[] =
+  [...REGISTER_STATUS_VALUES, 'unset']
 
 export const EMPTY_FILTERS: MemberFilterState = {
   bools: {},
@@ -119,6 +130,7 @@ export const EMPTY_FILTERS: MemberFilterState = {
   birthdateVis: [],
   consent: [],
   licenceStatus: [],
+  registerStatus: [],
 }
 
 export function countActiveFilters(f: MemberFilterState): number {
@@ -135,6 +147,7 @@ export function countActiveFilters(f: MemberFilterState): number {
   n += f.birthdateVis.length
   n += f.consent.length
   n += f.licenceStatus.length
+  n += f.registerStatus.length
   return n
 }
 
@@ -247,6 +260,15 @@ export function applyMemberFilters(
       // people who need a licence ordered this season.
       const { status } = effectiveLicenceStatus(m)
       if (!filters.licenceStatus.includes(status)) return false
+    }
+
+    if (filters.registerStatus.length > 0) {
+      // NULL is its own key rather than being lumped in with 'Kein Mitglied':
+      // "the register has never told us" and "the register says they are not a
+      // member" are opposite findings, and only the first is a data gap to fix.
+      const raw = mr.register_status
+      const key: RegisterStatusKey = typeof raw === 'string' && raw ? (raw as RegisterStatus) : 'unset'
+      if (!filters.registerStatus.includes(key)) return false
     }
 
     return true

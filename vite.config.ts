@@ -15,10 +15,20 @@ export default defineConfig({
       authToken: process.env.SENTRY_AUTH_TOKEN,
       // Only upload on CI builds (SENTRY_AUTH_TOKEN set)
       disable: !process.env.SENTRY_AUTH_TOKEN,
+      // Upload to Sentry, then DELETE the .map files so they are not deployed.
+      // `sourcemap: 'hidden'` only omits the //# sourceMappingURL comment — the
+      // files were still emitted into dist/ and served, so anyone could fetch
+      // them by guessing the name (audit 2026-08-08, finding 35). Nothing
+      // sensitive was in them (grepped: only i18n strings and UI labels), but
+      // the config comment asserted "not served publicly", which was false —
+      // and a future author may write sensitive commentary into client code
+      // believing that assurance. An .assetsignore is NOT sufficient on a CF
+      // Pages Functions project; the files have to be removed.
+      sourcemaps: { filesToDeleteAfterUpload: ['./dist/**/*.map'] },
     }),
   ],
   build: {
-    sourcemap: 'hidden',  // Uploaded to Sentry but not served publicly
+    sourcemap: 'hidden',  // Emitted for the Sentry upload, then deleted (see above)
   },
   resolve: {
     alias: {

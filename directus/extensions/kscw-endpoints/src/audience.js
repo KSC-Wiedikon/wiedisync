@@ -23,11 +23,11 @@
 // junction, and a qualification boolean on members.
 export const ANN_ROLE_ENUM = ['admin', 'superuser', 'vb_admin', 'bb_admin', 'vorstand', 'website_admin', 'finance', 'user']
 export const ANN_FUNCTIONS = ['coach', 'team_responsible', 'captain']
-// `otn_bb` stays in the list alongside the levels (migration 228): it is the
-// coarse "holds some OTN" flag and is still the only true one for the 6
-// pre-split holders, so dropping it would silently shrink their audience.
-// Targeting all OTN people = tick otn_bb + otn1_bb + otn2_bb.
-export const ANN_QUAL_COLUMNS = ['is_spielplaner', 'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'otn1_bb', 'otn2_bb', 'referee_bb']
+// The two OTN levels (migration 228) are separate audiences, so targeting all
+// OTN people means ticking otn1_bb + otn2_bb. The coarse `otn_bb` flag they
+// replaced was dropped by migration 303 — every one of its 8 holders was
+// confirmed OTN 2 first, and no stored audience referenced it.
+export const ANN_QUAL_COLUMNS = ['is_spielplaner', 'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn1_bb', 'otn2_bb', 'referee_bb']
 
 // ClubDesk `status` values that mean "is a member of the club" — the register
 // the GV invitation goes to. Everything else ClubDesk carries ('Ehemaliges

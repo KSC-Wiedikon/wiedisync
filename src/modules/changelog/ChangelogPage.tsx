@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '1.76.1'
+const APP_VERSION = '1.77.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,30 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.77.0',
+    date: '10.08.2026',
+    sections: [
+      {
+        title: 'Security and privacy hardening',
+        items: [
+          'A platform-wide security review. Most of it you will never see — permission scopes, audit trails, guards on internal endpoints — but these parts affect you directly.',
+          'Your contact opt-out is now actually enforced. If you had hidden your phone number or email address, the club\'s duty and scorer screens were still receiving them and simply choosing not to display them. The server now withholds them outright.',
+          'Nobody can look up a child\'s team from an email address. Checking whether an address already has an account returned the team names attached to it — and team names carry an age (MU10, DU14). They are no longer returned for anyone under 18.',
+          'Logging out now clears your identity documents from the device. If you had opened encrypted ID documents, the key and the documents stayed in the browser after logout. On a shared computer the next person could still open them. Logging out now wipes both.',
+        ],
+      },
+      {
+        title: 'Fixed',
+        items: [
+          '"Absent on Mondays" showed on the wrong day abroad. Weekly absences were matched against your device\'s calendar day, so travelling west of Switzerland shifted them by one.',
+          'A player profile could show 0/0 attendance. One open-ended weekly absence removed every session from the count, so an actively training player\'s profile read 0/0 with dashes instead of percentages.',
+          'You can see your own fee category again. Your profile showed a dash where your membership category should be — the field was never actually being sent to you. It is visible to you and to the treasurer, and to nobody else.',
+          'Invoices were missing their date, due date and breakdown. Membership invoices went out without an invoice date, a payment deadline, an addressee on the payment slip, or the itemised lines — a surcharge showed only as one combined total.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.76.1',
     date: '10.08.2026',

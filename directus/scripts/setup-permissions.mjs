@@ -2,20 +2,29 @@
  * KSCW Directus 11 Hybrid Permission Setup
  *
  * SOURCE OF TRUTH (read this before editing):
- *   The numbered SQL migrations in `directus/scripts/0NN-*.sql` are the source
- *   of truth for the LIVE permissions on dev + prod. This file is the
- *   fresh-install snapshot — it must reproduce the same end-state when
- *   bootstrapping a brand-new Directus instance from zero.
+ *   THIS FILE is the single source of truth for permissions on dev and prod.
+ *   It is declarative and idempotent — `clearPolicyPermissions` then recreate —
+ *   and `npm run db:setup-perms:dev|prod` reconciles the live instance to it on
+ *   every deploy. A permission that is not in this file does not survive.
  *
- *   When you change permissions:
- *     1. Write a new SQL migration (NN+1) that mutates live perms idempotently.
- *     2. Apply it on dev, then prod.
- *     3. Update this file to match the new end-state. Otherwise the next
- *        run of `setup-permissions.mjs` (during a DR rebuild, fresh dev env,
- *        or onboarding) will silently roll back security hardening.
- *   That bidirectional contract is enforced by reviewers — see PERMISSIONS.md.
+ *   The numbered SQL migrations in `directus/scripts/0NN-*.sql` are SCHEMA-ONLY:
+ *   DDL, triggers, RLS, grants, FKs, backfills. Never write a permission row in
+ *   one — the next deploy reverts it, silently.
  *
- * Reflects state through migration 043 (2026-05-06). Audit history:
+ *   When you change permissions, in ONE commit:
+ *     1. Edit this file.
+ *     2. Update the matching row in PERMISSIONS.md.
+ *     3. Append to SECURITY.md when it closes or accepts a risk.
+ *   Then run `db:setup-perms` on dev and prod.
+ *
+ * ⚠ This header used to say the exact opposite — that migrations were
+ * authoritative and this file was a fresh-install snapshot to be updated
+ * afterwards. That block was ADDED by the very commit that abolished the model
+ * (19804429), and its "reflects state through migration 043 (2026-05-06)"
+ * anchor was 255 migrations stale by the time it was corrected on 2026-08-10
+ * (audit 2026-08-08, finding 31). A reader following it would have written a
+ * permission migration that the next deploy reverted — a gotcha SECURITY.md
+ * records as having actually bitten. Audit history:
  *   023 messaging RBAC scoping        024 PII fields off cross-member read
  *   025 feedback status lock          026 coach team-scoped writes
  *   027 sport admin delete lock       028 auto-action markers
@@ -616,7 +625,7 @@ const MEMBER_VISIBLE_FIELDS = [
   'id', 'first_name', 'last_name', 'nickname', 'photo', 'number',
   'position', 'user',
   // Per-flag licence booleans (migration 067; legacy `licences` json dropped in 119).
-  'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'otn1_bb', 'otn2_bb', 'referee_bb',
+  'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn1_bb', 'otn2_bb', 'referee_bb',
   // Coaching education (migration 274) — same tier as the licence booleans
   // above: a sporting credential, not PII. Club-wide readable so a coach's
   // qualification can show on their profile card and on team views.
@@ -646,7 +655,7 @@ const MEMBER_EDITABLE_FIELDS = [
   'birthdate_visibility', 'hide_phone', 'hide_email', 'photo', 'language',
   'position', 'number', 'website_visible', 'website_name_private',
   // Per-flag licence booleans (migration 067; legacy `licences` json dropped in 119).
-  'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'otn1_bb', 'otn2_bb', 'referee_bb',
+  'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn1_bb', 'otn2_bb', 'referee_bb',
   // 2026-08-03 migration 274: coaching education (Trainerausbildung), an
   // ordered comma-separated subset of JS/C/B/A. Self-asserted like the licence
   // booleans — the club has no machine source for it (ClubDesk has no such
@@ -700,6 +709,28 @@ const MEMBER_EDITABLE_FIELDS = [
  */
 const MEMBER_DERIVED_READ_FIELDS = [
   'nationalitaet',
+  // Own-READ only. Migration 030 once hand-patched this onto the Member row; a
+  // later clearPolicyPermissions wiped it and the declarative script never
+  // re-added it, so 209 of 211 active members with a login have a fee category
+  // and not one of them could see it — their profile rendered "—" while
+  // migration 270's verification campaign asked them to CONFIRM that value
+  // ("Greyed-out fields such as your fee category … can only be changed by the
+  // club"). Audit 2026-08-08, finding 39.
+  //
+  // ⚠ Here and NOT in MEMBER_VISIBLE_FIELDS: that list is club-wide readable,
+  // and one member's fee category is not another member's business. It is also
+  // deliberately not in MEMBER_EDITABLE_FIELDS — the member is the subject of
+  // this fact, not its author.
+  'beitragskategorie',
+  // Club register status + the dates that bracket it (migration 302). Own-READ
+  // for the same reason as the fee category above: a member is entitled to know
+  // whether the club still counts them as a member and since when, and the
+  // profile shows it — but they are the subject of that fact, not its author,
+  // so it is deliberately NOT in MEMBER_EDITABLE_FIELDS.
+  //
+  // ⚠ Here and NOT in MEMBER_VISIBLE_FIELDS: club-wide readable would publish
+  // who is an Ehrenmitglied, who resigned and when, to all 700 members.
+  'register_status', 'eintritt', 'austritt',
 ]
 
 /**
@@ -977,6 +1008,10 @@ const FINANCE_MEMBER_FIELDS = [
   // parity with the derived `nationalitaet` finance already reads.
   'nationalitaet_codes', 'federation_of_origin',
   'iban', 'ahv_nummer', 'beitragskategorie', 'sektion', 'kscw_membership_active', 'wiedisync_active',
+  // Club register status + entry/exit dates (migration 302). Read-only for
+  // finance: whether somebody is a member, and for how much of the season, is
+  // the first input to whether they owe a Mitgliederbeitrag at all.
+  'register_status', 'eintritt', 'austritt',
   'language', 'role', 'member_teams', 'date_created', 'iban_confirmed',
   // Alternate billing contact (migrations 133/136).
   'billing_different', 'billing_name', 'billing_email', 'billing_address', 'billing_plz', 'billing_ort', 'billing_phone', 'billing_iban',
@@ -1967,9 +2002,14 @@ async function main() {
       },
     },
   }
+  // ⚠ This list ALSO spreads MEMBER_DERIVED_READ_FIELDS, so anything added there
+  // for own-read reaches every coach/TR for their team's members unless excluded
+  // here. `beitragskategorie` is own-read only (finding 39): what a player pays
+  // is between them and the club, not something their coach needs — the same
+  // reasoning that already strips ahv_nummer and iban from this list.
   const LEADER_TEAM_MEMBER_FIELDS = [
     ...new Set([...MEMBER_VISIBLE_FIELDS, ...MEMBER_EDITABLE_FIELDS, ...MEMBER_DERIVED_READ_FIELDS]),
-  ].filter(f => f !== 'ahv_nummer' && f !== 'iban')
+  ].filter(f => f !== 'ahv_nummer' && f !== 'iban' && f !== 'beitragskategorie')
   await setPermRead(LEADER_POLICY, 'members', COACH_TEAM_MEMBERS, LEADER_TEAM_MEMBER_FIELDS)
   // Members — update position + number (migration 036 scoped to my-team members).
   // `coach_approved_team` added 2026-05-19: migration 036 narrowed this list to

@@ -111,7 +111,7 @@ export default {
   retry: 'Réessayer',
 
   // Explorateur de Données
-  explorerTitle: 'Explorateur de Données',
+  explorerTitle: 'Base de données',
   explorerRefresh: 'Rafraîchir',
   explorerRefreshedAt: 'Dernière mise à jour {{time}}',
   explorerSearchPlaceholder: 'Tout rechercher…',
@@ -272,6 +272,10 @@ export default {
   explorerDangerStatusSaved: 'Statut mis à jour',
   explorerDangerStatusError: 'Impossible de mettre à jour le statut',
 
+  explorerStatusDepartedTitle: 'Mettre fin à l’affiliation ?',
+  explorerStatusDepartedMessage: 'Définir {{name}} sur « {{status}} » ? Cela désactive aussi son affiliation au club et son accès à l’application : la personne quitte les listes d’équipe, les listes de diffusion et le décompte des cotisations, et ne peut plus se connecter.',
+  explorerStatusAustrittNeedsDeparted: 'Une date de sortie exige un statut de départ — choisissez « Ehemaliges Mitglied », « Kein Mitglied » ou « Verstorben », ou effacez la date.',
+
   // Zone de danger (Explorateur) — suppression définitive
   explorerDangerDelete: 'Supprimer définitivement',
   explorerDangerDeleteTitle: 'Supprimer {{label}} définitivement',
@@ -358,6 +362,9 @@ export default {
   explorerGridColVmEmail: 'E-mail VM',
   explorerGridColAhv: 'Numéro AVS',
   explorerGridColFeeCategory: 'Catégorie de cotisation',
+  explorerGridColRegisterStatus: 'Statut d’affiliation',
+  explorerGridColEintritt: 'Date d’entrée',
+  explorerGridColAustritt: 'Date de sortie',
   explorerGridColRoles: 'Rôles',
   explorerGridGroupBy: 'Grouper par',
   explorerGridGroupNone: 'Sans regroupement',
@@ -1149,4 +1156,6 @@ export default {
   anmeldungenLicenceStatusSaved: 'Statut de licence enregistré',
   anmeldungenLicenceStatusFailed: "Impossible d'enregistrer le statut de licence",
   memberFilterSectionLicenceStatus: 'Statut de licence',
+  memberFilterSectionRegisterStatus: 'Statut d’affiliation',
+  memberFilterRegisterStatusUnset: 'Non défini',
 } as const

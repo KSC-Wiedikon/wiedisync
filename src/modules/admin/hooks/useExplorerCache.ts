@@ -91,9 +91,9 @@ export function useExplorerCache(scope: ExplorerScope) {
             // Fields used by ExplorerMemberFilters (multiselect/multiselect-chip/tri-state/presence)
             'phone', 'license_nr', 'birthdate', 'photo', 'number', 'position', 'language',
             // Per-flag licence booleans (migration 067) — what the filter reads.
-            // otn1_bb/otn2_bb are the OTN levels added by migration 228; otn_bb
-            // stays as the coarse legacy flag, so all three are fetched.
-            'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'otn1_bb', 'otn2_bb', 'referee_bb',
+            // otn1_bb/otn2_bb are the OTN levels added by migration 228; the
+            // coarse `otn_bb` they replaced was dropped by migration 303.
+            'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn1_bb', 'otn2_bb', 'referee_bb',
             // Coaching education (migration 274) — comma-separated JS/C/B/A.
             'trainer_licences',
             'birthdate_visibility', 'consent_decision', 'consent_prompted_at',
@@ -112,6 +112,10 @@ export function useExplorerCache(scope: ExplorerScope) {
             'communications_team_chat_enabled', 'communications_dm_enabled', 'communications_banned',
             'push_preview_content', 'last_online_at',
             'adresse', 'plz', 'ort', 'vm_email', 'ahv_nummer', 'beitragskategorie',
+            // Club register status + the dates that bracket it (migration 302).
+            // In the same read lists as beitragskategorie above, so batching
+            // them here cannot 403 an audience that already gets that column.
+            'register_status', 'eintritt', 'austritt',
             // Coded nationality + federation of origin (migrations 223/224).
             // `nationalitaet` is the trigger-derived German name kept for the
             // ClubDesk push — read-only, but still fetched as the display

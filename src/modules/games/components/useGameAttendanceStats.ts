@@ -4,6 +4,7 @@ import { todayLocal } from '../../../utils/dateHelpers'
 import type { Game, Participation, Absence, Member, MemberTeam } from '../../../types'
 import { fetchAllItems } from '../../../lib/api'
 import { asObj, memberName } from '../../../utils/relations'
+import { absenceCoversActivity } from '../../../utils/absenceHelpers'
 import { classifyAttendance, type DateRange, type PlayerStats } from '../../trainings/useAttendanceStats'
 import { isCupGame } from '../../../utils/leagueClassification'
 
@@ -108,7 +109,9 @@ export function useGameAttendanceStats(
       }
       const hasCoveringAbsence = (memberId: string, dateKey: string) =>
         (absencesByMember.get(memberId) ?? []).some(
-          (a) => a.start_date <= dateKey && a.end_date >= dateKey,
+          // Delegate: a bare range check ignores `indefinite`, weekly days_of_week
+      // and `affects` (audit 2026-08-08, finding 32).
+      (a) => absenceCoversActivity(a, 'game', dateKey),
         )
 
       const memberStats: Record<string, GamePlayerStats> = {}

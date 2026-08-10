@@ -34,7 +34,6 @@ const LICENCE_LABELS: Record<LicenceType, string> = {
   referee_vb: 'licenceReferee',
   otr1_bb: 'licenceOTR1',
   otr2_bb: 'licenceOTR2',
-  otn_bb: 'licenceOTN',
   otn1_bb: 'licenceOTN1',
   otn2_bb: 'licenceOTN2',
   referee_bb: 'licenceRefereeBB',
