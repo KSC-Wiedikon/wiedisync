@@ -2,6 +2,15 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.76.0 — 2026-08-10
+
+### Your licence status, on your profile
+
+- **You can now see where your licence stands.** Your profile shows a licence status for the current season — *No licence*, *To be ordered*, *Ordered*, *Finalized* or *Licenced* — so "has my licence been sorted out?" has an answer you can look up instead of asking. It is read-only: the club sets it, and *Licenced* specifically means your federation confirmed it, not that somebody thinks it is done. If it looks wrong, tell your coach.
+- **You are told when it changes.** Every move sends you a notification and a push, in your language.
+- **It resets when the season turns over.** A licence is issued for one season, so on 1 June everyone starts again at *No licence* and is moved back up as the federation confirms this season's licences. Last season's green tick can never quietly stand in for this season's.
+- **For admins: it is editable in two places.** The member explorer has it as a dropdown with its own filter — "show me everyone still to be ordered" is one click — and newly approved registrations carry the five states as buttons, right where you are already looking at the new member. Swiss Volley and Basketplan fill in *Licenced* automatically once they confirm a licence; they never overwrite the steps you set by hand.
+
 ## v1.75.1 — 2026-08-10
 
 ### Forgot password works again
