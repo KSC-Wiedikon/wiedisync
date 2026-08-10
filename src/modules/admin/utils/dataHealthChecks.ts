@@ -38,6 +38,7 @@ export type IssueKey =
   | 'clubdeskCoachGroup'
   | 'clubdeskStaleFunktion'
   | 'clubdeskFeeNoRoster'
+  | 'clubdeskHonoraryDrift'
   | 'clubdeskUnmappedTeam'
   | 'clubdeskNameDrift'
   | 'scorerNotInVm'
@@ -478,6 +479,7 @@ async function checkMembers(): Promise<CollectionHealth> {
     const {
       missing, strays, no_team_groups,
       no_group, coach_no_group, fee_no_roster, unmapped_teams, stale_funktion,
+      honorary_drift,
     } = await kscwApi<{
       missing: ClubdeskGroupMissing[]
       strays: ClubdeskGroupStray[]
@@ -487,6 +489,7 @@ async function checkMembers(): Promise<CollectionHealth> {
       fee_no_roster?: { member_id: number; severity: 'never' | 'lapsed' | 'older' }[]
       unmapped_teams?: { team_id: number; name: string }[]
       stale_funktion?: { member_id: number }[]
+      honorary_drift?: { member_id: number; kind: 'status_only' | 'fee'; kat: string }[]
     }>('/clubdesk-group-sync')
 
     // These four are AGGREGATED into a single row each: per-member rows would add
@@ -539,6 +542,24 @@ async function checkMembers(): Promise<CollectionHealth> {
         severity: neverRostered > 0 ? 'error' : 'warning',
         issueKey: 'clubdeskFeeNoRoster',
         detail: `${(fee_no_roster || []).length} · ${neverRostered} never rostered`,
+        autoFixable: false,
+      })
+    }
+    // Honorary drift. Aggregated like its siblings — two counts in one row,
+    // because the two halves need different hands: `status_only` is a missing
+    // name on the ClubDesk honour list, `fee` is somebody holding the honour and
+    // still being billed. Error when anyone is being billed; the honour list
+    // being short is a warning.
+    if ((honorary_drift || []).length > 0) {
+      const billed = (honorary_drift || []).filter((r) => r.kind === 'fee').length
+      const statusOnly = (honorary_drift || []).length - billed
+      issues.push({
+        id: 'cd-honorary-drift',
+        collection: 'members',
+        field: 'register_status',
+        severity: billed > 0 ? 'error' : 'warning',
+        issueKey: 'clubdeskHonoraryDrift',
+        detail: `${statusOnly} · ${billed} still billed`,
         autoFixable: false,
       })
     }

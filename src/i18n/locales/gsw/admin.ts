@@ -154,6 +154,7 @@ export default {
   clubdeskStaleColKeep: 'Bhalte',
   clubdeskStaleNeedsAdd: 'Die Gruppe fählt au — bitte zuesätzlich hinzuefüege',
   dhIssueClubdeskFeeNoRoster: 'Zahlt Spielerbytrag, staht aber i keim Kader',
+  dhIssueClubdeskHonoraryDrift: 'Ehremitgliedschaft widersprüchlich (Gruppe vs. Status vs. Biitrag)',
   dhIssueClubdeskUnmappedTeam: 'Team ohni hinterleiti ClubDesk-Gruppe',
   dhIssueScorerNotInVm: 'Schriiber-Lizänz gsetzt, aber nöd im Volleymanager',
   dhIssueScorerVmWriterNotFlagged: 'Schriiber im Volleymanager ohni Schriiber-Lizänz',

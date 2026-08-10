@@ -2695,7 +2695,52 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
         WHERE t.active AND t.clubdesk_group IS NULL
         ORDER BY t.sport, t.name`
 
-      const [missingRes, strayRes, noTeamRes, noGroupRes, coachRes, feeRes, unmappedRes, staleRes] = await Promise.all([
+      // ── Honorary drift ──────────────────────────────────────────────────
+      // "Ehrenmitglied" is TWO facts in ClubDesk and they disagree: the
+      // Ehrenmitglieder GROUP is the honour (and the club's chosen truth — see
+      // MAILBOX_GROUPS), while the single-valued register Status doubles as the
+      // billing axis and therefore records an honorary member who still plays
+      // as 'Aktivmitglied'. Measured on prod 2026-08-10: 15 in the group, 12 by
+      // status, 10 both.
+      //
+      // Only the two ASYMMETRIC cases are reported, because only they are
+      // actionable:
+      //   status_only — the status says Ehrenmitglied but the group does not
+      //                 hold them, so the honour list (and every mailing built
+      //                 on it) is missing somebody.
+      //   fee         — in the group but NOT paying 'Gratis', i.e. an honorary
+      //                 member still being billed.
+      // The reverse (in the group, status 'Aktivmitglied') is the EXPECTED
+      // shape for a playing Ehrenmitglied and is deliberately NOT flagged —
+      // flagging it would report five correct rows forever.
+      const honoraryDriftSql = `
+        WITH cd AS (
+          SELECT DISTINCT ON (btrim(clubdesk_id)) btrim(clubdesk_id) AS cid, gruppen_bracketed
+            FROM clubdesk_export
+           WHERE NULLIF(btrim(clubdesk_id), '') IS NOT NULL
+           ORDER BY btrim(clubdesk_id), row_id
+        )
+        SELECT m.id AS member_id, m.first_name, m.last_name, m.clubdesk_id,
+               m.register_status, m.beitragskategorie,
+               EXISTS (
+                 SELECT 1 FROM unnest(string_to_array(cd.gruppen_bracketed, ',')) g
+                  WHERE btrim(g) = 'Ehrenmitglieder'
+               ) AS in_group
+          FROM members m
+          JOIN cd ON cd.cid = m.clubdesk_id
+         WHERE m.kscw_membership_active = true
+           AND (
+             (m.register_status = 'Ehrenmitglied' AND NOT EXISTS (
+               SELECT 1 FROM unnest(string_to_array(cd.gruppen_bracketed, ',')) g
+                WHERE btrim(g) = 'Ehrenmitglieder'))
+             OR (EXISTS (
+               SELECT 1 FROM unnest(string_to_array(cd.gruppen_bracketed, ',')) g
+                WHERE btrim(g) = 'Ehrenmitglieder')
+               AND COALESCE(NULLIF(btrim(m.beitragskategorie), ''), '') <> 'Gratis')
+           )
+         ORDER BY m.last_name, m.first_name`
+
+      const [missingRes, strayRes, noTeamRes, noGroupRes, coachRes, feeRes, unmappedRes, staleRes, honoraryRes] = await Promise.all([
         database.raw(missingSql, { season }),
         database.raw(straySql, { season }),
         database.raw(noTeamSql),
@@ -2704,6 +2749,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
         database.raw(feeNoRosterSql, { season, nonPlaying: NON_PLAYING_KAT }),
         database.raw(unmappedTeamsSql),
         database.raw(staleFunktionSql, { season }),
+        database.raw(honoraryDriftSql),
       ])
 
       // Playing Beitragskategorien are 'VB '/'BB '-prefixed — the only sport
@@ -2802,6 +2848,18 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
         has_correct: r.has_correct === true,
       }))
 
+      const honorary_drift = honoraryRes.rows.map((r) => ({
+        member_id: r.member_id,
+        member_name: `${r.first_name || ''} ${r.last_name || ''}`.trim(),
+        clubdesk_id: r.clubdesk_id,
+        register_status: r.register_status || '',
+        kat: r.beitragskategorie || '',
+        in_group: r.in_group === true,
+        // 'status_only' → add them to the ClubDesk group (the honour list is
+        // short one name). 'fee' → they hold the honour but are still billed.
+        kind: r.in_group === true ? 'fee' : 'status_only',
+      }))
+
       const flattenSports = (byMember) => [...byMember.values()]
         .map(({ sports, ...rest }) => ({ ...rest, sport: [...sports].sort().join(', ') }))
 
@@ -2814,6 +2872,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
         coach_no_group: flattenSports(coachByMember),
         fee_no_roster,
         unmapped_teams,
+        honorary_drift,
         season,
       })
     } catch (err) {

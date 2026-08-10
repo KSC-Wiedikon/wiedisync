@@ -580,6 +580,7 @@ export default {
   dhIssueClubdeskCoachGroup: 'Allenatori senza il loro gruppo ClubDesk',
   dhIssueClubdeskStaleFunktion: 'Funzione ClubDesk errata per una squadra attuale',
   dhIssueClubdeskFeeNoRoster: 'Fatturato come giocatore, ma in nessuna rosa',
+  dhIssueClubdeskHonoraryDrift: 'Socio onorario incoerente (gruppo / stato / quota)',
   dhIssueClubdeskUnmappedTeam: 'Squadra senza gruppo ClubDesk configurato',
   dhIssueScorerNotInVm: 'Licenza da segnapunti impostata, ma assente da Volleymanager',
   dhIssueScorerVmWriterNotFlagged: 'Segnapunti in Volleymanager senza la licenza da segnapunti',
