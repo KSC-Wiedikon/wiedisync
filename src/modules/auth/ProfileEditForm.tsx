@@ -472,7 +472,6 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
               // string rather than the codes we store.
               nationalitaet: countryNameDe(nationalitaetCodes[0]),
               federation_of_origin: federationOfOrigin,
-              beitragskategorie: user.beitragskategorie || '',
             },
           },
         })

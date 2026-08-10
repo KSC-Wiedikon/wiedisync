@@ -301,6 +301,86 @@ export default {
 
     const clientErrorIp = new Map() // ip → { count, resetAt }
 
+    // ── CSP violation reports ────────────────────────────────────
+    // `public/_headers` has pointed `report-uri` AND `Report-To` at
+    // /kscw/csp-report since the 2026-05-31 hardening, under a comment claiming
+    // they feed the client-error collector. The route never existed — every
+    // violating page-load fired a cross-origin POST at a 404 on the production
+    // API host, and /admin/error-logs could never receive a CSP entry, so
+    // "empty" was indistinguishable from "no violations" (audit 2026-08-08,
+    // finding 40; the report cited kscw-website/public/_headers, but the
+    // directive is in THIS repo's copy).
+    //
+    // Browsers send `application/csp-report` (report-uri, a single object) or
+    // `application/reports+json` (Report-To, an ARRAY) — both are handled.
+    // `type: 'CSPViolation'` is what makes the entry survive writeErrorLog's
+    // drop guard (finding 11).
+    const cspReportIp = new Map()
+    const cspCors = (req, res) => {
+      // Only our own origins; a report endpoint is not a general relay.
+      const origin = req.headers.origin
+      const ALLOWED = ['https://kscw.ch', 'https://www.kscw.ch', 'https://wiedisync.kscw.ch',
+        'https://spielplanung.wiedisync.kscw.ch', 'https://wiedisync.pages.dev']
+      if (origin && ALLOWED.includes(origin)) {
+        res.set('Access-Control-Allow-Origin', origin)
+        res.set('Access-Control-Allow-Headers', 'content-type')
+        res.set('Access-Control-Max-Age', '86400')
+      }
+    }
+    router.options('/csp-report', (req, res) => { cspCors(req, res); res.status(204).end() })
+    router.post('/csp-report', (req, res) => {
+      try {
+        cspCors(req, res)
+        // Always 204: a browser must never retry or surface a reporting failure.
+        const ip = clientIp(req)
+        const now = Date.now()
+        const entry = cspReportIp.get(ip)
+        if (entry && now < entry.resetAt) {
+          // A misconfigured directive can fire on every page-load, so the cap is
+          // tighter than /client-error's and silently drops the excess.
+          if (entry.count >= 20) return res.status(204).end()
+          entry.count++
+        } else {
+          cspReportIp.set(ip, { count: 1, resetAt: now + 60000 })
+        }
+        if (cspReportIp.size > 1000) {
+          for (const [k, v] of cspReportIp) if (now > v.resetAt) cspReportIp.delete(k)
+        }
+
+        const body = req.body
+        const reports = Array.isArray(body)
+          ? body.map((r) => r?.body ?? r)              // Report-To / reports+json
+          : [body?.['csp-report'] ?? body]             // report-uri / csp-report
+        for (const r of reports.slice(0, 5)) {
+          if (!r || typeof r !== 'object') continue
+          const directive = str(r['effective-directive'] || r.effectiveDirective || r['violated-directive'] || r.violatedDirective, 100)
+          const blocked = redactTokens(str(r['blocked-uri'] || r.blockedURL, 300))
+          const docUri = redactTokens(str(r['document-uri'] || r.documentURL, 300))
+          writeErrorLog({
+            level: 'warn',
+            source: 'frontend',
+            project: str(req.query?.project, 100) || 'wiedisync',
+            event: 'csp_violation',
+            type: 'CSPViolation',
+            error: `CSP ${directive || 'violation'} blocked ${blocked || '(unknown)'}`,
+            endpoint: directive,
+            page: docUri,
+            userAgent: str(req.headers['user-agent'], 300),
+            payload: capPayload({
+              directive,
+              blocked,
+              source_file: redactTokens(str(r['source-file'] || r.sourceFile, 300)),
+              line: Number.isFinite(Number(r['line-number'] ?? r.lineNumber)) ? Number(r['line-number'] ?? r.lineNumber) : null,
+              disposition: str(r.disposition, 20),
+            }),
+          })
+        }
+        return res.status(204).end()
+      } catch {
+        return res.status(204).end()
+      }
+    })
+
     router.post('/client-error', (req, res) => {
       try {
         // Rate limit: 30 errors per minute per IP

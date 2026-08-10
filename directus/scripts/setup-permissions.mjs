@@ -709,6 +709,19 @@ const MEMBER_EDITABLE_FIELDS = [
  */
 const MEMBER_DERIVED_READ_FIELDS = [
   'nationalitaet',
+  // Own-READ only. Migration 030 once hand-patched this onto the Member row; a
+  // later clearPolicyPermissions wiped it and the declarative script never
+  // re-added it, so 209 of 211 active members with a login have a fee category
+  // and not one of them could see it — their profile rendered "—" while
+  // migration 270's verification campaign asked them to CONFIRM that value
+  // ("Greyed-out fields such as your fee category … can only be changed by the
+  // club"). Audit 2026-08-08, finding 39.
+  //
+  // ⚠ Here and NOT in MEMBER_VISIBLE_FIELDS: that list is club-wide readable,
+  // and one member's fee category is not another member's business. It is also
+  // deliberately not in MEMBER_EDITABLE_FIELDS — the member is the subject of
+  // this fact, not its author.
+  'beitragskategorie',
 ]
 
 /**
@@ -1976,9 +1989,14 @@ async function main() {
       },
     },
   }
+  // ⚠ This list ALSO spreads MEMBER_DERIVED_READ_FIELDS, so anything added there
+  // for own-read reaches every coach/TR for their team's members unless excluded
+  // here. `beitragskategorie` is own-read only (finding 39): what a player pays
+  // is between them and the club, not something their coach needs — the same
+  // reasoning that already strips ahv_nummer and iban from this list.
   const LEADER_TEAM_MEMBER_FIELDS = [
     ...new Set([...MEMBER_VISIBLE_FIELDS, ...MEMBER_EDITABLE_FIELDS, ...MEMBER_DERIVED_READ_FIELDS]),
-  ].filter(f => f !== 'ahv_nummer' && f !== 'iban')
+  ].filter(f => f !== 'ahv_nummer' && f !== 'iban' && f !== 'beitragskategorie')
   await setPermRead(LEADER_POLICY, 'members', COACH_TEAM_MEMBERS, LEADER_TEAM_MEMBER_FIELDS)
   // Members — update position + number (migration 036 scoped to my-team members).
   // `coach_approved_team` added 2026-05-19: migration 036 narrowed this list to
