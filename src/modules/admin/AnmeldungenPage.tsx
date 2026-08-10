@@ -21,6 +21,7 @@ import {
 } from '../../utils/countries'
 import CountryMultiSelect from '../../components/CountryMultiSelect'
 import SearchableSelect from '../../components/ui/SearchableSelect'
+import DatePicker from '../../components/ui/DatePicker'
 import { toast } from 'sonner'
 import { useConfirm } from '../../components/ConfirmProvider'
 import {
@@ -916,22 +917,42 @@ function ExpandedDetails({
     const raw = (reg[key] as string) ?? ''
     const original = opts?.display ? opts.display(raw) : raw
     const value = edits[key] ?? original
+
+    const commit = (v: string) => {
+      if (v === original) {
+        const next = { ...edits }
+        delete next[key]
+        setEdits(next)
+      } else {
+        setEdits({ ...edits, [key]: v })
+      }
+    }
+
+    // ⚠ NEVER a native `<input type="date">` here. The value it carries is ISO,
+    // but the value it DRAWS is the browser's locale — so an English-language
+    // browser rendered the applicant's birthdate as `05/10/2026`, which is not
+    // just un-Swiss, it is unreadable: 05.10 and 10.05 are both real dates and
+    // nothing on screen says which one you are looking at. No attribute, and no
+    // CSS, can change that; the only fix is not to use the control. The shared
+    // DatePicker draws dd.mm.yyyy via formatDateZurich and emits the same
+    // `YYYY-MM-DD` string the native input did, so this is a drop-in swap.
+    // `fromYear` matters for a birthdate — the picker's default year list starts
+    // at 1900, which is what makes a 1975 birthday reachable.
+    if (opts?.type === 'date') {
+      return (
+        <div className={opts?.full ? 'sm:col-span-2' : ''}>
+          <DatePicker value={value} onChange={commit} label={label} fromYear={1900} />
+        </div>
+      )
+    }
+
     return (
       <div className={opts?.full ? 'sm:col-span-2' : ''}>
         <label className="mb-0.5 block text-xs font-medium text-gray-500 dark:text-gray-400">{label}</label>
         <input
           type={opts?.type ?? 'text'}
           value={value}
-          onChange={(e) => {
-            const v = e.target.value
-            if (v === original) {
-              const next = { ...edits }
-              delete next[key]
-              setEdits(next)
-            } else {
-              setEdits({ ...edits, [key]: v })
-            }
-          }}
+          onChange={(e) => commit(e.target.value)}
           className="w-full rounded-md border border-gray-200 bg-transparent px-2.5 py-1.5 text-sm text-gray-900 dark:border-gray-600 dark:text-gray-100"
         />
       </div>

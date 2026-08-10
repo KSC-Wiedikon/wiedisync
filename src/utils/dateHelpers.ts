@@ -87,16 +87,14 @@ export function formatDateCompactZurich(input: string | Date | null | undefined,
   }).format(d);
 }
 
-/** Format MM/DD in Europe/Zurich (matches legacy formatDateShort en-US format). */
-export function formatDateShortZurich(input: string | Date | null | undefined): string {
-  if (!input) return '';
-  const d = typeof input === 'string'
-    ? parseFlexible(input)
-    : input;
-  if (Number.isNaN(d.getTime())) return '';
-  const p = formatZurichParts(d);
-  return `${p.month}/${p.day}`;
-}
+/* REMOVED 2026-08-10 — `formatDateShortZurich` returned MM/DD ("06/15").
+ *
+ * It had no caller left in the app and existed only to preserve a legacy en-US
+ * shape, which made it a loaded gun: the next dense-UI date would reasonably
+ * have reached for the helper literally named "short date" and shipped the one
+ * format this codebase forbids. `dd.mm` is `formatDayMonthZurich` below; the
+ * full form is `formatDateZurich`. Day-first, dot-separated, always —
+ * CLAUDE.md → Date & time format. */
 
 /** Format dd.mm in Europe/Zurich — year-less short date for dense UI (ticker pills). */
 export function formatDayMonthZurich(input: string | Date | null | undefined): string {
