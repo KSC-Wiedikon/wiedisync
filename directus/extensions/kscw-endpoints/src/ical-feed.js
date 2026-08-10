@@ -9,6 +9,7 @@
 import { randomBytes } from 'node:crypto'
 import { writeUserLog } from './activity-log.js'
 import { seasonStartDate } from './season.js'
+import { publicEventsQuery } from './public-events.js'
 
 // Frontend app base for the "view roster" deep-link on duty events. Overridable
 // per environment; defaults to prod.
@@ -272,10 +273,13 @@ export function registerICalFeed(router, { database, logger }) {
       if (sources['events']) {
         // coalesce(end_date, start_date), not start_date: a multi-day event that
         // began before the floor but is still running must stay in the feed.
-        const events = await database('events')
+        // Same scope rules as /kscw/public/events — one definition, because this
+        // copy had drifted: it checked the two junctions but not `event_type`,
+        // not `invited_roles`, and not even `cancelled`, so /kscw/ical (which
+        // needs no token) syndicated cancelled and role-targeted events into
+        // every subscribed calendar (audit 2026-08-08, finding 6).
+        const events = await publicEventsQuery(database)
           .whereRaw('coalesce(end_date, start_date) >= ?', [from])
-          .whereNotExists(database('events_teams').select('id').whereRaw('events_teams.events_id = events.id'))
-          .whereNotExists(database('events_members').select('id').whereRaw('events_members.events_id = events.id'))
           .orderBy('start_date')
         for (const ev of events) {
           if (!ev.start_date) continue

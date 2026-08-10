@@ -22,18 +22,63 @@ const PUBLIC_EVENT_FIELDS = [
   'all_day', 'location', 'description', 'signup_url',
 ]
 
+/**
+ * The event types the PUBLIC policy is allowed to read
+ * (`setup-permissions.mjs` → Public `/items/events` read). Keep the two in step:
+ * this endpoint exists to be a server-side equivalent of that policy, so being
+ * WIDER than it defeats the purpose.
+ */
+const PUBLIC_EVENT_TYPES = ['verein', 'tournament']
+
+/**
+ * The single definition of "publicly visible event", used by both
+ * `/kscw/public/events` and the iCal feed — which had drifted into two copies of
+ * two of the three rules.
+ *
+ * Audience has THREE axes, and only two were being checked (audit 2026-08-08,
+ * finding 6):
+ *   1. team scope   — `events_teams`   (was checked)
+ *   2. member scope — `events_members` (was checked)
+ *   3. role scope   — `events.invited_roles`, a plain json COLUMN, not a
+ *      junction. A role-targeted event has zero rows in both junctions, so it
+ *      passed both NOT EXISTS checks and was published.
+ * …plus the `event_type` axis, which the Public policy enforces and this did not,
+ * so `meeting` / `social` / `friendly` / `trainingsweekend` / `other` were all
+ * served anonymously.
+ *
+ * The combination was strictly worse than it sounds: `MEMBER_POLICY`'s
+ * EVENTS_VISIBLE has no `invited_roles` branch, so a leader-created `meeting`
+ * with only role chips was UNREADABLE by an ordinary logged-in member yet served
+ * to anonymous callers with title, location and description — and syndicated into
+ * every subscribed calendar.
+ *
+ * The role predicate is deliberately FAIL-CLOSED: only NULL or an empty array is
+ * public. Anything else — a populated array, a JSON object, a `null` literal, any
+ * future shape — is treated as targeted and withheld. `NOT EXISTS` rather than
+ * `NOT IN` for the junctions, because those `events_id` columns are nullable and
+ * one NULL row makes a `NOT IN` predicate never true, silently emptying the feed
+ * (that outage is why the comment exists).
+ */
+export function publicEventsQuery(database) {
+  return database('events')
+    .whereNotExists(database('events_teams').select('id').whereRaw('events_teams.events_id = events.id'))
+    .whereNotExists(database('events_members').select('id').whereRaw('events_members.events_id = events.id'))
+    .where('cancelled', false)
+    .whereIn('event_type', PUBLIC_EVENT_TYPES)
+    .whereRaw(`(
+      invited_roles IS NULL
+      OR (jsonb_typeof(invited_roles::jsonb) = 'array' AND jsonb_array_length(invited_roles::jsonb) = 0)
+    )`)
+}
+
 export function registerPublicEvents(router, { database, logger }) {
   const log = logger.child({ endpoint: 'public-events' })
 
   router.get('/public/events', async (req, res) => {
     try {
-      // NOT EXISTS, not NOT IN: the junction events_id columns are nullable, and
-      // a single NULL row in a NOT IN subquery makes the predicate never true
-      // (SQL three-valued logic) — silently emptying the whole feed.
-      let q = database('events')
-        .whereNotExists(database('events_teams').select('id').whereRaw('events_teams.events_id = events.id'))
-        .whereNotExists(database('events_members').select('id').whereRaw('events_members.events_id = events.id'))
-        .where('cancelled', false)
+      // Scope rules live in publicEventsQuery — shared with the iCal feed so the
+      // two cannot drift apart again. See its doc comment.
+      let q = publicEventsQuery(database)
         .orderBy('start_date')
         .select(PUBLIC_EVENT_FIELDS)
 

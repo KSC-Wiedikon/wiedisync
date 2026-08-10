@@ -682,7 +682,11 @@ export default {
           guest_level: m.guest_level || 0,
         }))
 
-        const coachesPublic = coaches.map((c) => ({
+        // Minor filter, fail-closed, matching the roster above and the officials
+        // below — coaches were the one mapping that skipped it (finding 5B).
+        // Currently theoretical (prod's youngest coach is 21), which is exactly
+        // why it should be fixed now rather than when it stops being theoretical.
+        const coachesPublic = coaches.filter((c) => !isMinor(c.birthdate)).map((c) => ({
           id: c.id,
           first_name: c.first_name,
           last_name: c.website_name_private ? lastInitial(c.last_name) : c.last_name,
@@ -749,7 +753,47 @@ export default {
           if (bbScorer || bbTimekeeper || bb24s) {
             bbOfficials = { scorer: bbScorer, timekeeper: bbTimekeeper, shot_clock: bb24s }
           }
-          return { ...g, referees, scorer_team: scorerTeamName, scorer_name: scorerName, bb_officials: bbOfficials }
+          // ALLOW-list, never a spread. `games` was returned whole to anonymous
+          // callers, which published seven `*_confirmed_by_name` varchars (full
+          // names, written with NO age gate — the licence-free `scoreboard` duty
+          // is claimable by any duty-team member of any age), `duty_late_json`
+          // ({at, by_name} of whoever reported an official late),
+          // `duty_leader_alert_json`, `respond_by`, `send_email_invite`,
+          // `svrz_push_status`, the `vm_nomination_*` journal and every
+          // `*_duty_team` FK. On a U16 team page `rosterPublic` is [] and
+          // `scorer_name` is suppressed, yet the same JSON carried
+          // `scoreboard_confirmed_by_name: "<first> <last>"` for the 14-year-old
+          // who claimed the duty (audit 2026-08-08, finding 5).
+          //
+          // This list is exactly what `kscw-website/public/js/team-page.js`
+          // reads. A spread means every column added to `games` is published to
+          // anonymous traffic by default; an allow-list means a new column is
+          // private until someone deliberately adds it here.
+          return {
+            id: g.id,
+            game_id: g.game_id,
+            home_team: g.home_team,
+            away_team: g.away_team,
+            date: g.date,
+            time: g.time,
+            league: g.league,
+            round: g.round,
+            season: g.season,
+            type: g.type,
+            status: g.status,
+            home_score: g.home_score,
+            away_score: g.away_score,
+            sets_json: g.sets_json,
+            hall: g.hall,
+            away_hall_json: g.away_hall_json,
+            // Derived above, already age-gated where the source is a member.
+            // NB: raw `referees_json` is deliberately NOT republished — the
+            // derived `referees` is the age-filtered shape.
+            referees,
+            scorer_team: scorerTeamName,
+            scorer_name: scorerName,
+            bb_officials: bbOfficials,
+          }
         }
 
         const upcomingPublic = upcomingGames.map(enrichGame)
