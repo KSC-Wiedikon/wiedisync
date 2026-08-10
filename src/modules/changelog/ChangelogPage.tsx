@@ -26,6 +26,12 @@ const CHANGELOG: ChangelogEntry[] = [
           'For admins: it is editable in two places. The member explorer has it as a dropdown with its own filter — "show me everyone still to be ordered" is one click — and newly approved registrations carry the five states as buttons, right where you are already looking at the new member. Swiss Volley and Basketplan fill in Licenced automatically once they confirm a licence; they never overwrite the steps you set by hand.',
         ],
       },
+      {
+        title: 'Dates are Swiss everywhere',
+        items: [
+          'A birthdate could read 05/10/2026. Date fields you type into — an applicant\'s birthdate on the registrations screen, and the basketball scheduling dates — were drawn by the browser, so anyone whose browser was set to English saw American month-first dates. That is worse than untidy: 05.10 and 10.05 are both real dates and nothing on the screen told you which one you were looking at. Every date field in the app now shows dd.mm.yyyy and opens the club\'s own calendar, whatever language you use it in.',
+        ],
+      },
     ],
   },
   {

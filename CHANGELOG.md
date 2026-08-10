@@ -11,6 +11,11 @@ All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file 
 - **It resets when the season turns over.** A licence is issued for one season, so on 1 June everyone starts again at *No licence* and is moved back up as the federation confirms this season's licences. Last season's green tick can never quietly stand in for this season's.
 - **For admins: it is editable in two places.** The member explorer has it as a dropdown with its own filter — "show me everyone still to be ordered" is one click — and newly approved registrations carry the five states as buttons, right where you are already looking at the new member. Swiss Volley and Basketplan fill in *Licenced* automatically once they confirm a licence; they never overwrite the steps you set by hand.
 
+### Dates are Swiss everywhere
+
+- **A birthdate could read `05/10/2026`.** Date fields you type into — an applicant's birthdate on the registrations screen, and the basketball scheduling dates — were drawn by the browser, so anyone whose browser was set to English saw American month-first dates. That is worse than untidy: 05.10 and 10.05 are both real dates and nothing on the screen told you which one you were looking at. Every date field in the app now shows **dd.mm.yyyy** and opens the club's own calendar, whatever language you use it in.
+
+
 ## v1.75.1 — 2026-08-10
 
 ### Forgot password works again
