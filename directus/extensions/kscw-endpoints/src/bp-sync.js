@@ -91,6 +91,9 @@ function parseGames(teamXml, teamIdSet) {
       scoreHome: scoreHome !== '' ? parseInt(scoreHome, 10) : 0,
       scoreGuest: scoreGuest !== '' ? parseInt(scoreGuest, 10) : 0,
       isHome: teamIdSet[homeTeamId] === true,
+      // An intra-club fixture has BOTH sides in our team set. Recorded here so
+      // the upsert can emit one row per KSCW side (audit 2026-08-08, #34).
+      isGuestOurs: teamIdSet[guestTeamId] === true,
     })
   }
   return games
@@ -192,6 +195,44 @@ export function applyLocalGuards(data, existing) {
   if (data.away_hall_json === undefined) data.away_hall_json = existing.away_hall_json
 }
 
+/**
+ * One intent per `games` row a Basketplan fixture should produce.
+ *
+ * An INTRA-CLUB fixture — both sides in our team set — needs TWO rows, one per
+ * KSCW team, which is what migration 250's partial unique `games (game_id,
+ * kscw_team)` enforces and what sv-sync has always done for volleyball
+ * derbies. bp-sync picked a single `kscwBpId` and wrote one row, so the away
+ * squad silently got nothing: no `games` row, therefore no participations from
+ * `sweepGameAutoConfirm` (it joins `member_teams` on `g.kscw_team`) and no
+ * respond_by reminder (audit 2026-08-08, finding 34).
+ *
+ * Latent when written — all 17 active BB teams sit in distinct Basketplan
+ * groups — but migration 287 seeds both `KSC Wiedikon DU18 A` and `DU18 B` into
+ * DU18/U20 Rookie, and it goes live the moment DU18 B gets a `teams` row (an
+ * explicit TODO in basketballGroups.ts). Fixed ahead of that, because the
+ * failure is silent.
+ *
+ * Both intra-club rows carry OUR hall and no `away_hall_json`: the fixture is
+ * at our venue, so it is nobody's away game.
+ *
+ * Pure, so the one-row-vs-two decision is testable without XML or a database.
+ */
+export function buildGameIntents(g, hallId, awayHallJson) {
+  const intraClub = g.isHome === true && g.isGuestOurs === true
+  if (intraClub) {
+    return [
+      { bpId: g.homeTeamId, type: 'home', hall: hallId, awayHallJson: null },
+      { bpId: g.guestTeamId, type: 'away', hall: hallId, awayHallJson: null },
+    ]
+  }
+  return [{
+    bpId: g.isHome ? g.homeTeamId : g.guestTeamId,
+    type: g.isHome ? 'home' : 'away',
+    hall: hallId,
+    awayHallJson,
+  }]
+}
+
 export async function syncBpGames(db, log) {
   log.info('[BP Sync] Starting games sync...')
 
@@ -248,7 +289,19 @@ export async function syncBpGames(db, log) {
     .select('id', 'game_id', 'date', 'time', 'status', 'home_score', 'away_score',
       'home_team', 'away_team', 'hall', 'away_hall_json', 'league',
       'referees_json', 'respond_by', 'kscw_team')
-  const existingMap = new Map(existingRows.map(r => [r.game_id, r]))
+  // Keyed by game_id → ALL its rows, not one row per id. A fixture where both
+  // sides are ours keeps TWO rows (one per KSCW team), which is what migration
+  // 250's partial unique `games (game_id, kscw_team)` already enforces and what
+  // sv-sync has always done for volleyball derbies. Keying on game_id alone
+  // meant the away squad silently got no row at all — no participations from
+  // sweepGameAutoConfirm (it joins member_teams on g.kscw_team) and no
+  // respond_by reminder (audit 2026-08-08, #34).
+  const existingByGameId = new Map()
+  for (const r of existingRows) {
+    const arr = existingByGameId.get(r.game_id)
+    if (arr) arr.push(r)
+    else existingByGameId.set(r.game_id, [r])
+  }
 
   const COMPARE_FIELDS = [
     'date', 'time', 'status', 'home_score', 'away_score',
@@ -262,9 +315,6 @@ export async function syncBpGames(db, log) {
 
   for (const g of allGames) {
     const gameId = `bb_${g.gameNumber}`
-    const kscwBpId = g.isHome ? g.homeTeamId : g.guestTeamId
-    const pbTeam = bpToPb[kscwBpId]
-    if (!pbTeam) { errors++; continue }
     if (!g.date?.trim()) { log.warn(`[BP Sync] Game ${gameId}: missing date, skipping`); errors++; continue }
     const awayTeam = (!g.guestTeam?.trim() || g.guestTeam.trim() === '?') ? 'Opponent TBD' : g.guestTeam
 
@@ -277,12 +327,30 @@ export async function syncBpGames(db, log) {
       awayHallJson = { name: g.location, address: g.locationAddress, city: g.locationCity }
     }
 
+    const intents = buildGameIntents(g, hallId, awayHallJson)
+
+    // Pair existing rows to intents, mirroring sv-sync: same kscw_team first,
+    // then same type, then any leftover. The fallbacks let a row that a
+    // pre-fix sync collapsed onto the wrong team be re-adopted rather than
+    // duplicated, and survive a season rollover re-pointing kscw_team.
+    const pool = [...(existingByGameId.get(gameId) || [])]
+    const takeRow = (pred) => {
+      const i = pool.findIndex(pred)
+      return i === -1 ? null : pool.splice(i, 1)[0]
+    }
+
+    for (const intent of intents) {
+    const pbTeam = bpToPb[intent.bpId]
+    if (!pbTeam) { errors++; continue }
+    hallId = intent.hall
+    awayHallJson = intent.awayHallJson
+
     const data = {
       game_id: gameId, source: 'basketplan',
       kscw_team: pbTeam.id,
       home_team: g.homeTeam, away_team: awayTeam,
       date: g.date, time: g.time || '00:00',
-      type: g.isHome ? 'home' : 'away',
+      type: intent.type,
       status: STATUS_MAP[g.status] || 'scheduled',
       home_score: g.scoreHome, away_score: g.scoreGuest,
       league: g.league, season: normalizeSeason(g.season),
@@ -292,7 +360,10 @@ export async function syncBpGames(db, log) {
     if (awayHallJson) data.away_hall_json = JSON.stringify(awayHallJson)
 
     try {
-      const existing = existingMap.get(gameId)
+      const existing =
+        takeRow((r) => String(r.kscw_team ?? '') === String(pbTeam.id)) ||
+        takeRow((r) => String(r.type || '') === intent.type) ||
+        takeRow(() => true)
       if (existing) {
         // Fields the app owns (local cancel, hand-set halls) — must run
         // before the change comparison below.
@@ -323,6 +394,7 @@ export async function syncBpGames(db, log) {
     } catch (e) {
       errors++
       log.warn(`[BP Sync] Game ${gameId}: ${e.message}`)
+    }
     }
   }
 
