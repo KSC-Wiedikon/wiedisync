@@ -46,7 +46,7 @@
     "db:baseline:dev": "node directus/scripts/regenerate-baseline.mjs dev",
     "db:baseline:prod": "node directus/scripts/regenerate-baseline.mjs prod",
     "db:fresh-install:dev": "cat directus/scripts/SCHEMA.sql | ssh hetzner 'sudo docker exec -i kscw-postgres psql -U supabase_admin -d directus_kscw_dev -X -v ON_ERROR_STOP=1' && npm run db:migrate:dev && npm run db:setup-perms:dev && npm run db:smoke:dev",
-    "db:fresh-install:prod": "cat directus/scripts/SCHEMA.sql | ssh hetzner 'sudo docker exec -i kscw-postgres psql -U supabase_admin -d postgres -X -v ON_ERROR_STOP=1' && npm run db:migrate:prod && npm run db:setup-perms:prod && npm run db:smoke:prod",
+    "db:fresh-install:PROD-DANGER": "cat directus/scripts/SCHEMA.sql | ssh hetzner 'sudo docker exec -i kscw-postgres psql -U supabase_admin -d postgres -X -v ON_ERROR_STOP=1' && npm run db:migrate:prod && npm run db:setup-perms:prod && npm run db:smoke:prod",
     "db:clubdesk:export": "node directus/scripts/clubdesk-scrape-export.mjs",
     "db:clubdesk:import:dev": "node directus/scripts/import-clubdesk-csv.mjs dev",
     "db:clubdesk:import:prod": "node directus/scripts/import-clubdesk-csv.mjs prod",
