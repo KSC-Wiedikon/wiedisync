@@ -37,6 +37,7 @@ import { registerBasketballPortal } from './basketball-portal.js'
 import { registerSchedulingMailbox } from './scheduling-mailbox.js'
 import { registerSesNotify } from './ses-notify.js'
 import { registerContactForm } from './contact-form.js'
+import { registerVolleyFeedback } from './volley-feedback.js'
 import { registerWebPush, sendPushToMember, sendPushToMembers } from './web-push.js'
 import { FRONTEND_URL } from './email-template.js'
 import { sendLocalizedPush, tPush, memberLangToCode } from './push-i18n.js'
@@ -2713,6 +2714,7 @@ export default {
     registerSchedulingMailbox(router, ctx)
     registerSesNotify(router, ctx)
     registerContactForm(router, ctx)
+    registerVolleyFeedback(router, ctx)
     registerWebPush(router, ctx)
     registerStats(router, ctx)
     registerRegistration(router, ctx)
