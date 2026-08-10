@@ -164,6 +164,15 @@ export default {
   noAccountFound: 'Aucun compte trouvé avec cette adresse e-mail.',
   noAccountFoundHint: 'Si vous êtes déjà membre, essayez l\'adresse que le club a enregistrée pour vous — elle peut être différente de celle-ci. Sinon, créez un compte.',
 
+  // Emailed reset link (the flow that works once an account has a password)
+  resetLinkDescription: 'Saisissez votre adresse e-mail et nous vous enverrons un lien pour choisir un nouveau mot de passe.',
+  resetLinkButton: 'Envoyer le lien',
+  resetLinkSending: 'Envoi du lien...',
+  resetLinkSentTitle: 'Consultez vos e-mails',
+  resetLinkSentInfo: 'Si un compte existe pour {{email}}, nous avons envoyé un lien pour choisir un nouveau mot de passe. Le lien est valable une heure.',
+  resetLinkFailed: 'Le lien n\'a pas pu être envoyé. Veuillez réessayer.',
+  resetUseCodeInstead: 'Jamais défini de mot de passe ? Utilisez plutôt un code',
+
   // OTP verification
   otpSentTo: 'Code envoyé à {{email}}',
   otpResendIn: 'Renvoyer dans {{seconds}}s',

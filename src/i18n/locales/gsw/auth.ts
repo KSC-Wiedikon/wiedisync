@@ -166,6 +166,15 @@ export default {
   noAccountFound: 'Käs Konto mit dere E-Mail-Adress gfunde.',
   noAccountFoundHint: 'Wänn du scho Mitglied bisch, probier d Adress, wo de Club vo dir hinterleit hät — die cha andersch sii als die da. Susch erstell es Konto.',
 
+  // Emailed reset link (the flow that works once an account has a password)
+  resetLinkDescription: 'Gib dini E-Mail-Adress ii und mir schicked dir en Link, zum es nöis Passwort uswähle.',
+  resetLinkButton: 'Link schicke',
+  resetLinkSending: 'Link wird gschickt...',
+  resetLinkSentTitle: 'Lueg i dini E-Mails',
+  resetLinkSentInfo: 'Wänn für {{email}} es Konto existiert, händ mir en Link zum es nöis Passwort setze gschickt. De Link isch ei Stund gültig.',
+  resetLinkFailed: 'De Link het nöd chöne gschickt werde. Bitte probier s nomal.',
+  resetUseCodeInstead: 'No nie es Passwort gsetzt? Nimm stattdesse en Code',
+
   // OTP verification
   otpSentTo: 'Code gschickt an {{email}}',
   otpResendIn: 'Nochmal schicke in {{seconds}}s',

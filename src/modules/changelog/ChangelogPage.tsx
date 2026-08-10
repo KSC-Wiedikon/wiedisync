@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '1.75.0'
+const APP_VERSION = '1.75.1'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,19 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.75.1',
+    date: '10.08.2026',
+    sections: [
+      {
+        title: 'Forgot password works again',
+        items: [
+          '"Forgot password" could not reset a password. It sent you an 8-digit code, took the code, asked for a new password — and then said the link was invalid or expired. There was no link and nothing had expired: the code path is only able to set a first password, so for anyone who already had one it refused at the last step, and the message named the wrong cause. People read it as a broken email and requested code after code. Forgot password now emails you a reset link instead, which works whether or not you have a password already. If you have never set one, "Use a code instead" is one click below.',
+          'The "Reset password" button on your own profile said it had failed. It reported an error every time even though the email had already been sent — so the mail arrived while the screen said it had not.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.75.0',
     date: '10.08.2026',

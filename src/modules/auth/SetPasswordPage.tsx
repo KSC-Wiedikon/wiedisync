@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, type FormEvent } from 'react'
+import { useState, type FormEvent } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useTheme } from '../../hooks/useTheme'
@@ -10,7 +10,7 @@ import { OtpInput } from '@/components/OtpInput'
 import { LANGUAGES } from '@/i18n/languageConfig'
 import { PASSWORD_MIN_LENGTH, checkPassword, passwordErrorKeyFromCode, passwordIssueKey } from '@/lib/passwordRules'
 
-type Phase = 'email' | 'otp' | 'set-password' | 'success'
+type Phase = 'request-link' | 'link-sent' | 'email' | 'otp' | 'set-password' | 'success'
 
 export default function SetPasswordPage() {
   const { t, i18n } = useTranslation('auth')
@@ -25,33 +25,41 @@ export default function SetPasswordPage() {
   // the password step and let the token stand in for the OTP.
   const resetToken = searchParams.get('token') ?? ''
 
-  // Token → password form directly; email → OTP; otherwise ask for the email.
-  const [phase, setPhase] = useState<Phase>(
-    resetToken ? 'set-password' : initialEmail ? 'otp' : 'email',
-  )
+  // Token → password form directly. Everyone else starts on the emailed-link
+  // request, which is the only reset that works for an account that already has
+  // a password: the OTP path below lands on /set-password mode 3, and mode 3 is
+  // initial-password-only — it refuses with `password_already_set` (the
+  // Sport-Admin-OTP-takeover fix, 2026-08-08). Until 2026-08-10 "Forgot
+  // password" pointed straight at that dead end and the 400 surfaced as "link
+  // invalid or expired", so members re-requested codes in a loop. The OTP flow
+  // stays reachable one click down for members who never set a password at all.
+  const [phase, setPhase] = useState<Phase>(resetToken ? 'set-password' : 'request-link')
   const [email, setEmail] = useState(initialEmail)
   const [password, setPassword] = useState('')
   const [passwordConfirm, setPasswordConfirm] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [noAccount, setNoAccount] = useState(false)
   const [loading, setLoading] = useState(false)
-  const autoSentRef = useRef(false)
   const { widget: turnstileWidget, getToken: getTurnstileToken, ready: turnstileReady } = useTurnstile()
 
-  // Auto-send OTP when starting on otp phase with pre-filled email. A reset
-  // token is its own proof of address — don't also mail a code.
-  //
-  // Gated on `turnstileReady` rather than firing on mount: /verify-email is
-  // captcha-protected (audit finding 12), and on mount the widget has not solved
-  // yet — sending then would ask for a token that does not exist and 400 before
-  // the user has done anything. The ref still guarantees exactly one send.
-  useEffect(() => {
-    if (initialEmail && !resetToken && turnstileReady && !autoSentRef.current) {
-      autoSentRef.current = true
-      handleSendOtp()
+  // Mail a single-use reset link (/kscw/set-password mode 2). Always 204s, so a
+  // wrong address is indistinguishable from a right one — the confirmation copy
+  // is worded "if an account exists" to match, and there is nothing to reveal by
+  // advancing the phase unconditionally.
+  async function handleRequestLink(e?: FormEvent) {
+    e?.preventDefault()
+    if (!email.trim()) return
+    setError(null)
+    setLoading(true)
+    try {
+      await kscwApi('/password-request', { method: 'POST', body: { email: email.trim().toLowerCase() } })
+      setPhase('link-sent')
+    } catch {
+      setError(t('resetLinkFailed'))
+    } finally {
+      setLoading(false)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [turnstileReady])
+  }
 
   async function handleSendOtp(e?: FormEvent) {
     e?.preventDefault()
@@ -133,6 +141,15 @@ export default function SetPasswordPage() {
       } else if (code === 'no_account') {
         setNoAccount(true)
         setError(t('noAccountFound'))
+      } else if (code === 'password_already_set') {
+        // The OTP path only ever sets an INITIAL password. Someone who already
+        // has one belongs in the emailed-link flow — send it for them rather
+        // than bouncing them back to the start with a message about codes.
+        setNoAccount(false)
+        try {
+          await kscwApi('/password-request', { method: 'POST', body: { email: email.trim().toLowerCase() } })
+        } catch { /* 204-only endpoint; the copy below is true either way */ }
+        setPhase('link-sent')
       } else {
         setNoAccount(false)
         setError(t('resetError'))
@@ -143,6 +160,8 @@ export default function SetPasswordPage() {
   }
 
   const phaseTitle = {
+    'request-link': t('resetPasswordOtp'),
+    'link-sent': t('resetLinkSentTitle'),
     email: t('resetPasswordOtp'),
     otp: t('resetPasswordOtp'),
     'set-password': t('resetPasswordOtp'),
@@ -150,6 +169,8 @@ export default function SetPasswordPage() {
   }
 
   const phaseDescription = {
+    'request-link': t('resetLinkDescription'),
+    'link-sent': '',
     email: t('resetPasswordOtpEmailDescription'),
     otp: t('resetPasswordOtpDescription'),
     'set-password': t('resetPasswordOtpSetDescription'),
@@ -180,9 +201,58 @@ export default function SetPasswordPage() {
               <h1 className="text-center text-xl font-bold text-gray-900 dark:text-gray-100">
                 {phaseTitle[phase]}
               </h1>
-              <p className="mt-1 mb-5 text-center text-sm text-gray-500 dark:text-gray-400">
-                {phaseDescription[phase]}
-              </p>
+              {phaseDescription[phase] && (
+                <p className="mt-1 mb-5 text-center text-sm text-gray-500 dark:text-gray-400">
+                  {phaseDescription[phase]}
+                </p>
+              )}
+
+              {phase === 'request-link' && (
+                <form onSubmit={handleRequestLink} className="space-y-4">
+                  <FormInput
+                    type="email"
+                    label={t('email')}
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    autoComplete="email"
+                    placeholder={t('emailPlaceholder')}
+                    autoFocus
+                  />
+
+                  {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+
+                  <Button type="submit" loading={loading} className="w-full">
+                    {loading ? t('resetLinkSending') : t('resetLinkButton')}
+                  </Button>
+
+                  {/* Members who have an account but never chose a password get
+                      no useful link — mode 2 would mail one, but the OTP path
+                      is the flow they were told about. Keep it one click away. */}
+                  <button
+                    type="button"
+                    onClick={() => { setError(null); setPhase('email') }}
+                    className="block min-h-[44px] w-full text-center text-sm text-brand-600 hover:text-brand-500 dark:text-brand-400"
+                  >
+                    {t('resetUseCodeInstead')}
+                  </button>
+                </form>
+              )}
+
+              {phase === 'link-sent' && (
+                <div className="space-y-4 text-center">
+                  <p className="text-sm text-gray-600 dark:text-gray-300">
+                    {t('resetLinkSentInfo', { email: email.trim().toLowerCase() })}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => { setError(null); setPhase('email') }}
+                    className="block min-h-[44px] w-full text-center text-sm text-brand-600 hover:text-brand-500 dark:text-brand-400"
+                  >
+                    {t('resetUseCodeInstead')}
+                  </button>
+                </div>
+              )}
 
               {phase === 'email' && (
                 <form onSubmit={handleSendOtp} className="space-y-4">
