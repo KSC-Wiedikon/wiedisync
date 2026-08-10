@@ -88,17 +88,23 @@ COMMENT ON COLUMN public.members.fee_discount_reason IS
 -- app reads them through the items API alongside every other members column.
 -- Notes carry the "empty = derived" rule, because a blank numeric field is
 -- otherwise indistinguishable from a deliberate zero.
+-- ⚠ `directus_fields.options` is `json`, and a bare NULL inside a VALUES list
+-- types as text — which fails the INSERT with "column options is of type json
+-- but expression is of type text". It is therefore supplied as an explicit
+-- NULL::json in the SELECT rather than as a column of the VALUES list.
 INSERT INTO directus_fields (collection, field, interface, options, readonly, hidden, sort, width, "group", note)
-SELECT * FROM (VALUES
-  ('members', 'fee_base_override', 'input', NULL, false, false, 60, 'half', 'grp_billing',
+SELECT v.collection, v.field, v.interface, NULL::json,
+       v.readonly, v.hidden, v.sort, v.width, v."group", v.note
+FROM (VALUES
+  ('members', 'fee_base_override', 'input', false, false, 60, 'half', 'grp_billing',
    'Mitgliederbeitrag base in CHF for this member only. Leave EMPTY to use the season rate for their fee category — that is the normal case. A value here overrides both the rate schedule and the category map.'),
-  ('members', 'fee_surcharge_override', 'input', NULL, false, false, 61, 'half', 'grp_billing',
+  ('members', 'fee_surcharge_override', 'input', false, false, 61, 'half', 'grp_billing',
    'No-Schreiberlizenz surcharge in CHF for this member only. Leave EMPTY to apply the rule (CHF 100 when they owe table duty and hold no licence). Enter 0 to waive it.'),
-  ('members', 'fee_discount', 'input', NULL, false, false, 62, 'half', 'grp_billing',
+  ('members', 'fee_discount', 'input', false, false, 62, 'half', 'grp_billing',
    'Standing reduction in CHF taken off this member''s dues. Capped at what is owed — it can reach 0, never below.'),
-  ('members', 'fee_discount_reason', 'input', NULL, false, false, 63, 'half', 'grp_billing',
+  ('members', 'fee_discount_reason', 'input', false, false, 63, 'half', 'grp_billing',
    'Credit-line label printed on the invoice for the discount above. Empty = "Rabatt".')
-) AS v(collection, field, interface, options, readonly, hidden, sort, width, "group", note)
+) AS v(collection, field, interface, readonly, hidden, sort, width, "group", note)
 WHERE NOT EXISTS (
   SELECT 1 FROM directus_fields df WHERE df.collection = v.collection AND df.field = v.field
 );
