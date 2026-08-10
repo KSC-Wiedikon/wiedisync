@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-08-10T10:35:20.881Z
+-- Generated:   2026-08-10T12:46:49.829Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -23,7 +23,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict gMTtbdUQOBROniF9dgj2I53jabTTy0uQvVKN7ezSb6xk5hFeDIZSg30yO9N6CMJ
+\restrict 6YRKkyFxcJ7e7ACVm9ezXWg6gvR3hCPU9tfY5EEa31bkA4E3keyU92pcuYyVCDs
 
 -- Dumped from database version 16.14 (Debian 16.14-1.pgdg13+1)
 -- Dumped by pg_dump version 16.14 (Debian 16.14-1.pgdg13+1)
@@ -722,6 +722,26 @@ $$;
 --
 
 COMMENT ON FUNCTION public.kscw_compute_fine_amount(p_member integer, p_team integer, p_category text) IS 'Escalation engine. Counts prior non-waived fines in the rule''s reset window, then picks the matching tier: exact offense first, then highest offense_min ≤ N, then last tier as fallback. Returns no rows if no enabled rule or empty tiers — caller must handle.';
+
+
+--
+-- Name: kscw_current_season_label(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.kscw_current_season_label() RETURNS text
+    LANGUAGE sql STABLE
+    AS $$
+  SELECT EXTRACT(YEAR FROM public.kscw_current_season_start())::int::text
+      || '/'
+      || lpad(((EXTRACT(YEAR FROM public.kscw_current_season_start())::int + 1) % 100)::text, 2, '0');
+$$;
+
+
+--
+-- Name: FUNCTION kscw_current_season_label(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.kscw_current_season_label() IS 'Current season in Wiedisync short form ("2026/27"). Mirrors currentSeasonShort() in src/utils/season.ts and kscw-endpoints/src/season.js; derived from kscw_current_season_start() so the Jun-1 cutover is defined in exactly one place.';
 
 
 --
@@ -6641,10 +6661,16 @@ CREATE TABLE public.members (
     fee_discount_reason character varying(120),
     fee_surcharge_override boolean,
     fee_discount_pct numeric(5,2),
+    licence_status character varying(20) DEFAULT 'none'::character varying NOT NULL,
+    licence_status_season character varying(9),
+    licence_status_updated_at timestamp with time zone,
+    licence_status_by_name character varying(120),
     CONSTRAINT members_federation_of_origin_fmt CHECK (((federation_of_origin IS NULL) OR ((federation_of_origin)::text = 'NONE'::text) OR ((federation_of_origin)::text ~ '^[A-Z]{2}$'::text))),
     CONSTRAINT members_fee_discount_one_unit CHECK (((fee_discount IS NULL) OR (fee_discount_pct IS NULL))),
     CONSTRAINT members_fee_discount_reason_nonblank CHECK (((fee_discount_reason IS NULL) OR (btrim((fee_discount_reason)::text) <> ''::text))),
     CONSTRAINT members_fee_override_range CHECK ((((fee_base_override IS NULL) OR ((fee_base_override >= (0)::numeric) AND (fee_base_override <= (10000)::numeric))) AND ((fee_discount IS NULL) OR ((fee_discount >= (0)::numeric) AND (fee_discount <= (10000)::numeric))) AND ((fee_discount_pct IS NULL) OR ((fee_discount_pct >= (0)::numeric) AND (fee_discount_pct <= (100)::numeric))))),
+    CONSTRAINT members_licence_status_season_shape CHECK (((licence_status_season IS NULL) OR ((licence_status_season)::text ~ '^[0-9]{4}/[0-9]{2}$'::text))),
+    CONSTRAINT members_licence_status_values CHECK (((licence_status)::text = ANY ((ARRAY['none'::character varying, 'to_be_ordered'::character varying, 'ordered'::character varying, 'finalized'::character varying, 'licenced'::character varying])::text[]))),
     CONSTRAINT members_license_nr_fmt CHECK (((license_nr IS NULL) OR (((license_nr)::text ~ '^[0-9]+$'::text) AND ((license_nr)::text <> '0'::text)))),
     CONSTRAINT members_nationalitaet_codes_fmt CHECK (((nationalitaet_codes IS NULL) OR ((nationalitaet_codes)::text ~ '^[A-Z]{2}(,[A-Z]{2})*$'::text))),
     CONSTRAINT members_role_values_valid CHECK ((role <@ '["user", "admin", "superuser", "vb_admin", "bb_admin", "vorstand", "website_admin", "finance"]'::jsonb)),
@@ -7092,6 +7118,34 @@ COMMENT ON COLUMN public.members.fee_surcharge_override IS 'Does this member owe
 --
 
 COMMENT ON COLUMN public.members.fee_discount_pct IS 'Standing per-member reduction as a PERCENTAGE (0-100) of what is owed after base + surcharge - guest reduction. Mutually exclusive with fee_discount (CHF) — the CHECK members_fee_discount_one_unit enforces it. Percent rather than the CHF it equals today, so a season rate change carries the intent instead of freezing yesterday''s number. A per-RUN discount passed to /finance/dues-runs/* still wins over both.';
+
+
+--
+-- Name: COLUMN members.licence_status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.licence_status IS 'Club licence-ordering workflow for the season in licence_status_season: none | to_be_ordered | ordered | finalized | licenced. The first four are set by hand (Data Explorer, /admin/anmeldungen); "licenced" is asserted ONLY by POST /kscw/admin/licence-status/sync from Swiss Volley (licence_activated AND licence_validated) or Basketplan (a licence row scraped this season). The sweep promotes only — it never demotes; the season rollover is the one thing that resets a status.';
+
+
+--
+-- Name: COLUMN members.licence_status_season; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.licence_status_season IS 'The season licence_status describes, Wiedisync short form ("2026/27"). A stamp that no longer equals kscw_current_season_label() means the status is last season''s and the sweep resets it to none. NULL = never stamped, treated the same way.';
+
+
+--
+-- Name: COLUMN members.licence_status_updated_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.licence_status_updated_at IS 'When licence_status last changed. Stamped by the members.items.update hook for hand edits and by the sweep for machine promotions — never written by the member.';
+
+
+--
+-- Name: COLUMN members.licence_status_by_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.licence_status_by_name IS 'Display name of whoever last changed licence_status, or the machine that did ("Swiss Volley sync" / "Basketplan sync" / "Season rollover"). Raw-knex and psql writes bypass the Directus revision trail, so the actor is recorded on the row itself — same pattern as transfer_done_by_name (migration 234).';
 
 
 --
@@ -12553,6 +12607,13 @@ CREATE INDEX idx_identity_document_keys_recipient ON public.identity_document_ke
 
 
 --
+-- Name: idx_members_licence_status; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_members_licence_status ON public.members USING btree (licence_status);
+
+
+--
 -- Name: idx_messages_conv_created; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -15568,5 +15629,5 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict gMTtbdUQOBROniF9dgj2I53jabTTy0uQvVKN7ezSb6xk5hFeDIZSg30yO9N6CMJ
+\unrestrict 6YRKkyFxcJ7e7ACVm9ezXWg6gvR3hCPU9tfY5EEa31bkA4E3keyU92pcuYyVCDs
 
