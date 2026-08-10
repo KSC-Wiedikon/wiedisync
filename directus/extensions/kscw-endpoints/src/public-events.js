@@ -58,17 +58,22 @@ const PUBLIC_EVENT_TYPES = ['verein', 'tournament']
  * `NOT IN` for the junctions, because those `events_id` columns are nullable and
  * one NULL row makes a `NOT IN` predicate never true, silently emptying the feed
  * (that outage is why the comment exists).
+ *
+ * ⚠ `cancelled` is deliberately NOT part of this scope, because the two consumers
+ * genuinely disagree and both are right: `/kscw/public/events` EXCLUDES cancelled
+ * events (kscw.ch must stop advertising them), while the iCal feed EMITS them
+ * with `STATUS:CANCELLED` (that is how a subscriber's calendar learns to clear
+ * the entry — dropping the row instead leaves it sitting in their calendar
+ * forever). Each caller applies its own rule; folding it in here would have
+ * silently broken iCal cancellations, which is exactly what ical-feed.test.js
+ * caught.
  */
-export function publicEventsQuery(database) {
+export function publicEventsScope(database) {
   return database('events')
     .whereNotExists(database('events_teams').select('id').whereRaw('events_teams.events_id = events.id'))
     .whereNotExists(database('events_members').select('id').whereRaw('events_members.events_id = events.id'))
-    .where('cancelled', false)
     .whereIn('event_type', PUBLIC_EVENT_TYPES)
-    .whereRaw(`(
-      invited_roles IS NULL
-      OR (jsonb_typeof(invited_roles::jsonb) = 'array' AND jsonb_array_length(invited_roles::jsonb) = 0)
-    )`)
+    .whereRaw(`(invited_roles IS NULL OR (jsonb_typeof(invited_roles::jsonb) = 'array' AND jsonb_array_length(invited_roles::jsonb) = 0))`)
 }
 
 export function registerPublicEvents(router, { database, logger }) {
@@ -78,7 +83,10 @@ export function registerPublicEvents(router, { database, logger }) {
     try {
       // Scope rules live in publicEventsQuery — shared with the iCal feed so the
       // two cannot drift apart again. See its doc comment.
-      let q = publicEventsQuery(database)
+      let q = publicEventsScope(database)
+        // kscw.ch must stop advertising a cancelled event. (The iCal feed does
+        // the opposite on purpose — see publicEventsScope.)
+        .where('cancelled', false)
         .orderBy('start_date')
         .select(PUBLIC_EVENT_FIELDS)
 

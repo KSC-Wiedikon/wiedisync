@@ -29,7 +29,7 @@ import { buildEmailLayout, buildInfoCard, buildAlertBox, FRONTEND_URL } from './
 import { renderInvoiceQrBillPdf } from './finance-qrbill.js'
 // A proper Swiss Rechnung (addressee, positions, total) rather than a bare
 // payment slip — see finance-invoice-pdf.js.
-import { renderInvoicePdf } from './finance-invoice-pdf.js'
+import { renderInvoicePdf, INVOICE_PDF_COLUMNS } from './finance-invoice-pdf.js'
 import { recomputeInvoice, deriveSettlement } from './finance-recompute.js'
 import { autopostInvoiceSafe, autopostTeamEntrySafe, autopostDuesRunSafe, removeAutopostForPaymentSafe, removeAutopostForTeamEntrySafe, FISCAL_YEAR_LOCK_NS } from './finance-autopost.js'
 // The club fee model, shared with the ClubDesk push so the two never disagree.
@@ -1111,7 +1111,10 @@ export function registerFinance(router, { database, logger, services, getSchema 
       if (!run) return res.status(404).json({ error: 'Not found' })
       const invoices = await database('finance_invoices')
         .where('dues_run', id).whereNot('status', 'cancelled').orderBy('id')
-        .select('id', 'number', 'recipient_name', 'subject', 'amount', 'open_amount', 'status', 'reference', 'reference_type')
+        // Same columns as the send loop below, so what the reviewer checks in
+        // the dues-run table is what the PDF will actually contain.
+        .select('id', 'number', 'recipient_name', 'subject', 'amount', 'open_amount', 'status', 'reference', 'reference_type',
+          'invoice_date', 'due_date', 'recipient_address', 'recipient_zip', 'recipient_city')
       return res.json({ run, invoices })
     } catch (e) { return err(res, req, 'dues-run-invoices', e) }
   })
@@ -1165,7 +1168,18 @@ export function registerFinance(router, { database, logger, services, getSchema 
 
       const invoices = await database('finance_invoices')
         .where('dues_run', id).whereNot('status', 'cancelled')
-        .select('id', 'number', 'recipient_name', 'recipient_email', 'subject', 'amount', 'open_amount', 'reference', 'reference_type', 'email_sent_at')
+        // ⚠ This row is spread straight into renderInvoicePdf below, so a column
+        // missing HERE silently disappears from the PDF the member receives —
+        // no error, just a blank. Commit 8c02f4f8 swapped in the richer renderer
+        // and left this SELECT at the old one's needs, which cost the first
+        // native dues run its `lines` (the PDF collapsed a 440 + 100
+        // Schreiberlizenz surcharge into one "— 540.00" line), its Rechnungsdatum
+        // and Fällig-am rows (ddmmyyyy(undefined) → '' → both meta rows filtered
+        // out, and the terms sentence lost its deadline), and the QR bill's
+        // "Zahlbar durch" debtor block (debtorFrom returned null).
+        // The data was on the row the whole time — the issue path writes all of
+        // it (migration 293). Audit 2026-08-08, finding 17.
+        .select(...INVOICE_PDF_COLUMNS, 'recipient_email', 'email_sent_at')
       const emailable = invoices.filter((i) => (i.recipient_email || '').trim())
       const noEmail = invoices.length - emailable.length
       // Live sends skip invoices already emailed (idempotent resume after a crash);

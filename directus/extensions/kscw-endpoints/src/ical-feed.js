@@ -9,7 +9,7 @@
 import { randomBytes } from 'node:crypto'
 import { writeUserLog } from './activity-log.js'
 import { seasonStartDate } from './season.js'
-import { publicEventsQuery } from './public-events.js'
+import { publicEventsScope } from './public-events.js'
 
 // Frontend app base for the "view roster" deep-link on duty events. Overridable
 // per environment; defaults to prod.
@@ -278,7 +278,10 @@ export function registerICalFeed(router, { database, logger }) {
         // not `invited_roles`, and not even `cancelled`, so /kscw/ical (which
         // needs no token) syndicated cancelled and role-targeted events into
         // every subscribed calendar (audit 2026-08-08, finding 6).
-        const events = await publicEventsQuery(database)
+        // NB: no `cancelled` filter — cancelled events are emitted below with
+        // STATUS:CANCELLED so subscribers' calendars clear the entry. Dropping
+        // them would leave a cancelled event sitting in every calendar forever.
+        const events = await publicEventsScope(database)
           .whereRaw('coalesce(end_date, start_date) >= ?', [from])
           .orderBy('start_date')
         for (const ev of events) {
