@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { useAdminMode } from '../../hooks/useAdminMode'
 import { useRealtime } from '../../hooks/useRealtime'
@@ -11,7 +12,6 @@ import WeekSlotView from './components/WeekSlotView'
 import DayNavigation from './components/DayNavigation'
 import DaySlotView from './components/DaySlotView'
 import SlotEditor from './components/SlotEditor'
-import ClosureManager from './components/ClosureManager'
 import SummaryView from './components/SummaryView'
 import VirtualSlotDetailModal from './components/VirtualSlotDetailModal'
 import ClaimModal from './components/ClaimModal'
@@ -39,6 +39,7 @@ function getTodayDayIndex(): number {
 
 export default function HallenplanPage() {
   const { t } = useTranslation('hallenplan')
+  const navigate = useNavigate()
   const { isCoach, coachTeamIds, hasAdminAccessToTeam, hasAdminAccessToSport } = useAuth()
   const { effectiveIsAdmin } = useAdminMode()
   const isMobile = useIsMobile()
@@ -49,7 +50,6 @@ export default function HallenplanPage() {
   const [editorOpen, setEditorOpen] = useState(false)
   const [editingSlot, setEditingSlot] = useState<HallSlot | null>(null)
   const [prefill, setPrefill] = useState<{ day: number; time: string; hall: string } | null>(null)
-  const [closureManagerOpen, setClosureManagerOpen] = useState(false)
   const [showSummary, setShowSummary] = useState(false)
   const [sportFilter, setSportFilter] = useState<SportFilter>('all')
 
@@ -255,7 +255,7 @@ export default function HallenplanPage() {
             selectedHallIds={selectedHallIds}
             onSelectHalls={setSelectedHallIds}
             isAdmin={effectiveIsAdmin}
-            onOpenClosureManager={() => setClosureManagerOpen(true)}
+            onOpenClosureManager={() => navigate('/admin/hallenplan/closures')}
             showSummary={showSummary}
             onToggleSummary={() => setShowSummary((v) => !v)}
             sportFilter={sportFilter}
@@ -294,7 +294,7 @@ export default function HallenplanPage() {
             selectedHallIds={selectedHallIds}
             onSelectHalls={setSelectedHallIds}
             isAdmin={effectiveIsAdmin}
-            onOpenClosureManager={() => setClosureManagerOpen(true)}
+            onOpenClosureManager={() => navigate('/admin/hallenplan/closures')}
             sportFilter={sportFilter}
             onSetSportFilter={setSportFilter}
             freedSlots={freedSlotInfos}
@@ -331,15 +331,6 @@ export default function HallenplanPage() {
           adminTeamIds={adminTeamIds}
           onClose={handleEditorClose}
           onSaved={refetch}
-        />
-      )}
-
-      {closureManagerOpen && (
-        <ClosureManager
-          halls={halls}
-          closures={closures}
-          onClose={() => { setClosureManagerOpen(false); refetch() }}
-          onChanged={refetch}
         />
       )}
 

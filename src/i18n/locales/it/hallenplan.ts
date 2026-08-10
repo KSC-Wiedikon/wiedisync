@@ -57,6 +57,16 @@ export default {
   editClosure: 'Modifica chiusura',
   noClosures: 'Nessuna chiusura attiva',
   deleteClosureConfirm: 'Sei sicuro di voler eliminare questa chiusura della palestra?',
+  closuresSubtitle: 'Giorni in cui una palestra e chiusa. Una chiusura nasconde la palestra nel piano palestre, appare nel calendario e nel feed iCal, blocca le partite in casa e annulla gli allenamenti in quei giorni.',
+  closuresScopeUpcoming: 'In arrivo',
+  closuresScopeAll: 'Tutte',
+  closuresColDates: 'Date',
+  closureAddedToast_one: 'Chiusura aggiunta: {{range}}, 1 palestra',
+  closureAddedToast_other: 'Chiusura aggiunta: {{range}}, {{count}} palestre',
+  closureUpdatedToast_one: 'Chiusura aggiornata: {{range}}, 1 palestra',
+  closureUpdatedToast_other: 'Chiusura aggiornata: {{range}}, {{count}} palestre',
+  closureDeletedToast: 'Chiusura eliminata',
+  closureSyncOwnedWarning: 'Questa origine e gestita da una sincronizzazione automatica — una chiusura salvata qui viene eliminata alla prossima esecuzione. Usa "Admin" o "Custode" per una chiusura manuale.',
 
   // Closure sources
   source: 'Fonte',

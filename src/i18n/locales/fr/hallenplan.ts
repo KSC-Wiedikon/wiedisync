@@ -57,6 +57,16 @@ export default {
   editClosure: 'Modifier la fermeture',
   noClosures: 'Aucune fermeture en cours',
   deleteClosureConfirm: 'Voulez-vous vraiment supprimer cette fermeture de salle ?',
+  closuresSubtitle: 'Jours ou une salle est fermee. Une fermeture masque la salle dans le plan des salles, apparait dans le calendrier et le flux iCal, bloque les matchs a domicile et annule les entrainements ces jours-la.',
+  closuresScopeUpcoming: 'A venir',
+  closuresScopeAll: 'Toutes',
+  closuresColDates: 'Dates',
+  closureAddedToast_one: 'Fermeture ajoutee : {{range}}, 1 salle',
+  closureAddedToast_other: 'Fermeture ajoutee : {{range}}, {{count}} salles',
+  closureUpdatedToast_one: 'Fermeture mise a jour : {{range}}, 1 salle',
+  closureUpdatedToast_other: 'Fermeture mise a jour : {{range}}, {{count}} salles',
+  closureDeletedToast: 'Fermeture supprimee',
+  closureSyncOwnedWarning: 'Cette source est geree par une synchronisation automatique — une fermeture enregistree ici sera supprimee au prochain passage. Utilisez « Admin » ou « Concierge » pour une fermeture manuelle.',
 
   // Closure sources
   source: 'Source',
