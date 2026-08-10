@@ -2,6 +2,12 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.74.0 — 2026-08-10
+
+### The member explorer opens on what matters
+- **A member record no longer opens as 95 field cards.** Fields with nothing in them, and the machine-owned ones — audit stamps, sync bookkeeping, encryption keys — are now hidden to start with, so a record opens on roughly half as many. Two buttons in the header bring either set back whenever you need it, and your choice is remembered. Editing always shows the blank fields again, so nothing ever becomes impossible to fill in.
+- **The "Nationality (ClubDesk spelling)" field showed the wrong spelling.** It is there to show the exact word written into the club register — "Schweiz" — but it was being translated into the language of whoever was looking, so an English session read "Switzerland" and there was no way to see what the register would actually receive. It now shows the real value.
+
 ## v1.73.0 — 2026-08-10
 
 ### Documents open where you are

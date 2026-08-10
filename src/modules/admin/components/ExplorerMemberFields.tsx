@@ -30,7 +30,6 @@ import { Pencil, Save, X, Loader2, Eye, EyeOff, AlertTriangle } from 'lucide-rea
 import { assetUrl, createRecord, deleteRecord, fetchItem, updateRecord } from '../../../lib/api'
 import { logActivity } from '../../../utils/logActivity'
 import { getCurrentSeason } from '../../../utils/dateHelpers'
-import { localizeCountryName } from '../../../utils/countryName'
 import {
   NO_FEDERATION, countryLabel, countryOptions, formatCountryCodes,
   parseCountryCodes, serializeCountryCodes,
@@ -47,7 +46,7 @@ import type { CacheShape } from './explorerHelpers'
 import { buildMemberTeamsMap, teamLabel } from './explorerHelpers'
 import {
   MEMBER_FIELD_BY_KEY, NEVER_PATCH_KEYS, TEAMS_VIRTUAL_KEY,
-  buildMemberFieldSections, getFieldDef, isFieldReadOnly, sanitizeRecord,
+  buildMemberFieldSections, fieldFilterReason, getFieldDef, isFieldReadOnly, sanitizeRecord,
   type MemberFieldDef, type MemberFieldKind, type MemberFieldSection,
 } from './memberFieldSchema'
 import { resolveMemberSport, sportCovers, type MemberSport } from './memberSport'
@@ -182,6 +181,22 @@ function relId(value: unknown): string | null {
 
 const NO_SPORTS_REVEALED: ReadonlySet<'volleyball' | 'basketball'> = new Set()
 
+const LS_HIDE_EMPTY = 'kscw-explorer-hide-empty'
+const LS_SHOW_TECHNICAL = 'kscw-explorer-show-technical'
+
+/** localStorage is unavailable in private mode / with storage blocked — the
+ *  preference is cosmetic, so a failure falls back to the default silently. */
+function readNoisePref(key: string, fallback: boolean): boolean {
+  try {
+    const raw = localStorage.getItem(key)
+    return raw === null ? fallback : raw === '1'
+  } catch { return fallback }
+}
+
+function writeNoisePref(key: string, value: boolean): void {
+  try { localStorage.setItem(key, value ? '1' : '0') } catch { /* cosmetic */ }
+}
+
 /**
  * Target roles that put a member out of reach of anyone below a full admin.
  * ⚠ Mirrors PRIVILEGED_TARGET_ROLES in kscw-endpoints/src/delete-impact.js —
@@ -235,6 +250,10 @@ export default function ExplorerMemberFields({
   const [revealedSports, setRevealedSports] =
     useState<ReadonlySet<'volleyball' | 'basketball'>>(NO_SPORTS_REVEALED)
   const [busyTeamIds, setBusyTeamIds] = useState<ReadonlySet<string>>(() => new Set())
+  // Noise filters. Sticky across members AND across sessions — an admin who
+  // wants the audit stamps back should not have to re-reveal them on every row.
+  const [hideEmpty, setHideEmpty] = useState(() => readNoisePref(LS_HIDE_EMPTY, true))
+  const [showTechnical, setShowTechnical] = useState(() => readNoisePref(LS_SHOW_TECHNICAL, false))
 
   // Switching members resets the view state AND re-arms the loading gate.
   // Render-phase adjustment rather than an effect: React's documented "reset
@@ -354,6 +373,38 @@ export default function ExplorerMemberFields({
     [keys],
   )
 
+  const dirtySet = useMemo(() => new Set(dirtyKeys), [dirtyKeys])
+
+  // Declared above the noise filters: the roster is what makes the virtual
+  // "Teams (player)" card empty or not.
+  const rosterTeamIds = useMemo(
+    () => cache.memberTeams.get(memberId) ?? [],
+    [cache.memberTeams, memberId],
+  )
+
+  /**
+   * "Holds no value", for the hide-empty filter. Reads `draft` rather than
+   * `record` so a field somebody just filled in cannot vanish from under them.
+   *
+   * ⚠ Sensitive columns never hold their value in memory — sanitizeRecord()
+   * replaced it with the boolean "was it set" and recorded that in `present`,
+   * which is therefore the only truth about them. Testing `draft` instead would
+   * read a masked-but-set key as `false` — not empty by the rule below, so it
+   * would leak "this member HAS an ical token" into the default view.
+   */
+  const isEmptyKey = useCallback((key: string): boolean => {
+    if (key === TEAMS_VIRTUAL_KEY) return rosterTeamIds.length === 0
+    if (key in present) return !present[key]
+    const value = key in draft ? draft[key] : record?.[key]
+    // Same rule the value renderer uses: `false` and `0` are values, not blanks.
+    return value == null || value === '' || (Array.isArray(value) && value.length === 0)
+  }, [present, draft, record, rosterTeamIds])
+
+  // Hiding empties in edit mode would make an empty field unfillable, so the
+  // filter is view-only. The toggle keeps its state — leaving edit mode brings
+  // the tidy view straight back.
+  const hideEmptyNow = hideEmpty && !(editMode && canEdit)
+
   const sections: MemberFieldSection[] = useMemo(() => {
     if (!record) return []
     const mapped = keys.filter((k) => MEMBER_FIELD_BY_KEY[k])
@@ -361,19 +412,59 @@ export default function ExplorerMemberFields({
       presentKeys: [...mapped, TEAMS_VIRTUAL_KEY],
       sport,
       revealedSports,
+      hideEmpty: hideEmptyNow,
+      isEmpty: isEmptyKey,
+      showTechnical,
+      alwaysShow: dirtySet,
     })
-  }, [record, keys, sport, revealedSports])
+  }, [record, keys, sport, revealedSports, hideEmptyNow, isEmptyKey, showTechnical, dirtySet])
+
+  /**
+   * What the two toggles would reveal, for their labels. Counted with the SAME
+   * predicate the render plan uses (both filters forced on), over the same
+   * population minus the blocks already hidden by sport — otherwise "Show
+   * technical (21)" reveals 20 cards for a basketball member and reads as a bug.
+   */
+  const hiddenCounts = useMemo(() => {
+    let empty = 0
+    let technical = 0
+    if (!record) return { empty, technical }
+    const mapped = keys.filter((k) => MEMBER_FIELD_BY_KEY[k])
+    for (const key of [...mapped, TEAMS_VIRTUAL_KEY]) {
+      const def = getFieldDef(key)
+      const gate = def.sportGate
+      if (gate && !sportCovers(sport, gate) && !revealedSports.has(gate)) continue
+      const reason = fieldFilterReason(def, {
+        showTechnical: false,
+        hideEmpty: true,
+        isEmpty: isEmptyKey,
+        alwaysShow: dirtySet,
+      })
+      if (reason === 'technical') technical++
+      else if (reason === 'empty') empty++
+    }
+    return { empty, technical }
+  }, [record, keys, sport, revealedSports, isEmptyKey, dirtySet])
+
+  /** Cards actually on screen, for the "23 / 100 fields" chip in the header. */
+  const visibleFieldCount = useMemo(
+    () => sections.reduce((n, s) => n + s.visibleCount, 0),
+    [sections],
+  )
+
+  const toggleHideEmpty = useCallback(() => {
+    setHideEmpty((prev) => { writeNoisePref(LS_HIDE_EMPTY, !prev); return !prev })
+  }, [])
+
+  const toggleShowTechnical = useCallback(() => {
+    setShowTechnical((prev) => { writeNoisePref(LS_SHOW_TECHNICAL, !prev); return !prev })
+  }, [])
 
   const memberName = useMemo(() => {
     if (!record) return `#${memberId}`
     const name = [record.first_name, record.last_name].filter(Boolean).join(' ').trim()
     return name || String(record.email || `#${memberId}`)
   }, [record, memberId])
-
-  const rosterTeamIds = useMemo(
-    () => cache.memberTeams.get(memberId) ?? [],
-    [cache.memberTeams, memberId],
-  )
 
   const teamOptions: TeamPickerOption[] = useMemo(() => {
     const toOption = (tm: Team): TeamPickerOption => ({
@@ -629,14 +720,38 @@ export default function ExplorerMemberFields({
         <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           {t('explorerMemberFieldsTitle')}
           <span className="ml-2 font-normal normal-case text-muted-foreground/70">
-            {keys.length} {t('explorerMemberFieldsCount')}
+            {visibleFieldCount} / {keys.length} {t('explorerMemberFieldsCount')}
           </span>
         </h2>
-        {canEdit && !editMode && (
-          <Button size="sm" variant="outline" onClick={() => setEditMode(true)}>
-            <Pencil className="mr-1 h-3.5 w-3.5" />
-            {t('explorerMemberFieldsEdit')}
-          </Button>
+        {/* The filters belong to everybody who can SEE the record, not only to
+            those who can edit it — a read-only viewer looks at the same 100
+            cards. They fold away in edit mode, where the empty filter is off
+            anyway and the technical fields are all read-only. */}
+        {!editing && (
+          <div className="flex flex-wrap items-center gap-2">
+            <NoiseToggle
+              on={!hideEmptyNow}
+              label={hideEmptyNow
+                ? t('explorerFieldsShowEmpty', { count: hiddenCounts.empty })
+                : t('explorerFieldsHideEmpty')}
+              onClick={toggleHideEmpty}
+              suppressed={hideEmptyNow && hiddenCounts.empty === 0}
+            />
+            <NoiseToggle
+              on={showTechnical}
+              label={showTechnical
+                ? t('explorerFieldsHideTechnical')
+                : t('explorerFieldsShowTechnical', { count: hiddenCounts.technical })}
+              onClick={toggleShowTechnical}
+              suppressed={!showTechnical && hiddenCounts.technical === 0}
+            />
+            {canEdit && (
+              <Button size="sm" variant="outline" onClick={() => setEditMode(true)}>
+                <Pencil className="mr-1 h-3.5 w-3.5" />
+                {t('explorerMemberFieldsEdit')}
+              </Button>
+            )}
+          </div>
         )}
         {canEdit && editMode && (
           <div className="flex items-center gap-2">
@@ -805,6 +920,40 @@ interface EditorCtx {
   busyTeamIds: ReadonlySet<string>
   onTeamsChange: (ids: string[]) => void | Promise<void>
   disabled: boolean
+}
+
+/**
+ * One noise filter, styled like the existing per-sport reveal buttons so the two
+ * read as the same mechanism.
+ *
+ * `suppressed` hides the button when the filter is ON but has nothing to hide —
+ * offering "Show empty fields (0)" on a fully filled member is noise of exactly
+ * the kind this is here to remove. It never hides a button that would turn a
+ * filter back ON, so a revealed set is always re-hideable.
+ */
+function NoiseToggle({
+  on,
+  label,
+  onClick,
+  suppressed,
+}: {
+  on: boolean
+  label: string
+  onClick: () => void
+  suppressed: boolean
+}) {
+  if (suppressed) return null
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={on}
+      className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md border border-border bg-card px-3 text-xs font-medium text-muted-foreground transition-colors hover:border-primary hover:text-primary"
+    >
+      {on ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+      {label}
+    </button>
+  )
 }
 
 function FieldCard({
@@ -997,9 +1146,15 @@ function DisplayValue({
       // Two different shapes share this kind: `federation_of_origin` holds an
       // ISO-2 code (or the explicit 'NONE'), while the derived `nationalitaet`
       // holds ClubDesk's German country NAME.
+      //
+      // ⚠ `nationalitaet` is printed RAW. Running it through localizeCountryName
+      // reverse-maps "Schweiz" → CH → the viewer's locale, so the one field whose
+      // job is to show the exact string the sync-up writes into the register
+      // rendered "Switzerland" in an English session — hiding the only thing it
+      // exists to reveal. The German round-trip is why it read as correct.
       return def.key === 'federation_of_origin'
         ? <FederationValue value={String(value)} />
-        : <span className="break-words text-foreground">{localizeCountryName(String(value))}</span>
+        : <span className="break-words text-foreground">{String(value)}</span>
 
     case 'trainerLicences':
       return <TrainerLicencesValue value={String(value)} />

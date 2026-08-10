@@ -19,6 +19,7 @@ import {
   NEVER_PATCH_KEYS,
   TEAMS_VIRTUAL_KEY,
   buildMemberFieldSections,
+  fieldFilterReason,
   getFieldDef,
   isFieldReadOnly,
   isRelationAlias,
@@ -472,6 +473,100 @@ describe('buildMemberFieldSections', () => {
     const system = sections.find((s) => s.group.id === 'system')
     expect(system).toBeTruthy()
     expect(keysOf(sections)).toContain('brand_new_column')
+  })
+
+  // ── Noise filters ─────────────────────────────────────────────────────────
+  // The two toggles are visual only. What these pin is that they cannot swallow
+  // an unsaved edit, cannot make a field unfillable, and cannot disagree with
+  // the counts printed on the buttons that reveal them.
+
+  it('leaves every key in place when neither filter is asked for', () => {
+    const sections = buildMemberFieldSections({
+      presentKeys: allKeys,
+      sport: 'both',
+      revealedSports: none,
+      isEmpty: () => true,
+    })
+    expect(keysOf(sections).sort()).toEqual([...allKeys].sort())
+  })
+
+  it('every technical field is read-only, so hiding one can never hide an editable value', () => {
+    const editable = MEMBER_FIELDS.filter((f) => f.technical && !f.readOnly)
+    expect(editable.map((f) => f.key)).toEqual([])
+  })
+
+  it('drops technical fields — and the whole system group with them', () => {
+    const sections = buildMemberFieldSections({
+      presentKeys: allKeys,
+      sport: 'both',
+      revealedSports: none,
+      showTechnical: false,
+    })
+    const keys = keysOf(sections)
+    expect(keys).not.toContain('nationalitaet')
+    expect(keys).not.toContain('clubdesk_pushed_at')
+    expect(keys).toContain('nationalitaet_codes')
+    expect(keys).toContain('clubdesk_id')
+    expect(sections.map((s) => s.group.id)).not.toContain('system')
+  })
+
+  it('drops empty fields but keeps false and 0, which are values', () => {
+    const values: Record<string, unknown> = {
+      first_name: 'Aniisanth', last_name: '', number: 0, hide_email: false, phone: null,
+    }
+    const sections = buildMemberFieldSections({
+      presentKeys: Object.keys(values),
+      sport: 'both',
+      revealedSports: none,
+      hideEmpty: true,
+      isEmpty: (k) => {
+        const v = values[k]
+        return v == null || v === '' || (Array.isArray(v) && v.length === 0)
+      },
+    })
+    expect(keysOf(sections).sort()).toEqual(['first_name', 'hide_email', 'number'])
+  })
+
+  it('never filters an `alwaysShow` key — an unsaved edit cannot be swallowed', () => {
+    const sections = buildMemberFieldSections({
+      presentKeys: ['first_name', 'phone', 'nationalitaet'],
+      sport: 'both',
+      revealedSports: none,
+      hideEmpty: true,
+      isEmpty: () => true,
+      showTechnical: false,
+      alwaysShow: new Set(['phone', 'nationalitaet']),
+    })
+    expect(keysOf(sections).sort()).toEqual(['nationalitaet', 'phone'])
+  })
+
+  // The counts on the two buttons and the fields the render plan drops come from
+  // this one predicate, which is what keeps "Show technical (21)" honest.
+  describe('fieldFilterReason', () => {
+    const technical = MEMBER_FIELD_BY_KEY.nationalitaet
+    const ordinary = MEMBER_FIELD_BY_KEY.phone
+
+    it('reports nothing filtered when both flags are off', () => {
+      expect(fieldFilterReason(technical, {})).toBeNull()
+      expect(fieldFilterReason(ordinary, { isEmpty: () => true })).toBeNull()
+    })
+
+    it('attributes a field that is both technical and empty to technical only', () => {
+      expect(fieldFilterReason(technical, {
+        showTechnical: false, hideEmpty: true, isEmpty: () => true,
+      })).toBe('technical')
+    })
+
+    it('reports an ordinary empty field as empty', () => {
+      expect(fieldFilterReason(ordinary, { hideEmpty: true, isEmpty: () => true })).toBe('empty')
+    })
+
+    it('lets alwaysShow beat both flags', () => {
+      expect(fieldFilterReason(technical, {
+        showTechnical: false, hideEmpty: true, isEmpty: () => true,
+        alwaysShow: new Set(['nationalitaet']),
+      })).toBeNull()
+    })
   })
 
   it('orders fields inside a group by their declared order', () => {
