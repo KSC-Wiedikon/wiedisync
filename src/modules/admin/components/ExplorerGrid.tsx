@@ -108,6 +108,11 @@ interface ColDef<K extends string = ColKey> {
    *  Derived flags (passive / honorary / former, referee, officials) omit this
    *  and stay read-only. */
   write?: boolean
+  /** Display-only, even where the kind would otherwise be inline-editable.
+   *  For columns whose value is only valid in combination with another one, so
+   *  the single editing surface has to be the member detail — see
+   *  `register_status` / `austritt` (migration 302). */
+  readOnly?: boolean
 }
 
 // Enum option lists for inline-editable select cells. Sex is stored m/f;
@@ -178,9 +183,15 @@ const COLUMNS: ColDef[] = [
   { key: 'officials', labelKey: 'explorerGridColOfficials', kind: 'ro', minW: 'min-w-36' },
   { key: 'vm_email', labelKey: 'explorerGridColVmEmail', kind: 'email', minW: 'min-w-52' },
   { key: 'ahv_nummer', labelKey: 'explorerGridColAhv', kind: 'text', minW: 'min-w-36' },
-  { key: 'register_status', labelKey: 'explorerGridColRegisterStatus', kind: 'text', minW: 'min-w-40', groupable: true },
+  // Read-only here on purpose. Changing a status is never a one-cell edit: it
+  // prefills or clears the exit date and switches off club membership + app
+  // access behind a confirm, and the DB refuses the mismatched pair outright
+  // (members_austritt_needs_departed_status). A free-text grid cell would offer
+  // none of that and would fail a CHECK on the first typo, so both move
+  // together in the member detail. `eintritt` stands alone and stays editable.
+  { key: 'register_status', labelKey: 'explorerGridColRegisterStatus', kind: 'text', minW: 'min-w-40', groupable: true, readOnly: true },
   { key: 'eintritt', labelKey: 'explorerGridColEintritt', kind: 'date', minW: 'min-w-28', groupable: true },
-  { key: 'austritt', labelKey: 'explorerGridColAustritt', kind: 'date', minW: 'min-w-28', groupable: true },
+  { key: 'austritt', labelKey: 'explorerGridColAustritt', kind: 'date', minW: 'min-w-28', groupable: true, readOnly: true },
   { key: 'beitragskategorie', labelKey: 'explorerGridColFeeCategory', kind: 'text', minW: 'min-w-36', groupable: true },
   { key: 'passive', labelKey: 'explorerGridColPassive', kind: 'bool', minW: 'min-w-24', groupable: true },
   { key: 'honorary', labelKey: 'explorerGridColHonorary', kind: 'bool', minW: 'min-w-24', groupable: true },
@@ -990,7 +1001,7 @@ export default function ExplorerGrid({ cache, query, canEdit, onOpenDetail, onMu
               <TableCell key={c.key} className={`${c.minW} ${sticky} py-1`}>
                 <EditableDateCell
                   value={value ? value.slice(0, 10) : null}
-                  canEdit={canEdit}
+                  canEdit={canEdit && !c.readOnly}
                   onSave={(v) => saveCell(memberId, c.key, v)}
                 />
               </TableCell>
@@ -1001,7 +1012,7 @@ export default function ExplorerGrid({ cache, query, canEdit, onOpenDetail, onMu
               <EditableCell
                 value={value}
                 kind={c.kind as 'text' | 'email' | 'number'}
-                canEdit={canEdit}
+                canEdit={canEdit && !c.readOnly}
                 onSave={(v) => saveCell(memberId, c.key, v)}
               />
             </TableCell>
