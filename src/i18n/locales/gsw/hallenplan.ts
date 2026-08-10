@@ -57,6 +57,16 @@ export default {
   editClosure: 'Sperrig bearbeite',
   noClosures: 'Käni aktive Sperrige',
   deleteClosureConfirm: 'Bisch sicher, dass du die Hallesperrig lösche wotsch?',
+  closuresSubtitle: 'Täg, wo e Halle zue isch. E Sperrig blendet d Halle im Hallenplan us, chunnt im Kalender und im iCal-Feed vor, sperrt det Heimspiel und seit Trainings a dene Täg ab.',
+  closuresScopeUpcoming: 'Chunnt no',
+  closuresScopeAll: 'Alli',
+  closuresColDates: 'Date',
+  closureAddedToast_one: 'Sperrig hinzuegfüegt: {{range}}, 1 Halle',
+  closureAddedToast_other: 'Sperrig hinzuegfüegt: {{range}}, {{count}} Halle',
+  closureUpdatedToast_one: 'Sperrig aktualisiert: {{range}}, 1 Halle',
+  closureUpdatedToast_other: 'Sperrig aktualisiert: {{range}}, {{count}} Halle',
+  closureDeletedToast: 'Sperrig glöscht',
+  closureSyncOwnedWarning: 'Die Quelle wird vomene automatische Sync verwaltet — e Sperrig, wo du da speichersch, wird bim nächste Lauf wieder glöscht. Nimm «Admin» oder «Hauswart» für e manuelli Sperrig.',
 
   // Closure sources
   source: 'Quelle',

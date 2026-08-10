@@ -57,6 +57,16 @@ export default {
   editClosure: 'Edit closure',
   noClosures: 'No active closures',
   deleteClosureConfirm: 'Are you sure you want to delete this hall closure?',
+  closuresSubtitle: 'Days a hall is shut. A closure hides the hall in the Hallenplan, shows up in the calendar and the iCal feed, blocks home games there and cancels trainings on those days.',
+  closuresScopeUpcoming: 'Upcoming',
+  closuresScopeAll: 'All',
+  closuresColDates: 'Dates',
+  closureAddedToast_one: 'Closure added: {{range}}, 1 hall',
+  closureAddedToast_other: 'Closure added: {{range}}, {{count}} halls',
+  closureUpdatedToast_one: 'Closure updated: {{range}}, 1 hall',
+  closureUpdatedToast_other: 'Closure updated: {{range}}, {{count}} halls',
+  closureDeletedToast: 'Closure deleted',
+  closureSyncOwnedWarning: 'This source is managed by an automatic sync — a closure saved here is deleted again on the next run. Use "Admin" or "Caretaker" for a manual closure.',
 
   // Closure sources
   source: 'Source',

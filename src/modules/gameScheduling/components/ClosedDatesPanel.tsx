@@ -1,32 +1,32 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useNavigate } from 'react-router-dom'
 import { CalendarX2, Settings2 } from 'lucide-react'
 import { Button } from '../../../components/ui/button'
 import { useCollection } from '../../../lib/query'
-import type { Hall, HallClosure } from '../../../types'
-import ClosureManager from '../../hallenplan/components/ClosureManager'
+import type { HallClosure } from '../../../types'
+
+const EMPTY: HallClosure[] = []
 
 /**
  * Closed dates (hall closures) surfaced in the Spielplanung settings — auto
- * (school holidays, calendar sync) + manual. Reuses the Hallenplan ClosureManager
- * modal for the full view/add/edit/delete; this panel is the entry point + summary.
+ * (school holidays, calendar sync) + manual. This panel is the summary; the full
+ * view/add/edit/delete lives on the /admin/terminplanung/closures subpage (the same
+ * page the member app mounts at /admin/hallenplan/closures).
  * Admin-gated by the caller. Closures block HOME slots whose hall is closed.
  */
 export default function ClosedDatesPanel() {
   const { t } = useTranslation('gameScheduling')
-  const [open, setOpen] = useState(false)
+  const navigate = useNavigate()
   const today = useMemo(() => new Date().toISOString().slice(0, 10), [])
 
-  const { data: hallsRaw } = useCollection<Hall>('halls', { sort: ['name'], limit: 50 })
-  const halls = hallsRaw ?? []
-
-  const { data: closuresRaw, refetch } = useCollection<HallClosure>('hall_closures', {
+  const { data: closuresRaw } = useCollection<HallClosure>('hall_closures', {
     filter: { end_date: { _gte: today } },
     sort: ['start_date'],
-    fields: ['id', 'hall', 'start_date', 'end_date', 'reason', 'source'],
+    fields: ['id', 'source'],
     limit: 1000,
   })
-  const closures = closuresRaw ?? []
+  const closures = closuresRaw ?? EMPTY
 
   // Auto = synced (school holidays + calendar); manual = everything a person set.
   const autoCount = closures.filter((c) => c.source === 'school_holidays' || c.source === 'gcal' || c.source === 'auto').length
@@ -49,18 +49,15 @@ export default function ClosedDatesPanel() {
         </span>
       </div>
 
-      <Button type="button" variant="outline" size="sm" onClick={() => setOpen(true)} className="gap-1.5">
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={() => navigate('/admin/terminplanung/closures')}
+        className="gap-1.5"
+      >
         <Settings2 className="h-4 w-4" />{t('closedDatesManage')}
       </Button>
-
-      {open && (
-        <ClosureManager
-          halls={halls}
-          closures={closures}
-          onClose={() => { setOpen(false); refetch() }}
-          onChanged={refetch}
-        />
-      )}
     </div>
   )
 }

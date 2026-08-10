@@ -13,6 +13,7 @@ import { SentryErrorBoundary } from './lib/sentry'
 import { reloadNow } from './lib/chunkReload'
 import SchedulingLayout from './components/SchedulingLayout'
 import AdminOrSpielplanerRoute from './components/AdminOrSpielplanerRoute'
+import AdminRoute from './components/AdminRoute'
 import MailboxRoute from './components/MailboxRoute'
 import BasketballAdminRoute from './components/BasketballAdminRoute'
 import SpielplanerOrAdminRoute from './components/SpielplanerOrAdminRoute'
@@ -33,6 +34,7 @@ import BasketballPrepPage from './modules/gameScheduling/pages/BasketballPrepPag
 import BasketballCalendarPage from './modules/gameScheduling/pages/BasketballCalendarPage'
 import BasketballSettingsPage from './modules/gameScheduling/pages/BasketballSettingsPage'
 import SpielplanungPage from './modules/spielplanung/SpielplanungPage'
+import ClosuresPage from './modules/hallenplan/ClosuresPage'
 import SchedulingHome from './modules/gameScheduling/pages/SchedulingHome'
 
 function SchedulingFallback() {
@@ -114,6 +116,12 @@ export default function SchedulingApp() {
                         <Route
                           path="admin/terminplanung/settings"
                           element={<AdminOrSpielplanerRoute><AdminSetupPage /></AdminOrSpielplanerRoute>}
+                        />
+                        {/* Hall closures — same page the member app mounts at
+                            /admin/hallenplan/closures; reached from the settings page. */}
+                        <Route
+                          path="admin/terminplanung/closures"
+                          element={<AdminRoute><ClosuresPage /></AdminRoute>}
                         />
                         {/* Mailbox tab — Volleyball/Basketball toggle inside (per-sport gating in the page). */}
                         <Route

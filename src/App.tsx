@@ -36,6 +36,7 @@ import VolleyFeedbackPage from './modules/admin/VolleyFeedbackPage'
 import AnmeldungenPage from './modules/admin/AnmeldungenPage'
 import EmailTemplatesPage from './modules/admin/EmailTemplatesPage'
 import HallenplanPage from './modules/hallenplan/HallenplanPage'
+import ClosuresPage from './modules/hallenplan/ClosuresPage'
 import EmbedGamesPage from './modules/games/EmbedGamesPage'
 import LoginPage from './modules/auth/LoginPage'
 import SignUpPage from './modules/auth/SignUpPage'
@@ -210,6 +211,7 @@ export default function App() {
             <Route path="options/messaging" element={<AuthRoute><Suspense fallback={null}><MessagingSettingsPage /></Suspense></AuthRoute>} />
             <Route path="admin/spielplanung" element={<SchedulingRedirect />} />
             <Route path="admin/hallenplan" element={<AdminRoute><HallenplanPage /></AdminRoute>} />
+            <Route path="admin/hallenplan/closures" element={<AdminRoute><ClosuresPage /></AdminRoute>} />
             <Route path="admin/hallenfinder" element={<AuthRoute><Suspense fallback={null}><HallenfinderPage /></Suspense></AuthRoute>} />
             <Route path="admin/terminplanung" element={<SchedulingRedirect />} />
             <Route path="admin/terminplanung/settings" element={<SchedulingRedirect />} />

@@ -57,6 +57,16 @@ export default {
   editClosure: 'Sperrung bearbeiten',
   noClosures: 'Keine aktiven Sperrungen',
   deleteClosureConfirm: 'Bist du sicher, dass du diese Hallensperrung löschen willst?',
+  closuresSubtitle: 'Tage, an denen eine Halle geschlossen ist. Eine Sperrung blendet die Halle im Hallenplan aus, erscheint im Kalender und im iCal-Feed, sperrt dort Heimspiele und sagt Trainings an diesen Tagen ab.',
+  closuresScopeUpcoming: 'Bevorstehend',
+  closuresScopeAll: 'Alle',
+  closuresColDates: 'Daten',
+  closureAddedToast_one: 'Sperrung hinzugefügt: {{range}}, 1 Halle',
+  closureAddedToast_other: 'Sperrung hinzugefügt: {{range}}, {{count}} Hallen',
+  closureUpdatedToast_one: 'Sperrung aktualisiert: {{range}}, 1 Halle',
+  closureUpdatedToast_other: 'Sperrung aktualisiert: {{range}}, {{count}} Hallen',
+  closureDeletedToast: 'Sperrung gelöscht',
+  closureSyncOwnedWarning: 'Diese Quelle wird von einem automatischen Sync verwaltet — eine hier gespeicherte Sperrung wird beim nächsten Lauf wieder gelöscht. Nimm «Admin» oder «Hauswart» für eine manuelle Sperrung.',
 
   // Closure sources
   source: 'Quelle',
