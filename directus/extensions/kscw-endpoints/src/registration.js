@@ -150,7 +150,7 @@ const T = {
     passiveSubtitle: 'Anmeldung eingegangen',
     passiveSubject: 'Passivmitgliedschaft — KSC Wiedikon',
     passiveBody: `<p>Deine Anmeldung als Passivmitglied ist eingegangen und wird geprüft.</p>
-      <p>Du erhältst in den nächsten Tagen eine Rechnung für den Passivmitgliederbeitrag (CHF 50.–).</p>
+      <p>Du erhältst in den nächsten Tagen eine Rechnung für den Passivmitgliederbeitrag (CHF 40.–).</p>
       <p>Bei Fragen erreichst du uns unter <a href="mailto:kontakt@kscw.ch" style="color:#4A55A2">kontakt@kscw.ch</a>.</p>`,
     name: 'Name', team: 'Team', fee: 'Beitragskategorie', dob: 'Geburtsdatum',
     email: 'E-Mail', phone: 'Telefon', address: 'Adresse', nationality: 'Nationalität',
@@ -191,7 +191,7 @@ const T = {
     passiveSubtitle: 'Aamäldig agcho',
     passiveSubject: 'Passivmitgliedschaft — KSC Wiedikon',
     passiveBody: `<p>Dini Aamäldig als Passivmitglied isch agcho und wird prüeft.</p>
-      <p>Du überchunsch i de nächste Täg ä Rächnig für de Passivmitgliedsbytrag (CHF 50.–).</p>
+      <p>Du überchunsch i de nächste Täg ä Rächnig für de Passivmitgliedsbytrag (CHF 40.–).</p>
       <p>Bi Frage erreichsch eus under <a href="mailto:kontakt@kscw.ch" style="color:#4A55A2">kontakt@kscw.ch</a>.</p>`,
     name: 'Name', team: 'Team', fee: 'Bytragskategorie', dob: 'Geburtsdatum',
     email: 'E-Mail', phone: 'Telefon', address: 'Adrässe', nationality: 'Nationalität',
@@ -232,7 +232,7 @@ const T = {
     passiveSubtitle: 'Registration received',
     passiveSubject: 'Passive Membership — KSC Wiedikon',
     passiveBody: `<p>Your registration as a passive member has been received and will be reviewed.</p>
-      <p>You will receive an invoice for the passive membership fee (CHF 50.–) in the next few days.</p>
+      <p>You will receive an invoice for the passive membership fee (CHF 40.–) in the next few days.</p>
       <p>For questions, reach us at <a href="mailto:kontakt@kscw.ch" style="color:#4A55A2">kontakt@kscw.ch</a>.</p>`,
     name: 'Name', team: 'Team', fee: 'Fee Category', dob: 'Date of Birth',
     email: 'Email', phone: 'Phone', address: 'Address', nationality: 'Nationality',
@@ -273,7 +273,7 @@ const T = {
     passiveSubtitle: 'Inscription reçue',
     passiveSubject: 'Membre passif·ve — KSC Wiedikon',
     passiveBody: `<p>Ton inscription comme membre passif·ve a été reçue et sera examinée.</p>
-      <p>Tu recevras dans les prochains jours une facture pour la cotisation de membre passif·ve (CHF 50.–).</p>
+      <p>Tu recevras dans les prochains jours une facture pour la cotisation de membre passif·ve (CHF 40.–).</p>
       <p>Pour toute question, écris-nous à <a href="mailto:kontakt@kscw.ch" style="color:#4A55A2">kontakt@kscw.ch</a>.</p>`,
     name: 'Nom', team: 'Équipe', fee: 'Catégorie de cotisation', dob: 'Date de naissance',
     email: 'E-mail', phone: 'Téléphone', address: 'Adresse', nationality: 'Nationalité',
@@ -314,7 +314,7 @@ const T = {
     passiveSubtitle: 'Iscrizione ricevuta',
     passiveSubject: 'Socio passivo — KSC Wiedikon',
     passiveBody: `<p>La tua iscrizione come socio passivo è stata ricevuta e sarà esaminata.</p>
-      <p>Riceverai nei prossimi giorni una fattura per la quota di socio passivo (CHF 50.–).</p>
+      <p>Riceverai nei prossimi giorni una fattura per la quota di socio passivo (CHF 40.–).</p>
       <p>Per domande scrivici a <a href="mailto:kontakt@kscw.ch" style="color:#4A55A2">kontakt@kscw.ch</a>.</p>`,
     name: 'Nome', team: 'Squadra', fee: 'Categoria quota', dob: 'Data di nascita',
     email: 'E-mail', phone: 'Telefono', address: 'Indirizzo', nationality: 'Nazionalità',

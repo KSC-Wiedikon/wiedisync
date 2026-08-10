@@ -553,8 +553,8 @@ export function deriveSektion(reg) {
 // ClubDesk-side names are confirmed. Unmapped values pass through verbatim
 // (visible in the dry-run preview before any commit).
 // BB youth decided 2026-07-06 (user): the two ClubDesk categories are
-// "BB Minis Turnier" (U12 and under, CHF 210) and "BB Jugend Meisterschaft"
-// (older youth, CHF 310) — the form now submits those names directly; the two
+// "BB Minis Turnier" (U12 and under) and "BB Jugend Meisterschaft"
+// (older youth) — the form now submits those names directly; the two
 // entries below only translate LEGACY rows captured under the pre-2026-07-06
 // form values.
 export const CD_KATEGORIE_MAP = {
@@ -571,8 +571,11 @@ export function mapKategorie(v) {
 
 // Category → Mitgliederbeitrag (CHF/season), confirmed by the user 2026-07-06:
 // VB = published website fees (matched ClubDesk exactly); BB = the ClubDesk
-// values (website was CHF 10 high, corrected the same day); BB youth = the two
-// new age-split categories. Keys cover BOTH name families because
+// values; BB youth = the two new age-split categories. ⚠ EVERY BB category rose
+// by CHF 10 on 2026-08-10 (user decision, effective season 2026/27 — nothing had
+// been invoiced yet), which is why the BB amounts below no longer match the
+// ClubDesk export snapshot of July: 510→520, 560→570, 410→420, 460→470,
+// 310→320, 210→220. VB is untouched. Keys cover BOTH name families because
 // members.beitragskategorie can hold either: signup-form names (registration
 // path) or ClubDesk names (the CD-authoritative Kategorie fill in
 // import-clubdesk-csv.mjs). Pushed on CREATE rows only — on existing contacts
@@ -586,12 +589,12 @@ export const CD_BEITRAG_MAP = {
   'VB Schüler*in Meisterschaft': 310, 'VB Schüler Meisterschaft': 310,
   'VB Schüler*in Turnier': 210, 'VB Schüler Turnier': 210,
   'VB Turnier KWI': 110, 'VB Schüler*in 1. Jahr': 110,
-  'BB Erwerbstätige': 510, 'BB Erwerbstätig': 510,
-  'BB Erwerbstätige 1. Liga': 560, 'BB Erwerbstätig 1. Liga': 560,
-  'BB Lernende/Studierende': 410, 'BB Student/Lehrling': 410, 'BB Studenten/Lehrlinge': 410,
-  'BB Lernende/Studierende 1. Liga': 460, 'BB Student/Lehrling 1. Liga': 460,
-  'BB Jugend Meisterschaft': 310, 'BB Junior:innen': 310, 'BB 2 Trainings': 310,
-  'BB Minis Turnier': 210, 'BB Minis': 210, 'BB 1 Trainings': 210,
+  'BB Erwerbstätige': 520, 'BB Erwerbstätig': 520,
+  'BB Erwerbstätige 1. Liga': 570, 'BB Erwerbstätig 1. Liga': 570,
+  'BB Lernende/Studierende': 420, 'BB Student/Lehrling': 420, 'BB Studenten/Lehrlinge': 420,
+  'BB Lernende/Studierende 1. Liga': 470, 'BB Student/Lehrling 1. Liga': 470,
+  'BB Jugend Meisterschaft': 320, 'BB Junior:innen': 320, 'BB 2 Trainings': 320,
+  'BB Minis Turnier': 220, 'BB Minis': 220, 'BB 1 Trainings': 220,
   'Passivmitglied': 40,
   'Gratis': 0,
   // Terminal, non-member bucket (created 2026-07-30). Covers BOTH
@@ -605,10 +608,12 @@ export const CD_BEITRAG_MAP = {
 // Mitglieder ohne Schreiberlizenz um CHF 100 erhöht"; BB: user rule 2026-07-06
 // replacing the deleted ClubDesk "Offiziellen 100er" field). The map amounts
 // are the WITH-licence base; +100 for a member with the duty but no licence.
-// Confirmed against the export (VB Erwerbstätige 440/540, Student 380/480, Schüler Meisterschaft
-// 310/410, Schüler Turnier 210/310; BB Erwerbstätig 510/610, 1.Liga 560/660,
-// Student 410/510, Jugend 310/410, Minis 210/310). Duty applies from U16 AND
-// ABOVE ONLY (user 2026-07-06) — younger players never pay it.
+// VB confirmed against the export (Erwerbstätige 440/540, Student 380/480,
+// Schüler Meisterschaft 310/410, Schüler Turnier 210/310). BB pairs were
+// confirmed the same way at the pre-2026-08-10 bases and moved up with the
+// CHF 10 increase (Erwerbstätig 520/620, 1.Liga 570/670, Student 420/520,
+// Jugend 320/420, Minis 220/320) — the surcharge itself did not change. Duty
+// applies from U16 AND ABOVE ONLY (user 2026-07-06) — younger players never pay it.
 //
 // ADULT categories are inherently U16+ → surcharge on a missing licence
 // regardless of birthdate. Both ClubDesk name families listed.
