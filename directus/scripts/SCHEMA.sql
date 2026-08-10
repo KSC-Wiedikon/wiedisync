@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-08-10T12:46:49.829Z
+-- Generated:   2026-08-10T14:36:08.951Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -23,7 +23,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict 6YRKkyFxcJ7e7ACVm9ezXWg6gvR3hCPU9tfY5EEa31bkA4E3keyU92pcuYyVCDs
+\restrict 6dNFFZddYj1EHg3lu7fvaCKVZbJgMO9fWSrFKHhA8sKX9l545odQnCGIccLogs3
 
 -- Dumped from database version 16.14 (Debian 16.14-1.pgdg13+1)
 -- Dumped by pg_dump version 16.14 (Debian 16.14-1.pgdg13+1)
@@ -174,12 +174,10 @@ CREATE FUNCTION public.clubdesk_offliz_to_dx(offliz text) RETURNS text
     AS $$
   SELECT CASE
     WHEN offliz LIKE '%Volleyball Lizenz%'            THEN 'scorer_vb'
-    WHEN upper(btrim(offliz)) = 'OTR1'               THEN 'otr1_bb'
-    WHEN upper(btrim(offliz)) = 'OTR2'               THEN 'otr2_bb'
-    -- Levels before the bare value, or 'OTN1' would never be reached.
+    WHEN upper(btrim(offliz)) = 'OTR1'                THEN 'otr1_bb'
+    WHEN upper(btrim(offliz)) = 'OTR2'                THEN 'otr2_bb'
     WHEN upper(replace(btrim(offliz), ' ', '')) = 'OTN1' THEN 'otn1_bb'
     WHEN upper(replace(btrim(offliz), ' ', '')) = 'OTN2' THEN 'otn2_bb'
-    WHEN upper(btrim(offliz)) = 'OTN'                THEN 'otn_bb'
     ELSE NULL
   END;
 $$;
@@ -189,7 +187,7 @@ $$;
 -- Name: FUNCTION clubdesk_offliz_to_dx(offliz text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.clubdesk_offliz_to_dx(offliz text) IS 'ClubDesk "Offiziellen Lizenz" string -> members column name. OTN1/OTN2 added 2026-07-25 (migration 229); bare OTN still maps to the coarse otn_bb. NULL = no licence expected.';
+COMMENT ON FUNCTION public.clubdesk_offliz_to_dx(offliz text) IS 'ClubDesk "Offiziellen Lizenz" string -> members column name. OTN1/OTN2 added 2026-07-25 (migration 229). A bare level-less "OTN" maps to NULL since migration 303 dropped the coarse otn_bb flag — Basketplan is what resolves a level. NULL = no column represents this value.';
 
 
 --
@@ -6607,7 +6605,6 @@ CREATE TABLE public.members (
     referee_vb boolean DEFAULT false NOT NULL,
     otr1_bb boolean DEFAULT false NOT NULL,
     otr2_bb boolean DEFAULT false NOT NULL,
-    otn_bb boolean DEFAULT false NOT NULL,
     referee_bb boolean DEFAULT false NOT NULL,
     auto_confirm_trainings boolean DEFAULT false NOT NULL,
     auto_confirm_games boolean DEFAULT false NOT NULL,
@@ -6665,6 +6662,10 @@ CREATE TABLE public.members (
     licence_status_season character varying(9),
     licence_status_updated_at timestamp with time zone,
     licence_status_by_name character varying(120),
+    register_status character varying(24),
+    eintritt date,
+    austritt date,
+    CONSTRAINT members_austritt_needs_departed_status CHECK (((austritt IS NULL) OR (register_status IS NULL) OR ((register_status)::text = ANY ((ARRAY['Kein Mitglied'::character varying, 'Ehemaliges Mitglied'::character varying, 'Verstorben'::character varying])::text[])))),
     CONSTRAINT members_federation_of_origin_fmt CHECK (((federation_of_origin IS NULL) OR ((federation_of_origin)::text = 'NONE'::text) OR ((federation_of_origin)::text ~ '^[A-Z]{2}$'::text))),
     CONSTRAINT members_fee_discount_one_unit CHECK (((fee_discount IS NULL) OR (fee_discount_pct IS NULL))),
     CONSTRAINT members_fee_discount_reason_nonblank CHECK (((fee_discount_reason IS NULL) OR (btrim((fee_discount_reason)::text) <> ''::text))),
@@ -6673,6 +6674,7 @@ CREATE TABLE public.members (
     CONSTRAINT members_licence_status_values CHECK (((licence_status)::text = ANY ((ARRAY['none'::character varying, 'to_be_ordered'::character varying, 'ordered'::character varying, 'finalized'::character varying, 'licenced'::character varying])::text[]))),
     CONSTRAINT members_license_nr_fmt CHECK (((license_nr IS NULL) OR (((license_nr)::text ~ '^[0-9]+$'::text) AND ((license_nr)::text <> '0'::text)))),
     CONSTRAINT members_nationalitaet_codes_fmt CHECK (((nationalitaet_codes IS NULL) OR ((nationalitaet_codes)::text ~ '^[A-Z]{2}(,[A-Z]{2})*$'::text))),
+    CONSTRAINT members_register_status_values CHECK (((register_status IS NULL) OR ((register_status)::text = ANY ((ARRAY['Kein Mitglied'::character varying, 'Aktivmitglied'::character varying, 'Passivmitglied'::character varying, 'Ehrenmitglied'::character varying, 'Ehemaliges Mitglied'::character varying, 'Verstorben'::character varying, 'Zwischenjahr'::character varying])::text[])))),
     CONSTRAINT members_role_values_valid CHECK ((role <@ '["user", "admin", "superuser", "vb_admin", "bb_admin", "vorstand", "website_admin", "finance"]'::jsonb)),
     CONSTRAINT members_trainer_licences_fmt CHECK (((trainer_licences IS NULL) OR ((trainer_licences)::text ~ '^(JS|C|B|A|T1|T2|T3)(,(JS|C|B|A|T1|T2|T3))*$'::text))),
     CONSTRAINT members_transfer_status_chk CHECK (((transfer_status IS NULL) OR ((transfer_status)::text = ANY ((ARRAY['pending'::character varying, 'done'::character varying])::text[]))))
@@ -6817,13 +6819,6 @@ COMMENT ON COLUMN public.members.otr1_bb IS 'Basketball OTR1 (table official tie
 --
 
 COMMENT ON COLUMN public.members.otr2_bb IS 'Basketball OTR2 (table official tier 2). Sourced from ClubDesk Offizielle Lizenz.';
-
-
---
--- Name: COLUMN members.otn_bb; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.otn_bb IS 'Basketball OTN, COARSE (holds some OTN level) — this is all ClubDesk''s Offizielle Lizenz string can express. Prefer otn1_bb / otn2_bb, which Basketplan fills precisely. Kept because scorer eligibility, deriveOffiziellenLizenz and the migration 066 view still read it.';
 
 
 --
@@ -7146,6 +7141,27 @@ COMMENT ON COLUMN public.members.licence_status_updated_at IS 'When licence_stat
 --
 
 COMMENT ON COLUMN public.members.licence_status_by_name IS 'Display name of whoever last changed licence_status, or the machine that did ("Swiss Volley sync" / "Basketplan sync" / "Season rollover"). Raw-knex and psql writes bypass the Directus revision trail, so the actor is recorded on the row itself — same pattern as transfer_done_by_name (migration 234).';
+
+
+--
+-- Name: COLUMN members.register_status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.register_status IS 'The club register''s membership status, ClubDesk''s own picklist verbatim: Kein Mitglied | Aktivmitglied | Passivmitglied | Ehrenmitglied | Ehemaliges Mitglied | Verstorben | Zwischenjahr. Two-way with ClubDesk — wiedisync wins while clubdesk_push_pending is set, the register wins once the push has landed (see CD_PUSH_HEADERS in kscw-endpoints/src/clubdesk-update.js). NOT the same thing as kscw_membership_active, which is wiedisync''s own "counts as a member here" switch.';
+
+
+--
+-- Name: COLUMN members.eintritt; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.eintritt IS 'Club entry date (ClubDesk "Eintritt"). Pushed as dd.mm.yyyy. For members created from a signup this is the registration SUBMISSION date (user rule 2026-07-06); for everybody else it is whatever the register holds.';
+
+
+--
+-- Name: COLUMN members.austritt; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.austritt IS 'Club exit date (ClubDesk "Austritt"). Only meaningful with a departed register_status, which a CHECK constraint enforces. Prefilled with today when an admin sets a departed status in the Data Explorer, and cleared when they set an active one.';
 
 
 --
@@ -12614,6 +12630,13 @@ CREATE INDEX idx_members_licence_status ON public.members USING btree (licence_s
 
 
 --
+-- Name: idx_members_register_status; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_members_register_status ON public.members USING btree (register_status);
+
+
+--
 -- Name: idx_messages_conv_created; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -15629,5 +15652,5 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 6YRKkyFxcJ7e7ACVm9ezXWg6gvR3hCPU9tfY5EEa31bkA4E3keyU92pcuYyVCDs
+\unrestrict 6dNFFZddYj1EHg3lu7fvaCKVZbJgMO9fWSrFKHhA8sKX9l545odQnCGIccLogs3
 
