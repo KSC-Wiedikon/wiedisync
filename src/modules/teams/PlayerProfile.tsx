@@ -14,6 +14,7 @@ import { asObj, relId, memberDisplayName, memberFirstName } from '../../utils/re
 import { formatDate, getCurrentSeason, getSeasonDateRange, todayLocal } from '../../utils/dateHelpers'
 import ImageLightbox from '../../components/ImageLightbox'
 import type { Member, MemberTeam, Team, Absence, Participation } from '../../types'
+import { absenceCoversActivity } from '../../utils/absenceHelpers'
 import { fetchAllItems, fetchItem } from '../../lib/api'
 import StartDmButton from '../messaging/components/StartDmButton'
 import { useReportPageLoading } from '../../hooks/usePageReady'
@@ -25,14 +26,20 @@ function computeAttendance(
   activities: Array<{ id: string; date: string }>,
   participations: Participation[],
   seasonAbsences: Absence[],
+  activityType: Participation['activity_type'],
 ): { total: number; present: number } {
   let present = 0
   let excused = 0
   for (const activity of activities) {
     const activityDate = activity.date.split(' ')[0]
-    const hasAbsence = seasonAbsences.some(
-      (a) => a.start_date <= activityDate && a.end_date >= activityDate,
-    )
+    // Delegate — a bare range check ignores `indefinite`, `type: 'weekly'` +
+    // days_of_week, and `affects`. Here that was the worst of the three copies:
+    // a covered activity is EXCLUDED from the denominator below, so one
+    // indefinite weekly row drove `total` to 0 and rendered 0/0 with "—"
+    // percentages for an actively-training player (audit 2026-08-08,
+    // finding 32). Prod has 10 indefinite weekly rows, 9 with activities in the
+    // current season window.
+    const hasAbsence = seasonAbsences.some((a) => absenceCoversActivity(a, activityType, activityDate))
     if (hasAbsence) {
       excused++
     } else {
@@ -121,8 +128,8 @@ export default function PlayerProfile() {
         if (cancelled) return
         const trainingParts = participations.filter((p) => p.activity_type === 'training')
         const gameParts = participations.filter((p) => p.activity_type === 'game')
-        setTrainingStats(computeAttendance(trainings, trainingParts, seasonAbsences))
-        setGameStats(computeAttendance(games, gameParts, seasonAbsences))
+        setTrainingStats(computeAttendance(trainings, trainingParts, seasonAbsences, 'training'))
+        setGameStats(computeAttendance(games, gameParts, seasonAbsences, 'game'))
       })
       .catch(() => {
         if (cancelled) return

@@ -179,7 +179,13 @@ export async function logout() {
   // Clean up legacy token storage from the pre-cookie era + local caches.
   localStorage.removeItem('directus_auth')
   sessionStorage.removeItem('directus_auth')
-  localStorage.removeItem('wiedisync-sql-history')
+  // ⚠ The key cleared here used to be 'wiedisync-sql-history', which NOTHING
+  // writes — so the SQL workspace's real drafts and history survived logout on
+  // a shared machine, while the cleanup read as if they did not (audit
+  // 2026-08-08, finding 37). These two are the keys SqlWorkspacePage actually
+  // sets; a raw SQL draft can embed member data pasted while debugging.
+  localStorage.removeItem('kscw-sql-workspace-recent')
+  localStorage.removeItem('kscw-sql-workspace-draft')
 }
 
 // Centralized refresh lock — prevents concurrent refreshes from consuming

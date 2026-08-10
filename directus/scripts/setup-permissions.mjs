@@ -2,20 +2,29 @@
  * KSCW Directus 11 Hybrid Permission Setup
  *
  * SOURCE OF TRUTH (read this before editing):
- *   The numbered SQL migrations in `directus/scripts/0NN-*.sql` are the source
- *   of truth for the LIVE permissions on dev + prod. This file is the
- *   fresh-install snapshot — it must reproduce the same end-state when
- *   bootstrapping a brand-new Directus instance from zero.
+ *   THIS FILE is the single source of truth for permissions on dev and prod.
+ *   It is declarative and idempotent — `clearPolicyPermissions` then recreate —
+ *   and `npm run db:setup-perms:dev|prod` reconciles the live instance to it on
+ *   every deploy. A permission that is not in this file does not survive.
  *
- *   When you change permissions:
- *     1. Write a new SQL migration (NN+1) that mutates live perms idempotently.
- *     2. Apply it on dev, then prod.
- *     3. Update this file to match the new end-state. Otherwise the next
- *        run of `setup-permissions.mjs` (during a DR rebuild, fresh dev env,
- *        or onboarding) will silently roll back security hardening.
- *   That bidirectional contract is enforced by reviewers — see PERMISSIONS.md.
+ *   The numbered SQL migrations in `directus/scripts/0NN-*.sql` are SCHEMA-ONLY:
+ *   DDL, triggers, RLS, grants, FKs, backfills. Never write a permission row in
+ *   one — the next deploy reverts it, silently.
  *
- * Reflects state through migration 043 (2026-05-06). Audit history:
+ *   When you change permissions, in ONE commit:
+ *     1. Edit this file.
+ *     2. Update the matching row in PERMISSIONS.md.
+ *     3. Append to SECURITY.md when it closes or accepts a risk.
+ *   Then run `db:setup-perms` on dev and prod.
+ *
+ * ⚠ This header used to say the exact opposite — that migrations were
+ * authoritative and this file was a fresh-install snapshot to be updated
+ * afterwards. That block was ADDED by the very commit that abolished the model
+ * (19804429), and its "reflects state through migration 043 (2026-05-06)"
+ * anchor was 255 migrations stale by the time it was corrected on 2026-08-10
+ * (audit 2026-08-08, finding 31). A reader following it would have written a
+ * permission migration that the next deploy reverted — a gotcha SECURITY.md
+ * records as having actually bitten. Audit history:
  *   023 messaging RBAC scoping        024 PII fields off cross-member read
  *   025 feedback status lock          026 coach team-scoped writes
  *   027 sport admin delete lock       028 auto-action markers

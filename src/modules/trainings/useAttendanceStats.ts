@@ -4,6 +4,7 @@ import { todayLocal } from '../../utils/dateHelpers'
 import type { Training, Participation, Absence, Member, MemberTeam } from '../../types'
 import { fetchAllItems } from '../../lib/api'
 import { asObj, memberName } from '../../utils/relations'
+import { absenceCoversActivity } from '../../utils/absenceHelpers'
 
 export type AttendanceBucket = 'present' | 'absent' | 'not_counted'
 
@@ -111,7 +112,9 @@ async function computeAttendanceStats(team: string, start: string, end: string):
   }
   const hasCoveringAbsence = (memberId: string, dateKey: string) =>
     (absencesByMember.get(memberId) ?? []).some(
-      (a) => a.start_date <= dateKey && a.end_date >= dateKey,
+      // Delegate: a bare range check ignores `indefinite`, weekly days_of_week
+      // and `affects` (audit 2026-08-08, finding 32).
+      (a) => absenceCoversActivity(a, 'training', dateKey),
     )
 
   // Build per-member stats

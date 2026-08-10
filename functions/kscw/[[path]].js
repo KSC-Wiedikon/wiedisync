@@ -21,9 +21,14 @@ export async function onRequest(context) {
     return next()
   }
 
-  // Prod is the only host that talks to prod Directus; every preview/dev host
-  // (wiedisync.pages.dev, *.pages.dev) uses dev Directus. Mirrors src/lib/api.ts.
-  const directusOrigin = url.hostname === 'wiedisync.kscw.ch'
+  // Prod hosts talk to prod Directus; every preview/dev host
+  // (wiedisync.pages.dev, *.pages.dev) uses dev Directus. Mirrors src/lib/api.ts,
+  // which pins TWO prod hosts — this checked only one, so the Spielplanung host
+  // would have been routed at DEV Directus (audit 2026-08-08, finding 36).
+  // Unreachable today (the only iCal URL builder sits on an unrouted page), but
+  // the next host added to api.ts's isProd regresses here silently otherwise.
+  const PROD_HOSTS = new Set(['wiedisync.kscw.ch', 'spielplanung.wiedisync.kscw.ch'])
+  const directusOrigin = PROD_HOSTS.has(url.hostname)
     ? 'https://directus.kscw.ch'
     : 'https://directus-dev.kscw.ch'
 
@@ -44,7 +49,17 @@ export async function onRequest(context) {
   if (ct) headers.set('content-type', ct)
   const cd = upstream.headers.get('content-disposition')
   if (cd) headers.set('content-disposition', cd)
-  headers.set('cache-control', 'public, max-age=3600')
+  // Only cache a SUCCESSFUL feed. A 502 from the tunnel during
+  // `ext:deploy:prod`'s container restart is a *successful* fetch() — the catch
+  // above never fires — so this relayed the error with an explicit one-hour
+  // freshness directive, and subscribing calendar clients stopped re-polling for
+  // up to 60 minutes after Directus was healthy again (audit 2026-08-08,
+  // finding 36). Self-healing, but the wait is the deploy window multiplied.
+  if (upstream.ok) {
+    headers.set('cache-control', 'public, max-age=3600')
+  } else {
+    headers.set('cache-control', 'no-store')
+  }
 
   return new Response(upstream.body, { status: upstream.status, headers })
 }
