@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '1.76.0'
+const APP_VERSION = '1.76.1'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,19 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.76.1',
+    date: '10.08.2026',
+    sections: [
+      {
+        title: 'Bug fixes',
+        items: [
+          'The last month-first date. The member explorer\'s date columns — birthdate, Eintritt, Austritt — still opened the browser\'s own date box when you clicked one to edit it, the single place last version\'s date sweep missed. They now open the club\'s calendar and read dd.mm.yyyy like everywhere else.',
+          'Creating an event left the dialog open. Saving a new event kept the dialog on screen, sometimes for minutes, because it waited for every invitation email to go out before closing — with the Save button already back to normal, so it looked like nothing had happened and invited a second click. It now saves the event, closes, and sends the invitations in the background: you get a note that they are on their way, and a warning if they fail.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.76.0',
     date: '10.08.2026',

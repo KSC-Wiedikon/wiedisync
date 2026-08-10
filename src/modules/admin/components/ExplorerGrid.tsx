@@ -29,6 +29,7 @@ import { toast } from 'sonner'
 import {
   ArrowDown, ArrowUp, ArrowUpDown, Check, Download, Eye, FileText, Layers, Loader2, Plus, Settings2, Users, X,
 } from 'lucide-react'
+import DatePicker from '@/components/ui/DatePicker'
 import type { Member, Team } from '../../../types'
 import { assetUrl, createRecord, deleteRecord, updateRecord } from '../../../lib/api'
 import { logActivity } from '../../../utils/logActivity'
@@ -978,13 +979,23 @@ export default function ExplorerGrid({ cache, query, canEdit, onOpenDetail, onMu
           }
           const raw = rawField(m, c.key)
           const value = raw == null ? null : String(raw)
+          if (c.kind === 'date') {
+            return (
+              <TableCell key={c.key} className={`${c.minW} ${sticky} py-1`}>
+                <EditableDateCell
+                  value={value ? value.slice(0, 10) : null}
+                  canEdit={canEdit}
+                  onSave={(v) => saveCell(memberId, c.key, v)}
+                />
+              </TableCell>
+            )
+          }
           return (
             <TableCell key={c.key} className={`${c.minW} ${sticky} py-1`}>
               <EditableCell
                 value={value}
-                kind={c.kind as 'text' | 'email' | 'date' | 'number'}
+                kind={c.kind as 'text' | 'email' | 'number'}
                 canEdit={canEdit}
-                display={c.kind === 'date' ? formatShortDate : undefined}
                 onSave={(v) => saveCell(memberId, c.key, v)}
               />
             </TableCell>
@@ -1570,12 +1581,13 @@ function MemberPicker({
 // Escape cancels. Only the changed value is PATCHed; a brief check flash
 // confirms the save without a toast per keystroke-sized edit.
 function EditableCell({
-  value, kind, canEdit, display, onSave,
+  value, kind, canEdit, onSave,
 }: {
   value: string | null
-  kind: 'text' | 'email' | 'date' | 'number'
+  // No 'date' — dates get their own cell below, because a native date input
+  // draws in the browser's locale (see EditableDateCell).
+  kind: 'text' | 'email' | 'number'
   canEdit: boolean
-  display?: (v: string) => string
   onSave: (v: string | null) => Promise<void>
 }) {
   const { t } = useTranslation('admin')
@@ -1629,11 +1641,7 @@ function EditableCell({
     )
   }
 
-  const shown = value == null || value === ''
-    ? null
-    : display
-      ? display(value)
-      : value
+  const shown = value == null || value === '' ? null : value
 
   return (
     <div
@@ -1650,6 +1658,69 @@ function EditableCell({
       {saving && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
       {flash && !saving && <Check className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />}
       {shown ?? <span className="text-muted-foreground">—</span>}
+    </div>
+  )
+}
+
+// Inline date cell (birthdate, Eintritt, Austritt).
+//
+// ⚠ NEVER a native `<input type="date">` here — that is what this cell used to
+// be. The value it carries is ISO, but the value it DRAWS is the browser's
+// locale, so an English-language browser rendered a birthdate as `01/12/2011`
+// with nothing on screen saying whether that is 1 December or 12 January. No
+// attribute and no CSS can change it; the only fix is not to use the control.
+// The shared DatePicker draws dd.mm.yyyy via formatDateZurich and emits the
+// same `YYYY-MM-DD` string. `fromYear` matters for a birthdate — the year
+// dropdown has to reach back past 1900 for the oldest members.
+//
+// Unlike the text cells there is no separate click-to-edit step: the trigger IS
+// the cell, and picking a day commits. It is styled borderless so a row of
+// dates still reads as a spreadsheet rather than a row of buttons.
+function EditableDateCell({
+  value, canEdit, onSave,
+}: {
+  value: string | null
+  canEdit: boolean
+  onSave: (v: string | null) => Promise<void>
+}) {
+  const { t } = useTranslation('admin')
+  const [saving, setSaving] = useState(false)
+  const [flash, setFlash] = useState(false)
+
+  const commit = async (next: string) => {
+    const v = next.trim() === '' ? null : next.trim()
+    if (v === (value ?? null)) return
+    setSaving(true)
+    try {
+      await onSave(v)
+      setFlash(true)
+      window.setTimeout(() => setFlash(false), 1200)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t('explorerGridSaveError'))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (!canEdit) {
+    return (
+      <div className="flex min-h-7 items-center px-1 -mx-1 text-sm">
+        {formatShortDate(value) || <span className="text-muted-foreground">—</span>}
+      </div>
+    )
+  }
+
+  return (
+    <div className={`flex min-h-7 items-center gap-1 rounded ${flash ? 'ring-1 ring-emerald-500/70' : ''}`}>
+      {saving && <Loader2 className="h-3 w-3 shrink-0 animate-spin text-muted-foreground" />}
+      <DatePicker
+        value={value ?? ''}
+        onChange={(v) => { void commit(v) }}
+        fromYear={1900}
+        disabled={saving}
+        placeholder="—"
+        className="min-h-7 w-full min-w-0 gap-1 rounded border-transparent px-1 py-0 text-sm shadow-none hover:bg-muted/80 hover:ring-1 hover:ring-border"
+      />
     </div>
   )
 }

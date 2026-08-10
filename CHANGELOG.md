@@ -2,6 +2,14 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.76.1 — 2026-08-10
+
+### Bug fixes
+
+- **The last month-first date.** The member explorer's date columns — birthdate, Eintritt, Austritt — still opened the browser's own date box when you clicked one to edit it, the single place last version's date sweep missed. They now open the club's calendar and read **dd.mm.yyyy** like everywhere else.
+- **Creating an event left the dialog open.** Saving a new event kept the dialog on screen, sometimes for minutes, because it waited for every invitation email to go out before closing — with the Save button already back to normal, so it looked like nothing had happened and invited a second click. It now saves the event, closes, and sends the invitations in the background: you get a note that they are on their way, and a warning if they fail.
+
+
 ## v1.76.0 — 2026-08-10
 
 ### Your licence status, on your profile

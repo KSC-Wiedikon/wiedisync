@@ -70,6 +70,8 @@ export default {
   signupFormCreated: 'Aamäldeformular erstellt',
   signupFormUnlinked: 'Verchnüpfig glöst',
   signupFormFailed: 'S Aamäldeformular het nöd chöne erstellt werde',
+  inviteSending: 'D Iiladige wärded im Hintergrund verschickt',
+  inviteFailed: 'D Iiladige hend nöd chöne verschickt werde',
   signupFormReplaceConfirm: 'De Aalass het scho es Aamäldeformular. Es nöis erstelle und stattdesse verchnüpfe? S alte Formular und sini Iiträg blibed erhalte.',
   signupFormUnlinkConfirm: 'De Aamäldelink vo dem Aalass entferne? S Formular und sini Iiträg blibed erhalte.',
   signupLinkTitle: 'Aamäldelink für Gäscht',

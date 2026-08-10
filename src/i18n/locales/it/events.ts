@@ -72,6 +72,8 @@ export default {
   signupFormCreated: 'Modulo di iscrizione creato',
   signupFormUnlinked: 'Modulo scollegato',
   signupFormFailed: 'Non è stato possibile creare il modulo di iscrizione',
+  inviteSending: 'Gli inviti vengono inviati in background',
+  inviteFailed: 'Non è stato possibile inviare gli inviti',
   signupFormReplaceConfirm: 'Questo evento ha già un modulo di iscrizione. Crearne uno nuovo e collegare quello? Il modulo precedente e le sue voci vengono mantenuti.',
   signupFormUnlinkConfirm: 'Rimuovere il link di iscrizione da questo evento? Il modulo e le sue voci vengono mantenuti.',
   signupLinkTitle: 'Link di iscrizione per gli ospiti',

@@ -132,6 +132,9 @@ export default function EventForm({ open, event, onSave, onCancel }: EventFormPr
   const [signupBusy, setSignupBusy] = useState(false)
   const [templateDraft, setTemplateDraft] = useState<string | null>(null)
   const [error, setError] = useState('')
+  // Covers the WHOLE submit — useMutation's isLoading only spans the create/update
+  // call, so it went idle while the session sync was still running.
+  const [submitting, setSubmitting] = useState(false)
 
   // Fetch existing sessions when editing
   const { data: existingSessionsRaw } = useCollection<EventSession>('event_sessions', {
@@ -430,6 +433,8 @@ export default function EventForm({ open, event, onSave, onCancel }: EventFormPr
       setError(tc('required'))
       return
     }
+    if (submitting) return
+    setSubmitting(true)
 
     const effectiveMode = isMultiDay ? participationMode : 'whole'
 
@@ -474,18 +479,6 @@ export default function EventForm({ open, event, onSave, onCancel }: EventFormPr
         eventId = rec.id
       }
 
-      // Send notifications for new events
-      if (!event) {
-        try {
-          await kscwApi(`/events/${eventId}/notify`, {
-            method: 'POST',
-            body: { send_email: sendEmailInvite },
-          })
-        } catch {
-          // Notification failure shouldn't block event creation
-        }
-      }
-
       // Sync sessions
       if (effectiveMode !== 'whole') {
         await syncSessions(eventId, sessions, existingSessions)
@@ -495,9 +488,27 @@ export default function EventForm({ open, event, onSave, onCancel }: EventFormPr
         await Promise.all(existingSessions.map((s) => deleteRecord('event_sessions', s.id)))
       }
 
+      // Notify the audience of a new event — deliberately NOT awaited. The
+      // endpoint sends one mail per recipient serially, so inviting a dozen
+      // teams holds the request open for the whole batch; awaiting it here kept
+      // the modal standing for minutes with the Save button already back to
+      // idle (useMutation's isLoading only covers the create call), which reads
+      // as "Save did nothing" and invites a second click. The event and its
+      // sessions are committed by this point, so nothing is lost by closing
+      // now, and a failed send surfaces as a toast rather than being swallowed.
+      if (!event) {
+        if (sendEmailInvite) toast.info(t('inviteSending'))
+        void kscwApi(`/events/${eventId}/notify`, {
+          method: 'POST',
+          body: { send_email: sendEmailInvite },
+        }).catch(() => toast.error(t('inviteFailed')))
+      }
+
       onSave()
     } catch {
       setError(tc('errorSaving'))
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -980,8 +991,8 @@ export default function EventForm({ open, event, onSave, onCancel }: EventFormPr
           <Button variant="ghost" type="button" onClick={onCancel}>
             {tc('cancel')}
           </Button>
-          <Button type="submit" loading={isLoading}>
-            {isLoading ? tc('saving') : tc('save')}
+          <Button type="submit" loading={submitting || isLoading}>
+            {submitting || isLoading ? tc('saving') : tc('save')}
           </Button>
         </div>
       </form>
