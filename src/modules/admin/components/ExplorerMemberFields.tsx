@@ -1288,16 +1288,29 @@ function DisplayValue({
 
   // Roster membership lives in the junction table, not in a column, so it reads
   // from the cache rather than from `value`.
+  //
+  // ⚠ A `teams` row is PER SEASON — 'H2' 2025/26 and 'H2' 2026/27 are two
+  // different teams with the same name — so a member who stayed on the same
+  // team rendered the identical chip twice and read as duplicated data (or as a
+  // team-responsible link leaking into the roster). Past-season chips therefore
+  // carry their season and are dimmed; the current season stays bare, which is
+  // the ordinary case. The picker already labelled its rows this way.
   if (def.kind === 'teamMulti') {
     if (ctx.rosterTeamIds.length === 0) return <span className="text-muted-foreground">—</span>
+    const thisSeason = getCurrentSeason()
     return (
       <span className="flex flex-wrap gap-1.5">
         {ctx.rosterTeamIds.map((id) => {
           const team = ctx.teamOptions.find((o) => o.id === id)
+          const pastSeason = team?.season && team.season !== thisSeason ? team.season : null
           return (
             <span
               key={id}
-              className="inline-flex items-center gap-1 rounded-full border border-border bg-muted/60 px-2 py-0.5 text-xs text-foreground"
+              className={
+                'inline-flex items-center gap-1 rounded-full border border-border bg-muted/60 px-2 py-0.5 text-xs text-foreground'
+                + (pastSeason ? ' opacity-60' : '')
+              }
+              title={pastSeason ? `Past season ${pastSeason}` : undefined}
             >
               {team?.sport && (
                 <span className="text-[9px] font-semibold text-muted-foreground">
@@ -1305,6 +1318,9 @@ function DisplayValue({
                 </span>
               )}
               {team?.label ?? `#${id}`}
+              {pastSeason && (
+                <span className="text-[9px] tabular-nums text-muted-foreground">{pastSeason}</span>
+              )}
             </span>
           )
         })}
