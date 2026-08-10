@@ -757,9 +757,11 @@ export function registerBasketballPortal(router, { database, logger }) {
   })
 
   // POST /kscw/terminplanung/bb/club/note/:token — one shared club-level remark.
-  // ⚠ Unlike the volleyball equivalent (/terminplanung/club/note/:token, which is
-  // missing the guard) this DOES check expires_at — an expired link must not be
-  // able to rewrite anything.
+  // Checks expires_at: an expired link must not be able to rewrite anything.
+  // (This note used to flag that the volleyball twin was MISSING the guard. It
+  // no longer is — game-scheduling.js grew `clubPortalForWrite`, which folds the
+  // expiry test into resolution so a new write route cannot inherit the read
+  // behaviour by accident. Audit 2026-08-08, finding 23.)
   router.post('/terminplanung/bb/club/note/:token', async (req, res) => {
     try {
       if (!rateLimit(writeAttempts, req, 20, 15 * 60 * 1000)) {

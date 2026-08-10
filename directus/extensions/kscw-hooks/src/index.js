@@ -5250,28 +5250,37 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // hardcoded hard rule: guests of any level can't RSVP yes/maybe to a game.
   // Events stay open. Declined is always allowed (lets the user cleanly opt
   // out without an admin doing it for them).
-  filter('participations.items.create', async (payload, _meta, { database: db }) => {
-    try {
-      if (!payload || !payload.activity_type || !payload.activity_id || !payload.member) return payload
-      if (payload.status !== 'confirmed' && payload.status !== 'tentative') return payload
+  /**
+   * The gate itself, shared by create and update.
+   *
+   * `rsvp` is the RESOLVED state a write would produce — {activity_type,
+   * activity_id, member, status} — not the raw payload, because a PATCH carries
+   * none of the first three and they have to come from the stored row.
+   * Throws GUEST_RSVP_BLOCKED, or returns normally when allowed.
+   */
+  async function assertGuestMayRsvp(db, rsvp) {
+    const payload = rsvp
+    {
+      if (!payload || !payload.activity_type || !payload.activity_id || !payload.member) return
+      if (payload.status !== 'confirmed' && payload.status !== 'tentative') return
 
       let teamId = null
       let excluded = null  // null = "block any positive level" (games), array = explicit list
       if (payload.activity_type === 'training') {
         const row = await db('trainings').where('id', payload.activity_id).first('team', 'excluded_guest_levels')
-        if (!row || !row.team) return payload
+        if (!row || !row.team) return
         teamId = row.team
         const raw = row.excluded_guest_levels
         const list = Array.isArray(raw) ? raw : (typeof raw === 'string' ? JSON.parse(raw) : [])
-        if (!list.length) return payload
+        if (!list.length) return
         excluded = list.map((v) => Number(v)).filter((n) => !Number.isNaN(n))
       } else if (payload.activity_type === 'game') {
         const row = await db('games').where('id', payload.activity_id).first('kscw_team')
-        if (!row || !row.kscw_team) return payload
+        if (!row || !row.kscw_team) return
         teamId = row.kscw_team
         // null = block any positive guest_level
       } else {
-        return payload
+        return
       }
 
       const mt = await db('member_teams')
@@ -5279,10 +5288,10 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         .andWhere('team', teamId)
         .first('guest_level')
       const level = Number(mt?.guest_level || 0)
-      if (level === 0) return payload  // not a guest, always allowed
+      if (level === 0) return  // not a guest, always allowed
 
       const blocked = excluded === null ? level > 0 : excluded.includes(level)
-      if (!blocked) return payload
+      if (!blocked) return
 
       log.info(`[guest-rsvp-gate] block ${payload.activity_type}=${payload.activity_id} member=${payload.member} level=${level}`)
       throw kscwScopeError(
@@ -5292,9 +5301,46 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         403,
         'GUEST_RSVP_BLOCKED',
       )
+    }
+  }
+
+  filter('participations.items.create', async (payload, _meta, { database: db }) => {
+    try {
+      await assertGuestMayRsvp(db, payload)
+      return payload
     } catch (err) {
       if (err?.extensions?.code === 'GUEST_RSVP_BLOCKED' || err?.status === 403) throw err
       log.error({ msg: `[guest-rsvp-gate] ${err.message}`, event: 'guest_rsvp_gate', stack: err.stack })
+      return payload
+    }
+  })
+
+  // The UPDATE twin. Missing until 2026-08-10 (audit 2026-08-08, finding 24),
+  // and the update leg is the app's PRIMARY write path — useParticipation
+  // PATCHes an existing row — so the gate only ever covered the less-used half.
+  // An excluded guest POSTed `declined` (which early-returns past the gate),
+  // then PATCHed to `confirmed`; they then counted toward `min_participants`,
+  // which feeds the training auto-cancel sweep.
+  //
+  // A PATCH carries no activity_type/activity_id/member, so the stored row
+  // supplies them and the payload supplies only the new status. The Postgres
+  // backstop `trg_participations_guest_block` is games-only despite being
+  // declared BEFORE INSERT OR UPDATE with a TG_OP='UPDATE' arm — trainings were
+  // simply never added there either.
+  filter('participations.items.update', async (payload, meta, { database: db }) => {
+    try {
+      if (!payload || (payload.status !== 'confirmed' && payload.status !== 'tentative')) return payload
+      const ids = Array.isArray(meta?.keys) ? meta.keys : (meta?.key != null ? [meta.key] : [])
+      if (!ids.length) return payload
+      const rows = await db('participations').whereIn('id', ids)
+        .select('activity_type', 'activity_id', 'member')
+      for (const row of rows) {
+        await assertGuestMayRsvp(db, { ...row, status: payload.status })
+      }
+      return payload
+    } catch (err) {
+      if (err?.extensions?.code === 'GUEST_RSVP_BLOCKED' || err?.status === 403) throw err
+      log.error({ msg: `[guest-rsvp-gate/update] ${err.message}`, event: 'guest_rsvp_gate', stack: err.stack })
       return payload
     }
   })
