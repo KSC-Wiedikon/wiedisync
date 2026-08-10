@@ -69,9 +69,9 @@ describe('memberFieldSchema — completeness', () => {
     expect([...keys].sort()).toEqual(expected)
   })
 
-  it('has 104 real columns and 2 virtual fields', () => {
-    expect(MEMBERS_COLUMNS).toHaveLength(104)
-    expect(MEMBER_FIELDS.filter((f) => !f.virtual)).toHaveLength(104)
+  it('has 105 real columns and 2 virtual fields', () => {
+    expect(MEMBERS_COLUMNS).toHaveLength(105)
+    expect(MEMBER_FIELDS.filter((f) => !f.virtual)).toHaveLength(105)
     // The roster multiselect writes a junction; the Beitrag card is computed by
     // the server's fee engine. Neither is a `members` column, and neither may
     // ever reach a PATCH body.
@@ -98,7 +98,7 @@ describe('memberFieldSchema — completeness', () => {
     expect(count('playing')).toBe(3)
     expect(count('association')).toBe(18)
     expect(count('roles_access')).toBe(3)
-    expect(count('finance')).toBe(18) // 17 columns + __fee_amount
+    expect(count('finance')).toBe(19) // 18 columns + __fee_amount
     expect(count('privacy')).toBe(6)
     expect(count('notifications')).toBe(11)
     expect(count('clubdesk')).toBe(5)

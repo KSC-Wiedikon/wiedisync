@@ -591,13 +591,15 @@ function overrideNum(v) {
  * A category outside the map is billable via the override, but never
  * surcharged: the surcharge sets are keyed by the known category names.
  *
- * PER-MEMBER overrides (migration 299) sit one level above all of that, because
- * they exist precisely for the cases a category cannot express:
+ * PER-MEMBER overrides (migrations 299/300) sit one level above all of that,
+ * because they exist precisely for the cases a category cannot express:
  *   • `member.fee_base_override`      beats the schedule AND the map
- *   • `member.fee_surcharge_override` replaces the CHF 100 rule (0 waives it)
- *   • `member.fee_discount`           applies when the caller passes no
- *                                     per-run discount of its own
- * A member row that predates the migration — or a hand-built object in a test —
+ *   • `member.fee_surcharge_override` BOOLEAN: true charges the CHF 100, false
+ *                                     waives it, null applies the rule
+ *   • `member.fee_discount` (CHF) or `fee_discount_pct` (% of what is owed)
+ *                                     apply when the caller passes no per-run
+ *                                     discount of its own
+ * A member row that predates the migrations — or a hand-built object in a test —
  * simply has none of those keys and behaves exactly as before.
  */
 export function feeBreakdown(kategorie, member = null, opts = {}) {
@@ -612,18 +614,24 @@ export function feeBreakdown(kategorie, member = null, opts = {}) {
     : null
   if (base === null) return null
 
-  const memberSurcharge = overrideNum(member?.fee_surcharge_override)
+  // Boolean since migration 300: true charges the CHF 100, false waives it,
+  // null/absent applies the rule below. `=== true` / `=== false` on purpose —
+  // undefined must not read as "waive".
+  const memberSurcharge = member?.fee_surcharge_override === true ? NO_LICENCE_SURCHARGE
+    : member?.fee_surcharge_override === false ? 0
+    : null
   // The treasurer's standing reduction. A discount named by the CALLER (the
   // per-run `discounts` map) wins: it is the decision being made right now for
   // this one run, and it must be able to differ from the member's standing one.
   // It cannot, however, silently *cancel* the standing discount by passing 0 —
   // "no per-run discount" is the default every caller sends.
   const runDiscount = Number(opts?.discount)
-  const feeOpts = {
-    discount: Number.isFinite(runDiscount) && runDiscount > 0
-      ? runDiscount
-      : (overrideNum(member?.fee_discount) ?? 0),
-  }
+  const feeOpts = Number.isFinite(runDiscount) && runDiscount > 0
+    ? { discount: runDiscount }
+    : {
+        discount: overrideNum(member?.fee_discount) ?? 0,
+        discountPct: overrideNum(member?.fee_discount_pct) ?? 0,
+      }
 
   // A guest (guest on a team, core on none) pays the base minus CHF 110,
   // floored at 0, and NEVER the no-Schreiber surcharge (user 2026-07-15) —
@@ -660,11 +668,18 @@ export function feeBreakdown(kategorie, member = null, opts = {}) {
  *  Every query that feeds it a member row must select these — omit them and the
  *  engine silently bills the derived amount instead of the override. */
 export const FEE_OVERRIDE_FIELDS = [
-  'fee_base_override', 'fee_surcharge_override', 'fee_discount', 'fee_discount_reason',
+  'fee_base_override', 'fee_surcharge_override',
+  'fee_discount', 'fee_discount_pct', 'fee_discount_reason',
 ]
 
 /**
  * Apply the treasurer's on-demand reduction to a computed fee.
+ *
+ * Two units: `opts.discount` is CHF, `opts.discountPct` is a percentage OF WHAT
+ * IS OWED at this point (base + surcharge − guest reduction). CHF wins if both
+ * arrive — the DB CHECK members_fee_discount_one_unit stops a member row from
+ * holding both, so in practice that only happens when a dues run names a CHF
+ * discount over a member's standing percentage, which is the intended override.
  *
  * Capped at what is owed: a discount may take a bill to exactly zero (the issue
  * path then skips it as a zero-rate row) but never below, which would mint an
@@ -673,12 +688,20 @@ export const FEE_OVERRIDE_FIELDS = [
  * preview must not silently become a credit.
  */
 function withDiscount(fee, opts) {
-  const raw = Number(opts?.discount)
-  const wanted = Number.isFinite(raw) && raw > 0 ? Math.round(raw * 100) / 100 : 0
-  if (!wanted) return { ...fee, discount: 0, amount: Math.round(fee.amount * 100) / 100 }
-  const owed = Math.max(0, Math.round(fee.amount * 100) / 100)
+  const round2 = (n) => Math.round(n * 100) / 100
+  const owed = Math.max(0, round2(fee.amount))
+  const rawChf = Number(opts?.discount)
+  const rawPct = Number(opts?.discountPct)
+  const wanted = Number.isFinite(rawChf) && rawChf > 0
+    ? round2(rawChf)
+    : Number.isFinite(rawPct) && rawPct > 0
+      // A percentage over 100 is capped by the `owed` floor below anyway, but
+      // clamp here too so the reported discount stays a believable figure.
+      ? round2(owed * Math.min(rawPct, 100) / 100)
+      : 0
+  if (!wanted) return { ...fee, discount: 0, amount: round2(fee.amount) }
   const discount = Math.min(wanted, owed)
-  return { ...fee, discount, amount: Math.round((fee.amount - discount) * 100) / 100 }
+  return { ...fee, discount, amount: round2(fee.amount - discount) }
 }
 
 export function deriveMitgliederbeitrag(kategorie, member = null, opts = {}) {

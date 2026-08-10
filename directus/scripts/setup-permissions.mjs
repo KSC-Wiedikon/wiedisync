@@ -936,8 +936,8 @@ const FINANCE_MEMBER_FIELDS = [
   'language', 'role', 'member_teams', 'date_created', 'iban_confirmed',
   // Alternate billing contact (migrations 133/136).
   'billing_different', 'billing_name', 'billing_email', 'billing_address', 'billing_plz', 'billing_ort', 'billing_phone', 'billing_iban',
-  // Per-member fee overrides (migration 299) — the treasurer's own numbers.
-  'fee_base_override', 'fee_surcharge_override', 'fee_discount', 'fee_discount_reason',
+  // Per-member fee overrides (migrations 299/300) — the treasurer's own numbers.
+  'fee_base_override', 'fee_surcharge_override', 'fee_discount', 'fee_discount_pct', 'fee_discount_reason',
 ]
 
 /**
@@ -951,7 +951,7 @@ const FINANCE_MEMBER_FIELDS = [
  */
 const FINANCE_MEMBER_BILLING_FIELDS = [
   'billing_different', 'billing_name', 'billing_email', 'billing_address', 'billing_plz', 'billing_ort', 'billing_phone', 'billing_iban',
-  'fee_base_override', 'fee_surcharge_override', 'fee_discount', 'fee_discount_reason',
+  'fee_base_override', 'fee_surcharge_override', 'fee_discount', 'fee_discount_pct', 'fee_discount_reason',
 ]
 
 /** Private folder for invoice PDFs (migration 134). Members can't read this folder
