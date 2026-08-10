@@ -212,7 +212,20 @@ export const MAILBOX_GROUPS = [
   // cannot be intersected with a member audience at all.
   { key: 'status:aktiv', section: 'everyone', spec: { audience_type: 'register_status', audience_status: 'Aktivmitglied' } },
   { key: 'status:passiv', section: 'everyone', spec: { audience_type: 'register_status', audience_status: 'Passivmitglied' } },
-  { key: 'status:ehren', section: 'everyone', spec: { audience_type: 'register_status', audience_status: 'Ehrenmitglied' } },
+  // ⚠ Ehrenmitglieder resolves on the ClubDesk GROUP, not on the register
+  // status — the one chip in this section that does. Measured on prod
+  // 2026-08-10: the group holds 15 people and the status holds 12, overlapping
+  // in 10. The five in the group whose status reads 'Aktivmitglied' pay
+  // 'Gratis' and two of them are on a current roster, i.e. they are honorary
+  // members who still play. ClubDesk's Status is single-valued and doubles as
+  // the billing axis, so it cannot hold "honorary AND active" and records those
+  // five as active — resolving this chip on status silently dropped them from
+  // every mailing to the Ehrenmitglieder.
+  //
+  // Consequence for the OR-within-a-section rule above: this chip is NOT
+  // mutually exclusive with 'status:aktiv' any more. Union is still the right
+  // reading (a person is reached once), so nothing else changes.
+  { key: 'status:ehren', section: 'everyone', spec: { audience_type: 'clubdesk_group', audience_group: 'Ehrenmitglieder' } },
   { key: 'status:zwischenjahr', section: 'everyone', spec: { audience_type: 'register_status', audience_status: 'Zwischenjahr' } },
   { key: 'guests', section: 'everyone', spec: { audience_type: 'guests' } },
   // Sektion vs sport are NOT the same audience and both are wanted. Sektion is

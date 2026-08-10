@@ -153,6 +153,7 @@ export default {
   dhIssueClubdeskCoachGroup: 'Trainer*innen ohne ClubDesk-Trainer-Gruppe',
   dhIssueClubdeskStaleFunktion: 'Falsche ClubDesk-Funktion für ein aktuelles Team',
   dhIssueClubdeskFeeNoRoster: 'Zahlt Spielerbeitrag, steht in keinem Kader',
+  dhIssueClubdeskHonoraryDrift: 'Ehrenmitgliedschaft widersprüchlich (Gruppe vs. Status vs. Beitrag)',
   dhIssueClubdeskUnmappedTeam: 'Team ohne hinterlegte ClubDesk-Gruppe',
   dhIssueScorerNotInVm: 'Schreiber-Lizenz gesetzt, aber nicht im Volleymanager',
   dhIssueScorerVmWriterNotFlagged: 'Schreiber im Volleymanager ohne Schreiber-Lizenz',

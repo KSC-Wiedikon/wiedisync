@@ -41,6 +41,7 @@ const ISSUE_LABEL_KEY: Record<IssueKey, string> = {
   clubdeskCoachGroup: 'dhIssueClubdeskCoachGroup',
   clubdeskStaleFunktion: 'dhIssueClubdeskStaleFunktion',
   clubdeskFeeNoRoster: 'dhIssueClubdeskFeeNoRoster',
+  clubdeskHonoraryDrift: 'dhIssueClubdeskHonoraryDrift',
   clubdeskUnmappedTeam: 'dhIssueClubdeskUnmappedTeam',
   clubdeskNameDrift: 'dhIssueClubdeskNameDrift',
   scorerNotInVm: 'dhIssueScorerNotInVm',

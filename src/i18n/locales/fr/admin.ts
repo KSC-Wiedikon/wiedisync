@@ -580,6 +580,7 @@ export default {
   dhIssueClubdeskCoachGroup: 'Entraîneurs sans leur groupe ClubDesk',
   dhIssueClubdeskStaleFunktion: 'Mauvaise fonction ClubDesk pour une équipe actuelle',
   dhIssueClubdeskFeeNoRoster: 'Facturé comme joueur, mais dans aucun effectif',
+  dhIssueClubdeskHonoraryDrift: 'Statut de membre d’honneur contradictoire (groupe / statut / cotisation)',
   dhIssueClubdeskUnmappedTeam: 'Équipe sans groupe ClubDesk configuré',
   dhIssueScorerNotInVm: 'Licence de marqueur définie, mais absente de Volleymanager',
   dhIssueScorerVmWriterNotFlagged: 'Marqueur dans Volleymanager sans la licence de marqueur',

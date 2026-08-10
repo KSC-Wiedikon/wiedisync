@@ -153,6 +153,7 @@ export default {
   dhIssueClubdeskCoachGroup: 'Coaches without their ClubDesk coach group',
   dhIssueClubdeskStaleFunktion: 'Wrong ClubDesk function for a current team',
   dhIssueClubdeskFeeNoRoster: 'Billed as a player, but on no roster',
+  dhIssueClubdeskHonoraryDrift: 'Honorary membership disagrees (group vs status vs fee)',
   dhIssueClubdeskUnmappedTeam: 'Team has no ClubDesk group configured',
   dhIssueScorerNotInVm: 'Scorer licence set, but not in Volleymanager',
   dhIssueScorerVmWriterNotFlagged: 'Volleymanager scorer without the scorer licence',
