@@ -24,7 +24,8 @@
 // (react-refresh/only-export-components, an ESLint *error* here).
 //
 // Column list verified against prod `information_schema` on 2026-08-06 (100
-// columns), + the five fee-override columns from migrations 299/300 (105).
+// columns), + the five fee-override columns from migrations 299/300 (105), +
+// the four licence-status columns from migration 301 (109).
 // When a migration adds one, add it here in the same commit — the fallback in
 // getFieldDef() keeps the page alive but flags the column as unmapped and
 // refuses to let anybody edit it.
@@ -377,6 +378,34 @@ const ASSOC_COMMON = block('association', 'assoc_common', [
     help: 'Federal BASPO identifier, used by the J+S course exports. Applies to both sports.',
     overwrittenBy:
       'Filled from ClubDesk when empty (Saturday 22:00). A value set here is never overwritten, so a typo files attendance under another person.',
+  },
+  {
+    // Cross-sport on purpose (migration 301): both registers write the same
+    // column, so filing it under "Swiss Volley" would hide every basketball
+    // member's status behind a volleyball toggle — the mistake license_nr
+    // itself had to be moved out of.
+    key: 'licence_status', label: 'Licence status', kind: 'select',
+    help: 'Where this season\'s licence has got to. "Licenced" means a federation confirmed it, not that somebody thinks it is done.',
+    overwrittenBy:
+      'The daily 05:45 UTC sweep sets "Licenced" when Swiss Volley reports the licence activated AND validated, or Basketplan lists it in this season\'s licence scrape. It only ever moves a member UP to Licenced — it never overwrites the four manual steps and never demotes. The 1 June season rollover resets everyone to "No licence".',
+  },
+  {
+    key: 'licence_status_season', label: 'Licence status season', kind: 'text',
+    help: 'The season the status above answers for. A status is only ever true of one season.',
+    readOnly: true,
+    provenance:
+      'Stamped with the current season whenever the status changes, and reset by the daily sweep at the 1 June rollover. A stamp that is not the current season means nobody has answered for this season yet.',
+  },
+  {
+    key: 'licence_status_updated_at', label: 'Licence status updated', kind: 'datetime',
+    readOnly: true, technical: true,
+    provenance: 'Stamped whenever licence_status changes — by the members update hook for hand edits, by the sweep for confirmations.',
+  },
+  {
+    key: 'licence_status_by_name', label: 'Licence status set by', kind: 'text',
+    readOnly: true, technical: true,
+    provenance:
+      'The person who last changed the status, or the machine that did ("Swiss Volley sync" / "Basketplan sync" / "Season rollover"). Recorded on the row because the sweep writes raw SQL, which leaves no Directus revision.',
   },
 ])
 

@@ -352,4 +352,6 @@ export default {
   emailNotifyFormSubmissions: 'Moduli inviati',
   emailNotifyAnnouncements: 'Notizie del club',
   emailNotifyEvents: 'Inviti agli eventi',
+  licenceStatusTitle: 'Stato della licenza',
+  licenceStatusHelp: 'Impostato dal club e confermato dalla tua federazione. Contatta il tuo allenatore se qualcosa non torna.',
 } as const

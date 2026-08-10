@@ -913,4 +913,9 @@ export default {
   trSaveFailed: 'Spichere fehlgschlage',
   trEmptyTitle: 'Nüt z tue',
   trEmptyDescription: 'Kei offeni Transfers und kei offeni Frooge.',
+  anmeldungenLicenceStatus: 'Lizänzstatus',
+  anmeldungenLicenceStatusHint: 'S Mitglied wird benachrichtigt. «Lizenziert» setzt normalerwiis de Swiss-Volley-/Basketplan-Sync.',
+  anmeldungenLicenceStatusSaved: 'Lizänzstatus gspeicheret',
+  anmeldungenLicenceStatusFailed: 'Lizänzstatus het nöd chöne gspeicheret werde',
+  memberFilterSectionLicenceStatus: 'Lizänzstatus',
 } as const

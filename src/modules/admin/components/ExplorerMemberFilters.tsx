@@ -11,6 +11,7 @@ import {
   CONSENT_KEYS,
   EMPTY_FILTERS,
   LANGUAGES,
+  LICENCE_STATUSES,
   LICENCE_TYPES,
   POSITIONS,
   PRESENCE_FIELDS,
@@ -32,6 +33,10 @@ interface Props {
 
 export default function ExplorerMemberFilters({ value, onChange }: Props) {
   const { t } = useTranslation(['admin', 'common', 'invitations', 'teams', 'auth'])
+  // The five licence-status labels live in `common` (three surfaces share
+  // them), and `t` above is bound to `admin` first — so they need their own
+  // namespace-bound translator rather than a prefixed key.
+  const { t: tCommon } = useTranslation('common')
   const activeCount = countActiveFilters(value)
 
   const setBool = (field: BoolField, tri: Tri) =>
@@ -265,6 +270,19 @@ export default function ExplorerMemberFilters({ value, onChange }: Props) {
                 active={value.consent.includes(c)}
                 onClick={() => onChange({ ...value, consent: toggleIn(value.consent, c) })}
                 label={t(`memberFilterConsent_${c}` as const)}
+              />
+            ))}
+          </PillRow>
+        </Section>
+
+        <Section title={t('memberFilterSectionLicenceStatus')}>
+          <PillRow>
+            {LICENCE_STATUSES.map((s) => (
+              <Pill
+                key={s}
+                active={value.licenceStatus.includes(s)}
+                onClick={() => onChange({ ...value, licenceStatus: toggleIn(value.licenceStatus, s) })}
+                label={tCommon(`licenceStatus_${s}` as const)}
               />
             ))}
           </PillRow>

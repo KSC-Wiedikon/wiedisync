@@ -11,6 +11,7 @@
 import type { Member, MemberPosition } from '../../../types'
 import type { CacheShape } from './explorerHelpers'
 import { parseTrainerLicences, type TrainerLicence } from '../../../utils/trainerLicences'
+import { LICENCE_STATUSES, effectiveLicenceStatus, type LicenceStatus } from '../../../utils/licenceStatus'
 
 export type Tri = 'any' | 'yes' | 'no'
 export type SportKey = 'volleyball' | 'basketball' | 'other'
@@ -80,6 +81,16 @@ export type BirthdateVisKey = (typeof BIRTHDATE_VIS)[number]
 export const CONSENT_KEYS = ['accepted', 'declined', 'pending'] as const
 export type ConsentKey = (typeof CONSENT_KEYS)[number]
 
+// Licence-ordering workflow (migration 301). Its own chip row rather than a
+// PRESENCE_FIELDS entry: the column is NOT NULL, so "has a value" is true for
+// everybody and would filter nothing — the useful question is which of the five
+// states, which is what the licence officer's worklist ("show me everyone still
+// To be ordered") is made of.
+// Re-exported (not redefined) so ExplorerMemberFilters.tsx can pull every
+// filter catalogue from this one module, the way it does for the other nine.
+export { LICENCE_STATUSES }
+export type { LicenceStatus }
+
 export interface MemberFilterState {
   bools: Partial<Record<BoolField, Tri>>
   presence: Partial<Record<PresenceField, Tri>>
@@ -92,6 +103,7 @@ export interface MemberFilterState {
   languages: LanguageKey[]
   birthdateVis: BirthdateVisKey[]
   consent: ConsentKey[]
+  licenceStatus: LicenceStatus[]
 }
 
 export const EMPTY_FILTERS: MemberFilterState = {
@@ -106,6 +118,7 @@ export const EMPTY_FILTERS: MemberFilterState = {
   languages: [],
   birthdateVis: [],
   consent: [],
+  licenceStatus: [],
 }
 
 export function countActiveFilters(f: MemberFilterState): number {
@@ -121,6 +134,7 @@ export function countActiveFilters(f: MemberFilterState): number {
   n += f.languages.length
   n += f.birthdateVis.length
   n += f.consent.length
+  n += f.licenceStatus.length
   return n
 }
 
@@ -224,6 +238,15 @@ export function applyMemberFilters(
       const raw = String(mr.consent_decision ?? 'pending')
       if (!(CONSENT_KEYS as readonly string[]).includes(raw)) return false
       if (!filters.consent.includes(raw as ConsentKey)) return false
+    }
+
+    if (filters.licenceStatus.length > 0) {
+      // Through effectiveLicenceStatus, not the raw column: between the 1 June
+      // rollover and the sweep that follows it, the column still holds last
+      // season's answer, and a worklist built on it would skip exactly the
+      // people who need a licence ordered this season.
+      const { status } = effectiveLicenceStatus(m)
+      if (!filters.licenceStatus.includes(status)) return false
     }
 
     return true

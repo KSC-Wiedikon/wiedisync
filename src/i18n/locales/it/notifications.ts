@@ -78,4 +78,6 @@ export default {
   minutesAgo: '{{count}}min fa',
   hoursAgo: '{{count}}h fa',
   daysAgo: '{{count}}g fa',
+  licenceStatus: 'Licenza',
+  licence_status_changed: 'Il tuo stato della licenza per {{season}} ora è: {{status}}',
 } as const

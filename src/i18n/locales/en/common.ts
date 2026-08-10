@@ -198,4 +198,12 @@ export default {
   filePreviewOpenTab: 'Open in new tab',
   filePreviewDownload: 'Download',
   filePreviewAlt: 'Document',
+  // Licence status (migration 301) — the five states of the club's licence
+  // workflow. Shared by the profile card, /admin/anmeldungen and the
+  // notification bell, so they live here rather than three times over.
+  licenceStatus_none: 'No licence',
+  licenceStatus_to_be_ordered: 'To be ordered',
+  licenceStatus_ordered: 'Ordered',
+  licenceStatus_finalized: 'Finalized',
+  licenceStatus_licenced: 'Licenced',
 } as const

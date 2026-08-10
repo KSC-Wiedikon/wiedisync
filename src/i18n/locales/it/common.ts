@@ -200,4 +200,10 @@ export default {
   filePreviewOpenTab: 'Apri in una nuova scheda',
   filePreviewDownload: 'Scarica',
   filePreviewAlt: 'Documento',
+  // Stato della licenza (migrazione 301) — i cinque passi del processo.
+  licenceStatus_none: 'Nessuna licenza',
+  licenceStatus_to_be_ordered: 'Da ordinare',
+  licenceStatus_ordered: 'Ordinata',
+  licenceStatus_finalized: 'Finalizzata',
+  licenceStatus_licenced: 'Licenziata',
 } as const

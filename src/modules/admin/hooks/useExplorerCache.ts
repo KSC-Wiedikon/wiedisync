@@ -100,6 +100,11 @@ export function useExplorerCache(scope: ExplorerScope) {
             'requested_team', 'coach_approved_team', 'is_spielplaner', 'wiedisync_active',
             'shell', 'shell_expires', 'shell_reminder_sent',
             'licence_activated', 'licence_validated', 'licence_category',
+            // Club licence-ordering workflow (migration 301). Own-readable +
+            // Sport Admin fields='*', which is exactly this page's audience —
+            // unlike licence_activation_date below, so these are safe to batch.
+            'licence_status', 'licence_status_season',
+            'licence_status_updated_at', 'licence_status_by_name',
             // licence_activation_date / licence_validation_date intentionally
             // omitted — admin-only field perms; including them 403s the whole
             // Promise.all batch for Vorstand/Coach/etc. on /admin/explore.

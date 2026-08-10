@@ -703,6 +703,38 @@ const MEMBER_DERIVED_READ_FIELDS = [
 ]
 
 /**
+ * Licence status (migration 301) — READ on your own row, WRITE never.
+ *
+ * This is the club's licence-ordering workflow: where a member's licence has
+ * got to between "needs one" and "the federation confirmed it". The member is
+ * the subject of the fact, not its author — exactly the split
+ * MEMBER_STAFF_ONLY_FIELDS documents for the transfer workflow — so it is
+ * own-READABLE (they are entitled to know where their own licence stands, and
+ * the profile card shows it) but stays out of MEMBER_EDITABLE_FIELDS. A member
+ * who could set their own status to `licenced` would be asserting the one fact
+ * the club needs to be able to trust, and a coach fielding them on the strength
+ * of it is how an unlicensed player reaches a match sheet.
+ *
+ * Its own list, not folded into MEMBER_DERIVED_READ_FIELDS: those are columns a
+ * DB trigger owns. These are written by admins and by the sync, which is a
+ * different reason to be read-only and would be lost if they shared a comment.
+ *
+ * NOT in MEMBER_VISIBLE_FIELDS and NOT unioned into LEADER_TEAM_MEMBER_FIELDS:
+ * the three surfaces that were asked for are the Data Explorer, /admin/anmeldungen
+ * (both AdminRoute-gated, and Sport Admin already holds `members` fields = '*')
+ * and the member's own profile. Coaches and team responsibles are a defensible
+ * FOURTH audience — a coach picking a squad has a real need to know who is not
+ * licensed yet, and they already read `licence_activated` / `licence_validated`
+ * club-wide — but adding them is a widening nobody requested, so it is left as a
+ * one-line change (union this list into LEADER_TEAM_MEMBER_FIELDS) rather than
+ * done by default.
+ */
+const MEMBER_LICENCE_STATUS_READ_FIELDS = [
+  'licence_status', 'licence_status_season',
+  'licence_status_updated_at', 'licence_status_by_name',
+]
+
+/**
  * STAFF-ONLY member columns — the international-transfer workflow (migrations
  * 234/235), written from `/admin/transfers`.
  *
@@ -749,6 +781,18 @@ for (const field of MEMBER_STAFF_ONLY_FIELDS) {
     throw new Error(
       `setup-permissions: members."${field}" is STAFF-ONLY (transfer workflow) and must not appear in ` +
       'MEMBER_VISIBLE_FIELDS / MEMBER_EDITABLE_FIELDS / MEMBER_DERIVED_READ_FIELDS.',
+    )
+  }
+}
+
+// Same shape of guard for the licence-status columns, and the one that matters
+// is the WRITE: a member who could set their own `licence_status` to `licenced`
+// would be self-asserting the fact the club exists to verify.
+for (const field of MEMBER_LICENCE_STATUS_READ_FIELDS) {
+  if (MEMBER_EDITABLE_FIELDS.includes(field) || MEMBER_VISIBLE_FIELDS.includes(field)) {
+    throw new Error(
+      `setup-permissions: members."${field}" is staff-written (licence workflow, migration 301). It is ` +
+      'own-READABLE only and must not appear in MEMBER_EDITABLE_FIELDS or MEMBER_VISIBLE_FIELDS.',
     )
   }
 }
@@ -1564,6 +1608,9 @@ async function main() {
     ...MEMBER_OWN_MESSAGING_FIELDS,
     // Trigger-derived, not member-writable (see MEMBER_DERIVED_READ_FIELDS).
     ...MEMBER_DERIVED_READ_FIELDS,
+    // Licence workflow (migration 301) — the member reads where their own
+    // licence stands; only staff and the sync write it.
+    ...MEMBER_LICENCE_STATUS_READ_FIELDS,
   ])]
   await setPermRead(MEMBER_POLICY, 'members', OWN_USER, MEMBER_OWN_READABLE)
 

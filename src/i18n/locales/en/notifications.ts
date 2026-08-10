@@ -79,4 +79,10 @@ export default {
   minutesAgo: '{{count}}m ago',
   hoursAgo: '{{count}}h ago',
   daysAgo: '{{count}}d ago',
+  // Licence status (migration 301). `licenceStatus` is the category chip;
+  // `licence_status_changed` is the message body — the row stores this key as
+  // its title and a {status, season} bag as its body, so the bell renders in
+  // the READER's language, not the sender's.
+  licenceStatus: 'Licence',
+  licence_status_changed: 'Your licence status for {{season}} is now: {{status}}',
 } as const

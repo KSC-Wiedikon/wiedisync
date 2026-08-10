@@ -1175,4 +1175,9 @@ export default {
   trSaveFailed: 'Speichern fehlgeschlagen',
   trEmptyTitle: 'Nichts zu tun',
   trEmptyDescription: 'Keine offenen Transfers und keine offenen Fragen.',
+  anmeldungenLicenceStatus: 'Lizenzstatus',
+  anmeldungenLicenceStatusHint: 'Das Mitglied wird benachrichtigt. «Lizenziert» setzt normalerweise der Swiss-Volley-/Basketplan-Sync.',
+  anmeldungenLicenceStatusSaved: 'Lizenzstatus gespeichert',
+  anmeldungenLicenceStatusFailed: 'Lizenzstatus konnte nicht gespeichert werden',
+  memberFilterSectionLicenceStatus: 'Lizenzstatus',
 } as const

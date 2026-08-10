@@ -69,9 +69,9 @@ describe('memberFieldSchema — completeness', () => {
     expect([...keys].sort()).toEqual(expected)
   })
 
-  it('has 105 real columns and 2 virtual fields', () => {
-    expect(MEMBERS_COLUMNS).toHaveLength(105)
-    expect(MEMBER_FIELDS.filter((f) => !f.virtual)).toHaveLength(105)
+  it('has 109 real columns and 2 virtual fields', () => {
+    expect(MEMBERS_COLUMNS).toHaveLength(109)
+    expect(MEMBER_FIELDS.filter((f) => !f.virtual)).toHaveLength(109)
     // The roster multiselect writes a junction; the Beitrag card is computed by
     // the server's fee engine. Neither is a `members` column, and neither may
     // ever reach a PATCH body.
@@ -96,7 +96,7 @@ describe('memberFieldSchema — completeness', () => {
     expect(count('contact')).toBe(7)
     expect(count('membership')).toBe(9) // 8 columns + __teams
     expect(count('playing')).toBe(3)
-    expect(count('association')).toBe(18)
+    expect(count('association')).toBe(22)
     expect(count('roles_access')).toBe(3)
     expect(count('finance')).toBe(19) // 18 columns + __fee_amount
     expect(count('privacy')).toBe(6)
@@ -106,7 +106,7 @@ describe('memberFieldSchema — completeness', () => {
     expect(count('system')).toBe(11)
 
     const sub = (id: string) => MEMBER_FIELDS.filter((f) => f.subsection === id).length
-    expect(sub('assoc_common')).toBe(3)
+    expect(sub('assoc_common')).toBe(7)
     expect(sub('assoc_vb')).toBe(9)
     expect(sub('assoc_bb')).toBe(6)
   })
@@ -435,7 +435,7 @@ describe('buildMemberFieldSections', () => {
     // The hidden block's fields are still returned — hiding is visual only, so
     // a dirty value in there is still counted and still PATCHed.
     expect(bySub.get('assoc_bb')!.fields).toHaveLength(6)
-    expect(assoc.visibleCount).toBe(12)
+    expect(assoc.visibleCount).toBe(16)
   })
 
   it('mirrors that for a basketball member', () => {
@@ -444,10 +444,10 @@ describe('buildMemberFieldSections', () => {
     const bySub = new Map(assoc.entries.map((e) => [e.subsection?.id ?? '', e]))
     expect(bySub.get('assoc_vb')!.hiddenBySport).toBe(true)
     expect(bySub.get('assoc_bb')!.hiddenBySport).toBe(false)
-    // 3 common + 6 basketball. The common block carries `license_nr`: Swiss
+    // 7 common + 6 basketball. The common block carries `license_nr`: Swiss
     // Basketball licences live in that same column, so a basketball member must
     // see their own licence number without revealing the volleyball block.
-    expect(assoc.visibleCount).toBe(9)
+    expect(assoc.visibleCount).toBe(13)
     expect(bySub.get('assoc_common')!.fields.map((f) => f.key)).toContain('license_nr')
   })
 
@@ -456,7 +456,7 @@ describe('buildMemberFieldSections', () => {
       .filter((s) => s.group.id === 'association')
     expect(assoc.entries.every((e) => !e.hiddenBySport)).toBe(true)
     expect(assoc.hasHiddenSport).toBe(false)
-    expect(assoc.visibleCount).toBe(18)
+    expect(assoc.visibleCount).toBe(22)
   })
 
   it('un-hides a sport the admin explicitly revealed', () => {
@@ -466,7 +466,7 @@ describe('buildMemberFieldSections', () => {
       revealedSports: new Set<'volleyball' | 'basketball'>(['basketball']),
     }).filter((s) => s.group.id === 'association')
     expect(assoc.entries.every((e) => !e.hiddenBySport)).toBe(true)
-    expect(assoc.visibleCount).toBe(18)
+    expect(assoc.visibleCount).toBe(22)
   })
 
   it('files an unmapped column under system rather than losing it', () => {

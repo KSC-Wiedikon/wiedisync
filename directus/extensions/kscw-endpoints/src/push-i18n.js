@@ -361,6 +361,56 @@ const T = {
     fr: 'Nouvelle réponse à « {title} »',
     it: 'Nuova risposta a «{title}»',
   },
+
+  // Licence status (migration 301). {season} = "2026/27".
+  //
+  // One body per STATE rather than one body with a {status} variable: tPush
+  // substitutes the same variable bag into every locale, so a status name
+  // passed as a var would arrive in whichever language the sender happened to
+  // resolve it in — German push text ending in "Ordered". Spelling the five
+  // out is more lines and the only way each locale reads like itself.
+  'licenceStatus.title': {
+    de: 'Lizenzstatus',
+    gsw: 'Lizenzstatus',
+    en: 'Licence status',
+    fr: 'Statut de licence',
+    it: 'Stato della licenza',
+  },
+  'licenceStatus.body.none': {
+    de: 'Für {season} ist keine Lizenz hinterlegt.',
+    gsw: 'Für {season} isch kei Lizänz hinterleit.',
+    en: 'No licence is on file for {season}.',
+    fr: 'Aucune licence enregistrée pour {season}.',
+    it: 'Nessuna licenza registrata per {season}.',
+  },
+  'licenceStatus.body.to_be_ordered': {
+    de: 'Deine Lizenz für {season} muss noch bestellt werden.',
+    gsw: 'Dini Lizänz für {season} mues no bstellt werde.',
+    en: 'Your licence for {season} still has to be ordered.',
+    fr: 'Ta licence pour {season} doit encore être commandée.',
+    it: 'La tua licenza per {season} deve ancora essere ordinata.',
+  },
+  'licenceStatus.body.ordered': {
+    de: 'Deine Lizenz für {season} ist bestellt.',
+    gsw: 'Dini Lizänz für {season} isch bstellt.',
+    en: 'Your licence for {season} has been ordered.',
+    fr: 'Ta licence pour {season} a été commandée.',
+    it: 'La tua licenza per {season} è stata ordinata.',
+  },
+  'licenceStatus.body.finalized': {
+    de: 'Deine Lizenz für {season} ist abgeschlossen — wir warten auf die Bestätigung des Verbands.',
+    gsw: 'Dini Lizänz für {season} isch fertig — mir warte uf d Bestätigung vom Verband.',
+    en: 'Your licence for {season} is complete — waiting for the federation to confirm.',
+    fr: 'Ta licence pour {season} est finalisée — en attente de la confirmation de la fédération.',
+    it: 'La tua licenza per {season} è completa — in attesa della conferma della federazione.',
+  },
+  'licenceStatus.body.licenced': {
+    de: 'Deine Lizenz für {season} ist vom Verband bestätigt.',
+    gsw: 'Dini Lizänz für {season} isch vom Verband bestätigt.',
+    en: 'Your licence for {season} is confirmed by the federation.',
+    fr: 'Ta licence pour {season} est confirmée par la fédération.',
+    it: 'La tua licenza per {season} è confermata dalla federazione.',
+  },
 }
 
 /**

@@ -356,4 +356,7 @@ export default {
   pwChanged: 'Password changed',
   pwChangedKeyKept: 'Password changed. Your identity document is still readable.',
   pwKeyNotice: 'Changing your password here keeps your encryption key, so your identity document stays readable. A password reset by email does not — it would lose the key and you would have to upload the document again.',
+  // Licence status card (migration 301) — read-only for the member by design.
+  licenceStatusTitle: 'Licence status',
+  licenceStatusHelp: 'Set by the club and confirmed by your federation. Ask your coach if it looks wrong.',
 } as const
