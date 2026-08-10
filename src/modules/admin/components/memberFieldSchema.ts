@@ -74,6 +74,18 @@ export interface MemberFieldDef {
   provenance?: string
   /** Editable, but a sync overwrites it. Rendered as an amber "Overwritten by sync" chip. */
   overwrittenBy?: string
+  /**
+   * Machine-owned plumbing: audit stamps, sync bookkeeping, key material, and
+   * values derived from a field shown elsewhere. Hidden behind the "Show
+   * technical fields" toggle so the default view is the ~25 fields an admin
+   * actually reasons about instead of all 100.
+   *
+   * The bar is "does an admin ever ACT on this": `clubdesk_id` stays visible
+   * (you look it up), `clubdesk_pushed_at` does not (the sync writes it). Every
+   * technical field is also `readOnly` — see the test that pins that, which is
+   * what makes hiding them safe for the edit flow.
+   */
+  technical?: true
   sportGate: SportGate
   /** Value is never rendered and never PATCHed. Implies kind 'readonlyMasked'. */
   sensitive: boolean
@@ -170,9 +182,12 @@ function block(
   group: MemberFieldGroupId,
   subsection: MemberFieldSubsectionId | undefined,
   seeds: readonly FieldSeed[],
+  /** Merged UNDER every seed, so a field can still override it. */
+  defaults: Partial<FieldSeed> = {},
 ): MemberFieldDef[] {
   return seeds.map((seed, i) => {
     const def: MemberFieldDef = {
+      ...defaults,
       ...seed,
       group,
       order: i + 1,
@@ -230,7 +245,7 @@ const IDENTITY = block('identity', undefined, [
   },
   {
     key: 'nationalitaet', label: 'Nationality (ClubDesk spelling, derived)', kind: 'country',
-    readOnly: true,
+    readOnly: true, technical: true,
     provenance:
       'Derived by the Postgres trigger members_sync_nationality_trg (migration 223) from the first entry of nationalitaet_codes. Edit the nationality field above instead — writing here silently rewrites the codes.',
   },
@@ -308,11 +323,11 @@ const MEMBERSHIP = block('membership', undefined, [
   },
   {
     key: 'shell_expires', label: 'Shell account expires', kind: 'datetime',
-    readOnly: true, dangerZone: true, provenance: P_DANGER_ZONE,
+    readOnly: true, dangerZone: true, technical: true, provenance: P_DANGER_ZONE,
   },
   {
     key: 'shell_reminder_sent', label: 'Shell reminder sent', kind: 'bool',
-    readOnly: true,
+    readOnly: true, technical: true,
     provenance:
       'Set by the daily 09:00 UTC shell-invite reminder sweep (kscw-hooks); reset to No whenever a new invite is issued. Setting it back by hand emails a real person the next morning.',
   },
@@ -381,7 +396,8 @@ const ASSOC_VB = block('association', 'assoc_vb', [
   },
   {
     key: 'in_vis_checked_at', label: 'VIS last checked', kind: 'datetime',
-    readOnly: true, provenance: 'Stamped by the FIVB VIS player check (Mondays 05:15 UTC).',
+    readOnly: true, technical: true,
+    provenance: 'Stamped by the FIVB VIS player check (Mondays 05:15 UTC).',
   },
 ])
 
@@ -454,7 +470,7 @@ const PRIVACY = block('privacy', undefined, [
   },
   {
     key: 'consent_prompted_at', label: 'Consent last asked', kind: 'datetime',
-    readOnly: true,
+    readOnly: true, technical: true,
     provenance: 'Stamped by the app each time the consent prompt is shown or postponed.',
   },
   { key: 'website_visible', label: 'Visible on the public website', kind: 'bool' },
@@ -512,19 +528,19 @@ const CLUBDESK = block('clubdesk', undefined, [
   },
   {
     key: 'clubdesk_push_pending', label: 'Changes waiting to be pushed', kind: 'bool',
-    readOnly: true,
+    readOnly: true, technical: true,
     provenance:
       'Set by the app whenever a pushable field changes, and cleared by the sync-up. Clearing it by hand drops a real pending change on the floor.',
   },
   {
     key: 'clubdesk_push_changes', label: 'Pending change set', kind: 'json',
-    readOnly: true,
+    readOnly: true, technical: true,
     provenance:
       "Written by the app alongside the pending flag. This is the payload that gets written into the club's legal member register — hand-editing it writes arbitrary values there.",
   },
   {
     key: 'clubdesk_pushed_at', label: 'Last pushed to ClubDesk', kind: 'datetime',
-    readOnly: true,
+    readOnly: true, technical: true,
     provenance:
       'Stamped by the sync-up dispatcher. It doubles as "created, awaiting link-back" — clearing it creates a duplicate contact in the register.',
   },
@@ -538,12 +554,12 @@ const TRANSFER = block('transfer', undefined, [
   },
   {
     key: 'transfer_done_at', label: 'Transfer completed at', kind: 'datetime',
-    readOnly: true,
+    readOnly: true, technical: true,
     provenance: "Stamped by /admin/transfers together with the status and the staff member's name.",
   },
   {
     key: 'transfer_done_by_name', label: 'Transfer completed by', kind: 'text',
-    readOnly: true,
+    readOnly: true, technical: true,
     provenance:
       'Stamped by /admin/transfers together with the status. It is the audit line for the transfer — it must not be assertable by hand.',
   },
@@ -610,7 +626,11 @@ const SYSTEM = block('system', undefined, [
     provenance:
       'Stamped when the keypair was generated. It is the only audit trail for "why did this member\'s document uploads stop opening".',
   },
-])
+// `technical` comes from the block default, not from each field: the group is
+// defined as "machine-owned, nothing here is edited by hand", so a column added
+// to it later inherits the flag instead of quietly becoming the one audit stamp
+// that shows up in the default view.
+], { technical: true })
 
 /** All 100 columns + TEAMS_VIRTUAL_KEY, in group order. */
 export const MEMBER_FIELDS: readonly MemberFieldDef[] = [
@@ -846,6 +866,41 @@ export interface MemberFieldSection {
   visibleCount: number
   /** True when at least one entry is hiddenBySport ⇒ render the reveal toggle. */
   hasHiddenSport: boolean
+  /** Fields this section dropped because they hold no value. */
+  hiddenEmptyCount: number
+  /** Fields this section dropped because they are `technical`. */
+  hiddenTechnicalCount: number
+}
+
+const EMPTY_KEY_SET: ReadonlySet<string> = new Set<string>()
+
+/** Why a field is not rendered, or null when it is. */
+export type FieldFilterReason = 'technical' | 'empty' | null
+
+export interface FieldFilterOpts {
+  /** Default true. False drops every `technical` field. */
+  showTechnical?: boolean
+  /** Hide fields whose value is empty. Needs `isEmpty`; ignored without it. */
+  hideEmpty?: boolean
+  /** "Does this key hold no value" — owned by the caller, which has the record. */
+  isEmpty?: (key: string) => boolean
+  /** Never filtered out, whatever the flags say (used for dirty keys). */
+  alwaysShow?: ReadonlySet<string>
+}
+
+/**
+ * The single filter predicate, shared by the render plan and by whatever counts
+ * the toggles ("Show empty fields (54)"). One function so the number on the
+ * button can never disagree with the number of cards revealing it produces.
+ *
+ * `technical` wins over `empty` when a field is both, which is what keeps the
+ * two counts disjoint.
+ */
+export function fieldFilterReason(def: MemberFieldDef, opts: FieldFilterOpts): FieldFilterReason {
+  if ((opts.alwaysShow ?? EMPTY_KEY_SET).has(def.key)) return null
+  if (def.technical && opts.showTechnical === false) return 'technical'
+  if (opts.hideEmpty && opts.isEmpty?.(def.key)) return 'empty'
+  return null
 }
 
 const GROUP_BY_ID: Readonly<Record<MemberFieldGroupId, MemberFieldGroup>> =
@@ -868,18 +923,34 @@ const GROUPS_IN_ORDER: readonly MemberFieldGroup[] =
  *
  * ⚠ Hiding is VISUAL ONLY. Hidden entries are still returned (with their
  * fields, flagged `hiddenBySport`) so the caller keeps hidden keys in `draft`
- * and in `dirtyKeys` — nothing here removes or nulls a value.
+ * and in `dirtyKeys` — nothing here removes or nulls a value. The same holds for
+ * the two noise filters below, which drop fields from the RENDER PLAN only:
+ * `dirtyKeys` is computed from the record, never from what came back here.
+ *
+ * `hideEmpty` + `isEmpty` drop the cards with no value, and `showTechnical:
+ * false` drops the machine-owned ones (see `MemberFieldDef.technical`). Both
+ * default to off so an unparameterised call still renders every present key —
+ * the completeness test depends on that. `alwaysShow` is the escape hatch the
+ * caller uses for keys with unsaved edits, so a filter can never swallow a
+ * pending change.
  *
  * A group is dropped only when it holds NO present fields at all. A group whose
  * fields are all hidden by sport is kept: dropping it would remove the very
- * toggle that reveals them.
+ * toggle that reveals them. A group left empty by the noise filters IS dropped —
+ * its toggle lives in the page header, not in the group.
  */
-export function buildMemberFieldSections(opts: {
+export function buildMemberFieldSections(opts: FieldFilterOpts & {
   presentKeys: Iterable<string>
   sport: MemberSport
   revealedSports: ReadonlySet<'volleyball' | 'basketball'>
 }): MemberFieldSection[] {
   const present = new Set(opts.presentKeys)
+  const filterOpts: FieldFilterOpts = {
+    showTechnical: opts.showTechnical,
+    hideEmpty: opts.hideEmpty,
+    isEmpty: opts.isEmpty,
+    alwaysShow: opts.alwaysShow,
+  }
 
   // Resolve every present key to a def (synthesising unmapped ones), then bucket
   // by group + subsection.
@@ -911,7 +982,17 @@ export function buildMemberFieldSections(opts: {
     const declared: MemberFieldSubsection[] = group.subsections ?? []
     const entries: MemberFieldSectionEntry[] = []
 
-    const pushEntry = (subsection: MemberFieldSubsection | null, fields: MemberFieldDef[]) => {
+    let hiddenEmptyCount = 0
+    let hiddenTechnicalCount = 0
+
+    const pushEntry = (subsection: MemberFieldSubsection | null, all: MemberFieldDef[]) => {
+      if (all.length === 0) return
+      const fields = all.filter((def) => {
+        const reason = fieldFilterReason(def, filterOpts)
+        if (reason === 'technical') hiddenTechnicalCount++
+        else if (reason === 'empty') hiddenEmptyCount++
+        return reason === null
+      })
       if (fields.length === 0) return
       fields.sort((a, b) => (a.order - b.order) || a.key.localeCompare(b.key))
       const gate = subsection?.sportGate ?? null
@@ -935,6 +1016,8 @@ export function buildMemberFieldSections(opts: {
       entries,
       visibleCount,
       hasHiddenSport: entries.some((e) => e.hiddenBySport),
+      hiddenEmptyCount,
+      hiddenTechnicalCount,
     })
   }
 
