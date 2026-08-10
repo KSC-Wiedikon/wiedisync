@@ -1385,7 +1385,9 @@ async function main() {
     'event_sessions',
     'hall_slots', 'hall_closures', 'hall_events', 'halls', 'hall_slots_teams',
     'news', 'app_settings',
-    'referee_expenses', 'polls',
+    // ⚠ `polls` was here until 2026-08-10 — see the scoped grant beside `messages`
+    // below. `referee_expenses` stays: amount + notes, no PII.
+    'referee_expenses',
     // Junctions
     'teams_coaches', 'teams_responsibles', 'teams_sponsors', 'events_teams', 'events_members',
   ]
@@ -1409,9 +1411,13 @@ async function main() {
 
   // ── Team-scoped reads (migration 032 / 033) ─────────────────
   // trainings: only my teams. events: own + club-wide + my-teams + invited.
-  // participations + absences: own + same-team. polls + referee_expenses
-  // already covered above for cross-club but fine — those are team-scoped
-  // by app navigation; they don't carry PII.
+  // participations + absences: own + same-team. `referee_expenses` stays
+  // cross-club above — amount + notes, no PII.
+  // ⚠ The old wording here also covered `polls` with "team-scoped by app
+  // navigation". That justification predated chat polls and was never true of
+  // them: `POST /kscw/messaging/polls` creates rows with `team: null,
+  // conversation: <uuid>`, so "app navigation" scoped nothing and the realtime
+  // subscription pushed every poll in the club to every connected member.
   const MY_TEAMS_FILTER = { team: { members: { member: { user: { _eq: '$CURRENT_USER' } } } } }
   await setPermRead(MEMBER_POLICY, 'trainings', MY_TEAMS_FILTER)
 
@@ -1704,6 +1710,27 @@ async function main() {
   await setPermRead(MEMBER_POLICY, 'message_reactions', {
     message: { conversation: { members: MY_ACTIVE_MEMBERSHIP } },
   }, ['id', 'message', 'member', 'emoji', 'created_at'])
+
+  // Polls have TWO parents — the DB codifies both in `chk_polls_team_or_conversation`
+  // — so a single-parent filter would silently hide one half. Until 2026-08-10
+  // this was an UNFILTERED read (audit 2026-08-08, finding 8): any member could
+  // `GET /items/polls?filter[conversation][_nnull]=true` and read the question,
+  // options, deadline and author of every DM and group-chat poll in the club.
+  //
+  // That defeated the boundary built 300 lines above: `messages` and
+  // `message_reactions` are scoped to `conversation.members` with a field
+  // allow-list, so the poll MESSAGE was unreadable while the poll CONTENT it
+  // points at was not. Voter identity was never exposed (`poll_votes` is
+  // OWN_MEMBER-scoped and /poll-results checks membership) — only the question.
+  //
+  // Reuses MY_ACTIVE_MEMBERSHIP so a chat poll follows exactly the same
+  // archived-aware rule as the message carrying it.
+  await setPermRead(MEMBER_POLICY, 'polls', {
+    _or: [
+      { team: { members: { member: { user: { _eq: '$CURRENT_USER' } } } } },
+      { conversation: { members: MY_ACTIVE_MEMBERSHIP } },
+    ],
+  })
 
   // Spielplaner assignments — self-scoped (migrations 034, 042).
   await setPermRead(MEMBER_POLICY, 'spielplaner_assignments', OWN_MEMBER)

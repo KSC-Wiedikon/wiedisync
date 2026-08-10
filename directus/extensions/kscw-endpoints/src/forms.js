@@ -73,7 +73,12 @@ async function authorizeManage(db, req, form) {
     ? caller.role
     : (caller.role ? (() => { try { return JSON.parse(caller.role) } catch { return [] } })() : [])
   if (roles.includes('admin') || roles.includes('superuser') || roles.includes('vb_admin') || roles.includes('bb_admin')) return true
-  if (form.created_by && String(form.created_by) === String(caller.id)) return true
+  // The creator branch is scoped to team forms on purpose. `created_by` used to
+  // be client-supplied, so this authorised on an attacker-chosen column; the
+  // kscw-hooks guard now stamps it server-side, but a club-wide or public form
+  // is a manager-tier object either way and must not be manageable just because
+  // someone's id sits in that column (audit 2026-08-08, finding 10).
+  if (form.audience === 'teams' && form.created_by && String(form.created_by) === String(caller.id)) return true
   if (form.audience === 'teams') {
     const teamRows = await db('forms_teams').where('forms_id', form.id).select('teams_id')
     const teamIds = [...new Set(teamRows.map(r => r.teams_id).filter(Boolean))]

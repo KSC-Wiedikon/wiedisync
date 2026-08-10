@@ -2468,6 +2468,84 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     }
   })
 
+  // ── Forms: audience + ownership guard (audit 2026-08-08, finding 10) ──
+  //
+  // The rule lived ONLY in the browser (FormBuilder.tsx: "Full managers can
+  // target any audience incl. club-wide … Public exposure is also
+  // full-manager-only"). Server-side, LEADER holds an UNFILTERED `forms.create`
+  // — and setup-permissions.mjs's own note records that Directus filters are
+  // no-ops on CREATE and that self-scoping "is therefore enforced in the
+  // kscw-hooks *.items.create filter guard". That guard did not exist; only an
+  // action hook did, which runs too late to refuse anything.
+  //
+  // So any coach/TR could POST `{audience:'club_wide', is_public:true, slug:'x',
+  // created_by:<own id>}` and (a) make `notifyFormPublished` fan a notification
+  // and web push out to EVERY active member, repeatable per new form since the
+  // limiter is keyed per-form, and (b) publish an anonymously readable and
+  // submittable page at /kscw/public/forms/:slug on the club's own domain,
+  // reading the harvested rows back via FORMS_LEADER_SCOPE.
+  // `created_by` was client-supplied too, so `authorizeManage`'s creator branch
+  // authorised on an attacker-chosen column.
+  //
+  // Modelled on the `announcements.items.create` guard above, which already does
+  // exactly this. Manager tiers (admin/superuser bypass filter hooks entirely;
+  // vorstand and the sport admins are allowed through here) keep club-wide and
+  // public forms — `forms` is in SPORT_ADMIN_FULL_CRUD and the FormsPage is
+  // sport-scoped by design. This constrains the LEADER tier, which is where the
+  // escalation was.
+  async function assertFormAudienceAllowed(payload, meta, context) {
+    const userId = context?.accountability?.user
+    // System context (cron/endpoint/registration backend) — trusted, as elsewhere.
+    if (!userId) return payload
+    const m = await database('members').where('user', userId).select('id', 'role').first()
+    if (!m) return payload
+    const roles = Array.isArray(m.role) ? m.role : []
+    const isManager = roles.includes('admin') || roles.includes('superuser')
+      || roles.includes('vorstand') || roles.includes('vb_admin') || roles.includes('bb_admin')
+
+    if (!isManager) {
+      // A PATCH is partial, so judge the state the write would PRODUCE, not the
+      // payload alone — the same reason validateAnnouncementAudience merges over
+      // the stored row. A PATCH of only {is_public:true} carries no audience.
+      const keys = meta?.keys || (meta?.key ? [meta.key] : [])
+      const existing = keys.length
+        ? await database('forms').whereIn('id', keys).select('audience', 'is_public')
+        : [{}]
+      for (const row of existing) {
+        const next = { ...row, ...payload }
+        if (next.audience && next.audience !== 'teams') {
+          throw kscwScopeError('Only the board and sport admins can create club-wide forms.', 403, 'FORM_AUDIENCE')
+        }
+        if (next.is_public === true) {
+          throw kscwScopeError('Only the board and sport admins can publish a form publicly.', 403, 'FORM_PUBLIC')
+        }
+      }
+      // Every linked team must be one the caller actually leads. The M2M arrives
+      // as junction objects; a bare id is a create.
+      const links = Array.isArray(payload?.teams) ? payload.teams : []
+      for (const link of links) {
+        const teamId = typeof link === 'object' ? (link.teams_id ?? link) : link
+        if (teamId != null && !(await actorLeadsTeam(database, context.accountability, teamId))) {
+          throw kscwScopeError('You can only target teams you coach or are responsible for.', 403, 'FORM_TEAM_SCOPE')
+        }
+      }
+    }
+
+    // `created_by` is the column authorizeManage trusts, so it is stamped
+    // server-side and never taken from the client — on update it cannot be
+    // reassigned at all.
+    const keys = meta?.keys || (meta?.key ? [meta.key] : [])
+    if (keys.length > 0) {
+      if (payload && Object.prototype.hasOwnProperty.call(payload, 'created_by')) delete payload.created_by
+    } else if (payload) {
+      payload.created_by = m.id
+    }
+    return payload
+  }
+
+  filter('forms.items.create', async (payload, meta, context) => assertFormAudienceAllowed(payload, meta, context))
+  filter('forms.items.update', async (payload, meta, context) => assertFormAudienceAllowed(payload, meta, context))
+
   action('forms.items.create', async ({ key, payload }) => {
     if (payload && payload.status === 'open') {
       try {
