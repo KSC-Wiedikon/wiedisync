@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '1.75.1'
+const APP_VERSION = '1.76.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,21 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.76.0',
+    date: '10.08.2026',
+    sections: [
+      {
+        title: 'Your licence status, on your profile',
+        items: [
+          'You can now see where your licence stands. Your profile shows a licence status for the current season — No licence, To be ordered, Ordered, Finalized or Licenced — so "has my licence been sorted out?" has an answer you can look up instead of asking. It is read-only: the club sets it, and Licenced specifically means your federation confirmed it, not that somebody thinks it is done. If it looks wrong, tell your coach.',
+          'You are told when it changes. Every move sends you a notification and a push, in your language.',
+          'It resets when the season turns over. A licence is issued for one season, so on 1 June everyone starts again at No licence and is moved back up as the federation confirms this season\'s licences. Last season\'s green tick can never quietly stand in for this season\'s.',
+          'For admins: it is editable in two places. The member explorer has it as a dropdown with its own filter — "show me everyone still to be ordered" is one click — and newly approved registrations carry the five states as buttons, right where you are already looking at the new member. Swiss Volley and Basketplan fill in Licenced automatically once they confirm a licence; they never overwrite the steps you set by hand.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.75.1',
     date: '10.08.2026',
