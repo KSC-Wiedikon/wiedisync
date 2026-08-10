@@ -2722,6 +2722,13 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
         )
         SELECT m.id AS member_id, m.first_name, m.last_name, m.clubdesk_id,
                m.register_status, m.beitragskategorie,
+               -- An explicit CHF 0 base override is a waiver the treasurer
+               -- entered by hand (migration 299) and, unlike the category, one
+               -- ClubDesk cannot overwrite. Without this the check would report
+               -- "still billed" forever for somebody who is not: the category
+               -- reverts to the register's on every sync-down, the override
+               -- does not.
+               (m.fee_base_override IS NOT NULL AND m.fee_base_override = 0) AS fee_waived,
                EXISTS (
                  SELECT 1 FROM unnest(string_to_array(cd.gruppen_bracketed, ',')) g
                   WHERE btrim(g) = 'Ehrenmitglieder'
@@ -2854,6 +2861,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
         clubdesk_id: r.clubdesk_id,
         register_status: r.register_status || '',
         kat: r.beitragskategorie || '',
+        fee_waived: r.fee_waived === true,
         in_group: r.in_group === true,
         // 'status_only' → add them to the ClubDesk group (the honour list is
         // short one name). 'fee' → they hold the honour but are still billed.
