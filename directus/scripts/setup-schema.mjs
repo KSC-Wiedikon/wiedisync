@@ -214,7 +214,6 @@ const COLLECTIONS = [
       boolean('referee_vb'),
       boolean('otr1_bb'),
       boolean('otr2_bb'),
-      boolean('otn_bb'),
       boolean('referee_bb'),
       boolean('coach_approved_team'),
       select('language', ['english', 'german', 'french', 'italian', 'swiss_german']),

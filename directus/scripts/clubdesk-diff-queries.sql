@@ -13,7 +13,7 @@
 --   3. members.license_nr = clubdesk.lizenznummer  (both non-empty)
 --
 -- Licences: migration 119 dropped the legacy `members.licences` json column;
--- the six boolean flags (scorer_vb / referee_vb / otr1_bb / otr2_bb / otn_bb /
+-- the boolean flags (scorer_vb / referee_vb / otr1_bb / otr2_bb / otn1_bb / otn2_bb /
 -- referee_bb) are the source of truth. The `member_licences` temp view below
 -- reconstructs the legacy jsonb-array view from the booleans so the `?` / `?|`
 -- membership checks below keep working unchanged.
@@ -47,7 +47,8 @@ SELECT id AS dx_id,
          CASE WHEN referee_vb THEN 'referee_vb' END,
          CASE WHEN otr1_bb    THEN 'otr1_bb'    END,
          CASE WHEN otr2_bb    THEN 'otr2_bb'    END,
-         CASE WHEN otn_bb     THEN 'otn_bb'     END,
+         CASE WHEN otn1_bb    THEN 'otn1_bb'   END,
+         CASE WHEN otn2_bb    THEN 'otn2_bb'   END,
          CASE WHEN referee_bb THEN 'referee_bb' END
        ]::text[], NULL)) AS lic
 FROM members;
@@ -163,7 +164,7 @@ FROM members m
 JOIN member_licences ml ON ml.dx_id = m.id
 JOIN clubdesk_basketball cb ON cb.clubdesk_id = (SELECT cd_id FROM cd_match_bb WHERE dx_id = m.id LIMIT 1)
 WHERE clubdesk_offliz_to_dx(cb.offiziellen_lizenz) IS NULL
-  AND (m.otr1_bb OR m.otr2_bb OR m.otn_bb)
+  AND (m.otr1_bb OR m.otr2_bb OR m.otn1_bb OR m.otn2_bb)
 ORDER BY m.last_name;
 
 \echo
