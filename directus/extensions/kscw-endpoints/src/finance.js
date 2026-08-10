@@ -33,7 +33,7 @@ import { renderInvoicePdf, INVOICE_PDF_COLUMNS } from './finance-invoice-pdf.js'
 import { recomputeInvoice, deriveSettlement } from './finance-recompute.js'
 import { autopostInvoiceSafe, autopostTeamEntrySafe, autopostDuesRunSafe, removeAutopostForPaymentSafe, removeAutopostForTeamEntrySafe, FISCAL_YEAR_LOCK_NS } from './finance-autopost.js'
 // The club fee model, shared with the ClubDesk push so the two never disagree.
-import { feeBreakdown, guestMemberIdSet } from './clubdesk-update.js'
+import { feeBreakdown, guestMemberIdSet, FEE_OVERRIDE_FIELDS } from './clubdesk-update.js'
 
 const PAY_METHODS = ['twint', 'bank', 'cash', 'other']
 
@@ -707,6 +707,10 @@ export function registerFinance(router, { database, logger, services, getSchema 
         // flags say whether the duty is already covered. Omit them and every
         // surcharged member is silently under-billed by CHF 100.
         'birthdate', 'scorer_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'otn1_bb', 'otn2_bb',
+        // Per-member fee overrides (migration 299). feeBreakdown reads them off
+        // the row, so omitting them bills the derived amount to a member the
+        // treasurer had explicitly re-priced — silently, and in a batch.
+        ...FEE_OVERRIDE_FIELDS,
         // Copied onto the invoice at issue time so the document has an addressee
         // and the QR bill can pre-fill "Zahlbar durch" (migration 293).
         'adresse', 'plz', 'ort')
@@ -783,7 +787,12 @@ export function registerFinance(router, { database, logger, services, getSchema 
         surcharge: fee ? round2(fee.surcharge) : 0,
         guest_discount: fee ? round2(fee.guest_discount) : 0,
         discount: fee ? round2(fee.discount) : 0,
-        discount_reason: fee && fee.discount > 0 ? discountReason : null,
+        // Whose discount is this? A per-run one carries the run's wording; the
+        // member's standing one (migration 299) carries their own reason, which
+        // is the whole point of storing it next to the amount.
+        discount_reason: !fee || fee.discount <= 0 ? null
+          : discounts.has(Number(m.id)) ? discountReason
+          : (m.fee_discount_reason || discountReason),
         amount: fee ? round2(fee.amount) : null,
         subject_template: rate?.subject_template || null,
         already_billed: billed.has(Number(m.id)),
@@ -915,6 +924,82 @@ export function registerFinance(router, { database, logger, services, getSchema 
       await writeUserLog(database, log, { accountability: req.accountability, action: 'delete', collection: 'finance_dues_rates', recordId: id, data: { removed } })
       return res.json({ ok: true, removed })
     } catch (e) { return err(res, req, 'dues-rate-delete', e) }
+  })
+
+  // GET /finance/members/:id/fee — itemised Beitrag for ONE member
+  //
+  // The Data Explorer's "Beitrag amount" card. It exists so the fee model has
+  // exactly ONE implementation: the card could add up base + surcharge −
+  // discount client-side, but deciding WHICH base applies (this season's rate
+  // row, or the codified category map), whether the member owes the CHF 100
+  // no-Schreiberlizenz surcharge (adult category, or youth AND U16+, and no
+  // licence), and whether they are a pure guest this season are rules — and a
+  // second copy of them in TypeScript would drift from the one that bills.
+  //
+  // Returns BOTH sides: `derived` is what the rules alone produce (the
+  // placeholder the override fields show), `effective` is what the member is
+  // actually billed once their overrides apply.
+  router.get('/finance/members/:id/fee', async (req, res) => {
+    try {
+      const mem = await actingMember(req)
+      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      const id = Number(req.params.id)
+      if (!Number.isInteger(id)) return res.status(400).json({ error: 'id required' })
+
+      const m = await database('members').where('id', id).first(
+        'id', 'beitragskategorie', 'sektion', 'birthdate',
+        'scorer_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'otn1_bb', 'otn2_bb',
+        ...FEE_OVERRIDE_FIELDS)
+      if (!m) return res.status(404).json({ error: 'not found' })
+
+      // This season's rate schedule, when the treasurer has entered one for the
+      // current fiscal year. Without it the card falls back to the codified
+      // category map — the same base the ClubDesk push bills from.
+      const fyId = await fiscalYearIdForDate(todayISO())
+      const fy = fyId ? await database('finance_fiscal_years').where('id', fyId).first('id', 'label') : null
+      const rates = fy
+        ? await database('finance_dues_rates').where('fiscal_year', fy.id)
+            .select('id', 'category', 'sektion', 'amount_chf', 'active')
+        : []
+      const rate = pickRate(rates, m.beitragskategorie, m.sektion)
+
+      // member_teams.season uses the fiscal-year label spelling ('2026/27').
+      const isGuest = fy
+        ? (await guestMemberIdSet(database, [id], fy.label)).has(Number(id))
+        : false
+
+      const opts = { baseOverride: rate?.amount_chf, isGuest }
+      // Same engine, twice: once with the member's overrides stripped so the UI
+      // can show what the rules WOULD say, once as it actually bills.
+      const bare = { ...m, fee_base_override: null, fee_surcharge_override: null, fee_discount: null }
+      const derived = feeBreakdown(m.beitragskategorie, bare, opts)
+      const effective = feeBreakdown(m.beitragskategorie, m, opts)
+
+      return res.json({
+        member: id,
+        category: m.beitragskategorie || null,
+        sektion: m.sektion || null,
+        fiscal_year: fy ? { id: fy.id, label: fy.label } : null,
+        is_guest: isGuest,
+        // Where the base comes from when no per-member override is set — the
+        // difference between "the treasurer set this season's rate" and "we are
+        // falling back to the hardcoded map" is worth showing.
+        base_source: rate ? 'schedule' : derived ? 'category_map' : null,
+        derived: derived && {
+          base: round2(derived.base),
+          surcharge: round2(derived.surcharge),
+          guest_discount: round2(derived.guest_discount),
+          amount: round2(derived.amount),
+        },
+        effective: effective && {
+          base: round2(effective.base),
+          surcharge: round2(effective.surcharge),
+          guest_discount: round2(effective.guest_discount),
+          discount: round2(effective.discount),
+          amount: round2(effective.amount),
+        },
+      })
+    } catch (e) { return err(res, req, 'member-fee', e) }
   })
 
   // POST /finance/dues-runs/preview — dry-run, no writes

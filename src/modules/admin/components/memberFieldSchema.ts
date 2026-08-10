@@ -12,7 +12,7 @@
 // of the row you happen to be looking at.
 //
 // Two invariants this file exists to hold:
-//   • Every one of the 100 `members` columns is claimed by exactly one group.
+//   • Every one of the 104 `members` columns is claimed by exactly one group.
 //     There is no "Other" bucket — an unclaimed column is a bug, and
 //     __tests__/memberFieldSchema.test.ts fails the build over it.
 //   • Every read-only field says where its value comes from (`provenance`).
@@ -24,7 +24,8 @@
 // (react-refresh/only-export-components, an ESLint *error* here).
 //
 // Column list verified against prod `information_schema` on 2026-08-06 (100
-// columns). When a migration adds one, add it here in the same commit — the
+// columns), + migration 299's four fee overrides (104). When a migration adds
+// one, add it here in the same commit — the
 // fallback in getFieldDef() keeps the page alive but flags the column as
 // unmapped and refuses to let anybody edit it.
 
@@ -116,6 +117,16 @@ export interface MemberFieldGroup {
 
 /** Virtual key for the player-roster multiselect. Never sent in a PATCH. */
 export const TEAMS_VIRTUAL_KEY = '__teams'
+
+/**
+ * Virtual key for the itemised Beitrag card. Never sent in a PATCH — the amount
+ * is computed by the server's fee engine (`GET /kscw/finance/members/:id/fee`)
+ * from the category, the season rate schedule, the licence flags and the four
+ * override columns below. There is no `members` column holding a total, and
+ * there must not be: it would be a cached copy of an answer four other columns
+ * already give, wrong the moment any of them changes.
+ */
+export const FEE_AMOUNT_VIRTUAL_KEY = '__fee_amount'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Groups
@@ -278,16 +289,14 @@ const CONTACT = block('contact', undefined, [
   { key: 'ort', label: 'City', kind: 'text' },
 ])
 
-// ── 1.c Membership (9 columns + 1 virtual) ──────────────────────────────────
+// ── 1.c Membership (8 columns + 1 virtual) ──────────────────────────────────
+// `beitragskategorie` lives in Finance & billing, not here: it is the input the
+// fee amount is computed from, and reading a category without the CHF it
+// produces is what made "why is this member billed 310?" a two-page question.
 const MEMBERSHIP = block('membership', undefined, [
   {
     key: 'sektion', label: 'Section', kind: 'suggest',
     help: 'Volleyball, Basketball or KSCW (club-level). Decides which association fields are shown below.',
-    overwrittenBy: O_CLUBDESK_WINS,
-  },
-  {
-    key: 'beitragskategorie', label: 'Membership fee category', kind: 'suggest',
-    help: 'Drives the amount billed at the next ClubDesk push.',
     overwrittenBy: O_CLUBDESK_WINS,
   },
   {
@@ -434,8 +443,40 @@ const ROLES_ACCESS = block('roles_access', undefined, [
   },
 ])
 
-// ── 1.g Finance & billing (12) ──────────────────────────────────────────────
+// ── 1.g Finance & billing (17 columns + 1 virtual) ──────────────────────────
+// Reading order is the fee itself: what category the member is in → what that
+// costs → the three per-person exceptions → where the money moves.
 const FINANCE = block('finance', undefined, [
+  {
+    key: 'beitragskategorie', label: 'Membership fee category', kind: 'suggest',
+    help: 'Drives the amount billed at the next ClubDesk push.',
+    overwrittenBy: O_CLUBDESK_WINS,
+  },
+  {
+    // Virtual: computed by the fee engine, never a column. See
+    // FEE_AMOUNT_VIRTUAL_KEY.
+    key: FEE_AMOUNT_VIRTUAL_KEY, label: 'Beitrag amount', kind: 'number',
+    virtual: true, readOnly: true,
+    help: 'Base + scorer-licence surcharge − discounts, as the dues run and the ClubDesk push compute it.',
+    provenance:
+      'Computed by feeBreakdown() on the server (GET /kscw/finance/members/:id/fee) from the fee category, this season’s rate schedule, the licence flags, the guest roster and the three override fields below. Nothing stores a total — edit the parts, not the sum.',
+  },
+  {
+    key: 'fee_base_override', label: 'Fee base override (CHF)', kind: 'number',
+    help: 'Empty = the season rate for the category (or the codified map where no rate is set). Fill it only for a genuine per-person exception.',
+  },
+  {
+    key: 'fee_surcharge_override', label: 'Scorer-licence surcharge (CHF)', kind: 'number',
+    help: 'Empty = the rule: CHF 100 when the member owes table duty (U16+) and holds no licence, otherwise 0. Enter 0 to waive it.',
+  },
+  {
+    key: 'fee_discount', label: 'Discount (CHF)', kind: 'number',
+    help: 'Standing reduction off this member’s dues. Capped at what is owed — it can reach 0, never below.',
+  },
+  {
+    key: 'fee_discount_reason', label: 'Discount reason', kind: 'text',
+    help: 'Printed as the credit line on the invoice. Empty = "Rabatt".',
+  },
   {
     key: 'iban', label: 'IBAN', kind: 'iban',
     help: 'Checked against the IBAN checksum when you leave the field.',
@@ -632,7 +673,7 @@ const SYSTEM = block('system', undefined, [
 // that shows up in the default view.
 ], { technical: true })
 
-/** All 100 columns + TEAMS_VIRTUAL_KEY, in group order. */
+/** All 104 columns + TEAMS_VIRTUAL_KEY + FEE_AMOUNT_VIRTUAL_KEY, in group order. */
 export const MEMBER_FIELDS: readonly MemberFieldDef[] = [
   ...IDENTITY,
   ...CONTACT,

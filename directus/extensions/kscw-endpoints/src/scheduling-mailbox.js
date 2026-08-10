@@ -62,7 +62,7 @@ import { writeUserLog } from './activity-log.js'
 import { MAILBOX_GROUPS, resolveClubdeskRecipients, resolveMemberAudience, resolveRegisterEmails, teamAudienceCounts } from './audience.js'
 import { combineClauseSets, parseClauses, parseList, splitSeason } from './mailbox-audience-select.js'
 import { loadSuppressed } from './email-suppression.js'
-import { deriveMitgliederbeitrag, guestMemberIdSet } from './clubdesk-update.js'
+import { deriveMitgliederbeitrag, guestMemberIdSet, FEE_OVERRIDE_FIELDS } from './clubdesk-update.js'
 import { currentSeasonShort } from './season.js'
 import { applyMergeFields, mergeValues, usedMergeFields } from './merge-fields.js'
 import {
@@ -1301,6 +1301,9 @@ export function registerSchedulingMailbox(router, { database, logger }) {
         // no-Schreiberlizenz surcharge. Passing the member row rather than null
         // is what makes the surcharge appear at all.
         'scorer_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'otn1_bb', 'otn2_bb',
+        // Per-member overrides (migration 299) — a member the treasurer
+        // re-priced must not be mailed the category's amount.
+        ...FEE_OVERRIDE_FIELDS,
       ),
       database('member_teams')
         .join('teams', 'teams.id', 'member_teams.team')

@@ -740,6 +740,85 @@ describe('feeBreakdown', () => {
       .toEqual({ category: 'VB Erwerbstätige', base: 460, surcharge: 100, discount: 0, guest_discount: 0, amount: 560 })
   })
 
+  // Migration 299. These four columns are the club's answer to "this person
+  // pays something else", and they have to hold in BOTH fee consumers — the
+  // native dues run and the ClubDesk CREATE push — or the treasurer is back to
+  // correcting amounts by hand in ClubDesk.
+  describe('per-member overrides', () => {
+    it('fee_base_override beats the category map', () => {
+      expect(feeBreakdown('VB Erwerbstätige', { scorer_vb: true, fee_base_override: 300 }))
+        .toEqual({ category: 'VB Erwerbstätige', base: 300, surcharge: 0, discount: 0, guest_discount: 0, amount: 300 })
+    })
+
+    it('fee_base_override also beats the season rate schedule', () => {
+      // The schedule is the whole club's number; the member override is this
+      // person's. The more specific one wins, or the exception is unexpressable.
+      expect(feeBreakdown('VB Erwerbstätige', { scorer_vb: true, fee_base_override: 300 }, { baseOverride: 460 }).base)
+        .toBe(300)
+    })
+
+    it('fee_surcharge_override of 0 waives the CHF 100 the rule would add', () => {
+      // The exact case the club used to handle as a post-hoc write-off.
+      expect(feeBreakdown('VB Erwerbstätige', { scorer_vb: false, fee_surcharge_override: 0 }))
+        .toEqual({ category: 'VB Erwerbstätige', base: 440, surcharge: 0, discount: 0, guest_discount: 0, amount: 440 })
+    })
+
+    it('fee_surcharge_override can also ADD one the rule would not', () => {
+      expect(feeBreakdown('VB Erwerbstätige', { scorer_vb: true, fee_surcharge_override: 50 }).amount).toBe(490)
+    })
+
+    it('fee_discount applies when the caller passes no per-run discount', () => {
+      expect(feeBreakdown('VB Erwerbstätige', { scorer_vb: true, fee_discount: 40 }))
+        .toEqual({ category: 'VB Erwerbstätige', base: 440, surcharge: 0, discount: 40, guest_discount: 0, amount: 400 })
+    })
+
+    it('a per-run discount wins over the standing one', () => {
+      // The run is a decision being made now; it must be able to differ.
+      expect(feeBreakdown('VB Erwerbstätige', { scorer_vb: true, fee_discount: 40 }, { discount: 100 }).amount)
+        .toBe(340)
+      // …but the default `discount: 0` every caller sends is "none named", not
+      // "cancel the member's", or the dues run would silently ignore the column.
+      expect(feeBreakdown('VB Erwerbstätige', { scorer_vb: true, fee_discount: 40 }, { discount: 0 }).amount)
+        .toBe(400)
+    })
+
+    it('caps the standing discount at what is owed — never a negative bill', () => {
+      expect(feeBreakdown('Passivmitglied', { fee_discount: 500 }))
+        .toEqual({ category: 'Passivmitglied', base: 40, surcharge: 0, discount: 40, guest_discount: 0, amount: 0 })
+    })
+
+    it('reads Postgres numerics, which arrive as strings — including "0"', () => {
+      // A typeof check here would read every override as absent and silently
+      // bill the derived amount. '0.00' is the waiver, and must not read empty.
+      expect(feeBreakdown('VB Erwerbstätige', { scorer_vb: false, fee_surcharge_override: '0.00' }).amount).toBe(440)
+      expect(feeBreakdown('VB Erwerbstätige', { scorer_vb: true, fee_base_override: '300.00' }).base).toBe(300)
+      expect(feeBreakdown('VB Erwerbstätige', { scorer_vb: true, fee_discount: '40.00' }).amount).toBe(400)
+    })
+
+    it('an absent / null override changes nothing', () => {
+      const bare = { scorer_vb: false }
+      const nulled = { scorer_vb: false, fee_base_override: null, fee_surcharge_override: null, fee_discount: null }
+      expect(feeBreakdown('VB Erwerbstätige', nulled)).toEqual(feeBreakdown('VB Erwerbstätige', bare))
+    })
+
+    it('a guest keeps the CHF 110 reduction, and an override still reaches the push', () => {
+      // Guests are never surcharged by the rule; an explicit override is a human
+      // decision about this person and outranks it.
+      expect(feeBreakdown('VB Erwerbstätige', { fee_base_override: 300 }, { isGuest: true }))
+        .toEqual({ category: 'VB Erwerbstätige', base: 300, surcharge: 0, discount: 0, guest_discount: 110, amount: 190 })
+      expect(deriveMitgliederbeitrag('VB Erwerbstätige', { fee_base_override: 300 }, { isGuest: true })).toBe('190')
+    })
+
+    it('the ClubDesk push bills the override, not the category', () => {
+      // deriveMitgliederbeitrag is what a brand-new ClubDesk contact is created
+      // with. Deriving 540 for somebody the treasurer priced at 300 would need
+      // the same hand-correction the override exists to remove.
+      expect(deriveMitgliederbeitrag('VB Erwerbstätige', { scorer_vb: false })).toBe('540')
+      expect(deriveMitgliederbeitrag('VB Erwerbstätige', { scorer_vb: false, fee_surcharge_override: 0 })).toBe('440')
+      expect(deriveMitgliederbeitrag('VB Erwerbstätige', { scorer_vb: false, fee_base_override: 300 })).toBe('400')
+    })
+  })
+
   it('accepts a Postgres numeric override, which arrives as a string', () => {
     // knex/pg hands back `numeric` as '440.00'; a typeof check would drop it
     // and silently fall through to the hardcoded map.
