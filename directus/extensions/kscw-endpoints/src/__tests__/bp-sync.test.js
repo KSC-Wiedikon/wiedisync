@@ -18,7 +18,7 @@
  * Hermetic — pure functions, no DB or network.
  */
 import { describe, it, expect } from 'vitest'
-import { applyLocalGuards, cmpVal } from '../bp-sync.js'
+import { applyLocalGuards, cmpVal, buildGameIntents } from '../bp-sync.js'
 
 // bp-sync's COMPARE_FIELDS (module-internal; mirrored here as the contract).
 const COMPARE_FIELDS = [
@@ -148,5 +148,58 @@ describe('cmpVal — normalization primitives', () => {
     expect(cmpVal('away_hall_json', null)).toBe('')
     expect(cmpVal('hall', null)).toBe('')
     expect(cmpVal('home_score', 68)).toBe('68')
+  })
+})
+
+// ── buildGameIntents — the two-row derby model (audit 2026-08-08, #34) ───────
+// bp-sync wrote ONE games row per fixture, keyed on game_id alone. For an
+// intra-club fixture that means the away squad gets no row at all: no
+// participations from sweepGameAutoConfirm (it joins member_teams on
+// g.kscw_team) and no respond_by reminder — silently. Latent today because all
+// 17 active BB teams sit in distinct Basketplan groups, but migration 287 seeds
+// DU18 A and DU18 B into the same group and it goes live the moment DU18 B gets
+// a teams row.
+describe('buildGameIntents', () => {
+  const HOME_AWAY = { homeTeamId: '111', guestTeamId: '222' }
+
+  it('emits ONE intent for an ordinary home game', () => {
+    const out = buildGameIntents({ ...HOME_AWAY, isHome: true, isGuestOurs: false }, 7, null)
+    expect(out).toHaveLength(1)
+    expect(out[0]).toMatchObject({ bpId: '111', type: 'home', hall: 7 })
+  })
+
+  it('emits ONE intent for an ordinary away game, keeping away_hall_json', () => {
+    const away = { name: 'Sporthalle X', address: 'Y 1', city: 'Zürich' }
+    const out = buildGameIntents({ ...HOME_AWAY, isHome: false, isGuestOurs: false }, null, away)
+    expect(out).toHaveLength(1)
+    expect(out[0]).toMatchObject({ bpId: '222', type: 'away', awayHallJson: away })
+  })
+
+  it('emits TWO intents when BOTH sides are ours — one per KSCW team', () => {
+    const out = buildGameIntents({ ...HOME_AWAY, isHome: true, isGuestOurs: true }, 7, null)
+    expect(out).toHaveLength(2)
+    expect(out.map((i) => i.bpId)).toEqual(['111', '222'])
+    expect(out.map((i) => i.type)).toEqual(['home', 'away'])
+  })
+
+  it('puts BOTH derby rows at our hall and neither at an away venue', () => {
+    // The fixture is at our venue, so it is nobody's away game — an
+    // away_hall_json here would send the second team to a hall they are at.
+    const out = buildGameIntents({ ...HOME_AWAY, isHome: true, isGuestOurs: true }, 7, { name: 'wrong' })
+    expect(out.every((i) => i.hall === 7)).toBe(true)
+    expect(out.every((i) => i.awayHallJson === null)).toBe(true)
+  })
+
+  it('does NOT treat an away fixture as intra-club even if the guest flag is set', () => {
+    // isGuestOurs only means "the guest side is a KSCW team". Without isHome we
+    // are the guest, so there is exactly one KSCW side.
+    const out = buildGameIntents({ ...HOME_AWAY, isHome: false, isGuestOurs: true }, null, null)
+    expect(out).toHaveLength(1)
+    expect(out[0].bpId).toBe('222')
+  })
+
+  it('treats a missing isGuestOurs as not-intra-club (feeds predating the flag)', () => {
+    const out = buildGameIntents({ ...HOME_AWAY, isHome: true }, 7, null)
+    expect(out).toHaveLength(1)
   })
 })
