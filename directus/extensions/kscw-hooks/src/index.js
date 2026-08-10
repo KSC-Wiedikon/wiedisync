@@ -28,6 +28,7 @@ import { bbRequiredDocs, fibaNatCode } from '../../kscw-endpoints/src/bb-docs.js
 import { TEMPLATE_FIELDS, validateTemplate, sanitizeTemplateHtml } from '../../kscw-endpoints/src/email-templates.js'
 import { gameStartMs } from '../../kscw-endpoints/src/scorer-roster.js'
 import { currentSeasonShort, seasonStartYear } from '../../kscw-endpoints/src/season.js'
+import { isLicenceStatus, notifyLicenceStatusChange, runLicenceStatusSweep } from '../../kscw-endpoints/src/licence-status.js'
 import { parseJsonArray, resolveMemberAudience } from '../../kscw-endpoints/src/audience.js'
 import { loadSuppressed } from '../../kscw-endpoints/src/email-suppression.js'
 import { registerAuditHook } from './audit.js'
@@ -509,6 +510,70 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       if (f in payload) { delete payload[f]; log.warn({ msg: `[priv-strip] non-admin attempted members.${f} update — stripped`, userId }) }
     }
     return payload
+  })
+
+  // ── Licence status: stamp the actor, notify the member (migration 301) ──
+  //
+  // Hand edits reach `members.licence_status` through the items API (the Data
+  // Explorer's inline editor and the /admin/anmeldungen buttons), so this pair
+  // covers every human write; the sweep in licence-status.js covers the machine
+  // ones and stamps itself.
+  //
+  // Why a filter AND an action: only the filter can see the OLD value (it runs
+  // before the write), and only the action knows the write actually committed.
+  // Detecting the change in the filter is what stops an admin re-picking the
+  // value already on the row from pushing "your licence status changed" to a
+  // member for whom nothing did — the Data Explorer sends every dirty field,
+  // and "dirty" there means touched, not different.
+  const pendingLicenceNotifications = new Map()
+
+  filter('members.items.update', async (payload, meta, context) => {
+    if (!payload || !('licence_status' in payload)) return payload
+    const next = payload.licence_status
+    if (!isLicenceStatus(next)) return payload
+    const keys = Array.isArray(meta?.keys) ? meta.keys : []
+    if (keys.length === 0) return payload
+
+    const rows = await database('members').whereIn('id', keys).select('id', 'licence_status')
+    const changed = rows.filter((r) => r.licence_status !== next).map((r) => r.id)
+    if (changed.length === 0) return payload
+
+    // The season the new status describes is always the CURRENT one — a human
+    // is answering "where is this licence now", never backdating last season.
+    const [{ season }] = (await database.raw('SELECT public.kscw_current_season_label() AS season')).rows
+    payload.licence_status_season = season
+    payload.licence_status_updated_at = new Date()
+
+    const userId = context?.accountability?.user
+    let who = 'System'
+    if (userId) {
+      const actor = await database('members').where('user', userId).first('first_name', 'last_name')
+      who = [actor?.first_name, actor?.last_name].filter(Boolean).join(' ').trim() || 'Unknown user'
+    }
+    payload.licence_status_by_name = who
+
+    for (const id of changed) pendingLicenceNotifications.set(String(id), { status: next, season })
+    return payload
+  })
+
+  action('members.items.update', async ({ keys }) => {
+    if (pendingLicenceNotifications.size === 0) return
+    for (const id of (Array.isArray(keys) ? keys : [])) {
+      const pending = pendingLicenceNotifications.get(String(id))
+      if (!pending) continue
+      pendingLicenceNotifications.delete(String(id))
+      try {
+        await notifyLicenceStatusChange(database, log, {
+          memberId: id, status: pending.status, season: pending.season,
+        })
+      } catch (err) {
+        logWarning('licence_status_notify', err.message, { memberId: id, status: pending.status, stack: err.stack })
+      }
+    }
+    // A filter that stamped and then threw (or a write Directus rolled back)
+    // leaves an entry nothing will ever drain. Bound the map rather than let it
+    // grow for the life of the container.
+    if (pendingLicenceNotifications.size > 500) pendingLicenceNotifications.clear()
   })
 
   // Same guard on CREATE. Directus does NOT enforce field-level permission
@@ -2249,12 +2314,17 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // whose per-session rows re-check against their own session date.
 
   async function reEvalActivityAutoDeclines(activityType, activityId, teamFilterSql, teamFilterParams, dateStr) {
-    // 1. Remove auto-declines that no longer match (new date outside window)
-    await database.raw(`
-      DELETE FROM participations p
-      USING absences a
-      WHERE p.activity_type = ?
-        AND p.activity_id = ?::text
+    // 1. Unwind auto-declines that no longer match (new date outside window).
+    //
+    // ⚠ Two KINDS of row carry `auto_declined_by`, and they unwind differently —
+    // the invariant `unwindAbsenceAutoDeclines` states and this path used to
+    // ignore (audit 2026-08-08, finding 22). Rows the auto-decline CREATED carry
+    // the sentinel `waitlisted_at` and must be DELETED; rows it merely OVERRODE
+    // (the member had already confirmed, and the absence flipped the existing
+    // row, leaving `waitlisted_at` NULL) must be REVERTED to confirmed. Deleting
+    // both destroyed a confirmed RSVP that the very same row would have had
+    // restored had the absence simply been deleted instead.
+    const STALE_ABSENCE_PREDICATE = `
         AND p.auto_declined_by = a.id
         AND (
           a.start_date::date > ?::date OR a.end_date::date < ?::date
@@ -2264,8 +2334,25 @@ export default ({ action, filter, init, schedule }, { services, database, logger
           OR (
             a.type = 'weekly' AND NOT (a.days_of_week::jsonb @> to_jsonb((EXTRACT(DOW FROM ?::date)::int + 6) % 7))
           )
-        )
-    `, [activityType, String(activityId), dateStr, dateStr, `"${activityType}s"`, dateStr])
+        )`
+    const staleParams = [dateStr, dateStr, `"${activityType}s"`, dateStr]
+    await database.raw(`
+      DELETE FROM participations p
+      USING absences a
+      WHERE p.activity_type = ?
+        AND p.activity_id = ?::text
+        ${STALE_ABSENCE_PREDICATE}
+        AND p.waitlisted_at = ?::timestamptz
+    `, [activityType, String(activityId), ...staleParams, AUTO_DECLINE_CREATED_SENTINEL])
+    await database.raw(`
+      UPDATE participations p
+      SET status = 'confirmed', auto_declined_by = NULL, note = ''
+      FROM absences a
+      WHERE p.activity_type = ?
+        AND p.activity_id = ?::text
+        ${STALE_ABSENCE_PREDICATE}
+        AND (p.waitlisted_at IS NULL OR p.waitlisted_at <> ?::timestamptz)
+    `, [activityType, String(activityId), ...staleParams, AUTO_DECLINE_CREATED_SENTINEL])
     // 2. Insert fresh auto-declines for the new date (NOT EXISTS skips manual overrides)
     //    Sentinel waitlisted_at marks these as auto-decline-created so the
     //    absence unwind DELETEs them rather than reverting to 'confirmed'.
@@ -2304,24 +2391,33 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     )
     const dateStr = ds?.rows?.[0]?.d
     if (!dateStr) return
-    await database.raw(`
-      DELETE FROM participations p
-      USING absences a
-      WHERE p.activity_type = 'event'
-        AND p.activity_id = ?::text
+    // Same sentinel split as reEvalActivityAutoDeclines — see the note there.
+    const STALE_EVENT_PREDICATE = `
         AND p.auto_declined_by = a.id
         AND p.session_id IS NULL
         AND (
           a.start_date::date > ?::date OR a.end_date::date < ?::date
           OR NOT (a.affects::jsonb @> '"all"' OR a.affects::jsonb @> '"events"')
           OR (a.type = 'weekly' AND NOT (a.days_of_week::jsonb @> to_jsonb((EXTRACT(DOW FROM ?::date)::int + 6) % 7)))
-        )
-    `, [String(eventId), dateStr, dateStr, dateStr])
+        )`
     await database.raw(`
       DELETE FROM participations p
-      USING absences a, event_sessions s
+      USING absences a
       WHERE p.activity_type = 'event'
         AND p.activity_id = ?::text
+        ${STALE_EVENT_PREDICATE}
+        AND p.waitlisted_at = ?::timestamptz
+    `, [String(eventId), dateStr, dateStr, dateStr, AUTO_DECLINE_CREATED_SENTINEL])
+    await database.raw(`
+      UPDATE participations p
+      SET status = 'confirmed', auto_declined_by = NULL, note = ''
+      FROM absences a
+      WHERE p.activity_type = 'event'
+        AND p.activity_id = ?::text
+        ${STALE_EVENT_PREDICATE}
+        AND (p.waitlisted_at IS NULL OR p.waitlisted_at <> ?::timestamptz)
+    `, [String(eventId), dateStr, dateStr, dateStr, AUTO_DECLINE_CREATED_SENTINEL])
+    const STALE_SESSION_PREDICATE = `
         AND p.auto_declined_by = a.id
         AND s.event = ?::integer
         AND p.session_id = s.id::text
@@ -2329,8 +2425,24 @@ export default ({ action, filter, init, schedule }, { services, database, logger
           a.start_date::date > s.date OR a.end_date::date < s.date
           OR NOT (a.affects::jsonb @> '"all"' OR a.affects::jsonb @> '"events"')
           OR (a.type = 'weekly' AND NOT (a.days_of_week::jsonb @> to_jsonb((EXTRACT(DOW FROM s.date)::int + 6) % 7)))
-        )
-    `, [String(eventId), eventId])
+        )`
+    await database.raw(`
+      DELETE FROM participations p
+      USING absences a, event_sessions s
+      WHERE p.activity_type = 'event'
+        AND p.activity_id = ?::text
+        ${STALE_SESSION_PREDICATE}
+        AND p.waitlisted_at = ?::timestamptz
+    `, [String(eventId), eventId, AUTO_DECLINE_CREATED_SENTINEL])
+    await database.raw(`
+      UPDATE participations p
+      SET status = 'confirmed', auto_declined_by = NULL, note = ''
+      FROM absences a, event_sessions s
+      WHERE p.activity_type = 'event'
+        AND p.activity_id = ?::text
+        ${STALE_SESSION_PREDICATE}
+        AND (p.waitlisted_at IS NULL OR p.waitlisted_at <> ?::timestamptz)
+    `, [String(eventId), eventId, AUTO_DECLINE_CREATED_SENTINEL])
     await applyEventAbsenceDeclines(eventId)
   }
 
@@ -2966,6 +3078,16 @@ export default ({ action, filter, init, schedule }, { services, database, logger
 
       // 1. Reverse trainings this closure had previously cancelled that no
       //    longer fall in its (new) window — covers date-range edits.
+      //
+      // ⚠ `auto_cancelled_by_closure` is SINGLE-VALUED but closures overlap
+      // routinely (48 overlapping same-hall pairs on prod). The cancel pass
+      // below requires `cancelled = false`, so the second closure to cover a
+      // training silently no-ops and records nothing — the marker names only the
+      // FIRST one. Reversing on the marker alone therefore re-activates
+      // trainings that another closure still covers (audit 2026-08-08,
+      // finding 20). Re-derive coverage instead of trusting the marker, and
+      // bound to today forward so a range edit cannot retroactively un-cancel
+      // history (the notify trigger skips past dates, so that would be silent).
       await database.raw(`
         UPDATE trainings
         SET cancelled = false,
@@ -2973,7 +3095,14 @@ export default ({ action, filter, init, schedule }, { services, database, logger
             auto_cancelled_by_closure = NULL
         WHERE auto_cancelled_by_closure = ?::integer
           AND (hall != ? OR date < ?::date OR date > ?::date)
-      `, [closureId, c.hall, start, end])
+          AND date >= CURRENT_DATE
+          AND NOT EXISTS (
+            SELECT 1 FROM hall_closures c2
+            WHERE c2.hall = trainings.hall
+              AND c2.id <> ?::integer
+              AND trainings.date BETWEEN c2.start_date AND c2.end_date
+          )
+      `, [closureId, c.hall, start, end, closureId])
 
       // 2. Auto-cancel non-cancelled future trainings newly covered.
       const res = await database.raw(`
@@ -2996,11 +3125,23 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   action('hall_closures.items.delete', async ({ keys }) => {
     try {
       for (const k of keys) {
+        // Same re-derivation as pass 1: deleting one of two overlapping
+        // closures must not re-activate a training the other still shuts. The
+        // deleted row is already gone by the time this action runs, so the
+        // `c2.id <> k` guard is belt-and-braces rather than load-bearing.
+        // Without the date bound this also silently un-cancelled past sessions.
         const res = await database.raw(`
           UPDATE trainings
           SET cancelled = false, cancel_reason = '', auto_cancelled_by_closure = NULL
           WHERE auto_cancelled_by_closure = ?::integer
-        `, [k])
+            AND date >= CURRENT_DATE
+            AND NOT EXISTS (
+              SELECT 1 FROM hall_closures c2
+              WHERE c2.hall = trainings.hall
+                AND c2.id <> ?::integer
+                AND trainings.date BETWEEN c2.start_date AND c2.end_date
+            )
+        `, [k, k])
         if (res?.rowCount > 0) log.info(`[closure-auto-cancel] Closure ${k} deleted: ${res.rowCount} trainings reversed`)
       }
     } catch (err) {
@@ -3293,19 +3434,43 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       `)
 
       // Auto-decline tentatives past deadline (per-team feature)
+      //
+      // ⚠ `participations.activity_id` is POLYMORPHIC — its meaning depends on
+      // `activity_type`, and the two id spaces overlap almost completely because
+      // both sequences START WITH 1. Until 2026-08-10 this UNION collapsed them
+      // and correlated on `aid` ALONE (audit 2026-08-08, finding 13), so
+      // training 137 being past its deadline declined member 42's "maybe" on
+      // GAME 137 — a different team's activity entirely. Worse, the
+      // `features_enabled` flag was read from whichever row happened to collide,
+      // so one team enabling `auto_decline_tentative` silently applied it
+      // club-wide, and team A's setting decided team B's RSVPs.
+      //
+      // `atype` now travels with each branch and is correlated, which is what
+      // the table's own identity index (activity_type, activity_id, member)
+      // implies and what every sibling query in this same cron block already did.
+      //
+      // The date bound is the second half of the fix: with no lower bound the
+      // sweep reached the entire back-catalogue and rewrote historical
+      // attendance. `trg_participations_clear_auto_marker` strips the marker
+      // afterwards, so a bogus flip is indistinguishable from a real one — there
+      // is no repair path, only prevention.
       await database.raw(`
         UPDATE participations SET status = 'declined'
         WHERE status = 'tentative'
           AND activity_type IN ('game', 'training')
           AND EXISTS (
             SELECT 1 FROM (
-              SELECT id::text AS aid, respond_by, team AS team_id FROM trainings WHERE respond_by IS NOT NULL
+              SELECT 'training' AS atype, id::text AS aid, respond_by, date AS adate, team AS team_id
+                FROM trainings WHERE respond_by IS NOT NULL
               UNION ALL
-              SELECT id::text AS aid, respond_by, kscw_team AS team_id FROM games WHERE respond_by IS NOT NULL
+              SELECT 'game' AS atype, id::text AS aid, respond_by, date AS adate, kscw_team AS team_id
+                FROM games WHERE respond_by IS NOT NULL
             ) a
             JOIN teams t ON t.id = a.team_id
-            WHERE a.aid = participations.activity_id
+            WHERE a.atype = participations.activity_type
+              AND a.aid = participations.activity_id
               AND a.respond_by::date <= CURRENT_DATE
+              AND a.adate >= CURRENT_DATE
               AND (t.features_enabled->>'auto_decline_tentative')::boolean = true
           )
       `)
@@ -3608,6 +3773,34 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   }
 
   schedule('0 4 * * 1', () => runVmSync('weekly'))
+
+  // ── 10b¹. Licence status sweep (migration 301) ──────────────────
+  // Daily rather than weekly, for two reasons that have nothing to do with the
+  // volleyball register: the 1 June season rollover has to land on 1 June, not
+  // on the following Monday, and Basketplan is scraped by hand — a scrape run
+  // on a Wednesday should show up on Wednesday. It is two local Postgres
+  // statements, so daily costs nothing.
+  //
+  // 05:45 UTC: after the Monday 04:00 VM sync has refreshed sv_vm_check (a
+  // licence activated in Volleymanager over the weekend is confirmed the same
+  // morning) and clear of the 05:15 VIS run.
+  schedule('45 5 * * *', async () => {
+    const startedAt = Date.now()
+    try {
+      const result = await runLicenceStatusSweep(database, log, { actorName: 'Daily sweep' })
+      await logCronRun(database, 'licence_status', {
+        status: 'success',
+        rowsChanged: result.reset + result.promoted.length,
+        durationMs: Date.now() - startedAt,
+      })
+    } catch (err) {
+      log.error({ msg: `[licence-status] daily sweep: ${err.message}`, event: 'licence_status_sweep_failed', stack: err.stack })
+      logCronError('licence_status', err)
+      await logCronRun(database, 'licence_status', {
+        status: 'error', rowsChanged: 0, durationMs: Date.now() - startedAt, errorMessage: err.message,
+      }).catch(() => {})
+    }
+  })
 
   // ── 10b². Watchdog: retry VM sync every 30 min while it's failing/deferred ──
   // VM's indoor data API intermittently 403s/stalls (2026-06-08, 2026-06-18).

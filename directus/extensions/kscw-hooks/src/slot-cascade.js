@@ -279,6 +279,20 @@ export async function cascadeSlotUpdate(database, slotId, pre, log) {
         const newDate = parseDate(tr.date)
         newDate.setUTCDate(newDate.getUTCDate() + delta)
         const newDateStr = toISODate(newDate)
+        // A NEGATIVE delta can push this week's occurrence into the past, which
+        // breaks this module's own contract that past trainings stay frozen as
+        // historical snapshots (audit 2026-08-08, finding 21). Concretely:
+        // changing a slot from Wednesday to Monday ON A TUESDAY rewrote
+        // tomorrow's session to yesterday, dragging its participations into
+        // attendance history at the pre-edit time and hall — permanently, since
+        // step 3's trim and step 4's regeneration are both bounded by
+        // `date >= today` and never revisit it, while this week's real session
+        // simply vanished from the calendar.
+        //
+        // Leaving the row untouched hands it to those two passes: step 3 trims
+        // it (it no longer matches the slot's weekday) and step 4 regenerates
+        // the correct occurrence.
+        if (newDateStr < today) continue
         // Skip when shifted date already has a training (rare — happens if
         // the user previously moved a single training manually onto the
         // target weekday). Leave the conflict in place; admin can resolve.
