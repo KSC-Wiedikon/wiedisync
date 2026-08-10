@@ -13,10 +13,31 @@ function tomorrowYMD() {
   return d.toISOString().split('T')[0]
 }
 
+/**
+ * Arrival lead time, from the ONE table that already owns it.
+ *
+ * This was a third hand-written copy, and it had already drifted: it returned
+ * **10** minutes for the Täfeler where `ROLE_DEFS` and the frontend's
+ * `DUTY_ARRIVAL_MIN` both say **15** (audit 2026-08-08, finding 38). Not
+ * theoretical — the audit called this path dead on the basis of a missing cron,
+ * but `sendReminders` is wired to a live "Send reminders" button on the admin
+ * dashboard, so the email told the Täfeler T−10 while `/scorer` showed T−15 and
+ * the coach's late alarm (with its CHF 50 no-show fine) armed at T−15.
+ *
+ * Unified on 15 — the value every continuously-running surface already uses —
+ * so nothing with a money consequence moved.
+ *
+ * ⚠ INFRA.md documents the club rule as "taefeler (10 min before)". If 10 is
+ * genuinely the rule, then the FINE WINDOW is the thing that is wrong, not this
+ * email, and that is a deliberate change to make in ROLE_DEFS — not here.
+ */
+import { ROLE_DEFS } from './duty-late.js'
+
 function arrivalMinutes(role, sport) {
-  if (sport === 'basketball') return 15
-  if (role === 'scoreboard') return 10
-  return 30 // scorer default
+  const def = ROLE_DEFS[role]
+  if (def) return def.arrival
+  // Unknown role: fall back by sport rather than inventing a number.
+  return sport === 'basketball' ? 15 : 30
 }
 
 // Role keys aligned to the real `games` columns (English). Display labels stay

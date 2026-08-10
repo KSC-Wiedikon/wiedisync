@@ -2530,16 +2530,32 @@ export default ({ action, filter, init, schedule }, { services, database, logger
 
   // ── Forms (migrations 086/087) ──────────────────────────────────────
   // Notify the scoped audience once, when a form transitions to `open`.
-  // Dedupes on an existing form_published notification so editing an already
-  // open form (the builder always re-sends status) never re-notifies.
+  //
+  // The dedupe used to look for an existing `form_published` NOTIFICATION row,
+  // which is transient by design: the nightly cleanup deletes anything older
+  // than 30 days through an untyped catch-all (its activity-type rules protect
+  // only game/training/event; form rows carry 'form'), and members can delete
+  // their own from the bell menu. The dedupe needed ZERO surviving rows
+  // club-wide, so a small team's form could lose its key in days — and a form
+  // published in January, typo-fixed in March, then re-notified AND re-pushed
+  // every active member, repeating on every later edit. The trigger is
+  // `status === 'open'` and the builder re-sends the whole object on every save,
+  // so an edit is enough; coaches can trigger it too (audit 2026-08-08, #19).
+  //
+  // The state now lives on the form (migration 305), exactly as announcements
+  // already do with `fanout_sent_at`. Claiming it is a CONDITIONAL update — the
+  // row count tells us whether we won — so the fan-out is re-entrant and immune
+  // to the purge, and two concurrent saves cannot both send.
   async function notifyFormPublished(formId) {
     const form = await database('forms').where('id', formId)
       .select('id', 'title', 'status', 'audience').first()
     if (!form || form.status !== 'open') return
 
-    const already = await database('notifications')
-      .where({ type: 'form_published', activity_id: String(form.id) }).first()
-    if (already) return
+    const claimed = await database('forms')
+      .where('id', formId)
+      .whereNull('published_notified_at')
+      .update({ published_notified_at: new Date().toISOString() })
+    if (!claimed) return
 
     let memberIds = []
     if (form.audience === 'club_wide') {
