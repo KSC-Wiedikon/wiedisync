@@ -157,6 +157,109 @@ export async function setCloses(slug, closesAt) {
   }
 }
 
+/** Public form URL for a slug — the shape kscw-website's calendar CTA parses. */
+export function formUrl(slug) {
+  return `${OPNFORM_BASE}/forms/${slug}`
+}
+
+/**
+ * Slugify a title into something CustomSlugRule accepts
+ * (`^[a-z0-9]+(?:-[a-z0-9]+)*$`, globally unique).
+ *
+ * Umlauts are transliterated BEFORE the NFD accent strip, so "Mixed Turnier Grün"
+ * becomes `gruen` and not `grun` — the slug ends up in a URL club members read
+ * and type, and the German spelling is the one they expect.
+ */
+export function slugifyTitle(s) {
+  const out = String(s ?? '')
+    .replace(/ä/gi, 'ae').replace(/ö/gi, 'oe').replace(/ü/gi, 'ue').replace(/ß/g, 'ss')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 60)
+    .replace(/-+$/g, '')
+  return out || 'event'
+}
+
+/**
+ * OpnForm rejects a duplicate slug with a 422 that looks identical to every other
+ * validation failure, so probe first rather than pattern-matching error text.
+ * `/api/open/forms/:slug` resolves by slug (that is how getCloses works today).
+ */
+async function slugTaken(slug) {
+  try {
+    await opnformFetch(`/forms/${encodeURIComponent(slug)}`)
+    return true
+  } catch (err) {
+    if (err.status === 404) return false
+    throw err
+  }
+}
+
+export async function findFreeSlug(base) {
+  const root = slugifyTitle(base)
+  for (let i = 0; i < 25; i++) {
+    const candidate = i === 0 ? root : `${root}-${i + 1}`
+    if (!(await slugTaken(candidate))) return candidate
+  }
+  const err = new Error(`No free OpnForm slug for "${root}" after 25 attempts`)
+  err.status = 409
+  throw err
+}
+
+/**
+ * Duplicate the master signup template, then rename/reslug/schedule the copy.
+ *
+ * Two calls rather than one create, deliberately: the template is built and
+ * maintained by hand in OpnForm's builder, so its field set, theme and branding
+ * stay editable by a human without any deploy. We never author `properties`
+ * ourselves — we copy whatever the template currently holds.
+ *
+ * ⚠ `duplicate` takes no body: it always produces "Copy of <title>" with a
+ * generated slug, so the PUT is not optional. If that PUT fails we delete the
+ * copy — a half-renamed "Copy of …" form left public would be worse than none.
+ */
+export async function createFormFromTemplate(templateId, { title, slug, closesAt = null }) {
+  const dup = await opnformFetch(
+    `/forms/${encodeURIComponent(templateId)}/duplicate`,
+    { method: 'POST' },
+  )
+  const created = dup?.new_form || dup?.form || dup?.data || null
+  if (!created?.id) {
+    const err = new Error('OpnForm duplicate returned no form')
+    err.status = 502
+    throw err
+  }
+
+  try {
+    const payload = {}
+    // UpdateFormRequest marks the whole set required — round-trip the copy's own
+    // values, then apply only what we actually mean to change.
+    for (const k of FORM_REQUIRED_FIELDS) payload[k] = created[k]
+    payload.title = String(title || created.title || 'Signup').slice(0, 60) // StoreFormRequest caps title at 60
+    payload.slug = slug
+    payload.visibility = 'public'
+    payload.closes_at = closesAt
+    await opnformFetch(`/forms/${created.id}`, { method: 'PUT', body: payload })
+  } catch (err) {
+    try {
+      await opnformFetch(`/forms/${created.id}`, { method: 'DELETE' })
+    } catch { /* best effort — the orphan is logged by the caller either way */ }
+    throw err
+  }
+
+  const after = await getForm(String(created.id))
+  const finalSlug = after?.slug ?? slug
+  return {
+    id: after?.id ?? created.id,
+    slug: finalSlug,
+    title: after?.title ?? title,
+    closes_at: after?.closes_at ?? null,
+    url: formUrl(finalSlug),
+  }
+}
+
 export async function deleteSubmission(slug, id) {
   await opnformFetch(
     `/forms/${encodeURIComponent(slug)}/submissions/${encodeURIComponent(id)}`,

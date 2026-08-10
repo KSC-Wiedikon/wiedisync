@@ -19,6 +19,8 @@ import type { Event, EventSession, Team } from '../../types'
 import RoleChipPicker from '@/components/RoleChipPicker'
 import MemberMultiSelect from '@/components/MemberMultiSelect'
 import { createRecord, deleteRecord, updateRecord, kscwApi, m2mUpdatePayload } from '../../lib/api'
+import { toast } from 'sonner'
+import { useConfirm } from '@/components/ConfirmProvider'
 
 /**
  * Directus M2M aliases come back either as bare IDs or as expanded junction
@@ -69,7 +71,8 @@ function formatDateShort(dateStr: string): string {
 export default function EventForm({ open, event, onSave, onCancel }: EventFormProps) {
   const { t, i18n } = useTranslation('events')
   const { t: tc } = useTranslation('common')
-  const { user, coachTeamIds } = useAuth()
+  const confirm = useConfirm()
+  const { user, coachTeamIds, isSuperAdmin } = useAuth()
   const { effectiveIsAdmin } = useAdminMode()
   const { create, update, isLoading } = useMutation<Event>('events')
   const { data: allTeamsRaw } = useCollection<Team>('teams', { filter: { active: { _eq: true } }, sort: ['name'], limit: 50 })
@@ -125,6 +128,9 @@ export default function EventForm({ open, event, onSave, onCancel }: EventFormPr
   const [sendEmailInvite, setSendEmailInvite] = useState(false)
   const [jsRelevant, setJsRelevant] = useState(false)
   const [jsActivityType, setJsActivityType] = useState<'Training' | 'Wettkampf' | 'Trainingstag' | 'Lagertag'>('Training')
+  const [signupUrl, setSignupUrl] = useState('')
+  const [signupBusy, setSignupBusy] = useState(false)
+  const [templateDraft, setTemplateDraft] = useState<string | null>(null)
   const [error, setError] = useState('')
 
   // Fetch existing sessions when editing
@@ -194,6 +200,7 @@ export default function EventForm({ open, event, onSave, onCancel }: EventFormPr
       setSendEmailInvite(event.send_email_invite ?? false)
       setJsRelevant(!!event.js_relevant)
       setJsActivityType((event.js_activity_type as 'Training' | 'Wettkampf' | 'Trainingstag' | 'Lagertag') || 'Training')
+      setSignupUrl(event.signup_url ?? '')
     } else {
       setTitle('')
       setEventType(effectiveIsAdmin ? 'verein' : 'social')
@@ -220,7 +227,9 @@ export default function EventForm({ open, event, onSave, onCancel }: EventFormPr
       setSendEmailInvite(false)
       setJsRelevant(false)
       setJsActivityType('Training')
+      setSignupUrl('')
     }
+    setSignupBusy(false)
     setError('')
   }
 
@@ -338,6 +347,81 @@ export default function EventForm({ open, event, onSave, onCancel }: EventFormPr
     setSelectedTeams([availableTeams[0].id])
   }
 
+  /**
+   * Which OpnForm form new signup forms are copied from. Lives in `app_settings`
+   * rather than an env var so a superuser can repoint it without an SSH round-trip
+   * and a container recreate. The endpoint falls back to OPNFORM_TEMPLATE_FORM_ID
+   * when no row exists, so an unset value here is not necessarily "unconfigured".
+   */
+  const { data: templateRowsRaw, refetch: refetchTemplate } = useCollection<{ id: string; value: string | null }>(
+    'app_settings',
+    { filter: { key: { _eq: 'opnform_event_template_id' } }, limit: 1, enabled: !!user && isSuperAdmin },
+  )
+  const templateRow = (templateRowsRaw ?? [])[0]
+  const templateValue = templateRow?.value ?? ''
+
+  async function handleSaveTemplate() {
+    const next = (templateDraft ?? '').trim()
+    setSignupBusy(true)
+    try {
+      if (templateRow) {
+        await updateRecord('app_settings', templateRow.id, { value: next })
+      } else {
+        await createRecord('app_settings', { key: 'opnform_event_template_id', value: next, enabled: true })
+      }
+      await refetchTemplate()
+      setTemplateDraft(null)
+      toast.success(t('signupTemplateSaved'))
+    } catch {
+      toast.error(t('signupFormFailed'))
+    } finally {
+      setSignupBusy(false)
+    }
+  }
+
+  /**
+   * Duplicates the OpnForm template and links the copy to this event. Server-side
+   * so the OpnForm token never reaches the browser. Only available once the event
+   * exists — the endpoint keys off its id, and the slug is built from its title.
+   */
+  async function handleCreateSignupForm() {
+    if (!event) return
+    const replacing = !!signupUrl.trim()
+    if (replacing && !(await confirm({ message: t('signupFormReplaceConfirm'), danger: true }))) return
+
+    setSignupBusy(true)
+    try {
+      const res = await kscwApi<{ url: string; slug: string }>(
+        `/events/${event.id}/signup-form`,
+        { method: 'POST', body: { force: replacing } },
+      )
+      // The endpoint writes signup_url itself, so mirror it into local state —
+      // otherwise the next save would push the stale value back over it.
+      setSignupUrl(res.url)
+      toast.success(t('signupFormCreated'))
+    } catch (err) {
+      const body = (err as { body?: { message?: string; error?: string } }).body
+      toast.error(body?.message || body?.error || t('signupFormFailed'))
+    } finally {
+      setSignupBusy(false)
+    }
+  }
+
+  async function handleUnlinkSignupForm() {
+    if (!event) return
+    if (!(await confirm({ message: t('signupFormUnlinkConfirm'), danger: true }))) return
+    setSignupBusy(true)
+    try {
+      await kscwApi(`/events/${event.id}/signup-form`, { method: 'DELETE' })
+      setSignupUrl('')
+      toast.success(t('signupFormUnlinked'))
+    } catch {
+      toast.error(t('signupFormFailed'))
+    } finally {
+      setSignupBusy(false)
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
@@ -377,6 +461,7 @@ export default function EventForm({ open, event, onSave, onCancel }: EventFormPr
       send_email_invite: sendEmailInvite,
       js_relevant: jsRelevant,
       js_activity_type: jsRelevant ? jsActivityType : null,
+      signup_url: signupUrl.trim() || null,
     }
 
     try {
@@ -606,6 +691,93 @@ export default function EventForm({ open, event, onSave, onCancel }: EventFormPr
             </FormField>
           )}
         </div>
+
+        {/* Public signup form (OpnForm). The door for NON-members: members RSVP
+            natively above, which is what drives counts and rosters. On a
+            club-wide event kscw.ch renders this URL as its "Anmelden" button. */}
+        {effectiveIsAdmin && (
+          <div className="space-y-2 rounded-lg border border-border p-3">
+            <div>
+              <span className="text-sm font-medium">{t('signupForm')}</span>
+              <p className="text-xs text-muted-foreground">{t('signupFormHint')}</p>
+            </div>
+
+            {!event ? (
+              <p className="text-xs text-muted-foreground">{t('signupFormSaveFirst')}</p>
+            ) : (
+              <>
+                <FormInput
+                  label={t('signupFormUrl')}
+                  type="url"
+                  value={signupUrl}
+                  onChange={(e) => setSignupUrl(e.target.value)}
+                  placeholder="https://forms.kscw.ch/forms/..."
+                />
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="min-h-[44px]"
+                    disabled={signupBusy}
+                    onClick={handleCreateSignupForm}
+                  >
+                    {signupUrl.trim() ? t('signupFormReplace') : t('signupFormCreate')}
+                  </Button>
+                  {signupUrl.trim() && (
+                    <>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="min-h-[44px]"
+                        onClick={() => {
+                          navigator.clipboard.writeText(signupUrl.trim())
+                          toast.success(tc('copied'))
+                        }}
+                      >
+                        {t('signupFormCopy')}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="min-h-[44px]"
+                        disabled={signupBusy}
+                        onClick={handleUnlinkSignupForm}
+                      >
+                        {t('signupFormUnlink')}
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* Template picker — superuser only. The value is club-wide, but it
+                lives here rather than on a settings page because this is the only
+                screen it affects, and it is edited about once a season. */}
+            {isSuperAdmin && (
+              <div className="border-t border-border pt-2">
+                <FormInput
+                  label={t('signupTemplateId')}
+                  value={templateDraft ?? templateValue}
+                  onChange={(e) => setTemplateDraft(e.target.value)}
+                  placeholder="42"
+                  helperText={t('signupTemplateIdHint')}
+                />
+                {templateDraft !== null && templateDraft !== templateValue && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="mt-2 min-h-[44px]"
+                    disabled={signupBusy}
+                    onClick={handleSaveTemplate}
+                  >
+                    {t('signupTemplateSave')}
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {['tournament', 'trainingsweekend', 'friendly'].includes(eventType) && (
           <>

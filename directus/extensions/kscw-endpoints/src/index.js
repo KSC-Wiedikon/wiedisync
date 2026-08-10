@@ -51,6 +51,7 @@ import { registerScorerVmCheck } from './scorer-vm-check.js'
 import { registerVisPlayerCheck } from './vis-player-check.js'
 import { registerBugfixes } from './bugfixes.js'
 import { registerEventNotify } from './event-notify.js'
+import { registerEventSignupForm } from './event-signup-form.js'
 import { registerMessaging } from './messaging.js'
 import { registerBroadcastRoutes } from './broadcast.js'
 import { registerActivitiesWithParticipations } from './activities.js'
@@ -2523,6 +2524,7 @@ export default {
     registerVisPlayerCheck(router, ctx)
     registerBugfixes(router, ctx)
     registerEventNotify(router, ctx)
+    registerEventSignupForm(router, ctx)
     registerForms(router, ctx, { logEndpointError, requireAuth })
     registerPollResults(router, ctx, { logEndpointError, requireAuth })
     registerPublicForms(router, ctx, { ipRateLimit })

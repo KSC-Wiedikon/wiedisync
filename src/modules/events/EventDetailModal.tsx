@@ -17,7 +17,9 @@ import { useMutation } from '../../hooks/useMutation'
 import { formatDate, formatTime } from '../../utils/dateHelpers'
 import BroadcastButton from '../broadcast/BroadcastButton'
 import { isFeatureEnabled } from '../../utils/featureToggles'
-import { Calendar, Clock, MapPin, Users, Check, MessageSquare, UserPlus } from 'lucide-react'
+import { Calendar, Clock, MapPin, Users, Check, MessageSquare, UserPlus, Share2, ClipboardList } from 'lucide-react'
+import { toast } from 'sonner'
+import EventSignupsModal from './EventSignupsModal'
 import { teamCoachIds } from '../../utils/relations'
 import { asTeams, teamId, isHtml, isSameDay } from './eventHelpers'
 import type { Event, EventSession, Participation, VolleyPosition } from '../../types'
@@ -33,8 +35,10 @@ interface EventDetailModalProps {
 export default function EventDetailModal({ event, onClose }: EventDetailModalProps) {
   const { t } = useTranslation('events')
   const { t: tP } = useTranslation('participation')
-  const { user, canParticipateIn, isCoachOf, isStaffOnlyForTeams, coachTeamIds, teamResponsibleIds } = useAuth()
+  const { t: tc } = useTranslation('common')
+  const { user, canParticipateIn, isCoachOf, isStaffOnlyForTeams, coachTeamIds, teamResponsibleIds, isAdmin } = useAuth()
   const [rosterOpen, setRosterOpen] = useState(false)
+  const [signupsOpen, setSignupsOpen] = useState(false)
   const [sessionSheetOpen, setSessionSheetOpen] = useState(false)
 
   const canParticipate = !!user && !!event && (
@@ -160,6 +164,45 @@ export default function EventDetailModal({ event, onClose }: EventDetailModalPro
             </div>
           )}
 
+          {/* Public signup link — deliberately a SHARE affordance, not a signup
+              CTA. It exists so members can invite non-members (who have no
+              account and so cannot RSVP). A member who followed it instead of
+              using the RSVP buttons below would leave no participation row, and
+              the event's own count and roster would silently under-report. */}
+          {event.signup_url && (
+            <div className="mt-3 flex flex-col gap-2 rounded-lg border border-border p-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-2 text-sm">
+                <Share2 className="mt-0.5 h-4 w-4 shrink-0 text-gray-500 dark:text-gray-400" />
+                <div>
+                  <span className="font-medium">{t('signupLinkTitle')}</span>
+                  <p className="text-xs text-muted-foreground">{t('signupLinkHint')}</p>
+                </div>
+              </div>
+              <div className="flex shrink-0 gap-2">
+                <button
+                  type="button"
+                  className="min-h-[44px] rounded-md border border-border px-3 text-sm hover:bg-accent"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    navigator.clipboard.writeText(event.signup_url!)
+                    toast.success(tc('copied'))
+                  }}
+                >
+                  {t('signupLinkCopy')}
+                </button>
+                <a
+                  href={event.signup_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="flex min-h-[44px] items-center rounded-md border border-border px-3 text-sm hover:bg-accent"
+                >
+                  {t('signupLinkOpen')} ↗
+                </a>
+              </div>
+            </div>
+          )}
+
           {/* Targeting indicators */}
           {((event.invited_roles ?? []).length > 0 || (event.invited_members ?? []).length > 0) && (
             <div className="mt-3 space-y-2">
@@ -219,6 +262,18 @@ export default function EventDetailModal({ event, onClose }: EventDetailModalPro
               >
                 <Users className="h-5 w-5" />
               </button>
+              {/* Admin-only: the merged view, which is the only place the guest
+                  (OpnForm) half of the signups is visible at all. */}
+              {isAdmin && (
+                <button
+                  onClick={() => setSignupsOpen(true)}
+                  aria-label={t('signupsTitle')}
+                  title={t('signupsTitle')}
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-brand-600 hover:bg-brand-50 dark:text-brand-400 dark:hover:bg-brand-900/20"
+                >
+                  <ClipboardList className="h-5 w-5" />
+                </button>
+              )}
             </div>
           </div>
           )}
@@ -239,6 +294,12 @@ export default function EventDetailModal({ event, onClose }: EventDetailModalPro
         eventSessions={hasSessionMode ? sessions : undefined}
         showRsvpTime={asTeams(event.teams).some(t => isFeatureEnabled(t.features_enabled, 'show_rsvp_time'))}
         allowMaybe={event.allow_maybe !== false}
+      />
+
+      <EventSignupsModal
+        open={signupsOpen}
+        onClose={() => setSignupsOpen(false)}
+        event={event}
       />
     </>
   )
