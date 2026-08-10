@@ -667,6 +667,13 @@ export interface Event extends BaseRecord {
   send_email_invite: boolean
   cancelled: boolean
   cancel_reason: string
+  /**
+   * Public OpnForm signup link (forms.kscw.ch). The door for NON-members —
+   * members RSVP natively, which is what feeds counts and rosters. kscw-website
+   * renders this as the "Anmelden" CTA on club-wide events; in the member app it
+   * is a share affordance, never a signup button.
+   */
+  signup_url?: string | null
   /** Migration 194: opt-in to the J+S (Jugend+Sport) export. */
   js_relevant?: boolean
   /** J+S NDS activity type used when js_relevant is set. */
