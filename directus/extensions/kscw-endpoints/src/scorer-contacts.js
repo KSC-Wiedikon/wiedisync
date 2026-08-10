@@ -135,13 +135,22 @@ export function registerScorerContacts(router, { database, logger }) {
         .whereIn('id', [...officialIds])
         .select('id', 'phone', 'email', 'hide_phone', 'hide_email')
 
-      // Return raw values + hide flags, matching what the items API hands admins.
-      // The UI (AssignmentEditor) gates display on the hide flags.
+      // ⚠ Honour the opt-out SERVER-SIDE. `hide_phone`/`hide_email` are a real
+      // privacy control everywhere else: the `members.items.read` filter hook
+      // re-fetches the flags and nulls the values for everyone but admins and
+      // the member themselves, deliberately projection-independent since the
+      // 2026-05-31 hardening. This endpoint uses raw knex, so that hook never
+      // runs, and the only enforcement was AssignmentEditor declining to render
+      // a value it had already received — a coach with devtools read phone and
+      // email for officials from other teams, people they cannot read via
+      // /items/members at all (audit 2026-08-08, finding 26). A flag the client
+      // is expected to honour is not a privacy control.
+      // The flags stay in the response so the UI can explain the absence.
       const data = {}
       for (const r of rows) {
         data[String(r.id)] = {
-          phone: r.phone || null,
-          email: r.email || null,
+          phone: r.hide_phone ? null : (r.phone || null),
+          email: r.hide_email ? null : (r.email || null),
           hide_phone: !!r.hide_phone,
           hide_email: !!r.hide_email,
         }

@@ -411,9 +411,32 @@ export default {
           await database('email_verifications').where('email', member.email).delete()
         }
 
-        // Delete member — CASCADE will handle member_teams, participations,
-        // notifications, absences, user_logs, scorer_delegations, poll_votes,
-        // slot_claims, push_subscriptions, coach/captain/TR junctions
+        // Actor capture BEFORE the delete — afterwards `members.email` is gone
+        // and the row this describes no longer exists. CLAUDE.md's rule names
+        // delete explicitly, and this raw-knex write bypasses both the items
+        // hook and directus_activity, so without this a self-service GDPR
+        // erasure left no traceability row at all (audit 2026-08-08, finding 28).
+        // Its sibling POST /kscw/admin/delete-member already does this.
+        try {
+          await writeUserLog(database, log, {
+            accountability: req.accountability,
+            action: 'delete',
+            collection: 'members',
+            recordId: String(targetMemberId),
+            data: { email: member.email ?? null, user: linkedUserId, self: !member_id },
+          })
+        } catch (logErr) {
+          // An audit write must not block an erasure request, but it must be
+          // visible that it failed.
+          log.warn({ msg: `delete-account: audit log failed: ${logErr.message}`, memberId: targetMemberId })
+        }
+
+        // Delete member — CASCADE handles member_teams, participations,
+        // notifications, absences, scorer_delegations, poll_votes, slot_claims,
+        // push_subscriptions and the coach/captain/TR junctions.
+        // ⚠ NOT user_logs: migration 249 changed that FK to ON DELETE SET NULL,
+        // so the audit row written above SURVIVES the delete (which is the
+        // point) with a null member reference. The old comment claimed CASCADE.
         await database('members').where('id', targetMemberId).delete()
 
         // Delete linked Directus user (if exists)
@@ -436,6 +459,33 @@ export default {
         res.status(err.status || 500).json({ error: err.status ? err.message : 'Internal error' })
       }
     })
+
+    // ── Under-18 suppression helpers (shared by every public route) ──
+    // These were local `const`s inside the /public/team handler, which is
+    // precisely why /check-email never applied them and leaked age-coded team
+    // names for children (audit 2026-08-08, finding 27). Hoisted so a public
+    // route cannot forget them by being written somewhere else in the file.
+    //
+    // Both fail CLOSED: an unparseable or missing birthdate counts as a minor,
+    // because we only expose someone we can PROVE is an adult.
+    const isUnderageTeam = (name) => {
+      const s = String(name || '')
+      if (/mini/i.test(s)) return true
+      const m = s.match(/U(\d{1,2})/i)
+      return m ? Number(m[1]) <= 18 : false
+    }
+    const isMinor = (birthdate) => {
+      if (!birthdate) return true
+      const d = birthdate instanceof Date ? birthdate : new Date(birthdate)
+      if (Number.isNaN(d.getTime())) return true
+      // Evaluated per call rather than against a captured timestamp: these now
+      // live for the process lifetime, and a pinned `nowMs` would drift.
+      const now = new Date()
+      let age = now.getFullYear() - d.getFullYear()
+      const md = now.getMonth() - d.getMonth()
+      if (md < 0 || (md === 0 && now.getDate() < d.getDate())) age -= 1
+      return age < 18
+    }
 
     // ── Public: Check Email ─────────────────────────────────────
     const checkEmailIpAttempts = new Map() // ip → [timestamps]
@@ -471,7 +521,7 @@ export default {
 
         const member = await database('members')
           .whereRaw('LOWER(email) = ?', [normalised])
-          .select('id', 'wiedisync_active', 'shell', 'first_name', 'last_name')
+          .select('id', 'wiedisync_active', 'shell', 'first_name', 'last_name', 'birthdate')
           .first()
 
         // Also check directus_users — catches accounts imported/created outside
@@ -487,15 +537,29 @@ export default {
           shell: member?.shell || false,
         }
 
-        // For unclaimed members: include only team names/sport for pre-fill (no PII, no internal IDs)
-        if (member && !member.wiedisync_active) {
+        // For unclaimed members: team names/sport for pre-fill.
+        //
+        // ⚠ NOT withheld because team names are PII in themselves, but because
+        // they are AGE-CODED — `MU10`, `DU14` are live prod names — so the
+        // response identifies the person behind an address as a child in an
+        // under-10 squad. This same file applies `isUnderageTeam` and `isMinor`
+        // on /public/team under the comment "no personal data about an under-18
+        // may leave the server via this public endpoint"; this anonymous
+        // endpoint never got the same treatment (audit 2026-08-08, finding 27).
+        // The caller must already hold the address, so it is
+        // enumeration-of-known-addresses rather than discovery — hence
+        // suppressing the teams rather than the whole response.
+        //
+        // `exists`/`claimed`/`shell` are deliberately kept separate: SignUpPage
+        // branches on `claimed` to redirect to /login.
+        if (member && !member.wiedisync_active && !isMinor(member.birthdate)) {
           const season = getCurrentSeason()
           const memberTeams = await database('member_teams')
             .join('teams', 'teams.id', 'member_teams.team')
             .where('member_teams.member', member.id)
             .where('member_teams.season', season)
             .select('teams.name', 'teams.sport')
-          result.existing_teams = memberTeams
+          result.existing_teams = memberTeams.filter((t) => !isUnderageTeam(t.name))
         }
 
         res.json(result)
@@ -688,23 +752,9 @@ export default {
         //     expose someone we can prove is an adult.
         // Coaches are intentionally kept (adult staff, already shown on cards).
         // Website-scoped only — the internal app reads full rosters elsewhere.
-        const isUnderageTeam = (name) => {
-          const s = String(name || '')
-          if (/mini/i.test(s)) return true
-          const m = s.match(/U(\d{1,2})/i)
-          return m ? Number(m[1]) <= 18 : false
-        }
-        const nowMs = Date.now()
-        const isMinor = (birthdate) => {
-          if (!birthdate) return true
-          const d = birthdate instanceof Date ? birthdate : new Date(birthdate)
-          if (Number.isNaN(d.getTime())) return true
-          const now = new Date(nowMs)
-          let age = now.getFullYear() - d.getFullYear()
-          const md = now.getMonth() - d.getMonth()
-          if (md < 0 || (md === 0 && now.getDate() < d.getDate())) age -= 1
-          return age < 18
-        }
+        // `isUnderageTeam` / `isMinor` are shared helpers now — see above the
+        // /check-email handler. They were local to this handler until
+        // 2026-08-10, which is why /check-email never applied them.
 
         // Transform roster: expose yob (respecting birthdate_visibility) + guest_level,
         // strip raw birthdate / visibility flag from the public payload. Photo is

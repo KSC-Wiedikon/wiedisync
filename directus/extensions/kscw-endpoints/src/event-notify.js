@@ -1,5 +1,6 @@
 import { buildEmailLayout, buildInfoCard, formatDateCH, weekday, FRONTEND_URL, escHtml } from './email-template.js'
 import { currentSeasonShort } from './season.js'
+import { writeUserLog } from './activity-log.js'
 
 /** Get current season in Wiedisync short form, e.g. '2025/26' (matches teams.season, member_teams.season) */
 const getCurrentSeason = currentSeasonShort
@@ -295,6 +296,26 @@ export function registerEventNotify(router, { services, database, getSchema, log
         } catch (emailErr) {
           logger.warn('Email invite batch failed: ' + emailErr.message)
         }
+      }
+
+      // Actor capture. This endpoint inserts `notifications` via raw knex
+      // (bypassing directus_activity), pushes to every resolved member and, for
+      // elevated callers, emails the whole invited_roles expansion — and
+      // `notifications` has no actor column and is in audit.js's
+      // SKIP_COLLECTIONS, so nothing recorded WHO fired it or how large the
+      // audience was (audit 2026-08-08, finding 29). The comparable mass-send
+      // path (broadcast.js) records sender + audience + recipient count, and
+      // SECURITY.md's Broadcast TOCTOU row explicitly leans on that trail.
+      try {
+        await writeUserLog(database, logger, {
+          accountability: req.accountability,
+          action: 'notify',
+          collection: 'events',
+          recordId: String(eventId),
+          data: { recipient_count: memberIdArray.length, emailed: !!sendEmail, teams: teamIds },
+        })
+      } catch (logErr) {
+        logger.warn(`event-notify: audit log failed: ${logErr.message}`)
       }
 
       res.json({ notified: memberIdArray.length, emailed: sendEmail })
