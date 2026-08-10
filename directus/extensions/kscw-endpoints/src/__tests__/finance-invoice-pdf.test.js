@@ -5,7 +5,8 @@
 // renderInvoicePdf itself is exercised by rendering a real page and reading it;
 // asserting on PDF bytes would pin the layout, not the correctness.
 import { describe, it, expect } from 'vitest'
-import { invoiceLines, debtorFrom, CLUB_CREDITOR } from '../finance-invoice-pdf.js'
+import { readFileSync } from 'node:fs'
+import { invoiceLines, debtorFrom, CLUB_CREDITOR, INVOICE_PDF_COLUMNS } from '../finance-invoice-pdf.js'
 
 describe('invoiceLines', () => {
   it('keeps stored positions when they sum to the invoice total', () => {
@@ -81,5 +82,38 @@ describe('CLUB_CREDITOR', () => {
     // are legal. This club's is 00270, hence SCOR (RF…) everywhere.
     const iid = Number(CLUB_CREDITOR.account.slice(4, 9))
     expect(iid).toBeLessThan(30000)
+  })
+})
+
+// The finding this file gained a test for was NOT a bug in any function above —
+// invoiceLines and debtorFrom were both correct. The dues run shipped blank PDFs
+// because the CALLER's SELECT omitted six columns the renderer reads, and every
+// one of those degrades to a silent blank rather than an error. So the thing
+// worth pinning is the coupling between the renderer's needs and the query.
+describe('INVOICE_PDF_COLUMNS ↔ the dues-run SELECT', () => {
+  const financeSrc = readFileSync(new URL('../finance.js', import.meta.url), 'utf8')
+
+  it('covers every invoice column renderInvoicePdf actually reads', () => {
+    const pdfSrc = readFileSync(new URL('../finance-invoice-pdf.js', import.meta.url), 'utf8')
+    // Every `inv.<column>` the renderer touches, minus the derived ones it
+    // computes itself rather than selecting.
+    const DERIVED = new Set(['debtor'])
+    const read = new Set(
+      [...pdfSrc.matchAll(/\binv\.([a-z_]+)/g)].map((m) => m[1]).filter((c) => !DERIVED.has(c))
+    )
+    const missing = [...read].filter((c) => !INVOICE_PDF_COLUMNS.includes(c))
+    expect(missing, `renderInvoicePdf reads ${missing.join(', ')} but INVOICE_PDF_COLUMNS omits them`).toEqual([])
+  })
+
+  it('is what the dues-run send loop selects — not a retyped list that can drift', () => {
+    // The regression was exactly this: a hand-typed SELECT left behind when the
+    // renderer was swapped. Spreading the constant is what makes it impossible.
+    expect(financeSrc).toContain('.select(...INVOICE_PDF_COLUMNS')
+  })
+
+  it('includes the six columns whose absence produced a blank invoice', () => {
+    for (const col of ['lines', 'invoice_date', 'due_date', 'recipient_address', 'recipient_zip', 'recipient_city']) {
+      expect(INVOICE_PDF_COLUMNS).toContain(col)
+    }
   })
 })

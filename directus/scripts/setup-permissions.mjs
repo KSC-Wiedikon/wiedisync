@@ -964,10 +964,63 @@ const REGISTRATION_FILES_FOLDER = 'a0000167-0000-4000-8000-000000000001'
  *  Finance either — there is nothing there for them to read. */
 const IDENTITY_DOCS_FOLDER = 'd0c00001-0000-4000-8000-000000000001'
 
+/** Private folder for scorer-exam material (`kscw-endpoints/src/scorer-exam.js`
+ *  exports the same UUID). Holds candidates' submitted match sheets and the
+ *  graded corrections — the filenames themselves name the candidate. It shipped
+ *  without ever being added to the deny-list below, so for its whole life every
+ *  one of ~499 members could list it via
+ *  `GET /items/directus_files?filter[folder][_eq]=…` and download all 8 files
+ *  from /assets, even though the parent `scorer_course_attendance` collection is
+ *  correctly not member-readable (audit 2026-08-08, finding 9). This is exactly
+ *  the failure mode the IDENTITY_DOCS comment above predicted in writing: a
+ *  deny-list silently grants anything nobody remembered to name.
+ *  `assertAllPrivateFoldersDenied` now fails the deploy instead of trusting memory. */
+const SCORER_EXAM_FOLDER = 'd0c00002-0000-4000-8000-000000000001'
+
+/** Every folder that must never be readable by the Member tier. Adding a folder
+ *  constant above without adding it here is the bug this list exists to make
+ *  impossible — see the assertion below. */
+const PRIVATE_FOLDERS = [
+  FINANCE_INVOICE_FOLDER,
+  FEEDBACK_FOLDER,
+  REGISTRATION_FILES_FOLDER,
+  IDENTITY_DOCS_FOLDER,
+  SCORER_EXAM_FOLDER,
+]
+
+/**
+ * Fail the deploy if a private folder defined in the endpoint code is missing
+ * from PRIVATE_FOLDERS. The deny-list is only as good as the author's memory
+ * otherwise, and that has already failed once (finding 9).
+ *
+ * Kept as a literal map rather than an import because `directus/extensions` is a
+ * separate deploy unit this script must not reach across (CLAUDE.md §4) — so the
+ * check is that the two lists AGREE, and each key names the file to reconcile
+ * against when it fires.
+ */
+const ENDPOINT_PRIVATE_FOLDERS = {
+  'registration.js → REGISTRATION_FILES_FOLDER': REGISTRATION_FILES_FOLDER,
+  'identity-document.js → IDENTITY_FOLDER': IDENTITY_DOCS_FOLDER,
+  'scorer-exam.js → SCORER_EXAM_FOLDER': SCORER_EXAM_FOLDER,
+}
+
+function assertAllPrivateFoldersDenied() {
+  const missing = Object.entries(ENDPOINT_PRIVATE_FOLDERS)
+    .filter(([, uuid]) => !PRIVATE_FOLDERS.includes(uuid))
+    .map(([where, uuid]) => `${where} (${uuid})`)
+  if (missing.length) {
+    console.error('\n💥 Private folder(s) missing from the Member deny-list — every member could read them:')
+    for (const m of missing) console.error(`   - ${m}`)
+    console.error('   Add them to PRIVATE_FOLDERS in setup-permissions.mjs.\n')
+    process.exit(1)
+  }
+}
+
 // ── Main ──────────────────────────────────��──────────────────────
 
 async function main() {
   console.log(`\n🔐 KSCW Directus 11 Hybrid Permission Setup → ${DIRECTUS_URL}\n`)
+  assertAllPrivateFoldersDenied()
   await auth()
 
   // ── 1. Ensure roles ────────────────────────────────────────────
@@ -1021,6 +1074,35 @@ async function main() {
   // rewrite the scoreboard and nothing else.
   const LEDBOX_POLICY = await findOrCreatePolicy('KSCW LedBox Publisher', { icon: 'scoreboard', app_access: false })
 
+  /**
+   * `Website_admin` — the one role that was created by hand in the admin UI and
+   * never modelled here. Until 2026-08-10 §3b left it alone ("roles this script
+   * does not declare are REPORTED, never pruned"), so its rows were whatever
+   * someone clicked in 2026: unfiltered read + update on `directus_files`,
+   * unfiltered read on `directus_users` and `directus_roles`.
+   *
+   * That was a live PII leak, not a theoretical one (audit 2026-08-08,
+   * finding 3). Directus UNIONs permission rows per collection+action, so a
+   * filterless `directus_files` read OVERRIDES the Member deny-list — its four
+   * holders (ordinary members, `members.role = ["user"]`, none with TFA) could
+   * list and download the registration folder's government-ID scans. Worse,
+   * unfiltered UPDATE with `fields '*'` meant one
+   * `PATCH /items/directus_files/<id> {"folder": null}` moved a minor's passport
+   * scan into the folder the PUBLIC policy reads — the quarantine hooks only
+   * inspect files on CREATE.
+   *
+   * Now declarative and scoped to what a website editor actually does: manage
+   * the public (folder-less) image library. Private folders are unreachable in
+   * both directions — read cannot see them, and update cannot pull a file out of
+   * one, because the row filter is evaluated against the EXISTING row.
+   */
+  // `app_access: false` mirrors the live policy — app access reaches these users
+  // through the `Website Admin → KSCW Member` attachment declared below, not
+  // through this policy. (findOrCreatePolicy never updates an existing policy,
+  // so this only governs a fresh install; getting it wrong would have made a
+  // rebuilt instance diverge from prod silently.)
+  const WEBSITE_ADMIN_POLICY = await findOrCreatePolicy('Website_admin', { icon: 'language', app_access: false })
+
   console.log(`  Member policy: ${MEMBER_POLICY}`)
   console.log(`  Team Responsible policy: ${LEADER_POLICY}`)
   console.log(`  Vorstand policy: ${VORSTAND_POLICY}`)
@@ -1070,6 +1152,11 @@ async function main() {
     // a stray `Website_admin`, all of which §3b now prunes. No effective
     // change for a superuser — they already bypass all of it.
     { role: 'Superuser', policy: ADMIN_POLICY },
+    // Website Admin → its own policy + member. Declared since 2026-08-10 so §3b
+    // reconciles it like every other role instead of leaving it as whatever was
+    // last clicked in the admin UI (audit 2026-08-08, finding 3).
+    { role: 'Website Admin', policy: WEBSITE_ADMIN_POLICY },
+    { role: 'Website Admin', policy: MEMBER_POLICY },
   ].map(d => ({ role: d.role, roleId: roleMap[d.role], policyId: d.policy }))
 
   for (const d of DECLARED_ROLE_POLICIES) {
@@ -1125,6 +1212,7 @@ async function main() {
   await clearPolicyPermissions(SPIELPLANER_POLICY, 'Spielplaner')
   // LedBox publisher holds exactly one collection — safe to clear and recreate.
   await clearPolicyPermissions(LEDBOX_POLICY, 'LedBox Publisher')
+  await clearPolicyPermissions(WEBSITE_ADMIN_POLICY, 'Website_admin')
 
   // ── 5. Public permissions ──────────────────────────────────────
 
@@ -1252,6 +1340,32 @@ async function main() {
   await setPerm(LEDBOX_POLICY, 'live_history', 'create')
   console.log('  ✓ LedBox publisher permissions set')
 
+  // ── 5c. Website Admin permissions ──────────────────────────────
+  // The public image library, and nothing else. See the WEBSITE_ADMIN_POLICY
+  // comment above for what this replaced and why it mattered.
+  //
+  // PUBLIC_FILES is `folder _null` — the same predicate the Public policy reads,
+  // so "what a website admin can touch" and "what the website can serve" are one
+  // definition. Applying it to UPDATE is the load-bearing half: Directus
+  // evaluates a row filter against the EXISTING row, so a file sitting in the
+  // registration folder cannot be selected for update at all, and therefore
+  // cannot be pulled out of it by setting `folder: null`.
+  const PUBLIC_FILES = { folder: { _null: true } }
+  await setPerm(WEBSITE_ADMIN_POLICY, 'directus_files', 'create')
+  await setPermRead(WEBSITE_ADMIN_POLICY, 'directus_files', PUBLIC_FILES)
+  await setPerm(WEBSITE_ADMIN_POLICY, 'directus_files', 'update', PUBLIC_FILES)
+  // `teams` read — public information, and the website renders it. Unchanged.
+  await setPermRead(WEBSITE_ADMIN_POLICY, 'teams')
+  // Self only. The previous unfiltered `directus_users` read was the whole user
+  // table — every member's email and status — to four ordinary members. The app
+  // shell needs the signed-in user to render; it does not need anyone else's.
+  await setPermRead(WEBSITE_ADMIN_POLICY, 'directus_users', { id: { _eq: '$CURRENT_USER' } })
+  // `directus_roles` read is NOT re-granted. It carried no PII, but nothing in
+  // the website workflow reads it — it was admin-UI incidental. If the Directus
+  // app shell turns out to need it, re-add it here rather than by hand in the UI,
+  // or §3b/§4 will delete it again on the next deploy — which is the point.
+  console.log('  ✓ Website Admin permissions set')
+
   // ── 6. Member permissions ──────────────────────────────────────
 
   console.log('\n6. Member permissions...')
@@ -1289,16 +1403,7 @@ async function main() {
   await setPermRead(MEMBER_POLICY, 'directus_files', {
     _or: [
       { folder: { _null: true } },
-      {
-        folder: {
-          _nin: [
-            FINANCE_INVOICE_FOLDER,
-            FEEDBACK_FOLDER,
-            REGISTRATION_FILES_FOLDER,
-            IDENTITY_DOCS_FOLDER,
-          ],
-        },
-      },
+      { folder: { _nin: PRIVATE_FOLDERS } },
     ],
   })
 

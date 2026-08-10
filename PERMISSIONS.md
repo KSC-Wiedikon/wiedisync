@@ -149,6 +149,18 @@ Used throughout — repeated literally rather than via subqueries because Direct
 
 `teams`, `games`, `rankings`, `sponsors`, `event_sessions` (read filtered above), `hall_slots`, `hall_closures`, `hall_events`, `halls`, `hall_slots_teams`, `slot_claims`, `news`, `app_settings`, `teams_coaches`, `teams_responsibles`, `teams_sponsors`, `events_teams`, `events_members`, `directus_files`.
 
+⚠ **`directus_files` is cross-club but NOT unfiltered — it is a DENY-list**, and that distinction has now cost two findings. The filter is `_or[ folder _null, folder _nin PRIVATE_FOLDERS ]`, where `PRIVATE_FOLDERS` (`setup-permissions.mjs`) is:
+
+| Folder | Holds |
+|---|---|
+| `f1a0d0c5-…` | finance invoice PDFs |
+| `feedbac0-…` | feedback screenshots (can capture an authenticated screen) |
+| `a0000167-…` | registration documents — government-ID scans, U18 parent docs |
+| `d0c00001-…` | E2EE identity documents |
+| `d0c00002-…` | **scorer-exam sheets — added 2026-08-10** |
+
+Because it is a deny-list, **a private folder that nobody remembers to name here is readable by all ~499 members by default.** That is precisely what happened to the scorer-exam folder (`scorer-exam.js` defined it, warned in its own comment that folder-less is publicly readable, and never added it here), leaving 8 candidate-named match sheets and graded corrections member-readable for the folder's whole life — while the parent `scorer_course_attendance` collection was correctly not member-readable. `setup-permissions.mjs` now **fails the deploy** (`assertAllPrivateFoldersDenied`) if a folder constant known to the endpoint code is missing from `PRIVATE_FOLDERS`, so the next one cannot ship silently. When you add a private folder in `kscw-endpoints`, add it to both lists in the same commit.
+
 ### Writes
 
 | Collection | Action | Filter |
@@ -311,6 +323,21 @@ Inherits Team Responsible (and via that, Member). Adds full CRUD on operational 
 - `user_logs` — **create + read only** (audit 2026-08-08; was full CRUD). This is the audit trail `/admin/audit-log` reads; `update`/`delete` let the tier under audit rewrite or erase its own entries. Matching blocking `user_logs.items.update` / `.delete` filters in `kscw-hooks` back it up. (LEADER still has **no** `user_logs.read` at all — 2026-05-12.)
 
 `games` stays **unfiltered CRUD with fields `*`** here — including the `vm_nomination_*` push journal. The 2026-07-13 field scope applies to the *Team Responsible* and *Spielplaner* policies only; because Directus unions the rows of every policy a user holds, Sport Admin's own unrestricted `games` row wins for its holders. So "inherits Team Responsible" does **not** mean a sport admin lost journal write.
+
+---
+
+## Website Admin
+
+A base Directus role (`Website Admin` → policies `Website_admin` + `KSCW Member`), held by 4 members who maintain kscw.ch imagery. Declared here and in `setup-permissions.mjs` since **2026-08-10**; before that it was the one role created by hand in the admin UI and never modelled, so §3b deliberately left its rows alone and they stayed as whatever was last clicked.
+
+| Collection | Actions | Scope |
+|---|---|---|
+| `directus_files` | create | unfiltered — uploads land folder-less (public) or are moved into a private folder by the quarantine hooks |
+| `directus_files` | read, update | **`{ folder: { _null: true } }`** — the public image library only |
+| `teams` | read | unfiltered (public information; the website renders it) |
+| `directus_users` | read | **`{ id: { _eq: '$CURRENT_USER' } }`** — self only |
+
+⚠ **Why the `folder _null` scope is load-bearing, on UPDATE especially.** Directus UNIONs permission rows per collection+action, so the previous *filterless* `directus_files` read **overrode the Member deny-list** below — these four accounts (all `members.role = ["user"]`, none with TFA) could list and download the registration folder's government-ID scans. And because update was equally unfiltered with `fields '*'`, a single `PATCH /items/directus_files/<id> {"folder": null}` moved a minor's passport scan into the folder the **Public** policy reads. The quarantine hooks in `kscw-hooks` only inspect files on CREATE, so nothing caught it. A row filter is evaluated against the **existing** row, so scoping update to `folder _null` means a file inside a private folder cannot be selected for update at all — it cannot be pulled out. `directus_roles` read is deliberately **not** re-granted (admin-UI incidental, nothing in the workflow reads it); if the app shell turns out to need it, add it to §5c rather than in the UI, or the next deploy deletes it again.
 
 ---
 

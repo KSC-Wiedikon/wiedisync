@@ -32,8 +32,36 @@ function makeDb(tables) {
     const chain = {
       _state: state,
       select() { return chain },
-      whereRaw(sql) { state.correlation = sql; return chain },
+      whereRaw(sql, bindings) {
+        // Three different jobs share this name. `a.b = c.d` is the correlation
+        // for a NOT EXISTS subquery; the rest are predicates on THIS query.
+        // NB: the old mock set `correlation` for every call and applied no
+        // filter, so the season floor below was silently untested — it is now
+        // evaluated, which is why this throws on anything it does not model
+        // rather than quietly passing.
+        if (/^\s*\w+\.\w+\s*=\s*\w+\.\w+\s*$/.test(sql)) { state.correlation = sql; return chain }
+        if (sql.includes('coalesce(end_date, start_date)')) {
+          const floor = String((bindings || [])[0] ?? '')
+          // A multi-day event that began before the floor but is still running
+          // stays in the feed — that is what the coalesce is for.
+          state.filters.push((r) => String(r.end_date || r.start_date).slice(0, 10) >= floor.slice(0, 10))
+          return chain
+        }
+        if (sql.includes('invited_roles')) {
+          state.filters.push((r) => {
+            const v = r.invited_roles
+            if (v == null) return true
+            const parsed = typeof v === 'string' ? JSON.parse(v) : v
+            return Array.isArray(parsed) && parsed.length === 0
+          })
+          return chain
+        }
+        throw new Error(`unsupported whereRaw: ${sql}`)
+      },
       orderBy(col) { state.order = col; return chain },
+      // `event_type IN (…)` — the axis the Public policy enforces and these feeds
+      // did not (finding 6).
+      whereIn(col, vals) { state.filters.push((r) => vals.includes(r[col])); return chain },
       // NOT EXISTS over a correlated subquery: NULL = anything is not TRUE, so
       // NULL junction rows can neither match nor hide an event (the EVT-01 trap
       // that the old NOT IN form fell into).
@@ -86,13 +114,27 @@ function blockOf(body, uid) {
   return block
 }
 
+/**
+ * Fixture dates are relative, not literal. They used to be hardcoded 2026-08/09
+ * strings, which only passed because the old mock silently ignored the season
+ * floor — once the mock started applying it (2026-08-10) every one of them was
+ * in the past and dropped out of the feed. Anchoring to "now" keeps these tests
+ * about audience scoping, which is what they are for; the floor itself has its
+ * own describe block below with its own explicit dates.
+ */
+const inDays = (n) => new Date(Date.now() + n * 86400000).toISOString()
+
 /** Prod-shaped fixture: club-wide events 10+12, team-scoped 11, member-scoped 13; 12 is cancelled. */
 const fixtures = () => ({
   events: [
-    { id: 10, title: 'Sommerfest', start_date: '2026-08-01T16:00:00Z', end_date: null, all_day: false, location: 'KWI', description: 'Alle willkommen', cancelled: false, cancel_reason: null },
-    { id: 11, title: 'H3 Turnier', start_date: '2026-08-08T10:00:00Z', end_date: null, all_day: false, location: null, description: null, cancelled: false, cancel_reason: null },
-    { id: 12, title: 'Herbstfest', start_date: '2026-09-05T14:00:00Z', end_date: null, all_day: false, location: null, description: null, cancelled: true, cancel_reason: 'Halle gesperrt' },
-    { id: 13, title: 'Einzeltermin', start_date: '2026-09-12T09:00:00Z', end_date: null, all_day: false, location: null, description: null, cancelled: false, cancel_reason: null },
+    { id: 10, title: 'Sommerfest', event_type: 'verein', invited_roles: null, start_date: inDays(20), end_date: null, all_day: false, location: 'KWI', description: 'Alle willkommen', cancelled: false, cancel_reason: null },
+    { id: 11, title: 'H3 Turnier', event_type: 'tournament', invited_roles: null, start_date: inDays(27), end_date: null, all_day: false, location: null, description: null, cancelled: false, cancel_reason: null },
+    { id: 12, title: 'Herbstfest', event_type: 'verein', invited_roles: null, start_date: inDays(55), end_date: null, all_day: false, location: null, description: null, cancelled: true, cancel_reason: 'Halle gesperrt' },
+    { id: 13, title: 'Einzeltermin', event_type: 'tournament', invited_roles: null, start_date: inDays(62), end_date: null, all_day: false, location: null, description: null, cancelled: false, cancel_reason: null },
+    // Unscoped in both junctions — the old query syndicated both into every
+    // subscribed calendar (finding 6).
+    { id: 15, title: 'Vorstandssitzung', event_type: 'meeting', invited_roles: null, start_date: inDays(85), end_date: null, all_day: false, location: 'Klublokal', description: 'Intern', cancelled: false, cancel_reason: null },
+    { id: 16, title: 'Trainerhöck', event_type: 'verein', invited_roles: ['coach'], start_date: inDays(89), end_date: null, all_day: false, location: null, description: null, cancelled: false, cancel_reason: null },
   ],
   // Junction rows as they really looked on prod (EVT-01): NULL-events_id
   // leftovers from before the 021 cascade, next to genuine scoping rows.
@@ -134,6 +176,28 @@ describe('GET /kscw/ical?source=events', () => {
     expect(block).not.toContain('STATUS:')
     expect(block).toContain('SUMMARY:Sommerfest')
     expect(block).toContain('DESCRIPTION:Alle willkommen')
+  })
+
+  it('does not syndicate non-public event types (finding 6)', async () => {
+    // /kscw/ical needs no token, so this board meeting — with its location and
+    // "Intern" description — went into every subscribed calendar.
+    const body = await feed(fixtures())
+    expect(body).not.toContain('UID:event-15@kscw.ch')
+  })
+
+  it('does not syndicate ROLE-targeted events (finding 6)', async () => {
+    const body = await feed(fixtures())
+    expect(body).not.toContain('UID:event-16@kscw.ch')
+  })
+
+  it('still emits cancellations — the scope helper must NOT filter `cancelled`', async () => {
+    // Guard on the mistake this refactor actually made: folding `cancelled` into
+    // the shared scope silently stops cancellations propagating, leaving the
+    // event sitting in every subscriber's calendar forever. The public JSON feed
+    // excludes them; this one must not.
+    const body = await feed(fixtures())
+    expect(body).toContain('UID:event-12@kscw.ch')
+    expect(body).toContain('STATUS:CANCELLED')
   })
 })
 

@@ -79,6 +79,30 @@ export function debtorFrom(inv) {
 /**
  * @returns {Promise<Buffer>} one-page A4 invoice + QR payment part.
  */
+/**
+ * Every `finance_invoices` column `renderInvoicePdf` reads off the row it is
+ * handed. Callers MUST select all of these.
+ *
+ * This exists because a missing column here fails SILENTLY: the renderer reads
+ * `undefined`, `ddmmyyyy(undefined)` returns `''`, the meta row is filtered out,
+ * `debtorFrom` returns null, and the member receives a clean-looking PDF with no
+ * invoice date, no due date, no positions and no addressee. Nothing throws and
+ * nothing logs. That shipped in the first native dues run (audit 2026-08-08,
+ * finding 17) because commit 8c02f4f8 swapped in this renderer and left the
+ * caller's SELECT at the previous one's needs.
+ *
+ * Import it into the SELECT rather than retyping the list, so the renderer's
+ * requirements and the query cannot drift apart again.
+ */
+export const INVOICE_PDF_COLUMNS = [
+  'id', 'number', 'title', 'subject',
+  'amount', 'open_amount',
+  'lines',
+  'invoice_date', 'due_date',
+  'reference', 'reference_type',
+  'recipient_name', 'recipient_address', 'recipient_zip', 'recipient_city',
+]
+
 export function renderInvoicePdf(inv) {
   return new Promise((resolve, reject) => {
     try {
