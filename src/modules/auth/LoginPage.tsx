@@ -5,6 +5,7 @@ import { useAuth } from '../../hooks/useAuth'
 import { useTheme } from '../../hooks/useTheme'
 import { Button } from '@/components/ui/button'
 import { FormInput } from '@/components/FormField'
+import { safeReturnPath } from '../../utils/activityLinks'
 
 export default function LoginPage() {
   const { login, user } = useAuth()
@@ -13,6 +14,11 @@ export default function LoginPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const locationState = location.state as { email?: string; accountExists?: boolean } | null
+
+  // Where to land after a successful login. AuthRoute puts the attempted path
+  // here so a shared deep link (`/events/42`) survives the detour through the
+  // login screen; validated against AuthRoute's own rule, never trusted raw.
+  const returnTo = safeReturnPath(new URLSearchParams(location.search).get('next')) ?? '/'
 
   const [email, setEmail] = useState(() => {
     if (locationState?.email) {
@@ -34,8 +40,8 @@ export default function LoginPage() {
     return stored
   })
   useEffect(() => {
-    if (user) navigate('/', { replace: true })
-  }, [user, navigate])
+    if (user) navigate(returnTo, { replace: true })
+  }, [user, navigate, returnTo])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -46,7 +52,7 @@ export default function LoginPage() {
       await login(email, password)
       sessionStorage.removeItem('login-redirect-email')
       sessionStorage.removeItem('login-redirect-exists')
-      navigate('/', { replace: true })
+      navigate(returnTo, { replace: true })
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message.toLowerCase() : ''
       if (!navigator.onLine || msg.includes('fetch') || msg.includes('network')) {

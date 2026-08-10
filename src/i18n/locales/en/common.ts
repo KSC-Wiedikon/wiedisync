@@ -123,6 +123,9 @@ export default {
   volleyball: 'Volleyball',
   basketball: 'Basketball',
   copied: 'Copied!',
+  copyFailed: 'Could not copy the link',
+  shareLink: 'Share link',
+  linkNotAvailable: 'This link is no longer available to you',
 
   // Form controls / accessibility
   showPassword: 'Show password',

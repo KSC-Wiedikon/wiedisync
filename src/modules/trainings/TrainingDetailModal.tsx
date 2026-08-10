@@ -11,6 +11,7 @@ import { useMyCoveringAbsence } from '../../hooks/useMyCoveringAbsence'
 import { useAbsenceNoteText } from '../../hooks/useAbsenceNoteText'
 import { formatDate, formatWeekday, formatTime, getDeadlineDate } from '../../utils/dateHelpers'
 import BroadcastButton from '../broadcast/BroadcastButton'
+import ShareActivityButton from '../../components/ShareActivityButton'
 import { sanitizeUrl } from '../../utils/sanitizeUrl'
 import { isFeatureEnabled } from '../../utils/featureToggles'
 import type { Training, Team, Hall, Member } from '../../types'
@@ -46,6 +47,12 @@ export default function TrainingDetailModal({ training, onClose }: TrainingDetai
 
   const actionRow = (
     <>
+      <ShareActivityButton
+        kind="training"
+        id={training.id}
+        title={team?.name ?? t('title')}
+        iconOnly
+      />
       <CancelActivityButton
         kind="training"
         activityId={training.id}

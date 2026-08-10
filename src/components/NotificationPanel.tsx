@@ -64,10 +64,14 @@ function getNavigationPath(n: Notification): string {
   if (n.type === 'announcement' || n.activity_type === 'announcement') return '/news'
   // Licence status (migration 301) → the profile, where the card lives.
   if (n.type === 'licence_status') return '/profile'
+  // Activity notifications deep-link to the item itself now that the routes
+  // exist. Falling back to the bare list is not cosmetic: the list is filtered
+  // by team and hides past items, so the row the notification is about is
+  // frequently not on the page it used to land on.
   switch (n.activity_type) {
-    case 'game': return '/games'
-    case 'training': return '/trainings'
-    case 'event': return '/events'
+    case 'game': return n.activity_id ? `/games/${n.activity_id}` : '/games'
+    case 'training': return n.activity_id ? `/trainings/${n.activity_id}` : '/trainings'
+    case 'event': return n.activity_id ? `/events/${n.activity_id}` : '/events'
     case 'form': return '/forms'
     default: return '/'
   }

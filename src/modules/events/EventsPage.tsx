@@ -1,7 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useNavigate, useParams } from 'react-router-dom'
+import { toast } from 'sonner'
 import { PartyPopper } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
+import { useDeepLinkedActivity, DEEP_LINK_FIELDS } from '../../hooks/useDeepLinkedActivity'
 import { useAdminMode } from '../../hooks/useAdminMode'
 import { useCollection } from '../../lib/query'
 import { useMutation } from '../../hooks/useMutation'
@@ -36,6 +39,7 @@ type InvitedMemberRef =
 
 export default function EventsPage() {
   const { t } = useTranslation('events')
+  const { t: tc } = useTranslation('common')
   const { user, isCoach, isCoachOf, memberTeamIds, coachTeamIds, teamsLoading, matchesRole } = useAuth()
   const { effectiveIsAdmin, effectiveIsVorstand } = useAdminMode()
   // Merge member + coach teams for visibility
@@ -47,6 +51,26 @@ export default function EventsPage() {
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null)
   const [showPast, setShowPast] = useState(false)
   const [selectedTeam, setSelectedTeam] = useState<string | null>(null)
+
+  // ── Share link (`/events/:eventId`) ────────────────────────────────
+  //
+  // Derived into the modal rather than pushed into `selectedEvent` state: a
+  // render-phase write of fetched data is the "Too many re-renders" trap
+  // (React #301), and this way there is exactly one source for what's open.
+  const { eventId } = useParams()
+  const navigate = useNavigate()
+  const { item: linkedEvent, notFound: linkedEventMissing } = useDeepLinkedActivity<Event>(
+    'events', eventId, [...DEEP_LINK_FIELDS.events],
+  )
+  const modalEvent = selectedEvent ?? linkedEvent
+  useEffect(() => {
+    // Deleted, or targeted at an audience this member isn't in — deliberately
+    // the same message for both, so a link can't be used to probe for events.
+    if (linkedEventMissing) {
+      toast.error(tc('linkNotAvailable'))
+      navigate('/events', { replace: true })
+    }
+  }, [linkedEventMissing, navigate, tc])
 
   const today = useMemo(() => todayLocal(), [])
 
@@ -321,7 +345,15 @@ export default function EventsPage() {
         danger
       />
 
-      <EventDetailModal event={selectedEvent} onClose={() => setSelectedEvent(null)} />
+      <EventDetailModal
+        event={modalEvent}
+        onClose={() => {
+          // Opened from the URL → drop the id so the modal doesn't reopen on the
+          // next render; opened from a card → just clear the state.
+          if (selectedEvent) setSelectedEvent(null)
+          else navigate('/events', { replace: true })
+        }}
+      />
 
       <ParticipationRosterModal
         open={rosterEvent !== null}
