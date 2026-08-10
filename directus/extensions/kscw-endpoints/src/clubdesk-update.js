@@ -564,6 +564,21 @@ export const NO_LICENCE_SURCHARGE = 100
 export const GUEST_DISCOUNT = 110
 
 /**
+ * Coerce a per-member override cell to a non-negative number, or null when the
+ * member simply has no override.
+ *
+ * ⚠ Postgres `numeric` arrives as a STRING through pg, so `typeof v === 'number'`
+ * would read every override as absent and silently fall back to the derived
+ * amount — the same trap `opts.baseOverride` documents below. NULL, undefined
+ * and '' all mean "not set"; 0 is a real, deliberate value (a waived surcharge).
+ */
+function overrideNum(v) {
+  if (v === null || v === undefined || v === '') return null
+  const n = Number(v)
+  return Number.isFinite(n) && n >= 0 ? n : null
+}
+
+/**
  * The club's fee model, itemised: category base ± the two adjustments. Returns
  * null when there is no base to work from — an unknown category is never given
  * a guessed amount.
@@ -575,29 +590,60 @@ export const GUEST_DISCOUNT = 110
  * schedule alone under-bills every member who owes the surcharge.
  * A category outside the map is billable via the override, but never
  * surcharged: the surcharge sets are keyed by the known category names.
+ *
+ * PER-MEMBER overrides (migration 299) sit one level above all of that, because
+ * they exist precisely for the cases a category cannot express:
+ *   • `member.fee_base_override`      beats the schedule AND the map
+ *   • `member.fee_surcharge_override` replaces the CHF 100 rule (0 waives it)
+ *   • `member.fee_discount`           applies when the caller passes no
+ *                                     per-run discount of its own
+ * A member row that predates the migration — or a hand-built object in a test —
+ * simply has none of those keys and behaves exactly as before.
  */
 export function feeBreakdown(kategorie, member = null, opts = {}) {
   const k = String(kategorie ?? '').trim()
   // Postgres `numeric` arrives as a string through pg — coerce, don't test typeof.
   const raw = opts?.baseOverride
   const override = raw === null || raw === undefined || raw === '' ? null : Number(raw)
-  const base = override !== null && Number.isFinite(override) ? override
+  const memberBase = overrideNum(member?.fee_base_override)
+  const base = memberBase !== null ? memberBase
+    : override !== null && Number.isFinite(override) ? override
     : Object.prototype.hasOwnProperty.call(CD_BEITRAG_MAP, k) ? CD_BEITRAG_MAP[k]
     : null
   if (base === null) return null
 
+  const memberSurcharge = overrideNum(member?.fee_surcharge_override)
+  // The treasurer's standing reduction. A discount named by the CALLER (the
+  // per-run `discounts` map) wins: it is the decision being made right now for
+  // this one run, and it must be able to differ from the member's standing one.
+  // It cannot, however, silently *cancel* the standing discount by passing 0 —
+  // "no per-run discount" is the default every caller sends.
+  const runDiscount = Number(opts?.discount)
+  const feeOpts = {
+    discount: Number.isFinite(runDiscount) && runDiscount > 0
+      ? runDiscount
+      : (overrideNum(member?.fee_discount) ?? 0),
+  }
+
   // A guest (guest on a team, core on none) pays the base minus CHF 110,
-  // floored at 0, and NEVER the no-Schreiber surcharge (user 2026-07-15).
-  // This short-circuits the surcharge branch.
+  // floored at 0, and NEVER the no-Schreiber surcharge (user 2026-07-15) —
+  // unless a per-member override names one explicitly, which is a decision a
+  // human made about this person and outranks the rule.
   if (opts?.isGuest === true) {
     const gd = Math.min(Math.max(base, 0), GUEST_DISCOUNT)
-    return withDiscount({ category: k, base, surcharge: 0, guest_discount: gd, amount: base - gd }, opts)
+    const surcharge = memberSurcharge ?? 0
+    return withDiscount(
+      { category: k, base, surcharge, guest_discount: gd, amount: base + surcharge - gd },
+      feeOpts,
+    )
   }
   // member===null (flags unavailable) → base only, a safe default. Adult
   // category → surcharge on missing licence; youth category → surcharge only
   // when the member is U16+ (isU16Plus() === true).
   let surcharge = 0
-  if (member) {
+  if (memberSurcharge !== null) {
+    surcharge = memberSurcharge
+  } else if (member) {
     const isVb = k.startsWith('VB ')
     const hasLicence = isVb
       ? member.scorer_vb === true
@@ -607,8 +653,15 @@ export function feeBreakdown(kategorie, member = null, opts = {}) {
     const eligible = SURCHARGE_ADULT.has(k) || (SURCHARGE_YOUTH.has(k) && isU16Plus(member) === true)
     if (eligible && !hasLicence) surcharge = NO_LICENCE_SURCHARGE
   }
-  return withDiscount({ category: k, base, surcharge, guest_discount: 0, amount: base + surcharge }, opts)
+  return withDiscount({ category: k, base, surcharge, guest_discount: 0, amount: base + surcharge }, feeOpts)
 }
+
+/** The `members` columns feeBreakdown() reads for the per-member overrides.
+ *  Every query that feeds it a member row must select these — omit them and the
+ *  engine silently bills the derived amount instead of the override. */
+export const FEE_OVERRIDE_FIELDS = [
+  'fee_base_override', 'fee_surcharge_override', 'fee_discount', 'fee_discount_reason',
+]
 
 /**
  * Apply the treasurer's on-demand reduction to a computed fee.
@@ -629,7 +682,11 @@ function withDiscount(fee, opts) {
 }
 
 export function deriveMitgliederbeitrag(kategorie, member = null, opts = {}) {
-  // The ClubDesk push always bills the codified map — no baseOverride here.
+  // The ClubDesk push always bills the codified map — no baseOverride here. The
+  // member's OWN overrides (migration 299) do apply: they are the club's answer
+  // to "this person pays something else", and a new ClubDesk contact created at
+  // the derived amount would immediately need the same hand-correction the
+  // override exists to remove.
   const b = feeBreakdown(kategorie, member, { isGuest: opts?.isGuest === true })
   return b ? String(b.amount) : '' // unknown → empty, never guessed
 }
@@ -955,6 +1012,10 @@ const PUSH_FIELDS = [
   'beitragskategorie', 'wiedisync_active',
   'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'otn1_bb', 'otn2_bb', 'referee_bb',
   'license_nr', 'licence_category',
+  // Per-member fee overrides (migration 299). deriveMitgliederbeitrag reads
+  // them off the member row, so leaving them out of the SELECT would push the
+  // derived amount for a member the treasurer had explicitly re-priced.
+  ...FEE_OVERRIDE_FIELDS,
 ]
 
 // Escape user-controlled strings before interpolating into the admin email
@@ -1187,7 +1248,16 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
         .whereNull('clubdesk_pushed_at')
         .where('clubdesk_sync_exclude', false)
         .select('id', 'first_name', 'last_name', 'email', 'beitragskategorie',
-          'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'otn1_bb', 'otn2_bb', 'referee_bb')
+          'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'otn1_bb', 'otn2_bb', 'referee_bb',
+          // `birthdate` gates the youth surcharge (isU16Plus). Without it the
+          // preview reported the un-surcharged amount for every youth-category
+          // member while the commit path — which selects PUSH_FIELDS — pushed
+          // the surcharged one, so the superadmin approved a number the push
+          // did not send.
+          'birthdate',
+          // Per-member fee overrides (migration 299), same reason: preview the
+          // amount that will actually be created in ClubDesk.
+          ...FEE_OVERRIDE_FIELDS)
         .orderBy('last_name')
       // Flag unlinked members who ALREADY exist in ClubDesk under a divergent
       // email (exact first+last name match) so the modal can warn before a CREATE

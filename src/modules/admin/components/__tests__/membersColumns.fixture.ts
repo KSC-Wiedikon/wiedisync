@@ -1,7 +1,8 @@
 // src/modules/admin/components/__tests__/membersColumns.fixture.ts
 //
 // The exact column list of `members` on PROD, in ordinal order, read from
-// information_schema on 2026-08-06 (100 columns):
+// information_schema on 2026-08-06 (100 columns), + migration 299's four fee
+// override columns (104):
 //
 //   ssh hetzner "sudo docker exec kscw-postgres psql -U supabase_admin -d postgres \
 //     -At -c \"select column_name from information_schema.columns \
@@ -117,4 +118,9 @@ export const MEMBERS_COLUMNS: string[] = [
   'vis_player_no',
   'profile_verified_at',
   'trainer_licences',
+  // Migration 299 — per-member Beitrag overrides.
+  'fee_base_override',
+  'fee_surcharge_override',
+  'fee_discount',
+  'fee_discount_reason',
 ]

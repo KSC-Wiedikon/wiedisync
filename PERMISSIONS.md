@@ -268,8 +268,8 @@ Per-user policy (migrations 132/133), attached to members with `finance` in thei
 
 | Collection | Action | Filter | Notes |
 |---|---|---|---|
-| members | read | none (club-wide) | `FINANCE_MEMBER_FIELDS` — contact + `adresse/plz/ort` + `nationalitaet` + `nationalitaet_codes` + `federation_of_origin` + `iban` + `ahv_nummer` + `beitragskategorie` + membership + billing_*. UNION-ed with the member policy's `MEMBER_VISIBLE_FIELDS`, so this only widens finance's view |
-| members | update | none (club-wide) | `FINANCE_MEMBER_BILLING_FIELDS` only — the alternate billing contact (migration 133). No other member field is writable here |
+| members | read | none (club-wide) | `FINANCE_MEMBER_FIELDS` — contact + `adresse/plz/ort` + `nationalitaet` + `nationalitaet_codes` + `federation_of_origin` + `iban` + `ahv_nummer` + `beitragskategorie` + membership + billing_* + the fee overrides (migration 299). UNION-ed with the member policy's `MEMBER_VISIBLE_FIELDS`, so this only widens finance's view |
+| members | update | none (club-wide) | `FINANCE_MEMBER_BILLING_FIELDS` only — the alternate billing contact (migration 133) plus `fee_base_override` / `fee_surcharge_override` / `fee_discount` / `fee_discount_reason` (migration 299). Those four decide what a member is invoiced, so they are writable by finance and by nobody below admin — not by a coach, not by a sport admin. No other member field is writable here |
 | member_teams | read | none | Team context |
 | finance_accounts, finance_fiscal_years, finance_budget_lines, finance_transactions, finance_invoices, finance_payments, finance_imports, finance_invoice_member_overrides, finance_payouts, finance_expenses | read | none | Full club finance read (same set as Vorstand; `finance_payouts` migration 137, `finance_expenses` migration 177 — expense writes only via `PATCH /kscw/expenses/:id`) |
 | finance_dues_rates, finance_dues_runs | read | none | Dues-rate table + dues-run history (migration 138). Vorstand + Finance only |

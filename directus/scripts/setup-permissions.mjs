@@ -936,11 +936,22 @@ const FINANCE_MEMBER_FIELDS = [
   'language', 'role', 'member_teams', 'date_created', 'iban_confirmed',
   // Alternate billing contact (migrations 133/136).
   'billing_different', 'billing_name', 'billing_email', 'billing_address', 'billing_plz', 'billing_ort', 'billing_phone', 'billing_iban',
+  // Per-member fee overrides (migration 299) — the treasurer's own numbers.
+  'fee_base_override', 'fee_surcharge_override', 'fee_discount', 'fee_discount_reason',
 ]
 
-/** Billing-contact fields the FINANCE role may UPDATE on any member (migrations 133/136). */
+/**
+ * Member fields the FINANCE role may UPDATE on any member: the alternate
+ * billing contact (migrations 133/136) and the per-member fee overrides
+ * (migration 299).
+ *
+ * The fee columns are deliberately WRITABLE by finance and by nobody else below
+ * admin. They decide what a member is invoiced — the treasurer is exactly who
+ * should set them, and a coach or sport admin is exactly who should not.
+ */
 const FINANCE_MEMBER_BILLING_FIELDS = [
   'billing_different', 'billing_name', 'billing_email', 'billing_address', 'billing_plz', 'billing_ort', 'billing_phone', 'billing_iban',
+  'fee_base_override', 'fee_surcharge_override', 'fee_discount', 'fee_discount_reason',
 ]
 
 /** Private folder for invoice PDFs (migration 134). Members can't read this folder

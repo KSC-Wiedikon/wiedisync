@@ -27,7 +27,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Pencil, Save, X, Loader2, Eye, EyeOff, AlertTriangle } from 'lucide-react'
-import { assetUrl, createRecord, deleteRecord, fetchItem, updateRecord } from '../../../lib/api'
+import { assetUrl, createRecord, deleteRecord, fetchItem, kscwApi, updateRecord } from '../../../lib/api'
 import { logActivity } from '../../../utils/logActivity'
 import { getCurrentSeason } from '../../../utils/dateHelpers'
 import {
@@ -45,7 +45,7 @@ import type { Team } from '../../../types'
 import type { CacheShape } from './explorerHelpers'
 import { buildMemberTeamsMap, teamLabel } from './explorerHelpers'
 import {
-  MEMBER_FIELD_BY_KEY, NEVER_PATCH_KEYS, TEAMS_VIRTUAL_KEY,
+  FEE_AMOUNT_VIRTUAL_KEY, MEMBER_FIELD_BY_KEY, NEVER_PATCH_KEYS, TEAMS_VIRTUAL_KEY,
   buildMemberFieldSections, fieldFilterReason, getFieldDef, isFieldReadOnly, sanitizeRecord,
   type MemberFieldDef, type MemberFieldKind, type MemberFieldSection,
 } from './memberFieldSchema'
@@ -181,6 +181,71 @@ function relId(value: unknown): string | null {
 
 const NO_SPORTS_REVEALED: ReadonlySet<'volleyball' | 'basketball'> = new Set()
 
+/**
+ * `GET /kscw/finance/members/:id/fee` — the server's itemised Beitrag.
+ *
+ * `derived` is what the fee RULES alone produce (the placeholder each override
+ * field shows); the member's own overrides are what the card adds on top. Both
+ * are null when the category has no base at all — an unknown category is never
+ * given a guessed amount, here or in the dues run.
+ */
+interface MemberFeeParts {
+  base: number
+  surcharge: number
+  guest_discount: number
+  amount: number
+}
+interface MemberFee {
+  category: string | null
+  is_guest: boolean
+  base_source: 'schedule' | 'category_map' | null
+  fiscal_year: { id: number; label: string } | null
+  derived: MemberFeeParts | null
+  effective: (MemberFeeParts & { discount: number }) | null
+}
+
+/** A CHF cell: null/'' → null, so a blank override is "derive it", not zero. */
+function chfOrNull(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') return null
+  const n = Number(value)
+  return Number.isFinite(n) ? n : null
+}
+
+const chf = (n: number) =>
+  `CHF ${n.toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+
+/**
+ * The live total, recomputed from what is currently in the draft.
+ *
+ * ⚠ This is arithmetic, NOT a second fee engine. Every decision — which base
+ * applies, whether the surcharge is owed, whether the member is a guest — was
+ * made server-side by feeBreakdown() and arrives in `fee.derived`. All that
+ * happens here is "the operator typed 0 into the surcharge box, so show the sum
+ * with 0 in it" instead of waiting for a save + round-trip to find out.
+ * The discount cap mirrors withDiscount(): a discount may take a bill to
+ * exactly zero, never below.
+ */
+function liveFee(fee: MemberFee | null, draft: Record<string, unknown>) {
+  if (!fee?.derived) return null
+  const base = chfOrNull(draft.fee_base_override) ?? fee.derived.base
+  const surcharge = chfOrNull(draft.fee_surcharge_override) ?? fee.derived.surcharge
+  const guestDiscount = fee.derived.guest_discount
+  const owed = Math.max(0, Math.round((base + surcharge - guestDiscount) * 100) / 100)
+  const wanted = Math.max(0, chfOrNull(draft.fee_discount) ?? 0)
+  const discount = Math.min(wanted, owed)
+  return {
+    base,
+    surcharge,
+    guestDiscount,
+    discount,
+    amount: Math.round((owed - discount) * 100) / 100,
+    baseOverridden: chfOrNull(draft.fee_base_override) !== null,
+    surchargeOverridden: chfOrNull(draft.fee_surcharge_override) !== null,
+  }
+}
+
+type LiveFee = ReturnType<typeof liveFee>
+
 const LS_HIDE_EMPTY = 'kscw-explorer-hide-empty'
 const LS_SHOW_TECHNICAL = 'kscw-explorer-show-technical'
 
@@ -250,6 +315,7 @@ export default function ExplorerMemberFields({
   const [revealedSports, setRevealedSports] =
     useState<ReadonlySet<'volleyball' | 'basketball'>>(NO_SPORTS_REVEALED)
   const [busyTeamIds, setBusyTeamIds] = useState<ReadonlySet<string>>(() => new Set())
+  const [fee, setFee] = useState<MemberFee | null>(null)
   // Noise filters. Sticky across members AND across sessions — an admin who
   // wants the audit stamps back should not have to re-reveal them on every row.
   const [hideEmpty, setHideEmpty] = useState(() => readNoisePref(LS_HIDE_EMPTY, true))
@@ -269,6 +335,9 @@ export default function ExplorerMemberFields({
     setEditMode(false)
     setRevealedSports(NO_SPORTS_REVEALED)
     setBusyTeamIds(new Set())
+    // Otherwise the previous member's Beitrag shows on this one until the fee
+    // fetch lands — a wrong number is worse than a pending one.
+    setFee(null)
   }
 
   /**
@@ -326,6 +395,30 @@ export default function ExplorerMemberFields({
   // is the repo's usual scoped exemption, not a cascading-render bug.
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void load() }, [load, reloadKey])
+
+  /**
+   * The itemised Beitrag. Its own fetch rather than part of `load()`: it is one
+   * read-only card, it needs the finance endpoint rather than the items API, and
+   * a 403 there (a sport admin, who has no business seeing club finances) must
+   * not take the whole member record down with it.
+   */
+  const feeSeq = useRef(0)
+  const loadFee = useCallback(async () => {
+    const seq = ++feeSeq.current
+    try {
+      const data = await kscwApi<MemberFee>(`/finance/members/${memberId}/fee`)
+      if (seq === feeSeq.current) setFee(data)
+    } catch {
+      // 403 (not finance / not board) or 404 — the card says "not available"
+      // and every other field on the page keeps working.
+      if (seq === feeSeq.current) setFee(null)
+    }
+  }, [memberId])
+
+  // Same scoped exemption as `load` above: fetch-then-store is what an effect is
+  // for, and the reset in the render path keeps this from cascading.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { void loadFee() }, [loadFee, reloadKey])
 
   // ── Derived ──────────────────────────────────────────────────────────
 
@@ -394,11 +487,17 @@ export default function ExplorerMemberFields({
    */
   const isEmptyKey = useCallback((key: string): boolean => {
     if (key === TEAMS_VIRTUAL_KEY) return rosterTeamIds.length === 0
+    // The Beitrag card holds no column value, so the generic rule below would
+    // read it as empty and the hide-empty filter — on by default — would hide
+    // the one card in the group that answers "what does this member pay".
+    // Empty means genuinely unanswerable: no fee endpoint, or no rate for the
+    // category.
+    if (key === FEE_AMOUNT_VIRTUAL_KEY) return !fee?.derived
     if (key in present) return !present[key]
     const value = key in draft ? draft[key] : record?.[key]
     // Same rule the value renderer uses: `false` and `0` are values, not blanks.
     return value == null || value === '' || (Array.isArray(value) && value.length === 0)
-  }, [present, draft, record, rosterTeamIds])
+  }, [present, draft, record, rosterTeamIds, fee])
 
   // Hiding empties in edit mode would make an empty field unfillable, so the
   // filter is view-only. The toggle keeps its state — leaving edit mode brings
@@ -409,7 +508,7 @@ export default function ExplorerMemberFields({
     if (!record) return []
     const mapped = keys.filter((k) => MEMBER_FIELD_BY_KEY[k])
     return buildMemberFieldSections({
-      presentKeys: [...mapped, TEAMS_VIRTUAL_KEY],
+      presentKeys: [...mapped, TEAMS_VIRTUAL_KEY, FEE_AMOUNT_VIRTUAL_KEY],
       sport,
       revealedSports,
       hideEmpty: hideEmptyNow,
@@ -430,7 +529,7 @@ export default function ExplorerMemberFields({
     let technical = 0
     if (!record) return { empty, technical }
     const mapped = keys.filter((k) => MEMBER_FIELD_BY_KEY[k])
-    for (const key of [...mapped, TEAMS_VIRTUAL_KEY]) {
+    for (const key of [...mapped, TEAMS_VIRTUAL_KEY, FEE_AMOUNT_VIRTUAL_KEY]) {
       const def = getFieldDef(key)
       const gate = def.sportGate
       if (gate && !sportCovers(sport, gate) && !revealedSports.has(gate)) continue
@@ -711,6 +810,10 @@ export default function ExplorerMemberFields({
     busyTeamIds,
     onTeamsChange: handleTeamsChange,
     disabled: saving,
+    fee,
+    // Recomputed on every draft change so the total tracks what is being typed
+    // into the three override boxes, not what was last saved.
+    liveFee: liveFee(fee, draft),
   }
 
   return (
@@ -920,6 +1023,10 @@ interface EditorCtx {
   busyTeamIds: ReadonlySet<string>
   onTeamsChange: (ids: string[]) => void | Promise<void>
   disabled: boolean
+  /** Server-side fee context — null when the endpoint is unavailable (403/404). */
+  fee: MemberFee | null
+  /** The same figures with the unsaved override edits applied. */
+  liveFee: LiveFee
 }
 
 /**
@@ -1060,6 +1167,64 @@ function FieldCard({
 
 // ── Display ────────────────────────────────────────────────────────────
 
+/**
+ * The itemised Beitrag: the total first, because that is the question being
+ * asked, with the parts under it so "why 310 and not 210?" is answered on the
+ * card instead of in a mail to the treasurer.
+ *
+ * A part the operator overrode is labelled as such — a base of 210 somebody
+ * typed and a base of 210 the rate table produced are not the same fact, and
+ * only one of them follows the category if it changes.
+ *
+ * English, like every other label in this view (see memberFieldOptions.ts): the
+ * Data Explorer is an admin tool with one vocabulary, and the amounts are CHF
+ * in Swiss formatting regardless of the operator's UI language.
+ */
+function FeeBreakdownValue({ fee, live }: { fee: MemberFee | null; live: LiveFee }) {
+  if (!fee) {
+    return <span className="text-muted-foreground">Not available</span>
+  }
+  if (!fee.derived || !live) {
+    return (
+      <span className="text-muted-foreground">
+        {fee.category ? 'No rate for this fee category' : 'No fee category set'}
+      </span>
+    )
+  }
+
+  const parts: { label: string; value: number; negative?: boolean }[] = [
+    { label: live.baseOverridden ? 'Base (overridden)' : 'Base', value: live.base },
+  ]
+  if (live.surcharge > 0 || live.surchargeOverridden) {
+    parts.push({
+      label: live.surchargeOverridden ? 'Scorer licence (overridden)' : 'Scorer licence',
+      value: live.surcharge,
+    })
+  }
+  if (live.guestDiscount > 0) parts.push({ label: 'Guest', value: live.guestDiscount, negative: true })
+  if (live.discount > 0) parts.push({ label: 'Discount', value: live.discount, negative: true })
+
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="text-base font-semibold text-foreground">{chf(live.amount)}</span>
+      <dl className="flex flex-col gap-0.5 text-xs text-muted-foreground">
+        {parts.map((p) => (
+          <div key={p.label} className="flex items-baseline justify-between gap-3">
+            <dt>{p.negative ? `− ${p.label}` : p.label}</dt>
+            <dd className="tabular-nums">{p.negative ? '−' : ''}{p.value.toFixed(2)}</dd>
+          </div>
+        ))}
+      </dl>
+      <p className="text-[11px] text-muted-foreground/80">
+        {fee.base_source === 'schedule'
+          ? `Season rate${fee.fiscal_year ? ` ${fee.fiscal_year.label}` : ''}`
+          : 'Category map — no season rate set'}
+        {fee.is_guest ? ' · guest' : ''}
+      </p>
+    </div>
+  )
+}
+
 function DisplayValue({
   def,
   value,
@@ -1090,6 +1255,12 @@ function DisplayValue({
         {isSet ? t('explorerFieldsSensitiveSet') : t('explorerFieldsSensitiveNotSet')}
       </span>
     )
+  }
+
+  // The Beitrag is computed, not stored: it reads from the fee context rather
+  // than from `value`, which for a virtual key is always undefined.
+  if (def.key === FEE_AMOUNT_VIRTUAL_KEY) {
+    return <FeeBreakdownValue fee={ctx.fee} live={ctx.liveFee} />
   }
 
   // Roster membership lives in the junction table, not in a column, so it reads

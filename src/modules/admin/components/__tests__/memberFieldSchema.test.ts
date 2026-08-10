@@ -11,6 +11,7 @@
 import { describe, it, expect } from 'vitest'
 import { MEMBERS_COLUMNS } from './membersColumns.fixture'
 import {
+  FEE_AMOUNT_VIRTUAL_KEY,
   MEMBER_FIELDS,
   MEMBER_FIELD_GROUPS,
   MEMBER_FIELD_BY_KEY,
@@ -44,7 +45,7 @@ const ALL_KINDS: MemberFieldKind[] = [
  * user-facing strings and these labels are user-facing.
  */
 const ALLOWED_CAPITALISED = new Set([
-  'ClubDesk', 'IBAN', 'AHV', 'VIS', 'OTR', 'OTN', 'FIVB', 'J+S', 'ID', 'UUID',
+  'ClubDesk', 'IBAN', 'AHV', 'CHF', 'VIS', 'OTR', 'OTN', 'FIVB', 'J+S', 'ID', 'UUID',
   'VM', 'KSCW', 'Swiss', 'Volley', 'Basketplan', 'SALTO', 'BASPO', 'Directus',
   'Wiedisync', 'Spielplaner', 'Volleyball', 'Basketball',
 ])
@@ -59,19 +60,23 @@ function midLabelCapitalisedWords(label: string): string[] {
 }
 
 describe('memberFieldSchema — completeness', () => {
-  it('claims every members column exactly once, plus the teams virtual key', () => {
+  it('claims every members column exactly once, plus the two virtual keys', () => {
     const keys = MEMBER_FIELDS.map((f) => f.key)
     const dupes = keys.filter((k, i) => keys.indexOf(k) !== i)
     expect(dupes).toEqual([])
 
-    const expected = [...MEMBERS_COLUMNS, TEAMS_VIRTUAL_KEY].sort()
+    const expected = [...MEMBERS_COLUMNS, TEAMS_VIRTUAL_KEY, FEE_AMOUNT_VIRTUAL_KEY].sort()
     expect([...keys].sort()).toEqual(expected)
   })
 
-  it('has 100 real columns and 1 virtual field', () => {
-    expect(MEMBERS_COLUMNS).toHaveLength(100)
-    expect(MEMBER_FIELDS.filter((f) => !f.virtual)).toHaveLength(100)
-    expect(MEMBER_FIELDS.filter((f) => f.virtual).map((f) => f.key)).toEqual([TEAMS_VIRTUAL_KEY])
+  it('has 104 real columns and 2 virtual fields', () => {
+    expect(MEMBERS_COLUMNS).toHaveLength(104)
+    expect(MEMBER_FIELDS.filter((f) => !f.virtual)).toHaveLength(104)
+    // The roster multiselect writes a junction; the Beitrag card is computed by
+    // the server's fee engine. Neither is a `members` column, and neither may
+    // ever reach a PATCH body.
+    expect(MEMBER_FIELDS.filter((f) => f.virtual).map((f) => f.key))
+      .toEqual([TEAMS_VIRTUAL_KEY, FEE_AMOUNT_VIRTUAL_KEY])
   })
 
   it('puts each column in exactly one declared group', () => {
@@ -82,18 +87,18 @@ describe('memberFieldSchema — completeness', () => {
       expect(seen.has(f.key), `${f.key} claimed twice`).toBe(false)
       seen.set(f.key, f.group)
     }
-    expect(seen.size).toBe(MEMBERS_COLUMNS.length + 1)
+    expect(seen.size).toBe(MEMBERS_COLUMNS.length + 2) // + the two virtual keys
   })
 
   it('matches the group sizes the taxonomy was designed around', () => {
     const count = (id: MemberFieldGroupId) => MEMBER_FIELDS.filter((f) => f.group === id).length
     expect(count('identity')).toBe(11)
     expect(count('contact')).toBe(7)
-    expect(count('membership')).toBe(10) // 9 columns + __teams
+    expect(count('membership')).toBe(9) // 8 columns + __teams
     expect(count('playing')).toBe(3)
     expect(count('association')).toBe(18)
     expect(count('roles_access')).toBe(3)
-    expect(count('finance')).toBe(12)
+    expect(count('finance')).toBe(18) // 17 columns + __fee_amount
     expect(count('privacy')).toBe(6)
     expect(count('notifications')).toBe(11)
     expect(count('clubdesk')).toBe(5)
