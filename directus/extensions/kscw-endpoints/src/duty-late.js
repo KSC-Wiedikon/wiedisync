@@ -199,7 +199,15 @@ export function registerDutyLate(router, ctx) {
     const out = {}
     for (const role of roles) {
       const r = byId[String(game[ROLE_DEFS[role].member])]
-      if (r) out[role] = { phone: r.phone || null, email: r.email || null, hide_phone: !!r.hide_phone, hide_email: !!r.hide_email }
+      // Opt-out honoured server-side — same reasoning as scorer-contacts.js.
+      // This file's own header claimed the flags "are honoured"; until
+      // 2026-08-10 they were not (audit 2026-08-08, finding 26).
+      if (r) out[role] = {
+        phone: r.hide_phone ? null : (r.phone || null),
+        email: r.hide_email ? null : (r.email || null),
+        hide_phone: !!r.hide_phone,
+        hide_email: !!r.hide_email,
+      }
     }
     return out
   }

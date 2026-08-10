@@ -92,8 +92,29 @@ export function initSentry() {
       if (event.breadcrumbs) {
         for (const bc of event.breadcrumbs) {
           if (typeof bc.message === 'string') {
-            bc.message = bc.message.replace(/[\w.+-]+@[\w.-]+\.\w+/g, '[REDACTED]')
+            bc.message = bc.message
+              .replace(/[\w.+-]+@[\w.-]+\.\w+/g, '[REDACTED]')
+            bc.message = redactTokens(bc.message)
           }
+        }
+      }
+
+      // Strip capability tokens from everything that reaches Sentry. Doing it in
+      // beforeSend rather than at each capture site is deliberate: the token
+      // appears in the exception VALUE (api.ts builds `API ${path}: ${status}`),
+      // in the request URL, in the transaction name, and in whatever context a
+      // caller happened to attach — redacting only `context.endpoint` left three
+      // other copies (audit 2026-08-08, finding 14).
+      for (const ex of event.exception?.values ?? []) {
+        if (typeof ex.value === 'string') ex.value = redactTokens(ex.value)
+      }
+      if (typeof event.message === 'string') event.message = redactTokens(event.message)
+      if (typeof event.transaction === 'string') event.transaction = redactTokens(event.transaction)
+      if (event.request?.url) event.request.url = redactTokens(event.request.url)
+      for (const ctx of Object.values(event.contexts ?? {})) {
+        if (!ctx || typeof ctx !== 'object') continue
+        for (const [k, v] of Object.entries(ctx)) {
+          if (typeof v === 'string') (ctx as Record<string, unknown>)[k] = redactTokens(v)
         }
       }
 
@@ -481,10 +502,23 @@ const PII_FIELDS = new Set([
   'address', 'iban', 'token', 'access_token', 'refresh_token', 'otp',
 ])
 
+/**
+ * An exact-key set missed the prefixed variants the scheduling flow actually
+ * sends — `proposer_email`, `contact_name`, `recipient_name` — so those reached
+ * both sinks in full (finding 14). Suffix matching catches the family without
+ * having to enumerate it.
+ */
+function isPiiKey(key: string): boolean {
+  if (PII_FIELDS.has(key)) return true
+  const k = key.toLowerCase()
+  return k.endsWith('email') || k.endsWith('_name') || k.endsWith('phone')
+    || k.endsWith('token') || k.endsWith('iban')
+}
+
 function scrubPii(obj: Record<string, unknown>): Record<string, unknown> {
   const result: Record<string, unknown> = {}
   for (const [key, val] of Object.entries(obj)) {
-    result[key] = PII_FIELDS.has(key) ? '[REDACTED]' : scrubValue(val)
+    result[key] = isPiiKey(key) ? '[REDACTED]' : scrubValue(val)
   }
   return result
 }
@@ -526,8 +560,44 @@ const API_BASE = (typeof window !== 'undefined' && window.location.hostname === 
  * Fire-and-forget: send a client error to the backend JSONL log.
  * Never throws — logging should not break the app.
  */
+
+/**
+ * Replace anything that looks like a capability token in a URL path with
+ * `:token`.
+ *
+ * For every anonymous flow in this app the token IS the path —
+ * `/terminplanung/propose-home/<token>`, `/team-invites/info/<token>`,
+ * `/signup-invites/info/<token>`, `/terminplanung/club/slots/<token>` — so an
+ * ordinary API error on a VALID link shipped a live, season-length credential to
+ * both sinks: the 30-day JSONL log and a third-party processor
+ * (audit 2026-08-08, finding 14). `scrubPii` never saw it, because it scrubs
+ * object VALUES by key and the token is in a string.
+ *
+ * ⚠ Three fields carry it, not one. `api.ts` builds its Error as
+ * `API ${path}: ${status}`, so the token is in the exception MESSAGE as well as
+ * in `endpoint`; and `SchedulingApp` routes `terminplanung/:token`, so it is in
+ * `window.location.pathname` too. Redacting `endpoint` alone leaves two copies.
+ *
+ * 16 hex chars is the floor because that is the shortest token the backend
+ * mints (`randomBytes(8)`); UUIDs and longer hex ids are caught by the same
+ * rule, which is the safe direction to err in for a log.
+ */
+// Boundary is "the hex run ends", not "a path separator follows": the token
+// also appears mid-sentence in `API /team-invites/info/<token>: 400`, where the
+// next character is a colon. A `[/?#]|$` lookahead missed exactly that case.
+const TOKEN_IN_PATH = /\/([0-9a-f]{16,})(?![0-9a-f])/gi
+export function redactTokens<T>(value: T): T {
+  if (typeof value !== 'string') return value
+  return value.replace(TOKEN_IN_PATH, '/:token') as unknown as T
+}
+
 function sendToErrorLog(entry: Record<string, unknown>) {
   try {
+    // Central redaction: every caller below funnels through here, so the token
+    // rule cannot be forgotten at one of the ~15 emission sites.
+    for (const k of ['endpoint', 'page', 'error', 'stack', 'responseBody'] as const) {
+      if (typeof entry[k] === 'string') entry[k] = redactTokens(entry[k] as string)
+    }
     // Skip in local dev
     if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) return
 

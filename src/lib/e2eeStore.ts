@@ -127,3 +127,27 @@ export async function clearCachedDocuments(gameId: string): Promise<void> {
     // Best effort.
   }
 }
+
+/**
+ * Drop EVERY cached document, whatever game it belongs to.
+ *
+ * The per-game helper above cannot be called without already knowing the game
+ * ids, and its only caller fires from a mounted `ShowIdsModal` once the display
+ * window closes — so closing the modal, or the tab, before kickoff stranded a
+ * squad's identity documents permanently (audit 2026-08-08, finding 15).
+ *
+ * That mattered because the two object stores are complementary: the device key
+ * is imported with `deriveKey`/`deriveBits`, exactly what `unwrapContentKey`
+ * needs, so key + ciphertext together yield plaintext government-ID scans
+ * offline, same origin, no cookie. Non-extractability protects the key from
+ * being *exfiltrated*, not from being *used* by whoever sits down next at a
+ * shared club laptop. Logout now clears both, which is what
+ * `e2eeStore`'s own "a lost phone leaks nothing" promise requires.
+ */
+export async function clearAllCachedDocuments(): Promise<void> {
+  try {
+    await tx(DOCS, 'readwrite', (s) => s.clear())
+  } catch {
+    // Best effort — logout must never fail because a wipe did.
+  }
+}

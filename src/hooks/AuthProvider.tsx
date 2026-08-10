@@ -10,6 +10,7 @@ import { useEffect, useState, useCallback, useMemo, type ReactNode } from 'react
 import { readMe } from '@directus/sdk'
 import { toast } from 'sonner'
 import { client, login as apiLogin, logout as apiLogout, refreshAuth, isAuthenticated, setCurrentMemberId, setImpersonating, fetchItems, fetchAllItems, kscwApi } from '../lib/api'
+import { clearDeviceKey, clearAllCachedDocuments } from '../lib/e2eeStore'
 import { queryClient } from '../lib/query'
 import { setSentryUser, captureAuthError, captureApiError, addBreadcrumb, isTransientNetworkMessage } from '../lib/sentry'
 import i18n from '../i18n'
@@ -292,7 +293,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [fetchMember, loadTeamContext])
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    // Wipe the E2EE material FIRST, while `realUser` still names whose device
+    // key to drop — the state teardown below would erase that.
+    //
+    // Neither store was touched on logout until 2026-08-10 (audit 2026-08-08,
+    // finding 15). The device key is imported with `deriveKey`/`deriveBits`,
+    // exactly what `unwrapContentKey` needs, so key + cached ciphertext together
+    // yield plaintext government-ID scans offline, same origin, no cookie.
+    // Non-extractability stops the key being exfiltrated, not used — so a coach
+    // who preloaded a squad on a shared club laptop and logged out left that
+    // deck decryptable by the next person to use the browser profile.
+    //
+    // Awaited, not fire-and-forget: this is the one teardown whose failure is a
+    // data-exposure, so it goes first and the rest of logout waits for it. Both
+    // helpers swallow their own errors, so logout cannot be blocked by a wipe.
+    try {
+      if (realUser?.id) await clearDeviceKey(Number(realUser.id))
+      await clearAllCachedDocuments()
+    } catch { /* never block logout */ }
+
     apiLogout()
     setImpersonating(false)
     setImpersonatedMember(null)
@@ -308,7 +328,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setMemberSports(new Set()); setGuestLevelByTeam({}); setTeamSportById({})
     setTeamsReady(false)
     queryClient.clear()
-  }, [])
+  }, [realUser])
 
   const refreshTeamContext = useCallback(async () => {
     if (user?.id) await loadTeamContext(user.id)
