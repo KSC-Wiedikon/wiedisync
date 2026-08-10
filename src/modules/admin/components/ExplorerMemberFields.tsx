@@ -200,6 +200,8 @@ interface MemberFee {
   is_guest: boolean
   base_source: 'schedule' | 'category_map' | null
   fiscal_year: { id: number; label: string } | null
+  /** What the surcharge boolean is worth in CHF. Served, never hardcoded here. */
+  surcharge_amount: number
   derived: MemberFeeParts | null
   effective: (MemberFeeParts & { discount: number }) | null
 }
@@ -227,20 +229,33 @@ const chf = (n: number) =>
  */
 function liveFee(fee: MemberFee | null, draft: Record<string, unknown>) {
   if (!fee?.derived) return null
+  const round2 = (n: number) => Math.round(n * 100) / 100
   const base = chfOrNull(draft.fee_base_override) ?? fee.derived.base
-  const surcharge = chfOrNull(draft.fee_surcharge_override) ?? fee.derived.surcharge
+  // Nullable boolean since migration 300: on/off/derive. `=== true|false` on
+  // purpose — undefined must not read as "waive".
+  const surchargeFlag = draft.fee_surcharge_override
+  const surcharge = surchargeFlag === true ? fee.surcharge_amount
+    : surchargeFlag === false ? 0
+    : fee.derived.surcharge
   const guestDiscount = fee.derived.guest_discount
-  const owed = Math.max(0, Math.round((base + surcharge - guestDiscount) * 100) / 100)
-  const wanted = Math.max(0, chfOrNull(draft.fee_discount) ?? 0)
-  const discount = Math.min(wanted, owed)
+  const owed = Math.max(0, round2(base + surcharge - guestDiscount))
+  // CHF or percent, never both — the DB CHECK enforces it, and CHF wins here so
+  // a row that somehow holds both still renders a number rather than NaN.
+  const pct = chfOrNull(draft.fee_discount_pct)
+  const flat = chfOrNull(draft.fee_discount)
+  const wanted = flat !== null && flat > 0 ? round2(flat)
+    : pct !== null && pct > 0 ? round2(owed * Math.min(pct, 100) / 100)
+    : 0
+  const discount = Math.min(Math.max(0, wanted), owed)
   return {
     base,
     surcharge,
     guestDiscount,
     discount,
-    amount: Math.round((owed - discount) * 100) / 100,
+    discountPct: flat !== null && flat > 0 ? null : (pct !== null && pct > 0 ? pct : null),
+    amount: round2(owed - discount),
     baseOverridden: chfOrNull(draft.fee_base_override) !== null,
-    surchargeOverridden: chfOrNull(draft.fee_surcharge_override) !== null,
+    surchargeOverridden: surchargeFlag === true || surchargeFlag === false,
   }
 }
 
@@ -1202,7 +1217,15 @@ function FeeBreakdownValue({ fee, live }: { fee: MemberFee | null; live: LiveFee
     })
   }
   if (live.guestDiscount > 0) parts.push({ label: 'Guest', value: live.guestDiscount, negative: true })
-  if (live.discount > 0) parts.push({ label: 'Discount', value: live.discount, negative: true })
+  if (live.discount > 0) {
+    parts.push({
+      // A percentage discount says so: "40.00" alone hides that it will move
+      // with the base next season.
+      label: live.discountPct !== null ? `Discount (${live.discountPct}%)` : 'Discount',
+      value: live.discount,
+      negative: true,
+    })
+  }
 
   return (
     <div className="flex flex-col gap-1">
@@ -1289,6 +1312,14 @@ function DisplayValue({
     )
   }
 
+  // A select whose NULL *means* something — the surcharge tri-state, where empty
+  // is "follow the licence" — says so instead of rendering the generic "—" for
+  // "nobody filled this in".
+  if (def.kind === 'select' && value == null) {
+    const noneLabel = MEMBER_SELECT_FIELDS[def.key]?.noneLabel
+    if (noneLabel) return <span className="text-muted-foreground">{noneLabel}</span>
+  }
+
   // `false` must read "No" and `0` must read "0" — only null / '' / [] are empty.
   if (value == null || value === '' || (Array.isArray(value) && value.length === 0)) {
     return <span className="text-muted-foreground">—</span>
@@ -1345,7 +1376,8 @@ function DisplayValue({
 
     case 'select': {
       const field = MEMBER_SELECT_FIELDS[def.key]
-      const code = String(value)
+      // A boolean-backed select stores true/false, not the option string.
+      const code = field?.boolean ? String(value === true) : String(value)
       return (
         <span className="break-words text-foreground" title={code}>
           {field ? optionLabel(field.options, code) : code}
@@ -1576,12 +1608,16 @@ function FieldEditor({
     case 'select': {
       const field = MEMBER_SELECT_FIELDS[def.key]
       if (!field) return <TextEditor value={asText} onChange={onChange} />
+      // A boolean column round-trips through the select as 'true' / 'false';
+      // null stays null (the third state, "derive it"). Without the conversion
+      // the PATCH would write the STRING "true" into a boolean column.
       return (
         <SelectEditor
           options={field.options}
           nullable={field.nullable}
-          value={value}
-          onChange={onChange}
+          noneLabel={field.noneLabel}
+          value={field.boolean ? (value == null ? null : String(value === true)) : value}
+          onChange={field.boolean ? (v) => onChange(v == null ? null : v === 'true') : onChange}
         />
       )
     }
@@ -1845,11 +1881,15 @@ const NONE_VALUE = '__none__'
 function SelectEditor({
   options,
   nullable,
+  noneLabel,
   value,
   onChange,
 }: {
   options: FieldOption[]
   nullable: boolean
+  /** What the null option reads as. "—" ("no value") unless the column's null
+   *  MEANS something — e.g. "Automatic" for the surcharge tri-state. */
+  noneLabel?: string
   value: unknown
   onChange: (v: unknown) => void
 }) {
@@ -1869,7 +1909,7 @@ function SelectEditor({
         <SelectValue placeholder="—" />
       </SelectTrigger>
       <SelectContent>
-        {nullable && <SelectItem value={NONE_VALUE}>—</SelectItem>}
+        {nullable && <SelectItem value={NONE_VALUE}>{noneLabel ?? '—'}</SelectItem>}
         {shown.map((o) => (
           <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
         ))}

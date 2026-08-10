@@ -33,7 +33,7 @@ import { renderInvoicePdf, INVOICE_PDF_COLUMNS } from './finance-invoice-pdf.js'
 import { recomputeInvoice, deriveSettlement } from './finance-recompute.js'
 import { autopostInvoiceSafe, autopostTeamEntrySafe, autopostDuesRunSafe, removeAutopostForPaymentSafe, removeAutopostForTeamEntrySafe, FISCAL_YEAR_LOCK_NS } from './finance-autopost.js'
 // The club fee model, shared with the ClubDesk push so the two never disagree.
-import { feeBreakdown, guestMemberIdSet, FEE_OVERRIDE_FIELDS } from './clubdesk-update.js'
+import { feeBreakdown, guestMemberIdSet, FEE_OVERRIDE_FIELDS, NO_LICENCE_SURCHARGE } from './clubdesk-update.js'
 
 const PAY_METHODS = ['twint', 'bank', 'cash', 'other']
 
@@ -971,7 +971,8 @@ export function registerFinance(router, { database, logger, services, getSchema 
       const opts = { baseOverride: rate?.amount_chf, isGuest }
       // Same engine, twice: once with the member's overrides stripped so the UI
       // can show what the rules WOULD say, once as it actually bills.
-      const bare = { ...m, fee_base_override: null, fee_surcharge_override: null, fee_discount: null }
+      const bare = { ...m }
+      for (const f of FEE_OVERRIDE_FIELDS) bare[f] = null
       const derived = feeBreakdown(m.beitragskategorie, bare, opts)
       const effective = feeBreakdown(m.beitragskategorie, m, opts)
 
@@ -985,6 +986,10 @@ export function registerFinance(router, { database, logger, services, getSchema 
         // difference between "the treasurer set this season's rate" and "we are
         // falling back to the hardcoded map" is worth showing.
         base_source: rate ? 'schedule' : derived ? 'category_map' : null,
+        // The CHF the surcharge boolean is worth. Served rather than hardcoded
+        // client-side so the amount stays a server rule — the UI only ever
+        // shows "on/off", never decides what "on" costs.
+        surcharge_amount: NO_LICENCE_SURCHARGE,
         derived: derived && {
           base: round2(derived.base),
           surcharge: round2(derived.surcharge),

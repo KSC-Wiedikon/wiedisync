@@ -24,6 +24,15 @@ export interface MemberSelectField {
   options: FieldOption[]
   /** false ⇒ NOT NULL in Postgres, so the editor must not offer "—". */
   nullable: boolean
+  /**
+   * The column is a nullable BOOLEAN, not a string. Option values are the
+   * literals 'true' / 'false' and the editor converts on the way in and out —
+   * a select is the only control that can express the third state (NULL =
+   * "derive it"), which a switch cannot.
+   */
+  boolean?: true
+  /** What the null option reads as. Defaults to "—" (i.e. "no value"). */
+  noneLabel?: string
 }
 
 /**
@@ -52,6 +61,47 @@ export const MEMBER_SELECT_FIELDS: Record<string, MemberSelectField> = {
     options: [
       { value: 'Herr', label: 'Herr' },
       { value: 'Frau', label: 'Frau' },
+    ],
+  },
+  /**
+   * ⚠ Mirrors `CD_BEITRAG_MAP` in kscw-endpoints/src/clubdesk-update.js (the
+   * amounts side). Only the primary ClubDesk spellings are listed — the legacy
+   * aliases in that map still save fine, they are just not offered. Add a new
+   * category to BOTH, or the explorer offers a category the fee engine cannot
+   * price.
+   */
+  beitragskategorie: {
+    nullable: true,
+    options: [
+      { value: 'VB Erwerbstätige', label: 'VB Erwerbstätige' },
+      { value: 'VB Student*in Meisterschaft', label: 'VB Student*in Meisterschaft' },
+      { value: 'VB Schüler*in Meisterschaft', label: 'VB Schüler*in Meisterschaft' },
+      { value: 'VB Schüler*in Turnier', label: 'VB Schüler*in Turnier' },
+      { value: 'VB Schüler*in 1. Jahr', label: 'VB Schüler*in 1. Jahr' },
+      { value: 'VB Turnier KWI', label: 'VB Turnier KWI' },
+      { value: 'BB Erwerbstätige', label: 'BB Erwerbstätige' },
+      { value: 'BB Erwerbstätige 1. Liga', label: 'BB Erwerbstätige 1. Liga' },
+      { value: 'BB Lernende/Studierende', label: 'BB Lernende/Studierende' },
+      { value: 'BB Lernende/Studierende 1. Liga', label: 'BB Lernende/Studierende 1. Liga' },
+      { value: 'BB Jugend Meisterschaft', label: 'BB Jugend Meisterschaft' },
+      { value: 'BB Minis Turnier', label: 'BB Minis Turnier' },
+      { value: 'Passivmitglied', label: 'Passivmitglied' },
+      { value: 'Gratis', label: 'Gratis' },
+      { value: 'Kein Beitrag', label: 'Kein Beitrag' },
+    ],
+  },
+  /**
+   * Nullable boolean (migration 300). Three states, and the third is the point:
+   * empty follows the rule, so a member who earns a scorer licence in March
+   * stops owing the surcharge without anybody editing this field.
+   */
+  fee_surcharge_override: {
+    nullable: true,
+    boolean: true,
+    noneLabel: 'Automatic — follow the licence',
+    options: [
+      { value: 'true', label: 'Yes — charge the CHF 100' },
+      { value: 'false', label: 'No — waive it' },
     ],
   },
   language: {
@@ -106,34 +156,16 @@ export const MEMBER_MULTI_FIELDS: Record<string, FieldOption[]> = {
 
 /**
  * Free-text columns with a de-facto canonical list. Rendered as a text input
- * plus a <datalist>: suggestions, never a gate — both columns legitimately hold
- * off-list values (e.g. 'VB Schüler*in Meisterschaft mit Abzug', a one-off
- * ClubDesk category), and gating them would make those rows uneditable.
+ * plus a <datalist>: suggestions, never a gate.
  *
- * ⚠ The fee categories mirror `CD_BEITRAG_MAP` in
- * kscw-endpoints/src/clubdesk-update.js (the amounts side). Only the primary
- * ClubDesk spellings are listed — the legacy aliases in that map still save
- * fine, they are just not suggested. Add a new category to BOTH.
+ * `beitragskategorie` used to live here for that reason — a one-off ClubDesk
+ * category like 'VB Schüler*in Meisterschaft mit Abzug' is legitimate, and a
+ * gate would make such a row uneditable. It is a `select` now anyway: SelectEditor
+ * keeps an off-list value selected and selectable (labelled "(unrecognised)"),
+ * so the dropdown is a dropdown without ever silently overwriting one.
  */
 export const MEMBER_SUGGEST_FIELDS: Record<string, string[]> = {
   sektion: ['Volleyball', 'Basketball', 'KSCW'],
-  beitragskategorie: [
-    'VB Erwerbstätige',
-    'VB Student*in Meisterschaft',
-    'VB Schüler*in Meisterschaft',
-    'VB Schüler*in Turnier',
-    'VB Schüler*in 1. Jahr',
-    'VB Turnier KWI',
-    'BB Erwerbstätige',
-    'BB Erwerbstätige 1. Liga',
-    'BB Lernende/Studierende',
-    'BB Lernende/Studierende 1. Liga',
-    'BB Jugend Meisterschaft',
-    'BB Minis Turnier',
-    'Passivmitglied',
-    'Gratis',
-    'Kein Beitrag',
-  ],
 }
 
 /** Label for a stored code, falling back to the raw value for off-list data. */
