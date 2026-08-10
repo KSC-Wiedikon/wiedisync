@@ -37,34 +37,62 @@ export const TURNSTILE_SITE_KEY = '0x4AAAAAACoYmx3xiDfRbmv9'
  *   }}>
  *   {widget}
  */
+/** How long to wait for a re-solve before giving up and letting the server refuse. */
+const RESOLVE_TIMEOUT_MS = 30_000
+
 export function useTurnstile() {
   const ref = useRef<TurnstileInstance>(null)
   const [ready, setReady] = useState(false)
-  const firstTokenRef = useRef<string>('')
+  /** The most recent solved-but-unspent token. */
+  const tokenRef = useRef<string>('')
+  /** Resolver for a `getToken()` call that is waiting on a re-solve. */
+  const waiterRef = useRef<((token: string) => void) | null>(null)
+
+  const deliver = useCallback((token: string) => {
+    if (waiterRef.current) {
+      const resolve = waiterRef.current
+      waiterRef.current = null
+      resolve(token)
+      return
+    }
+    tokenRef.current = token
+  }, [])
 
   /**
-   * A fresh, unused token. The first call hands back the token the widget
-   * already solved on mount (resetting it immediately would throw away a
-   * perfectly good unused token and make the user wait); every later call
-   * resets first, because by then the previous one has been spent.
+   * A fresh, unused token.
+   *
+   * ⚠ Deliberately NOT `getResponsePromise()`. That helper polls only while the
+   * widget is still LOADING; once loaded it calls `window.turnstile.getResponse()`
+   * exactly once and **rejects with "No response received"** when the answer is
+   * empty. Straight after a `reset()` the answer is always empty, so using it
+   * here would have rejected instantly on every call after the first — i.e. the
+   * OTP resend and the second signup step would have silently sent an empty
+   * token and been refused by the server. Caught by reading the library rather
+   * than in testing, because headless Chromium cannot solve a challenge at all.
+   *
+   * So: reset, then wait for the widget's own `onSuccess` to hand over the new
+   * token. The first call skips the reset and spends the token solved on mount —
+   * resetting a perfectly good unused token would just make the user wait.
    */
   const getToken = useCallback(async (): Promise<string> => {
-    if (firstTokenRef.current) {
-      const first = firstTokenRef.current
-      firstTokenRef.current = ''
-      return first
+    if (tokenRef.current) {
+      const current = tokenRef.current
+      tokenRef.current = ''
+      return current
     }
-    ref.current?.reset()
     setReady(false)
-    try {
-      const token = await ref.current?.getResponsePromise()
-      return token ?? ''
-    } catch {
-      // A failed/expired challenge resolves to no token. The caller surfaces
-      // its own error; returning '' makes the server reject it, which is the
-      // correct outcome — never fabricate a token.
-      return ''
-    }
+    ref.current?.reset()
+    return new Promise<string>((resolve) => {
+      waiterRef.current = resolve
+      window.setTimeout(() => {
+        if (waiterRef.current === resolve) {
+          waiterRef.current = null
+          // Never fabricate a token — an empty one makes the server refuse,
+          // which is the correct outcome, and the caller shows its own error.
+          resolve('')
+        }
+      }, RESOLVE_TIMEOUT_MS)
+    })
   }, [])
 
   const widget = (
@@ -72,16 +100,23 @@ export function useTurnstile() {
       ref={ref}
       siteKey={TURNSTILE_SITE_KEY}
       onSuccess={(token) => {
-        firstTokenRef.current = token
         setReady(true)
+        deliver(token)
       }}
       onExpire={() => {
-        firstTokenRef.current = ''
+        tokenRef.current = ''
         setReady(false)
+        ref.current?.reset()
       }}
       onError={() => {
-        firstTokenRef.current = ''
+        tokenRef.current = ''
         setReady(false)
+        // Unblock anyone waiting; '' is refused server-side by design.
+        if (waiterRef.current) {
+          const resolve = waiterRef.current
+          waiterRef.current = null
+          resolve('')
+        }
       }}
       options={{ theme: 'auto', size: 'flexible' }}
     />
