@@ -489,7 +489,7 @@ async function checkMembers(): Promise<CollectionHealth> {
       fee_no_roster?: { member_id: number; severity: 'never' | 'lapsed' | 'older' }[]
       unmapped_teams?: { team_id: number; name: string }[]
       stale_funktion?: { member_id: number }[]
-      honorary_drift?: { member_id: number; kind: 'status_only' | 'fee'; kat: string }[]
+      honorary_drift?: { member_id: number; kind: 'status_only' | 'fee'; kat: string; fee_waived?: boolean }[]
     }>('/clubdesk-group-sync')
 
     // These four are AGGREGATED into a single row each: per-member rows would add
@@ -555,7 +555,7 @@ async function checkMembers(): Promise<CollectionHealth> {
       // in-group half. Keying it off `kind` hid the worst row on prod: Zehnder
       // is Ehrenmitglied by status, absent from the group AND paying
       // Passivmitglied — classified 'status_only', so the fee half read 0.
-      const billed = (honorary_drift || []).filter((r) => r.kat !== 'Gratis').length
+      const billed = (honorary_drift || []).filter((r) => r.kat !== 'Gratis' && !r.fee_waived).length
       const statusOnly = (honorary_drift || []).filter((r) => r.kind === 'status_only').length
       issues.push({
         id: 'cd-honorary-drift',
