@@ -303,6 +303,9 @@ export default function SignUpPage() {
       const res = await kscwApi<{ member_id?: string }>('/set-password', {
         method: 'POST',
         body: { email: email.trim().toLowerCase(), password },
+        // Claiming a named account off a confirmed OTP — never off whatever
+        // session this browser is carrying (member 263, 2026-08-10).
+        anonymous: true,
       })
 
       // Login with new credentials

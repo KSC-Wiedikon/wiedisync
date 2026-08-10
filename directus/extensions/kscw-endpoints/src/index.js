@@ -1433,11 +1433,21 @@ export default {
 
     // ── Set Password ──────────────────────────────────────────────
     // POST /kscw/set-password
-    // Three modes:
-    //   1. Authenticated (Bearer token) → updates current user's password
-    //   2. Token from password-reset email → validates token, sets password
-    //   3. Unauthenticated (email in body) → verifies OTP was confirmed,
-    //      creates Directus user if needed, sets password
+    // Three modes, resolved in THIS order:
+    //   2. `token` in body → single-use password-reset token from email
+    //   3. `email` in body → the address whose OTP was just confirmed
+    //   1. neither, but authenticated → the caller's own password
+    //
+    // ⚠ Explicit intent in the BODY beats the ambient session, and the order is
+    // the whole point. Mode 1 used to be tested first, and `kscwApi` sends the
+    // session cookie unless a call opts out — so a member who was already logged
+    // in and then opened a reset link had their `token` silently ignored and
+    // mode 1 change *the logged-in account* instead. On a shared browser that
+    // means opening someone else's reset link changes YOUR password and discards
+    // theirs. It also self-destructs: changing the password invalidates the
+    // caller's own session, so the app 401-storms on the next page (member 263,
+    // 2026-08-10 11:20 — ~20 failed queries and 8 dead refreshes in 4 seconds).
+    // Mode 1 is for "authenticated, no email, no token" and nothing else.
 
     router.post('/set-password', async (req, res) => {
       try {
@@ -1453,12 +1463,7 @@ export default {
         let userId
         let memberId
 
-        if (req.accountability?.user) {
-          // Mode 1: Authenticated user changing password
-          userId = req.accountability.user
-          const member = await database('members').where('user', userId).select('id').first()
-          memberId = member?.id
-        } else if (token) {
+        if (token) {
           // Mode 2: Password-reset token from email link.
           // Validated against the dedicated `password_reset_tokens` table
           // (SHA-256 hash, 1h TTL, single-use) — NEVER against
@@ -1614,6 +1619,12 @@ export default {
 
           // Clean up used verifications
           await database('email_verifications').where('email', email).delete()
+        } else if (req.accountability?.user) {
+          // Mode 1: Authenticated user changing password. LAST on purpose — see
+          // the ordering note above the handler.
+          userId = req.accountability.user
+          const member = await database('members').where('user', userId).select('id').first()
+          memberId = member?.id
         } else {
           return res.status(401).json({ error: 'Authentication or email required' })
         }

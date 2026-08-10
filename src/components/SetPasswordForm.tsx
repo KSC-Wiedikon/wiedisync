@@ -40,6 +40,12 @@ export function SetPasswordForm({ title, description, email, onSuccess }: SetPas
       await kscwApi('/set-password', {
         method: 'POST',
         body: { password, ...(email ? { email } : {}) },
+        // With an email this is an OTP-verified claim of a NAMED account, so it
+        // must not carry whatever session the browser happens to hold — that
+        // ambient cookie is what made the endpoint resolve the logged-in user
+        // instead (member 263, 2026-08-10). Without an email it genuinely is
+        // "change my own password" and needs the session.
+        anonymous: !!email,
       })
       onSuccess()
     } catch (err: unknown) {
