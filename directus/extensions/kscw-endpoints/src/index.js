@@ -58,6 +58,7 @@ import { registerActivitiesWithParticipations } from './activities.js'
 import { writeUserLog } from './activity-log.js'
 import { clientIp } from './client-ip.js'
 import { registerSvLicence } from './sv-licence.js'
+import { registerLicenceStatus } from './licence-status.js'
 import { registerMigrationsStatus } from './migrations-status.js'
 import { registerSyncStatus } from './sync-status.js'
 import { registerAudit } from './audit.js'
@@ -2561,6 +2562,7 @@ export default {
     registerBroadcastRoutes(router, ctx)
     registerActivitiesWithParticipations(router, ctx)
     registerSvLicence(router, ctx)
+    registerLicenceStatus(router, ctx)
     registerMigrationsStatus(router, ctx)
     registerSyncStatus(router, ctx)
     registerHallenfinder(router, ctx)
