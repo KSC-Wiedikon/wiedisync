@@ -1187,4 +1187,11 @@ export default {
   trSaveFailed: 'Could not save',
   trEmptyTitle: 'Nothing to work through',
   trEmptyDescription: 'No open transfers and no open questions.',
+  // Licence status (migration 301) — buttons on an approved registration, and
+  // the explorer's filter row.
+  anmeldungenLicenceStatus: 'Licence status',
+  anmeldungenLicenceStatusHint: 'The member is notified. "Licenced" is normally set by the Swiss Volley / Basketplan sync.',
+  anmeldungenLicenceStatusSaved: 'Licence status saved',
+  anmeldungenLicenceStatusFailed: 'Could not save the licence status',
+  memberFilterSectionLicenceStatus: 'Licence status',
 } as const

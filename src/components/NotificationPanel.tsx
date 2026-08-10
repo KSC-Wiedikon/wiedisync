@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { ClipboardList, Clock, AlertTriangle, Trophy, Bell, ArrowRightLeft, BellRing, BellOff, UserPlus, Trash2, ChevronDown, X, Banknote, Megaphone } from 'lucide-react'
+import { ClipboardList, Clock, AlertTriangle, Trophy, Bell, ArrowRightLeft, BellRing, BellOff, UserPlus, Trash2, ChevronDown, X, Banknote, Megaphone, IdCard } from 'lucide-react'
 import type { Notification } from '../types'
 import { usePushNotifications } from '../hooks/usePushNotifications'
 
@@ -25,6 +25,7 @@ const typeIcons: Record<string, React.ReactNode> = {
   event_invite: <Bell className="h-4 w-4" />,
   expense_status: <Banknote className="h-4 w-4" />,
   announcement: <Megaphone className="h-4 w-4" />,
+  licence_status: <IdCard className="h-4 w-4" />,
 }
 
 const typeLabels: Record<string, string> = {
@@ -37,6 +38,7 @@ const typeLabels: Record<string, string> = {
   event_invite: 'eventInvite',
   expense_status: 'expenseStatus',
   announcement: 'announcement',
+  licence_status: 'licenceStatus',
 }
 
 function timeAgo(dateStr: string, t: (key: string, opts?: Record<string, unknown>) => string): string {
@@ -60,6 +62,8 @@ function getNavigationPath(n: Notification): string {
   if (n.type === 'expense_status' || n.activity_type === 'expense') return '/finance/expense'
   // Club news (announcement publish) → the news feed.
   if (n.type === 'announcement' || n.activity_type === 'announcement') return '/news'
+  // Licence status (migration 301) → the profile, where the card lives.
+  if (n.type === 'licence_status') return '/profile'
   switch (n.activity_type) {
     case 'game': return '/games'
     case 'training': return '/trainings'
@@ -80,6 +84,7 @@ export default function NotificationPanel({
 }: NotificationPanelProps) {
   const { t } = useTranslation('notifications')
   const { t: tMessaging } = useTranslation('messaging')
+  const { t: tCommon } = useTranslation('common')
   const navigate = useNavigate()
   const push = usePushNotifications()
 
@@ -160,6 +165,13 @@ export default function NotificationPanel({
       if (data.reason) {
         data.reason = tMessaging(`reportReason_${data.reason}`, { defaultValue: data.reason })
       }
+      // The licence-status row stores the raw code so the label follows the
+      // reader's locale rather than the sender's — same trick as reportReason
+      // above. Scoped by type: `status` is a common enough var name that a
+      // future notification could carry one meaning something else entirely.
+      if (n.type === 'licence_status' && data.status) {
+        data.status = tCommon(`licenceStatus_${data.status}`, { defaultValue: data.status })
+      }
       const noLocation = (!data.hall && !data.location) || (data.hall === '' && data.location == null) || (data.location === '' && data.hall == null)
       const key = noLocation && t(`${n.title}_no_hall`, { defaultValue: '' }) ? `${n.title}_no_hall` : n.title
       // Strip :SS seconds from legacy times (e.g. "19:00:00" → "19:00")
@@ -176,7 +188,7 @@ export default function NotificationPanel({
     for (const n of notifications) map.set(n.id, renderMessage(n))
     return map
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [notifications, t, tMessaging])
+  }, [notifications, t, tMessaging, tCommon])
 
   return (
     <div className="fixed inset-0 z-50" onClick={startClose}>

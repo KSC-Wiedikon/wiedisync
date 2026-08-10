@@ -343,4 +343,6 @@ export default {
   pwChanged: 'Passwort gänderet',
   pwChangedKeyKept: 'Passwort gänderet. Dis Uswiisdokumänt blibt läsbar.',
   pwKeyNotice: 'Wänn du dis Passwort da änderisch, blibt din Schlüssel erhalte und dis Uswiisdokumänt blibt läsbar. En Passwort-Reset per E-Mail macht das nöd — debii gaht de Schlüssel verlore und du muesch s Dokumänt no einisch ufelade.',
+  licenceStatusTitle: 'Lizänzstatus',
+  licenceStatusHelp: 'Wird vom Club gsetzt und vom Verband bestätigt. Mäld di bim Trainer, wänn öppis nöd stimmt.',
 } as const

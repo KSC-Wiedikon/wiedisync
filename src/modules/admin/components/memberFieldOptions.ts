@@ -131,6 +131,28 @@ export const MEMBER_SELECT_FIELDS: Record<string, MemberSelectField> = {
       { value: 'done', label: 'Done' },
     ],
   },
+  /**
+   * CHECK members_licence_status_values (migration 301). NOT NULL, DEFAULT
+   * 'none' — "no licence" is a real answer, so there is no empty state to
+   * offer and clearing it would 400.
+   *
+   * ⚠ Mirrors LICENCE_STATUSES in src/utils/licenceStatus.ts, the same list in
+   * kscw-endpoints/src/licence-status.js, and the Directus dropdown choices in
+   * migration 301. Four copies, one meaning — add a state to all four or to
+   * none. "Licenced" is offered by hand only so an admin can CORRECT the sync
+   * (a licence the register has not caught up with yet); the sweep is what
+   * normally sets it.
+   */
+  licence_status: {
+    nullable: false,
+    options: [
+      { value: 'none', label: 'No licence' },
+      { value: 'to_be_ordered', label: 'To be ordered' },
+      { value: 'ordered', label: 'Ordered' },
+      { value: 'finalized', label: 'Finalized' },
+      { value: 'licenced', label: 'Licenced' },
+    ],
+  },
 }
 
 /**

@@ -2,7 +2,8 @@
 //
 // The exact column list of `members` on PROD, in ordinal order, read from
 // information_schema on 2026-08-06 (100 columns), + the five fee-override
-// columns from migrations 299/300 (105):
+// columns from migrations 299/300 (105), + the four licence-status columns
+// from migration 301 (109):
 //
 //   ssh hetzner "sudo docker exec kscw-postgres psql -U supabase_admin -d postgres \
 //     -At -c \"select column_name from information_schema.columns \
@@ -126,4 +127,9 @@ export const MEMBERS_COLUMNS: string[] = [
   'fee_discount',
   'fee_discount_reason',
   'fee_discount_pct',
+  // Migration 301 — licence-ordering workflow. Staff-written, own-readable.
+  'licence_status',
+  'licence_status_season',
+  'licence_status_updated_at',
+  'licence_status_by_name',
 ]

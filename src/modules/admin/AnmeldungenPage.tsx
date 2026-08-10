@@ -12,6 +12,8 @@ import ClubdeskSyncUpModal from './components/ClubdeskSyncUpModal'
 import ClubdeskRegistrationZone from './components/ClubdeskRegistrationZone'
 import { Button } from '../../components/ui/button'
 import { formatDate } from '../../utils/dateHelpers'
+import { currentSeasonShort } from '../../utils/season'
+import { LICENCE_STATUSES, LICENCE_STATUS_BADGE, effectiveLicenceStatus } from '../../utils/licenceStatus'
 import { localizeCountryName } from '../../utils/countryName'
 import {
   countryNameDe, countryOptions,
@@ -63,6 +65,9 @@ interface Registration extends BaseRecord {
   kantonsschule: string | null
   locale: string | null
   rejection_reason: string | null
+  /** members.id, written by the approval hook when it creates or links the
+   *  member row. Null until then — nothing to hang a licence status on. */
+  member: number | null
   bb_situation: string | null
   bb_doc_lizenz: string | null
   bb_doc_freibrief: string | null
@@ -781,6 +786,88 @@ export default function AnmeldungenPage() {
 }
 
 // ── Expanded details ───────────────────────────────────────────
+/**
+ * Licence status, as buttons, on an approved registration (migration 301).
+ *
+ * WHY IT LIVES HERE. A brand-new member is exactly who needs a licence
+ * ordered, and this page is where somebody is already looking at them — going
+ * to find the same person again in the Data Explorer to move one field is the
+ * kind of friction that leaves the field permanently at "No licence".
+ *
+ * Buttons rather than the explorer's dropdown: this is a worklist, the states
+ * are five and ordered, and one tap beats open-select-pick-close when you are
+ * working down a list of new registrations.
+ *
+ * ⚠ Only on rows that already have a MEMBER. `registrations.member` is written
+ * by the approval hook when it creates or links the member row, so a pending
+ * registration has nobody to hang a status on — there is no member record to
+ * write to yet. The caller gates on that; this component states it too rather
+ * than rendering a dead control.
+ *
+ * The write goes through the plain items API, which is what makes the actor
+ * stamping and the member's notification happen: both hang off the
+ * `members.items.update` hook pair, so a bespoke endpoint here would silently
+ * skip them.
+ */
+function LicenceStatusButtons({ memberId, t }: { memberId: string; t: (key: string) => string }) {
+  const { t: tCommon } = useTranslation('common')
+  const { data: rows, refetch } = useCollection<{
+    id: string
+    licence_status?: string | null
+    licence_status_season?: string | null
+    licence_status_by_name?: string | null
+  }>('members', {
+    filter: { id: { _eq: memberId } },
+    fields: ['id', 'licence_status', 'licence_status_season', 'licence_status_by_name'],
+    limit: 1,
+  })
+  const member = rows?.[0]
+  const { status } = effectiveLicenceStatus(member)
+  const { mutate: updateMember, isPending } = useUpdate('members', {
+    onSuccess: () => { toast.success(t('anmeldungenLicenceStatusSaved')); refetch() },
+    onError: () => toast.error(t('anmeldungenLicenceStatusFailed')),
+  })
+
+  return (
+    <div className="mt-3 rounded-md border border-gray-200 px-3 py-2.5 dark:border-gray-700">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+          {t('anmeldungenLicenceStatus')}
+        </span>
+        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+          {currentSeasonShort()}
+        </span>
+        {member?.licence_status_by_name && (
+          <span className="text-[11px] text-gray-400 dark:text-gray-500">{member.licence_status_by_name}</span>
+        )}
+      </div>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {LICENCE_STATUSES.map((s) => {
+          const active = s === status
+          return (
+            <button
+              key={s}
+              type="button"
+              disabled={isPending || active}
+              onClick={() => updateMember({ id: memberId, data: { licence_status: s } })}
+              className={`inline-flex min-h-[44px] items-center rounded-md px-3 py-1.5 text-sm font-medium transition-colors disabled:cursor-default sm:min-h-0 ${
+                active
+                  ? LICENCE_STATUS_BADGE[s]
+                  : 'border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-40 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800'
+              }`}
+            >
+              {tCommon(`licenceStatus_${s}`)}
+            </button>
+          )
+        })}
+      </div>
+      <p className="mt-1.5 text-[11px] text-gray-400 dark:text-gray-500">
+        {t('anmeldungenLicenceStatusHint')}
+      </p>
+    </div>
+  )
+}
+
 function ExpandedDetails({
   reg,
   t,
@@ -1130,6 +1217,13 @@ function ExpandedDetails({
             {idDocs.map(renderDoc)}
           </div>
         </div>
+      )}
+
+      {/* Licence status — approved rows that already have a member row. The
+          approval hook writes `registrations.member`, so a pending row has no
+          member to write a status to. */}
+      {reg.status === 'approved' && reg.member != null && (
+        <LicenceStatusButtons memberId={String(reg.member)} t={t} />
       )}
 
       {/* ClubDesk sync zone — approved registrations only (superadmin; the

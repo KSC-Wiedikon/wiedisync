@@ -198,4 +198,10 @@ export default {
   filePreviewOpenTab: 'In neuem Tab öffnen',
   filePreviewDownload: 'Herunterladen',
   filePreviewAlt: 'Dokument',
+  // Lizenzstatus (Migration 301) — die fünf Schritte des Lizenz-Workflows.
+  licenceStatus_none: 'Keine Lizenz',
+  licenceStatus_to_be_ordered: 'Zu bestellen',
+  licenceStatus_ordered: 'Bestellt',
+  licenceStatus_finalized: 'Abgeschlossen',
+  licenceStatus_licenced: 'Lizenziert',
 } as const

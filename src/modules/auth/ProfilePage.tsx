@@ -24,6 +24,8 @@ import type { MemberTeam, Team, Absence, LicenceType, Fine } from '../../types'
 import { formatFineAmount } from '../../hooks/useFines'
 import { licencesOf } from '../../types'
 import { TRAINER_LICENCE_I18N_KEYS, parseTrainerLicences } from '../../utils/trainerLicences'
+import { LICENCE_STATUS_BADGE, effectiveLicenceStatus } from '../../utils/licenceStatus'
+import { currentSeasonShort } from '../../utils/season'
 import { updateRecord, deleteRecord } from '../../lib/api'
 import { asObj } from '../../utils/relations'
 
@@ -212,6 +214,11 @@ export default function ProfilePage() {
   const { user, coachTeamIds, primarySport, refreshTeamContext } = useAuth()
   const { t } = useTranslation('auth')
   const { t: tt } = useTranslation('teams')
+  const { t: tCommon } = useTranslation('common')
+  // Never the raw column: between the 1 June rollover and the sweep that
+  // follows it, `licence_status` still holds last season's answer, and a green
+  // "Licenced" badge outliving its licence is the whole failure this guards.
+  const licenceStatus = effectiveLicenceStatus(user)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [teamRequestOpen, setTeamRequestOpen] = useState(false)
   const [leavingTeam, setLeavingTeam] = useState<{ id: string; name: string } | null>(null)
@@ -539,6 +546,29 @@ export default function ProfilePage() {
                 <p className="mt-1 text-sm font-medium text-gray-900 dark:text-gray-100">—</p>
               )
             })()}
+          </div>
+          {/* Licence status (migration 301) — read-only for the member BY
+              DESIGN. This is the club's answer to "where has your licence got
+              to", not a claim the member gets to make about themselves; the
+              write lives with admins and with the federation sync. Shown to
+              everyone, both sports, because "No licence" is a real and useful
+              answer for a coach or a passive member, not an empty state. */}
+          <div className="rounded-lg border bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+            <div className="flex items-center gap-2">
+              <p className="text-sm text-gray-500 dark:text-gray-400">{t('licenceStatusTitle')}</p>
+              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+                {currentSeasonShort()}
+              </span>
+            </div>
+            <div className="mt-1.5 flex flex-wrap items-center gap-2">
+              <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${LICENCE_STATUS_BADGE[licenceStatus.status]}`}>
+                {tCommon(`licenceStatus_${licenceStatus.status}`)}
+              </span>
+              {licenceStatus.status === 'licenced' && user.licence_status_by_name && (
+                <span className="text-xs text-gray-500 dark:text-gray-400">{user.licence_status_by_name}</span>
+              )}
+            </div>
+            <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{t('licenceStatusHelp')}</p>
           </div>
         </div>
       </div>

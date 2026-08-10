@@ -1144,4 +1144,9 @@ export default {
   errorLogsDisable: 'Désactiver',
   errorLogsDelete: 'Supprimer',
   errorLogsCancel: 'Annuler',
+  anmeldungenLicenceStatus: 'Statut de licence',
+  anmeldungenLicenceStatusHint: 'Le membre est notifié. « Licenciée » est normalement défini par la synchronisation Swiss Volley / Basketplan.',
+  anmeldungenLicenceStatusSaved: 'Statut de licence enregistré',
+  anmeldungenLicenceStatusFailed: "Impossible d'enregistrer le statut de licence",
+  memberFilterSectionLicenceStatus: 'Statut de licence',
 } as const

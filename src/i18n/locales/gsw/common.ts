@@ -198,4 +198,10 @@ export default {
   filePreviewOpenTab: 'I nöiem Tab uufmache',
   filePreviewDownload: 'Abelade',
   filePreviewAlt: 'Dokumänt',
+  // Lizänzstatus (Migration 301) — di föif Schritt vom Lizänz-Ablauf.
+  licenceStatus_none: 'Kei Lizänz',
+  licenceStatus_to_be_ordered: 'Zum Bstelle',
+  licenceStatus_ordered: 'Bstellt',
+  licenceStatus_finalized: 'Fertig',
+  licenceStatus_licenced: 'Lizenziert',
 } as const

@@ -1,3 +1,7 @@
+import type { LicenceStatus } from '../utils/licenceStatus'
+
+export type { LicenceStatus }
+
 export interface BaseRecord {
   id: string
   created?: string
@@ -164,6 +168,18 @@ export interface Member extends BaseRecord {
    *  `parseTrainerLicences()` from src/utils/trainerLicences.ts — never split
    *  it by hand, the helper also drops corrupt tokens and fixes the order. */
   trainer_licences?: string | null
+  /** Club licence-ordering workflow for `licence_status_season` (migration 301).
+   *  Staff-written: own-readable, never member-editable. `licenced` is asserted
+   *  only by the Swiss Volley / Basketplan sweep, which promotes but never
+   *  demotes. ⚠ Never read this raw for display — a stamp from last season is
+   *  still sitting in the column until the nightly sweep resets it. Go through
+   *  `effectiveLicenceStatus()` in src/utils/licenceStatus.ts. */
+  licence_status?: LicenceStatus | null
+  /** The season `licence_status` describes, short form ("2026/27"). */
+  licence_status_season?: string | null
+  licence_status_updated_at?: string | null
+  /** Who last moved it — a person, or "Swiss Volley sync" / "Basketplan sync". */
+  licence_status_by_name?: string | null
   coach_approved_team: boolean
   requested_team: string
   language: 'english' | 'german' | 'french' | 'italian' | 'swiss_german' | ''
@@ -1068,7 +1084,7 @@ export interface ScorerDelegation extends BaseRecord {
 
 export interface Notification extends BaseRecord {
   member: string
-  type: 'activity_change' | 'upcoming_activity' | 'deadline_reminder' | 'result_available' | 'duty_delegation_request' | 'member_join_request' | 'poll_created' | 'event_invite' | 'new_report' | 'form_published' | 'form_submission' | 'form_reminder' | 'expense_status' | 'announcement'
+  type: 'activity_change' | 'upcoming_activity' | 'deadline_reminder' | 'result_available' | 'duty_delegation_request' | 'member_join_request' | 'poll_created' | 'event_invite' | 'new_report' | 'form_published' | 'form_submission' | 'form_reminder' | 'expense_status' | 'announcement' | 'licence_status'
   title: string
   body: string
   activity_type: 'game' | 'training' | 'event' | 'scorer_duty' | 'team' | 'poll' | 'report' | 'form' | 'expense' | 'announcement' | ''
