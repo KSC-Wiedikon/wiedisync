@@ -544,11 +544,20 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     payload.licence_status_season = season
     payload.licence_status_updated_at = new Date()
 
+    // Actor, best available name. The members row is the one worth having (it
+    // is the name every other surface shows), but a write can legitimately come
+    // from a login with no member row — the Directus admin service account, an
+    // API token — and stamping those "Unknown user" throws away an answerable
+    // audit trail for no reason. Fall back to directus_users, then the email.
     const userId = context?.accountability?.user
     let who = 'System'
     if (userId) {
       const actor = await database('members').where('user', userId).first('first_name', 'last_name')
-      who = [actor?.first_name, actor?.last_name].filter(Boolean).join(' ').trim() || 'Unknown user'
+      who = [actor?.first_name, actor?.last_name].filter(Boolean).join(' ').trim()
+      if (!who) {
+        const du = await database('directus_users').where('id', userId).first('first_name', 'last_name', 'email')
+        who = [du?.first_name, du?.last_name].filter(Boolean).join(' ').trim() || du?.email || `User ${userId}`
+      }
     }
     payload.licence_status_by_name = who
 
