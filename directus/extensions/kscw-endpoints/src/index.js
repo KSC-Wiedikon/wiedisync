@@ -58,6 +58,7 @@ import { registerActivitiesWithParticipations } from './activities.js'
 import { writeUserLog } from './activity-log.js'
 import { clientIp } from './client-ip.js'
 import { registerSvLicence } from './sv-licence.js'
+import { registerLicenceStatus } from './licence-status.js'
 import { registerMigrationsStatus } from './migrations-status.js'
 import { registerSyncStatus } from './sync-status.js'
 import { registerAudit } from './audit.js'
@@ -241,6 +242,20 @@ function str(v, max) {
   return typeof v === 'string' ? v.slice(0, max) : null
 }
 
+/**
+ * Server-side mirror of `redactTokens` in `src/lib/sentry.ts`. The client
+ * redacts before sending, but this endpoint is unauthenticated and accepts
+ * whatever it is given — including from the kscw-website logger and from an
+ * older cached bundle that predates the client-side fix. A capability token
+ * must not reach a 30-day log file just because the sender was out of date
+ * (audit 2026-08-08, finding 14).
+ *
+ * ⚠ Keep the pattern in step with the frontend copy.
+ */
+function redactTokens(v) {
+  return typeof v === 'string' ? v.replace(/\/([0-9a-f]{16,})(?![0-9a-f])/gi, '/:token') : v
+}
+
 function capPayload(payload, max = 500) {
   if (payload == null) return null
   try {
@@ -337,12 +352,12 @@ export default {
           operation: str(body.operation, 100),
           collection: str(body.collection, 100),
           recordId: str(body.recordId, 100),
-          endpoint: str(body.endpoint, 300),
+          endpoint: redactTokens(str(body.endpoint, 300)),
           method: str(body.method, 100),
           // A non-numeric `status` is not a status. Coerce rather than store it.
           status: Number.isFinite(Number(body.status)) ? Number(body.status) : null,
           action: str(body.action, 100),
-          page: str(body.page, 300),
+          page: redactTokens(str(body.page, 300)),
           userAgent: str(body.userAgent, 300),
           responseBody: typeof body.responseBody === 'string' ? body.responseBody.slice(0, 1000) : null,
           // Cap payload size — uncapped attacker-controlled payloads can fill
@@ -2561,6 +2576,7 @@ export default {
     registerBroadcastRoutes(router, ctx)
     registerActivitiesWithParticipations(router, ctx)
     registerSvLicence(router, ctx)
+    registerLicenceStatus(router, ctx)
     registerMigrationsStatus(router, ctx)
     registerSyncStatus(router, ctx)
     registerHallenfinder(router, ctx)
