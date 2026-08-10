@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useTheme } from '../../hooks/useTheme'
-import { kscwApi } from '../../lib/api'
+import { kscwApi, logout as apiLogout } from '../../lib/api'
 import { FormInput } from '@/components/FormField'
 import { Button } from '@/components/ui/button'
 import { useTurnstile } from '../../lib/turnstile'
@@ -128,7 +128,17 @@ export default function SetPasswordPage() {
         // A reset token authenticates the request on its own; the OTP flow
         // identifies the account by the address it just verified.
         body: resetToken ? { password, token: resetToken } : { password, email: email.trim().toLowerCase() },
+        // Send NO session. This page is always recovering a *named* account, and
+        // an ambient cookie made the endpoint resolve the logged-in user instead
+        // — so a member who was still signed in reset their own password and the
+        // emailed token went unused (member 263, 2026-08-10).
+        anonymous: true,
       })
+      // Whatever session this browser held is gone: the endpoint just changed a
+      // password, which invalidates it server-side. Drop the local auth state so
+      // the app shows the login form instead of loading a member page with a
+      // dead token and firing a 401 per query.
+      await apiLogout()
       setPhase('success')
     } catch (err) {
       const code = (err as Error & { code?: string }).code

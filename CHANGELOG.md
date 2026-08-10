@@ -7,6 +7,7 @@ All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file 
 ### Forgot password works again
 - **"Forgot password" could not reset a password.** It sent you an 8-digit code, took the code, asked for a new password — and then said the link was invalid or expired. There was no link and nothing had expired: the code path is only able to set a *first* password, so for anyone who already had one it refused at the last step, and the message named the wrong cause. People read it as a broken email and requested code after code. Forgot password now emails you a **reset link** instead, which works whether or not you have a password already. If you have never set one, "Use a code instead" is one click below.
 - **The "Reset password" button on your own profile said it had failed.** It reported an error every time even though the email had already been sent — so the mail arrived while the screen said it had not.
+- **Resetting while still signed in changed the wrong account.** If you were already logged in on that browser, opening a reset link set the password of *the account that was signed in* and quietly ignored the link — so on a shared computer, following someone else's reset email changed your own password instead of theirs. The app then kept running on a login that had just been invalidated, so the next page filled with errors until you signed in again. A reset now always acts on the account the link or the code names, and signs the browser out cleanly when it is done.
 
 ## v1.75.0 — 2026-08-10
 
