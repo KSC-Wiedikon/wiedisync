@@ -83,7 +83,7 @@ If a future change tempts you to add a permission row in a numbered SQL file: st
 ## Domains
 - `kscw.ch` — Public website (Astro, CF Pages project `kscw-website`) since the 2026-06-18 cutover — no longer ClubDesk. `kscw-website.pages.dev` 302-redirects here (`functions/_middleware.js` in that repo).
 - `wiedisync.kscw.ch` — React prod, CF Pages `wiedisync` (`prod` branch) → `directus.kscw.ch`
-- `wiedisync.pages.dev` — React dev, CF Pages (`dev` branch) → `directus-dev.kscw.ch` (auto-detected in `src/lib/api.ts`)
+- `dev.wiedisync.pages.dev` — React dev, CF Pages (`dev` branch) → `directus-dev.kscw.ch` (auto-detected in `src/lib/api.ts`). ⚠ **`wiedisync.pages.dev` (no `dev.` prefix) is the PROD-branch alias, not dev** — it serves the same build as `wiedisync.kscw.ch`. It still talks to `directus-dev.kscw.ch`, because `api.ts` pins prod Directus by hostname (`host === 'wiedisync.kscw.ch'`) and a `pages.dev` origin is not in that list — so it is prod code against dev data. ⚠⚠ **Never verify a prod deploy against it**: it tracks the project's production deployment and is correct even when the real hostname is not (2026-08-11 froze for ~3 releases; INFRA.md → Troubleshooting).
 - `spielplanung.wiedisync.kscw.ch` — Spielplanung standalone app (own CF Pages project; built via `npm run build:scheduling` / `VITE_APP_TARGET=scheduling`; cookie-session SSO from the member app). In-app `/admin/spielplanung|terminplanung` routes redirect here.
 - `directus.kscw.ch` / `directus-dev.kscw.ch` — Directus API prod/dev (plain Docker on Hetzner, not Coolify)
 - `kscw-website.pages.dev` — CF Pages project behind `kscw.ch`. Dev-first like wiedisync (`dev` branch → preview, `prod` branch → live at `kscw.ch`); promote `dev` → `prod` with user approval.
