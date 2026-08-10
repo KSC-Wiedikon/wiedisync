@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-08-10T09:57:25.270Z
+-- Generated:   2026-08-10T10:35:20.881Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -23,7 +23,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict Rww7J9chRHLbKVZMDXB5ltKFl1scp7NIuBdGYad57XCQTD86K31ggGaO8zJEv20
+\restrict gMTtbdUQOBROniF9dgj2I53jabTTy0uQvVKN7ezSb6xk5hFeDIZSg30yO9N6CMJ
 
 -- Dumped from database version 16.14 (Debian 16.14-1.pgdg13+1)
 -- Dumped by pg_dump version 16.14 (Debian 16.14-1.pgdg13+1)
@@ -6637,12 +6637,14 @@ CREATE TABLE public.members (
     profile_verified_at timestamp with time zone,
     trainer_licences character varying(20),
     fee_base_override numeric(10,2),
-    fee_surcharge_override numeric(10,2),
     fee_discount numeric(10,2),
     fee_discount_reason character varying(120),
+    fee_surcharge_override boolean,
+    fee_discount_pct numeric(5,2),
     CONSTRAINT members_federation_of_origin_fmt CHECK (((federation_of_origin IS NULL) OR ((federation_of_origin)::text = 'NONE'::text) OR ((federation_of_origin)::text ~ '^[A-Z]{2}$'::text))),
+    CONSTRAINT members_fee_discount_one_unit CHECK (((fee_discount IS NULL) OR (fee_discount_pct IS NULL))),
     CONSTRAINT members_fee_discount_reason_nonblank CHECK (((fee_discount_reason IS NULL) OR (btrim((fee_discount_reason)::text) <> ''::text))),
-    CONSTRAINT members_fee_override_range CHECK ((((fee_base_override IS NULL) OR ((fee_base_override >= (0)::numeric) AND (fee_base_override <= (10000)::numeric))) AND ((fee_surcharge_override IS NULL) OR ((fee_surcharge_override >= (0)::numeric) AND (fee_surcharge_override <= (10000)::numeric))) AND ((fee_discount IS NULL) OR ((fee_discount >= (0)::numeric) AND (fee_discount <= (10000)::numeric))))),
+    CONSTRAINT members_fee_override_range CHECK ((((fee_base_override IS NULL) OR ((fee_base_override >= (0)::numeric) AND (fee_base_override <= (10000)::numeric))) AND ((fee_discount IS NULL) OR ((fee_discount >= (0)::numeric) AND (fee_discount <= (10000)::numeric))) AND ((fee_discount_pct IS NULL) OR ((fee_discount_pct >= (0)::numeric) AND (fee_discount_pct <= (100)::numeric))))),
     CONSTRAINT members_license_nr_fmt CHECK (((license_nr IS NULL) OR (((license_nr)::text ~ '^[0-9]+$'::text) AND ((license_nr)::text <> '0'::text)))),
     CONSTRAINT members_nationalitaet_codes_fmt CHECK (((nationalitaet_codes IS NULL) OR ((nationalitaet_codes)::text ~ '^[A-Z]{2}(,[A-Z]{2})*$'::text))),
     CONSTRAINT members_role_values_valid CHECK ((role <@ '["user", "admin", "superuser", "vb_admin", "bb_admin", "vorstand", "website_admin", "finance"]'::jsonb)),
@@ -7065,13 +7067,6 @@ COMMENT ON COLUMN public.members.fee_base_override IS 'Per-member Mitgliederbeit
 
 
 --
--- Name: COLUMN members.fee_surcharge_override; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.fee_surcharge_override IS 'Per-member CHF no-Schreiberlizenz surcharge, overriding the rule (CHF 100 when the member owes table duty — adult category, or youth category and U16+ — and holds no scorer/OTR licence). NULL = apply the rule. 0 explicitly waives it, which is what the club previously did as a post-hoc write-off on 47 invoices. Consumed by feeBreakdown().';
-
-
---
 -- Name: COLUMN members.fee_discount; Type: COMMENT; Schema: public; Owner: -
 --
 
@@ -7083,6 +7078,20 @@ COMMENT ON COLUMN public.members.fee_discount IS 'Standing per-member reduction 
 --
 
 COMMENT ON COLUMN public.members.fee_discount_reason IS 'Label printed as the credit line on the invoice when fee_discount applies. NULL = the run''s wording, default "Rabatt".';
+
+
+--
+-- Name: COLUMN members.fee_surcharge_override; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.fee_surcharge_override IS 'Does this member owe the CHF 100 no-Schreiberlizenz surcharge? NULL = apply the rule (adult fee category, or youth category and U16+, and no scorer/OTR licence), which is the normal case and stays live as licences change. true = charge it regardless. false = waive it, which is what the club used to do as a post-hoc write-off on 47 invoices. Consumed by feeBreakdown(); the amount itself is NO_LICENCE_SURCHARGE in kscw-endpoints/src/clubdesk-update.js, never stored per member.';
+
+
+--
+-- Name: COLUMN members.fee_discount_pct; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.fee_discount_pct IS 'Standing per-member reduction as a PERCENTAGE (0-100) of what is owed after base + surcharge - guest reduction. Mutually exclusive with fee_discount (CHF) — the CHECK members_fee_discount_one_unit enforces it. Percent rather than the CHF it equals today, so a season rate change carries the intent instead of freezing yesterday''s number. A per-RUN discount passed to /finance/dues-runs/* still wins over both.';
 
 
 --
@@ -15559,5 +15568,5 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict Rww7J9chRHLbKVZMDXB5ltKFl1scp7NIuBdGYad57XCQTD86K31ggGaO8zJEv20
+\unrestrict gMTtbdUQOBROniF9dgj2I53jabTTy0uQvVKN7ezSb6xk5hFeDIZSg30yO9N6CMJ
 
