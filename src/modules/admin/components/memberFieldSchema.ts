@@ -305,7 +305,7 @@ const MEMBERSHIP = block('membership', undefined, [
     // table below — one chip field cannot express three relation types without
     // a role picker per chip.
     key: TEAMS_VIRTUAL_KEY, label: 'Teams (player)', kind: 'teamMulti', virtual: true,
-    help: 'Roster memberships only. Coach and team-responsible links are shown in the relations table below and are edited there.',
+    help: 'Roster memberships only, across every season — a team row is per season, so the same team name appears once per year the member played it. Coach and team-responsible links are shown in the relations table below and are edited there.',
   },
   {
     key: 'requested_team', label: 'Requested team', kind: 'team',
