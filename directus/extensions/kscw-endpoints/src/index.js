@@ -55,6 +55,7 @@ import { registerMessaging } from './messaging.js'
 import { registerBroadcastRoutes } from './broadcast.js'
 import { registerActivitiesWithParticipations } from './activities.js'
 import { writeUserLog } from './activity-log.js'
+import { clientIp } from './client-ip.js'
 import { registerSvLicence } from './sv-licence.js'
 import { registerMigrationsStatus } from './migrations-status.js'
 import { registerSyncStatus } from './sync-status.js'
@@ -210,7 +211,7 @@ function requireAuth(req, log) {
         msg: 'Authentication required — unauthenticated request blocked',
         endpoint: req.path,
         method: req.method,
-        ip: req.ip || req.headers?.['x-forwarded-for'] || 'unknown',
+        ip: clientIp(req),
       })
     }
     logAuthDenial(req.path, req, 'auth_required')
@@ -227,6 +228,18 @@ function requireAuth(req, log) {
  * - objects/arrays: JSON-serialised then truncated
  * - everything else: stringified + truncated
  */
+/**
+ * Coerce an untrusted value to a bounded string, or null.
+ *
+ * Anything that is not already a string becomes null rather than being
+ * stringified — an object here would land in the log as "[object Object]" at
+ * best, and `JSON.stringify` of a deep structure at worst, which is the size
+ * problem this exists to prevent.
+ */
+function str(v, max) {
+  return typeof v === 'string' ? v.slice(0, max) : null
+}
+
 function capPayload(payload, max = 500) {
   if (payload == null) return null
   try {
@@ -243,7 +256,7 @@ function capPayload(payload, max = 500) {
  * The map self-cleans when it grows past 1k entries.
  */
 function ipRateLimit(map, req, maxAttempts, windowMs) {
-  const ip = req.ip || req.headers?.['x-forwarded-for'] || 'unknown'
+  const ip = clientIp(req)
   const now = Date.now()
   const entry = map.get(ip)
   if (entry && now < entry.resetAt) {
@@ -275,7 +288,7 @@ export default {
     router.post('/client-error', (req, res) => {
       try {
         // Rate limit: 30 errors per minute per IP
-        const ip = req.ip || req.headers['x-forwarded-for'] || 'unknown'
+        const ip = clientIp(req)
         const now = Date.now()
         const ipEntry = clientErrorIp.get(ip)
         if (ipEntry && now < ipEntry.resetAt) {
@@ -306,18 +319,30 @@ export default {
           // known levels are honoured; anything else is an error.
           level: body.level === 'warn' ? 'warn' : 'error',
           source: 'frontend',
-          project: body.project || 'wiedisync',
-          event: body.event || 'client_error',
+          // Every one of these is attacker-controlled on an UNAUTHENTICATED route
+          // (kscw-website's error-logger posts here anonymously). `capPayload`
+          // was added in 2026-05-06 for exactly this reason but covered only
+          // `payload` and `responseBody`, so eleven siblings were copied raw into
+          // a JSONL file with no line ceiling: one request with a 1 MB
+          // `userAgent` appends 1 MB to a bind mount that shares the 160 GB disk
+          // with Postgres (audit 2026-08-08, finding 11). Below disk exhaustion
+          // it still bricks incident response, because the admin read routes
+          // readFileSync whole day-files and one oversized file throws
+          // ERR_STRING_TOO_LONG for every date. Coerce type AND length here;
+          // writeErrorLog enforces a total-line ceiling as the backstop.
+          project: str(body.project, 100) || 'wiedisync',
+          event: str(body.event, 100) || 'client_error',
           userId: req.accountability?.user || null,
-          operation: body.operation || null,
-          collection: body.collection || null,
-          recordId: body.recordId || null,
-          endpoint: body.endpoint || null,
-          method: body.method || null,
-          status: body.status || null,
-          action: body.action || null,
-          page: body.page || null,
-          userAgent: body.userAgent || null,
+          operation: str(body.operation, 100),
+          collection: str(body.collection, 100),
+          recordId: str(body.recordId, 100),
+          endpoint: str(body.endpoint, 300),
+          method: str(body.method, 100),
+          // A non-numeric `status` is not a status. Coerce rather than store it.
+          status: Number.isFinite(Number(body.status)) ? Number(body.status) : null,
+          action: str(body.action, 100),
+          page: str(body.page, 300),
+          userAgent: str(body.userAgent, 300),
           responseBody: typeof body.responseBody === 'string' ? body.responseBody.slice(0, 1000) : null,
           // Cap payload size — uncapped attacker-controlled payloads can fill
           // the JSONL log over time (30 req/min × big payload × 30 days).
@@ -402,7 +427,7 @@ export default {
     router.post('/check-email', async (req, res) => {
       try {
         // Rate limit: max 10 requests per minute per IP
-        const ip = req.ip || req.headers['x-forwarded-for'] || 'unknown'
+        const ip = clientIp(req)
         const now = Date.now()
         const attempts = checkEmailIpAttempts.get(ip) || []
         const recentAttempts = attempts.filter(t => now - t < 60000)
@@ -1281,7 +1306,7 @@ export default {
         const email = rawEmail.toLowerCase().trim()
 
         // Rate limit: max 10 OTP requests per hour per IP
-        const ip = req.ip || req.headers['x-forwarded-for'] || 'unknown'
+        const ip = clientIp(req)
         const now = Date.now()
         const ipAttempt = otpIpAttempts.get(ip)
         if (ipAttempt && now < ipAttempt.resetAt) {

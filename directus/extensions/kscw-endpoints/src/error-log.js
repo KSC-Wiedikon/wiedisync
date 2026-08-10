@@ -37,13 +37,61 @@ function getLogPath() {
  * Append a structured error entry to the JSONL log file.
  * Non-blocking — errors in logging itself are silently ignored.
  */
+/**
+ * Hard ceiling for a single log line. Well above any genuine entry (the largest
+ * real ones are a few KB of stack), far below anything that could fill a disk.
+ */
+const MAX_LINE_BYTES = 16 * 1024
+
+/**
+ * Hard ceiling for one day-file. The admin read routes `readFileSync` whole
+ * files, so a file past ~512 MB throws ERR_STRING_TOO_LONG and takes the entire
+ * error-log UI down for every date, not just the oversized one. 64 MB is ~40×
+ * the busiest real month (legitimate logs run ~1.4 MB across 30 days) and leaves
+ * the reader far inside its limits.
+ */
+const MAX_FILE_BYTES = 64 * 1024 * 1024
+
+/**
+ * Append a structured error entry to the JSONL log file.
+ * Non-blocking — errors in logging itself are silently ignored.
+ *
+ * The two ceilings below are a BACKSTOP, not the primary control: callers are
+ * expected to bound their own untrusted fields (see `/kscw/client-error`). They
+ * exist because this function is reachable from an unauthenticated route and
+ * writes to a bind mount that shares a disk with Postgres, so "a caller forgot
+ * to cap a field" must not be able to become "the database ran out of space"
+ * (audit 2026-08-08, finding 11).
+ */
 export function writeErrorLog(entry) {
   try {
-    const line = JSON.stringify({
+    let line = JSON.stringify({
       ts: new Date().toISOString(),
       ...entry,
     }) + '\n'
-    fs.appendFile(getLogPath(), line, () => {})
+
+    if (Buffer.byteLength(line) > MAX_LINE_BYTES) {
+      // Keep the entry — a truncated error is still a signal, and dropping it
+      // would let an attacker erase their own traces by padding a field.
+      line = JSON.stringify({
+        ts: new Date().toISOString(),
+        level: entry?.level === 'warn' ? 'warn' : 'error',
+        source: entry?.source ?? null,
+        project: typeof entry?.project === 'string' ? entry.project.slice(0, 100) : null,
+        event: typeof entry?.event === 'string' ? entry.event.slice(0, 100) : null,
+        userId: entry?.userId ?? null,
+        error: typeof entry?.error === 'string' ? entry.error.slice(0, 1000) : null,
+        truncated: true,
+        original_bytes: Buffer.byteLength(line),
+      }) + '\n'
+    }
+
+    const logPath = getLogPath()
+    try {
+      if (fs.statSync(logPath).size > MAX_FILE_BYTES) return
+    } catch { /* file does not exist yet — nothing to check */ }
+
+    fs.appendFile(logPath, line, () => {})
   } catch { /* never block the request for logging */ }
 }
 
