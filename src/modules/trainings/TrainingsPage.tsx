@@ -1,6 +1,9 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import { useAuth } from '../../hooks/useAuth'
+import { useDeepLinkedActivity, DEEP_LINK_FIELDS } from '../../hooks/useDeepLinkedActivity'
 import { useAdminMode } from '../../hooks/useAdminMode'
 import { useActivitiesWithParticipations } from '../../lib/query'
 import { useRealtime } from '../../hooks/useRealtime'
@@ -12,6 +15,7 @@ import VolleyballIcon from '../../components/VolleyballIcon'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import ParticipationRosterModal from '../../components/ParticipationRosterModal'
 import TrainingCard from './TrainingCard'
+import TrainingDetailModal from './TrainingDetailModal'
 import TrainingForm from './TrainingForm'
 import RecurringTrainingModal from './RecurringTrainingModal'
 import RecurringEditDialog from './RecurringEditDialog'
@@ -39,6 +43,7 @@ type TrainingExpanded = Training & {
 
 export default function TrainingsPage() {
   const { t } = useTranslation('trainings')
+  const { t: tc } = useTranslation('common')
   const { user, isCoach, isCoachOf, memberTeamIds, coachTeamIds, teamsLoading } = useAuth()
   // Merge member + coach teams for visibility
   const allUserTeamIds = useMemo(() => [...new Set([...memberTeamIds, ...coachTeamIds])], [memberTeamIds, coachTeamIds])
@@ -46,6 +51,23 @@ export default function TrainingsPage() {
   const [selectedTeam, setSelectedTeam] = useState<string | null>(null)
   const [autoSelected, setAutoSelected] = useState(false)
   const [showPast, setShowPast] = useState(false)
+
+  // ── Share link (`/trainings/:trainingId`) ──────────────────────────
+  //
+  // The list renders RSVP inline on each card and has no detail modal of its
+  // own, so a link opens the same TrainingDetailModal the home page uses. The
+  // page's team filter and "show past" are bypassed by the by-id fetch.
+  const { trainingId } = useParams()
+  const navigate = useNavigate()
+  const { item: linkedTraining, notFound: linkedTrainingMissing } = useDeepLinkedActivity<TrainingExpanded>(
+    'trainings', trainingId, [...DEEP_LINK_FIELDS.trainings],
+  )
+  useEffect(() => {
+    if (linkedTrainingMissing) {
+      toast.error(tc('linkNotAvailable'))
+      navigate('/trainings', { replace: true })
+    }
+  }, [linkedTrainingMissing, navigate, tc])
 
   const today = useMemo(() => todayLocal(), [])
 
@@ -320,6 +342,11 @@ export default function TrainingsPage() {
           : t('participation')}
         showRsvpTime={rosterTraining?.showRsvpTime}
         excludedGuestLevels={rosterTraining?.excludedGuestLevels}
+      />
+
+      <TrainingDetailModal
+        training={linkedTraining}
+        onClose={() => navigate('/trainings', { replace: true })}
       />
     </div>
   )

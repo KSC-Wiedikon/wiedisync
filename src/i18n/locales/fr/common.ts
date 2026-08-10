@@ -188,6 +188,9 @@ export default {
 
   // ── Backfilled 2026-07-27 — fr/it catch-up (was rendering in English) ──
   copied: 'Copié !',
+  copyFailed: 'Le lien n\'a pas pu être copié',
+  shareLink: 'Partager le lien',
+  linkNotAvailable: 'Ce lien n\'est plus disponible pour toi',
 
   // Puces de destinataires (composition d'e-mail)
   emailChipsPlaceholder: 'Saisis ou colle des adresses',

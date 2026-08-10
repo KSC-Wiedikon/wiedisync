@@ -188,6 +188,9 @@ export default {
 
   // ── Backfilled 2026-07-27 — fr/it catch-up (was rendering in English) ──
   copied: 'Copiato!',
+  copyFailed: 'Non è stato possibile copiare il link',
+  shareLink: 'Condividi link',
+  linkNotAvailable: 'Questo link non è più disponibile per te',
 
   // Chip destinatari (composizione e-mail)
   emailChipsPlaceholder: 'Digita o incolla gli indirizzi',

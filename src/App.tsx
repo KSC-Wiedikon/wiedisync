@@ -179,10 +179,16 @@ export default function App() {
             <Route index element={<AuthRoute><HomePage /></AuthRoute>} />
             <Route path="calendar" element={<AuthRoute><CalendarPage /></AuthRoute>} />
             <Route path="games" element={<GamesPage />} />
+            {/* Share links. Behind AuthRoute even for games, whose list is public:
+                the detail modal carries the RSVP roster, so the link must not
+                widen what an anonymous visitor can read. AuthRoute sends them
+                through /login?next=… and back here. */}
+            <Route path="games/:gameId" element={<AuthRoute><GamesPage /></AuthRoute>} />
             {/* Public spectator page — no AuthRoute. Most viewers in the hall are
                 not logged in, and `live_scores` is granted to the Public policy. */}
             <Route path="live" element={<LivePage />} />
             <Route path="trainings" element={<AuthRoute><TrainingsPage /></AuthRoute>} />
+            <Route path="trainings/:trainingId" element={<AuthRoute><TrainingsPage /></AuthRoute>} />
             <Route path="absences" element={<AuthRoute><AbsencesPage /></AuthRoute>} />
             <Route path="scorer" element={<AuthRoute><ScorerPage /></AuthRoute>} />
             <Route path="teams" element={<AuthRoute><TeamsPage /></AuthRoute>} />
@@ -190,6 +196,7 @@ export default function App() {
             <Route path="teams/:teamSlug/roster/edit" element={<AuthRoute><RosterEditor /></AuthRoute>} />
             <Route path="teams/player/:memberId" element={<AuthRoute><PlayerProfile /></AuthRoute>} />
             <Route path="events" element={<AuthRoute><EventsPage /></AuthRoute>} />
+            <Route path="events/:eventId" element={<AuthRoute><EventsPage /></AuthRoute>} />
             <Route path="forms" element={<AuthRoute><FormsPage /></AuthRoute>} />
             <Route path="js-export" element={<AuthRoute><Suspense fallback={null}><JsExportPage /></Suspense></AuthRoute>} />
             <Route path="forms/new" element={<AuthRoute><FormBuilderPage /></AuthRoute>} />

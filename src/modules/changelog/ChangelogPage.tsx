@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '1.77.0'
+const APP_VERSION = '1.78.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,21 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.78.0',
+    date: '11.08.2026',
+    sections: [
+      {
+        title: 'Share a link to any event, training or game',
+        items: [
+          'You can now send someone straight to an event. Every event, training and game has a share button that copies a link opening that exact item in Wiedisync — so "you can sign up for this, here you go" is one message, instead of "open the app, go to Events, scroll down to Saturday". On a phone it opens your normal share sheet, so it goes straight into WhatsApp or a mail.',
+          'The link still works when you are not logged in. Following one while signed out used to take you to the login screen and then dump you on the home page, with no idea what you had been sent. It now takes you to the login screen and straight on to the event.',
+          'Notifications open the thing they are about. Tapping a notification used to leave you on the list page — often filtered so the item it was telling you about was not even on screen. It now opens the item itself.',
+          'A link only works for people who could already see it. Sending a team\'s training link to somebody outside that team does nothing, and the link never gives away what it pointed at.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.77.0',
     date: '10.08.2026',

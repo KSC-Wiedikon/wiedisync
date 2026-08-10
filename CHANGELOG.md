@@ -2,6 +2,15 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.78.0 — 2026-08-11
+
+### Share a link to any event, training or game
+
+- **You can now send someone straight to an event.** Every event, training and game has a share button that copies a link opening that exact item in Wiedisync — so "you can sign up for this, here you go" is one message, instead of "open the app, go to Events, scroll down to Saturday". On a phone it opens your normal share sheet, so it goes straight into WhatsApp or a mail.
+- **The link still works when you are not logged in.** Following one while signed out used to take you to the login screen and then dump you on the home page, with no idea what you had been sent. It now takes you to the login screen and straight on to the event.
+- **Notifications open the thing they are about.** Tapping a notification used to leave you on the list page — often filtered so the item it was telling you about was not even on screen. It now opens the item itself.
+- **A link only works for people who could already see it.** Sending a team's training link to somebody outside that team does nothing, and the link never gives away what it pointed at.
+
 ## v1.77.0 — 2026-08-10
 
 ### Security and privacy hardening

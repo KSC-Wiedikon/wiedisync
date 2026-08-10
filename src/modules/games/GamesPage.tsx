@@ -1,7 +1,9 @@
-import { useState, useMemo } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useEffect, useState, useMemo } from 'react'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import { useAuth } from '../../hooks/useAuth'
+import { useDeepLinkedActivity, DEEP_LINK_FIELDS } from '../../hooks/useDeepLinkedActivity'
 import { useAdminMode } from '../../hooks/useAdminMode'
 import { useSportPreference } from '../../hooks/useSportPreference'
 import { useMutation } from '../../hooks/useMutation'
@@ -56,6 +58,7 @@ function buildTeamFilter(teamPbIds: string[], guestGameIds: string[] = []): Reco
 
 export default function GamesPage() {
   const { t } = useTranslation('games')
+  const { t: tc } = useTranslation('common')
   const { user, memberTeamIds, memberTeamNames, coachTeamIds, coachTeamNames, isCoach, primarySport, teamsLoading } = useAuth()
   // Merge member + coach teams for visibility (coaches see teams they manage)
   const allUserTeamIds = useMemo(() => [...new Set([...memberTeamIds, ...coachTeamIds])], [memberTeamIds, coachTeamIds])
@@ -74,6 +77,24 @@ export default function GamesPage() {
   const [deletingGameId, setDeletingGameId] = useState<string | null>(null)
   const [showAll, setShowAll] = useState(false)
   const [autoSelected, setAutoSelected] = useState(false)
+
+  // ── Share link (`/games/:gameId`) ──────────────────────────────────
+  //
+  // Fetched independently of the tab and team filter: a link to a played fixture
+  // arrives while the recipient is on "Upcoming", and one to another team's game
+  // is filtered out entirely. Neither should break the link.
+  const { gameId } = useParams()
+  const navigate = useNavigate()
+  const { item: linkedGame, notFound: linkedGameMissing } = useDeepLinkedActivity<Game>(
+    'games', gameId, [...DEEP_LINK_FIELDS.games],
+  )
+  const modalGame = selectedGame ?? linkedGame
+  useEffect(() => {
+    if (linkedGameMissing) {
+      toast.error(tc('linkNotAvailable'))
+      navigate('/games', { replace: true })
+    }
+  }, [linkedGameMissing, navigate, tc])
 
   // The two blocks below used to be effects; they are now adjust-state-during-
   // render (react-hooks/set-state-in-effect). They fire on exactly the same
@@ -528,9 +549,15 @@ export default function GamesPage() {
       </div>
 
       <GameDetailModal
-        game={selectedGame}
-        onClose={() => setSelectedGame(null)}
-        participations={selectedGame ? participationsByGame.get(selectedGame.id) : undefined}
+        game={modalGame}
+        onClose={() => {
+          if (selectedGame) setSelectedGame(null)
+          else navigate('/games', { replace: true })
+        }}
+        // A deep-linked game is usually absent from this page's participation
+        // map (different tab, filtered-out team), so the modal falls back to its
+        // own fetch rather than rendering an empty roster.
+        participations={modalGame ? participationsByGame.get(modalGame.id) : undefined}
       />
 
       <ParticipationRosterModal

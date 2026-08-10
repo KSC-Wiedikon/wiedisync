@@ -16,6 +16,7 @@ import { useCollection } from '../../lib/query'
 import { useMutation } from '../../hooks/useMutation'
 import { formatDate, formatTime } from '../../utils/dateHelpers'
 import BroadcastButton from '../broadcast/BroadcastButton'
+import ShareActivityButton from '../../components/ShareActivityButton'
 import { isFeatureEnabled } from '../../utils/featureToggles'
 import { Calendar, Clock, MapPin, Users, Check, MessageSquare, UserPlus, Share2, ClipboardList } from 'lucide-react'
 import { toast } from 'sonner'
@@ -67,6 +68,10 @@ export default function EventDetailModal({ event, onClose }: EventDetailModalPro
 
   const headerBroadcast = (
     <div className="flex items-center gap-2">
+      {/* Members' door. Distinct from the `signup_url` block further down, which
+          is the guests' door — see ShareActivityButton for why they must not be
+          collapsed into one link. */}
+      <ShareActivityButton kind="event" id={event.id} title={event.title} iconOnly />
       <CancelActivityButton
         kind="event"
         activityId={event.id}

@@ -27,6 +27,7 @@ import { currentLocale, formatDate, formatTime, formatDateTimeCompactZurich, par
 import RefereeExpenseSection from './RefereeExpenseSection'
 import GameGuestSection from './GameGuestSection'
 import BroadcastButton from '../../broadcast/BroadcastButton'
+import ShareActivityButton from '../../../components/ShareActivityButton'
 import { isFeatureEnabled } from '../../../utils/featureToggles'
 import { asObj, relId, teamCoachIds, memberDisplayName } from '../../../utils/relations'
 import CancelActivityButton from '../../../components/CancelActivityButton'
@@ -437,10 +438,19 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
             </button>
           </div>
 
-          {/* Actions row — hidden when the viewer can neither broadcast nor cancel
-              (both sub-components render null in that case → :empty). */}
-          {(game.status === 'scheduled' || game.status === 'cancelled') && (
-            <div className="mt-3 flex flex-wrap items-center gap-2 empty:hidden">
+          {/* Actions row. Share sits outside the status check because a link to a
+              played fixture is just as shareable as one to an upcoming game; the
+              broadcast/cancel pair keeps its original scheduled-or-cancelled
+              gate, and `empty:hidden` no longer fires since share always renders. */}
+          <div className="mt-3 flex flex-wrap items-center gap-2 empty:hidden">
+            <ShareActivityButton
+              kind="game"
+              id={game.id}
+              title={`${homeLabel} vs ${awayLabel}`}
+              iconOnly
+            />
+            {(game.status === 'scheduled' || game.status === 'cancelled') && (
+              <>
               {game.status === 'scheduled' && (
                 <BroadcastButton
                   labelAlwaysVisible
@@ -470,8 +480,9 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
                 variant="inline"
                 onDone={onClose}
               />
-            </div>
-          )}
+              </>
+            )}
+          </div>
         </div>
 
         {/* Teams & Score */}
