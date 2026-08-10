@@ -231,6 +231,11 @@ export default function JoinPage() {
                 error={otpError}
                 email={claimedEmail}
               />
+
+              {/* handleOtpResend calls the captcha-gated /verify-email, and
+                  getToken() needs a live widget to reset — unmounted it stalls
+                  30s and then returns '', which the server refuses. */}
+              {turnstileWidget}
             </div>
           )}
 
