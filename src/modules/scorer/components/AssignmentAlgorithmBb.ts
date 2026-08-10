@@ -148,9 +148,7 @@ export function runBbAssignment(input: BbAssignmentInput): BbGameAssignment[] {
   // OTR1 coverage is the hard requirement; OTR2/OTN coverage (intersected
   // with OTR1, since one team supplies the whole crew) is the soft bonus.
   const otr1Teams = buildLicenceTeams(members, memberTeams, (m) => !!m.otr1_bb)
-  // `otn_bb` is the coarse legacy flag kept by migration 228 alongside the two
-  // Basketplan levels — OR all three so nobody who qualifies today drops out.
-  const fullCrewTeams = buildLicenceTeams(members, memberTeams, (m) => !!(m.otr2_bb || m.otn_bb || m.otn1_bb || m.otn2_bb))
+  const fullCrewTeams = buildLicenceTeams(members, memberTeams, (m) => !!(m.otr2_bb || m.otn1_bb || m.otn2_bb))
   for (const id of [...fullCrewTeams]) if (!otr1Teams.has(id)) fullCrewTeams.delete(id)
 
   const teamGameDates = buildTeamGameDates(games)

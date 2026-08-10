@@ -317,7 +317,7 @@ export default {
   retry: 'Nomal versueche',
 
   // Dateni-Explorer
-  explorerTitle: 'Dateni-Explorer',
+  explorerTitle: 'Datebank',
   explorerRefresh: 'Neu lade',
   explorerRefreshedAt: 'Zletscht glade {{time}}',
   explorerSearchPlaceholder: 'Alli duresueche…',
@@ -478,6 +478,10 @@ export default {
   explorerDangerStatusSaved: 'Status aktualisiert',
   explorerDangerStatusError: 'De Status hät nöd chönne aktualisiert wärde',
 
+  explorerStatusDepartedTitle: 'Mitgliedschaft beände?',
+  explorerStatusDepartedMessage: '{{name}} uf «{{status}}» setze? Denn wärdet au d Vereinsmitgliedschaft und de App-Zuegang deaktiviert: D Person verschwindet us de Teamlischte, de Mailverteiler und em Beitragslauf und cha sich nöd meh aamälde.',
+  explorerStatusAustrittNeedsDeparted: 'Es Austrittsdatum bruucht en Austritts-Status — nimm «Ehemaliges Mitglied», «Kein Mitglied» oder «Verstorben», oder lösch s Datum.',
+
   // Explorer-Gfahrezone — ändgültig lösche
   explorerDangerDelete: 'Ändgültig lösche',
   explorerDangerDeleteTitle: '{{label}} ändgültig lösche',
@@ -564,6 +568,9 @@ export default {
   explorerGridColVmEmail: 'VM-E-Mail',
   explorerGridColAhv: 'AHV-Nummere',
   explorerGridColFeeCategory: 'Biitragskategorie',
+  explorerGridColRegisterStatus: 'Mitgliedschaftsstatus',
+  explorerGridColEintritt: 'Iitritt',
+  explorerGridColAustritt: 'Austritt',
   explorerGridColRoles: 'Rolle',
   explorerGridGroupBy: 'Gruppiere nach',
   explorerGridGroupNone: 'Kei Gruppierig',
@@ -918,4 +925,6 @@ export default {
   anmeldungenLicenceStatusSaved: 'Lizänzstatus gspeicheret',
   anmeldungenLicenceStatusFailed: 'Lizänzstatus het nöd chöne gspeicheret werde',
   memberFilterSectionLicenceStatus: 'Lizänzstatus',
+  memberFilterSectionRegisterStatus: 'Mitgliedschaftsstatus',
+  memberFilterRegisterStatusUnset: 'Nöd gsetzt',
 } as const

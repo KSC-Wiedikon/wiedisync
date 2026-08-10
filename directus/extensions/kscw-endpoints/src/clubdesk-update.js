@@ -291,7 +291,46 @@ const CD_PUSH_CONTACT_HEADERS = [
 // be hand-maintained — so ClubDesk wins where set, and only the ~198 empty
 // number / ~320 empty art cells get filled. Divergent cells (3 at ship time)
 // stay ClubDesk's and need a manual decision, never an automated overwrite.
-const CD_PUSH_HEADERS = ['[Id]', ...CD_PUSH_CONTACT_HEADERS, 'Beitragskategorie', 'Eintritt', 'Mitgliederbeitrag', 'Lizenznummer', 'Lizenzart']
+// ── The register triple (migration 302) ──────────────────────────────────────
+// Status / Eintritt / Austritt are the first ClubDesk-OWNED cells an UPDATE row
+// may write. Everything above this line is either a field wiedisync owns
+// outright or a fill-only cell that echoes ClubDesk's value back verbatim; these
+// three genuinely overwrite the legal register, so they are the one place the
+// "ClubDesk is authoritative on existing contacts" rule is relaxed.
+//
+// It is relaxed as narrowly as it can be: a cell is only sent when the member's
+// OWN pending change names that field (registerCell() below reads
+// clubdesk_push_changes, which the members.items.update hook writes). A member
+// flagged for a push because their IBAN changed therefore still echoes
+// ClubDesk's Status back untouched — without that gate, every unrelated push
+// would rewrite the register's status from a wiedisync copy up to a week stale,
+// and a status changed IN ClubDesk between two sync-downs would be silently
+// reverted.
+//
+// ⚠ Eintritt moved from the fill-only set into this one. Its old precedence
+// (ClubDesk always wins, wiedisync's registration date only fills an empty
+// cell) is still exactly what happens for every member who has not edited it —
+// registerCell falls through to the same echo. What changed is that an entry
+// date corrected in the Data Explorer now reaches the register instead of being
+// discarded on the next push.
+export const CD_REGISTER_FIELDS = ['register_status', 'eintritt', 'austritt']
+
+/**
+ * Register statuses that mean "no longer one of ours".
+ *
+ * Module scope since 2026-08-10 because buildPushCsv needs it too (an Austritt
+ * cell may only ride with a departed Status cell). Previously a local inside the
+ * router — one definition, three readers now: the push, the Data Health
+ * "departed in ClubDesk" check and the per-member sync verdict.
+ *
+ * ⚠ Mirrors DEPARTED_REGISTER_STATUSES in src/modules/admin/components/
+ * memberFieldOptions.ts and the CHECK constraint
+ * members_austritt_needs_departed_status (migration 302). 'Zwischenjahr' is
+ * deliberately absent: a gap year is a member taking a season off.
+ */
+export const DEPARTED_STATUSES = ['Kein Mitglied', 'Ehemaliges Mitglied', 'Verstorben']
+
+const CD_PUSH_HEADERS = ['[Id]', ...CD_PUSH_CONTACT_HEADERS, 'Beitragskategorie', 'Eintritt', 'Mitgliederbeitrag', 'Lizenznummer', 'Lizenzart', 'Status', 'Austritt']
 
 // ── CREATE-set extras (new ClubDesk contacts only) ───────────────────────────
 // A brand-new contact has no ClubDesk-owned category, entry date, groups or
@@ -332,7 +371,7 @@ const CD_PUSH_HEADERS = ['[Id]', ...CD_PUSH_CONTACT_HEADERS, 'Beitragskategorie'
 // archived to .planning/clubdesk-backups/passivmitglied-snapshot-20260730.csv.
 // CREATE set: real wiedisync name (a brand-new contact has no [Id] to key on),
 // the shared contact columns, then the create-only extras.
-export const CD_PUSH_CREATE_HEADERS = ['Vorname', 'Nachname', ...CD_PUSH_CONTACT_HEADERS, 'Telefon Mobil', 'Beitragskategorie', 'Eintritt', 'Gruppen', 'Status', 'Offiziellen Lizenz', 'Mitgliederbeitrag', 'Sektion', 'Schiedsrichter', 'Lizenznummer', 'Lizenzart']
+export const CD_PUSH_CREATE_HEADERS = ['Vorname', 'Nachname', ...CD_PUSH_CONTACT_HEADERS, 'Telefon Mobil', 'Beitragskategorie', 'Eintritt', 'Gruppen', 'Status', 'Offiziellen Lizenz', 'Mitgliederbeitrag', 'Sektion', 'Schiedsrichter', 'Lizenznummer', 'Lizenzart', 'Austritt']
 
 // Sport prefix for ClubDesk group names (`VB H1 (Spieler*in)`), keyed by
 // registrations.membership_type. Passive registrations have no team → no group.
@@ -385,6 +424,54 @@ export function deriveGruppen(reg) {
 // registration is the passive path); without a registration, only a member the
 // app considers active (wiedisync_active) gets Aktivmitglied. Everything else
 // stays empty → ClubDesk's default ("Kein Mitglied"), never guessed.
+/**
+ * The value an UPDATE row should carry for one of the three register cells
+ * (see CD_REGISTER_FIELDS).
+ *
+ * Precedence, in one place so Status / Eintritt / Austritt cannot drift apart:
+ *
+ *   1. wiedisync's own value — but ONLY when the member's pending push actually
+ *      names this field. `changed` is the set /up builds from
+ *      clubdesk_push_changes. This is the entire licence to overwrite the legal
+ *      register, and it is scoped to the one field somebody deliberately edited.
+ *   2. ClubDesk's own cell, echoed back verbatim (a proven no-op on import) —
+ *      so an unrelated push, or a wiedisync value that is empty, can never
+ *      blank or rewrite the register.
+ *   3. `fallback` — the derivation that predates the columns (the registration
+ *      submission date for Eintritt, deriveStatus for a new contact). Only
+ *      reached when BOTH sides are empty.
+ *
+ * `wiedi` is pre-formatted by the caller (dates as dd.mm.yyyy), because the
+ * comparison that matters here is "did somebody change this", not the shape.
+ */
+export function registerCell(field, { changed, wiedi, clubdesk, fallback = '' }) {
+  const own = String(wiedi ?? '').trim()
+  if (changed?.has(field) && own) return own
+  const cd = String(clubdesk ?? '').trim()
+  if (cd) return cd
+  return own || String(fallback ?? '').trim()
+}
+
+/**
+ * The fields a member's pending push explicitly names, as a Set.
+ *
+ * `clubdesk_push_changes` is jsonb, so knex hands it back already parsed on
+ * some paths and as a string on others (raw queries) — both shapes are handled,
+ * and anything unparseable degrades to an EMPTY set. Empty is the safe default:
+ * it means "echo ClubDesk", never "overwrite the register".
+ */
+export function changedPushFields(raw) {
+  let list = []
+  try {
+    list = Array.isArray(raw) ? raw : (raw ? JSON.parse(raw) : [])
+  } catch { list = [] }
+  return new Set(
+    (Array.isArray(list) ? list : [])
+      .map((c) => (c && typeof c === 'object' ? c.field : null))
+      .filter(Boolean),
+  )
+}
+
 export function deriveStatus(reg, member) {
   if (reg) {
     return String(reg.membership_type || '').trim().toLowerCase() === 'passive'
@@ -427,14 +514,13 @@ export function deriveOffiziellenLizenz(m) {
   // matching OTN1/OTN2 options to the ClubDesk picklist, so the precise level can
   // finally be pushed instead of being flattened to "OTN".
   //
-  // The bare `otn_bb` check stays LAST and is deliberately kept: it is the coarse
-  // legacy flag carried by 6 members whose level nothing has resolved yet. Dropping
-  // it would blank their Offiziellen Lizenz cell in ClubDesk on the next push —
-  // strictly worse than sending the imprecise value we have always sent. It
-  // disappears on its own once the Basketplan import fills the levels.
+  // The coarse `otn_bb` fallback that used to sit under these two was dropped by
+  // migration 303, once every one of its 8 holders had been confirmed OTN 2 by
+  // the Basketplan import — i.e. once it could no longer be the only true flag
+  // for anybody. A member with no level now sends an empty cell, and Basketplan
+  // remains the only thing that resolves one.
   if (m?.otn2_bb === true) return 'OTN2'
   if (m?.otn1_bb === true) return 'OTN1'
-  if (m?.otn_bb === true) return 'OTN'
   return ''
 }
 
@@ -656,8 +742,7 @@ export function feeBreakdown(kategorie, member = null, opts = {}) {
     const hasLicence = isVb
       ? member.scorer_vb === true
       : (member.otr1_bb === true || member.otr2_bb === true
-         // otn_bb is the coarse legacy flag; the levels are additive, never a swap.
-         || member.otn_bb === true || member.otn1_bb === true || member.otn2_bb === true)
+         || member.otn1_bb === true || member.otn2_bb === true)
     const eligible = SURCHARGE_ADULT.has(k) || (SURCHARGE_YOUTH.has(k) && isU16Plus(member) === true)
     if (eligible && !hasLicence) surcharge = NO_LICENCE_SURCHARGE
   }
@@ -983,14 +1068,26 @@ export function buildPushCsv(members, { create = false, countryNames = null } = 
     if (create) {
       cells.push(
         phoneOut, // Telefon Mobil = same as Privat (user: one number → both)
-        mapKategorie(m.beitragskategorie), fmtBirthdateDDMMYYYY(m.eintritt),
-        m.gruppen || '', m.cd_status || '', deriveOffiziellenLizenz(m),
+        mapKategorie(m.beitragskategorie),
+        // wiedisync's own entry date when it has one (migration 302), else the
+        // registration submission date /up resolved.
+        fmtBirthdateDDMMYYYY(m.eintritt || m.eintritt_registration),
+        m.gruppen || '',
+        // An admin-set register status beats the derivation: deriveStatus can
+        // only ever say Aktiv-/Passivmitglied, so a contact being created as an
+        // Ehrenmitglied would otherwise land in the register as an ordinary one.
+        String(m.register_status || '').trim() || m.cd_status || '',
+        deriveOffiziellenLizenz(m),
         deriveMitgliederbeitrag(m.beitragskategorie, m, { isGuest: m.is_guest === true }),
         m.cd_sektion || '', // resolved by /up from the registration
         deriveSchiedsrichter(m),
         // Licence number + category from the issuing authority (Volleymanager /
         // Basketplan) — a brand-new contact has no register value to protect.
         String(m.license_nr || '').trim(), lizenzartCell(m.licence_category),
+        // Normally empty — a contact being created is joining, not leaving. It
+        // is carried anyway so that creating an already-departed person (a
+        // historical record being filed) does not silently lose the date.
+        fmtBirthdateDDMMYYYY(m.austritt),
       )
     } else {
       // Fill-only billing cells (2026-07-27, see CD_PUSH_HEADERS): ClubDesk's
@@ -1002,9 +1099,42 @@ export function buildPushCsv(members, { create = false, countryNames = null } = 
       // Eintritt: the mirror is ClubDesk's export string (dd.mm.yyyy, verified
       // live 2026-07-27) → verbatim; the wiedisync fallback is the registration
       // SUBMISSION date resolved by /up (same rule as the create path).
+      // The register triple (migration 302). `changed` is what limits these to
+      // the field somebody actually edited — see registerCell / CD_REGISTER_FIELDS.
+      const changed = changedPushFields(m.clubdesk_push_changes)
+      const statusOut = registerCell('register_status', {
+        changed, wiedi: m.register_status, clubdesk: m.register_status_cd,
+      })
+      // ⚠ Austritt is gated on the Status cell THIS ROW ACTUALLY SENDS, not on
+      // wiedisync's own status. The two are one fact and the register has no
+      // constraint tying them, so sending them independently is how ClubDesk
+      // ends up with an exit date under an active status — the very pair
+      // members_austritt_needs_departed_status (migration 302) refuses here.
+      //
+      // The case that produces it: a member departed in wiedisync but not yet
+      // pushed, flagged for some unrelated field. Status echoes the register's
+      // 'Aktivmitglied' (correctly — the departure has not been approved for
+      // push), while a naive Austritt cell would fill the register's empty one
+      // from the wiedisync value. Then the register reads "active, left on
+      // 10.08.2026". Both cells travel together or neither does.
+      const austrittOut = DEPARTED_STATUSES.includes(statusOut)
+        ? registerCell('austritt', {
+          changed, wiedi: fmtBirthdateDDMMYYYY(m.austritt), clubdesk: m.austritt_cd,
+        })
+        // Not departed per the cell being sent → echo whatever the register has,
+        // so this can still never blank an existing date.
+        : String(m.austritt_cd || '').trim()
       cells.push(
         String(m.beitragskategorie_cd || '').trim() || mapKategorie(m.beitragskategorie),
-        String(m.eintritt_cd || '').trim() || fmtBirthdateDDMMYYYY(m.eintritt),
+        // Eintritt: wiedisync's column when it is the thing that changed, else
+        // ClubDesk's own cell, else the registration submission date /up
+        // resolved (the pre-302 behaviour, unchanged for everybody else).
+        registerCell('eintritt', {
+          changed,
+          wiedi: fmtBirthdateDDMMYYYY(m.eintritt),
+          clubdesk: m.eintritt_cd,
+          fallback: fmtBirthdateDDMMYYYY(m.eintritt_registration),
+        }),
         String(m.mitgliederbeitrag_cd || '').trim()
           || deriveMitgliederbeitrag(m.beitragskategorie, m, { isGuest: m.is_guest === true }),
         // Lizenznummer / Lizenzart, same fill-only precedence: the register's
@@ -1012,6 +1142,11 @@ export function buildPushCsv(members, { create = false, countryNames = null } = 
         // sourced value goes out only where the register is empty.
         String(m.lizenznummer_cd || '').trim() || String(m.license_nr || '').trim(),
         String(m.lizenzart_cd || '').trim() || lizenzartCell(m.licence_category),
+        // Status / Austritt. No derivation fallback on an UPDATE row: a contact
+        // that already exists has a status, and inventing one for it is exactly
+        // what kept these two off the update set until now.
+        statusOut,
+        austrittOut,
       )
     }
     return cells.map(cdCell).join(';')
@@ -1033,7 +1168,11 @@ const PUSH_FIELDS = [
   'federation_of_origin', 'trainer_licences', 'ahv_nummer',
   'clubdesk_id', 'clubdesk_push_changes',
   'beitragskategorie', 'wiedisync_active',
-  'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'otn1_bb', 'otn2_bb', 'referee_bb',
+  // Club register status + the dates that bracket it (migration 302). The push
+  // sends these ONLY when the member's pending change actually names one of
+  // them — see CD_REGISTER_FIELDS and registerCell() below.
+  'register_status', 'eintritt', 'austritt',
+  'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn1_bb', 'otn2_bb', 'referee_bb',
   'license_nr', 'licence_category',
   // Per-member fee overrides (migration 299). deriveMitgliederbeitrag reads
   // them off the member row, so leaving them out of the SELECT would push the
@@ -1444,7 +1583,8 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
           SELECT DISTINCT ON (BTRIM(clubdesk_id)) BTRIM(clubdesk_id) AS cdid,
                  iban, anrede, nationalitaet, ahv_nummer, federation_of_origin,
                  trainer_lizenz,
-                 beitragskategorie, eintritt, mitgliederbeitrag, lizenznummer, lizenzart
+                 beitragskategorie, eintritt, mitgliederbeitrag, lizenznummer, lizenzart,
+                 status, austritt
           FROM clubdesk_export WHERE BTRIM(clubdesk_id) = ANY(?) ORDER BY BTRIM(clubdesk_id), row_id
         `, [cdids]) : { rows: [] }
         const cdEcho = new Map(echoRows.rows.map((r) => [r.cdid, r]))
@@ -1479,6 +1619,12 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
           m.mitgliederbeitrag_cd = String(cd.mitgliederbeitrag || '').trim()
           m.lizenznummer_cd = String(cd.lizenznummer || '').trim()
           m.lizenzart_cd = String(cd.lizenzart || '').trim()
+          // The register triple's echo (migration 302). Stashed for EVERY update
+          // member, not just the ones whose push names them: registerCell falls
+          // back to these whenever the member did not deliberately change the
+          // field, which is what keeps an unrelated push from rewriting Status.
+          m.register_status_cd = String(cd.status || '').trim()
+          m.austritt_cd = String(cd.austritt || '').trim()
         }
       }
       const pushMembers = [...updates, ...creates]
@@ -1532,7 +1678,10 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
           const reg = regs
             .filter((r) => String(r.email || '').toLowerCase().trim() === em && firstNamesMatchCd(r.vorname, m.first_name))
             .sort((a, b) => new Date(a.submitted_at || 0) - new Date(b.submitted_at || 0))[0]
-          m.eintritt = reg ? reg.submitted_at : null
+          // ⚠ NOT `m.eintritt` — that is the real column now (migration 302),
+          // selected by PUSH_FIELDS. Overwriting it here would push the
+          // registration date over an entry date an admin had corrected.
+          m.eintritt_registration = reg ? reg.submitted_at : null
           // The remaining create-set extras (Gruppen/Status/Sektion)
           // stay off UPDATE rows — ClubDesk-authoritative there, no fill.
           if (m.clubdesk_id) continue
@@ -1922,6 +2071,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       SELECT m.id, m.first_name, m.last_name, m.email, m.phone, m.adresse, m.plz, m.ort,
              m.birthdate, m.sex, m.iban, m.anrede, m.nationalitaet, m.ahv_nummer,
              m.federation_of_origin, m.trainer_licences,
+             m.register_status, m.eintritt, m.austritt,
              m.clubdesk_id, m.clubdesk_push_pending,
              cd.vorname AS cd_vorname, cd.nachname AS cd_nachname, cd.email AS cd_email,
              cd.email_alternativ AS cd_email_alt, cd.telefon_privat AS cd_tel_priv,
@@ -1930,13 +2080,14 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
              cd.iban AS cd_iban, cd.anrede AS cd_anrede, cd.nationalitaet AS cd_nationalitaet,
              cd.ahv_nummer AS cd_ahv_nummer, cd.federation_of_origin AS cd_federation_of_origin,
              cd.trainer_lizenz AS cd_trainer_lizenz,
+             cd.status AS cd_status, cd.eintritt AS cd_eintritt, cd.austritt AS cd_austritt,
              cd.gast AS cd_gast
       FROM members m
       JOIN (
         SELECT DISTINCT ON (BTRIM(clubdesk_id)) BTRIM(clubdesk_id) AS cdid, vorname, nachname,
                email, email_alternativ, telefon_privat, telefon_mobil, adresse, plz, ort,
                geburtsdatum, geschlecht, iban, anrede, nationalitaet, ahv_nummer,
-               federation_of_origin, trainer_lizenz, gast
+               federation_of_origin, trainer_lizenz, status, eintritt, austritt, gast
         FROM clubdesk_export
         WHERE NULLIF(BTRIM(clubdesk_id), '') IS NOT NULL
         ORDER BY BTRIM(clubdesk_id), row_id
@@ -2041,6 +2192,29 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       cmpEcho('federation_of_origin', fedCd, r.cd_federation_of_origin, driftLower(fedCd), driftLower(r.cd_federation_of_origin))
       const ahvDigits = (v) => String(v ?? '').replace(/\D/g, '')
       cmpEcho('ahv_nummer', r.ahv_nummer, r.cd_ahv_nummer, ahvDigits(r.ahv_nummer), ahvDigits(r.cd_ahv_nummer))
+      // ── The register triple (migration 302) ──────────────────────────────
+      // Echo-protected like the fields above → conflict-or-fill, never
+      // blank_risk: registerCell sends ClubDesk's own cell back whenever
+      // wiedisync's is empty or unchanged, so an empty wiedisync value cannot
+      // blank the register and must not drop the member from every push.
+      //
+      // This comparison is what makes "the register wins once the push has
+      // landed" observable rather than merely intended: a status changed IN
+      // ClubDesk shows up here as a CONFLICT the moment the two disagree,
+      // instead of being quietly overwritten on some later push.
+      cmpEcho('register_status', r.register_status, r.cd_status,
+        driftLower(r.register_status), driftLower(r.cd_status))
+      // Dates display Swiss-style and compare on ISO — the same split birthdate
+      // uses above, because ClubDesk's cell is dd.mm.yyyy text and wiedisync's
+      // is a real date column.
+      for (const [field, memberVal, cdVal] of [
+        ['eintritt', r.eintritt, r.cd_eintritt],
+        ['austritt', r.austritt, r.cd_austritt],
+      ]) {
+        const iso = driftDateMember(memberVal)
+        const disp = iso ? `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}` : ''
+        cmpEcho(field, disp, cdVal, iso, driftDateCd(cdVal))
+      }
       // Trainer Lizenz: compare CODE SETS, not the rendered strings. ClubDesk's
       // cell is hand-editable free text, so "J+S, B", "B, J+S" and "j+s / b" all
       // mean the same thing and must not report as a conflict — parsing both
@@ -2165,7 +2339,6 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
   // Austritt guard excludes legit non-members with no exit date (volunteer
   // coaches marked "Kein Mitglied", or new signups whose contact isn't activated
   // yet) so they aren't false-flagged. Manual deactivate only. Superadmin.
-  const DEPARTED_STATUSES = ['Kein Mitglied', 'Ehemaliges Mitglied', 'Verstorben']
   router.get('/clubdesk-departed', async (req, res) => {
     try {
       if (!(await superGate(req))) return res.status(403).json({ error: 'Forbidden' })

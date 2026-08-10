@@ -305,11 +305,6 @@ UPDATE members m SET otn1_bb = true FROM bp_match b
  WHERE m.id = b.member_id AND b.otn1_since IS NOT NULL AND m.otn1_bb IS DISTINCT FROM true;
 UPDATE members m SET otn2_bb = true FROM bp_match b
  WHERE m.id = b.member_id AND b.otn2_since IS NOT NULL AND m.otn2_bb IS DISTINCT FROM true;
--- Any national table-official level also implies the coarse flag, which still
--- drives scorer eligibility and the ClubDesk push.
-UPDATE members m SET otn_bb = true FROM bp_match b
- WHERE m.id = b.member_id AND (b.otn1_since IS NOT NULL OR b.otn2_since IS NOT NULL)
-   AND m.otn_bb IS DISTINCT FROM true;
 UPDATE members m SET referee_bb = true FROM bp_match b
  WHERE m.id = b.member_id
    AND (b.referee_reg_since IS NOT NULL OR b.referee_nat_since IS NOT NULL)

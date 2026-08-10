@@ -84,6 +84,8 @@ type ColKey =
   | 'federation_of_origin' | 'birthdate'
   | 'sex' | 'language' | 'number' | 'position' | 'license_nr'
   | 'vm_email' | 'ahv_nummer' | 'beitragskategorie' | 'role'
+  // The club register's own membership facts (migration 302).
+  | 'register_status' | 'eintritt' | 'austritt'
   | 'sport' | 'scorer_vb' | 'referee' | 'officials'
   | 'wiedisync_active' | 'last_online_at' | 'passive' | 'honorary' | 'former'
   | 'clubdesk_sync' | 'reg_files'
@@ -176,6 +178,9 @@ const COLUMNS: ColDef[] = [
   { key: 'officials', labelKey: 'explorerGridColOfficials', kind: 'ro', minW: 'min-w-36' },
   { key: 'vm_email', labelKey: 'explorerGridColVmEmail', kind: 'email', minW: 'min-w-52' },
   { key: 'ahv_nummer', labelKey: 'explorerGridColAhv', kind: 'text', minW: 'min-w-36' },
+  { key: 'register_status', labelKey: 'explorerGridColRegisterStatus', kind: 'text', minW: 'min-w-40', groupable: true },
+  { key: 'eintritt', labelKey: 'explorerGridColEintritt', kind: 'date', minW: 'min-w-28', groupable: true },
+  { key: 'austritt', labelKey: 'explorerGridColAustritt', kind: 'date', minW: 'min-w-28', groupable: true },
   { key: 'beitragskategorie', labelKey: 'explorerGridColFeeCategory', kind: 'text', minW: 'min-w-36', groupable: true },
   { key: 'passive', labelKey: 'explorerGridColPassive', kind: 'bool', minW: 'min-w-24', groupable: true },
   { key: 'honorary', labelKey: 'explorerGridColHonorary', kind: 'bool', minW: 'min-w-24', groupable: true },
@@ -445,10 +450,11 @@ export default function ExplorerGrid({ cache, query, canEdit, onOpenDetail, onMu
           const tokens: string[] = []
           if (rawField(m, 'otr1_bb')) tokens.push('OTR1')
           if (rawField(m, 'otr2_bb')) tokens.push('OTR2')
-          // otn_bb is the coarse legacy flag, otn1_bb/otn2_bb the Basketplan
-          // levels (migration 228) — a member can carry the coarse flag and a
-          // level at once, so emit each independently and let the dedupe run.
-          if (rawField(m, 'otn_bb')) tokens.push('OTN')
+          // otn1_bb/otn2_bb are the Basketplan levels (migration 228). A member
+          // can hold both — Basketplan records `otn1_since` AND `otn2_since` for
+          // an upgraded official — so emit each independently and let the dedupe
+          // run. (The coarse `otn_bb` they replaced was dropped by migration
+          // 303; every one of its 8 holders also held a level.)
           if (rawField(m, 'otn1_bb')) tokens.push('OTN1')
           if (rawField(m, 'otn2_bb')) tokens.push('OTN2')
           const cd = m.clubdesk_id ? cache.clubdeskInfo.get(String(m.clubdesk_id)) : undefined

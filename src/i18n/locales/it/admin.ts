@@ -111,7 +111,7 @@ export default {
   retry: 'Riprova',
 
   // Esploratore Dati
-  explorerTitle: 'Esploratore dati',
+  explorerTitle: 'Banca dati',
   explorerRefresh: 'Aggiorna',
   explorerRefreshedAt: 'Ultimo aggiornamento {{time}}',
   explorerSearchPlaceholder: 'Cerca in tutto…',
@@ -272,6 +272,10 @@ export default {
   explorerDangerStatusSaved: 'Stato aggiornato',
   explorerDangerStatusError: 'Impossibile aggiornare lo stato',
 
+  explorerStatusDepartedTitle: 'Terminare l’affiliazione?',
+  explorerStatusDepartedMessage: 'Impostare {{name}} su «{{status}}»? Questo disattiva anche l’affiliazione al club e l’accesso all’app: la persona esce dalle liste squadra, dalle liste di distribuzione e dal calcolo delle quote e non può più accedere.',
+  explorerStatusAustrittNeedsDeparted: 'Una data di uscita richiede uno stato di uscita — scegli «Ehemaliges Mitglied», «Kein Mitglied» o «Verstorben», oppure cancella la data.',
+
   // Zona pericolosa (Esploratore) — eliminazione definitiva
   explorerDangerDelete: 'Elimina definitivamente',
   explorerDangerDeleteTitle: 'Eliminare {{label}} definitivamente',
@@ -358,6 +362,9 @@ export default {
   explorerGridColVmEmail: 'E-mail VM',
   explorerGridColAhv: 'Numero AVS',
   explorerGridColFeeCategory: 'Categoria di quota',
+  explorerGridColRegisterStatus: 'Stato di affiliazione',
+  explorerGridColEintritt: 'Data di entrata',
+  explorerGridColAustritt: 'Data di uscita',
   explorerGridColRoles: 'Ruoli',
   explorerGridGroupBy: 'Raggruppa per',
   explorerGridGroupNone: 'Nessun raggruppamento',
@@ -1149,4 +1156,6 @@ export default {
   anmeldungenLicenceStatusSaved: 'Stato della licenza salvato',
   anmeldungenLicenceStatusFailed: 'Impossibile salvare lo stato della licenza',
   memberFilterSectionLicenceStatus: 'Stato della licenza',
+  memberFilterSectionRegisterStatus: 'Stato di affiliazione',
+  memberFilterRegisterStatusUnset: 'Non impostato',
 } as const

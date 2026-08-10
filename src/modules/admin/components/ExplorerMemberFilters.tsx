@@ -15,6 +15,7 @@ import {
   LICENCE_TYPES,
   POSITIONS,
   PRESENCE_FIELDS,
+  REGISTER_STATUS_KEYS,
   ROLE_TYPES,
   countActiveFilters,
   type BoolField,
@@ -283,6 +284,22 @@ export default function ExplorerMemberFilters({ value, onChange }: Props) {
                 active={value.licenceStatus.includes(s)}
                 onClick={() => onChange({ ...value, licenceStatus: toggleIn(value.licenceStatus, s) })}
                 label={tCommon(`licenceStatus_${s}` as const)}
+              />
+            ))}
+          </PillRow>
+        </Section>
+
+        {/* The register's own status. Values are ClubDesk's German picklist and
+            stay untranslated (they are pushed into the register verbatim — see
+            memberFieldOptions.ts); only "not set" is a label. */}
+        <Section title={t('memberFilterSectionRegisterStatus')}>
+          <PillRow>
+            {REGISTER_STATUS_KEYS.map((s) => (
+              <Pill
+                key={s}
+                active={value.registerStatus.includes(s)}
+                onClick={() => onChange({ ...value, registerStatus: toggleIn(value.registerStatus, s) })}
+                label={s === 'unset' ? t('memberFilterRegisterStatusUnset') : s}
               />
             ))}
           </PillRow>

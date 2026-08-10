@@ -36,6 +36,51 @@ export interface MemberSelectField {
 }
 
 /**
+ * The club register's membership statuses — ClubDesk's picklist, in ClubDesk's
+ * order (the order the dropdown shows them in over there, so an admin reading
+ * both screens sees one list).
+ *
+ * ⚠ Four copies of this set exist and must agree: here, the CHECK constraint
+ * `members_register_status_values` and the Directus dropdown choices (both in
+ * migration 302), and `MEMBER_REGISTER_STATUSES` in kscw-endpoints/src/
+ * audience.js — which is deliberately the ACTIVE subset, not this whole list,
+ * because a mailing to "all members" must not reach the departed.
+ */
+export const REGISTER_STATUS_VALUES = [
+  'Kein Mitglied',
+  'Aktivmitglied',
+  'Passivmitglied',
+  'Ehrenmitglied',
+  'Ehemaliges Mitglied',
+  'Verstorben',
+  'Zwischenjahr',
+] as const
+
+export type RegisterStatus = (typeof REGISTER_STATUS_VALUES)[number]
+
+/**
+ * The statuses that mean "no longer one of ours". Setting one is what prefills
+ * the exit date and ends club membership + app access; setting anything else
+ * clears the exit date again.
+ *
+ * ⚠ Mirrors DEPARTED_STATUSES in kscw-endpoints/src/clubdesk-update.js (the
+ * Data Health "departed in ClubDesk" check) and the CHECK constraint
+ * `members_austritt_needs_departed_status` in migration 302. 'Zwischenjahr' is
+ * NOT departed — a gap year is a member taking a season off, and the register
+ * keeps billing them.
+ */
+export const DEPARTED_REGISTER_STATUSES: ReadonlySet<string> = new Set([
+  'Kein Mitglied',
+  'Ehemaliges Mitglied',
+  'Verstorben',
+])
+
+/** True when `value` is a status that ends the membership. */
+export function isDepartedRegisterStatus(value: unknown): boolean {
+  return typeof value === 'string' && DEPARTED_REGISTER_STATUSES.has(value)
+}
+
+/**
  * Single-value closed sets. Mirrors the pickers in ProfileEditForm.tsx
  * (birthdate_visibility, sex, anrede) and the Directus field choices for the
  * columns the member never edits themselves.
@@ -152,6 +197,25 @@ export const MEMBER_SELECT_FIELDS: Record<string, MemberSelectField> = {
       { value: 'finalized', label: 'Finalized' },
       { value: 'licenced', label: 'Licenced' },
     ],
+  },
+  /**
+   * CHECK members_register_status_values (migration 302) — ClubDesk's own
+   * picklist, verbatim.
+   *
+   * ⚠ The values are NOT translated and NOT re-spelled, and the labels equal
+   * them on purpose. This column is pushed straight into the legal register's
+   * Status cell, where "Ehrenmitglieder" or "Honorary member" is not a synonym
+   * of 'Ehrenmitglied' but a brand-new picklist entry. Same rule, same reason,
+   * as `beitragskategorie` above.
+   *
+   * NULL is a real state — "wiedisync has never been told", which is what every
+   * member without a linked ClubDesk contact holds after migration 302's
+   * backfill. It is not the same as 'Kein Mitglied' (a contact the register
+   * positively records as a non-member) and must not be conflated with it.
+   */
+  register_status: {
+    nullable: true,
+    options: REGISTER_STATUS_VALUES.map((v) => ({ value: v, label: v })),
   },
 }
 

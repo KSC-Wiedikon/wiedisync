@@ -98,7 +98,7 @@ export default function ScorerAssignPage() {
     // editor (AssignmentEditor) filters members on that field.
     // otn1_bb/otn2_bb must be selected too — an unfetched column arrives
     // undefined and reads as false, silently hiding eligible 24s officials.
-    fields: ['id', 'first_name', 'last_name', 'nickname', 'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'otn1_bb', 'otn2_bb', 'kscw_membership_active'],
+    fields: ['id', 'first_name', 'last_name', 'nickname', 'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn1_bb', 'otn2_bb', 'kscw_membership_active'],
     all: true,
   })
   const members = useMemo(() => membersRaw ?? [], [membersRaw])
@@ -559,8 +559,7 @@ export default function ScorerAssignPage() {
     <div className="space-y-2 min-w-[220px]">
       {renderBbPerson(a, 'scorer', t('bbScorer'), a.bbScorerMemberId, game.bb_scorer_member, 'otr1_bb', false)}
       {renderBbPerson(a, 'timekeeper', t('bbTimekeeper'), a.bbTimekeeperMemberId, game.bb_timekeeper_member, 'otr1_bb', true)}
-      {/* otn_bb is the coarse legacy flag kept beside the levels (migration 228). */}
-      {renderBbPerson(a, '24s', t('bb24sOfficial'), a.bb24sMemberId, game.bb_24s_official, ['otr2_bb', 'otn_bb', 'otn1_bb', 'otn2_bb'], true)}
+      {renderBbPerson(a, '24s', t('bb24sOfficial'), a.bb24sMemberId, game.bb_24s_official, ['otr2_bb', 'otn1_bb', 'otn2_bb'], true)}
     </div>
   )
 

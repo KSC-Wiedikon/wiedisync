@@ -18,7 +18,7 @@
  * Hermetic — pure functions, no DB or network.
  */
 import { describe, it, expect } from 'vitest'
-import { buildPushCsv, CD_PUSH_CREATE_HEADERS, CD_KATEGORIE_MAP, CD_BEITRAG_MAP, feeBreakdown, mapKategorie, deriveGruppen, deriveStatus, deriveMitgliederbeitrag, deriveOffiziellenLizenz, deriveSektion, deriveSchiedsrichter, federationCell, nationalityCell, gastCell, trainerLicenceCell, trainerLicenceDisplay, parseTrainerLicenceCell, parseTrainerLicenceCodes } from '../clubdesk-update.js'
+import { buildPushCsv, registerCell, changedPushFields, CD_PUSH_CREATE_HEADERS, CD_KATEGORIE_MAP, CD_BEITRAG_MAP, feeBreakdown, mapKategorie, deriveGruppen, deriveStatus, deriveMitgliederbeitrag, deriveOffiziellenLizenz, deriveSektion, deriveSchiedsrichter, federationCell, nationalityCell, gastCell, trainerLicenceCell, trainerLicenceDisplay, parseTrainerLicenceCell, parseTrainerLicenceCodes } from '../clubdesk-update.js'
 
 const kacper = {
   first_name: 'Kacper', last_name: 'Krawczyński', email: 'k@example.com',
@@ -29,27 +29,33 @@ const kacper = {
 }
 
 describe('buildPushCsv (update set)', () => {
-  it('is [Id]-keyed and name-less — 15 contact columns + 5 fill-only cells, no groups/status', () => {
+  it('is [Id]-keyed and name-less — 15 contact columns, 5 fill-only cells, the register triple, no groups', () => {
     const csv = buildPushCsv([kacper])
     const [header, row] = csv.trim().split('\n')
     // Beitragskategorie/Eintritt/Mitgliederbeitrag joined the UPDATE set
     // 2026-07-27 as FILL-ONLY extras at the END (after Gast) — ClubDesk's own
     // value always wins, so they can only ever fill an empty register cell.
     // Lizenznummer/Lizenzart followed the same day under the same rule.
-    expect(header).toBe('[Id];E-Mail;Telefon Privat;Adresse;PLZ;Ort;Geburtsdatum;Geschlecht;IBAN;Anrede;Nationalität;Federation of Origin;Trainer Lizenz;AHV Nummer;Wiedisync ID;Gast;Beitragskategorie;Eintritt;Mitgliederbeitrag;Lizenznummer;Lizenzart')
+    // Status/Austritt joined 2026-08-10 (migration 302) as the register triple:
+    // unlike everything before them they genuinely overwrite ClubDesk's own
+    // cells — but only for a member whose pending change names that field, so
+    // this fixture (no clubdesk_push_changes) must still echo, never overwrite.
+    expect(header).toBe('[Id];E-Mail;Telefon Privat;Adresse;PLZ;Ort;Geburtsdatum;Geschlecht;IBAN;Anrede;Nationalität;Federation of Origin;Trainer Lizenz;AHV Nummer;Wiedisync ID;Gast;Beitragskategorie;Eintritt;Mitgliederbeitrag;Lizenznummer;Lizenzart;Status;Austritt')
     // Names must NEVER ride on an update row: [Id] is the upsert key (spike-proven
     // 2026-07-08) and a name column would overwrite the register's legal name.
     expect(header).not.toContain('Vorname')
     expect(header).not.toContain('Nachname')
-    // Groups/Status stay CREATE-only — ClubDesk-authoritative on existing contacts.
+    // Gruppen stays CREATE-only — a group assignment cannot be imported at all
+    // (proven 2026-07-06), so the column would be pure noise on an update row.
     expect(header).not.toContain('Gruppen')
-    expect(header).not.toContain('Status')
     const cells = row.split(';')
-    expect(cells).toHaveLength(21)
+    expect(cells).toHaveLength(23)
     expect(cells[0]).toBe('1001283')  // ClubDesk's own [Id] = members.clubdesk_id
     expect(row).not.toContain('Kacper')
     expect(row).not.toContain('Krawczyński')
-    // The fixture's gruppen/cd_status must never leak onto an update row.
+    // The fixture's gruppen must never leak onto an update row, and neither may
+    // its cd_status: that is deriveStatus's answer for a NEW contact, and an
+    // existing one keeps whatever the register already says.
     expect(row).not.toContain('VB H1')
     expect(row).not.toContain('Aktivmitglied')
   })
@@ -264,13 +270,13 @@ describe('buildPushCsv (create set)', () => {
     // the cells shift against ClubDesk's mapper). CREATE rows carry the real
     // wiedisync name (a new contact needs one) and never an [Id] (an unknown
     // [Id] hard-aborts ClubDesk's whole import).
-    expect(header).toBe('Vorname;Nachname;E-Mail;Telefon Privat;Adresse;PLZ;Ort;Geburtsdatum;Geschlecht;IBAN;Anrede;Nationalität;Federation of Origin;Trainer Lizenz;AHV Nummer;Wiedisync ID;Gast;Telefon Mobil;Beitragskategorie;Eintritt;Gruppen;Status;Offiziellen Lizenz;Mitgliederbeitrag;Sektion;Schiedsrichter;Lizenznummer;Lizenzart')
+    expect(header).toBe('Vorname;Nachname;E-Mail;Telefon Privat;Adresse;PLZ;Ort;Geburtsdatum;Geschlecht;IBAN;Anrede;Nationalität;Federation of Origin;Trainer Lizenz;AHV Nummer;Wiedisync ID;Gast;Telefon Mobil;Beitragskategorie;Eintritt;Gruppen;Status;Offiziellen Lizenz;Mitgliederbeitrag;Sektion;Schiedsrichter;Lizenznummer;Lizenzart;Austritt')
     expect(header).toBe(CD_PUSH_CREATE_HEADERS.join(';'))
     expect(header).not.toContain('[Id]')
     // header/cell count equality — catches a header/cells drift in either direction
     expect(row.split(';')).toHaveLength(header.split(';').length)
     const cells = row.split(';')
-    expect(cells).toHaveLength(28)
+    expect(cells).toHaveLength(29)
     expect(cells[9]).toBe('CH9300762011623852957') // IBAN
     // [10..14] = Anrede/Nationalität/Federation of Origin/Trainer Lizenz/AHV Nummer (empty on this fixture); [15] = Wiedisync ID; [16] = Gast; create extras start at [17]
     expect(cells[17]).toBe('+41 79 000 00 00')      // Telefon Mobil = Privat
@@ -284,6 +290,7 @@ describe('buildPushCsv (create set)', () => {
     expect(cells[25]).toBe('Ja')                     // Schiedsrichter (referee)
     expect(cells[26]).toBe('183931')                 // Lizenznummer (issuing authority)
     expect(cells[27]).toBe('RLL')                    // Lizenzart
+    expect(cells[28]).toBe('')                       // Austritt — a new contact is joining
   })
 
   it('Telefon Mobil mirrors Telefon Privat (one number → both)', () => {
@@ -313,7 +320,7 @@ describe('buildPushCsv (create set)', () => {
     const row = buildPushCsv([{ ...kacper, gruppen: 'VB H1 (Spieler*in), VB H2 (Spieler*in)' }], { create: true })
       .trim().split('\n')[1]
     const cells = row.split(';')
-    expect(cells).toHaveLength(28)
+    expect(cells).toHaveLength(29)
     expect(cells[20]).toBe('VB H1 (Spieler*in), VB H2 (Spieler*in)')
   })
 })
@@ -326,7 +333,6 @@ describe('deriveOffiziellenLizenz', () => {
     expect(deriveOffiziellenLizenz({ scorer_vb: true })).toBe('VB SC')
     expect(deriveOffiziellenLizenz({ otr1_bb: true })).toBe('OTR1')
     expect(deriveOffiziellenLizenz({ otr2_bb: true })).toBe('OTR2')
-    expect(deriveOffiziellenLizenz({ otn_bb: true })).toBe('OTN')
     expect(deriveOffiziellenLizenz({})).toBe('')
     expect(deriveOffiziellenLizenz(null)).toBe('')
   })
@@ -914,5 +920,102 @@ describe('feeBreakdown — on-demand discount', () => {
     // deriveMitgliederbeitrag passes only isGuest, so a stray opts.discount on
     // that path can never reach the ClubDesk cell.
     expect(deriveMitgliederbeitrag('VB Erwerbstätige', adultNoLic, { discount: 500 })).toBe('540')
+  })
+})
+
+// ── The register triple (migration 302) ──────────────────────────────────────
+// Status / Eintritt / Austritt are the only cells an UPDATE row may overwrite in
+// ClubDesk's own authoritative fields. The rule that keeps that safe is narrow
+// and worth pinning precisely: a cell is overwritten ONLY when the member's
+// pending push names that exact field. Everything else echoes the register back.
+describe('registerCell — what may overwrite the legal register', () => {
+  const cdHeld = { clubdesk: 'Aktivmitglied' }
+
+  it('echoes ClubDesk when the pending push does not name the field', () => {
+    // The IBAN-changed case: a member is flagged for a push for an unrelated
+    // reason, and their (possibly week-stale) status must not ride along.
+    expect(registerCell('register_status', {
+      changed: new Set(['iban']), wiedi: 'Ehemaliges Mitglied', ...cdHeld,
+    })).toBe('Aktivmitglied')
+  })
+
+  it('sends wiedisync when the pending push names the field', () => {
+    expect(registerCell('register_status', {
+      changed: new Set(['register_status']), wiedi: 'Ehemaliges Mitglied', ...cdHeld,
+    })).toBe('Ehemaliges Mitglied')
+  })
+
+  it('never blanks the register — an empty wiedisync value falls back to ClubDesk', () => {
+    // ClubDesk ignores empty cells on import anyway; this is the layer that
+    // makes that a guarantee rather than a dependency on the vendor.
+    expect(registerCell('austritt', {
+      changed: new Set(['austritt']), wiedi: '', clubdesk: '31.05.2025',
+    })).toBe('31.05.2025')
+    expect(registerCell('austritt', {
+      changed: new Set(['austritt']), wiedi: null, clubdesk: null,
+    })).toBe('')
+  })
+
+  it('fills an empty register cell from wiedisync even without a pending change', () => {
+    // The pre-302 fill behaviour, preserved: a contact created in ClubDesk and
+    // linked afterwards still gets its entry date.
+    expect(registerCell('eintritt', {
+      changed: new Set(), wiedi: '27.06.2026', clubdesk: '',
+    })).toBe('27.06.2026')
+  })
+
+  it('falls back to the derivation only when both sides are empty', () => {
+    expect(registerCell('eintritt', {
+      changed: new Set(), wiedi: '', clubdesk: '', fallback: '01.09.2026',
+    })).toBe('01.09.2026')
+    // ClubDesk's own value still beats the derivation.
+    expect(registerCell('eintritt', {
+      changed: new Set(), wiedi: '', clubdesk: '23.06.1992', fallback: '01.09.2026',
+    })).toBe('23.06.1992')
+  })
+
+  it('treats a missing/garbage change set as "echo", never as "overwrite"', () => {
+    expect(registerCell('register_status', { wiedi: 'Verstorben', ...cdHeld })).toBe('Aktivmitglied')
+  })
+})
+
+describe('changedPushFields', () => {
+  it('reads both shapes knex hands back for a jsonb column', () => {
+    const arr = [{ field: 'register_status', old_value: null, new_value: 'Ehrenmitglied' }]
+    expect([...changedPushFields(arr)]).toEqual(['register_status'])
+    expect([...changedPushFields(JSON.stringify(arr))]).toEqual(['register_status'])
+  })
+
+  it('degrades to an EMPTY set on anything unparseable — empty means echo', () => {
+    // Fails safe in the direction that protects the register: an unreadable
+    // change log must never be read as "overwrite everything".
+    for (const bad of [null, undefined, '', 'not json', '{"not":"an array"}', 42]) {
+      expect(changedPushFields(bad).size).toBe(0)
+    }
+    expect([...changedPushFields([{ no_field: 1 }, null, { field: 'iban' }])]).toEqual(['iban'])
+  })
+})
+
+describe('buildPushCsv — the register triple end to end', () => {
+  const linked = { ...kacper, register_status: 'Ehemaliges Mitglied', austritt: '2026-08-10' }
+
+  it('leaves Status and Austritt at ClubDesk values when nothing named them', () => {
+    const cells = buildPushCsv([{ ...linked, register_status_cd: 'Aktivmitglied', austritt_cd: '' }])
+      .trim().split('\n')[1].split(';')
+    expect(cells[21]).toBe('Aktivmitglied')  // Status — the register's own
+    expect(cells[22]).toBe('')               // Austritt — nothing to echo, nothing sent
+  })
+
+  it('carries the departure once the member is flagged for exactly that change', () => {
+    const cells = buildPushCsv([{
+      ...linked,
+      register_status_cd: 'Aktivmitglied',
+      clubdesk_push_changes: [
+        { field: 'register_status', old_value: 'Aktivmitglied', new_value: 'Ehemaliges Mitglied' },
+        { field: 'austritt', old_value: null, new_value: '2026-08-10' },
+      ],
+    }]).trim().split('\n')[1].split(';')
+    expect(cells[21]).toBe('Ehemaliges Mitglied')
+    expect(cells[22]).toBe('10.08.2026')  // dd.mm.yyyy, like every other date cell
   })
 })

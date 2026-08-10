@@ -67,7 +67,7 @@ export default {
   volleyFeedback: 'Volley feedback',
   anmeldungen: 'Registrations',
   guide: 'Guide',
-  adminExplorer: 'Data explorer',
+  adminExplorer: 'Database',
   announcements: 'Announcements',
   clubMailbox: 'Club mailbox',
   news: 'News',

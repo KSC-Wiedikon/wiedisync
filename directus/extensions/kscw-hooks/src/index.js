@@ -672,7 +672,20 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     // value flags: a cleared field is deliberately not propagated — the push
     // echoes ClubDesk's own value back instead (see clubdesk-update.js). Unlinked
     // members skip the flag; their values ride the CREATE push.
-    for (const field of ['iban', 'ahv_nummer']) {
+    // The register triple (migration 302) joins this loop, and it is the reason
+    // the loop matters rather than a convenience: `clubdesk_push_changes` is not
+    // just bookkeeping for these three — buildPushCsv READS it to decide whether
+    // an UPDATE row may overwrite ClubDesk's Status / Eintritt / Austritt at all
+    // (registerCell / CD_REGISTER_FIELDS). A status edited here and not recorded
+    // here would set the column and then never reach the register.
+    //
+    // ⚠ The non-empty rule below applies to them too, and for Austritt it has a
+    // consequence worth knowing: CLEARING an exit date (a member rejoining)
+    // cannot propagate. ClubDesk's import ignores empty cells, so wiedisync has
+    // no way to blank a register cell at all — the date has to be removed in
+    // ClubDesk by hand. The wiedisync side is still correct immediately; only
+    // the register lags.
+    for (const field of ['iban', 'ahv_nummer', 'register_status', 'eintritt', 'austritt']) {
       if (!payload || !(field in payload) || !String(payload[field] || '').trim()) continue
       for (const id of keys) {
         try {
@@ -4344,17 +4357,14 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         if (p.includes('otr 1') || p === 'otr1') mapped.push('otr1_bb')
         if (p.includes('otr 2') || p === 'otr2') mapped.push('otr2_bb')
         // OTN is level-split since migration 228 (Basketplan issues OTN 1 and
-        // OTN 2 separately). Test the LEVELS FIRST — a bare `includes('otn')`
-        // branch would swallow "OTN 1" and file a level holder under the coarse
-        // flag. `otn_bb` is deliberately retained as that coarse "holds some
-        // OTN" flag: ClubDesk's "Offiziellen Lizenz" picklist could historically
-        // only express a single level-less "OTN", so every older registration
-        // (and the 6 existing holders) still lands there and keeps eligibility.
-        const otn1 = p.includes('otn 1') || p.includes('otn1')
-        const otn2 = p.includes('otn 2') || p.includes('otn2')
-        if (otn1) mapped.push('otn1_bb')
-        if (otn2) mapped.push('otn2_bb')
-        if (!otn1 && !otn2 && p.includes('otn')) mapped.push('otn_bb')
+        // OTN 2 separately), and migration 303 dropped the coarse `otn_bb` flag
+        // that used to catch a level-less "OTN". A registration that names no
+        // level therefore sets NO column — deliberately: asserting OTN 1 for
+        // somebody who may hold OTN 2 is a licence claim the club cannot back,
+        // and the applicant's raw answer survives on `registrations.lizenz` for
+        // an admin (or the Basketplan import) to resolve into a real level.
+        if (p.includes('otn 1') || p.includes('otn1')) mapped.push('otn1_bb')
+        if (p.includes('otn 2') || p.includes('otn2')) mapped.push('otn2_bb')
         if (p.includes('schiedsrichter') || p === 'referee') mapped.push('referee_bb')
       }
     }
@@ -4521,12 +4531,9 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         referee_vb: licences.includes('referee_vb'),
         otr1_bb: licences.includes('otr1_bb'),
         otr2_bb: licences.includes('otr2_bb'),
-        // Three OTN columns, not one (migration 228): mapLicences() emits the
-        // precise level when the applicant's licence string names one, and the
-        // coarse `otn_bb` when it doesn't — which is what a level-less ClubDesk
-        // "OTN" still produces. All three are written so nothing is lost either
-        // way; readers must OR them.
-        otn_bb: licences.includes('otn_bb'),
+        // Two OTN columns, one per Basketplan level (migration 228; the coarse
+        // `otn_bb` was dropped by 303). A registration naming no level sets
+        // neither — see mapLicences().
         otn1_bb: licences.includes('otn1_bb'),
         otn2_bb: licences.includes('otn2_bb'),
         referee_bb: licences.includes('referee_bb'),

@@ -570,7 +570,7 @@ export default {
   cdRegRetry: 'Retry',
 
   // Data Explorer
-  explorerTitle: 'Data explorer',
+  explorerTitle: 'Database',
   explorerRefresh: 'Refresh',
   explorerRefreshedAt: 'Last loaded {{time}}',
   explorerSearchPlaceholder: 'Search all…',
@@ -731,6 +731,12 @@ export default {
   explorerDangerStatusSaved: 'Status updated',
   explorerDangerStatusError: 'Could not update the status',
 
+  // Membership status (migration 302). The confirm names both flags it switches
+  // off, because they are edited in the danger zone everywhere else.
+  explorerStatusDepartedTitle: 'End the membership?',
+  explorerStatusDepartedMessage: 'Set {{name}} to "{{status}}"? This also switches off their club membership and their app access, so they leave the rosters, the mailing audiences and the dues run, and can no longer log in.',
+  explorerStatusAustrittNeedsDeparted: 'An exit date needs a departed membership status — pick "Ehemaliges Mitglied", "Kein Mitglied" or "Verstorben", or clear the date.',
+
   // Explorer danger zone — permanent delete
   explorerDangerDelete: 'Delete permanently',
   explorerDangerDeleteTitle: 'Delete {{label}} permanently',
@@ -817,6 +823,9 @@ export default {
   explorerGridColVmEmail: 'VM email',
   explorerGridColAhv: 'AHV number',
   explorerGridColFeeCategory: 'Fee category',
+  explorerGridColRegisterStatus: 'Membership status',
+  explorerGridColEintritt: 'Entry date',
+  explorerGridColAustritt: 'Exit date',
   explorerGridColRoles: 'Roles',
   explorerGridGroupBy: 'Group by',
   explorerGridGroupNone: 'No grouping',
@@ -1194,4 +1203,6 @@ export default {
   anmeldungenLicenceStatusSaved: 'Licence status saved',
   anmeldungenLicenceStatusFailed: 'Could not save the licence status',
   memberFilterSectionLicenceStatus: 'Licence status',
+  memberFilterSectionRegisterStatus: 'Membership status',
+  memberFilterRegisterStatusUnset: 'Not set',
 } as const

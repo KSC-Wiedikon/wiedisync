@@ -25,7 +25,9 @@
 //
 // Column list verified against prod `information_schema` on 2026-08-06 (100
 // columns), + the five fee-override columns from migrations 299/300 (105), +
-// the four licence-status columns from migration 301 (109).
+// the four licence-status columns from migration 301 (109), + register_status /
+// eintritt / austritt from migration 302 (112), − the legacy `otn_bb` flag
+// dropped by migration 303 (111).
 // When a migration adds one, add it here in the same commit — the fallback in
 // getFieldDef() keeps the page alive but flags the column as unmapped and
 // refuses to let anybody edit it.
@@ -290,11 +292,29 @@ const CONTACT = block('contact', undefined, [
   { key: 'ort', label: 'City', kind: 'text' },
 ])
 
-// ── 1.c Membership (8 columns + 1 virtual) ──────────────────────────────────
+// ── 1.c Membership (11 columns + 1 virtual) ─────────────────────────────────
 // `beitragskategorie` lives in Finance & billing, not here: it is the input the
 // fee amount is computed from, and reading a category without the CHF it
 // produces is what made "why is this member billed 310?" a two-page question.
+//
+// Reading order is the question itself: what the club register says this person
+// IS (status, and the dates that bracket it), then what wiedisync does about it
+// (section, teams, the two active flags).
 const MEMBERSHIP = block('membership', undefined, [
+  {
+    key: 'register_status', label: 'Membership status', kind: 'select',
+    help: 'The club register\'s own status. Setting a departed status fills the exit date and ends club membership and app access.',
+    overwrittenBy:
+      'Two-way with ClubDesk: your change is protected until the next approved sync-up carries it into the register, and the register wins again afterwards.',
+  },
+  {
+    key: 'eintritt', label: 'Entry date', kind: 'date',
+    help: 'When they joined the club. For a member who signed up here, the date the registration was sent.',
+  },
+  {
+    key: 'austritt', label: 'Exit date', kind: 'date',
+    help: 'Only settable alongside a departed status — the database rejects an exit date on an active member.',
+  },
   {
     key: 'sektion', label: 'Section', kind: 'suggest',
     help: 'Volleyball, Basketball or KSCW (club-level). Decides which association fields are shown below.',
@@ -445,11 +465,6 @@ const ASSOC_BB = block('association', 'assoc_bb', [
   { key: 'otr2_bb', label: 'OTR 2 (table official)', kind: 'bool', overwrittenBy: O_CLUBDESK_OFFICIALS },
   { key: 'otn1_bb', label: 'OTN 1 (table official)', kind: 'bool', overwrittenBy: O_CLUBDESK_OFFICIALS },
   { key: 'otn2_bb', label: 'OTN 2 (table official)', kind: 'bool', overwrittenBy: O_CLUBDESK_OFFICIALS },
-  {
-    key: 'otn_bb', label: 'OTN, any level (legacy)', kind: 'bool',
-    help: 'Predates the levels above. Keep it as the coarse "holds some OTN" flag — it is not a third level.',
-    overwrittenBy: O_CLUBDESK_OFFICIALS,
-  },
 ])
 
 // ── 1.f Roles & access (3) ──────────────────────────────────────────────────

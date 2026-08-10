@@ -741,7 +741,29 @@ const psqlInput =
   "         kscw_normalize_phone(left(COALESCE(NULLIF(btrim(telefon_mobil),''), NULLIF(btrim(telefon_privat),'')),255)) AS phone,\n" +
   "         left(NULLIF(btrim(beitragskategorie),''),100) AS categ, left(NULLIF(btrim(sektion),''),32) AS sektion,\n" +
   // J+S Personennummer — ClubDesk-owned, fill-only into members.js_id (like AHV).
-  "         left(NULLIF(btrim(js_id),''),32) AS js_id\n" +
+  "         left(NULLIF(btrim(js_id),''),32) AS js_id,\n" +
+  // ── The register triple (migration 302) ──────────────────────────────────
+  // Status / Eintritt / Austritt: ClubDesk-authoritative like beitragskategorie,
+  // with ONE exception applied in the WHERE below — a member with a sync-up push
+  // pending is skipped, because their wiedisync value is a deliberate edit that
+  // has not reached the register yet. Without that exception a status set on a
+  // Monday would be silently reverted by the Saturday 22:00 sync-down whenever
+  // nobody had approved the push in between, which is the whole failure mode the
+  // two-way contract exists to prevent.
+  //
+  // A status outside ClubDesk's picklist is dropped rather than written: the
+  // CHECK constraint would abort the entire transaction, and one unexpected
+  // register value must not take the whole nightly sync with it.
+  "         CASE WHEN btrim(status) IN ('Kein Mitglied','Aktivmitglied','Passivmitglied',\n" +
+  "                                     'Ehrenmitglied','Ehemaliges Mitglied','Verstorben','Zwischenjahr')\n" +
+  "              THEN btrim(status) END AS reg_status,\n" +
+  // Dates are guarded by a shape regex for the same reason the birthdate above
+  // is: the export column is free text, and one malformed cell would otherwise
+  // abort the statement for everybody.
+  "         CASE WHEN btrim(coalesce(eintritt,'')) ~ '^[0-9]{2}\\.[0-9]{2}\\.[0-9]{4}$'\n" +
+  "              THEN to_date(btrim(eintritt),'DD.MM.YYYY') END AS eintritt,\n" +
+  "         CASE WHEN btrim(coalesce(austritt,'')) ~ '^[0-9]{2}\\.[0-9]{2}\\.[0-9]{4}$'\n" +
+  "              THEN to_date(btrim(austritt),'DD.MM.YYYY') END AS austritt\n" +
   '  FROM clubdesk_export\n' +
   "  WHERE NULLIF(btrim(clubdesk_id),'') IS NOT NULL\n" +
   '  ORDER BY btrim(clubdesk_id), row_id DESC)\n' +
@@ -753,8 +775,19 @@ const psqlInput =
   "  phone     = COALESCE(NULLIF(btrim(m.phone),''), cd.phone),\n" +
   "  js_id     = COALESCE(NULLIF(btrim(m.js_id),''), cd.js_id),\n" +
   "  beitragskategorie = COALESCE(cd.categ, NULLIF(btrim(m.beitragskategorie),'')),\n" +
-  "  sektion   = COALESCE(cd.sektion, NULLIF(btrim(m.sektion),''))\n" +
-  'FROM cd WHERE btrim(m.clubdesk_id) = cd.cdid AND (\n' +
+  "  sektion   = COALESCE(cd.sektion, NULLIF(btrim(m.sektion),'')),\n" +
+  // ⚠ Austritt is cleared alongside a status the register no longer calls
+  // departed, not left behind: members_austritt_needs_departed_status (migration
+  // 302) rejects the pair, so writing the status without the date would abort.
+  "  register_status = COALESCE(cd.reg_status, m.register_status),\n" +
+  "  eintritt  = COALESCE(cd.eintritt, m.eintritt),\n" +
+  "  austritt  = CASE WHEN COALESCE(cd.reg_status, m.register_status)\n" +
+  "                        IN ('Kein Mitglied','Ehemaliges Mitglied','Verstorben')\n" +
+  "                   THEN COALESCE(cd.austritt, m.austritt) END\n" +
+  // The pending-push exception. `clubdesk_push_pending` means "this member holds
+  // a wiedisync edit the register has not seen"; leave every one of the three
+  // alone until the push has landed and the flag has cleared.
+  "FROM cd WHERE btrim(m.clubdesk_id) = cd.cdid AND m.clubdesk_push_pending IS DISTINCT FROM true AND (\n" +
   '     (m.birthdate IS NULL AND cd.dob IS NOT NULL)\n' +
   "  OR (NULLIF(btrim(m.adresse),'') IS NULL AND cd.adresse IS NOT NULL)\n" +
   "  OR (NULLIF(btrim(m.plz),'') IS NULL AND cd.plz IS NOT NULL)\n" +
@@ -762,7 +795,10 @@ const psqlInput =
   "  OR (NULLIF(btrim(m.phone),'') IS NULL AND cd.phone IS NOT NULL)\n" +
   "  OR (NULLIF(btrim(m.js_id),'') IS NULL AND cd.js_id IS NOT NULL)\n" +
   "  OR (cd.categ IS NOT NULL AND cd.categ IS DISTINCT FROM NULLIF(btrim(m.beitragskategorie),''))\n" +
-  "  OR (cd.sektion IS NOT NULL AND cd.sektion IS DISTINCT FROM NULLIF(btrim(m.sektion),'')));\n" +
+  "  OR (cd.sektion IS NOT NULL AND cd.sektion IS DISTINCT FROM NULLIF(btrim(m.sektion),''))\n" +
+  "  OR (cd.reg_status IS NOT NULL AND cd.reg_status IS DISTINCT FROM m.register_status)\n" +
+  "  OR (cd.eintritt IS NOT NULL AND cd.eintritt IS DISTINCT FROM m.eintritt)\n" +
+  "  OR (cd.austritt IS DISTINCT FROM m.austritt));\n" +
   'COMMIT;\n' +
   "SELECT 'members_missing_contact_fields' AS metric,\n" +
   "  (SELECT count(*) FROM members m JOIN clubdesk_export c ON btrim(c.clubdesk_id) = btrim(m.clubdesk_id)\n" +
@@ -822,15 +858,27 @@ const psqlInput =
   "UPDATE members m SET otn2_bb = true FROM clubdesk_export c\n" +
   "  WHERE btrim(c.clubdesk_id) = btrim(m.clubdesk_id) AND m.otn2_bb IS DISTINCT FROM true\n" +
   "    AND upper(replace(btrim(c.offiziellen_lizenz), ' ', '')) = 'OTN2';\n" +
-  "UPDATE members m SET otn_bb = true FROM clubdesk_export c\n" +
-  "  WHERE btrim(c.clubdesk_id) = btrim(m.clubdesk_id) AND m.otn_bb IS DISTINCT FROM true\n" +
-  "    AND upper(btrim(c.offiziellen_lizenz)) = 'OTN';\n" +
+  // A bare, level-less 'OTN' cell has had nowhere to land since migration 303
+  // dropped the coarse `otn_bb` flag. Asserting a level from it would be a
+  // licence claim the register does not make, so it is reported rather than
+  // written — Basketplan is what resolves an OTN into OTN 1 / OTN 2. The metric
+  // below is 0 whenever every such contact already carries a scraped level,
+  // which is how prod stood when the flag was dropped (6 linked, all OTN 2).
+
   // Every VOLLEYBALL referee is automatically a scorer (user 2026-07-07) — so a
   // VB referee always carries the Schreiber licence too. Basketball is separate
   // (a BB referee is NOT auto-made a table official). Set-true only.
   "UPDATE members SET scorer_vb = true WHERE referee_vb = true AND scorer_vb IS DISTINCT FROM true;\n" +
   'COMMIT;\n' +
   "SELECT 'members_referee' AS metric, (SELECT count(*) FROM members WHERE referee_vb OR referee_bb) AS value;\n" +
+  // Linked contacts whose ClubDesk cell says a level-less 'OTN' and whose member
+  // row carries neither Basketplan level — nobody today, and a non-zero value
+  // means somebody's table-officials eligibility is riding on a cell wiedisync
+  // can no longer represent. Resolve it in Basketplan, or set the level by hand.
+  "SELECT 'members_otn_unresolved' AS metric, (SELECT count(*) FROM members m\n" +
+  "  JOIN clubdesk_export c ON btrim(c.clubdesk_id) = btrim(m.clubdesk_id)\n" +
+  "  WHERE upper(btrim(c.offiziellen_lizenz)) = 'OTN'\n" +
+  "    AND m.otn1_bb IS DISTINCT FROM true AND m.otn2_bb IS DISTINCT FROM true) AS value;\n" +
   // Report contacts that would have matched MULTIPLE still-unlinked members (skipped
   // above) so a human can link them manually — "ambiguous, needs manual link".
   'WITH cd AS (\n' +

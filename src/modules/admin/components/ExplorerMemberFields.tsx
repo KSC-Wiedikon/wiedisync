@@ -29,7 +29,7 @@ import { toast } from 'sonner'
 import { Pencil, Save, X, Loader2, Eye, EyeOff, AlertTriangle } from 'lucide-react'
 import { assetUrl, createRecord, deleteRecord, fetchItem, kscwApi, updateRecord } from '../../../lib/api'
 import { logActivity } from '../../../utils/logActivity'
-import { getCurrentSeason } from '../../../utils/dateHelpers'
+import { getCurrentSeason, todayLocal } from '../../../utils/dateHelpers'
 import {
   NO_FEDERATION, countryLabel, countryOptions, formatCountryCodes,
   parseCountryCodes, serializeCountryCodes,
@@ -51,7 +51,8 @@ import {
 } from './memberFieldSchema'
 import { resolveMemberSport, sportCovers, type MemberSport } from './memberSport'
 import {
-  MEMBER_MULTI_FIELDS, MEMBER_SELECT_FIELDS, MEMBER_SUGGEST_FIELDS, optionLabel,
+  MEMBER_MULTI_FIELDS, MEMBER_SELECT_FIELDS, MEMBER_SUGGEST_FIELDS,
+  isDepartedRegisterStatus, optionLabel,
   type FieldOption,
 } from './memberFieldOptions'
 import MemberDangerZone from './MemberDangerZone'
@@ -627,10 +628,36 @@ export default function ExplorerMemberFields({
 
   // ── Write paths ──────────────────────────────────────────────────────
 
-  const setField = useCallback(
-    (key: string, value: unknown) => setDraft((d) => ({ ...d, [key]: value })),
-    [],
-  )
+  /**
+   * Draft write, plus the one field pair that moves together.
+   *
+   * Membership status and exit date are not independent: the register cannot
+   * express "left the club" without saying when, and it cannot express "still a
+   * member, left on 3 March" at all (migration 302 enforces that with a CHECK,
+   * so a mismatched pair is a 400 rather than a bad row). Rather than let an
+   * admin discover that at save time, picking a departed status fills today's
+   * date and picking an active one clears it.
+   *
+   * Both moves are visible in the draft and both are overridable before saving —
+   * the prefill is a default, not a decision. An exit date that is ALREADY set
+   * is never overwritten: it is usually the real, known leaving date and today
+   * is only a guess.
+   */
+  const setField = useCallback((key: string, value: unknown) => {
+    setDraft((d) => {
+      const next = { ...d, [key]: value }
+      if (key === 'register_status') {
+        if (isDepartedRegisterStatus(value)) {
+          if (!next.austritt) next.austritt = todayLocal()
+        } else {
+          // Includes clearing the status back to "—": an exit date with no
+          // departed status is exactly what the CHECK constraint rejects.
+          next.austritt = null
+        }
+      }
+      return next
+    })
+  }, [])
 
   const handleCancel = useCallback(async () => {
     if (dirtyKeys.length > 0) {
@@ -650,10 +677,49 @@ export default function ExplorerMemberFields({
       setEditMode(false)
       return
     }
+    const patch: Record<string, unknown> = {}
+    for (const k of dirtyKeys) patch[k] = draft[k]
+
+    // ── Departing the club is more than one column ──────────────────────────
+    // A status of 'Ehemaliges Mitglied' / 'Kein Mitglied' / 'Verstorben' is the
+    // statement that this person is no longer one of ours, and leaving them on
+    // rosters, in mailing audiences, in the dues run and able to log in
+    // contradicts it. So the two active flags come along — but only ever
+    // downward, only with a confirm, and only when they are still on.
+    //
+    // ⚠ These two are danger-zone fields: read-only in the grid, edited in
+    // MemberDangerZone, and therefore never in `dirtyKeys`. Writing them here is
+    // a deliberate exception to that "one column, one editing surface" rule,
+    // which is why it is gated behind a confirm that names both of them rather
+    // than riding along silently.
+    const nextStatus = patch.register_status
+    if ('register_status' in patch && isDepartedRegisterStatus(nextStatus)) {
+      const stillActive = record.kscw_membership_active === true || record.wiedisync_active === true
+      if (stillActive) {
+        const ok = await confirm({
+          title: t('explorerStatusDepartedTitle'),
+          message: t('explorerStatusDepartedMessage', { name: memberName, status: String(nextStatus) }),
+          danger: true,
+        })
+        if (!ok) return
+        patch.kscw_membership_active = false
+        patch.wiedisync_active = false
+      }
+    }
+
+    // The CHECK constraint's own rule, enforced here so it reads as a sentence
+    // instead of as a Postgres violation. Only reachable by editing the date on
+    // a member whose status is already active — every status change through
+    // setField keeps the pair consistent on its own.
+    const effectiveStatus = 'register_status' in patch ? patch.register_status : record.register_status
+    const effectiveAustritt = 'austritt' in patch ? patch.austritt : record.austritt
+    if (effectiveAustritt && !isDepartedRegisterStatus(effectiveStatus)) {
+      toast.error(t('explorerStatusAustrittNeedsDeparted'))
+      return
+    }
+
     setSaving(true)
     try {
-      const patch: Record<string, unknown> = {}
-      for (const k of dirtyKeys) patch[k] = draft[k]
       // `fields: ['*']` — without it Directus answers with its default field set
       // and the record would silently change shape (and lose columns) on save.
       const updated = await updateRecord<Record<string, unknown>>(
@@ -672,7 +738,7 @@ export default function ExplorerMemberFields({
     } finally {
       setSaving(false)
     }
-  }, [record, dirtyKeys, draft, memberId, t, onSaved])
+  }, [record, dirtyKeys, draft, memberId, t, onSaved, confirm, memberName])
 
   /**
    * Roster membership. Writes `member_teams` junction rows immediately — the
