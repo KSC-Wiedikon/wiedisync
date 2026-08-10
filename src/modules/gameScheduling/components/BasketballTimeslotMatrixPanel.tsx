@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { formatDateZurich } from '../../../utils/dateHelpers'
 import { FRIDAY_SLOTS, SATURDAY_SLOTS, SUNDAY_SLOTS } from '../utils/probasketSeason'
 import type { BasketballRuleCategory } from '../utils/basketballRules'
+import DatePicker from '@/components/ui/DatePicker'
 
 /**
  * The CLUB-level half of the basketball slot config (`game_scheduling_seasons
@@ -246,16 +247,12 @@ export default function BasketballTimeslotMatrixPanel({ config, onUpdate }: Prop
         )}
 
         <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end">
-          <label className="flex flex-col gap-1 text-[11px] text-gray-500 dark:text-gray-400">
+          {/* DatePicker, not a native date input — the native one draws in the
+              browser's locale (mm/dd/yyyy on an English machine). */}
+          <div className="flex flex-col gap-1 text-[11px] text-gray-500 dark:text-gray-400">
             {t('colDate')}
-            <input
-              type="date"
-              className={selectClass}
-              value={newDate}
-              disabled={busy}
-              onChange={(e) => setNewDate(e.target.value)}
-            />
-          </label>
+            <DatePicker value={newDate} onChange={setNewDate} disabled={busy} />
+          </div>
           <label className="flex flex-col gap-1 text-[11px] text-gray-500 dark:text-gray-400">
             {t('colStatus')}
             <select

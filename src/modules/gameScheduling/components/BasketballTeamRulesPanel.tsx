@@ -23,6 +23,7 @@ import {
   type HallPreset,
 } from '../utils/basketballRules'
 import type { Team } from '../../../types'
+import DatePicker from '@/components/ui/DatePicker'
 
 /**
  * The club's basketball constraint matrix — one row per team, editable.
@@ -58,9 +59,6 @@ const DAY_KEY: Record<number, string> = { 5: 'day_fri', 6: 'day_sat', 0: 'day_su
 
 const selectClass =
   'min-h-11 w-full rounded-md border border-border bg-transparent px-2 py-1 text-xs dark:bg-gray-800'
-const inputClass =
-  'min-h-11 rounded-md border border-border bg-transparent px-2 py-1 text-xs dark:bg-gray-800'
-
 export default function BasketballTeamRulesPanel({
   teams,
   byTeam,
@@ -539,29 +537,20 @@ function RuleDetail({ rule, disabled, blockedLabel, onPatch, onDelete }: DetailP
               <option value="date_range">{t('ruleDateRange')}</option>
             </select>
           </label>
+          {/* DatePicker, not a native date input — the native one draws in the
+              browser's locale, so a scheduling rule's boundary date read
+              mm/dd/yyyy on an English machine. */}
           {kind !== 'school_holidays' && (
-            <label className="flex flex-col gap-1 text-[11px] text-gray-500 dark:text-gray-400">
+            <div className="flex flex-col gap-1 text-[11px] text-gray-500 dark:text-gray-400">
               {kind === 'date_range' ? t('ruleRangeStart') : t('ruleBeforeDateValue')}
-              <input
-                type="date"
-                className={inputClass}
-                value={date}
-                disabled={disabled}
-                onChange={(e) => setDate(e.target.value)}
-              />
-            </label>
+              <DatePicker value={date} onChange={setDate} disabled={disabled} />
+            </div>
           )}
           {kind === 'date_range' && (
-            <label className="flex flex-col gap-1 text-[11px] text-gray-500 dark:text-gray-400">
+            <div className="flex flex-col gap-1 text-[11px] text-gray-500 dark:text-gray-400">
               {t('ruleRangeEnd')}
-              <input
-                type="date"
-                className={inputClass}
-                value={rangeEnd}
-                disabled={disabled}
-                onChange={(e) => setRangeEnd(e.target.value)}
-              />
-            </label>
+              <DatePicker value={rangeEnd} onChange={setRangeEnd} disabled={disabled} />
+            </div>
           )}
           {kind === 'school_holidays' && (
             <label className="flex min-h-11 items-center gap-2 text-[11px] text-gray-500 dark:text-gray-400">

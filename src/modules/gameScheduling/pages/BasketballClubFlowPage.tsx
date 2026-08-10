@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import LanguageDropdown from '../../../components/LanguageDropdown'
 import { useReportPageLoading } from '../../../hooks/usePageReady'
 import { formatDateZurich } from '../../../utils/dateHelpers'
+import DatePicker from '@/components/ui/DatePicker'
 
 /**
  * PUBLIC opponent-club portal for basketball — /terminplanung/bb/:token.
@@ -398,13 +399,18 @@ export default function BasketballClubFlowPage() {
             <p className="text-xs text-gray-500 dark:text-gray-400">{t('bbPortalAlternativesHint')}</p>
             {(draft?.alternatives ?? []).map((a, idx) => (
               <div key={idx} className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                <input
-                  type="date"
-                  value={a.date}
-                  aria-label={t('bbPortalAltDate')}
-                  onChange={(e) => updateAlternative(g.id, idx, { date: e.target.value })}
-                  className={`${inputClass} sm:w-44`}
-                />
+                {/* Not a native date input: it draws in the BROWSER's locale, so
+                    an opponent club on an English machine proposing an
+                    alternative date would read `05/10/2026` and could not tell
+                    5 October from 10 May. DatePicker draws dd.mm.yyyy and emits
+                    the same YYYY-MM-DD string. */}
+                <div className="sm:w-44">
+                  <DatePicker
+                    value={a.date}
+                    onChange={(v) => updateAlternative(g.id, idx, { date: v })}
+                    placeholder={t('bbPortalAltDate')}
+                  />
+                </div>
                 <input
                   type="time"
                   value={a.time}

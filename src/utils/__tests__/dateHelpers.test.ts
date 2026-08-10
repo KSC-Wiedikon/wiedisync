@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   formatTimeZurich, formatDateZurich, formatDateCompactZurich,
-  formatDateShortZurich, formatWeekdayZurich,
+  formatWeekdayZurich,
   formatDateTimeCompactZurich, formatRelativeTimeZurich,
   toUtcIsoFromDatetimeLocal, toDatetimeLocalFromUtcIso,
   parseRespondByTime, getDeadlineDate,
@@ -92,12 +92,6 @@ describe('formatRelativeTimeZurich', () => {
     const d = new Date(Date.now() + 3_600_000).toISOString();
     const result = formatRelativeTimeZurich(d, 'de');
     expect(result).toBeTruthy();
-  });
-});
-
-describe('formatDateShortZurich', () => {
-  it('renders MM/DD', () => {
-    expect(formatDateShortZurich('2026-06-15T12:00:00.000Z')).toBe('06/15');
   });
 });
 
