@@ -1302,8 +1302,26 @@ export default {
 
     router.post('/verify-email', async (req, res) => {
       try {
-        const { email: rawEmail, lang: clientLang } = req.body
+        const { email: rawEmail, lang: clientLang, turnstile_token } = req.body
         if (!rawEmail) return res.status(400).json({ error: 'Email required' })
+
+        // This is the club's only PUBLIC mail-sending route, and it dispatches a
+        // branded OTP from the DKIM-aligned SES identity to any address the
+        // caller names. Its other bounds do not constrain that: the per-IP cap
+        // limits one source, and the per-address cap limits one mailbox —
+        // neither limits the number of DISTINCT mailboxes reached. Since the
+        // complaint rate is what actually costs a sender its identity
+        // (see ses-notify.js), an unbounded distinct-recipient fan-out is the
+        // real exposure (audit 2026-08-08, finding 12).
+        //
+        // Matches `/check-email` at ~:423. Note the sibling `/password-request`
+        // is not captcha-gated either, but it only ever mails an address that
+        // already has an account — this one mails anything.
+        const captchaToken = turnstile_token || req.headers['x-turnstile-token']
+        if (!captchaToken || !(await verifyTurnstile(captchaToken))) {
+          return res.status(400).json({ error: 'Captcha verification failed' })
+        }
+
         const email = rawEmail.toLowerCase().trim()
 
         // Rate limit: max 10 OTP requests per hour per IP

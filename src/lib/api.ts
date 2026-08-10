@@ -792,5 +792,11 @@ export async function kscwApi<T = unknown>(
     })
     throw err
   }
+  // 204 No Content carries an empty body, so res.json() throws SyntaxError and
+  // the caller's catch reports a success as a failure. /password-request 204s by
+  // design (it must never reveal whether an address exists) — which is why the
+  // profile page's "Reset password" button showed an error on every click even
+  // though the mail had already gone out.
+  if (res.status === 204) return undefined as T
   return res.json()
 }
