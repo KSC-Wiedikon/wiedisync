@@ -129,10 +129,21 @@ WITH cd AS (
    WHERE nullif(btrim(clubdesk_id), '') IS NOT NULL
    ORDER BY btrim(clubdesk_id), row_id
 )
+--
+-- ⚠ The exit date is taken ONLY when the status it lands next to is a departed
+-- one. The register does not enforce that pairing and therefore contains rows
+-- that break it — Timo Beyerlein is 'Passivmitglied' with an Austritt of
+-- 30.07.2026 — and copying such a row verbatim violates
+-- members_austritt_needs_departed_status in this very statement. The status is
+-- the claim and the date is only its detail, so the date is what gets dropped.
 UPDATE members m
    SET register_status = COALESCE(m.register_status, cd.status),
        eintritt        = COALESCE(m.eintritt, cd.eintritt),
-       austritt        = COALESCE(m.austritt, cd.austritt)
+       austritt        = CASE
+         WHEN COALESCE(m.register_status, cd.status)
+              IN ('Kein Mitglied', 'Ehemaliges Mitglied', 'Verstorben')
+         THEN COALESCE(m.austritt, cd.austritt)
+       END
   FROM cd
  WHERE cd.cdid = m.clubdesk_id
    AND (m.register_status IS NULL OR m.eintritt IS NULL OR m.austritt IS NULL)
