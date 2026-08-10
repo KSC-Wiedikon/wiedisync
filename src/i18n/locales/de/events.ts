@@ -70,6 +70,8 @@ export default {
   signupFormCreated: 'Anmeldeformular erstellt',
   signupFormUnlinked: 'Verknüpfung gelöst',
   signupFormFailed: 'Das Anmeldeformular konnte nicht erstellt werden',
+  inviteSending: 'Die Einladungen werden im Hintergrund versendet',
+  inviteFailed: 'Die Einladungen konnten nicht versendet werden',
   signupFormReplaceConfirm: 'Dieser Anlass hat bereits ein Anmeldeformular. Ein neues erstellen und stattdessen verknüpfen? Das alte Formular und seine Einträge bleiben erhalten.',
   signupFormUnlinkConfirm: 'Den Anmeldelink von diesem Anlass entfernen? Das Formular und seine Einträge bleiben erhalten.',
   signupLinkTitle: 'Anmeldelink für Gäste',

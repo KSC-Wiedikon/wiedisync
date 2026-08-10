@@ -70,6 +70,8 @@ export default {
   signupFormCreated: 'Signup form created',
   signupFormUnlinked: 'Signup form unlinked',
   signupFormFailed: 'The signup form could not be created',
+  inviteSending: 'Invitations are being sent in the background',
+  inviteFailed: 'The invitations could not be sent',
   signupFormReplaceConfirm: 'This event already has a signup form. Create a new one and link that instead? The old form and its entries are kept.',
   signupFormUnlinkConfirm: 'Remove the signup link from this event? The form and its entries are kept.',
   signupLinkTitle: 'Signup link for guests',

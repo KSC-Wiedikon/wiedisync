@@ -72,6 +72,8 @@ export default {
   signupFormCreated: 'Formulaire d\'inscription créé',
   signupFormUnlinked: 'Formulaire dissocié',
   signupFormFailed: 'Le formulaire d\'inscription n\'a pas pu être créé',
+  inviteSending: 'Les invitations sont envoyées en arrière-plan',
+  inviteFailed: 'Les invitations n\'ont pas pu être envoyées',
   signupFormReplaceConfirm: 'Cet événement a déjà un formulaire d\'inscription. En créer un nouveau et l\'associer à la place ? L\'ancien formulaire et ses entrées sont conservés.',
   signupFormUnlinkConfirm: 'Retirer le lien d\'inscription de cet événement ? Le formulaire et ses entrées sont conservés.',
   signupLinkTitle: 'Lien d\'inscription pour les invités',
