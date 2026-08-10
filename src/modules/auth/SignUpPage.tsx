@@ -614,6 +614,13 @@ export default function SignUpPage() {
                 error={otpError}
               />
 
+              {/* The resend above calls /verify-email, which is captcha-gated.
+                  getToken() resets the widget and waits for its onSuccess, so
+                  with the widget unmounted it stalls for RESOLVE_TIMEOUT_MS and
+                  then yields '' — a 30s hang ending in a refusal. Keep it
+                  mounted wherever a protected call can still be made. */}
+              {turnstileWidget}
+
               <Button variant="outline" onClick={handleBackToEmail} className="w-full">
                 {t('tryDifferentEmail')}
               </Button>
