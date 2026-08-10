@@ -327,8 +327,33 @@ export default {
         res.set('Access-Control-Max-Age', '86400')
       }
     }
+    /**
+     * Browsers send CSP reports as `application/csp-report` or
+     * `application/reports+json`, and Express's JSON parser only handles
+     * `application/json` — so `req.body` arrives EMPTY and every field parsed
+     * out of it is null. The first deploy of this route logged two entries that
+     * said "CSP violation blocked (unknown)" with a null page, which is a
+     * report that tells you nothing. Read the raw stream instead when the body
+     * did not survive parsing.
+     */
+    const readRawJson = (req) => new Promise((resolve) => {
+      if (req.body && typeof req.body === 'object' && Object.keys(req.body).length > 0) return resolve(req.body)
+      let raw = ''
+      let over = false
+      req.on('data', (chunk) => {
+        if (over) return
+        raw += chunk
+        if (raw.length > 16384) { over = true; raw = '' }   // reports are small; cap the read
+      })
+      req.on('end', () => {
+        if (over || !raw) return resolve(null)
+        try { resolve(JSON.parse(raw)) } catch { resolve(null) }
+      })
+      req.on('error', () => resolve(null))
+    })
+
     router.options('/csp-report', (req, res) => { cspCors(req, res); res.status(204).end() })
-    router.post('/csp-report', (req, res) => {
+    router.post('/csp-report', async (req, res) => {
       try {
         cspCors(req, res)
         // Always 204: a browser must never retry or surface a reporting failure.
@@ -347,7 +372,7 @@ export default {
           for (const [k, v] of cspReportIp) if (now > v.resetAt) cspReportIp.delete(k)
         }
 
-        const body = req.body
+        const body = await readRawJson(req)
         const reports = Array.isArray(body)
           ? body.map((r) => r?.body ?? r)              // Report-To / reports+json
           : [body?.['csp-report'] ?? body]             // report-uri / csp-report
