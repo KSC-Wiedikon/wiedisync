@@ -2,6 +2,14 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.75.0 — 2026-08-10
+
+### A member's fee, in one place
+- **The membership fee category moved to Finance & billing, and brought the amount with it.** The category used to sit under Membership on its own, naming a rate but never the money — "why is this member billed CHF 310?" meant knowing the club's fee table, the CHF 100 scorer-licence rule and the age cut-off by heart. Finance & billing now shows the **Beitrag amount** right under the category, itemised: the base, the scorer-licence surcharge, the guest reduction and any discount, adding up to the total, and it says whether the base came from this season's rate table or the fallback list.
+- **A fee can now be set for one person without touching anybody else.** Three fields — base, scorer-licence surcharge and discount, plus the wording that appears on the invoice — take a value for that member only. Leave them empty and the fee is worked out exactly as before; enter one and it is used everywhere the club bills, both the invoice run and the club register. Waiving the CHF 100 surcharge, which used to be done by writing the amount off after the invoice had already gone out, is now entering a 0.
+- **Nobody's fee changed.** Every member starts with no override, so every amount is the same as it was until somebody types one.
+- **PDF previews were blocked on the live site.** Registration documents, form uploads, receipts, mailbox attachments and ID scans all opened as an empty box — the browser was refusing to display them. Fixed; pictures were never affected, which is why it looked like a PDF problem.
+
 ## v1.74.0 — 2026-08-10
 
 ### The member explorer opens on what matters
