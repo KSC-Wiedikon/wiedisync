@@ -404,8 +404,13 @@ async function auditAdministratorRole(roleMap) {
     return
   }
 
-  const ids = users.map(u => `"${u.id}"`).join(',')
-  const members = await api('GET', `/items/members?filter[user][_in]=[${ids}]&fields=id,user,role&limit=-1`) || []
+  // `_in` takes a bare comma-separated list. Passing a JSON array (`["a","b"]`)
+  // makes Directus hand the whole literal to Postgres as ONE uuid and 500 —
+  // which, before this pass was made non-fatal, halted the entire permission
+  // deploy at §3c. Encode each id: they are uuids, but the encode is what makes
+  // that an assumption the URL does not depend on.
+  const ids = users.map(u => encodeURIComponent(u.id)).join(',')
+  const members = await api('GET', `/items/members?filter[user][_in]=${ids}&fields=id,user,role&limit=-1`) || []
   const memberByUser = Object.fromEntries(members.map(m => [m.user, m]))
 
   const undeclared = []
@@ -1086,7 +1091,15 @@ async function main() {
   // ── 3c. Audit Administrator-role membership ────────────────────
 
   console.log('\n3c. Auditing Administrator role membership...')
-  await auditAdministratorRole(roleMap)
+  // §3c REPORTS; it must never be able to stop a permission deploy. It shipped
+  // with a malformed `_in` filter and the resulting 500 halted the whole run
+  // before section 4 — the permission rebuild never happened (2026-08-10).
+  // A read-only audit failing is worth a warning, never an outage.
+  try {
+    await auditAdministratorRole(roleMap)
+  } catch (e) {
+    console.warn(`  ⚠ Administrator audit failed (non-fatal): ${String(e.message).slice(0, 200)}`)
+  }
 
   // ── 4. Clear old permissions for idempotent re-run ─────────────
 
