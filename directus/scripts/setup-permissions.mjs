@@ -1851,6 +1851,53 @@ async function main() {
   // §6) intact while only the additive TR layer is briefly empty.
   await clearPolicyPermissions(LEADER_POLICY, 'Team Responsible')
 
+  // ── LEADER scope shapes ────────────────────────────────────────
+  // Defined here, at the top of the section, because `const` is not hoisted:
+  // these are referenced by grants further down and a definition placed beside
+  // its *last* use would throw a ReferenceError from the temporal dead zone on
+  // the first one. Keep new shapes in this block.
+  const COACH_OF_TEAM_FK = { team: { coach: { members_id: { user: { _eq: '$CURRENT_USER' } } } } }
+  const COACH_OF_SLOT_CLAIM = { claimed_by_team: { coach: { members_id: { user: { _eq: '$CURRENT_USER' } } } } }
+  /** A team FK (not a junction) pointing at a team I coach or am TR for. */
+  const TEAM_FK_I_LEAD = {
+    team: {
+      _or: [
+        { coach: { members_id: { user: { _eq: '$CURRENT_USER' } } } },
+        { team_responsible: { members_id: { user: { _eq: '$CURRENT_USER' } } } },
+      ],
+    },
+  }
+  const INVITE_OF_TEAM_I_LEAD = TEAM_FK_I_LEAD
+  /** Team polls only — `_nnull` keeps chat polls (team null) out entirely. */
+  const POLL_OF_TEAM_I_LEAD = { _and: [{ team: { _nnull: true } }, TEAM_FK_I_LEAD] }
+  /** `hall_slots` has no team column; teams hang off the `teams` M2M alias. */
+  const SLOT_OF_TEAM_I_LEAD = {
+    teams: {
+      teams_id: {
+        _or: [
+          { coach: { members_id: { user: { _eq: '$CURRENT_USER' } } } },
+          { team_responsible: { members_id: { user: { _eq: '$CURRENT_USER' } } } },
+        ],
+      },
+    },
+  }
+  /** Everything except the bearer token. */
+  const TEAM_INVITE_LEADER_FIELDS = [
+    'id', 'guest_level', 'status', 'expires_at', 'team',
+    'invited_by', 'claimed_by', 'date_created', 'date_updated',
+  ]
+
+  const JUNCTION_OF_TEAM_I_LEAD = {
+    teams_id: {
+      _or: [
+        { coach: { members_id: { user: { _eq: '$CURRENT_USER' } } } },
+        { team_responsible: { members_id: { user: { _eq: '$CURRENT_USER' } } } },
+      ],
+    },
+  }
+
+
+
   // Members — scoped full-field read for members on teams I coach or TR.
   // 2026-05-12 audit: replaced unfiltered `setPermRead(LEADER_POLICY, 'members')`
   // which exposed every member's `ahv_nummer`, `adresse`, `birthdate`, etc. to
@@ -2005,9 +2052,11 @@ async function main() {
   })
   await setPerm(LEADER_POLICY, 'event_sessions', 'create')
   await setPerm(LEADER_POLICY, 'event_sessions', 'update')
+  // events_teams — create unfiltered (no row yet, gated by the create hook);
+  // update/delete scoped so a leader cannot re-target another team's event.
   await setPerm(LEADER_POLICY, 'events_teams', 'create')
-  await setPerm(LEADER_POLICY, 'events_teams', 'update')
-  await setPerm(LEADER_POLICY, 'events_teams', 'delete')
+  await setPerm(LEADER_POLICY, 'events_teams', 'update', JUNCTION_OF_TEAM_I_LEAD)
+  await setPerm(LEADER_POLICY, 'events_teams', 'delete', JUNCTION_OF_TEAM_I_LEAD)
 
   // Forms (migrations 086/087) — coach/TR author forms for teams they coach/TR,
   // plus read club-wide forms + forms they created. Mirrors the events block
@@ -2134,27 +2183,54 @@ async function main() {
   await setPerm(LEADER_POLICY, 'member_teams', 'delete')
 
   // Hall slots — CU
+  // hall_slots CREATE stays unfiltered — Directus cannot filter a row that does
+  // not exist yet — and is gated by the BLOCKING `hall_slots.items.create` hook
+  // below, the same arrangement teams_coaches uses.
   await setPerm(LEADER_POLICY, 'hall_slots', 'create')
-  await setPerm(LEADER_POLICY, 'hall_slots', 'update')
-  await setPerm(LEADER_POLICY, 'slot_claims', 'update')
+  // UPDATE was unfiltered until 2026-08-10 (audit 2026-08-08, finding 7), which
+  // was the sharpest grant in this policy: `hall_slots` and `hall_slots_teams`
+  // are PUBLIC reads, so slot ids are trivially enumerable, and the action hook
+  // on update runs `cascadeSlotUpdate` — so any coach of any one team could
+  // PATCH another team's slot to a new weekday/time and have the cascade
+  // regenerate or cancel that team's `trainings` rows and fire notifications at
+  // their members. `hall_slots` has no team FK; teams hang off the `teams` M2M
+  // alias, so the scope walks it.
+  await setPerm(LEADER_POLICY, 'hall_slots', 'update', SLOT_OF_TEAM_I_LEAD)
+  await setPerm(LEADER_POLICY, 'slot_claims', 'update', COACH_OF_SLOT_CLAIM)
 
   // Team invites — read all + CRUD
-  await setPermRead(LEADER_POLICY, 'team_invites')
+  // team_invites — the sharpest of the eight, because an invite is a bearer
+  // credential redeemed by an UNAUTHENTICATED endpoint. `POST /kscw/team-invites/claim`
+  // inserts `members` + `member_teams` in a raw-knex transaction, so it never
+  // reaches the `member_teams.items.create` guard whose own comment reads
+  // "Self-add to an unrelated team IS the escalation". An unfiltered create+read
+  // therefore let any coach mint an invite for ANY team and hand every live
+  // token in the club to themselves. Read is scoped AND field-scoped: `token` is
+  // withheld, because the create endpoint already returns it to its issuer and
+  // nothing else needs to read it back.
+  await setPermRead(LEADER_POLICY, 'team_invites', INVITE_OF_TEAM_I_LEAD, TEAM_INVITE_LEADER_FIELDS)
   await setPerm(LEADER_POLICY, 'team_invites', 'create')
-  await setPerm(LEADER_POLICY, 'team_invites', 'update')
-  await setPerm(LEADER_POLICY, 'team_invites', 'delete')
+  await setPerm(LEADER_POLICY, 'team_invites', 'update', INVITE_OF_TEAM_I_LEAD)
+  await setPerm(LEADER_POLICY, 'team_invites', 'delete', INVITE_OF_TEAM_I_LEAD)
 
   // Scorer delegations — read all
   await setPermRead(LEADER_POLICY, 'scorer_delegations')
 
   // Referee expenses — CRU
   await setPerm(LEADER_POLICY, 'referee_expenses', 'create')
-  await setPerm(LEADER_POLICY, 'referee_expenses', 'update')
+  // update was unfiltered while delete was already scoped — an internal
+  // inconsistency, and the weaker of the two is the one that mattered (amount
+  // and notes are editable).
+  await setPerm(LEADER_POLICY, 'referee_expenses', 'update', COACH_OF_TEAM_FK)
 
   // Polls — CRUD
+  // polls — create unfiltered (no row yet); update/delete scoped to polls
+  // belonging to a team the caller leads. `team: { _nnull: true }` is
+  // load-bearing: a chat poll has `team: null` and a `conversation`, and without
+  // it the relational branch on a null FK is not a reliable refusal.
   await setPerm(LEADER_POLICY, 'polls', 'create')
-  await setPerm(LEADER_POLICY, 'polls', 'update')
-  await setPerm(LEADER_POLICY, 'polls', 'delete')
+  await setPerm(LEADER_POLICY, 'polls', 'update', POLL_OF_TEAM_I_LEAD)
+  await setPerm(LEADER_POLICY, 'polls', 'delete', POLL_OF_TEAM_I_LEAD)
 
   // Poll votes — read every vote on polls for teams I coach / am responsible for,
   // so the poll creator/manager can see per-member answers before the deadline
@@ -2304,8 +2380,6 @@ async function main() {
       { events_id: { teams: { teams_id: { coach: { members_id: { user: { _eq: '$CURRENT_USER' } } } } } } },
     ],
   }
-  const COACH_OF_TEAM_FK = { team: { coach: { members_id: { user: { _eq: '$CURRENT_USER' } } } } }
-  const COACH_OF_SLOT_CLAIM = { claimed_by_team: { coach: { members_id: { user: { _eq: '$CURRENT_USER' } } } } }
   await setPerm(LEADER_POLICY, 'event_sessions', 'delete', EVENT_SESSIONS_LEADER_SCOPE)
   await setPerm(LEADER_POLICY, 'events_members', 'create', EVENTS_MEMBERS_LEADER_SCOPE)
   await setPerm(LEADER_POLICY, 'events_members', 'update', EVENTS_MEMBERS_LEADER_SCOPE)
@@ -2315,12 +2389,15 @@ async function main() {
   await setPerm(LEADER_POLICY, 'scorer_delegations', 'delete', OWN_DELEGATION_FROM)
   await setPerm(LEADER_POLICY, 'slot_claims', 'create', COACH_OF_SLOT_CLAIM)
   await setPerm(LEADER_POLICY, 'slot_claims', 'delete', COACH_OF_SLOT_CLAIM)
-  // hall_slots_teams CRUD — unfiltered, mirroring the sibling teams_sponsors /
-  // events_teams junctions (Directus can't relationally filter junction writes;
-  // the hallenplan editor + kscw-hooks gate them).
+  // hall_slots_teams — the comment here used to claim "the hallenplan editor +
+  // kscw-hooks gate them". The editor half is a UI control, and the kscw-hooks
+  // half was simply untrue: no such guard existed (audit 2026-08-08, finding 7).
+  // `DELETE` of another team's junction row plus a fresh `POST` was a takeover of
+  // the club's most contested resource. Directus CAN filter update/delete here —
+  // the row exists and carries `teams_id` — so only create needs the hook.
   await setPerm(LEADER_POLICY, 'hall_slots_teams', 'create')
-  await setPerm(LEADER_POLICY, 'hall_slots_teams', 'update')
-  await setPerm(LEADER_POLICY, 'hall_slots_teams', 'delete')
+  await setPerm(LEADER_POLICY, 'hall_slots_teams', 'update', JUNCTION_OF_TEAM_I_LEAD)
+  await setPerm(LEADER_POLICY, 'hall_slots_teams', 'delete', JUNCTION_OF_TEAM_I_LEAD)
   // teams_coaches / teams_responsibles — the legacy policy granted these fully
   // open (any leader could edit any team's coach/TR list). Tightened: update +
   // delete scoped to junctions whose team the caller coaches / is TR for; create
@@ -2331,14 +2408,6 @@ async function main() {
   // a team they already lead. The POST-insert role-sync ACTION hook only GRANTS
   // the LEADER policy — it does NOT authorize the write, so the create filter hook
   // is the actual gate. Do not remove it thinking this comment's "gate" is enough.
-  const JUNCTION_OF_TEAM_I_LEAD = {
-    teams_id: {
-      _or: [
-        { coach: { members_id: { user: { _eq: '$CURRENT_USER' } } } },
-        { team_responsible: { members_id: { user: { _eq: '$CURRENT_USER' } } } },
-      ],
-    },
-  }
   await setPerm(LEADER_POLICY, 'teams_coaches', 'create')
   await setPerm(LEADER_POLICY, 'teams_coaches', 'update', JUNCTION_OF_TEAM_I_LEAD)
   await setPerm(LEADER_POLICY, 'teams_coaches', 'delete', JUNCTION_OF_TEAM_I_LEAD)

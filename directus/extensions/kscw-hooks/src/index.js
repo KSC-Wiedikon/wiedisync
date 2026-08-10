@@ -5324,6 +5324,81 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     return payload
   })
 
+  // ── CREATE guards for the LEADER grants Directus cannot filter ──
+  //
+  // `setup-permissions.mjs` scoped update/delete on all of these on 2026-08-10
+  // (audit 2026-08-08, finding 7), but a Directus row filter is a no-op on
+  // CREATE — there is no row to match yet. The script's own note says such
+  // grants are "enforced in the kscw-hooks *.items.create filter guard"; for
+  // these five that guard did not exist, which is what made the grants
+  // effectively club-wide. Same arrangement as `member_teams` above.
+  //
+  // A blocking `filter` (not `action`) is required: an action hook runs after
+  // the insert and cannot refuse it.
+
+  /** Shared shape: refuse unless the caller leads `teamId`. */
+  async function assertLeadsTeamForCreate(db, accountability, teamId, message) {
+    if (!accountability?.user) return          // system context (cron/endpoint)
+    if (accountability.admin) return           // full admins bypass by design
+    if (!(await actorLeadsTeam(db, accountability, teamId))) {
+      throw kscwScopeError(message, 403, 'NOT_TEAM_LEADER')
+    }
+  }
+
+  // hall_slots: a slot's teams arrive as the `teams` M2M payload, so the guard
+  // reads the payload rather than a column. A slot created with no team at all is
+  // refused for a non-admin — an unowned slot on the shared Hallenplan is a
+  // club-level act.
+  filter('hall_slots.items.create', async (payload, _meta, { database: db, accountability }) => {
+    if (!accountability?.user || accountability.admin) return payload
+    const links = Array.isArray(payload?.teams) ? payload.teams : []
+    const teamIds = links.map((l) => toIdValue(typeof l === 'object' ? (l.teams_id ?? l) : l)).filter((v) => v != null)
+    if (teamIds.length === 0) {
+      throw kscwScopeError('A hall slot must be created for a team you coach or are responsible for', 403, 'NOT_TEAM_LEADER')
+    }
+    for (const teamId of teamIds) {
+      await assertLeadsTeamForCreate(db, accountability, teamId, 'You can only create hall slots for teams you coach or are responsible for')
+    }
+    return payload
+  })
+
+  // hall_slots_teams: attaching a team to an existing slot. Guarding only the
+  // team side is enough — this is what a takeover would use to graft another
+  // team's slot onto itself.
+  filter('hall_slots_teams.items.create', async (payload, _meta, { database: db, accountability }) => {
+    await assertLeadsTeamForCreate(db, accountability, toIdValue(payload?.teams_id),
+      'You can only attach hall slots to teams you coach or are responsible for')
+    return payload
+  })
+
+  filter('events_teams.items.create', async (payload, _meta, { database: db, accountability }) => {
+    await assertLeadsTeamForCreate(db, accountability, toIdValue(payload?.teams_id),
+      'You can only target events at teams you coach or are responsible for')
+    return payload
+  })
+
+  // team_invites: an invite is a bearer credential redeemed by an
+  // UNAUTHENTICATED endpoint whose raw-knex transaction never reaches the
+  // member_teams guard above. Minting one for a team you do not lead is
+  // therefore a direct route onto that team's roster.
+  filter('team_invites.items.create', async (payload, _meta, { database: db, accountability }) => {
+    await assertLeadsTeamForCreate(db, accountability, toIdValue(payload?.team),
+      'You can only invite people to a team you coach or are responsible for')
+    return payload
+  })
+
+  // polls: a TEAM poll must belong to a team the caller leads. A chat poll
+  // (team null, conversation set) is created by /kscw/messaging/polls in system
+  // context and is not this guard's business.
+  filter('polls.items.create', async (payload, _meta, { database: db, accountability }) => {
+    if (!accountability?.user || accountability.admin) return payload
+    const teamId = toIdValue(payload?.team)
+    if (teamId == null) return payload
+    await assertLeadsTeamForCreate(db, accountability, teamId,
+      'You can only create polls for teams you coach or are responsible for')
+    return payload
+  })
+
   // ── Game guest invitations (migration 271) ─────────────────────
   // Opening a game to another team / to individual players. The Directus grant for
   // CREATE is necessarily unfiltered (a relational validation cannot be resolved
