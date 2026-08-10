@@ -706,7 +706,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
         // surcharge: birthdate gates the youth categories at U16+, the licence
         // flags say whether the duty is already covered. Omit them and every
         // surcharged member is silently under-billed by CHF 100.
-        'birthdate', 'scorer_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'otn1_bb', 'otn2_bb',
+        'birthdate', 'scorer_vb', 'otr1_bb', 'otr2_bb', 'otn1_bb', 'otn2_bb',
         // Per-member fee overrides (migration 299). feeBreakdown reads them off
         // the row, so omitting them bills the derived amount to a member the
         // treasurer had explicitly re-priced — silently, and in a batch.
@@ -948,7 +948,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
 
       const m = await database('members').where('id', id).first(
         'id', 'beitragskategorie', 'sektion', 'birthdate',
-        'scorer_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'otn1_bb', 'otn2_bb',
+        'scorer_vb', 'otr1_bb', 'otr2_bb', 'otn1_bb', 'otn2_bb',
         ...FEE_OVERRIDE_FIELDS)
       if (!m) return res.status(404).json({ error: 'not found' })
 

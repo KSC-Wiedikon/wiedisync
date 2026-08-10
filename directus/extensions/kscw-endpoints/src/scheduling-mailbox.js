@@ -1300,7 +1300,7 @@ export function registerSchedulingMailbox(router, { database, logger }) {
         // The licence flags deriveMitgliederbeitrag reads for the
         // no-Schreiberlizenz surcharge. Passing the member row rather than null
         // is what makes the surcharge appear at all.
-        'scorer_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'otn1_bb', 'otn2_bb',
+        'scorer_vb', 'otr1_bb', 'otr2_bb', 'otn1_bb', 'otn2_bb',
         // Per-member overrides (migration 299) — a member the treasurer
         // re-priced must not be mailed the category's amount.
         ...FEE_OVERRIDE_FIELDS,

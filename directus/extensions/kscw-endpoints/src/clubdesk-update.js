@@ -1415,7 +1415,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
         .whereNull('clubdesk_pushed_at')
         .where('clubdesk_sync_exclude', false)
         .select('id', 'first_name', 'last_name', 'email', 'beitragskategorie',
-          'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'otn1_bb', 'otn2_bb', 'referee_bb',
+          'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn1_bb', 'otn2_bb', 'referee_bb',
           // `birthdate` gates the youth surcharge (isU16Plus). Without it the
           // preview reported the un-surcharged amount for every youth-category
           // member while the commit path — which selects PUSH_FIELDS — pushed
@@ -2571,7 +2571,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
                COALESCE(m.wiedisync_active, false) AS active,
                (COALESCE(m.referee_vb,false) OR COALESCE(m.scorer_vb,false) OR COALESCE(m.referee_bb,false)
                 OR COALESCE(m.otr1_bb,false) OR COALESCE(m.otr2_bb,false)
-                OR COALESCE(m.otn_bb,false) OR COALESCE(m.otn1_bb,false) OR COALESCE(m.otn2_bb,false)) AS is_official,
+                OR COALESCE(m.otn1_bb,false) OR COALESCE(m.otn2_bb,false)) AS is_official,
                COALESCE((SELECT string_agg(DISTINCT t2.name, ', ') FROM teams_coaches tc JOIN teams t2 ON t2.id = tc.teams_id WHERE tc.members_id = m.id), '') AS coach_of,
                COALESCE((SELECT string_agg(DISTINCT t3.name, ', ') FROM teams_responsibles tr JOIN teams t3 ON t3.id = tr.teams_id WHERE tr.members_id = m.id), '') AS tr_of
         FROM cd_groups cg

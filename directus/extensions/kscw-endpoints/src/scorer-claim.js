@@ -20,11 +20,11 @@ import { writeUserLog } from './activity-log.js'
 
 // role → assignee column, duty-team column, confirmed-by pair, required licence
 // (any-of), and whether BB roles fall back to the shared bb_duty_team.
-// `lic` is evaluated any-of (`.some()`), so the 24s row lists the coarse
-// `otn_bb` AND both levels from migration 228: Basketplan distinguishes OTN 1
-// from OTN 2, but ClubDesk historically could only express a single level-less
-// "OTN", so `otn_bb` is retained as the coarse "holds some OTN" flag and stays
-// in the list — otherwise the 6 pre-split holders would lose the claim button.
+// `lic` is evaluated any-of (`.some()`), so the 24s row lists both OTN levels
+// from migration 228: Basketplan distinguishes OTN 1 from OTN 2 and either one
+// opens the desk. (The coarse `otn_bb` flag that used to sit beside them was
+// dropped by migration 303 — every one of its holders was confirmed OTN 2, so
+// nobody lost the claim button.)
 const CLAIM_DEFS = {
   scorer:            { member: 'scorer_member',            duty: 'scorer_duty_team',            name: 'scorer_confirmed_by_name',            at: 'scorer_confirmed_at',            lic: ['scorer_vb'],          bbFallback: false },
   scoreboard:        { member: 'scoreboard_member',        duty: 'scoreboard_duty_team',        name: 'scoreboard_confirmed_by_name',        at: 'scoreboard_confirmed_at',        lic: [],                     bbFallback: false },
@@ -32,7 +32,7 @@ const CLAIM_DEFS = {
   referee:           { member: 'referee_member',           duty: 'referee_duty_team',           name: 'referee_confirmed_by_name',           at: 'referee_confirmed_at',           lic: [],                     bbFallback: false },
   bb_scorer:         { member: 'bb_scorer_member',         duty: 'bb_scorer_duty_team',         name: 'bb_scorer_confirmed_by_name',         at: 'bb_scorer_confirmed_at',         lic: ['otr1_bb'],            bbFallback: true },
   bb_timekeeper:     { member: 'bb_timekeeper_member',     duty: 'bb_timekeeper_duty_team',     name: 'bb_timekeeper_confirmed_by_name',     at: 'bb_timekeeper_confirmed_at',     lic: ['otr1_bb'],            bbFallback: true },
-  bb_24s_official:   { member: 'bb_24s_official',          duty: 'bb_24s_duty_team',            name: 'bb_24s_confirmed_by_name',            at: 'bb_24s_confirmed_at',            lic: ['otr2_bb', 'otn_bb', 'otn1_bb', 'otn2_bb'], bbFallback: true },
+  bb_24s_official:   { member: 'bb_24s_official',          duty: 'bb_24s_duty_team',            name: 'bb_24s_confirmed_by_name',            at: 'bb_24s_confirmed_at',            lic: ['otr2_bb', 'otn1_bb', 'otn2_bb'], bbFallback: true },
 }
 
 export function registerScorerClaim(router, ctx) {
@@ -47,7 +47,7 @@ export function registerScorerClaim(router, ctx) {
       // Every column named in any CLAIM_DEFS.lic must be selected here — a
       // missing one reads as undefined and silently denies the claim.
       const member = await database('members').where('user', userId)
-        .first('id', 'first_name', 'last_name', 'kscw_membership_active', 'scorer_vb', 'otr1_bb', 'otr2_bb', 'otn_bb', 'otn1_bb', 'otn2_bb')
+        .first('id', 'first_name', 'last_name', 'kscw_membership_active', 'scorer_vb', 'otr1_bb', 'otr2_bb', 'otn1_bb', 'otn2_bb')
       if (!member || !member.kscw_membership_active) return res.status(403).json({ error: 'Not an active member' })
 
       const role = String(req.body?.role || '')
