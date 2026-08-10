@@ -1,4 +1,9 @@
--- 305 — push the +CHF 10 to the 11 basketball contacts ClubDesk missed.
+-- 307 — push the +CHF 10 to the 11 basketball contacts ClubDesk missed.
+--
+-- (Numbered 305 for about two minutes on 2026-08-10 and renumbered the same
+-- hour: a parallel session had claimed 305 first. Dev therefore carries the
+-- old filename in kscw_migrations as well — harmless, both this and 308 are
+-- re-runnable by construction. Prod only ever sees these numbers.)
 --
 -- CONTEXT, because the obvious reading of this file is the wrong one. The
 -- 2026-08-10 basketball increase (migration 304) did NOT originate in
@@ -12,7 +17,7 @@
 --
 -- Everything else that disagrees (113 members) goes the OTHER way — the
 -- register wins and its amount is pinned into the member's fee override by
--- migration 306. Read the two together or neither makes sense.
+-- migration 308. Read the two together or neither makes sense.
 --
 -- HOW THE OVERWRITE IS AUTHORISED: buildPushCsv sends Mitgliederbeitrag
 -- fill-only (ClubDesk's own cell echoes back verbatim) UNLESS the member's

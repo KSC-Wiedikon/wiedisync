@@ -1,4 +1,4 @@
--- 306 — pin the register's own Mitgliederbeitrag onto the 113 members where
+-- 308 — pin the register's own Mitgliederbeitrag onto the 113 members where
 -- wiedisync's fee engine and ClubDesk disagree. THE REGISTER WINS (user
 -- decision 2026-08-10).
 --
@@ -38,7 +38,7 @@
 --
 -- NOT INCLUDED: the 11 basketball rows where ClubDesk is simply stale by the
 -- +10 increase. There wiedisync is right and the correction travels the other
--- way, via migration 305. Read the two together.
+-- way, via migration 307. Read the two together.
 --
 -- Fill-only by design (`fee_base_override IS NULL`): a re-run can never
 -- overwrite an override a treasurer set afterwards. All 113 were NULL when this
