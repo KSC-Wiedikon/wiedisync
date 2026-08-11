@@ -10,6 +10,7 @@ import { getTrainingWarnings } from '../../utils/participationWarnings'
 import type { Training, Team, Hall, Member, Participation } from '../../types'
 import { asObj, relId, memberDisplayName, teamCoachIds } from '../../utils/relations'
 import CancelActivityButton from '../../components/CancelActivityButton'
+import ShareActivityButton from '../../components/ShareActivityButton'
 import ActivityParticipation from '../../components/ActivityParticipation'
 
 type TrainingExpanded = Training & {
@@ -138,6 +139,17 @@ export default function TrainingCard({ training, participations, myParticipation
             </div>
           )}
           <div className="flex shrink-0 items-center gap-1">
+            {/* Share sits on the CARD, not in a detail modal, because this card
+                has no detail modal — it does RSVP inline and is never clickable
+                through to one (unlike EventCard/GameCard). Without this the
+                trainings page would be the one surface you cannot share from. */}
+            <ShareActivityButton
+              kind="training"
+              id={training.id}
+              title={team?.name ?? t('title')}
+              iconOnly
+              className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-600 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-300"
+            />
             {onOpenRoster && (
               <button
                 onClick={() => onOpenRoster(training.id, teamId, training.date)}
