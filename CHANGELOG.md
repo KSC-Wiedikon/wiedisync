@@ -12,7 +12,7 @@ All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file 
 
 ### Sport admins can see their members' full record again
 
-- **Birthdates and AHV numbers were being hidden from sport admins.** A privacy rule meant for members' profiles was also applied to the volleyball and basketball admins, so birthdates read as blank for almost every member and AHV numbers for all of them. Sport admins administer their sport's register and need both — for age categories, the scorer-licence surcharge and licence paperwork — so they now see the record as it is. Coaches, team responsibles and everyone else are unchanged.
+- **Birthdates and AHV numbers were being hidden from sport admins.** A privacy rule meant for members' profiles was also applied to the volleyball and basketball admins, so birthdates read as blank for almost every member and AHV numbers for all of them. Sport admins administer their sport's register and need both — for age categories, the scorer-licence surcharge and licence paperwork — so they now see those members' records as they are. The volleyball admin sees the volleyball section and the basketball admin the basketball one; each still sees the other section the way any member does. Members who belong to the club rather than to one sport stay visible to both. Coaches, team responsibles and everyone else are unchanged.
 
 ## v1.79.0 — 2026-08-11
 

@@ -39,6 +39,7 @@
  */
 
 import { writeUserLog } from './activity-log.js'
+import { resolveMemberSport, sportAdminScope, sportScopeAllows } from './member-sport.js'
 
 // ── FK map ───────────────────────────────────────────────────────────────
 //
@@ -427,46 +428,10 @@ export function registerDeleteImpact(router, { database, logger, services, getSc
 
   // ── Sport scope (server side) ──────────────────────────────────────────
   //
-  // Mirrors the client-side resolver in src/modules/admin/components/
-  // memberSport.ts exactly: teams first (a coach has NO roster row, so a
-  // player-only join wrongly reports "no team"), then sektion, then the fee
-  // category prefix. Anything club-level or unknown resolves to 'both' and is
-  // allowed — hiding a real member behind an unknowable scope is worse than
-  // letting a sport admin see a club-level record.
-  async function resolveMemberSport(memberId) {
-    const [playerRows, coachRows, trRows] = await Promise.all([
-      database('member_teams').where({ member: memberId }).select('team'),
-      database('teams_coaches').where({ members_id: memberId }).select('teams_id'),
-      database('teams_responsibles').where({ members_id: memberId }).select('teams_id'),
-    ])
-    const teamIds = [
-      ...playerRows.map((r) => r.team),
-      ...coachRows.map((r) => r.teams_id),
-      ...trRows.map((r) => r.teams_id),
-    ].filter((v) => v !== null && v !== undefined)
-
-    if (teamIds.length > 0) {
-      // ⚠ Team NAMES lie ("Herren 2 H3" is basketball). Only teams.sport counts.
-      const teams = await database('teams').whereIn('id', [...new Set(teamIds)]).select('sport')
-      const sports = new Set(
-        teams.map((t) => String(t.sport || '').toLowerCase()).filter((s) => s === 'volleyball' || s === 'basketball'),
-      )
-      if (sports.size > 1) return 'both'
-      if (sports.size === 1) return [...sports][0]
-    }
-
-    const member = await database('members').where({ id: memberId }).first('sektion', 'beitragskategorie')
-    const sektion = String(member?.sektion || '').trim().toLowerCase()
-    if (sektion === 'volleyball') return 'volleyball'
-    if (sektion === 'basketball') return 'basketball'
-    // 'kscw' and everything else falls through.
-
-    const kat = String(member?.beitragskategorie || '').trim().toLowerCase()
-    if (kat.startsWith('vb ')) return 'volleyball'
-    if (kat.startsWith('bb ')) return 'basketball'
-
-    return 'both'
-  }
+  // The rule itself lives in member-sport.js — see that file's header for why
+  // 'both' is permissive and why team NAMES may never be used. It was lifted out
+  // of here so the members read-privacy hook (kscw-hooks §11) enforces the same
+  // boundary from the same code rather than a second copy of it.
 
   /** A full app admin: bypasses sport scope and may act on privileged targets. */
   function isFullAdmin(actor) {
@@ -485,14 +450,10 @@ export function registerDeleteImpact(router, { database, logger, services, getSc
    */
   async function sportScopeError(actor, memberId) {
     if (isFullAdmin(actor)) return null
-    const roles = actor?.roles || []
-    const vb = roles.includes('vb_admin')
-    const bb = roles.includes('bb_admin')
-    if (vb === bb) return null
-    const mine = vb ? 'volleyball' : 'basketball'
-    const targetSport = await resolveMemberSport(memberId)
-    if (targetSport !== 'both' && targetSport !== mine) return 'scope'
-    return null
+    const mine = sportAdminScope(actor?.roles)
+    if (!mine) return null
+    const targetSport = await resolveMemberSport(database, memberId)
+    return sportScopeAllows(mine, targetSport) ? null : 'scope'
   }
 
   /**
