@@ -3,7 +3,7 @@
  *
  *   GET    /kscw/site-text                      — public: every override, both languages
  *   GET    /kscw/wadmin/site_text/text          — admin: the same rows plus who/when
- *   PUT    /kscw/wadmin/site_text/text/:key     — admin: upsert one key
+ *   PATCH  /kscw/wadmin/site_text/text/:key     — admin: upsert one key
  *   DELETE /kscw/wadmin/site_text/text/:key     — admin: drop one key (restore the original)
  *
  * The website's dictionaries stay the source of truth; this table only shadows
@@ -110,7 +110,11 @@ export function registerSiteText(router, { database, logger }) {
     }
   })
 
-  router.put('/wadmin/site_text/text/:key', async (req, res) => {
+  // PATCH, not the PUT this upsert would otherwise want: Directus answers a
+  // preflight with `Access-Control-Allow-Methods: GET,POST,PATCH,DELETE`, so a PUT
+  // from the admin page on kscw.ch (cross-origin to directus.kscw.ch) never leaves
+  // the browser. Verified against dev and prod.
+  router.patch('/wadmin/site_text/text/:key', async (req, res) => {
     const userId = await guard(req, res); if (!userId) return
     const key = readKey(req, res); if (!key) return
 
