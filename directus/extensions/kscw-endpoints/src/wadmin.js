@@ -51,7 +51,23 @@ export const SECTION_COLLECTIONS = {
 }
 
 const MANAGER_ROLES = new Set(['superuser', 'administrator'])
-const GATED_ROLE = 'website admin'
+
+/**
+ * Roles ELIGIBLE to hold a website-admin section grant.
+ *
+ * Eligibility is not access: the grant row in `website_admin_access` is what
+ * actually opens a section, and a user of an eligible role with no row still gets
+ * nothing (`computeAccess` below). This set only decides who a superuser is
+ * allowed to hand sections to.
+ *
+ * 'sport admin' was added 2026-08-11 because a Directus user has exactly one role:
+ * the club's youth/sport administrators already hold `Sport Admin` for Wiedisync,
+ * and the only alternatives were to strip that role — taking away the access they
+ * do their actual job with — or to give one person a second login. Neither is worth
+ * it for a per-user grant that is still explicit.
+ */
+const GATED_ROLES = new Set(['website admin', 'sport admin'])
+const GATED_ROLE_LIST = [...GATED_ROLES]
 
 /**
  * Fold a name to something two spellings of the same person agree on: case, accents,
@@ -211,7 +227,7 @@ async function resolveRoleName(database, userId) {
 export async function computeAccess(database, userId) {
   const roleName = await resolveRoleName(database, userId)
   if (isManager(roleName)) return { isSuperuser: true, sections: ALL_SECTIONS }
-  if (String(roleName || '').toLowerCase() !== GATED_ROLE) {
+  if (!GATED_ROLES.has(String(roleName || '').toLowerCase())) {
     return { isSuperuser: false, sections: [] }
   }
   const row = await database('website_admin_access')
@@ -967,7 +983,13 @@ export function registerWadmin(router, ctx) {
       const rows = await database('directus_users')
         .join('directus_roles', 'directus_users.role', 'directus_roles.id')
         .leftJoin('website_admin_access', 'website_admin_access.user', 'directus_users.id')
-        .whereRaw('LOWER(directus_roles.name) = ?', [GATED_ROLE])
+        // Every eligible role, not just Website Admin — otherwise a Sport Admin who
+        // HAS been granted sections is invisible in the grant grid, and a superuser
+        // cannot see or change what they were given.
+        .whereRaw(
+          `LOWER(directus_roles.name) IN (${GATED_ROLE_LIST.map(() => '?').join(', ')})`,
+          GATED_ROLE_LIST,
+        )
         .select(
           'directus_users.id as id',
           'directus_users.first_name as first_name',

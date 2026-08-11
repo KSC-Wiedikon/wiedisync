@@ -90,6 +90,36 @@ describe('wadmin core', () => {
     expect(await computeAccess(db, 'u4')).toEqual({ isSuperuser: false, sections: [] })
   })
 
+  // A Directus user has exactly one role, and the club's youth/sport administrators
+  // need Sport Admin for Wiedisync. Making them a website admin used to mean giving
+  // that role up, so Sport Admin is eligible to hold a grant too (2026-08-11).
+  it('computeAccess: Sport Admin with row → its sections', async () => {
+    const db = makeDb({
+      roleRow: { role_name: 'Sport Admin' },
+      accessRow: { sections: ['site_text', 'news'] },
+    })
+    expect(await computeAccess(db, 'u6')).toEqual(
+      { isSuperuser: false, sections: ['site_text', 'news'] })
+  })
+
+  it('computeAccess: Sport Admin WITHOUT a row → [] (eligibility is not access)', async () => {
+    // The whole point of widening the gate: it decides who may be GRANTED sections,
+    // never who has them. Both Sport Admins must still see nothing until a superuser
+    // ticks something for them individually.
+    const db = makeDb({ roleRow: { role_name: 'Sport Admin' }, accessRow: null })
+    expect(await computeAccess(db, 'u7')).toEqual({ isSuperuser: false, sections: [] })
+  })
+
+  it('computeAccess: a grant row on an ineligible role is inert', async () => {
+    // Defence in depth: a stray row against a Member (mis-click, bad import) must
+    // not become access just because the row exists.
+    const db = makeDb({
+      roleRow: { role_name: 'Member' },
+      accessRow: { sections: ['registrations'] },
+    })
+    expect(await computeAccess(db, 'u8')).toEqual({ isSuperuser: false, sections: [] })
+  })
+
   it('computeAccess: unknown user (no role row) fails closed', async () => {
     const db = makeDb({ roleRow: null })
     expect(await computeAccess(db, 'u5')).toEqual({ isSuperuser: false, sections: [] })
