@@ -23,6 +23,7 @@ import { buildEmailLayout, buildAlertBox, buildInfoCard, formatDateCH, escHtml }
 
 export const ALL_SECTIONS = [
   'news', 'events', 'registrations', 'sponsors', 'scorer_courses', 'mixed_turnier',
+  'site_text',
 ]
 
 export const SECTION_COLLECTIONS = {
@@ -42,6 +43,11 @@ export const SECTION_COLLECTIONS = {
   // here let a mixed_turnier-only Website Admin read/modify/delete any member
   // (full PII) or any participation club-wide (IDOR / privilege escalation).
   mixed_turnier: ['mixed_tournament_signups'],
+  // site_text has NO entry on purpose, so the generic /items/:collection CRUD
+  // refuses it (`resource_out_of_scope`). Its values are rendered as page text on
+  // every visitor's browser, so each one has to pass the checks in site-text.js —
+  // a generic PATCH would bypass them. The section still belongs in ALL_SECTIONS
+  // above: that is what authorize() and the grant grid enumerate.
 }
 
 const MANAGER_ROLES = new Set(['superuser', 'administrator'])

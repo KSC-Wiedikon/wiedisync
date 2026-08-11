@@ -20,10 +20,25 @@ function makeDb({ roleRow = null, accessRow = null } = {}) {
 }
 
 describe('wadmin core', () => {
-  it('contract covers exactly the 6 sections', () => {
+  // Sections whose writes go through their own validating routes instead of the
+  // generic /wadmin/:section/items/:collection CRUD, and which therefore have no
+  // SECTION_COLLECTIONS entry on purpose.
+  //
+  // site_text (page text for the kscw-website): every value is rendered as text on
+  // a public page, so each one must pass the checks in site-text.js. The generic
+  // CRUD would let a PATCH store anything the column accepts.
+  const CUSTOM_ROUTE_SECTIONS = ['site_text']
+
+  it('contract covers exactly the 7 sections', () => {
     expect(ALL_SECTIONS).toEqual(
-      ['news','events','registrations','sponsors','scorer_courses','mixed_turnier'])
-    expect(Object.keys(SECTION_COLLECTIONS).sort()).toEqual([...ALL_SECTIONS].sort())
+      ['news','events','registrations','sponsors','scorer_courses','mixed_turnier','site_text'])
+    // Every section EXCEPT the custom-route ones must map to collections. A new
+    // section missing from both lists would authorize but reach nothing.
+    expect(Object.keys(SECTION_COLLECTIONS).sort()).toEqual(
+      ALL_SECTIONS.filter((s) => !CUSTOM_ROUTE_SECTIONS.includes(s)).sort())
+    // Named explicitly so removing the custom routes without restoring a generic
+    // mapping fails here rather than silently leaving the section unreachable.
+    expect(SECTION_COLLECTIONS.site_text).toBeUndefined()
     // Security audit 2026-05-31: 'participations' and 'members' were removed
     // from this section — the generic admin-accountability /wadmin CRUD routes
     // bypass RLS, so exposing those full collections to a Website Admin section

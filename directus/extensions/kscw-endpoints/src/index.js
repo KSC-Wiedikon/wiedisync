@@ -65,6 +65,7 @@ import { registerSyncStatus } from './sync-status.js'
 import { registerAudit } from './audit.js'
 import { registerOpnform } from './opnform.js'
 import { registerWadmin } from './wadmin.js'
+import { registerSiteText } from './site-text.js'
 import { registerScorerExam } from './scorer-exam.js'
 import { registerSqlWorkspace } from './sql-workspace.js'
 import { registerSqlAi } from './sql-ai.js'
@@ -2740,6 +2741,7 @@ export default {
     registerAudit(router, ctx)
     registerOpnform(router, ctx)
     registerWadmin(router, ctx)
+    registerSiteText(router, ctx)
     registerScorerExam(router, ctx)
     registerSqlWorkspace(router, ctx)
     registerSqlAi(router, ctx)
