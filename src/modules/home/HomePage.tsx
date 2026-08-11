@@ -433,7 +433,20 @@ export default function HomePage() {
   // Combined loading: wait for all primary data + participation statuses + RSVP counters
   // For logged-in users, we need member_teams + all dependent queries + participation statuses
   // For guests, just the public queries (games, results, events)
-  const isInitialLoading = memberTeamsLoading || gamesLoading || resultsLoading || eventsLoading || (hasTeams && trainingsLoading) || bulkPartLoading || bulkRsvpLoading
+  //
+  // ⚠ `eventIdsLoading` is load-bearing and easy to leave out: the events query
+  // is gated `enabled: !eventIdsLoading`, so while the visible-event IDs are
+  // still resolving the events query has not STARTED and `eventsLoading` is
+  // false. Omitting it let the whole page reveal with the events section still
+  // empty, which then popped in a moment later — the gate has to cover the
+  // query that gates the query.
+  //
+  // `tickerScopeLoading` resolves to `allActiveTeamsLoading` for admins and
+  // `memberTeamsLoading` otherwise; it feeds the results ticker's team scope,
+  // so revealing before it lands showed a ticker that then re-scoped itself.
+  const isInitialLoading = memberTeamsLoading || tickerScopeLoading || gamesLoading
+    || resultsLoading || eventIdsLoading || eventsLoading || (hasTeams && trainingsLoading)
+    || bulkPartLoading || bulkRsvpLoading
 
   // Report loading to the app-level boot gate (Layout) instead of rendering our
   // own spinner. While true, Layout's single fullscreen spinner masks the chrome
