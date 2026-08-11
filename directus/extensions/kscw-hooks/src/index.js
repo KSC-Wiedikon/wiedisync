@@ -4051,13 +4051,47 @@ export default ({ action, filter, init, schedule }, { services, database, logger
 
   // ── 11. Filter: Member Privacy (birthdate_visibility, hide_phone, hide_email) ──
   // Enforces privacy settings at the API level so even direct API access respects them.
-  // Admins and the member's own record are exempt.
+  // Staff tiers and the member's own record are exempt.
+
+  /**
+   * App roles that read the register as it actually is.
+   *
+   * ⚠ `context.accountability.admin` alone is NOT enough. It is true only for
+   * policies carrying `admin_access` — Administrator and Superuser. Sport admins
+   * used to satisfy it via a hand-made `Sport Admin → KSCW Admin` attachment
+   * (admin_access = true, created 2026-03-29) which §3b of setup-permissions.mjs
+   * now prunes, correctly: that row made every vb_admin/bb_admin a full Directus
+   * superadmin. The prune also, silently, made this hook start redacting them.
+   *
+   * The result was two layers disagreeing with the hook winning: Directus grants
+   * `KSCW Sport Admin` a `members` read with fields = '*', while this filter
+   * nulled `birthdate` for the 620 of 677 active members still on the
+   * `birthdate_visibility = 'hidden'` Postgres DEFAULT (so it read as "the club
+   * has no birthdates"), and nulled `ahv_nummer` for every member without
+   * exception. A sport admin is the club's admin for their sport — age bands,
+   * the U16 scorer-licence surcharge and licence paperwork all need these — so
+   * the policy is the decision and this hook must not overrule it.
+   *
+   * NOT sport-scoped: no other field on this record is, the Directus grant that
+   * backs it is club-wide, and one policy is shared by vb_admin and bb_admin so
+   * no filter can tell the two sections apart (same reason members.delete is
+   * withheld — see setup-permissions.mjs §9).
+   */
+  const PRIVACY_EXEMPT_ROLES = ['admin', 'superuser', 'vb_admin', 'bb_admin']
 
   filter('members.items.read', async (payload, meta, context) => {
-    // Admins see everything
+    // Administrator / Superuser — admin_access bypasses policies entirely.
     if (context.accountability?.admin) return payload
 
     const currentUser = context.accountability?.user || null
+
+    // One indexed lookup per REQUEST (not per item) — the explorer reads ~700
+    // members in a single call.
+    if (currentUser) {
+      const me = await database('members').where('user', currentUser).select('role').first()
+      const myRoles = Array.isArray(me?.role) ? me.role : []
+      if (myRoles.some((r) => PRIVACY_EXEMPT_ROLES.includes(r))) return payload
+    }
 
     const items = Array.isArray(payload) ? payload : [payload]
 
@@ -4123,7 +4157,9 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         if ('birthdate' in item) item.birthdate = null
       }
 
-      // AHV number — only visible to self and admins
+      // AHV number — self and the staff tiers in PRIVACY_EXEMPT_ROLES only
+      // (both returned above). Everybody who reaches this line, including
+      // coaches and team responsibles, gets null.
       if ('ahv_nummer' in item) item.ahv_nummer = null
     }
 

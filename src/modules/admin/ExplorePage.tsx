@@ -9,6 +9,7 @@ import { useReportPageLoading } from '../../hooks/usePageReady'
 import { useExplorerCache } from './hooks/useExplorerCache'
 import { getExplorerScope, type BucketKey } from './components/explorerHelpers'
 import ExplorerSearch from './components/ExplorerSearch'
+import ExplorerFieldSearch from './components/ExplorerFieldSearch'
 import ExplorerTree from './components/ExplorerTree'
 import ExplorerDetail from './components/ExplorerDetail'
 import ExplorerGrid from './components/ExplorerGrid'
@@ -76,6 +77,15 @@ export default function ExplorePage() {
 
   const [query, setQuery] = useState('')
   const [memberFilters, setMemberFilters] = useState<MemberFilterState>(EMPTY_FILTERS)
+
+  /**
+   * Datapoint focus — `members` column keys the operator asked to look at.
+   *
+   * Session state on purpose, not localStorage: a sticky field filter that
+   * survives a reload is indistinguishable from "the explorer lost my columns",
+   * which is the exact confusion this feature exists to end.
+   */
+  const [focusFields, setFocusFields] = useState<string[]>([])
 
   // Apply member filters client-side to the cached members list. Tree receives
   // filtered cache (so member counts/listing narrow); detail view keeps the
@@ -147,6 +157,7 @@ export default function ExplorePage() {
         <div className="max-w-md flex-1">
           <ExplorerSearch value={query} onChange={setQuery} />
         </div>
+        <ExplorerFieldSearch value={focusFields} onChange={setFocusFields} />
         <ExplorerMemberFilters value={memberFilters} onChange={setMemberFilters} />
         {/* Tree / grid view toggle */}
         <div className="flex overflow-hidden rounded-md border border-border" role="group" aria-label={t('explorerViewToggle')}>
@@ -200,6 +211,7 @@ export default function ExplorePage() {
             cache={treeData}
             query={query}
             canEdit={canEditGrid}
+            focusFields={focusFields}
             onOpenDetail={handleOpenDetail}
             onMutate={mutate}
           />
@@ -242,6 +254,8 @@ export default function ExplorePage() {
             cache={data}
             type={selectedType}
             id={selectedId}
+            focusFields={focusFields}
+            onClearFocus={() => setFocusFields([])}
             onSelect={handleSelect}
             onBack={handleBackToTree}
             onMutate={mutate}

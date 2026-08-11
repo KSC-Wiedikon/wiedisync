@@ -29,6 +29,10 @@ interface Props {
   onRefresh: () => void
   /** Bubbles the member editor's unsaved-change count so the page can guard navigation. */
   onDirtyChange?: (count: number) => void
+  /** Datapoint focus from the header picker — `members` column keys. */
+  focusFields?: string[]
+  /** Drop the focus from inside the member editor's focus banner. */
+  onClearFocus?: () => void
 }
 
 /** Everything the member field editor needs beyond the record itself. */
@@ -42,6 +46,8 @@ interface MemberFieldsGate {
   onRefresh: Props['onRefresh']
   onDirtyChange?: Props['onDirtyChange']
   onBack?: Props['onBack']
+  focusFields: string[]
+  onClearFocus?: Props['onClearFocus']
 }
 
 function capitalize(s: string | null | undefined): string {
@@ -62,6 +68,7 @@ const SECTION_LABEL_KEY: Record<SectionKey, string> = {
 
 export default function ExplorerDetail({
   cache, type, id, onSelect, onBack, onMutate, onRefresh, onDirtyChange,
+  focusFields, onClearFocus,
 }: Props) {
   const onNavigate = onSelect
   const { t } = useTranslation('admin')
@@ -92,6 +99,8 @@ export default function ExplorerDetail({
     onRefresh,
     onDirtyChange,
     onBack,
+    focusFields: focusFields ?? [],
+    onClearFocus,
   }
   // Activity records (events / trainings / games) delete through the ordinary
   // items API — Sport Admin already holds full CRUD on all three — behind the
@@ -371,6 +380,8 @@ function renderMember(
       adminScope={gate.adminScope}
       isGlobalAdmin={gate.isGlobalAdmin}
       viewerMemberId={gate.viewerMemberId}
+      focusFields={gate.focusFields}
+      onClearFocus={gate.onClearFocus}
       reloadKey={cache.loadedAt ?? undefined}
       onMutate={gate.onMutate}
       onSaved={gate.onRefresh}

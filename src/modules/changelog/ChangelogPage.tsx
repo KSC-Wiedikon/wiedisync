@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '1.79.0'
+const APP_VERSION = '1.80.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,26 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.80.0',
+    date: '11.08.2026',
+    sections: [
+      {
+        title: 'Find one datapoint instead of hunting for it',
+        items: [
+          'Search for a field, not just a person. The data explorer has a new Datapoint box next to the search. Type "AHV", "licence" or "Geburtsdatum" and pick the field you mean — the page then shows you that field and nothing else, for whichever member you open. It searches all ~110 columns by their English name, their German name and the database column, so "Lizenz" and "licence" both find the licence flags.',
+          'It works in the table too. Focusing a datapoint pins it as a column right next to the name, so you can read it down the whole club at a glance. Your own saved columns are untouched — clear the focus and the table is exactly as you left it.',
+          'Empty fields still show up when you ask for them. Searching for a field used to be pointless if the member had no value in it, because empty fields are hidden by default. A focused datapoint always appears, so you can see that it is empty — and fill it in.',
+        ],
+      },
+      {
+        title: 'Sport admins can see their members’ full record again',
+        items: [
+          'Birthdates and AHV numbers were being hidden from sport admins. A privacy rule meant for members’ profiles was also applied to the volleyball and basketball admins, so birthdates read as blank for almost every member and AHV numbers for all of them. Sport admins administer their sport’s register and need both — for age categories, the scorer-licence surcharge and licence paperwork — so they now see the record as it is. Coaches, team responsibles and everyone else are unchanged.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.79.0',
     date: '11.08.2026',

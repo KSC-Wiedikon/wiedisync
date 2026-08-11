@@ -677,6 +677,23 @@ export default {
   explorerFieldsHideVolleyball: 'Hide volleyball fields',
   explorerFieldsHideBasketball: 'Hide basketball fields',
   explorerFieldsHiddenBySport: 'Hidden — this member is not in this sport',
+
+  // Datapoint search — find one field (AHV number, a licence) across all ~110
+  // member columns and focus both explorer views on it.
+  explorerDatapoint: 'Datapoint',
+  explorerDatapointTitle: 'Find a datapoint — AHV number, licence, birthdate …',
+  explorerDatapointPlaceholder: 'Search a datapoint …',
+  explorerDatapointHint: 'Type to search all member fields — try "AHV", "licence" or "birthdate".',
+  explorerDatapointNoMatch: 'No datapoint matches',
+  explorerDatapointClear: 'Clear',
+  explorerDatapointShowAll: 'Show all fields',
+  explorerDatapointReadOnly: 'Read-only',
+  explorerGridFocusNoColumn: 'No grid column for: {{fields}} — open a member to see and edit it.',
+  explorerDatapointFocused_one: 'Focused on {{count}} datapoint',
+  explorerDatapointFocused_other: 'Focused on {{count}} datapoints',
+  explorerDatapointUnavailable: 'Not available for this member: {{fields}}',
+  explorerGridFocusNote_one: '{{count}} focused datapoint is shown on top of these columns.',
+  explorerGridFocusNote_other: '{{count}} focused datapoints are shown on top of these columns.',
   explorerFieldsShowEmpty: 'Show empty fields ({{count}})',
   explorerFieldsHideEmpty: 'Hide empty fields',
   explorerFieldsShowTechnical: 'Show technical fields ({{count}})',

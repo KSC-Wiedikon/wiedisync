@@ -26,7 +26,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Pencil, Save, X, Loader2, Eye, EyeOff, AlertTriangle } from 'lucide-react'
+import { Pencil, Save, X, Loader2, Eye, EyeOff, AlertTriangle, Crosshair } from 'lucide-react'
 import { assetUrl, createRecord, deleteRecord, fetchItem, kscwApi, updateRecord } from '../../../lib/api'
 import { logActivity } from '../../../utils/logActivity'
 import { getCurrentSeason, todayLocal } from '../../../utils/dateHelpers'
@@ -49,6 +49,7 @@ import {
   buildMemberFieldSections, fieldFilterReason, getFieldDef, isFieldReadOnly, sanitizeRecord,
   type MemberFieldDef, type MemberFieldKind, type MemberFieldSection,
 } from './memberFieldSchema'
+import { memberFieldLabel } from './memberFieldSearch'
 import { resolveMemberSport, sportCovers, type MemberSport } from './memberSport'
 import {
   MEMBER_MULTI_FIELDS, MEMBER_SELECT_FIELDS, MEMBER_SUGGEST_FIELDS,
@@ -94,6 +95,13 @@ interface Props {
   onDeleted?: () => void
   /** Reports the unsaved-change count up so the page can guard navigation. */
   onDirtyChange?: (count: number) => void
+  /**
+   * Datapoint focus from the header picker — `members` column keys. Non-empty
+   * narrows the render plan to exactly those cards.
+   */
+  focusFields?: string[]
+  /** Drops the focus from the banner this component renders. */
+  onClearFocus?: () => void
   /**
    * The detail view's relations / sections tables. They render BETWEEN the
    * field groups and the danger zone, so the danger zone is genuinely the last
@@ -181,6 +189,9 @@ function relId(value: unknown): string | null {
 }
 
 const NO_SPORTS_REVEALED: ReadonlySet<'volleyball' | 'basketball'> = new Set()
+/** Used only under a datapoint focus — see the `sections` memo. */
+const BOTH_SPORTS_REVEALED: ReadonlySet<'volleyball' | 'basketball'> =
+  new Set<'volleyball' | 'basketball'>(['volleyball', 'basketball'])
 
 /**
  * `GET /kscw/finance/members/:id/fee` — the server's itemised Beitrag.
@@ -316,6 +327,8 @@ export default function ExplorerMemberFields({
   onSaved,
   onDeleted,
   onDirtyChange,
+  focusFields,
+  onClearFocus,
   children,
 }: Props) {
   const { t } = useTranslation('admin')
@@ -520,19 +533,48 @@ export default function ExplorerMemberFields({
   // the tidy view straight back.
   const hideEmptyNow = hideEmpty && !(editMode && canEdit)
 
+  /**
+   * Datapoint focus. Non-empty narrows the page to those cards alone.
+   *
+   * ⚠ A focus deliberately OVERRIDES all three hiding rules — hide-empty,
+   * show-technical and the sport gate. Asking for "AHV number" and getting a
+   * blank page because this member has none is the bug this feature exists to
+   * fix; the same goes for a basketball licence on a volleyball member. The
+   * point of the focus is to answer "what does this field hold", and "nothing"
+   * is an answer that has to be visible (and, in edit mode, fillable).
+   */
+  const focusSet = useMemo(() => new Set(focusFields ?? []), [focusFields])
+  const focusing = focusSet.size > 0
+
   const sections: MemberFieldSection[] = useMemo(() => {
     if (!record) return []
     const mapped = keys.filter((k) => MEMBER_FIELD_BY_KEY[k])
+    const all = [...mapped, TEAMS_VIRTUAL_KEY, FEE_AMOUNT_VIRTUAL_KEY]
     return buildMemberFieldSections({
-      presentKeys: [...mapped, TEAMS_VIRTUAL_KEY, FEE_AMOUNT_VIRTUAL_KEY],
+      // `dirtySet` rides along so changing the focus mid-edit cannot hide a
+      // pending change — the same rule the two noise filters already follow
+      // via `alwaysShow`, which applies too late to help here (this list is
+      // what buildMemberFieldSections is even allowed to consider).
+      presentKeys: focusing ? all.filter((k) => focusSet.has(k) || dirtySet.has(k)) : all,
       sport,
-      revealedSports,
-      hideEmpty: hideEmptyNow,
+      revealedSports: focusing ? BOTH_SPORTS_REVEALED : revealedSports,
+      hideEmpty: focusing ? false : hideEmptyNow,
       isEmpty: isEmptyKey,
-      showTechnical,
+      showTechnical: focusing ? true : showTechnical,
       alwaysShow: dirtySet,
     })
-  }, [record, keys, sport, revealedSports, hideEmptyNow, isEmptyKey, showTechnical, dirtySet])
+  }, [record, keys, sport, revealedSports, hideEmptyNow, isEmptyKey, showTechnical, dirtySet, focusing, focusSet])
+
+  /**
+   * Focused datapoints that produced no card — the column is not on the record
+   * at all, which for a non-admin means a policy withheld it. Naming them beats
+   * a silently short page.
+   */
+  const focusMissing = useMemo(() => {
+    if (!focusing || !record) return [] as string[]
+    const rendered = new Set(sections.flatMap((s) => s.entries.flatMap((e) => e.fields.map((f) => f.key))))
+    return [...focusSet].filter((k) => !rendered.has(k))
+  }, [focusing, record, sections, focusSet])
 
   /**
    * What the two toggles would reveal, for their labels. Counted with the SAME
@@ -911,7 +953,15 @@ export default function ExplorerMemberFields({
             those who can edit it — a read-only viewer looks at the same 100
             cards. They fold away in edit mode, where the empty filter is off
             anyway and the technical fields are all read-only. */}
-        {!editing && (
+        {/* Under a focus the two noise toggles are inert (the focus overrides
+            both), so they are replaced by the Edit button alone. */}
+        {!editing && focusing && canEdit && (
+          <Button size="sm" variant="outline" onClick={() => setEditMode(true)}>
+            <Pencil className="mr-1 h-3.5 w-3.5" />
+            {t('explorerMemberFieldsEdit')}
+          </Button>
+        )}
+        {!editing && !focusing && (
           <div className="flex flex-wrap items-center gap-2">
             <NoiseToggle
               on={!hideEmptyNow}
@@ -955,6 +1005,39 @@ export default function ExplorerMemberFields({
           </div>
         )}
       </header>
+
+      {focusing && (
+        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-md border border-primary/40 bg-primary/5 px-3 py-2">
+          <Crosshair className="h-3.5 w-3.5 shrink-0 text-primary" />
+          <span className="text-xs font-medium text-primary">
+            {t('explorerDatapointFocused', { count: focusSet.size })}
+          </span>
+          <span className="flex flex-wrap gap-1">
+            {[...focusSet].map((key) => (
+              <span key={key} className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] text-primary">
+                {memberFieldLabel(key)}
+              </span>
+            ))}
+          </span>
+          {focusMissing.length > 0 && (
+            <span className="text-[11px] text-muted-foreground">
+              {t('explorerDatapointUnavailable', {
+                fields: focusMissing.map(memberFieldLabel).join(', '),
+              })}
+            </span>
+          )}
+          {onClearFocus && (
+            <button
+              type="button"
+              onClick={onClearFocus}
+              className="ml-auto inline-flex min-h-[32px] items-center gap-1 rounded-md px-2 text-xs font-medium text-primary hover:bg-primary/10"
+            >
+              <X className="h-3.5 w-3.5" />
+              {t('explorerDatapointShowAll')}
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="space-y-6">
         {sections.map((section) => {
@@ -1046,7 +1129,7 @@ export default function ExplorerMemberFields({
 
         {/* Columns Postgres has that the taxonomy does not know about yet. Kept
             visible and read-only: mislabelling one is worse than flagging it. */}
-        {unmappedKeys.length > 0 && (
+        {unmappedKeys.length > 0 && !focusing && (
           <section>
             <header className="mb-2 border-b border-amber-500/40 pb-1.5">
               <h3 className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-400">
