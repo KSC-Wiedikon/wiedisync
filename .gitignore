@@ -20,6 +20,8 @@ dist-ssr
 # Infrastructure docs (contains credentials)
 INFRA*.md
 CONTINGENCY.md
+# Printable emergency sheet — gets filled in by hand with the 4 break-glass secrets
+SAFE-SHEET.md
 
 # Playwright
 playwright-report/
