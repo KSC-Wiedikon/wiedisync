@@ -870,6 +870,12 @@ const PUBLIC_GAME_FIELDS = [
   'id', 'date', 'time', 'home_team', 'away_team', 'home_score', 'away_score',
   'sets_json', 'league', 'round', 'season', 'kscw_team', 'status', 'source',
   'game_id', 'hall', 'type',
+  // Referee assignment as published by Swiss Volley — the officials' names on a
+  // public fixture list, no contact details or member ids. The kscw-website
+  // calendar's game-detail popup lists them (migration 311); because Directus
+  // 403s the whole request over one ungranted field, leaving this out did not
+  // hide the referee rows, it emptied the calendar's games for every month.
+  'referees_json',
 ]
 
 /**
