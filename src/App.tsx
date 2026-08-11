@@ -47,6 +47,7 @@ import EventsPage from './modules/events/EventsPage'
 import FormsPage from './modules/forms/FormsPage'
 import FormBuilderPage from './modules/forms/FormBuilderPage'
 import PublicFormPage from './modules/forms/PublicFormPage'
+import PublicEventSignupPage from './modules/events/PublicEventSignupPage'
 import FinesPage from './modules/fines/FinesPage'
 import FinancePage from './modules/finance/FinancePage'
 import FinanceDuesPage from './modules/finance/FinanceDuesPage'
@@ -174,6 +175,10 @@ export default function App() {
           <Route path="terminplanung/club/:token" element={<SchedulingRedirect />} />
           <Route path="terminplanung/bb/:token" element={<SchedulingRedirect />} />
           <Route path="f/:slug" element={<PublicFormPage />} />
+          {/* Guests' door — no AuthRoute by design. The token IS the
+              authorisation; the page sends anyone with a session to /events/:id
+              instead, because an external signup writes no participation row. */}
+          <Route path="e/:token" element={<PublicEventSignupPage />} />
 
           <Route element={<Layout />}>
             <Route index element={<AuthRoute><HomePage /></AuthRoute>} />

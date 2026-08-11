@@ -13,12 +13,14 @@ import { useParticipation } from '../../hooks/useParticipation'
 import { useMyCoveringAbsence } from '../../hooks/useMyCoveringAbsence'
 import { useAbsenceNoteText } from '../../hooks/useAbsenceNoteText'
 import { useCollection } from '../../lib/query'
+import { kscwApi } from '../../lib/api'
 import { useMutation } from '../../hooks/useMutation'
+import { useConfirm } from '../../components/ConfirmProvider'
 import { formatDate, formatTime } from '../../utils/dateHelpers'
 import BroadcastButton from '../broadcast/BroadcastButton'
 import ShareActivityButton from '../../components/ShareActivityButton'
 import { isFeatureEnabled } from '../../utils/featureToggles'
-import { Calendar, Clock, MapPin, Users, Check, MessageSquare, UserPlus, Share2, ClipboardList } from 'lucide-react'
+import { Calendar, Clock, MapPin, Users, Check, MessageSquare, UserPlus, Share2, ClipboardList, Link2 } from 'lucide-react'
 import { toast } from 'sonner'
 import EventSignupsModal from './EventSignupsModal'
 import { teamCoachIds } from '../../utils/relations'
@@ -41,6 +43,55 @@ export default function EventDetailModal({ event, onClose }: EventDetailModalPro
   const [rosterOpen, setRosterOpen] = useState(false)
   const [signupsOpen, setSignupsOpen] = useState(false)
   const [sessionSheetOpen, setSessionSheetOpen] = useState(false)
+
+  // ── Public signup link (migration 310) ────────────────────────────
+  const confirm = useConfirm()
+  const [shareToken, setShareToken] = useState<string | null>(event?.public_share_token ?? null)
+  const [shareBusy, setShareBusy] = useState(false)
+  // Re-seed when the modal is pointed at a different event, without a
+  // render-phase write of fetched data (React #301).
+  const [shareForEvent, setShareForEvent] = useState(event?.id)
+  if (shareForEvent !== event?.id) {
+    setShareForEvent(event?.id)
+    setShareToken(event?.public_share_token ?? null)
+  }
+  // Mirrors the endpoint's own rule: admin, sport admin, or the event's creator.
+  // The server enforces it; this only decides whether to render the controls.
+  const canManageShare = !!event && (isAdmin
+    || (!!user && event.created_by != null && String(event.created_by) === String(user.id)))
+  const publicSignupUrl = shareToken ? `${window.location.origin}/e/${shareToken}` : ''
+
+  async function mintShareToken(rotating: boolean) {
+    if (!event) return
+    if (rotating && !(await confirm({ message: t('shareTokenRotateConfirm'), danger: true }))) return
+    setShareBusy(true)
+    try {
+      const res = await kscwApi<{ public_share_token: string }>(
+        `/events/${event.id}/share-token`, { method: 'POST' },
+      )
+      setShareToken(res.public_share_token)
+      toast.success(t('shareTokenCreated'))
+    } catch {
+      toast.error(t('publicSignupError'))
+    } finally {
+      setShareBusy(false)
+    }
+  }
+
+  async function revokeShareToken() {
+    if (!event) return
+    if (!(await confirm({ message: t('shareTokenRevokeConfirm'), danger: true }))) return
+    setShareBusy(true)
+    try {
+      await kscwApi(`/events/${event.id}/share-token`, { method: 'DELETE' })
+      setShareToken(null)
+      toast.success(t('shareTokenRevoked'))
+    } catch {
+      toast.error(t('publicSignupError'))
+    } finally {
+      setShareBusy(false)
+    }
+  }
 
   const canParticipate = !!user && !!event && (
     !event.teams?.length || event.teams.some((tid) => canParticipateIn(teamId(tid)))
@@ -217,6 +268,64 @@ export default function EventDetailModal({ event, onClose }: EventDetailModalPro
                   {t('signupLinkOpen')} ↗
                 </a>
               </div>
+            </div>
+          )}
+
+          {/* Native public signup link (migration 310) — the guests' door.
+              Managers only: minting it publishes a URL that reaches outside the
+              club. Distinct from the members' share button in the header, and
+              from `signup_url` above (the OpnForm door). */}
+          {canManageShare && (
+            <div className="mt-3 rounded-lg border border-border p-3">
+              <div className="flex items-start gap-2 text-sm">
+                <Link2 className="mt-0.5 h-4 w-4 shrink-0 text-gray-500 dark:text-gray-400" />
+                <div className="min-w-0">
+                  <span className="font-medium">{t('shareTokenTitle')}</span>
+                  <p className="text-xs text-muted-foreground">{t('shareTokenHint')}</p>
+                </div>
+              </div>
+
+              {shareToken ? (
+                <>
+                  <p className="mt-2 truncate rounded bg-muted px-2 py-1 font-mono text-xs" title={publicSignupUrl}>
+                    {publicSignupUrl}
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      className="min-h-[44px] rounded-md border border-border px-3 text-sm hover:bg-accent"
+                      onClick={() => { navigator.clipboard.writeText(publicSignupUrl); toast.success(tc('copied')) }}
+                    >
+                      {t('signupLinkCopy')}
+                    </button>
+                    <button
+                      type="button"
+                      className="min-h-[44px] rounded-md border border-border px-3 text-sm hover:bg-accent disabled:opacity-50"
+                      disabled={shareBusy}
+                      onClick={() => void mintShareToken(true)}
+                    >
+                      {t('shareTokenRotate')}
+                    </button>
+                    <button
+                      type="button"
+                      className="min-h-[44px] rounded-md border border-border px-3 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-900/20"
+                      disabled={shareBusy}
+                      onClick={() => void revokeShareToken()}
+                    >
+                      {t('shareTokenRevoke')}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  className="mt-2 min-h-[44px] rounded-md border border-border px-3 text-sm hover:bg-accent disabled:opacity-50"
+                  disabled={shareBusy}
+                  onClick={() => void mintShareToken(false)}
+                >
+                  {t('shareTokenCreate')}
+                </button>
+              )}
             </div>
           )}
 
