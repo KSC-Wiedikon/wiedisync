@@ -80,17 +80,21 @@ export default function Modal({ open, onClose, title, children, size = 'md', hid
           hideClose={hideClose}
           {...focusProps}
         >
+          {/* Title gets its own row and the actions sit beneath it. Sharing one
+              row squeezed the title into a narrow column — "Photoday mixed
+              tournament" wrapped onto three lines next to two labelled buttons —
+              and the more actions a modal grows, the worse it gets. */}
           <DialogHeader
             className={cn(
-              headerAction && 'flex-row items-center gap-2 space-y-0',
+              headerAction && 'space-y-3',
               headerAction && !hideClose && 'pr-8',
             )}
           >
-            <div className="min-w-0 flex-1">
+            <div className="min-w-0">
               <DialogTitle className="break-words">{title}</DialogTitle>
               <DialogDescription className="sr-only">{title}</DialogDescription>
             </div>
-            {headerAction && <div className="shrink-0">{headerAction}</div>}
+            {headerAction && <div className="flex flex-wrap items-center gap-2">{headerAction}</div>}
           </DialogHeader>
           {children}
         </DialogContent>
@@ -102,13 +106,13 @@ export default function Modal({ open, onClose, title, children, size = 'md', hid
     <Drawer open={open} onOpenChange={(o) => !o && !hideClose && onClose()}>
       <DrawerContent ref={drawerRef} tabIndex={-1} {...drawerFocusProps}>
         <DrawerHeader
-          className={cn(headerAction && 'flex flex-row items-center gap-2 space-y-0 text-left')}
+          className={cn(headerAction && 'space-y-3 text-left')}
         >
-          <div className="min-w-0 flex-1">
+          <div className="min-w-0">
             <DrawerTitle className="break-words">{title}</DrawerTitle>
             <DrawerDescription className="sr-only">{title}</DrawerDescription>
           </div>
-          {headerAction && <div className="shrink-0">{headerAction}</div>}
+          {headerAction && <div className="flex flex-wrap items-center gap-2">{headerAction}</div>}
         </DrawerHeader>
         <div className="max-h-[calc(100dvh-11rem)] overflow-y-auto overscroll-contain px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
           {children}

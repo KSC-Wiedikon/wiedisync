@@ -17,6 +17,7 @@ export default {
   startTime: 'Ora di inizio',
   endTime: 'Ora di fine',
   allDay: 'Tutto il giorno',
+  teamsLabel: 'Squadre:',
   location: 'Luogo',
   description: 'Descrizione',
   teamsInvolved: 'Squadre',
