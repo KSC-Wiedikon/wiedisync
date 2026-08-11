@@ -56,10 +56,31 @@ jobs:
           # SENTRY_PROJECT as a secret would replace the literal string "wiedisync"
           # with *** everywhere — repo name, paths, wrangler output — and make the
           # logs useless. Neither of these is sensitive.
-          SENTRY_ORG: aequitax
+          # Verified from a successful Cloudflare build log ("Organization: kscw /
+          # Projects: wiedisync"). Do NOT infer the org from the sntrys_ token — that
+          # gives 'aequitax', which sentry-cli rejects with "Project not found" → 403.
+          # A failed upload does NOT fail this build: the plugin deletes the .map files
+          # either way, so the only symptom is minified stack traces in Sentry.
+          SENTRY_ORG: kscw
           SENTRY_PROJECT: wiedisync
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-        run: npm run ${{ matrix.script }}
+        run: |
+          set -o pipefail
+          npm run ${{ matrix.script }} 2>&1 | tee "$RUNNER_TEMP/build.log"
+
+      - name: Warn if the Sentry upload failed
+        # Deliberately a warning, not a failure: source maps are diagnostics, and a
+        # Sentry outage must not block a deploy. But the plugin swallows upload errors
+        # and the build stays green, so without this the only symptom is minified
+        # stack traces nobody notices for weeks.
+        if: always()
+        run: |
+          if grep -q '\[sentry-vite-plugin\] Error' "$RUNNER_TEMP/build.log" 2>/dev/null; then
+            echo "::warning::Sentry source-map upload FAILED for ${{ matrix.project }} — stack traces for this release will stay minified. Check SENTRY_ORG (kscw) / SENTRY_PROJECT (wiedisync) / SENTRY_AUTH_TOKEN."
+            grep -m3 -A2 '\[sentry-vite-plugin\] Error' "$RUNNER_TEMP/build.log" || true
+          else
+            echo "Sentry upload OK"
+          fi
 
       - name: Refuse to publish sourcemaps
         # vite.config.ts sets `build.sourcemap: 'hidden'` unconditionally; the Sentry
