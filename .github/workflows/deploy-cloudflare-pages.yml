@@ -48,10 +48,16 @@ jobs:
           VITE_DIRECTUS_URL: ${{ github.ref_name == 'prod' && 'https://directus.kscw.ch' || 'https://directus-dev.kscw.ch' }}
           VITE_SCHEDULING_ORIGIN: ${{ github.ref_name == 'prod' && 'https://spielplanung.wiedisync.kscw.ch' || 'https://spielplanung-dev.kscw.ch' }}
           VITE_FEATURE_MESSAGING: 'true'
-          VITE_GOOGLE_MAPS_API_KEY: ${{ vars.VITE_GOOGLE_MAPS_API_KEY }}
-          VITE_SENTRY_DSN: ${{ vars.VITE_SENTRY_DSN }}
-          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
-          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+          # Both ship inside the client bundle, so they are public either way — but
+          # kept out of this public repo so key-scraping bots do not harvest them.
+          VITE_GOOGLE_MAPS_API_KEY: ${{ secrets.VITE_GOOGLE_MAPS_API_KEY }}
+          VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
+          # Inline on purpose. GitHub redacts every secret VALUE from the logs, so
+          # SENTRY_PROJECT as a secret would replace the literal string "wiedisync"
+          # with *** everywhere — repo name, paths, wrangler output — and make the
+          # logs useless. Neither of these is sensitive.
+          SENTRY_ORG: aequitax
+          SENTRY_PROJECT: wiedisync
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
         run: npm run ${{ matrix.script }}
 
@@ -72,10 +78,11 @@ jobs:
       - name: Deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          # KSCW club account. Not a secret — it appears in every dashboard URL.
+          CLOUDFLARE_ACCOUNT_ID: 989cbb0f25ed3f11e417908694ef8da5
         run: |
-          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
-            echo "::error::CLOUDFLARE_API_TOKEN (secret) or CLOUDFLARE_ACCOUNT_ID (variable) is not set on this repo."
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::error::Repo secret CLOUDFLARE_API_TOKEN is not set. It must be a KSCW-account token with Account · Cloudflare Pages · Edit."
             exit 1
           fi
           npx wrangler@4 pages deploy dist \
