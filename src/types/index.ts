@@ -688,6 +688,12 @@ export interface Event extends BaseRecord {
    * is a share affordance, never a signup button.
    */
   signup_url?: string | null
+  /**
+   * Migration 310: the native guests' door. Minted server-side; `/e/:token`
+   * renders a public signup page. Distinct from `signup_url` (the OpnForm door)
+   * and from the members' `/events/:id` deep link — see ShareActivityButton.
+   */
+  public_share_token?: string | null
   /** Migration 194: opt-in to the J+S (Jugend+Sport) export. */
   js_relevant?: boolean
   /** J+S NDS activity type used when js_relevant is set. */

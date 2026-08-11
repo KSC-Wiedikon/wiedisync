@@ -18,6 +18,7 @@ import { registerPublicEvents } from './public-events.js'
 import { registerForms } from './forms.js'
 import { registerPollResults } from './poll-results.js'
 import { registerPublicForms } from './public-forms.js'
+import { registerPublicEventSignup } from './public-event-signup.js'
 import { registerGCalSync } from './gcal-sync.js'
 import { registerSchulferienSync } from './schulferien-sync.js'
 import { registerScorerReminders } from './scorer-reminders.js'
@@ -2730,6 +2731,7 @@ export default {
     registerForms(router, ctx, { logEndpointError, requireAuth })
     registerPollResults(router, ctx, { logEndpointError, requireAuth })
     registerPublicForms(router, ctx, { ipRateLimit })
+    registerPublicEventSignup(router, ctx, { ipRateLimit, requireAuth, logEndpointError })
     registerMessaging(router, ctx)
     registerBroadcastRoutes(router, ctx)
     registerActivitiesWithParticipations(router, ctx)

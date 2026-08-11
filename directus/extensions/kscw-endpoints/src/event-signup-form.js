@@ -282,6 +282,15 @@ export function registerEventSignupForm(router, { database, logger }) {
       date_created: r.date_created,
     }))
 
+    // Native guests' door (migration 310). Separate from the OpnForm `external`
+    // list below: both are non-members, but these live in our own table, so they
+    // always load and never depend on forms.kscw.ch being up. Without this the
+    // new door would write signups nobody could see.
+    const publicRows = await database('event_public_signups')
+      .where('event', event.id)
+      .orderBy('date_created', 'asc')
+      .select('id', 'name', 'email', 'phone', 'guest_count', 'note', 'date_created')
+
     const slug = slugFromSignupUrl(event.signup_url)
     let external = null
     let externalError = null
@@ -298,6 +307,8 @@ export function registerEventSignupForm(router, { database, logger }) {
       event: { id: event.id, title: event.title, signup_url: event.signup_url ?? null },
       internal,
       internal_total: internal.length,
+      public_signups: publicRows,
+      public_total: publicRows.length,
       external,
       external_error: externalError,
     })
