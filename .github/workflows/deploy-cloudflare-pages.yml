@@ -1,0 +1,84 @@
+name: Deploy to Cloudflare Pages (KSCW account)
+
+# The KSCW-account Pages projects are Direct Upload — Cloudflare cannot attach a git
+# repo to them, ever (a project is permanently either git-connected or Direct Upload).
+# So push-to-deploy has to come from here instead of from Cloudflare's own build.
+
+on:
+  push:
+    branches: [prod, dev]
+  workflow_dispatch:
+
+# Never pull_request / pull_request_target — both repos are PUBLIC and that would
+# expose CLOUDFLARE_API_TOKEN and SENTRY_AUTH_TOKEN to fork PRs.
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages-${{ github.ref_name }}-${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - project: kscw-wiedisync
+            script: build
+          - project: kscw-spielplanung
+            script: build:scheduling
+    name: ${{ matrix.project }} (${{ github.ref_name }})
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build
+        env:
+          # api.ts pins prod Directus by hostname, but the scheduling build needs these.
+          VITE_DIRECTUS_URL: ${{ github.ref_name == 'prod' && 'https://directus.kscw.ch' || 'https://directus-dev.kscw.ch' }}
+          VITE_SCHEDULING_ORIGIN: ${{ github.ref_name == 'prod' && 'https://spielplanung.wiedisync.kscw.ch' || 'https://spielplanung-dev.kscw.ch' }}
+          VITE_FEATURE_MESSAGING: 'true'
+          VITE_GOOGLE_MAPS_API_KEY: ${{ vars.VITE_GOOGLE_MAPS_API_KEY }}
+          VITE_SENTRY_DSN: ${{ vars.VITE_SENTRY_DSN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+        run: npm run ${{ matrix.script }}
+
+      - name: Refuse to publish sourcemaps
+        # vite.config.ts sets `build.sourcemap: 'hidden'` unconditionally; the Sentry
+        # plugin deletes the .map files ONLY when SENTRY_AUTH_TOKEN is set. A missing
+        # or expired token therefore publishes the app's source, silently — it already
+        # happened once (95 maps, 10.08.2026). Fail loudly instead.
+        run: |
+          count=$(find dist -name '*.map' -type f | wc -l)
+          if [ "$count" -ne 0 ]; then
+            echo "::error::$count sourcemap(s) still in dist/ — SENTRY_AUTH_TOKEN is missing or invalid, so the Sentry plugin never deleted them. Refusing to publish app source."
+            find dist -name '*.map' -type f | head -20
+            exit 1
+          fi
+          echo "OK — 0 sourcemaps in dist/"
+
+      - name: Deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::error::CLOUDFLARE_API_TOKEN (secret) or CLOUDFLARE_ACCOUNT_ID (variable) is not set on this repo."
+            exit 1
+          fi
+          npx wrangler@4 pages deploy dist \
+            --project-name='${{ matrix.project }}' \
+            --branch='${{ github.ref_name }}' \
+            --commit-hash='${{ github.sha }}'
