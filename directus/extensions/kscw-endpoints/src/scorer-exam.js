@@ -58,12 +58,29 @@ import { buildEmailLayout, buildInfoCard, formatDateCH } from './email-template.
 
 const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET || ''
 
+/**
+ * The one mailbox that owns the Schreiber-Ausbildung: course signups, match-sheet
+ * uploads, and replies to the result mail all land here.
+ *
+ * Exported so wadmin.js's exam-result route sets the SAME Reply-To — two copies would
+ * drift, and the drift would only show up as a participant's reply going somewhere
+ * nobody reads. It is a Migadu box on wiedisync.kscw.ch (INFRA.md → Mailbox), so it is
+ * a valid RECIPIENT anywhere; it is deliberately never a From address, because sending
+ * as it would need its own SES identity and that domain is DMARC p=quarantine.
+ */
+export const SCORER_AUSBILDUNG_EMAIL = 'scorerausbildung@wiedisync.kscw.ch'
+
 // Who hears that a scoresheet arrived. Until 2026-07-29 nobody did: the upload wrote a
 // row and a log line and stopped there, so the only way to learn of one was to open
 // /admin and notice — while the success screen has always promised the participant
 // "Wir prüfen es und melden uns per E-Mail". Comma list; override per environment (set
 // it empty on dev to stop test uploads mailing the club).
-const EXAM_NOTIFY_EMAILS = (process.env.SCORER_EXAM_NOTIFY_EMAILS ?? 'admin@wiedisync.kscw.ch')
+//
+// SCORER_AUSBILDUNG_EMAIL, not the general club box: everything about the Schreiber-
+// Ausbildung lands in one place, so whoever runs a course sees signups (the OpnForm
+// confirmations already copy it) and match sheets in the same inbox instead of hunting
+// through admin@ for the two weeks a year this matters.
+const EXAM_NOTIFY_EMAILS = (process.env.SCORER_EXAM_NOTIFY_EMAILS ?? SCORER_AUSBILDUNG_EMAIL)
   .split(',').map((s) => s.trim().toLowerCase()).filter(Boolean)
 
 // The scoresheet review UI lives on the WEBSITE (/admin), not on wiedisync — so this is

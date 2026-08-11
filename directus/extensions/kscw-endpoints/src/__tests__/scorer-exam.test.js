@@ -278,14 +278,14 @@ describe('notifyExamUpload', () => {
     })
   })
 
-  it('mails the club admin mailbox with the scoresheet attached', async () => {
+  it('mails the Ausbildung mailbox with the scoresheet attached', async () => {
     const { sent, ctx } = makeCtx()
     await notifyExamUpload(ctx, makeLog(), INFO)
 
     expect(sent).toHaveLength(1)
     const [msg] = sent
     // The default recipient is the whole point of the feature.
-    expect(msg.to).toBe('admin@wiedisync.kscw.ch')
+    expect(msg.to).toBe('scorerausbildung@wiedisync.kscw.ch')
     expect(msg.subject).toContain('Anna Beispiel')
     expect(msg.attachments).toHaveLength(1)
     expect(msg.attachments[0].content).toHaveLength(2048)
@@ -386,12 +386,15 @@ describe('EXAM_NOTIFY_EMAILS env switch', () => {
     expect(sent).toHaveLength(0)
   })
 
-  it('unset falls back to the club admin mailbox (prod)', async () => {
+  it('unset falls back to the Ausbildung mailbox (prod)', async () => {
     const mod = await load(undefined)
     const { sent, ctx } = probe()
     await mod.notifyExamUpload(ctx, LOG, INFO)
     expect(sent).toHaveLength(1)
-    expect(sent[0].to).toBe('admin@wiedisync.kscw.ch')
+    // Pinned against the exported constant, so the mailbox is named in exactly one
+    // place and wadmin.js's Reply-To cannot drift away from the notification recipient.
+    expect(sent[0].to).toBe(mod.SCORER_AUSBILDUNG_EMAIL)
+    expect(sent[0].to).toBe('scorerausbildung@wiedisync.kscw.ch')
   })
 
   it('a comma list is trimmed, lowercased and de-blanked', async () => {

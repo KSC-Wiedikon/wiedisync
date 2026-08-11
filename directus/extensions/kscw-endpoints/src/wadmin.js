@@ -18,7 +18,7 @@ import { badSlug, listSubmissions, deleteSubmission, getCloses, setCloses } from
 import { streamManagedFile, readManagedFile } from './storage-read.js'
 // Cap and type allowlist are imported, never re-declared: an admin correction must be
 // held to exactly what the participant upload accepts, and two copies would drift.
-import { SCORER_EXAM_FOLDER, sniffType, EXT_FOR, UPLOAD_MAX_BYTES, zurichToday } from './scorer-exam.js'
+import { SCORER_AUSBILDUNG_EMAIL, SCORER_EXAM_FOLDER, sniffType, EXT_FOR, UPLOAD_MAX_BYTES, zurichToday } from './scorer-exam.js'
 import { buildEmailLayout, buildAlertBox, buildInfoCard, formatDateCH, escHtml } from './email-template.js'
 
 export const ALL_SECTIONS = [
@@ -935,7 +935,20 @@ export function registerWadmin(router, ctx) {
       const mail = new MailService({ schema: await getSchema(), knex: database })
       // MailService forwards nodemailer options, so `attachments` rides through as-is
       // (same shape kscw-hooks uses for its CSV export mail).
-      await mail.send({ to, subject, html, text, ...(attachments ? { attachments } : {}) })
+      //
+      // ⚠ Reply-To, not From. EMAIL_FROM is wiedisync@noreply.kscw.ch, so without this a
+      // participant answering "why did I fail?" writes into a black hole — and that mail
+      // is the one most likely to be replied to of anything the club sends. Sending AS
+      // the Ausbildung box instead would need its own SES identity on a DMARC
+      // p=quarantine domain; Reply-To needs nothing and routes the answer correctly.
+      await mail.send({
+        to,
+        replyTo: SCORER_AUSBILDUNG_EMAIL,
+        subject,
+        html,
+        text,
+        ...(attachments ? { attachments } : {}),
+      })
       log.info({ msg: 'exam-result mail sent', result, noted: !!note, slug: req.params.slug, submission: subId })
       res.json({ ok: true, to })
     } catch (err) {
