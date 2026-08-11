@@ -1,0 +1,139 @@
+name: Deploy to Cloudflare Pages (KSCW account)
+
+# The KSCW-account Pages projects are Direct Upload — Cloudflare cannot attach a git
+# repo to them, ever (a project is permanently either git-connected or Direct Upload).
+# So push-to-deploy has to come from here instead of from Cloudflare's own build.
+
+on:
+  push:
+    branches: [prod, dev]
+  workflow_dispatch:
+
+# Never pull_request / pull_request_target — both repos are PUBLIC and that would
+# expose CLOUDFLARE_API_TOKEN and SENTRY_AUTH_TOKEN to fork PRs.
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages-${{ github.ref_name }}-${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - project: kscw-wiedisync
+            script: build
+          - project: kscw-spielplanung
+            script: build:scheduling
+          # Separate project because a Pages custom domain always serves the
+          # PRODUCTION deployment — a branch preview cannot back a hostname. Its
+          # production branch is `dev`, so it only has anything to do on dev pushes.
+          - project: kscw-spielplanung-dev
+            script: build:scheduling
+            dev_only: true
+    name: ${{ matrix.project }} (${{ github.ref_name }})
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build
+        if: matrix.dev_only != true || github.ref_name == 'dev'
+        env:
+          # ⚠ Scheduling build ONLY — deliberately EMPTY for kscw-wiedisync, matching
+          # the old Cloudflare project, which never set it on the member app.
+          # api.ts:81 pins prod Directus for the hostnames wiedisync.kscw.ch and
+          # spielplanung.wiedisync.kscw.ch, so the var is irrelevant there — but EVERY
+          # OTHER host falls through to `VITE_DIRECTUS_URL || directus-dev`. Setting it
+          # on the member app would therefore point kscw-wiedisync.pages.dev at PROD
+          # data, which is exactly the trap CLAUDE.md flags for wiedisync.pages.dev.
+          # Empty string is falsy in that expression, so it correctly yields dev.
+          VITE_DIRECTUS_URL: ${{ startsWith(matrix.project, 'kscw-spielplanung') && (github.ref_name == 'prod' && 'https://directus.kscw.ch' || 'https://directus-dev.kscw.ch') || '' }}
+          VITE_SCHEDULING_ORIGIN: ${{ github.ref_name == 'prod' && 'https://spielplanung.wiedisync.kscw.ch' || 'https://spielplanung-dev.kscw.ch' }}
+          # Member app only — the old wiedisync-spielplanung project set NONE of these,
+          # and the scheduling bundle must keep behaving exactly as it does today
+          # (no runtime Sentry, no Maps key, no messaging flag).
+          VITE_FEATURE_MESSAGING: ${{ matrix.project == 'kscw-wiedisync' && 'true' || '' }}
+          # Both ship inside the client bundle, so they are public either way — but
+          # kept out of this public repo so key-scraping bots do not harvest them.
+          VITE_GOOGLE_MAPS_API_KEY: ${{ matrix.project == 'kscw-wiedisync' && secrets.VITE_GOOGLE_MAPS_API_KEY || '' }}
+          VITE_SENTRY_DSN: ${{ matrix.project == 'kscw-wiedisync' && secrets.VITE_SENTRY_DSN || '' }}
+          # Inline on purpose. GitHub redacts every secret VALUE from the logs, so
+          # SENTRY_PROJECT as a secret would replace the literal string "wiedisync"
+          # with *** everywhere — repo name, paths, wrangler output — and make the
+          # logs useless. Neither of these is sensitive.
+          # Verified from a successful Cloudflare build log ("Organization: kscw /
+          # Projects: wiedisync"). Do NOT infer the org from the sntrys_ token — that
+          # gives 'aequitax', which sentry-cli rejects with "Project not found" → 403.
+          # A failed upload does NOT fail this build: the plugin deletes the .map files
+          # either way, so the only symptom is minified stack traces in Sentry.
+          SENTRY_ORG: kscw
+          SENTRY_PROJECT: wiedisync
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+        run: |
+          set -o pipefail
+          npm run ${{ matrix.script }} 2>&1 | tee "$RUNNER_TEMP/build.log"
+
+      - name: Warn if the Sentry upload failed
+        # Deliberately a warning, not a failure: source maps are diagnostics, and a
+        # Sentry outage must not block a deploy. But the plugin swallows upload errors
+        # and the build stays green, so without this the only symptom is minified
+        # stack traces nobody notices for weeks.
+        if: always() && (matrix.dev_only != true || github.ref_name == 'dev')
+        run: |
+          if grep -q '\[sentry-vite-plugin\] Error' "$RUNNER_TEMP/build.log" 2>/dev/null; then
+            echo "::warning::Sentry source-map upload FAILED for ${{ matrix.project }} — stack traces for this release will stay minified. Check SENTRY_ORG (kscw) / SENTRY_PROJECT (wiedisync) / SENTRY_AUTH_TOKEN."
+            grep -m3 -A2 '\[sentry-vite-plugin\] Error' "$RUNNER_TEMP/build.log" || true
+          else
+            echo "Sentry upload OK"
+          fi
+
+      - name: Strip sourcemaps
+        if: matrix.dev_only != true || github.ref_name == 'dev'
+        # vite.config.ts sets `build.sourcemap: 'hidden'` unconditionally and relies on
+        # the Sentry plugin's filesToDeleteAfterUpload to remove the files — which only
+        # runs when SENTRY_AUTH_TOKEN is set. That made the protection conditional on an
+        # env var, and spielplanung.wiedisync.kscw.ch consequently served its full source
+        # for months (verified 11.08.2026: index-*.js.map returned HTTP 200 in prod).
+        # 'hidden' only drops the //# sourceMappingURL comment; the URL is still just
+        # "<bundle>.js.map", so nothing has to be guessed.
+        #
+        # Delete unconditionally here, then assert. Deleting rather than failing keeps a
+        # Sentry outage from blocking a deploy while making the exposure impossible.
+        run: |
+          found=$(find dist -name '*.map' -type f | wc -l)
+          [ "$found" -ne 0 ] && { echo "Removing $found sourcemap(s) the build left behind:"; find dist -name '*.map' -type f | head -20; }
+          find dist -name '*.map' -type f -delete
+          remaining=$(find dist -name '*.map' -type f | wc -l)
+          if [ "$remaining" -ne 0 ]; then
+            echo "::error::$remaining sourcemap(s) survived deletion — refusing to publish app source."
+            exit 1
+          fi
+          echo "OK — 0 sourcemaps in dist/"
+
+      - name: Deploy
+        if: matrix.dev_only != true || github.ref_name == 'dev'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          # KSCW club account. Not a secret — it appears in every dashboard URL.
+          CLOUDFLARE_ACCOUNT_ID: 989cbb0f25ed3f11e417908694ef8da5
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::error::Repo secret CLOUDFLARE_API_TOKEN is not set. It must be a KSCW-account token with Account · Cloudflare Pages · Edit."
+            exit 1
+          fi
+          npx wrangler@4 pages deploy dist \
+            --project-name='${{ matrix.project }}' \
+            --branch='${{ github.ref_name }}' \
+            --commit-hash='${{ github.sha }}'
