@@ -52,7 +52,7 @@ export default function AbsencesPage() {
   // `refetch` below targets *my* absences, not the team view).
   const [teamRefreshKey, setTeamRefreshKey] = useState(0)
 
-  const { data: allTeamsRaw } = useCollection<Team>('teams', { filter: { active: { _eq: true } }, sort: ['name'], limit: 50 })
+  const { data: allTeamsRaw, isLoading: allTeamsLoading } = useCollection<Team>('teams', { filter: { active: { _eq: true } }, sort: ['name'], limit: 50 })
   const allTeams = useMemo(() => allTeamsRaw ?? [], [allTeamsRaw])
 
   const visibleTeamIds = useMemo(() => {
@@ -172,7 +172,11 @@ export default function AbsencesPage() {
   // Wait for the member's own absences + weeklies before rendering so the lists
   // arrive fully formed rather than flashing empty then filling in.
   // Report to app boot gate — see usePageReady.tsx
-  useReportPageLoading(myAbsencesLoading || myWeeklyLoading)
+  // `allTeamsLoading` belongs here even though nothing obviously "waits" on it:
+  // it backs the team filter and `visibleTeams`, both rendered on first paint,
+  // so leaving it out revealed the page with an empty filter that filled in a
+  // moment later.
+  useReportPageLoading(allTeamsLoading || myAbsencesLoading || myWeeklyLoading)
   if (myAbsencesLoading || myWeeklyLoading) return null
 
   return (
