@@ -371,8 +371,14 @@ export default function GamesPage() {
   const isLoading = (activeTab === 'rankings' || activeTab === 'scoreboard') ? rankingsLoading : gamesGateLoading
   const showGames = activeTab !== 'rankings' && activeTab !== 'scoreboard' && !isLoading
 
-  // Report to app boot gate — see usePageReady.tsx
-  useReportPageLoading(isLoading)
+  // Report to app boot gate — see usePageReady.tsx.
+  //
+  // Deliberately NOT plain `isLoading`: on the rankings/scoreboard tabs that
+  // narrows to `rankingsLoading` alone, so the page revealed while the team
+  // scaffolding (`allTeamsLoading` / `teamsLoading`) was still in flight and
+  // the team filter bar popped in afterwards. The team scope is chrome for
+  // every tab, so it always gates; the tab's own data gates on top.
+  useReportPageLoading(allTeamsLoading || teamsLoading || isLoading)
 
   // Shared renderer for the upcoming (card grid) and results (compact list)
   // tabs — both split games into league vs Cup sections and render GameCard.
