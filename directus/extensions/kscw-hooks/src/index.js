@@ -28,6 +28,7 @@ import { bbRequiredDocs, fibaNatCode } from '../../kscw-endpoints/src/bb-docs.js
 import { TEMPLATE_FIELDS, validateTemplate, sanitizeTemplateHtml } from '../../kscw-endpoints/src/email-templates.js'
 import { gameStartMs } from '../../kscw-endpoints/src/scorer-roster.js'
 import { currentSeasonShort, seasonStartYear } from '../../kscw-endpoints/src/season.js'
+import { resolveMemberSports, sportAdminScope, sportScopeAllows } from '../../kscw-endpoints/src/member-sport.js'
 import { isLicenceStatus, notifyLicenceStatusChange, runLicenceStatusSweep } from '../../kscw-endpoints/src/licence-status.js'
 import { parseJsonArray, resolveMemberAudience } from '../../kscw-endpoints/src/audience.js'
 import { loadSuppressed } from '../../kscw-endpoints/src/email-suppression.js'
@@ -4054,7 +4055,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // Staff tiers and the member's own record are exempt.
 
   /**
-   * App roles that read the register as it actually is.
+   * Who reads the register as it actually is.
    *
    * ⚠ `context.accountability.admin` alone is NOT enough. It is true only for
    * policies carrying `admin_access` — Administrator and Superuser. Sport admins
@@ -4069,15 +4070,19 @@ export default ({ action, filter, init, schedule }, { services, database, logger
    * `birthdate_visibility = 'hidden'` Postgres DEFAULT (so it read as "the club
    * has no birthdates"), and nulled `ahv_nummer` for every member without
    * exception. A sport admin is the club's admin for their sport — age bands,
-   * the U16 scorer-licence surcharge and licence paperwork all need these — so
-   * the policy is the decision and this hook must not overrule it.
+   * the U16 scorer-licence surcharge and licence paperwork all need these.
    *
-   * NOT sport-scoped: no other field on this record is, the Directus grant that
-   * backs it is club-wide, and one policy is shared by vb_admin and bb_admin so
-   * no filter can tell the two sections apart (same reason members.delete is
-   * withheld — see setup-permissions.mjs §9).
+   * ⚠ SPORT-SCOPED. A vb_admin sees the volleyball section unredacted and a
+   * bb_admin the basketball one; each still gets the ordinary member view of the
+   * other section. The boundary is `member-sport.js`, the SAME module that gates
+   * the member DELETE (delete-impact.js `sportScopeError`) — one rule, so the
+   * two can never drift. A dual sport admin holds both flags and is unconfined.
+   * Club-level / unresolvable members answer 'both' and stay visible to either
+   * section on purpose: a passive member or a fresh signup with no roster row yet
+   * must not vanish from the people who have to process them.
    */
-  const PRIVACY_EXEMPT_ROLES = ['admin', 'superuser', 'vb_admin', 'bb_admin']
+  const PRIVACY_FULL_ROLES = ['admin', 'superuser']
+  const PRIVACY_SPORT_ROLES = ['vb_admin', 'bb_admin']
 
   filter('members.items.read', async (payload, meta, context) => {
     // Administrator / Superuser — admin_access bypasses policies entirely.
@@ -4085,13 +4090,26 @@ export default ({ action, filter, init, schedule }, { services, database, logger
 
     const currentUser = context.accountability?.user || null
 
-    // One indexed lookup per REQUEST (not per item) — the explorer reads ~700
-    // members in a single call.
+    // The caller's own roles: ONE indexed lookup per REQUEST, not per item —
+    // the Data Explorer reads ~700 members in a single call.
+    //
+    // `scope` is the section this caller reads unredacted:
+    //   null              → not staff, redact everything below (the common path)
+    //   'all'             → full admin or dual sport admin, nothing to redact
+    //   'volleyball'|'basketball' → per-item, decided against the member's section
+    let scope = null
     if (currentUser) {
       const me = await database('members').where('user', currentUser).select('role').first()
       const myRoles = Array.isArray(me?.role) ? me.role : []
-      if (myRoles.some((r) => PRIVACY_EXEMPT_ROLES.includes(r))) return payload
+      if (myRoles.some((r) => PRIVACY_FULL_ROLES.includes(r))) return payload
+      if (myRoles.some((r) => PRIVACY_SPORT_ROLES.includes(r))) {
+        // sportAdminScope returns null for a DUAL sport admin (no boundary can
+        // be drawn between two sections you both run) — which, having already
+        // established the caller is a sport admin, means unconfined.
+        scope = sportAdminScope(myRoles) ?? 'all'
+      }
     }
+    if (scope === 'all') return payload
 
     const items = Array.isArray(payload) ? payload : [payload]
 
@@ -4107,12 +4125,23 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       if (item && item.id != null) ids.push(item.id)
     }
     const gateById = new Map()
+    let gateRows = []
     if (ids.length > 0) {
-      const rows = await database('members')
+      gateRows = await database('members')
         .whereIn('id', ids)
-        .select('id', 'user', 'hide_phone', 'hide_email', 'birthdate_visibility', 'website_name_private')
-      for (const row of rows) gateById.set(row.id, row)
+        .select('id', 'user', 'hide_phone', 'hide_email', 'birthdate_visibility', 'website_name_private',
+          // Only for the sport resolver below — passing these in is what keeps it
+          // from running its own `members` query over the same ids.
+          'sektion', 'beitragskategorie')
+      for (const row of gateRows) gateById.set(row.id, row)
     }
+
+    // Section of each member on this page, for a sport-confined caller only:
+    // four queries for the WHOLE page (three junctions + teams — the `members`
+    // rows are already in hand above), and none at all for everybody else.
+    const sportById = scope && ids.length > 0
+      ? await resolveMemberSports(database, ids, { memberRows: gateRows })
+      : new Map()
 
     for (const item of items) {
       if (!item) continue
@@ -4123,6 +4152,18 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       // Skip filtering for the member's own record (resolved from the DB so the
       // self-check is correct even when `user` isn't in the projection).
       if (currentUser && gate && gate.user === currentUser) continue
+
+      // A sport admin reads their own section — and club-level members, which
+      // resolve to 'both' — unredacted. The other section stays redacted, i.e.
+      // they get the ordinary member view of it.
+      //
+      // ⚠ An item with NO id cannot be resolved to a section at all, so it falls
+      // through to the redaction below rather than being exposed. An id that IS
+      // present but whose section is unresolvable answers 'both' and is shown:
+      // that is member-sport.js's documented, deliberate permissiveness (a
+      // passive member or a fresh signup with no roster row must not vanish from
+      // the section that has to process them), not an accident of this call.
+      if (scope && item.id != null && sportScopeAllows(scope, sportById.get(String(item.id)))) continue
 
       // Birthdate visibility — fail closed (hide) when the flag can't be resolved.
       const birthdateVisibility = gate ? gate.birthdate_visibility : 'hidden'
@@ -4157,9 +4198,10 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         if ('birthdate' in item) item.birthdate = null
       }
 
-      // AHV number — self and the staff tiers in PRIVACY_EXEMPT_ROLES only
-      // (both returned above). Everybody who reaches this line, including
-      // coaches and team responsibles, gets null.
+      // AHV number — self, full admins, and a sport admin reading their own
+      // section; all three `continue`d above. Everybody who reaches this line,
+      // including coaches, team responsibles and a sport admin looking at the
+      // OTHER section, gets null.
       if ('ahv_nummer' in item) item.ahv_nummer = null
     }
 
