@@ -2,6 +2,20 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.79.0 — 2026-08-11
+
+### Invite people who are not in the club
+
+- **An event can now have a public signup link.** Open an event, create the link, and anyone you send it to can sign up — no Wiedisync account, no app, nothing to install. They see the event, fill in their name, and they are on the list. Useful for a tournament, a Vereinsanlass, or bringing friends and family to something.
+- **You stay in control of the link.** You can replace it, which makes the old one stop working immediately if it ends up somewhere you did not intend, or switch it off entirely. Turning it off keeps everyone who already signed up.
+- **Guest signups appear alongside member ones.** The signups list shows members and guests together, so there is one place to see who is coming.
+- **If you are logged in, the link takes you into the app instead.** Signing up as a guest would leave you off the team list, so members are sent to the event itself, where the normal Yes/No buttons count you properly.
+
+### Also in this release
+
+- **The event window reads more clearly.** The title now has its own line instead of being squeezed next to the buttons, the event type sits on its own row, and invited teams are listed as text rather than a wall of coloured tags.
+- **Fewer things appearing after the page has loaded.** The home page used to reveal itself before the events section had arrived, and the games page before its team filter — both now wait, so the page appears complete in one go.
+
 ## v1.78.0 — 2026-08-11
 
 ### Share a link to any event, training or game

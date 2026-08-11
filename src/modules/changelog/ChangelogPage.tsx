@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '1.78.0'
+const APP_VERSION = '1.79.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,28 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.79.0',
+    date: '11.08.2026',
+    sections: [
+      {
+        title: 'Invite people who are not in the club',
+        items: [
+          'An event can now have a public signup link. Open an event, create the link, and anyone you send it to can sign up \u2014 no Wiedisync account, no app, nothing to install. They see the event, fill in their name, and they are on the list. Useful for a tournament, a Vereinsanlass, or bringing friends and family to something.',
+          'You stay in control of the link. You can replace it, which makes the old one stop working immediately if it ends up somewhere you did not intend, or switch it off entirely. Turning it off keeps everyone who already signed up.',
+          'Guest signups appear alongside member ones, so there is one place to see who is coming.',
+          'If you are logged in, the link takes you into the app instead. Signing up as a guest would leave you off the team list, so members are sent to the event itself, where the normal Yes/No buttons count you properly.',
+        ],
+      },
+      {
+        title: 'Also in this release',
+        items: [
+          'The event window reads more clearly. The title now has its own line instead of being squeezed next to the buttons, the event type sits on its own row, and invited teams are listed as text rather than a wall of coloured tags.',
+          'Fewer things appearing after the page has loaded. The home page used to reveal itself before the events section had arrived, and the games page before its team filter \u2014 both now wait, so the page appears complete in one go.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.78.0',
     date: '11.08.2026',
