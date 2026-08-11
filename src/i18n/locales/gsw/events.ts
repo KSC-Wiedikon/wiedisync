@@ -17,6 +17,7 @@ export default {
   startTime: 'Startziit',
   endTime: 'Ändziit',
   allDay: 'De ganz Tag',
+  teamsLabel: 'Teams:',
   location: 'Ort',
   description: 'Beschriibig',
   teamsInvolved: 'Teams',

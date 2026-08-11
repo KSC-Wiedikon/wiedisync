@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import Modal from '@/components/Modal'
 import StatusBadge from '../../components/StatusBadge'
-import TeamChip from '../../components/TeamChip'
+import { trimBBTeamName } from '../../utils/teamColors'
 import RichText from '../../components/RichText'
 import ParticipationSummary from '../../components/ParticipationSummary'
 import { rsvpButtonClass } from '../../utils/participationColors'
@@ -105,17 +105,29 @@ export default function EventDetailModal({ event, onClose }: EventDetailModalPro
     <>
       <Modal open={!!event} onClose={onClose} title={event.title} size="md" headerAction={headerBroadcast} disableAutoFocus>
         <div className="space-y-4">
-          {/* Type badge + teams */}
-          <div className="flex flex-wrap items-center gap-2">
-            <StatusBadge status={event.event_type} />
-            {event.cancelled && (
-              <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700 dark:bg-red-900/30 dark:text-red-400">
-                {t('cancelled')}
-              </span>
+          {/* Type badge and teams are two different kinds of fact, so they get
+              two rows. Sharing one wrapping row let a 12-team event push the
+              type chip and the team chips into one undifferentiated cloud. */}
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <StatusBadge status={event.event_type} />
+              {event.cancelled && (
+                <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                  {t('cancelled')}
+                </span>
+              )}
+            </div>
+            {teams.length > 0 && (
+              // A plain comma list rather than chips: a club-wide event can
+              // invite a dozen teams, and that many coloured pills read as a
+              // block of noise rather than "who is invited". `trimBBTeamName`
+              // is the same shortener TeamChip applies, so the names match the
+              // chips used elsewhere (Herren 3 → H3, BB- prefix dropped).
+              <p className="text-sm text-gray-700 dark:text-gray-300">
+                <span className="font-medium text-gray-500 dark:text-gray-400">{t('teamsLabel')}</span>{' '}
+                {teams.map((tm) => trimBBTeamName(tm.name)).join(', ')}
+              </p>
             )}
-            {teams.map((team) => (
-              <TeamChip key={team.id} team={team.name} size="sm" />
-            ))}
           </div>
 
           {event.cancelled && event.cancel_reason && (
