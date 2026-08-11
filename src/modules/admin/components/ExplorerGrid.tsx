@@ -56,6 +56,7 @@ import {
 import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
 import { toXlsx, downloadBlob } from '../utils/exportResults'
+import { memberFieldLabel } from './memberFieldSearch'
 import type { CacheShape, MemberTeamRow, StaffRow, ClubdeskSyncStatus, RegFileInfo } from './explorerHelpers'
 import { buildMemberTeamsMap, buildStaffMap, formatShortDate, formatShortDateTime, teamLabel } from './explorerHelpers'
 
@@ -66,6 +67,12 @@ interface Props {
   query: string
   /** Whether the viewer may edit (global admin or sport admin). */
   canEdit: boolean
+  /**
+   * Datapoint focus from the header picker. Every key that HAS a member column
+   * here is force-shown next to the name, on top of the saved column set and
+   * without touching it — a focus is a look, not a preference change.
+   */
+  focusFields?: string[]
   /** Jump to the tree/detail view for a member. */
   onOpenDetail: (memberId: string) => void
   /** Apply an optimistic update to the underlying explorer cache. */
@@ -285,7 +292,7 @@ function shortMemberName(m: Member | undefined, fallback: string): string {
   return `${m.last_name ?? ''} ${m.nickname || m.first_name || ''}`.trim() || fallback
 }
 
-export default function ExplorerGrid({ cache, query, canEdit, onOpenDetail, onMutate }: Props) {
+export default function ExplorerGrid({ cache, query, canEdit, focusFields, onOpenDetail, onMutate }: Props) {
   const { t, i18n } = useTranslation(['admin', 'common'])
   const confirm = useConfirm()
 
@@ -636,7 +643,41 @@ export default function ExplorerGrid({ cache, query, canEdit, onOpenDetail, onMu
       .filter((sec) => sec.teams.length > 0)
   }, [teamSections, teamById, selectedGroup, query, teamSort, teamCellText, sportLabel, genderLabel])
 
-  const visibleCols = visibleKeys.map((k) => COL_BY_KEY.get(k)).filter((c): c is ColDef => !!c)
+  /** Focused datapoints that exist as a column here — see `focusWithoutColumn`. */
+  const focusColKeys = useMemo(
+    () => (focusFields ?? []).filter((k): k is ColKey => COL_BY_KEY.has(k as ColKey)),
+    [focusFields],
+  )
+  const focusColSet = useMemo(() => new Set<ColKey>(focusColKeys), [focusColKeys])
+
+  /**
+   * Focused datapoints with no column here. COLUMNS covers ~35 of the ~110
+   * `members` columns, so the picker can legitimately hand us `iban` — and a
+   * focus that silently changes nothing reads as a broken feature.
+   */
+  const focusWithoutColumn = useMemo(
+    () => (focusFields ?? []).filter((k) => !COL_BY_KEY.has(k as ColKey)),
+    [focusFields],
+  )
+
+  /**
+   * Columns actually rendered. With a focus active the focused ones sit
+   * immediately after the name so they need no horizontal scrolling to reach,
+   * and the operator's saved set follows underneath — the saved set is never
+   * rewritten, so clearing the focus restores exactly the grid they had.
+   */
+  const effectiveVisibleKeys = useMemo(() => {
+    if (focusColKeys.length === 0) return visibleKeys
+    const ordered: ColKey[] = []
+    const push = (k: ColKey) => { if (COL_BY_KEY.has(k) && !ordered.includes(k)) ordered.push(k) }
+    push('last_name')
+    push('first_name')
+    focusColKeys.forEach(push)
+    visibleKeys.forEach(push)
+    return ordered
+  }, [visibleKeys, focusColKeys])
+
+  const visibleCols = effectiveVisibleKeys.map((k) => COL_BY_KEY.get(k)).filter((c): c is ColDef => !!c)
   const teamVisibleCols = teamVisibleKeys.map((k) => TEAM_COL_BY_KEY.get(k)).filter((c): c is ColDef<TeamColKey> => !!c)
   const totalShown = view === 'members'
     ? sections.reduce((n, s) => n + s.rows.length, 0)
@@ -1266,6 +1307,13 @@ export default function ExplorerGrid({ cache, query, canEdit, onOpenDetail, onMu
                 </Button>
               </PopoverTrigger>
               <PopoverContent align="end" className="max-h-80 w-56 overflow-y-auto p-2">
+                {/* A focused datapoint is shown without being ticked here — the
+                    saved set is a preference, the focus is a temporary look. */}
+                {view === 'members' && focusColKeys.length > 0 && (
+                  <p className="mb-2 border-b border-border pb-2 text-[11px] text-muted-foreground">
+                    {t('admin:explorerGridFocusNote', { count: focusColKeys.length })}
+                  </p>
+                )}
                 <div className="space-y-1">
                   {view === 'teams'
                     ? TEAM_COLUMNS.map((c) => (
@@ -1286,6 +1334,14 @@ export default function ExplorerGrid({ cache, query, canEdit, onOpenDetail, onMu
           </div>
         </div>
 
+        {view === 'members' && focusWithoutColumn.length > 0 && (
+          <div className="border-b border-amber-500/40 bg-amber-50 px-3 py-1.5 text-[11px] text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+            {t('admin:explorerGridFocusNoColumn', {
+              fields: focusWithoutColumn.map(memberFieldLabel).join(', '),
+            })}
+          </div>
+        )}
+
         {/* Table — this div is the single scroll container for both axes.
             shadcn's <Table> wraps the <table> in its own overflow-x-auto div;
             left as-is that inner wrapper becomes the scroll context and the
@@ -1303,12 +1359,19 @@ export default function ExplorerGrid({ cache, query, canEdit, onOpenDetail, onMu
                 {(view === 'teams' ? teamVisibleCols : visibleCols).map((c, i) => (
                   <TableHead
                     key={c.key}
-                    className={`${c.minW} sticky top-0 whitespace-nowrap bg-card ${i === 0 ? 'left-9 z-30' : 'z-20'}`}
+                    className={`${c.minW} sticky top-0 whitespace-nowrap bg-card ${i === 0 ? 'left-9 z-30' : 'z-20'}`
+                      // Focused columns are marked with a rule under the header,
+                      // never a tinted background: this cell is sticky and has to
+                      // stay opaque or the rows scroll through it.
+                      + (view === 'members' && focusColSet.has(c.key as ColKey)
+                        ? ' border-b-2 border-primary'
+                        : '')}
                   >
                     <button
                       type="button"
                       onClick={() => (view === 'teams' ? toggleTeamSort(c.key as TeamColKey) : toggleSort(c.key as ColKey))}
-                      className="inline-flex items-center gap-1 font-semibold text-foreground hover:text-primary"
+                      className={'inline-flex items-center gap-1 font-semibold hover:text-primary '
+                        + (view === 'members' && focusColSet.has(c.key as ColKey) ? 'text-primary' : 'text-foreground')}
                     >
                       {t(`admin:${c.labelKey}`)}
                       {(view === 'teams' ? teamSort?.key === c.key : sort?.key === c.key)
