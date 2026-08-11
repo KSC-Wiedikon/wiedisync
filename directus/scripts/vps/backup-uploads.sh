@@ -4,7 +4,7 @@
 #
 # WHY THIS EXISTS
 # ---------------
-# Since the 2026-07-13 R2 cutover, r2:kscw-uploads is the ONLY home of the club's
+# Since the 2026-07-13 R2 cutover, r2kscw:kscw-uploads is the ONLY home of the club's
 # uploaded files — including members' scanned ID documents (registrations.id_upload_*)
 # and Swiss Basketball licence docs. The Postgres dumps back up directus_files ROWS,
 # not the bytes.
@@ -31,9 +31,9 @@ set -uo pipefail
 BACKUP_DIR=/data/backups
 MIRROR=/data/uploads-mirror
 DATE=$(date +%Y-%m-%d)
-BUCKET=r2:kscw-uploads          # existing rclone remote (admin creds, root-only)
+BUCKET=r2kscw:kscw-uploads          # existing rclone remote (admin creds, root-only)
 GDRIVE_DIR=gdrive:Backups/directus-kscw
-R2_DIR=r2:kscw-db-backups
+R2_DIR=r2kscw:kscw-db-backups
 NAS_USER=lucanepa
 NAS_HOST=100.64.212.125
 NAS_PATH=/volume1/backups/directus-kscw

@@ -3,4 +3,4 @@ main = "src/index.ts"
 compatibility_date = "2024-12-01"
 
 [vars]
-ALLOWED_ORIGIN = "https://api.kscw.ch"
+ALLOWED_ORIGIN = "https://wiedisync.kscw.ch"
