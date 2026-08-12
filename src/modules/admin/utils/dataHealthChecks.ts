@@ -1,5 +1,5 @@
 import { fetchAllItems, updateRecord, deleteRecord, kscwApi } from '../../../lib/api'
-import { getCurrentSeason, formatDateZurich } from '../../../utils/dateHelpers'
+import { formatDateZurich } from '../../../utils/dateHelpers'
 
 export type IssueSeverity = 'error' | 'warning'
 
@@ -248,11 +248,9 @@ async function checkMembers(): Promise<CollectionHealth> {
 
   // Pass members who have ANY team responsibility: player (current season),
   // coach (teams_coaches), or team-responsible (teams_responsibles). The
-  // junctions have no season column — current-state is the truth.
-  // Use the shared June-1 cutover helper — a local Sept cutover here would, for
-  // Jun–Aug, query last season's string and false-flag the whole roster as
-  // "no team assignment" once teams exist only in the new (rolled-over) season.
-  const season = getCurrentSeason()
+  // junctions have no season column — current-state is the truth, and the
+  // player side now uses the same current-state gate (teams.active) rather than
+  // any season string at all.
 
   // teams_coaches / teams_responsibles expose a real `members_id` column (not a
   // junction-id alias), so these direct junction reads are correct. Do NOT wrap
@@ -262,7 +260,13 @@ async function checkMembers(): Promise<CollectionHealth> {
   const [memberTeams, teamCoaches, teamResponsibles] = await Promise.all([
     fetchAllItems<{ member: string | number }>('member_teams', {
       fields: ['member'],
-      filter: { season: { _eq: season } },
+      // Gate on the TEAM being active, not member_teams.season. The season
+      // column is a create-time stamp uncoupled from the manually-run rollover,
+      // so between the Jun-1 cutover and the rollover it matches nothing and
+      // this check floods the page with false "No team assignment" warnings for
+      // the entire playing roster — exactly the failure the comment above
+      // describes, just from the other guard.
+      filter: { team: { active: { _eq: true } } },
     }),
     fetchAllItems<{ members_id: string | number }>('teams_coaches', {
       fields: ['members_id'],

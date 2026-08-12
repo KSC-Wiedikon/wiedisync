@@ -12,7 +12,6 @@ import { getFileUrl } from '../../utils/fileUrl'
 import { coercePositions, getPositionI18nKey, getSelectablePositions } from '../../utils/memberPositions'
 import { backendLangToI18n } from '../../utils/languageMap'
 import { asObj, relId, memberName } from '../../utils/relations'
-import { getCurrentSeason } from '../../utils/dateHelpers'
 import { normalizePhone, normalizeAhv } from '../../utils/contact'
 import { normalizeIban, isValidIban } from '../../utils/iban'
 import { type BackendLanguage } from '../../i18n/languageConfig'
@@ -314,9 +313,14 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
       // Check for duplicate number in the same team(s)
       if (number > 0 && number !== user.number) {
         const myTeams = await fetchAllItems('member_teams', {
-          // Current season only — otherwise an archived prior-season membership
-          // would raise a false "number taken" against a last-season teammate.
-          filter: { member: { _eq: user.id }, season: { _eq: getCurrentSeason() } },
+          // Active teams only — an archived prior-season membership would raise
+          // a false "number taken" against a last-season teammate. Gated on the
+          // team rather than member_teams.season: the season stamp is uncoupled
+          // from the rollover, so it could empty `teamIds` for a player who DOES
+          // have teammates, and the `length > 0` guard below then skipped the
+          // check silently and let two players save the same number. With an
+          // active-team gate an empty list really does mean "no teammates".
+          filter: { member: { _eq: user.id }, team: { active: { _eq: true } } },
         })
         const teamIds = myTeams.map((mt) => relId(mt.team))
         if (teamIds.length > 0) {

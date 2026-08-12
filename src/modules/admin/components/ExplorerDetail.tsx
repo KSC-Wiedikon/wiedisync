@@ -356,8 +356,13 @@ function renderMember(
       addRelation(String(tm.id), t('explorerFieldCaptain'))
     }
   }
+  // `cache.teams` is the active-only list, so resolving relations through it
+  // alone silently dropped every past-season row — including the coach / TR /
+  // captain links to archived teams, which are this table's whole point — while
+  // the "Teams (player)" chips directly above are all-season. Fall back to
+  // `teamLookup` (label resolution for any season) so the two agree.
   const memberTeams = [...relations.keys()]
-    .map((tid) => cache.teams.find((x) => String(x.id) === tid) ?? null)
+    .map((tid) => cache.teams.find((x) => String(x.id) === tid) ?? cache.teamLookup.get(tid) ?? null)
     .filter((x): x is NonNullable<typeof x> => x !== null)
 
   // Vorstand can read absences/participations but not referee_expenses

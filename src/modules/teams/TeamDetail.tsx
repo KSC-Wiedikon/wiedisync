@@ -298,7 +298,8 @@ export default function TeamDetail() {
           const mt = await createRecord<{id: string}>('member_teams', {
             member: member.id,
             team: teamId!,
-            season: getCurrentSeason(),
+            // The team's OWN season, not the wall clock — see RosterEditor.
+            season: team?.season ?? getCurrentSeason(),
           }, { silentOnUnique: true })
           logActivity('create', 'member_teams', mt.id, { member: member.id, team: teamId })
         } catch (err) {
@@ -364,7 +365,8 @@ export default function TeamDetail() {
           const mt = await createRecord<{id: string}>('member_teams', {
             member: member.id,
             team: teamId!,
-            season: getCurrentSeason(),
+            // The team's OWN season, not the wall clock — see RosterEditor.
+            season: team?.season ?? getCurrentSeason(),
             guest_level: guestLevel,
           }, { silentOnUnique: true })
           logActivity('create', 'member_teams', mt.id, { member: member.id, team: teamId, guest_level: guestLevel })

@@ -76,7 +76,7 @@ export default function RosterEditor() {
   // viewer is confirmed a coach of this team (the same gate as the redirect
   // below). Read-only surfaces must not PATCH members.position — see
   // useTeamMembers + the 2026-06-20 error-log audit.
-  const { members, isLoading, refetch } = useTeamMembers(teamId, season, {
+  const { members, isLoading, refetch } = useTeamMembers(teamId, {
     persistNormalization: !!team && isCoachOf(team.id),
   })
 
@@ -126,16 +126,27 @@ export default function RosterEditor() {
     if (!teamId || addingId) return
     setAddingId(memberId)
     try {
-      const existing = await fetchAllItems<{ id: string }>('member_teams', {
+      const existing = await fetchAllItems<{ id: string; season?: string | null }>('member_teams', {
         filter: { _and: [{ member: { _eq: memberId } }, { team: { _eq: teamId } }] },
-        fields: ['id'],
+        fields: ['id', 'season'],
       })
+      // Stamp the TEAM's own season, not the wall clock: a team is created for
+      // exactly one season, and `getCurrentSeason()` disagrees with it for the
+      // whole May window (computeSeasonChoices offers next season from 1 May)
+      // and between the Jun-1 cutover and the rollover. A mis-stamped row is
+      // then skipped by the rollover's clone and silently orphaned.
+      const teamSeason = team?.season ?? season
       if (!existing.length) {
         try {
-          await create({ member: memberId, team: teamId, season }, { silentOnUnique: true })
+          await create({ member: memberId, team: teamId, season: teamSeason }, { silentOnUnique: true })
         } catch (err) {
           if (!/has to be unique/i.test(err instanceof Error ? err.message : '')) throw err
         }
+      } else if (teamSeason && existing[0].season !== teamSeason) {
+        // UNIQUE (member, team) means a re-add reuses the row rather than
+        // creating one, so a stale stamp would survive forever. Repair it here
+        // instead of silently no-oping.
+        await updateRecord('member_teams', existing[0].id, { season: teamSeason })
       }
       const member = allMembers.find(m => m.id === memberId)
       toast.success(t('memberAdded', { name: displayName(member ?? {} as Member) }))

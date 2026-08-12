@@ -8,7 +8,6 @@ export type ExpandedMemberTeam = Omit<MemberTeam, 'member'> & { member: (Member 
 
 export function useTeamMembers(
   teamId: string | undefined,
-  season?: string,
   // Whether to PERSIST the sport-normalization of member positions. This hook
   // runs on read-only surfaces (team detail, referee expenses) viewed by plain
   // members, who lack the members.position update grant — so persisting the
@@ -28,11 +27,11 @@ export function useTeamMembers(
   const [loadedKey, setLoadedKey] = useState<string | null | undefined>(undefined)
   const [error, setError] = useState<Error | null>(null)
   // Discards out-of-order responses: a slow stale fetch resolving after a newer
-  // teamId/season selection must not overwrite loadedKey and re-trigger loading.
+  // teamId selection must not overwrite loadedKey and re-trigger loading.
   const latestKeyRef = useRef<string | null>(null)
 
   const safeTeamId = teamId ? relId(teamId) : ''
-  const requestedKey = safeTeamId ? `${safeTeamId}:${season ?? ''}` : null
+  const requestedKey = safeTeamId || null
   const isLoading = loadedKey !== requestedKey
 
   // The reset half of the old fetch() — the "no team selected" empty state and
@@ -57,14 +56,20 @@ export function useTeamMembers(
       return
     }
 
-    const key = `${safeTeamId}:${season ?? ''}`
+    const key = safeTeamId
     latestKeyRef.current = key
 
     // The member_teams query doesn't depend on the team record (sport is only
     // used afterwards for normalization), so run both in parallel to halve the
     // latency on every roster / team-detail open.
+    // ⚠ Keyed on the team FK ALONE — never also on member_teams.season. The
+    // rollover mints a NEW team id per season, so the FK already pins the
+    // season; the season column is a create-time stamp uncoupled from the
+    // (manually-run) rollover, and filtering on it made this hook return an
+    // empty roster for every team between the Jun-1 cutover and the rollover.
+    // Nor may `teams.active` be added here: historical activities legitimately
+    // resolve their archived team's roster.
     const filter: Record<string, unknown> = { team: { _eq: safeTeamId } }
-    if (season) filter.season = { _eq: season }
     // Settled through `.then(onOk, onErr)` rather than try/catch/finally so that
     // every setState below sits strictly *after* an await — a try block wrapping
     // the await leaves its catch/finally synchronously reachable, which trips
@@ -109,7 +114,7 @@ export function useTeamMembers(
       setError(outcome.err instanceof Error ? outcome.err : new Error(String(outcome.err)))
     }
     if (latestKeyRef.current === key) setLoadedKey(key)
-  }, [safeTeamId, season, persistNormalization])
+  }, [safeTeamId, persistNormalization])
 
   // Manual refetch keeps fetch()'s original eager resets (callers invoke it from
   // event handlers / realtime callbacks, never from an effect body).

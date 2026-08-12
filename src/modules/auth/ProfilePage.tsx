@@ -13,7 +13,7 @@ import TeamChip from '../../components/TeamChip'
 import { getFileUrl } from '../../utils/fileUrl'
 import { coercePositions, getPositionI18nKey } from '../../utils/memberPositions'
 import { memberName, memberFirstName, flattenMemberIds } from '../../utils/relations'
-import { formatDate, getCurrentSeason, toISODate } from '../../utils/dateHelpers'
+import { formatDate, toISODate } from '../../utils/dateHelpers'
 import DeleteAccountModal from './DeleteAccountModal'
 import TeamRequestModal from './TeamRequestModal'
 import Modal from '@/components/Modal'
@@ -224,9 +224,11 @@ export default function ProfilePage() {
   const [leaving, setLeaving] = useState(false)
 
   const { data: memberTeamsRaw, isLoading: memberTeamsLoading, refetch: refetchMemberTeams } = useCollection<ExpandedMemberTeam>('member_teams', {
-    // Current-season only — archived same-name teams from prior seasons would
-    // otherwise show as duplicate rows the user could "leave".
-    filter: user ? { _and: [{ member: { _eq: user.id } }, { season: { _eq: getCurrentSeason() } }] } : undefined,
+    // Gate on the TEAM being active, not member_teams.season — the archived
+    // same-name row this was written to hide is inactive, and the season stamp
+    // is uncoupled from the rollover (it emptied /profile for ~34h in 2026,
+    // taking the per-team leave buttons and `currentTeamIds` with it).
+    filter: user ? { _and: [{ member: { _eq: user.id } }, { team: { active: { _eq: true } } }] } : undefined,
     fields: ['*', 'team.*'],
     limit: 20,
     enabled: !!user,

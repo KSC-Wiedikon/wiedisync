@@ -11,7 +11,8 @@ import EmptyState from '../../components/EmptyState'
 import { getFileUrl } from '../../utils/fileUrl'
 import { coercePositions, getPositionI18nKey } from '../../utils/memberPositions'
 import { asObj, relId, memberDisplayName, memberFirstName } from '../../utils/relations'
-import { formatDate, getCurrentSeason, getSeasonDateRange, todayLocal } from '../../utils/dateHelpers'
+import { formatDate, getCurrentSeason, todayLocal } from '../../utils/dateHelpers'
+import { seasonRolloverDate } from '../../utils/season'
 import ImageLightbox from '../../components/ImageLightbox'
 import type { Member, MemberTeam, Team, Absence, Participation } from '../../types'
 import { absenceCoversActivity } from '../../utils/absenceHelpers'
@@ -62,16 +63,27 @@ export default function PlayerProfile() {
   const [lightboxOpen, setLightboxOpen] = useState(false)
 
   const { data: memberTeamsRaw, isLoading: memberTeamsLoading } = useCollection<ExpandedMemberTeam>('member_teams', {
-    // Current-season only — otherwise archived same-name teams (e.g. old + new
-    // "H3" after a rollover) render as duplicate badges.
-    filter: memberId ? { _and: [{ member: { _eq: memberId } }, { season: { _eq: getCurrentSeason() } }] } : { id: { _eq: -1 } },
+    // Gate on the TEAM being active, not member_teams.season — the archived
+    // same-name row this was written to hide is inactive, and the season stamp
+    // is uncoupled from the rollover, which blanked the chips AND short-
+    // circuited the whole stats batch below for actively-training players.
+    filter: memberId ? { _and: [{ member: { _eq: memberId } }, { team: { active: { _eq: true } } }] } : { id: { _eq: -1 } },
     fields: ['*', 'team.*'],
     limit: 20,
   })
   const memberTeams = memberTeamsRaw ?? []
 
   const season = getCurrentSeason()
-  const { start, end } = getSeasonDateRange(season)
+  // ⚠ Anchor the window on the ROLLOVER (Jun 1), not on getSeasonDateRange's
+  // Sep 1. The season label flips on Jun 1, so a Sep-1 start means that from
+  // Jun 1 to Aug 31 the whole window sits in the FUTURE — every training and
+  // game of the season that just ended falls outside it, and because
+  // computeAttendance applies no past cut the denominator then counts hundreds
+  // of unplayed future sessions and every player reads 0%.
+  // `end` is capped at today for the same reason: attendance is a record of
+  // what has happened, never a prediction about fixtures not yet played.
+  const start = seasonRolloverDate()
+  const end = todayLocal()
 
   const { data: absencesRaw, isLoading: absencesLoading } = useCollection<Absence>('absences', {
     filter: memberId ? { _and: [{ member: { _eq: memberId } }, { end_date: { _gte: todayLocal() } }] } : { id: { _eq: -1 } },

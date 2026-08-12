@@ -838,9 +838,15 @@ export default function ExplorerMemberFields({
       const teamName = labelOf(teamId)
       markBusy(teamId, true)
       try {
+        // The TARGET TEAM's own season, not the wall clock — see ExplorerGrid
+        // addRoster. teamLookup is included so a team missing from cache.teams
+        // still stamps its real season rather than today's.
+        const rosterSeason =
+          (cache.teams.find((tm) => String(tm.id) === teamId) ?? cache.teamLookup.get(teamId))?.season
+          ?? getCurrentSeason()
         const created = await createRecord<{ id: string | number; guest_level: number | null; season: string | null }>(
           'member_teams',
-          { member: memberId, team: teamId, season: getCurrentSeason() },
+          { member: memberId, team: teamId, season: rosterSeason },
         )
         const newRow = {
           id: String(created.id),
@@ -1451,7 +1457,14 @@ function DisplayValue({
       <span className="flex flex-wrap gap-1.5">
         {ctx.rosterTeamIds.map((id) => {
           const team = ctx.teamOptions.find((o) => o.id === id)
-          const pastSeason = team?.season && team.season !== thisSeason ? team.season : null
+          // "Past season" is decided by the TEAM being archived, not by
+          // comparing its season to the clock: `getCurrentSeason()` is ahead of
+          // every live team's season for all of May and behind it between the
+          // Jun-1 cutover and the rollover, and in that window EVERY chip dimmed
+          // and read "Past season". `active` is flipped by the rollover itself,
+          // so it cannot disagree. The season string is still what gets shown.
+          const isPast = team?.active === false || (!!team?.season && team.season !== thisSeason && team?.active === undefined)
+          const pastSeason = isPast ? (team?.season ?? null) : null
           return (
             <span
               key={id}

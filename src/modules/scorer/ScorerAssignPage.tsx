@@ -103,7 +103,10 @@ export default function ScorerAssignPage() {
   })
   const members = useMemo(() => membersRaw ?? [], [membersRaw])
 
+  // Active teams only — see ScorerPage: an all-seasons read lets a stale guest
+  // flag permanently exclude a member from the duty pickers.
   const { data: memberTeamsRaw, isLoading: memberTeamsLoading } = useCollection<MemberTeam>('member_teams', {
+    filter: { team: { active: { _eq: true } } },
     all: true,
     enabled: !!user,
   })

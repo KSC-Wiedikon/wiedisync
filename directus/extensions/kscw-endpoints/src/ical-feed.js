@@ -120,9 +120,49 @@ export function registerICalFeed(router, { database, logger }) {
         ? Object.fromEntries(resolved.map((s) => [s, true]))
         : { 'games-home': true, 'games-away': true }
       let teamIds = toList(req.query.team).filter((s) => /^\d+$/.test(s))
+
+      // ── Season-rollover follow-through ──────────────────────────────────
+      // A subscription URL is PERMANENT and bakes raw team ids, so once the
+      // rollover archives those teams and mints new ids the feed matches
+      // nothing and every subscriber's calendar silently empties — 200 OK, no
+      // error, no expiry, nothing prompting a re-subscribe, and the calendar
+      // keeps its old title. This is the only stale team derivation that
+      // survives a hard refresh and a re-login, because the cache IS the URL.
+      // `team_id` (e.g. vb_12747) is stable across seasons and is the
+      // rollover's own idempotency key, so hop each archived id to the active
+      // row that shares it. Same device as /public/team/:id (index.js).
+      if (teamIds.length) {
+        const requested = await database('teams')
+          .whereIn('id', teamIds).select('id', 'active', 'team_id', 'name', 'sport')
+        const archived = requested.filter((r) => !r.active)
+        if (archived.length) {
+          const keys = archived.map((r) => r.team_id).filter(Boolean)
+          const successors = keys.length
+            ? await database('teams').whereIn('team_id', keys).where('active', true).select('id', 'team_id')
+            : []
+          const byKey = new Map(successors.map((r) => [r.team_id, String(r.id)]))
+          // Fall back to name+sport for the handful of rows with no team_id —
+          // the same fallback the rollover itself uses (`name:${team.name}`).
+          const namelessKeys = archived.filter((r) => !r.team_id)
+          let byName = new Map()
+          if (namelessKeys.length) {
+            const rows = await database('teams')
+              .whereIn('name', namelessKeys.map((r) => r.name))
+              .where('active', true).select('id', 'name', 'sport')
+            byName = new Map(rows.map((r) => [`${r.name}|${r.sport}`, String(r.id)]))
+          }
+          teamIds = teamIds.map((id) => {
+            const row = requested.find((r) => String(r.id) === id)
+            if (!row || row.active) return id
+            return byKey.get(row.team_id) ?? byName.get(`${row.name}|${row.sport}`) ?? id
+          })
+        }
+      }
+
       // Capture the user's explicit team selection BEFORE the sport filter below
       // expands an empty selection to every team — the calendar name should only
-      // name teams the subscriber actually asked for.
+      // name teams the subscriber actually asked for. Taken AFTER the rollover
+      // hop so the calendar title names the live team, not the archived one.
       const explicitTeamIds = [...teamIds]
 
       // Sport filter
