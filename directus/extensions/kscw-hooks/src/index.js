@@ -1268,7 +1268,13 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       if (accountability.admin) return { name, role: 'admin' }
       if (!affectedMemberId) return { name, role: 'staff' }
 
-      const memberTeams = await database('member_teams').where('member', affectedMemberId).select('team')
+      // Active teams only: an unqualified read attributes an edit as "coach"
+      // from ANY team the member was ever on, so a past coach's edit is labelled
+      // "Edited by coach (X)" indefinitely.
+      const memberTeams = await database('member_teams as mt')
+        .join('teams as t', 't.id', 'mt.team')
+        .where('mt.member', affectedMemberId).where('t.active', true)
+        .select('mt.team as team')
       const teamIds = memberTeams.map(mt => mt.team).filter(Boolean)
       if (teamIds.length === 0) return { name, role: 'staff' }
 
@@ -2935,7 +2941,14 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     if (cols.team) {
       let toTeam = d.to_team || null
       if (!toTeam) {
-        const mt = await database('member_teams').where('member', d.to_member).first('team')
+        // ACTIVE team, deterministically chosen — an unqualified read picks an
+        // arbitrary row with no ORDER BY, and 648 of prod's rows sit on archived
+        // teams, so the assignment gets stamped with last season's team. Twin of
+        // the same fallback in kscw-endpoints/src/duty-late.js — keep in step.
+        const mt = await database('member_teams as mt')
+          .join('teams as t', 't.id', 'mt.team')
+          .where('mt.member', d.to_member).where('t.active', true)
+          .orderBy('mt.team', 'asc').first('mt.team as team')
         toTeam = mt?.team ?? null
       }
       if (toTeam) updates[cols.team] = toTeam
@@ -3959,7 +3972,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   })
 
   // ── 10e². Cron: Spielplanung mailbox sync (every 10 min) ──
-  // Pulls the Migadu mailboxes volleyball@ + basketball@spielplanung.kscw.ch
+  // Pulls the Migadu mailboxes spielplanung@volleyball.kscw.ch + spielplanung@basketball.kscw.ch
   // (INBOX + Sent each) into scheduling_emails via the kscw-endpoints IMAP sync,
   // so opponent replies surface in the Mailbox tab. The endpoint syncs every
   // configured account; this stays dormant until at least one account's IMAP
@@ -4018,9 +4031,15 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // Past seasons are removed so admins can't accidentally assign a team to a finished season.
 
   function computeSeasonChoices(now = new Date(), count = 5) {
-    const y = now.getFullYear()
-    const m = now.getMonth()
-    const startYear = m >= 4 ? y : y - 1
+    // ⚠ Uses the SHARED Jun-1 cutover (season.js), not a local month test. This
+    // was `m >= 4` on 0-indexed months in server-local time — a MAY 1 cutover,
+    // one month ahead of every other season source in the codebase. For the
+    // whole of May the live season was therefore missing from the teams.season
+    // dropdown, so an admin creating a team in May was steered into stamping it
+    // a season AHEAD; the rollover then skips that team (it selects by
+    // from_season) and it stays active across the cutover, while roster rows
+    // added to it carry a season the team does not have.
+    const startYear = seasonStartYear(now)
     const choices = []
     for (let i = 0; i < count; i++) {
       const a = startYear + i
@@ -4040,7 +4059,8 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     return choices.map(c => c.value).join(', ')
   }
 
-  schedule('0 3 1 5 *', async () => {
+  // Jun 1, matching the cutover in season.js (was 1 May — see computeSeasonChoices).
+  schedule('0 3 1 6 *', async () => {
     try {
       const seasons = await refreshSeasonChoices()
       log.info(`[season-refresh] teams.season choices set to: ${seasons}`)
@@ -4659,8 +4679,11 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     // 3. Link to team(s) based on rolle
     if (reg.team && reg.membership_type !== 'passive') {
       const teamNames = reg.team.split(',').map(t => t.trim()).filter(Boolean)
+      // `season` is selected so the roster insert below can stamp the TEAM's own
+      // season instead of the wall clock (they disagree for all of May and
+      // between the Jun-1 cutover and the rollover).
       const teamRows = await db('teams')
-        .whereIn('name', teamNames).andWhere('active', true).select('id', 'name')
+        .whereIn('name', teamNames).andWhere('active', true).select('id', 'name', 'season')
 
       const season = getCurrentSeason()
 
@@ -4687,13 +4710,19 @@ export default ({ action, filter, init, schedule }, { services, database, logger
           // and expected in ClubDesk's '<group> (Guest)' subgroup by the sync check
           // (user 2026-07-15). Core players stay guest_level 0.
           const isGuestRolle = rolle === 'guest' || rolle === 'gast'
+          // Probe by (member, team) — the UNIQUE key — not by season, and stamp
+          // the TEAM's own season rather than the wall clock. Keyed on season the
+          // probe missed an existing row whose stamp lagged and the insert then
+          // hit the unique constraint; stamping the clock wrote a season the team
+          // does not have, which the rollover's clone then skips.
+          const rosterSeason = team.season ?? season
           const exists = await db('member_teams')
-            .where({ member: memberId, team: team.id, season }).first()
+            .where({ member: memberId, team: team.id }).first()
           if (!exists) {
             await db('member_teams').insert({
-              member: memberId, team: team.id, season, guest_level: isGuestRolle ? 1 : 0,
+              member: memberId, team: team.id, season: rosterSeason, guest_level: isGuestRolle ? 1 : 0,
             })
-            log.info({ msg: 'Added to team roster', memberId, team: team.name, season, guest: isGuestRolle })
+            log.info({ msg: 'Added to team roster', memberId, team: team.name, season: rosterSeason, guest: isGuestRolle })
           }
         }
       }

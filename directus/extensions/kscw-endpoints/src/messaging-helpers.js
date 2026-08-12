@@ -5,7 +5,6 @@
  */
 
 import { tPush } from './push-i18n.js'
-import { currentSeasonShort } from './season.js'
 
 export class MessagingError extends Error {
   constructor(status, code, message, details) {
@@ -179,14 +178,20 @@ export async function loadBlocks(db, memberId) {
  * season.js, and season-parity.test.ts stops it drifting again.
  */
 export async function shareTeam(db, memberIdA, memberIdB) {
-  const season = currentSeasonShort()
+  // Share an ACTIVE team — not a matching season string on both sides. The old
+  // form required both rows to carry the current season AND to equal each
+  // other, which migration 052 had already rejected for the sibling rule
+  // (fn_messaging_dm_autoaccept deliberately matches the team alone): the two
+  // definitions of "same team" then disagreed. A season-stamp guard also
+  // downgraded teammates' DMs to approval-gated requests whenever it lagged —
+  // the exact 2026-07-29 bug this module's header describes, from the other
+  // direction.
   const row = await db('member_teams as mt1')
-    .join('member_teams as mt2', function () {
-      this.on('mt1.team', '=', 'mt2.team').andOn('mt1.season', '=', 'mt2.season')
-    })
+    .join('member_teams as mt2', 'mt1.team', 'mt2.team')
+    .join('teams as t', 't.id', 'mt1.team')
     .where('mt1.member', memberIdA)
     .andWhere('mt2.member', memberIdB)
-    .andWhere('mt1.season', season)
+    .andWhere('t.active', true)
     .select('mt1.team').first()
   return !!row
 }

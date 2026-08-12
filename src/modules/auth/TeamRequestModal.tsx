@@ -9,7 +9,6 @@ import { useAuth } from '../../hooks/useAuth'
 import { useCollection } from '../../lib/query'
 import type { Team, MemberTeam } from '../../types'
 import { createRecord, deleteRecord } from '../../lib/api'
-import { getCurrentSeason } from '../../utils/dateHelpers'
 import { asObj } from '../../utils/relations'
 
 interface TeamRequestModalProps {
@@ -56,10 +55,14 @@ export default function TeamRequestModal({
   const [confirmLeaveId, setConfirmLeaveId] = useState<string | null>(null)
   const [leavingId, setLeavingId] = useState<string | null>(null)
 
-  // Current-season teams the user is on — the "leave" source list.
+  // Current-season teams the user is on — the "leave" source list. Gated on
+  // teams.active, not member_teams.season: a season-stamp guard empties this
+  // list between the Jun-1 cutover and the rollover, and the member then cannot
+  // remove themselves from a team (nor can the coach, RosterEditor being blank
+  // for the same reason).
   const { data: myTeamsRaw, refetch: refetchMyTeams } = useCollection<ExpandedMemberTeam>('member_teams', {
     filter: user
-      ? { _and: [{ member: { _eq: user.id } }, { season: { _eq: getCurrentSeason() } }] }
+      ? { _and: [{ member: { _eq: user.id } }, { team: { active: { _eq: true } } }] }
       : { id: { _eq: -1 } },
     fields: ['*', 'team.*'],
     limit: 20,

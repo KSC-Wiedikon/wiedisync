@@ -79,3 +79,17 @@ export function seasonRolloverDate(now = new Date()) {
 export function seasonEndDate(now = new Date()) {
   return `${seasonStartYear(now) + 1}-05-31`
 }
+
+/**
+ * The season string containing a given `YYYY-MM-DD` calendar date — the same
+ * Jun-1 rule as `currentSeasonShort()`, but for an arbitrary day rather than
+ * today. Lives here so callers that need "which season was this game in?" stop
+ * reimplementing the cutover (scorer-roster.js had the fifth copy).
+ * Date-string in, date-string out: no timezone conversion, because a YMD is
+ * already a calendar date.
+ */
+export function seasonForYmd(ymd) {
+  const [y, m] = String(ymd).split('-').map(Number)
+  const startYear = m < 6 ? y - 1 : y
+  return `${startYear}/${String(startYear + 1).slice(2)}`
+}

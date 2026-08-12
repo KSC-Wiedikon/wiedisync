@@ -1514,14 +1514,22 @@ async function main() {
   // them: `POST /kscw/messaging/polls` creates rows with `team: null,
   // conversation: <uuid>`, so "app navigation" scoped nothing and the realtime
   // subscription pushed every poll in the club to every connected member.
-  const MY_TEAMS_FILTER = { team: { members: { member: { user: { _eq: '$CURRENT_USER' } } } } }
+  // `active: true` — the roster row on an archived team is never deleted, so
+  // without it an ex-player keeps read of that team's trainings for good. Same
+  // rule as the LEADER scopes below; the season string is never the guard.
+  const MY_TEAMS_FILTER = {
+    team: { active: { _eq: true }, members: { member: { user: { _eq: '$CURRENT_USER' } } } },
+  }
   await setPermRead(MEMBER_POLICY, 'trainings', MY_TEAMS_FILTER)
 
   const EVENTS_VISIBLE = {
     _or: [
       { created_by: { user: { _eq: '$CURRENT_USER' } } },
       { event_type: { _in: ['verein', 'tournament'] } },
-      { teams: { teams_id: { members: { member: { user: { _eq: '$CURRENT_USER' } } } } } },
+      // active: true for the same reason as MY_TEAMS_FILTER — an archived team's
+      // roster row would otherwise keep granting event reads indefinitely. The
+      // invited-members branch is per-event and needs no team gate.
+      { teams: { teams_id: { active: { _eq: true }, members: { member: { user: { _eq: '$CURRENT_USER' } } } } } },
       { invited_members: { members_id: { user: { _eq: '$CURRENT_USER' } } } },
     ],
   }
@@ -2146,7 +2154,8 @@ async function main() {
       { event_type: { _in: ['verein', 'tournament'] } },
       { teams: { teams_id: { coach: { members_id: { user: { _eq: '$CURRENT_USER' } } } } } },
       { teams: { teams_id: { team_responsible: { members_id: { user: { _eq: '$CURRENT_USER' } } } } } },
-      { teams: { teams_id: { members: { member: { user: { _eq: '$CURRENT_USER' } } } } } },
+      // Player branch: same active gate as the Member policy's copy above.
+      { teams: { teams_id: { active: { _eq: true }, members: { member: { user: { _eq: '$CURRENT_USER' } } } } } },
       { invited_members: { members_id: { user: { _eq: '$CURRENT_USER' } } } },
     ],
   })

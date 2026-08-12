@@ -37,6 +37,13 @@ const FNS = [
   'seasonStartDate', 'seasonRolloverDate', 'seasonEndDate',
 ] as const
 
+/** Same contract, but keyed on a YYYY-MM-DD string rather than a Date. */
+const YMD_FNS = ['seasonForYmd'] as const
+
+/** The two call shapes present in the season modules. */
+type DateFns = Record<string, (d: Date) => unknown>
+type YmdFns = Record<string, (ymd: string) => unknown>
+
 /** Noon Zurich-ish, to stay clear of the DST/midnight edge when stepping days. */
 const at = (iso: string) => new Date(`${iso}T12:00:00Z`)
 
@@ -56,9 +63,9 @@ describe('season parity — the implementations cannot diverge', () => {
     while (day.getTime() <= end) {
       for (const fn of FNS) {
         const [, ref] = IMPLS[0]
-        const expected = String((ref as Record<string, (d: Date) => unknown>)[fn](day))
+        const expected = String((ref as unknown as DateFns)[fn](day))
         for (const [name, impl] of IMPLS.slice(1)) {
-          const got = String((impl as Record<string, (d: Date) => unknown>)[fn](day))
+          const got = String((impl as unknown as DateFns)[fn](day))
           if (got !== expected) {
             mismatches.push(`${day.toISOString().slice(0, 10)} ${fn}: frontend=${expected} ${name}=${got}`)
           }
@@ -118,5 +125,27 @@ describe('season boundaries (the Jun 1 cutover itself)', () => {
     // that used getUTCMonth() reported the old season for those two hours.
     expect(fe.seasonStartYear(new Date('2026-05-31T22:30:00Z'))).toBe(2026)
     expect(fe.seasonStartYear(new Date('2026-05-31T21:30:00Z'))).toBe(2025)
+  })
+})
+
+describe('seasonForYmd parity + contract', () => {
+  it('agrees across both implementations on every day of a four-year span', () => {
+    const d = new Date(Date.UTC(2025, 0, 1, 12))
+    for (let i = 0; i < 365 * 4; i++) {
+      const ymd = d.toISOString().slice(0, 10)
+      for (const fn of YMD_FNS) {
+        const feOut = (fe as unknown as YmdFns)[fn](ymd)
+        const epOut = (endpoints as unknown as YmdFns)[fn](ymd)
+        expect(epOut, `${fn}(${ymd}) diverged`).toBe(feOut)
+      }
+      d.setUTCDate(d.getUTCDate() + 1)
+    }
+  })
+
+  it('puts the Jun-1 boundary in the same place as currentSeasonShort', () => {
+    expect(fe.seasonForYmd('2026-05-31')).toBe('2025/26')
+    expect(fe.seasonForYmd('2026-06-01')).toBe('2026/27')
+    expect(fe.seasonForYmd('2026-12-31')).toBe('2026/27')
+    expect(fe.seasonForYmd('2027-01-01')).toBe('2026/27')
   })
 })

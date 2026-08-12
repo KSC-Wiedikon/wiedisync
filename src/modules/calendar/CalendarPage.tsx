@@ -134,9 +134,16 @@ export default function CalendarPage() {
     if (!user) {
       return { sources: ['game-home', 'game-away', 'hall'], selectedTeamIds: [] }
     }
-    // Non-admins: if no teams selected, scope to their own teams
-    if (!effectiveIsAdmin && !effectiveIsVorstand && filters.selectedTeamIds.length === 0 && userTeamIds.length > 0) {
-      return { ...filters, selectedTeamIds: userTeamIds }
+    // Non-admins: if no teams selected, scope to their own teams.
+    // ⚠ Including when they have NONE. The old `userTeamIds.length > 0` guard
+    // let that case fall through to an unscoped filter, which the data hook
+    // reads as "no team condition" — i.e. the whole club, the exact opposite of
+    // this block's stated intent. It fired whenever the member's team list came
+    // back empty (the season-guard bug in AuthProvider), so a scope collapse
+    // surfaced as a calendar quietly showing everyone's fixtures. `-1` matches
+    // no team; server-side policies still scope trainings/events/absences.
+    if (!effectiveIsAdmin && !effectiveIsVorstand && filters.selectedTeamIds.length === 0) {
+      return { ...filters, selectedTeamIds: userTeamIds.length > 0 ? userTeamIds : ['-1'] }
     }
     return filters
   }, [filters, user, effectiveIsAdmin, effectiveIsVorstand, userTeamIds])

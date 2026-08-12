@@ -39,7 +39,14 @@ export default function TeamsPage() {
   }>('member_teams', {
     aggregate: { count: '*' },
     groupBy: ['team', 'guest_level'],
-    filter: { season: { _eq: season } },
+    // Scoped to the rendered (active) teams, not member_teams.season — the
+    // cards come from teams.active, so a season-stamp filter put the two on
+    // different guards and showed "0 players" between the Jun-1 cutover and the
+    // rollover. Keying on the team ids makes card and count agree by
+    // construction; extra groups cannot appear because the map is read only for
+    // teams that were rendered.
+    filter: { team: { _in: teams.map((tm) => tm.id) } },
+    enabled: teams.length > 0,
   })
   const memberTeamCounts = memberTeamCountsRaw ?? []
 

@@ -1305,10 +1305,13 @@ export function registerSchedulingMailbox(router, { database, logger }) {
         // re-priced must not be mailed the category's amount.
         ...FEE_OVERRIDE_FIELDS,
       ),
+      // {{teams}} merge field — gated on the team being active rather than on
+      // member_teams.season, which blanked the team name for any recipient whose
+      // stamp lagged the clock.
       database('member_teams')
         .join('teams', 'teams.id', 'member_teams.team')
         .whereIn('member_teams.member', ids)
-        .andWhere('member_teams.season', season)
+        .andWhere('teams.active', true)
         .select('member_teams.member', 'teams.name')
         .orderBy('teams.name'),
       guestMemberIdSet(database, ids, season),

@@ -60,6 +60,7 @@
 
 import { writeUserLog } from './activity-log.js'
 import { fetchOwnNominationList } from './vm-nomination-list.js'
+import { seasonForYmd } from './season.js'
 
 // SCORER roles → assigned-member FK on `games`. Täfeler/timekeeper/24s excluded on
 // purpose — they don't fill the match sheet, so they don't get the roster.
@@ -107,13 +108,11 @@ export function gameStartMs(game) {
   return guess - zurichOffsetMs(corrected)
 }
 
-// Season string ("YYYY/YY") containing a given YYYY-MM-DD — Jun-1 cutover,
-// matching dateHelpers.getCurrentSeason() so it lines up with member_teams.season.
-function seasonForDate(ymd) {
-  const [y, m] = ymd.split('-').map(Number)
-  // m is 1-based; Jan–May (m < 6) still belongs to the season that started last year.
-  return m < 6 ? `${y - 1}/${String(y).slice(2)}` : `${y}/${String(y + 1).slice(2)}`
-}
+// Season string ("YYYY/YY") containing a given YYYY-MM-DD. Delegates to the
+// shared module — this was the FIFTH inline copy of the Jun-1 cutover and the
+// only one no test covered. It is still needed because the season is persisted
+// into the saved match-sheet snapshot; it is no longer used to FILTER a roster.
+const seasonForDate = seasonForYmd
 
 const firstInitial = (name) => {
   const s = String(name ?? '').trim()
@@ -257,10 +256,13 @@ async function squadRows(database, teamId, season, gameId = null) {
     'members.birthdate as birthdate',
   ]
 
+  // ⚠ No season predicate: `teamId` is game.kscw_team, and a teams row belongs
+  // to exactly one season by construction, so the FK already pins it. The season
+  // filter could only SUBTRACT — dropping a player whose stamp lagged out of the
+  // RSVP fallback roster, the bench and the server-side add-player validation.
   const rostered = await database('member_teams')
     .join('members', 'members.id', 'member_teams.member')
     .where('member_teams.team', teamId)
-    .where('member_teams.season', season)
     .select(memberCols)
 
   if (gameId == null) return rostered
@@ -270,9 +272,9 @@ async function squadRows(database, teamId, season, gameId = null) {
     .where('game_guests.game', gameId)
     .select(memberCols)
 
-  // The migration-271 skip trigger already keeps a player off `game_guests` when they
-  // are on the game's own team, but a season boundary can still put someone in both
-  // lists (rostered under a different season string). Dedupe on member id.
+  // The migration-271 skip trigger already keeps a player off `game_guests` when
+  // they are on the game's own team, but the two lists can still overlap.
+  // Dedupe on member id.
   const seen = new Set(rostered.map((r) => Number(r.id)))
   return [...rostered, ...guests.filter((g) => !seen.has(Number(g.id)))]
 }

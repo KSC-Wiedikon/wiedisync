@@ -219,8 +219,15 @@ async function main() {
   ) ?? [];
   const confirmed = new Set(parts.map((p) => Number(typeof p.member === 'object' ? p.member?.id : p.member)));
 
+  // ⚠ NO season filter. `game.season` is stamped by sv-sync's deliberate SEP-1
+  // rule (their calendar), while member_teams.season follows the club's JUN-1
+  // cutover — so every fixture played 1 Jun – 31 Aug (summer cup, qualification,
+  // early friendlies) matched an empty roster, `playing` came back [], and the
+  // script exited "no licensed confirmed players (0 confirmed, 0 unlicensed)",
+  // blaming the RSVPs for a season-label mismatch. game.kscw_team already pins
+  // the season: the rollover mints a new team id each year.
   const roster = await dGet(
-    `/items/member_teams?filter[team][_eq]=${game.kscw_team}&filter[season][_eq]=${encodeURIComponent(game.season)}`
+    `/items/member_teams?filter[team][_eq]=${game.kscw_team}`
     + `&filter[guest_level][_eq]=0&fields=member.id,member.license_nr,member.first_name,member.last_name&limit=-1`,
   ) ?? [];
 

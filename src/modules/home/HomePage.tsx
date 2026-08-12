@@ -150,9 +150,11 @@ export default function HomePage() {
 
   // Fetch user's team memberships (only when logged in)
   const { data: memberTeamsRaw, isLoading: memberTeamsLoading } = useCollection<MemberTeamExpanded>('member_teams', {
-    // Season-scope to the current season (mirrors useAuth) — otherwise archived
-    // previous-season memberships leak into userTeamIds after a rollover.
-    filter: user ? { _and: [{ member: { _eq: user.id } }, { season: { _eq: getCurrentSeason() } }] } : { id: { _eq: -1 } },
+    // Gate on the TEAM being active (mirrors useAuth) — not on
+    // member_teams.season, which is a create-time stamp uncoupled from the
+    // manually-run rollover and so empties `hasTeams` for every plain player
+    // between the Jun-1 cutover and the rollover.
+    filter: user ? { _and: [{ member: { _eq: user.id } }, { team: { active: { _eq: true } } }] } : { id: { _eq: -1 } },
     fields: ['*', 'team.*'],
     limit: 20,
     enabled: !!user,

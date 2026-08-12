@@ -214,7 +214,12 @@ export default function ScorerPage() {
   })
   const teams = teamsRaw ?? []
 
+  // Active teams only. `guestMemberIds` below is derived from these rows, and an
+  // all-seasons read meant a guest flag from ANY past season permanently removed
+  // that member from every duty picker — accumulating one season a year and
+  // never self-healing.
   const { data: allMemberTeamsRaw, isLoading: memberTeamsLoading } = useCollection<MemberTeam>('member_teams', {
+    filter: { team: { active: { _eq: true } } },
     fields: ['id', 'team', 'member', 'guest_level'],
     all: true,
     enabled: !!user,

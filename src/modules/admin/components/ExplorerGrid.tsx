@@ -747,16 +747,22 @@ export default function ExplorerGrid({ cache, query, canEdit, focusFields, onOpe
   const addRoster = async (memberId: string, teamId: string) => {
     const existing = rowsByMember.get(memberId) ?? []
     if (existing.some((r) => r.team === teamId)) return
+    // Stamp the TARGET TEAM's own season, not the wall clock. A team belongs to
+    // exactly one season by construction; getCurrentSeason() disagrees with it
+    // for all of May (the season picker offers next season from 1 May) and
+    // between the Jun-1 cutover and the manually-run rollover. A mis-stamped row
+    // is then skipped by the rollover's clone and silently orphaned.
+    const rosterSeason = teamById.get(teamId)?.season ?? getCurrentSeason()
     const created = await createRecord<{ id: string | number; guest_level: number | null; season: string | null }>(
       'member_teams',
-      { member: memberId, team: teamId, season: getCurrentSeason() },
+      { member: memberId, team: teamId, season: rosterSeason },
     )
     const newRow: MemberTeamRow = {
       id: String(created.id),
       member: memberId,
       team: teamId,
       guest_level: created.guest_level ?? 0,
-      season: created.season ?? getCurrentSeason(),
+      season: created.season ?? rosterSeason,
     }
     logActivity('create', 'member_teams', newRow.id, { member: memberId, team: teamId })
     onMutate((prev) => {

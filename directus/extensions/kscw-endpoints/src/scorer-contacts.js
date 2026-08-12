@@ -88,9 +88,17 @@ export function registerScorerContacts(router, { database, logger }) {
           database('teams_coaches').where('members_id', member.id).pluck('teams_id'),
           database('teams_responsibles').where('members_id', member.id).pluck('teams_id'),
         ])
-        ledTeamIds = [...new Set(
+        // ⚠ Intersect with ACTIVE teams. teams_coaches / teams_responsibles are
+        // CLONED (not moved) on rollover and never pruned, so a past coach not
+        // carried onto the clone keeps the junction row forever — and this
+        // endpoint releases an assigned official's phone + email. Migration 107
+        // exists precisely because games can still point at an archived team.
+        const ledCandidates = [...new Set(
           [...coachRows, ...trRows].filter((t) => t != null).map(Number),
         )]
+        ledTeamIds = ledCandidates.length
+          ? await database('teams').whereIn('id', ledCandidates).where('active', true).pluck('id')
+          : []
       }
 
       // No led teams → nothing to expose (admins use the items API instead).

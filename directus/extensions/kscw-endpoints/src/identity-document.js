@@ -35,7 +35,6 @@
 import { Transform } from 'node:stream'
 import { writeUserLog } from './activity-log.js'
 import { streamManagedFile } from './storage-read.js'
-import { currentSeasonShort } from './season.js'
 
 const UPLOAD_MAX_BYTES = 10 * 1024 * 1024
 
@@ -75,9 +74,6 @@ function gameStartMs(game) {
   return guess - zurichOffsetMs(corrected)
 }
 
-// Was a local UTC-month copy — flipped two hours early on Jun 1. See season.js.
-const currentSeason = currentSeasonShort
-
 /** Caller → their members row. */
 async function callerMember(database, req) {
   const userId = req.accountability?.user
@@ -85,12 +81,20 @@ async function callerMember(database, req) {
   return database('members').where('user', userId).first('id', 'first_name', 'last_name')
 }
 
-/** Teams the member plays in, this season. */
+/**
+ * Teams the member currently plays in.
+ * ⚠ Gated on teams.active, not member_teams.season: this set decides who can
+ * DECRYPT the member's ID document, and it is resolved at ENCRYPTION time. The
+ * season column is a create-time stamp uncoupled from the rollover, so a lagged
+ * row silently narrowed the recipient set — fail-closed, but with no escrow the
+ * document becomes permanently unreadable and the member must re-upload.
+ */
 async function memberTeamIds(database, memberId) {
-  const rows = await database('member_teams')
-    .where('member', memberId)
-    .where('season', currentSeason())
-    .select('team')
+  const rows = await database('member_teams as mt')
+    .join('teams as t', 't.id', 'mt.team')
+    .where('mt.member', memberId)
+    .where('t.active', true)
+    .select('mt.team as team')
   return rows.map((r) => Number(r.team)).filter(Number.isInteger)
 }
 

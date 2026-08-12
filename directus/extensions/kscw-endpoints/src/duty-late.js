@@ -222,7 +222,18 @@ export function registerDutyLate(router, ctx) {
     // team for this role; fall back to their first current team.
     let teamId = game[def.duty] != null ? Number(game[def.duty]) : null
     if (teamId == null) {
-      const mt = await database('member_teams').where('member', official.id).first('team')
+      // ⚠ Must be an ACTIVE team, deterministically chosen. Unqualified, this
+      // picked an arbitrary row with no ORDER BY — and 648 of prod's rows sit on
+      // archived teams — so the fine was booked against last season's team,
+      // where it is invisible on the current team's fines page and tiers against
+      // the wrong fine_rules. Falling through to the skip branch below is the
+      // correct outcome when there is no active team.
+      const mt = await database('member_teams as mt')
+        .join('teams as t', 't.id', 'mt.team')
+        .where('mt.member', official.id)
+        .where('t.active', true)
+        .orderBy('mt.team', 'asc')
+        .first('mt.team as team')
       teamId = mt?.team != null ? Number(mt.team) : null
     }
     if (teamId == null) {

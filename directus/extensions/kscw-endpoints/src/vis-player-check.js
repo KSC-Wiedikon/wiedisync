@@ -163,7 +163,13 @@ async function loadCohort(database) {
      WHERE m.federation_of_origin IS NOT NULL
        AND m.federation_of_origin <> 'NONE'
        AND m.kscw_membership_active
+       -- ⚠ CURRENT season: join teams and require active. Unqualified, this
+       -- answered "is this member a licensed player?" from EVERY season ever, so
+       -- a past-season full player who is a guest today (or on no roster at all)
+       -- was still pushed into the FIVB VIS index as club-licensed — and in_vis
+       -- is read back as eligibility evidence.
        AND EXISTS (SELECT 1 FROM member_teams mt
+                    JOIN teams t ON t.id = mt.team AND t.active
                     WHERE mt.member = m.id AND coalesce(mt.guest_level, 0) = 0)
      ORDER BY m.federation_of_origin, m.last_name`)
   return rows

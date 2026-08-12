@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next'
 import { useAuth } from '../hooks/useAuth'
 import { useIsDesktop } from '../hooks/useMediaQuery'
 import { useNotifications } from '../hooks/useNotifications'
-import { getCurrentSeason } from '../utils/dateHelpers'
 import { isAuthenticated } from '../lib/api'
 import { useAdminMode } from '../hooks/useAdminMode'
 import { useProfileReviewDue } from '../hooks/useProfileReviewDue'
@@ -40,9 +39,12 @@ export default function Layout() {
   // navbar is always complete for privileged users (role-gated); the toggle only
   // changes the data scope (own teams vs club-wide) + the gold banner.
   const { data: memberTeamsRaw } = useCollection<ExpandedMemberTeam>('member_teams', {
-    // Current-season only — otherwise archived same-name teams (e.g. old + new
-    // "H3" after a rollover) render as duplicate badges in the user card.
-    filter: user ? { _and: [{ member: { _eq: user.id } }, { season: { _eq: getCurrentSeason() } }] } : undefined,
+    // Gate on the TEAM being active, not on member_teams.season: the season
+    // column is a create-time stamp uncoupled from the manually-run rollover,
+    // so it matches nothing between the Jun-1 cutover and the rollover (~34h in
+    // 2026). Active-only still does what this filter was written for — keeping
+    // archived same-name teams (old + new "H3") out of the user card.
+    filter: user ? { _and: [{ member: { _eq: user.id } }, { team: { active: { _eq: true } } }] } : undefined,
     fields: ['*', 'team.*'],
     limit: 10,
     enabled: !!user && !isLoading,

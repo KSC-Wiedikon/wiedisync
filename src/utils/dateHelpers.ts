@@ -466,16 +466,3 @@ export function getDeadlineDate(respondBy: string, activityStartTime?: string): 
   return d;
 }
 
-/**
- * Returns the most recent 01-June (YYYY-06-01) on or before `today`.
- * Used as the rolling default "From" date for the Coach Dashboard.
- *
- * @param today YYYY-MM-DD string (typically the result of todayLocal()).
- */
-export function mostRecent01June(today: string): string {
-  const [yearStr, monthStr] = today.split('-')
-  const year = Number(yearStr)
-  const month = Number(monthStr)
-  const startYear = month >= 6 ? year : year - 1
-  return `${startYear}-06-01`
-}

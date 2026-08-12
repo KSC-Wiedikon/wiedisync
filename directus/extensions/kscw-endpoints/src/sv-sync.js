@@ -27,6 +27,15 @@ function isKscwTeamId(id) {
   return SV_TEAM_IDS.hasOwnProperty(String(id))
 }
 
+/**
+ * The season label stamped onto `games.season`.
+ * ⚠ SEP 1, NOT the club's Jun-1 cutover (season.js) — deliberate, and the same
+ * exception bp-sync.js documents: this matches SWISS VOLLEY's season convention
+ * against their own fixture dates. It is their calendar, not ours.
+ * ⚠⚠ Precisely because the two boundaries differ, never join `games.season`
+ * against `member_teams.season` — that collision silently emptied every summer
+ * fixture's squad in vm-push-nomination.mjs. Join on the team FK instead.
+ */
 function deriveSeason(dateStr) {
   const d = new Date(dateStr)
   const year = d.getFullYear()

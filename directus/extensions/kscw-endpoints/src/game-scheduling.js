@@ -608,13 +608,21 @@ export function registerGameScheduling(router, { database, logger, services, get
     ;(await db('teams_responsibles').where('teams_id', teamId).pluck('members_id')).forEach((m) => memberIds.add(m))
     if (memberIds.size === 0) return []
     const ids = [...memberIds]
-    // Other teams those people are linked to, by any role.
+    // Other ACTIVE teams those people are linked to, by any role. Without the
+    // active gate archived teams — including this team's OWN previous-season
+    // clone — enter the same-day exclusion set and block a date with no visible
+    // reason. Matches sv-sync.js's active-only team map.
     const out = new Set()
-    ;(await db('member_teams').whereIn('member', ids).whereNot('team', teamId)
-      .where(function () { this.where('guest_level', 0).orWhereNull('guest_level') })
-      .pluck('team')).forEach((t) => out.add(t))
-    ;(await db('teams_coaches').whereIn('members_id', ids).whereNot('teams_id', teamId).pluck('teams_id')).forEach((t) => out.add(t))
-    ;(await db('teams_responsibles').whereIn('members_id', ids).whereNot('teams_id', teamId).pluck('teams_id')).forEach((t) => out.add(t))
+    ;(await db('member_teams as mt').join('teams as t', 't.id', 'mt.team')
+      .whereIn('mt.member', ids).whereNot('mt.team', teamId).where('t.active', true)
+      .where(function () { this.where('mt.guest_level', 0).orWhereNull('mt.guest_level') })
+      .pluck('mt.team')).forEach((t) => out.add(t))
+    ;(await db('teams_coaches as j').join('teams as t', 't.id', 'j.teams_id')
+      .whereIn('j.members_id', ids).whereNot('j.teams_id', teamId).where('t.active', true)
+      .pluck('j.teams_id')).forEach((t) => out.add(t))
+    ;(await db('teams_responsibles as j').join('teams as t', 't.id', 'j.teams_id')
+      .whereIn('j.members_id', ids).whereNot('j.teams_id', teamId).where('t.active', true)
+      .pluck('j.teams_id')).forEach((t) => out.add(t))
     return [...out]
   }
 
@@ -4690,15 +4698,26 @@ export function registerGameScheduling(router, { database, logger, services, get
           let memberTeams = 0
           const clonedOldIds = Object.keys(map).map(Number)
           if (clonedOldIds.length > 0) {
-            const mtRows = await trx('member_teams')
-              .where('season', fromSeason)
-              .whereIn('team', clonedOldIds)
+            // ⚠ Selected by TEAM only — no `season` predicate. Every row on a
+            // from_season team belongs to that season by construction, so the
+            // predicate could only SUBTRACT: a row written between the Jun-1
+            // cutover and this rollover carries the NEW season on an OLD team,
+            // so it was skipped here and then orphaned by the archive two
+            // statements down. Nothing surfaced, because the dry run counted the
+            // same filtered set.
+            const mtRows = await trx('member_teams').whereIn('team', clonedOldIds)
             const inserts = mtRows
               .filter((r) => map[r.team])
               .map((r) => ({ member: r.member, team: map[r.team], season: toSeason, guest_level: r.guest_level, date_created: now }))
             if (inserts.length > 0) {
               await trx('member_teams').insert(inserts)
               memberTeams = inserts.length
+            }
+            // Report anything the clone could not carry forward, rather than
+            // letting a silent delta look like a clean run.
+            const skipped = mtRows.length - inserts.length
+            if (skipped > 0) {
+              log.warn({ msg: 'rollover: member_teams rows not carried forward', skipped, fromSeason, toSeason })
             }
           }
 

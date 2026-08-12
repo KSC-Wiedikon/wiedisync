@@ -15,9 +15,6 @@
  */
 
 import { FRONTEND_URL } from './email-template.js'
-import { currentSeasonShort } from './season.js'
-
-const getCurrentSeason = currentSeasonShort
 
 // Per-(user, form) reminder rate limit — 1 fan-out per form per 10 min per caller.
 const remindRateLimit = new Map()
@@ -46,9 +43,13 @@ async function resolveTargetedMembers(db, form) {
     const teamRows = await db('forms_teams').where('forms_id', form.id).select('teams_id')
     const teamIds = [...new Set(teamRows.map(r => r.teams_id).filter(Boolean))]
     if (teamIds.length === 0) return []
-    const season = getCurrentSeason()
+    // No season filter on the player half — `teamIds` comes from forms_teams and
+    // already pins the season, and the coach/TR halves below have never had one,
+    // so a season-lagged player was dropped from BOTH `targeted` and
+    // `nonResponders` and the form read "18/18 responded" while a squad member
+    // was never asked.
     const [players, coaches, trs] = await Promise.all([
-      db('member_teams').whereIn('team', teamIds).where('season', season).select('member'),
+      db('member_teams').whereIn('team', teamIds).select('member'),
       db('teams_coaches').whereIn('teams_id', teamIds).select('members_id'),
       db('teams_responsibles').whereIn('teams_id', teamIds).select('members_id'),
     ])
