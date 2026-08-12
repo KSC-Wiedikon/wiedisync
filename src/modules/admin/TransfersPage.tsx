@@ -463,8 +463,11 @@ export default function TransfersPage() {
   // Sport membership is derived from the member's teams. Teams are fetched
   // WITHOUT the `active` filter on purpose: a player parked on an archived team
   // still plays that sport, and dropping them would silently hide a transfer.
+  // `active` is selected but deliberately NOT filtered on: the two derivations
+  // below need opposite scopes. Sport must survive an archived team (above);
+  // the displayed team NAMES must not (`teamNamesByMember`).
   const { data: teamsRaw } = useCollection<Team>('teams', {
-    fields: ['id', 'sport', 'name'],
+    fields: ['id', 'sport', 'name', 'active'],
     all: true,
     staleTime: 60_000,
   })
@@ -480,6 +483,18 @@ export default function TransfersPage() {
     () => new Map<string, string>(
       teams.map((tm) => [String(tm.id), tm.name ?? ''] as [string, string]),
     ),
+    [teams],
+  )
+  /**
+   * The rollover CLONES a team into a new id and archives the old row, and the
+   * member's `member_teams` row on the archived team is never deleted — so an
+   * unguarded junction read is the union of every season the member ever
+   * played. That is what made 68 volleyball members render a strictly larger
+   * team set than they hold (a player on D1 showing "D1, D2"; one on D2 showing
+   * "D1, D2, DU23-1"). Gate on `teams.active`, never on `member_teams.season`.
+   */
+  const activeTeamIds = useMemo(
+    () => new Set(teams.filter((tm) => tm.active).map((tm) => String(tm.id))),
     [teams],
   )
 
@@ -587,6 +602,11 @@ export default function TransfersPage() {
    *
    * Also the input to the U20 exemption below, which is why the "player, in
    * this sport" filtering lives in one place rather than two.
+   *
+   * ⚠ CURRENT-season only (`activeTeamIds`) — unlike `sportsByMember` above,
+   * which is deliberately all-season. A member with no active volleyball team
+   * therefore gets no names, and so is NOT U20-exempt below: the safe default
+   * on a transfer worklist is to leave someone on it.
    */
   const teamNamesByMember = useMemo(() => {
     const map = new Map<string, string[]>()
@@ -594,6 +614,7 @@ export default function TransfersPage() {
       const memberId = relId(j.member)
       const teamId = relId(j.team)
       if (!memberId || (j.guest_level ?? 0) > 0) continue
+      if (!activeTeamIds.has(teamId)) continue
       if (sportByTeam.get(teamId) !== SPORT) continue
       const name = nameByTeam.get(teamId)
       if (!name) continue
@@ -603,7 +624,7 @@ export default function TransfersPage() {
     }
     for (const list of map.values()) list.sort((a, b) => a.localeCompare(b, 'de-CH'))
     return map
-  }, [junction, sportByTeam, nameByTeam])
+  }, [junction, sportByTeam, nameByTeam, activeTeamIds])
 
   /**
    * Members exempt because EVERY volleyball team they play for is a U20 team —

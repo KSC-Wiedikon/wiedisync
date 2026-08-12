@@ -2,6 +2,18 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.80.1 — 2026-08-12
+
+### The J+S export was missing every participant
+
+- **Jugend+Sport exports contained the leaders and nobody else.** The export asked for the season you picked but looked it up against this season's teams, and the two never matched — so every activity and attendance CSV came out with the coaches listed and not a single participant, with nothing on screen to say anything was wrong. Both now find the right season's squad. The activity lists were short for the same reason and are now complete. If an export ever does come back with no participants again, it says so instead of downloading quietly.
+
+### Last season's teams stopped following people around
+
+- **People were shown with teams they no longer play for.** A player who moved from D2 to D1 was listed as "D1, D2", because a team change adds the new team without ever putting the old one away. Team names now show the current season only. Which sport someone plays is still worked out from their whole history, so nobody disappears from a list because of this.
+- **Coaches and teammates could still see people from past seasons.** Access to a teammate's absences and match responses, and a coach's access to their players' contact details, was granted by "has ever been on a team with me" rather than "is on my team now" — so it grew every season and never shrank. It is now limited to current teams. Nobody loses access to anyone they currently play with or coach.
+- **A team change no longer briefly logs you out of your own teams.** For a day or so after the club rolled over to the new season, the app could think you had no teams at all — hiding the Yes/No buttons on trainings and games and emptying your team list until the rollover finished. Your teams are now read in a way that cannot fall into that gap.
+
 ## v1.80.0 — 2026-08-11
 
 ### Find one datapoint instead of hunting for it

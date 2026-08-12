@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '1.80.0'
+const APP_VERSION = '1.80.1'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,26 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.80.1',
+    date: '12.08.2026',
+    sections: [
+      {
+        title: 'The J+S export was missing every participant',
+        items: [
+          'Jugend+Sport exports contained the leaders and nobody else. The export asked for the season you picked but looked it up against this season’s teams, and the two never matched — so every activity and attendance CSV came out with the coaches listed and not a single participant, with nothing on screen to say anything was wrong. Both now find the right season’s squad. The activity lists were short for the same reason and are now complete. If an export ever does come back with no participants again, it says so instead of downloading quietly.',
+        ],
+      },
+      {
+        title: 'Last season’s teams stopped following people around',
+        items: [
+          'People were shown with teams they no longer play for. A player who moved from D2 to D1 was listed as "D1, D2", because a team change adds the new team without ever putting the old one away. Team names now show the current season only. Which sport someone plays is still worked out from their whole history, so nobody disappears from a list because of this.',
+          'Coaches and teammates could still see people from past seasons. Access to a teammate’s absences and match responses, and a coach’s access to their players’ contact details, was granted by "has ever been on a team with me" rather than "is on my team now" — so it grew every season and never shrank. It is now limited to current teams. Nobody loses access to anyone they currently play with or coach.',
+          'A team change no longer briefly logs you out of your own teams. For a day or so after the club rolled over to the new season, the app could think you had no teams at all — hiding the Yes/No buttons on trainings and games and emptying your team list until the rollover finished. Your teams are now read in a way that cannot fall into that gap.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.80.0',
     date: '11.08.2026',
@@ -1369,7 +1389,7 @@ const CHANGELOG: ChangelogEntry[] = [
         title: 'Scheduling mailbox: its own tab, with a Volleyball/Basketball switch',
         items: [
           'The scheduling mailbox moved out of the dashboard into its own "Mailbox" tab, next to Dashboard and Settings.',
-          'Switch between the Volleyball and Basketball mailboxes with a toggle at the top — each is its own account (volleyball@ / basketball@spielplanung.kscw.ch). You only see the sports you have access to.',
+          'Switch between the Volleyball and Basketball mailboxes with a toggle at the top — each is its own account (spielplanung@volleyball.kscw.ch / spielplanung@basketball.kscw.ch). You only see the sports you have access to.',
           'A proper mail client: separate Inbox and Sent, plus reply, reply all, forward (keeps the original attachments) and new email.',
           'On the volleyball side, emails still group by opponent — the dashboard "N emails" button opens that opponent’s thread in the new tab.',
         ],

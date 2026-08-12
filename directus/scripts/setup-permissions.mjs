@@ -1527,10 +1527,24 @@ async function main() {
   }
   await setPermRead(MEMBER_POLICY, 'events', EVENTS_VISIBLE)
 
+  // ⚠ `active: true` on the intermediate team is load-bearing, not decoration.
+  // member_teams rows are never deleted on rollover — the roster is CLONED onto
+  // the new team id and the old row is left pointing at the archived team. So
+  // without this gate "same team as me" silently means "shared any team in any
+  // season, forever": 407 members retained read of former teammates' CURRENT
+  // absences (incl. the free-text `reason` in MEMBER_ABSENCE_FIELDS) and RSVPs.
+  // Gate on teams.active, never on member_teams.season — the season column is a
+  // create-time stamp uncoupled from the manually-run rollover (see AuthProvider).
   const SAME_TEAM_AS_ME = {
     _or: [
       { member: { user: { _eq: '$CURRENT_USER' } } },
-      { member: { member_teams: { team: { members: { member: { user: { _eq: '$CURRENT_USER' } } } } } } },
+      {
+        member: {
+          member_teams: {
+            team: { active: { _eq: true }, members: { member: { user: { _eq: '$CURRENT_USER' } } } },
+          },
+        },
+      },
     ],
   }
 
@@ -1998,9 +2012,19 @@ async function main() {
   // (email/phone/address/birthdate) but explicitly NOT `ahv_nummer` (Swiss
   // social security) or `iban` (bank account) — sensitive financial PII coaches
   // have no operational need for.
+  // ⚠ `active: true` — the coach/TR junctions are CLONED (not moved) on rollover
+  // and the member's own roster row is left on the archived team, so an unguarded
+  // walk means "every player I ever coached, forever". That leaked live email +
+  // phone + adresse (LEADER_TEAM_MEMBER_FIELDS) and granted PATCH of position /
+  // number / coach_approved_team over 161 stale (member, archived-team) pairs —
+  // 39 of those members are on no active team at all. Unlike teams/trainings,
+  // where reads stay unscoped so a coach can browse an archived team's HISTORY,
+  // these rows are the person's LIVE record: reading an ex-player's current
+  // phone number is not history. Reads are gated too, deliberately.
   const COACH_TEAM_MEMBERS = {
     member_teams: {
       team: {
+        active: { _eq: true },
         _or: [
           { coach: { members_id: { user: { _eq: '$CURRENT_USER' } } } },
           { team_responsible: { members_id: { user: { _eq: '$CURRENT_USER' } } } },
@@ -2204,8 +2228,11 @@ async function main() {
   const COACH_OR_TR_OF_PARTICIPATION = {
     _or: [
       { member: { user: { _eq: '$CURRENT_USER' } } },
-      { member: { member_teams: { team: { coach: { members_id: { user: { _eq: '$CURRENT_USER' } } } } } } },
-      { member: { member_teams: { team: { team_responsible: { members_id: { user: { _eq: '$CURRENT_USER' } } } } } } },
+      // ⚠ active: true — without it this keys on the MEMBER, so a lingering
+      // roster row on an archived team handed an ex-coach read, update AND
+      // delete over that member's CURRENT-season RSVPs, unbounded in time.
+      { member: { member_teams: { team: { active: { _eq: true }, coach: { members_id: { user: { _eq: '$CURRENT_USER' } } } } } } },
+      { member: { member_teams: { team: { active: { _eq: true }, team_responsible: { members_id: { user: { _eq: '$CURRENT_USER' } } } } } } },
       // Guests of a game I lead (migration 271). They are on no team of mine, so the
       // member_teams branches above miss them and the coach — the one person who has
       // to pick the squad — would read a roster with the borrowed players blank.
@@ -2353,12 +2380,17 @@ async function main() {
   // 2026-05-12 audit: read was unfiltered → full-club absence dump including
   // notes (potentially health-related). Now uses the same coach/TR scope as
   // the CUD rows already had.
+  // COACH_TEAM_ABSENCE_SCOPE inherits the `active` gate from COACH_TEAM_MEMBERS;
+  // the read filter below is written out longhand, so it needs its own copy.
+  // ⚠ Most sensitive of the three collections — MEMBER_ABSENCE_FIELDS includes
+  // `reason` / `reason_detail`, flagged above as potentially health-related, and
+  // the unguarded walk let an ex-coach read AND delete them indefinitely.
   const COACH_TEAM_ABSENCE_SCOPE = { member: COACH_TEAM_MEMBERS }
   await setPermRead(LEADER_POLICY, 'absences', {
     _or: [
       { member: { user: { _eq: '$CURRENT_USER' } } },
-      { member: { member_teams: { team: { coach: { members_id: { user: { _eq: '$CURRENT_USER' } } } } } } },
-      { member: { member_teams: { team: { team_responsible: { members_id: { user: { _eq: '$CURRENT_USER' } } } } } } },
+      { member: { member_teams: { team: { active: { _eq: true }, coach: { members_id: { user: { _eq: '$CURRENT_USER' } } } } } } },
+      { member: { member_teams: { team: { active: { _eq: true }, team_responsible: { members_id: { user: { _eq: '$CURRENT_USER' } } } } } } },
     ],
   })
   await setPerm(LEADER_POLICY, 'absences', 'create')

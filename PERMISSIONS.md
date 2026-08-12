@@ -80,7 +80,7 @@ Used throughout — repeated literally rather than via subqueries because Direct
 | `OWN_DU` | `{ user: { user: { _eq: '$CURRENT_USER' } } }` | `user_logs` (int FK to members) |
 | `MY_TEAMS` | `{ team: { members: { member: { user: ... } } } }` | trainings, anything team-scoped |
 | `EVENTS_VISIBLE` | `_or` of own / club-wide / my-teams / invited-members | events, event_sessions, events_members |
-| `SAME_TEAM_AS_ME` | `_or` of own member + member-on-same-team | participations, absences |
+| `SAME_TEAM_AS_ME` | `_or` of own member + member-on-same-**active**-team | participations, absences |
 | `OWN_DELEGATION` | `{ _or: [{ from_member.user }, { to_member.user }] }` | scorer_delegations |
 
 ---
@@ -204,8 +204,8 @@ Inherits everything from Member. Adds:
 
 | Collection | Action | Filter | Source migration |
 |---|---|---|---|
-| members | read | scoped to my-team members (`COACH_TEAM_MEMBERS` — coach/TR of the member's team), fields = `LEADER_TEAM_MEMBER_FIELDS` (all visible+editable+derived-read fields **except** `ahv_nummer` and `iban`) | 036, scoped 2026-05-12 |
-| members | update | scoped to my-team members (`COACH_TEAM_MEMBERS`), fields = `position, number, coach_approved_team` | 036, `coach_approved_team` 2026-05-19 |
+| members | read | scoped to my-team members (`COACH_TEAM_MEMBERS` — coach/TR of the member's **active** team), fields = `LEADER_TEAM_MEMBER_FIELDS` (all visible+editable+derived-read fields **except** `ahv_nummer` and `iban`) | 036, scoped 2026-05-12, `active` gate 2026-08-12 |
+| members | update | scoped to my-team members (`COACH_TEAM_MEMBERS`), fields = `position, number, coach_approved_team` | 036, `coach_approved_team` 2026-05-19, `active` gate 2026-08-12 |
 | members | update | scoped to my-team signups (`COACH_REQUESTED_TEAM` — coach/TR of the requested team), fields = `kscw_membership_active, wiedisync_active, requested_team` | reject-signup path (`TeamDetail.handleReject`) |
 | teams | read | none | |
 | teams | read | none | also `LEADER_TEAM_DASHBOARD_FIELDS` |

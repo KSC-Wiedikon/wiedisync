@@ -5,7 +5,7 @@ LABEL="${1:-manual}"
 DATE=$(date +%Y-%m-%d_%H%M)
 CONTAINER=kscw-postgres
 GDRIVE_DIR=gdrive:Backups/directus-kscw
-R2_DIR=r2:kscw-db-backups
+R2_DIR=r2kscw:kscw-db-backups
 GPG_RECIPIENT=backup@kscw.ch
 FILE="$BACKUP_DIR/kscw_predeploy_${LABEL}_${DATE}.sql.gz"
 

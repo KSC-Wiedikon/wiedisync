@@ -80,7 +80,13 @@ export default function JsExportPage() {
   if (!canJsExport) return <Navigate to="/" replace />
 
   function surfaceWarnings(data: JsExportData) {
-    const { participantsMissingJsId, leadersMissingJsId } = data.warnings
+    const { participantsMissingJsId, leadersMissingJsId, emptyRoster } = data.warnings
+    // Leaders but no participants is never a valid J+S export — it means the
+    // requested season resolved to a team row with no roster. Loud, because the
+    // CSV still downloads and looks plausible.
+    if (emptyRoster) {
+      toast.error(t('emptyRosterWarning'), { duration: 20_000 })
+    }
     if (!participantsMissingJsId.length && !leadersMissingJsId.length) return
     const parts: string[] = []
     if (leadersMissingJsId.length) parts.push(`${t('leaders')}: ${leadersMissingJsId.join(', ')}`)

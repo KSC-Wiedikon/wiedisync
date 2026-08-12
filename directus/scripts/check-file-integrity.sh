@@ -28,8 +28,8 @@ ENV_NAME="${1:-prod}"
 REFRESH=false
 for a in "$@"; do [ "$a" = "--refresh" ] && REFRESH=true; done
 
-if [ "$ENV_NAME" = "prod" ]; then DB=postgres; BUCKET=r2:kscw-uploads
-else DB=directus_kscw_dev; BUCKET=r2:kscw-uploads-dev; fi
+if [ "$ENV_NAME" = "prod" ]; then DB=postgres; BUCKET=r2kscw:kscw-uploads
+else DB=directus_kscw_dev; BUCKET=r2kscw:kscw-uploads-dev; fi
 MIRROR=/data/uploads-mirror
 
 if $REFRESH; then
