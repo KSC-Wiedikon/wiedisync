@@ -2,6 +2,19 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.80.2 — 2026-08-12
+
+### Calendar subscriptions that had gone quiet work again
+
+- **A subscribed calendar stopped receiving anything after the season changed.** If you added Wiedisync to your phone or computer calendar, the link pointed at your team as it existed that season — so once the club moved to the new season, the calendar kept working but never showed another training or game, with nothing to tell you. Existing links now follow your team into the new season on their own. You do not need to re-subscribe.
+
+### Fixes you should not have to think about
+
+- **People are no longer excluded from the duty lists by an old guest entry.** Being marked a guest on any team in any past season quietly removed someone from every scorer and scoreboard picker, and it never wore off.
+- **Attendance percentages on a player's profile were showing 0%.** The statistics were being measured over a period that had not started yet, so nothing counted. They now cover the season so far, up to today.
+- **Coaches and teammates only see people from current teams.** Access to teammates' absences and answers, and coaches' access to their players' details and their team's trainings and events, followed "was ever on a team with me" instead of "is on my team now". It is limited to current teams now; nobody loses access to anyone they currently play with or coach.
+- **Several places disagreed about when a new season starts.** The team season dropdown switched over a month before everything else, so for all of May the current season was missing from it. Everything now uses the same date.
+
 ## v1.80.1 — 2026-08-12
 
 ### The J+S export was missing every participant

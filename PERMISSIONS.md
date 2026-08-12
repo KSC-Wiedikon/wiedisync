@@ -78,8 +78,8 @@ Used throughout — repeated literally rather than via subqueries because Direct
 | `OWN_USER` | `{ user: { _eq: '$CURRENT_USER' } }` | members directly |
 | `OWN_MEMBER` | `{ member: { user: { _eq: '$CURRENT_USER' } } }` | rows with `member` FK |
 | `OWN_DU` | `{ user: { user: { _eq: '$CURRENT_USER' } } }` | `user_logs` (int FK to members) |
-| `MY_TEAMS` | `{ team: { members: { member: { user: ... } } } }` | trainings, anything team-scoped |
-| `EVENTS_VISIBLE` | `_or` of own / club-wide / my-teams / invited-members | events, event_sessions, events_members |
+| `MY_TEAMS` | `{ team: { active: true, members: { member: { user: ... } } } }` | trainings, anything team-scoped |
+| `EVENTS_VISIBLE` | `_or` of own / club-wide / my-**active**-teams / invited-members | events, event_sessions, events_members |
 | `SAME_TEAM_AS_ME` | `_or` of own member + member-on-same-**active**-team | participations, absences |
 | `OWN_DELEGATION` | `{ _or: [{ from_member.user }, { to_member.user }] }` | scorer_delegations |
 

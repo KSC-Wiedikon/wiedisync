@@ -48,6 +48,12 @@ Treat this as a deduplication shield: if a future audit finds something on this 
 
 The full dated ledger of completed hardening (2026-05-06 → 2026-07-05) is archived in [`SECURITY-archive.md`](SECURITY-archive.md) to keep this doc lean. Append new post-audit `### YYYY-MM-DD` remediation blocks there; move newly-open items into the "Open / accepted" table below.
 
+### 2026-08-12 (sixth pass) — the same walk, in the Member policy's own filters
+
+**15 — `trainings` and `events` reads kept an ex-player on their old team.** Completing finding 14: `MY_TEAMS_FILTER` (Member → `trainings`) and the player branch of both `events` read filters (Member and LEADER) walked `team → members → member` with no `active` gate, so a roster row on an archived team granted reads of that team's trainings and events indefinitely. Now gated. Measured on prod before deploying: the trainings scope drops 22,230 → 16,082 (member, training) pairs and the events scope is unchanged at 389, with **0** future trainings and **0** future events hanging off an archived team — so nothing upcoming was lost by anyone.
+
+Same pass closed the non-permission halves of the leak, where the fix is code rather than policy: `scorer-contacts` resolved "which teams does the caller lead" from `teams_coaches`/`teams_responsibles` junctions that are cloned on rollover and never pruned, and that endpoint releases an assigned official's phone and email inside the ±1h window; `identity-document` resolved the E2EE decryption recipient set through the season stamp (fail-closed, but unrecoverable — there is no escrow); and `clubdesk_deactivate` deleted a departed member's roster rows only where the season matched, so a lagged row survived and every unseasoned reader still counted them as squad, mailing them team announcements indefinitely while the admin was told deactivation succeeded.
+
 ### 2026-08-12 (fifth pass) — four policy filters walked `member_teams` with no season boundary
 
 **14 — "my team" meant "any team I was ever on, in any season", in four row filters.** `member_teams` rows are never deleted on rollover: the roster is **cloned** onto the new team id and the old row is left pointing at the archived team (`game-scheduling.js:4693-4709`). Four filters walked that junction with no `active` gate, so their scope grew by one season every year and never shed one. Prod at the time of the fix: 648 junction rows on archived teams across 407 distinct members, 161 stale (member, archived-team) pairs, 39 members holding rows on **no** active team at all.
