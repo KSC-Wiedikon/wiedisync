@@ -55,7 +55,7 @@
  * is CLAUDE.md's documented option (b).
  *
  * ── Mail ────────────────────────────────────────────────────────────────────
- * Sends from ACCOUNTS.basketball (basketball@spielplanung.kscw.ch / "KSCW BB
+ * Sends from ACCOUNTS.basketball (spielplanung@basketball.kscw.ch / "KSCW BB
  * Spielplanung", scheduling-mailbox.js) over the container's SES SMTP, with our
  * own MIME so the From display name survives — the same reason game-scheduling.js
  * bypasses the Directus MailService. Replies land in the basketball mailbox that
@@ -216,7 +216,7 @@ export function registerBasketballPortal(router, { database, logger }) {
 
   // ── Mail ──────────────────────────────────────────────────────────────────
   /**
-   * Send from basketball@spielplanung.kscw.ch. Best-effort by contract: callers
+   * Send from spielplanung@basketball.kscw.ch. Best-effort by contract: callers
    * decide whether a failure is fatal. Never throws on "no valid recipient" — it
    * logs and returns false, so a malformed contact can't 500 an admin action.
    */

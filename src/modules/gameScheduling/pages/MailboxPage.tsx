@@ -14,7 +14,8 @@ import type { GameSchedulingOpponent } from '../../../types'
 /**
  * Standalone Mailbox tab for the Spielplanung shell. A Volleyball/Basketball
  * toggle (gated to the sports the user can access) switches between the two
- * Migadu mailboxes — volleyball@ and basketball@spielplanung.kscw.ch. The
+ * Migadu mailboxes — spielplanung@volleyball.kscw.ch and
+ * spielplanung@basketball.kscw.ch. The
  * volleyball view keeps the opponent-classification tooling (chips, per-opponent
  * thread, assign); the basketball view is a plain inbox (basketball has no
  * opponent scheduling). A `?opponent=<id>` deep-link (from the dashboard's

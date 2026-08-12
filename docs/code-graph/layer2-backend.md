@@ -208,7 +208,7 @@ graph LR
 | `/kscw/admin/terminplanung/{restore-season,archive-season,rollover-season}/:id` | POST | W: game_scheduling_seasons | Admin |
 | `/kscw/admin/terminplanung/invites*` (create, list, reissue, revoke, import-from-svrz, svrz-clubs) | GET/POST | W: game_scheduling_invites | Admin |
 | `/kscw/admin/terminplanung/mailbox` `/mailbox/message/:id` | GET | R: scheduling_emails (list / full body; opening marks read); attachment bytes streamed on demand from IMAP | Admin or club-wide Spielplaner |
-| `/kscw/admin/terminplanung/mailbox/sync` | POST | IMAP pull (imapflow + mailparser) of Migadu `volleyball@spielplanung.kscw.ch` INBOX + Sent → scheduling_emails (dedup by Message-ID); W: sync_runs (`mailbox_sync`) | Admin or club-wide Spielplaner |
+| `/kscw/admin/terminplanung/mailbox/sync` | POST | IMAP pull (imapflow + mailparser) of Migadu `spielplanung@volleyball.kscw.ch` INBOX + Sent → scheduling_emails (dedup by Message-ID); W: sync_runs (`mailbox_sync`) | Admin or club-wide Spielplaner |
 | `/kscw/admin/terminplanung/mailbox/reply` | POST | Compose raw MIME (In-Reply-To/References threading), send via SES SMTP + append to Migadu Sent; W: scheduling_emails (`direction='out'`) | Admin or club-wide Spielplaner |
 | `/kscw/admin/terminplanung/mailbox/attachment/:id/:index` | GET | Stream attachment bytes from IMAP (410 + re-sync if UID moved; bytes never stored) | Admin or club-wide Spielplaner |
 
@@ -347,7 +347,7 @@ All crons are registered via `schedule(cron, fn)` in `kscw-hooks/src/index.js` (
 | `5 6 * * *` | BP sync | Scrape Basketplan → games + rankings (calls `/admin/bp-sync`) | games, rankings, sync_runs |
 | `0 4 * * 1` | VM sync (weekly Mon) | Spawn `vm-sync-check.mjs` — Volleymanager team names/leagues + referee licences | teams (name/full_name/league), members (referee_vb), sv_vm_check, sync_runs |
 | `30 4 * * *` | SVRZ sync | Spawn `svrz-scheduling-sync.mjs` — game-scheduling contacts/feeds | game_scheduling_opponents, svrz_spielplaner_contacts, sync_runs |
-| `*/10 * * * *` | mailbox sync | Pull Migadu `volleyball@spielplanung.kscw.ch` (INBOX + Sent) via `/admin/terminplanung/mailbox/sync` (dormant unless `SCHEDULING_IMAP_PASSWORD` set) | scheduling_emails, sync_runs (`mailbox_sync`) |
+| `*/10 * * * *` | mailbox sync | Pull Migadu `spielplanung@volleyball.kscw.ch` (INBOX + Sent) via `/admin/terminplanung/mailbox/sync` (dormant unless `SCHEDULING_IMAP_PASSWORD` set) | scheduling_emails, sync_runs (`mailbox_sync`) |
 | `0 4 * * *` | GCal sync | Sync Google Calendar → events (calls `/admin/gcal-sync`) | events, sync_runs |
 | `30 4 1 * *` | Schulferien sync (monthly) | Sync school-holiday dates (calls `/admin/schulferien-sync`) | halls/holiday data, sync_runs |
 | `0 3 1 5 *` | season refresh (May 1) | Refresh `teams.season` choice list (`refreshSeasonChoices`) | directus_fields (teams.season choices) |

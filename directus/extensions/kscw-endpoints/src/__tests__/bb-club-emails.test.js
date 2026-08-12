@@ -76,8 +76,8 @@ describe('bbClubInviteEmail', () => {
   it('never mentions VolleyManager and never signs as volleyball', () => {
     const { text, html } = bbClubInviteEmail(VARS)
     expect(text + html).not.toContain('VolleyManager')
-    expect(html).toContain('basketball@spielplanung.kscw.ch')
-    expect(html).not.toContain('volleyball@spielplanung.kscw.ch')
+    expect(html).toContain('spielplanung@basketball.kscw.ch')
+    expect(html).not.toContain('spielplanung@volleyball.kscw.ch')
     // The volleyball scheduler names must not ride along on a basketball mail.
     expect(html).not.toContain('Luca')
   })

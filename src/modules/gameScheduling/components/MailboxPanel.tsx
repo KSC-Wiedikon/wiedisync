@@ -220,7 +220,7 @@ interface Props {
 
 /**
  * Embedded mailbox for the Terminplanung dashboard: the synced
- * volleyball@spielplanung.kscw.ch inbox + sent mail, with reply/compose.
+ * spielplanung@volleyball.kscw.ch inbox + sent mail, with reply/compose.
  * Messages are matched to opponents client-side by contact-address overlap.
  */
 export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentContacts, focusOpponent, onClearFocus, seasonName, kscwTeamLabelFor }: Props) {
@@ -699,9 +699,9 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
   // (the server also strips it, but the compose form shouldn't show it either).
   // Mirrors the fromAddress of each account in scheduling-mailbox.js.
   const selfAddress =
-    sport === 'basketball' ? 'basketball@spielplanung.kscw.ch'
+    sport === 'basketball' ? 'spielplanung@basketball.kscw.ch'
       : sport === 'admin' ? 'admin@wiedisync.kscw.ch'
-        : 'volleyball@spielplanung.kscw.ch'
+        : 'spielplanung@volleyball.kscw.ch'
 
   const splitAddrs = (s: string | null | undefined) =>
     String(s || '').split(',').map((a) => a.trim()).filter(Boolean)
