@@ -5,7 +5,8 @@ import { useAttendanceStats } from './useAttendanceStats'
 import EmptyState from '../../components/EmptyState'
 import AttendanceTable from '../../components/AttendanceTable'
 import FinesDashboardCard from '../fines/FinesDashboardCard'
-import { todayLocal, mostRecent01June } from '../../utils/dateHelpers'
+import { todayLocal } from '../../utils/dateHelpers'
+import { seasonRolloverDate } from '../../utils/season'
 import { useCollection } from '../../lib/query'
 import { useMutation } from '../../hooks/useMutation'
 import LoadingSpinner from '../../components/LoadingSpinner'
@@ -27,7 +28,9 @@ export default function CoachDashboard({ teamId }: CoachDashboardProps) {
   const team = teamRows?.[0]
 
   const today = useMemo(() => todayLocal(), [])
-  const defaultFrom = useMemo(() => mostRecent01June(today), [today])
+  // The shared Jun-1 rollover anchor (season.ts) — was a second, untested
+  // inline copy of the same cutover fed by the device clock.
+  const defaultFrom = useMemo(() => seasonRolloverDate(), [])
   const defaultTo = today
 
   const syncedFrom = team?.dashboard_range_from ?? defaultFrom

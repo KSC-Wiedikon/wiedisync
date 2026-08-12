@@ -1,9 +1,5 @@
 import { buildEmailLayout, buildInfoCard, formatDateCH, weekday, FRONTEND_URL, escHtml } from './email-template.js'
-import { currentSeasonShort } from './season.js'
 import { writeUserLog } from './activity-log.js'
-
-/** Get current season in Wiedisync short form, e.g. '2025/26' (matches teams.season, member_teams.season) */
-const getCurrentSeason = currentSeasonShort
 
 /**
  * Per-(user, event) rate limit for the notify fan-out. Mirrors the in-memory
@@ -120,14 +116,18 @@ export function registerEventNotify(router, { services, database, getSchema, log
       // invited_members are NOT expanded for them.
       const memberIds = new Set()
 
-      // 1. Team members (current season only)
+      // 1. Team members. NO season filter: `teamIds` comes from the event's own
+      // team links, and a teams row belongs to exactly one season by
+      // construction, so the FK already pins it. A season predicate here could
+      // only SUBTRACT — and did, silently, whenever member_teams.season lagged
+      // the clock (the column is a create-time stamp, uncoupled from the
+      // manually-run rollover). Note the coach/TR reads below never had one, so
+      // the two halves of the same audience disagreed.
       const allTeamIds = (event.teams ?? []).map(t => t.teams_id ?? t)
       const teamIds = elevated ? allTeamIds : allTeamIds.filter(t => ledTeamIds.has(Number(t)))
       if (teamIds.length > 0) {
-        const currentSeason = getCurrentSeason()
         const memberTeams = await db('member_teams')
           .whereIn('team', teamIds)
-          .where('season', currentSeason)
           .select('member')
         for (const mt of memberTeams) memberIds.add(String(mt.member))
 

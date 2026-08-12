@@ -51,8 +51,13 @@
  * and from UTC would move it two hours (which several of the old copies did).
  */
 
-/** Today's Zurich calendar date as [year, month(1-12), day]. */
-function zurichParts(now: Date): [number, number, number] {
+/**
+ * Today's Zurich calendar date as [year, month(1-12), day].
+ * Exported so the two DELIBERATE non-Jun-1 cutovers (the J+S Sep-1 activity
+ * year, `jsSeasonForDate`) can still derive their month from Zurich rather than
+ * the device clock — the boundary differs, the timezone must not.
+ */
+export function zurichParts(now: Date): [number, number, number] {
   // en-CA gives ISO-ordered YYYY-MM-DD, which is all we need from Intl.
   const [y, m, d] = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Europe/Zurich', year: 'numeric', month: '2-digit', day: '2-digit',
@@ -103,4 +108,18 @@ export function seasonRolloverDate(now: Date = new Date()): string {
 /** May 31 of the current season — the last fixture month. */
 export function seasonEndDate(now: Date = new Date()): string {
   return `${seasonStartYear(now) + 1}-05-31`
+}
+
+/**
+ * The season string containing a given `YYYY-MM-DD` calendar date — the same
+ * Jun-1 rule as `currentSeasonShort()`, but for an arbitrary day rather than
+ * today. Lives here so callers that need "which season was this game in?" stop
+ * reimplementing the cutover (scorer-roster.js had the fifth copy).
+ * Date-string in, date-string out: no timezone conversion, because a YMD is
+ * already a calendar date.
+ */
+export function seasonForYmd(ymd: string): string {
+  const [y, m] = String(ymd).split('-').map(Number)
+  const startYear = m < 6 ? y - 1 : y
+  return `${startYear}/${String(startYear + 1).slice(2)}`
 }

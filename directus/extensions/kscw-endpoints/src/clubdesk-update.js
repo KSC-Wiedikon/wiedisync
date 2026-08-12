@@ -2374,7 +2374,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       const candidates = []
       for (const r of rows) {
         const teams = await database('member_teams as mt').join('teams as t', 't.id', 'mt.team')
-          .where('mt.member', r.member_id).andWhere('mt.season', season).distinct('t.name')
+          .where('mt.member', r.member_id).andWhere('t.active', true).distinct('t.name')
         candidates.push({
           member_id: r.member_id,
           member_name: `${r.first_name || ''} ${r.last_name || ''}`.trim(),
@@ -2496,7 +2496,6 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
   router.get('/clubdesk-group-sync', async (req, res) => {
     try {
       if (!(await superGate(req))) return res.status(403).json({ error: 'Forbidden' })
-      const season = getCurrentSeason()
 
       // team → ClubDesk group token, now read from teams.clubdesk_group
       // (migration 205) instead of a hardcoded CASE. Three-state by design:
@@ -2505,11 +2504,16 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       //   else → the exact CD group token.
       // Only the '' rows are excluded here; NULL rows are excluded from the group
       // maths too but get reported, which is the whole point of the column.
+      // ⚠ t.active: this CTE feeds `strays`, which is the operator's work list
+      // for STRIPPING people from a group in the club's legal register — the one
+      // output here that drives a destructive proposal. Without it an archived
+      // team's roster competes with the live one and a season-lagged player is
+      // both invisible to `missing` and present in `strays`.
       const teamGroupCte = `
         tg AS (
           SELECT t.id, NULLIF(t.clubdesk_group, '') AS clubdesk_group, t.sport
           FROM teams t
-          WHERE t.clubdesk_group IS NOT NULL
+          WHERE t.clubdesk_group IS NOT NULL AND t.active
         )`
 
       // Non-playing fee categories: these legitimately have no roster row.
@@ -2528,8 +2532,9 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
           FROM member_teams mt
           JOIN tg ON tg.id = mt.team
           JOIN members m ON m.id = mt.member
-          WHERE mt.season = :season
-            AND tg.clubdesk_group IS NOT NULL AND m.clubdesk_id IS NOT NULL
+          -- No mt.season predicate: tg is active-teams-only, and a teams row
+          -- belongs to exactly one season, so the join already pins it.
+          WHERE tg.clubdesk_group IS NOT NULL AND m.clubdesk_id IS NOT NULL
         )
         SELECT e.member_id, e.first_name, e.last_name, e.clubdesk_id, e.grp, e.sport
         FROM expected e
@@ -2558,8 +2563,9 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
           FROM member_teams mt
           JOIN tg ON tg.id = mt.team
           JOIN members m ON m.id = mt.member
-          WHERE mt.season = :season
-            AND tg.clubdesk_group IS NOT NULL AND m.clubdesk_id IS NOT NULL
+          -- No mt.season predicate: tg is active-teams-only, and a teams row
+          -- belongs to exactly one season, so the join already pins it.
+          WHERE tg.clubdesk_group IS NOT NULL AND m.clubdesk_id IS NOT NULL
         )
         SELECT e.member_id, e.first_name, e.last_name, e.clubdesk_id, e.uuid, e.sport,
                e.is_guest, e.stale_grp, e.want_grp,
@@ -2592,7 +2598,9 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
         FROM cd_groups cg
         JOIN team_groups tgr ON tgr.grp = cg.grp
         JOIN members m ON m.clubdesk_id = cg.clubdesk_id
-        WHERE NOT EXISTS (SELECT 1 FROM member_teams mt WHERE mt.member = m.id AND mt.season = :season)
+        WHERE NOT EXISTS (
+          SELECT 1 FROM member_teams mt JOIN teams t2 ON t2.id = mt.team
+          WHERE mt.member = m.id AND t2.active)
         ORDER BY cg.grp, m.last_name, m.first_name`
 
       const noTeamSql = `
@@ -2622,12 +2630,12 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
                COALESCE((
                  SELECT string_agg(DISTINCT t.name, ', ')
                  FROM member_teams mt JOIN teams t ON t.id = mt.team
-                 WHERE mt.member = m.id AND mt.season = :season AND COALESCE(mt.guest_level, 0) = 0
+                 WHERE mt.member = m.id AND t.active AND COALESCE(mt.guest_level, 0) = 0
                ), '') AS teams,
                COALESCE((
                  SELECT string_agg(DISTINCT t.sport, ', ')
                  FROM member_teams mt JOIN teams t ON t.id = mt.team
-                 WHERE mt.member = m.id AND mt.season = :season AND COALESCE(mt.guest_level, 0) = 0
+                 WHERE mt.member = m.id AND t.active AND COALESCE(mt.guest_level, 0) = 0
                ), '') AS sports
         FROM members m
         JOIN cd ON cd.cdid = m.clubdesk_id
@@ -2681,8 +2689,8 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
           AND BTRIM(COALESCE(m.beitragskategorie, '')) <> ''
           AND BTRIM(COALESCE(m.beitragskategorie, '')) <> ALL (:nonPlaying)
           AND NOT EXISTS (
-            SELECT 1 FROM member_teams mt
-            WHERE mt.member = m.id AND mt.season = :season AND COALESCE(mt.guest_level, 0) = 0
+            SELECT 1 FROM member_teams mt JOIN teams t2 ON t2.id = mt.team
+            WHERE mt.member = m.id AND t2.active AND COALESCE(mt.guest_level, 0) = 0
           )
         ORDER BY m.last_name, m.first_name`
 
@@ -2748,14 +2756,14 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
          ORDER BY m.last_name, m.first_name`
 
       const [missingRes, strayRes, noTeamRes, noGroupRes, coachRes, feeRes, unmappedRes, staleRes, honoraryRes] = await Promise.all([
-        database.raw(missingSql, { season }),
-        database.raw(straySql, { season }),
+        database.raw(missingSql),
+        database.raw(straySql),
         database.raw(noTeamSql),
-        database.raw(noGroupSql, { season }),
+        database.raw(noGroupSql),
         database.raw(coachNoGroupSql),
-        database.raw(feeNoRosterSql, { season, nonPlaying: NON_PLAYING_KAT }),
+        database.raw(feeNoRosterSql, { nonPlaying: NON_PLAYING_KAT }),
         database.raw(unmappedTeamsSql),
-        database.raw(staleFunktionSql, { season }),
+        database.raw(staleFunktionSql),
         database.raw(honoraryDriftSql),
       ])
 
@@ -2919,8 +2927,19 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       if (!departed) {
         return res.status(409).json({ error: 'ClubDesk contact is not in a departed status — refresh Data Health', code: 'not_departed' })
       }
+      // ⚠ Delete by MEMBERSHIP, not by season string. Keyed on the season this
+      // left a departed member's roster row alive whenever the stamp lagged, and
+      // every unseasoned reader (team page roster, mailbox `teams:` audience,
+      // LEADER policy scopes, sharedPlayerTeams) still counted them as squad —
+      // so they kept receiving team mail indefinitely while the admin was told
+      // deactivation succeeded. This is the write that made the read-side bugs
+      // permanent instead of self-healing. History stays reconstructable from
+      // the archived teams' own rows.
       const season = getCurrentSeason()
-      const dropped = await database('member_teams').where('member', memberId).andWhere('season', season).del()
+      const activeTeamIds = await database('teams').where('active', true).pluck('id')
+      const dropped = activeTeamIds.length
+        ? await database('member_teams').where('member', memberId).whereIn('team', activeTeamIds).del()
+        : 0
       await database('members').where('id', memberId)
         .update({ kscw_membership_active: false, wiedisync_active: false })
       await writeUserLog(database, log, {

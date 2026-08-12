@@ -436,10 +436,38 @@ export async function resolveMemberAudience(database, log, spec, label = 'audien
       return rows.map(r => r.id).filter(Boolean)
     }
     case 'teams': {
-      const teamIds = parseJsonArray(spec.audience_teams).map(Number).filter(Number.isFinite)
+      let teamIds = parseJsonArray(spec.audience_teams).map(Number).filter(Number.isFinite)
       if (teamIds.length === 0) {
         log?.warn?.({ msg: `[${label}] audience_type=teams but audience_teams is empty — skipping fanout` })
         return []
+      }
+      // ⚠ Honour opts.season. `team:` is declared season-scopable by the mailbox
+      // picker (SEASON_SCOPED_PREFIXES in mailbox-audience-select.js), but this
+      // branch used to ignore the option entirely — so choosing "Last season ▸
+      // D1" silently mailed THIS season's D1. A wrong-cohort send, and one the
+      // operator had explicitly clicked two chips to avoid. A teams row exists
+      // once per season, so resolve the sibling sharing `team_id` (the
+      // rollover's own idempotency key), falling back to name+sport as the
+      // rollover does. An id with no sibling for that season is dropped rather
+      // than silently mailed.
+      if (opts.season) {
+        const requested = await database('teams')
+          .whereIn('id', teamIds).select('id', 'season', 'team_id', 'name', 'sport')
+        const resolved = []
+        for (const row of requested) {
+          if (row.season === opts.season) { resolved.push(Number(row.id)); continue }
+          const sib = await database('teams')
+            .where('season', opts.season)
+            .where(function () {
+              if (row.team_id) this.where('team_id', row.team_id)
+              else this.where('name', row.name).where('sport', row.sport)
+            })
+            .first('id')
+          if (sib) resolved.push(Number(sib.id))
+          else log?.warn?.({ msg: `[${label}] team ${row.id} (${row.name}) has no row for season ${opts.season} — dropped from the audience` })
+        }
+        teamIds = resolved
+        if (teamIds.length === 0) return []
       }
       const candidates = await membersOnTeams(database, teamIds)
       if (candidates.length === 0) return []

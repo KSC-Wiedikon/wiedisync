@@ -156,23 +156,4 @@ describe('getDeadlineDate', () => {
   });
 });
 
-import { mostRecent01June } from '../dateHelpers'
 
-describe('mostRecent01June', () => {
-  it('returns the same year 06-01 when today is in or after June', () => {
-    expect(mostRecent01June('2026-06-01')).toBe('2026-06-01')
-    expect(mostRecent01June('2026-08-15')).toBe('2026-06-01')
-    expect(mostRecent01June('2026-12-31')).toBe('2026-06-01')
-  })
-
-  it('returns the previous year 06-01 when today is before June', () => {
-    expect(mostRecent01June('2026-05-05')).toBe('2025-06-01')
-    expect(mostRecent01June('2026-01-01')).toBe('2025-06-01')
-    expect(mostRecent01June('2026-05-31')).toBe('2025-06-01')
-  })
-
-  it('handles year boundaries correctly', () => {
-    expect(mostRecent01June('2027-06-01')).toBe('2027-06-01')
-    expect(mostRecent01June('2027-05-31')).toBe('2026-06-01')
-  })
-})
