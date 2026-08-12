@@ -5,7 +5,8 @@
  * (incoming) + SES SMTP (outgoing). Migadu's send quota is never consumed —
  * only a human sending from Migadu webmail touches it.
  *
- * FOUR accounts (see ACCOUNTS): volleyball@ / basketball@spielplanung.kscw.ch
+ * FOUR accounts (see ACCOUNTS): spielplanung@volleyball.kscw.ch /
+ * spielplanung@basketball.kscw.ch
  * for the Spielplanung dashboard, admin@wiedisync.kscw.ch for club
  * correspondence (migration 222), and vis_transfers@mail.kscw.ch for transfer
  * casework. The module name and the `scheduling_emails` table predate all but
@@ -38,7 +39,7 @@
  * configured:false and the cron no-ops):
  *   SCHEDULING_IMAP_HOST      default imap.migadu.com
  *   SCHEDULING_IMAP_PORT      default 993
- *   SCHEDULING_IMAP_USER      default volleyball@spielplanung.kscw.ch
+ *   SCHEDULING_IMAP_USER      default spielplanung@volleyball.kscw.ch
  *   SCHEDULING_IMAP_PASSWORD  required to activate
  *   SCHEDULING_MAILBOX_SYNC_DAYS  IMAP search window, default 60
  *   ADMIN_MAILBOX_IMAP_USER      default admin@wiedisync.kscw.ch
@@ -80,7 +81,8 @@ const SYNC_DAYS = Number(process.env.SCHEDULING_MAILBOX_SYNC_DAYS || 60)
 // once its IMAP password env is set — volleyball keeps the original
 // SCHEDULING_IMAP_PASSWORD name for back-compat, basketball adds a *_BASKETBALL
 // pair. Outgoing mail is sent from each account's own address (DKIM-aligned for
-// spielplanung.kscw.ch) with its own branded signature. FROM_NAME stays in sync
+// that account's own domain — volleyball.kscw.ch / basketball.kscw.ch, each an
+// SES identity in its own right) with its own branded signature. FROM_NAME stays in sync
 // with SCHEDULING_FROM_NAME in game-scheduling.js for the volleyball account.
 // Exported so other modules send FROM the same identity instead of re-declaring
 // it (basketball-portal.js uses ACCOUNTS.basketball for the club-portal mail).
@@ -88,11 +90,11 @@ const SYNC_DAYS = Number(process.env.SCHEDULING_MAILBOX_SYNC_DAYS || 60)
 export const ACCOUNTS = {
   volleyball: {
     sport: 'volleyball',
-    imapUser: process.env.SCHEDULING_IMAP_USER || 'volleyball@spielplanung.kscw.ch',
+    imapUser: process.env.SCHEDULING_IMAP_USER || 'spielplanung@volleyball.kscw.ch',
     imapPassword: process.env.SCHEDULING_IMAP_PASSWORD || '',
-    fromAddress: 'volleyball@spielplanung.kscw.ch',
+    fromAddress: 'spielplanung@volleyball.kscw.ch',
     fromName: 'KSCW VB Spielplanung',
-    msgIdDomain: 'spielplanung.kscw.ch',
+    msgIdDomain: 'volleyball.kscw.ch',
     signatureHtml: SCHEDULING_SIGNATURE_LIGHT_HTML,
     signatureText: SCHEDULING_SIGNATURE_TEXT,
     // Google Group the mailbox re-mails inbound correspondence to (option 4:
@@ -102,11 +104,11 @@ export const ACCOUNTS = {
   },
   basketball: {
     sport: 'basketball',
-    imapUser: process.env.SCHEDULING_IMAP_USER_BASKETBALL || 'basketball@spielplanung.kscw.ch',
+    imapUser: process.env.SCHEDULING_IMAP_USER_BASKETBALL || 'spielplanung@basketball.kscw.ch',
     imapPassword: process.env.SCHEDULING_IMAP_PASSWORD_BASKETBALL || '',
-    fromAddress: 'basketball@spielplanung.kscw.ch',
+    fromAddress: 'spielplanung@basketball.kscw.ch',
     fromName: 'KSCW BB Spielplanung',
-    msgIdDomain: 'spielplanung.kscw.ch',
+    msgIdDomain: 'basketball.kscw.ch',
     signatureHtml: SCHEDULING_SIGNATURE_BASKETBALL_LIGHT_HTML,
     signatureText: SCHEDULING_SIGNATURE_BASKETBALL_TEXT,
     groupAddress: (process.env.SCHEDULING_GROUP_ADDRESS_BASKETBALL || '').trim().toLowerCase(),
@@ -147,7 +149,7 @@ export const ACCOUNTS = {
   // shared machinery expects one.
   //
   // ⚠ mail.kscw.ch is a DIFFERENT domain from the other three boxes
-  // (spielplanung.kscw.ch / wiedisync.kscw.ch) but the same Migadu tenant — its
+  // (volleyball.kscw.ch / basketball.kscw.ch / wiedisync.kscw.ch) but the same Migadu tenant — its
   // MX is aspmx1/aspmx2.migadu.com, so SCHEDULING_IMAP_HOST still applies.
   vis_transfers: {
     sport: 'vis_transfers',
@@ -438,7 +440,7 @@ async function syncFolder(client, database, log, folder, direction, since, acct)
 // Migadu's transparent forward keeps the external sender's From, so Google
 // Groups spoof-rejects mail from -all/no-DMARC domains (e.g. svrz.ch) and it
 // never posts. Instead we re-mail qualifying inbound AS the mailbox itself
-// (DKIM-aligned for spielplanung.kscw.ch → authenticates → posts), with
+// (DKIM-aligned for volleyball.kscw.ch → authenticates → posts), with
 // Reply-To pointed back at the original sender so replies still reach them.
 
 const SWISS_DT = new Intl.DateTimeFormat('de-CH', {
@@ -905,7 +907,7 @@ export function registerSchedulingMailbox(router, { database, logger }) {
   // comes from `?sport=` (query, so auth runs before the multipart body is read;
   // defaults to volleyball for legacy callers). Raw MIME via MailComposer so we
   // own Message-ID + threading headers; sent over the container's SES SMTP
-  // (DKIM-aligned for spielplanung.kscw.ch), then appended to Migadu Sent.
+  // (DKIM-aligned for the account's own domain), then appended to Migadu Sent.
   const replyHandler = (getAcct) => async (req, res) => {
     const acct = getAcct(req)
     if (!acct) return res.status(400).json({ error: 'Unknown mailbox' })

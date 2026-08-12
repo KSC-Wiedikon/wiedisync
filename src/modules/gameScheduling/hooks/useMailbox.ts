@@ -4,7 +4,7 @@ import type { GameSchedulingOpponent } from '../../../types'
 
 /**
  * Embedded mailbox for the Terminplanung dashboard — a synced copy of the
- * volleyball@spielplanung.kscw.ch Migadu mailbox (see kscw-endpoints
+ * spielplanung@volleyball.kscw.ch Migadu mailbox (see kscw-endpoints
  * scheduling-mailbox.js). Opponent matching happens here, client-side, by
  * address intersection with game_scheduling_opponents.contact_email — no FK,
  * nothing to go stale when contacts change.

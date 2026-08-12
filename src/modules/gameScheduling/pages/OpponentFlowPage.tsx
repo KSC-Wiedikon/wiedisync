@@ -14,7 +14,7 @@ import LanguageDropdown from '../../../components/LanguageDropdown'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
-const SUPPORT_EMAIL = 'volleyball@spielplanung.kscw.ch'
+const SUPPORT_EMAIL = 'spielplanung@volleyball.kscw.ch'
 
 export default function OpponentFlowPage() {
   const { token } = useParams<{ token: string }>()

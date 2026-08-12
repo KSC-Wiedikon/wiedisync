@@ -38,7 +38,7 @@ import DatePicker from '@/components/ui/DatePicker'
  * the 32-hex token alone.
  */
 
-const SUPPORT_EMAIL = 'basketball@spielplanung.kscw.ch'
+const SUPPORT_EMAIL = 'spielplanung@basketball.kscw.ch'
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const MAX_ALTERNATIVES = 3
 

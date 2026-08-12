@@ -12,7 +12,7 @@ import { Badge } from '../../../components/ui/badge'
 import LanguageDropdown from '../../../components/LanguageDropdown'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-const SUPPORT_EMAIL = 'volleyball@spielplanung.kscw.ch'
+const SUPPORT_EMAIL = 'spielplanung@volleyball.kscw.ch'
 
 type ConfirmTarget = { oppId: string; side: 'home' | 'away' }
 

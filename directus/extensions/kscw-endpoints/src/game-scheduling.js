@@ -15,9 +15,9 @@ import { seasonStartYear } from './season.js'
 
 const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET || ''
 
-// Spielplanung mail identity. spielplanung.kscw.ch is SES-verified (Easy DKIM),
+// Spielplanung mail identity. volleyball.kscw.ch is SES-verified (Easy DKIM),
 // so SES can send From it with DKIM-aligned DMARC. From + replies both land on
-// the dedicated Migadu mailbox volleyball@spielplanung.kscw.ch. (The kscw.ch
+// the dedicated Migadu mailbox spielplanung@volleyball.kscw.ch. (The kscw.ch
 // apex stays ClubDesk's — we never send from it.)
 //
 // We send scheduling mail through the SES SMTP transport directly (see
@@ -26,8 +26,8 @@ const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET || ''
 // treats `from` as the ADDRESS only, so a "Name <addr>" string collapses into a
 // quoted junk local-part. Owning the MIME lets the From header carry the proper
 // name below (and matches the mailbox reply path in scheduling-mailbox.js).
-const SCHEDULING_FROM = 'volleyball@spielplanung.kscw.ch'
-const SCHEDULING_REPLY_TO = 'volleyball@spielplanung.kscw.ch'
+const SCHEDULING_FROM = 'spielplanung@volleyball.kscw.ch'
+const SCHEDULING_REPLY_TO = 'spielplanung@volleyball.kscw.ch'
 // Display name on the From header of outgoing scheduling mail (invites,
 // reminders, confirmations). Keep in sync with FROM_NAME in scheduling-mailbox.js.
 const SCHEDULING_FROM_NAME = 'KSCW VB Spielplanung'
@@ -178,8 +178,8 @@ export function registerGameScheduling(router, { database, logger, services, get
     // Build our own MIME so the From header carries the real display name
     // ("KSCW VB Spielplanung <…>"); the Directus MailService can't (see the
     // identity comment above). Sent over the container's SES SMTP, DKIM-aligned
-    // for spielplanung.kscw.ch — same transport the mailbox reply path uses.
-    const messageId = `<${crypto.randomUUID()}@spielplanung.kscw.ch>`
+    // for volleyball.kscw.ch — same transport the mailbox reply path uses.
+    const messageId = `<${crypto.randomUUID()}@volleyball.kscw.ch>`
     const composer = new MailComposer({
       from: { name: SCHEDULING_FROM_NAME, address: SCHEDULING_FROM },
       to: toList,

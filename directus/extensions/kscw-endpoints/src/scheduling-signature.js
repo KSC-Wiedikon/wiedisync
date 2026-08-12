@@ -17,8 +17,8 @@
 import { FRONTEND_URL, escHtml } from './email-template.js'
 
 const LOGO_URL = `${FRONTEND_URL}/kscw_email_crest.png`
-const SIG_EMAIL = 'volleyball@spielplanung.kscw.ch'
-const SIG_EMAIL_BB = 'basketball@spielplanung.kscw.ch'
+const SIG_EMAIL = 'spielplanung@volleyball.kscw.ch'
+const SIG_EMAIL_BB = 'spielplanung@basketball.kscw.ch'
 const SIG_EMAIL_ADMIN = 'admin@wiedisync.kscw.ch'
 const SIG_WA_HREF = 'https://wa.me/41797891817'
 const SIG_WA_DISPLAY = '+41&nbsp;79&nbsp;789&nbsp;18&nbsp;17'
@@ -69,7 +69,7 @@ export const SCHEDULING_SIGNATURE_LIGHT_HTML =
 export const SCHEDULING_SIGNATURE_TEXT =
   sigText({ role: 'Spielplanung Volleyball', email: SIG_EMAIL, people: 'Luca · Martin · Hella', wa: 'WhatsApp (Notfall, Luca): +41 79 789 18 17' })
 
-// Basketball mailbox signature. PLACEHOLDER copy — basketball@spielplanung.kscw.ch
+// Basketball mailbox signature. PLACEHOLDER copy — spielplanung@basketball.kscw.ch
 // + the "Spielplanung Basketball" role only; the scheduler names + WhatsApp line
 // are intentionally omitted until the basketball operators supply them. Drop them
 // into the `people` / `waLabel` args here once known.

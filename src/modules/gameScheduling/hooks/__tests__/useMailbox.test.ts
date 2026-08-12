@@ -34,7 +34,7 @@ const makeMessage = (over: Partial<MailboxMessage>): MailboxMessage => ({
   direction: 'in',
   from_address: 'p.vitvera@bluewin.ch',
   from_name: 'Pavel Vitvera',
-  to_addresses: 'volleyball@spielplanung.kscw.ch',
+  to_addresses: 'spielplanung@volleyball.kscw.ch',
   cc_addresses: null,
   subject: null,
   snippet: null,
@@ -149,7 +149,7 @@ describe('messageMatchesContacts — Cc and Sent', () => {
   it('matches an inbound message that only Cc’s the opponent', () => {
     const msg = makeMessage({
       from_address: 'someone@else.ch',
-      to_addresses: 'volleyball@spielplanung.kscw.ch',
+      to_addresses: 'spielplanung@volleyball.kscw.ch',
       cc_addresses: 'opp@club.ch',
     })
     expect(messageMatchesContacts(msg, contacts)).toBe(true)
@@ -158,7 +158,7 @@ describe('messageMatchesContacts — Cc and Sent', () => {
   it('matches a Sent message addressed to the opponent', () => {
     const msg = makeMessage({
       direction: 'out',
-      from_address: 'volleyball@spielplanung.kscw.ch',
+      from_address: 'spielplanung@volleyball.kscw.ch',
       to_addresses: 'opp@club.ch',
       cc_addresses: null,
     })
@@ -168,7 +168,7 @@ describe('messageMatchesContacts — Cc and Sent', () => {
   it('matches a Sent message that only Cc’s the opponent', () => {
     const msg = makeMessage({
       direction: 'out',
-      from_address: 'volleyball@spielplanung.kscw.ch',
+      from_address: 'spielplanung@volleyball.kscw.ch',
       to_addresses: 'someone@else.ch',
       cc_addresses: 'opp@club.ch',
     })
