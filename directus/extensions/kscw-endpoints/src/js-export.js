@@ -163,7 +163,9 @@ export function registerJsExport(router, { database, logger }) {
         endYMD = e
       }
 
-      const team = await database('teams').where('id', teamId).first('id', 'name', 'sport')
+      const team = await database('teams')
+        .where('id', teamId)
+        .first('id', 'name', 'sport', 'season', 'team_id', 'active')
       if (!team) return res.status(404).json({ error: 'Team not found', code: 'no_team' })
 
       // Gate: caller must be an app-admin OR a coach/TR of this team.
@@ -181,10 +183,49 @@ export function registerJsExport(router, { database, logger }) {
 
       const gameMin = GAME_DURATION_MIN[team.sport] ?? 90
 
+      // ── Resolve the team LINEAGE ────────────────────────────────────────────
+      // A team exists once per season: the rollover clones it to a NEW id and
+      // archives the old row, keyed on `team_id` (falling back to the name) —
+      // see the `seen` set in game-scheduling.js rollover-season. The picker
+      // only ever offers ACTIVE teams, so exporting any season but the current
+      // one has to hop to the sibling row. Two separate needs:
+      //
+      //   rosterTeamId  — the row for the REQUESTED season. member_teams hangs
+      //                   off a season-specific team id, so this alone pins the
+      //                   roster; `mt.season` must NOT also be filtered (it is a
+      //                   create-time stamp, and every row on an active team
+      //                   carries the CURRENT season — which is why asking for
+      //                   last season returned zero participants and the CSV
+      //                   shipped leaders only, with no warning).
+      //   lineageIds    — EVERY season's row. Activities are split across them
+      //                   and not consistently: migration 107 re-pointed
+      //                   orphaned games onto the active team while past
+      //                   trainings stayed on the archived one (prod D1,
+      //                   last season: 16 trainings archived, 15 of 18 games
+      //                   active). The date window is what actually scopes the
+      //                   season here, so union the lineage and let it filter.
+      const lineage = await database('teams')
+        .where((qb) => {
+          if (team.team_id) qb.where('team_id', team.team_id)
+          else qb.where('name', team.name).where('sport', team.sport)
+        })
+        .select('id', 'season')
+      const lineageIds = [...new Set([String(team.id), ...lineage.map((t) => String(t.id))])]
+      const seasonRow = lineage.find((t) => t.season === season)
+      const rosterTeamId = seasonRow ? String(seasonRow.id) : (team.season === season ? String(team.id) : null)
+      if (!rosterTeamId) {
+        return res.status(404).json({
+          error: `This team has no roster for season ${season} (it exists for: ${
+            [...new Set(lineage.map((t) => t.season).filter(Boolean))].sort().join(', ') || 'no season'
+          })`,
+          code: 'no_team_for_season',
+        })
+      }
+
       // ── Activities ──────────────────────────────────────────────────────────
       const trainings = await database('trainings as t')
         .leftJoin('halls as h', 'h.id', 't.hall')
-        .where('t.team', teamId)
+        .whereIn('t.team', lineageIds)
         .where('t.date', '>=', startYMD).where('t.date', '<=', endYMD)
         .where('t.cancelled', false)
         .select(
@@ -196,13 +237,13 @@ export function registerJsExport(router, { database, logger }) {
         )
 
       const games = await database('games as g')
-        .where('g.kscw_team', teamId)
+        .whereIn('g.kscw_team', lineageIds)
         .where('g.date', '>=', startYMD).where('g.date', '<=', endYMD)
         .whereNot('g.status', 'cancelled')
         .whereNotNull('g.away_team').whereNotNull('g.time')
         .select('g.id as id', database.raw("to_char(g.date,'YYYY-MM-DD') as date_ymd"))
 
-      const evLinks = await database('events_teams').where('teams_id', teamId).select('events_id')
+      const evLinks = await database('events_teams').whereIn('teams_id', lineageIds).select('events_id')
       const linkedEventIds = [...new Set(evLinks.map((r) => r.events_id).filter((x) => x != null))]
       let events = []
       if (linkedEventIds.length) {
@@ -250,14 +291,17 @@ export function registerJsExport(router, { database, logger }) {
       activities.sort((a, b) => a.dateYMD.localeCompare(b.dateYMD) || a.type.localeCompare(b.type))
 
       // ── Roster (players) + leaders ──────────────────────────────────────────
+      // ⚠ No `mt.season` filter — `rosterTeamId` already pins the season (see
+      // the lineage block above). Adding it back reintroduces the zero-
+      // participant export.
       const playerRows = await database('member_teams as mt')
         .join('members as m', 'm.id', 'mt.member')
-        .where('mt.team', teamId).where('mt.season', season)
+        .where('mt.team', rosterTeamId)
         .andWhere((qb) => qb.whereNull('mt.guest_level').orWhere('mt.guest_level', 0))
         .select('m.id as id', 'm.first_name as first_name', 'm.last_name as last_name', 'm.js_id as js_id')
 
-      const coachRows = await database('teams_coaches').where('teams_id', teamId).select('members_id')
-      const trRows = await database('teams_responsibles').where('teams_id', teamId).select('members_id')
+      const coachRows = await database('teams_coaches').where('teams_id', rosterTeamId).select('members_id')
+      const trRows = await database('teams_responsibles').where('teams_id', rosterTeamId).select('members_id')
       const leaderIds = [...new Set([...coachRows, ...trRows].map((r) => r.members_id).filter((x) => x != null))]
       let leaderRows = []
       if (leaderIds.length) {
@@ -343,9 +387,21 @@ export function registerJsExport(router, { database, logger }) {
         }
       }
 
+      // A leaders-only roster is never a legitimate J+S export — it is the
+      // signature of a season/team mismatch, and it shipped silently for months
+      // because every "missing J+S id" array derives from playerRows too, so an
+      // empty roster produced an export with no warnings at all.
+      const emptyRoster = playerRows.length === 0 && leaderRows.length > 0
+      if (emptyRoster) {
+        log.warn({
+          msg: 'js-export: roster resolved to zero participants',
+          teamId, rosterTeamId, season, teamSeason: team.season, lineageIds,
+        })
+      }
+
       res.json({
         data: {
-          team: { id: team.id, name: team.name, sport: team.sport },
+          team: { id: team.id, name: team.name, sport: team.sport, rosterTeamId },
           season, seasonStart: startYMD, seasonEnd: endYMD,
           activities: activities.map((a) => ({ type: a.type, datum: a.datum, zeit: a.zeit, dauer: a.dauer, ort: a.ort })),
           attendance,
@@ -356,6 +412,7 @@ export function registerJsExport(router, { database, logger }) {
           warnings: {
             participantsMissingJsId: [...participantsMissingJsId].sort(),
             leadersMissingJsId: [...leadersMissingJsId].sort(),
+            emptyRoster,
           },
         },
       })

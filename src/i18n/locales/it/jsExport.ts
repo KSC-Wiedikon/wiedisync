@@ -17,6 +17,7 @@ export default {
   attendanceCsv: 'Presenze',
   noTeams: 'Nessuna squadra da esportare. L\'esportazione J+S è riservata ad allenatori e responsabili di squadra.',
   missingJsIdWarning: 'Alcune persone non hanno un numero J+S e sono state saltate',
+  emptyRosterWarning: 'Nessun partecipante per questa stagione — l\'export contiene solo monitori. Controlla la stagione selezionata.',
   leaders: 'Monitori',
   players: 'Giocatori',
   noActivities: 'Nessuna attività trovata per questa squadra e stagione.',
