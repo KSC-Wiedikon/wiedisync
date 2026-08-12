@@ -15,7 +15,6 @@ import { queryClient } from '../lib/query'
 import { setSentryUser, captureAuthError, captureApiError, addBreadcrumb, isTransientNetworkMessage } from '../lib/sentry'
 import i18n from '../i18n'
 import { backendLangToI18n } from '../utils/languageMap'
-import { getCurrentSeason } from '../utils/dateHelpers'
 import { LICENCE_TYPES } from '../types'
 import type { Member, Team, LicenceType } from '../types'
 import { AuthContext, type AuthContextValue, type MemberUser } from './useAuth'
@@ -97,8 +96,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           filter: { members_id: { _eq: memberId } },
           fields: ['teams_id'],
         }),
+        // ⚠ Gate on the TEAM being active, never on member_teams.season.
+        // `season` is a stamp written once at create time (no default, no
+        // restamp trigger), while getCurrentSeason() flips on a calendar date
+        // (Jun 1) and the rollover that writes the new rows is a MANUALLY
+        // clicked admin endpoint with no cron. The two are uncoupled, so this
+        // filter matched NOTHING for ~34h in 2026 (last 2025/26 row written
+        // 31.05 20:45 UTC, cutover 31.05 22:00 UTC, first 2026/27 row 02.06
+        // 08:39 UTC) — and an empty memberTeamIds denies RSVP club-wide,
+        // empties /teams, and blanks guestLevelByTeam so guests read as full
+        // players. `teams.active` is flipped in the SAME transaction that
+        // clones the roster onto the new team id, so it can never disagree.
+        // M2O walk, so no deep-M2M policy trap.
         fetchAllItems<{ team: number; guest_level: number }>('member_teams', {
-          filter: { member: { _eq: memberId }, season: { _eq: getCurrentSeason() } },
+          filter: { member: { _eq: memberId }, team: { active: { _eq: true } } },
           fields: ['team', 'guest_level'],
         }),
         fetchAllItems<Pick<Team, 'id' | 'name' | 'sport'>>('teams', {
@@ -138,9 +149,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const captainTeamIdsRaw = captainTeams.map(t => t.id).filter((id): id is number => id != null)
       const coachIdSet = new Set([...coachTeamIdsRaw.map(String), ...trTeamIdsRaw.map(String)])
 
-      // Intersect coach/TR/spielplaner ids with the ACTIVE team map. The
-      // member_teams + captain queries already scope to current season / active,
-      // but teams_coaches / teams_responsibles / spielplaner_assignments have no
+      // Intersect EVERY team list with the ACTIVE team map. The captain query
+      // scopes itself (:110) and member_teams now walks team.active, but
+      // teams_coaches / teams_responsibles / spielplaner_assignments have no
       // season column and are CLONED (not moved) on rollover — so after an
       // archive/rollover these junctions still point at the archived team.
       // teamMap holds only active teams; dropping ids not in it keeps these
@@ -155,8 +166,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSpielplanerTeamIds(
         spielplanerRows.map(r => r.kscw_team).filter((id): id is number => id != null).map(String).filter(id => teamMap.has(id)),
       )
-      setMemberTeamIds(memberTeamIdsRaw.map(String))
-      setMemberTeamNames(memberTeamIdsRaw.map(id => teamMap.get(String(id))?.name).filter((n): n is string => !!n))
+      // memberTeamIds was the ONE list not intersected here, so a team
+      // deactivated while its rows still matched leaked into canParticipateIn /
+      // canViewTeam / isApproved while memberTeamNames silently dropped it —
+      // ids and names disagreeing in length.
+      const activeMemberTeamIds = memberTeamIdsRaw.map(String).filter(id => teamMap.has(id))
+      setMemberTeamIds(activeMemberTeamIds)
+      setMemberTeamNames(activeMemberTeamIds.map(id => teamMap.get(id)?.name).filter((n): n is string => !!n))
 
       const sports = new Set<'volleyball' | 'basketball'>()
       for (const mt of memberTeams) {
