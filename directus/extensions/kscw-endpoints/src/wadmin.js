@@ -540,7 +540,14 @@ export function registerWadmin(router, ctx) {
     }
   })
 
-  router.put('/wadmin/scorer_courses/opnform/forms/:slug/closes', async (req, res) => {
+  // PATCH, not PUT — for the reason already documented on /wadmin/admins/:id below:
+  // Directus answers a preflight with `Access-Control-Allow-Methods:
+  // GET,POST,PATCH,DELETE`, so a cross-origin PUT from /admin on kscw.ch never left
+  // the browser. This route WAS a PUT, and because pushClosesToForms() is written to
+  // degrade quietly (a failed push warns on an already-saved course rather than
+  // failing the save), the deadline silently never reached OpnForm — the public card
+  // locked on `registration_closes` while the form itself kept accepting entries.
+  router.patch('/wadmin/scorer_courses/opnform/forms/:slug/closes', async (req, res) => {
     if (!(await guardScorer(req, res))) return
     const raw = req.body?.closes_at
     // null = reopen. Anything else must be a real instant: a bad string here would
