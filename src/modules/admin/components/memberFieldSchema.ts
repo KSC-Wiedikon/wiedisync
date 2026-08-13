@@ -137,8 +137,23 @@ export interface MemberFieldGroup {
   subsections?: MemberFieldSubsection[]
 }
 
-/** Virtual key for the player-roster multiselect. Never sent in a PATCH. */
+/**
+ * Virtual keys for the three team-link multiselects. Never sent in a PATCH —
+ * each writes rows in its own junction collection.
+ *
+ * ⚠ They are three separate relations, not one field with a role: a person can
+ * be a player on H2, coach of DU18 and team responsible for H3 at the same
+ * time, and coaching a team must NOT put them on its roster (they would show up
+ * in the squad, in RSVP counts and in the ClubDesk player group). See
+ * `teamLinks.ts` for the one place that says which collection each one writes.
+ */
 export const TEAMS_VIRTUAL_KEY = '__teams'
+export const COACH_VIRTUAL_KEY = '__coach_teams'
+export const TR_VIRTUAL_KEY = '__tr_teams'
+
+/** The three keys above, for "is this field a team link" tests. */
+export const TEAM_LINK_KEYS: ReadonlySet<string> =
+  new Set([TEAMS_VIRTUAL_KEY, COACH_VIRTUAL_KEY, TR_VIRTUAL_KEY])
 
 /**
  * Virtual key for the itemised fee card. Never sent in a PATCH — the amount is
@@ -357,11 +372,21 @@ const MEMBERSHIP = block('membership', undefined, [
   },
   {
     // Virtual: writes member_teams junction rows, never a `members` column.
-    // Coach / team-responsible / captain links stay in the read-only relations
-    // table below — one chip field cannot express three relation types without
-    // a role picker per chip.
     key: TEAMS_VIRTUAL_KEY, label: 'Teams (player)', kind: 'teamMulti', virtual: true,
-    help: 'Roster memberships only, across every season — a team row is per season, so the same team name appears once per year the member played it. Coach and team-responsible links are shown in the relations table below and are edited there.',
+    help: 'Roster memberships, across every season — a team row is per season, so the same team name appears once per year the member played it. Coaching and team-responsible links are the two fields next to this one; captain is set on the team itself.',
+  },
+  {
+    // Virtual: writes teams_coaches junction rows.
+    // ⚠ Adding a team here does NOT create a roster row, and must not: a coach
+    // on the roster appears in the squad, in RSVP counts and in the ClubDesk
+    // player group as though they played.
+    key: COACH_VIRTUAL_KEY, label: 'Teams (coach)', kind: 'teamMulti', virtual: true,
+    help: 'Teams this member coaches. Separate from the roster above — coaching a team does not put anybody in its squad, and a player-coach needs both fields.',
+  },
+  {
+    // Virtual: writes teams_responsibles junction rows.
+    key: TR_VIRTUAL_KEY, label: 'Teams (team responsible)', kind: 'teamMulti', virtual: true,
+    help: 'Teams this member is the responsible contact for. Also independent of the roster.',
   },
   {
     key: 'requested_team', label: 'Requested team', kind: 'team',
@@ -969,7 +994,7 @@ export function isBulkEditable(
   ctx: { isGlobalAdmin: boolean },
 ): boolean {
   if (def.bulkUnsafe) return false
-  if (def.key === TEAMS_VIRTUAL_KEY) return true
+  if (TEAM_LINK_KEYS.has(def.key)) return true
   if (def.virtual) return false
   return !isFieldReadOnly(def, ctx)
 }

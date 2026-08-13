@@ -689,8 +689,9 @@ export default {
   explorerFieldSeason: 'Season',
   explorerFieldActive: 'Active',
   explorerFieldCaptain: 'Captain',
+  explorerFieldPlayer: 'Player',
   explorerFieldCoach: 'Coach',
-  explorerFieldTeamResponsible: 'Team Responsible',
+  explorerFieldTeamResponsible: 'Team responsible',
   explorerFieldTeam: 'Team',
   explorerFieldDate: 'Date',
   explorerFieldStartDate: 'Start',
@@ -798,6 +799,7 @@ export default {
   explorerFieldsTeamsRemoved: 'Removed from {{team}}',
   explorerFieldsTeamsError: 'Could not change the team assignment',
   explorerFieldsTeamsRemoveConfirm: 'Remove {{name}} from {{team}}?',
+  explorerFieldsLinkRemoveConfirm: 'Remove {{name}} as {{relation}} of {{team}}?',
   explorerFieldsRequestedTeamNone: 'No team requested',
 
   // Explorer danger zone — status

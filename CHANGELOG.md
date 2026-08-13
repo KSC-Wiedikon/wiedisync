@@ -2,6 +2,15 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.85.0 — 2026-08-13
+
+### Assign coaches and team responsibles from the member
+
+- **A member's page now has three team fields instead of one:** Teams (player), Teams (coach) and Teams (team responsible). Until now only the roster could be edited there — coaching and team-responsible links had to be set from each team's own page, so answering "which teams does this person actually run?" meant opening every team in turn. The old routes still work and write the same records.
+- **They are deliberately three separate fields.** Putting somebody in as coach does not add them to the squad — a coach on the roster would appear in the team list, in attendance counts, in the table-duty pool and in the club register's player group as though they played. A player-coach is entered in both fields, which is what the club actually means.
+- **The help text on the roster field used to say coaching links were edited in the table below it.** They were not — that table is read-only. It now points at the right place.
+- **All three can be set for many members at once** from the bulk edit added in the last release, as add or remove only: replacing or clearing whole squads is not something a bulk action should offer.
+
 ## v1.84.0 — 2026-08-13
 
 ### Edit many members at once

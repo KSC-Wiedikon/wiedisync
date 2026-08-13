@@ -22,7 +22,7 @@
 //     never a shared array computed once. Bulk "add the coach role" has to leave
 //     each member's other roles alone, which is precisely what a `set` cannot do.
 
-import { TEAMS_VIRTUAL_KEY } from './memberFieldSchema'
+import { TEAM_LINK_KEYS } from './memberFieldSchema'
 
 /**
  * What one composed change does to each selected member.
@@ -34,7 +34,7 @@ import { TEAMS_VIRTUAL_KEY } from './memberFieldSchema'
 export type BulkMode = 'set' | 'clear' | 'add' | 'remove'
 
 export interface BulkFieldChange {
-  /** `members` column, or TEAMS_VIRTUAL_KEY for the roster. */
+  /** `members` column, or one of the three team-link virtual keys. */
   key: string
   mode: BulkMode
   /**
@@ -106,9 +106,9 @@ function applyListDelta(current: unknown, delta: unknown, mode: 'add' | 'remove'
  * change on that member. An empty object means "skip this member entirely";
  * the caller must not send it.
  *
- * TEAMS_VIRTUAL_KEY is dropped here on purpose: the roster is `member_teams`
- * junction rows, not a `members` column, and putting it in a PATCH body would
- * be a relational write. `computeRosterDelta` is its counterpart.
+ * The three team-link keys are dropped here on purpose: they are junction
+ * rows, not `members` columns, and putting one in a PATCH body would be a
+ * relational write. `computeRosterDelta` is their counterpart.
  */
 export function computeMemberPatch(
   record: Record<string, unknown>,
@@ -116,7 +116,7 @@ export function computeMemberPatch(
 ): Record<string, unknown> {
   const patch: Record<string, unknown> = {}
   for (const change of changes) {
-    if (change.key === TEAMS_VIRTUAL_KEY) continue
+    if (TEAM_LINK_KEYS.has(change.key)) continue
     const current = record[change.key]
     let next: unknown
     switch (change.mode) {
