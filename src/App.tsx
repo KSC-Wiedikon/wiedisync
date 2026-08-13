@@ -75,6 +75,7 @@ import ChangelogPage from './modules/changelog/ChangelogPage'
 import SupportPage from './modules/support/SupportPage'
 import { SentryErrorBoundary } from './lib/sentry'
 import { maybeReloadOnStaleChunk, reloadNow } from './lib/chunkReload'
+import NotFoundPage from '@/modules/common/NotFoundPage'
 
 const GuidePage = lazy(() => import('./modules/guide/GuidePage'))
 const HallenfinderPage = lazy(() => import('./modules/hallenfinder/HallenfinderPage'))
@@ -173,6 +174,13 @@ export default function App() {
           <Route path="terminplanung/:token" element={<SchedulingRedirect />} />
           <Route path="terminplanung/club/:token" element={<SchedulingRedirect />} />
           <Route path="terminplanung/bb/:token" element={<SchedulingRedirect />} />
+          {/* Safety net for any future scheduling link shape. The three explicit routes
+              above stay exactly as they are — this only catches depths nobody has
+              enumerated yet, which is how each of those came to be added in the first
+              place. SchedulingRedirect forwards the whole pathname, so depth is
+              irrelevant to it. Must precede the catch-all below, or a pasted opponent
+              link would get the 404 page instead of the redirect it needs. */}
+          <Route path="terminplanung/*" element={<SchedulingRedirect />} />
           <Route path="f/:slug" element={<PublicFormPage />} />
           {/* Guests' door — no AuthRoute by design. The token IS the
               authorisation; the page sends anyone with a session to /events/:id
@@ -266,6 +274,14 @@ export default function App() {
             <Route path="admin/animated-ui" element={<AdminRoute><Suspense fallback={null}><AnimatedUIPage /></Suspense></AdminRoute>} />
             <Route path="bugfixes" element={<SuperAdminRoute><BugfixDashboardPage /></SuperAdminRoute>} />
             <Route path="status" element={<AuthRoute><StatusPage /></AuthRoute>} />
+            {/* Catch-all. Until this existed, an unmatched path rendered a literally
+                BLANK page — which is why the terminplanung routes above had to be
+                enumerated one by one, each after someone hit that blank screen. Inside
+                <Layout> on purpose: the header and nav survive, so a mistyped URL is
+                one click from recovery rather than a dead end.
+                Last route in the tree — React Router ranks by specificity, but keeping
+                it last makes the intent unmistakable to the next reader. */}
+            <Route path="*" element={<NotFoundPage />} />
           </Route>
         </Routes>
       </PageReadyProvider>

@@ -207,4 +207,10 @@ export default {
   licenceStatus_ordered: 'Bestellt',
   licenceStatus_finalized: 'Abgeschlossen',
   licenceStatus_licenced: 'Lizenziert',
-} as const
+
+  // Not found (catch-all route)
+  notFoundTitle: 'Seite nicht gefunden',
+  notFoundText: 'Diese Seite gibt es nicht — oder nicht mehr. Vielleicht hat sich die Adresse geändert.',
+  notFoundHome: 'Zur Startseite',
+  notFoundBack: 'Zurück',
+}

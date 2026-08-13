@@ -21,6 +21,19 @@ export default {
   dataTechnicalText:
     'When visiting the website, technical information such as IP address and browser information is automatically processed by our hosting provider (Cloudflare).',
 
+  dataRegisterTitle:
+    'Master data for club administration and federations',
+  dataRegisterText:
+    'For club administration and federation registration we additionally record postal address, postcode and town, nationality, sex, AHV (social security) number and — for junior coaches — the J+S personal number. The AHV number is required for federation and J+S filings and is visible only to the board and administration.',
+  dataFinanceTitle:
+    'Payment and invoicing data',
+  dataFinanceText:
+    'To invoice membership fees we record the fee category, billing address and payment details (IBAN). This data is visible only to the board and the finance administration.',
+  dataIdentityTitle:
+    'Identity documents (end-to-end encrypted)',
+  dataIdentityText:
+    'Some federations require a copy of an identity document for a playing licence. It is encrypted in the member’s own browser (AES-256-GCM) and reaches our server only as ciphertext; the key is wrapped separately for the authorised people. Neither the server operator nor the administration can read the file without that key.',
+
   legalBasisTitle: '3. Legal basis',
   legalBasisText:
     'The processing of personal data is based on:',
@@ -45,6 +58,8 @@ export default {
     'Migadu (migadu.com) — Email delivery for notifications and reminders | Switzerland | DPA',
   thirdPartyHetzner:
     'Hetzner Online GmbH — Backend hosting (Directus) | Germany (Nuremberg datacenter) | DPA, GDPR-compliant',
+  thirdPartyClubDesk:
+    'ClubDesk (club administration, Switzerland): member master data including contact details, AHV number and payment details is synchronised with the ClubDesk club administration system, which is the original source of most of this data.',
   thirdPartySentry:
     'Sentry (sentry.io) — Error tracking and performance monitoring | EU (de.sentry.io, Germany) | DPA, GDPR-compliant. No personal data (name, email) is transmitted to Sentry.',
   thirdPartyCloudflareWorkers:

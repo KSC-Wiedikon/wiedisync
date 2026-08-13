@@ -207,4 +207,10 @@ export default {
   licenceStatus_ordered: 'Bstellt',
   licenceStatus_finalized: 'Fertig',
   licenceStatus_licenced: 'Lizenziert',
-} as const
+
+  // Not found (catch-all route)
+  notFoundTitle: 'Siite nöd gfunde',
+  notFoundText: 'Die Siite gits nöd — oder nüme. Villicht hät sich d Adrässe gänderet.',
+  notFoundHome: 'Zur Startsiite',
+  notFoundBack: 'Zrugg',
+}

@@ -21,6 +21,19 @@ export default {
   dataTechnicalText:
     'Quando si visita il sito web, informazioni tecniche come indirizzo IP e dati del browser vengono elaborate automaticamente dal nostro provider di hosting (Cloudflare).',
 
+  dataRegisterTitle:
+    'Dati anagrafici per amministrazione e federazioni',
+  dataRegisterText:
+    'Per l’amministrazione del club e l’iscrizione alle federazioni registriamo inoltre indirizzo postale, NAP e località, nazionalità, sesso, numero AVS e — per gli allenatori giovanili — il numero personale G+S. Il numero AVS è necessario per le notifiche alle federazioni e a G+S ed è visibile solo al comitato e all’amministrazione.',
+  dataFinanceTitle:
+    'Dati di pagamento e fatturazione',
+  dataFinanceText:
+    'Per fatturare le quote sociali registriamo la categoria di quota, l’indirizzo di fatturazione e le coordinate bancarie (IBAN). Questi dati sono visibili solo al comitato e all’amministrazione finanziaria.',
+  dataIdentityTitle:
+    'Documenti d’identità (cifratura end-to-end)',
+  dataIdentityText:
+    'Alcune federazioni richiedono una copia di un documento d’identità per la licenza di gioco. Viene cifrata già nel browser del membro (AES-256-GCM) e raggiunge il nostro server solo come testo cifrato; la chiave è incapsulata separatamente per le persone autorizzate. Né il gestore del server né l’amministrazione possono leggere il file senza tale chiave.',
+
   legalBasisTitle: '3. Base giuridica',
   legalBasisText:
     'Il trattamento dei dati personali si basa su:',
@@ -45,6 +58,8 @@ export default {
     'Migadu (migadu.com) — Invio email per notifiche e promemoria | Svizzera | DPA',
   thirdPartyHetzner:
     'Hetzner Online GmbH — Hosting backend (Directus) | Germania (datacenter di Norimberga) | DPA, conforme al GDPR',
+  thirdPartyClubDesk:
+    'ClubDesk (amministrazione del club, Svizzera): i dati anagrafici dei soci, inclusi recapiti, numero AVS e coordinate bancarie, sono sincronizzati con ClubDesk, da cui proviene gran parte di questi dati.',
   thirdPartySentry:
     'Sentry (sentry.io) — Tracciamento errori e monitoraggio prestazioni | UE (de.sentry.io, Germania) | DPA, conforme al GDPR. Nessun dato personale (nome, email) viene trasmesso a Sentry.',
   thirdPartyCloudflareWorkers:

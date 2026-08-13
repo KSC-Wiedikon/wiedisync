@@ -209,4 +209,10 @@ export default {
   licenceStatus_ordered: 'Ordered',
   licenceStatus_finalized: 'Finalized',
   licenceStatus_licenced: 'Licenced',
-} as const
+
+  // Not found (catch-all route)
+  notFoundTitle: 'Page not found',
+  notFoundText: 'This page does not exist — or no longer does. The address may have changed.',
+  notFoundHome: 'Go to home',
+  notFoundBack: 'Back',
+}

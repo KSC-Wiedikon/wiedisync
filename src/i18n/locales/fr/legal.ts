@@ -21,6 +21,19 @@ export default {
   dataTechnicalText:
     'Lors de la visite du site web, des informations techniques telles que l\'adresse IP et les informations du navigateur sont automatiquement traitees par notre hebergeur (Cloudflare).',
 
+  dataRegisterTitle:
+    'Données de base pour l’administration et les fédérations',
+  dataRegisterText:
+    'Pour l’administration du club et l’inscription auprès des fédérations, nous enregistrons également l’adresse postale, le NPA et la localité, la nationalité, le sexe, le numéro AVS ainsi que — pour les entraîneurs de la relève — le numéro de personne J+S. Le numéro AVS est requis pour les annonces aux fédérations et à J+S et n’est visible que par le comité et l’administration.',
+  dataFinanceTitle:
+    'Données de paiement et de facturation',
+  dataFinanceText:
+    'Pour facturer les cotisations, nous enregistrons la catégorie de cotisation, l’adresse de facturation et les coordonnées bancaires (IBAN). Ces données ne sont visibles que par le comité et l’administration des finances.',
+  dataIdentityTitle:
+    'Documents d’identité (chiffrés de bout en bout)',
+  dataIdentityText:
+    'Certaines fédérations exigent une copie d’une pièce d’identité pour la licence de jeu. Elle est chiffrée dans le navigateur du membre (AES-256-GCM) et ne parvient à notre serveur que sous forme chiffrée; la clé est encapsulée séparément pour les personnes autorisées. Ni l’exploitant du serveur ni l’administration ne peuvent lire le fichier sans cette clé.',
+
   legalBasisTitle: '3. Base juridique',
   legalBasisText:
     'Le traitement des donnees personnelles repose sur :',
@@ -45,6 +58,8 @@ export default {
     'Migadu (migadu.com) — Envoi d\'emails pour les notifications et rappels | Suisse | DPA',
   thirdPartyHetzner:
     'Hetzner Online GmbH — Hebergement backend (Directus) | Allemagne (centre de donnees de Nuremberg) | DPA, conforme au RGPD',
+  thirdPartyClubDesk:
+    'ClubDesk (administration de club, Suisse): les données de base des membres, y compris les coordonnées, le numéro AVS et les coordonnées bancaires, sont synchronisées avec ClubDesk, d’où provient la majeure partie de ces données.',
   thirdPartySentry:
     'Sentry (sentry.io) — Suivi des erreurs et monitoring de performance | UE (de.sentry.io, Allemagne) | DPA, conforme au RGPD. Aucune donnee personnelle (nom, email) n\'est transmise a Sentry.',
   thirdPartyCloudflareWorkers:
