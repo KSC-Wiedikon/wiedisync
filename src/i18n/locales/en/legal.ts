@@ -67,7 +67,7 @@ export default {
 
   retentionTitle: '5. Data retention',
   retentionText:
-    'Your personal data is retained for as long as you have an active account on the Platform. Upon request or when your membership ends, your data will be deleted within 30 days, unless a longer retention period is required by law. You can also delete your account at any time directly in your profile settings.',
+    'Your data is stored for as long as you have an active account. You can delete your account yourself at any time in the profile settings; deletion is immediate and covers the linked records. Ending your membership does not, however, delete your data automatically: some of it must be retained for legal reasons, in particular business and accounting records for ten years under Art. 958f of the Swiss Code of Obligations. Data not subject to a retention obligation is deleted on request via the contact address below.',
 
   storageTitle: '6. Data storage',
   storageServer:

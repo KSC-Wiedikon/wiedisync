@@ -67,7 +67,7 @@ export default {
 
   retentionTitle: '5. Aufbewahrungsfristen',
   retentionText:
-    'Ihre personenbezogenen Daten werden so lange gespeichert, wie Sie ein aktives Konto auf der Plattform haben. Nach einer Löschanfrage oder bei Beendigung der Mitgliedschaft werden Ihre Daten innerhalb von 30 Tagen gelöscht, sofern keine gesetzlichen Aufbewahrungspflichten entgegenstehen. Sie können Ihr Konto jederzeit selbst in den Profileinstellungen löschen.',
+    'Solange Sie ein aktives Konto haben, bleiben Ihre Daten gespeichert. Sie können Ihr Konto jederzeit selbst in den Profileinstellungen löschen; die Löschung erfolgt unmittelbar und umfasst die verknüpften Datensätze. Das Ende der Mitgliedschaft führt hingegen nicht automatisch zur Löschung: Ein Teil der Daten muss aus gesetzlichen Gründen weiter aufbewahrt werden, insbesondere Geschäfts- und Buchungsunterlagen während zehn Jahren nach Art. 958f OR. Daten, die keiner Aufbewahrungspflicht unterliegen, löschen wir auf Anfrage über die unten genannte Kontaktadresse.',
 
   storageTitle: '6. Datenspeicherung',
   storageServer:

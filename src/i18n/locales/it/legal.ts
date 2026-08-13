@@ -67,7 +67,7 @@ export default {
 
   retentionTitle: '5. Conservazione dei dati',
   retentionText:
-    'I tuoi dati personali vengono conservati per tutto il tempo in cui possiedi un account attivo sulla piattaforma. Su richiesta o al termine della tua appartenenza al club, i tuoi dati verranno cancellati entro 30 giorni, salvo che un periodo di conservazione più lungo sia previsto dalla legge. Puoi anche eliminare il tuo account in qualsiasi momento direttamente dalle impostazioni del profilo.',
+    'I tuoi dati restano memorizzati finché disponi di un account attivo. Puoi eliminare il tuo account in qualsiasi momento nelle impostazioni del profilo; l’eliminazione è immediata e comprende i record collegati. La fine dell’affiliazione non comporta invece un’eliminazione automatica: una parte dei dati deve essere conservata per motivi legali, in particolare i documenti commerciali e contabili per dieci anni secondo l’art. 958f CO. I dati non soggetti a obbligo di conservazione vengono eliminati su richiesta tramite l’indirizzo di contatto indicato sotto.',
 
   storageTitle: '6. Archiviazione dei dati',
   storageServer:

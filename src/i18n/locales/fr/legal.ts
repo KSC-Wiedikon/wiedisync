@@ -67,7 +67,7 @@ export default {
 
   retentionTitle: '5. Conservation des donnees',
   retentionText:
-    'Vos donnees personnelles sont conservees tant que vous disposez d\'un compte actif sur la plateforme. Sur demande ou a la fin de votre adhesion, vos donnees seront supprimees dans un delai de 30 jours, sauf si une duree de conservation plus longue est exigee par la loi. Vous pouvez egalement supprimer votre compte a tout moment directement dans les parametres de votre profil.',
+    'Vos données sont conservées tant que vous disposez d’un compte actif. Vous pouvez supprimer votre compte vous-même à tout moment dans les paramètres du profil; la suppression est immédiate et porte aussi sur les enregistrements liés. En revanche, la fin de l’affiliation n’entraîne pas de suppression automatique: une partie des données doit être conservée pour des raisons légales, en particulier les documents commerciaux et comptables pendant dix ans selon l’art. 958f CO. Les données non soumises à une obligation de conservation sont supprimées sur demande à l’adresse de contact ci-dessous.',
 
   storageTitle: '6. Stockage des donnees',
   storageServer:
