@@ -28,8 +28,16 @@ export function initSentry() {
     // Performance — sample 20% of transactions in prod, 100% in preview
     tracesSampleRate: isProd ? 0.2 : 1.0,
 
-    // Session replay — capture 10% normally, 100% on error
-    replaysSessionSampleRate: 0.1,
+    // Session replay — ONLY on error, never on a healthy session.
+    //
+    // Was 0.1, i.e. one in ten ordinary sessions of an internal tool was screen-recorded
+    // and sent to Sentry, while the privacy policy describes Sentry as error tracking
+    // and nothing more. Text and inputs are masked (see integrations below), but a
+    // replay still captures navigation, timing and interaction of a named member's
+    // session. Turning the ambient sampling off is a smaller change than widening the
+    // policy to cover it, and loses nothing: replays still attach to actual errors,
+    // which is the only case anyone debugs from.
+    replaysSessionSampleRate: 0,
     replaysOnErrorSampleRate: 1.0,
 
     integrations: [

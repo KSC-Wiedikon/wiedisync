@@ -189,6 +189,22 @@ export async function logout() {
   // sets; a raw SQL draft can embed member data pasted while debugging.
   localStorage.removeItem('kscw-sql-workspace-recent')
   localStorage.removeItem('kscw-sql-workspace-draft')
+
+  // Scorer-assignment drafts. The key is BUILT from sport + season
+  // (`kscw:scorer-assign-draft:${sport}:${season}`, ScorerAssignPage.tsx), so a fixed
+  // removeItem() would clear nothing and read as if it did — the exact failure the
+  // comment above records. Sweep by prefix instead. A draft holds who is assigned to
+  // which duty, i.e. member names, and these are edited on shared club laptops.
+  // Collect first: removing while iterating by index re-indexes the store and skips
+  // entries.
+  try {
+    const stale: string[] = []
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i)
+      if (key?.startsWith('kscw:scorer-assign-draft:')) stale.push(key)
+    }
+    stale.forEach((key) => localStorage.removeItem(key))
+  } catch { /* storage unavailable (private mode) — nothing to clear */ }
 }
 
 // Centralized refresh lock — prevents concurrent refreshes from consuming
