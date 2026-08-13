@@ -2497,6 +2497,10 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
     try {
       if (!(await superGate(req))) return res.status(403).json({ error: 'Forbidden' })
 
+      // Needed by the `fee_no_roster` severity badge (`prevSeason(season)`) and
+      // echoed in the response. Its absence 500'd this whole endpoint.
+      const season = getCurrentSeason()
+
       // team → ClubDesk group token, now read from teams.clubdesk_group
       // (migration 205) instead of a hardcoded CASE. Three-state by design:
       //   NULL → not configured → surfaced in `unmapped_teams` (never skipped)
