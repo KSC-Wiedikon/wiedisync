@@ -6,7 +6,9 @@
  * See docs/superpowers/specs/2026-04-22-game-scheduling-per-verein-invites-design.md
  */
 
-import { vmLogin, csrfFromPage, VM_BASE, UA } from './vm-client.mjs';
+import {
+  vmLogin, csrfFromPage, vmUseRole, VM_ROLE_CLUB, VM_ROLE_SPIELPLANER, VM_BASE, UA,
+} from './vm-client.mjs';
 
 /**
  * Build the URL-encoded POST body for the SVRZ /search endpoint.
@@ -415,6 +417,7 @@ export async function runSync({ seasonUuid, seasonName = '' }, io = {}) {
     getGameContacts = fetchGameContacts,
     upsert = upsertByPersistenceId,
     prune = pruneOrphanedGames,
+    useRole = vmUseRole,
   } = io;
 
   const username = process.env.VM_USERNAME;
@@ -461,16 +464,31 @@ export async function runSync({ seasonUuid, seasonName = '' }, io = {}) {
   let contactRows = [];
   try {
     console.log('[svrz-sync] Fetching contacts...');
+    // This is the ONE job the default club role cannot serve: under it the
+    // address viewer answers 200 with zero rows rather than 403, so the wrong
+    // role here reads as "this season has no Spielplan contacts" and the run
+    // still reports success. Claim the role before the index-page GET, since
+    // that GET is what scopes the module server-side.
+    await useRole(jar, VM_ROLE_SPIELPLANER);
     const contactsCtx = await csrf(jar, '/sportmanager.indoorvolleyball/playingscheduleresponsibleaddressviewer/index');
     const contacts = await getContacts(jar, contactsCtx, seasonUuid);
     contactRows = contacts.items.map(c => contactToSvrzRow(c, seasonUuid, seasonName));
     console.log(`[svrz-sync]   → ${contactRows.length}/${contacts.total} contacts`);
+    // Zero is never right for a live season, and it is what a lost role looks
+    // like here, so say so loudly instead of storing an empty success.
+    if (contactRows.length === 0) {
+      console.warn('[svrz-sync] ⚠ contacts returned 0 rows — check the VM role (expected ~130)');
+    }
     const upserted = await upsert('svrz_spielplaner_contacts', contactRows);
     console.log(`[svrz-sync]   contacts upsert: created=${upserted.created} updated=${upserted.updated}`);
     contactsResult = { ...upserted, total_fetched: contacts.items.length };
   } catch (err) {
     console.warn(`[svrz-sync] ⚠ contacts sync skipped (games sync unaffected): ${err.message}`);
     contactsResult = { skipped: true, error: err.message, created: 0, updated: 0, total_fetched: 0 };
+  } finally {
+    // Hand the session back on the default role — the team-responsible pass
+    // below and anything that reuses this jar expect it.
+    await useRole(jar, VM_ROLE_CLUB);
   }
 
   // Third pass — the per-team "Teamverantwortlicher" for EVERY opponent team,

@@ -162,12 +162,14 @@ test('contactToSvrzRow handles missing person.primaryPhoneNumber / primaryEmailA
 });
 
 import { runSync } from '../svrz-scheduling-sync.mjs';
+import { VM_ROLE_CLUB, VM_ROLE_SPIELPLANER } from '../vm-client.mjs';
 
 test('runSync GETs the contacts viewer index (module scope) before the contacts /search', async () => {
   process.env.VM_USERNAME = 'u'; process.env.VM_PASSWORD = 'p';
   const csrfPaths = [];
   const io = {
     login: async () => ({}),
+    useRole: async () => true,
     csrf: async (_jar, path) => { csrfPaths.push(path); return { csrf: 'c', wuid: 'w' }; },
     getGames: async () => ({ items: [{ __identity: 'g1', number: 1, status: 'open' }], total: 1 }),
     getContacts: async () => ({ items: [{ __identity: 'c1', club: { identifier: '1', name: 'X', teams: [] }, person: { firstName: 'A', lastName: 'B' } }], total: 1 }),
@@ -186,11 +188,51 @@ test('runSync GETs the contacts viewer index (module scope) before the contacts 
   assert.equal(result.contacts.created, 1);
 });
 
+test('runSync claims the Spielplaner role for contacts, then restores the club role', async () => {
+  process.env.VM_USERNAME = 'u'; process.env.VM_PASSWORD = 'p';
+  // The account is shared with svrz_rc and VM keeps ONE active role per
+  // account, so the contacts step must claim its own role and hand the session
+  // back. Under the club role the address viewer answers 200 with zero rows —
+  // it never 403s — so a lost switch here is silent.
+  const roles = [];
+  const io = {
+    login: async () => ({}),
+    useRole: async (_jar, role) => { roles.push(role); return true; },
+    csrf: async () => ({ csrf: 'c', wuid: 'w' }),
+    getGames: async () => ({ items: [{ __identity: 'g1', number: 1, status: 'open' }], total: 1 }),
+    getContacts: async () => ({ items: [{ __identity: 'c1', club: { identifier: '1', name: 'X', teams: [] }, person: { firstName: 'A', lastName: 'B' } }], total: 1 }),
+    upsert: async (_c, rows) => ({ created: rows.length, updated: 0, seen_count: rows.length }),
+  };
+  await runSync({ seasonUuid: 'uuid', seasonName: '2025/2026' }, io);
+  assert.deepEqual(roles, [VM_ROLE_SPIELPLANER, VM_ROLE_CLUB]);
+});
+
+test('runSync restores the club role even when the contacts step throws', async () => {
+  process.env.VM_USERNAME = 'u'; process.env.VM_PASSWORD = 'p';
+  const roles = [];
+  const io = {
+    login: async () => ({}),
+    useRole: async (_jar, role) => { roles.push(role); return true; },
+    csrf: async (_jar, path) => {
+      if (path.includes('playingscheduleresponsibleaddressviewer')) throw new Error('HTTP 403');
+      return { csrf: 'c', wuid: 'w' };
+    },
+    getGames: async () => ({ items: [{ __identity: 'g1', number: 1, status: 'open' }], total: 1 }),
+    getContacts: async () => { throw new Error('unreachable'); },
+    upsert: async (_c, rows) => ({ created: rows.length, updated: 0, seen_count: rows.length }),
+  };
+  await runSync({ seasonUuid: 'uuid', seasonName: '2025/2026' }, io);
+  // Leaving the session on the Spielplaner role would 403 the per-team
+  // responsible pass that runs straight after.
+  assert.deepEqual(roles, [VM_ROLE_SPIELPLANER, VM_ROLE_CLUB]);
+});
+
 test('runSync still syncs games when the contacts-page GET itself 403s (decoupled)', async () => {
   process.env.VM_USERNAME = 'u'; process.env.VM_PASSWORD = 'p';
   const upserted = [];
   const io = {
     login: async () => ({}),
+    useRole: async () => true,
     // game/index CSRF succeeds; the contacts index GET throws (e.g. 403).
     csrf: async (_jar, path) => {
       if (path.includes('playingscheduleresponsibleaddressviewer')) throw new Error('csrfFromPage contacts → HTTP 403');
@@ -213,6 +255,7 @@ test('runSync still syncs games when the contacts fetch fails (decoupled)', asyn
   const upserted = [];
   const io = {
     login: async () => ({}),
+    useRole: async () => true,
     csrf: async () => ({ csrf: 'c', wuid: 'w' }),
     getGames: async () => ({ items: [{ __identity: 'g1', number: 1, status: 'open' }], total: 1 }),
     getContacts: async () => { throw new Error('contacts endpoint HTTP 403'); },
@@ -230,6 +273,7 @@ test('runSync syncs both games and contacts when both pages are reachable', asyn
   process.env.VM_USERNAME = 'u'; process.env.VM_PASSWORD = 'p';
   const io = {
     login: async () => ({}),
+    useRole: async () => true,
     csrf: async () => ({ csrf: 'c', wuid: 'w' }),
     getGames: async () => ({ items: [{ persistenceObjectIdentifier: 'g1' }], total: 1 }),
     getContacts: async () => ({ items: [{ __identity: 'c1', club: { identifier: '1', name: 'X', teams: [] }, person: { firstName: 'A', lastName: 'B' } }], total: 1 }),
