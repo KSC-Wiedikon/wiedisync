@@ -11,6 +11,7 @@ import {
   countryCodesDisplay, federationDisplay, loadCountryDisplayNames, parseCodeList,
   sexDisplay, sexPushLabel,
 } from './federations.js'
+import { resolveMemberSportsDetailed } from './member-sport.js'
 
 /** Canonical form for an outgoing push cell; unrewritable values pass raw
  *  (result.value carries the raw input when ok is false). */
@@ -1262,6 +1263,18 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
     return ['superuser', 'admin'].some((r) => roles.includes(r))
   }
 
+  // Who is doing this. Raw-knex writes bypass Directus's automatic activity +
+  // revision trail, so any mutating route here has to capture the actor itself
+  // (CLAUDE.md → Audit logging). Same shape as game-scheduling.js's.
+  async function resolveActingUser(req) {
+    const userId = req.accountability?.user
+    if (!userId) return { name: null, email: null }
+    const m = await database('members').where('user', userId).first('first_name', 'last_name', 'email')
+    if (!m) return { name: null, email: null }
+    const name = [m.first_name, m.last_name].filter(Boolean).join(' ').trim() || null
+    return { name, email: m.email || null }
+  }
+
   // ── Read-only sync-status gate — wider than superGate ───────────────────────
   // The per-member ClubDesk sync verdict (/clubdesk-sync-status) is status-only
   // (no PII), consumed by the Data Explorer grid, so it opens to the same
@@ -2402,46 +2415,179 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
   // Fill-only members (wiedisync has data ClubDesk lacks) count as in_sync here —
   // those are benign one-way fills, not a mismatch (same reason Data Health
   // aggregates them away). Read-only; opened to admins + Vorstand + sport admins.
+  /**
+   * The per-member verdict itself, lifted out of its route so the merged
+   * /admin/data-health page can list WHO needs syncing without re-deriving the
+   * rule. Returns the member rows alongside the verdicts — callers that need
+   * names/sport already have them and need not re-query.
+   */
+  async function computeMemberSyncStatuses() {
+    const members = await database('members')
+      .where('kscw_membership_active', true)
+      .select('id', 'first_name', 'last_name', 'sektion', 'beitragskategorie',
+        'clubdesk_id', 'clubdesk_push_pending', 'clubdesk_sync_exclude')
+    // ClubDesk ids that actually exist in the register mirror → stale-link check.
+    const exportIds = await database('clubdesk_export')
+      .whereRaw("NULLIF(BTRIM(clubdesk_id), '') IS NOT NULL")
+      .distinct(database.raw('BTRIM(clubdesk_id) AS cdid'))
+    const present = new Set(exportIds.map((r) => r.cdid))
+    // Departed (same query as /clubdesk-departed, ids only).
+    const departedRows = await database
+      .select('m.id AS member_id')
+      .from('members as m')
+      .join('clubdesk_export as cd', database.raw('BTRIM(cd.clubdesk_id) = m.clubdesk_id'))
+      .where('m.kscw_membership_active', true)
+      .whereIn(database.raw('BTRIM(cd.status)'), DEPARTED_STATUSES)
+      .whereRaw("NULLIF(BTRIM(cd.austritt), '') IS NOT NULL")
+    const departed = new Set(departedRows.map((r) => String(r.member_id)))
+    // Real field conflicts (drift). Fill-only members are treated as in_sync.
+    const drift = await computeClubdeskDrift()
+    const drifted = new Set(drift.filter((c) => c.conflicts.length).map((c) => String(c.member_id)))
+
+    const statuses = {}
+    for (const m of members) {
+      const id = String(m.id)
+      let status
+      if (m.clubdesk_sync_exclude === true) status = 'excluded'
+      else if (!m.clubdesk_id) status = 'not_linked'
+      else if (!present.has(String(m.clubdesk_id).trim())) status = 'stale'
+      else if (departed.has(id)) status = 'departed'
+      else if (m.clubdesk_push_pending === true) status = 'pending'
+      else if (drifted.has(id)) status = 'drift'
+      else status = 'in_sync'
+      statuses[id] = status
+    }
+    return { statuses, members }
+  }
+
   router.get('/clubdesk-sync-status', async (req, res) => {
     try {
       if (!(await syncStatusGate(req))) return res.status(403).json({ error: 'Forbidden' })
-      const members = await database('members')
-        .where('kscw_membership_active', true)
-        .select('id', 'clubdesk_id', 'clubdesk_push_pending', 'clubdesk_sync_exclude')
-      // ClubDesk ids that actually exist in the register mirror → stale-link check.
-      const exportIds = await database('clubdesk_export')
-        .whereRaw("NULLIF(BTRIM(clubdesk_id), '') IS NOT NULL")
-        .distinct(database.raw('BTRIM(clubdesk_id) AS cdid'))
-      const present = new Set(exportIds.map((r) => r.cdid))
-      // Departed (same query as /clubdesk-departed, ids only).
-      const departedRows = await database
-        .select('m.id AS member_id')
-        .from('members as m')
-        .join('clubdesk_export as cd', database.raw('BTRIM(cd.clubdesk_id) = m.clubdesk_id'))
-        .where('m.kscw_membership_active', true)
-        .whereIn(database.raw('BTRIM(cd.status)'), DEPARTED_STATUSES)
-        .whereRaw("NULLIF(BTRIM(cd.austritt), '') IS NOT NULL")
-      const departed = new Set(departedRows.map((r) => String(r.member_id)))
-      // Real field conflicts (drift). Fill-only members are treated as in_sync.
-      const drift = await computeClubdeskDrift()
-      const drifted = new Set(drift.filter((c) => c.conflicts.length).map((c) => String(c.member_id)))
-
-      const statuses = {}
-      for (const m of members) {
-        const id = String(m.id)
-        let status
-        if (m.clubdesk_sync_exclude === true) status = 'excluded'
-        else if (!m.clubdesk_id) status = 'not_linked'
-        else if (!present.has(String(m.clubdesk_id).trim())) status = 'stale'
-        else if (departed.has(id)) status = 'departed'
-        else if (m.clubdesk_push_pending === true) status = 'pending'
-        else if (drifted.has(id)) status = 'drift'
-        else status = 'in_sync'
-        statuses[id] = status
-      }
+      const { statuses } = await computeMemberSyncStatuses()
       return res.json({ statuses })
     } catch (err) {
       log.error({ msg: `clubdesk-sync-status: ${err.message}`, endpoint: 'clubdesk-sync-status', stack: err.stack })
+      return res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  // ── "Who still needs syncing" — the same verdicts, as an actionable list ─────
+  // /clubdesk-sync-status answers "what is member X's state" for a grid that
+  // already holds the members. This answers the merged Data Health question
+  // instead: since the last sync down/up, WHO is out of step — with the name,
+  // the section (so the sport tabs can bucket them) and the last invoice, so the
+  // operator never has to leave the page to tell a lapsed member from a live one.
+  //
+  // `in_sync` and `excluded` are omitted: this is a worklist, not a census. The
+  // counts of both are returned so "0 rows" reads as "everyone is in step"
+  // rather than "the check stopped looking".
+  const NEEDS_SYNC_STATUSES = ['not_linked', 'stale', 'departed', 'pending', 'drift']
+  router.get('/clubdesk-needs-sync', async (req, res) => {
+    try {
+      if (!(await superGate(req))) return res.status(403).json({ error: 'Forbidden' })
+      const { statuses, members } = await computeMemberSyncStatuses()
+      const rows = members.filter((m) => NEEDS_SYNC_STATUSES.includes(statuses[String(m.id)]))
+
+      // Section per member, from the ONE server-side resolver. The detailed form
+      // is what lets the UI separate a genuinely dual-sport member from one whose
+      // section simply cannot be derived — they share the answer 'both'.
+      const sportById = await resolveMemberSportsDetailed(
+        database, rows.map((m) => m.id), { memberRows: rows })
+      const bills = await lastBillsByMember(rows.map((m) => m.id))
+
+      const sync = await database('clubdesk_member_sync').where('id', 1)
+        .first('down_finished_at', 'up_finished_at')
+
+      return res.json({
+        rows: rows.map((m) => {
+          const s = sportById.get(String(m.id)) || { sport: 'both', source: 'unknown' }
+          return {
+            member_id: m.id,
+            member_name: `${m.first_name || ''} ${m.last_name || ''}`.trim(),
+            clubdesk_id: m.clubdesk_id || '',
+            status: statuses[String(m.id)],
+            sport: s.sport,
+            // 'unknown' ⇒ the Unassigned tab. Never fold this into `sport` —
+            // 'both' would then claim the member plays two sports.
+            sport_source: s.source,
+            last_bill: bills.get(String(m.id)) || null,
+          }
+        }),
+        in_sync: Object.values(statuses).filter((s) => s === 'in_sync').length,
+        excluded: Object.values(statuses).filter((s) => s === 'excluded').length,
+        last_down: sync?.down_finished_at || null,
+        last_up: sync?.up_finished_at || null,
+      })
+    } catch (err) {
+      log.error({ msg: `clubdesk-needs-sync: ${err.message}`, endpoint: 'clubdesk-needs-sync', stack: err.stack })
+      return res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  /**
+   * Most recent invoice per member, across EVERY source.
+   *
+   * ⚠ Deliberately not filtered to `source='clubdesk'`. Dues are mid-migration off
+   * ClubDesk onto native wiedisync invoices, so a source filter would report a
+   * freshly-billed member as "never billed" the moment their invoice was issued
+   * here instead of there — the exact failure the column exists to catch.
+   *
+   * `open_amount` rides along because "billed" and "paid" are different questions
+   * and the operator is usually asking the second one.
+   */
+  async function lastBillsByMember(memberIds) {
+    const ids = [...new Set((memberIds || []).filter((v) => v !== null && v !== undefined))]
+    const out = new Map()
+    if (!ids.length) return out
+    // DISTINCT ON keeps this one index-friendly pass rather than a per-member
+    // subquery over ~2.7k invoices.
+    const rows = await database
+      .select('member', 'invoice_date', 'status', 'amount', 'open_amount', 'source', 'number')
+      .from(database.raw(
+        `(SELECT DISTINCT ON (member) member, invoice_date, status, amount, open_amount, source, number
+            FROM finance_invoices
+           WHERE member = ANY(?) AND cancelled_at IS NULL
+           ORDER BY member, invoice_date DESC NULLS LAST, id DESC) AS li`, [ids]))
+    for (const r of rows) {
+      out.set(String(r.member), {
+        date: r.invoice_date || null,
+        status: r.status || null,
+        amount: r.amount === null || r.amount === undefined ? null : Number(r.amount),
+        open: r.open_amount === null || r.open_amount === undefined ? null : Number(r.open_amount),
+        source: r.source || null,
+        number: r.number || null,
+      })
+    }
+    return out
+  }
+
+  // ── Per-member facets the merged Data Health page joins into every table ────
+  // The findings themselves arrive from several endpoints, each keyed by member.
+  // Rather than teach all of them about sections and invoices, this returns the
+  // two cross-cutting facets ONCE for the whole active club (~700 rows, small
+  // payload) and the page joins them client-side:
+  //   sports — which tab a member belongs under. `source: 'unknown'` is the
+  //            Unassigned tab; folding it into `sport` would make it 'both',
+  //            i.e. a claim the member plays two sports.
+  //   bills  — most recent invoice, so "billed as a player but on no roster"
+  //            can be judged without leaving the page.
+  // Superadmin: an invoice amount is finance data and this is not own-row scoped.
+  router.get('/clubdesk-member-facets', async (req, res) => {
+    try {
+      if (!(await superGate(req))) return res.status(403).json({ error: 'Forbidden' })
+      const rows = await database('members').where('kscw_membership_active', true)
+        .select('id', 'sektion', 'beitragskategorie')
+      const ids = rows.map((m) => m.id)
+      const [bills, sports] = await Promise.all([
+        lastBillsByMember(ids),
+        resolveMemberSportsDetailed(database, ids, { memberRows: rows }),
+      ])
+      return res.json({
+        bills: Object.fromEntries(bills),
+        sports: Object.fromEntries(sports),
+      })
+    } catch (err) {
+      log.error({ msg: `clubdesk-member-facets: ${err.message}`, endpoint: 'clubdesk-member-facets', stack: err.stack })
       return res.status(500).json({ error: 'Internal error' })
     }
   })
@@ -2493,410 +2639,680 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
   //     nobody has said which CD group it maps to. Such a team is invisible to
   //     every check above, so it must be flagged rather than silently skipped.
   // Superadmin-gated, read-only.
+  /**
+   * The group-consistency computation itself, lifted out of its route (2026-08-13)
+   * so the on-demand "Fix groups" job builds its worklist from THE SAME rows the
+   * operator just approved on screen.
+   *
+   * ⚠ Never re-derive these predicates anywhere else. Two copies of a scope rule
+   * is how one of them quietly stops matching the other (see member-sport.js) —
+   * and here the divergent copy would be the one writing to the club's LEGAL
+   * member register. `clubdesk-group-cleanup.sh` already carries a hand-mirrored
+   * copy of straySql/staleFunktionSql for the unattended Sunday run; that one is
+   * documented as a mirror and capped. Nothing else may fork them.
+   */
+  async function computeGroupChecks() {
+  // Needed by the `fee_no_roster` severity badge (`prevSeason(season)`) and
+  // echoed in the response. Its absence 500'd this whole endpoint.
+  const season = getCurrentSeason()
+
+  // team → ClubDesk group token, now read from teams.clubdesk_group
+  // (migration 205) instead of a hardcoded CASE. Three-state by design:
+  //   NULL → not configured → surfaced in `unmapped_teams` (never skipped)
+  //   ''   → intentionally no CD group (league umbrellas) → excluded
+  //   else → the exact CD group token.
+  // Only the '' rows are excluded here; NULL rows are excluded from the group
+  // maths too but get reported, which is the whole point of the column.
+  // ⚠ t.active: this CTE feeds `strays`, which is the operator's work list
+  // for STRIPPING people from a group in the club's legal register — the one
+  // output here that drives a destructive proposal. Without it an archived
+  // team's roster competes with the live one and a season-lagged player is
+  // both invisible to `missing` and present in `strays`.
+  const teamGroupCte = `
+    tg AS (
+      SELECT t.id, NULLIF(t.clubdesk_group, '') AS clubdesk_group, t.sport
+      FROM teams t
+      WHERE t.clubdesk_group IS NOT NULL AND t.active
+    )`
+
+  // Non-playing fee categories: these legitimately have no roster row.
+  // Anything else is a "playing" fee — being billed to play.
+  const NON_PLAYING_KAT = ['Passivmitglied', 'Gratis', 'Kein Beitrag']
+
+  // Guests (guest_level > 0) are expected in the team's '<group> (Guest)'
+  // subgroup, core players in '<group> (Spieler*in)' — one row per
+  // member_teams entry, so someone who is a guest on team A and core on
+  // team B is checked for both tokens independently.
+  // `uuid` + the bare Funktion ride along because this list IS the ADD worklist for
+  // clubdesk-scrape-groups.mjs: it filters the ClubDesk grid by the Wiedisync uuid
+  // (unique, accent- and drift-proof — the clubdesk_id is NOT grid-searchable) and
+  // picks Gruppe + Funktion as two separate combos, so the bracketed token has to
+  // come apart again. See CLAUDE.md → ClubDesk contact matching in the UI.
+  const missingSql = `
+    WITH ${teamGroupCte}, expected AS (
+      SELECT m.id AS member_id, m.first_name, m.last_name, m.clubdesk_id, m.uuid, tg.sport,
+             tg.clubdesk_group AS grp_base,
+             CASE WHEN COALESCE(mt.guest_level, 0) > 0
+                  THEN '${CD_GUEST_FUNKTION}' ELSE 'Spieler*in' END AS funktion,
+             (tg.clubdesk_group || CASE WHEN COALESCE(mt.guest_level, 0) > 0
+                                        THEN ' (${CD_GUEST_FUNKTION})' ELSE ' (Spieler*in)' END) AS grp
+      FROM member_teams mt
+      JOIN tg ON tg.id = mt.team
+      JOIN members m ON m.id = mt.member
+      -- No mt.season predicate: tg is active-teams-only, and a teams row
+      -- belongs to exactly one season, so the join already pins it.
+      WHERE tg.clubdesk_group IS NOT NULL AND m.clubdesk_id IS NOT NULL
+    )
+    SELECT e.member_id, e.first_name, e.last_name, e.clubdesk_id, e.uuid, e.grp, e.grp_base,
+           e.funktion, e.sport,
+           NULLIF(BTRIM(COALESCE(ce.vorname, '')), '') AS cd_vorname,
+           NULLIF(BTRIM(COALESCE(ce.nachname, '')), '') AS cd_nachname
+    FROM expected e
+    LEFT JOIN clubdesk_export ce ON BTRIM(ce.clubdesk_id) = e.clubdesk_id
+    WHERE NOT (e.grp = ANY(string_to_array(COALESCE(ce.gruppen_bracketed, ''), ', ')))
+    ORDER BY e.last_name, e.first_name, e.grp`
+
+  // stale_funktion — the member IS on the team, but their ClubDesk contact
+  // carries the OTHER Funktion for that same group. Same `expected` CTE shape
+  // as `missing`, only the predicate flips: there we assert the wanted token
+  // is absent, here we assert the unwanted one is present. `has_correct` says
+  // whether the right token sits alongside it (the usual case — then this is a
+  // pure removal; when false the member is ALSO in `missing`, i.e. one swap).
+  // `uuid` is carried because clubdesk-remove-group.mjs filters ClubDesk by
+  // the wiedisync uuid, never by name (name drift is real — "Berke-Wenger").
+  // The name is taken from the REGISTER (ce.vorname/ce.nachname) so the
+  // operator reads the row as ClubDesk spells it; wiedisync's is the fallback.
+  const staleFunktionSql = `
+    WITH ${teamGroupCte}, expected AS (
+      SELECT m.id AS member_id, m.first_name, m.last_name, m.clubdesk_id, m.uuid, tg.sport,
+             COALESCE(mt.guest_level, 0) > 0 AS is_guest,
+             (tg.clubdesk_group || CASE WHEN COALESCE(mt.guest_level, 0) > 0
+                                        THEN ' (${CD_GUEST_FUNKTION})' ELSE ' (Spieler*in)' END) AS want_grp,
+             (tg.clubdesk_group || CASE WHEN COALESCE(mt.guest_level, 0) > 0
+                                        THEN ' (Spieler*in)' ELSE ' (${CD_GUEST_FUNKTION})' END) AS stale_grp
+      FROM member_teams mt
+      JOIN tg ON tg.id = mt.team
+      JOIN members m ON m.id = mt.member
+      -- No mt.season predicate: tg is active-teams-only, and a teams row
+      -- belongs to exactly one season, so the join already pins it.
+      WHERE tg.clubdesk_group IS NOT NULL AND m.clubdesk_id IS NOT NULL
+    )
+    SELECT e.member_id, e.first_name, e.last_name, e.clubdesk_id, e.uuid, e.sport,
+           e.is_guest, e.stale_grp, e.want_grp,
+           NULLIF(BTRIM(COALESCE(ce.vorname, '')), '') AS cd_vorname,
+           NULLIF(BTRIM(COALESCE(ce.nachname, '')), '') AS cd_nachname,
+           (e.want_grp = ANY(string_to_array(COALESCE(ce.gruppen_bracketed, ''), ', '))) AS has_correct
+    FROM expected e
+    JOIN clubdesk_export ce ON BTRIM(ce.clubdesk_id) = e.clubdesk_id
+    WHERE e.stale_grp = ANY(string_to_array(COALESCE(ce.gruppen_bracketed, ''), ', '))
+    ORDER BY e.last_name, e.first_name, e.stale_grp`
+
+  const straySql = `
+    WITH ${teamGroupCte}, cd_groups AS (
+      SELECT BTRIM(ce.clubdesk_id) AS clubdesk_id, BTRIM(g) AS grp
+      FROM clubdesk_export ce, LATERAL unnest(string_to_array(ce.gruppen_bracketed, ', ')) AS g
+      WHERE g LIKE '%(Spieler*in)%'
+    ),
+    team_groups AS (
+      SELECT (clubdesk_group || ' (Spieler*in)') AS grp, string_agg(DISTINCT sport, ', ') AS sports
+      FROM tg WHERE clubdesk_group IS NOT NULL
+      GROUP BY clubdesk_group
+    )
+    SELECT cg.grp, tgr.sports, m.id AS member_id, m.first_name, m.last_name, cg.clubdesk_id,
+           m.uuid,
+           -- Inside the auto-remove envelope the Sunday cleanup cron already acts on
+           -- (clubdesk-group-cleanup.sh): the member HAS LEFT the club, or still
+           -- belongs but staffs a team rather than playing on one ("the Lasse
+           -- pattern"). Everything else is AMBIGUOUS — usually a missing wiedisync
+           -- roster row, not a wrong ClubDesk group — and must stay a human call.
+           -- ⚠ "Left" is a MEMBERSHIP fact only. Keying it on wiedisync_active (i.e.
+           -- "never activated a login", true for ~500 of 709 members) is what wiped
+           -- 29 DU20 girls out of ClubDesk on 2026-07-16.
+           (
+             EXISTS (SELECT 1 FROM clubdesk_export ce2
+                      WHERE BTRIM(ce2.clubdesk_id) = m.clubdesk_id
+                        AND (ce2.status IN ('Kein Mitglied', 'Ehemaliges Mitglied', 'Verstorben')
+                             OR COALESCE(BTRIM(ce2.austritt), '') <> ''))
+             OR m.kscw_membership_active = false
+             OR EXISTS (SELECT 1 FROM teams_coaches tc WHERE tc.members_id = m.id)
+             OR EXISTS (SELECT 1 FROM teams_responsibles tr WHERE tr.members_id = m.id)
+           ) AS auto_removable,
+           COALESCE(m.wiedisync_active, false) AS active,
+           (COALESCE(m.referee_vb,false) OR COALESCE(m.scorer_vb,false) OR COALESCE(m.referee_bb,false)
+            OR COALESCE(m.otr1_bb,false) OR COALESCE(m.otr2_bb,false)
+            OR COALESCE(m.otn1_bb,false) OR COALESCE(m.otn2_bb,false)) AS is_official,
+           COALESCE((SELECT string_agg(DISTINCT t2.name, ', ') FROM teams_coaches tc JOIN teams t2 ON t2.id = tc.teams_id WHERE tc.members_id = m.id), '') AS coach_of,
+           COALESCE((SELECT string_agg(DISTINCT t3.name, ', ') FROM teams_responsibles tr JOIN teams t3 ON t3.id = tr.teams_id WHERE tr.members_id = m.id), '') AS tr_of
+    FROM cd_groups cg
+    JOIN team_groups tgr ON tgr.grp = cg.grp
+    JOIN members m ON m.clubdesk_id = cg.clubdesk_id
+    WHERE NOT EXISTS (
+      SELECT 1 FROM member_teams mt JOIN teams t2 ON t2.id = mt.team
+      WHERE mt.member = m.id AND t2.active)
+    ORDER BY cg.grp, m.last_name, m.first_name`
+
+  const noTeamSql = `
+    WITH ${teamGroupCte}
+    SELECT BTRIM(g) AS grp, COUNT(DISTINCT BTRIM(ce.clubdesk_id))::int AS cnt
+    FROM clubdesk_export ce, LATERAL unnest(string_to_array(ce.gruppen_bracketed, ', ')) AS g
+    WHERE g LIKE '%(Spieler*in)%'
+      AND BTRIM(g) NOT IN (SELECT DISTINCT (clubdesk_group || ' (Spieler*in)') FROM tg WHERE clubdesk_group IS NOT NULL)
+    GROUP BY BTRIM(g)
+    ORDER BY cnt DESC, grp`
+
+  // no_group — linked members whose ClubDesk contact carries NO group token at
+  // all. Invisible to `missing`, which only inspects members who are ON a
+  // Wiedisync team: someone with no team AND no ClubDesk group is flagged by
+  // nothing else today. `teams` is annotated so the admin knows which group to
+  // assign — a no-group member WITH a team is the urgent case (they play, yet
+  // the register has them in nothing). Muted (sync-excluded) accounts skipped.
+  const noGroupSql = `
+    WITH cd AS (
+      SELECT DISTINCT ON (BTRIM(clubdesk_id)) BTRIM(clubdesk_id) AS cdid, gruppen_bracketed
+      FROM clubdesk_export
+      WHERE NULLIF(BTRIM(clubdesk_id), '') IS NOT NULL
+      ORDER BY BTRIM(clubdesk_id), row_id
+    )
+    SELECT m.id AS member_id, m.first_name, m.last_name, m.clubdesk_id,
+           COALESCE(NULLIF(BTRIM(m.beitragskategorie), ''), '') AS kat,
+           COALESCE((
+             SELECT string_agg(DISTINCT t.name, ', ')
+             FROM member_teams mt JOIN teams t ON t.id = mt.team
+             WHERE mt.member = m.id AND t.active AND COALESCE(mt.guest_level, 0) = 0
+           ), '') AS teams,
+           COALESCE((
+             SELECT string_agg(DISTINCT t.sport, ', ')
+             FROM member_teams mt JOIN teams t ON t.id = mt.team
+             WHERE mt.member = m.id AND t.active AND COALESCE(mt.guest_level, 0) = 0
+           ), '') AS sports
+    FROM members m
+    JOIN cd ON cd.cdid = m.clubdesk_id
+    WHERE m.kscw_membership_active
+      AND COALESCE(m.clubdesk_sync_exclude, false) = false
+      AND NULLIF(BTRIM(COALESCE(cd.gruppen_bracketed, '')), '') IS NULL
+    ORDER BY m.last_name, m.first_name`
+
+  // coach_no_group — a coach (teams_coaches) whose CD contact lacks the
+  // '<group> (Trainer*in)' token for a team they actually coach. 'Trainer*in'
+  // is the only coaching role token ClubDesk carries (there is no
+  // team-responsible equivalent), so TRs are out of scope by design.
+  const coachNoGroupSql = `
+    WITH ${teamGroupCte}, expected AS (
+      SELECT m.id AS member_id, m.first_name, m.last_name, m.clubdesk_id, m.uuid, tg.sport,
+             tg.clubdesk_group AS grp_base, 'Trainer*in' AS funktion,
+             (tg.clubdesk_group || ' (Trainer*in)') AS grp
+      FROM teams_coaches tc
+      JOIN tg ON tg.id = tc.teams_id
+      JOIN teams t ON t.id = tc.teams_id
+      JOIN members m ON m.id = tc.members_id
+      WHERE tg.clubdesk_group IS NOT NULL AND m.clubdesk_id IS NOT NULL
+        AND t.active AND m.kscw_membership_active
+        AND COALESCE(m.clubdesk_sync_exclude, false) = false
+    )
+    SELECT e.member_id, e.first_name, e.last_name, e.clubdesk_id, e.uuid, e.grp, e.grp_base,
+           e.funktion, e.sport,
+           NULLIF(BTRIM(COALESCE(ce.vorname, '')), '') AS cd_vorname,
+           NULLIF(BTRIM(COALESCE(ce.nachname, '')), '') AS cd_nachname
+    FROM expected e
+    LEFT JOIN clubdesk_export ce ON BTRIM(ce.clubdesk_id) = e.clubdesk_id
+    WHERE NOT (e.grp = ANY(string_to_array(COALESCE(ce.gruppen_bracketed, ''), ', ')))
+    ORDER BY e.last_name, e.first_name, e.grp`
+
+  // fee_no_roster — pays a PLAYING Beitragskategorie but sits on no
+  // current-season roster (guest rows don't count). Severity is derived from
+  // roster history so the admin can triage instead of facing one flat list:
+  //   never   — never on ANY roster (strongest signal)
+  //   lapsed  — was on last season's roster, not this one (left / not yet assigned)
+  //   older   — only has roster rows from an earlier season
+  // Coach/TR duties are annotated: a non-playing coach on a playing fee is a
+  // judgement call, not automatically an error.
+  const feeNoRosterSql = `
+    SELECT m.id AS member_id, m.first_name, m.last_name, m.clubdesk_id,
+           BTRIM(COALESCE(m.beitragskategorie, '')) AS kat,
+           (SELECT MAX(mt.season) FROM member_teams mt
+             WHERE mt.member = m.id AND COALESCE(mt.guest_level, 0) = 0) AS last_season,
+           COALESCE((SELECT string_agg(DISTINCT t2.name, ', ') FROM teams_coaches tc
+                      JOIN teams t2 ON t2.id = tc.teams_id WHERE tc.members_id = m.id), '') AS coach_of,
+           COALESCE((SELECT string_agg(DISTINCT t3.name, ', ') FROM teams_responsibles tr
+                      JOIN teams t3 ON t3.id = tr.teams_id WHERE tr.members_id = m.id), '') AS tr_of
+    FROM members m
+    WHERE m.kscw_membership_active
+      AND COALESCE(m.clubdesk_sync_exclude, false) = false
+      AND BTRIM(COALESCE(m.beitragskategorie, '')) <> ''
+      AND BTRIM(COALESCE(m.beitragskategorie, '')) <> ALL (:nonPlaying)
+      AND NOT EXISTS (
+        SELECT 1 FROM member_teams mt JOIN teams t2 ON t2.id = mt.team
+        WHERE mt.member = m.id AND t2.active AND COALESCE(mt.guest_level, 0) = 0
+      )
+    ORDER BY m.last_name, m.first_name`
+
+  // unmapped_teams — active teams with no ClubDesk group configured at all
+  // (clubdesk_group IS NULL). They are invisible to every group check, so a
+  // new/renamed team can never silently drop out of coverage.
+  const unmappedTeamsSql = `
+    SELECT t.id, t.name, t.sport
+    FROM teams t
+    WHERE t.active AND t.clubdesk_group IS NULL
+    ORDER BY t.sport, t.name`
+
+  // ── Honorary drift ──────────────────────────────────────────────────
+  // "Ehrenmitglied" is TWO facts in ClubDesk and they disagree: the
+  // Ehrenmitglieder GROUP is the honour (and the club's chosen truth — see
+  // MAILBOX_GROUPS), while the single-valued register Status doubles as the
+  // billing axis and therefore records an honorary member who still plays
+  // as 'Aktivmitglied'. Measured on prod 2026-08-10: 15 in the group, 12 by
+  // status, 10 both.
+  //
+  // Only the two ASYMMETRIC cases are reported, because only they are
+  // actionable:
+  //   status_only — the status says Ehrenmitglied but the group does not
+  //                 hold them, so the honour list (and every mailing built
+  //                 on it) is missing somebody.
+  //   fee         — in the group but NOT paying 'Gratis', i.e. an honorary
+  //                 member still being billed.
+  // The reverse (in the group, status 'Aktivmitglied') is the EXPECTED
+  // shape for a playing Ehrenmitglied and is deliberately NOT flagged —
+  // flagging it would report five correct rows forever.
+  const honoraryDriftSql = `
+    WITH cd AS (
+      SELECT DISTINCT ON (btrim(clubdesk_id)) btrim(clubdesk_id) AS cid, gruppen_bracketed
+        FROM clubdesk_export
+       WHERE NULLIF(btrim(clubdesk_id), '') IS NOT NULL
+       ORDER BY btrim(clubdesk_id), row_id
+    )
+    SELECT m.id AS member_id, m.first_name, m.last_name, m.clubdesk_id,
+           m.register_status, m.beitragskategorie,
+           -- An explicit CHF 0 base override is a waiver the treasurer
+           -- entered by hand (migration 299) and, unlike the category, one
+           -- ClubDesk cannot overwrite. Without this the check would report
+           -- "still billed" forever for somebody who is not: the category
+           -- reverts to the register's on every sync-down, the override
+           -- does not.
+           (m.fee_base_override IS NOT NULL AND m.fee_base_override = 0) AS fee_waived,
+           EXISTS (
+             SELECT 1 FROM unnest(string_to_array(cd.gruppen_bracketed, ',')) g
+              WHERE btrim(g) = 'Ehrenmitglieder'
+           ) AS in_group
+      FROM members m
+      JOIN cd ON cd.cid = m.clubdesk_id
+     WHERE m.kscw_membership_active = true
+       AND (
+         (m.register_status = 'Ehrenmitglied' AND NOT EXISTS (
+           SELECT 1 FROM unnest(string_to_array(cd.gruppen_bracketed, ',')) g
+            WHERE btrim(g) = 'Ehrenmitglieder'))
+         OR (EXISTS (
+           SELECT 1 FROM unnest(string_to_array(cd.gruppen_bracketed, ',')) g
+            WHERE btrim(g) = 'Ehrenmitglieder')
+           AND COALESCE(NULLIF(btrim(m.beitragskategorie), ''), '') <> 'Gratis')
+       )
+     ORDER BY m.last_name, m.first_name`
+
+  const [missingRes, strayRes, noTeamRes, noGroupRes, coachRes, feeRes, unmappedRes, staleRes, honoraryRes] = await Promise.all([
+    database.raw(missingSql),
+    database.raw(straySql),
+    database.raw(noTeamSql),
+    database.raw(noGroupSql),
+    database.raw(coachNoGroupSql),
+    database.raw(feeNoRosterSql, { nonPlaying: NON_PLAYING_KAT }),
+    database.raw(unmappedTeamsSql),
+    database.raw(staleFunktionSql),
+    database.raw(honoraryDriftSql),
+  ])
+
+  // Playing Beitragskategorien are 'VB '/'BB '-prefixed — the only sport
+  // signal for members with no roster row.
+  const katSport = (kat) => (kat || '').startsWith('VB ') ? 'volleyball'
+    : (kat || '').startsWith('BB ') ? 'basketball' : ''
+
+  // `missing` and `coach_no_group` share this shape. `groups` stays the display
+  // list; `allocations` is the machine-readable half the ADD worklist is built
+  // from — one entry per (Gruppe, Funktion) pair, because clubdesk-scrape-groups.mjs
+  // fills those as two separate combos rather than one bracketed token.
+  const foldByMember = (rows) => {
+    const byMember = new Map()
+    for (const r of rows) {
+      if (!byMember.has(r.member_id)) {
+        byMember.set(r.member_id, {
+          member_id: r.member_id,
+          member_name: `${r.first_name || ''} ${r.last_name || ''}`.trim(),
+          // ClubDesk's grid renders "Nachname Vorname"; carry its own spelling so
+          // an operator reading the preview sees the row as ClubDesk shows it.
+          clubdesk_name: [r.cd_nachname || r.last_name, r.cd_vorname || r.first_name].filter(Boolean).join(' '),
+          clubdesk_id: r.clubdesk_id,
+          uuid: r.uuid || '',
+          groups: [],
+          allocations: [],
+          sports: new Set(),
+        })
+      }
+      const c = byMember.get(r.member_id)
+      c.groups.push(r.grp)
+      c.allocations.push({ group: r.grp_base, funktion: r.funktion, label: r.grp })
+      if (r.sport) c.sports.add(r.sport)
+    }
+    return byMember
+  }
+
+  const coachByMember = foldByMember(coachRes.rows)
+
+  const fee_no_roster = feeRes.rows.map((r) => ({
+    member_id: r.member_id,
+    member_name: `${r.first_name || ''} ${r.last_name || ''}`.trim(),
+    clubdesk_id: r.clubdesk_id,
+    kat: r.kat || '',
+    sport: katSport(r.kat),
+    last_season: r.last_season || null,
+    coach_of: r.coach_of || '',
+    tr_of: r.tr_of || '',
+    // never > lapsed > older — drives the severity badge + sort order.
+    severity: !r.last_season ? 'never' : (r.last_season === prevSeason(season) ? 'lapsed' : 'older'),
+  }))
+
+  const unmapped_teams = unmappedRes.rows.map((r) => ({
+    team_id: r.id, name: r.name, sport: r.sport || '',
+  }))
+
+  const no_group = noGroupRes.rows.map((r) => ({
+    member_id: r.member_id,
+    member_name: `${r.first_name || ''} ${r.last_name || ''}`.trim(),
+    clubdesk_id: r.clubdesk_id,
+    teams: r.teams || '',
+    kat: r.kat || '',
+    // Teamless members fall back to the fee-category prefix.
+    sport: r.sports || katSport(r.kat),
+    has_team: !!r.teams,
+  }))
+
+  const missingByMember = foldByMember(missingRes.rows)
+
+  const strays = strayRes.rows.map((r) => ({
+    member_id: r.member_id,
+    member_name: `${r.first_name || ''} ${r.last_name || ''}`.trim(),
+    clubdesk_id: r.clubdesk_id,
+    uuid: r.uuid || '',
+    group: r.grp,
+    sport: r.sports || '',
+    // Only these are offered to "Fix groups"; the rest need a human to decide
+    // whether the truth is "remove from ClubDesk" or "add the missing roster row".
+    auto_removable: r.auto_removable === true,
+    active: r.active === true,
+    is_official: r.is_official === true,
+    coach_of: r.coach_of || '',
+    tr_of: r.tr_of || '',
+  }))
+
+  const no_team_groups = noTeamRes.rows.map((r) => ({ group: r.grp, count: r.cnt }))
+
+  // One row per stale allocation (a member can hold the wrong Funktion on more
+  // than one team), so this list IS the removal worklist — name/uuid/group are
+  // exactly clubdesk-remove-group.mjs's three input fields.
+  const stale_funktion = staleRes.rows.map((r) => ({
+    member_id: r.member_id,
+    member_name: `${r.first_name || ''} ${r.last_name || ''}`.trim(),
+    // ClubDesk's grid renders and filters on "Nachname Vorname".
+    clubdesk_name: [r.cd_nachname || r.last_name, r.cd_vorname || r.first_name].filter(Boolean).join(' '),
+    clubdesk_id: r.clubdesk_id,
+    uuid: r.uuid || '',
+    group: r.stale_grp,
+    expected: r.want_grp,
+    sport: r.sport || '',
+    is_guest: r.is_guest === true,
+    has_correct: r.has_correct === true,
+  }))
+
+  const honorary_drift = honoraryRes.rows.map((r) => ({
+    member_id: r.member_id,
+    member_name: `${r.first_name || ''} ${r.last_name || ''}`.trim(),
+    clubdesk_id: r.clubdesk_id,
+    register_status: r.register_status || '',
+    kat: r.beitragskategorie || '',
+    fee_waived: r.fee_waived === true,
+    in_group: r.in_group === true,
+    // 'status_only' → add them to the ClubDesk group (the honour list is
+    // short one name). 'fee' → they hold the honour but are still billed.
+    kind: r.in_group === true ? 'fee' : 'status_only',
+  }))
+
+  const flattenSports = (byMember) => [...byMember.values()]
+    .map(({ sports, ...rest }) => ({ ...rest, sport: [...sports].sort().join(', ') }))
+
+  return {
+    missing: flattenSports(missingByMember),
+    stale_funktion,
+    strays,
+    no_team_groups,
+    no_group,
+    coach_no_group: flattenSports(coachByMember),
+    fee_no_roster,
+    unmapped_teams,
+    honorary_drift,
+    season,
+  }
+  }
+
   router.get('/clubdesk-group-sync', async (req, res) => {
     try {
       if (!(await superGate(req))) return res.status(403).json({ error: 'Forbidden' })
-
-      // Needed by the `fee_no_roster` severity badge (`prevSeason(season)`) and
-      // echoed in the response. Its absence 500'd this whole endpoint.
-      const season = getCurrentSeason()
-
-      // team → ClubDesk group token, now read from teams.clubdesk_group
-      // (migration 205) instead of a hardcoded CASE. Three-state by design:
-      //   NULL → not configured → surfaced in `unmapped_teams` (never skipped)
-      //   ''   → intentionally no CD group (league umbrellas) → excluded
-      //   else → the exact CD group token.
-      // Only the '' rows are excluded here; NULL rows are excluded from the group
-      // maths too but get reported, which is the whole point of the column.
-      // ⚠ t.active: this CTE feeds `strays`, which is the operator's work list
-      // for STRIPPING people from a group in the club's legal register — the one
-      // output here that drives a destructive proposal. Without it an archived
-      // team's roster competes with the live one and a season-lagged player is
-      // both invisible to `missing` and present in `strays`.
-      const teamGroupCte = `
-        tg AS (
-          SELECT t.id, NULLIF(t.clubdesk_group, '') AS clubdesk_group, t.sport
-          FROM teams t
-          WHERE t.clubdesk_group IS NOT NULL AND t.active
-        )`
-
-      // Non-playing fee categories: these legitimately have no roster row.
-      // Anything else is a "playing" fee — being billed to play.
-      const NON_PLAYING_KAT = ['Passivmitglied', 'Gratis', 'Kein Beitrag']
-
-      // Guests (guest_level > 0) are expected in the team's '<group> (Guest)'
-      // subgroup, core players in '<group> (Spieler*in)' — one row per
-      // member_teams entry, so someone who is a guest on team A and core on
-      // team B is checked for both tokens independently.
-      const missingSql = `
-        WITH ${teamGroupCte}, expected AS (
-          SELECT m.id AS member_id, m.first_name, m.last_name, m.clubdesk_id, tg.sport,
-                 (tg.clubdesk_group || CASE WHEN COALESCE(mt.guest_level, 0) > 0
-                                            THEN ' (${CD_GUEST_FUNKTION})' ELSE ' (Spieler*in)' END) AS grp
-          FROM member_teams mt
-          JOIN tg ON tg.id = mt.team
-          JOIN members m ON m.id = mt.member
-          -- No mt.season predicate: tg is active-teams-only, and a teams row
-          -- belongs to exactly one season, so the join already pins it.
-          WHERE tg.clubdesk_group IS NOT NULL AND m.clubdesk_id IS NOT NULL
-        )
-        SELECT e.member_id, e.first_name, e.last_name, e.clubdesk_id, e.grp, e.sport
-        FROM expected e
-        LEFT JOIN clubdesk_export ce ON BTRIM(ce.clubdesk_id) = e.clubdesk_id
-        WHERE NOT (e.grp = ANY(string_to_array(COALESCE(ce.gruppen_bracketed, ''), ', ')))
-        ORDER BY e.last_name, e.first_name, e.grp`
-
-      // stale_funktion — the member IS on the team, but their ClubDesk contact
-      // carries the OTHER Funktion for that same group. Same `expected` CTE shape
-      // as `missing`, only the predicate flips: there we assert the wanted token
-      // is absent, here we assert the unwanted one is present. `has_correct` says
-      // whether the right token sits alongside it (the usual case — then this is a
-      // pure removal; when false the member is ALSO in `missing`, i.e. one swap).
-      // `uuid` is carried because clubdesk-remove-group.mjs filters ClubDesk by
-      // the wiedisync uuid, never by name (name drift is real — "Berke-Wenger").
-      // The name is taken from the REGISTER (ce.vorname/ce.nachname) so the
-      // operator reads the row as ClubDesk spells it; wiedisync's is the fallback.
-      const staleFunktionSql = `
-        WITH ${teamGroupCte}, expected AS (
-          SELECT m.id AS member_id, m.first_name, m.last_name, m.clubdesk_id, m.uuid, tg.sport,
-                 COALESCE(mt.guest_level, 0) > 0 AS is_guest,
-                 (tg.clubdesk_group || CASE WHEN COALESCE(mt.guest_level, 0) > 0
-                                            THEN ' (${CD_GUEST_FUNKTION})' ELSE ' (Spieler*in)' END) AS want_grp,
-                 (tg.clubdesk_group || CASE WHEN COALESCE(mt.guest_level, 0) > 0
-                                            THEN ' (Spieler*in)' ELSE ' (${CD_GUEST_FUNKTION})' END) AS stale_grp
-          FROM member_teams mt
-          JOIN tg ON tg.id = mt.team
-          JOIN members m ON m.id = mt.member
-          -- No mt.season predicate: tg is active-teams-only, and a teams row
-          -- belongs to exactly one season, so the join already pins it.
-          WHERE tg.clubdesk_group IS NOT NULL AND m.clubdesk_id IS NOT NULL
-        )
-        SELECT e.member_id, e.first_name, e.last_name, e.clubdesk_id, e.uuid, e.sport,
-               e.is_guest, e.stale_grp, e.want_grp,
-               NULLIF(BTRIM(COALESCE(ce.vorname, '')), '') AS cd_vorname,
-               NULLIF(BTRIM(COALESCE(ce.nachname, '')), '') AS cd_nachname,
-               (e.want_grp = ANY(string_to_array(COALESCE(ce.gruppen_bracketed, ''), ', '))) AS has_correct
-        FROM expected e
-        JOIN clubdesk_export ce ON BTRIM(ce.clubdesk_id) = e.clubdesk_id
-        WHERE e.stale_grp = ANY(string_to_array(COALESCE(ce.gruppen_bracketed, ''), ', '))
-        ORDER BY e.last_name, e.first_name, e.stale_grp`
-
-      const straySql = `
-        WITH ${teamGroupCte}, cd_groups AS (
-          SELECT BTRIM(ce.clubdesk_id) AS clubdesk_id, BTRIM(g) AS grp
-          FROM clubdesk_export ce, LATERAL unnest(string_to_array(ce.gruppen_bracketed, ', ')) AS g
-          WHERE g LIKE '%(Spieler*in)%'
-        ),
-        team_groups AS (
-          SELECT (clubdesk_group || ' (Spieler*in)') AS grp, string_agg(DISTINCT sport, ', ') AS sports
-          FROM tg WHERE clubdesk_group IS NOT NULL
-          GROUP BY clubdesk_group
-        )
-        SELECT cg.grp, tgr.sports, m.id AS member_id, m.first_name, m.last_name, cg.clubdesk_id,
-               COALESCE(m.wiedisync_active, false) AS active,
-               (COALESCE(m.referee_vb,false) OR COALESCE(m.scorer_vb,false) OR COALESCE(m.referee_bb,false)
-                OR COALESCE(m.otr1_bb,false) OR COALESCE(m.otr2_bb,false)
-                OR COALESCE(m.otn1_bb,false) OR COALESCE(m.otn2_bb,false)) AS is_official,
-               COALESCE((SELECT string_agg(DISTINCT t2.name, ', ') FROM teams_coaches tc JOIN teams t2 ON t2.id = tc.teams_id WHERE tc.members_id = m.id), '') AS coach_of,
-               COALESCE((SELECT string_agg(DISTINCT t3.name, ', ') FROM teams_responsibles tr JOIN teams t3 ON t3.id = tr.teams_id WHERE tr.members_id = m.id), '') AS tr_of
-        FROM cd_groups cg
-        JOIN team_groups tgr ON tgr.grp = cg.grp
-        JOIN members m ON m.clubdesk_id = cg.clubdesk_id
-        WHERE NOT EXISTS (
-          SELECT 1 FROM member_teams mt JOIN teams t2 ON t2.id = mt.team
-          WHERE mt.member = m.id AND t2.active)
-        ORDER BY cg.grp, m.last_name, m.first_name`
-
-      const noTeamSql = `
-        WITH ${teamGroupCte}
-        SELECT BTRIM(g) AS grp, COUNT(DISTINCT BTRIM(ce.clubdesk_id))::int AS cnt
-        FROM clubdesk_export ce, LATERAL unnest(string_to_array(ce.gruppen_bracketed, ', ')) AS g
-        WHERE g LIKE '%(Spieler*in)%'
-          AND BTRIM(g) NOT IN (SELECT DISTINCT (clubdesk_group || ' (Spieler*in)') FROM tg WHERE clubdesk_group IS NOT NULL)
-        GROUP BY BTRIM(g)
-        ORDER BY cnt DESC, grp`
-
-      // no_group — linked members whose ClubDesk contact carries NO group token at
-      // all. Invisible to `missing`, which only inspects members who are ON a
-      // Wiedisync team: someone with no team AND no ClubDesk group is flagged by
-      // nothing else today. `teams` is annotated so the admin knows which group to
-      // assign — a no-group member WITH a team is the urgent case (they play, yet
-      // the register has them in nothing). Muted (sync-excluded) accounts skipped.
-      const noGroupSql = `
-        WITH cd AS (
-          SELECT DISTINCT ON (BTRIM(clubdesk_id)) BTRIM(clubdesk_id) AS cdid, gruppen_bracketed
-          FROM clubdesk_export
-          WHERE NULLIF(BTRIM(clubdesk_id), '') IS NOT NULL
-          ORDER BY BTRIM(clubdesk_id), row_id
-        )
-        SELECT m.id AS member_id, m.first_name, m.last_name, m.clubdesk_id,
-               COALESCE(NULLIF(BTRIM(m.beitragskategorie), ''), '') AS kat,
-               COALESCE((
-                 SELECT string_agg(DISTINCT t.name, ', ')
-                 FROM member_teams mt JOIN teams t ON t.id = mt.team
-                 WHERE mt.member = m.id AND t.active AND COALESCE(mt.guest_level, 0) = 0
-               ), '') AS teams,
-               COALESCE((
-                 SELECT string_agg(DISTINCT t.sport, ', ')
-                 FROM member_teams mt JOIN teams t ON t.id = mt.team
-                 WHERE mt.member = m.id AND t.active AND COALESCE(mt.guest_level, 0) = 0
-               ), '') AS sports
-        FROM members m
-        JOIN cd ON cd.cdid = m.clubdesk_id
-        WHERE m.kscw_membership_active
-          AND COALESCE(m.clubdesk_sync_exclude, false) = false
-          AND NULLIF(BTRIM(COALESCE(cd.gruppen_bracketed, '')), '') IS NULL
-        ORDER BY m.last_name, m.first_name`
-
-      // coach_no_group — a coach (teams_coaches) whose CD contact lacks the
-      // '<group> (Trainer*in)' token for a team they actually coach. 'Trainer*in'
-      // is the only coaching role token ClubDesk carries (there is no
-      // team-responsible equivalent), so TRs are out of scope by design.
-      const coachNoGroupSql = `
-        WITH ${teamGroupCte}, expected AS (
-          SELECT m.id AS member_id, m.first_name, m.last_name, m.clubdesk_id, tg.sport,
-                 (tg.clubdesk_group || ' (Trainer*in)') AS grp
-          FROM teams_coaches tc
-          JOIN tg ON tg.id = tc.teams_id
-          JOIN teams t ON t.id = tc.teams_id
-          JOIN members m ON m.id = tc.members_id
-          WHERE tg.clubdesk_group IS NOT NULL AND m.clubdesk_id IS NOT NULL
-            AND t.active AND m.kscw_membership_active
-            AND COALESCE(m.clubdesk_sync_exclude, false) = false
-        )
-        SELECT e.member_id, e.first_name, e.last_name, e.clubdesk_id, e.grp, e.sport
-        FROM expected e
-        LEFT JOIN clubdesk_export ce ON BTRIM(ce.clubdesk_id) = e.clubdesk_id
-        WHERE NOT (e.grp = ANY(string_to_array(COALESCE(ce.gruppen_bracketed, ''), ', ')))
-        ORDER BY e.last_name, e.first_name, e.grp`
-
-      // fee_no_roster — pays a PLAYING Beitragskategorie but sits on no
-      // current-season roster (guest rows don't count). Severity is derived from
-      // roster history so the admin can triage instead of facing one flat list:
-      //   never   — never on ANY roster (strongest signal)
-      //   lapsed  — was on last season's roster, not this one (left / not yet assigned)
-      //   older   — only has roster rows from an earlier season
-      // Coach/TR duties are annotated: a non-playing coach on a playing fee is a
-      // judgement call, not automatically an error.
-      const feeNoRosterSql = `
-        SELECT m.id AS member_id, m.first_name, m.last_name, m.clubdesk_id,
-               BTRIM(COALESCE(m.beitragskategorie, '')) AS kat,
-               (SELECT MAX(mt.season) FROM member_teams mt
-                 WHERE mt.member = m.id AND COALESCE(mt.guest_level, 0) = 0) AS last_season,
-               COALESCE((SELECT string_agg(DISTINCT t2.name, ', ') FROM teams_coaches tc
-                          JOIN teams t2 ON t2.id = tc.teams_id WHERE tc.members_id = m.id), '') AS coach_of,
-               COALESCE((SELECT string_agg(DISTINCT t3.name, ', ') FROM teams_responsibles tr
-                          JOIN teams t3 ON t3.id = tr.teams_id WHERE tr.members_id = m.id), '') AS tr_of
-        FROM members m
-        WHERE m.kscw_membership_active
-          AND COALESCE(m.clubdesk_sync_exclude, false) = false
-          AND BTRIM(COALESCE(m.beitragskategorie, '')) <> ''
-          AND BTRIM(COALESCE(m.beitragskategorie, '')) <> ALL (:nonPlaying)
-          AND NOT EXISTS (
-            SELECT 1 FROM member_teams mt JOIN teams t2 ON t2.id = mt.team
-            WHERE mt.member = m.id AND t2.active AND COALESCE(mt.guest_level, 0) = 0
-          )
-        ORDER BY m.last_name, m.first_name`
-
-      // unmapped_teams — active teams with no ClubDesk group configured at all
-      // (clubdesk_group IS NULL). They are invisible to every group check, so a
-      // new/renamed team can never silently drop out of coverage.
-      const unmappedTeamsSql = `
-        SELECT t.id, t.name, t.sport
-        FROM teams t
-        WHERE t.active AND t.clubdesk_group IS NULL
-        ORDER BY t.sport, t.name`
-
-      // ── Honorary drift ──────────────────────────────────────────────────
-      // "Ehrenmitglied" is TWO facts in ClubDesk and they disagree: the
-      // Ehrenmitglieder GROUP is the honour (and the club's chosen truth — see
-      // MAILBOX_GROUPS), while the single-valued register Status doubles as the
-      // billing axis and therefore records an honorary member who still plays
-      // as 'Aktivmitglied'. Measured on prod 2026-08-10: 15 in the group, 12 by
-      // status, 10 both.
-      //
-      // Only the two ASYMMETRIC cases are reported, because only they are
-      // actionable:
-      //   status_only — the status says Ehrenmitglied but the group does not
-      //                 hold them, so the honour list (and every mailing built
-      //                 on it) is missing somebody.
-      //   fee         — in the group but NOT paying 'Gratis', i.e. an honorary
-      //                 member still being billed.
-      // The reverse (in the group, status 'Aktivmitglied') is the EXPECTED
-      // shape for a playing Ehrenmitglied and is deliberately NOT flagged —
-      // flagging it would report five correct rows forever.
-      const honoraryDriftSql = `
-        WITH cd AS (
-          SELECT DISTINCT ON (btrim(clubdesk_id)) btrim(clubdesk_id) AS cid, gruppen_bracketed
-            FROM clubdesk_export
-           WHERE NULLIF(btrim(clubdesk_id), '') IS NOT NULL
-           ORDER BY btrim(clubdesk_id), row_id
-        )
-        SELECT m.id AS member_id, m.first_name, m.last_name, m.clubdesk_id,
-               m.register_status, m.beitragskategorie,
-               -- An explicit CHF 0 base override is a waiver the treasurer
-               -- entered by hand (migration 299) and, unlike the category, one
-               -- ClubDesk cannot overwrite. Without this the check would report
-               -- "still billed" forever for somebody who is not: the category
-               -- reverts to the register's on every sync-down, the override
-               -- does not.
-               (m.fee_base_override IS NOT NULL AND m.fee_base_override = 0) AS fee_waived,
-               EXISTS (
-                 SELECT 1 FROM unnest(string_to_array(cd.gruppen_bracketed, ',')) g
-                  WHERE btrim(g) = 'Ehrenmitglieder'
-               ) AS in_group
-          FROM members m
-          JOIN cd ON cd.cid = m.clubdesk_id
-         WHERE m.kscw_membership_active = true
-           AND (
-             (m.register_status = 'Ehrenmitglied' AND NOT EXISTS (
-               SELECT 1 FROM unnest(string_to_array(cd.gruppen_bracketed, ',')) g
-                WHERE btrim(g) = 'Ehrenmitglieder'))
-             OR (EXISTS (
-               SELECT 1 FROM unnest(string_to_array(cd.gruppen_bracketed, ',')) g
-                WHERE btrim(g) = 'Ehrenmitglieder')
-               AND COALESCE(NULLIF(btrim(m.beitragskategorie), ''), '') <> 'Gratis')
-           )
-         ORDER BY m.last_name, m.first_name`
-
-      const [missingRes, strayRes, noTeamRes, noGroupRes, coachRes, feeRes, unmappedRes, staleRes, honoraryRes] = await Promise.all([
-        database.raw(missingSql),
-        database.raw(straySql),
-        database.raw(noTeamSql),
-        database.raw(noGroupSql),
-        database.raw(coachNoGroupSql),
-        database.raw(feeNoRosterSql, { nonPlaying: NON_PLAYING_KAT }),
-        database.raw(unmappedTeamsSql),
-        database.raw(staleFunktionSql),
-        database.raw(honoraryDriftSql),
-      ])
-
-      // Playing Beitragskategorien are 'VB '/'BB '-prefixed — the only sport
-      // signal for members with no roster row.
-      const katSport = (kat) => (kat || '').startsWith('VB ') ? 'volleyball'
-        : (kat || '').startsWith('BB ') ? 'basketball' : ''
-
-      const coachByMember = new Map()
-      for (const r of coachRes.rows) {
-        if (!coachByMember.has(r.member_id)) {
-          coachByMember.set(r.member_id, {
-            member_id: r.member_id,
-            member_name: `${r.first_name || ''} ${r.last_name || ''}`.trim(),
-            clubdesk_id: r.clubdesk_id,
-            groups: [],
-            sports: new Set(),
-          })
-        }
-        const c = coachByMember.get(r.member_id)
-        c.groups.push(r.grp)
-        if (r.sport) c.sports.add(r.sport)
-      }
-
-      const fee_no_roster = feeRes.rows.map((r) => ({
-        member_id: r.member_id,
-        member_name: `${r.first_name || ''} ${r.last_name || ''}`.trim(),
-        clubdesk_id: r.clubdesk_id,
-        kat: r.kat || '',
-        sport: katSport(r.kat),
-        last_season: r.last_season || null,
-        coach_of: r.coach_of || '',
-        tr_of: r.tr_of || '',
-        // never > lapsed > older — drives the severity badge + sort order.
-        severity: !r.last_season ? 'never' : (r.last_season === prevSeason(season) ? 'lapsed' : 'older'),
-      }))
-
-      const unmapped_teams = unmappedRes.rows.map((r) => ({
-        team_id: r.id, name: r.name, sport: r.sport || '',
-      }))
-
-      const no_group = noGroupRes.rows.map((r) => ({
-        member_id: r.member_id,
-        member_name: `${r.first_name || ''} ${r.last_name || ''}`.trim(),
-        clubdesk_id: r.clubdesk_id,
-        teams: r.teams || '',
-        kat: r.kat || '',
-        // Teamless members fall back to the fee-category prefix.
-        sport: r.sports || katSport(r.kat),
-        has_team: !!r.teams,
-      }))
-
-      const missingByMember = new Map()
-      for (const r of missingRes.rows) {
-        if (!missingByMember.has(r.member_id)) {
-          missingByMember.set(r.member_id, {
-            member_id: r.member_id,
-            member_name: `${r.first_name || ''} ${r.last_name || ''}`.trim(),
-            clubdesk_id: r.clubdesk_id,
-            groups: [],
-            sports: new Set(),
-          })
-        }
-        const mm = missingByMember.get(r.member_id)
-        mm.groups.push(r.grp)
-        if (r.sport) mm.sports.add(r.sport)
-      }
-
-      const strays = strayRes.rows.map((r) => ({
-        member_id: r.member_id,
-        member_name: `${r.first_name || ''} ${r.last_name || ''}`.trim(),
-        clubdesk_id: r.clubdesk_id,
-        group: r.grp,
-        sport: r.sports || '',
-        active: r.active === true,
-        is_official: r.is_official === true,
-        coach_of: r.coach_of || '',
-        tr_of: r.tr_of || '',
-      }))
-
-      const no_team_groups = noTeamRes.rows.map((r) => ({ group: r.grp, count: r.cnt }))
-
-      // One row per stale allocation (a member can hold the wrong Funktion on more
-      // than one team), so this list IS the removal worklist — name/uuid/group are
-      // exactly clubdesk-remove-group.mjs's three input fields.
-      const stale_funktion = staleRes.rows.map((r) => ({
-        member_id: r.member_id,
-        member_name: `${r.first_name || ''} ${r.last_name || ''}`.trim(),
-        // ClubDesk's grid renders and filters on "Nachname Vorname".
-        clubdesk_name: [r.cd_nachname || r.last_name, r.cd_vorname || r.first_name].filter(Boolean).join(' '),
-        clubdesk_id: r.clubdesk_id,
-        uuid: r.uuid || '',
-        group: r.stale_grp,
-        expected: r.want_grp,
-        sport: r.sport || '',
-        is_guest: r.is_guest === true,
-        has_correct: r.has_correct === true,
-      }))
-
-      const honorary_drift = honoraryRes.rows.map((r) => ({
-        member_id: r.member_id,
-        member_name: `${r.first_name || ''} ${r.last_name || ''}`.trim(),
-        clubdesk_id: r.clubdesk_id,
-        register_status: r.register_status || '',
-        kat: r.beitragskategorie || '',
-        fee_waived: r.fee_waived === true,
-        in_group: r.in_group === true,
-        // 'status_only' → add them to the ClubDesk group (the honour list is
-        // short one name). 'fee' → they hold the honour but are still billed.
-        kind: r.in_group === true ? 'fee' : 'status_only',
-      }))
-
-      const flattenSports = (byMember) => [...byMember.values()]
-        .map(({ sports, ...rest }) => ({ ...rest, sport: [...sports].sort().join(', ') }))
-
-      return res.json({
-        missing: flattenSports(missingByMember),
-        stale_funktion,
-        strays,
-        no_team_groups,
-        no_group,
-        coach_no_group: flattenSports(coachByMember),
-        fee_no_roster,
-        unmapped_teams,
-        honorary_drift,
-        season,
-      })
+      return res.json(await computeGroupChecks())
     } catch (err) {
       log.error({ msg: `clubdesk-group-sync: ${err.message}`, endpoint: 'clubdesk-group-sync', stack: err.stack })
+      return res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  // ── On-demand "Fix groups" (headless ClubDesk UI automation) ────────────────
+  // ClubDesk has no API and its CSV import treats `Gruppen` as a no-op, so the
+  // ONLY way to write an allocation is to drive the real UI. Two proven scrapers
+  // do that (clubdesk-scrape-groups.mjs = add, clubdesk-remove-group.mjs = remove);
+  // Directus runs in a container and cannot launch either, so this uses the same
+  // request-flag + host-dispatcher-cron handshake as the sync-down/up buttons.
+  //
+  // ⚠⚠ THE WORKLIST IS BUILT HERE, NEVER ACCEPTED FROM THE CLIENT. The request
+  // body carries only which CLASSES of finding to act on; every row is recomputed
+  // from computeGroupChecks() at queue time. A client-supplied worklist would make
+  // a superadmin's browser an arbitrary write channel into the club's legal member
+  // register — the operator chooses what to act on, never what a row means.
+  //
+  // ⚠ Recomputing at queue time also means the run acts on the CURRENT truth, not
+  // on whatever the page last rendered. A finding fixed by somebody else in the
+  // meantime simply is not in the list.
+  const GROUP_FIX_CLASSES = ['missing', 'coach_no_group', 'stale_funktion', 'strays']
+  // A normal week is 0–3 rows; the historic catch-up runs were ~49 (strays) and 29
+  // (stale Funktion). Anything past this is a data fault, not a work list — the
+  // same reasoning (and roughly the same number) as clubdesk-group-cleanup.sh's CAP.
+  const GROUP_FIX_CAP = 120
+
+  /**
+   * Turn the current findings into the two scraper worklists.
+   *
+   * add    → clubdesk-scrape-groups.mjs  [{name, uuid, group, funktion, clubdesk_id}]
+   * remove → clubdesk-remove-group.mjs   [{name, uuid, group_label}]
+   *
+   * Both tools filter the ClubDesk grid by `uuid` (the Wiedisync ID) because it is
+   * unique and immune to the name drift that is normal in the register
+   * ("Berke-Wenger" vs "Berke") — the clubdesk_id is NOT grid-searchable. A row
+   * without a uuid therefore cannot be located safely and is dropped, not guessed.
+   */
+  function buildGroupFixWorklist(checks, classes) {
+    const add = []
+    const remove = []
+    const skipped_no_uuid = []
+    const wanted = new Set(classes)
+
+    const pushAdds = (rows) => {
+      for (const r of rows) {
+        if (!r.uuid) { skipped_no_uuid.push(r.member_name); continue }
+        for (const a of r.allocations || []) {
+          add.push({
+            name: r.clubdesk_name || r.member_name,
+            uuid: r.uuid,
+            group: a.group,
+            funktion: a.funktion,
+            clubdesk_id: r.clubdesk_id || '',
+            member_id: r.member_id,
+            label: a.label,
+          })
+        }
+      }
+    }
+
+    if (wanted.has('missing')) pushAdds(checks.missing || [])
+    if (wanted.has('coach_no_group')) pushAdds(checks.coach_no_group || [])
+
+    if (wanted.has('stale_funktion')) {
+      for (const r of checks.stale_funktion || []) {
+        // ⚠ Only when the CORRECT token already sits alongside. Removing the last
+        // token drops the member out of their team's group entirely until a human
+        // re-adds it — worse than the contradiction it fixes. The rest stay visible
+        // for a manual swap (they are in `missing` too, so the add half covers them).
+        if (!r.has_correct) continue
+        if (!r.uuid) { skipped_no_uuid.push(r.member_name); continue }
+        remove.push({
+          name: r.clubdesk_name || r.member_name,
+          uuid: r.uuid,
+          group_label: r.group,
+          member_id: r.member_id,
+        })
+      }
+    }
+
+    if (wanted.has('strays')) {
+      for (const r of checks.strays || []) {
+        // ⚠ Only the auto-remove envelope: the member has LEFT the club, or still
+        // belongs but staffs a team rather than playing on one. A plain member with
+        // no roster row is AMBIGUOUS — usually a missing wiedisync roster row, not a
+        // wrong ClubDesk group — and stripping them is how 29 DU20 girls were wiped
+        // out of ClubDesk on 2026-07-16.
+        if (!r.auto_removable) continue
+        if (!r.uuid) { skipped_no_uuid.push(r.member_name); continue }
+        remove.push({
+          name: r.member_name,
+          uuid: r.uuid,
+          group_label: r.group,
+          member_id: r.member_id,
+        })
+      }
+    }
+
+    return { add, remove, skipped_no_uuid }
+  }
+
+  router.get('/clubdesk-group-fix', async (req, res) => {
+    try {
+      if (!(await superGate(req))) return res.status(403).json({ error: 'Forbidden' })
+      const s = await database('clubdesk_member_sync').where('id', 1).first(
+        'grp_state', 'grp_message', 'grp_mode', 'grp_requested_at', 'grp_finished_at',
+        'grp_worklist', 'grp_result', 'grp_requested_by_name',
+        'down_state', 'up_state')
+      const parse = (v) => (typeof v === 'string' ? (() => { try { return JSON.parse(v) } catch { return null } })() : (v ?? null))
+      const worklist = parse(s?.grp_worklist)
+      return res.json({
+        state: s?.grp_state || 'idle',
+        message: s?.grp_message || null,
+        mode: s?.grp_mode || null,
+        requested_at: s?.grp_requested_at || null,
+        finished_at: s?.grp_finished_at || null,
+        requested_by: s?.grp_requested_by_name || null,
+        counts: worklist
+          ? { add: (worklist.add || []).length, remove: (worklist.remove || []).length }
+          : null,
+        worklist,
+        result: parse(s?.grp_result),
+        // The other two directions block this one and vice versa (see below).
+        down_state: s?.down_state || 'idle',
+        up_state: s?.up_state || 'idle',
+      })
+    } catch (err) {
+      log.error({ msg: `clubdesk-group-fix status: ${err.message}`, endpoint: 'clubdesk-group-fix', stack: err.stack })
+      return res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  router.post('/clubdesk-group-fix', async (req, res) => {
+    try {
+      if (!(await superGate(req))) return res.status(403).json({ error: 'Forbidden' })
+
+      const mode = req.body?.mode === 'commit' ? 'commit' : 'preview'
+      const classes = Array.isArray(req.body?.classes) && req.body.classes.length
+        ? req.body.classes.filter((c) => GROUP_FIX_CLASSES.includes(c))
+        : GROUP_FIX_CLASSES
+      if (!classes.length) return res.status(400).json({ error: 'No valid fix classes requested' })
+
+      const s = await database('clubdesk_member_sync').where('id', 1)
+        .first('grp_state', 'grp_mode', 'grp_result', 'down_state', 'up_state')
+      if (isBusy(s?.grp_state)) {
+        return res.status(409).json({ error: 'A group fix is already in progress', state: s.grp_state, code: 'grp_in_progress' })
+      }
+      // Same mutual exclusion as down↔up, for the same reason: every ClubDesk
+      // scrape shares ONE login (the blocking .sync.lock serialises them on the
+      // host), and this run's worklist is computed against `clubdesk_export`. A
+      // sync-down landing mid-run would swap that snapshot out underneath it.
+      if (isBusy(s?.down_state)) {
+        return res.status(409).json({ error: 'A sync-down is in progress — wait for it to finish', state: s.down_state, code: 'down_in_progress' })
+      }
+      if (isBusy(s?.up_state)) {
+        return res.status(409).json({ error: 'A sync-up is in progress — wait for it to finish', state: s.up_state, code: 'up_in_progress' })
+      }
+
+      // ⚠ A commit must be preceded by a SUCCESSFUL preview of the same shape. The
+      // preview is what the operator approved; without this gate a caller could
+      // POST mode=commit as its very first request and write straight to the legal
+      // register with nothing reviewed. Mirrors the sync-up's dry-run-then-commit
+      // gate (clubdesk-member-up-dispatch.sh).
+      if (mode === 'commit') {
+        const prev = typeof s?.grp_result === 'string'
+          ? (() => { try { return JSON.parse(s.grp_result) } catch { return null } })()
+          : s?.grp_result
+        if (s?.grp_mode !== 'preview' || !prev) {
+          return res.status(409).json({
+            error: 'Run a preview first — a commit writes to the club register',
+            code: 'preview_required',
+          })
+        }
+      }
+
+      const checks = await computeGroupChecks()
+      const { add, remove, skipped_no_uuid } = buildGroupFixWorklist(checks, classes)
+      const total = add.length + remove.length
+      if (!total) {
+        return res.status(409).json({ error: 'Nothing to fix', code: 'empty_worklist', skipped_no_uuid })
+      }
+      // Runaway guard. A blown cap means the inputs are wrong (an empty roster, a
+      // half-loaded clubdesk_export), and the correct response to that is never
+      // "write 400 allocations into the register".
+      if (total > GROUP_FIX_CAP) {
+        return res.status(409).json({
+          error: `${total} changes exceed the safety cap of ${GROUP_FIX_CAP} — review the findings first`,
+          code: 'cap_exceeded', total, cap: GROUP_FIX_CAP,
+        })
+      }
+
+      const actor = await resolveActingUser(req)
+      await database('clubdesk_member_sync').where('id', 1).update({
+        grp_requested_at: new Date(),
+        grp_state: 'queued',
+        grp_mode: mode,
+        grp_message: null,
+        grp_finished_at: null,
+        grp_worklist: JSON.stringify({ add, remove, classes, skipped_no_uuid }),
+        // Cleared on queue so the UI can never show a previous run's outcome next
+        // to a new run's state — and so the commit gate above cannot be satisfied
+        // twice by one preview.
+        grp_result: null,
+        grp_requested_by_name: actor.name,
+        grp_requested_by_email: actor.email,
+      })
+      // Raw-knex write → no Directus revision trail, so the actor is captured
+      // explicitly (CLAUDE.md → Audit logging). A commit edits the club's legal
+      // member register; "who ran it" is the whole point.
+      await writeUserLog(database, log, {
+        accountability: req.accountability, action: 'update',
+        collection: 'clubdesk_member_sync', recordId: 1,
+        data: { kind: 'clubdesk_group_fix_request', mode, classes, add: add.length, remove: remove.length },
+      })
+      return res.json({ state: 'queued', mode, counts: { add: add.length, remove: remove.length }, skipped_no_uuid })
+    } catch (err) {
+      log.error({ msg: `clubdesk-group-fix trigger: ${err.message}`, endpoint: 'clubdesk-group-fix', stack: err.stack })
       return res.status(500).json({ error: 'Internal error' })
     }
   })

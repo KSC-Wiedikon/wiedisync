@@ -1,13 +1,20 @@
 // src/modules/admin/components/ClubdeskGroupCheck.tsx
 //
-// "Consistency check" card for the ClubDesk sync page (superadmin) — the single
-// workbench for everything that can drift between ClubDesk and Wiedisync. Data
-// Health stays the *alarm* (aggregate counts); this is where you actually work
-// the lists. All of it comes from one call to GET /kscw/clubdesk-group-sync.
+// "Consistency check" card — the single workbench for everything that can drift
+// between ClubDesk and Wiedisync. Since the 2026-08-13 merge it lives on
+// /admin/data-health next to the sync buttons, so the old aggregate-count rows in
+// dataHealthChecks.ts (which existed only to point at the other page) are gone:
+// this card IS the detail, and there is no second copy to fall out of step.
+//
+// PRESENTATIONAL. The page owns the fetch, because the "Fix groups" button needs
+// the same findings to decide what it may act on — two fetches would let the
+// button and the table disagree about what is on screen.
 //
 // ClubDesk group membership is MANUAL-ONLY (the CSV import treats Gruppen as a
-// no-op), so every group check here is read-only by design: the card's job is to
-// hand you an accurate, exportable worklist, not to fix things automatically.
+// no-op). For a long time that made every check here read-only; the add/remove
+// scrapers are now reachable via "Fix groups", but only for the classes where
+// "this allocation is wrong" is unambiguous. Everything else is still a worklist
+// for a human — see the per-section hints.
 //
 // Sections, roughly by severity:
 //   • No ClubDesk group        — in zero CD groups. Those ON a team are urgent.
@@ -24,50 +31,19 @@
 //   • Teams with no CD group configured — a config guard: an unmapped team is
 //     invisible to every check above, so it must never be silently skipped.
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { AlertTriangle, Check, ChevronRight, Download, Loader2, RefreshCw, ShieldCheck } from 'lucide-react'
-import { kscwApi } from '../../../lib/api'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { toXlsx, downloadBlob } from '../utils/exportResults'
-
-interface NoGroupRow { member_id: number; member_name: string; clubdesk_id: string; teams: string; kat: string; sport: string; has_team: boolean }
-interface MissingRow { member_id: number; member_name: string; clubdesk_id: string; groups: string[]; sport: string }
-interface FeeRow {
-  member_id: number; member_name: string; clubdesk_id: string; kat: string; sport: string
-  last_season: string | null; coach_of: string; tr_of: string
-  severity: 'never' | 'lapsed' | 'older'
-}
-interface StrayRow {
-  member_id: number; member_name: string; clubdesk_id: string; group: string; sport: string
-  active: boolean; is_official: boolean; coach_of: string; tr_of: string
-}
-interface NoTeamGroupRow { group: string; count: number }
-interface UnmappedTeamRow { team_id: number; name: string; sport: string }
-interface StaleFunktionRow {
-  member_id: number; member_name: string; clubdesk_name: string; clubdesk_id: string
-  uuid: string; group: string; expected: string; sport: string
-  is_guest: boolean; has_correct: boolean
-}
-
-interface Resp {
-  no_group?: NoGroupRow[]
-  missing?: MissingRow[]
-  stale_funktion?: StaleFunktionRow[]
-  coach_no_group?: MissingRow[]
-  fee_no_roster?: FeeRow[]
-  strays?: StrayRow[]
-  no_team_groups?: NoTeamGroupRow[]
-  unmapped_teams?: UnmappedTeamRow[]
-}
-
-const EMPTY: Required<Resp> = {
-  no_group: [], missing: [], stale_funktion: [], coach_no_group: [], fee_no_roster: [],
-  strays: [], no_team_groups: [], unmapped_teams: [],
-}
+import LastBillCell from './LastBillCell'
+import { filterBySport, type MemberFacets, type SportTab } from '../utils/sportTabs'
+import {
+  lastBillExport, type FeeRow, type GroupCheckResp, type LastBill, type MissingRow,
+} from '../utils/clubdeskFindings'
 
 /**
  * Compact sport marker: 'volleyball' → VB, 'basketball' → BB (full localized
@@ -136,51 +112,48 @@ function Section({
   )
 }
 
-export default function ClubdeskGroupCheck() {
+interface Props {
+  data: Required<GroupCheckResp>
+  loading: boolean
+  error: string | null
+  onRefresh: () => void
+  /** Which sport tab is active — 'club' never renders this card. */
+  tab: SportTab
+  /** Club-wide per-member facets (bills + section fallback). */
+  facets: MemberFacets
+}
+
+export default function ClubdeskGroupCheck({ data, loading, error, onRefresh, tab, facets }: Props) {
   const { t, i18n } = useTranslation('admin')
-  const [data, setData] = useState<Required<Resp>>(EMPTY)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  const load = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const res = await kscwApi<Resp>('/clubdesk-group-sync')
-      setData({ ...EMPTY, ...res })
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  // Fetch-on-mount: the setState lands in the async callback, not the effect
-  // body, but the rule can't see through `void load()`.
-  /* eslint-disable-next-line react-hooks/set-state-in-effect */
-  useEffect(() => { void load() }, [load])
 
   // A no-group member is by definition ALSO missing every expected group — drop
   // them from the missing/coach tables so nobody is listed twice.
   const view = useMemo(() => {
     const ngIds = new Set(data.no_group.map((r) => r.member_id))
+    const bySport = <T extends { sport?: string; member_id?: number }>(rows: T[]) =>
+      filterBySport(rows, tab, facets)
     return {
-      noGroup: [...data.no_group].sort((a, b) => Number(b.has_team) - Number(a.has_team)),
-      missing: data.missing.filter((r) => !ngIds.has(r.member_id)),
-      coach: data.coach_no_group.filter((r) => !ngIds.has(r.member_id)),
+      noGroup: bySport([...data.no_group].sort((a, b) => Number(b.has_team) - Number(a.has_team))),
+      missing: bySport(data.missing.filter((r) => !ngIds.has(r.member_id))),
+      coach: bySport(data.coach_no_group.filter((r) => !ngIds.has(r.member_id))),
       // never > lapsed > older
-      fee: [...data.fee_no_roster].sort((a, b) => {
+      fee: bySport([...data.fee_no_roster].sort((a, b) => {
         const rank = { never: 0, lapsed: 1, older: 2 }
         return rank[a.severity] - rank[b.severity]
-      }),
+      })),
       // Not filtered by ngIds: a no-group member holds no token at all, so they
       // can never have a stale one — the two lists are disjoint by construction.
-      stale: data.stale_funktion,
-      strays: data.strays,
+      stale: bySport(data.stale_funktion),
+      strays: bySport(data.strays),
+      // Group- and team-level, not member-level: no member_id to bucket on, and a
+      // structural gap is club business regardless of which tab you are standing
+      // in. They only carry a sport when the mapping itself names one.
       noTeamGroups: data.no_team_groups,
-      unmapped: data.unmapped_teams,
+      unmapped: bySport(data.unmapped_teams),
     }
-  }, [data])
+  }, [data, tab, facets])
+
+  const billOf = (memberId: number) => facets.bills[String(memberId)] ?? null
 
   const onTeamCount = view.noGroup.filter((r) => r.has_team).length
   const neverCount = view.fee.filter((r) => r.severity === 'never').length
@@ -193,29 +166,38 @@ export default function ClubdeskGroupCheck() {
       const tEn = i18n.getFixedT('en', 'admin')
       const sportEn = (s: string) => s.split(', ').filter(Boolean)
         .map((x) => x === 'volleyball' ? 'Volleyball' : x === 'basketball' ? 'Basketball' : x).join(', ')
-      const columns = ['Issue', 'Name', 'Sport', 'ClubDesk ID', 'Detail', 'Fee category', 'Last rostered', 'Coach / TR']
+      const columns = [
+        'Issue', 'Name', 'Sport', 'ClubDesk ID', 'Detail', 'Fee category', 'Last rostered', 'Coach / TR',
+        'Last bill', 'Bill status', 'Open amount',
+      ]
+      // Every member-level row carries its last invoice; group/team-level rows have
+      // nobody to bill, so they pad the three columns out rather than shift them.
+      const bill = (memberId: number) => lastBillExport(billOf(memberId))
+      const noBill = ['', '', '']
       const rows: string[][] = [
         ...view.noGroup.map((r) => [
           r.has_team ? 'No ClubDesk group (on a team)' : 'No ClubDesk group',
-          r.member_name, sportEn(r.sport), r.clubdesk_id, r.teams, r.kat, '', '',
+          r.member_name, sportEn(r.sport), r.clubdesk_id, r.teams, r.kat, '', '', ...bill(r.member_id),
         ]),
-        ...view.missing.map((r) => ['Missing a group', r.member_name, sportEn(r.sport), r.clubdesk_id, r.groups.join(', '), '', '', '']),
-        ...view.coach.map((r) => ['Coach missing coach group', r.member_name, sportEn(r.sport), r.clubdesk_id, r.groups.join(', '), '', '', '']),
+        ...view.missing.map((r) => ['Missing a group', r.member_name, sportEn(r.sport), r.clubdesk_id, r.groups.join(', '), '', '', '', ...bill(r.member_id)]),
+        ...view.coach.map((r) => ['Coach missing coach group', r.member_name, sportEn(r.sport), r.clubdesk_id, r.groups.join(', '), '', '', '', ...bill(r.member_id)]),
         ...view.stale.map((r) => [
           'Wrong ClubDesk function',
           r.member_name, sportEn(r.sport), r.clubdesk_id,
-          `Remove "${r.group}"${r.has_correct ? '' : ` · add "${r.expected}"`}`, '', '', '',
+          `Remove "${r.group}"${r.has_correct ? '' : ` · add "${r.expected}"`}`, '', '', '', ...bill(r.member_id),
         ]),
         ...view.fee.map((r) => [
           `Billed as player, no roster (${r.severity})`,
           r.member_name, sportEn(r.sport), r.clubdesk_id, '', r.kat, r.last_season ?? '', [r.coach_of, r.tr_of].filter(Boolean).join(' / '),
+          ...bill(r.member_id),
         ]),
         ...view.strays.map((r) => [
           'In ClubDesk group, not on roster',
           r.member_name, sportEn(r.sport), r.clubdesk_id, r.group, '', '', [r.coach_of, r.tr_of].filter(Boolean).join(' / '),
+          ...bill(r.member_id),
         ]),
-        ...view.noTeamGroups.map((r) => ['ClubDesk group with no team', '', '', '', r.group, '', '', String(r.count)]),
-        ...view.unmapped.map((r) => ['Team with no ClubDesk group configured', r.name, sportEn(r.sport), '', '', '', '', '']),
+        ...view.noTeamGroups.map((r) => ['ClubDesk group with no team', '', '', '', r.group, '', '', String(r.count), ...noBill]),
+        ...view.unmapped.map((r) => ['Team with no ClubDesk group configured', r.name, sportEn(r.sport), '', '', '', '', '', ...noBill]),
       ]
       void tEn
       const blob = await toXlsx(columns, rows)
@@ -258,7 +240,7 @@ export default function ClubdeskGroupCheck() {
             <CardDescription>{t('clubdeskGroupCheckDescription')}</CardDescription>
           </div>
           <div className="flex items-center gap-1.5">
-            <Button type="button" variant="outline" size="sm" onClick={() => { void load() }} disabled={loading} className="gap-1.5">
+            <Button type="button" variant="outline" size="sm" onClick={onRefresh} disabled={loading} className="gap-1.5">
               {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
               {t('clubdeskGroupRefresh')}
             </Button>
@@ -328,6 +310,7 @@ export default function ClubdeskGroupCheck() {
                     <TableHead className="hidden sm:table-cell">{t('clubdeskGroupColClubdeskId')}</TableHead>
                     <TableHead>{t('clubdeskGroupColTeams')}</TableHead>
                     <TableHead className="hidden md:table-cell">{t('clubdeskGroupColCategory')}</TableHead>
+                    <TableHead className="hidden lg:table-cell">{t('cdColLastBill')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -346,6 +329,9 @@ export default function ClubdeskGroupCheck() {
                           : <span className="text-muted-foreground">{t('clubdeskGroupNoTeam')}</span>}
                       </TableCell>
                       <TableCell className="hidden whitespace-normal break-words text-muted-foreground md:table-cell">{r.kat || '—'}</TableCell>
+                      <TableCell className="hidden whitespace-normal break-words lg:table-cell">
+                        <LastBillCell bill={billOf(r.member_id)} />
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -354,7 +340,7 @@ export default function ClubdeskGroupCheck() {
 
             {/* Missing a group */}
             <Section title={t('clubdeskGroupMissingTitle')} hint={t('clubdeskGroupMissingHint')} count={view.missing.length}>
-              <GroupTable rows={view.missing} t={t} />
+              <GroupTable rows={view.missing} t={t} billOf={billOf} />
             </Section>
 
             {/* Wrong ClubDesk Funktion for a team they are still on */}
@@ -404,7 +390,7 @@ export default function ClubdeskGroupCheck() {
 
             {/* Coach missing their coach group */}
             <Section title={t('clubdeskCoachTitle')} hint={t('clubdeskCoachHint')} count={view.coach.length}>
-              <GroupTable rows={view.coach} t={t} />
+              <GroupTable rows={view.coach} t={t} billOf={billOf} />
             </Section>
 
             {/* Billed as a player, but on no roster */}
@@ -420,6 +406,10 @@ export default function ClubdeskGroupCheck() {
                     <TableHead>{t('clubdeskGroupColName')}</TableHead>
                     <TableHead>{t('clubdeskColSport')}</TableHead>
                     <TableHead>{t('clubdeskGroupColCategory')}</TableHead>
+                    {/* The whole point of this section is "they pay to play but
+                        play nowhere" — so whether they were actually billed, and
+                        whether it is still open, belongs on the row. */}
+                    <TableHead>{t('cdColLastBill')}</TableHead>
                     <TableHead className="hidden sm:table-cell">{t('clubdeskColLastSeason')}</TableHead>
                     <TableHead className="hidden md:table-cell">{t('clubdeskColRole')}</TableHead>
                   </TableRow>
@@ -435,6 +425,9 @@ export default function ClubdeskGroupCheck() {
                         </TableCell>
                         <TableCell><SportBadges sport={r.sport} /></TableCell>
                         <TableCell className="whitespace-normal break-words text-muted-foreground">{r.kat}</TableCell>
+                        <TableCell className="whitespace-normal break-words">
+                          <LastBillCell bill={billOf(r.member_id)} />
+                        </TableCell>
                         <TableCell className="hidden whitespace-nowrap text-muted-foreground sm:table-cell">
                           {r.last_season ?? '—'}
                         </TableCell>
@@ -456,6 +449,7 @@ export default function ClubdeskGroupCheck() {
                     <TableHead>{t('clubdeskGroupColName')}</TableHead>
                     <TableHead>{t('clubdeskColSport')}</TableHead>
                     <TableHead>{t('clubdeskColGroup')}</TableHead>
+                    <TableHead className="hidden lg:table-cell">{t('cdColLastBill')}</TableHead>
                     <TableHead className="hidden md:table-cell">{t('clubdeskColRole')}</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -473,6 +467,18 @@ export default function ClubdeskGroupCheck() {
                         <TableCell><SportBadges sport={r.sport} /></TableCell>
                         <TableCell className="whitespace-normal break-words">
                           <span className="rounded bg-muted px-1.5 py-0.5 text-xs">{r.group}</span>
+                          {/* Which rows "Fix groups" is allowed to strip unattended.
+                              The rest are AMBIGUOUS — usually a missing wiedisync
+                              roster row rather than a wrong ClubDesk group — and
+                              removing those is what wiped 29 DU20 girls out of the
+                              register on 2026-07-16. Say so on the row, not just in
+                              a comment nobody reads at 23:00. */}
+                          <span className="mt-0.5 block text-xs text-muted-foreground">
+                            {r.auto_removable ? t('clubdeskStrayAutoRemovable') : t('clubdeskStrayNeedsDecision')}
+                          </span>
+                        </TableCell>
+                        <TableCell className="hidden whitespace-normal break-words lg:table-cell">
+                          <LastBillCell bill={billOf(r.member_id)} />
                         </TableCell>
                         <TableCell className="hidden whitespace-normal break-words text-muted-foreground md:table-cell">
                           {tags || '—'}
@@ -513,7 +519,11 @@ export default function ClubdeskGroupCheck() {
 }
 
 /** Shared table for the two "missing a group token" checks. */
-function GroupTable({ rows, t }: { rows: MissingRow[]; t: (k: string) => string }) {
+function GroupTable({ rows, t, billOf }: {
+  rows: MissingRow[]
+  t: (k: string) => string
+  billOf: (memberId: number) => LastBill | null
+}) {
   return (
     <Table>
       <TableHeader>
@@ -522,6 +532,7 @@ function GroupTable({ rows, t }: { rows: MissingRow[]; t: (k: string) => string 
           <TableHead>{t('clubdeskColSport')}</TableHead>
           <TableHead className="hidden sm:table-cell">{t('clubdeskGroupColClubdeskId')}</TableHead>
           <TableHead>{t('clubdeskGroupColMissing')}</TableHead>
+          <TableHead className="hidden lg:table-cell">{t('cdColLastBill')}</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -539,6 +550,15 @@ function GroupTable({ rows, t }: { rows: MissingRow[]; t: (k: string) => string 
                   {g}
                 </span>
               ))}
+              {/* A row with no uuid cannot be located in the ClubDesk grid safely
+                  (name drift is normal, and the clubdesk_id is not searchable), so
+                  "Fix groups" skips it rather than guessing at a contact. */}
+              {!r.uuid && (
+                <span className="mt-0.5 block text-xs text-muted-foreground">{t('clubdeskNoUuidSkip')}</span>
+              )}
+            </TableCell>
+            <TableCell className="hidden whitespace-normal break-words lg:table-cell">
+              <LastBillCell bill={billOf(r.member_id)} />
             </TableCell>
           </TableRow>
         ))}

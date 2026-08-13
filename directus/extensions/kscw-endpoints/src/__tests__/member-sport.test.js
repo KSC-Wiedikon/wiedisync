@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
-  sportFromParts, resolveMemberSports, resolveMemberSport,
+  sportFromParts, sportFromPartsDetailed, resolveMemberSports,
+  resolveMemberSportsDetailed, resolveMemberSport,
   sportAdminScope, sportScopeAllows,
 } from '../member-sport.js'
 
@@ -101,6 +102,60 @@ describe('sportFromParts', () => {
   it('does not match a category that merely contains vb/bb', () => {
     // The rule is a PREFIX. 'Aktivmitglied VB' is not a volleyball marker.
     expect(sportFromParts({ beitragskategorie: 'Aktivmitglied VB' })).toBe('both')
+  })
+})
+
+describe('sportFromPartsDetailed', () => {
+  // The whole reason this form exists: `sport: 'both'` is TWO different facts.
+  // A UI that buckets members by section must be able to tell "plays volleyball
+  // AND basketball" from "we cannot work out their section at all", and the
+  // answer alone cannot.
+  it('separates genuinely dual-sport from unresolvable, which both answer "both"', () => {
+    const dual = sportFromPartsDetailed({ teamSports: ['volleyball', 'basketball'] })
+    const unknown = sportFromPartsDetailed({})
+    expect(dual).toEqual({ sport: 'both', source: 'teams' })
+    expect(unknown).toEqual({ sport: 'both', source: 'unknown' })
+    // …and are indistinguishable through the plain form, on purpose.
+    expect(sportFromParts({ teamSports: ['volleyball', 'basketball'] }))
+      .toBe(sportFromParts({}))
+  })
+
+  it('reports which input decided', () => {
+    expect(sportFromPartsDetailed({ teamSports: ['volleyball'] }).source).toBe('teams')
+    expect(sportFromPartsDetailed({ sektion: 'Basketball' }).source).toBe('sektion')
+    expect(sportFromPartsDetailed({ beitragskategorie: 'VB Erwerbstätige' }).source).toBe('fee')
+    expect(sportFromPartsDetailed({ beitragskategorie: 'Gratis' }).source).toBe('unknown')
+  })
+
+  it('never changes the answer the plain form gives', () => {
+    // The gates (permissions, the read-privacy hook, the member DELETE guard) all
+    // read `sportFromParts`. Adding the detail must not move a single verdict.
+    const cases = [
+      { teamSports: ['volleyball'] },
+      { teamSports: ['volleyball', 'basketball'] },
+      { teamSports: [null], sektion: 'Basketball' },
+      { teamSports: ['basketball'], sektion: 'Volleyball' },
+      { sektion: 'KSCW', beitragskategorie: 'BB Jugend Meisterschaft' },
+      { beitragskategorie: 'Aktivmitglied VB' },
+      {},
+    ]
+    for (const c of cases) {
+      expect(sportFromParts(c)).toBe(sportFromPartsDetailed(c).sport)
+    }
+  })
+})
+
+describe('resolveMemberSportsDetailed (batched)', () => {
+  it('carries the source through, and the plain form still returns bare answers', async () => {
+    const db = fakeDb(TABLES)
+    // 22 = fee-category-only volleyball, 24 = nothing resolvable.
+    const detailed = await resolveMemberSportsDetailed(db, [22, 24])
+    expect(detailed.get('22')).toEqual({ sport: 'volleyball', source: 'fee' })
+    expect(detailed.get('24')).toEqual({ sport: 'both', source: 'unknown' })
+
+    const plain = await resolveMemberSports(fakeDb(TABLES), [22, 24])
+    expect(plain.get('22')).toBe('volleyball')
+    expect(plain.get('24')).toBe('both')
   })
 })
 

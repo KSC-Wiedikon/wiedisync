@@ -6,7 +6,7 @@ import { SCHEDULING_ORIGIN } from '../lib/api'
 import {
   Home, Calendar, UserX, PenSquare, PartyPopper, Users, Radio,
   Building2, CalendarClock, Activity, ClipboardList, ClipboardCheck,
-  HeartPulse, MessageSquare, Inbox, Mail, Banknote, BarChart3, UserPlus, Bug, Database, Megaphone, Newspaper, Flag, ScrollText, Terminal, Gavel, Wallet, Landmark, ReceiptText, FileWarning, FolderSync, GraduationCap, ArrowRightLeft, MailOpen,
+  HeartPulse, MessageSquare, Inbox, Mail, Banknote, BarChart3, UserPlus, Bug, Database, Megaphone, Newspaper, Flag, ScrollText, Terminal, Gavel, Wallet, Landmark, ReceiptText, FileWarning, GraduationCap, ArrowRightLeft, MailOpen,
 } from 'lucide-react'
 import WhistleIcon from '../components/WhistleIcon'
 
@@ -182,8 +182,8 @@ export function useNavItems(isLoggedIn: boolean, isApproved: boolean, memberId?:
     ].filter((g) => g.items.length > 0),
     superadminItems: [
       { to: '/admin/infra', label: t('infraHealth'), icon: <Activity className={iconClass} /> },
+      // ClubDesk sync merged into Data health (2026-08-13) — one destination.
       { to: '/admin/data-health', label: t('dataHealth'), icon: <HeartPulse className={iconClass} /> },
-      { to: '/admin/clubdesk-sync', label: t('clubdeskSync'), icon: <FolderSync className={iconClass} /> },
       { to: '/bugfixes', label: t('bugfixes'), icon: <Bug className={iconClass} /> },
       { to: '/admin/audit-log', label: t('auditLog'), icon: <ScrollText className={iconClass} /> },
       { to: '/admin/error-logs', label: t('errorLogs'), icon: <FileWarning className={iconClass} /> },

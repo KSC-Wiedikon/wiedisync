@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react'
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { SCHEDULING_ORIGIN } from './lib/api'
 import { Toaster } from 'sonner'
 import { QueryProvider } from './lib/QueryProvider'
@@ -28,7 +28,6 @@ import RosterEditor from './modules/teams/RosterEditor'
 import InfraHealthPage from './modules/admin/InfraHealthPage'
 import DataHealthPage from './modules/admin/DataHealthPage'
 import TransfersPage from './modules/admin/TransfersPage'
-import ClubdeskSyncPage from './modules/admin/ClubdeskSyncPage'
 import AuditLogPage from './modules/admin/AuditLogPage'
 import RefereeExpensesPage from './modules/admin/RefereeExpensesPage'
 import ClubStatsPage from './modules/admin/ClubStatsPage'
@@ -255,7 +254,12 @@ export default function App() {
                 fields=* via KSCW Sport Admin, so the gate and the grant line up
                 and nobody can reach a page whose toggles would 403. */}
             <Route path="admin/transfers" element={<AdminRoute><TransfersPage /></AdminRoute>} />
-            <Route path="admin/clubdesk-sync" element={<SuperAdminRoute><ClubdeskSyncPage /></SuperAdminRoute>} />
+            {/* /admin/clubdesk-sync was merged into Data health on 2026-08-13 —
+                the two pages were halves of one job (aggregate counts here,
+                detail there). Kept as a redirect, not deleted: the old path is in
+                bookmarks, in notification links and in the user guide PDFs.
+                `replace` so Back doesn't bounce off it. */}
+            <Route path="admin/clubdesk-sync" element={<Navigate to="/admin/data-health" replace />} />
             <Route path="admin/audit-log" element={<SuperAdminRoute><AuditLogPage /></SuperAdminRoute>} />
             <Route path="admin/error-logs" element={<SuperAdminRoute><ErrorLogsPage /></SuperAdminRoute>} />
             <Route path="admin/sql" element={<SuperAdminRoute><SqlWorkspacePage /></SuperAdminRoute>} />

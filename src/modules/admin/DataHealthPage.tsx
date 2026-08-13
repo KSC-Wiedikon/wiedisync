@@ -1,15 +1,50 @@
-import { useState, useEffect, useCallback } from 'react'
+// src/modules/admin/DataHealthPage.tsx
+//
+// The club's one health destination. Until 2026-08-13 this page and
+// /admin/clubdesk-sync were two halves of the same job: the ClubDesk findings were
+// AGGREGATE alarm rows here ("24 missing a group") whose only affordance was
+// "the detail lives on the other page", and the detail lived on a page that had no
+// idea what else was wrong. Merging them deletes that split — the aggregates are
+// gone and this page renders the real lists.
+//
+// LAYOUT
+//   Header  — sync down / sync up / fix groups, and when each last ran.
+//   Tabs    — All · Volleyball · Basketball · Unassigned · Club-wide.
+//             The four member tabs bucket by SECTION; "Unassigned" is its own tab
+//             because a member whose section cannot be derived would otherwise
+//             hide inside 'both' (see utils/sportTabs.ts).
+//             "Club-wide" holds the checks that have no section at all: games,
+//             scorer licences, and the structural ClubDesk gaps.
+//
+// ⚠ One fetch owns the group findings (this page), passed down to both the table
+// and the "Fix groups" button. Two fetches would let the button act on a list the
+// operator is not looking at.
+
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
-import { formatTimeZurich } from '../../utils/dateHelpers'
+import { formatTimeZurich, formatDateTimeCompact } from '../../utils/dateHelpers'
 import {
   AlertTriangle, CheckCircle2, ChevronDown, ChevronRight,
-  Wrench, XCircle, RefreshCcw, ScrollText, Download, ArrowUpFromLine,
+  Wrench, XCircle, RefreshCcw, ScrollText, Download, ArrowUpFromLine, ArrowDownToLine,
 } from 'lucide-react'
 import { toXlsx, downloadBlob } from './utils/exportResults'
 import { Checkbox } from '../../components/ui/checkbox'
+import { Button } from '@/components/ui/button'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import ClubdeskSyncUpModal from './components/ClubdeskSyncUpModal'
+import ClubdeskMemberSyncButton from './components/ClubdeskMemberSyncButton'
+import ClubdeskGroupCheck from './components/ClubdeskGroupCheck'
+import ClubdeskFixGroups from './components/ClubdeskFixGroups'
+import {
+  EMPTY_GROUP_CHECK, type FixClass, type GroupCheckResp,
+} from './utils/clubdeskFindings'
+import ClubdeskNeedsSync, { type NeedsSyncRow } from './components/ClubdeskNeedsSync'
+import {
+  SPORT_TABS, inTab, EMPTY_FACETS, type MemberFacets, type SportTab,
+} from './utils/sportTabs'
+import { kscwApi } from '../../lib/api'
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '../../components/ui/table'
@@ -34,15 +69,7 @@ const ISSUE_LABEL_KEY: Record<IssueKey, string> = {
   clubdeskDrift: 'dhIssueClubdeskDrift',
   clubdeskDriftBlocked: 'dhIssueClubdeskDriftBlocked',
   clubdeskFill: 'dhIssueClubdeskFill',
-  clubdeskGroupMissing: 'dhIssueClubdeskGroupMissing',
-  clubdeskGroupStray: 'dhIssueClubdeskGroupStray',
-  clubdeskGroupNoTeam: 'dhIssueClubdeskGroupNoTeam',
-  clubdeskNoGroup: 'dhIssueClubdeskNoGroup',
-  clubdeskCoachGroup: 'dhIssueClubdeskCoachGroup',
-  clubdeskStaleFunktion: 'dhIssueClubdeskStaleFunktion',
-  clubdeskFeeNoRoster: 'dhIssueClubdeskFeeNoRoster',
   clubdeskHonoraryDrift: 'dhIssueClubdeskHonoraryDrift',
-  clubdeskUnmappedTeam: 'dhIssueClubdeskUnmappedTeam',
   clubdeskNameDrift: 'dhIssueClubdeskNameDrift',
   scorerNotInVm: 'dhIssueScorerNotInVm',
   scorerVmWriterNotFlagged: 'dhIssueScorerVmWriterNotFlagged',
@@ -481,18 +508,54 @@ export default function DataHealthPage() {
   const [loading, setLoading] = useState(true)
   const [lastCheck, setLastCheck] = useState('')
   const [syncUpOpen, setSyncUpOpen] = useState(false)
+  const [tab, setTab] = useState<SportTab>('all')
+
+  // ── ClubDesk findings, owned here ──────────────────────────────────────────
+  // One fetch feeds the group-check table AND the "Fix groups" button, so the
+  // button can never act on a list the operator is not looking at.
+  const [groupData, setGroupData] = useState<Required<GroupCheckResp>>(EMPTY_GROUP_CHECK)
+  const [groupErr, setGroupErr] = useState<string | null>(null)
+  const [needsSync, setNeedsSync] = useState<NeedsSyncRow[]>([])
+  const [syncMeta, setSyncMeta] = useState<{ inSync: number; lastDown: string | null; lastUp: string | null }>(
+    { inSync: 0, lastDown: null, lastUp: null })
+  const [facets, setFacets] = useState<MemberFacets>(EMPTY_FACETS)
 
   const runChecks = useCallback(async () => {
     setLoading(true)
-    try {
-      const data = await runAllChecks()
-      setResults(data)
-      setLastCheck(formatTimeZurich(new Date()))
-    } catch (err) {
-      toast.error(String(err))
-    } finally {
-      setLoading(false)
+    setGroupErr(null)
+    // The generic scan and the three ClubDesk reads are independent, so they run
+    // together — but NOT under a single Promise.all: one failing ClubDesk endpoint
+    // must not blank the games/scorer findings (the Promise.all-fails-all pattern
+    // in CLAUDE.md). Each settles on its own and reports its own failure.
+    const [checks, group, needs, facetRes] = await Promise.allSettled([
+      runAllChecks(),
+      kscwApi<GroupCheckResp>('/clubdesk-group-sync'),
+      kscwApi<{
+        rows: NeedsSyncRow[]; in_sync: number; last_down: string | null; last_up: string | null
+      }>('/clubdesk-needs-sync'),
+      kscwApi<MemberFacets>('/clubdesk-member-facets'),
+    ])
+
+    if (checks.status === 'fulfilled') setResults(checks.value)
+    else toast.error(String(checks.reason))
+
+    if (group.status === 'fulfilled') setGroupData({ ...EMPTY_GROUP_CHECK, ...group.value })
+    else setGroupErr(group.reason instanceof Error ? group.reason.message : String(group.reason))
+
+    if (needs.status === 'fulfilled') {
+      setNeedsSync(needs.value.rows || [])
+      setSyncMeta({
+        inSync: needs.value.in_sync || 0,
+        lastDown: needs.value.last_down,
+        lastUp: needs.value.last_up,
+      })
     }
+    // Facets are join data, not a finding: if they fail the tables still render,
+    // they just fall back to the row's own sport and show no bill.
+    if (facetRes.status === 'fulfilled') setFacets({ ...EMPTY_FACETS, ...facetRes.value })
+
+    setLastCheck(formatTimeZurich(new Date()))
+    setLoading(false)
   }, [])
 
   // Auto-run once on mount — checks are read-only, mirroring InfraHealthPage.
@@ -500,6 +563,24 @@ export default function DataHealthPage() {
   // so the set-state-in-effect warning is expected here.
   // eslint-disable-next-line react-hooks/exhaustive-deps, react-hooks/set-state-in-effect
   useEffect(() => { runChecks() }, [])
+
+  // What "Fix groups" could act on right now. Counts only — the server rebuilds
+  // the actual worklist at queue time (see ClubdeskFixGroups).
+  const fixAvailable = useMemo<Record<FixClass, number>>(() => ({
+    missing: groupData.missing.length,
+    coach_no_group: groupData.coach_no_group.length,
+    // Only the halves the fix is allowed to touch, so the dialog's number matches
+    // what a run would actually do rather than promising more than it delivers.
+    stale_funktion: groupData.stale_funktion.filter((r) => r.has_correct).length,
+    strays: groupData.strays.filter((r) => r.auto_removable).length,
+  }), [groupData])
+
+  // These rows already carry the server's verdict, so they bucket directly rather
+  // than going through the facets fallback: `sport_source === 'unknown'` IS the
+  // Unassigned tab, and collapsing it into `sport` would read as 'both'.
+  const needsSyncForTab = useMemo(
+    () => needsSync.filter((r) => inTab(r.sport_source === 'unknown' ? 'unassigned' : r.sport, tab)),
+    [needsSync, tab])
 
   const totalIssues = results.reduce((sum, r) => sum + r.issues.length, 0)
   const totalErrors = results.reduce(
@@ -514,10 +595,12 @@ export default function DataHealthPage() {
   // Report to app boot gate — see usePageReady.tsx
   useReportPageLoading(initialScan)
 
+  const memberTabs = SPORT_TABS.filter((s) => s !== 'club')
+
   return (
-    <div className="mx-auto max-w-3xl px-4 py-4">
+    <div className="mx-auto max-w-5xl px-4 py-4">
       {/* Header */}
-      <div className="mb-6 flex items-center justify-between gap-3">
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
             {t('dhTitle')}
@@ -526,41 +609,40 @@ export default function DataHealthPage() {
             {t('dhDescription')}
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2">
           {lastCheck && (
             <span className="hidden text-xs text-gray-400 sm:inline dark:text-gray-500">
               {lastCheck}
             </span>
           )}
-          {/* Push marked members to ClubDesk without leaving the page — the same
-              modal as /admin/clubdesk-sync and Anmeldungen (single approval gate,
-              not a second copy). This page is already SuperAdminRoute-gated. */}
-          <button
-            onClick={() => setSyncUpOpen(true)}
-            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
+          <Button
+            type="button" variant="outline" size="sm"
+            onClick={runChecks} disabled={loading} aria-busy={loading}
+            className="gap-1.5"
           >
-            <ArrowUpFromLine className="h-3.5 w-3.5" aria-hidden="true" />
-            {t('dhSyncUp')}
-          </button>
-          <button
-            onClick={runChecks}
-            disabled={loading}
-            aria-busy={loading}
-            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg bg-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-300 disabled:opacity-50 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
-          >
-            {loading ? (
-              <>
-                <RefreshCcw className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-                {t('dhScanning')}
-              </>
-            ) : (
-              <>
-                <RefreshCcw className="h-3.5 w-3.5" aria-hidden="true" />
-                {results.length > 0 ? t('dhRescan') : t('dhScan')}
-              </>
-            )}
-          </button>
+            <RefreshCcw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
+            {loading ? t('dhScanning') : results.length > 0 ? t('dhRescan') : t('dhScan')}
+          </Button>
         </div>
+      </div>
+
+      {/* ClubDesk actions. All three write (or can write) to the club register, so
+          they sit together above the findings rather than being scattered through
+          the sections they act on. */}
+      <div className="mb-6 flex flex-wrap items-start gap-x-3 gap-y-2 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-800/30">
+        <span className="flex items-center gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-300">
+          <ArrowDownToLine className="h-4 w-4" aria-hidden="true" />
+          {t('dhClubdeskActions')}
+        </span>
+        <ClubdeskMemberSyncButton onDone={runChecks} />
+        <Button type="button" variant="outline" size="sm" onClick={() => setSyncUpOpen(true)} className="gap-1.5">
+          <ArrowUpFromLine className="h-3.5 w-3.5" aria-hidden="true" />
+          {t('dhSyncUp')}
+        </Button>
+        <ClubdeskFixGroups available={fixAvailable} onDone={runChecks} />
+        <p className="w-full text-xs text-gray-500 dark:text-gray-400">
+          {t('cdNeedsSyncLastUp', { time: syncMeta.lastUp ? formatDateTimeCompact(syncMeta.lastUp) : '—' })}
+        </p>
       </div>
 
       {/* Rescan after a push so pushed members drop off the drift list. */}
@@ -610,34 +692,65 @@ export default function DataHealthPage() {
             </div>
           )}
 
-          {/* Fallback empty state (only if a scan returned nothing, e.g. on error) */}
-          {!loading && results.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-20 text-center">
-              <div className="mb-4 rounded-full bg-gray-100 p-4 dark:bg-gray-800">
-                <AlertTriangle className="h-8 w-8 text-gray-400" aria-hidden="true" />
-              </div>
-              <p className="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-                {t('dhEmptyTitle')}
-              </p>
-              <p className="mb-6 text-xs text-gray-500 dark:text-gray-400">
-                {t('dhEmptyDescription')}
-              </p>
-              <button
-                onClick={runChecks}
-                disabled={loading}
-                className="min-h-[44px] rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
-              >
-                {t('dhScan')}
-              </button>
-            </div>
-          )}
+          <Tabs value={tab} onValueChange={(v) => setTab(v as SportTab)}>
+            <TabsList className="mb-4 flex-wrap">
+              {SPORT_TABS.map((s) => (
+                <TabsTrigger key={s} value={s} className="min-h-11 sm:min-h-0">
+                  {t(`dhTab_${s}`)}
+                </TabsTrigger>
+              ))}
+            </TabsList>
 
-          {/* Collection cards — dimmed while a rescan is in flight */}
-          <div className={`space-y-4 transition-opacity ${loading ? 'pointer-events-none opacity-60' : ''}`}>
-            {sortedResults.map((health) => (
-              <CollectionCard key={health.collection} health={health} onFixed={runChecks} />
+            {/* The four member tabs share one body — they differ only in filter. */}
+            {memberTabs.map((s) => (
+              <TabsContent key={s} value={s} className="space-y-4">
+                <div className={`space-y-4 transition-opacity ${loading ? 'pointer-events-none opacity-60' : ''}`}>
+                  <ClubdeskNeedsSync
+                    rows={needsSyncForTab}
+                    inSync={syncMeta.inSync}
+                    lastDown={syncMeta.lastDown}
+                    lastUp={syncMeta.lastUp}
+                    loading={loading}
+                  />
+                  <ClubdeskGroupCheck
+                    data={groupData}
+                    loading={loading}
+                    error={groupErr}
+                    onRefresh={runChecks}
+                    tab={s}
+                    facets={facets}
+                  />
+                </div>
+              </TabsContent>
             ))}
-          </div>
+
+            {/* Club-wide: the checks with no section at all — games, scorer
+                licences, and the member-level ClubDesk findings whose fix is an
+                admin decision rather than a group write. */}
+            <TabsContent value="club" className="space-y-4">
+              <div className={`space-y-4 transition-opacity ${loading ? 'pointer-events-none opacity-60' : ''}`}>
+                {!loading && results.length === 0 && (
+                  <div className="flex flex-col items-center justify-center py-20 text-center">
+                    <div className="mb-4 rounded-full bg-gray-100 p-4 dark:bg-gray-800">
+                      <AlertTriangle className="h-8 w-8 text-gray-400" aria-hidden="true" />
+                    </div>
+                    <p className="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                      {t('dhEmptyTitle')}
+                    </p>
+                    <p className="mb-6 text-xs text-gray-500 dark:text-gray-400">
+                      {t('dhEmptyDescription')}
+                    </p>
+                    <Button type="button" onClick={runChecks} disabled={loading}>
+                      {t('dhScan')}
+                    </Button>
+                  </div>
+                )}
+                {sortedResults.map((health) => (
+                  <CollectionCard key={health.collection} health={health} onFixed={runChecks} />
+                ))}
+              </div>
+            </TabsContent>
+          </Tabs>
         </>
       )}
     </div>
