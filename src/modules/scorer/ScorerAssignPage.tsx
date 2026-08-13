@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from 'react'
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Navigate } from 'react-router-dom'
 import type { Game, Team, Training, Member, MemberTeam, Hall, LicenceType } from '../../types'
@@ -13,10 +13,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import TeamChip from '../../components/TeamChip'
 import { useConfirm } from '../../components/ConfirmProvider'
 import AssignmentEditor from './components/AssignmentEditor'
+import DutyOverview from './components/DutyOverview'
 import SportToggle from '../../components/SportToggle'
+import TabBar from '../../components/TabBar'
 import { runAssignment, getTeamCounts, buildTeamGameTimes, buildTrainingDates, buildGamesByDateHall, getAdjacentTeams, timeToMin, EXCLUDED_DUTY_TEAM_NAMES, type GameAssignment } from './components/AssignmentAlgorithm'
 import { runBbAssignment, getBbTeamCounts, type BbGameAssignment } from './components/AssignmentAlgorithmBb'
 import { buildAssignmentXlsx, buildTeamColors, downloadBytes, XLSX_MIME, type XlsxGameRow, type XlsxSummaryRow, type XlsxLabels } from './lib/assignmentExport'
+import { weekdayShort } from './lib/dutySpots'
 import { updateRecord } from '../../lib/api'
 import { maybeReloadOnStaleChunk } from '../../lib/chunkReload'
 import { captureApiError } from '../../lib/sentry'
@@ -24,6 +27,9 @@ import { useReportPageLoading } from '../../hooks/usePageReady'
 import { TourPageButton } from '../guide/TourPageButton'
 
 type SportTab = 'volleyball' | 'basketball'
+// 'plan' = the auto-assign planner (draft → roll out); 'overview' = the saved
+// duty picture (team assigned + who signed up).
+type Tab = 'plan' | 'overview'
 
 // The working matching is a DRAFT — auto-persisted to localStorage (per sport +
 // season) so it survives reloads. "Roll out" writes the duties to the games.
@@ -45,14 +51,6 @@ const VB_HARD_RULES = ['ruleVbHardGame', 'ruleVbHardDuty', 'ruleVbHardLicence']
 const VB_SOFT_RULES = ['ruleVbSoftSequence', 'ruleVbSoftOnSite', 'ruleVbSoftHu20', 'ruleVbSoftLegends', 'ruleVbSoftTraining', 'ruleVbSoftRotation', 'ruleVbSoftRefereeCredit', 'ruleVbSoftManualCredit']
 const BB_HARD_RULES = ['ruleBbHardGame', 'ruleBbHardDuty', 'ruleBbHardOtr1']
 const BB_SOFT_RULES = ['ruleBbSoftFullCrew', 'ruleBbSoftSequence', 'ruleBbSoftTraining', 'ruleBbSoftRotation', 'ruleBbSoftWeekend']
-
-// Fixed English 3-letter weekday (exports + table are always English). Index by
-// getDay() on a date parsed as local midnight.
-const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const
-function weekdayShort(date: string): string {
-  const d = new Date(date + 'T00:00:00')
-  return Number.isNaN(d.getTime()) ? '' : WEEKDAYS[d.getDay()]
-}
 
 export default function ScorerAssignPage() {
   const { t, i18n } = useTranslation('scorerAssign')
@@ -145,6 +143,18 @@ export default function ScorerAssignPage() {
   useReportPageLoading(dataLoading)
 
   // State
+  // Tab is reflected in the URL (?tab=overview) so it's deep-linkable + survives
+  // a refresh; the default (plan) keeps the URL clean. Same pattern as /scorer.
+  const [tab, setTabState] = useState<Tab>(
+    () => (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('tab') === 'overview' ? 'overview' : 'plan'),
+  )
+  const setTab = useCallback((next: Tab) => {
+    setTabState(next)
+    const url = new URL(window.location.href)
+    if (next === 'overview') url.searchParams.set('tab', 'overview')
+    else url.searchParams.delete('tab')
+    window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash)
+  }, [])
   const [sportTab, setSportTab] = useState<SportTab>(canVb ? 'volleyball' : 'basketball')
   const [vbAssignments, setVbAssignments] = useState<GameAssignment[]>(() => loadDraft<GameAssignment>('volleyball', season))
   const [bbAssignments, setBbAssignments] = useState<BbGameAssignment[]>(() => loadDraft<BbGameAssignment>('basketball', season))
@@ -689,7 +699,7 @@ export default function ScorerAssignPage() {
         {sportTab === 'volleyball' ? t('subtitle') : t('subtitleBb')}
       </p>
 
-      {/* Actions bar */}
+      {/* Sport, season and tabs — shared by both tabs */}
       <div className="mt-4 flex flex-wrap items-center gap-3">
         {canVb && canBb && (
           <SportToggle
@@ -703,6 +713,32 @@ export default function ScorerAssignPage() {
           {t('season')}: {season}
         </div>
 
+        <TabBar
+          tabs={[{ key: 'plan', label: t('tabPlan') }, { key: 'overview', label: t('tabOverview') }]}
+          active={tab}
+          onChange={setTab}
+        />
+      </div>
+
+      {/* Overview tab — the SAVED duty picture (team assigned + who signed up),
+          independent of the planner's draft. */}
+      {tab === 'overview' && (dataLoading ? (
+        <div className="mt-4"><LoadingSpinner /></div>
+      ) : (
+        <DutyOverview
+          games={homeGames}
+          teams={teams}
+          members={members}
+          hallNameById={hallNameById}
+          sport={sportTab}
+          season={season}
+        />
+      ))}
+
+      {tab === 'plan' && (<>
+
+      {/* Actions bar */}
+      <div className="mt-4 flex flex-wrap items-center gap-3">
         <Button
           data-tour="auto-assign"
           size="sm"
@@ -1038,6 +1074,8 @@ export default function ScorerAssignPage() {
           <p>{t('noGames')}</p>
         </div>
       )}
+
+      </>)}
     </div>
   )
 }

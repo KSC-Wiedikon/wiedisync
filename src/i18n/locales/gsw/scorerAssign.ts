@@ -1,4 +1,24 @@
 export default {
+  // Tabs
+  tabPlan: 'Zueteilig',
+  tabOverview: 'Übersicht',
+
+  // Overview tab (saved duties + who signed up)
+  overviewGame: 'Spiil',
+  overviewRole: 'Dienscht',
+  overviewPerson: 'Iiträit',
+  overviewOpen: 'Offe',
+  overviewFilled: 'Bsetzt',
+  overviewStatus: 'Status',
+  overviewOnlyEmpty: 'Nur offni Plätz aazeige',
+  overviewShowPast: 'Vergangeni Spiil mitnäh',
+  overviewCounts: '{{open}} vo {{total}} Dienschtplätz no offe',
+  overviewEmpty: 'No kei Dienscht zueteilt — zerscht e Zueteilig usrolle.',
+  overviewAllFilled: 'Kei offni Plätz — alles isch bsetzt.',
+  overviewUnknownMember: 'Unbekannts Mitglied',
+  overviewSheet: 'Dienschtübersicht',
+  overviewDownloadError: 'D Excel-Datei het nöd chöne erstellt werde.',
+
   title: 'Schriiber-Zueteilig',
   subtitle: 'Automatischi Zueteilig vo Schriiber- und Täfeler-Teams zu Heimspiel.',
 

@@ -1,4 +1,24 @@
 export default {
+  // Tabs
+  tabPlan: 'Zuteilung',
+  tabOverview: 'Übersicht',
+
+  // Overview tab (saved duties + who signed up)
+  overviewGame: 'Spiel',
+  overviewRole: 'Dienst',
+  overviewPerson: 'Eingetragen',
+  overviewOpen: 'Offen',
+  overviewFilled: 'Besetzt',
+  overviewStatus: 'Status',
+  overviewOnlyEmpty: 'Nur offene Plätze anzeigen',
+  overviewShowPast: 'Vergangene Spiele einbeziehen',
+  overviewCounts: '{{open}} von {{total}} Dienstplätzen noch offen',
+  overviewEmpty: 'Noch keine Dienste zugeteilt — zuerst eine Zuteilung ausrollen.',
+  overviewAllFilled: 'Keine offenen Plätze — alles ist besetzt.',
+  overviewUnknownMember: 'Unbekanntes Mitglied',
+  overviewSheet: 'Dienstübersicht',
+  overviewDownloadError: 'Die Excel-Datei konnte nicht erstellt werden.',
+
   title: 'Schreiber-Zuteilung',
   subtitle: 'Automatische Zuteilung von Schreiber- und Täfeler-Teams zu Heimspielen.',
 

@@ -1,4 +1,24 @@
 export default {
+  // Tabs
+  tabPlan: 'Assegnazione',
+  tabOverview: 'Panoramica',
+
+  // Overview tab (saved duties + who signed up)
+  overviewGame: 'Partita',
+  overviewRole: 'Incarico',
+  overviewPerson: 'Iscritto',
+  overviewOpen: 'Libero',
+  overviewFilled: 'Occupato',
+  overviewStatus: 'Stato',
+  overviewOnlyEmpty: 'Mostra solo i posti liberi',
+  overviewShowPast: 'Includi le partite passate',
+  overviewCounts: '{{open}} di {{total}} posti ancora liberi',
+  overviewEmpty: 'Nessun incarico assegnato — prima distribuisci un\'assegnazione.',
+  overviewAllFilled: 'Nessun posto libero — tutto è coperto.',
+  overviewUnknownMember: 'Membro sconosciuto',
+  overviewSheet: 'Panoramica incarichi',
+  overviewDownloadError: 'Impossibile creare il file Excel.',
+
   title: 'Assegnazione segnapunti',
   subtitle: 'Assegna automaticamente le squadre di segnapunti e tabellone alle partite in casa.',
 
