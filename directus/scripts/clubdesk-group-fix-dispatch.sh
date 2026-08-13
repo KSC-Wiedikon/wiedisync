@@ -80,14 +80,25 @@ fail() {
 # ── Commit gating ───────────────────────────────────────────────────────────────
 # (2) explicit flag, (3) hard env guard. Gate (1) — "a preview succeeded first" —
 # lives in the endpoint, which is the only place that knows what the operator saw.
+#
+# ⚠ A downgrade is PERSISTED back to grp_mode, not just logged. The UI labels the
+# result off grp_mode, so leaving it on 'commit' after forcing preview would show
+# the operator "Commit result — 4 changes" for a run that wrote NOTHING, and the
+# next sync-down would then "mysteriously" revert changes that were never made.
+# A refused write must never be reportable as a completed one.
+DOWNGRADED=
 if [ "$MODE" = "commit" ]; then
   if [ "${CLUBDESK_GRPFIX_COMMIT:-0}" != "1" ]; then
-    echo "REFUSING commit: CLUBDESK_GRPFIX_COMMIT is not 1 — forcing preview" >&2
+    DOWNGRADED="commit refused: CLUBDESK_GRPFIX_COMMIT is not set on this cron — ran as preview, nothing was written"
     MODE=preview
   elif [ "$CLUBDESK_ENV" != "prod" ]; then
-    echo "REFUSING commit: CLUBDESK_ENV=$CLUBDESK_ENV (not prod) — forcing preview (no dev ClubDesk instance)" >&2
+    DOWNGRADED="commit refused: env is $CLUBDESK_ENV, not prod (no dev ClubDesk instance) — ran as preview, nothing was written"
     MODE=preview
   fi
+fi
+if [ -n "$DOWNGRADED" ]; then
+  echo "REFUSING commit — $DOWNGRADED" >&2
+  psqlc "UPDATE clubdesk_member_sync SET grp_mode='preview' WHERE id=1" >/dev/null
 fi
 
 # ── Pull the server-built worklist ──────────────────────────────────────────────
@@ -149,6 +160,8 @@ fi
 
 RESULT=$(printf '{"mode":"%s","add":%s,"remove":%s}' "$MODE" "$RES_ADD" "$RES_REM")
 MSG="$MODE: $N_ADD add, $N_REM remove"
+# Say so on the row the operator reads, not only in a log nobody opens.
+[ -n "$DOWNGRADED" ] && MSG="$MSG — $DOWNGRADED"
 psqlc "UPDATE clubdesk_member_sync SET grp_state='done', grp_requested_at=NULL, grp_finished_at=now(), grp_message=\$m\$$MSG\$m\$, grp_result=\$r\$$RESULT\$r\$, grp_worklist=NULL WHERE id=1" \
   || fail "write-back failed"
 echo "=== group-fix: done ($MSG) $(date -u +%FT%TZ) ==="
