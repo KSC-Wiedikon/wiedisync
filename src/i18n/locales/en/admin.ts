@@ -896,6 +896,8 @@ export default {
   explorerGridOpenDetail: 'Open details',
   // Multi-select + bulk actions
   explorerGridSelectRow: 'Select {{name}}',
+  explorerGridEnterAdds_one: 'adds {{count}}',
+  explorerGridEnterAdds_other: 'adds {{count}}',
   explorerGridSelectAllShown: 'Select all {{count}} shown',
   explorerGridSelectedCount_one: '{{count}} member selected',
   explorerGridSelectedCount_other: '{{count}} members selected',
@@ -965,6 +967,7 @@ export default {
   explorerGridColLicense: 'Licence number',
   explorerGridColVmEmail: 'VM email',
   explorerGridColAhv: 'AHV number',
+  explorerGridColKantonsschule: 'Kantonsschule',
   explorerGridColFeeCategory: 'Fee category',
   explorerGridColRegisterStatus: 'Membership status',
   explorerGridColEintritt: 'Entry date',

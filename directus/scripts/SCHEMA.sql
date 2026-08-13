@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-08-10T15:18:52.946Z
+-- Generated:   2026-08-13T14:58:45.820Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -29,7 +29,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict pfcSryzcT4CjVDMwd2J5E6urKLLaMZXpyZQAGupQxV1AWhwxvCu1dVJ8jRQbsE5
+\restrict UD8gr2Chca5N7rzIR3oFviBn7gfQ7HOUqHTXpRwk8NGtzdAUheX2a8dmIqiNLtg
 
 -- Dumped from database version 16.14 (Debian 16.14-1.pgdg13+1)
 -- Dumped by pg_dump version 16.14 (Debian 16.14-1.pgdg13+1)
@@ -3149,8 +3149,54 @@ CREATE TABLE public.clubdesk_member_sync (
     up_result jsonb,
     up_csv_create text,
     up_member_ids_create jsonb,
+    grp_requested_at timestamp with time zone,
+    grp_state character varying(16) DEFAULT 'idle'::character varying,
+    grp_message text,
+    grp_finished_at timestamp with time zone,
+    grp_mode character varying(8),
+    grp_worklist jsonb,
+    grp_result jsonb,
+    grp_requested_by_name character varying(255),
+    grp_requested_by_email character varying(255),
+    CONSTRAINT clubdesk_member_sync_grp_mode_check CHECK (((grp_mode IS NULL) OR ((grp_mode)::text = ANY ((ARRAY['preview'::character varying, 'commit'::character varying])::text[])))),
+    CONSTRAINT clubdesk_member_sync_grp_state_check CHECK (((grp_state)::text = ANY ((ARRAY['idle'::character varying, 'queued'::character varying, 'running'::character varying, 'done'::character varying, 'failed'::character varying])::text[]))),
     CONSTRAINT clubdesk_member_sync_singleton CHECK ((id = 1))
 );
+
+
+--
+-- Name: COLUMN clubdesk_member_sync.grp_state; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.clubdesk_member_sync.grp_state IS 'Group-fix job state (idle/queued/running/done/failed). Claimed by clubdesk-group-fix-dispatch.sh, polled by /admin/data-health.';
+
+
+--
+-- Name: COLUMN clubdesk_member_sync.grp_mode; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.clubdesk_member_sync.grp_mode IS 'preview = drive every UI step then cancel (no write); commit = write the allocation to the legal register. The UI only offers commit after a successful preview.';
+
+
+--
+-- Name: COLUMN clubdesk_member_sync.grp_worklist; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.clubdesk_member_sync.grp_worklist IS 'SERVER-BUILT worklist {add:[{name,uuid,group,funktion,clubdesk_id}],remove:[{name,uuid,group_label}]}. Never accepted from the client — it would be an arbitrary write channel into the legal member register.';
+
+
+--
+-- Name: COLUMN clubdesk_member_sync.grp_result; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.clubdesk_member_sync.grp_result IS 'Per-row outcome from the scrapers ({add:{tally,results},remove:{…}}). This is what the operator approves before a commit.';
+
+
+--
+-- Name: COLUMN clubdesk_member_sync.grp_requested_by_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.clubdesk_member_sync.grp_requested_by_name IS 'Actor who queued the run — raw-knex writes bypass the Directus revision trail, so the actor is captured explicitly (see CLAUDE.md → Audit logging).';
 
 
 --
@@ -3518,6 +3564,45 @@ ALTER SEQUENCE public.error_mute_rules_id_seq OWNED BY public.error_mute_rules.i
 
 
 --
+-- Name: event_public_signups; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.event_public_signups (
+    id integer NOT NULL,
+    event integer NOT NULL,
+    name character varying(200) NOT NULL,
+    email character varying(255),
+    phone character varying(60),
+    guest_count integer DEFAULT 0 NOT NULL,
+    note text,
+    ip_hash character varying(64),
+    date_created timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT event_public_signups_guest_count_sane CHECK (((guest_count >= 0) AND (guest_count <= 20))),
+    CONSTRAINT event_public_signups_name_not_blank CHECK ((btrim((name)::text) <> ''::text))
+);
+
+
+--
+-- Name: event_public_signups_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.event_public_signups_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: event_public_signups_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.event_public_signups_id_seq OWNED BY public.event_public_signups.id;
+
+
+--
 -- Name: event_sessions; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -3625,7 +3710,9 @@ CREATE TABLE public.events (
     cancelled boolean DEFAULT false NOT NULL,
     cancel_reason text,
     js_relevant boolean DEFAULT false NOT NULL,
-    js_activity_type character varying(32)
+    js_activity_type character varying(32),
+    public_share_token character varying(64),
+    CONSTRAINT events_public_share_token_format CHECK (((public_share_token IS NULL) OR ((public_share_token)::text ~ '^[A-Za-z0-9_-]{24,64}$'::text)))
 );
 
 
@@ -6679,6 +6766,9 @@ CREATE TABLE public.members (
     register_status character varying(24),
     eintritt date,
     austritt date,
+    vis_player_no_manual integer,
+    vis_manual_vis_name text,
+    kantonsschule character varying(64),
     CONSTRAINT members_austritt_needs_departed_status CHECK (((austritt IS NULL) OR (register_status IS NULL) OR ((register_status)::text = ANY ((ARRAY['Kein Mitglied'::character varying, 'Ehemaliges Mitglied'::character varying, 'Verstorben'::character varying])::text[])))),
     CONSTRAINT members_federation_of_origin_fmt CHECK (((federation_of_origin IS NULL) OR ((federation_of_origin)::text = 'NONE'::text) OR ((federation_of_origin)::text ~ '^[A-Z]{2}$'::text))),
     CONSTRAINT members_fee_discount_one_unit CHECK (((fee_discount IS NULL) OR (fee_discount_pct IS NULL))),
@@ -7176,6 +7266,27 @@ COMMENT ON COLUMN public.members.eintritt IS 'Club entry date (ClubDesk "Eintrit
 --
 
 COMMENT ON COLUMN public.members.austritt IS 'Club exit date (ClubDesk "Austritt"). Only meaningful with a departed register_status, which a CHECK constraint enforces. Prefilled with today when an admin sets a departed status in the Data Explorer, and cleared when they set an active one.';
+
+
+--
+-- Name: COLUMN members.vis_player_no_manual; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.vis_player_no_manual IS 'Hand-set FIVB VIS player number (staff, /admin/transfers). Wins over name matching when the sweep can confirm it in the federation roster; NEVER written by vis-player-check. Empty = no override.';
+
+
+--
+-- Name: COLUMN members.vis_manual_vis_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.vis_manual_vis_name IS 'VIS''s own "FirstName LastName" for vis_player_no_manual, refreshed by vis-player-check. NULL after a check = that number is not in the member''s federation index — the link is unconfirmed and does not assert presence.';
+
+
+--
+-- Name: COLUMN members.kantonsschule; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.kantonsschule IS 'Which Zurich Kantonsschule this member attends. ''Nein'' = asked and not at one; NULL = never asked. Mirrors the signup form''s list (kscw-website weiteres/anmeldung.astro); intentionally unconstrained — see migration 315.';
 
 
 --
@@ -8198,6 +8309,51 @@ CREATE SEQUENCE public.signup_tokens_id_seq
 --
 
 ALTER SEQUENCE public.signup_tokens_id_seq OWNED BY public.signup_tokens.id;
+
+
+--
+-- Name: site_text; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.site_text (
+    key character varying(120) NOT NULL,
+    de text,
+    en text,
+    date_updated timestamp with time zone DEFAULT now() NOT NULL,
+    updated_by uuid,
+    CONSTRAINT site_text_de_no_markup CHECK (((de IS NULL) OR ((de <> ''::text) AND (de !~~ '%<%'::text) AND (length(de) <= 2000)))),
+    CONSTRAINT site_text_en_no_markup CHECK (((en IS NULL) OR ((en <> ''::text) AND (en !~~ '%<%'::text) AND (length(en) <= 2000)))),
+    CONSTRAINT site_text_key_format CHECK (((key)::text ~ '^[A-Za-z][A-Za-z0-9_]*$'::text)),
+    CONSTRAINT site_text_not_empty CHECK (((de IS NOT NULL) OR (en IS NOT NULL)))
+);
+
+
+--
+-- Name: TABLE site_text; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.site_text IS 'kscw-website page-text overrides, keyed by i18n key. Internal — not a Directus collection; reachable only via /kscw/site-text and /kscw/wadmin/site_text.';
+
+
+--
+-- Name: COLUMN site_text.key; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.site_text.key IS 'i18n key as used in kscw-website/public/js/i18n/{de,en}.json.';
+
+
+--
+-- Name: COLUMN site_text.de; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.site_text.de IS 'German override. NULL = not overridden, the repo dictionary value is used.';
+
+
+--
+-- Name: COLUMN site_text.en; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.site_text.en IS 'English override. NULL = not overridden, the repo dictionary value is used.';
 
 
 --
@@ -9325,6 +9481,42 @@ COMMENT ON TABLE public.vis_federations IS 'National volleyball federations from
 
 
 --
+-- Name: vis_players; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.vis_players (
+    federation_iso character varying(2) NOT NULL,
+    player_no integer NOT NULL,
+    federation_code character varying(3),
+    federation_no integer,
+    first_name text,
+    last_name text,
+    synced_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: TABLE vis_players; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.vis_players IS 'FIVB VIS player index, mirrored ONLY for the federations our members claim as federation of origin. Fully replaced on each vis-player-check run — never an archive. Holds names + VIS player number only, matching what the upstream GetPlayerList request asks for.';
+
+
+--
+-- Name: COLUMN vis_players.federation_iso; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.vis_players.federation_iso IS 'ISO alpha-2, the key members.federation_of_origin uses. federation_code is the FIVB 3-letter code for the same body.';
+
+
+--
+-- Name: COLUMN vis_players.player_no; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.vis_players.player_no IS 'VIS player number — the value that lands in members.vis_player_no on a match.';
+
+
+--
 -- Name: vis_transfers; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -9620,6 +9812,13 @@ ALTER TABLE ONLY public.error_annotations ALTER COLUMN id SET DEFAULT nextval('p
 --
 
 ALTER TABLE ONLY public.error_mute_rules ALTER COLUMN id SET DEFAULT nextval('public.error_mute_rules_id_seq'::regclass);
+
+
+--
+-- Name: event_public_signups id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.event_public_signups ALTER COLUMN id SET DEFAULT nextval('public.event_public_signups_id_seq'::regclass);
 
 
 --
@@ -10556,6 +10755,14 @@ ALTER TABLE ONLY public.error_mute_rules
 
 
 --
+-- Name: event_public_signups event_public_signups_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.event_public_signups
+    ADD CONSTRAINT event_public_signups_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: event_sessions event_sessions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -10585,6 +10792,14 @@ ALTER TABLE ONLY public.events_members
 
 ALTER TABLE ONLY public.events
     ADD CONSTRAINT events_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: events events_public_share_token_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.events
+    ADD CONSTRAINT events_public_share_token_key UNIQUE (public_share_token);
 
 
 --
@@ -11340,6 +11555,14 @@ ALTER TABLE ONLY public.signup_tokens
 
 
 --
+-- Name: site_text site_text_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.site_text
+    ADD CONSTRAINT site_text_pkey PRIMARY KEY (key);
+
+
+--
 -- Name: slot_claims slot_claims_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -11537,6 +11760,14 @@ ALTER TABLE ONLY public.vb_referee_duty
 
 ALTER TABLE ONLY public.vis_federations
     ADD CONSTRAINT vis_federations_pkey PRIMARY KEY (vis_no);
+
+
+--
+-- Name: vis_players vis_players_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.vis_players
+    ADD CONSTRAINT vis_players_pkey PRIMARY KEY (federation_iso, player_no);
 
 
 --
@@ -12553,6 +12784,13 @@ CREATE INDEX idx_error_mute_rules_enabled ON public.error_mute_rules USING btree
 
 
 --
+-- Name: idx_event_public_signups_event; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_event_public_signups_event ON public.event_public_signups USING btree (event);
+
+
+--
 -- Name: idx_event_signups_email_lower; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -13295,6 +13533,13 @@ CREATE UNIQUE INDEX uq_conversations_one_per_team ON public.conversations USING 
 
 
 --
+-- Name: uq_event_public_signups_event_email; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_event_public_signups_event_email ON public.event_public_signups USING btree (event, lower((email)::text)) WHERE (email IS NOT NULL);
+
+
+--
 -- Name: uq_msg_requests_conv; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -13348,6 +13593,20 @@ CREATE INDEX vb_referee_duty_team_idx ON public.vb_referee_duty USING btree (tea
 --
 
 CREATE UNIQUE INDEX vis_federations_iso_idx ON public.vis_federations USING btree (iso);
+
+
+--
+-- Name: vis_players_name_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX vis_players_name_idx ON public.vis_players USING btree (lower(last_name), lower(first_name));
+
+
+--
+-- Name: vis_players_player_no_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX vis_players_player_no_idx ON public.vis_players USING btree (player_no);
 
 
 --
@@ -14064,6 +14323,14 @@ ALTER TABLE ONLY public.email_suppressions
 
 ALTER TABLE ONLY public.error_mute_rules
     ADD CONSTRAINT error_mute_rules_user_created_fkey FOREIGN KEY (user_created) REFERENCES public.directus_users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: event_public_signups event_public_signups_event_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.event_public_signups
+    ADD CONSTRAINT event_public_signups_event_fkey FOREIGN KEY (event) REFERENCES public.events(id) ON DELETE CASCADE;
 
 
 --
@@ -15235,6 +15502,14 @@ ALTER TABLE ONLY public.signup_tokens
 
 
 --
+-- Name: site_text site_text_updated_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.site_text
+    ADD CONSTRAINT site_text_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES public.directus_users(id) ON DELETE SET NULL;
+
+
+--
 -- Name: slot_claims slot_claims_claimed_by_member_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -15666,12 +15941,12 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict pfcSryzcT4CjVDMwd2J5E6urKLLaMZXpyZQAGupQxV1AWhwxvCu1dVJ8jRQbsE5
+\unrestrict UD8gr2Chca5N7rzIR3oFviBn7gfQ7HOUqHTXpRwk8NGtzdAUheX2a8dmIqiNLtg
 
 
 
 -- ============================================================================
--- Migration tracker seed — 311 migration(s) already in the schema above.
+-- Migration tracker seed — 320 migration(s) already in the schema above.
 -- GENERATED with the snapshot; do not hand-edit.
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS kscw_migrations (
@@ -15994,6 +16269,15 @@ FROM (VALUES
   ('304-bb-fee-increase-2026-27.sql'),
   ('305-clubdesk-fee-stragglers.sql'),
   ('305-forms-published-notified-at.sql'),
-  ('306-fee-overrides-from-clubdesk.sql')
+  ('306-fee-overrides-from-clubdesk.sql'),
+  ('307-clubdesk-fee-stragglers.sql'),
+  ('308-fee-overrides-from-clubdesk.sql'),
+  ('309-site-text.sql'),
+  ('310-event-public-signups.sql'),
+  ('311-games-referees-public.sql'),
+  ('312-vis-manual-player-link.sql'),
+  ('313-vis-player-index-staging.sql'),
+  ('314-clubdesk-group-fix-job.sql'),
+  ('315-members-kantonsschule.sql')
 ) AS v(fname)
 ON CONFLICT (filename) DO NOTHING;

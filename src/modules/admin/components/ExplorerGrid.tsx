@@ -23,7 +23,7 @@
 // by canEdit (global admin + sport admins — the Vorstand policy is read-only
 // on members/member_teams/teams, so it gets a read-only grid).
 
-import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useImperativeHandle, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
@@ -82,6 +82,25 @@ interface Props {
   onOpenDetail: (memberId: string) => void
   /** Apply an optimistic update to the underlying explorer cache. */
   onMutate: (updater: (prev: CacheShape) => CacheShape) => void
+  /**
+   * Lets the page drive the selection from the header search box — see
+   * ExplorerGridHandle. A plain prop rather than a forwarded `ref` so the
+   * channel is named for what it carries.
+   */
+  apiRef?: RefObject<ExplorerGridHandle | null>
+}
+
+/**
+ * What the page may ask the grid to do.
+ *
+ * `addShownToSelection` exists so typing a name in the header search and
+ * pressing Enter banks that person and clears the box, ready for the next one.
+ * The grid owns both the selection and the filtered row list, and neither
+ * belongs in the page — so the page asks rather than computes.
+ */
+export interface ExplorerGridHandle {
+  /** Adds every currently-listed member. Returns how many were added. */
+  addShownToSelection: () => number
 }
 
 type GridView = 'members' | 'teams'
@@ -97,7 +116,7 @@ type ColKey =
   | 'sex' | 'language' | 'number' | 'position' | 'license_nr'
   | 'vm_email' | 'ahv_nummer' | 'beitragskategorie' | 'role'
   // The club register's own membership facts (migration 302).
-  | 'register_status' | 'eintritt' | 'austritt'
+  | 'register_status' | 'eintritt' | 'austritt' | 'kantonsschule'
   | 'sport' | 'scorer_vb' | 'referee' | 'officials'
   | 'wiedisync_active' | 'last_online_at' | 'passive' | 'honorary' | 'former'
   | 'clubdesk_sync' | 'reg_files'
@@ -205,6 +224,9 @@ const COLUMNS: ColDef[] = [
   { key: 'eintritt', labelKey: 'explorerGridColEintritt', kind: 'date', minW: 'min-w-28', groupable: true },
   { key: 'austritt', labelKey: 'explorerGridColAustritt', kind: 'date', minW: 'min-w-28', groupable: true, readOnly: true },
   { key: 'beitragskategorie', labelKey: 'explorerGridColFeeCategory', kind: 'text', minW: 'min-w-36', groupable: true },
+  // Groupable on purpose: "how many of ours are at KS Wiedikon" is the whole
+  // reason the column exists (migration 315).
+  { key: 'kantonsschule', labelKey: 'explorerGridColKantonsschule', kind: 'text', minW: 'min-w-44', groupable: true },
   { key: 'passive', labelKey: 'explorerGridColPassive', kind: 'bool', minW: 'min-w-24', groupable: true },
   { key: 'honorary', labelKey: 'explorerGridColHonorary', kind: 'bool', minW: 'min-w-24', groupable: true },
   { key: 'former', labelKey: 'explorerGridColFormer', kind: 'bool', minW: 'min-w-24', groupable: true },
@@ -298,7 +320,7 @@ function shortMemberName(m: Member | undefined, fallback: string): string {
 }
 
 export default function ExplorerGrid({
-  cache, query, canEdit, isGlobalAdmin, focusFields, onOpenDetail, onMutate,
+  cache, query, canEdit, isGlobalAdmin, focusFields, onOpenDetail, onMutate, apiRef,
 }: Props) {
   const { t, i18n } = useTranslation(['admin', 'common'])
   const confirm = useConfirm()
@@ -669,6 +691,28 @@ export default function ExplorerGrid({
   }, [rows])
 
   const clearSelection = useCallback(() => setSelection(new Map()), [])
+
+  /**
+   * Bank every row the current search leaves on screen.
+   *
+   * Returns the number of rows that were NOT already selected, which is what
+   * tells the page whether to clear the search box: pressing Enter on a query
+   * that adds nothing new must not wipe what you typed, or a mistyped name
+   * looks like it was accepted.
+   */
+  const addShownToSelection = useCallback((): number => {
+    if (!selectable) return 0
+    const fresh = rows.filter((m) => !selection.has(String(m.id)))
+    if (fresh.length === 0) return 0
+    setSelection((prev) => {
+      const next = new Map(prev)
+      for (const m of fresh) next.set(String(m.id), m)
+      return next
+    })
+    return fresh.length
+  }, [selectable, rows, selection])
+
+  useImperativeHandle(apiRef, () => ({ addShownToSelection }), [addShownToSelection])
 
   const sections = useMemo((): Array<{ label: string | null; rows: Member[] }> => {
     if (groupBy === 'none') return [{ label: null, rows }]
@@ -1372,6 +1416,15 @@ export default function ExplorerGrid({
           <span className="text-xs text-muted-foreground">
             {t('admin:explorerGridEntries', { count: totalShown })}
           </span>
+          {/* What Enter in the header search will do, and to how many. Shown
+              only while a search is active — the count is the whole point, so
+              nobody presses Enter on "a" and banks 600 people by surprise. */}
+          {selectable && query.trim() !== '' && rows.length > 0 && (
+            <span className="hidden items-center gap-1 text-xs text-muted-foreground sm:inline-flex">
+              <kbd className="rounded border border-border px-1 py-0.5 text-[10px]">↵</kbd>
+              {t('admin:explorerGridEnterAdds', { count: rows.length })}
+            </span>
+          )}
           {!canEdit && (
             <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
               {t('admin:explorerGridReadOnly')}

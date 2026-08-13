@@ -77,9 +77,9 @@ describe('memberFieldSchema — completeness', () => {
     expect([...keys].sort()).toEqual(expected)
   })
 
-  it('has 111 real columns and 4 virtual fields', () => {
-    expect(MEMBERS_COLUMNS).toHaveLength(111)
-    expect(MEMBER_FIELDS.filter((f) => !f.virtual)).toHaveLength(111)
+  it('has 112 real columns and 4 virtual fields', () => {
+    expect(MEMBERS_COLUMNS).toHaveLength(112)
+    expect(MEMBER_FIELDS.filter((f) => !f.virtual)).toHaveLength(112)
     // The three team multiselects each write their own junction collection; the
     // Beitrag card is computed by the server's fee engine. None is a `members`
     // column, and none may ever reach a PATCH body.
@@ -102,7 +102,7 @@ describe('memberFieldSchema — completeness', () => {
     const count = (id: MemberFieldGroupId) => MEMBER_FIELDS.filter((f) => f.group === id).length
     expect(count('identity')).toBe(11)
     expect(count('contact')).toBe(7)
-    expect(count('membership')).toBe(14) // 11 columns + the 3 team links
+    expect(count('membership')).toBe(15) // 12 columns + the 3 team links
     expect(count('playing')).toBe(3)
     expect(count('association')).toBe(21)
     expect(count('roles_access')).toBe(3)
@@ -293,7 +293,7 @@ describe('isBulkEditable', () => {
     // contact
     'hide_email', 'hide_phone', 'adresse', 'plz', 'ort',
     // membership
-    'sektion', TEAMS_VIRTUAL_KEY, COACH_VIRTUAL_KEY, TR_VIRTUAL_KEY,
+    'sektion', 'kantonsschule', TEAMS_VIRTUAL_KEY, COACH_VIRTUAL_KEY, TR_VIRTUAL_KEY,
     'requested_team', 'coach_approved_team', 'eintritt',
     // playing
     'position', 'trainer_licences',

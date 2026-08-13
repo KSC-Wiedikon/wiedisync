@@ -12,7 +12,7 @@ import ExplorerSearch from './components/ExplorerSearch'
 import ExplorerFieldSearch from './components/ExplorerFieldSearch'
 import ExplorerTree from './components/ExplorerTree'
 import ExplorerDetail from './components/ExplorerDetail'
-import ExplorerGrid from './components/ExplorerGrid'
+import ExplorerGrid, { type ExplorerGridHandle } from './components/ExplorerGrid'
 import ExplorerMemberFilters from './components/ExplorerMemberFilters'
 import {
   EMPTY_FILTERS,
@@ -76,6 +76,20 @@ export default function ExplorePage() {
   }, [setParams])
 
   const [query, setQuery] = useState('')
+
+  /**
+   * Enter in the header search banks whoever the search is showing and clears
+   * the box, so a selection is built one name at a time without ever reaching
+   * for the mouse. The grid owns the selection AND the filtered row list, so it
+   * does the work and answers how many were new; the box is only cleared when
+   * something actually landed — otherwise a mistyped name would vanish looking
+   * as though it had been accepted.
+   */
+  const gridRef = useRef<ExplorerGridHandle | null>(null)
+  const handleSearchEnter = useCallback(() => {
+    if (view !== 'grid' || query.trim() === '') return
+    if ((gridRef.current?.addShownToSelection() ?? 0) > 0) setQuery('')
+  }, [view, query])
   const [memberFilters, setMemberFilters] = useState<MemberFilterState>(EMPTY_FILTERS)
 
   /**
@@ -155,7 +169,7 @@ export default function ExplorePage() {
       <header className="flex items-center gap-2 border-b border-border bg-card px-3 py-2 md:px-4">
         <h1 className="hidden text-sm font-bold text-primary md:block">{t('explorerTitle')}</h1>
         <div className="max-w-md flex-1">
-          <ExplorerSearch value={query} onChange={setQuery} />
+          <ExplorerSearch value={query} onChange={setQuery} onEnter={handleSearchEnter} />
         </div>
         <ExplorerFieldSearch value={focusFields} onChange={setFocusFields} />
         <ExplorerMemberFilters value={memberFilters} onChange={setMemberFilters} />
@@ -212,6 +226,7 @@ export default function ExplorePage() {
             query={query}
             canEdit={canEditGrid}
             isGlobalAdmin={auth.isGlobalAdmin}
+            apiRef={gridRef}
             focusFields={focusFields}
             onOpenDetail={handleOpenDetail}
             onMutate={mutate}
