@@ -246,6 +246,57 @@ export function matchMember(m, { roster, byTokens, players, byNo }) {
   return { no: no ?? null, manualName }
 }
 
+/**
+ * Replace `vis_players` (migration 313) with exactly what this run downloaded.
+ *
+ * A FULL replace inside one transaction, not an upsert: it makes the table mean
+ * "the last successful download" instead of "everything ever seen", which is
+ * what keeps a federation nobody claims any more from lingering, and what makes
+ * `synced_at` uniform and therefore meaningful.
+ *
+ * ⚠ Skipped when the download produced nothing. An empty `rows` here means every
+ * federation was unmapped or the cohort was empty — never that VIS is genuinely
+ * empty — so wiping the table on it would destroy good data on a bad run.
+ *
+ * ⚠ Chunked INSERTs: a single VALUES list of every federation's roster is tens
+ * of thousands of rows on one statement.
+ *
+ * Returns the number of rows written.
+ */
+function writeVisPlayerStaging(env, rows) {
+  if (!rows.length) {
+    console.warn('[vis] ⚠ nothing downloaded — leaving vis_players untouched')
+    return 0
+  }
+
+  // Is a VIS player number global, or only unique within a federation? The
+  // composite PK is correct either way, so rather than assume, say so out loud
+  // when the data answers it.
+  const seenIso = new Map()
+  for (const r of rows) {
+    const prev = seenIso.get(r.no)
+    if (prev && prev !== r.iso) {
+      console.warn(`[vis] ⚠ player #${r.no} listed under BOTH ${prev} and ${r.iso}`)
+    } else if (!prev) seenIso.set(r.no, r.iso)
+  }
+
+  // Same quoting rule as the members write below: doubled single quotes, and a
+  // hard length cap so a pathological upstream value cannot blow the statement.
+  const lit = (s) => (s == null || s === '' ? 'NULL' : `'${String(s).slice(0, 200).replace(/'/g, "''")}'`)
+  const num = (n) => (Number.isFinite(Number(n)) ? String(Number(n)) : 'NULL')
+
+  const statements = []
+  for (let i = 0; i < rows.length; i += 1000) {
+    const vals = rows.slice(i, i + 1000).map((r) =>
+      `(${lit(r.iso)}, ${r.no}, ${lit(r.code)}, ${num(r.fedNo)}, ${lit(r.fn)}, ${lit(r.ln)})`).join(',\n')
+    statements.push(
+      'INSERT INTO vis_players (federation_iso, player_no, federation_code, federation_no, first_name, last_name)\n'
+      + `VALUES\n${vals}\nON CONFLICT (federation_iso, player_no) DO NOTHING;`)
+  }
+  psql(env, `BEGIN;\nDELETE FROM vis_players;\n${statements.join('\n')}\nCOMMIT;`)
+  return rows.length
+}
+
 async function main() {
   const args = process.argv.slice(2)
   const dryRun = args.includes('--dry-run')
@@ -284,7 +335,7 @@ async function main() {
   const feds = (await visPost(cookie, `<Request Type="${FED_LIST_TYPE}" Properties="No Code Name"/>`)).data
   const byCode = new Map(feds.map((f) => [f.code, f]))
 
-  const rosters = new Map(); const unmapped = []
+  const rosters = new Map(); const unmapped = []; const staging = []
   for (const iso of [...new Set(members.map((m) => m.foo))]) {
     const fed = byCode.get(ISO2FIVB[iso])
     if (!fed) { unmapped.push(iso); console.log(`  ⚠ ${iso}: no VIS federation mapped — skipped`); continue }
@@ -293,6 +344,18 @@ async function main() {
       `<Relation Name="Person" Properties="FirstName LastName"/></Request>`)
     const index = buildRosterIndex(j.data)
     rosters.set(iso, index)
+    // Kept for staging (migration 313). Same rows the index is built from, and
+    // the same `!p.person` guard — a roster entry with no person carries no
+    // name to store and no name to match.
+    for (const p of j.data || []) {
+      if (!p.person) continue
+      const no = Number(p.no)
+      if (!Number.isInteger(no)) continue
+      staging.push({
+        iso, no, code: fed.code, fedNo: fed.no,
+        fn: p.person.firstName ?? null, ln: p.person.lastName ?? null,
+      })
+    }
     console.log(`  ${iso} (${fed.code}): ${index.roster.size} players`)
   }
 
@@ -334,6 +397,16 @@ SELECT 'in_vis true' AS m, count(*) AS n FROM members WHERE in_vis
 UNION ALL SELECT 'in_vis false', count(*) FROM members WHERE in_vis = false
 UNION ALL SELECT 'unchecked', count(*) FROM members WHERE in_vis IS NULL;`)
   console.log(`[vis] wrote ${found.length + notFound.length} row(s) (${target})`)
+
+  // Derived data, written last and on its own: the members UPDATE above IS the
+  // job, so a staging failure must not fail the run or mask the verdicts it
+  // already committed. Loud warning, non-zero exit withheld deliberately.
+  try {
+    const n = writeVisPlayerStaging(env, staging)
+    if (n) console.log(`[vis] staged ${n} roster row(s) from ${rosters.size} federation(s)`)
+  } catch (e) {
+    console.warn(`[vis] ⚠ roster staging FAILED — verdicts above are unaffected: ${e.message}`)
+  }
 }
 
 // Only run as a job when invoked directly — the test imports the two pure
