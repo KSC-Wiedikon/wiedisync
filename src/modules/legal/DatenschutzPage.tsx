@@ -22,6 +22,29 @@ export default function DatenschutzPage() {
         </h3>
         <p className="mb-4">{t('dataAccountText')}</p>
 
+        {/* Added 2026-08-13. This section enumerated only name, email, phone, birthdate,
+            photo, licence, position and team — while `members` also holds postal
+            address, nationality, AHV number, IBAN, billing details, fee category and
+            J+S id, and identity documents are stored too. This component is rendered
+            inside the signup flow (SignUpPage), so the incomplete list WAS the Art. 19
+            notice shown at account creation. */}
+        <h3 className="mb-1 font-semibold text-gray-800 dark:text-gray-200">
+          {t('dataRegisterTitle')}
+        </h3>
+        <p className="mb-4">{t('dataRegisterText')}</p>
+
+        <h3 className="mb-1 font-semibold text-gray-800 dark:text-gray-200">
+          {t('dataFinanceTitle')}
+        </h3>
+        <p className="mb-4">{t('dataFinanceText')}</p>
+
+        {/* The end-to-end encryption reads as a strength once it is written down: the
+            document is ciphertext before it leaves the member's browser. */}
+        <h3 className="mb-1 font-semibold text-gray-800 dark:text-gray-200">
+          {t('dataIdentityTitle')}
+        </h3>
+        <p className="mb-4">{t('dataIdentityText')}</p>
+
         <h3 className="mb-1 font-semibold text-gray-800 dark:text-gray-200">
           {t('dataRosterTitle')}
         </h3>
@@ -56,6 +79,11 @@ export default function DatenschutzPage() {
           <li>{t('thirdPartyGCal')}</li>
           <li>{t('thirdPartyMigadu')}</li>
           <li>{t('thirdPartyHetzner')}</li>
+          {/* ClubDesk receives the full contact record including AHV number and
+              IBAN and was absent from this list. It is the ORIGIN of most of those
+              fields (one-way down-sync) and the up-push is gated off on prod, so
+              this is a completeness gap rather than an undisclosed new transfer. */}
+          <li>{t('thirdPartyClubDesk')}</li>
           <li>{t('thirdPartySentry')}</li>
           <li>{t('thirdPartyCloudflareWorkers')}</li>
         </ul>

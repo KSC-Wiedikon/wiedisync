@@ -209,4 +209,15 @@ export default {
   licenceStatus_ordered: 'Ordinata',
   licenceStatus_finalized: 'Finalizzata',
   licenceStatus_licenced: 'Licenziata',
-} as const
+
+  // Not found (catch-all route)
+  notFoundTitle: 'Pagina non trovata',
+  notFoundText: 'Questa pagina non esiste — o non esiste più. L\'indirizzo potrebbe essere cambiato.',
+  notFoundHome: 'Vai alla home',
+  notFoundBack: 'Indietro',
+
+  // Session expiry (global query error handler)
+  sessionExpiredTitle: 'Sessione scaduta',
+  sessionExpiredText: 'Sei stato disconnesso. Accedi di nuovo per continuare.',
+  sessionExpiredAction: 'Accedi di nuovo',
+}

@@ -13,6 +13,9 @@ import {
 import { toast } from 'sonner'
 import i18n from '../i18n'
 import { captureApiError, captureAuthError } from './sentry'
+// Pure predicate, kept in its own module so it is unit-testable without mocking
+// this one. Re-exported so existing `from './api'` call sites keep working.
+export { isSessionExpired } from './sessionError'
 
 // ── Config ──────────────────────────────────────────────────────────
 

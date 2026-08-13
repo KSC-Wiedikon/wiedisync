@@ -21,6 +21,19 @@ export default {
   dataTechnicalText:
     'Beim Besuch der Website werden automatisch technische Informationen wie IP-Adresse und Browser-Informationen durch unseren Hosting-Anbieter (Cloudflare) verarbeitet.',
 
+  dataRegisterTitle:
+    'Stammdaten für Mitgliederverwaltung und Verbände',
+  dataRegisterText:
+    'Für die Vereinsverwaltung und die Anmeldung bei den Verbänden erfassen wir zusätzlich Postadresse, PLZ und Ort, Nationalität, Geschlecht, AHV-Nummer sowie — bei Nachwuchstrainerinnen und -trainern — die J+S-Personennummer. Die AHV-Nummer wird für die Verbands- und J+S-Meldungen benötigt und ist ausschliesslich für den Vorstand und die Administration sichtbar.',
+  dataFinanceTitle:
+    'Zahlungs- und Rechnungsdaten',
+  dataFinanceText:
+    'Für die Rechnungsstellung der Mitgliederbeiträge erfassen wir Beitragskategorie, Rechnungsadresse und Zahlungsverbindung (IBAN). Diese Daten sind nur für den Vorstand und die Finanzadministration einsehbar.',
+  dataIdentityTitle:
+    'Ausweisdokumente (Ende-zu-Ende-verschlüsselt)',
+  dataIdentityText:
+    'Für Spiellizenzen verlangen einzelne Verbände eine Ausweiskopie. Diese wird bereits im Browser des Mitglieds verschlüsselt (AES-256-GCM) und gelangt nur als Chiffrat auf unseren Server; der Schlüssel wird separat für die berechtigten Personen verpackt. Weder der Serverbetreiber noch die Administration kann die Datei ohne diesen Schlüssel lesen.',
+
   legalBasisTitle: '3. Rechtsgrundlagen',
   legalBasisText:
     'Die Verarbeitung personenbezogener Daten erfolgt auf Grundlage von:',
@@ -45,6 +58,8 @@ export default {
     'Migadu (migadu.com) — E-Mail-Versand für Benachrichtigungen und Erinnerungen | Schweiz | DPA',
   thirdPartyHetzner:
     'Hetzner Online GmbH — Backend-Hosting (Directus) | Deutschland (Rechenzentrum Nürnberg) | DPA, DSGVO-konform',
+  thirdPartyClubDesk:
+    'ClubDesk (Vereinsverwaltung, Schweiz): Mitgliederstammdaten inklusive Kontaktangaben, AHV-Nummer und Zahlungsverbindung werden mit der Vereinsverwaltung ClubDesk abgeglichen, aus der ein Grossteil dieser Daten ursprünglich stammt.',
   thirdPartySentry:
     'Sentry (sentry.io) — Fehlererfassung und Performance-Monitoring | EU (de.sentry.io, Deutschland) | DPA, DSGVO-konform. Es werden keine personenbezogenen Daten (Name, E-Mail) an Sentry übermittelt.',
   thirdPartyCloudflareWorkers:

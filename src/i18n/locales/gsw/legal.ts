@@ -21,6 +21,19 @@ export default {
   dataTechnicalText:
     'Bim Bsuech vo de Website werded automatisch technischi Informatione wie IP-Adrässe und Browser-Informatione dur euse Hosting-Abieter (Cloudflare) verarbeitet.',
 
+  dataRegisterTitle:
+    'Stammdate für d Vereinsverwaltig und d Verbänd',
+  dataRegisterText:
+    'Für d Vereinsverwaltig und d Aamäldig bi de Verbänd erfassed mir zusätzlich Poschtadrässe, PLZ und Ort, Nationalität, Gschlächt, AHV-Nummere und — bi de Nachwuchstrainer:inne — d J+S-Persoonenummere. D AHV-Nummere bruucht s für d Verbands- und J+S-Mäldige und isch nume für de Vorstand und d Administration sichtbar.',
+  dataFinanceTitle:
+    'Zahligs- und Rächnigsdate',
+  dataFinanceText:
+    'Für d Rächnigstellig vo de Mitgliederbyträg erfassed mir d Bytragskategorie, d Rächnigsadrässe und d Zahligsverbindig (IBAN). Die Date gseht nume de Vorstand und d Finanzadministration.',
+  dataIdentityTitle:
+    'Uswiisdokumänt (Änd-zu-Änd-verschlüsslet)',
+  dataIdentityText:
+    'Für Spiellizänze verlangt de ei oder ander Verband e Uswiiskopie. Die wird scho im Browser vom Mitglied verschlüsslet (AES-256-GCM) und chunt nume als Chiffrat uf üse Server; de Schlüssel wird separat für die berächtigte Persone verpackt. Weder de Serverbetriiber no d Administration cha d Datei ohni die Schlüssel läse.',
+
   legalBasisTitle: '3. Rächtsgründlag',
   legalBasisText:
     'D Verarbeitig vo personebezogene Date erfolgt uf Grundlag vo:',
@@ -45,6 +58,8 @@ export default {
     'Migadu (migadu.com) — E-Mail-Versand für Benachrichtigunge und Erinnerige | Schwiiz | DPA',
   thirdPartyHetzner:
     'Hetzner Online GmbH — Backend-Hosting (Directus) | Dütschland (Rächemzäntrum Nürnberg) | DPA, DSGVO-konform',
+  thirdPartyClubDesk:
+    'ClubDesk (Vereinsverwaltig, Schwiiz): D Mitgliederstammdate inklusive Kontaktangabe, AHV-Nummere und Zahligsverbindig wärdet mit ClubDesk abglyche, wo die Date grösstenteils au härchömed.',
   thirdPartySentry:
     'Sentry (sentry.io) — Fählererfassig und Performance-Monitoring | EU (de.sentry.io, Dütschland) | DPA, DSGVO-konform. Es werded käni personebezogeni Date (Name, E-Mail) a Sentry übermittlet.',
   thirdPartyCloudflareWorkers:
