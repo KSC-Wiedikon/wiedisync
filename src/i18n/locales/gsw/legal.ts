@@ -67,7 +67,7 @@ export default {
 
   retentionTitle: '5. Ufbewahrigsfrischt',
   retentionText:
-    'Ihri personebezogene Date werded so lang gspeicheret, wie Sie es aktivs Konto uf de Plattform händ. Nach ere Löschaafrag oder bi Beändigung vo de Mitgliedschaft werded Ihri Date innert 30 Täg glöscht, sofern käni gsetzliche Ufbewahrigspflichte entgeggestönd. Sie chönd Ihres Konto jederziit selber i de Profilistellige lösche.',
+    'Solang du es aktivs Konto häsch, blibed dini Date gspicheret. Du chasch dis Konto jederzyt sälber i de Profileinstellige lösche; d Löschig passiert sofort und umfasst au di verknüpfte Datesätz. S Änd vo de Mitgliedschaft löscht hingäge nöd automatisch: En Teil vo de Date mues us gsetzliche Gründ wiiter ufbewahrt wärde, bsunders Gschäfts- und Buechhaltigsunterlage während zäh Jahr nach Art. 958f OR. Date ohni Ufbewahrigspflicht lösched mir uf Aafrag über d Kontaktadrässe unde.',
 
   storageTitle: '6. Datespeicherig',
   storageServer:
