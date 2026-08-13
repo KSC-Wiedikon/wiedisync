@@ -7,6 +7,8 @@
 import { buildEmailLayout, buildInfoCard, formatDateCH, bucketEmailsByLocale, escHtml } from './email-template.js'
 import { normalizePhone, normalizeIban, normalizeAhv, normalizeEmail, titleCaseName } from './normalize.js'
 import { BB_SITUATIONS, bbRequiredDocs, fibaNatCode } from './bb-docs.js'
+import { BB_PDF_TEMPLATES, fillBbForm } from './bb-pdf-fill.js'
+import { federationName, NO_FEDERATION } from './federations.js'
 import { writeUserLog } from './activity-log.js'
 import { loadTemplate, mergeTemplate, renderTemplate, sanitizeTemplateHtml, recordEmailSend, validateTemplate } from './email-templates.js'
 import crypto from 'crypto'
@@ -1220,6 +1222,61 @@ export function registerRegistration(router, { database, logger, services, getSc
     }
   })
 
+  // Shared auth for the two public reference+email routes (doc-status and
+  // doc-template). Both consume the attach limiter, including its brute-force
+  // mismatch lockout, and both answer 404 on ANY mismatch so neither confirms
+  // which half of the pair was wrong.
+  //
+  // Returns { status, body } to send, or { reg } on success — the caller decides
+  // what to do with the row, and the DOC_STATUS_FIELDS/columns it needs are passed
+  // in, because the two routes legitimately read different sets.
+  const authByReferenceAndEmail = async (req, columns) => {
+    const reference = String(req.query.reference || '').trim()
+    const email = String(req.query.email || '').trim().toLowerCase()
+    if (!reference || !email) {
+      return { status: 400, body: { error: 'reference and email required' } }
+    }
+
+    const xff = req.headers['x-forwarded-for']
+    const ip = req.headers['cf-connecting-ip']
+      || (typeof xff === 'string' ? xff.split(',')[0].trim() : '')
+      || req.ip || 'unknown'
+    const now = Date.now()
+    const ipEntry = fileAttachIp.get(ip)
+    if (ipEntry && now < ipEntry.resetAt) {
+      if (ipEntry.count >= 10 || ipEntry.mismatches >= 5) {
+        return { status: 429, body: { error: 'Too many requests' } }
+      }
+      ipEntry.count++
+    } else {
+      fileAttachIp.set(ip, { count: 1, resetAt: now + 10 * 60 * 1000, mismatches: 0 })
+    }
+    if (fileAttachIp.size > 1000) {
+      for (const [k, v] of fileAttachIp) { if (now > v.resetAt) fileAttachIp.delete(k) }
+    }
+
+    const reg = await database('registrations')
+      .whereRaw('LOWER(reference_number) = ?', [reference.toLowerCase()])
+      .first(...columns)
+    const emailOk = reg && String(reg.email || '').toLowerCase() === email
+    if (!reg || !emailOk || !['pending', 'approved'].includes(reg.status)) {
+      const e = fileAttachIp.get(ip)
+      if (e) e.mismatches = (e.mismatches || 0) + 1
+      return { status: 404, body: { error: 'Registration not found' } }
+    }
+    return { reg }
+  }
+
+  // Columns doc-status reads. doc-template reads these PLUS the personal fields
+  // the licence forms carry — which is exactly why they are separate lists: the
+  // JSON route must never start returning the PDF route's PII (see doc-template).
+  const DOC_STATUS_FIELDS = [
+    'id', 'status', 'email', 'membership_type', 'nationalitaet_code', 'nationalitaet_codes',
+    'geburtsdatum', 'bb_situation', 'bb_recent_licence', 'reference_number',
+    'id_upload_front', 'id_upload_back', 'bb_doc_lizenz', 'bb_doc_freibrief',
+    'bb_doc_selfdecl', 'bb_doc_natdecl', 'bb_doc_u18parents', 'bb_doc_schoolcert',
+  ]
+
   // GET /kscw/registration/doc-status — document completeness for the public
   // "Dokumente nachreichen" (late re-upload) page. Auth = reference number +
   // registration email together; shares the attach limiter (incl. its
@@ -1227,38 +1284,9 @@ export function registerRegistration(router, { database, logger, services, getSc
   // never confirms which half was wrong. Returns booleans only — no PII.
   router.get('/registration/doc-status', async (req, res) => {
     try {
-      const reference = String(req.query.reference || '').trim()
-      const email = String(req.query.email || '').trim().toLowerCase()
-      if (!reference || !email) return res.status(400).json({ error: 'reference and email required' })
-
-      const xff = req.headers['x-forwarded-for']
-      const ip = req.headers['cf-connecting-ip']
-        || (typeof xff === 'string' ? xff.split(',')[0].trim() : '')
-        || req.ip || 'unknown'
-      const now = Date.now()
-      const ipEntry = fileAttachIp.get(ip)
-      if (ipEntry && now < ipEntry.resetAt) {
-        if (ipEntry.count >= 10 || ipEntry.mismatches >= 5) {
-          return res.status(429).json({ error: 'Too many requests' })
-        }
-        ipEntry.count++
-      } else {
-        fileAttachIp.set(ip, { count: 1, resetAt: now + 10 * 60 * 1000, mismatches: 0 })
-      }
-      if (fileAttachIp.size > 1000) {
-        for (const [k, v] of fileAttachIp) { if (now > v.resetAt) fileAttachIp.delete(k) }
-      }
-
-      const reg = await database('registrations')
-        .whereRaw('LOWER(reference_number) = ?', [reference.toLowerCase()])
-        .first('id', 'status', 'email', 'membership_type', 'nationalitaet_code', 'nationalitaet_codes', 'geburtsdatum', 'bb_situation', 'bb_recent_licence', 'reference_number',
-          'id_upload_front', 'id_upload_back', 'bb_doc_lizenz', 'bb_doc_freibrief', 'bb_doc_selfdecl', 'bb_doc_natdecl', 'bb_doc_u18parents', 'bb_doc_schoolcert')
-      const emailOk = reg && String(reg.email || '').toLowerCase() === email
-      if (!reg || !emailOk || !['pending', 'approved'].includes(reg.status)) {
-        const e = fileAttachIp.get(ip)
-        if (e) e.mismatches = (e.mismatches || 0) + 1
-        return res.status(404).json({ error: 'Registration not found' })
-      }
+      const auth = await authByReferenceAndEmail(req, DOC_STATUS_FIELDS)
+      if (!auth.reg) return res.status(auth.status).json(auth.body)
+      const reg = auth.reg
 
       // Same "Swiss beats foreign" rule as the create gate — a dual national
       // must not be told on the nachreichen page that documents are still
@@ -1291,6 +1319,135 @@ export function registerRegistration(router, { database, logger, services, getSc
         stack: err.stack,
       })
       res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  // GET /kscw/registration/doc-template/:field — a licence form, pre-filled from
+  // the applicant's own registration, for the public nachreichen page.
+  //
+  // Exists because the recovery page told families WHICH documents were missing
+  // and gave them no way to obtain any of them (A. Jung, REG-2026-9584,
+  // 13.08.2026: "Wie finde ich diese Unterlagen, damit ich sie nochmals
+  // ausdrucken, unterschreiben und hochladen kann?"). The blank PDFs were only
+  // ever linked from the registration form itself, which a family that already
+  // registered has no reason to revisit.
+  //
+  // ⚠ Server-side on purpose. The obvious alternative — return the applicant's
+  // details from doc-status and let the page fill the PDF in the browser, reusing
+  // the filler that page's sibling already ships — would turn a booleans-only
+  // route into a minor's full name, birthdate and home address behind a 4-digit
+  // reference plus an email. Today a lucky guess is worth nothing; that change
+  // would make it worth a dossier. Here the PII only ever leaves as a PDF the
+  // family already possesses the contents of, and doc-status stays booleans-only.
+  const TEMPLATE_CACHE = new Map() // file → ArrayBuffer
+  const TEMPLATE_MAX_BYTES = 8 * 1024 * 1024
+
+  // The blank forms are published and versioned on the public website, so they are
+  // fetched rather than vendored — one copy of each PDF, and Swiss Basketball's
+  // reissues land by replacing that copy. Cached for the life of the process:
+  // these change a few times a decade and the fetch is the slow part.
+  const fetchTemplate = async (file) => {
+    if (TEMPLATE_CACHE.has(file)) return TEMPLATE_CACHE.get(file)
+    const url = `${KSCW_WEBSITE_URL}/docs/${file}`
+    const resp = await fetch(url, { signal: AbortSignal.timeout(15000) })
+    if (!resp.ok) throw new Error(`template fetch ${resp.status} for ${url}`)
+    const buf = await resp.arrayBuffer()
+    if (!buf.byteLength || buf.byteLength > TEMPLATE_MAX_BYTES) {
+      throw new Error(`template ${file} has implausible size ${buf.byteLength}`)
+    }
+    TEMPLATE_CACHE.set(file, buf)
+    return buf
+  }
+
+  router.get('/registration/doc-template/:field', async (req, res) => {
+    const field = String(req.params.field || '')
+    try {
+      const tpl = BB_PDF_TEMPLATES[field]
+      // Unknown field is rejected BEFORE the lookup, so this route cannot be used
+      // to probe which columns exist.
+      if (!tpl) return res.status(404).json({ error: 'No template for this document' })
+
+      const auth = await authByReferenceAndEmail(req, [
+        ...DOC_STATUS_FIELDS,
+        'vorname', 'nachname', 'adresse', 'plz', 'ort', 'geschlecht',
+        'nationalitaet', 'federation_of_origin',
+      ])
+      if (!auth.reg) return res.status(auth.status).json(auth.body)
+      const reg = auth.reg
+
+      // Only hand out a form the applicant actually owes and has not already
+      // filed. Without this the route would serve any of the five to anyone
+      // holding the pair, including forms their situation never required.
+      const natCode = fibaNatCode(reg.nationalitaet_codes, reg.nationalitaet_code)
+      const required = reg.membership_type === 'basketball'
+        ? bbRequiredDocs(reg.bb_situation, natCode, reg.geburtsdatum, reg.bb_recent_licence)
+        : []
+      if (!required.includes(field) || reg[field]) {
+        return res.status(404).json({ error: 'No template for this document' })
+      }
+
+      const { PDFDocument, StandardFonts } = await import('pdf-lib')
+      const pdfDoc = await PDFDocument.load(await fetchTemplate(tpl.file), { ignoreEncryption: true })
+      const font = await pdfDoc.embedFont(StandardFonts.Helvetica)
+
+      // FIBA's origin box wants the BODY that licensed the player ("FIP (Italy)"),
+      // in English, on an English form. Empty stays empty — a blank the family
+      // completes beats us asserting a federation they never named.
+      const fedCode = String(reg.federation_of_origin || '').trim().toUpperCase()
+      let federationOfOrigin = ''
+      if (fedCode === NO_FEDERATION) {
+        federationOfOrigin = 'None (first licence)'
+      } else if (fedCode) {
+        let country = fedCode
+        try { country = new Intl.DisplayNames(['en'], { type: 'region' }).of(fedCode) || fedCode } catch { /* unknown code */ }
+        const fed = federationName(fedCode, 'basketball')
+        federationOfOrigin = fed ? `${fed} (${country})` : country
+      }
+
+      fillBbForm(field, pdfDoc, {
+        vorname: reg.vorname,
+        nachname: reg.nachname,
+        email: reg.email,
+        adresse: reg.adresse,
+        plz: reg.plz,
+        ort: reg.ort,
+        geburtsdatum: reg.geburtsdatum,
+        nationalitaet: reg.nationalitaet,
+        nationalitaetCodes: String(reg.nationalitaet_codes || '')
+          .split(',').map((s) => s.trim().toUpperCase()).filter(Boolean),
+        geschlecht: reg.geschlecht,
+        situation: reg.bb_situation,
+        federationOfOrigin,
+      }, {
+        font,
+        fontSize: 10,
+        onEncodeError: (name, err) => log.warn({
+          msg: `doc-template ${field}: field "${name}" — ${err.message}`,
+          endpoint: 'registration/doc-template',
+        }),
+      })
+
+      const bytes = Buffer.from(await pdfDoc.save())
+      // Name the file after the person, not the form: a family downloading three
+      // of these otherwise ends up with three indistinguishable PDFs.
+      const safeName = `${tpl.filename}_${reg.nachname}_${reg.vorname}`
+        .normalize('NFD').replace(/[̀-ͯ]/g, '')
+        .replace(/[^A-Za-z0-9_-]+/g, '_').slice(0, 80)
+      res.setHeader('Content-Type', 'application/pdf')
+      res.setHeader('Content-Disposition', `attachment; filename="${safeName}.pdf"`)
+      res.setHeader('Content-Length', String(bytes.length))
+      // Personal data — never let a shared cache keep a copy.
+      res.setHeader('Cache-Control', 'private, no-store')
+      log.info({ msg: 'Registration doc template served', field, ref: reg.reference_number })
+      return res.end(bytes)
+    } catch (err) {
+      log.error({
+        msg: `registration/doc-template: ${err.message}`,
+        endpoint: 'registration/doc-template',
+        field,
+        stack: err.stack,
+      })
+      return res.status(500).json({ error: 'Internal error' })
     }
   })
 
