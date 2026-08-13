@@ -2,6 +2,16 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.86.0 — 2026-08-13
+
+### Which Kantonsschule a member attends
+
+- **Members now have a Kantonsschule field. The signup form has always asked which Zurich Mittelschule an applicant attends, but the answer only ever lived on the application — invisible on the member, unfilterable and unexportable, and gone from view once the application was approved. It is now a field on the member, filled in for everybody whose application recorded one.**
+- **Everyone else is blank, and that is the honest answer: most of the club joined before the form existed or came in through ClubDesk, so nobody has ever been asked. "Nein" is stored as a real answer and means asked and not at a Kantonsschule — different from blank.**
+- **It is groupable in the grid, so "how many of ours are at KS Wiedikon" is one click. It can also be filled for many members at once with bulk edit.**
+- **Section is now a dropdown instead of a free-text box. It only ever holds Volleyball, Basketball or KSCW, and those three are what decides which association fields you see and which section a member is administered under — a typo there did not fail, it quietly left somebody with no section at all.**
+- **Pressing Enter in the search now banks whoever the search is showing and clears the box, so a selection can be built one name at a time without reaching for the mouse. The toolbar shows how many will be added before you press it.**
+
 ## v1.85.0 — 2026-08-13
 
 ### Assign coaches and team responsibles from the member

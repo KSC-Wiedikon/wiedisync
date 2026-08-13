@@ -217,6 +217,75 @@ export const MEMBER_SELECT_FIELDS: Record<string, MemberSelectField> = {
     nullable: true,
     options: REGISTER_STATUS_VALUES.map((v) => ({ value: v, label: v })),
   },
+  /**
+   * The three club sections. A closed set in the data (prod 2026-08-13:
+   * Volleyball 318, Basketball 314, KSCW 78, one empty — no off-list value has
+   * ever existed) and a closed set in the code: `sportFromSektion()` is an exact
+   * three-way switch that answers `null` for anything else, and that null feeds
+   * permission scope and the Data Health "Unassigned" tab. A typo here does not
+   * fail loudly, it quietly makes somebody sectionless — which is why this is a
+   * dropdown and not the free-text box it used to be.
+   *
+   * ⚠ Values are ClubDesk's spellings verbatim and NOT translated: the Saturday
+   * sync-down overwrites this column, so a re-spelling would be reverted weekly.
+   * SelectEditor keeps an off-list value selected and selectable, so a future
+   * ClubDesk section still renders and still saves.
+   */
+  sektion: {
+    nullable: true,
+    options: [
+      { value: 'Volleyball', label: 'Volleyball' },
+      { value: 'Basketball', label: 'Basketball' },
+      { value: 'KSCW', label: 'KSCW (club-level)' },
+    ],
+  },
+  /**
+   * Zurich Kantonsschulen, mirroring the signup form's list (kscw-website
+   * `weiteres/anmeldung.astro` — KS_OTHER, plus the Nein / KS Wiedikon /
+   * Andere Kantonsschule head of the first select).
+   *
+   * ⚠ Suggestions, not a gate — and unlike every other entry in this file there
+   * is deliberately NO CHECK constraint behind it (migration 315). The list
+   * lives on a public website and grows whenever a school is added, renamed or
+   * split; 'KS Rämibühl' is three entries here and one legacy row on prod.
+   * SelectEditor keeps an off-list value selected and selectable, so a legacy
+   * spelling stays editable instead of becoming an uneditable row.
+   *
+   * ⚠ 'Nein' is a real answer — "asked, and not at a Kantonsschule". Empty is
+   * "never asked", which is most of the club.
+   */
+  kantonsschule: {
+    nullable: true,
+    options: [
+      { value: 'Nein', label: 'Nein — not at a Kantonsschule' },
+      { value: 'KS Wiedikon', label: 'KS Wiedikon' },
+      { value: 'KS Birch', label: 'KS Birch' },
+      { value: 'KS Büelrain', label: 'KS Büelrain' },
+      { value: 'KS Bülach', label: 'KS Bülach' },
+      { value: 'KS Dübendorf', label: 'KS Dübendorf' },
+      { value: 'KS Enge', label: 'KS Enge' },
+      { value: 'KS Freudenberg', label: 'KS Freudenberg' },
+      { value: 'KS Hohe Promenade', label: 'KS Hohe Promenade' },
+      { value: 'KS Hottingen', label: 'KS Hottingen' },
+      { value: 'KS Im Lee', label: 'KS Im Lee' },
+      { value: 'KS Küsnacht', label: 'KS Küsnacht' },
+      { value: 'KS Limmattal', label: 'KS Limmattal' },
+      { value: 'KS Oerlikon', label: 'KS Oerlikon' },
+      { value: 'KS Rämibühl (Literargymnasium)', label: 'KS Rämibühl (Literargymnasium)' },
+      { value: 'KS Rämibühl (MN-Gymnasium)', label: 'KS Rämibühl (MN-Gymnasium)' },
+      { value: 'KS Rämibühl (Realgymnasium)', label: 'KS Rämibühl (Realgymnasium)' },
+      { value: 'KS Riesbach', label: 'KS Riesbach' },
+      { value: 'KS Rychenberg', label: 'KS Rychenberg' },
+      { value: 'KS Stadelhofen', label: 'KS Stadelhofen' },
+      { value: 'KS Uetikon am See', label: 'KS Uetikon am See' },
+      { value: 'KS Uster', label: 'KS Uster' },
+      { value: 'KS Wetzikon', label: 'KS Wetzikon' },
+      { value: 'KS Zimmerberg', label: 'KS Zimmerberg' },
+      { value: 'KS Zürich Nord', label: 'KS Zürich Nord' },
+      { value: 'Liceo Artistico', label: 'Liceo Artistico' },
+      { value: 'Andere Kantonsschule', label: 'Andere Kantonsschule' },
+    ],
+  },
 }
 
 /**
@@ -251,7 +320,10 @@ export const MEMBER_MULTI_FIELDS: Record<string, FieldOption[]> = {
  * so the dropdown is a dropdown without ever silently overwriting one.
  */
 export const MEMBER_SUGGEST_FIELDS: Record<string, string[]> = {
-  sektion: ['Volleyball', 'Basketball', 'KSCW'],
+  // Empty since `sektion` became a select (2026-08-13). The kind and its editor
+  // stay: the next free-text column with a canonical list belongs here, and the
+  // choice between the two is "can an off-list value be legitimate FOREVER"
+  // (suggest) or "is off-list a typo to be corrected" (select).
 }
 
 /** Label for a stored code, falling back to the raw value for off-list data. */

@@ -27,7 +27,8 @@
 // columns), + the five fee-override columns from migrations 299/300 (105), +
 // the four licence-status columns from migration 301 (109), + register_status /
 // eintritt / austritt from migration 302 (112), − the legacy `otn_bb` flag
-// dropped by migration 303 (111).
+// dropped by migration 303 (111), + kantonsschule from
+// migration 315 (112).
 // When a migration adds one, add it here in the same commit — the fallback in
 // getFieldDef() keeps the page alive but flags the column as unmapped and
 // refuses to let anybody edit it.
@@ -366,9 +367,16 @@ const MEMBERSHIP = block('membership', undefined, [
       'Only ever travels with a departed status — on its own the database rejects it. Use "Mark as departed" in the selection bar.',
   },
   {
-    key: 'sektion', label: 'Section', kind: 'suggest',
-    help: 'Volleyball, Basketball or KSCW (club-level). Decides which association fields are shown below.',
+    key: 'sektion', label: 'Section', kind: 'select',
+    help: 'Decides which association fields are shown below. KSCW is the club-level section — board, honorary members and staff without a sport.',
     overwrittenBy: O_CLUBDESK_WINS,
+  },
+  {
+    // ⚠ Not a ClubDesk column — the register has no field for it, so this is one
+    // of the few member columns with no sync contract at all: nothing overwrites
+    // it and nothing is pushed. See migration 315.
+    key: 'kantonsschule', label: 'Kantonsschule', kind: 'select',
+    help: '"Nein" means asked and not at one. Empty means nobody has ever asked — most members predate the signup form.',
   },
   {
     // Virtual: writes member_teams junction rows, never a `members` column.

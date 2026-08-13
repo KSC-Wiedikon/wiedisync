@@ -87,6 +87,7 @@ export const MEMBERS_COLUMNS: string[] = [
   'billing_plz',
   'billing_ort',
   'billing_phone',
+  'kantonsschule',
   'sektion',
   'billing_iban',
   'iban_confirmed',

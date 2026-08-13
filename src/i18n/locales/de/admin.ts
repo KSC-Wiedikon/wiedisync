@@ -898,6 +898,8 @@ export default {
   explorerGridOpenDetail: 'Details öffnen',
   // Mehrfachauswahl + Sammelaktionen
   explorerGridSelectRow: '{{name}} auswählen',
+  explorerGridEnterAdds_one: 'fügt {{count}} hinzu',
+  explorerGridEnterAdds_other: 'fügt {{count}} hinzu',
   explorerGridSelectAllShown: 'Alle {{count}} angezeigten auswählen',
   explorerGridSelectedCount_one: '{{count}} Mitglied ausgewählt',
   explorerGridSelectedCount_other: '{{count}} Mitglieder ausgewählt',
@@ -967,6 +969,7 @@ export default {
   explorerGridColLicense: 'Lizenznummer',
   explorerGridColVmEmail: 'VM-E-Mail',
   explorerGridColAhv: 'AHV-Nummer',
+  explorerGridColKantonsschule: 'Kantonsschule',
   explorerGridColFeeCategory: 'Beitragskategorie',
   explorerGridColRegisterStatus: 'Mitgliedschaftsstatus',
   explorerGridColEintritt: 'Eintritt',

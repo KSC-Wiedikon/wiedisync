@@ -121,6 +121,9 @@ export function useExplorerCache(scope: ExplorerScope) {
             // ClubDesk push — read-only, but still fetched as the display
             // fallback for rows whose codes were never resolved.
             'nationalitaet', 'nationalitaet_codes', 'federation_of_origin',
+            // Which Kantonsschule (migration 315). Same read audience as
+            // sektion above — admin / sport admin fields='*'.
+            'kantonsschule', 'sektion',
             'clubdesk_id',
           ],
           sort: ['last_name', 'first_name'],
