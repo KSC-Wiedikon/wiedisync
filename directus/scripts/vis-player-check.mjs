@@ -204,6 +204,7 @@ async function main() {
     // name variants, so two DIFFERENT players can land on one key. Where that
     // happens the match is refused rather than guessed.
     const byTokens = new Map()
+    const players = []
     for (const p of j.data || []) {
       if (!p.person) continue
       roster.set(`${norm(p.person.lastName)}|${norm(p.person.firstName)}`, p.no)
@@ -211,8 +212,13 @@ async function main() {
       if (!tk) continue
       if (!byTokens.has(tk)) byTokens.set(tk, new Set())
       byTokens.get(tk).add(p.no)
+      players.push({
+        no: p.no,
+        tokens: new Set(nameTokens(p.person.firstName, p.person.lastName)),
+        lastTokens: new Set(nameTokens(p.person.lastName)),
+      })
     }
-    rosters.set(iso, { roster, byTokens })
+    rosters.set(iso, { roster, byTokens, players })
     console.log(`  ${iso} (${fed.code}): ${roster.size} players`)
   }
 
@@ -220,7 +226,7 @@ async function main() {
   for (const m of members) {
     const entry = rosters.get(m.foo)
     if (!entry) continue // unmapped federation — leave the row untouched, not false
-    const { roster, byTokens } = entry
+    const { roster, byTokens, players } = entry
     const key = `${norm(m.ln)}|${norm(m.fn)}`
     let no = roster.get(key)
     if (!no) {
@@ -236,6 +242,25 @@ async function main() {
         const [ln, fn] = k.split('|')
         if (ln === norm(m.ln) && (fn.startsWith(norm(m.fn)) || norm(m.fn).startsWith(fn))) { no = v; break }
       }
+    }
+    if (!no) {
+      // VIS keeps EVERY legal given name, and the one a member goes by is not
+      // always the first: member 34 is `Christiane` / `Clüver`, VIS #243602 in
+      // the GER index is `Dorothea Christiane` / `Clüver`. A prefix cannot reach
+      // a second given name, and the token bag above needs the bags EQUAL.
+      // So: the member's whole name must be a strict SUBSET of one player's
+      // tokens, their surname must sit on that player's SURNAME (never in a
+      // given name), and exactly ONE player in the federation may qualify.
+      // ⚠ Measured over the whole prod cohort 2026-08-13 (430 members, 416 then
+      // unmatched): this adds exactly ONE match — #243602 — with zero ties. Do
+      // NOT relax it toward a bare surname match: the surname-only near-hits are
+      // different people (`Linda Imhof` → `Stefan Imhof`).
+      const mTokens = nameTokens(m.fn, m.ln)
+      const mLast = nameTokens(m.ln)
+      const cands = players.filter((p) => p.tokens.size > mTokens.length
+        && mTokens.every((t) => p.tokens.has(t))
+        && mLast.every((t) => p.lastTokens.has(t)))
+      if (cands.length === 1) no = cands[0].no
     }
     ;(no ? found : notFound).push({ ...m, no: no ?? null })
   }
