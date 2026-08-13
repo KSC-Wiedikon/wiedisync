@@ -79,6 +79,25 @@ export interface MemberFieldDef {
   /** Editable, but a sync overwrites it. Rendered as an amber "Overwritten by sync" chip. */
   overwrittenBy?: string
   /**
+   * Why this field may never be written to several members at once, shown as the
+   * reason next to the greyed-out entry in the bulk-edit field picker.
+   *
+   * The bar is "would one shared value ever be right for two different people".
+   * A first name, a birthdate, an AHV number and an IBAN answer no by
+   * construction — the field identifies the person or is a fact about exactly
+   * one of them — so writing 40 members' email to a single address is not a
+   * power feature, it is a way to lock 40 logins in one click. Those are the
+   * ones flagged here.
+   *
+   * Two entries are flagged for a different reason and say so: `consent_decision`
+   * is the member's own declaration (asserting it for them fabricates consent),
+   * and `register_status` / `austritt` move as a pair with two active flags and a
+   * push into the legal register — that is the dedicated departure action, not a
+   * field write. See __tests__/memberFieldSchema.test.ts, which pins the exact
+   * bulk-editable key set so a new column has to be classified on purpose.
+   */
+  bulkUnsafe?: string
+  /**
    * Machine-owned plumbing: audit stamps, sync bookkeeping, key material, and
    * values derived from a field shown elsewhere. Hidden behind the "Show
    * technical fields" toggle so the default view is the ~25 fields an admin
@@ -230,25 +249,34 @@ const O_LICENCE_FLAG =
 const P_GLOBAL_ADMIN_ONLY =
   "Only a global admin can change this. A sport admin's write is silently discarded by the server, so the field is locked rather than pretending to save."
 
+// Reused bulk-edit exclusion reasons — see MemberFieldDef.bulkUnsafe.
+const B_IDENTIFIES_PERSON =
+  'This is how one person is told apart from another — one shared value across several members is never right.'
+const B_PERSONAL_FACT =
+  'A fact about exactly one person. Writing the same one to several members records something false about all but one of them.'
+const B_UNIQUE_ID =
+  'A number issued to one person. The same one on two members breaks every lookup that joins on it.'
+
 // ── 1.a Identity (11) ───────────────────────────────────────────────────────
 const IDENTITY = block('identity', undefined, [
-  { key: 'first_name', label: 'First name', kind: 'text' },
-  { key: 'last_name', label: 'Last name', kind: 'text' },
+  { key: 'first_name', label: 'First name', kind: 'text', bulkUnsafe: B_IDENTIFIES_PERSON },
+  { key: 'last_name', label: 'Last name', kind: 'text', bulkUnsafe: B_IDENTIFIES_PERSON },
   {
     key: 'nickname', label: 'Nickname', kind: 'text',
     help: 'Shown instead of the first name where the app has room for one.',
+    bulkUnsafe: B_IDENTIFIES_PERSON,
   },
   {
     key: 'anrede', label: 'Salutation', kind: 'select',
     help: 'Used by ClubDesk letters and the dues mailing.',
   },
-  { key: 'photo', label: 'Profile photo', kind: 'photo' },
+  { key: 'photo', label: 'Profile photo', kind: 'photo', bulkUnsafe: B_IDENTIFIES_PERSON },
   {
     key: 'sex', label: 'Sex', kind: 'select',
     help: "Drives the team picker (women's / men's teams).",
     overwrittenBy: 'Swiss Volley VM overwrites this every Monday 04:00 for licensed volleyball players.',
   },
-  { key: 'birthdate', label: 'Birthdate', kind: 'date' },
+  { key: 'birthdate', label: 'Birthdate', kind: 'date', bulkUnsafe: B_PERSONAL_FACT },
   {
     key: 'birthdate_visibility', label: 'Birthdate visibility', kind: 'select',
     help: "Who sees the birthdate on the member's profile.",
@@ -277,11 +305,14 @@ const CONTACT = block('contact', undefined, [
   {
     key: 'email', label: 'Email address', kind: 'email',
     help: 'Also the login. Cannot be blanked — the database rejects it.',
+    bulkUnsafe:
+      'This is the login. One address across several members locks all but one of them out of the app.',
   },
   { key: 'hide_email', label: 'Hide email from other members', kind: 'bool' },
   {
     key: 'phone', label: 'Phone number', kind: 'phone',
     help: 'Formatted to +41 79 123 45 67 when you leave the field.',
+    bulkUnsafe: B_IDENTIFIES_PERSON,
   },
   { key: 'hide_phone', label: 'Hide phone from other members', kind: 'bool' },
   {
@@ -306,6 +337,8 @@ const MEMBERSHIP = block('membership', undefined, [
     help: 'The club register\'s own status. Setting a departed status fills the exit date and ends club membership and app access.',
     overwrittenBy:
       'Two-way with ClubDesk: your change is protected until the next approved sync-up carries it into the register, and the register wins again afterwards.',
+    bulkUnsafe:
+      'Never one column on its own — a departed status also fills the exit date and switches off club membership and app access, and the database refuses the mismatched pair. Use "Mark as departed" in the selection bar, which writes all four together.',
   },
   {
     key: 'eintritt', label: 'Entry date', kind: 'date',
@@ -314,6 +347,8 @@ const MEMBERSHIP = block('membership', undefined, [
   {
     key: 'austritt', label: 'Exit date', kind: 'date',
     help: 'Only settable alongside a departed status — the database rejects an exit date on an active member.',
+    bulkUnsafe:
+      'Only ever travels with a departed status — on its own the database rejects it. Use "Mark as departed" in the selection bar.',
   },
   {
     key: 'sektion', label: 'Section', kind: 'suggest',
@@ -365,7 +400,10 @@ const MEMBERSHIP = block('membership', undefined, [
 
 // ── 1.d Playing & coaching (3) ──────────────────────────────────────────────
 const PLAYING = block('playing', undefined, [
-  { key: 'number', label: 'Jersey number', kind: 'number' },
+  {
+    key: 'number', label: 'Jersey number', kind: 'number',
+    bulkUnsafe: 'Two players on the same team cannot wear the same number.',
+  },
   {
     key: 'position', label: 'Positions', kind: 'positions',
     help: "Only the positions of this member's sport are offered.",
@@ -396,6 +434,7 @@ const ASSOC_COMMON = block('association', 'assoc_common', [
   {
     key: 'js_id', label: 'J+S / SALTO number', kind: 'text',
     help: 'Federal BASPO identifier, used by the J+S course exports. Applies to both sports.',
+    bulkUnsafe: B_UNIQUE_ID,
     overwrittenBy:
       'Filled from ClubDesk when empty (Saturday 22:00). A value set here is never overwritten, so a typo files attendance under another person.',
   },
@@ -450,6 +489,7 @@ const ASSOC_VB = block('association', 'assoc_vb', [
   },
   {
     key: 'vis_player_no', label: 'FIVB VIS player number', kind: 'number',
+    bulkUnsafe: B_UNIQUE_ID,
     overwrittenBy: 'Refreshed weekly from FIVB VIS (Mondays 05:15 UTC) — a hand edit is replaced at the next run.',
   },
   {
@@ -978,6 +1018,27 @@ export interface FieldFilterOpts {
 }
 
 /**
+ * Privacy switches → the column each one governs.
+ *
+ * ⚠ These pairs are the one place where hiding an empty field LIES. The switch
+ * is never empty (it has a default), so the hide-empty filter keeps it while
+ * dropping its subject — leaving `Birthdate visibility: Hidden` alone on the
+ * page, which reads as "the club has a birthdate and is withholding it" when
+ * the column is in fact blank (member 536, 2026-08-13). The subject is
+ * therefore exempt from the empty filter: if the switch is on screen, the thing
+ * it switches has to be on screen too — and being on screen is also what makes
+ * it fillable, since the Edit button only reaches rendered cards.
+ */
+export const GOVERNED_BY: Readonly<Record<string, string>> = {
+  birthdate_visibility: 'birthdate',
+  hide_email: 'email',
+  hide_phone: 'phone',
+}
+
+/** The governed columns — never dropped as empty. See GOVERNED_BY. */
+const PRIVACY_SUBJECT_KEYS: ReadonlySet<string> = new Set(Object.values(GOVERNED_BY))
+
+/**
  * The single filter predicate, shared by the render plan and by whatever counts
  * the toggles ("Show empty fields (54)"). One function so the number on the
  * button can never disagree with the number of cards revealing it produces.
@@ -988,6 +1049,7 @@ export interface FieldFilterOpts {
 export function fieldFilterReason(def: MemberFieldDef, opts: FieldFilterOpts): FieldFilterReason {
   if ((opts.alwaysShow ?? EMPTY_KEY_SET).has(def.key)) return null
   if (def.technical && opts.showTechnical === false) return 'technical'
+  if (PRIVACY_SUBJECT_KEYS.has(def.key)) return null
   if (opts.hideEmpty && opts.isEmpty?.(def.key)) return 'empty'
   return null
 }

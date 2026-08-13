@@ -516,8 +516,10 @@ describe('buildMemberFieldSections', () => {
   })
 
   it('drops empty fields but keeps false and 0, which are values', () => {
+    // ⚠ Not `phone` / `birthdate` / `email` here — those are privacy-governed
+    // and deliberately survive the empty filter (own test below).
     const values: Record<string, unknown> = {
-      first_name: 'Aniisanth', last_name: '', number: 0, hide_email: false, phone: null,
+      first_name: 'Aniisanth', last_name: '', number: 0, hide_email: false, ort: null,
     }
     const sections = buildMemberFieldSections({
       presentKeys: Object.keys(values),
@@ -530,6 +532,26 @@ describe('buildMemberFieldSections', () => {
       },
     })
     expect(keysOf(sections).sort()).toEqual(['first_name', 'hide_email', 'number'])
+  })
+
+  // Regression, member 536 (2026-08-13): with the empty filter on, an absent
+  // `birthdate` vanished while `birthdate_visibility: Hidden` stayed — reading
+  // as a birthdate the app was withholding rather than one nobody has entered.
+  // The subject of a privacy switch stays on screen, blank, and fillable.
+  it('keeps a privacy-governed field even when empty', () => {
+    const sections = buildMemberFieldSections({
+      presentKeys: ['birthdate', 'birthdate_visibility', 'email', 'hide_email', 'phone', 'hide_phone', 'ort'],
+      sport: 'both',
+      revealedSports: none,
+      hideEmpty: true,
+      isEmpty: () => true,
+    })
+    const keys = keysOf(sections).sort()
+    expect(keys).toContain('birthdate')
+    expect(keys).toContain('email')
+    expect(keys).toContain('phone')
+    // The exemption is the pair, not a blanket "keep empties".
+    expect(keys).not.toContain('ort')
   })
 
   it('never filters an `alwaysShow` key — an unsaved edit cannot be swallowed', () => {
@@ -549,7 +571,10 @@ describe('buildMemberFieldSections', () => {
   // this one predicate, which is what keeps "Show technical (21)" honest.
   describe('fieldFilterReason', () => {
     const technical = MEMBER_FIELD_BY_KEY.nationalitaet
-    const ordinary = MEMBER_FIELD_BY_KEY.phone
+    // ⚠ `phone` no longer works as the "ordinary" field — it is governed by
+    // `hide_phone` and is therefore exempt from the empty filter.
+    const ordinary = MEMBER_FIELD_BY_KEY.ort
+    const governed = MEMBER_FIELD_BY_KEY.birthdate
 
     it('reports nothing filtered when both flags are off', () => {
       expect(fieldFilterReason(technical, {})).toBeNull()
@@ -564,6 +589,10 @@ describe('buildMemberFieldSections', () => {
 
     it('reports an ordinary empty field as empty', () => {
       expect(fieldFilterReason(ordinary, { hideEmpty: true, isEmpty: () => true })).toBe('empty')
+    })
+
+    it('never reports a privacy-governed field as empty', () => {
+      expect(fieldFilterReason(governed, { hideEmpty: true, isEmpty: () => true })).toBeNull()
     })
 
     it('lets alwaysShow beat both flags', () => {
