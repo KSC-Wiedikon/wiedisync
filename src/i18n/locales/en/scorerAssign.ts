@@ -1,4 +1,24 @@
 export default {
+  // Tabs
+  tabPlan: 'Assignment',
+  tabOverview: 'Overview',
+
+  // Overview tab (saved duties + who signed up)
+  overviewGame: 'Game',
+  overviewRole: 'Duty',
+  overviewPerson: 'Signed up',
+  overviewOpen: 'Open',
+  overviewFilled: 'Filled',
+  overviewStatus: 'Status',
+  overviewOnlyEmpty: 'Only show empty spots',
+  overviewShowPast: 'Include past games',
+  overviewCounts: '{{open}} of {{total}} duty spots still open',
+  overviewEmpty: 'No duties assigned yet — roll out an assignment first.',
+  overviewAllFilled: 'No empty spots — everything is covered.',
+  overviewUnknownMember: 'Unknown member',
+  overviewSheet: 'Duty overview',
+  overviewDownloadError: 'Could not build the Excel file.',
+
   title: 'Scorer assignment',
   subtitle: 'Automatically assign scorer and scoreboard duty teams to home games.',
 

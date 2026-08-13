@@ -1,4 +1,24 @@
 export default {
+  // Tabs
+  tabPlan: 'Attribution',
+  tabOverview: 'Vue d\'ensemble',
+
+  // Overview tab (saved duties + who signed up)
+  overviewGame: 'Match',
+  overviewRole: 'Tâche',
+  overviewPerson: 'Inscrit',
+  overviewOpen: 'Libre',
+  overviewFilled: 'Occupé',
+  overviewStatus: 'Statut',
+  overviewOnlyEmpty: 'Afficher uniquement les places libres',
+  overviewShowPast: 'Inclure les matchs passés',
+  overviewCounts: '{{open}} places sur {{total}} encore libres',
+  overviewEmpty: 'Aucune tâche attribuée pour l\'instant — déployez d\'abord une attribution.',
+  overviewAllFilled: 'Aucune place libre — tout est couvert.',
+  overviewUnknownMember: 'Membre inconnu',
+  overviewSheet: 'Vue d\'ensemble des tâches',
+  overviewDownloadError: 'Impossible de créer le fichier Excel.',
+
   title: 'Attribution des marqueurs',
   subtitle: 'Attribuer automatiquement les equipes de marqueur et de tableau d\'affichage aux matchs a domicile.',
 

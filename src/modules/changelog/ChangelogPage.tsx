@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '1.81.0'
+const APP_VERSION = '1.82.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,20 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.82.0',
+    date: '13.08.2026',
+    sections: [
+      {
+        title: 'See at a glance which duty slots nobody has taken',
+        items: [
+          'The scorer assignment page has a new Overview tab. It lists the season’s duties one row per slot — which team is on it, and who from that team has signed up — so "is this game actually covered?" is answerable in one place, instead of from the assignment table and the scorer page together. It shows the duties as they stand today, not a plan that has not been rolled out yet.',
+          'One checkbox reduces it to the gaps. "Only show empty spots" hides every slot somebody has already taken, leaving just the duties still to be filled, with a count above the list. Upcoming games are shown by default; past ones can be included when you want to look back over the season.',
+          'The list downloads as Excel exactly as shown, filter included — a ready-made list to hand to a coach or paste into a message, with the open slots highlighted.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.81.0',
     date: '13.08.2026',
