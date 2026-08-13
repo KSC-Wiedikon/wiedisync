@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '1.86.0'
+const APP_VERSION = '1.87.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,20 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.87.0',
+    date: '13.08.2026',
+    sections: [
+      {
+        title: 'Set your own Kantonsschule',
+        items: [
+          'You can now set your Kantonsschule yourself, under Options → Profile. The signup form has always asked it, but only people who joined through the form ever had an answer on record — everyone else was blank, and there was no way to say so.',
+          '“Nein” is a real answer, not a blank. It means you were asked and you are not at a Kantonsschule, which is different from nobody ever having asked.',
+          'Only you and the club’s administrators see it — not other members, and not your coach.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.86.0',
     date: '13.08.2026',

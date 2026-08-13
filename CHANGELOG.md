@@ -2,6 +2,14 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.87.0 — 2026-08-13
+
+### Set your own Kantonsschule
+
+- **You can now set your Kantonsschule yourself, under Options → Profile. The signup form has always asked it, but only people who joined through the form ever had an answer on record — everyone else was blank, and there was no way to say so.**
+- **“Nein” is a real answer, not a blank. It means you were asked and you are not at a Kantonsschule, which is different from nobody ever having asked.**
+- **Only you and the club’s administrators see it — not other members, and not your coach.**
+
 ## v1.86.0 — 2026-08-13
 
 ### Which Kantonsschule a member attends

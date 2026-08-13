@@ -672,6 +672,19 @@ const MEMBER_EDITABLE_FIELDS = [
   // via MEMBER_DERIVED_READ_FIELDS below.
   'anrede', 'adresse', 'plz', 'ort', 'nationalitaet_codes', 'federation_of_origin',
   'sex', 'ahv_nummer',
+  // 2026-08-13 migration 315: which Zurich Kantonsschule the member attends.
+  // Self-asserted BY DESIGN and self-service on purpose — ~681 of ~711 members
+  // are blank because they joined before the signup form asked, and the only
+  // realistic way to fill that in is the member answering for themselves.
+  // ⚠ NOT a ClubDesk column (the register has no field for it), so unlike
+  // `ahv_nummer` / `iban` above there is no push contract to reason about: this
+  // one is wiedisync's outright. It rides MEMBER_EDITABLE_FIELDS into
+  // MEMBER_OWN_READABLE, so the member can also SEE their own answer — without
+  // that read grant Directus silently strips it from their own record and the
+  // profile field renders permanently empty ([[useauth-member-field-perms]]).
+  // Deliberately absent from MEMBER_VISIBLE_FIELDS + LEADER_TEAM_MEMBER_FIELDS:
+  // which school somebody attends is not shown to other members or to coaches.
+  'kantonsschule',
   // 2026-06-19 migration 117: member IBAN for reimbursements. Sensitive PII —
   // own-member editable/readable + admin only, like ahv_nummer. Deliberately
   // NOT in MEMBER_VISIBLE_FIELDS or LEADER_TEAM_MEMBER_FIELDS (which excludes
@@ -2053,7 +2066,15 @@ async function main() {
   // reasoning that already strips ahv_nummer and iban from this list.
   const LEADER_TEAM_MEMBER_FIELDS = [
     ...new Set([...MEMBER_VISIBLE_FIELDS, ...MEMBER_EDITABLE_FIELDS, ...MEMBER_DERIVED_READ_FIELDS]),
-  ].filter(f => f !== 'ahv_nummer' && f !== 'iban' && f !== 'beitragskategorie')
+  // ⚠ This list is DERIVED — anything added to MEMBER_EDITABLE_FIELDS becomes
+  // coach/TR-readable for their own team members BY DEFAULT. That is usually
+  // right (a coach reads their players' phone, address, birthdate) but it is a
+  // widening that happens without anybody writing a line here, so a new column
+  // whose audience should stop at the member and the office has to be named in
+  // this filter. `kantonsschule` (migration 315) is such a column: which school
+  // somebody attends was not asked for on a coach's behalf, and ~40 coaches is
+  // a real widening. One line to reverse if the club decides otherwise.
+  ].filter(f => !['ahv_nummer', 'iban', 'beitragskategorie', 'kantonsschule'].includes(f))
   await setPermRead(LEADER_POLICY, 'members', COACH_TEAM_MEMBERS, LEADER_TEAM_MEMBER_FIELDS)
   // Members — update position + number (migration 036 scoped to my-team members).
   // `coach_approved_team` added 2026-05-19: migration 036 narrowed this list to

@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useMemo, useState, useRef } from 'react'
 import ChangePasswordModal from './ChangePasswordModal'
 import { useTranslation } from 'react-i18next'
 import Modal from '@/components/Modal'
@@ -30,6 +30,7 @@ import {
 import { CheckIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { logActivity } from '../../utils/logActivity'
+import { KANTONSSCHULEN } from '../../utils/kantonsschulen'
 import type { MemberPosition } from '../../types'
 import { client, fetchAllItems, kscwApi, updateRecord, uploadFile } from '../../lib/api'
 
@@ -108,6 +109,7 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
   // is a DB-derived German mirror and is never written from here.
   const [nationalitaetCodes, setNationalitaetCodes] = useState<string[]>([])
   const [federationOfOrigin, setFederationOfOrigin] = useState('')
+  const [kantonsschule, setKantonsschule] = useState('')
   const [sex, setSex] = useState('')
   const [ahvNummer, setAhvNummer] = useState('')
   const [iban, setIban] = useState('')
@@ -152,6 +154,7 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
       setOrt(user.ort ?? '')
       setNationalitaetCodes(storedNationalityCodes())
       setFederationOfOrigin(user.federation_of_origin ?? '')
+      setKantonsschule(user.kantonsschule ?? '')
       setSex(user.sex ?? '')
       setAhvNummer(user.ahv_nummer ?? '')
       setIban(user.iban ?? '')
@@ -175,6 +178,27 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
     ...federationOptions(fedSport),
   ]
 
+
+  /**
+   * The Zurich Kantonsschulen, mirroring the signup form and the explorer's own
+   * list (memberFieldOptions.ts). A SearchableSelect rather than a plain one:
+   * 27 entries is past the point where scanning beats typing.
+   *
+   * ⚠ Suggestions, not a gate — there is deliberately no CHECK behind the
+   * column (migration 315) because this list lives on the public website and
+   * changes when a school is renamed or split. An existing off-list value is
+   * kept as an option so a member is never forced to overwrite it to save.
+   */
+  const kantonsschuleOptions = useMemo(() => {
+    const base = [
+      { value: '', label: t('kantonsschuleUnset') },
+      { value: 'Nein', label: t('kantonsschuleNo') },
+      ...KANTONSSCHULEN.map((v) => ({ value: v, label: v })),
+    ]
+    const stored = user?.kantonsschule
+    if (stored && !base.some((o) => o.value === stored)) base.push({ value: stored, label: stored })
+    return base
+  }, [t, user?.kantonsschule])
   /**
    * Coaching-qualification chips, narrowed to the member's own sport: the C/B/A
    * rungs are Swiss Volley's and T1/T2/T3 are Swiss Basketball's (migration 281),
@@ -380,6 +404,11 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
       // would just be two sources of truth for one fact.
       payload.nationalitaet_codes = serializeCountryCodes(nationalitaetCodes)
       payload.federation_of_origin = federationOfOrigin || null
+      // ⚠ Written to `members` and NOWHERE else. Unlike everything around it in
+      // this block, the Kantonsschule is NOT a ClubDesk column (the register has
+      // no field for it), so it must never join the /clubdesk-update diff below —
+      // it would put a header in the push CSV that the register cannot receive.
+      payload.kantonsschule = kantonsschule || null
       payload.sex = sex
       payload.ahv_nummer = ahvCanonical
       payload.iban = ibanCanonical
@@ -476,6 +505,7 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
               // string rather than the codes we store.
               nationalitaet: countryNameDe(nationalitaetCodes[0]),
               federation_of_origin: federationOfOrigin,
+              kantonsschule: kantonsschule || null,
             },
           },
         })
@@ -846,6 +876,23 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
                   )
                 })}
               </div>
+            </FormField>
+
+            {/* Kantonsschule — asked at signup, but only ever stored on the
+                application until migration 315 put it on the member. Most of the
+                club is blank because nobody was ever asked, so this is the one
+                place they can answer for themselves.
+
+                ⚠ NOT a ClubDesk field, unlike its neighbours in this block: it
+                is saved with the ordinary profile write and is deliberately
+                absent from the /clubdesk-update diff. */}
+            <FormField label={t('kantonsschule')} helperText={t('kantonsschuleHint')}>
+              <SearchableSelect
+                options={kantonsschuleOptions}
+                value={kantonsschule}
+                onChange={setKantonsschule}
+                searchPlaceholder={t('kantonsschuleSearch')}
+              />
             </FormField>
 
             {/* AHV Nummer */}

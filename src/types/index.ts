@@ -225,6 +225,8 @@ export interface Member extends BaseRecord {
   // literal 'NONE' (never licensed elsewhere), or null (not answered) — the
   // NONE/null distinction is what lets us skip a transfer-certificate chase.
   federation_of_origin: string | null
+  /** Zurich Kantonsschule (migration 315). 'Nein' = asked and not at one; null = never asked. */
+  kantonsschule?: string | null
   // International-transfer workflow (migrations 234/235), driven by
   // /admin/transfers. STAFF-ONLY columns: deliberately absent from
   // MEMBER_VISIBLE_FIELDS *and* MEMBER_EDITABLE_FIELDS, so a member neither
