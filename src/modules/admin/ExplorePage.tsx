@@ -211,6 +211,7 @@ export default function ExplorePage() {
             cache={treeData}
             query={query}
             canEdit={canEditGrid}
+            isGlobalAdmin={auth.isGlobalAdmin}
             focusFields={focusFields}
             onOpenDetail={handleOpenDetail}
             onMutate={mutate}

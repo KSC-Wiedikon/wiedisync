@@ -1187,13 +1187,27 @@ export default function ExplorerMemberFields({
 
 // ── Field card ─────────────────────────────────────────────────────────
 
-interface EditorCtx {
+/**
+ * Everything `FieldEditor` itself needs — deliberately narrower than the
+ * `EditorCtx` the field CARDS need.
+ *
+ * The bulk-edit modal renders the very same controls for a set of members, where
+ * there is no one record to have a fee, an emptiness or a roster: giving the
+ * editor its own context is what lets it be reused there without inventing a
+ * fake member. `rosterTeamIds` / `onTeamsChange` then mean "the teams being
+ * composed" rather than "the teams this member is on", which is the only shape
+ * difference between the two callers.
+ */
+export interface FieldEditorCtx {
   sport: MemberSport
   teamOptions: TeamPickerOption[]
   rosterTeamIds: string[]
   busyTeamIds: ReadonlySet<string>
   onTeamsChange: (ids: string[]) => void | Promise<void>
   disabled: boolean
+}
+
+interface EditorCtx extends FieldEditorCtx {
   /** Server-side fee context — null when the endpoint is unavailable (403/404). */
   fee: MemberFee | null
   /** The same figures with the unsaved override edits applied. */
@@ -1711,7 +1725,14 @@ function FederationValue({ value }: { value: string }) {
 
 // ── Editors ────────────────────────────────────────────────────────────
 
-function FieldEditor({
+/**
+ * The control that edits one field, chosen by `def.kind` alone.
+ *
+ * Exported so the bulk-edit modal composes a value with the SAME control the
+ * member detail uses. A second set of inputs over there is how a select becomes
+ * a text box for one caller and starts writing values the column has never seen.
+ */
+export function FieldEditor({
   def,
   value,
   ctx,
@@ -1719,7 +1740,7 @@ function FieldEditor({
 }: {
   def: MemberFieldDef
   value: unknown
-  ctx: EditorCtx
+  ctx: FieldEditorCtx
   onChange: (v: unknown) => void
 }) {
   const { t } = useTranslation(['admin', 'auth', 'common', 'teams'])

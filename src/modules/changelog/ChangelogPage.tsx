@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '1.83.0'
+const APP_VERSION = '1.84.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,23 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.84.0',
+    date: '13.08.2026',
+    sections: [
+      {
+        title: 'Edit many members at once',
+        items: [
+          'The member grid can now select rows. A tick box on every row and one in the header that takes everything currently listed. The selection survives changing the search or the filters, so you can search for one thing, tick a few, search for another, tick a few more, and act on all of them together — the count in the bar above the table is always the whole selection, not just the part you can see.',
+          '"Bulk edit" writes one or more datapoints to everybody selected. You pick the datapoints the same way you pick them anywhere else in the explorer, and each one gets the same control the member’s own page uses — a dropdown stays a dropdown, an IBAN is still checked. Roles and team memberships can be added to or removed from what each member already has, rather than replacing it: adding a role does not clear the roles somebody already held.',
+          'It tells you how many members it will actually change before you commit. "9 of 12 members will be updated. 3 already hold every value." The three that already match are left alone entirely — no write, and nothing in their history to suggest anything happened.',
+          'Members are updated one at a time, and one failure does not lose the rest. If a section administrator selects somebody outside their own section, that member is reported by name and the others still go through.',
+          'Fields where one shared value could never be right are not offered — names, email, phone, birthdate, AHV number, IBAN, jersey number. Each says why. Data-protection consent is excluded too: it is the member’s own declaration to make.',
+          '"Mark as departed" ends membership for a whole group in one step. It sets the register status and the exit date and switches off club membership and app access together, because they are one decision — and asks once more, naming the number of people and the date, before it writes.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.83.0',
     date: '13.08.2026',

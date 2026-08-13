@@ -568,11 +568,13 @@ const FINANCE = block('finance', undefined, [
   {
     key: 'iban', label: 'IBAN', kind: 'iban',
     help: 'Checked against the IBAN checksum when you leave the field.',
+    bulkUnsafe: 'One bank account per member. Writing the same one to several sends their refunds to one person.',
   },
   { key: 'iban_confirmed', label: 'IBAN confirmed', kind: 'bool' },
   {
     key: 'ahv_nummer', label: 'AHV number', kind: 'ahv',
     help: 'Formatted to 756.1234.5678.97; the check digit is verified.',
+    bulkUnsafe: B_UNIQUE_ID,
   },
   {
     key: 'never_dun', label: 'Never send reminders', kind: 'bool',
@@ -596,6 +598,8 @@ const PRIVACY = block('privacy', undefined, [
   {
     key: 'consent_decision', label: 'Data-protection consent', kind: 'select',
     help: 'Cannot be emptied — the column is mandatory.',
+    bulkUnsafe:
+      "The member's own declaration. Setting it for a hundred of them at once records a consent none of them gave.",
   },
   {
     key: 'consent_prompted_at', label: 'Consent last asked', kind: 'datetime',
@@ -945,6 +949,39 @@ export function isFieldReadOnly(
   if (def.readOnly || def.dangerZone || def.sensitive) return true
   if (def.privileged) return !ctx.isGlobalAdmin
   return false
+}
+
+/**
+ * May this field be written to several selected members in one action?
+ *
+ * Strictly narrower than `isFieldReadOnly`: everything locked for a single
+ * member is locked for many, and `bulkUnsafe` removes the fields where one
+ * shared value is never right for two different people (see that flag).
+ *
+ * `TEAMS_VIRTUAL_KEY` is the one virtual key that passes. It writes
+ * `member_teams` junction rows rather than a `members` column, which is exactly
+ * why it is the most useful bulk operation there is ("add these 14 to Damen 2")
+ * — the caller must route it to the roster path instead of into a PATCH body.
+ * Every other virtual field is computed and has nothing to write.
+ */
+export function isBulkEditable(
+  def: MemberFieldDef,
+  ctx: { isGlobalAdmin: boolean },
+): boolean {
+  if (def.bulkUnsafe) return false
+  if (def.key === TEAMS_VIRTUAL_KEY) return true
+  if (def.virtual) return false
+  return !isFieldReadOnly(def, ctx)
+}
+
+/**
+ * The bulk-edit field picker's catalog, in the reading order of the member
+ * detail. Computed per viewer because `privileged` fields (role, is_spielplaner)
+ * are only bulk-editable for a global admin — the same gate the single-member
+ * editor applies, not a second one.
+ */
+export function bulkEditableFields(ctx: { isGlobalAdmin: boolean }): MemberFieldDef[] {
+  return MEMBER_FIELDS.filter((def) => isBulkEditable(def, ctx))
 }
 
 /**

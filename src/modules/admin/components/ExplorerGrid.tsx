@@ -23,11 +23,12 @@
 // by canEdit (global admin + sport admins — the Vorstand policy is read-only
 // on members/member_teams/teams, so it gets a read-only grid).
 
-import { useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
-  ArrowDown, ArrowUp, ArrowUpDown, Check, Download, Eye, FileText, Layers, Loader2, Plus, Settings2, Users, X,
+  ArrowDown, ArrowUp, ArrowUpDown, Check, Download, Eye, FileText, Layers, Loader2, Pencil,
+  Plus, Settings2, UserMinus, Users, X,
 } from 'lucide-react'
 import DatePicker from '@/components/ui/DatePicker'
 import type { Member, Team } from '../../../types'
@@ -57,6 +58,8 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
 import { toXlsx, downloadBlob } from '../utils/exportResults'
 import { memberFieldLabel } from './memberFieldSearch'
+import ExplorerBulkEditModal from './ExplorerBulkEditModal'
+import ExplorerBulkDepartModal from './ExplorerBulkDepartModal'
 import type { CacheShape, MemberTeamRow, StaffRow, ClubdeskSyncStatus, RegFileInfo } from './explorerHelpers'
 import { buildMemberTeamsMap, buildStaffMap, formatShortDate, formatShortDateTime, teamLabel } from './explorerHelpers'
 
@@ -67,6 +70,8 @@ interface Props {
   query: string
   /** Whether the viewer may edit (global admin or sport admin). */
   canEdit: boolean
+  /** Unlocks the `privileged` fields in bulk edit — same gate as the detail view. */
+  isGlobalAdmin: boolean
   /**
    * Datapoint focus from the header picker. Every key that HAS a member column
    * here is force-shown next to the name, on top of the saved column set and
@@ -292,7 +297,9 @@ function shortMemberName(m: Member | undefined, fallback: string): string {
   return `${m.last_name ?? ''} ${m.nickname || m.first_name || ''}`.trim() || fallback
 }
 
-export default function ExplorerGrid({ cache, query, canEdit, focusFields, onOpenDetail, onMutate }: Props) {
+export default function ExplorerGrid({
+  cache, query, canEdit, isGlobalAdmin, focusFields, onOpenDetail, onMutate,
+}: Props) {
   const { t, i18n } = useTranslation(['admin', 'common'])
   const confirm = useConfirm()
 
@@ -306,6 +313,33 @@ export default function ExplorerGrid({ cache, query, canEdit, focusFields, onOpe
   const [teamVisibleKeys, setTeamVisibleKeys] = useState<TeamColKey[]>(() => loadVisible(TEAM_VISIBLE_COLS_LS_KEY, TEAM_COL_BY_KEY, TEAM_DEFAULT_VISIBLE))
   const [groupBy, setGroupBy] = useState<ColKey | 'none'>('none')
   const [exporting, setExporting] = useState(false)
+
+  /**
+   * Multi-select for the bulk actions — the member RECORD, not just the id.
+   *
+   * ⚠ The record is captured at tick time on purpose. `cache` here is already
+   * filtered by the page (member filters are applied before the grid sees it),
+   * so an id-only selection would silently lose every member the operator ticks
+   * and then filters away — which is exactly the workflow this exists for
+   * ("search A, tick some, search B, tick some more, edit all of them").
+   * `selectedMembers` still prefers the live cache row when there is one, so a
+   * value edited in between is not stale.
+   */
+  const [selection, setSelection] = useState<Map<string, Member>>(() => new Map())
+  const [bulkEditOpen, setBulkEditOpen] = useState(false)
+  const [bulkDepartOpen, setBulkDepartOpen] = useState(false)
+  /**
+   * Bumped on every open and used as the modal's `key`, so each one starts on a
+   * blank composition instead of the last one's. Remounting on OPEN rather than
+   * unmounting on close keeps the dialog's exit animation, and beats resetting
+   * the state in an effect (`react-hooks/set-state-in-effect`).
+   */
+  const [bulkSession, setBulkSession] = useState(0)
+  const openBulk = useCallback((which: 'edit' | 'depart') => {
+    setBulkSession((n) => n + 1)
+    if (which === 'edit') setBulkEditOpen(true)
+    else setBulkDepartOpen(true)
+  }, [])
 
   const changeView = (next: GridView) => {
     setView(next)
@@ -580,6 +614,61 @@ export default function ExplorerGrid({ cache, query, canEdit, focusFields, onOpe
     }
     return list
   }, [cache.members, selectedGroup, query, sort, rowsByMember, cellText])
+
+  // ── Multi-select ───────────────────────────────────────────────────
+
+  /** Selection is a members-view feature; the teams view has no bulk actions. */
+  const selectable = view === 'members' && canEdit
+
+  // The leading actions column holds the eye button alone, or a tick box next to
+  // it. Both the column and the first data column's sticky offset have to move
+  // together — they are the two frozen columns, and a mismatch leaves the name
+  // column overlapping the tick boxes as soon as the grid scrolls sideways.
+  const leadWidth = selectable ? 'w-16 min-w-16' : 'w-9 min-w-9'
+  const leadOffset = selectable ? 'left-16' : 'left-9'
+
+  /**
+   * The selected members, refreshed from the live cache where it still carries
+   * them. A member ticked and then filtered out of `cache.members` keeps the
+   * record captured at tick time — see the `selection` state.
+   */
+  const selectedMembers = useMemo(
+    () => [...selection.entries()].map(([id, captured]) => memberById.get(id) ?? captured),
+    [selection, memberById],
+  )
+
+  const toggleRow = useCallback((member: Member) => {
+    setSelection((prev) => {
+      const next = new Map(prev)
+      const id = String(member.id)
+      if (next.has(id)) next.delete(id)
+      else next.set(id, member)
+      return next
+    })
+  }, [])
+
+  /**
+   * Header tick box: adds every row currently shown, or — when they are all
+   * already in — removes exactly those, leaving selections made under an
+   * earlier search untouched.
+   */
+  const shownAllSelected = rows.length > 0 && rows.every((m) => selection.has(String(m.id)))
+  const shownSomeSelected = !shownAllSelected && rows.some((m) => selection.has(String(m.id)))
+
+  const toggleAllShown = useCallback(() => {
+    setSelection((prev) => {
+      const next = new Map(prev)
+      const allIn = rows.length > 0 && rows.every((m) => next.has(String(m.id)))
+      for (const m of rows) {
+        const id = String(m.id)
+        if (allIn) next.delete(id)
+        else next.set(id, m)
+      }
+      return next
+    })
+  }, [rows])
+
+  const clearSelection = useCallback(() => setSelection(new Map()), [])
 
   const sections = useMemo((): Array<{ label: string | null; rows: Member[] }> => {
     if (groupBy === 'none') return [{ label: null, rows }]
@@ -923,20 +1012,46 @@ export default function ExplorerGrid({ cache, query, canEdit, focusFields, onOpe
     const memberId = String(m.id)
     const memberRows = rowsByMember.get(memberId) ?? []
     return (
-      <TableRow key={memberId} className="group min-h-11 hover:bg-muted/60">
-        <TableCell className="sticky left-0 z-10 w-9 min-w-9 bg-background px-1 group-hover:bg-muted">
-          <button
-            type="button"
-            onClick={() => onOpenDetail(memberId)}
-            className="flex h-8 w-8 min-h-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
-            title={t('admin:explorerGridOpenDetail')}
-            aria-label={t('admin:explorerGridOpenDetail')}
-          >
-            <Eye className="h-3.5 w-3.5" />
-          </button>
+      <TableRow
+        key={memberId}
+        className="group min-h-11 hover:bg-muted/60"
+        data-state={selection.has(memberId) ? 'selected' : undefined}
+      >
+        <TableCell className={`sticky left-0 z-10 ${leadWidth} bg-background px-1 group-hover:bg-muted group-data-[state=selected]:bg-muted`}>
+          <div className="flex items-center gap-0.5">
+            {selectable && (
+              // The 44px tap target is the wrapper, not the 16px box. The box
+              // itself is pointer-events-none so a tap cannot toggle twice by
+              // bubbling; keyboard still reaches the checkbox, which stays
+              // focusable and fires on Space.
+              <span
+                role="presentation"
+                onClick={() => toggleRow(m)}
+                className="flex h-11 w-7 cursor-pointer items-center justify-center"
+              >
+                <Checkbox
+                  checked={selection.has(memberId)}
+                  onCheckedChange={() => toggleRow(m)}
+                  className="pointer-events-none"
+                  aria-label={t('admin:explorerGridSelectRow', { name: `${m.first_name ?? ''} ${m.last_name ?? ''}`.trim() })}
+                />
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => onOpenDetail(memberId)}
+              className="flex h-8 w-8 min-h-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+              title={t('admin:explorerGridOpenDetail')}
+              aria-label={t('admin:explorerGridOpenDetail')}
+            >
+              <Eye className="h-3.5 w-3.5" />
+            </button>
+          </div>
         </TableCell>
         {visibleCols.map((c, i) => {
-          const sticky = i === 0 ? 'sticky left-9 z-10 bg-background group-hover:bg-muted' : ''
+          const sticky = i === 0
+            ? `sticky ${leadOffset} z-10 bg-background group-hover:bg-muted group-data-[state=selected]:bg-muted`
+            : ''
           if (c.kind === 'teams') {
             return (
               <TableCell key={c.key} className={`${c.minW} ${sticky}`}>
@@ -1098,9 +1213,9 @@ export default function ExplorerGrid({ cache, query, canEdit, focusFields, onOpe
     )
     return (
       <TableRow key={teamId} className="group min-h-11 hover:bg-muted/60">
-        <TableCell className="sticky left-0 z-10 w-9 min-w-9 bg-background px-1 group-hover:bg-muted" />
+        <TableCell className={`sticky left-0 z-10 ${leadWidth} bg-background px-1 group-hover:bg-muted`} />
         {teamVisibleCols.map((c, i) => {
-          const sticky = i === 0 ? 'sticky left-9 z-10 bg-background group-hover:bg-muted' : ''
+          const sticky = i === 0 ? `sticky ${leadOffset} z-10 bg-background group-hover:bg-muted` : ''
           if (c.key === 'members') {
             return (
               <TableCell key={c.key} className={`${c.minW} ${sticky}`}>
@@ -1348,6 +1463,42 @@ export default function ExplorerGrid({ cache, query, canEdit, focusFields, onOpe
           </div>
         )}
 
+        {/* Selection bar — only while something is ticked, so it costs no height
+            in the normal reading state. It counts the WHOLE selection, which can
+            legitimately be larger than what the current search shows. */}
+        {selectable && selection.size > 0 && (
+          <div className="flex flex-wrap items-center gap-2 border-b border-primary/30 bg-primary/5 px-3 py-2">
+            <span className="text-xs font-medium text-foreground">
+              {t('admin:explorerGridSelectedCount', { count: selection.size })}
+            </span>
+            {selection.size > rows.length && (
+              <span className="text-[11px] text-muted-foreground">
+                {t('admin:explorerGridSelectedOutsideView')}
+              </span>
+            )}
+            <div className="ml-auto flex flex-wrap items-center gap-1.5">
+              <Button size="sm" className="h-8 gap-1.5 px-2.5 text-xs" onClick={() => openBulk('edit')}>
+                <Pencil className="h-3.5 w-3.5" />
+                {t('admin:explorerGridBulkEdit')}
+              </Button>
+              {isGlobalAdmin && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 gap-1.5 border-destructive/40 px-2.5 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  onClick={() => openBulk('depart')}
+                >
+                  <UserMinus className="h-3.5 w-3.5" />
+                  {t('admin:explorerGridBulkDepart')}
+                </Button>
+              )}
+              <Button size="sm" variant="ghost" className="h-8 px-2.5 text-xs" onClick={clearSelection}>
+                {t('admin:explorerGridClearSelection')}
+              </Button>
+            </div>
+          </div>
+        )}
+
         {/* Table — this div is the single scroll container for both axes.
             shadcn's <Table> wraps the <table> in its own overflow-x-auto div;
             left as-is that inner wrapper becomes the scroll context and the
@@ -1361,11 +1512,28 @@ export default function ExplorerGrid({ cache, query, canEdit, focusFields, onOpe
                 {/* Leading actions column — sticky with the first data column.
                     Sticky lives on the th cells (not thead) for cross-browser
                     reliability. */}
-                <TableHead className="sticky left-0 top-0 z-30 w-9 min-w-9 bg-card px-1" />
+                <TableHead className={`sticky left-0 top-0 z-30 ${leadWidth} bg-card px-1`}>
+                  {selectable && (
+                    <span
+                      role="presentation"
+                      onClick={() => { if (rows.length > 0) toggleAllShown() }}
+                      title={t('admin:explorerGridSelectAllShown', { count: rows.length })}
+                      className="flex h-11 w-7 cursor-pointer items-center justify-center"
+                    >
+                      <Checkbox
+                        checked={shownAllSelected ? true : shownSomeSelected ? 'indeterminate' : false}
+                        onCheckedChange={toggleAllShown}
+                        disabled={rows.length === 0}
+                        className="pointer-events-none"
+                        aria-label={t('admin:explorerGridSelectAllShown', { count: rows.length })}
+                      />
+                    </span>
+                  )}
+                </TableHead>
                 {(view === 'teams' ? teamVisibleCols : visibleCols).map((c, i) => (
                   <TableHead
                     key={c.key}
-                    className={`${c.minW} sticky top-0 whitespace-nowrap bg-card ${i === 0 ? 'left-9 z-30' : 'z-20'}`
+                    className={`${c.minW} sticky top-0 whitespace-nowrap bg-card ${i === 0 ? `${leadOffset} z-30` : 'z-20'}`
                       // Focused columns are marked with a rule under the header,
                       // never a tinted background: this cell is sticky and has to
                       // stay opaque or the rows scroll through it.
@@ -1426,6 +1594,32 @@ export default function ExplorerGrid({ cache, query, canEdit, focusFields, onOpe
           </Table>
         </div>
       </div>
+
+      {selectable && (
+        <>
+          <ExplorerBulkEditModal
+            key={`bulk-edit-${bulkSession}`}
+            open={bulkEditOpen}
+            onClose={() => setBulkEditOpen(false)}
+            members={selectedMembers}
+            cache={cache}
+            isGlobalAdmin={isGlobalAdmin}
+            onMutate={onMutate}
+            // The selection survives the apply on purpose: composing a second
+            // change for the same people is the common follow-up, and re-ticking
+            // 40 rows to do it is the reason bulk tools get abandoned.
+            onApplied={() => { /* cache already updated optimistically */ }}
+          />
+          <ExplorerBulkDepartModal
+            key={`bulk-depart-${bulkSession}`}
+            open={bulkDepartOpen}
+            onClose={() => setBulkDepartOpen(false)}
+            members={selectedMembers}
+            onMutate={onMutate}
+            onApplied={() => { /* cache already updated optimistically */ }}
+          />
+        </>
+      )}
     </div>
   )
 }
