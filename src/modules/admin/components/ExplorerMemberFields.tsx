@@ -943,6 +943,7 @@ export default function ExplorerMemberFields({
     // Recomputed on every draft change so the total tracks what is being typed
     // into the three override boxes, not what was last saved.
     liveFee: liveFee(fee, draft),
+    isEmpty: isEmptyKey,
   }
 
   return (
@@ -1197,6 +1198,24 @@ interface EditorCtx {
   fee: MemberFee | null
   /** The same figures with the unsaved override edits applied. */
   liveFee: LiveFee
+  /** "Holds no value" — the same rule the hide-empty filter uses. */
+  isEmpty: (key: string) => boolean
+}
+
+/**
+ * Privacy switches that only mean anything while the field they govern holds a
+ * value.
+ *
+ * ⚠ Read on its own, `Birthdate visibility: Hidden` on a member with no
+ * birthdate says the club is WITHHOLDING a date it has — when in fact the
+ * column is blank. Same for `Hide phone: Yes` next to an empty phone. The card
+ * therefore says so instead of leaving the operator to cross-reference the
+ * field two cards up (which the hide-empty filter may well have removed).
+ */
+const GOVERNED_BY: Record<string, string> = {
+  birthdate_visibility: 'birthdate',
+  hide_email: 'email',
+  hide_phone: 'phone',
 }
 
 /**
@@ -1260,6 +1279,9 @@ function FieldCard({
   // A `privileged` field locked for a sport admin says so plainly rather than
   // reusing the generic "read-only" wording.
   const lockedByPrivilege = !!def.privileged && !isGlobalAdmin
+  // A privacy switch whose subject column is blank — see GOVERNED_BY.
+  const governedKey = GOVERNED_BY[def.key]
+  const governsEmpty = !!governedKey && ctx.isEmpty(governedKey)
 
   return (
     <article
@@ -1318,6 +1340,12 @@ function FieldCard({
         )}
       </div>
 
+      {governsEmpty && (
+        <p className="text-xs text-red-600 dark:text-red-400">
+          {t('explorerFieldsGovernsEmpty', { field: memberFieldLabel(governedKey) })}
+        </p>
+      )}
+
       {def.help && <p className="text-xs text-muted-foreground">{def.help}</p>}
 
       {/* "Why can't I edit this, and who wrote the value" — answered in the
@@ -1336,6 +1364,24 @@ function FieldCard({
 }
 
 // ── Display ────────────────────────────────────────────────────────────
+
+/**
+ * "There is no value in this column."
+ *
+ * ⚠ Was a muted em-dash, which reads as decoration rather than as a fact — an
+ * empty `birthdate` sitting under a `Birthdate visibility: Hidden` card looked
+ * like a date the app was declining to show. Red and worded, in the same weight
+ * the `false` branch of a boolean already uses, so "nothing is stored" and
+ * "something is stored but withheld" can never be confused again.
+ */
+function EmptyValue() {
+  const { t } = useTranslation('admin')
+  return (
+    <span className="font-medium text-red-600 dark:text-red-400">
+      {t('explorerFieldsEmpty')}
+    </span>
+  )
+}
 
 /**
  * The itemised Beitrag: the total first, because that is the question being
@@ -1424,9 +1470,12 @@ function DisplayValue({
       <span
         className={
           'inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium '
+          // Same red as EmptyValue: an unset secret is an empty column too, and
+          // a grey chip made it the one blank on the page that did not look
+          // like one.
           + (isSet
             ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200'
-            : 'bg-muted text-muted-foreground')
+            : 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300')
         }
         title={t('explorerFieldsSensitiveHidden')}
       >
@@ -1451,7 +1500,7 @@ function DisplayValue({
   // carry their season and are dimmed; the current season stays bare, which is
   // the ordinary case. The picker already labelled its rows this way.
   if (def.kind === 'teamMulti') {
-    if (ctx.rosterTeamIds.length === 0) return <span className="text-muted-foreground">—</span>
+    if (ctx.rosterTeamIds.length === 0) return <EmptyValue />
     const thisSeason = getCurrentSeason()
     return (
       <span className="flex flex-wrap gap-1.5">
@@ -1500,7 +1549,7 @@ function DisplayValue({
 
   // `false` must read "No" and `0` must read "0" — only null / '' / [] are empty.
   if (value == null || value === '' || (Array.isArray(value) && value.length === 0)) {
-    return <span className="text-muted-foreground">—</span>
+    return <EmptyValue />
   }
 
   switch (def.kind) {
@@ -1645,7 +1694,7 @@ function TeamValue({ teamId, teams }: { teamId: string | null; teams: TeamPicker
 function PositionValue({ value }: { value: unknown }) {
   const { t } = useTranslation('teams')
   const codes = coercePositions(value)
-  if (codes.length === 0) return <span className="text-muted-foreground">—</span>
+  if (codes.length === 0) return <EmptyValue />
   return (
     <span className="break-words text-foreground" title={codes.join(', ')}>
       {codes.map((p) => {
@@ -1660,7 +1709,7 @@ function PositionValue({ value }: { value: unknown }) {
 function TrainerLicencesValue({ value }: { value: string }) {
   const { t } = useTranslation('auth')
   const codes = parseTrainerLicences(value)
-  if (codes.length === 0) return <span className="text-muted-foreground">—</span>
+  if (codes.length === 0) return <EmptyValue />
   return (
     <span className="break-words text-foreground">
       {codes.map((c) => t(TRAINER_LICENCE_I18N_KEYS[c])).join(', ')}

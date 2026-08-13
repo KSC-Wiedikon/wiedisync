@@ -446,6 +446,8 @@ export default {
   explorerFieldsSensitiveSet: 'Gsetzt',
   explorerFieldsSensitiveNotSet: 'Nöd gsetzt',
   explorerFieldsSensitiveHidden: 'De Wärt wird da us Sicherheitsgründ nie aazeigt',
+  explorerFieldsEmpty: 'Läär',
+  explorerFieldsGovernsEmpty: '{{field}} isch läär — die Iistellig het kei Wirkig',
   explorerFieldsOverwritten: 'Wird vo de Synchronisation überschriebe',
   explorerFieldsManagedInDangerZone: 'Wird unde i de Gfahrezone verwaltet',
   explorerFieldsPrivilegedLocked: 'Nur en globale Admin cha das ändere',

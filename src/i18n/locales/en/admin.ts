@@ -769,6 +769,8 @@ export default {
   explorerFieldsSensitiveSet: 'Set',
   explorerFieldsSensitiveNotSet: 'Not set',
   explorerFieldsSensitiveHidden: 'The value is never shown here for security reasons',
+  explorerFieldsEmpty: 'Empty',
+  explorerFieldsGovernsEmpty: '{{field}} is empty — this setting has no effect',
   explorerFieldsOverwritten: 'Overwritten by sync',
   explorerFieldsManagedInDangerZone: 'Managed in the danger zone below',
   explorerFieldsPrivilegedLocked: 'Only a global admin can change this',

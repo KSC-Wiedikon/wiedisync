@@ -773,6 +773,8 @@ export default {
   explorerFieldsSensitiveSet: 'Gesetzt',
   explorerFieldsSensitiveNotSet: 'Nicht gesetzt',
   explorerFieldsSensitiveHidden: 'Der Wert wird hier aus Sicherheitsgründen nie angezeigt',
+  explorerFieldsEmpty: 'Leer',
+  explorerFieldsGovernsEmpty: '{{field}} ist leer — diese Einstellung hat keine Wirkung',
   explorerFieldsOverwritten: 'Wird von der Synchronisation überschrieben',
   explorerFieldsManagedInDangerZone: 'Wird unten in der Gefahrenzone verwaltet',
   explorerFieldsPrivilegedLocked: 'Nur ein globaler Administrator kann das ändern',
