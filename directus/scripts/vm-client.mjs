@@ -84,13 +84,25 @@ export async function vmDashboardCsrf(jar) {
 }
 
 /**
- * Point the account at a role. Best effort: on failure the caller's own fetch
- * reports a clearer error than anything thrown here, and the account may
- * already be on the right role, in which case the switch was unnecessary.
- * Returns true only if VM accepted it.
+ * Point the account at a role, reporting HOW it failed.
+ *
+ * The distinction is the whole point: a **4xx refusal** means VM will not give
+ * this account that role — retrying cannot fix it, and every resource the role
+ * gates will answer 403 for the rest of the run. A 5xx or a network error is
+ * VM being VM, and the caller's own retry handles it. Collapsing the two is
+ * what let a wrong role masquerade as a bad window (2026-08-13).
+ *
+ * ⚠ There is no way to READ the active role back: the dashboard's
+ * `:active-party` payload carries `activeAttributeValue: null` /
+ * `activeRoleIdentifier: ""` prototypes only (probed 2026-08-13), so the
+ * refusal status is the only evidence available. Absence of a refusal is NOT
+ * proof we hold the role — it is only proof VM did not say no.
+ *
+ * @returns {Promise<{ ok: boolean, status: number|null, refused: boolean }>}
+ *   `refused` = VM answered 4xx, i.e. permanently denied.
  */
-export async function vmSwitchRole(jar, csrf, attributeValueId) {
-  if (!attributeValueId || !csrf) return false;
+export async function vmSwitchRoleResult(jar, csrf, attributeValueId) {
+  if (!attributeValueId || !csrf) return { ok: false, status: null, refused: false };
   try {
     const body = new URLSearchParams();
     body.set('attributeValueAsArray[0]', attributeValueId);
@@ -109,13 +121,23 @@ export async function vmSwitchRole(jar, csrf, attributeValueId) {
     });
     if (!r.ok) {
       console.warn(`[vm] role switch to ${attributeValueId} returned ${r.status}`);
-      return false;
+      return { ok: false, status: r.status, refused: r.status >= 400 && r.status < 500 };
     }
-    return true;
+    return { ok: true, status: r.status, refused: false };
   } catch (err) {
     console.warn(`[vm] role switch to ${attributeValueId} failed: ${err.message}`);
-    return false;
+    return { ok: false, status: null, refused: false };
   }
+}
+
+/**
+ * Point the account at a role. Best effort: on failure the caller's own fetch
+ * reports a clearer error than anything thrown here, and the account may
+ * already be on the right role, in which case the switch was unnecessary.
+ * Returns true only if VM accepted it.
+ */
+export async function vmSwitchRole(jar, csrf, attributeValueId) {
+  return (await vmSwitchRoleResult(jar, csrf, attributeValueId)).ok;
 }
 
 /** Fetch a dashboard CSRF and claim `roleId`. Use mid-run to change roles. */
@@ -124,7 +146,7 @@ export async function vmUseRole(jar, roleId) {
 }
 
 // ─── Auth ────────────────────────────────────────────────────────────
-export async function vmLogin({ username, password, role = VM_ROLE_CLUB }) {
+export async function vmLogin({ username, password, role = VM_ROLE_CLUB, requireRole = true }) {
   if (!username || !password) throw new Error('vmLogin: username and password are required');
 
   const jar = new CookieJar();
@@ -152,8 +174,22 @@ export async function vmLogin({ username, password, role = VM_ROLE_CLUB }) {
   // 3b. Claim the role. Before entering the sub-app, so step 4 establishes the
   // sub-app scope under the role we intend to use rather than the one this
   // account happened to be left on. See VM_ROLE_CLUB above.
+  //
+  // A 4xx REFUSAL fails the login outright (`requireRole`, the default). It is
+  // not defensible to continue: under the wrong role this account gets 403 on
+  // every club resource — or, worse, 200 with the WRONG SCOPE (`indoorplayer`
+  // answers 170'736 federation-wide rows instead of KSCW's 258). Failing here
+  // costs one run; continuing risks storing another club's data as ours. The
+  // `VM_ROLE_DENIED` marker is what stops `vm-sync-check` from filing the
+  // resulting 403s as a transient VM window and going quiet about them.
   if (role) {
-    await vmSwitchRole(jar, dashboard.match(/data-csrf-token="([^"]+)"/)?.[1] ?? '', role);
+    const claim = await vmSwitchRoleResult(jar, dashboard.match(/data-csrf-token="([^"]+)"/)?.[1] ?? '', role);
+    if (claim.refused && requireRole) {
+      throw new Error(`VM_ROLE_DENIED: VolleyManager refused role ${role} (HTTP ${claim.status}). `
+        + 'Retrying cannot fix this — re-read the role ids off the dashboard\'s :active-party '
+        + 'payload (they are per account, so a VM_USERNAME change invalidates them) and set '
+        + 'VM_ROLE_ATTRIBUTE_CLUB / VM_ROLE_ATTRIBUTE_SPIELPLANER.');
+    }
   }
 
   // 4. Enter the volleyball sub-app context. Without this step every indoor

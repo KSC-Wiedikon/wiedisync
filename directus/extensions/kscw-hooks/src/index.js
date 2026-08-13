@@ -3756,6 +3756,12 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // Shared runner so both the weekly cron and the failure-watchdog (below) use
   // the same spawn/log path. In-memory lock prevents overlapping runs (the
   // watchdog could otherwise fire while a run is still in flight).
+  // How many consecutive soft defers are still credibly "VM is having a bad
+  // window". Past this the watchdog stops retrying (below) — and, since
+  // 2026-08-13, the run also stops calling itself `ok`: an upstream problem
+  // that has outlived six retries is a real, reportable failure, and recording
+  // it green is how a permanently-denied sync stayed invisible for a week.
+  const DEFER_RETRY_CAP = 6
   let vmSyncRunning = false
   async function runVmSync(reason) {
     if (!process.env.VM_USERNAME || !process.env.VM_PASSWORD) {
@@ -3809,8 +3815,24 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         const prior = await database('sync_runs').where({ source: 'vm_sync' }).first().catch(() => null)
         const priorN = prior ? parseInt(String(prior.error_message || '').match(/deferred \(attempt (\d+)\)/)?.[1] || '0', 10) : 0
         const attempt = priorN + 1
-        log.info(`VM sync cron (${reason}): deferred attempt ${attempt} — ${result.stdout.split('\n').slice(-4).join(' | ')}`)
-        await logCronRun(database, 'vm_sync', { status: 'ok', durationMs: Date.now() - startedAt, errorMessage: `deferred (attempt ${attempt}): VM temporarily unavailable` })
+        // Past the cap, "transient" is no longer a defensible reading. Record
+        // `error` so it alerts and shows red, and mark it `exhausted` so the
+        // watchdog does NOT start retrying it every 30 min through the `error`
+        // branch — visibility and retry cadence are separate decisions, and
+        // hammering volleyball.ch was the reason for the backoff in the first
+        // place. The next weekly run is the retry; a success clears the message.
+        const exhausted = attempt >= DEFER_RETRY_CAP
+        const detail = `deferred (attempt ${attempt}): VM temporarily unavailable`
+        log.info(`VM sync cron (${reason}): deferred attempt ${attempt}${exhausted ? ' — RETRIES EXHAUSTED, reporting as error' : ''} — ${result.stdout.split('\n').slice(-4).join(' | ')}`)
+        if (exhausted) {
+          const msg = `${detail} — retries exhausted after ${attempt} attempts. `
+            + 'If every group 403s, check the ACTIVE VM ROLE before assuming an outage: the account is '
+            + 'shared with svrz_rc and the role is per-account, not per-session.'
+          logCronError('vm_sync', new Error(msg))
+          await logCronRun(database, 'vm_sync', { status: 'error', durationMs: Date.now() - startedAt, errorMessage: msg })
+        } else {
+          await logCronRun(database, 'vm_sync', { status: 'ok', durationMs: Date.now() - startedAt, errorMessage: detail })
+        }
       } else {
         log.info(`VM sync cron (${reason}): ${result.stdout.split('\n').slice(-6).join(' | ')}`)
         await logCronRun(database, 'vm_sync', { status: 'ok', durationMs: Date.now() - startedAt })
@@ -3860,10 +3882,12 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   //   • `error`  — a hard failure: retry every 30 min until it succeeds.
   //   • `deferred` — a transient VM bad window (no alert): retry up to
   //     DEFER_RETRY_CAP times to catch a healthy window, then back off to the
-  //     weekly run so a long outage doesn't hammer volleyball.ch all week.
+  //     weekly run so a long outage doesn't hammer volleyball.ch all week. At
+  //     the cap the run itself flips to `error` (see runVmSync) so the backoff
+  //     is silent about RETRYING, not about the FAILURE.
   // Bounded: skip the <25min just-ran/in-progress window so it never races the
   // weekly run, and the 12h ceiling guards the `error` case.
-  const DEFER_RETRY_CAP = 6
+  // (DEFER_RETRY_CAP is declared above runVmSync — both halves read it.)
   schedule('*/30 * * * *', async () => {
     if (!process.env.VM_USERNAME || !process.env.VM_PASSWORD) return
     try {
@@ -3875,6 +3899,10 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       // attempt count (sync_runs.status is constrained to ok|error). A full
       // success clears error_message to null → no deferred-retry.
       const deferMatch = String(row.error_message || '').match(/deferred \(attempt (\d+)\)/)
+      // An exhausted defer is recorded as `error` so it alerts — but it is
+      // still the same upstream problem the backoff decided to stop retrying,
+      // so it must not fall into the `error` branch's 30-min retry loop.
+      if (/retries exhausted/.test(String(row.error_message || ''))) return
       if (row.status === 'error') {
         log.info(`VM sync watchdog: last run errored ~${Math.round(ageMin)}min ago — retrying`)
         await runVmSync('watchdog-retry')

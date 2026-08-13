@@ -419,7 +419,9 @@ function CopyButton({ value, title, label }: { value: string; title: string; lab
  * email), which is why the birthdate lives here rather than in a column of its
  * own: it is not an attribute of the transfer, it is how the player is found.
  */
-function NameCell({ m, teamNames }: { m: TransferMember; teamNames?: string[] }) {
+function NameCell({ m, teamNames, unrostered }: {
+  m: TransferMember; teamNames?: string[]; unrostered?: boolean
+}) {
   const { t } = useTranslation('admin')
   const display = (m.nickname && m.nickname.trim()) || m.first_name || ''
   const dob = formatDateZurich(m.birthdate)
@@ -443,6 +445,18 @@ function NameCell({ m, teamNames }: { m: TransferMember; teamNames?: string[] })
           title={t('trColTeams')}
         >
           {teamNames.join(', ')}
+        </span>
+      )}
+      {/* Here only because Volleymanager licenses them — the club roster has no
+          volleyball row. The transfer still gets worked; the missing roster row
+          stays visible so somebody fixes it. */}
+      {unrostered && (
+        <span
+          className="mt-0.5 inline-flex w-fit items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium whitespace-normal text-amber-800 dark:bg-amber-900/40 dark:text-amber-200"
+          title={t('trUnrosteredHint')}
+        >
+          <AlertTriangle className="h-3 w-3 shrink-0" aria-hidden="true" />
+          {t('trUnrostered')}
         </span>
       )}
       {m.email && (
@@ -659,9 +673,69 @@ export default function TransfersPage() {
   }, [teamNamesByMember])
 
   /**
-   * A member appears on this page only when a team actually puts them in
+   * Everyone Volleymanager licenses for KSC Wiedikon, by `association_id`.
+   *
+   * Cohort-INDEPENDENT on purpose, and therefore a second query rather than a
+   * reuse of `vmRaw` further down: that one is filtered to the licence numbers
+   * of the members who are ALREADY on the worklist, so it can confirm a row but
+   * can never admit one. Unfiltered here — the club licence list is ~260
+   * single-column rows and changes only when the weekly VM sync runs.
+   *
+   * Every row carries a player `licence_category` (RLL/JLL/NLL/PL/DLR/DLN);
+   * `is_referee` / `is_writer` are additive flags on top of a player licence,
+   * never a row of their own (verified on prod 2026-08-13: 0 of 258 rows lack a
+   * category). So presence here means "holds a KSCW player licence" — which is
+   * precisely the thing an ITC clears.
+   */
+  const { data: vmLicenceRaw } = useCollection<{
+    association_id: number
+    nationality_code: string | null
+  }>('sv_vm_check', {
+    fields: ['association_id', 'nationality_code'],
+    all: true,
+    staleTime: 3_600_000,
+  })
+
+  /**
+   * Two facts per licensed member, matched on `license_nr = association_id` —
+   * the first and only DETERMINISTIC step of the `vm-sync-check.mjs` cascade.
+   * The email and name steps are deliberately not replicated: a wrong bind here
+   * would put somebody else's transfer on the worklist, whereas a missed one
+   * only leaves a member in the visible "on no team" tally.
+   *
+   * ⚠ `nationality_code` is NOT citizenship, despite the name — it is the
+   * SPORTING nationality, i.e. Volleymanager's own federation of origin. The
+   * citizenship is the sibling `nationality` column, and the two genuinely
+   * disagree: verified on prod 2026-08-13, "Italien"→SUI, "Kolumbien"→SUI,
+   * "Polen"→SUI, "Deutschland"→SUI and one reverse "Schweiz"→GER. `is_foreigner`
+   * tracks the CODE, not the citizenship. This is the column to compare
+   * `federation_of_origin` against; comparing against `nationality` would flag
+   * every dual national as a conflict. (`federation` is a third thing again —
+   * the regional association, SVRZ/SVRA/SVRGSGL. Not origin at all.)
+   */
+  const { vmLicensedMembers, vmPlaysAsByMember } = useMemo(() => {
+    const byAssoc = new Map<string, string>()
+    for (const r of vmLicenceRaw ?? []) {
+      const id = String(r.association_id ?? '').trim()
+      if (id) byAssoc.set(id, String(r.nationality_code ?? '').trim().toUpperCase())
+    }
+    const licensed = new Set<string>()
+    const playsAs = new Map<string, string>()
+    for (const m of members) {
+      const lic = String(m.license_nr ?? '').trim()
+      if (!lic || !byAssoc.has(lic)) continue
+      const id = String(m.id)
+      licensed.add(id)
+      const code = byAssoc.get(lic)
+      if (code) playsAs.set(id, code)
+    }
+    return { vmLicensedMembers: licensed, vmPlaysAsByMember: playsAs }
+  }, [vmLicenceRaw, members])
+
+  /**
+   * A member appears on this page when EITHER the club's own roster puts them in
    * VOLLEYBALL as a PLAYER (guest memberships do not count — see
-   * `sportsByMember`).
+   * `sportsByMember`), OR Volleymanager licenses them for the club.
    *
    * Members on NO team used to surface so nothing could hide — but a transfer
    * is only owed by someone who plays, and the register carries enough
@@ -669,11 +743,109 @@ export default function TransfersPage() {
    * this page exists for. They are counted and named in the header instead, so
    * dropping them stays visible rather than silent: give them a team and they
    * reappear.
+   *
+   * ⚠ The Volleymanager half is not a convenience — it is the AUTHORITATIVE
+   * half. A Swiss Volley licence IS the thing an ITC clears, so somebody VM
+   * licenses owes the transfer whether or not the club ever got round to
+   * entering a `member_teams` row. Roster bookkeeping lags reality every
+   * season, and on prod 2026-08-13 that lag hid four licensed, active,
+   * foreign-federation players from the worklist completely — Delucchi (PE),
+   * Gatsko (RU), Nikolov (BG), Suárez Perez (CO). They sat in the "on no team"
+   * tally, which nobody works.
+   *
+   * ⚠ This also overrides the guest exclusion, and correctly so: "guest" means
+   * "trains with us but holds no club licence", and a VM licence is that claim
+   * being false.
    */
   const playsVolleyball = useCallback(
-    (memberId: string) => sportsByMember.get(memberId)?.has(SPORT) ?? false,
-    [sportsByMember],
+    (memberId: string) => (sportsByMember.get(memberId)?.has(SPORT) ?? false)
+      || vmLicensedMembers.has(memberId),
+    [sportsByMember, vmLicensedMembers],
   )
+
+  /**
+   * On the page only because Volleymanager licenses them — the club's own roster
+   * has no volleyball player row for them.
+   *
+   * Surfaced rather than smoothed over: admitting them fixes the worklist, but
+   * the MISSING ROSTER ROW is a real data gap, and if these rows looked like any
+   * other the gap would simply stop being visible (it used to show up in the "on
+   * no team" tally). Marking them keeps both true at once — the transfer gets
+   * worked, and somebody can still go fix `member_teams`.
+   */
+  const unrosteredLicensed = useCallback(
+    (memberId: string) => vmLicensedMembers.has(memberId)
+      && !(sportsByMember.get(memberId)?.has(SPORT) ?? false),
+    [vmLicensedMembers, sportsByMember],
+  )
+
+  /**
+   * FIVB 3-letter code → ISO alpha-2, taken from FIVB's OWN federation directory
+   * (`vis_federations`, migration 241) rather than a map of ours.
+   *
+   * That distinction is the reason this is safe to do at all: the licence cell
+   * deliberately prints VM's raw values without translating them, because
+   * "mapping an IOC code through our own tables would let a mapping bug
+   * misreport the register being checked against". A comparison has to map
+   * SOMETHING, so it maps through the authority's directory — and a code the
+   * directory does not know yields no comparison rather than a wrong one.
+   */
+  const isoByFivbCode = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const f of federationsRaw ?? []) {
+      const code = String(f.code ?? '').trim().toUpperCase()
+      const iso = String(f.iso ?? '').trim().toUpperCase()
+      if (code && iso) map.set(code, iso)
+    }
+    return map
+  }, [federationsRaw])
+
+  /**
+   * Where OUR federation of origin and VOLLEYMANAGER'S disagree.
+   *
+   * This is the one comparison that can move a member between "owes an ITC" and
+   * "owes nothing", so it is computed across every cohort on the page — not just
+   * the worklist. The `swiss` cohort is where the DANGEROUS direction hides: we
+   * record CH, Swiss Volley records a foreign federation, and nobody is chasing
+   * a transfer that may be required.
+   *
+   * ⚠ Never auto-applied. `federation_of_origin` is the member's own answer and
+   * is member-editable (migration 234); VM's value is the register's answer.
+   * Which one is wrong is a human question with two different remedies — correct
+   * our record, or ask Swiss Volley to correct theirs — so this reports and lets
+   * an admin decide. Silently adopting VM would also erase the evidence that the
+   * register needs fixing, which is the whole reason to look.
+   *
+   * Prod 2026-08-13: 15 conflicts / 223 licensed members — 11 vmSaysSwiss,
+   * 3 vmSaysForeign, 1 both-foreign.
+   */
+  const fooConflicts = useMemo(() => {
+    const out: {
+      m: TransferMember; ourIso: string; vmIso: string; vmCode: string
+      kind: 'vmSaysSwiss' | 'vmSaysForeign' | 'bothForeign'
+    }[] = []
+    for (const m of members) {
+      const id = String(m.id)
+      if (!playsVolleyball(id) || bucketOf(m) === 'ignore') continue
+      const vmCode = vmPlaysAsByMember.get(id)
+      if (!vmCode) continue
+      const vmIso = isoByFivbCode.get(vmCode)
+      if (!vmIso) continue
+      const ourIso = String(m.federation_of_origin ?? '').trim().toUpperCase()
+      if (!ourIso || ourIso === vmIso) continue
+      // 'NONE' vs CH is not a disagreement worth reporting: both mean no ITC.
+      if (ourIso === NO_FEDERATION && vmIso === 'CH') continue
+      const kind = vmIso === 'CH'
+        ? 'vmSaysSwiss'
+        : (ourIso === 'CH' || ourIso === NO_FEDERATION) ? 'vmSaysForeign' : 'bothForeign'
+      out.push({ m, ourIso, vmIso, vmCode, kind })
+    }
+    // Dangerous direction first: a possibly-missing transfer outranks a
+    // possibly-unnecessary one.
+    const rank = { vmSaysForeign: 0, bothForeign: 1, vmSaysSwiss: 2 }
+    return out.sort((a, b) => rank[a.kind] - rank[b.kind]
+      || String(a.m.last_name).localeCompare(String(b.m.last_name), 'de-CH'))
+  }, [members, playsVolleyball, vmPlaysAsByMember, isoByFivbCode])
 
   /**
    * Members who WOULD be on a worklist but are not shown, reported in the
@@ -697,7 +869,11 @@ export default function TransfersPage() {
       const bucket = bucketOf(m)
       if (bucket !== 'needs' && bucket !== 'clarify') continue
       const id = String(m.id)
-      if (sportsByMember.get(id)?.has(SPORT)) continue
+      // Routed through `playsVolleyball`, not through `sportsByMember` directly,
+      // so the "hidden" tally can never disagree with what the page shows: a
+      // member admitted by their Volleymanager licence is on screen and must not
+      // also be reported as missing from it.
+      if (playsVolleyball(id)) continue
       // Guest first: a volleyball guest is dropped for the licence reason, not
       // for whatever else they may also play.
       if (guestSportsByMember.get(id)?.has(SPORT)) guestOnly += 1
@@ -705,7 +881,7 @@ export default function TransfersPage() {
       else noTeam += 1
     }
     return { noTeam, guestOnly, basketball }
-  }, [members, sportsByMember, guestSportsByMember])
+  }, [members, playsVolleyball, sportsByMember, guestSportsByMember])
 
   /**
    * The volleyball cohorts. `u20` is a COUNT, not a list: those members are
@@ -1514,7 +1690,11 @@ export default function TransfersPage() {
                   return (
                     <TableRow key={id}>
                       <TableCell className="min-h-[44px] align-top">
-                        <NameCell m={m} teamNames={teamNamesByMember.get(id)} />
+                        <NameCell
+                          m={m}
+                          teamNames={teamNamesByMember.get(id)}
+                          unrostered={unrosteredLicensed(id)}
+                        />
                       </TableCell>
                       <TableCell className="hidden align-top text-xs text-gray-600 sm:table-cell dark:text-gray-300">
                         <span aria-hidden="true" className="mr-1">
@@ -1716,6 +1896,73 @@ export default function TransfersPage() {
             <p className="mt-0.5 text-xs text-red-700 dark:text-red-300">
               {t('trBlockedBannerDescription')}
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* Where Swiss Volley's own federation of origin disagrees with ours.
+          Swiss Volley works from THEIR value, so a disagreement is either a
+          transfer nobody is chasing or a transfer nobody needed. Reported, never
+          applied — see `fooConflicts`. */}
+      {fooConflicts.length > 0 && (
+        <div className="mb-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 dark:border-amber-800 dark:bg-amber-900/20">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden="true" />
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-amber-900 dark:text-amber-100">
+                {t('trFooConflictBanner', { count: fooConflicts.length })}
+              </p>
+              <p className="mt-0.5 text-xs text-amber-800 dark:text-amber-200">
+                {t('trFooConflictDescription')}
+              </p>
+            </div>
+          </div>
+          <div className="mt-2 overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t('trFooConflictColMember')}</TableHead>
+                  <TableHead>{t('trFooConflictColOurs')}</TableHead>
+                  <TableHead>{t('trFooConflictColVm')}</TableHead>
+                  <TableHead>{t('trFooConflictColMeaning')}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {fooConflicts.map((c) => (
+                  <TableRow key={String(c.m.id)}>
+                    <TableCell className="min-h-[44px] whitespace-normal break-words">
+                      {memberName(c.m)}
+                    </TableCell>
+                    <TableCell className="whitespace-normal break-words">
+                      {countryFlag(c.ourIso)} {countryLabel(c.ourIso) || c.ourIso}
+                    </TableCell>
+                    <TableCell className="whitespace-normal break-words">
+                      {countryFlag(c.vmIso)} {countryLabel(c.vmIso) || c.vmIso}
+                      <span className="ml-1 font-mono text-xs text-gray-500 dark:text-gray-400">
+                        ({c.vmCode})
+                      </span>
+                    </TableCell>
+                    <TableCell className="whitespace-normal break-words">
+                      <span
+                        className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+                          c.kind === 'vmSaysForeign'
+                            ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-200'
+                            : c.kind === 'bothForeign'
+                              ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200'
+                              : 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-200'
+                        }`}
+                      >
+                        {c.kind === 'vmSaysForeign'
+                          ? t('trFooConflictMeaningMissing')
+                          : c.kind === 'bothForeign'
+                            ? t('trFooConflictMeaningDiffers')
+                            : t('trFooConflictMeaningNotNeeded')}
+                      </span>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </div>
         </div>
       )}

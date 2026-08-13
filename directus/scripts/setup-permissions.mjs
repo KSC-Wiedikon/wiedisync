@@ -2699,7 +2699,10 @@ async function main() {
     // silently degrades to "no contact on file". Both tables are read-only mirrors
     // written by cron, never by the UI, but they live here rather than as a
     // read-only row because Sport Admin already holds this shape for sv_vm_check.
-    'vis_transfers', 'vis_federations',
+    // vis_players (migration 313) joins them: the staged FIVB player index the
+    // transfers work is matched against. Read-only mirror like its two siblings,
+    // fully replaced by each vis-player-check run.
+    'vis_transfers', 'vis_federations', 'vis_players',
     'announcements',
     // Fines (migration 069) — Sport Admin full CRUD (override coach-only scope
     // for cross-team rule edits + correction of bad fines).

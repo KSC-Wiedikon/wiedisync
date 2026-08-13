@@ -285,6 +285,7 @@ export async function runVisPlayerCheck(database, log) {
 
   const rosters = new Map()
   const unmapped = []
+  const staging = []
   for (const iso of [...new Set(members.map((m) => m.federation_of_origin))]) {
     const fed = byCode.get(ISO2FIVB[iso])
     if (!fed) { unmapped.push(iso); log?.warn?.(`[vis] ${iso}: no VIS federation mapped — skipped`); continue }
@@ -293,6 +294,21 @@ export async function runVisPlayerCheck(database, log) {
       `<Relation Name="Person" Properties="FirstName LastName"/></Request>`)
     const index = buildRosterIndex(j.data)
     rosters.set(iso, index)
+    // Staged below (migration 313). ⚠ MIRROR of the same block in
+    // `directus/scripts/vis-player-check.mjs` — change both.
+    for (const p of j.data || []) {
+      if (!p.person) continue
+      const no = Number(p.no)
+      if (!Number.isInteger(no)) continue
+      staging.push({
+        federation_iso: iso,
+        player_no: no,
+        federation_code: fed.code ?? null,
+        federation_no: Number.isFinite(Number(fed.no)) ? Number(fed.no) : null,
+        first_name: p.person.firstName ?? null,
+        last_name: p.person.lastName ?? null,
+      })
+    }
     log?.info?.(`[vis] ${iso} (${fed.code}): ${index.roster.size} players`)
   }
 
@@ -322,12 +338,42 @@ export async function runVisPlayerCheck(database, log) {
     )
   }
 
+  // Stage the rosters we just downloaded (migration 313). Derived data written
+  // last and in its own transaction: the members UPDATE above IS the job, so a
+  // staging failure warns and reports `staged: null` rather than failing a run
+  // whose verdicts already committed.
+  // ⚠ MIRROR of `writeVisPlayerStaging` in `directus/scripts/vis-player-check.mjs`.
+  // Full replace, so the table means "the last successful download" and a
+  // federation nobody claims any more cannot linger. Skipped when empty — that
+  // means every federation was unmapped, never that VIS is empty.
+  let staged = null
+  if (staging.length) {
+    try {
+      await database.transaction(async (trx) => {
+        await trx('vis_players').del()
+        for (let i = 0; i < staging.length; i += 1000) {
+          await trx('vis_players')
+            .insert(staging.slice(i, i + 1000))
+            .onConflict(['federation_iso', 'player_no'])
+            .ignore()
+        }
+      })
+      staged = staging.length
+      log?.info?.(`[vis] staged ${staged} roster row(s) from ${rosters.size} federation(s)`)
+    } catch (e) {
+      log?.warn?.(`[vis] roster staging FAILED — verdicts are unaffected: ${e.message}`)
+    }
+  } else {
+    log?.warn?.('[vis] nothing downloaded — leaving vis_players untouched')
+  }
+
   return {
     checked: evaluated.length,
     inVis: found.length,
     notFound: notFound.length,
     unmapped,
     federations: rosters.size,
+    staged,
   }
 }
 
