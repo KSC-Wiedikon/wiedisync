@@ -11,6 +11,7 @@
 import { describe, it, expect } from 'vitest'
 import { MEMBERS_COLUMNS } from './membersColumns.fixture'
 import {
+  COACH_VIRTUAL_KEY,
   FEE_AMOUNT_VIRTUAL_KEY,
   MEMBER_FIELDS,
   MEMBER_FIELD_GROUPS,
@@ -18,7 +19,9 @@ import {
   MEMBER_FIELD_OVERWRITTEN_BY,
   MEMBER_FIELD_PROVENANCE,
   NEVER_PATCH_KEYS,
+  TEAM_LINK_KEYS,
   TEAMS_VIRTUAL_KEY,
+  TR_VIRTUAL_KEY,
   buildMemberFieldSections,
   bulkEditableFields,
   fieldFilterReason,
@@ -62,23 +65,26 @@ function midLabelCapitalisedWords(label: string): string[] {
 }
 
 describe('memberFieldSchema — completeness', () => {
-  it('claims every members column exactly once, plus the two virtual keys', () => {
+  it('claims every members column exactly once, plus the four virtual keys', () => {
     const keys = MEMBER_FIELDS.map((f) => f.key)
     const dupes = keys.filter((k, i) => keys.indexOf(k) !== i)
     expect(dupes).toEqual([])
 
-    const expected = [...MEMBERS_COLUMNS, TEAMS_VIRTUAL_KEY, FEE_AMOUNT_VIRTUAL_KEY].sort()
+    const expected = [
+      ...MEMBERS_COLUMNS,
+      TEAMS_VIRTUAL_KEY, COACH_VIRTUAL_KEY, TR_VIRTUAL_KEY, FEE_AMOUNT_VIRTUAL_KEY,
+    ].sort()
     expect([...keys].sort()).toEqual(expected)
   })
 
-  it('has 111 real columns and 2 virtual fields', () => {
+  it('has 111 real columns and 4 virtual fields', () => {
     expect(MEMBERS_COLUMNS).toHaveLength(111)
     expect(MEMBER_FIELDS.filter((f) => !f.virtual)).toHaveLength(111)
-    // The roster multiselect writes a junction; the Beitrag card is computed by
-    // the server's fee engine. Neither is a `members` column, and neither may
-    // ever reach a PATCH body.
+    // The three team multiselects each write their own junction collection; the
+    // Beitrag card is computed by the server's fee engine. None is a `members`
+    // column, and none may ever reach a PATCH body.
     expect(MEMBER_FIELDS.filter((f) => f.virtual).map((f) => f.key))
-      .toEqual([TEAMS_VIRTUAL_KEY, FEE_AMOUNT_VIRTUAL_KEY])
+      .toEqual([TEAMS_VIRTUAL_KEY, COACH_VIRTUAL_KEY, TR_VIRTUAL_KEY, FEE_AMOUNT_VIRTUAL_KEY])
   })
 
   it('puts each column in exactly one declared group', () => {
@@ -89,14 +95,14 @@ describe('memberFieldSchema — completeness', () => {
       expect(seen.has(f.key), `${f.key} claimed twice`).toBe(false)
       seen.set(f.key, f.group)
     }
-    expect(seen.size).toBe(MEMBERS_COLUMNS.length + 2) // + the two virtual keys
+    expect(seen.size).toBe(MEMBERS_COLUMNS.length + 4) // + the four virtual keys
   })
 
   it('matches the group sizes the taxonomy was designed around', () => {
     const count = (id: MemberFieldGroupId) => MEMBER_FIELDS.filter((f) => f.group === id).length
     expect(count('identity')).toBe(11)
     expect(count('contact')).toBe(7)
-    expect(count('membership')).toBe(12) // 11 columns + __teams
+    expect(count('membership')).toBe(14) // 11 columns + the 3 team links
     expect(count('playing')).toBe(3)
     expect(count('association')).toBe(21)
     expect(count('roles_access')).toBe(3)
@@ -287,7 +293,8 @@ describe('isBulkEditable', () => {
     // contact
     'hide_email', 'hide_phone', 'adresse', 'plz', 'ort',
     // membership
-    'sektion', TEAMS_VIRTUAL_KEY, 'requested_team', 'coach_approved_team', 'eintritt',
+    'sektion', TEAMS_VIRTUAL_KEY, COACH_VIRTUAL_KEY, TR_VIRTUAL_KEY,
+    'requested_team', 'coach_approved_team', 'eintritt',
     // playing
     'position', 'trainer_licences',
     // association
@@ -352,9 +359,9 @@ describe('isBulkEditable', () => {
     for (const def of MEMBER_FIELDS) {
       for (const ctx of [asAdmin, asSportAdmin]) {
         if (!isBulkEditable(def, ctx)) continue
-        // The roster is the one virtual key that passes — it writes junction
-        // rows, which is why it is bulk-editable and not PATCHable.
-        if (def.key === TEAMS_VIRTUAL_KEY) continue
+        // The three team links are the virtual keys that pass — they write
+        // junction rows, which is why they are bulk-editable and not PATCHable.
+        if (TEAM_LINK_KEYS.has(def.key)) continue
         expect(isFieldReadOnly(def, ctx), `${def.key} is bulk-editable but read-only`).toBe(false)
         expect(NEVER_PATCH_KEYS.has(def.key), `${def.key} is bulk-editable but never-patch`).toBe(false)
       }

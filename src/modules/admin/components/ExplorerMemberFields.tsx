@@ -43,7 +43,8 @@ import { coercePositions, getPositionI18nKey, getSelectablePositions } from '../
 import { useConfirm } from '../../../components/ConfirmProvider'
 import type { Team } from '../../../types'
 import type { CacheShape } from './explorerHelpers'
-import { buildMemberTeamsMap, teamLabel } from './explorerHelpers'
+import { teamLabel } from './explorerHelpers'
+import { TEAM_LINK_KIND_LIST, teamLinkKind } from './teamLinks'
 import {
   FEE_AMOUNT_VIRTUAL_KEY, GOVERNED_BY, MEMBER_FIELD_BY_KEY, NEVER_PATCH_KEYS, TEAMS_VIRTUAL_KEY,
   buildMemberFieldSections, fieldFilterReason, getFieldDef, isFieldReadOnly, sanitizeRecord,
@@ -343,7 +344,10 @@ export default function ExplorerMemberFields({
   const [saving, setSaving] = useState(false)
   const [revealedSports, setRevealedSports] =
     useState<ReadonlySet<'volleyball' | 'basketball'>>(NO_SPORTS_REVEALED)
-  const [busyTeamIds, setBusyTeamIds] = useState<ReadonlySet<string>>(() => new Set())
+  // Composite `${linkKey}:${teamId}` tokens: the same team can have a write in
+  // flight as a coaching link while its roster chip sits idle, and one flat set
+  // of team ids would spin both.
+  const [busyLinks, setBusyLinks] = useState<ReadonlySet<string>>(() => new Set())
   const [fee, setFee] = useState<MemberFee | null>(null)
   // Noise filters. Sticky across members AND across sessions — an admin who
   // wants the audit stamps back should not have to re-reveal them on every row.
@@ -363,7 +367,7 @@ export default function ExplorerMemberFields({
     setLoading(true)
     setEditMode(false)
     setRevealedSports(NO_SPORTS_REVEALED)
-    setBusyTeamIds(new Set())
+    setBusyLinks(new Set())
     // Otherwise the previous member's Beitrag shows on this one until the fee
     // fetch lands — a wrong number is worse than a pending one.
     setFee(null)
@@ -497,12 +501,13 @@ export default function ExplorerMemberFields({
 
   const dirtySet = useMemo(() => new Set(dirtyKeys), [dirtyKeys])
 
-  // Declared above the noise filters: the roster is what makes the virtual
-  // "Teams (player)" card empty or not.
-  const rosterTeamIds = useMemo(
-    () => cache.memberTeams.get(memberId) ?? [],
-    [cache.memberTeams, memberId],
-  )
+  // Declared above the noise filters: these are what make the three virtual
+  // team cards empty or not.
+  const linkIdsByKey = useMemo(() => {
+    const out: Record<string, string[]> = {}
+    for (const kind of TEAM_LINK_KIND_LIST) out[kind.key] = kind.idsOf(cache, memberId)
+    return out
+  }, [cache, memberId])
 
   /**
    * "Holds no value", for the hide-empty filter. Reads `draft` rather than
@@ -515,7 +520,7 @@ export default function ExplorerMemberFields({
    * would leak "this member HAS an ical token" into the default view.
    */
   const isEmptyKey = useCallback((key: string): boolean => {
-    if (key === TEAMS_VIRTUAL_KEY) return rosterTeamIds.length === 0
+    if (key in linkIdsByKey) return linkIdsByKey[key].length === 0
     // The Beitrag card holds no column value, so the generic rule below would
     // read it as empty and the hide-empty filter — on by default — would hide
     // the one card in the group that answers "what does this member pay".
@@ -526,7 +531,7 @@ export default function ExplorerMemberFields({
     const value = key in draft ? draft[key] : record?.[key]
     // Same rule the value renderer uses: `false` and `0` are values, not blanks.
     return value == null || value === '' || (Array.isArray(value) && value.length === 0)
-  }, [present, draft, record, rosterTeamIds, fee])
+  }, [present, draft, record, linkIdsByKey, fee])
 
   // Hiding empties in edit mode would make an empty field unfillable, so the
   // filter is view-only. The toggle keeps its state — leaving edit mode brings
@@ -640,15 +645,17 @@ export default function ExplorerMemberFields({
     // so the same row can be unticked from the dropdown. Nothing else widens
     // the picker — an inactive team the member is NOT on stays out of it.
     const known = new Set(options.map((o) => o.id))
-    for (const id of rosterTeamIds) {
-      if (known.has(id)) continue
-      const tm = cache.teamLookup.get(id)
-      if (!tm) continue
-      known.add(id)
-      options.push(toOption(tm))
+    for (const ids of Object.values(linkIdsByKey)) {
+      for (const id of ids) {
+        if (known.has(id)) continue
+        const tm = cache.teamLookup.get(id)
+        if (!tm) continue
+        known.add(id)
+        options.push(toOption(tm))
+      }
     }
     return options
-  }, [cache.teams, cache.teamLookup, rosterTeamIds])
+  }, [cache.teams, cache.teamLookup, linkIdsByKey])
 
   // Sport scope for the delete affordance. Resolved off the FULL record (which
   // carries sektion + beitragskategorie), so it is strictly better informed than
@@ -783,17 +790,34 @@ export default function ExplorerMemberFields({
   }, [record, dirtyKeys, draft, memberId, t, onSaved, confirm, memberName])
 
   /**
-   * Roster membership. Writes `member_teams` junction rows immediately — the
-   * same create/delete + optimistic `onMutate` path ExplorerGrid uses, not a
-   * second one. Coach / team-responsible / captain links are NOT touched here:
-   * they live in the relations table below, which can express three relation
-   * types where one chip field cannot.
+   * Team links — player roster, coaching, team responsible.
+   *
+   * All three write their junction rows IMMEDIATELY, outside the field form's
+   * save: a junction row is not a column on this record, so it has no place in
+   * `dirtyKeys` or in the PATCH body, and pretending otherwise is how the same
+   * link ends up written twice.
+   *
+   * ⚠ Which collection and which column names each one uses lives in
+   * `teamLinks.ts`, not here. `member_teams` is keyed `member` / `team` and
+   * carries a season; the two staff junctions were generated by the Directus
+   * M2M wizard and are keyed `members_id` / `teams_id`. Reading one through the
+   * other's names silently writes an orphan row.
+   *
+   * ⚠ Coaching a team must NOT create a roster row — a coach in `member_teams`
+   * shows up in the squad, in RSVP counts, in the scorer duty pool and in the
+   * ClubDesk player group as though they played. That is why these are three
+   * fields and not one field with a role picker.
    */
-  const handleTeamsChange = useCallback(async (nextIds: string[]) => {
-    const currentIds = new Set(rosterTeamIds)
+  const handleLinkChange = useCallback(async (linkKey: string, nextIds: string[]) => {
+    const kind = teamLinkKind(linkKey)
+    if (!kind) return
+    const currentIds = kind.idsOf(cache, memberId)
     const nextSet = new Set(nextIds)
-    const added = nextIds.filter((id) => !currentIds.has(id))
-    const removed = rosterTeamIds.filter((id) => !nextSet.has(id))
+    const currentSet = new Set(currentIds)
+    const added = nextIds.filter((id) => !currentSet.has(id))
+    const removed = currentIds.filter((id) => !nextSet.has(id))
+    const relation = t(`admin:${kind.labelKey}`)
+
     // teamLookup, not cache.teams: a removal confirm for a past-season team
     // must name the team, not print its id at the operator.
     const labelOf = (teamId: string) => {
@@ -802,33 +826,31 @@ export default function ExplorerMemberFields({
       return team ? teamLabel(team) : teamId
     }
     const markBusy = (teamId: string, busy: boolean) =>
-      setBusyTeamIds((prev) => {
+      setBusyLinks((prev) => {
         const next = new Set(prev)
-        if (busy) next.add(teamId)
-        else next.delete(teamId)
+        const token = `${linkKey}:${teamId}`
+        if (busy) next.add(token)
+        else next.delete(token)
         return next
       })
 
     for (const teamId of removed) {
-      const row = cache.memberTeamRows.find((r) => r.member === memberId && r.team === teamId)
+      const row = kind.rowsOf(cache, memberId).find((r) => r.team === teamId)
       if (!row) continue
       const teamName = labelOf(teamId)
       const ok = await confirm({
-        message: t('explorerFieldsTeamsRemoveConfirm', { name: memberName, team: teamName }),
+        message: t('admin:explorerFieldsLinkRemoveConfirm', { name: memberName, team: teamName, relation }),
         danger: true,
       })
       if (!ok) continue
       markBusy(teamId, true)
       try {
-        await deleteRecord('member_teams', row.id)
-        logActivity('delete', 'member_teams', row.id, { member: memberId, team: teamId })
-        onMutate((prev) => {
-          const memberTeamRows = prev.memberTeamRows.filter((r) => r.id !== row.id)
-          return { ...prev, memberTeamRows, memberTeams: buildMemberTeamsMap(memberTeamRows) }
-        })
-        toast.success(t('explorerFieldsTeamsRemoved', { team: teamName }))
+        await deleteRecord(kind.collection, row.id)
+        logActivity('delete', kind.collection, row.id, { member: memberId, team: teamId })
+        onMutate((prev) => kind.applyRemove(prev, row.id))
+        toast.success(t('admin:explorerFieldsTeamsRemoved', { team: teamName }))
       } catch {
-        toast.error(t('explorerFieldsTeamsError'))
+        toast.error(t('admin:explorerFieldsTeamsError'))
       } finally {
         markBusy(teamId, false)
       }
@@ -838,36 +860,33 @@ export default function ExplorerMemberFields({
       const teamName = labelOf(teamId)
       markBusy(teamId, true)
       try {
-        // The TARGET TEAM's own season, not the wall clock — see ExplorerGrid
-        // addRoster. teamLookup is included so a team missing from cache.teams
-        // still stamps its real season rather than today's.
-        const rosterSeason =
+        // The TARGET TEAM's own season, not the wall clock — see teamLinks.ts.
+        // teamLookup is included so a team missing from cache.teams still stamps
+        // its real season rather than today's. Ignored by the staff junctions.
+        const season =
           (cache.teams.find((tm) => String(tm.id) === teamId) ?? cache.teamLookup.get(teamId))?.season
           ?? getCurrentSeason()
-        const created = await createRecord<{ id: string | number; guest_level: number | null; season: string | null }>(
-          'member_teams',
-          { member: memberId, team: teamId, season: rosterSeason },
+        const created = await createRecord<{ id: string | number; guest_level?: number | null; season?: string | null }>(
+          kind.collection,
+          kind.createPayload(memberId, teamId, season),
         )
-        const newRow = {
-          id: String(created.id),
+        const rowId = String(created.id)
+        logActivity('create', kind.collection, rowId, { member: memberId, team: teamId })
+        onMutate((prev) => kind.applyAdd(prev, {
+          id: rowId,
           member: memberId,
           team: teamId,
-          guest_level: created.guest_level ?? 0,
-          season: created.season ?? getCurrentSeason(),
-        }
-        logActivity('create', 'member_teams', newRow.id, { member: memberId, team: teamId })
-        onMutate((prev) => {
-          const memberTeamRows = [...prev.memberTeamRows, newRow]
-          return { ...prev, memberTeamRows, memberTeams: buildMemberTeamsMap(memberTeamRows) }
-        })
-        toast.success(t('explorerFieldsTeamsAdded', { team: teamName }))
+          season: created.season ?? season,
+          guestLevel: created.guest_level ?? 0,
+        }))
+        toast.success(t('admin:explorerFieldsTeamsAdded', { team: teamName }))
       } catch {
-        toast.error(t('explorerFieldsTeamsError'))
+        toast.error(t('admin:explorerFieldsTeamsError'))
       } finally {
         markBusy(teamId, false)
       }
     }
-  }, [rosterTeamIds, cache.teams, cache.teamLookup, cache.memberTeamRows, memberId, memberName, confirm, t, onMutate])
+  }, [cache, memberId, memberName, confirm, t, onMutate])
 
   const toggleSport = useCallback((gate: 'volleyball' | 'basketball') => {
     setRevealedSports((prev) => {
@@ -904,6 +923,26 @@ export default function ExplorerMemberFields({
     onDeleted?.()
   }, [record, onDirtyChange, onDeleted])
 
+  /**
+   * One entry per team relation, handed to the editor by virtual key. Built
+   * here rather than inside FieldEditor so the three cards cannot end up
+   * sharing a list — see FieldEditorCtx.teamLinks.
+   */
+  const teamLinks = useMemo(() => {
+    const out: Record<string, TeamLinkState> = {}
+    for (const kind of TEAM_LINK_KIND_LIST) {
+      const prefix = `${kind.key}:`
+      out[kind.key] = {
+        ids: linkIdsByKey[kind.key] ?? [],
+        busy: new Set(
+          [...busyLinks].filter((token) => token.startsWith(prefix)).map((token) => token.slice(prefix.length)),
+        ),
+        onChange: (ids: string[]) => handleLinkChange(kind.key, ids),
+      }
+    }
+    return out
+  }, [linkIdsByKey, busyLinks, handleLinkChange])
+
   // ── Render ───────────────────────────────────────────────────────────
 
   // The relations tables below do not depend on this fetch, so they still
@@ -935,9 +974,7 @@ export default function ExplorerMemberFields({
   const editorCtx: EditorCtx = {
     sport,
     teamOptions,
-    rosterTeamIds,
-    busyTeamIds,
-    onTeamsChange: handleTeamsChange,
+    teamLinks,
     disabled: saving,
     fee,
     // Recomputed on every draft change so the total tracks what is being typed
@@ -1194,16 +1231,29 @@ export default function ExplorerMemberFields({
  * The bulk-edit modal renders the very same controls for a set of members, where
  * there is no one record to have a fee, an emptiness or a roster: giving the
  * editor its own context is what lets it be reused there without inventing a
- * fake member. `rosterTeamIds` / `onTeamsChange` then mean "the teams being
- * composed" rather than "the teams this member is on", which is the only shape
+ * fake member. A `teamLinks` entry then means "the teams being composed"
+ * rather than "the teams this member is on", which is the only shape
  * difference between the two callers.
  */
+export interface TeamLinkState {
+  /** Team ids currently linked (or, in bulk edit, being composed). */
+  ids: string[]
+  /** Ids with a write in flight — the picker greys and spins those chips. */
+  busy: ReadonlySet<string>
+  onChange: (ids: string[]) => void | Promise<void>
+}
+
 export interface FieldEditorCtx {
   sport: MemberSport
   teamOptions: TeamPickerOption[]
-  rosterTeamIds: string[]
-  busyTeamIds: ReadonlySet<string>
-  onTeamsChange: (ids: string[]) => void | Promise<void>
+  /**
+   * Virtual key → the relation that key edits. Keyed rather than a single
+   * `rosterTeamIds`, because there are three of them (player / coach / team
+   * responsible) and a shared one would make ticking a team as coach also tick
+   * it as a roster place — which is the exact confusion these fields exist to
+   * end. See `teamLinks.ts`.
+   */
+  teamLinks: Readonly<Record<string, TeamLinkState>>
   disabled: boolean
 }
 
@@ -1498,11 +1548,12 @@ function DisplayValue({
   // carry their season and are dimmed; the current season stays bare, which is
   // the ordinary case. The picker already labelled its rows this way.
   if (def.kind === 'teamMulti') {
-    if (ctx.rosterTeamIds.length === 0) return <EmptyValue />
+    const linkIds = ctx.teamLinks[def.key]?.ids ?? []
+    if (linkIds.length === 0) return <EmptyValue />
     const thisSeason = getCurrentSeason()
     return (
       <span className="flex flex-wrap gap-1.5">
-        {ctx.rosterTeamIds.map((id) => {
+        {linkIds.map((id) => {
           const team = ctx.teamOptions.find((o) => o.id === id)
           // "Past season" is decided by the TEAM being archived, not by
           // comparing its season to the clock: `getCurrentSeason()` is ahead of
@@ -1781,16 +1832,19 @@ export function FieldEditor({
         />
       )
 
-    case 'teamMulti':
+    case 'teamMulti': {
+      const link = ctx.teamLinks[def.key]
+      if (!link) return null
       return (
         <TeamPickerMulti
-          value={ctx.rosterTeamIds}
-          onChange={ctx.onTeamsChange}
+          value={link.ids}
+          onChange={link.onChange}
           teams={ctx.teamOptions}
-          busyIds={ctx.busyTeamIds}
+          busyIds={link.busy}
           disabled={ctx.disabled}
         />
       )
+    }
 
     case 'team':
       return (

@@ -692,6 +692,7 @@ export default {
   explorerFieldSeason: 'Saison',
   explorerFieldActive: 'Aktiv',
   explorerFieldCaptain: 'Captain',
+  explorerFieldPlayer: 'Spieler',
   explorerFieldCoach: 'Trainer',
   explorerFieldTeamResponsible: 'Team-Verantwortlich',
   explorerFieldTeam: 'Team',
@@ -802,6 +803,7 @@ export default {
   explorerFieldsTeamsRemoved: 'Aus {{team}} entfernt',
   explorerFieldsTeamsError: 'Die Teamzuteilung konnte nicht geändert werden',
   explorerFieldsTeamsRemoveConfirm: '{{name}} aus {{team}} entfernen?',
+  explorerFieldsLinkRemoveConfirm: '{{name}} als {{relation}} von {{team}} entfernen?',
   explorerFieldsRequestedTeamNone: 'Kein Team angefragt',
 
   // Explorer-Gefahrenzone — Status

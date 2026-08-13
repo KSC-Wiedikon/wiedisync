@@ -42,16 +42,17 @@ import { getCurrentSeason } from '../../../utils/dateHelpers'
 import { useConfirm } from '../../../components/ConfirmProvider'
 import { FieldEditor } from './ExplorerMemberFields'
 import {
-  MEMBER_FIELD_GROUPS, TEAMS_VIRTUAL_KEY, bulkEditableFields,
+  MEMBER_FIELD_GROUPS, TEAM_LINK_KEYS, bulkEditableFields,
   type MemberFieldDef, type MemberFieldKind,
 } from './memberFieldSchema'
+import { TEAM_LINK_KIND_LIST, teamLinkKind } from './teamLinks'
 import { resolveMemberSport, type MemberSport } from './memberSport'
 import {
   computeMemberPatch, computeRosterDelta, runBulk,
   type BulkFieldChange, type BulkMode, type BulkRunSummary,
 } from './bulkEdit'
-import type { CacheShape, MemberTeamRow } from './explorerHelpers'
-import { buildMemberTeamsMap, teamLabel } from './explorerHelpers'
+import type { CacheShape } from './explorerHelpers'
+import { teamLabel } from './explorerHelpers'
 
 interface Props {
   open: boolean
@@ -88,6 +89,11 @@ function memberName(m: Member): string {
 
 /** Modes offered for a field, in the order the switch renders them. */
 function modesFor(def: MemberFieldDef): BulkMode[] {
+  // ⚠ A team link gets add / remove ONLY. "Set" would have to mean "replace
+  // every team this member is on with these", and "clear" would strip a whole
+  // squad's rosters in one click — neither is an operation a bulk tool should
+  // offer, and `computeRosterDelta` deliberately implements neither.
+  if (TEAM_LINK_KEYS.has(def.key)) return ['add', 'remove']
   if (LIST_KINDS.has(def.kind)) return ['add', 'remove', 'set', 'clear']
   return ['set', 'clear']
 }
@@ -121,7 +127,7 @@ export default function ExplorerBulkEditModal({
   const catalog = useMemo(() => bulkEditableFields({ isGlobalAdmin }), [isGlobalAdmin])
   const pickedKeys = useMemo(() => changes.map((c) => c.key), [changes])
   const columnKeys = useMemo(
-    () => changes.map((c) => c.key).filter((k) => k !== TEAMS_VIRTUAL_KEY).sort(),
+    () => changes.map((c) => c.key).filter((k) => !TEAM_LINK_KEYS.has(k)).sort(),
     [changes],
   )
   const columnKeysSig = columnKeys.join(',')
@@ -169,15 +175,23 @@ export default function ExplorerBulkEditModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, sig])
 
-  const rosterByMember = useMemo(() => {
-    const map = new Map<string, MemberTeamRow[]>()
-    for (const row of cache.memberTeamRows) {
-      const list = map.get(row.member)
-      if (list) list.push(row)
-      else map.set(row.member, [row])
+  /**
+   * memberId → the team ids it holds for each of the three relations.
+   *
+   * Built once for the whole selection: `computeRosterDelta` needs each
+   * member's OWN current links, and a bulk "add to Damen 2" that ignored them
+   * would insert a duplicate junction row for everybody already there.
+   */
+  const linksByMember = useMemo(() => {
+    const map = new Map<string, Record<string, string[]>>()
+    for (const m of members) {
+      const id = String(m.id)
+      const per: Record<string, string[]> = {}
+      for (const kind of TEAM_LINK_KIND_LIST) per[kind.key] = kind.idsOf(cache, id)
+      map.set(id, per)
     }
     return map
-  }, [cache.memberTeamRows])
+  }, [members, cache])
 
   const teamOptions = useMemo<TeamPickerOption[]>(
     () => cache.teams.map((tm) => ({
@@ -222,13 +236,14 @@ export default function ExplorerBulkEditModal({
       const id = String(m.id)
       const record = current?.get(id) ?? {}
       if (Object.keys(computeMemberPatch(record, changes)).length > 0) return true
-      const teamsChange = changes.find((c) => c.key === TEAMS_VIRTUAL_KEY)
-      if (!teamsChange) return false
-      const held = (rosterByMember.get(id) ?? []).map((r) => r.team)
-      const delta = computeRosterDelta(held, teamsChange)
-      return delta.add.length > 0 || delta.remove.length > 0
+      const per = linksByMember.get(id) ?? {}
+      return changes.some((change) => {
+        if (!TEAM_LINK_KEYS.has(change.key)) return false
+        const delta = computeRosterDelta(per[change.key] ?? [], change)
+        return delta.add.length > 0 || delta.remove.length > 0
+      })
     })
-  }, [changes, columnKeys.length, current, members, rosterByMember])
+  }, [changes, columnKeys.length, current, members, linksByMember])
 
   const affectedCount = affected?.length ?? members.length
 
@@ -292,7 +307,6 @@ export default function ExplorerBulkEditModal({
     setProgress({ done: 0, total: targets.length })
     setSummary(null)
 
-    const teamsChange = changes.find((c) => c.key === TEAMS_VIRTUAL_KEY)
 
     // Re-read rather than trust the preview map: composing a change is not
     // instantaneous and another admin may have moved one of these rows in the
@@ -335,40 +349,41 @@ export default function ExplorerBulkEditModal({
           touched = true
         }
 
-        if (teamsChange) {
-          const held = (rosterByMember.get(id) ?? [])
-          const delta = computeRosterDelta(held.map((r) => r.team), teamsChange)
+        // Team links — player roster, coaching, team responsible. Each is its
+        // own junction collection with its own column names; `teamLinks.ts` is
+        // the single place that says which. ⚠ Adding a coaching link must NOT
+        // create a roster row.
+        for (const change of changes) {
+          const kind = teamLinkKind(change.key)
+          if (!kind) continue
+          const held = kind.rowsOf(cache, id)
+          const delta = computeRosterDelta(held.map((r) => r.team), change)
           for (const teamId of delta.add) {
             // The TARGET TEAM's own season, never the wall clock — the same rule
-            // addRoster() follows in the grid. getCurrentSeason() disagrees with
-            // it for all of May and between the Jun-1 cutover and the manual
-            // rollover, and a mis-stamped row is silently orphaned by the clone.
+            // the grid and the member detail follow. getCurrentSeason()
+            // disagrees with it for all of May and between the Jun-1 cutover and
+            // the manual rollover, and a mis-stamped row is silently orphaned by
+            // the rollover's clone. Ignored by the staff junctions.
             const season = cache.teamLookup.get(teamId)?.season ?? getCurrentSeason()
-            const created = await createRecord<{ id: string | number; guest_level: number | null; season: string | null }>(
-              'member_teams', { member: id, team: teamId, season },
+            const created = await createRecord<{ id: string | number; guest_level?: number | null; season?: string | null }>(
+              kind.collection, kind.createPayload(id, teamId, season),
             )
-            const row: MemberTeamRow = {
-              id: String(created.id),
+            const rowId = String(created.id)
+            logActivity('create', kind.collection, rowId, { member: id, team: teamId })
+            onMutate((prev) => kind.applyAdd(prev, {
+              id: rowId,
               member: id,
               team: teamId,
-              guest_level: created.guest_level ?? 0,
               season: created.season ?? season,
-            }
-            logActivity('create', 'member_teams', row.id, { member: id, team: teamId })
-            onMutate((prev) => {
-              const memberTeamRows = [...prev.memberTeamRows, row]
-              return { ...prev, memberTeamRows, memberTeams: buildMemberTeamsMap(memberTeamRows) }
-            })
+              guestLevel: created.guest_level ?? 0,
+            }))
             touched = true
           }
           for (const teamId of delta.remove) {
             for (const row of held.filter((r) => r.team === teamId)) {
-              await deleteRecord('member_teams', row.id)
-              logActivity('delete', 'member_teams', row.id, { member: id, team: teamId })
-              onMutate((prev) => {
-                const memberTeamRows = prev.memberTeamRows.filter((r) => r.id !== row.id)
-                return { ...prev, memberTeamRows, memberTeams: buildMemberTeamsMap(memberTeamRows) }
-              })
+              await deleteRecord(kind.collection, row.id)
+              logActivity('delete', kind.collection, row.id, { member: id, team: teamId })
+              onMutate((prev) => kind.applyRemove(prev, row.id))
               touched = true
             }
           }
@@ -395,7 +410,7 @@ export default function ExplorerBulkEditModal({
     if (result.failed.length > 0) toast.error(t('explorerBulkFailed', { count: result.failed.length }))
   }, [
     changes, affected, members, catalog, confirm, t, current, columnKeys,
-    rosterByMember, cache.teamLookup, onMutate, onApplied,
+    cache, onMutate, onApplied,
   ])
 
   const remaining = useMemo(
@@ -558,7 +573,7 @@ function ChangeCard({
 }) {
   const { t } = useTranslation('admin')
   const modes = modesFor(def)
-  const isTeams = def.key === TEAMS_VIRTUAL_KEY
+  const isTeamLink = TEAM_LINK_KEYS.has(def.key)
   const listValue = Array.isArray(change.value) ? (change.value as string[]) : []
 
   return (
@@ -610,11 +625,13 @@ function ChangeCard({
             ctx={{
               sport,
               teamOptions,
-              // For the roster the picker IS the composed value, not a member's
-              // own teams — nothing is busy because nothing has been written yet.
-              rosterTeamIds: isTeams ? listValue : [],
-              busyTeamIds: EMPTY_BUSY,
-              onTeamsChange: (ids) => onValueChange(ids),
+              // For a team link the picker IS the composed value, not any one
+              // member's own teams — nothing is busy because nothing has been
+              // written yet. Only this field's key is populated, so the editor
+              // cannot reach a relation the operator did not pick.
+              teamLinks: isTeamLink
+                ? { [def.key]: { ids: listValue, busy: EMPTY_BUSY, onChange: (ids: string[]) => onValueChange(ids) } }
+                : {},
               disabled,
             }}
           />
