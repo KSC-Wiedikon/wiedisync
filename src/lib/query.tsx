@@ -9,13 +9,69 @@
  *   const { mutate } = useCreate('participations')
  */
 
-import { QueryClient, useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
+import { QueryClient, QueryCache, useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { fetchItems, fetchAllItems, fetchItem, countItems, aggregateItems, createRecord, updateRecord, deleteRecord, kscwApi, stringifyIds } from './api'
+import { isSessionExpired } from './sessionError'
+import { toast } from 'sonner'
+import i18n from '../i18n'
 import { captureApiError } from './sentry'
 
 // ── Query Client ────────────────────────────────────────────────────
 
+/**
+ * Global QUERY error handling.
+ *
+ * Two failures this closes, both of which used to be invisible:
+ *
+ *  1. A failed query rendered as "there is no data". Every list in the app shows an
+ *     empty state when `data` is empty, and a rejected query leaves it empty — so a
+ *     dropped request looked identical to an empty roster, an empty fixture list, or,
+ *     most consequentially, a scorer-duty banner that simply was not there. Someone
+ *     misses their duty and nothing ever told them the request failed.
+ *  2. A session that died mid-use left the logged-in shell with everything empty and
+ *     no prompt to sign in again.
+ *
+ * ⚠ TanStack v5 REMOVED per-query `onError`, so a QueryCache handler is the only place
+ * a failed query can be observed centrally — hence this rather than touching hooks.
+ *
+ * ⚠ Gated on `isSessionExpired` (401 only, never 403) and deduped. The app documents a
+ * ~350-request boot: without the cooldown, one dead session at load would raise ~350
+ * identical toasts. And a toast, not a forced logout — AuthProvider explains why
+ * tearing down on an ambiguous failure makes a blip into an outage.
+ */
+let lastSessionNotice = 0
+const SESSION_NOTICE_COOLDOWN_MS = 30_000
+
+const queryCache = new QueryCache({
+  onError: (error, query) => {
+    captureApiError(error, {
+      operation: 'query_global_fallback',
+      // The key identifies WHICH query died — the whole point, since the UI shows nothing.
+      collection: String(Array.isArray(query.queryKey) ? query.queryKey[0] : query.queryKey),
+    })
+
+    if (!isSessionExpired(error)) return
+    const now = Date.now()
+    if (now - lastSessionNotice < SESSION_NOTICE_COOLDOWN_MS) return
+    lastSessionNotice = now
+
+    try {
+      toast.error(i18n.t('common:sessionExpiredTitle'), {
+        description: i18n.t('common:sessionExpiredText'),
+        duration: Infinity,
+        action: {
+          label: i18n.t('common:sessionExpiredAction'),
+          // Navigate rather than reload: a reload re-fires the whole boot against a
+          // session already known to be dead.
+          onClick: () => { window.location.href = '/login' },
+        },
+      })
+    } catch { /* toast/i18n not ready during early boot — never mask the original error */ }
+  },
+})
+
 export const queryClient = new QueryClient({
+  queryCache,
   defaultOptions: {
     queries: {
       staleTime: 30_000,        // 30s before refetch

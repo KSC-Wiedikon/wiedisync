@@ -215,4 +215,9 @@ export default {
   notFoundText: 'Questa pagina non esiste — o non esiste più. L\'indirizzo potrebbe essere cambiato.',
   notFoundHome: 'Vai alla home',
   notFoundBack: 'Indietro',
+
+  // Session expiry (global query error handler)
+  sessionExpiredTitle: 'Sessione scaduta',
+  sessionExpiredText: 'Sei stato disconnesso. Accedi di nuovo per continuare.',
+  sessionExpiredAction: 'Accedi di nuovo',
 }

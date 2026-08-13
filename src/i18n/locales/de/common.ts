@@ -213,4 +213,9 @@ export default {
   notFoundText: 'Diese Seite gibt es nicht — oder nicht mehr. Vielleicht hat sich die Adresse geändert.',
   notFoundHome: 'Zur Startseite',
   notFoundBack: 'Zurück',
+
+  // Session expiry (global query error handler)
+  sessionExpiredTitle: 'Sitzung abgelaufen',
+  sessionExpiredText: 'Du wurdest abgemeldet. Melde dich neu an, um weiterzuarbeiten.',
+  sessionExpiredAction: 'Neu anmelden',
 }
