@@ -15,6 +15,8 @@
 // Labels are English-only on purpose — this whole explorer surface is (group
 // headers, "Yes"/"No", the field labels next door). Sentence case per CLAUDE.md.
 
+import { KANTONSSCHULEN, KANTONSSCHULE_NONE } from '../../../utils/kantonsschulen'
+
 export interface FieldOption {
   value: string
   label: string
@@ -257,33 +259,8 @@ export const MEMBER_SELECT_FIELDS: Record<string, MemberSelectField> = {
   kantonsschule: {
     nullable: true,
     options: [
-      { value: 'Nein', label: 'Nein — not at a Kantonsschule' },
-      { value: 'KS Wiedikon', label: 'KS Wiedikon' },
-      { value: 'KS Birch', label: 'KS Birch' },
-      { value: 'KS Büelrain', label: 'KS Büelrain' },
-      { value: 'KS Bülach', label: 'KS Bülach' },
-      { value: 'KS Dübendorf', label: 'KS Dübendorf' },
-      { value: 'KS Enge', label: 'KS Enge' },
-      { value: 'KS Freudenberg', label: 'KS Freudenberg' },
-      { value: 'KS Hohe Promenade', label: 'KS Hohe Promenade' },
-      { value: 'KS Hottingen', label: 'KS Hottingen' },
-      { value: 'KS Im Lee', label: 'KS Im Lee' },
-      { value: 'KS Küsnacht', label: 'KS Küsnacht' },
-      { value: 'KS Limmattal', label: 'KS Limmattal' },
-      { value: 'KS Oerlikon', label: 'KS Oerlikon' },
-      { value: 'KS Rämibühl (Literargymnasium)', label: 'KS Rämibühl (Literargymnasium)' },
-      { value: 'KS Rämibühl (MN-Gymnasium)', label: 'KS Rämibühl (MN-Gymnasium)' },
-      { value: 'KS Rämibühl (Realgymnasium)', label: 'KS Rämibühl (Realgymnasium)' },
-      { value: 'KS Riesbach', label: 'KS Riesbach' },
-      { value: 'KS Rychenberg', label: 'KS Rychenberg' },
-      { value: 'KS Stadelhofen', label: 'KS Stadelhofen' },
-      { value: 'KS Uetikon am See', label: 'KS Uetikon am See' },
-      { value: 'KS Uster', label: 'KS Uster' },
-      { value: 'KS Wetzikon', label: 'KS Wetzikon' },
-      { value: 'KS Zimmerberg', label: 'KS Zimmerberg' },
-      { value: 'KS Zürich Nord', label: 'KS Zürich Nord' },
-      { value: 'Liceo Artistico', label: 'Liceo Artistico' },
-      { value: 'Andere Kantonsschule', label: 'Andere Kantonsschule' },
+      { value: KANTONSSCHULE_NONE, label: 'Nein — not at a Kantonsschule' },
+      ...KANTONSSCHULEN.map((v) => ({ value: v, label: v })),
     ],
   },
 }
