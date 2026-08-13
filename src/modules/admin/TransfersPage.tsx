@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
   AlertTriangle, Check, CheckCircle2, ChevronRight, Clock, Copy, ExternalLink, HelpCircle,
-  Info, Mail, RefreshCcw, RadioTower, ShieldCheck, X,
+  Info, Link2, Mail, RefreshCcw, RadioTower, ShieldCheck, X,
 } from 'lucide-react'
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -12,6 +12,7 @@ import { useCollection } from '../../lib/query'
 import { kscwApi } from '../../lib/api'
 import { useMutation } from '../../hooks/useMutation'
 import { useAuth } from '../../hooks/useAuth'
+import { usePrompt } from '../../components/ConfirmProvider'
 import { useReportPageLoading } from '../../hooks/usePageReady'
 import {
   NO_FEDERATION, countryFlag, countryLabel, formatCountryCodes, parseCountryCodes,
@@ -93,6 +94,8 @@ const MEMBER_FIELDS = [
   // simply arrives `undefined` — which would make every member read as
   // "not checked" with no error anywhere to explain it.
   'in_vis', 'vis_player_no', 'in_vis_checked_at',
+  // Hand-set link + the confirmation the sweep writes back (migration 312).
+  'vis_player_no_manual', 'vis_manual_vis_name',
 ]
 
 interface TransferMember {
@@ -140,6 +143,15 @@ interface TransferMember {
    *  identifier VIS exposes for a person, and the value to paste into its search. */
   vis_player_no?: number | null
   in_vis_checked_at?: string | null
+  /** Hand-set VIS player number (migration 312), for the people name matching
+   *  cannot reach — a married name, a transliteration, a spelling VIS alone
+   *  knows. The checker READS this column and never writes it. */
+  vis_player_no_manual?: number | null
+  /** VIS's own spelling of `vis_player_no_manual`, written by the checker.
+   *  Empty AFTER a check means that number is not in the member's federation
+   *  index — so the link is unconfirmed and deliberately asserts nothing:
+   *  `in_vis` stays whatever name matching concluded. */
+  vis_manual_vis_name?: string | null
 }
 
 /**
@@ -458,6 +470,7 @@ export default function TransfersPage() {
    */
   const canRunVisCheck = hasAdminAccessToSport('volleyball')
   const { update } = useMutation('members')
+  const prompt = usePrompt()
 
   // ── Data ──────────────────────────────────────────────────────────
   // Sport membership is derived from the member's teams. Teams are fetched
@@ -1028,6 +1041,48 @@ export default function TransfersPage() {
     }
   }, [update, t])
 
+  /**
+   * Hand-link a member to a VIS player number (migration 312) — the escape
+   * hatch for the people name matching cannot reach: a married name, a
+   * transliteration, a spelling only VIS knows.
+   *
+   * ⚠ It writes `vis_player_no_manual`, NEVER `vis_player_no`. The checker
+   * rewrites `in_vis`/`vis_player_no` for the WHOLE cohort on every run, so a
+   * value typed into those columns would quietly disappear at the next sweep;
+   * the override lives in a column the sweep reads and never writes.
+   *
+   * ⚠ Saving also clears `vis_manual_vis_name`, the confirmation the sweep
+   * wrote for the PREVIOUS number — otherwise a stale "VIS: …" name would
+   * outlive the link it described and vouch for the new one.
+   *
+   * Items API, not a custom endpoint, so Directus records the actor for free.
+   */
+  const linkVisPlayer = useCallback(async (m: TransferMember) => {
+    const answer = await prompt({
+      title: t('trManualLinkTitle'),
+      message: t('trManualLinkMessage', { name: memberName(m) }),
+      defaultValue: m.vis_player_no_manual != null ? String(m.vis_player_no_manual) : '',
+      placeholder: t('trManualLinkPlaceholder'),
+    })
+    if (answer === null) return
+    const trimmed = answer.trim()
+    const next = trimmed ? Number(trimmed) : null
+    if (next !== null && (!Number.isInteger(next) || next <= 0)) {
+      toast.error(t('trManualLinkInvalid'))
+      return
+    }
+    if (next === (m.vis_player_no_manual ?? null)) return
+    setSavingId(String(m.id))
+    try {
+      await update(m.id, { vis_player_no_manual: next, vis_manual_vis_name: null })
+      toast.success(next === null ? t('trManualLinkCleared') : t('trManualLinkSaved'))
+    } catch {
+      toast.error(t('trSaveFailed'))
+    } finally {
+      setSavingId(null)
+    }
+  }, [prompt, update, t])
+
   // Report to the app boot gate — see usePageReady.tsx. Keyed off `undefined`
   // (query never resolved) rather than isLoading: a DISABLED query reports
   // isLoading=false in react-query v5 and would lift the gate too early. The VM
@@ -1223,6 +1278,48 @@ export default function TransfersPage() {
             </a>
           )}
         </div>
+      )}
+
+      {/* The hand-set link (migration 312), shown whether or not it resolved —
+          the UNCONFIRMED state is the one an operator most needs to see, since
+          it is the only signal that somebody believes a link holds and VIS does
+          not agree. A confirmed link renders VIS's own spelling so that "did I
+          link the right person?" is answerable without leaving the page. */}
+      {m.vis_player_no_manual != null && (
+        <div className="space-y-0.5">
+          <span
+            title={t('trManualLinkHint')}
+            className="inline-flex items-center gap-1 font-mono text-xs text-gray-600 dark:text-gray-300"
+          >
+            <Link2 className="h-3 w-3 shrink-0" aria-hidden="true" />
+            #{m.vis_player_no_manual}
+          </span>
+          {m.vis_manual_vis_name ? (
+            <span className="block text-xs break-words whitespace-normal text-green-700 dark:text-green-300">
+              {t('trManualLinkConfirmed', { name: m.vis_manual_vis_name })}
+            </span>
+          ) : (
+            <span className="block text-xs break-words whitespace-normal text-amber-700 dark:text-amber-300">
+              <AlertTriangle className="mr-1 inline h-3 w-3" aria-hidden="true" />
+              {t('trManualLinkUnconfirmed', {
+                fed: federationByIso.get(m.federation_of_origin ?? '')?.code || (m.federation_of_origin ?? '—'),
+              })}
+            </span>
+          )}
+        </div>
+      )}
+
+      {canRunVisCheck && (
+        <button
+          type="button"
+          onClick={() => { void linkVisPlayer(m) }}
+          disabled={savingId === String(m.id)}
+          title={t('trManualLinkHint')}
+          className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 sm:min-h-0 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
+        >
+          <Link2 className="h-3 w-3" aria-hidden="true" />
+          {m.vis_player_no_manual != null ? t('trManualLinkEdit') : t('trManualLinkAdd')}
+        </button>
       )}
     </div>
   )

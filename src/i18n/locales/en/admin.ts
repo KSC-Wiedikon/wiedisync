@@ -1192,6 +1192,20 @@ export default {
   trOpenInVisHint: 'VIS has no link to a single player — paste the number into the search in the transfers app.',
   trVisPlayerNo: 'VIS player number',
   trCopyPlayerNo: 'Copy the VIS player number',
+  // Manual VIS link (migration 312) — the escape hatch for the members name
+  // matching cannot reach. Worded as a link, never as proof: the number only
+  // counts once the check finds it in the federation's own index.
+  trManualLinkAdd: 'Link player…',
+  trManualLinkEdit: 'Edit link',
+  trManualLinkTitle: 'Link a VIS player number',
+  trManualLinkMessage: 'Enter the VIS player number for {{name}}. The next check confirms it against the federation index. Leave empty to remove the link.',
+  trManualLinkPlaceholder: 'e.g. 243602',
+  trManualLinkInvalid: 'Enter a VIS player number (digits only).',
+  trManualLinkSaved: 'Player number linked. Run the VIS check to confirm it.',
+  trManualLinkCleared: 'Link removed.',
+  trManualLinkHint: 'Set by hand for players the name match cannot find. The check never overwrites it.',
+  trManualLinkConfirmed: 'VIS: {{name}}',
+  trManualLinkUnconfirmed: 'Not found in the {{fed}} index — the link confirms nothing yet.',
   trVisFederationMissing: 'No VIS contact on file for {{code}} — look the federation up manually.',
   trVisNoEmail: 'VIS lists no email address for this federation.',
   trVisMoreAddresses_one: '+{{count}} more address',

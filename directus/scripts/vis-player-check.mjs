@@ -158,6 +158,94 @@ async function visPost(cookie, body) {
   return json
 }
 
+/**
+ * One federation roster, indexed every way the cascade needs it.
+ *
+ * ⚠ `byTokens` holds a SET per key, not a single number: the token bag
+ * deliberately collapses name variants, so two DIFFERENT players can land on
+ * one key. Where that happens the match is refused rather than guessed.
+ */
+export function buildRosterIndex(visRows) {
+  const roster = new Map()
+  const byTokens = new Map()
+  const players = []
+  // Player number → VIS's own spelling, so a hand-set link (migration 312) can
+  // be CONFIRMED against the index rather than trusted.
+  const byNo = new Map()
+  for (const p of visRows || []) {
+    if (!p.person) continue
+    byNo.set(Number(p.no), `${p.person.firstName ?? ''} ${p.person.lastName ?? ''}`.trim())
+    roster.set(`${norm(p.person.lastName)}|${norm(p.person.firstName)}`, p.no)
+    const tk = tokenKey(p.person.firstName, p.person.lastName)
+    if (!tk) continue
+    if (!byTokens.has(tk)) byTokens.set(tk, new Set())
+    byTokens.get(tk).add(p.no)
+    players.push({
+      no: p.no,
+      tokens: new Set(nameTokens(p.person.firstName, p.person.lastName)),
+      lastTokens: new Set(nameTokens(p.person.lastName)),
+    })
+  }
+  return { roster, byTokens, players, byNo }
+}
+
+/**
+ * Resolve ONE member against ONE federation index → `{ no, manualName }`.
+ *
+ * Extracted so the rules below are unit-testable rather than asserted in a
+ * comment; `__tests__/vis-player-match.test.mjs` locks each one. ⚠ Mirrored in
+ * `kscw-endpoints/src/vis-player-check.js` — change both.
+ *
+ * The cascade, in order, each step firing only if the previous found nothing:
+ *   1. exact `lastname|firstname`
+ *   2. equal token bags — the same name split differently across first/last
+ *   3. surname exact + first-name prefix (VIS stores full legal given names)
+ *   4. member tokens a strict SUBSET of one player's, surname on the surname
+ * …then the hand-set link, which overrides all four when it is CONFIRMED.
+ */
+export function matchMember(m, { roster, byTokens, players, byNo }) {
+  let no = roster.get(`${norm(m.ln)}|${norm(m.fn)}`)
+  if (!no) {
+    // Same tokens, split differently across first/last (see nameTokens). Only
+    // when it identifies exactly ONE player — a tie is left unmatched.
+    const cands = byTokens.get(tokenKey(m.fn, m.ln))
+    if (cands && cands.size === 1) no = [...cands][0]
+  }
+  if (!no) {
+    // VIS stores full legal given names ("Kacper Jan"); accept a prefix match
+    // on the first name when the surname is exact.
+    for (const [k, v] of roster) {
+      const [ln, fn] = k.split('|')
+      if (ln === norm(m.ln) && (fn.startsWith(norm(m.fn)) || norm(m.fn).startsWith(fn))) { no = v; break }
+    }
+  }
+  if (!no) {
+    // VIS keeps EVERY legal given name, and the one a member goes by is not
+    // always the first: member 34 is `Christiane` / `Clüver`, VIS #243602 in
+    // the GER index is `Dorothea Christiane` / `Clüver`. A prefix cannot reach
+    // a second given name, and step 2 needs the bags EQUAL.
+    // ⚠ Measured over the whole prod cohort 2026-08-13 (430 members, 416 then
+    // unmatched): this adds exactly ONE match — #243602 — with zero ties. Do
+    // NOT relax it toward a bare surname match: the surname-only near-hits are
+    // different people (`Linda Imhof` → `Stefan Imhof`).
+    const mTokens = nameTokens(m.fn, m.ln)
+    const mLast = nameTokens(m.ln)
+    const cands = players.filter((p) => p.tokens.size > mTokens.length
+      && mTokens.every((t) => p.tokens.has(t))
+      && mLast.every((t) => p.lastTokens.has(t)))
+    if (cands.length === 1) no = cands[0].no
+  }
+  // A CONFIRMED hand-set link (migration 312) wins over name matching — that is
+  // what the column is for: the mismatches the cascade cannot reach (a married
+  // name, a transliteration) are exactly the ones a human resolves.
+  // ⚠ An UNCONFIRMED one wins nothing. `in_vis` is read as eligibility
+  // evidence, so a typo'd number must never assert presence; it is recorded
+  // with a NULL name and the Transfers page flags it.
+  const manualName = m.manual != null ? (byNo.get(m.manual) ?? null) : null
+  if (manualName) no = m.manual
+  return { no: no ?? null, manualName }
+}
+
 async function main() {
   const args = process.argv.slice(2)
   const dryRun = args.includes('--dry-run')
@@ -166,7 +254,8 @@ async function main() {
   if (!target) throw new Error('specify dev or prod')
   const env = ENVS[target]
 
-  const members = psql(env, `SELECT m.id, m.first_name, m.last_name, m.federation_of_origin
+  const members = psql(env, `SELECT m.id, m.first_name, m.last_name, m.federation_of_origin,
+             coalesce(m.vis_player_no_manual::text, '')
       FROM members m
      WHERE m.federation_of_origin IS NOT NULL
        AND m.federation_of_origin <> 'NONE'
@@ -183,7 +272,10 @@ async function main() {
                     WHERE mt.member = m.id AND coalesce(mt.guest_level, 0) = 0)
      ORDER BY m.federation_of_origin, m.last_name;`)
     .trim().split('\n').filter(Boolean)
-    .map((l) => { const [id, fn, ln, foo] = l.split('|'); return { id, fn, ln, foo } })
+    .map((l) => {
+      const [id, fn, ln, foo, manual] = l.split('|')
+      return { id, fn, ln, foo, manual: manual ? Number(manual) : null }
+    })
 
   console.log(`[vis] ${members.length} licensed member(s) with a federation of origin`)
   if (!members.length) return
@@ -199,85 +291,44 @@ async function main() {
     const j = await visPost(cookie,
       `<Request Type="${REQUEST_TYPE}" Properties="No"><Filter NoFederation="${fed.no}"/>` +
       `<Relation Name="Person" Properties="FirstName LastName"/></Request>`)
-    const roster = new Map()
-    // ⚠ A Set per key, not a single number: the token bag deliberately collapses
-    // name variants, so two DIFFERENT players can land on one key. Where that
-    // happens the match is refused rather than guessed.
-    const byTokens = new Map()
-    const players = []
-    for (const p of j.data || []) {
-      if (!p.person) continue
-      roster.set(`${norm(p.person.lastName)}|${norm(p.person.firstName)}`, p.no)
-      const tk = tokenKey(p.person.firstName, p.person.lastName)
-      if (!tk) continue
-      if (!byTokens.has(tk)) byTokens.set(tk, new Set())
-      byTokens.get(tk).add(p.no)
-      players.push({
-        no: p.no,
-        tokens: new Set(nameTokens(p.person.firstName, p.person.lastName)),
-        lastTokens: new Set(nameTokens(p.person.lastName)),
-      })
-    }
-    rosters.set(iso, { roster, byTokens, players })
-    console.log(`  ${iso} (${fed.code}): ${roster.size} players`)
+    const index = buildRosterIndex(j.data)
+    rosters.set(iso, index)
+    console.log(`  ${iso} (${fed.code}): ${index.roster.size} players`)
   }
 
   const found = [], notFound = []
   for (const m of members) {
-    const entry = rosters.get(m.foo)
-    if (!entry) continue // unmapped federation — leave the row untouched, not false
-    const { roster, byTokens, players } = entry
-    const key = `${norm(m.ln)}|${norm(m.fn)}`
-    let no = roster.get(key)
-    if (!no) {
-      // Same tokens, split differently across first/last (see nameTokens). Only
-      // when it identifies exactly ONE player — a tie is left unmatched.
-      const cands = byTokens.get(tokenKey(m.fn, m.ln))
-      if (cands && cands.size === 1) no = [...cands][0]
-    }
-    if (!no) {
-      // VIS stores full legal given names ("Kacper Jan"); accept a prefix match
-      // on the first name when the surname is exact.
-      for (const [k, v] of roster) {
-        const [ln, fn] = k.split('|')
-        if (ln === norm(m.ln) && (fn.startsWith(norm(m.fn)) || norm(m.fn).startsWith(fn))) { no = v; break }
-      }
-    }
-    if (!no) {
-      // VIS keeps EVERY legal given name, and the one a member goes by is not
-      // always the first: member 34 is `Christiane` / `Clüver`, VIS #243602 in
-      // the GER index is `Dorothea Christiane` / `Clüver`. A prefix cannot reach
-      // a second given name, and the token bag above needs the bags EQUAL.
-      // So: the member's whole name must be a strict SUBSET of one player's
-      // tokens, their surname must sit on that player's SURNAME (never in a
-      // given name), and exactly ONE player in the federation may qualify.
-      // ⚠ Measured over the whole prod cohort 2026-08-13 (430 members, 416 then
-      // unmatched): this adds exactly ONE match — #243602 — with zero ties. Do
-      // NOT relax it toward a bare surname match: the surname-only near-hits are
-      // different people (`Linda Imhof` → `Stefan Imhof`).
-      const mTokens = nameTokens(m.fn, m.ln)
-      const mLast = nameTokens(m.ln)
-      const cands = players.filter((p) => p.tokens.size > mTokens.length
-        && mTokens.every((t) => p.tokens.has(t))
-        && mLast.every((t) => p.lastTokens.has(t)))
-      if (cands.length === 1) no = cands[0].no
-    }
-    ;(no ? found : notFound).push({ ...m, no: no ?? null })
+    const index = rosters.get(m.foo)
+    if (!index) continue // unmapped federation — leave the row untouched, not false
+    const { no, manualName } = matchMember(m, index)
+    ;(no ? found : notFound).push({ ...m, no, manualName })
   }
 
   console.log(`\n[vis] in VIS: ${found.length} | not found: ${notFound.length}`)
-  for (const f of found) console.log(`  ✓ ${f.ln}, ${f.fn} (${f.foo}) — VIS #${f.no}`)
+  for (const f of found) {
+    console.log(`  ✓ ${f.ln}, ${f.fn} (${f.foo}) — VIS #${f.no}${f.manualName ? ` (manual → "${f.manualName}")` : ''}`)
+  }
+  // A hand-set number the index does not know is the one state worth shouting
+  // about: somebody believes that link holds and it does not.
+  for (const n of notFound.filter((m) => m.manual != null)) {
+    console.log(`  ⚠ ${n.ln}, ${n.fn} (${n.foo}) — manual #${n.manual} is NOT in the ${ISO2FIVB[n.foo]} index`)
+  }
   if (unmapped.length) console.log(`  ⚠ unmapped federations, left unchecked: ${unmapped.join(', ')}`)
 
   if (dryRun) { console.log('[vis] --dry-run: nothing written'); return }
 
   // Only rows we actually evaluated are written; an unmapped federation leaves
   // in_vis NULL rather than asserting a false negative.
+  // ⚠ `NULL::text` and not a bare NULL: an untyped NULL in a VALUES list takes
+  // the type of the column it lands beside, and quote-doubling is what keeps a
+  // VIS-supplied name from closing the literal (standard_conforming_strings is
+  // on, so a backslash is not an escape here).
+  const sqlName = (s) => (s ? `'${String(s).slice(0, 200).replace(/'/g, "''")}'` : 'NULL::text')
   const vals = [...found, ...notFound]
-    .map((m) => `(${m.id}, ${m.no ? 'true' : 'false'}, ${m.no ?? 'NULL'})`).join(',\n')
+    .map((m) => `(${m.id}, ${m.no ? 'true' : 'false'}, ${m.no ?? 'NULL'}, ${sqlName(m.manualName)})`).join(',\n')
   psql(env, `BEGIN;
-UPDATE members m SET in_vis = v.f, vis_player_no = v.n, in_vis_checked_at = now()
-  FROM (VALUES\n${vals}\n) AS v(id, f, n) WHERE m.id = v.id;
+UPDATE members m SET in_vis = v.f, vis_player_no = v.n, vis_manual_vis_name = v.mn, in_vis_checked_at = now()
+  FROM (VALUES\n${vals}\n) AS v(id, f, n, mn) WHERE m.id = v.id;
 COMMIT;
 SELECT 'in_vis true' AS m, count(*) AS n FROM members WHERE in_vis
 UNION ALL SELECT 'in_vis false', count(*) FROM members WHERE in_vis = false
@@ -285,4 +336,8 @@ UNION ALL SELECT 'unchecked', count(*) FROM members WHERE in_vis IS NULL;`)
   console.log(`[vis] wrote ${found.length + notFound.length} row(s) (${target})`)
 }
 
-main().catch((e) => { console.error('[vis] FAILED:', e.message); process.exit(1) })
+// Only run as a job when invoked directly — the test imports the two pure
+// helpers above and must not kick off a VIS session by doing so.
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main().catch((e) => { console.error('[vis] FAILED:', e.message); process.exit(1) })
+}

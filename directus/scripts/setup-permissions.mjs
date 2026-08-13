@@ -798,6 +798,12 @@ const MEMBER_STAFF_ONLY_FIELDS = [
   // at their federation of origin was wrong, which reads as an accusation if
   // shown without that context.
   'in_vis', 'in_vis_checked_at', 'vis_player_no',
+  // The hand-set link and the sweep's confirmation of it (migration 312). The
+  // WRITE is the one that matters: a member who could set their own
+  // `vis_player_no_manual` could assert their own presence in the FIVB index —
+  // the exact fact the club exists to verify, and the gate on whether a
+  // transfer can be requested for them at all.
+  'vis_player_no_manual', 'vis_manual_vis_name',
 ]
 
 // Fail the deploy loudly rather than silently widening a staff-only column into

@@ -43,8 +43,88 @@ export async function follow(url, jar, init = {}, max = 10) {
   throw new Error(`Too many redirects: ${url}`);
 }
 
+// ─── Roles ───────────────────────────────────────────────────────────
+// VolleyManager keeps ONE active role per *account*, not per session, and it
+// persists across logins — a fresh login inherits whatever was last selected,
+// by a human in the VM UI or by another program. We share this account with
+// svrz_rc (same VM_USERNAME), whose two syncs each switch it to a referee-admin
+// role and leave it there. Under that role every resource below answers 403,
+// and vm-sync-check treats a 403 as a transient "VM bad window" and defers
+// silently — so the sync would go stale without anything surfacing it.
+//
+// Measured 2026-08-13 against the production account (403 = denied,
+// 200:n = allowed, n rows):
+//
+//   role                                   team    writer  referee  game    spielplaner
+//   SportManager.Indoorvolleyball:Club #1   200:67  200:120 200:13   200:1573 200:0
+//   SportManager.Indoorvolleyball:Club #2   200:67  403     403      200:1573 200:130
+//   SportManager.Indoorvolleyball:Team      200:1   403     403      200:10   403
+//   Indoorvolleyball.RefAdmin (svrz games)  403     403     403      200:1573 403
+//
+// So Club #1 is the one role that serves every job we run EXCEPT the bulk
+// Spielplaner address list, which only Club #2 serves — and note Club #1
+// answers that one 200 with ZERO rows rather than 403, i.e. the wrong role
+// there reads as "no contacts", not as an error. Hence two ids, and hence
+// every job claims the one it needs instead of trusting what it inherits.
+//
+// The value is an *attribute value* id, not a role name: the
+// `persistenceObjectIdentifier` of an entry in the party's
+// `eligibleAttributeValues` (embedded in the dashboard's `:active-party`
+// payload). They are per-account, so if VM_USERNAME changes, re-read them
+// there and set these env vars.
+export const VM_ROLE_CLUB = process.env.VM_ROLE_ATTRIBUTE_CLUB
+  || '4cdade68-1c1a-49f4-9357-e35c540d3b89'; // SportManager.Indoorvolleyball:Club
+export const VM_ROLE_SPIELPLANER = process.env.VM_ROLE_ATTRIBUTE_SPIELPLANER
+  || 'ed24d37c-5444-4c5d-b602-623eff84d400'; // SportManager.Indoorvolleyball:Club (Spielplan addresses)
+
+/** CSRF token from the dashboard, which opens under every role. */
+export async function vmDashboardCsrf(jar) {
+  const { body } = await follow(`${VM_BASE}/`, jar, { headers: { Accept: 'text/html' } });
+  return body.match(/data-csrf-token="([^"]+)"/)?.[1] ?? '';
+}
+
+/**
+ * Point the account at a role. Best effort: on failure the caller's own fetch
+ * reports a clearer error than anything thrown here, and the account may
+ * already be on the right role, in which case the switch was unnecessary.
+ * Returns true only if VM accepted it.
+ */
+export async function vmSwitchRole(jar, csrf, attributeValueId) {
+  if (!attributeValueId || !csrf) return false;
+  try {
+    const body = new URLSearchParams();
+    body.set('attributeValueAsArray[0]', attributeValueId);
+    body.set('__csrfToken', csrf);
+    const r = await fetch(`${VM_BASE}/api/sportmanager.security/api%5cparty/switchRoleAndAttribute`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Accept: '*/*',
+        Origin: VM_BASE,
+        Referer: `${VM_BASE}/`,
+        'User-Agent': UA,
+        Cookie: jar.header(),
+      },
+      body: body.toString(),
+    });
+    if (!r.ok) {
+      console.warn(`[vm] role switch to ${attributeValueId} returned ${r.status}`);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.warn(`[vm] role switch to ${attributeValueId} failed: ${err.message}`);
+    return false;
+  }
+}
+
+/** Fetch a dashboard CSRF and claim `roleId`. Use mid-run to change roles. */
+export async function vmUseRole(jar, roleId) {
+  return vmSwitchRole(jar, await vmDashboardCsrf(jar), roleId);
+}
+
 // ─── Auth ────────────────────────────────────────────────────────────
-export async function vmLogin({ username, password }) {
+export async function vmLogin({ username, password, role = VM_ROLE_CLUB }) {
   if (!username || !password) throw new Error('vmLogin: username and password are required');
 
   const jar = new CookieJar();
@@ -65,8 +145,16 @@ export async function vmLogin({ username, password }) {
     body: new URLSearchParams(fields).toString(),
   });
 
-  // 3. Dashboard (sets session permissions)
-  await follow(`${VM_BASE}/`, jar);
+  // 3. Dashboard (sets session permissions). It opens under every role and
+  // carries the CSRF token that lets us ask for the role we actually need.
+  const { body: dashboard } = await follow(`${VM_BASE}/`, jar);
+
+  // 3b. Claim the role. Before entering the sub-app, so step 4 establishes the
+  // sub-app scope under the role we intend to use rather than the one this
+  // account happened to be left on. See VM_ROLE_CLUB above.
+  if (role) {
+    await vmSwitchRole(jar, dashboard.match(/data-csrf-token="([^"]+)"/)?.[1] ?? '', role);
+  }
 
   // 4. Enter the volleyball sub-app context. Without this step every indoor
   // page except /sportmanager.indoorvolleyball/game/index returns 403 — the
