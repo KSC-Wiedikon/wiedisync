@@ -8,7 +8,7 @@ All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file 
 
 - **You can now set your Kantonsschule yourself, under Options → Profile. The signup form has always asked it, but only people who joined through the form ever had an answer on record — everyone else was blank, and there was no way to say so.**
 - **“Nein” is a real answer, not a blank. It means you were asked and you are not at a Kantonsschule, which is different from nobody ever having asked.**
-- **Only you and the club’s administrators see it. It is not shown to other members and not shown to coaches, the same as your address.**
+- **Only you and the club’s administrators see it — not other members, and not your coach.**
 
 ## v1.86.0 — 2026-08-13
 

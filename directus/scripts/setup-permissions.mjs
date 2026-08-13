@@ -2066,7 +2066,15 @@ async function main() {
   // reasoning that already strips ahv_nummer and iban from this list.
   const LEADER_TEAM_MEMBER_FIELDS = [
     ...new Set([...MEMBER_VISIBLE_FIELDS, ...MEMBER_EDITABLE_FIELDS, ...MEMBER_DERIVED_READ_FIELDS]),
-  ].filter(f => f !== 'ahv_nummer' && f !== 'iban' && f !== 'beitragskategorie')
+  // ⚠ This list is DERIVED — anything added to MEMBER_EDITABLE_FIELDS becomes
+  // coach/TR-readable for their own team members BY DEFAULT. That is usually
+  // right (a coach reads their players' phone, address, birthdate) but it is a
+  // widening that happens without anybody writing a line here, so a new column
+  // whose audience should stop at the member and the office has to be named in
+  // this filter. `kantonsschule` (migration 315) is such a column: which school
+  // somebody attends was not asked for on a coach's behalf, and ~40 coaches is
+  // a real widening. One line to reverse if the club decides otherwise.
+  ].filter(f => !['ahv_nummer', 'iban', 'beitragskategorie', 'kantonsschule'].includes(f))
   await setPermRead(LEADER_POLICY, 'members', COACH_TEAM_MEMBERS, LEADER_TEAM_MEMBER_FIELDS)
   // Members — update position + number (migration 036 scoped to my-team members).
   // `coach_approved_team` added 2026-05-19: migration 036 narrowed this list to
