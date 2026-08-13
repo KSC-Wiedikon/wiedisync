@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '1.80.2'
+const APP_VERSION = '1.81.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,19 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.81.0',
+    date: '13.08.2026',
+    sections: [
+      {
+        title: 'Transfers now cross-checks Swiss Volley’s own records',
+        items: [
+          'The transfers page shows where Swiss Volley records a different federation of origin than we do. This matters in both directions. For some players the club was preparing an international transfer that may not be needed at all, because Swiss Volley already counts them as Swiss. For others it is the other way round: our record says Switzerland and Swiss Volley’s does not, and those are the ones nobody was chasing. Nothing is changed automatically — an administrator decides whether to correct our record or ask Swiss Volley to correct theirs.',
+          'Players who hold a club licence but are on no team roster no longer fall off the list. They were counted in a footnote and worked by nobody. They now appear like anyone else, marked "Licensed, not on a roster", so the missing roster entry stays visible as something to fix rather than quietly disappearing.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.80.2',
     date: '12.08.2026',

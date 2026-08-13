@@ -2,6 +2,13 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.81.0 — 2026-08-13
+
+### Transfers now cross-checks Swiss Volley's own records
+
+- **The transfers page shows where Swiss Volley records a different federation of origin than we do.** This matters in both directions. For some players the club was preparing an international transfer that may not be needed at all, because Swiss Volley already counts them as Swiss. For others it is the other way round: our record says Switzerland and Swiss Volley's does not, and those are the ones nobody was chasing. Nothing is changed automatically — an administrator decides whether to correct our record or ask Swiss Volley to correct theirs.
+- **Players who hold a club licence but are on no team roster no longer fall off the list.** They were counted in a footnote and worked by nobody. They now appear like anyone else, marked "Licensed, not on a roster", so the missing roster entry stays visible as something to fix rather than quietly disappearing.
+
 ## v1.80.2 — 2026-08-12
 
 ### Calendar subscriptions that had gone quiet work again
