@@ -45,7 +45,7 @@ import type { Team } from '../../../types'
 import type { CacheShape } from './explorerHelpers'
 import { buildMemberTeamsMap, teamLabel } from './explorerHelpers'
 import {
-  FEE_AMOUNT_VIRTUAL_KEY, MEMBER_FIELD_BY_KEY, NEVER_PATCH_KEYS, TEAMS_VIRTUAL_KEY,
+  FEE_AMOUNT_VIRTUAL_KEY, GOVERNED_BY, MEMBER_FIELD_BY_KEY, NEVER_PATCH_KEYS, TEAMS_VIRTUAL_KEY,
   buildMemberFieldSections, fieldFilterReason, getFieldDef, isFieldReadOnly, sanitizeRecord,
   type MemberFieldDef, type MemberFieldKind, type MemberFieldSection,
 } from './memberFieldSchema'
@@ -1200,22 +1200,6 @@ interface EditorCtx {
   liveFee: LiveFee
   /** "Holds no value" — the same rule the hide-empty filter uses. */
   isEmpty: (key: string) => boolean
-}
-
-/**
- * Privacy switches that only mean anything while the field they govern holds a
- * value.
- *
- * ⚠ Read on its own, `Birthdate visibility: Hidden` on a member with no
- * birthdate says the club is WITHHOLDING a date it has — when in fact the
- * column is blank. Same for `Hide phone: Yes` next to an empty phone. The card
- * therefore says so instead of leaving the operator to cross-reference the
- * field two cards up (which the hide-empty filter may well have removed).
- */
-const GOVERNED_BY: Record<string, string> = {
-  birthdate_visibility: 'birthdate',
-  hide_email: 'email',
-  hide_phone: 'phone',
 }
 
 /**
