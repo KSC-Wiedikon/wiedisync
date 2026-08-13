@@ -20,8 +20,10 @@ import {
   NEVER_PATCH_KEYS,
   TEAMS_VIRTUAL_KEY,
   buildMemberFieldSections,
+  bulkEditableFields,
   fieldFilterReason,
   getFieldDef,
+  isBulkEditable,
   isFieldReadOnly,
   isRelationAlias,
   sanitizeRecord,
@@ -261,6 +263,109 @@ describe('isFieldReadOnly', () => {
 
   it('leaves ordinary fields editable', () => {
     expect(isFieldReadOnly(MEMBER_FIELD_BY_KEY.first_name, asSportAdmin)).toBe(false)
+  })
+})
+
+/**
+ * The bulk-edit gate, pinned as an exact list.
+ *
+ * A snapshot rather than a rule, on purpose: `bulkUnsafe` is opt-in, so a
+ * column added by a future migration would default to "yes, write this to 200
+ * people at once" and nothing would say so. Pinning the set means the next
+ * person to add a member column has to look at their column and decide — which
+ * is the whole point, and takes one line either way.
+ */
+describe('isBulkEditable', () => {
+  const asAdmin = { isGlobalAdmin: true }
+  const asSportAdmin = { isGlobalAdmin: false }
+
+  /** Fields a bulk action may write. Add a key here ONLY after deciding that one
+   *  shared value across several different people can be correct. */
+  const BULK_EDITABLE_FOR_ADMIN = [
+    // identity
+    'anrede', 'sex', 'birthdate_visibility', 'nationalitaet_codes', 'language',
+    // contact
+    'hide_email', 'hide_phone', 'adresse', 'plz', 'ort',
+    // membership
+    'sektion', TEAMS_VIRTUAL_KEY, 'requested_team', 'coach_approved_team', 'eintritt',
+    // playing
+    'position', 'trainer_licences',
+    // association
+    'federation_of_origin', 'licence_status', 'scorer_vb', 'referee_vb',
+    'referee_bb', 'otr1_bb', 'otr2_bb', 'otn1_bb', 'otn2_bb',
+    // roles & access (global admin only — see the sport-admin case below)
+    'role', 'is_spielplaner',
+    // finance
+    'beitragskategorie', 'fee_base_override', 'fee_surcharge_override',
+    'fee_discount', 'fee_discount_pct', 'fee_discount_reason',
+    'iban_confirmed', 'never_dun', 'billing_different', 'billing_name',
+    'billing_email', 'billing_address', 'billing_plz', 'billing_ort',
+    'billing_phone', 'billing_iban',
+    // privacy
+    'website_visible', 'website_name_private', 'push_preview_content',
+    // notifications
+    'communications_team_chat_enabled', 'communications_dm_enabled', 'communications_banned',
+    'auto_confirm_trainings', 'auto_confirm_games', 'auto_confirm_events',
+    'email_notify_events', 'email_notify_announcements', 'email_notify_registrations',
+    'email_notify_join_requests', 'email_notify_form_submissions',
+    // clubdesk
+    'clubdesk_sync_exclude',
+    // transfer
+    'transfer_status', 'transfer_note',
+  ]
+
+  it('allows exactly the reviewed set for a global admin', () => {
+    const actual = bulkEditableFields(asAdmin).map((f) => f.key).sort()
+    expect(actual).toEqual([...BULK_EDITABLE_FOR_ADMIN].sort())
+  })
+
+  it('withholds the privileged fields from a sport admin', () => {
+    const actual = new Set(bulkEditableFields(asSportAdmin).map((f) => f.key))
+    expect(actual.has('role')).toBe(false)
+    expect(actual.has('is_spielplaner')).toBe(false)
+    expect(actual.has('beitragskategorie')).toBe(true)
+  })
+
+  it('refuses every field that identifies one person', () => {
+    for (const key of [
+      'first_name', 'last_name', 'nickname', 'photo', 'birthdate',
+      'email', 'phone', 'ahv_nummer', 'iban', 'number', 'js_id', 'vis_player_no',
+    ]) {
+      expect(isBulkEditable(MEMBER_FIELD_BY_KEY[key], asAdmin), key).toBe(false)
+      expect(MEMBER_FIELD_BY_KEY[key].bulkUnsafe, `${key} must say why`).toBeTruthy()
+    }
+  })
+
+  it('refuses the departure pair — it is the dedicated action, not a field write', () => {
+    // The CHECK members_austritt_needs_departed_status refuses an exit date
+    // without a departed status, so composing them as two independent field
+    // writes fails on the database rather than on screen.
+    expect(isBulkEditable(MEMBER_FIELD_BY_KEY.register_status, asAdmin)).toBe(false)
+    expect(isBulkEditable(MEMBER_FIELD_BY_KEY.austritt, asAdmin)).toBe(false)
+  })
+
+  it('refuses to assert consent on somebody’s behalf', () => {
+    expect(isBulkEditable(MEMBER_FIELD_BY_KEY.consent_decision, asAdmin)).toBe(false)
+  })
+
+  it('is never wider than the single-member gate', () => {
+    for (const def of MEMBER_FIELDS) {
+      for (const ctx of [asAdmin, asSportAdmin]) {
+        if (!isBulkEditable(def, ctx)) continue
+        // The roster is the one virtual key that passes — it writes junction
+        // rows, which is why it is bulk-editable and not PATCHable.
+        if (def.key === TEAMS_VIRTUAL_KEY) continue
+        expect(isFieldReadOnly(def, ctx), `${def.key} is bulk-editable but read-only`).toBe(false)
+        expect(NEVER_PATCH_KEYS.has(def.key), `${def.key} is bulk-editable but never-patch`).toBe(false)
+      }
+    }
+  })
+
+  it('gives every excluded-but-editable field a reason to show the operator', () => {
+    for (const def of MEMBER_FIELDS) {
+      if (!def.bulkUnsafe) continue
+      expect(def.bulkUnsafe.length, `${def.key} reason too short`).toBeGreaterThan(20)
+    }
   })
 })
 
