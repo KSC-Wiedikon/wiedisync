@@ -31,35 +31,54 @@ function normalizeSport(raw) {
 }
 
 /**
- * The rule itself, with every input already resolved. Pure — this is what the
- * tests pin.
+ * The rule itself, with every input already resolved, plus WHICH input decided.
+ * Pure — this is what the tests pin.
+ *
+ * ⚠ `sport: 'both'` is TWO different facts and callers routinely need them apart:
+ * a member on a VB *and* a BB team (`source: 'teams'`) is genuinely dual, while a
+ * passive member with no roster row and no VB/BB fee prefix (`source: 'unknown'`)
+ * is simply unresolvable. Permission callers must keep treating BOTH as permissive
+ * — hiding a real member behind an unknowable scope is the worse failure, see the
+ * header — but a UI that buckets members by section needs to show the unresolvable
+ * ones as their own worklist rather than silently claiming they play both sports.
  *
  * @param {object} parts
  * @param {Iterable<string>} parts.teamSports raw `teams.sport` of EVERY team the
  *   member is attached to, in any capacity (player, coach, team responsible).
  * @param {string|null} parts.sektion
  * @param {string|null} parts.beitragskategorie
- * @returns {'volleyball'|'basketball'|'both'}
+ * @returns {{sport: 'volleyball'|'basketball'|'both', source: 'teams'|'sektion'|'fee'|'unknown'}}
  */
-export function sportFromParts({ teamSports = [], sektion = null, beitragskategorie = null } = {}) {
+export function sportFromPartsDetailed({ teamSports = [], sektion = null, beitragskategorie = null } = {}) {
   const sports = new Set()
   for (const raw of teamSports) {
     const s = normalizeSport(raw)
     if (s) sports.add(s)
   }
-  if (sports.size > 1) return 'both'
-  if (sports.size === 1) return [...sports][0]
+  if (sports.size > 1) return { sport: 'both', source: 'teams' }
+  if (sports.size === 1) return { sport: [...sports][0], source: 'teams' }
 
   const sek = String(sektion || '').trim().toLowerCase()
-  if (sek === 'volleyball') return 'volleyball'
-  if (sek === 'basketball') return 'basketball'
+  if (sek === 'volleyball') return { sport: 'volleyball', source: 'sektion' }
+  if (sek === 'basketball') return { sport: 'basketball', source: 'sektion' }
   // 'kscw' and everything else falls through.
 
   const kat = String(beitragskategorie || '').trim().toLowerCase()
-  if (kat.startsWith('vb ')) return 'volleyball'
-  if (kat.startsWith('bb ')) return 'basketball'
+  if (kat.startsWith('vb ')) return { sport: 'volleyball', source: 'fee' }
+  if (kat.startsWith('bb ')) return { sport: 'basketball', source: 'fee' }
 
-  return 'both'
+  return { sport: 'both', source: 'unknown' }
+}
+
+/**
+ * The answer alone. This is the form every permission/scope caller wants — the
+ * distinction above is deliberately invisible here so no gate can accidentally
+ * start treating "unknown" as a denial.
+ *
+ * @returns {'volleyball'|'basketball'|'both'}
+ */
+export function sportFromParts(parts) {
+  return sportFromPartsDetailed(parts).sport
 }
 
 /**
@@ -77,9 +96,10 @@ export function sportFromParts({ teamSports = [], sektion = null, beitragskatego
  *   Already-fetched member rows, to skip this function's own `members` query.
  *   Must carry `sektion` and `beitragskategorie`, or the fallbacks silently stop
  *   working and everyone resolves to 'both'.
- * @returns {Promise<Map<string, 'volleyball'|'basketball'|'both'>>} keyed by String(id)
+ * @returns {Promise<Map<string, {sport: 'volleyball'|'basketball'|'both', source: 'teams'|'sektion'|'fee'|'unknown'}>>}
+ *   keyed by String(id). Use `resolveMemberSports` unless you need `source`.
  */
-export async function resolveMemberSports(database, memberIds, opts = {}) {
+export async function resolveMemberSportsDetailed(database, memberIds, opts = {}) {
   const ids = [...new Set((memberIds || []).filter((v) => v !== null && v !== undefined))]
   const out = new Map()
   if (ids.length === 0) return out
@@ -117,12 +137,26 @@ export async function resolveMemberSports(database, memberIds, opts = {}) {
   for (const id of ids) {
     const key = String(id)
     const row = rowById.get(key)
-    out.set(key, sportFromParts({
+    out.set(key, sportFromPartsDetailed({
       teamSports: (teamIdsByMember.get(key) ?? []).map((tid) => sportByTeam.get(String(tid))),
       sektion: row?.sektion ?? null,
       beitragskategorie: row?.beitragskategorie ?? null,
     }))
   }
+  return out
+}
+
+/**
+ * Batched resolver, answers only. Same queries as the detailed form — this is the
+ * shape every existing caller (permission gates, the read-privacy hook, the member
+ * DELETE gate) expects, and the one they should keep using.
+ *
+ * @returns {Promise<Map<string, 'volleyball'|'basketball'|'both'>>} keyed by String(id)
+ */
+export async function resolveMemberSports(database, memberIds, opts = {}) {
+  const detailed = await resolveMemberSportsDetailed(database, memberIds, opts)
+  const out = new Map()
+  for (const [key, v] of detailed) out.set(key, v.sport)
   return out
 }
 

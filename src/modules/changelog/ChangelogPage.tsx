@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '1.82.0'
+const APP_VERSION = '1.83.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,29 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.83.0',
+    date: '13.08.2026',
+    sections: [
+      {
+        title: 'ClubDesk sync and Data health are now one page',
+        items: [
+          'The two admin pages have become one. Data health used to report the ClubDesk problems as bare counts — "24 people are missing a group" — and then send you to a second page to find out who, while that second page had no idea what else was wrong. Both now live at Data health, and the counts have been replaced by the actual lists. The old address still works and takes you there.',
+          'The findings are split by section. Tabs for volleyball, basketball, and everything club-wide, so the volleyball TK is not reading through basketball rosters to find their own. Members whose section cannot be worked out at all — no team, no volleyball or basketball fee category — get their own tab instead of quietly appearing under both sports, which is how they used to go unnoticed.',
+          'A new "Needs syncing" list. Since the last sync, who is out of step with ClubDesk and why: not linked yet, link broken, left the club, waiting to be pushed, or a field that no longer matches. The times of the last sync down and sync up are shown next to it, and when the list is empty it says how many members are in sync — so an empty list reads as "everything is fine" rather than "the check did not run".',
+          'Each person’s last invoice is shown next to the finding. Particularly on the members who pay a playing fee but are on no team: you can now see whether they were actually billed, whether it is still open, and how much, without opening finance in another tab. "Never billed" is called out as its own answer.',
+        ],
+      },
+      {
+        title: 'Fix ClubDesk groups from the app',
+        items: [
+          'The club’s ClubDesk groups can now be corrected from Wiedisync. ClubDesk has no interface for this that we can talk to, so until now a member missing their team’s group had to be fixed by hand, one contact at a time. The new "Fix groups" button does it for you: it adds missing player and coach groups, and removes ones that contradict the current roster.',
+          'It always previews first. The preview does every step except the final save, and shows you row by row what it would do. Only then can it be committed, and it asks once more before writing. This is the club’s legal member register, so nothing about it is one-click.',
+          'It deliberately refuses the ambiguous cases. Someone sitting in a team’s group with no roster entry is usually a missing roster entry, not a wrong group — those stay on the list for a person to decide, marked as such. It only removes where the answer is unambiguous: the member has left the club, or they staff the team rather than play in it. It also never removes somebody’s last group, and skips anyone it cannot identify with certainty rather than guessing at a name.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.82.0',
     date: '13.08.2026',

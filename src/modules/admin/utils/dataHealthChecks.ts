@@ -31,15 +31,11 @@ export type IssueKey =
   | 'clubdeskDrift'
   | 'clubdeskDriftBlocked'
   | 'clubdeskFill'
-  | 'clubdeskGroupMissing'
-  | 'clubdeskGroupStray'
-  | 'clubdeskGroupNoTeam'
-  | 'clubdeskNoGroup'
-  | 'clubdeskCoachGroup'
-  | 'clubdeskStaleFunktion'
-  | 'clubdeskFeeNoRoster'
+  // The group-consistency keys (missing / stray / no-team-group / no-group /
+  // coach-group / stale-Funktion / fee-no-roster / unmapped-team) were retired on
+  // 2026-08-13: ClubdeskGroupCheck now renders those findings in full on this same
+  // page, so an aggregate count here would be a second surface to keep in step.
   | 'clubdeskHonoraryDrift'
-  | 'clubdeskUnmappedTeam'
   | 'clubdeskNameDrift'
   | 'scorerNotInVm'
   | 'scorerVmWriterNotFlagged'
@@ -115,29 +111,6 @@ interface ClubdeskDeparted {
   status: string
   austritt: string | null
   current_teams: string[]
-}
-
-interface ClubdeskGroupMissing {
-  member_id: number
-  member_name: string
-  clubdesk_id: string
-  groups: string[]
-}
-
-interface ClubdeskGroupStray {
-  member_id: number
-  member_name: string
-  clubdesk_id: string
-  group: string
-  active: boolean
-  is_official: boolean
-  coach_of: string
-  tr_of: string
-}
-
-interface ClubdeskGroupNoTeam {
-  group: string
-  count: number
 }
 
 // ── Helpers ──
@@ -474,82 +447,26 @@ async function checkMembers(): Promise<CollectionHealth> {
     // Best-effort — see above.
   }
 
-  // ClubDesk GROUP drift (read-only — group membership is manual in ClubDesk, the
-  // CSV import can't set it). Players missing their team's ClubDesk group, strays
-  // sitting in a ClubDesk group with no current-season Wiedisync roster (annotated
-  // active/official/coach so the "remove from ClubDesk vs add to Wiedisync" call
-  // is visible inline), and ClubDesk groups with no Wiedisync team. Best-effort.
+  // ClubDesk HONORARY drift. The rest of /clubdesk-group-sync's output — missing
+  // groups, strays, wrong Funktion, coaches without a coach group, billed-with-no-
+  // roster, unmapped teams, groups with no team — used to be aggregated into
+  // single alarm rows here, because the detail lived on a different page
+  // (/admin/clubdesk-sync) and this one only had room to point at it. Since the
+  // 2026-08-13 merge that page IS this page: ClubdeskGroupCheck renders every one
+  // of those lists in full, per sport tab, with its own export. Duplicating them
+  // as counts here would mean two surfaces to keep in step and a number that can
+  // disagree with the list right below it.
+  //
+  // Honorary drift stays because nothing else renders it: it is not a group
+  // consistency finding but a club-level one (the Ehrenmitglieder honour list vs
+  // the register Status vs who is still being billed), so it lives in the
+  // club-wide tab. Best-effort.
   try {
-    const {
-      missing, strays, no_team_groups,
-      no_group, coach_no_group, fee_no_roster, unmapped_teams, stale_funktion,
-      honorary_drift,
-    } = await kscwApi<{
-      missing: ClubdeskGroupMissing[]
-      strays: ClubdeskGroupStray[]
-      no_team_groups: ClubdeskGroupNoTeam[]
-      no_group?: { member_id: number; has_team: boolean }[]
-      coach_no_group?: { member_id: number }[]
-      fee_no_roster?: { member_id: number; severity: 'never' | 'lapsed' | 'older' }[]
-      unmapped_teams?: { team_id: number; name: string }[]
-      stale_funktion?: { member_id: number }[]
+    const { honorary_drift } = await kscwApi<{
       honorary_drift?: { member_id: number; kind: 'status_only' | 'fee'; kat: string; fee_waived?: boolean }[]
     }>('/clubdesk-group-sync')
 
-    // These four are AGGREGATED into a single row each: per-member rows would add
-    // ~250 entries and drown the page (same reason clubdesk drift `fills` are
-    // aggregated). Data Health is the alarm — the full, exportable lists live on
-    // the ClubDesk sync page. Exception: unmapped teams are rare and each one
-    // silently blinds every group check, so they get a row apiece.
-    const noGroupOnTeam = (no_group || []).filter((r) => r.has_team).length
-    if ((no_group || []).length > 0) {
-      issues.push({
-        id: 'cd-no-group',
-        collection: 'members',
-        field: 'clubdesk_id',
-        severity: noGroupOnTeam > 0 ? 'error' : 'warning',
-        issueKey: 'clubdeskNoGroup',
-        detail: `${(no_group || []).length} · ${noGroupOnTeam} on a team`,
-        autoFixable: false,
-      })
-    }
-    // Aggregated like its siblings — the per-row worklist (and its JSON export for
-    // clubdesk-remove-group.mjs) lives on the ClubDesk sync page.
-    if ((stale_funktion || []).length > 0) {
-      issues.push({
-        id: 'cd-stale-funktion',
-        collection: 'members',
-        field: 'clubdesk_id',
-        severity: 'warning',
-        issueKey: 'clubdeskStaleFunktion',
-        detail: `${(stale_funktion || []).length}`,
-        autoFixable: false,
-      })
-    }
-    if ((coach_no_group || []).length > 0) {
-      issues.push({
-        id: 'cd-coach-group',
-        collection: 'members',
-        field: 'clubdesk_id',
-        severity: 'warning',
-        issueKey: 'clubdeskCoachGroup',
-        detail: `${(coach_no_group || []).length}`,
-        autoFixable: false,
-      })
-    }
-    const neverRostered = (fee_no_roster || []).filter((r) => r.severity === 'never').length
-    if ((fee_no_roster || []).length > 0) {
-      issues.push({
-        id: 'cd-fee-no-roster',
-        collection: 'members',
-        field: 'beitragskategorie',
-        severity: neverRostered > 0 ? 'error' : 'warning',
-        issueKey: 'clubdeskFeeNoRoster',
-        detail: `${(fee_no_roster || []).length} · ${neverRostered} never rostered`,
-        autoFixable: false,
-      })
-    }
-    // Honorary drift. Aggregated like its siblings — two counts in one row,
+    // Aggregated — two counts in one row,
     // because the two halves need different hands: `status_only` is a missing
     // name on the ClubDesk honour list, `fee` is somebody holding the honour and
     // still being billed. Error when anyone is being billed; the honour list
@@ -568,57 +485,6 @@ async function checkMembers(): Promise<CollectionHealth> {
         severity: billed > 0 ? 'error' : 'warning',
         issueKey: 'clubdeskHonoraryDrift',
         detail: `${statusOnly} · ${billed} still billed`,
-        autoFixable: false,
-      })
-    }
-    for (const tm of unmapped_teams || []) {
-      issues.push({
-        id: `cd-unmapped-team-${tm.team_id}`,
-        collection: 'teams',
-        field: 'clubdesk_group',
-        severity: 'error',
-        issueKey: 'clubdeskUnmappedTeam',
-        detail: tm.name,
-        autoFixable: false,
-      })
-    }
-
-    for (const m of missing || []) {
-      issues.push({
-        id: `cd-grp-missing-${m.member_id}`,
-        collection: 'members',
-        field: 'clubdesk_id',
-        severity: 'warning',
-        issueKey: 'clubdeskGroupMissing',
-        detail: `${m.member_name} → ${m.groups.join(', ')}`,
-        autoFixable: false,
-      })
-    }
-    for (const s of strays || []) {
-      const tags = [
-        s.active ? 'active' : 'inactive',
-        ...(s.is_official ? ['official'] : []),
-        ...(s.coach_of ? [`coach: ${s.coach_of}`] : []),
-        ...(s.tr_of ? [`TR: ${s.tr_of}`] : []),
-      ].join(' · ')
-      issues.push({
-        id: `cd-grp-stray-${s.member_id}-${s.group}`,
-        collection: 'members',
-        field: 'clubdesk_id',
-        severity: 'warning',
-        issueKey: 'clubdeskGroupStray',
-        detail: `${s.member_name} — ${s.group} · ${tags}`,
-        autoFixable: false,
-      })
-    }
-    for (const g of no_team_groups || []) {
-      issues.push({
-        id: `cd-grp-noteam-${g.group}`,
-        collection: 'members',
-        field: 'clubdesk_id',
-        severity: 'warning',
-        issueKey: 'clubdeskGroupNoTeam',
-        detail: `${g.group} — ${g.count}`,
         autoFixable: false,
       })
     }
