@@ -10,10 +10,11 @@
   },
   "dependencies": {
     "busboy": "^1.6.0",
-    "fast-xml-parser": "^5.10.0",
+    "fast-xml-parser": "^5.10.1",
     "imapflow": "^1.4.0",
     "mailparser": "^3.9.9",
     "nodemailer": "^9.0.3",
+    "pdf-lib": "^1.17.1",
     "pdfkit": "^0.19.1",
     "swissqrbill": "^4.4.0"
   },
