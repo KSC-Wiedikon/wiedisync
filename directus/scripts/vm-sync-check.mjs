@@ -33,6 +33,13 @@ if (!DIRECTUS_TOKEN && !DIRECTUS_PASSWORD) {
 }
 
 // ─── Retry helper ────────────────────────────────────────────────────
+// ⚠ A role denial carries "HTTP 403" in its text and is the one 403 that is
+// NOT a bad window: VolleyManager has told us this account may not hold the
+// role, so every retry, every deferral and the weekly re-run all reproduce it
+// identically. Matched FIRST, everywhere a 403 is classified — otherwise it
+// files as transient, defers, records `status='ok'`, and nobody is told
+// (2026-08-13; see vm-client.mjs → vmLogin).
+const ROLE_DENIED = /VM_ROLE_DENIED/;
 // Volleymanager intermittently returns 403/429/5xx (observed 2026-06-08: the
 // 04:00 cron + a manual re-run both 403'd on /indoorwriter/index, while the
 // account has full access and the page returned 200 minutes later). Retry
@@ -45,7 +52,8 @@ async function retry(label, fn, { attempts = 4, baseDelayMs = 2500 } = {}) {
     } catch (e) {
       lastErr = e;
       const msg = e?.message || '';
-      const transient = /HTTP (403|408|425|429|5\d\d)|fetch failed|ECONNRESET|ETIMEDOUT|socket hang up|network|timed out|timeout|aborted/i.test(msg);
+      const transient = !ROLE_DENIED.test(msg)
+        && /HTTP (403|408|425|429|5\d\d)|fetch failed|ECONNRESET|ETIMEDOUT|socket hang up|network|timed out|timeout|aborted/i.test(msg);
       if (i === attempts || !transient) throw e;
       const delay = baseDelayMs * i;
       console.warn(`  ⚠ ${label}: attempt ${i}/${attempts} failed (${msg.slice(0, 90)}); retry in ${delay}ms`);
@@ -76,6 +84,7 @@ function withTimeout(promise, ms, label) {
 // WARNING (no alert, no watchdog storm). Only a non-transient error (unexpected
 // response shape, or our own Directus write failing) is a real failure.
 function isTransientVm(message = '') {
+  if (ROLE_DENIED.test(message)) return false;
   return /HTTP (403|408|425|429|5\d\d)|timed out|timeout|aborted|fetch failed|ECONNRESET|ETIMEDOUT|socket hang up|network/i.test(message);
 }
 function classifyGroupFailure(label, e, failures, warnings) {

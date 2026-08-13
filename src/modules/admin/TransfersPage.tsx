@@ -659,9 +659,52 @@ export default function TransfersPage() {
   }, [teamNamesByMember])
 
   /**
-   * A member appears on this page only when a team actually puts them in
+   * Everyone Volleymanager licenses for KSC Wiedikon, by `association_id`.
+   *
+   * Cohort-INDEPENDENT on purpose, and therefore a second query rather than a
+   * reuse of `vmRaw` further down: that one is filtered to the licence numbers
+   * of the members who are ALREADY on the worklist, so it can confirm a row but
+   * can never admit one. Unfiltered here — the club licence list is ~260
+   * single-column rows and changes only when the weekly VM sync runs.
+   *
+   * Every row carries a player `licence_category` (RLL/JLL/NLL/PL/DLR/DLN);
+   * `is_referee` / `is_writer` are additive flags on top of a player licence,
+   * never a row of their own (verified on prod 2026-08-13: 0 of 258 rows lack a
+   * category). So presence here means "holds a KSCW player licence" — which is
+   * precisely the thing an ITC clears.
+   */
+  const { data: vmLicenceRaw } = useCollection<{ association_id: number }>('sv_vm_check', {
+    fields: ['association_id'],
+    all: true,
+    staleTime: 3_600_000,
+  })
+
+  /**
+   * Member ids Volleymanager licenses, matched on `license_nr = association_id`
+   * — the first and only DETERMINISTIC step of the `vm-sync-check.mjs` cascade.
+   * The email and name steps are deliberately not replicated: a wrong bind here
+   * would put somebody else's transfer on the worklist, whereas a missed one
+   * only leaves a member in the visible "on no team" tally, exactly where they
+   * are today.
+   */
+  const vmLicensedMembers = useMemo(() => {
+    const assoc = new Set<string>()
+    for (const r of vmLicenceRaw ?? []) {
+      const id = String(r.association_id ?? '').trim()
+      if (id) assoc.add(id)
+    }
+    const set = new Set<string>()
+    for (const m of members) {
+      const lic = String(m.license_nr ?? '').trim()
+      if (lic && assoc.has(lic)) set.add(String(m.id))
+    }
+    return set
+  }, [vmLicenceRaw, members])
+
+  /**
+   * A member appears on this page when EITHER the club's own roster puts them in
    * VOLLEYBALL as a PLAYER (guest memberships do not count — see
-   * `sportsByMember`).
+   * `sportsByMember`), OR Volleymanager licenses them for the club.
    *
    * Members on NO team used to surface so nothing could hide — but a transfer
    * is only owed by someone who plays, and the register carries enough
@@ -669,10 +712,24 @@ export default function TransfersPage() {
    * this page exists for. They are counted and named in the header instead, so
    * dropping them stays visible rather than silent: give them a team and they
    * reappear.
+   *
+   * ⚠ The Volleymanager half is not a convenience — it is the AUTHORITATIVE
+   * half. A Swiss Volley licence IS the thing an ITC clears, so somebody VM
+   * licenses owes the transfer whether or not the club ever got round to
+   * entering a `member_teams` row. Roster bookkeeping lags reality every
+   * season, and on prod 2026-08-13 that lag hid four licensed, active,
+   * foreign-federation players from the worklist completely — Delucchi (PE),
+   * Gatsko (RU), Nikolov (BG), Suárez Perez (CO). They sat in the "on no team"
+   * tally, which nobody works.
+   *
+   * ⚠ This also overrides the guest exclusion, and correctly so: "guest" means
+   * "trains with us but holds no club licence", and a VM licence is that claim
+   * being false.
    */
   const playsVolleyball = useCallback(
-    (memberId: string) => sportsByMember.get(memberId)?.has(SPORT) ?? false,
-    [sportsByMember],
+    (memberId: string) => (sportsByMember.get(memberId)?.has(SPORT) ?? false)
+      || vmLicensedMembers.has(memberId),
+    [sportsByMember, vmLicensedMembers],
   )
 
   /**
@@ -697,7 +754,11 @@ export default function TransfersPage() {
       const bucket = bucketOf(m)
       if (bucket !== 'needs' && bucket !== 'clarify') continue
       const id = String(m.id)
-      if (sportsByMember.get(id)?.has(SPORT)) continue
+      // Routed through `playsVolleyball`, not through `sportsByMember` directly,
+      // so the "hidden" tally can never disagree with what the page shows: a
+      // member admitted by their Volleymanager licence is on screen and must not
+      // also be reported as missing from it.
+      if (playsVolleyball(id)) continue
       // Guest first: a volleyball guest is dropped for the licence reason, not
       // for whatever else they may also play.
       if (guestSportsByMember.get(id)?.has(SPORT)) guestOnly += 1
@@ -705,7 +766,7 @@ export default function TransfersPage() {
       else noTeam += 1
     }
     return { noTeam, guestOnly, basketball }
-  }, [members, sportsByMember, guestSportsByMember])
+  }, [members, playsVolleyball, sportsByMember, guestSportsByMember])
 
   /**
    * The volleyball cohorts. `u20` is a COUNT, not a list: those members are
