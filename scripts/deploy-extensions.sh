@@ -79,6 +79,26 @@ git archive "$SHA" directus/extensions | tar -x -C "$TMP"
 SRC="$TMP/directus/extensions"
 [ -d "$SRC/kscw-endpoints" ] || { echo "✗ ${REF} has no directus/extensions/kscw-endpoints" >&2; exit 1; }
 
+# Gate the EXPORTED tree — i.e. exactly what is about to ship, not the working
+# tree. `npm run build` (tsc -b) does not cover this directory at all and
+# `node --check` is syntax-only, so an identifier that is never bound sails
+# through both and 500s its route on every call once deployed. That is not
+# hypothetical: it took out /admin/clubdesk-sync for the whole life of the
+# feature (2026-08-13). Runs before `npm ci` so it fails in seconds, not after
+# a full install. See directus/extensions/eslint.config.mjs.
+ESLINT_BIN="$REPO_ROOT/node_modules/.bin/eslint"
+if [ -x "$ESLINT_BIN" ] && [ -f "$SRC/eslint.config.mjs" ]; then
+  echo "  lint:   eslint no-undef"
+  if ! ( cd "$SRC" && "$ESLINT_BIN" . ); then
+    echo "✗ lint failed — NOT deploying ${SHA:0:8} to ${TARGET}" >&2
+    exit 1
+  fi
+else
+  # Announce rather than skip quietly: an older ref predates the config, and a
+  # silent skip reads exactly like a pass.
+  echo "  ⚠ lint SKIPPED — ${REF} has no directus/extensions/eslint.config.mjs (or eslint is not installed; run npm ci)"
+fi
+
 # Deps must be installed into the exported tree — node_modules is not in git, and
 # restarting Directus with an incomplete extension node_modules takes down every
 # /kscw/* route.
