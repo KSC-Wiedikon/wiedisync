@@ -43,7 +43,13 @@ export function buildFilters(scope: ExplorerScope): CacheFilters {
   }
 
   return {
-    members: { kscw_membership_active: { _eq: true } },
+    // ⚠ No `kscw_membership_active` filter. It used to be here, and it meant
+    // the page could not answer "who left the club" at all: 22 of 26
+    // "Ehemaliges Mitglied" and 12 of 13 "Kein Mitglied" were never fetched, so
+    // the tree's former/non-member groups would have shown 4 of 26 and looked
+    // complete. The active-only default now lives in `EMPTY_FILTERS` instead —
+    // same rows on screen, but it is a filter the operator can see and clear.
+    members: undefined,
     teams,
     events,
     trainings,

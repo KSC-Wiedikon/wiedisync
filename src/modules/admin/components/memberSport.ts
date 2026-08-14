@@ -109,6 +109,43 @@ function sportFromFeeCategory(category: unknown): MemberSport | null {
   return null
 }
 
+/** Which step of the cascade produced the answer. `unknown` = nothing matched. */
+export type MemberSportSource = 'teams' | 'sektion' | 'fee' | 'unknown'
+
+/**
+ * Resolve a member's sport AND say which step answered.
+ *
+ * The source matters because 'both' is two different facts wearing one label:
+ * a real two-sport player (source `teams`), and "we have no idea" (source
+ * `unknown`, or `sektion` = KSCW). A field gate is right to treat them alike —
+ * showing a spare column beats hiding a real one. A navigation tree is not:
+ * see `sportsForMember` in memberGroups.ts, which files the first under both
+ * sports and the second under none.
+ *
+ * Mirrors `sportFromPartsDetailed` in `kscw-endpoints/src/member-sport.js`. The
+ * two are independent copies of one rule (frontend has the explorer cache,
+ * backend has knex) — change one, check the other.
+ */
+export function resolveMemberSportDetailed(
+  member: MemberSportInput,
+  cache: MemberSportCache | null | undefined,
+): { sport: MemberSport; source: MemberSportSource } {
+  const memberId = String(member.id)
+
+  if (cache) {
+    const fromTeams = sportFromTeams(memberId, cache)
+    if (fromTeams) return { sport: fromTeams, source: 'teams' }
+  }
+
+  const fromSektion = sportFromSektion(member.sektion)
+  if (fromSektion) return { sport: fromSektion, source: 'sektion' }
+
+  const fromCategory = sportFromFeeCategory(member.beitragskategorie)
+  if (fromCategory) return { sport: fromCategory, source: 'fee' }
+
+  return { sport: 'both', source: 'unknown' }
+}
+
 /**
  * Resolve a member's sport. First step that yields an answer wins; the
  * function never returns "neither" (see the module header).
@@ -120,20 +157,7 @@ export function resolveMemberSport(
   member: MemberSportInput,
   cache: MemberSportCache | null | undefined,
 ): MemberSport {
-  const memberId = String(member.id)
-
-  if (cache) {
-    const fromTeams = sportFromTeams(memberId, cache)
-    if (fromTeams) return fromTeams
-  }
-
-  const fromSektion = sportFromSektion(member.sektion)
-  if (fromSektion) return fromSektion
-
-  const fromCategory = sportFromFeeCategory(member.beitragskategorie)
-  if (fromCategory) return fromCategory
-
-  return 'both'
+  return resolveMemberSportDetailed(member, cache).sport
 }
 
 /**
