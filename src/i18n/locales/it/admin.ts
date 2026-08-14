@@ -185,7 +185,7 @@ export default {
   explorerGroupBbStaff: 'Staff pallacanestro',
   explorerGroupCoaches: 'Allenatori',
   explorerGroupTeamResponsibles: 'Responsabili di squadra',
-  explorerGroupVorstand: 'Comitato',
+  explorerGroupVorstand: 'Comitato del club',
   explorerGroupHonorary: 'Membri onorari',
   explorerGroupPassive: 'Membri passivi',
   explorerGroupGapYear: 'Anno sabbatico',

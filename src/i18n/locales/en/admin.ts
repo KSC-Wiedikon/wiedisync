@@ -720,7 +720,7 @@ export default {
   explorerGroupBbStaff: 'Basketball staff',
   explorerGroupCoaches: 'Coaches',
   explorerGroupTeamResponsibles: 'Team responsibles',
-  explorerGroupVorstand: 'Committee',
+  explorerGroupVorstand: 'Club board',
   explorerGroupHonorary: 'Honorary members',
   explorerGroupPassive: 'Passive members',
   explorerGroupGapYear: 'Gap year',

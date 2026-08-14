@@ -185,7 +185,7 @@ export default {
   explorerGroupBbStaff: 'Staff basketball',
   explorerGroupCoaches: 'Entraîneur*ses',
   explorerGroupTeamResponsibles: 'Responsables d\'équipe',
-  explorerGroupVorstand: 'Comité',
+  explorerGroupVorstand: 'Comité du club',
   explorerGroupHonorary: 'Membres d\'honneur',
   explorerGroupPassive: 'Membres passifs',
   explorerGroupGapYear: 'Année sabbatique',
