@@ -4270,9 +4270,12 @@ export default ({ action, filter, init, schedule }, { services, database, logger
 
   // ── 13. Registration Approval → CSV email ─────────────────────
   // When a registration status changes to 'approved', generate a CSV
-  // and email it to the owner (luca.canepa@gmail.com)
+  // and email it to the club admin mailbox.
 
-  const OWNER_EMAIL = 'luca.canepa@gmail.com'
+  // ⚠ Was hardcoded to a personal Gmail, so setting OWNER_EMAIL in the container
+  // env moved every OTHER consumer and silently left this one behind. Reads the
+  // env now: one address, one place to change it.
+  const OWNER_EMAIL = process.env.OWNER_EMAIL || 'admin@wiedisync.kscw.ch'
   const RADO_EMAIL = 'radomir.radovanovic.b@gmail.com'
   const VB_ADMIN_EMAIL = 'thamayanth.kanagalingam@uzh.ch'
   const BB_ADMIN_EMAIL = 'kscwiedikonbasketball@gmail.com'

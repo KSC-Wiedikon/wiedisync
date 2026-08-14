@@ -32,7 +32,7 @@ import { sendLocalizedPush } from './push-i18n.js'
 
 // Club admin who is cc'd on every late alarm (you). Env override, else the
 // same personal inbox the hooks use for owner routing.
-const DUTY_LATE_ADMIN_EMAIL = process.env.DUTY_LATE_ADMIN_EMAIL || process.env.OWNER_EMAIL || 'kontakt@kscw.ch'
+const DUTY_LATE_ADMIN_EMAIL = process.env.DUTY_LATE_ADMIN_EMAIL || process.env.OWNER_EMAIL || 'admin@wiedisync.kscw.ch'
 
 // role → { assigned-member column, duty-team column, arrival minutes, sport, label }.
 // arrival minutes MUST match src/utils/dateHelpers.ts DUTY_ARRIVAL_MIN.
