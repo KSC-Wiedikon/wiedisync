@@ -17,7 +17,10 @@ import { Transform } from 'node:stream'
 
 const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET || ''
 
-const OWNER_EMAIL = process.env.OWNER_EMAIL || 'kontakt@kscw.ch'
+// Club admin mailbox — a real monitored inbox with an in-app tab (/admin/mailbox),
+// NOT a personal address. It is the reply-to on everything the club sends a family,
+// so a reply has to land somewhere the club actually reads.
+const OWNER_EMAIL = process.env.OWNER_EMAIL || 'admin@wiedisync.kscw.ch'
 
 /**
  * Look up sport admin emails from the members table.
