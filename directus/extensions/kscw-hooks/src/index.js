@@ -692,7 +692,15 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     // un-pushable — it is REVERTED at the next sync-down. The flag is the shield
     // as much as the licence. buildPushCsv drags the Mitgliederbeitrag cell along
     // with it, so the register can never end up 'Gratis' next to CHF 440.
-    for (const field of ['iban', 'ahv_nummer', 'register_status', 'eintritt', 'austritt', 'beitragskategorie']) {
+    // ⚠ The officials booleans joined on 2026-08-14 (Offiziellen Lizenz). They
+    // are here for the FLAG, not for the gate: that cell is fill-only and
+    // ignores clubdesk_push_changes entirely, so without an entry in this loop
+    // a scorer/OTR edit would set the column and then never queue a push at
+    // all — the AHV problem above, one field over. The non-empty rule reads
+    // them exactly right: `true` flags, `false` skips, and a downgrade is
+    // unpushable anyway because ClubDesk's import ignores an empty cell.
+    for (const field of ['iban', 'ahv_nummer', 'register_status', 'eintritt', 'austritt', 'beitragskategorie',
+      'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn1_bb', 'otn2_bb']) {
       if (!payload || !(field in payload) || !String(payload[field] || '').trim()) continue
       for (const id of keys) {
         try {
