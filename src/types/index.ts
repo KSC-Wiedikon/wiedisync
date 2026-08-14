@@ -233,11 +233,14 @@ export interface Member extends BaseRecord {
   // reads nor writes them — only tiers holding `members` fields=* (Sport Admin,
   // full admins) can.
   //
-  // `transfer_status` is only pending/done. "No transfer needed" is DERIVED from
+  // NULL means "nobody has looked", and the answer is then DERIVED from
   // `federation_of_origin` ('NONE' = never licensed with a national federation,
-  // 'CH' = already Swiss-licensed) and never stored, so the stored status can
-  // never contradict the federation answer it depends on.
-  transfer_status?: 'pending' | 'done' | null
+  // 'CH' = already Swiss-licensed → nothing to do). A stored value is a decision
+  // a person made and OVERRIDES that derivation in both directions (migration
+  // 320): 'not_needed' clears a foreign-origin member off the worklist without
+  // falsifying their own federation answer, and 'pending' chases a transfer for
+  // a CH-origin member Swiss Volley records as foreign.
+  transfer_status?: 'pending' | 'done' | 'not_needed' | null
   /** Stamped when the status becomes 'done'; CLEARED whenever it moves away, so
    *  the timestamp can never describe a state the row is no longer in. */
   transfer_done_at?: string | null

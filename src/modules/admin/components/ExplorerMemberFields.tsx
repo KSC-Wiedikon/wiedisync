@@ -114,31 +114,38 @@ interface Props {
 }
 
 /** Honest one-word type marker per kind — the chip on every field card. */
+/**
+ * Sentence case, not lowercase-plus-`uppercase`. These used to be lowercase
+ * strings shouted into "TEXT" / "BOOLEAN" by a CSS class; both halves of that
+ * broke CLAUDE.md's capitalisation rule, and neither survived a copy-paste out
+ * of the page. The three acronyms stay in capitals because that is how they are
+ * spelled, which is the rule's one exemption.
+ */
 const KIND_BADGE: Record<MemberFieldKind, string> = {
-  text: 'text',
-  longtext: 'text',
-  number: 'number',
-  bool: 'boolean',
-  date: 'date',
-  datetime: 'datetime',
-  json: 'json',
-  select: 'select',
-  multiselect: 'multi',
+  text: 'Text',
+  longtext: 'Text',
+  number: 'Number',
+  bool: 'Boolean',
+  date: 'Date',
+  datetime: 'Datetime',
+  json: 'JSON',
+  select: 'Select',
+  multiselect: 'Multi',
   // Free text with suggestions — the badge stays honest about the column type.
-  suggest: 'text',
-  email: 'email',
-  phone: 'phone',
-  ahv: 'ahv',
-  iban: 'iban',
-  postalcode: 'text',
-  photo: 'photo',
-  team: 'team',
-  teamMulti: 'teams',
-  countryMulti: 'country',
-  country: 'country',
-  positions: 'multi',
-  trainerLicences: 'multi',
-  readonlyMasked: 'secret',
+  suggest: 'Text',
+  email: 'Email',
+  phone: 'Phone',
+  ahv: 'AHV',
+  iban: 'IBAN',
+  postalcode: 'Text',
+  photo: 'Photo',
+  team: 'Team',
+  teamMulti: 'Teams',
+  countryMulti: 'Country',
+  country: 'Country',
+  positions: 'Multi',
+  trainerLicences: 'Multi',
+  readonlyMasked: 'Secret',
 }
 
 function valueEquals(a: unknown, b: unknown): boolean {
@@ -987,9 +994,9 @@ export default function ExplorerMemberFields({
     <>
     <section className="mb-4">
       <header className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        <h2 className="text-xs font-semibold tracking-wide text-muted-foreground">
           {t('explorerMemberFieldsTitle')}
-          <span className="ml-2 font-normal normal-case text-muted-foreground/70">
+          <span className="ml-2 font-normal text-muted-foreground/70">
             {visibleFieldCount} / {keys.length} {t('explorerMemberFieldsCount')}
           </span>
         </h2>
@@ -1095,9 +1102,9 @@ export default function ExplorerMemberFields({
             <section key={section.group.id}>
               <header className="mb-2 flex flex-wrap items-end justify-between gap-2 border-b border-border pb-1.5">
                 <div className="min-w-0">
-                  <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  <h3 className="text-[11px] font-semibold tracking-wide text-muted-foreground">
                     {section.group.label}
-                    <span className="ml-2 font-normal normal-case text-muted-foreground/60">
+                    <span className="ml-2 font-normal text-muted-foreground/60">
                       {section.visibleCount}
                     </span>
                   </h3>
@@ -1132,7 +1139,7 @@ export default function ExplorerMemberFields({
                   return (
                     <div key={subId} className="mb-3">
                       {entry.subsection?.label && (
-                        <h4 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                        <h4 className="text-[11px] font-semibold tracking-wide text-muted-foreground/70">
                           {entry.subsection.label}
                         </h4>
                       )}
@@ -1145,7 +1152,7 @@ export default function ExplorerMemberFields({
                 return (
                   <div key={subId} className="mb-3">
                     {entry.subsection?.label && (
-                      <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                      <h4 className="mb-2 text-[11px] font-semibold tracking-wide text-muted-foreground/70">
                         {entry.subsection.label}
                       </h4>
                     )}
@@ -1176,10 +1183,10 @@ export default function ExplorerMemberFields({
         {unmappedKeys.length > 0 && !focusing && (
           <section>
             <header className="mb-2 border-b border-amber-500/40 pb-1.5">
-              <h3 className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-400">
+              <h3 className="flex items-center gap-1.5 text-[11px] font-semibold tracking-wide text-amber-700 dark:text-amber-400">
                 <AlertTriangle className="h-3.5 w-3.5" />
                 {t('explorerFieldsUnmappedColumn')}
-                <span className="font-normal normal-case text-muted-foreground/60">
+                <span className="font-normal text-muted-foreground/60">
                   {unmappedKeys.length}
                 </span>
               </h3>
@@ -1348,7 +1355,7 @@ function FieldCard({
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-1">
           {readOnly && (
             <span
-              className="rounded bg-muted px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-muted-foreground"
+              className="rounded bg-muted px-1.5 py-0.5 text-[9px] tracking-wide text-muted-foreground"
               title={def.provenance}
             >
               {lockedByPrivilege
@@ -1358,18 +1365,18 @@ function FieldCard({
           )}
           {def.overwrittenBy && (
             <span
-              className="rounded bg-amber-100 px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-amber-800 dark:bg-amber-900/50 dark:text-amber-200"
+              className="rounded bg-amber-100 px-1.5 py-0.5 text-[9px] tracking-wide text-amber-800 dark:bg-amber-900/50 dark:text-amber-200"
               title={def.overwrittenBy}
             >
               {t('explorerFieldsOverwritten')}
             </span>
           )}
           {isDirty && (
-            <span className="rounded bg-primary/15 px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-primary">
+            <span className="rounded bg-primary/15 px-1.5 py-0.5 text-[9px] tracking-wide text-primary">
               {t('explorerMemberFieldsDirty')}
             </span>
           )}
-          <span className="rounded bg-muted px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-muted-foreground">
+          <span className="rounded bg-muted px-1.5 py-0.5 text-[9px] tracking-wide text-muted-foreground">
             {KIND_BADGE[def.kind]}
           </span>
         </div>

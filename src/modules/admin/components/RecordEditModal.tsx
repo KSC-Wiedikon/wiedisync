@@ -369,10 +369,10 @@ export default function RecordEditModal({
 
           {schema.map((field) => (
             <div key={field.id}>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+              <label className="block text-xs font-semibold tracking-wide text-gray-500 dark:text-gray-400">
                 {field.name}
                 {field.required && <span className="ml-1 text-red-500">*</span>}
-                <span className="ml-2 font-normal normal-case text-gray-400">{field.type}</span>
+                <span className="ml-2 font-normal text-gray-400">{field.type}</span>
               </label>
               {renderField(field)}
             </div>

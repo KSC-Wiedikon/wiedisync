@@ -77,9 +77,9 @@ describe('memberFieldSchema — completeness', () => {
     expect([...keys].sort()).toEqual(expected)
   })
 
-  it('has 112 real columns and 4 virtual fields', () => {
-    expect(MEMBERS_COLUMNS).toHaveLength(112)
-    expect(MEMBER_FIELDS.filter((f) => !f.virtual)).toHaveLength(112)
+  it('has 114 real columns and 4 virtual fields', () => {
+    expect(MEMBERS_COLUMNS).toHaveLength(114)
+    expect(MEMBER_FIELDS.filter((f) => !f.virtual)).toHaveLength(114)
     // The three team multiselects each write their own junction collection; the
     // Beitrag card is computed by the server's fee engine. None is a `members`
     // column, and none may ever reach a PATCH body.
@@ -104,7 +104,7 @@ describe('memberFieldSchema — completeness', () => {
     expect(count('contact')).toBe(7)
     expect(count('membership')).toBe(15) // 12 columns + the 3 team links
     expect(count('playing')).toBe(3)
-    expect(count('association')).toBe(21)
+    expect(count('association')).toBe(23)
     expect(count('roles_access')).toBe(3)
     expect(count('finance')).toBe(19) // 18 columns + __fee_amount
     expect(count('privacy')).toBe(6)
@@ -115,7 +115,7 @@ describe('memberFieldSchema — completeness', () => {
 
     const sub = (id: string) => MEMBER_FIELDS.filter((f) => f.subsection === id).length
     expect(sub('assoc_common')).toBe(7)
-    expect(sub('assoc_vb')).toBe(9)
+    expect(sub('assoc_vb')).toBe(11)
     expect(sub('assoc_bb')).toBe(5)
   })
 
@@ -547,7 +547,7 @@ describe('buildMemberFieldSections', () => {
     // The hidden block's fields are still returned — hiding is visual only, so
     // a dirty value in there is still counted and still PATCHed.
     expect(bySub.get('assoc_bb')!.fields).toHaveLength(5)
-    expect(assoc.visibleCount).toBe(16)
+    expect(assoc.visibleCount).toBe(18)
   })
 
   it('mirrors that for a basketball member', () => {
@@ -568,7 +568,7 @@ describe('buildMemberFieldSections', () => {
       .filter((s) => s.group.id === 'association')
     expect(assoc.entries.every((e) => !e.hiddenBySport)).toBe(true)
     expect(assoc.hasHiddenSport).toBe(false)
-    expect(assoc.visibleCount).toBe(21)
+    expect(assoc.visibleCount).toBe(23)
   })
 
   it('un-hides a sport the admin explicitly revealed', () => {
@@ -578,7 +578,7 @@ describe('buildMemberFieldSections', () => {
       revealedSports: new Set<'volleyball' | 'basketball'>(['basketball']),
     }).filter((s) => s.group.id === 'association')
     expect(assoc.entries.every((e) => !e.hiddenBySport)).toBe(true)
-    expect(assoc.visibleCount).toBe(21)
+    expect(assoc.visibleCount).toBe(23)
   })
 
   it('files an unmapped column under system rather than losing it', () => {

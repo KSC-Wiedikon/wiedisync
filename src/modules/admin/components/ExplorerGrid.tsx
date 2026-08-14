@@ -41,6 +41,8 @@ import {
   parseCountryCodes, serializeCountryCodes,
 } from '../../../utils/countries'
 import { LANGUAGES } from '../../../i18n/languageConfig'
+import { coercePositions, getPositionI18nKey } from '../../../utils/memberPositions'
+import { MEMBER_MULTI_FIELDS, optionLabel } from './memberFieldOptions'
 import { useConfirm } from '../../../components/ConfirmProvider'
 import CountryMultiSelect from '../../../components/CountryMultiSelect'
 import { FilePreviewDialog } from '../../../components/FilePreview'
@@ -149,9 +151,14 @@ interface ColDef<K extends string = ColKey> {
 // Enum option lists for inline-editable select cells. Sex is stored m/f;
 // language is stored as the backend value (german / english / …) shown by its
 // native name.
+//
+// The labels are the ones MEMBER_SELECT_FIELDS uses in the member detail, so
+// the same column reads the same way in both places — and neither shows the
+// stored code, which is lowercase in the database and would break the
+// sentence-case rule the moment it reached the screen.
 const SEX_OPTIONS: SelectOption[] = [
-  { value: 'm', label: 'm' },
-  { value: 'f', label: 'f' },
+  { value: 'm', label: 'Male' },
+  { value: 'f', label: 'Female' },
 ]
 const LANGUAGE_OPTIONS: SelectOption[] = LANGUAGES.map((l) => ({ value: l.backendValue, label: l.nativeName }))
 
@@ -475,6 +482,14 @@ export default function ExplorerGrid({
     return v === NO_FEDERATION ? t('admin:federationNone') : (countryLabel(v) || v)
   }, [t])
 
+  // Positions ARE localized (the roster and the profile picker show the same
+  // names), unlike the role / sex lists, whose one label set in
+  // memberFieldOptions is English everywhere the explorer renders it.
+  const positionLabel = useMemo(() => (position: string): string => {
+    const key = getPositionI18nKey(position)
+    return key ? t(`teams:${key}`) : position
+  }, [t])
+
   // Options for the inline federation select — localized, so rebuilt on a
   // language switch. 'None' leads; the rest is favourites-first countryOptions.
   const federationOptions = useMemo<SelectOption[]>(
@@ -573,6 +588,29 @@ export default function ExplorerGrid({
         }
         case 'federation_of_origin':
           return federationLabel(rawField(m, 'federation_of_origin') as string | null)
+        // The four columns whose stored value is a lowercase code. Without a
+        // label they reach the screen — and the Excel export — as `staff_only`,
+        // `["user", "vorstand"]`, `m` and `german`. Each already has exactly one
+        // label list elsewhere in the app, and these reuse it rather than
+        // inventing a second: positions from memberPositions.ts (the same names
+        // the roster and the profile picker show), roles and sex from
+        // memberFieldOptions (the same labels the member detail shows), and
+        // languages from languageConfig, by native name.
+        case 'position':
+          return coercePositions(rawField(m, 'position'))
+            .map((p) => positionLabel(p))
+            .join(', ')
+        case 'role': {
+          const raw = rawField(m, 'role')
+          const codes = Array.isArray(raw) ? raw.map(String) : raw ? [String(raw)] : []
+          return codes.map((c) => optionLabel(MEMBER_MULTI_FIELDS.role, c)).join(', ')
+        }
+        case 'sex':
+          return optionLabel(SEX_OPTIONS, String(rawField(m, 'sex') ?? ''))
+        case 'language': {
+          const code = String(rawField(m, 'language') ?? '')
+          return code ? optionLabel(LANGUAGE_OPTIONS, code) : ''
+        }
         default: {
           const raw = rawField(m, key)
           if (raw == null || raw === '') return ''
@@ -581,7 +619,7 @@ export default function ExplorerGrid({
         }
       }
     }
-  }, [rowsByMember, teamById, cache.memberCoachTeams, cache.memberTrTeams, cache.clubdeskInfo, cache.clubdeskSync, cache.regFiles, sportLabel, syncLabel, federationLabel])
+  }, [rowsByMember, teamById, cache.memberCoachTeams, cache.memberTrTeams, cache.clubdeskInfo, cache.clubdeskSync, cache.regFiles, sportLabel, syncLabel, federationLabel, positionLabel])
 
   // ── Teams view: cell text ────────────────────────────────────────
 
@@ -1339,12 +1377,12 @@ export default function ExplorerGrid({
           return (
             <div key={`${sec.sport}-${sec.gender}`} className={newSport ? 'mt-2' : 'mt-1'}>
               {newSport && (
-                <div className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                <div className="px-2 py-1 text-[11px] font-semibold tracking-wide text-muted-foreground">
                   {sportLabel(sec.sport)}
                 </div>
               )}
               {genderKey && (
-                <div className="px-2 pb-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
+                <div className="px-2 pb-0.5 text-[10px] font-medium tracking-wide text-muted-foreground/70">
                   {t(`admin:${genderKey}`)}
                 </div>
               )}
@@ -1426,7 +1464,7 @@ export default function ExplorerGrid({
             </span>
           )}
           {!canEdit && (
-            <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+            <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] tracking-wide text-muted-foreground">
               {t('admin:explorerGridReadOnly')}
             </span>
           )}

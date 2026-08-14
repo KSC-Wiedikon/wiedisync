@@ -117,7 +117,7 @@ export default function ExplorerFieldSearch({ value, onChange }: Props) {
                     <span className="flex w-full items-center gap-1.5">
                       <span className="truncate text-sm font-medium text-foreground">{def.label}</span>
                       {def.readOnly && (
-                        <span className="shrink-0 rounded bg-muted px-1 text-[9px] uppercase tracking-wide text-muted-foreground">
+                        <span className="shrink-0 rounded bg-muted px-1 text-[9px] tracking-wide text-muted-foreground">
                           {t('explorerDatapointReadOnly')}
                         </span>
                       )}

@@ -181,6 +181,16 @@ export default function TableBrowser({ collections, loadingCollections }: TableB
   }, [relationCols, rows, collections])
 
   // Group collections by type
+  //
+  // The three keys are Directus's own lowercase codes, and they used to reach
+  // the sidebar as raw text shouted into capitals by a CSS class. With the
+  // shouting gone they need real labels — a bare `auth` heading is a stored code
+  // on screen, which is the one thing the sentence-case rule is about.
+  const COLLECTION_TYPE_LABEL: Record<string, string> = {
+    auth: 'Directus system',
+    base: 'Club data',
+    view: 'Views',
+  }
   const grouped = useMemo(() => {
     const groups: Record<string, CollectionInfo[]> = { auth: [], base: [], view: [] }
     for (const col of collections) {
@@ -241,8 +251,8 @@ export default function TableBrowser({ collections, loadingCollections }: TableB
             Object.entries(grouped).map(
               ([type, cols]) =>
                 cols.length > 0 && (
-                  <div key={type}>
-                    <p className="sticky top-0 bg-gray-50 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:bg-gray-800 dark:text-gray-500">
+                  <div key={COLLECTION_TYPE_LABEL[type] ?? type}>
+                    <p className="sticky top-0 bg-gray-50 px-3 py-1.5 text-[10px] font-bold tracking-wide text-gray-400 dark:bg-gray-800 dark:text-gray-500">
                       {type}
                     </p>
                     {cols.map((c) => (

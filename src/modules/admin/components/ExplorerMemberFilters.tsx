@@ -355,7 +355,7 @@ function positionKey(p: MemberPosition): string {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="mb-3 border-t border-border pt-2 first:border-t-0 first:pt-0">
-      <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+      <div className="mb-1.5 text-[11px] font-semibold tracking-wide text-muted-foreground">
         {title}
       </div>
       {children}

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
-  AlertTriangle, Check, CheckCircle2, ChevronRight, Clock, Copy, ExternalLink, HelpCircle,
+  AlertTriangle, Ban, Check, CheckCircle2, ChevronRight, Clock, Copy, ExternalLink, HelpCircle,
   Info, Link2, Mail, RefreshCcw, RadioTower, ShieldCheck, X,
 } from 'lucide-react'
 import {
@@ -18,6 +18,7 @@ import {
   NO_FEDERATION, countryFlag, countryLabel, formatCountryCodes, parseCountryCodes,
 } from '../../utils/countries'
 import { federationDisplay } from '../../utils/federations'
+import { bucketOf, federationBucketOf } from './utils/transferBucket'
 import { formatDateZurich, formatDateTimeCompact } from '../../utils/dateHelpers'
 import { memberName, relId } from '../../utils/relations'
 import type { MemberTeam, Team } from '../../types'
@@ -71,11 +72,19 @@ type VisCheckStatus = {
 const VIS_TRANSFERS_URL = 'https://app.fivb.com/volley/transfers/'
 
 /**
- * Stored status. Only pending/done exist — "no transfer needed" is DERIVED from
- * `federation_of_origin` ('NONE' | 'CH'), never stored, so a member's answer and
- * their workflow state can never disagree (migration 235 narrowed the CHECK).
+ * Stored status (migration 320's CHECK). NULL is not "nothing to do" — it is
+ * "nobody has decided", and the page then DERIVES the answer (see
+ * `derivedNotNeeded`). A stored value is a decision a person made and outranks
+ * that derivation in both directions:
+ *
+ *   'not_needed' — ruled out by hand. The way to clear somebody off the worklist
+ *                  WITHOUT falsifying `federation_of_origin`, which is the
+ *                  member's own answer about their history and not a checkbox
+ *                  for silencing a task list.
+ *   'pending'    — being chased, even where the derivation says otherwise.
+ *   'done'       — the certificate landed.
  */
-type TransferStatus = 'pending' | 'done'
+type TransferStatus = 'pending' | 'done' | 'not_needed'
 
 /** The `members` columns this page reads. Kept explicit rather than `*` so the
  *  page never pulls IBAN / AHV / address PII it has no use for.
@@ -188,52 +197,6 @@ interface VmRow {
   nationality_code?: string | null
 }
 
-/**
- * Which bucket a member falls into. Derived, never stored.
- *
- * `federation_of_origin` is the association that held the member's licence **at
- * age 14** (Swiss Volley / FIVB Sports Regulations) — NOT simply the first
- * federation they ever played under. Someone licensed in Italy at 8 and by Swiss
- * Volley at 14 has federation of origin CH.
- *
- *  - `needs`  — licensed at 14 by a federation that is neither 'NONE' nor 'CH'.
- *               This maps 1:1 onto Swiss Volley's transfer trigger: an ITC is
- *               required for anyone licensed abroad at 14, "egal ob der Spieler
- *               seit längerem in der Schweiz wohnt, nur Amateur ist, keinen
- *               Vertrag hat" — including RL/JL, where the fee is CHF 0 but the
- *               transfer is still mandatory. The actionable cohort.
- *  - `swiss`  — 'CH': Swiss Volley held the age-14 licence, so no INTERNATIONAL
- *               transfer applies. Split out from `settled` because Swiss Volley
- *               is a federation in VIS with its own player index exactly like
- *               the others (`vis_federations` vis_no 189 / SUI) — so these
- *               members can be grouped, contacted and VIS-checked under it
- *               rather than disappearing into a bare tally. No transfer control:
- *               there is no transfer to have a status about.
- *  - `settled`— 'NONE' — held no national-federation licence at 14, because a
- *               purely recreational body such as CSI/UISP/PGS is not an
- *               FIVB/FIBA member. Counted only; there is no federation to group
- *               them under and no index to look them up in.
- *  - `clarify`— never answered, but holds a non-Swiss nationality and is an
- *               active KSCW member. A question to ask, not a pending transfer.
- *               Nationality is only a heuristic for WHOM to ask — it is not the
- *               trigger; the age-14 licence is.
- *  - `ignore` — nothing to act on (Swiss nationality, or inactive).
- */
-type Bucket = 'needs' | 'swiss' | 'settled' | 'clarify' | 'ignore'
-
-function bucketOf(m: TransferMember): Bucket {
-  const fed = String(m.federation_of_origin ?? '').trim().toUpperCase()
-  if (fed === 'CH') return 'swiss'
-  if (fed) return fed === NO_FEDERATION ? 'settled' : 'needs'
-  // No answer yet. Only worth chasing for active members holding a nationality
-  // we know is not Swiss — a Swiss passport makes a Swiss age-14 licence by far
-  // the likeliest answer, so those are not worth a chase list.
-  if (!m.kscw_membership_active) return 'ignore'
-  const codes = parseCountryCodes(m.nationalitaet_codes)
-  if (codes.length === 0 || codes.includes('CH')) return 'ignore'
-  return 'clarify'
-}
-
 interface Group {
   key: string
   label: string
@@ -244,7 +207,7 @@ interface Group {
  * What a rendered group of members is, which decides every column and control
  * in it. One value per cohort — see `renderTable` for the full mapping.
  */
-type TableMode = 'needs' | 'clarify' | 'swiss'
+type TableMode = 'needs' | 'clarify' | 'swiss' | 'notNeeded'
 
 /** Group rows by a key, ordered by member count desc, then label. */
 function groupRows(
@@ -801,6 +764,26 @@ export default function TransfersPage() {
   }, [federationsRaw])
 
   /**
+   * "Swiss Volley licences this member as Swiss" — the register's own answer,
+   * mapped through the VIS federation directory rather than string-matching
+   * 'SUI', so an IOC code the directory does not know yields no claim instead of
+   * a wrong one.
+   *
+   * ⚠ `nationality_code` is the licence's PLAYING nationality, not citizenship
+   * (see VmRow). That is exactly the right column here: it is what Swiss Volley
+   * enforces eligibility on, so 'SUI' means they will not ask us for an ITC —
+   * whether because none was ever required, or because one already completed.
+   * Both land on "nothing to chase", which is all this predicate claims.
+   *
+   * ⚠ It removes members from the worklist, so it must never fire on absence.
+   * No VM row, no code, or a code the directory cannot resolve all yield false.
+   */
+  const vmSaysSwiss = useCallback((m: TransferMember): boolean => {
+    const code = vmPlaysAsByMember.get(String(m.id))
+    return !!code && isoByFivbCode.get(code) === 'CH'
+  }, [vmPlaysAsByMember, isoByFivbCode])
+
+  /**
    * Where OUR federation of origin and VOLLEYMANAGER'S disagree.
    *
    * This is the one comparison that can move a member between "owes an ITC" and
@@ -866,7 +849,7 @@ export default function TransfersPage() {
     let guestOnly = 0
     let basketball = 0
     for (const m of members) {
-      const bucket = bucketOf(m)
+      const bucket = bucketOf(m, vmSaysSwiss(m))
       if (bucket !== 'needs' && bucket !== 'clarify') continue
       const id = String(m.id)
       // Routed through `playsVolleyball`, not through `sportsByMember` directly,
@@ -881,7 +864,7 @@ export default function TransfersPage() {
       else noTeam += 1
     }
     return { noTeam, guestOnly, basketball }
-  }, [members, playsVolleyball, sportsByMember, guestSportsByMember])
+  }, [members, playsVolleyball, sportsByMember, guestSportsByMember, vmSaysSwiss])
 
   /**
    * The volleyball cohorts. `u20` is a COUNT, not a list: those members are
@@ -889,17 +872,26 @@ export default function TransfersPage() {
    * no per-member state to keep and nothing to work — but they are reported in
    * the header, because an exemption that is invisible is indistinguishable
    * from a bug.
+   *
+   * `notNeeded` is a LIST for the same reason turned up a level. These are
+   * members the federation column puts squarely on the worklist and an override
+   * takes off it, so they are the only cohort whose membership is a judgement
+   * rather than a fact — the one place where "the list got shorter" could hide a
+   * mistake. They get a table, a count and their status control, so the decision
+   * is visible and reversible. Members the federation column ALREADY settled
+   * ('NONE') stay in the bare `settled` tally: nothing was overridden for them.
    */
   const cohorts = useMemo(() => {
     const acc = {
       needs: [] as TransferMember[],
       clarify: [] as TransferMember[],
       swiss: [] as TransferMember[],
+      notNeeded: [] as TransferMember[],
       settled: 0,
       u20: 0,
     }
     for (const m of members) {
-      const bucket = bucketOf(m)
+      const bucket = bucketOf(m, vmSaysSwiss(m))
       if (bucket === 'ignore') continue
       const id = String(m.id)
       if (!playsVolleyball(id)) continue
@@ -913,10 +905,11 @@ export default function TransfersPage() {
       if (bucket === 'needs') acc.needs.push(m)
       else if (bucket === 'clarify') acc.clarify.push(m)
       else if (bucket === 'swiss') acc.swiss.push(m)
+      else if (bucket === 'settled' && federationBucketOf(m) !== 'settled') acc.notNeeded.push(m)
       else acc.settled += 1
     }
     return acc
-  }, [members, playsVolleyball, u20OnlyMembers])
+  }, [members, playsVolleyball, u20OnlyMembers, vmSaysSwiss])
 
   // ── Licence validation ────────────────────────────────────────────
   // Swiss Volley validates the licence once the ITC has arrived, reconciled every
@@ -1033,6 +1026,21 @@ export default function TransfersPage() {
       (code) => federationDisplay(code, SPORT) || code,
     ),
     [cohorts.swiss],
+  )
+  /**
+   * The cleared cohort, grouped by the federation that PUT them on the worklist
+   * — not by the reason they came off it. That is the question an admin is
+   * actually re-checking here ("did we really rule out all four Italians?"), and
+   * it keeps the group headers and the VIS split reading identically to the
+   * worklist above.
+   */
+  const notNeededGroups = useMemo(
+    () => groupRows(
+      cohorts.notNeeded,
+      (m) => String(m.federation_of_origin ?? '').trim().toUpperCase(),
+      (code) => federationDisplay(code, SPORT) || code || t('trUnknownFederation'),
+    ),
+    [cohorts.notNeeded, t],
   )
   const clarifyGroups = useMemo(
     () => groupRows(
@@ -1175,7 +1183,30 @@ export default function TransfersPage() {
    * actual transfers off the screen. Its header still carries the count and the
    * VIS split, so the summary is readable without expanding anything.
    */
-  const [swissOpen, setSwissOpen] = useState(false)
+  /**
+   * Which collapsible groups are expanded, keyed `mode:groupKey`.
+   *
+   * ⚠ Per GROUP, not per cohort. The Swiss cohort is always exactly one group
+   * so a single boolean used to be enough; the cleared cohort is one group per
+   * federation, and a shared boolean made them open and close each other —
+   * clicking the second one closed the first.
+   *
+   * The cleared cohort starts closed for the opposite reason to the Swiss one:
+   * it is SMALL, and it is a record of decisions already taken, so it belongs
+   * under the worklist rather than in front of it. Its section header carries
+   * the count, which is the part that has to be visible — a worklist that got
+   * shorter without saying so is the failure mode it exists to prevent.
+   */
+  const [openGroups, setOpenGroups] = useState<ReadonlySet<string>>(new Set())
+  const setGroupOpen = useCallback((key: string, open: boolean) => {
+    setOpenGroups((prev) => {
+      if (prev.has(key) === open) return prev
+      const next = new Set(prev)
+      if (open) next.add(key)
+      else next.delete(key)
+      return next
+    })
+  }, [])
 
   // Legal name, not the nickname: this is an administrative attribution record,
   // the same convention as `confirmed_by_name` in game-scheduling.
@@ -1273,6 +1304,14 @@ export default function TransfersPage() {
 
   const nothingToDo = cohorts.needs.length === 0 && cohorts.clarify.length === 0
 
+  const STATUS_ON_CLASS: Record<TransferStatus, string> = {
+    done: 'border-green-300 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-900/30 dark:text-green-300',
+    pending: 'border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-300',
+    // Slate, not green: "we decided there is nothing to do" must not look like
+    // "the certificate arrived". One is a conclusion, the other is evidence.
+    not_needed: 'border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-600 dark:bg-slate-700/50 dark:text-slate-200',
+  }
+
   const statusButton = (
     m: TransferMember,
     value: TransferStatus,
@@ -1286,17 +1325,82 @@ export default function TransfersPage() {
         onClick={() => { void setStatus(m, value) }}
         disabled={savingId === String(m.id)}
         aria-pressed={on}
-        className={`inline-flex min-h-[44px] items-center justify-center gap-1 rounded-md border px-2.5 py-1 text-xs font-medium disabled:opacity-50 sm:min-h-0 ${
+        className={`inline-flex min-h-[44px] items-center justify-center gap-1 whitespace-nowrap rounded-md border px-2.5 py-1 text-xs font-medium disabled:opacity-50 sm:min-h-0 ${
           on
-            ? value === 'done'
-              ? 'border-green-300 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-900/30 dark:text-green-300'
-              : 'border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-300'
+            ? STATUS_ON_CLASS[value]
             : 'border-gray-200 text-gray-600 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700'
         }`}
       >
         <Icon className="h-3.5 w-3.5" aria-hidden="true" />
         {label}
       </button>
+    )
+  }
+
+  /**
+   * The whole status control for one row: the three buttons, the clear, the
+   * attribution line for a completed transfer — and, when nothing is stored,
+   * the DERIVED answer, said out loud.
+   *
+   * Saying it is the point. An empty control reads as "not done yet" whichever
+   * way the derivation actually went, so a member Swiss Volley already licences
+   * as Swiss looked exactly like one nobody had got to. The pill names the
+   * source, because the two derivations are corrected in completely different
+   * places: ours in this app, Swiss Volley's by asking them.
+   */
+  const statusCell = (m: TransferMember) => {
+    const id = String(m.id)
+    // Only the two federation answers that MEAN "nothing to do" derive anything.
+    // A member who has never answered derives nothing — that is what the whole
+    // `clarify` cohort is, and telling them "no transfer needed" would answer a
+    // question nobody has asked yet.
+    const ourVerdict = federationBucketOf(m)
+    const derived = m.transfer_status
+      ? null
+      : vmSaysSwiss(m)
+        ? 'volleymanager'
+        : (ourVerdict === 'swiss' || ourVerdict === 'settled') ? 'ours' : null
+    return (
+      <>
+        {/* Stacked on phones, inline from sm — CLAUDE.md's action-toggle
+            compaction rule. */}
+        <div className="inline-flex flex-col gap-1.5 sm:flex-row sm:items-center">
+          {statusButton(m, 'pending', t('trStatusPending'), Clock)}
+          {statusButton(m, 'done', t('trStatusDone'), CheckCircle2)}
+          {statusButton(m, 'not_needed', t('trStatusNotNeeded'), Ban)}
+          {m.transfer_status && (
+            <button
+              type="button"
+              onClick={() => { void setStatus(m, null) }}
+              disabled={savingId === id}
+              aria-label={t('trClearStatus')}
+              title={t('trClearStatus')}
+              className="inline-flex min-h-[44px] items-center justify-center rounded-md border border-gray-200 px-2 py-1 text-gray-500 hover:bg-gray-100 disabled:opacity-50 sm:min-h-0 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-700"
+            >
+              <X className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
+          )}
+        </div>
+        {derived && (
+          <p
+            className="mt-1 flex items-start gap-1 text-xs whitespace-normal text-gray-500 dark:text-gray-400"
+            title={derived === 'volleymanager' ? t('trDerivedVmHint') : t('trDerivedOursHint')}
+          >
+            <Ban className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            {derived === 'volleymanager' ? t('trDerivedVm') : t('trDerivedOurs')}
+          </p>
+        )}
+        {m.transfer_status === 'done' && m.transfer_done_at && (
+          <p className="mt-1 text-xs whitespace-normal text-gray-400 dark:text-gray-500">
+            {m.transfer_done_by_name
+              ? t('trDoneByOn', {
+                  date: formatDateTimeCompact(m.transfer_done_at),
+                  name: m.transfer_done_by_name,
+                })
+              : t('trDoneOn', { date: formatDateTimeCompact(m.transfer_done_at) })}
+          </p>
+        )}
+      </>
     )
   }
 
@@ -1618,13 +1722,27 @@ export default function TransfersPage() {
    *                "asked on …" goes), no VIS (never checked), and no federation
    *                bar: a nationality must not be addressed as though it were a
    *                federation-of-origin answer.
-   *  - `swiss`   — Swiss Volley's own players. VIS presence and the Swiss Volley
-   *                contact, no status, and COLLAPSED — see `swissOpen`.
+   *  - `swiss`   — Swiss Volley's own players. VIS presence, the Swiss Volley
+   *                contact, the status control (every row deriving "not needed"
+   *                until somebody says otherwise), and COLLAPSED.
+   *  - `notNeeded` — taken off the worklist by an override. Reads exactly like
+   *                `needs`, including the licence cross-check, so the decision
+   *                can be re-checked against the same evidence that informed it.
+   *                Collapsed: it is a record, not a queue.
    */
   const renderTable = (groups: Group[], mode: TableMode) => {
-    const withStatus = mode === 'needs'
+    // The Swiss cohort carries the control too, and that is the ONLY way to
+    // record the dangerous direction of a Volleymanager disagreement: our record
+    // says CH, theirs says a foreign federation, and until there was a control
+    // on these rows the transfer nobody was chasing could not even be marked as
+    // being chased. Its rows still derive "not needed" by default.
+    const withStatus = mode !== 'clarify'
+    // The licence cross-check stays off the Swiss reference list: its two
+    // call-outs ("not eligible", "probably done") are both about a transfer, and
+    // it would add a column to 483 rows that have none.
+    const withLicence = mode === 'needs' || mode === 'notNeeded'
     const withVis = mode !== 'clarify'
-    const collapsible = mode === 'swiss'
+    const collapsible = mode === 'swiss' || mode === 'notNeeded'
     const headerClass = 'flex min-h-[44px] flex-wrap items-center gap-x-3 gap-y-1.5 px-4 py-2.5'
     return (
     <div className="space-y-4">
@@ -1635,6 +1753,8 @@ export default function TransfersPage() {
         // group is noise; the ones that are there all mean something. On the
         // collapsed Swiss group this header is the whole point: the split is
         // readable without expanding 483 rows.
+        const groupKey = `${mode}:${g.key}`
+        const open = openGroups.has(groupKey)
         const inVis = g.rows.filter((m) => m.in_vis === true).length
         const notFound = g.rows.filter((m) => m.in_vis === false).length
         const unchecked = g.rows.length - inVis - notFound
@@ -1678,7 +1798,7 @@ export default function TransfersPage() {
                   <TableHead>{t('trColMember')}</TableHead>
                   <TableHead className="hidden sm:table-cell">{t('trColNationality')}</TableHead>
                   <TableHead className="hidden md:table-cell">{t('trColLicence')}</TableHead>
-                  {withStatus && <TableHead>{t('trColLicenceValidated')}</TableHead>}
+                  {withLicence && <TableHead>{t('trColLicenceValidated')}</TableHead>}
                   {withVis && <TableHead>{t('trColInVis')}</TableHead>}
                   {withStatus && <TableHead>{t('trColStatus')}</TableHead>}
                   <TableHead>{t('trColNote')}</TableHead>
@@ -1716,43 +1836,14 @@ export default function TransfersPage() {
                           </span>
                         )}
                       </TableCell>
-                      {withStatus && (
+                      {withLicence && (
                         <TableCell className="align-top">{licenceCell(m)}</TableCell>
                       )}
                       {withVis && (
                         <TableCell className="align-top">{visCell(m, mode === 'swiss')}</TableCell>
                       )}
                       {withStatus && (
-                        <TableCell className="align-top">
-                          {/* Stacked on phones, inline from sm — CLAUDE.md's
-                              action-toggle compaction rule. */}
-                          <div className="inline-flex flex-col gap-1.5 sm:flex-row sm:items-center">
-                            {statusButton(m, 'pending', t('trStatusPending'), Clock)}
-                            {statusButton(m, 'done', t('trStatusDone'), CheckCircle2)}
-                            {m.transfer_status && (
-                              <button
-                                type="button"
-                                onClick={() => { void setStatus(m, null) }}
-                                disabled={savingId === id}
-                                aria-label={t('trClearStatus')}
-                                title={t('trClearStatus')}
-                                className="inline-flex min-h-[44px] items-center justify-center rounded-md border border-gray-200 px-2 py-1 text-gray-500 hover:bg-gray-100 disabled:opacity-50 sm:min-h-0 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-700"
-                              >
-                                <X className="h-3.5 w-3.5" aria-hidden="true" />
-                              </button>
-                            )}
-                          </div>
-                          {m.transfer_status === 'done' && m.transfer_done_at && (
-                            <p className="mt-1 text-xs whitespace-normal text-gray-400 dark:text-gray-500">
-                              {m.transfer_done_by_name
-                                ? t('trDoneByOn', {
-                                    date: formatDateTimeCompact(m.transfer_done_at),
-                                    name: m.transfer_done_by_name,
-                                  })
-                                : t('trDoneOn', { date: formatDateTimeCompact(m.transfer_done_at) })}
-                            </p>
-                          )}
-                        </TableCell>
+                        <TableCell className="align-top">{statusCell(m)}</TableCell>
                       )}
                       <TableCell className="align-top">
                         <input
@@ -1789,7 +1880,11 @@ export default function TransfersPage() {
             // the Swiss group is hundreds of rows, each with a text input, and a
             // native <details> only HIDES its content — it still mounts it, which
             // would make every page load pay for a table nobody opened.
-            <details className="group" open={swissOpen} onToggle={(e) => setSwissOpen(e.currentTarget.open)}>
+            <details
+              className="group"
+              open={open}
+              onToggle={(e) => setGroupOpen(groupKey, e.currentTarget.open)}
+            >
               <summary
                 className={`${headerClass} cursor-pointer list-none [&::-webkit-details-marker]:hidden`}
               >
@@ -1799,7 +1894,7 @@ export default function TransfersPage() {
                 />
                 {header}
               </summary>
-              {swissOpen && body}
+              {open && body}
             </details>
           ) : (
             <>
@@ -1925,6 +2020,7 @@ export default function TransfersPage() {
                   <TableHead>{t('trFooConflictColOurs')}</TableHead>
                   <TableHead>{t('trFooConflictColVm')}</TableHead>
                   <TableHead>{t('trFooConflictColMeaning')}</TableHead>
+                  <TableHead>{t('trFooConflictColDecision')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1958,6 +2054,35 @@ export default function TransfersPage() {
                             ? t('trFooConflictMeaningDiffers')
                             : t('trFooConflictMeaningNotNeeded')}
                       </span>
+                    </TableCell>
+                    {/* The decision, taken where the evidence is. Both remedies
+                        the description offers — correct our record, or ask Swiss
+                        Volley to correct theirs — are slow and happen elsewhere;
+                        meanwhile the member is on, or off, a worklist. These two
+                        buttons say which, on the row that raised the question.
+
+                        ⚠ Nothing here touches `federation_of_origin`. The
+                        disagreement is the evidence that a register needs
+                        fixing, and a page that quietly adopted one side would
+                        destroy exactly that. The row stays in this table after a
+                        decision, showing what was decided. */}
+                    <TableCell className="whitespace-normal">
+                      <div className="inline-flex flex-col gap-1.5 sm:flex-row sm:items-center">
+                        {statusButton(c.m, 'not_needed', t('trStatusNotNeeded'), Ban)}
+                        {statusButton(c.m, 'pending', t('trStatusPending'), Clock)}
+                        {c.m.transfer_status && (
+                          <button
+                            type="button"
+                            onClick={() => { void setStatus(c.m, null) }}
+                            disabled={savingId === String(c.m.id)}
+                            aria-label={t('trClearStatus')}
+                            title={t('trClearStatus')}
+                            className="inline-flex min-h-[44px] items-center justify-center rounded-md border border-gray-200 px-2 py-1 text-gray-500 hover:bg-gray-100 disabled:opacity-50 sm:min-h-0 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-700"
+                          >
+                            <X className="h-3.5 w-3.5" aria-hidden="true" />
+                          </button>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -2091,8 +2216,30 @@ export default function TransfersPage() {
           </>
         )}
 
-        {/* Cohort C — Swiss Volley's own players. No transfer status: a Swiss
-            age-14 licence means no INTERNATIONAL transfer exists to track. */}
+        {/* Cohort C — taken OFF the worklist. Rendered outside the
+            `nothingToDo` branch on purpose: a page that shows "nothing to do"
+            has to be able to show why, or the two states — nobody needs a
+            transfer, and everybody was ruled out — are indistinguishable. */}
+        {cohorts.notNeeded.length > 0 && (
+          <section>
+            <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white">
+              <Ban className="h-4 w-4 text-slate-500 dark:text-slate-400" aria-hidden="true" />
+              {t('trNotNeededTitle')}
+              <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700 dark:bg-slate-700 dark:text-slate-200">
+                {cohorts.notNeeded.length}
+              </span>
+            </h2>
+            <p className="mt-1 mb-3 text-sm text-gray-500 dark:text-gray-400">
+              {t('trNotNeededDescription')}
+            </p>
+            {renderTable(notNeededGroups, 'notNeeded')}
+          </section>
+        )}
+
+        {/* Cohort D — Swiss Volley's own players. The status control is here too
+            (see `renderTable`), but every row derives "not needed" until
+            somebody says otherwise: a Swiss age-14 licence means no
+            INTERNATIONAL transfer exists to track. */}
         {cohorts.swiss.length > 0 && (
           <section>
             <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white">
