@@ -18,7 +18,7 @@ import { useMutation } from '../../hooks/useMutation'
 import { useTeams } from '../../hooks/useTeams'
 import { useGameConflicts } from './hooks/useGameConflicts'
 import { buildManualGamePayload, type ManualGamePayloadInput } from './utils/manualGamePayload'
-import { getSeasonYear, toDateKey } from '../../utils/dateUtils'
+import { toDateKey } from '../../utils/dateUtils'
 import { asObj } from '../../utils/relations'
 import type { Hall, Team, Game, HallSlot } from '../../types'
 import type { SportFilter, GameTypeFilter } from '../../types/calendar'
@@ -47,11 +47,6 @@ interface ManualGameModalProps {
 
 function defaultTime(): string {
   return '16:00'
-}
-
-function toSeasonLabel(date: string): string {
-  const year = getSeasonYear(new Date(date + 'T00:00:00'))
-  return `${year}/${year + 1}`
 }
 
 export default function ManualGameModal({
@@ -417,7 +412,9 @@ export default function ManualGameModal({
     }
 
     try {
-      const payload = buildManualGamePayload(input, selectedTeam.name, toSeasonLabel(date))
+      // The season is stamped inside the builder, from the game date — see the
+      // warning there before ever passing one in again.
+      const payload = buildManualGamePayload(input, selectedTeam.name)
       if (isEditMode && editingGame) {
         // On edit, keep the original game_id + source so we don't rename in-place.
         const { game_id: _gid, ...rest } = payload

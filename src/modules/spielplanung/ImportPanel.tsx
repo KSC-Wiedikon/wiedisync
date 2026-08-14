@@ -7,7 +7,6 @@ import { useCollection } from '../../lib/query'
 import { useMutation } from '../../hooks/useMutation'
 import { useTeams } from '../../hooks/useTeams'
 import { buildManualGamePayload } from './utils/manualGamePayload'
-import { getSeasonYear } from '../../utils/dateUtils'
 import type { Hall, ManualGameInput, Team } from '../../types'
 
 interface ImportRow {
@@ -23,15 +22,9 @@ interface ImportRow {
 
 const COLUMNS = ['Team', 'HomeAway', 'Opponent', 'Date', 'Time', 'Hall', 'League', 'Round']
 
-function seasonLabel(date: string): string {
-  const year = getSeasonYear(new Date(date + 'T00:00:00'))
-  return `${year}/${year + 1}`
-}
-
 interface ParsedRow {
   input: ManualGameInput
   teamName: string
-  season: string
   raw: ImportRow
   error?: string
 }
@@ -43,16 +36,16 @@ function parseRow(
   editableTeamIds: Set<string>,
 ): ParsedRow {
   const team = teamByName.get(row.Team.trim().toLowerCase())
-  if (!team) return { input: {} as ManualGameInput, teamName: row.Team, season: '', raw: row, error: 'unknownTeam' }
+  if (!team) return { input: {} as ManualGameInput, teamName: row.Team, raw: row, error: 'unknownTeam' }
   if (!editableTeamIds.has(String(team.id))) {
-    return { input: {} as ManualGameInput, teamName: team.name, season: '', raw: row, error: 'outOfScope' }
+    return { input: {} as ManualGameInput, teamName: team.name, raw: row, error: 'outOfScope' }
   }
   const typeRaw = row.HomeAway.trim().toLowerCase()
   const type: 'home' | 'away' =
     typeRaw === 'home' || typeRaw === 'heim' || typeRaw === 'h' ? 'home' : 'away'
   const opponent = row.Opponent.trim()
-  if (!opponent) return { input: {} as ManualGameInput, teamName: team.name, season: '', raw: row, error: 'missingOpponent' }
-  if (!row.Date.trim()) return { input: {} as ManualGameInput, teamName: team.name, season: '', raw: row, error: 'missingDate' }
+  if (!opponent) return { input: {} as ManualGameInput, teamName: team.name, raw: row, error: 'missingOpponent' }
+  if (!row.Date.trim()) return { input: {} as ManualGameInput, teamName: team.name, raw: row, error: 'missingDate' }
 
   let hallId: string | number | null = null
   let additionalHalls: string[] | null = null
@@ -65,14 +58,14 @@ function parseRow(
       const kwiA = hallByName.get('kwi a')
       const kwiB = hallByName.get('kwi b')
       if (!kwiA || !kwiB) {
-        return { input: {} as ManualGameInput, teamName: team.name, season: '', raw: row, error: 'unknownHall' }
+        return { input: {} as ManualGameInput, teamName: team.name, raw: row, error: 'unknownHall' }
       }
       hallId = kwiA.id
       additionalHalls = [String(kwiB.id)]
     } else {
       const hall = hallByName.get(hallKey)
       if (!hall) {
-        return { input: {} as ManualGameInput, teamName: team.name, season: '', raw: row, error: 'unknownHall' }
+        return { input: {} as ManualGameInput, teamName: team.name, raw: row, error: 'unknownHall' }
       }
       hallId = hall.id
     }
@@ -92,7 +85,7 @@ function parseRow(
     league: row.League?.trim() || '',
     round: row.Round?.trim() || '',
   }
-  return { input, teamName: team.name, season: seasonLabel(input.date), raw: row }
+  return { input, teamName: team.name, raw: row }
 }
 
 interface ImportPanelProps {
@@ -166,7 +159,7 @@ export default function ImportPanel({ editableTeamIds, onImported }: ImportPanel
     let failed = 0
     for (const row of valid) {
       try {
-        await create(buildManualGamePayload(row.input, row.teamName, row.season))
+        await create(buildManualGamePayload(row.input, row.teamName))
         created++
       } catch (err) {
         failed++

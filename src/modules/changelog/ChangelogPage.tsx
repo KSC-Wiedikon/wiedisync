@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '1.87.0'
+const APP_VERSION = '1.87.1'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,20 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.87.1',
+    date: '14.08.2026',
+    sections: [
+      {
+        title: 'Manually added games were missing from Home and Games',
+        items: [
+          "A game entered by hand in Spielplanung — or imported from the spreadsheet template — was stamped with the wrong season, and the season is what the home page, the games list and the website's fixture embed filter on. The game saved correctly and showed on the calendar and in Spielplanung, so it looked entered; it was simply invisible in the three places most people actually look. Found on a Herren 2 basketball away game.",
+          "The season is now derived from the game's own date, in one place, so no entry route can stamp it differently. The one affected fixture has been corrected.",
+          'The Spielplanung season picker no longer lists the same season twice — the current season was written in a different format from the seasons on record, so it showed up as its own extra entry.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.87.0',
     date: '13.08.2026',
