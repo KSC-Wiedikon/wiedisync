@@ -27,10 +27,11 @@ import { useCallback, useImperativeHandle, useMemo, useRef, useState, type React
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
-  ArrowDown, ArrowUp, ArrowUpDown, Check, Download, Eye, FileText, Layers, Loader2, Pencil,
-  Plus, Settings2, UserMinus, Users, X,
+  ArrowDown, ArrowUp, ArrowUpDown, Check, ChevronDown, ChevronRight, Download, Eye, FileText,
+  Layers, Loader2, Pencil, Plus, Settings2, UserMinus, Users, X,
 } from 'lucide-react'
 import DatePicker from '@/components/ui/DatePicker'
+import { buildMemberGroups, countMembers, type MemberGroupNode } from './memberGroups'
 import type { Member, Team } from '../../../types'
 import { assetUrl, createRecord, deleteRecord, updateRecord } from '../../../lib/api'
 import { logActivity } from '../../../utils/logActivity'
@@ -68,6 +69,11 @@ import { buildMemberTeamsMap, buildStaffMap, formatShortDate, formatShortDateTim
 interface Props {
   /** Filtered cache from the page (member filters already applied). */
   cache: CacheShape
+  /**
+   * Every member the page loaded, filters ignored. Feeds the rail's
+   * register-status groups only — see the note on ExplorerTree's same prop.
+   */
+  allMembers: ReadonlyArray<Member>
   /** Header quick-search query — filters grid rows client-side. */
   query: string
   /** Whether the viewer may edit (global admin or sport admin). */
@@ -327,7 +333,7 @@ function shortMemberName(m: Member | undefined, fallback: string): string {
 }
 
 export default function ExplorerGrid({
-  cache, query, canEdit, isGlobalAdmin, focusFields, onOpenDetail, onMutate, apiRef,
+  cache, allMembers, query, canEdit, isGlobalAdmin, focusFields, onOpenDetail, onMutate, apiRef,
 }: Props) {
   const { t, i18n } = useTranslation(['admin', 'common'])
   const confirm = useConfirm()
@@ -372,6 +378,10 @@ export default function ExplorerGrid({
 
   const changeView = (next: GridView) => {
     setView(next)
+    // The rail means different things in the two views — a member group key
+    // ("officials:bb:otr1") matches no team, and a team id matches no member
+    // group, so a carried-over selection would silently empty the grid.
+    setSelectedGroup('all')
     try { localStorage.setItem(VIEW_LS_KEY, next) } catch { /* quota — non-fatal */ }
   }
 
@@ -433,6 +443,37 @@ export default function ExplorerGrid({
     return map
   }, [cache.trRows, teamById])
 
+  // The member rail draws the SAME tree as the Tree view — Volleyball /
+  // Basketball each owning Teams · Officials · Staff · Other, then the
+  // club-level groups. Built from the shared builder so the two views can never
+  // disagree about who is in a group.
+  const memberGroups = useMemo(
+    () => buildMemberGroups(cache.members, allMembers, cache),
+    [cache, allMembers],
+  )
+
+  /** group key → member ids, flattened once for the row filter. */
+  const groupMemberIds = useMemo(() => {
+    const map = new Map<string, Set<string>>()
+    const walk = (n: MemberGroupNode): Set<string> => {
+      const own = new Set<string>(n.memberIds ?? [])
+      n.children?.forEach((c) => walk(c).forEach((id) => own.add(id)))
+      map.set(n.key, own)
+      return own
+    }
+    memberGroups.forEach(walk)
+    return map
+  }, [memberGroups])
+
+  const [railOpen, setRailOpen] = useState<Set<string>>(new Set())
+  const toggleRail = (key: string) =>
+    setRailOpen((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+
   // Group rail: teams sectioned by sport → gender, alphabetical within each
   // section, with member counts within the current filtered member set.
   const teamSections = useMemo((): TeamSection[] => {
@@ -463,6 +504,12 @@ export default function ExplorerGrid({
     if (sport === 'basketball') return t('common:basketball')
     return t('admin:explorerSportOther')
   }, [t])
+
+  /** A group's own label — an i18n key, or a raw name (team, OTR1) as-is. */
+  const groupLabel = useCallback(
+    (node: MemberGroupNode): string => node.raw ?? (node.labelKey ? t(node.labelKey) : node.key),
+    [t],
+  )
 
   const genderLabel = useMemo(() => (g: GenderKey): string => {
     const key = GENDER_LABEL_KEY[g]
@@ -657,9 +704,21 @@ export default function ExplorerGrid({
   // ── Rows (members view) ──────────────────────────────────────────
 
   const rows = useMemo(() => {
-    let list = cache.members
+    let list: ReadonlyArray<Member> = cache.members
     if (selectedGroup !== 'all') {
-      list = list.filter((m) => (rowsByMember.get(String(m.id)) ?? []).some((r) => r.team === selectedGroup))
+      // The rail selects a GROUP now (a team, an officials grade, "Former
+      // members", …), so membership comes from the same tree the Tree view
+      // draws rather than from a team-id match — one definition of "who is in
+      // this group", not two that drift.
+      //
+      // ⚠ Resolved against ALL members, not the filtered working set. The
+      // register-status groups are built from the unfiltered list by design, so
+      // intersecting them with an active-only default made the rail say
+      // "Former members 29" and the grid show 7 — a count that disagrees with
+      // the rows under it is worse than either number alone. For every other
+      // group the ids already come from the filtered list, so this is a no-op.
+      const inGroup = groupMemberIds.get(selectedGroup)
+      list = inGroup ? allMembers.filter((m) => inGroup.has(String(m.id))) : list
     }
     if (query) {
       const q = query.toLowerCase()
@@ -673,7 +732,7 @@ export default function ExplorerGrid({
       })
     }
     return list
-  }, [cache.members, selectedGroup, query, sort, rowsByMember, cellText])
+  }, [cache.members, allMembers, selectedGroup, query, sort, groupMemberIds, cellText])
 
   // ── Multi-select ───────────────────────────────────────────────────
 
@@ -753,7 +812,7 @@ export default function ExplorerGrid({
   useImperativeHandle(apiRef, () => ({ addShownToSelection }), [addShownToSelection])
 
   const sections = useMemo((): Array<{ label: string | null; rows: Member[] }> => {
-    if (groupBy === 'none') return [{ label: null, rows }]
+    if (groupBy === 'none') return [{ label: null, rows: [...rows] }]
     if (groupBy === 'teams') {
       const out: Array<{ label: string | null; rows: Member[] }> = []
       for (const sec of teamSections) {
@@ -1371,33 +1430,46 @@ export default function ExplorerGrid({
           onClick={() => setSelectedGroup('all')}
           icon={<Users className="h-3.5 w-3.5" />}
         />
-        {teamSections.map((sec, i) => {
-          const newSport = i === 0 || teamSections[i - 1].sport !== sec.sport
-          const genderKey = GENDER_LABEL_KEY[sec.gender]
-          return (
-            <div key={`${sec.sport}-${sec.gender}`} className={newSport ? 'mt-2' : 'mt-1'}>
-              {newSport && (
-                <div className="px-2 py-1 text-[11px] font-semibold tracking-wide text-muted-foreground">
-                  {sportLabel(sec.sport)}
+        {view === 'members'
+          ? memberGroups.map((n) => (
+              <RailNode
+                key={n.key}
+                node={n}
+                depth={0}
+                selectedGroup={selectedGroup}
+                open={railOpen}
+                onToggle={toggleRail}
+                onSelect={setSelectedGroup}
+                label={groupLabel}
+              />
+            ))
+          : teamSections.map((sec, i) => {
+              const newSport = i === 0 || teamSections[i - 1].sport !== sec.sport
+              const genderKey = GENDER_LABEL_KEY[sec.gender]
+              return (
+                <div key={`${sec.sport}-${sec.gender}`} className={newSport ? 'mt-2' : 'mt-1'}>
+                  {newSport && (
+                    <div className="px-2 py-1 text-[11px] font-semibold tracking-wide text-muted-foreground">
+                      {sportLabel(sec.sport)}
+                    </div>
+                  )}
+                  {genderKey && (
+                    <div className="px-2 pb-0.5 text-[10px] font-medium tracking-wide text-muted-foreground/70">
+                      {t(`admin:${genderKey}`)}
+                    </div>
+                  )}
+                  {sec.teams.map((tm) => (
+                    <GroupButton
+                      key={tm.id}
+                      active={selectedGroup === tm.id}
+                      label={tm.label}
+                      count={tm.count}
+                      onClick={() => setSelectedGroup(tm.id)}
+                    />
+                  ))}
                 </div>
-              )}
-              {genderKey && (
-                <div className="px-2 pb-0.5 text-[10px] font-medium tracking-wide text-muted-foreground/70">
-                  {t(`admin:${genderKey}`)}
-                </div>
-              )}
-              {sec.teams.map((tm) => (
-                <GroupButton
-                  key={tm.id}
-                  active={selectedGroup === tm.id}
-                  label={tm.label}
-                  count={tm.count}
-                  onClick={() => setSelectedGroup(tm.id)}
-                />
-              ))}
-            </div>
-          )
-        })}
+              )
+            })}
       </aside>
 
       {/* Grid pane */}
@@ -1438,7 +1510,14 @@ export default function ExplorerGrid({
             aria-label={t('admin:explorerGridGroups')}
           >
             <option value="all">{view === 'teams' ? t('admin:explorerGridAllTeams') : t('admin:explorerGridAllMembers')}</option>
-            {teamSections.map((sec) => {
+            {view === 'members' && flattenRail(memberGroups).map(({ node, depth }) => (
+              // A native <option> cannot nest, and optgroup is one level deep —
+              // so depth is drawn with figure spaces rather than lost.
+              <option key={node.key} value={node.key}>
+                {'\u2007'.repeat(depth * 2)}{groupLabel(node)} ({countMembers(node)})
+              </option>
+            ))}
+            {view === 'teams' && teamSections.map((sec) => {
               const genderKey = GENDER_LABEL_KEY[sec.gender]
               const label = genderKey ? `${sportLabel(sec.sport)} · ${t(`admin:${genderKey}`)}` : sportLabel(sec.sport)
               return (
@@ -1734,6 +1813,75 @@ function SectionRows({ label, colSpan, count, children }: {
       )}
       {children}
     </>
+  )
+}
+
+/** Depth-first list of the rail tree, for the mobile <select>. */
+function flattenRail(nodes: MemberGroupNode[], depth = 0): { node: MemberGroupNode; depth: number }[] {
+  return nodes.flatMap((n) => [{ node: n, depth }, ...flattenRail(n.children ?? [], depth + 1)])
+}
+
+/**
+ * One row of the member rail.
+ *
+ * ⚠ ONE button, which both selects the group and (for a branch) opens it — not
+ * a chevron button beside a label button. Those two would carry the same
+ * accessible name, so a screen reader announces "Volleyball, button" twice with
+ * nothing to tell them apart, and a Playwright `getByRole('button', {name})`
+ * picks whichever comes first. Selecting a branch showing its children is also
+ * the behaviour people expect from a file tree.
+ */
+function RailNode({
+  node, depth, selectedGroup, open, onToggle, onSelect, label,
+}: {
+  node: MemberGroupNode
+  depth: number
+  selectedGroup: string
+  open: ReadonlySet<string>
+  onToggle: (key: string) => void
+  onSelect: (key: string) => void
+  label: (node: MemberGroupNode) => string
+}) {
+  const isOpen = open.has(node.key)
+  const active = selectedGroup === node.key
+  return (
+    <div className={depth === 0 ? 'mt-1' : undefined}>
+      <button
+        type="button"
+        onClick={() => {
+          onSelect(node.key)
+          if (node.children) onToggle(node.key)
+        }}
+        aria-expanded={node.children ? isOpen : undefined}
+        style={{ paddingLeft: depth * 10 }}
+        className={
+          'flex w-full min-h-8 items-center rounded-md py-1 pr-2 text-left text-sm ' +
+          (active ? 'bg-primary text-primary-foreground' : 'text-foreground hover:bg-muted')
+        }
+      >
+        <span className="flex h-4 w-5 shrink-0 items-center justify-center">
+          {node.children
+            ? (isOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />)
+            : null}
+        </span>
+        <span className="truncate">{label(node)}</span>
+        <span className={'ml-auto pl-1 text-xs ' + (active ? 'text-primary-foreground/80' : 'text-muted-foreground')}>
+          {countMembers(node)}
+        </span>
+      </button>
+      {isOpen && node.children?.map((c) => (
+        <RailNode
+          key={c.key}
+          node={c}
+          depth={depth + 1}
+          selectedGroup={selectedGroup}
+          open={open}
+          onToggle={onToggle}
+          onSelect={onSelect}
+          label={label}
+        />
+      ))}
+    </div>
   )
 }
 

@@ -2,6 +2,15 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.92.0 — 2026-08-14
+
+### Each sport owns its own groups, and the table view is grouped the same way
+
+- **Volleyball and Basketball each hold their own Teams, Officials, Staff and Other**, instead of "Volleyball officials" and "Basketball staff" sitting in one flat list next to Gap year. Open a sport and everything about that sport is under it.
+- **"Other" is now what is left over, not "has no team".** Somebody who scores but plays for no squad is under Officials, where you would look for them, and no longer padding the list you scan for the unexplained. Volleyball's Other went from 90 people to 60.
+- **The table view's sidebar uses exactly the same groups as the tree**, so picking a group in either place means the same thing. It was a flat list of teams before, and there was no way to see, say, every basketball official as a table.
+- **A group's count and its rows now agree.** Picking Former members showed 29 in the sidebar and 7 rows, because the group is built from everybody while the table was showing current members only.
+
 ## v1.91.0 — 2026-08-14
 
 ### The Database tree now mirrors the club, not just the roster
