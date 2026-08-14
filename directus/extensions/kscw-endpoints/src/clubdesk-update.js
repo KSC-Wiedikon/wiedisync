@@ -339,7 +339,7 @@ export const CD_REGISTER_FIELDS = ['register_status', 'eintritt', 'austritt', 'b
  */
 export const DEPARTED_STATUSES = ['Kein Mitglied', 'Ehemaliges Mitglied', 'Verstorben']
 
-const CD_PUSH_HEADERS = ['[Id]', ...CD_PUSH_CONTACT_HEADERS, 'Beitragskategorie', 'Eintritt', 'Mitgliederbeitrag', 'Lizenznummer', 'Lizenzart', 'Status', 'Austritt']
+const CD_PUSH_HEADERS = ['[Id]', ...CD_PUSH_CONTACT_HEADERS, 'Beitragskategorie', 'Eintritt', 'Mitgliederbeitrag', 'Lizenznummer', 'Lizenzart', 'Status', 'Austritt', 'Offiziellen Lizenz']
 
 // ── CREATE-set extras (new ClubDesk contacts only) ───────────────────────────
 // A brand-new contact has no ClubDesk-owned category, entry date, groups or
@@ -352,17 +352,29 @@ const CD_PUSH_HEADERS = ['[Id]', ...CD_PUSH_CONTACT_HEADERS, 'Beitragskategorie'
 // `BB HU14 (Trainer*in)` — ClubDesk's group naming, verified against the export
 // snapshot 2026-07-05), Status (Aktiv-/Passivmitglied — see deriveStatus) and
 // Offiziellen Lizenz (scorer/officials licence — see deriveOffiziellenLizenz).
-// UPDATE pushes NEVER send Gruppen/Status/Offiziellen Lizenz/
-// Sektion/Schiedsrichter/Telefon Mobil — ClubDesk stays authoritative on
-// existing contacts. (Spike 2026-07-08: an empty mapped cell is provably a
-// no-op on import, but keeping these columns out of the update set remains
-// the structural guarantee — one probe on one field type is no licence to
-// send status cells at existing contacts.) Beitragskategorie + Eintritt +
-// Mitgliederbeitrag are the 2026-07-27 exception: they ride on UPDATE rows
-// too, but FILL-ONLY — ClubDesk's own value is echoed back verbatim whenever
-// it exists, so an update can only ever fill a cell the register left empty
-// (see CD_PUSH_HEADERS). That is why /up stashes
-// TWO CSVs (up_csv + up_csv_create) instead of one.
+// UPDATE pushes NEVER send Gruppen/Sektion/Schiedsrichter/Telefon Mobil —
+// ClubDesk stays authoritative on existing contacts. (Spike 2026-07-08: an
+// empty mapped cell is provably a no-op on import, but keeping these columns
+// out of the update set remains the structural guarantee — one probe on one
+// field type is no licence to send status cells at existing contacts.)
+// Beitragskategorie + Eintritt + Mitgliederbeitrag are the 2026-07-27
+// exception: they ride on UPDATE rows too, but FILL-ONLY — ClubDesk's own
+// value is echoed back verbatim whenever it exists, so an update can only
+// ever fill a cell the register left empty (see CD_PUSH_HEADERS). Status +
+// Austritt joined on 2026-08-10 under the NARROWER registerCell gate (the
+// push must name the field). That is why /up stashes TWO CSVs (up_csv +
+// up_csv_create) instead of one.
+// ⚠ Offiziellen Lizenz joined the UPDATE set on 2026-08-14, and it is the
+// WEAKEST of the three regimes on purpose: strictly fill-only, with no
+// registerCell gate at all. The reason is the one documented at
+// deriveOffiziellenLizenz — ClubDesk's picklist is single-valued while
+// wiedisync models the rungs as independent booleans, so any rule that lets
+// wiedisync overwrite has to CHOOSE a rung for the 43 members holding
+// otr1_bb AND otr2_bb. Echoing a non-empty register cell verbatim means it
+// never has to choose: on prod at introduction, 298 members with an
+// officials flag already had a register value (untouched) and 32 had an
+// empty one (filled). Promote this to registerCell only with a dual-holder
+// guard — see the ⚠ HIGHEST RUNG FIRST note.
 // ⚠ Gruppen maps in the import wizard as free TEXT and a commit does NOT
 // create the group membership (PROVEN 2026-07-06: Månsson/Clüver creates
 // carried Gruppen, landed with empty groups). The column stays as harmless
@@ -1257,6 +1269,11 @@ export function buildPushCsv(members, { create = false, countryNames = null } = 
         // what kept these two off the update set until now.
         statusOut,
         austrittOut,
+        // Offiziellen Lizenz (2026-08-14) — fill-only, ClubDesk unconditionally
+        // wins. NOT registerCell: see the ⚠ in CD_PUSH_HEADERS. The value is the
+        // same derivation the CREATE path uses, so a member's scorer/officials
+        // standing reaches the register by exactly one route.
+        String(m.offiziellen_lizenz_cd || '').trim() || deriveOffiziellenLizenz(m),
       )
     }
     return cells.map(cdCell).join(';')
@@ -1706,7 +1723,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
                  iban, anrede, nationalitaet, ahv_nummer, federation_of_origin,
                  trainer_lizenz,
                  beitragskategorie, eintritt, mitgliederbeitrag, lizenznummer, lizenzart,
-                 status, austritt
+                 status, austritt, offiziellen_lizenz
           FROM clubdesk_export WHERE BTRIM(clubdesk_id) = ANY(?) ORDER BY BTRIM(clubdesk_id), row_id
         `, [cdids]) : { rows: [] }
         const cdEcho = new Map(echoRows.rows.map((r) => [r.cdid, r]))
@@ -1747,6 +1764,12 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
           // field, which is what keeps an unrelated push from rewriting Status.
           m.register_status_cd = String(cd.status || '').trim()
           m.austritt_cd = String(cd.austritt || '').trim()
+          // Offiziellen Lizenz (2026-08-14). Same unconditional stash as the
+          // billing mirrors above and for the same reason — this cell is
+          // fill-only, so ClubDesk's own value is the FIRST choice, not a
+          // fallback. An unstashed mirror here would silently promote the
+          // column to "wiedisync always wins".
+          m.offiziellen_lizenz_cd = String(cd.offiziellen_lizenz || '').trim()
         }
       }
       const pushMembers = [...updates, ...creates]

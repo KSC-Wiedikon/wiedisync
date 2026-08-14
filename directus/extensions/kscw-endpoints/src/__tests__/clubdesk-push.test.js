@@ -29,7 +29,7 @@ const kacper = {
 }
 
 describe('buildPushCsv (update set)', () => {
-  it('is [Id]-keyed and name-less — 15 contact columns, 5 fill-only cells, the register triple, no groups', () => {
+  it('is [Id]-keyed and name-less — 15 contact columns, 6 fill-only cells, the register triple, no groups', () => {
     const csv = buildPushCsv([kacper])
     const [header, row] = csv.trim().split('\n')
     // Beitragskategorie/Eintritt/Mitgliederbeitrag joined the UPDATE set
@@ -40,7 +40,8 @@ describe('buildPushCsv (update set)', () => {
     // unlike everything before them they genuinely overwrite ClubDesk's own
     // cells — but only for a member whose pending change names that field, so
     // this fixture (no clubdesk_push_changes) must still echo, never overwrite.
-    expect(header).toBe('[Id];E-Mail;Telefon Privat;Adresse;PLZ;Ort;Geburtsdatum;Geschlecht;IBAN;Anrede;Nationalität;Federation of Origin;Trainer Lizenz;AHV Nummer;Wiedisync ID;Gast;Beitragskategorie;Eintritt;Mitgliederbeitrag;Lizenznummer;Lizenzart;Status;Austritt')
+    // Offiziellen Lizenz joined LAST on 2026-08-14, fill-only and ungated.
+    expect(header).toBe('[Id];E-Mail;Telefon Privat;Adresse;PLZ;Ort;Geburtsdatum;Geschlecht;IBAN;Anrede;Nationalität;Federation of Origin;Trainer Lizenz;AHV Nummer;Wiedisync ID;Gast;Beitragskategorie;Eintritt;Mitgliederbeitrag;Lizenznummer;Lizenzart;Status;Austritt;Offiziellen Lizenz')
     // Names must NEVER ride on an update row: [Id] is the upsert key (spike-proven
     // 2026-07-08) and a name column would overwrite the register's legal name.
     expect(header).not.toContain('Vorname')
@@ -49,7 +50,7 @@ describe('buildPushCsv (update set)', () => {
     // (proven 2026-07-06), so the column would be pure noise on an update row.
     expect(header).not.toContain('Gruppen')
     const cells = row.split(';')
-    expect(cells).toHaveLength(23)
+    expect(cells).toHaveLength(24)
     expect(cells[0]).toBe('1001283')  // ClubDesk's own [Id] = members.clubdesk_id
     expect(row).not.toContain('Kacper')
     expect(row).not.toContain('Krawczyński')
@@ -364,6 +365,50 @@ describe('buildPushCsv (update set — fill-only billing cells, 2026-07-27)', ()
       .trim().split('\n')[1].split(';')
     expect(createRow[26]).toBe('759984')
     expect(createRow[27]).toBe('')
+  })
+})
+
+describe('buildPushCsv (update set — Offiziellen Lizenz, fill-only, 2026-08-14)', () => {
+  // Cell [23]. The WEAKEST regime of the three on the update set: ClubDesk's own
+  // value always wins and there is no registerCell gate, because the picklist is
+  // single-valued while wiedisync models the rungs as independent booleans.
+  const cellsOf = (m) => buildPushCsv([{ ...kacper, ...m }]).trim().split('\n')[1].split(';')
+
+  it('fills an empty register cell from the officials flags', () => {
+    expect(cellsOf({ scorer_vb: true })[23]).toBe('VB SC')
+    expect(cellsOf({ referee_vb: true })[23]).toBe('VB SC') // a referee is also a scorer
+    expect(cellsOf({ otr2_bb: true })[23]).toBe('OTR2')
+    expect(cellsOf({ otn1_bb: true })[23]).toBe('OTN1')
+  })
+
+  it('echoes a non-empty register cell VERBATIM — this is what protects the dual-rung members', () => {
+    // The 43 members holding otr1_bb AND otr2_bb are exactly the case a
+    // "wiedisync wins" rule would have to pick a rung for. It never gets asked.
+    expect(cellsOf({ otr1_bb: true, otr2_bb: true, offiziellen_lizenz_cd: 'OTR1' })[23]).toBe('OTR1')
+    // Cross-sport: a VB scorer flag cannot rewrite a BB officials cell.
+    expect(cellsOf({ scorer_vb: true, offiziellen_lizenz_cd: 'OTR2' })[23]).toBe('OTR2')
+  })
+
+  it('is NOT gated on clubdesk_push_changes — naming the field changes nothing either way', () => {
+    const named = [{ field: 'scorer_vb', old_value: null, new_value: 'true' }]
+    // Named + register set → still echoes. Naming is not a licence to overwrite.
+    expect(cellsOf({ scorer_vb: true, offiziellen_lizenz_cd: 'OTR2', clubdesk_push_changes: named })[23]).toBe('OTR2')
+    // Unnamed + register empty → still fills. The flag only had to queue a push.
+    expect(cellsOf({ scorer_vb: true, clubdesk_push_changes: [{ field: 'iban', old_value: null, new_value: 'CH…' }] })[23])
+      .toBe('VB SC')
+  })
+
+  it('no flags and an empty register → empty cell, never a guess', () => {
+    expect(cellsOf({})[23]).toBe('')
+  })
+
+  it('cannot blank the register when wiedisync has nothing', () => {
+    expect(cellsOf({ scorer_vb: false, offiziellen_lizenz_cd: 'VB SC' })[23]).toBe('VB SC')
+  })
+
+  it('sits under the Offiziellen Lizenz header — column order matches the header row', () => {
+    const [header] = buildPushCsv([kacper]).trim().split('\n')
+    expect(header.split(';')[23]).toBe('Offiziellen Lizenz')
   })
 })
 
