@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '1.88.0'
+const APP_VERSION = '1.89.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,21 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.89.0',
+    date: '14.08.2026',
+    sections: [
+      {
+        title: 'Type or paste a date instead of clicking through the calendar',
+        items: [
+          'Every date field in the app now takes typing and pasting. Entering a birthdate meant paging a calendar back through twenty-odd years, one dropdown at a time; you can now just write 24.03.1998, or paste it straight out of a spreadsheet or ClubDesk. The calendar button is still there and works exactly as before.',
+          "It reads the date the way you'd write it here. 24.03.1998, 24.3.98, 24/03/1998, 1998-03-24 and plain 24031998 all mean the same day. Day first, always — the same order the app shows dates in, so retyping what you see gives you back what you saw. On a phone, the digits-only form saves fighting the numeric keypad for a dot.",
+          'A date that does not exist is refused rather than quietly moved. Typing 31.02.2026 outlines the field in red and changes nothing; before, that kind of input tended to become 3 March somewhere down the line. Unfinished typing is discarded when you click away, so a half-entered date never looks saved.',
+          'The calendar no longer jumps up and down as you page through months. Months are four to six weeks long, and the popup used to resize with them — near the bottom of the screen that flipped it above the field and back again on the next month. It now keeps one height.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.88.0',
     date: '14.08.2026',

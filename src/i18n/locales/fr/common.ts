@@ -58,6 +58,7 @@ export default {
   allDay: 'Toute la journee',
   date: 'Date',
   selectDate: 'Selectionner une date',
+  dateFormatHint: 'dd.mm.yyyy',
   time: 'Heure',
   clear: 'Effacer',
 

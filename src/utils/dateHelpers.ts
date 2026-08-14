@@ -70,6 +70,76 @@ export function formatDateZurich(input: string | Date | null | undefined, locale
   }).format(d);
 }
 
+/**
+ * Parse a hand-typed or pasted date into the `YYYY-MM-DD` the API stores, or
+ * `null` when the text is not a date. The inverse of `formatDateZurich`, and
+ * the ONE place that decides what a human may type into a date field.
+ *
+ * Accepted:
+ *   • Swiss day-first  `10.05.2026`, `1.5.2026`, `10/05/2026`, `10-5-26`
+ *   • ISO year-first   `2026-05-10`, `2026.5.10`
+ *   • Digits only      `10052026` (ddmmyyyy), `100526` (ddmmyy), and
+ *                      `20260510` (yyyymmdd) — the last only when reading the
+ *                      same 8 digits day-first is impossible, so the common
+ *                      case stays unambiguous.
+ *
+ * ⚠ Day-first is the default because the whole app DISPLAYS dd.mm.yyyy: someone
+ * retyping what they see must get back what they saw. `03.04.2026` is 3 April,
+ * never 4 March, whatever the browser locale would have guessed — this is the
+ * same rule `formatDateZurich` enforces on the way out (CLAUDE.md → Date & time
+ * format), and the two must never disagree.
+ *
+ * ⚠ A 2-digit year uses the standard sliding window: `<=` this year's last two
+ * digits is 20xx, anything above is 19xx (in 2026, `26` → 2026 and `98` → 1998).
+ * That is deliberate for birthdates, where always-20xx would turn a member born
+ * in 1998 into a toddler. It also means the meaning of `26` MOVES each year —
+ * pass 4-digit years anywhere the value is archival.
+ *
+ * ⚠ Impossible calendar dates are rejected, not rolled over: `31.02.2026` is
+ * `null`, where `new Date(2026, 1, 31)` would silently hand back 3 March.
+ */
+export function parseTypedDate(input: string | null | undefined): string | null {
+  const raw = String(input ?? '').trim();
+  if (!raw) return null;
+
+  const build = (y: number, m: number, d: number): string | null => {
+    if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return null;
+    // Floor the year at 1000 so a truncated `10.5.202` cannot pass as year 202,
+    // and so `Date.UTC`'s 0-99 → 19xx remapping is never reachable.
+    if (y < 1000 || y > 9999 || m < 1 || m > 12 || d < 1 || d > 31) return null;
+    const probe = new Date(Date.UTC(y, m - 1, d));
+    if (probe.getUTCFullYear() !== y || probe.getUTCMonth() !== m - 1 || probe.getUTCDate() !== d) return null;
+    return `${String(y).padStart(4, '0')}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  };
+
+  const expandYear = (yy: number, digits: number): number => {
+    if (digits > 2) return yy;
+    return yy <= new Date().getFullYear() % 100 ? 2000 + yy : 1900 + yy;
+  };
+
+  const parts = raw.split(/[.\-/\s]+/).filter(Boolean);
+  if (parts.length === 3 && parts.every((p) => /^\d{1,4}$/.test(p))) {
+    const [a, b, c] = parts;
+    // A 4-digit leading token can only be a year, so that shape is ISO.
+    if (a.length === 4) return build(Number(a), Number(b), Number(c));
+    return build(expandYear(Number(c), c.length), Number(b), Number(a));
+  }
+
+  if (/^\d+$/.test(raw)) {
+    if (raw.length === 8) {
+      return (
+        build(Number(raw.slice(4)), Number(raw.slice(2, 4)), Number(raw.slice(0, 2))) ??
+        build(Number(raw.slice(0, 4)), Number(raw.slice(4, 6)), Number(raw.slice(6)))
+      );
+    }
+    if (raw.length === 6) {
+      return build(expandYear(Number(raw.slice(4)), 2), Number(raw.slice(2, 4)), Number(raw.slice(0, 2)));
+    }
+  }
+
+  return null;
+}
+
 /** Format dd.mm.yyyy (compact) in Europe/Zurich.
  *  Locale is hardcoded to `de-CH` so the output is always Swiss dot format
  *  (`10.05.2026`) regardless of the user's browser language — en-US default
