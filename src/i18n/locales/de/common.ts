@@ -58,6 +58,7 @@ export default {
   allDay: 'Ganzer Tag',
   date: 'Datum',
   selectDate: 'Datum auswählen',
+  dateFormatHint: 'dd.mm.yyyy',
   time: 'Uhrzeit',
   clear: 'Löschen',
 
