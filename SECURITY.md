@@ -15,6 +15,7 @@ Living doc for the security posture of the KSCW platform. Audited findings, fixe
 | `directus.kscw.ch` (Directus) | Hetzner VPS via CF Tunnel | Built-in Directus auth (cookies + bearer). Custom endpoints inherit `req.accountability`. | All custom routes under `/kscw/*`. |
 | `kscw-push.lucanepa.workers.dev` (CF Worker) | Cloudflare Workers | Shared bearer secret from Directus → worker (constant-time compared since 2026-05-06). | VAPID keys in worker secret store; Directus side reads `VAPID_PUBLIC_KEY` env. |
 | `kscw.ch` (ClubDesk) | External | Out of our scope | Don't change DNS until explicitly confirmed. |
+| **`github.com/KSC-Wiedikon/wiedisync` (the repo itself)** | GitHub, **PUBLIC** since 2026-02-27 | None — world-readable | **Anything ever committed is permanently disclosed. Deletion is not remediation; rotation is.** A force-push does not remove the commit either: GitHub keeps unreachable commits addressable by SHA until Support runs GC on the repo. The same applies to `KSC-Wiedikon/kscw-website` and `Lucanepa/openvolley`. |
 
 Direct VPS exposure (Hetzner ports 8055/8056) is **not** publicly reachable — only via CF Tunnel. If that ever changes, `X-Forwarded-For`-based rate limiters collapse simultaneously (every limiter in `kscw-endpoints` uses it as fallback).
 
@@ -211,6 +212,26 @@ Run the deep audit after any of:
 - A new role / policy addition.
 - Any custom endpoint going from auth-required to public (or vice versa).
 - A new third-party integration.
+
+**Full-history secret sweep — separate cadence, quarterly and before any repo goes public.**
+HEAD-only scanning structurally cannot see this class, and that gap has cost us twice: the
+2026-05-31 pass found the PocketBase JWT, declared history clean, and missed both a Supabase
+`service_role` JWT and a Google API key that a `git log --all -S` found in under a minute.
+
+```bash
+gitleaks git . --log-opts="--all" --config .gitleaks.toml --redact
+```
+
+Two rules learned the hard way, both encoded in `.gitleaks.toml`:
+
+1. **`--log-opts="--all"` is mandatory.** Without it gitleaks scans the current branch only — 2,978 of
+   this repo's 3,627 commits — so anything on a merged-and-deleted branch is invisible.
+2. **A score of 0 is not proof of clean.** The stock ruleset scored `kscw-website` zero while a real
+   DeepL key sat in its history: gitleaks ships no DeepL rule and a UUID-shaped key does not trip the
+   entropy heuristics. When a new credential *format* enters the stack, add a rule for it.
+
+A `.githooks/pre-commit` hook runs `gitleaks protect --staged` on every commit (`npm run prepare`
+sets `core.hooksPath`). Prevention is the only real control here — see the Trust boundaries row above.
 
 The audit pattern is captured as a Claude Code skill — invoke `/kscw-security-audit` (lives in `~/.claude/skills/`). The skill dispatches 6 parallel agents over the same surfaces this doc covers.
 

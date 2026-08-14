@@ -76,8 +76,12 @@ jobs:
 
       - name: Report failure
         if: failure()
+        env:
+          ERROR_HASH: ${{ github.event.inputs.error_hash }}
+          DIRECTUS_TOKEN: ${{ secrets.DIRECTUS_ADMIN_TOKEN }}
         run: |
-          curl -sf -X POST "https://directus.kscw.ch/kscw/bugfixes/webhook/${{ github.event.inputs.error_hash }}" \
-            -H "Authorization: Bearer ${{ secrets.DIRECTUS_ADMIN_TOKEN }}" \
+          [[ "$ERROR_HASH" =~ ^[a-zA-Z0-9_-]{1,64}$ ]] || { echo "::error::Invalid error_hash"; exit 1; }
+          curl -sf -X POST "https://directus.kscw.ch/kscw/bugfixes/webhook/${ERROR_HASH}" \
+            -H "Authorization: Bearer ${DIRECTUS_TOKEN}" \
             -H "Content-Type: application/json" \
             -d '{"status":"failed"}'

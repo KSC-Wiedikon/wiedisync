@@ -1,0 +1,70 @@
+# gitleaks config for the Lucanepa / KSC-Wiedikon repos.
+#
+# Written 2026-08-13 after the stock ruleset scored kscw-website 0 leaks while a
+# real DeepL API key sat in its history at aad8f9a: gitleaks ships no DeepL rule
+# and a UUID-shaped key does not trip the generic entropy heuristics.
+#
+# Lesson encoded here: the default ruleset is a floor, not a ceiling. Every
+# credential format this stack actually uses needs an explicit rule.
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "deepl-api-key-free"
+description = "DeepL API key (Free tier — UUID with :fx suffix)"
+regex = '''[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:fx'''
+keywords = [":fx"]
+
+[[rules]]
+id = "deepl-api-key-assignment"
+description = "DEEPL_API_KEY assigned a non-placeholder value (catches Pro keys, which have no :fx)"
+regex = '''(?i)deepl[_-]?api[_-]?key["'\s]*[:=]["'\s]*([0-9a-zA-Z\-:]{20,})'''
+keywords = ["deepl"]
+allowlists = [
+  { regexes = ['''(?i)(your|example|placeholder|xxx+|<[^>]+>|\$\{?[A-Z_]+\}?|changeme|redacted)'''] },
+]
+
+[[rules]]
+id = "directus-static-token"
+description = "Directus static/admin token assignment"
+regex = '''(?i)directus[_-]?(admin[_-]?)?token["'\s]*[:=]["'\s]*([0-9a-zA-Z._\-]{20,})'''
+keywords = ["directus"]
+allowlists = [
+  { regexes = ['''(?i)(your|example|placeholder|xxx+|<[^>]+>|\$\{?[A-Z_]+\}?|secrets\.|process\.env|import\.meta\.env)'''] },
+]
+
+[[rules]]
+id = "supabase-service-role-jwt"
+description = "Supabase JWT — flags service_role separately from the harmless anon key"
+regex = '''eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}'''
+keywords = ["eyJ"]
+
+[[rules]]
+id = "wifi-wpa-passphrase"
+description = "WIFI: QR payload embedding a WPA passphrase (openvolley shipped one as a PNG)"
+regex = '''WIFI:T:WPA;S:[^;]+;P:[^;]+;'''
+keywords = ["WIFI:T:WPA"]
+
+[[rules]]
+id = "generic-credential-assignment"
+description = "Broad sweep: SECRET/PASSWORD/TOKEN/APIKEY assigned a literal. Noisy by design — this is an inventory rule, expect false positives."
+regex = '''(?i)\b([a-z_]*(secret|password|passwd|api[_-]?key|auth[_-]?token|access[_-]?token))\b["'\s]*[:=]["'\s]*["']([^"'\s$<{]{12,})["']'''
+keywords = ["secret", "password", "passwd", "apikey", "api_key", "api-key", "auth_token", "access_token"]
+allowlists = [
+  { regexes = ['''(?i)(your[_\- ]|example|placeholder|sample|dummy|xxx+|change[_\- ]?me|replace[_\- ]?me|redacted|_here|test|fake|foo|bar|\.\.\.|<[^>]+>|\$\{?[A-Z_]+\}?|process\.env|import\.meta\.env|secrets\.)'''], regexTarget = "match" },
+]
+
+# Lockfiles, vendored deps and build output are noise, not history worth purging.
+[allowlist]
+paths = [
+  '''(^|/)node_modules/''',
+  '''(^|/)vendor/''',
+  '''(^|/)dist/''',
+  '''(^|/)build/''',
+  '''package-lock\.json$''',
+  '''pnpm-lock\.yaml$''',
+  '''composer\.lock$''',
+  '''Cargo\.lock$''',
+  '''uv\.lock$''',
+]
