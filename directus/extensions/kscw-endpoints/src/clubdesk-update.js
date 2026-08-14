@@ -17,7 +17,11 @@ import { resolveMemberSportsDetailed } from './member-sport.js'
  *  (result.value carries the raw input when ok is false). */
 const normVal = (fn, v) => fn(v).value || ''
 
-const OWNER_EMAIL = 'luca.canepa@gmail.com'
+// ⚠ Was hardcoded to a personal Gmail, so it ignored the OWNER_EMAIL container
+// env and stayed behind when every other consumer moved. Reads the env now.
+// The club admin mailbox has no `members` row, so bucketEmailsByLocale falls it
+// into `de` — which is the right language for it, and it is still delivered.
+const OWNER_EMAIL = process.env.OWNER_EMAIL || 'admin@wiedisync.kscw.ch'
 const ADMIN_EMAIL = 'kontakt@kscw.ch'
 
 /** Current season in Wiedisync short form, e.g. '2025/26' (matches member_teams.season). June cutover — same as src/utils/dateHelpers.ts. */
