@@ -2,6 +2,21 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.88.0 — 2026-08-14
+
+### Membership fees are checked against the club's own rules
+
+- **Data health now checks every member's fee against the rules the club actually follows: honorary members, board members and coaches pay nothing, passive members pay CHF 40, and everybody else pays what their category says.** It reports, it never changes an amount — a mismatch is as often a wrong category as a wrong amount, and that is a decision for the treasurer, not for software.
+- **A team responsible is not a coach.** Coaches are free even when they also play; team responsibles pay their normal fee. Getting that distinction wrong would have reclassified four correctly-billed members.
+- **Gap-year members are deliberately not judged yet** — whether a Zwischenjahr owes anything is an open question, and flagging 28 people on a guess would be noise, not a finding.
+- **Members who owe nothing now get an invoice for CHF 0.** It shows the rate they would have paid and the waiver that cancels it, so the books have a record for every member instead of only the paying ones. These are filed, never emailed — nobody receives a bill for nothing.
+
+### A fee category corrected here now reaches the member register
+
+- **Changing somebody's fee category used to be undone again a few days later.** The category was owned by the register, so an edit here was never sent — and the nightly sync quietly restored the old value. It now travels to the register like the membership status does, and the amount travels with it, so the register can never end up saying "free" next to a CHF 440 bill.
+- **A per-person amount set by the treasurer still wins.** Correcting a category is not permission to throw away a price somebody set by hand.
+- **Fixes and corrections found by the same review:** seventeen basketball juniors who were billed as members while the register called them non-members are now members; six juniors left behind by the basketball fee increase have been raised; one member's category moved out of the bucket meant for people who have left the club.
+
 ## v1.87.1 — 2026-08-14
 
 ### Manually added games were missing from Home and Games

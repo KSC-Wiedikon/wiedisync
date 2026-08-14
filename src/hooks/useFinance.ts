@@ -536,7 +536,12 @@ export interface DuesPreviewRow {
   /** On-demand reduction the treasurer granted for this run. */
   discount: number
   discount_reason: string | null
-  /** base + surcharge − discounts: what the member is actually invoiced. */
+  /** CHF cancelled by a rule waiver (Ehrenmitglied / Vorstand / coach). The
+   *  member is still invoiced — at 0 — so accounting has a record for every
+   *  member, with the entitlement and the waiver both on the document. */
+  waiver: number
+  waiver_reason: 'honorary' | 'vorstand' | 'coach' | null
+  /** base + surcharge − discounts − waiver: what the member is actually invoiced. */
   amount: number | null
   already_billed: boolean
   /** ClubDesk-mirror dues invoice exists for this member + fiscal year (double-bill guard). */
@@ -549,9 +554,12 @@ export interface DuesPreviewResult {
   rows: DuesPreviewRow[]
   totals: {
     members: number; billable: number; billable_amount: number
+    /** Invoices the run will CREATE — billable plus the CHF 0 ones. */
+    issuable: number
     base_amount: number; surcharge_amount: number; surcharged: number
     guest_discount_amount: number; guests: number
     discount_amount: number; discounted: number
+    waived: number; waived_amount: number
     already_billed: number; clubdesk_billed: number; missing_rate: number; zero_rate: number; no_email: number
   }
   /** Active members this run cannot reach at all (absent when a trial run narrows to named members). */

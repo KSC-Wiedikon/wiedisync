@@ -22,12 +22,22 @@ const apiErr = (e: unknown, fallback: string) => (e as { body?: { error?: string
  *  'Kein Beitrag') is a real rate, but issuing would mint an invoice for
  *  nothing, so it never does. Showing those as "Will bill" made the preview
  *  promise ~90 more invoices than the run creates. */
-function rowStatus(r: DuesPreviewRow): 'willBill' | 'alreadyBilled' | 'clubdeskBilled' | 'noRate' | 'zeroRate' {
+function rowStatus(r: DuesPreviewRow): 'willBill' | 'alreadyBilled' | 'clubdeskBilled' | 'noRate' | 'zeroRate' | 'waived' {
   if (r.missing_rate) return 'noRate'
   if (r.already_billed) return 'alreadyBilled'
   if (r.clubdesk_billed) return 'clubdeskBilled'
+  // Since 2026-08-13 both of these still get a DOCUMENT (a CHF 0 invoice) —
+  // they are separated only because "the club waived a real fee" and "this
+  // category costs nothing" are different facts to an auditor.
+  if ((r.waiver || 0) > 0) return 'waived'
   if (!r.amount || r.amount <= 0) return 'zeroRate'
   return 'willBill'
+}
+
+/** Rows this run will create an invoice for — paying and free alike. `noRate`
+ *  is excluded because an unpriceable category cannot be invoiced at all. */
+function isIssuable(r: DuesPreviewRow): boolean {
+  return ['willBill', 'waived', 'zeroRate'].includes(rowStatus(r))
 }
 const STATUS_TONE: Record<string, string> = {
   willBill: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300',
@@ -117,9 +127,12 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
     // Nothing ticked = bill the whole billable cohort (the ordinary run). Tick a
     // few and only those are billed — how you trial the run on one member before
     // committing 570 real invoices.
-    const pickedRows = preview.rows.filter((r) => picked.has(r.member) && rowStatus(r) === 'willBill')
+    const pickedRows = preview.rows.filter((r) => picked.has(r.member) && isIssuable(r))
     const trial = pickedRows.length > 0
-    const billable = trial ? pickedRows.length : preview.totals.billable
+    // The COUNT is what the run creates (free members included); the AMOUNT is
+    // only what carries money. Quoting `billable` here promised fewer invoices
+    // than the run makes now that CHF 0 rows are issued.
+    const billable = trial ? pickedRows.length : preview.totals.issuable
     const amount = trial ? pickedRows.reduce((s, r) => s + (r.amount || 0), 0) : preview.totals.billable_amount
     if (!billable) return
     // High-stakes, irreversible batch (creates a payable QR-bill for every
@@ -183,7 +196,7 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
     } catch { setRunErr(t('duesBillsError')) } finally { setBillBusy(null) }
   }
 
-  const statusLabel = (s: string) => ({ willBill: t('duesStatusWillBill'), alreadyBilled: t('duesStatusAlreadyBilled'), clubdeskBilled: t('duesStatusClubdeskBilled'), noRate: t('duesStatusNoRate'), zeroRate: t('duesStatusZeroRate') }[s] ?? s)
+  const statusLabel = (s: string) => ({ willBill: t('duesStatusWillBill'), alreadyBilled: t('duesStatusAlreadyBilled'), clubdeskBilled: t('duesStatusClubdeskBilled'), noRate: t('duesStatusNoRate'), zeroRate: t('duesStatusZeroRate'), waived: t('duesStatusWaived') }[s] ?? s)
   const sektionLabel = (s: string | null) => s || t('duesSektionDefault')
   const sortedRates = useMemo(() => [...(ratesData?.rates ?? [])].sort((a, b) => a.category.localeCompare(b.category) || (a.sektion || '').localeCompare(b.sektion || '')), [ratesData])
 
@@ -312,6 +325,7 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
                 })}
                 {preview.totals.clubdesk_billed > 0 && <span className="text-purple-700 dark:text-purple-400"> · {t('duesClubdeskBilledNote', { count: preview.totals.clubdesk_billed })}</span>}
                 {preview.totals.zero_rate > 0 && <span className="text-gray-500 dark:text-gray-400"> · {t('duesZeroRateNote', { count: preview.totals.zero_rate })}</span>}
+                {preview.totals.waived > 0 && <span className="text-gray-500 dark:text-gray-400"> · {t('duesWaivedNote', { count: preview.totals.waived, amount: formatChf(preview.totals.waived_amount) })}</span>}
                 {/* A run that silently omits people must say so — the preview only
                     describes the categories that were picked. */}
                 {preview.totals.no_email > 0 && <span className="text-amber-700 dark:text-amber-400"> · {t('duesNoEmailNote', { count: preview.totals.no_email })}</span>}
@@ -422,10 +436,10 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
                     <button type="button" onClick={() => setPicked(new Set())} className="ml-2 underline">{t('duesTrialClear')}</button>
                   </p>
                 )}
-                <button type="button" disabled={!preview.totals.billable || issuing} onClick={issue}
+                <button type="button" disabled={!preview.totals.issuable || issuing} onClick={issue}
                   className="inline-flex items-center justify-center gap-1.5 rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50">
                   {issuing ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
-                  {t('duesIssueCta', { count: picked.size || preview.totals.billable })}
+                  {t('duesIssueCta', { count: picked.size || preview.totals.issuable })}
                 </button>
               </div>
             </div>

@@ -37,6 +37,14 @@ export type IssueKey =
   // page, so an aggregate count here would be a second surface to keep in step.
   | 'clubdeskHonoraryDrift'
   | 'clubdeskNameDrift'
+  // Fee rules (2026-08-13) — what the register bills vs what the club's rules
+  // say. Zwischenjahr is deliberately not among them; see /clubdesk-fee-rules.
+  | 'feeShouldBeFree'
+  | 'feePassivCategory'
+  | 'feeAmountMismatch'
+  | 'feeNoRegisterAmount'
+  | 'feeNoCategory'
+  | 'feeUnmappedCategory'
   | 'scorerNotInVm'
   | 'scorerVmWriterNotFlagged'
   | 'scorerCdVbScNotFlagged'
@@ -492,9 +500,78 @@ async function checkMembers(): Promise<CollectionHealth> {
     // Best-effort — see above.
   }
 
+  await checkFeeRules(issues)
   await checkScorerLicences(issues)
 
   return { collection: 'members', total: members.length, issues }
+}
+
+interface FeeRuleFinding {
+  member_id: number
+  member_name: string
+  register_status: string | null
+  category: string | null
+  register_amount: number | null
+  expected: number | null
+  reason: 'honorary' | 'vorstand' | 'coach' | null
+  kind: 'free_but_billed' | 'passiv_wrong_category' | 'amount_mismatch'
+    | 'no_register_amount' | 'no_category' | 'unmapped_category'
+}
+
+/** Backend kind → stable issue key. One key per DIFFERENT hand needed: a wrong
+ *  amount is the treasurer's call, a missing category is an admin's, and an
+ *  unmapped one needs a rate codified in CD_BEITRAG_MAP before either can act. */
+const FEE_ISSUE_KEY: Record<FeeRuleFinding['kind'], IssueKey> = {
+  free_but_billed: 'feeShouldBeFree',
+  passiv_wrong_category: 'feePassivCategory',
+  amount_mismatch: 'feeAmountMismatch',
+  no_register_amount: 'feeNoRegisterAmount',
+  no_category: 'feeNoCategory',
+  unmapped_category: 'feeUnmappedCategory',
+}
+
+/**
+ * Fee rules — what the ClubDesk register bills vs what the club's own rules say.
+ * The backend does the classification through feeBreakdown() (the one fee
+ * engine); this only shapes rows.
+ *
+ * REPORT ONLY, by design — no autoFixable, no manualKind. The register's
+ * Mitgliederbeitrag is a per-person cell the treasurer sets by hand, so a
+ * mismatch is a question ("which side is wrong?"), not a value to write. A
+ * "fix" button here would push the derivation over a deliberate decision.
+ *
+ * Severity: being billed when you should be free is an ERROR (someone is paying
+ * money they don't owe); everything else is a warning.
+ */
+async function checkFeeRules(issues: DataIssue[]): Promise<void> {
+  try {
+    const { findings } = await kscwApi<{
+      findings: FeeRuleFinding[]
+      checked: number
+      not_evaluated: number
+    }>('/clubdesk-fee-rules')
+    const chf = (n: number | null) => (n === null ? '—' : `CHF ${n}`)
+    for (const f of findings || []) {
+      const kat = f.category || '(no category)'
+      // Says the whole story on one line: who, on what category, register says
+      // X, rule says Y. The reader should never need to open the member.
+      const detail = f.kind === 'free_but_billed'
+        ? `${f.member_name} — ${f.reason} · ${kat} · ${chf(f.register_amount)}`
+        : `${f.member_name} — ${kat} · register ${chf(f.register_amount)} · expected ${chf(f.expected)}`
+      issues.push({
+        id: `fee-${f.kind}-${f.member_id}`,
+        collection: 'members',
+        field: 'beitragskategorie',
+        severity: f.kind === 'free_but_billed' ? 'error' : 'warning',
+        issueKey: FEE_ISSUE_KEY[f.kind],
+        detail,
+        autoFixable: false,
+      })
+    }
+  } catch {
+    // Best-effort, like the ClubDesk checks above: a failing fee endpoint must
+    // not blank the rest of the members findings.
+  }
 }
 
 interface ScorerCheckRow {

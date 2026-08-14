@@ -318,7 +318,11 @@ const CD_PUSH_CONTACT_HEADERS = [
 // registerCell falls through to the same echo. What changed is that an entry
 // date corrected in the Data Explorer now reaches the register instead of being
 // discarded on the next push.
-export const CD_REGISTER_FIELDS = ['register_status', 'eintritt', 'austritt']
+// `beitragskategorie` joined on 2026-08-14 for the same reason `eintritt` did:
+// a value corrected in wiedisync was being discarded on every push AND reverted
+// by the next sync-down. Nothing iterates this list in code — it is the written
+// contract for which cells an UPDATE row may overwrite, and reviewers diff it.
+export const CD_REGISTER_FIELDS = ['register_status', 'eintritt', 'austritt', 'beitragskategorie']
 
 /**
  * Register statuses that mean "no longer one of ours".
@@ -829,6 +833,57 @@ export async function guestMemberIdSet(database, memberIds, season) {
   return out
 }
 
+/**
+ * Who owes CHF 0 by RULE rather than by fee category (user 2026-08-13).
+ *
+ *   honorary  register_status 'Ehrenmitglied'
+ *   vorstand  the `vorstand` app role
+ *   coach     coach of an ACTIVE team
+ *
+ * ⚠ A TEAM RESPONSIBLE IS NOT A COACH (user 2026-08-13) — teams_responsibles is
+ * deliberately not consulted here. On prod that is the difference between 2 and
+ * 6 members: Czuk, Gerbino, Müller and Wanner are TRs of the team they play on
+ * and are correctly billed today.
+ * ⚠ COACHING WINS over playing: a player-coach is free even though they hold a
+ * paid player category.
+ *
+ * ONE definition, two consumers — the Data Health fee check (which reports
+ * "should be free but is billed") and the dues run (which waives the bill).
+ * Split them and the check would flag members the run then bills anyway.
+ *
+ * @returns {Promise<Map<number, 'honorary'|'vorstand'|'coach'>>} reason per
+ *   member — it travels because it is printed on the invoice's waiver line.
+ */
+export async function resolveFeeWaivers(database, memberIds = null) {
+  const ids = Array.isArray(memberIds)
+    ? [...new Set(memberIds.map(Number).filter(Number.isInteger))]
+    : null
+  if (ids && !ids.length) return new Map()
+  const bind = []
+  let filter = ''
+  if (ids) { filter = 'AND m.id = ANY(?)'; bind.push(ids) }
+  const res = await database.raw(`
+    SELECT m.id, m.register_status,
+           (m.role @> '["vorstand"]'::jsonb) AS is_vorstand,
+           EXISTS (
+             SELECT 1 FROM teams_coaches j
+               JOIN teams t ON t.id = j.teams_id AND t.active
+              WHERE j.members_id = m.id
+           ) AS is_coach
+      FROM members m
+     WHERE TRUE ${filter}`, bind)
+  const out = new Map()
+  for (const r of res.rows) {
+    // Fixed precedence so the printed reason is stable for somebody who is two
+    // of these at once (an honorary coach reads 'honorary', not whichever the
+    // query happened to evaluate first).
+    if (r.register_status === 'Ehrenmitglied') out.set(Number(r.id), 'honorary')
+    else if (r.is_vorstand === true) out.set(Number(r.id), 'vorstand')
+    else if (r.is_coach === true) out.set(Number(r.id), 'coach')
+  }
+  return out
+}
+
 // ClubDesk's Gast checkbox cell (see CD_PUSH_CONTACT_HEADERS). Deliberately
 // TOTAL — a non-guest asserts 'Nein' instead of sending an empty cell, so the
 // register never has to distinguish "not a guest" from "nobody ever said".
@@ -1112,6 +1167,35 @@ export function buildPushCsv(members, { create = false, countryNames = null } = 
       // The register triple (migration 302). `changed` is what limits these to
       // the field somebody actually edited — see registerCell / CD_REGISTER_FIELDS.
       const changed = changedPushFields(m.clubdesk_push_changes)
+      // ⚠ Beitragskategorie joined the gated set on 2026-08-14. It used to be
+      // unconditionally fill-only, which meant a category corrected in wiedisync
+      // could NEVER reach the register — and, worse, was silently reverted by the
+      // next sync-down, which is ClubDesk-authoritative on this column
+      // (`beitragskategorie = COALESCE(cd.categ, …)` in import-clubdesk-csv.mjs).
+      // Same narrow gate as the register triple: only a change that NAMES the
+      // field wins, so every unrelated push still echoes the register verbatim.
+      const kategorieOut = registerCell('beitragskategorie', {
+        changed,
+        // The MAPPED name — that is the string ClubDesk actually holds
+        // (CD_KATEGORIE_MAP), the same reason the drift check compares mapped.
+        wiedi: mapKategorie(m.beitragskategorie),
+        clubdesk: m.beitragskategorie_cd,
+      })
+      // ⚠⚠ THE CATEGORY AND THE AMOUNT ARE ONE DECISION, exactly like Status and
+      // Austritt below. Sending 'Gratis' while the register keeps CHF 440 would
+      // leave the legal register self-contradictory — and the register's own
+      // notes show the club reads the two together. So a category change DRAGS
+      // the Mitgliederbeitrag cell with it, priced under the NEW category.
+      //
+      // This does not overrule a hand-set amount: deriveMitgliederbeitrag reads
+      // `fee_base_override`, so a member the treasurer re-priced still emits
+      // their pinned number (migration 308's 113 rows). If the pin contradicts
+      // the new category, the pin wins and the override is what has to change —
+      // deliberately, because "the register wins" is the standing rule and a
+      // category edit is not authority to discard a treasurer's decision.
+      const feeChanged = changed.has('beitragskategorie')
+        ? new Set([...changed, 'mitgliederbeitrag'])
+        : changed
       const statusOut = registerCell('register_status', {
         changed, wiedi: m.register_status, clubdesk: m.register_status_cd,
       })
@@ -1135,7 +1219,7 @@ export function buildPushCsv(members, { create = false, countryNames = null } = 
         // so this can still never blank an existing date.
         : String(m.austritt_cd || '').trim()
       cells.push(
-        String(m.beitragskategorie_cd || '').trim() || mapKategorie(m.beitragskategorie),
+        kategorieOut,
         // Eintritt: wiedisync's column when it is the thing that changed, else
         // ClubDesk's own cell, else the registration submission date /up
         // resolved (the pre-302 behaviour, unchanged for everybody else).
@@ -1158,7 +1242,8 @@ export function buildPushCsv(members, { create = false, countryNames = null } = 
         // — measured on prod before this shipped, which is why it is not a
         // simple "wiedisync wins".
         registerCell('mitgliederbeitrag', {
-          changed,
+          // `feeChanged`, not `changed` — a category change carries the amount.
+          changed: feeChanged,
           wiedi: deriveMitgliederbeitrag(m.beitragskategorie, m, { isGuest: m.is_guest === true }),
           clubdesk: m.mitgliederbeitrag_cd,
         }),
@@ -2108,7 +2193,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       SELECT m.id, m.first_name, m.last_name, m.email, m.phone, m.adresse, m.plz, m.ort,
              m.birthdate, m.sex, m.iban, m.anrede, m.nationalitaet, m.ahv_nummer,
              m.federation_of_origin, m.trainer_licences,
-             m.register_status, m.eintritt, m.austritt,
+             m.register_status, m.eintritt, m.austritt, m.beitragskategorie,
              m.clubdesk_id, m.clubdesk_push_pending,
              cd.vorname AS cd_vorname, cd.nachname AS cd_nachname, cd.email AS cd_email,
              cd.email_alternativ AS cd_email_alt, cd.telefon_privat AS cd_tel_priv,
@@ -2118,13 +2203,15 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
              cd.ahv_nummer AS cd_ahv_nummer, cd.federation_of_origin AS cd_federation_of_origin,
              cd.trainer_lizenz AS cd_trainer_lizenz,
              cd.status AS cd_status, cd.eintritt AS cd_eintritt, cd.austritt AS cd_austritt,
+             cd.beitragskategorie AS cd_kategorie,
              cd.gast AS cd_gast
       FROM members m
       JOIN (
         SELECT DISTINCT ON (BTRIM(clubdesk_id)) BTRIM(clubdesk_id) AS cdid, vorname, nachname,
                email, email_alternativ, telefon_privat, telefon_mobil, adresse, plz, ort,
                geburtsdatum, geschlecht, iban, anrede, nationalitaet, ahv_nummer,
-               federation_of_origin, trainer_lizenz, status, eintritt, austritt, gast
+               federation_of_origin, trainer_lizenz, status, eintritt, austritt, gast,
+               beitragskategorie
         FROM clubdesk_export
         WHERE NULLIF(BTRIM(clubdesk_id), '') IS NOT NULL
         ORDER BY BTRIM(clubdesk_id), row_id
@@ -2241,6 +2328,16 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       // instead of being quietly overwritten on some later push.
       cmpEcho('register_status', r.register_status, r.cd_status,
         driftLower(r.register_status), driftLower(r.cd_status))
+      // Beitragskategorie became a gated register cell on 2026-08-14, so its
+      // divergence has to be VISIBLE for the same reason the status's is: the
+      // push only carries it when the member's change names it, and until then
+      // the two sides can sit apart indefinitely. Compared on the MAPPED name —
+      // that is what the register holds. Echo-protected → conflict-or-fill,
+      // never blank_risk. Measured on prod the day this shipped: 0 conflicts
+      // across all 672 linked active members, so this adds no noise.
+      const katW = mapKategorie(r.beitragskategorie)
+      cmpEcho('beitragskategorie', katW, r.cd_kategorie,
+        driftLower(katW), driftLower(r.cd_kategorie))
       // Dates display Swiss-style and compare on ISO — the same split birthdate
       // uses above, because ClubDesk's cell is dd.mm.yyyy text and wiedisync's
       // is a real date column.
@@ -2320,6 +2417,154 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       return res.json({ candidates, fills })
     } catch (err) {
       log.error({ msg: `clubdesk-drift: ${err.message}`, endpoint: 'clubdesk-drift', stack: err.stack })
+      return res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  // ── Fee-rule check (Data Health) ────────────────────────────────────────────
+  // "Does what the register bills this member match what the club's own rules
+  // say they owe?" Three rule families, confirmed by the user 2026-08-13:
+  //
+  //   free     Ehrenmitglied / Vorstand / coach → CHF 0. A team responsible is
+  //            NOT a coach and is billed normally (user 2026-08-13).
+  //            ⚠ COACHING WINS over playing (user decision 2026-08-13): a
+  //            player-coach is free even though they hold a paid player
+  //            category. That is NOT what the register does today — 6 of the 7
+  //            player-coaches on prod are billed 380–520 — so these surface as
+  //            findings on purpose, for a human to act on.
+  //   passiv   register_status 'Passivmitglied' → the Passiv category, CHF 40.
+  //   billable everybody else → the register's amount must equal what
+  //            feeBreakdown() derives from their category.
+  //
+  // ⚠ REPORT ONLY. The register's Mitgliederbeitrag is the club's real decision
+  // (a per-person cell with hand-set exceptions), not this engine's derivation —
+  // see the CD_BEITRAG_MAP header and registerCell(). Nothing here writes, and
+  // no "fix all" is offered: a mismatch is a question for the treasurer, and the
+  // answer is as often "correct the category" as "correct the amount".
+  //
+  // ⚠ Zwischenjahr (28 members on prod) is DELIBERATELY NOT EVALUATED. Whether a
+  // gap year owes a reduced fee or nothing at all is an open question with the
+  // treasurer (2026-08-13); the two 'mit Abzug' categories are held by exactly
+  // three contacts, all of them Zwischenjahr, all with an EMPTY register amount,
+  // so there is no historical figure to infer either. Guessing would flag 28
+  // correct rows. They are counted and reported as `not_evaluated` instead.
+  //
+  // ⚠ Honorary members already in the Ehrenmitglieder GROUP are skipped by the
+  // `free` rule: /clubdesk-group-sync's honorary_drift already reports exactly
+  // that pair (in the group, not on 'Gratis'), and two surfaces for one fact is
+  // how the retired group-count rows in dataHealthChecks.ts went stale.
+  const FEE_FREE_CATEGORIES = ['Gratis', 'Kein Beitrag']
+  const FEE_PASSIV_CATEGORY = 'Passivmitglied'
+  const FEE_PASSIV_AMOUNT = 40
+  /** Statuses whose fee rule is still undecided — counted, never flagged. */
+  const FEE_UNDECIDED_STATUSES = ['Zwischenjahr']
+
+  /** ClubDesk's Mitgliederbeitrag cell → number, or null when the cell is empty.
+   *  An empty cell is "the register has not said", which is a DIFFERENT finding
+   *  from "the register says the wrong number" — never coerce it to 0. */
+  const feeCellNum = (v) => {
+    const s = String(v ?? '').trim()
+    if (!s) return null
+    const n = Number(s.replace(/[^\d.-]/g, ''))
+    return Number.isFinite(n) ? n : null
+  }
+
+  async function computeFeeRuleChecks() {
+    const res = await database.raw(`
+      WITH cd AS (
+        SELECT DISTINCT ON (BTRIM(clubdesk_id)) BTRIM(clubdesk_id) AS cdid,
+               mitgliederbeitrag, beitragskategorie, status, gruppen_bracketed
+          FROM clubdesk_export
+         WHERE NULLIF(BTRIM(clubdesk_id), '') IS NOT NULL
+         ORDER BY BTRIM(clubdesk_id), row_id
+      )
+      SELECT m.id, m.first_name, m.last_name, m.register_status, m.beitragskategorie,
+             m.birthdate, m.scorer_vb, m.otr1_bb, m.otr2_bb, m.otn1_bb, m.otn2_bb,
+             m.fee_base_override, m.fee_surcharge_override, m.fee_discount,
+             m.fee_discount_pct, m.fee_discount_reason, m.clubdesk_id,
+             cd.mitgliederbeitrag AS cd_betrag, cd.beitragskategorie AS cd_kat,
+             EXISTS (
+               SELECT 1 FROM unnest(string_to_array(cd.gruppen_bracketed, ',')) g
+                WHERE BTRIM(g) = 'Ehrenmitglieder'
+             ) AS in_honorary_group
+        FROM members m
+        JOIN cd ON cd.cdid = m.clubdesk_id
+       WHERE m.kscw_membership_active = true
+       ORDER BY m.last_name, m.first_name`)
+    // The guest reduction is part of the fee, so it has to come from the SAME
+    // helper the push and the dues run use — a guest resolved differently here
+    // would report every guest as a mismatch forever.
+    const guestIds = await guestMemberIdSet(database, res.rows.map((r) => r.id), getCurrentSeason())
+    // The SAME helper the dues run waives on, so the check can never report
+    // "should be free" for somebody the run then bills — see resolveFeeWaivers.
+    const waivers = await resolveFeeWaivers(database, res.rows.map((r) => r.id))
+
+    const findings = []
+    let notEvaluated = 0
+    let checked = 0
+    for (const r of res.rows) {
+      const kat = String(r.beitragskategorie || '').trim()
+      const registerAmount = feeCellNum(r.cd_betrag)
+      const waiverReason = waivers.get(Number(r.id)) || null
+      const isFree = waiverReason !== null
+      const row = {
+        member_id: r.id,
+        member_name: `${r.first_name || ''} ${r.last_name || ''}`.trim(),
+        register_status: r.register_status || null,
+        category: kat || null,
+        register_amount: registerAmount,
+        expected: null,
+        // Why this member is expected to be free, so the row explains itself
+        // rather than making the reader join three tables in their head.
+        reason: waiverReason,
+      }
+
+      if (isFree) {
+        // The group half of the honorary axis belongs to honorary_drift.
+        if (r.in_honorary_group === true && r.register_status === 'Ehrenmitglied') continue
+        checked++
+        const override = overrideNum(r.fee_base_override)
+        const billed = !FEE_FREE_CATEGORIES.includes(kat)
+          || (registerAmount !== null && registerAmount !== 0)
+          // A non-zero base override bills them in the dues run even when the
+          // category says Gratis — the case the honorary check already learned.
+          || (override !== null && override !== 0)
+        if (billed) findings.push({ ...row, kind: 'free_but_billed', expected: 0 })
+        continue
+      }
+      if (FEE_UNDECIDED_STATUSES.includes(r.register_status || '')) { notEvaluated++; continue }
+      checked++
+
+      if (r.register_status === FEE_PASSIV_CATEGORY) {
+        if (kat !== FEE_PASSIV_CATEGORY) {
+          findings.push({ ...row, kind: 'passiv_wrong_category', expected: FEE_PASSIV_AMOUNT })
+        } else if (registerAmount === null) {
+          findings.push({ ...row, kind: 'no_register_amount', expected: FEE_PASSIV_AMOUNT })
+        } else if (registerAmount !== FEE_PASSIV_AMOUNT) {
+          findings.push({ ...row, kind: 'amount_mismatch', expected: FEE_PASSIV_AMOUNT })
+        }
+        continue
+      }
+      if (!kat) { findings.push({ ...row, kind: 'no_category' }); continue }
+      // The member's own overrides apply — feeBreakdown is the one engine, and a
+      // re-priced member must not report as a mismatch against the map amount.
+      const fee = feeBreakdown(kat, r, { isGuest: guestIds.has(Number(r.id)) })
+      if (!fee) { findings.push({ ...row, kind: 'unmapped_category' }); continue }
+      if (registerAmount === null) {
+        findings.push({ ...row, kind: 'no_register_amount', expected: fee.amount })
+      } else if (registerAmount !== fee.amount) {
+        findings.push({ ...row, kind: 'amount_mismatch', expected: fee.amount })
+      }
+    }
+    return { findings, checked, not_evaluated: notEvaluated, undecided_statuses: FEE_UNDECIDED_STATUSES }
+  }
+
+  router.get('/clubdesk-fee-rules', async (req, res) => {
+    try {
+      if (!(await superGate(req))) return res.status(403).json({ error: 'Forbidden' })
+      return res.json(await computeFeeRuleChecks())
+    } catch (err) {
+      log.error({ msg: `clubdesk-fee-rules: ${err.message}`, endpoint: 'clubdesk-fee-rules', stack: err.stack })
       return res.status(500).json({ error: 'Internal error' })
     }
   })
