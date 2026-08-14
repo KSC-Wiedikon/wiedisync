@@ -35,6 +35,11 @@ import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import ClubdeskSyncUpModal from './components/ClubdeskSyncUpModal'
 import ClubdeskMemberSyncButton from './components/ClubdeskMemberSyncButton'
+import ClubdeskProposals from './components/ClubdeskProposals'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+
+/** Top-level page section. Functional, unlike the sport axis it replaced. */
+type Section = 'clubdesk' | 'club'
 import ClubdeskGroupCheck from './components/ClubdeskGroupCheck'
 import ClubdeskFixGroups from './components/ClubdeskFixGroups'
 import {
@@ -515,6 +520,8 @@ export default function DataHealthPage() {
   const [lastCheck, setLastCheck] = useState('')
   const [syncUpOpen, setSyncUpOpen] = useState(false)
   const [tab, setTab] = useState<SportTab>('all')
+  // Which half of the page: everything ClubDesk, or the club-wide generic checks.
+  const [section, setSection] = useState<Section>('clubdesk')
 
   // ── ClubDesk findings, owned here ──────────────────────────────────────────
   // One fetch feeds the group-check table AND the "Fix groups" button, so the
@@ -601,6 +608,8 @@ export default function DataHealthPage() {
   // Report to app boot gate — see usePageReady.tsx
   useReportPageLoading(initialScan)
 
+  // Sport is a FILTER on the ClubDesk findings, not a kind of health check — see
+  // the note on the Tabs below. 'club' is excluded because it was never a sport.
   const memberTabs = SPORT_TABS.filter((s) => s !== 'club')
 
   return (
@@ -630,25 +639,6 @@ export default function DataHealthPage() {
             {loading ? t('dhScanning') : results.length > 0 ? t('dhRescan') : t('dhScan')}
           </Button>
         </div>
-      </div>
-
-      {/* ClubDesk actions. All three write (or can write) to the club register, so
-          they sit together above the findings rather than being scattered through
-          the sections they act on. */}
-      <div className="mb-6 flex flex-wrap items-start gap-x-3 gap-y-2 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-800/30">
-        <span className="flex items-center gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-300">
-          <ArrowDownToLine className="h-4 w-4" aria-hidden="true" />
-          {t('dhClubdeskActions')}
-        </span>
-        <ClubdeskMemberSyncButton onDone={runChecks} />
-        <Button type="button" variant="outline" size="sm" onClick={() => setSyncUpOpen(true)} className="gap-1.5">
-          <ArrowUpFromLine className="h-3.5 w-3.5" aria-hidden="true" />
-          {t('dhSyncUp')}
-        </Button>
-        <ClubdeskFixGroups available={fixAvailable} onDone={runChecks} />
-        <p className="w-full text-xs text-gray-500 dark:text-gray-400">
-          {t('cdNeedsSyncLastUp', { time: syncMeta.lastUp ? formatDateTimeCompact(syncMeta.lastUp) : '—' })}
-        </p>
       </div>
 
       {/* Rescan after a push so pushed members drop off the drift list. */}
@@ -698,37 +688,76 @@ export default function DataHealthPage() {
             </div>
           )}
 
-          <Tabs value={tab} onValueChange={(v) => setTab(v as SportTab)}>
+          {/* The top level is FUNCTIONAL, not sport-sectional (2026-08-14). It used
+              to be five sport tabs whose four member tabs rendered nothing but the
+              ClubDesk components — mounted four times over, each re-filtering the
+              same shared state. Sport is a filter on ClubDesk findings, not a
+              category of health check, so it is a filter now. */}
+          <Tabs value={section} onValueChange={(v) => setSection(v as Section)}>
             <TabsList className="mb-4 flex-wrap">
-              {SPORT_TABS.map((s) => (
-                <TabsTrigger key={s} value={s} className="min-h-11 sm:min-h-0">
-                  {t(`dhTab_${s}`)}
-                </TabsTrigger>
-              ))}
+              <TabsTrigger value="clubdesk" className="min-h-11 sm:min-h-0">
+                {t('dhTab_clubdesk')}
+              </TabsTrigger>
+              <TabsTrigger value="club" className="min-h-11 sm:min-h-0">
+                {t('dhTab_club')}
+              </TabsTrigger>
             </TabsList>
 
-            {/* The four member tabs share one body — they differ only in filter. */}
-            {memberTabs.map((s) => (
-              <TabsContent key={s} value={s} className="space-y-4">
-                <div className={`space-y-4 transition-opacity ${loading ? 'pointer-events-none opacity-60' : ''}`}>
-                  <ClubdeskNeedsSync
-                    rows={needsSyncForTab}
-                    inSync={syncMeta.inSync}
-                    lastDown={syncMeta.lastDown}
-                    lastUp={syncMeta.lastUp}
-                    loading={loading}
-                  />
-                  <ClubdeskGroupCheck
-                    data={groupData}
-                    loading={loading}
-                    error={groupErr}
-                    onRefresh={runChecks}
-                    tab={s}
-                    facets={facets}
-                  />
-                </div>
-              </TabsContent>
-            ))}
+            {/* Everything ClubDesk in one place: what wants to come DOWN (awaiting
+                your decision), what is queued to go UP, and the group allocations.
+                The registrations page no longer carries any of it. */}
+            <TabsContent value="clubdesk" className="space-y-4">
+              <div className="flex flex-wrap items-start gap-x-3 gap-y-2 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-800/30">
+                <span className="flex items-center gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-300">
+                  <ArrowDownToLine className="h-4 w-4" aria-hidden="true" />
+                  {t('dhClubdeskActions')}
+                </span>
+                <ClubdeskMemberSyncButton onDone={runChecks} />
+                <Button type="button" variant="outline" size="sm" onClick={() => setSyncUpOpen(true)} className="gap-1.5">
+                  <ArrowUpFromLine className="h-3.5 w-3.5" aria-hidden="true" />
+                  {t('dhSyncUp')}
+                </Button>
+                <ClubdeskFixGroups available={fixAvailable} onDone={runChecks} />
+                <p className="w-full text-xs text-gray-500 dark:text-gray-400">
+                  {t('cdNeedsSyncLastUp', { time: syncMeta.lastUp ? formatDateTimeCompact(syncMeta.lastUp) : '—' })}
+                </p>
+              </div>
+
+              {/* Sync down produces proposals, never writes — see migration 321. */}
+              <ClubdeskProposals onDone={runChecks} />
+
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500 dark:text-gray-400">{t('dhSportFilter')}</span>
+                <Select value={tab} onValueChange={(v) => setTab(v as SportTab)}>
+                  <SelectTrigger className="h-9 w-48 min-h-11 sm:min-h-0">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {memberTabs.map((s) => (
+                      <SelectItem key={s} value={s}>{t(`dhTab_${s}`)}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className={`space-y-4 transition-opacity ${loading ? 'pointer-events-none opacity-60' : ''}`}>
+                <ClubdeskNeedsSync
+                  rows={needsSyncForTab}
+                  inSync={syncMeta.inSync}
+                  lastDown={syncMeta.lastDown}
+                  lastUp={syncMeta.lastUp}
+                  loading={loading}
+                />
+                <ClubdeskGroupCheck
+                  data={groupData}
+                  loading={loading}
+                  error={groupErr}
+                  onRefresh={runChecks}
+                  tab={tab}
+                  facets={facets}
+                />
+              </div>
+            </TabsContent>
 
             {/* Club-wide: the checks with no section at all — games, scorer
                 licences, and the member-level ClubDesk findings whose fix is an

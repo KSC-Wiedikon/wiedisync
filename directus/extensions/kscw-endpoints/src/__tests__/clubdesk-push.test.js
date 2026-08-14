@@ -18,7 +18,7 @@
  * Hermetic — pure functions, no DB or network.
  */
 import { describe, it, expect } from 'vitest'
-import { buildPushCsv, registerCell, changedPushFields, CD_PUSH_CREATE_HEADERS, CD_KATEGORIE_MAP, CD_BEITRAG_MAP, feeBreakdown, mapKategorie, deriveGruppen, deriveStatus, deriveMitgliederbeitrag, deriveOffiziellenLizenz, deriveSektion, deriveSchiedsrichter, federationCell, nationalityCell, gastCell, trainerLicenceCell, trainerLicenceDisplay, parseTrainerLicenceCell, parseTrainerLicenceCodes } from '../clubdesk-update.js'
+import { buildPushCsv, registerCell, changedPushFields, CD_PUSH_CREATE_HEADERS, CD_KATEGORIE_MAP, CD_BEITRAG_MAP, feeBreakdown, mapKategorie, deriveGruppen, deriveStatus, deriveMitgliederbeitrag, deriveOffiziellenLizenz, deriveSektion, deriveSchiedsrichter, federationCell, nationalityCell, gastCell, trainerLicenceCell, trainerLicenceDisplay, parseTrainerLicenceCell, parseTrainerLicenceCodes, PROPOSAL_COLUMNS, coerceProposalValue } from '../clubdesk-update.js'
 
 const kacper = {
   first_name: 'Kacper', last_name: 'Krawczyński', email: 'k@example.com',
@@ -365,6 +365,53 @@ describe('buildPushCsv (update set — fill-only billing cells, 2026-07-27)', ()
       .trim().split('\n')[1].split(';')
     expect(createRow[26]).toBe('759984')
     expect(createRow[27]).toBe('')
+  })
+})
+
+describe('coerceProposalValue (the sync-down accept whitelist, 2026-08-14)', () => {
+  it('rejects any field that is not on the whitelist — this is the injection boundary', () => {
+    // `field` becomes a column name in an UPDATE. Anything not named in
+    // PROPOSAL_COLUMNS must never get that far.
+    expect(coerceProposalValue('role', 'admin').ok).toBe(false)
+    expect(coerceProposalValue('password', 'x').ok).toBe(false)
+    expect(coerceProposalValue('id', '1').ok).toBe(false)
+    expect(coerceProposalValue('adresse; DROP TABLE members', 'x').ok).toBe(false)
+    expect(coerceProposalValue('', 'x').ok).toBe(false)
+  })
+
+  it('accepts the columns the register is allowed to influence', () => {
+    expect(coerceProposalValue('adresse', 'Sängglenstrasse 6')).toEqual({ ok: true, value: 'Sängglenstrasse 6' })
+    expect(coerceProposalValue('register_status', 'Aktivmitglied')).toEqual({ ok: true, value: 'Aktivmitglied' })
+  })
+
+  it('takes dates ONLY as ISO — a mis-parsed birthdate flips minor-protection', () => {
+    expect(coerceProposalValue('birthdate', '2009-09-01')).toEqual({ ok: true, value: '2009-09-01' })
+    // Swiss display format is what a human types; the detection pass stores ISO
+    // precisely so this never has to guess which of the two it is looking at.
+    expect(coerceProposalValue('birthdate', '01.09.2009').ok).toBe(false)
+    expect(coerceProposalValue('eintritt', '1.9.2009').ok).toBe(false)
+    expect(coerceProposalValue('austritt', 'yesterday').ok).toBe(false)
+  })
+
+  it('booleans are set-true only — a "false" proposal is not applied', () => {
+    expect(coerceProposalValue('scorer_vb', 'true')).toEqual({ ok: true, value: true })
+    // ClubDesk holds ONE value per contact while a member can hold several
+    // licences, so absence is absence of evidence: nothing here may clear a flag.
+    expect(coerceProposalValue('scorer_vb', 'false').ok).toBe(false)
+    expect(coerceProposalValue('otr2_bb', '').ok).toBe(false)
+  })
+
+  it('an empty or missing value is never applied', () => {
+    expect(coerceProposalValue('adresse', '').ok).toBe(false)
+    expect(coerceProposalValue('adresse', '   ').ok).toBe(false)
+    expect(coerceProposalValue('adresse', null).ok).toBe(false)
+    expect(coerceProposalValue('adresse', undefined).ok).toBe(false)
+  })
+
+  it('every whitelisted column has a known type', () => {
+    for (const [field, type] of Object.entries(PROPOSAL_COLUMNS)) {
+      expect(['text', 'date', 'bool'], `${field} has type ${type}`).toContain(type)
+    }
   })
 })
 

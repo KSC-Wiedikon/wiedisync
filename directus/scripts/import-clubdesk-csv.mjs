@@ -210,113 +210,25 @@ const psqlInput =
   `UPDATE clubdesk_export_meta SET last_import_at = NOW(), source_file = '${fileTag}', row_count = (SELECT COUNT(*) FROM clubdesk_export) WHERE id = 1;\n` +
   'COMMIT;\n' +
   "SELECT 'rows', (SELECT COUNT(*) FROM clubdesk_export), 'volleyball', (SELECT COUNT(*) FROM clubdesk_volleyball), 'last_import', (SELECT last_import_at FROM clubdesk_export_meta WHERE id=1);\n" +
-  // ── Apply ClubDesk birthdates to members (minor-protection dependency) ──
-  // members.birthdate gates public roster visibility: the public team API strips
-  // under-18s and treats a MISSING birthdate as a minor (hidden — see the public
-  // /kscw/public/team/:id endpoint + the public /items/members permission filter).
-  // ClubDesk is the source of truth, so fill NULL birthdates from clubdesk_export
-  // on every sync — otherwise new members regress to "hidden". Never overwrite an
-  // existing birthdate. Two unambiguous passes (each only applies a single distinct
-  // dob per member): (1) licence — lizenznummer is 1:1 per person, authoritative;
-  // (2) email guarded by a first-name token match, so a shared family email cannot
-  // cross-assign a birthdate. A failed/accented name match simply skips (the member
-  // stays hidden = fail-safe). Only well-formed, calendar-valid dd.mm.yyyy parses.
-  // Own transaction so a match hiccup never rolls back the staging load above.
-  'BEGIN;\n' +
-  'WITH cd AS (\n' +
-  "  SELECT lower(btrim(lizenznummer)) AS lic, to_date(geburtsdatum,'DD.MM.YYYY') AS dob\n" +
-  '  FROM clubdesk_export\n' +
-  "  WHERE geburtsdatum ~ '^[0-9]{2}\\.[0-9]{2}\\.[0-9]{4}$'\n" +
-  "    AND to_char(to_date(geburtsdatum,'DD.MM.YYYY'),'DD.MM.YYYY') = geburtsdatum),\n" +
-  'lic_match AS (\n' +
-  '  SELECT m.id, min(cd.dob) AS dob FROM members m\n' +
-  "  JOIN cd ON cd.lic <> '' AND cd.lic = lower(btrim(m.license_nr))\n" +
-  "  WHERE m.birthdate IS NULL AND btrim(coalesce(m.license_nr,'')) <> ''\n" +
-  '  GROUP BY m.id HAVING count(DISTINCT cd.dob) = 1)\n' +
-  'UPDATE members m SET birthdate = lic_match.dob\n' +
-  '  FROM lic_match WHERE m.id = lic_match.id AND m.birthdate IS NULL;\n' +
-  'WITH cd AS (\n' +
-  '  SELECT lower(btrim(email)) AS email, lower(btrim(email_alternativ)) AS email_alt,\n' +
-  "         lower(btrim(nachname)) AS nachname,\n" +
-  "         lower(split_part(btrim(vorname),' ',1)) AS vn1, to_date(geburtsdatum,'DD.MM.YYYY') AS dob\n" +
-  '  FROM clubdesk_export\n' +
-  "  WHERE geburtsdatum ~ '^[0-9]{2}\\.[0-9]{2}\\.[0-9]{4}$'\n" +
-  "    AND to_char(to_date(geburtsdatum,'DD.MM.YYYY'),'DD.MM.YYYY') = geburtsdatum),\n" +
-  // Last-name equality guard (audit #13): a shared family email + same first
-  // name (child 'Thomas' on the parent 'Thomas Müller's address) would otherwise
-  // stamp the parent's adult DOB onto the minor, flipping the public roster's
-  // minor-protection to expose the child. The contact-fields pass + clubdesk_id
-  // linker already AND last-name equality; this pass must match them.
-  'email_match AS (\n' +
-  '  SELECT m.id, min(cd.dob) AS dob FROM members m\n' +
-  "  JOIN cd ON btrim(coalesce(m.email,'')) <> '' AND lower(btrim(m.email)) IN (cd.email, cd.email_alt)\n" +
-  "   AND lower(btrim(m.last_name)) = cd.nachname\n" +
-  "   AND lower(split_part(btrim(m.first_name),' ',1)) = cd.vn1\n" +
-  '  WHERE m.birthdate IS NULL\n' +
-  '  GROUP BY m.id HAVING count(DISTINCT cd.dob) = 1)\n' +
-  'UPDATE members m SET birthdate = email_match.dob\n' +
-  '  FROM email_match WHERE m.id = email_match.id AND m.birthdate IS NULL;\n' +
-  'COMMIT;\n' +
-  "SELECT 'members_missing_birthdate' AS metric, (SELECT count(*) FROM members WHERE birthdate IS NULL) AS value;\n" +
-  // (The Geschlecht→sex and Anrede/Nationalität/AHV fill passes run AFTER the
-  // clubdesk_id linker below, so members linked in THIS run are filled in the
-  // same run instead of waiting a whole sync cycle.)
-  // ── Propagate ClubDesk contact fields to members (finance member explorer) ──
-  // The scrape stages address/category/sektion/phone for every member, but only
-  // birthdate was ever applied. Fill the rest so the finance Members view mirrors
-  // ClubDesk. ClubDesk-authoritative fields (beitragskategorie, sektion — members
-  // can't edit them) always update; member-editable ones (adresse/plz/ort/phone)
-  // fill only when empty so a member's own profile edit is never clobbered.
-  // Matched by licence (1:1) then email(+alt) with a last-name equality + first-name-
-  // token guard (same safe matching as the birthdate passes + the clubdesk_id linker).
-  // The last-name guard stops a shared family email (parent↔child) cross-assigning each
-  // other's authoritative Beitragskategorie/address. Own transaction.
-  'BEGIN;\n' +
-  'WITH cd AS (\n' +
-  '  SELECT lower(btrim(lizenznummer)) lic,\n' +
-  "         left(NULLIF(btrim(adresse),''),255) adresse, left(NULLIF(btrim(plz),''),10) plz, left(NULLIF(btrim(ort),''),100) ort,\n" +
-  "         left(NULLIF(btrim(beitragskategorie),''),100) categ, left(NULLIF(btrim(sektion),''),32) sektion,\n" +
-  // Phone fills ONLY when canonical (kscw_normalize_phone, migration 186/189
-  // policy 2026-07-07): an unrewritable ClubDesk value (legacy 9-digit, free
-  // text, Excel-mangled) is NOT imported — same rule as the AHV intake. The
-  // member re-enters their number in the profile; garbage never crosses over.
-  "         kscw_normalize_phone(left(COALESCE(NULLIF(btrim(telefon_mobil),''), NULLIF(btrim(telefon_privat),'')),255)) phone\n" +
-  "  FROM clubdesk_export WHERE NULLIF(btrim(lizenznummer),'') IS NOT NULL),\n" +
-  'mt AS (\n' +
-  '  SELECT DISTINCT ON (mm.id) mm.id, cd.adresse, cd.plz, cd.ort, cd.categ, cd.sektion, cd.phone\n' +
-  '  FROM members mm JOIN cd ON cd.lic = lower(btrim(mm.license_nr))\n' +
-  "  WHERE NULLIF(btrim(mm.license_nr),'') IS NOT NULL\n" +
-  '  ORDER BY mm.id, cd.categ NULLS LAST, cd.adresse NULLS LAST)\n' +
-  'UPDATE members t SET\n' +
-  '  beitragskategorie = COALESCE(mt.categ, t.beitragskategorie), sektion = COALESCE(mt.sektion, t.sektion),\n' +
-  "  adresse = COALESCE(NULLIF(btrim(t.adresse),''), mt.adresse), plz = COALESCE(NULLIF(btrim(t.plz),''), mt.plz),\n" +
-  "  ort = COALESCE(NULLIF(btrim(t.ort),''), mt.ort), phone = COALESCE(NULLIF(btrim(t.phone),''), mt.phone)\n" +
-  'FROM mt WHERE t.id = mt.id;\n' +
-  'WITH cd AS (\n' +
-  '  SELECT lower(btrim(email)) email, lower(btrim(email_alternativ)) email_alt,\n' +
-  "         lower(btrim(nachname)) nachname, lower(split_part(btrim(vorname),' ',1)) vn1,\n" +
-  "         left(NULLIF(btrim(adresse),''),255) adresse, left(NULLIF(btrim(plz),''),10) plz, left(NULLIF(btrim(ort),''),100) ort,\n" +
-  "         left(NULLIF(btrim(beitragskategorie),''),100) categ, left(NULLIF(btrim(sektion),''),32) sektion,\n" +
-  // Phone fills ONLY when canonical (kscw_normalize_phone, migration 186/189
-  // policy 2026-07-07): an unrewritable ClubDesk value (legacy 9-digit, free
-  // text, Excel-mangled) is NOT imported — same rule as the AHV intake. The
-  // member re-enters their number in the profile; garbage never crosses over.
-  "         kscw_normalize_phone(left(COALESCE(NULLIF(btrim(telefon_mobil),''), NULLIF(btrim(telefon_privat),'')),255)) phone\n" +
-  '  FROM clubdesk_export),\n' +
-  'mt AS (\n' +
-  '  SELECT DISTINCT ON (mm.id) mm.id, cd.adresse, cd.plz, cd.ort, cd.categ, cd.sektion, cd.phone\n' +
-  "  FROM members mm JOIN cd ON NULLIF(btrim(mm.email),'') IS NOT NULL\n" +
-  '       AND lower(btrim(mm.email)) IN (cd.email, cd.email_alt)\n' +
-  '       AND lower(btrim(mm.last_name)) = cd.nachname\n' +
-  "       AND lower(split_part(btrim(mm.first_name),' ',1)) = cd.vn1\n" +
-  '  ORDER BY mm.id, cd.categ NULLS LAST, cd.adresse NULLS LAST)\n' +
-  'UPDATE members t SET\n' +
-  '  beitragskategorie = COALESCE(mt.categ, t.beitragskategorie), sektion = COALESCE(mt.sektion, t.sektion),\n' +
-  "  adresse = COALESCE(NULLIF(btrim(t.adresse),''), mt.adresse), plz = COALESCE(NULLIF(btrim(t.plz),''), mt.plz),\n" +
-  "  ort = COALESCE(NULLIF(btrim(t.ort),''), mt.ort), phone = COALESCE(NULLIF(btrim(t.phone),''), mt.phone)\n" +
-  'FROM mt WHERE t.id = mt.id;\n' +
-  'COMMIT;\n' +
-  "SELECT 'members_with_address' AS metric, (SELECT count(*) FROM members WHERE NULLIF(btrim(adresse),'') IS NOT NULL) AS value;\n" +
+  // ── COLLAPSED 2026-08-14 (migration 321) ────────────────────────────────────
+  // Two passes used to live here: birthdate-by-licence/email, and contact-fields-
+  // by-licence/email. Both ran BEFORE the clubdesk_id linker below, which is the
+  // only reason they existed — they matched on licence/email because there was no
+  // link yet to match on.
+  //
+  // ⚠⚠ They are gone rather than converted, and that is the point. Because they
+  // ran first and carried NO `clubdesk_push_pending` guard, they wrote 7 columns
+  // (birthdate, adresse, plz, ort, phone, beitragskategorie, sektion) that the
+  // guarded register pass further down believed it was protecting: by the time it
+  // ran, its own change-detection WHERE found nothing left to change. So the guard
+  // that was supposed to stop the sync reverting a wiedisync edit only ever worked
+  // for members these two passes failed to match. That is the defect migration 319
+  // had to fix forward for `beitragskategorie`, one column at a time.
+  //
+  // Everything they did is now covered by the single detection pass below, keyed
+  // on clubdesk_id alone (709 of 711 members are linked; the linker runs first and
+  // the handful it links in THIS run are detected in the same run, exactly as
+  // before). No behaviour is lost — only the unguarded write path is.
   // ── Link members.clubdesk_id from staging (the sync-up "is this contact already
   // in ClubDesk?" key) ────────────────────────────────────────────────────────
   // Migration 158 did this once, but only matched email + a ONE-directional first-
@@ -499,11 +411,31 @@ const psqlInput =
   '            OR (c2.nachname_l = cd.nachname_l\n' +
   "                AND NULLIF(c2.vn1,'') IS NOT NULL AND NULLIF(cd.vn1,'') IS NOT NULL\n" +
   "                AND (c2.vn1 LIKE cd.vn1 || '%' OR cd.vn1 LIKE c2.vn1 || '%'))))),\n" +
+  // ⚠⚠ 2026-08-14 (migration 321): this no longer INSERTs a member. It stages a
+  // `create` proposal and a superadmin decides. Everything above — the scope
+  // filter and the four same-person guards — is unchanged and still does the hard
+  // part: it is what stops the queue filling with 447 departed contacts and with
+  // people who already have a row under a married/re-registered name. The review
+  // step is for the residue those guards cannot judge.
+  //
+  // The contact's name + email ride along in `payload` because clubdesk_export is
+  // TRUNCATEd and reloaded on every run: by the time somebody opens the queue, the
+  // row that produced this proposal may describe a different export. A create
+  // proposal has to carry its own evidence.
+  //
+  // ON CONFLICT DO NOTHING covers a re-run (the partial unique on clubdesk_id WHERE
+  // pending); the NOT EXISTS covers a REFUSED one, which is a different index and
+  // would otherwise be re-proposed every single run — a refusal has to stick.
   'ins AS (\n' +
-  '  INSERT INTO members (first_name, last_name, email, clubdesk_id)\n' +
-  "  SELECT first_name, last_name, COALESCE(email,''), cdid FROM fresh\n" +
+  '  INSERT INTO clubdesk_sync_proposals (member_id, clubdesk_id, field, current_value, proposed_value, rule, payload)\n' +
+  "  SELECT NULL, cdid, NULL, NULL, first_name || ' ' || last_name, 'create',\n" +
+  "         jsonb_build_object('first_name', first_name, 'last_name', last_name, 'email', COALESCE(email,''))\n" +
+  '  FROM fresh\n' +
+  '  WHERE NOT EXISTS (SELECT 1 FROM clubdesk_sync_proposals p\n' +
+  "                     WHERE p.rule = 'create' AND p.status = 'refused' AND p.clubdesk_id = fresh.cdid)\n" +
+  '  ON CONFLICT DO NOTHING\n' +
   '  RETURNING 1)\n' +
-  "SELECT 'members_created_from_clubdesk' AS metric, count(*) AS value FROM ins;\n" +
+  "SELECT 'clubdesk_create_proposals' AS metric, count(*) AS value FROM ins;\n" +
   'COMMIT;\n' +
   // Report the contacts the same-person guards skipped (current members whose
   // cdid stayed unclaimed): each is either a ClubDesk duplicate contact to MERGE
@@ -543,334 +475,200 @@ const psqlInput =
   // a wrong ClubDesk Geschlecht fixed by hand) survive every sync. The
   // count(DISTINCT)=1 guard skips a contact staged with conflicting values.
   // Own transaction, same isolation rationale as the birthdate passes.
-  'BEGIN;\n' +
-  'WITH cd AS (\n' +
-  '  SELECT btrim(clubdesk_id) AS cdid,\n' +
-  "         CASE lower(btrim(geschlecht)) WHEN 'männlich' THEN 'm' WHEN 'weiblich' THEN 'f' END AS sex\n" +
-  '  FROM clubdesk_export\n' +
-  "  WHERE NULLIF(btrim(clubdesk_id),'') IS NOT NULL\n" +
-  "    AND lower(btrim(geschlecht)) IN ('männlich','weiblich')),\n" +
-  'sex_match AS (\n' +
-  '  SELECT m.id, min(cd.sex) AS sex FROM members m\n' +
-  '  JOIN cd ON cd.cdid = btrim(m.clubdesk_id)\n' +
-  "  WHERE m.sex IS NULL OR btrim(m.sex) = ''\n" +
-  '  GROUP BY m.id HAVING count(DISTINCT cd.sex) = 1)\n' +
-  'UPDATE members m SET sex = sex_match.sex\n' +
-  "  FROM sex_match WHERE m.id = sex_match.id AND (m.sex IS NULL OR btrim(m.sex) = '');\n" +
-  'COMMIT;\n' +
-  "SELECT 'members_missing_sex' AS metric, (SELECT count(*) FROM members WHERE sex IS NULL OR btrim(sex)='') AS value;\n" +
-  // ── Apply ClubDesk identity fields (Anrede / Nationalität / AHV) — fill-only ──
-  // ClubDesk is the legal register for these, but all three are member-editable
-  // in wiedisync, so the sync only FILLS empties (a member's own edit is never
-  // clobbered; this is also the down-sync half required before these columns may
-  // ever join CD_PUSH_HEADERS — see clubdesk-update.js). AHV must match the
-  // official 756.xxxx.xxxx.xx shape or it is skipped — a free-text cell must not
-  // permanently occupy a legal-register column (fill-only means garbage would
-  // never self-heal). DELIBERATELY EXCLUDED after the 2026-07-04 review:
-  //   • iban — a member who deletes their IBAN (PayoutIbanCard) would have it
-  //     resurrected every sync (iban_confirmed defaults false → no marker to
-  //     tell "deleted" from "never had"); needs a tombstone before importing.
-  //   • never_dun — the ratchet silently reverted the DunningConsole's explicit
-  //     "undo never-dun" every week; the flag stays owned by migration 146 +
-  //     the console + the Data Health drift view.
-  // Caveat (accepted): a member who deliberately CLEARS anrede/nationalität/AHV
-  // gets the ClubDesk value re-filled next sync — same no-tombstone limitation.
-  // clubdesk_id-keyed (1:1); DISTINCT ON picks the latest staged row should a
-  // contact ever appear twice. Change-guard WHERE avoids no-op row churn.
-  // AHV recovery (2026-07-05): ClubDesk holds several dot-mangled but digit-complete
-  // AHV numbers ("756.74468971.66", "7567859436260") — strip to digits and accept a
-  // 13-digit 756-prefixed value ONLY when its EAN-13 check digit validates, then
-  // reformat to the official dotted shape. Excel-destroyed cells ("7.56E+12") and
-  // insurance-card numbers fail the shape/checksum and stay skipped (fix in ClubDesk).
+  // ── DETECT: stage every ClubDesk→wiedisync change as a proposal (migration 321) ──
+  // This replaces five separate write passes (identity, federation, trainer
+  // licence, the contact/register block, and the officials flags). They wrote 20
+  // statements straight into `members`; this one writes rows into
+  // clubdesk_sync_proposals and touches `members` not at all. That is the whole
+  // feature and it is worth stating as a testable invariant: A SYNC-DOWN RUN MUST
+  // LEAVE `members` BYTE-IDENTICAL apart from the linker above.
+  //
+  // Every rule the old passes encoded is preserved, only re-expressed as a
+  // detection predicate plus a `rule` label the reviewer sees:
+  //   fill      — our cell is empty and ClubDesk has something
+  //   overwrite — both hold a value, they differ, and ClubDesk's used to win
+  //   set_true  — a group/licence-derived boolean the register asserts
+  // The value parsing is carried over verbatim (calendar-valid dd.mm.yyyy only,
+  // canonical phone only, EAN-13-checked AHV only, country aliases, the trainer
+  // ladder, the status picklist) because a proposal must never offer a value the
+  // accept step would then refuse to store.
+  //
+  // ⚠ Keyed on clubdesk_id ALONE. The old licence/email-matched passes are gone
+  // (see the note where they used to be) — they are what made the push-pending
+  // guard ineffective.
+  //
+  // ⚠ Three exclusions, all of which used to be missing somewhere:
+  //   • clubdesk_push_pending — the member holds an edit on its way UP; proposing
+  //     the register's stale value back would invert the two-way contract. Only
+  //     the old register-triple pass checked this; now everything does.
+  //   • clubdesk_sync_exclude — the "mute" flag (migration 190). The down-sync has
+  //     NEVER honoured it: it is checked by the sync-up preview and the group
+  //     checks only, so a muted member was still written on every run. That was a
+  //     live bug, fixed here.
+  //   • a REFUSED proposal for the same (member, field, value) — the tombstone.
+  //     Without it a refusal would be re-asked every Saturday forever.
+  //
+  // ⚠ `austritt` only ever rides with a departed status, exactly as before
+  //   (members_austritt_needs_departed_status, migration 302). It is proposed only
+  //   when the status the register carries — or ours, if the register says nothing
+  //   — is one of the three departed values, so accepting it can never produce the
+  //   contradictory pair the CHECK refuses.
+  //
+  // ⚠ scorer_vb folds in the club rule "a VB referee is automatically a scorer"
+  //   (user 2026-07-07). It used to be a separate members-internal UPDATE at the
+  //   end of the flags pass; merged here because two proposals for the same
+  //   (member, field) cannot coexist under the pending unique index, and because
+  //   a silent internal write during a detect-only run would break the invariant
+  //   above. The reviewer sees one scorer_vb row either way.
   'BEGIN;\n' +
   'WITH cd0 AS (\n' +
-  '  SELECT DISTINCT ON (btrim(clubdesk_id)) btrim(clubdesk_id) AS cdid,\n' +
-  "         left(NULLIF(btrim(anrede),''),10) AS anrede,\n" +
-  "         left(NULLIF(btrim(nationalitaet),''),100) AS nationalitaet,\n" +
-  '         btrim(ahv_nummer) AS ahv_raw,\n' +
-  "         regexp_replace(btrim(ahv_nummer), '[^0-9]', '', 'g') AS ahv_digits\n" +
-  '  FROM clubdesk_export\n' +
-  "  WHERE NULLIF(btrim(clubdesk_id),'') IS NOT NULL\n" +
-  '  ORDER BY btrim(clubdesk_id), row_id DESC),\n' +
-  'cd AS (\n' +
-  // Accept an AHV only when its 13 digits pass the EAN-13 mod-10 check digit —
-  // this single branch covers BOTH already-dotted and dot-mangled inputs (audit
-  // #14): a dotted-but-invalid-check-digit cell (single-digit typo) used to be
-  // stored verbatim and, because the pass is fill-only, never self-healed. Now
-  // both intake paths reject a bad check digit consistently and re-emit the
-  // canonical dotted form.
-  '  SELECT cdid, anrede, nationalitaet,\n' +
-  "         CASE WHEN ahv_digits ~ '^756[0-9]{10}$'\n" +
-  '               AND (SELECT sum(substr(ahv_digits,g.i,1)::int * CASE WHEN g.i % 2 = 1 THEN 1 ELSE 3 END)\n' +
-  '                      FROM generate_series(1,13) g(i)) % 10 = 0\n' +
-  "              THEN substr(ahv_digits,1,3)||'.'||substr(ahv_digits,4,4)||'.'||substr(ahv_digits,8,4)||'.'||substr(ahv_digits,12,2)\n" +
-  '         END AS ahv\n' +
-  '  FROM cd0)\n' +
-  'UPDATE members m SET\n' +
-  "  anrede        = COALESCE(NULLIF(btrim(m.anrede),''), cd.anrede),\n" +
-  "  nationalitaet = COALESCE(NULLIF(btrim(m.nationalitaet),''), cd.nationalitaet),\n" +
-  "  ahv_nummer    = COALESCE(NULLIF(btrim(m.ahv_nummer),''), cd.ahv)\n" +
-  'FROM cd WHERE btrim(m.clubdesk_id) = cd.cdid AND (\n' +
-  "     (NULLIF(btrim(m.anrede),'') IS NULL AND cd.anrede IS NOT NULL)\n" +
-  "  OR (NULLIF(btrim(m.nationalitaet),'') IS NULL AND cd.nationalitaet IS NOT NULL)\n" +
-  "  OR (NULLIF(btrim(m.ahv_nummer),'') IS NULL AND cd.ahv IS NOT NULL));\n" +
-  'COMMIT;\n' +
-  "SELECT 'members_missing_identity_fields' AS metric,\n" +
-  "  (SELECT count(*) FROM members WHERE NULLIF(btrim(anrede),'') IS NULL\n" +
-  "     OR NULLIF(btrim(nationalitaet),'') IS NULL OR NULLIF(btrim(ahv_nummer),'') IS NULL) AS value;\n" +
-  // ── Apply ClubDesk "Federation of Origin" → members.federation_of_origin ──
-  // The two systems store this differently: ClubDesk holds the GERMAN picklist
-  // string ("Italien", "Großbritannien", "Keiner"), wiedisync an ISO alpha-2
-  // code — or the sentinel 'NONE' for "never licensed elsewhere", which is a
-  // real answer and deliberately distinct from NULL "not answered" (migration
-  // 223). So the string is parsed back through country_name_aliases (migration
-  // 224: every German/English/colloquial spelling we may have to read — the
-  // single canonical name is NOT enough, ClubDesk says "Großbritannien" where
-  // our display name is "Vereinigtes Königreich"), and 'Keiner'/'Keine'/'None'
-  // map to the sentinel.
-  // FILL-ONLY, and strictly so: the member answers this on the registration form
-  // / in their profile, so wiedisync owns it from the first answer onward and
-  // the push echoes ClubDesk's own cell back when we have none (clubdesk-update.js).
-  // A stale or unparseable register value must therefore never overwrite a
-  // member's answer. Anything that resolves to no code is skipped rather than
-  // stored — in a fill-only column garbage would never self-heal (same rule the
-  // AHV intake follows). Empty string can't exist here (CHECK constraint), so
-  // `IS NULL` is the exact "unanswered" test. clubdesk_id-keyed (1:1); DISTINCT ON
-  // picks the latest staged row should a contact appear twice. Own transaction.
-  'BEGIN;\n' +
-  'WITH cd0 AS (\n' +
-  '  SELECT DISTINCT ON (btrim(clubdesk_id)) btrim(clubdesk_id) AS cdid,\n' +
-  '         lower(btrim(federation_of_origin)) AS fed_name\n' +
-  '  FROM clubdesk_export\n' +
-  "  WHERE NULLIF(btrim(clubdesk_id),'') IS NOT NULL\n" +
-  "    AND NULLIF(btrim(federation_of_origin),'') IS NOT NULL\n" +
-  '  ORDER BY btrim(clubdesk_id), row_id DESC),\n' +
-  'cd AS (\n' +
-  '  SELECT cd0.cdid,\n' +
-  "         COALESCE(CASE WHEN cd0.fed_name IN ('keiner','keine','none') THEN 'NONE' END, a.code) AS fed\n" +
-  '  FROM cd0 LEFT JOIN country_name_aliases a ON a.alias = cd0.fed_name)\n' +
-  'UPDATE members m SET federation_of_origin = cd.fed\n' +
-  '  FROM cd WHERE btrim(m.clubdesk_id) = cd.cdid\n' +
-  '    AND cd.fed IS NOT NULL AND m.federation_of_origin IS NULL;\n' +
-  'COMMIT;\n' +
-  "SELECT 'members_with_federation_of_origin' AS metric,\n" +
-  '  (SELECT count(*) FROM members WHERE federation_of_origin IS NOT NULL) AS value;\n' +
-  // ── Apply ClubDesk "Trainer Lizenz" → members.trainer_licences ────────────
-  // ClubDesk holds the human wording as FREE TEXT ("J+S, B"), wiedisync an
-  // ordered code list ("JS,B", migration 274) — so the cell is parsed back into
-  // codes here, the mirror image of trainerLicenceCell on the push side.
-  // Parsing lives in SQL rather than JS because the register lands in the
-  // staging table first; by the time this runs there is no JS value to touch.
-  //
-  // ⚠ 'J+S' must be lifted out BEFORE the bare rungs are matched, or its '+'
-  // splits it into junk. Rungs then match as WHOLE letters — `[^a-z]` on both
-  // sides — so the 'a' inside "Trainer"/"Ausbildung" and the 'b' inside
-  // "Basketball" are not mistaken for qualifications. Canonical order
-  // (JS,C,B,A,T1,T2,T3) is imposed by the rank, so ClubDesk's own ordering never
-  // matters.
-  //
-  // ⚠ The basketball rungs (migration 281) are matched on the word+digit pair
-  // "Trainer 1|2|3" and lifted OUT of `rungs` for the same reason as J+S: the
-  // volleyball rungs are matched afterwards on what remains, and "Trainer 1, B"
-  // must still yield B. A bare digit is deliberately NOT a rung — only the word
-  // makes it one. The '+' the club types on "Trainer 2+" is shorthand, not a
-  // fourth level, so it is dropped (user 2026-08-05).
-  // ⚠ 'T2' is not a synonym for 'B'; the two ladders never map onto each other.
-  //
-  // FILL-ONLY, and strictly so, for the same reason as federation_of_origin
-  // above: the member declares this in their own profile, so wiedisync owns it
-  // from the first answer onward and the push echoes ClubDesk's cell back when
-  // we have none. A stale register value must never overwrite a member's answer.
-  // A cell that resolves to no code at all is skipped rather than stored —
-  // migration 274's CHECK would reject a bad code and abort the whole import.
-  'BEGIN;\n' +
-  'WITH cd0 AS (\n' +
-  '  SELECT DISTINCT ON (btrim(clubdesk_id)) btrim(clubdesk_id) AS cdid,\n' +
-  '         lower(btrim(trainer_lizenz)) AS raw\n' +
-  '  FROM clubdesk_export\n' +
-  "  WHERE NULLIF(btrim(clubdesk_id),'') IS NOT NULL\n" +
-  "    AND NULLIF(btrim(trainer_lizenz),'') IS NOT NULL\n" +
-  '  ORDER BY btrim(clubdesk_id), row_id DESC),\n' +
-  'cd1 AS (\n' +
-  '  SELECT cdid, raw,\n' +
-  '         regexp_replace(\n' +
-  "           regexp_replace(raw, 'j\\s*\\+?\\s*s|jugend\\s*\\+?\\s*sport', ' ', 'g'),\n" +
-  "           'trainer\\s*\\.?\\s*[123]', ' ', 'g') AS rungs\n" +
-  '  FROM cd0),\n' +
-  'cd AS (\n' +
-  '  SELECT cd1.cdid, (\n' +
-  "    SELECT string_agg(code, ',' ORDER BY rank)\n" +
-  '    FROM (\n' +
-  "      SELECT 'JS' AS code, 0 AS rank WHERE cd1.raw  ~ 'j\\s*\\+?\\s*s|jugend\\s*\\+?\\s*sport'\n" +
-  "      UNION ALL SELECT 'C', 1 WHERE cd1.rungs ~ '(^|[^a-z])c([^a-z]|$)'\n" +
-  "      UNION ALL SELECT 'B', 2 WHERE cd1.rungs ~ '(^|[^a-z])b([^a-z]|$)'\n" +
-  "      UNION ALL SELECT 'A', 3 WHERE cd1.rungs ~ '(^|[^a-z])a([^a-z]|$)'\n" +
-  "      UNION ALL SELECT 'T1', 4 WHERE cd1.raw ~ 'trainer\\s*\\.?\\s*1'\n" +
-  "      UNION ALL SELECT 'T2', 5 WHERE cd1.raw ~ 'trainer\\s*\\.?\\s*2'\n" +
-  "      UNION ALL SELECT 'T3', 6 WHERE cd1.raw ~ 'trainer\\s*\\.?\\s*3'\n" +
-  '    ) t) AS lic\n' +
-  '  FROM cd1)\n' +
-  'UPDATE members m SET trainer_licences = cd.lic\n' +
-  '  FROM cd WHERE btrim(m.clubdesk_id) = cd.cdid\n' +
-  '    AND cd.lic IS NOT NULL AND m.trainer_licences IS NULL;\n' +
-  'COMMIT;\n' +
-  "SELECT 'members_with_trainer_licences' AS metric,\n" +
-  '  (SELECT count(*) FROM members WHERE trainer_licences IS NOT NULL) AS value;\n' +
-  // ── Apply ClubDesk contact fields + birthdate by clubdesk_id — fill-only ──
-  // The licence/email+name contact pass above predates the clubdesk_id linker and
-  // misses linked members whose wiedisync email differs from ClubDesk (kid with an
-  // own login email vs the parent contact email, renamed inboxes, no licence) —
-  // surfaced 2026-07-05 as 8 missing addresses / 5 phones / 8 categories + Mateo
-  // Porte's birthdate despite every one of them being clubdesk_id-linked. Same
-  // semantics as that pass: beitragskategorie + sektion are ClubDesk-authoritative
-  // (update whenever ClubDesk has a value; members can't edit them), while
-  // adresse/plz/ort/phone/birthdate FILL only when empty (a member's own profile
-  // edit is never clobbered). birthdate only from a calendar-valid dd.mm.yyyy and
-  // never overwritten (missing birthdate = treated as minor by the public API —
-  // fail-safe direction). Change-guard WHERE avoids no-op row churn.
-  'BEGIN;\n' +
-  'WITH cd AS (\n' +
   '  SELECT DISTINCT ON (btrim(clubdesk_id)) btrim(clubdesk_id) AS cdid,\n' +
   "         CASE WHEN geburtsdatum ~ '^[0-9]{2}\\.[0-9]{2}\\.[0-9]{4}$'\n" +
   "                AND to_char(to_date(geburtsdatum,'DD.MM.YYYY'),'DD.MM.YYYY') = geburtsdatum\n" +
-  "              THEN to_date(geburtsdatum,'DD.MM.YYYY') END AS dob,\n" +
-  "         left(NULLIF(btrim(adresse),''),255) AS adresse, left(NULLIF(btrim(plz),''),10) AS plz,\n" +
-  "         left(NULLIF(btrim(ort),''),100) AS ort,\n" +
-  // Phone fill ONLY when canonical (same skip-garbage rule as the passes above
-  // and the AHV intake — migration 189 policy).
-  "         kscw_normalize_phone(left(COALESCE(NULLIF(btrim(telefon_mobil),''), NULLIF(btrim(telefon_privat),'')),255)) AS phone,\n" +
-  "         left(NULLIF(btrim(beitragskategorie),''),100) AS categ, left(NULLIF(btrim(sektion),''),32) AS sektion,\n" +
-  // J+S Personennummer — ClubDesk-owned, fill-only into members.js_id (like AHV).
-  "         left(NULLIF(btrim(js_id),''),32) AS js_id,\n" +
-  // ── The register triple (migration 302) ──────────────────────────────────
-  // Status / Eintritt / Austritt: ClubDesk-authoritative like beitragskategorie,
-  // with ONE exception applied in the WHERE below — a member with a sync-up push
-  // pending is skipped, because their wiedisync value is a deliberate edit that
-  // has not reached the register yet. Without that exception a status set on a
-  // Monday would be silently reverted by the Saturday 22:00 sync-down whenever
-  // nobody had approved the push in between, which is the whole failure mode the
-  // two-way contract exists to prevent.
-  //
-  // A status outside ClubDesk's picklist is dropped rather than written: the
-  // CHECK constraint would abort the entire transaction, and one unexpected
-  // register value must not take the whole nightly sync with it.
+  "              THEN to_date(geburtsdatum,'DD.MM.YYYY') END AS cd_dob,\n" +
+  "         left(NULLIF(btrim(adresse),''),255) AS cd_adresse,\n" +
+  "         left(NULLIF(btrim(plz),''),10) AS cd_plz,\n" +
+  "         left(NULLIF(btrim(ort),''),100) AS cd_ort,\n" +
+  "         kscw_normalize_phone(left(COALESCE(NULLIF(btrim(telefon_mobil),''), NULLIF(btrim(telefon_privat),'')),255)) AS cd_phone,\n" +
+  "         left(NULLIF(btrim(js_id),''),32) AS cd_js_id,\n" +
+  "         left(NULLIF(btrim(beitragskategorie),''),100) AS cd_categ,\n" +
+  "         left(NULLIF(btrim(sektion),''),32) AS cd_sektion,\n" +
   "         CASE WHEN btrim(status) IN ('Kein Mitglied','Aktivmitglied','Passivmitglied',\n" +
   "                                     'Ehrenmitglied','Ehemaliges Mitglied','Verstorben','Zwischenjahr')\n" +
-  "              THEN btrim(status) END AS reg_status,\n" +
-  // Dates are guarded by a shape regex for the same reason the birthdate above
-  // is: the export column is free text, and one malformed cell would otherwise
-  // abort the statement for everybody.
+  '              THEN btrim(status) END AS cd_reg_status,\n' +
   "         CASE WHEN btrim(coalesce(eintritt,'')) ~ '^[0-9]{2}\\.[0-9]{2}\\.[0-9]{4}$'\n" +
-  "              THEN to_date(btrim(eintritt),'DD.MM.YYYY') END AS eintritt,\n" +
+  "              THEN to_date(btrim(eintritt),'DD.MM.YYYY') END AS cd_eintritt,\n" +
   "         CASE WHEN btrim(coalesce(austritt,'')) ~ '^[0-9]{2}\\.[0-9]{2}\\.[0-9]{4}$'\n" +
-  "              THEN to_date(btrim(austritt),'DD.MM.YYYY') END AS austritt\n" +
+  "              THEN to_date(btrim(austritt),'DD.MM.YYYY') END AS cd_austritt,\n" +
+  "         CASE lower(btrim(geschlecht)) WHEN 'männlich' THEN 'm' WHEN 'weiblich' THEN 'f' END AS cd_sex,\n" +
+  "         left(NULLIF(btrim(anrede),''),10) AS cd_anrede,\n" +
+  "         left(NULLIF(btrim(nationalitaet),''),100) AS cd_nationalitaet,\n" +
+  "         regexp_replace(btrim(coalesce(ahv_nummer,'')), '[^0-9]', '', 'g') AS cd_ahv_digits,\n" +
+  "         lower(btrim(coalesce(federation_of_origin,''))) AS cd_fed_name,\n" +
+  "         lower(btrim(coalesce(trainer_lizenz,''))) AS cd_trainer_raw,\n" +
+  "         coalesce(gruppen_bracketed,'') AS cd_gruppen,\n" +
+  "         upper(btrim(coalesce(offiziellen_lizenz,''))) AS cd_offliz,\n" +
+  "         upper(replace(btrim(coalesce(offiziellen_lizenz,'')), ' ', '')) AS cd_offliz_ns\n" +
   '  FROM clubdesk_export\n' +
   "  WHERE NULLIF(btrim(clubdesk_id),'') IS NOT NULL\n" +
-  '  ORDER BY btrim(clubdesk_id), row_id DESC)\n' +
-  'UPDATE members m SET\n' +
-  '  birthdate = COALESCE(m.birthdate, cd.dob),\n' +
-  "  adresse   = COALESCE(NULLIF(btrim(m.adresse),''), cd.adresse),\n" +
-  "  plz       = COALESCE(NULLIF(btrim(m.plz),''), cd.plz),\n" +
-  "  ort       = COALESCE(NULLIF(btrim(m.ort),''), cd.ort),\n" +
-  "  phone     = COALESCE(NULLIF(btrim(m.phone),''), cd.phone),\n" +
-  "  js_id     = COALESCE(NULLIF(btrim(m.js_id),''), cd.js_id),\n" +
-  "  beitragskategorie = COALESCE(cd.categ, NULLIF(btrim(m.beitragskategorie),'')),\n" +
-  "  sektion   = COALESCE(cd.sektion, NULLIF(btrim(m.sektion),'')),\n" +
-  // ⚠ Austritt is cleared alongside a status the register no longer calls
-  // departed, not left behind: members_austritt_needs_departed_status (migration
-  // 302) rejects the pair, so writing the status without the date would abort.
-  "  register_status = COALESCE(cd.reg_status, m.register_status),\n" +
-  "  eintritt  = COALESCE(cd.eintritt, m.eintritt),\n" +
-  "  austritt  = CASE WHEN COALESCE(cd.reg_status, m.register_status)\n" +
-  "                        IN ('Kein Mitglied','Ehemaliges Mitglied','Verstorben')\n" +
-  "                   THEN COALESCE(cd.austritt, m.austritt) END\n" +
-  // The pending-push exception. `clubdesk_push_pending` means "this member holds
-  // a wiedisync edit the register has not seen"; leave every one of the three
-  // alone until the push has landed and the flag has cleared.
-  "FROM cd WHERE btrim(m.clubdesk_id) = cd.cdid AND m.clubdesk_push_pending IS DISTINCT FROM true AND (\n" +
-  '     (m.birthdate IS NULL AND cd.dob IS NOT NULL)\n' +
-  "  OR (NULLIF(btrim(m.adresse),'') IS NULL AND cd.adresse IS NOT NULL)\n" +
-  "  OR (NULLIF(btrim(m.plz),'') IS NULL AND cd.plz IS NOT NULL)\n" +
-  "  OR (NULLIF(btrim(m.ort),'') IS NULL AND cd.ort IS NOT NULL)\n" +
-  "  OR (NULLIF(btrim(m.phone),'') IS NULL AND cd.phone IS NOT NULL)\n" +
-  "  OR (NULLIF(btrim(m.js_id),'') IS NULL AND cd.js_id IS NOT NULL)\n" +
-  "  OR (cd.categ IS NOT NULL AND cd.categ IS DISTINCT FROM NULLIF(btrim(m.beitragskategorie),''))\n" +
-  "  OR (cd.sektion IS NOT NULL AND cd.sektion IS DISTINCT FROM NULLIF(btrim(m.sektion),''))\n" +
-  "  OR (cd.reg_status IS NOT NULL AND cd.reg_status IS DISTINCT FROM m.register_status)\n" +
-  "  OR (cd.eintritt IS NOT NULL AND cd.eintritt IS DISTINCT FROM m.eintritt)\n" +
-  "  OR (cd.austritt IS DISTINCT FROM m.austritt));\n" +
+  '  ORDER BY btrim(clubdesk_id), row_id DESC),\n' +
+  // Trainer ladder: lift J+S and the BB "Trainer 1|2|3" pairs OUT before the bare
+  // VB rungs are matched, or the '+' splits J+S into junk and the 'a' in
+  // "Trainer"/"Ausbildung" reads as an A licence. Verbatim from the pass this
+  // replaces.
+  'cd1 AS (\n' +
+  '  SELECT cd0.*,\n' +
+  '         regexp_replace(\n' +
+  "           regexp_replace(cd_trainer_raw, 'j\\s*\\+?\\s*s|jugend\\s*\\+?\\s*sport', ' ', 'g'),\n" +
+  "           'trainer\\s*\\.?\\s*[123]', ' ', 'g') AS cd_rungs\n" +
+  '  FROM cd0),\n' +
+  'cd AS (\n' +
+  '  SELECT cd1.*,\n' +
+  // AHV: accept only a 13-digit 756-prefixed value whose EAN-13 mod-10 check digit
+  // validates, then re-emit the canonical dotted shape.
+  "         CASE WHEN cd_ahv_digits ~ '^756[0-9]{10}$'\n" +
+  '               AND (SELECT sum(substr(cd_ahv_digits,g.i,1)::int * CASE WHEN g.i % 2 = 1 THEN 1 ELSE 3 END)\n' +
+  '                      FROM generate_series(1,13) g(i)) % 10 = 0\n' +
+  "              THEN substr(cd_ahv_digits,1,3)||'.'||substr(cd_ahv_digits,4,4)||'.'||substr(cd_ahv_digits,8,4)||'.'||substr(cd_ahv_digits,12,2)\n" +
+  '         END AS cd_ahv,\n' +
+  "         COALESCE(CASE WHEN cd1.cd_fed_name IN ('keiner','keine','none') THEN 'NONE' END, a.code) AS cd_fed,\n" +
+  '         (\n' +
+  "           SELECT string_agg(code, ',' ORDER BY rank) FROM (\n" +
+  "             SELECT 'JS' AS code, 0 AS rank WHERE cd1.cd_trainer_raw ~ 'j\\s*\\+?\\s*s|jugend\\s*\\+?\\s*sport'\n" +
+  "             UNION ALL SELECT 'C', 1 WHERE cd1.cd_rungs ~ '(^|[^a-z])c([^a-z]|$)'\n" +
+  "             UNION ALL SELECT 'B', 2 WHERE cd1.cd_rungs ~ '(^|[^a-z])b([^a-z]|$)'\n" +
+  "             UNION ALL SELECT 'A', 3 WHERE cd1.cd_rungs ~ '(^|[^a-z])a([^a-z]|$)'\n" +
+  "             UNION ALL SELECT 'T1', 4 WHERE cd1.cd_trainer_raw ~ 'trainer\\s*\\.?\\s*1'\n" +
+  "             UNION ALL SELECT 'T2', 5 WHERE cd1.cd_trainer_raw ~ 'trainer\\s*\\.?\\s*2'\n" +
+  "             UNION ALL SELECT 'T3', 6 WHERE cd1.cd_trainer_raw ~ 'trainer\\s*\\.?\\s*3'\n" +
+  '           ) t) AS cd_trainer\n' +
+  '  FROM cd1 LEFT JOIN country_name_aliases a ON a.alias = cd1.cd_fed_name),\n' +
+  // The eligible population. Everything downstream reads `mem`, so the three
+  // exclusions are stated exactly once.
+  'mem AS (\n' +
+  '  SELECT m.*, cd.*\n' +
+  '  FROM members m JOIN cd ON cd.cdid = btrim(m.clubdesk_id)\n' +
+  '  WHERE m.clubdesk_push_pending IS DISTINCT FROM true\n' +
+  '    AND m.clubdesk_sync_exclude IS DISTINCT FROM true),\n' +
+  'prop AS (\n' +
+  // ── fill: our cell is empty, the register has something ──
+  "  SELECT id AS member_id, cdid, 'birthdate' AS field, NULL::text AS current_value, cd_dob::text AS proposed_value, 'fill' AS rule\n" +
+  '    FROM mem WHERE birthdate IS NULL AND cd_dob IS NOT NULL\n' +
+  "  UNION ALL SELECT id, cdid, 'adresse', NULL, cd_adresse, 'fill'\n" +
+  "    FROM mem WHERE NULLIF(btrim(adresse),'') IS NULL AND cd_adresse IS NOT NULL\n" +
+  "  UNION ALL SELECT id, cdid, 'plz', NULL, cd_plz, 'fill'\n" +
+  "    FROM mem WHERE NULLIF(btrim(plz),'') IS NULL AND cd_plz IS NOT NULL\n" +
+  "  UNION ALL SELECT id, cdid, 'ort', NULL, cd_ort, 'fill'\n" +
+  "    FROM mem WHERE NULLIF(btrim(ort),'') IS NULL AND cd_ort IS NOT NULL\n" +
+  "  UNION ALL SELECT id, cdid, 'phone', NULL, cd_phone, 'fill'\n" +
+  "    FROM mem WHERE NULLIF(btrim(phone),'') IS NULL AND cd_phone IS NOT NULL\n" +
+  "  UNION ALL SELECT id, cdid, 'js_id', NULL, cd_js_id, 'fill'\n" +
+  "    FROM mem WHERE NULLIF(btrim(js_id),'') IS NULL AND cd_js_id IS NOT NULL\n" +
+  "  UNION ALL SELECT id, cdid, 'sex', NULL, cd_sex, 'fill'\n" +
+  "    FROM mem WHERE (sex IS NULL OR btrim(sex) = '') AND cd_sex IS NOT NULL\n" +
+  "  UNION ALL SELECT id, cdid, 'anrede', NULL, cd_anrede, 'fill'\n" +
+  "    FROM mem WHERE NULLIF(btrim(anrede),'') IS NULL AND cd_anrede IS NOT NULL\n" +
+  "  UNION ALL SELECT id, cdid, 'nationalitaet', NULL, cd_nationalitaet, 'fill'\n" +
+  "    FROM mem WHERE NULLIF(btrim(nationalitaet),'') IS NULL AND cd_nationalitaet IS NOT NULL\n" +
+  "  UNION ALL SELECT id, cdid, 'ahv_nummer', NULL, cd_ahv, 'fill'\n" +
+  "    FROM mem WHERE NULLIF(btrim(ahv_nummer),'') IS NULL AND cd_ahv IS NOT NULL\n" +
+  "  UNION ALL SELECT id, cdid, 'federation_of_origin', NULL, cd_fed, 'fill'\n" +
+  '    FROM mem WHERE federation_of_origin IS NULL AND cd_fed IS NOT NULL\n' +
+  "  UNION ALL SELECT id, cdid, 'trainer_licences', NULL, cd_trainer, 'fill'\n" +
+  '    FROM mem WHERE trainer_licences IS NULL AND cd_trainer IS NOT NULL\n' +
+  // ── overwrite: both sides hold a value and they differ ──
+  "  UNION ALL SELECT id, cdid, 'beitragskategorie', beitragskategorie, cd_categ, 'overwrite'\n" +
+  "    FROM mem WHERE cd_categ IS NOT NULL AND cd_categ IS DISTINCT FROM NULLIF(btrim(beitragskategorie),'')\n" +
+  "  UNION ALL SELECT id, cdid, 'sektion', sektion, cd_sektion, 'overwrite'\n" +
+  "    FROM mem WHERE cd_sektion IS NOT NULL AND cd_sektion IS DISTINCT FROM NULLIF(btrim(sektion),'')\n" +
+  "  UNION ALL SELECT id, cdid, 'register_status', register_status, cd_reg_status, 'overwrite'\n" +
+  '    FROM mem WHERE cd_reg_status IS NOT NULL AND cd_reg_status IS DISTINCT FROM register_status\n' +
+  "  UNION ALL SELECT id, cdid, 'eintritt', eintritt::text, cd_eintritt::text, 'overwrite'\n" +
+  '    FROM mem WHERE cd_eintritt IS NOT NULL AND cd_eintritt IS DISTINCT FROM eintritt\n' +
+  // Austritt travels only with a departed status — see the ⚠ above.
+  "  UNION ALL SELECT id, cdid, 'austritt', austritt::text, cd_austritt::text, 'overwrite'\n" +
+  '    FROM mem WHERE cd_austritt IS NOT NULL AND cd_austritt IS DISTINCT FROM austritt\n' +
+  "      AND COALESCE(cd_reg_status, register_status) IN ('Kein Mitglied','Ehemaliges Mitglied','Verstorben')\n" +
+  // ── set_true: the register asserts a qualification we do not hold ──
+  // Never a clearing rule: ClubDesk holds ONE value per contact while a member can
+  // hold several licences, so absence from the cell is absence of evidence.
+  "  UNION ALL SELECT id, cdid, 'referee_vb', coalesce(referee_vb::text,'false'), 'true', 'set_true'\n" +
+  '    FROM mem WHERE referee_vb IS DISTINCT FROM true\n' +
+  "      AND cd_gruppen ~* '(^|,)\\s*VB Schiedsrichter\\*innen\\s*(,|$)'\n" +
+  "  UNION ALL SELECT id, cdid, 'referee_bb', coalesce(referee_bb::text,'false'), 'true', 'set_true'\n" +
+  '    FROM mem WHERE referee_bb IS DISTINCT FROM true\n' +
+  "      AND cd_gruppen ~* '(^|,)\\s*Schiedsrichter BB\\s*(,|$)'\n" +
+  "  UNION ALL SELECT id, cdid, 'scorer_vb', coalesce(scorer_vb::text,'false'), 'true', 'set_true'\n" +
+  '    FROM mem WHERE scorer_vb IS DISTINCT FROM true\n' +
+  "      AND (cd_offliz = 'VB SC' OR referee_vb IS TRUE)\n" +
+  "  UNION ALL SELECT id, cdid, 'otr1_bb', coalesce(otr1_bb::text,'false'), 'true', 'set_true'\n" +
+  "    FROM mem WHERE otr1_bb IS DISTINCT FROM true AND cd_offliz = 'OTR1'\n" +
+  "  UNION ALL SELECT id, cdid, 'otr2_bb', coalesce(otr2_bb::text,'false'), 'true', 'set_true'\n" +
+  "    FROM mem WHERE otr2_bb IS DISTINCT FROM true AND cd_offliz = 'OTR2'\n" +
+  "  UNION ALL SELECT id, cdid, 'otn1_bb', coalesce(otn1_bb::text,'false'), 'true', 'set_true'\n" +
+  "    FROM mem WHERE otn1_bb IS DISTINCT FROM true AND cd_offliz_ns = 'OTN1'\n" +
+  "  UNION ALL SELECT id, cdid, 'otn2_bb', coalesce(otn2_bb::text,'false'), 'true', 'set_true'\n" +
+  "    FROM mem WHERE otn2_bb IS DISTINCT FROM true AND cd_offliz_ns = 'OTN2'),\n" +
+  'ins AS (\n' +
+  '  INSERT INTO clubdesk_sync_proposals (member_id, clubdesk_id, field, current_value, proposed_value, rule)\n' +
+  '  SELECT p.member_id, p.cdid, p.field, p.current_value, p.proposed_value, p.rule\n' +
+  '  FROM prop p\n' +
+  // The tombstone. A refused row is `refused`, so it never collides with the
+  // pending unique index below — it has to be excluded explicitly or a refusal
+  // would be re-proposed on every single run.
+  '  WHERE NOT EXISTS (SELECT 1 FROM clubdesk_sync_proposals x\n' +
+  "                     WHERE x.status = 'refused' AND x.member_id = p.member_id\n" +
+  '                       AND x.field = p.field\n' +
+  '                       AND x.proposed_value IS NOT DISTINCT FROM p.proposed_value)\n' +
+  // Targetless: the pending partial unique is what this hits, and naming a
+  // conflict target that is a PARTIAL index is the trap this codebase has already
+  // been bitten by. DO NOTHING makes a re-run a no-op instead of a duplicate.
+  '  ON CONFLICT DO NOTHING\n' +
+  '  RETURNING 1)\n' +
+  "SELECT 'clubdesk_field_proposals' AS metric, count(*) AS value FROM ins;\n" +
   'COMMIT;\n' +
-  "SELECT 'members_missing_contact_fields' AS metric,\n" +
-  "  (SELECT count(*) FROM members m JOIN clubdesk_export c ON btrim(c.clubdesk_id) = btrim(m.clubdesk_id)\n" +
-  "    WHERE (m.birthdate IS NULL AND NULLIF(btrim(c.geburtsdatum),'') IS NOT NULL)\n" +
-  "       OR (NULLIF(btrim(m.adresse),'') IS NULL AND NULLIF(btrim(c.adresse),'') IS NOT NULL)\n" +
-  "       OR (NULLIF(btrim(m.phone),'') IS NULL AND COALESCE(NULLIF(btrim(c.telefon_mobil),''), NULLIF(btrim(c.telefon_privat),'')) IS NOT NULL)) AS value;\n" +
-  // ── Referee flags from ClubDesk group membership (user 2026-07-07) ──────────
-  // ClubDesk is the source of truth for "is a referee for Wiedikon": a member in
-  // the "VB Schiedsrichter*innen" group → referee_vb, in "Schiedsrichter BB" →
-  // referee_bb. Set-true only (a member dropped from the group keeps the flag
-  // until manually cleared — avoids clobbering a registration-set referee whose
-  // ClubDesk group the club hasn't assigned yet). The wiedisync profile reads
-  // these to show "Referee for Wiedikon" (read-only). gruppen_bracketed is the
-  // authoritative comma-joined group list ([Gruppen] col).
-  'BEGIN;\n' +
-  "UPDATE members m SET referee_vb = true\n" +
-  '  FROM clubdesk_export c\n' +
-  "  WHERE btrim(c.clubdesk_id) = btrim(m.clubdesk_id) AND m.referee_vb IS DISTINCT FROM true\n" +
-  "    AND c.gruppen_bracketed ~* '(^|,)\\s*VB Schiedsrichter\\*innen\\s*(,|$)';\n" +
-  "UPDATE members m SET referee_bb = true\n" +
-  '  FROM clubdesk_export c\n' +
-  "  WHERE btrim(c.clubdesk_id) = btrim(m.clubdesk_id) AND m.referee_bb IS DISTINCT FROM true\n" +
-  "    AND c.gruppen_bracketed ~* '(^|,)\\s*Schiedsrichter BB\\s*(,|$)';\n" +
-  // Scorer licence from the ClubDesk Offiziellen Lizenz picklist (user 2026-07-13):
-  // "VB SC" IS the Schreiber licence, so ClubDesk holding it means the member is a
-  // scorer even when wiedisync never set the boolean (licence granted straight in
-  // the register, never through a wiedisync registration). Set-true only, same as
-  // the referee flags above.
-  'UPDATE members m SET scorer_vb = true\n' +
-  '  FROM clubdesk_export c\n' +
-  '  WHERE btrim(c.clubdesk_id) = btrim(m.clubdesk_id) AND m.scorer_vb IS DISTINCT FROM true\n' +
-  "    AND upper(btrim(c.offiziellen_lizenz)) = 'VB SC';\n" +
-  // Basketball table-official licences from the same picklist. Until 2026-07-25
-  // this had no mirror rule, on the reasoning that "wiedisync owns those booleans
-  // and ClubDesk derives its string from them" — true while wiedisync was the only
-  // place a BB licence could be granted. It no longer is: the picklist now carries
-  // OTN1/OTN2 as well as OTR1/OTR2, so a level granted directly in the register
-  // would otherwise never reach wiedisync and the member would look unlicensed to
-  // scorer assignment.
-  //
-  // SET-TRUE ONLY, and that is not a style choice. ClubDesk holds ONE value per
-  // contact while a member can hold several licences, so absence from the cell is
-  // absence of evidence, not evidence of absence — a clearing rule here would
-  // delete a real licence every time someone holds two. This is the same trap that
-  // let the Volleymanager cron wipe scorer_vb/referee_vb on 2026-07-13 before it
-  // was made set-true-only. Tolerant of 'OTN 1' spacing/case for the same reason
-  // migration 229's mapping is.
-  "UPDATE members m SET otr1_bb = true FROM clubdesk_export c\n" +
-  "  WHERE btrim(c.clubdesk_id) = btrim(m.clubdesk_id) AND m.otr1_bb IS DISTINCT FROM true\n" +
-  "    AND upper(btrim(c.offiziellen_lizenz)) = 'OTR1';\n" +
-  "UPDATE members m SET otr2_bb = true FROM clubdesk_export c\n" +
-  "  WHERE btrim(c.clubdesk_id) = btrim(m.clubdesk_id) AND m.otr2_bb IS DISTINCT FROM true\n" +
-  "    AND upper(btrim(c.offiziellen_lizenz)) = 'OTR2';\n" +
-  "UPDATE members m SET otn1_bb = true FROM clubdesk_export c\n" +
-  "  WHERE btrim(c.clubdesk_id) = btrim(m.clubdesk_id) AND m.otn1_bb IS DISTINCT FROM true\n" +
-  "    AND upper(replace(btrim(c.offiziellen_lizenz), ' ', '')) = 'OTN1';\n" +
-  "UPDATE members m SET otn2_bb = true FROM clubdesk_export c\n" +
-  "  WHERE btrim(c.clubdesk_id) = btrim(m.clubdesk_id) AND m.otn2_bb IS DISTINCT FROM true\n" +
-  "    AND upper(replace(btrim(c.offiziellen_lizenz), ' ', '')) = 'OTN2';\n" +
-  // A bare, level-less 'OTN' cell has had nowhere to land since migration 303
-  // dropped the coarse `otn_bb` flag. Asserting a level from it would be a
-  // licence claim the register does not make, so it is reported rather than
-  // written — Basketplan is what resolves an OTN into OTN 1 / OTN 2. The metric
-  // below is 0 whenever every such contact already carries a scraped level,
-  // which is how prod stood when the flag was dropped (6 linked, all OTN 2).
-
-  // Every VOLLEYBALL referee is automatically a scorer (user 2026-07-07) — so a
-  // VB referee always carries the Schreiber licence too. Basketball is separate
-  // (a BB referee is NOT auto-made a table official). Set-true only.
-  "UPDATE members SET scorer_vb = true WHERE referee_vb = true AND scorer_vb IS DISTINCT FROM true;\n" +
-  'COMMIT;\n' +
-  "SELECT 'members_referee' AS metric, (SELECT count(*) FROM members WHERE referee_vb OR referee_bb) AS value;\n" +
+  "SELECT 'clubdesk_proposals_pending' AS metric,\n" +
+  "  (SELECT count(*) FROM clubdesk_sync_proposals WHERE status = 'pending') AS value;\n" +
   // Linked contacts whose ClubDesk cell says a level-less 'OTN' and whose member
   // row carries neither Basketplan level — nobody today, and a non-zero value
   // means somebody's table-officials eligibility is riding on a cell wiedisync

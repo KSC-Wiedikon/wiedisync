@@ -1,16 +1,13 @@
 import { Fragment, useState, useMemo, useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Check, X, ChevronDown, ChevronUp, Save, Download, FileText, ExternalLink, ArrowUpFromLine, Send, CheckCircle2, Link2, Clock, CircleAlert, Upload } from 'lucide-react'
+import { Check, X, ChevronDown, ChevronUp, Save, Download, FileText, ExternalLink, Send, CheckCircle2, Link2, Clock, CircleAlert, Upload } from 'lucide-react'
 import { useCollection, useUpdate } from '../../lib/query'
 import { useAuth } from '../../hooks/useAuth'
 import { useReportPageLoading } from '../../hooks/usePageReady'
 import { assetUrl, kscwApi, uploadFile } from '../../lib/api'
 import TeamChip from '../../components/TeamChip'
 import { FilePreviewDialog } from '../../components/FilePreview'
-import ClubdeskMemberSyncButton from './components/ClubdeskMemberSyncButton'
-import ClubdeskSyncUpModal from './components/ClubdeskSyncUpModal'
 import ClubdeskRegistrationZone from './components/ClubdeskRegistrationZone'
-import { Button } from '../../components/ui/button'
 import { formatDate } from '../../utils/dateHelpers'
 import { currentSeasonShort } from '../../utils/season'
 import { LICENCE_STATUSES, LICENCE_STATUS_BADGE, effectiveLicenceStatus } from '../../utils/licenceStatus'
@@ -263,7 +260,6 @@ export default function AnmeldungenPage() {
   const { t } = useTranslation('admin')
   const { isGlobalAdmin, isVbAdmin, isBbAdmin } = useAuth()
   const confirm = useConfirm()
-  const [syncUpOpen, setSyncUpOpen] = useState(false)
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('pending')
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -520,21 +516,16 @@ export default function AnmeldungenPage() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-6 p-4 sm:p-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">{t('anmeldungenTitle')}</h1>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t('anmeldungenDescription')}</p>
-        </div>
-        {isGlobalAdmin && (
-          <div className="flex shrink-0 flex-col items-stretch gap-2 sm:items-end">
-            <ClubdeskMemberSyncButton />
-            <Button type="button" variant="outline" size="sm" onClick={() => setSyncUpOpen(true)} className="gap-2">
-              <ArrowUpFromLine className="h-4 w-4" />{t('clubdeskUpButton')}
-            </Button>
-          </div>
-        )}
+      {/* The page-level ClubDesk sync controls moved to Data Health → ClubDesk
+          sync (2026-08-14). They were duplicated on both pages, and sync-down is
+          no longer a one-click write: it produces proposals to review, which
+          needs a surface this page does not have. The per-registration
+          ClubdeskRegistrationZone below STAYS — it answers "did THIS applicant
+          reach the register", which is registration context, not a sync control. */}
+      <div>
+        <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">{t('anmeldungenTitle')}</h1>
+        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t('anmeldungenDescription')}</p>
       </div>
-      {isGlobalAdmin && <ClubdeskSyncUpModal open={syncUpOpen} onOpenChange={setSyncUpOpen} />}
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">
