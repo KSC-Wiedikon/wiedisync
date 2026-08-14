@@ -1,4 +1,5 @@
 import type { ManualGameInput } from '../../../types'
+import { seasonForYmd } from '../../../utils/season'
 
 /**
  * `ManualGameInput` plus the per-game Einsatzliste override. Kept local to the
@@ -16,14 +17,22 @@ export type ManualGamePayloadInput = ManualGameInput & {
  *   - setting source + status + nulling svrz_push_status
  *   - deriving home_team / away_team from the chosen team name + opponent
  *   - routing hall vs away_hall_json based on type
+ *   - stamping the season
  *
  * The caller MUST pass `kscwTeamName` separately since `games.home_team` and
  * `games.away_team` are text columns, not relations.
+ *
+ * ⚠ The season is derived HERE, from the game date, and is deliberately not a
+ * parameter: both callers used to hand-roll it and both produced the SVRZ long
+ * form ("2026/2027") the sync sources never write. The home page, the games
+ * list and the website embed are season-scoped by an EXACT string match against
+ * `useEffectiveSeason()` (short form, "2026/27"), so a long-form game saves
+ * fine, shows on the date-filtered calendar + Spielplanung views, and is
+ * invisible everywhere else. Cost a BB Herren 2 away game on 2026-08-14.
  */
 export function buildManualGamePayload(
   input: ManualGamePayloadInput,
   kscwTeamName: string,
-  season: string,
 ): Record<string, unknown> {
   const gameId = `manual_${crypto.randomUUID()}`
   const isHome = input.type === 'home'
@@ -42,7 +51,7 @@ export function buildManualGamePayload(
     time: input.time,
     league: input.league ?? '',
     round: input.round ?? '',
-    season,
+    season: seasonForYmd(input.date),
     type: input.type,
     status: 'scheduled' as const,
     source: 'manual' as const,

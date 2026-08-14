@@ -177,7 +177,10 @@ export default function SpielplanungPage() {
     return isAdmin || is_spielplaner || spielplanerTeamIds.includes(tid)
   }
 
-  const currentSeasonLabel = `${seasonYear}/${seasonYear + 1}`
+  // Short form ("2026/27") — `seasons` comes straight from `games.season`, which
+  // the sync sources write short. The long form here made the Select value match
+  // no option, so the picker grew a bogus third entry next to the real two.
+  const currentSeasonLabel = `${seasonYear}/${String(seasonYear + 1).slice(2)}`
 
   // Merge the current season into the dropdown so we always have at least one option,
   // even before the games collection resolves.
@@ -259,7 +262,7 @@ export default function SpielplanungPage() {
             <TourPageButton />
           </div>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            {t('subtitleSeason', { season: `${seasonYear}/${(seasonYear + 1).toString().slice(2)}` })}
+            {t('subtitleSeason', { season: currentSeasonLabel })}
           </p>
         </div>
         <div className="flex items-center gap-2">

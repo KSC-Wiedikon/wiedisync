@@ -2,6 +2,14 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.87.1 — 2026-08-14
+
+### Manually added games were missing from Home and Games
+
+- **A game entered by hand in Spielplanung — or imported from the spreadsheet template — was stamped with the wrong season, and the season is what the home page, the games list and the website's fixture embed filter on.** The game saved correctly and showed on the calendar and in Spielplanung, so it looked entered; it was simply invisible in the three places most people actually look. Found on a Herren 2 basketball away game.
+- **The season is now derived from the game's own date, in one place, so no entry route can stamp it differently.** The one affected fixture has been corrected.
+- **The Spielplanung season picker no longer lists the same season twice** — the current season was written in a different format from the seasons on record, so it showed up as its own extra entry.
+
 ## v1.87.0 — 2026-08-13
 
 ### Set your own Kantonsschule
