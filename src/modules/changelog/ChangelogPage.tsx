@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '1.89.0'
+const APP_VERSION = '1.90.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,30 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.90.0',
+    date: '14.08.2026',
+    sections: [
+      {
+        title: '"No transfer needed" is a decision you can record',
+        items: [
+          "The transfers page has a third status: \"Not needed\". Until now the only way to take somebody off the transfer worklist was to change their federation of origin — which is the member's own answer about where they were first licensed, not a checkbox for clearing a task list. Ruling a transfer out is now its own decision, recorded next to who made it, and it leaves their federation of origin exactly as it was.",
+          'Members Swiss Volley already licenses as Swiss come off the worklist by themselves. Swiss Volley is the body that would ask for the transfer certificate, so where their register counts somebody as Swiss there is nothing for us to chase — whether that is because no transfer was ever needed or because one already went through. Those members now say so instead of sitting on the list looking untouched.',
+          'Except the ones you are chasing anyway. Marking somebody Pending or Done always wins over the automatic answer, in both directions.',
+          'The Volleymanager comparison table has a Decision column. Where our record and Swiss Volley\'s disagree, you can now settle it on the row that raised the question rather than somewhere else. The disagreement itself stays on screen afterwards — it is still the evidence that one of the two registers needs correcting.',
+          'Members licensed in Switzerland can now be marked as being chased. That is the case that had nowhere to go before: our record says Switzerland, Swiss Volley\'s says a foreign federation, and nobody was following up a transfer that might well be required.',
+          'Nothing disappears quietly. Everyone taken off the worklist is listed under it, with the count in the heading and the decision reversible — a shorter list always says why it got shorter.',
+        ],
+      },
+      {
+        title: 'Database view reads properly',
+        items: [
+          'Values are shown as words instead of database codes. Sex, language, positions and roles came out of the grid as raw stored values — on screen and in the Excel export. They now read the way they do everywhere else in the app.',
+          'Headings and labels are no longer shouted in capitals, and the two VIS columns that showed up under an "Unmapped column" warning are now proper fields with an explanation of who writes them.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.89.0',
     date: '14.08.2026',

@@ -3,7 +3,9 @@
 // The exact column list of `members` on PROD, in ordinal order, read from
 // information_schema on 2026-08-06 (100 columns), + the five fee-override
 // columns from migrations 299/300 (105), + the four licence-status columns
-// from migration 301 (109):
+// from migration 301 (109), + later single-column migrations, + the two
+// hand-linked VIS columns from migration 312, which shipped unclassified and
+// were only given a schema entry on 2026-08-14 (114 today):
 //
 //   ssh hetzner "sudo docker exec kscw-postgres psql -U supabase_admin -d postgres \
 //     -At -c \"select column_name from information_schema.columns \
@@ -135,4 +137,10 @@ export const MEMBERS_COLUMNS: string[] = [
   'licence_status_season',
   'licence_status_updated_at',
   'licence_status_by_name',
+  // Migration 312 — hand-linking a member to a FIVB VIS player number, for the
+  // people name matching cannot reach. These two shipped without a
+  // memberFieldSchema entry, so the explorer rendered them under its "Unmapped
+  // column" warning until 2026-08-14.
+  'vis_player_no_manual',
+  'vis_manual_vis_name',
 ]

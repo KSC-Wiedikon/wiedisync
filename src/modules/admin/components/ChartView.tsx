@@ -447,7 +447,7 @@ export default function ChartView({ data, columns }: ChartViewProps) {
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
       <div className="mb-1 flex items-center gap-2">
-        <span className="text-xs font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">
+        <span className="text-xs font-medium tracking-wide text-gray-400 dark:text-gray-500">
           {chartType === 'bar' ? t('chartTypeBar') : chartType === 'line' ? t('chartTypeLine') : t('chartTypePie')}
         </span>
         <span className="text-xs text-gray-300 dark:text-gray-600">

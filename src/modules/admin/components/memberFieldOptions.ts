@@ -170,12 +170,16 @@ export const MEMBER_SELECT_FIELDS: Record<string, MemberSelectField> = {
       { value: 'declined', label: 'Declined' },
     ],
   },
-  // CHECK members_transfer_status_chk: NULL | 'pending' | 'done'.
+  // CHECK members_transfer_status_chk: NULL | 'pending' | 'done' | 'not_needed'
+  // (migration 320). Empty is not "no transfer needed" — it is "nobody has
+  // looked", and the page then derives the answer from federation_of_origin.
+  // "Not needed" is the explicit conclusion, which overrides that derivation.
   transfer_status: {
     nullable: true,
     options: [
       { value: 'pending', label: 'Pending' },
       { value: 'done', label: 'Done' },
+      { value: 'not_needed', label: 'Not needed' },
     ],
   },
   /**

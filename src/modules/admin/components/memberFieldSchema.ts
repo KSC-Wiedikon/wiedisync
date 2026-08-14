@@ -530,6 +530,24 @@ const ASSOC_VB = block('association', 'assoc_vb', [
     readOnly: true, technical: true,
     provenance: 'Stamped by the FIVB VIS player check (Mondays 05:15 UTC).',
   },
+  {
+    // Migration 312. The escape hatch for the people name matching cannot
+    // reach — a married name, a transliteration, a spelling only VIS knows.
+    //
+    // ⚠ A hand-set number belongs HERE and never in `vis_player_no`: the weekly
+    // check rewrites that column for the whole cohort, so a value typed into it
+    // disappears at the next run. This one the check only ever reads.
+    key: 'vis_player_no_manual', label: 'VIS player number (hand-linked)', kind: 'number',
+    help: 'Only for a member the automatic name match misses. Confirmed by the next VIS check, which writes the name below.',
+    bulkUnsafe: B_UNIQUE_ID,
+  },
+  {
+    key: 'vis_manual_vis_name', label: 'VIS name of the hand-linked number', kind: 'text',
+    help: 'What FIVB VIS itself calls that player number — the confirmation that the hand-linked number is the right person.',
+    readOnly: true,
+    provenance:
+      'Written by the FIVB VIS player check (Mondays 05:15 UTC) and cleared whenever the number above changes. Empty AFTER a check means VIS does not hold that number in this member\'s federation index, so the link is unconfirmed and asserts nothing.',
+  },
 ])
 
 const ASSOC_BB = block('association', 'assoc_bb', [
@@ -716,7 +734,7 @@ const CLUBDESK = block('clubdesk', undefined, [
 const TRANSFER = block('transfer', undefined, [
   {
     key: 'transfer_status', label: 'Transfer status', kind: 'select',
-    help: 'Set it to "Done" on /admin/transfers, not here — that page also records who did it and when.',
+    help: 'Empty means nobody has reviewed it — the answer is then read off the federation of origin. Prefer /admin/transfers, which also records who decided and when.',
   },
   {
     key: 'transfer_done_at', label: 'Transfer completed at', kind: 'datetime',
