@@ -133,6 +133,21 @@ export const EMPTY_FILTERS: MemberFilterState = {
   registerStatus: [],
 }
 
+/**
+ * What the page starts with: active club members only.
+ *
+ * ⚠ Distinct from `EMPTY_FILTERS`, which is what "Clear all" applies. The cache
+ * used to hard-filter `kscw_membership_active` in the Directus query, so the
+ * ~35 departed members were simply absent and no filter could bring them back.
+ * They are fetched now, and this default keeps the working set identical to
+ * what it has always been — the difference is that it is a filter the operator
+ * can see the count of, and clear, rather than a silent query condition.
+ */
+export const DEFAULT_FILTERS: MemberFilterState = {
+  ...EMPTY_FILTERS,
+  bools: { kscw_membership_active: 'yes' },
+}
+
 export function countActiveFilters(f: MemberFilterState): number {
   let n = 0
   for (const v of Object.values(f.bools)) if (v && v !== 'any') n++

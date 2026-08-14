@@ -15,7 +15,7 @@ import ExplorerDetail from './components/ExplorerDetail'
 import ExplorerGrid, { type ExplorerGridHandle } from './components/ExplorerGrid'
 import ExplorerMemberFilters from './components/ExplorerMemberFilters'
 import {
-  EMPTY_FILTERS,
+  DEFAULT_FILTERS,
   applyMemberFilters,
   type MemberFilterState,
 } from './components/memberFilters'
@@ -90,7 +90,7 @@ export default function ExplorePage() {
     if (view !== 'grid' || query.trim() === '') return
     if ((gridRef.current?.addShownToSelection() ?? 0) > 0) setQuery('')
   }, [view, query])
-  const [memberFilters, setMemberFilters] = useState<MemberFilterState>(EMPTY_FILTERS)
+  const [memberFilters, setMemberFilters] = useState<MemberFilterState>(DEFAULT_FILTERS)
 
   /**
    * Datapoint focus — `members` column keys the operator asked to look at.
@@ -251,6 +251,7 @@ export default function ExplorePage() {
           ) : (
             <ExplorerTree
               cache={treeData}
+              allMembers={data.members}
               selectedType={selectedType}
               selectedId={selectedId}
               query={query}
