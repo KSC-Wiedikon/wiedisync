@@ -33,7 +33,7 @@ import { renderInvoicePdf, INVOICE_PDF_COLUMNS } from './finance-invoice-pdf.js'
 import { recomputeInvoice, deriveSettlement } from './finance-recompute.js'
 import { autopostInvoiceSafe, autopostTeamEntrySafe, autopostDuesRunSafe, removeAutopostForPaymentSafe, removeAutopostForTeamEntrySafe, FISCAL_YEAR_LOCK_NS } from './finance-autopost.js'
 // The club fee model, shared with the ClubDesk push so the two never disagree.
-import { feeBreakdown, guestMemberIdSet, FEE_OVERRIDE_FIELDS, NO_LICENCE_SURCHARGE } from './clubdesk-update.js'
+import { feeBreakdown, guestMemberIdSet, resolveFeeWaivers, FEE_OVERRIDE_FIELDS, NO_LICENCE_SURCHARGE } from './clubdesk-update.js'
 
 const PAY_METHODS = ['twint', 'bank', 'cash', 'other']
 
@@ -63,6 +63,16 @@ function scorReference(idNum) {
  * {fy}`, the default subject_template seeded by migration 291).
  */
 const DUES_SUBJECT_SQL = "subject ILIKE '%mitgliederbeitrag%'"
+
+/** Invoice line wording for a rule waiver (resolveFeeWaivers' reasons).
+ *  German like every other invoice line — the document goes to the member and
+ *  into the club's books, neither of which follow the app's UI locale. */
+const WAIVER_LABELS = {
+  honorary: 'Erlass — Ehrenmitglied',
+  vorstand: 'Erlass — Vorstand',
+  coach: 'Erlass — Trainer*in',
+  default: 'Erlass',
+}
 
 /** Pick the CHF dues rate for a member: a sektion-specific row wins over the
  *  category default (sektion NULL). Returns the matching rate row or null. */
@@ -724,6 +734,13 @@ export function registerFinance(router, { database, logger, services, getSchema 
     // the same spelling, so a run for a past year resolves that year's guests.
     const guests = await guestMemberIdSet(database, members.map((m) => m.id), fy.label)
 
+    // Who owes nothing by RULE (Ehrenmitglied / Vorstand / coach) rather than by
+    // category. They are NOT dropped from the run: the club wants a CHF 0
+    // invoice on file for every one of them (user 2026-08-13, accounting/audit),
+    // showing the rate they would have paid and the waiver that cancels it.
+    // Same helper the Data Health fee check reports on — one rule, two readers.
+    const waivers = await resolveFeeWaivers(database, members.map((m) => m.id))
+
     // Members already holding a non-cancelled dues invoice this fiscal year.
     // Not just dues-RUN invoices: a late joiner billed by hand through
     // InvoiceManager carries dues_run NULL, so a later top-up run would issue a
@@ -793,7 +810,14 @@ export function registerFinance(router, { database, logger, services, getSchema 
         discount_reason: !fee || fee.discount <= 0 ? null
           : discounts.has(Number(m.id)) ? discountReason
           : (m.fee_discount_reason || discountReason),
-        amount: fee ? round2(fee.amount) : null,
+        // The rule waiver is the LAST adjustment: it cancels whatever is still
+        // owed after base ± surcharge ± guest ± discount, so the invoice reads
+        // "440.00 / Erlass -440.00 / 0.00" instead of hiding the entitlement.
+        // A member already at 0 (category 'Gratis') has nothing to waive and
+        // gets no waiver line.
+        waiver: fee && waivers.has(Number(m.id)) ? round2(Math.max(0, fee.amount)) : 0,
+        waiver_reason: waivers.get(Number(m.id)) || null,
+        amount: fee ? round2(waivers.has(Number(m.id)) ? 0 : fee.amount) : null,
         subject_template: rate?.subject_template || null,
         already_billed: billed.has(Number(m.id)),
         clubdesk_billed: clubdeskBilled.has(Number(m.id)),
@@ -831,15 +855,22 @@ export function registerFinance(router, { database, logger, services, getSchema 
   }
 
   const duesTotals = (rows) => {
-    // MUST match the issue endpoint's filter, including its `amount > 0` skip —
-    // a 0 CHF rate ('Gratis', 'Kein Beitrag') is a real rate but is never
-    // invoiced. Counting those as billable made the preview promise ~90 more
-    // invoices than the run creates.
+    // Two different questions, and conflating them is what made the preview
+    // promise ~90 more invoices than the run created (before 2026-08-13, when a
+    // 0 CHF row was counted as billable but skipped at issue):
+    //   billable — carries money. Drives every CHF figure below.
+    //   issuable — gets a DOCUMENT. Since 2026-08-13 that includes the 0 CHF
+    //              rows: a free member (rule waiver, or a 'Gratis'/'Kein
+    //              Beitrag' category) is invoiced at 0 so accounting has a
+    //              record for every member, not only the paying ones.
+    // MUST match the issue endpoint's filter.
     const eligible = (x) => !x.missing_rate && !x.already_billed && !x.clubdesk_billed
     const billable = rows.filter((x) => eligible(x) && round2(x.amount) > 0)
+    const issuable = rows.filter((x) => eligible(x) && round2(x.amount) >= 0)
     return {
       members: rows.length,
       billable: billable.length,
+      issuable: issuable.length,
       billable_amount: round2(billable.reduce((s, x) => s + (x.amount || 0), 0)),
       // Broken out so the treasurer can reconcile the total against the plain
       // rate schedule — the difference is exactly these two adjustments.
@@ -854,6 +885,12 @@ export function registerFinance(router, { database, logger, services, getSchema 
       clubdesk_billed: rows.filter((x) => !x.already_billed && x.clubdesk_billed).length,
       missing_rate: rows.filter((x) => x.missing_rate).length,
       zero_rate: rows.filter((x) => eligible(x) && round2(x.amount) <= 0).length,
+      // What the waiver rule cancelled, so the treasurer can see the club's
+      // cost of its own free memberships rather than only their count.
+      waived: rows.filter((x) => eligible(x) && (x.waiver || 0) > 0).length,
+      waived_amount: round2(rows.filter((x) => eligible(x)).reduce((sm, x) => sm + (x.waiver || 0), 0)),
+      // Only paying members are emailed (0 CHF invoices are filed, not sent),
+      // so a missing address on a free member is not a problem to report.
       no_email: billable.filter((x) => x.missing_email).length,
     }
   }
@@ -1028,7 +1065,10 @@ export function registerFinance(router, { database, logger, services, getSchema 
       if (r.error) return res.status(400).json({ error: r.error })
       // #21: never mint a 0-CHF invoice — a rate of 0 would create an "open"
       // invoice with open_amount 0 for the whole cohort. Skip amount ≤ 0.
-      const billable = r.rows.filter((x) => !x.missing_rate && !x.already_billed && !x.clubdesk_billed && round2(x.amount) > 0)
+      // `>= 0`, not `> 0`: a free member gets a CHF 0 invoice too (user
+      // 2026-08-13). `missing_rate` still excludes anyone the schedule cannot
+      // price — an unknown category is NOT the same as a known zero.
+      const billable = r.rows.filter((x) => !x.missing_rate && !x.already_billed && !x.clubdesk_billed && round2(x.amount) >= 0)
       if (!billable.length) return res.status(409).json({ error: 'Nothing to bill (no members with a positive rate that are not already billed natively or via ClubDesk)' })
 
       const dueDate = /^\d{4}-\d{2}-\d{2}$/.test(body.due_date || '') ? body.due_date : null
@@ -1081,7 +1121,14 @@ export function registerFinance(router, { database, logger, services, getSchema 
             .replace(/\{fy\}/g, fyLabel).replace(/\{category\}/g, x.category || '')
           const ins = await trx('finance_invoices').insert({
             clubdesk_id: null, number, invoice_date: invoiceDate, subject,
-            amount: x.amount, status: 'open', due_date: dueDate,
+            amount: x.amount,
+            // A CHF 0 invoice has nothing outstanding, so it must not sit in the
+            // open ledger waiting for a payment that will never come (and must
+            // not be dunned). 'paid' is this vocabulary's "nothing due" bucket;
+            // the waiver line below is what records that no money was expected.
+            // Nothing reaches the GL either — postAutoEntry skips zero amounts.
+            status: round2(x.amount) > 0 ? 'open' : 'paid',
+            due_date: dueDate,
             amount_paid: 0, open_amount: x.amount, fee_category: x.category,
             recipient_name: x.name, recipient_email: x.email,
             recipient_address: x.adresse, recipient_zip: x.plz, recipient_city: x.ort,
@@ -1094,6 +1141,10 @@ export function registerFinance(router, { database, logger, services, getSchema 
               ...(x.surcharge > 0 ? [{ label: 'Zuschlag ohne Schreiberlizenz', amount: round2(x.surcharge) }] : []),
               ...(x.guest_discount > 0 ? [{ label: 'Abzug Gastspieler*in', amount: round2(-x.guest_discount) }] : []),
               ...(x.discount > 0 ? [{ label: x.discount_reason || 'Rabatt', amount: round2(-x.discount) }] : []),
+              // The rule waiver, last and named: an auditor reading this row
+              // sees the full entitlement AND why it came to nothing. Without
+              // the label a 0 CHF invoice is indistinguishable from a mistake.
+              ...(x.waiver > 0 ? [{ label: WAIVER_LABELS[x.waiver_reason] || WAIVER_LABELS.default, amount: round2(-x.waiver) }] : []),
             ]),
             member: x.member, team: null, dues_run: runId, fiscal_year: r.fy.id,
             source: 'native', created_by_name: mem?.name || null, created_by_email: mem?.email || null,
@@ -1270,7 +1321,10 @@ export function registerFinance(router, { database, logger, services, getSchema 
         // The data was on the row the whole time — the issue path writes all of
         // it (migration 293). Audit 2026-08-08, finding 17.
         .select(...INVOICE_PDF_COLUMNS, 'recipient_email', 'email_sent_at')
-      const emailable = invoices.filter((i) => (i.recipient_email || '').trim())
+      // 0 CHF invoices are filed for accounting, never emailed (user
+      // 2026-08-13) — nobody should receive a bill for nothing. They are still
+      // in the run, on the member's finance page and in the ledger export.
+      const emailable = invoices.filter((i) => (i.recipient_email || '').trim() && round2(i.amount) > 0)
       const noEmail = invoices.length - emailable.length
       // Live sends skip invoices already emailed (idempotent resume after a crash);
       // test mode re-sends all so it stays repeatable.

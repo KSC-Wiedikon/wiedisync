@@ -240,6 +240,77 @@ describe('buildPushCsv (update set — fill-only billing cells, 2026-07-27)', ()
     expect(cells[18]).toBe('250')
   })
 
+  // ── Beitragskategorie became a gated register cell on 2026-08-14 ──────────
+  // Before that it was unconditionally fill-only, which had TWO consequences:
+  // a category corrected in wiedisync could never reach the register, and — far
+  // worse — the sync-down is ClubDesk-authoritative on the column, so the edit
+  // was REVERTED at the next run. Surfaced by Livia Schlegel (#98), moved off
+  // 'Kein Beitrag' (the terminal non-member bucket) onto 'Gratis'.
+  it('a pending push that NAMES beitragskategorie overwrites the register category', () => {
+    const cells = cellsOf({
+      beitragskategorie: 'Gratis',
+      beitragskategorie_cd: 'Kein Beitrag',
+      mitgliederbeitrag_cd: '0',
+      clubdesk_push_changes: [{ field: 'beitragskategorie', old_value: 'Kein Beitrag', new_value: 'Gratis' }],
+    })
+    expect(cells[16]).toBe('Gratis')
+  })
+
+  it('sends the MAPPED ClubDesk name, not the signup-form spelling', () => {
+    const cells = cellsOf({
+      beitragskategorie: 'BB Junior:innen',   // signup-form name
+      beitragskategorie_cd: 'BB Minis Turnier',
+      clubdesk_push_changes: [{ field: 'beitragskategorie', old_value: 'BB Minis Turnier', new_value: 'BB Jugend Meisterschaft' }],
+    })
+    expect(cells[16]).toBe(mapKategorie('BB Junior:innen'))
+    expect(cells[16]).toBe('BB Jugend Meisterschaft')
+  })
+
+  it('⚠ a category change DRAGS the amount with it — the register can never read Gratis next to CHF 440', () => {
+    // The two are one decision. Sending only the category would leave the legal
+    // register self-contradictory, the same trap Status/Austritt are paired for.
+    const cells = cellsOf({
+      beitragskategorie: 'Gratis',
+      beitragskategorie_cd: 'VB Erwerbstätige',
+      mitgliederbeitrag_cd: '440',            // what the register still says
+      clubdesk_push_changes: [{ field: 'beitragskategorie', old_value: 'VB Erwerbstätige', new_value: 'Gratis' }],
+    })
+    expect(cells[16]).toBe('Gratis')
+    expect(cells[18]).toBe('0')               // NOT the echoed 440
+  })
+
+  it('a treasurer PIN still wins over the new category — a category edit is not licence to discard it', () => {
+    // fee_base_override is migration 308's "the register wins" mechanism; a
+    // category change must not silently undo 113 hand-set amounts.
+    const cells = cellsOf({
+      beitragskategorie: 'Gratis',
+      beitragskategorie_cd: 'VB Erwerbstätige',
+      mitgliederbeitrag_cd: '440',
+      fee_base_override: 330, fee_surcharge_override: false,
+      clubdesk_push_changes: [{ field: 'beitragskategorie', old_value: 'VB Erwerbstätige', new_value: 'Gratis' }],
+    })
+    expect(cells[16]).toBe('Gratis')
+    expect(cells[18]).toBe('330')             // the pin, not the category's 0
+  })
+
+  it('a push flagged for something ELSE leaves the register category alone', () => {
+    const cells = cellsOf({
+      beitragskategorie: 'Gratis',
+      beitragskategorie_cd: 'VB Erwerbstätige',
+      clubdesk_push_changes: [{ field: 'iban', old_value: null, new_value: 'CH…' }],
+    })
+    expect(cells[16]).toBe('VB Erwerbstätige')
+  })
+
+  it('naming beitragskategorie cannot BLANK the register — an empty wiedisync category echoes', () => {
+    const cells = cellsOf({
+      beitragskategorie: '',
+      beitragskategorie_cd: 'VB Erwerbstätige',
+      clubdesk_push_changes: [{ field: 'beitragskategorie', old_value: 'VB Erwerbstätige', new_value: '' }],
+    })
+    expect(cells[16]).toBe('VB Erwerbstätige')
+  })
+
   it('each cell echoes independently — a register-set Kategorie never blocks an Eintritt fill', () => {
     const cells = cellsOf({ beitragskategorie_cd: 'VB Erwerbstätige', eintritt_cd: '', mitgliederbeitrag_cd: '440' })
     expect(cells[16]).toBe('VB Erwerbstätige') // echo

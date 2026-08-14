@@ -130,9 +130,26 @@ export default function ClubdeskFixGroups({ available, onDone }: Props) {
     })
   }
 
+  // Flatten both scrapers' per-row results into one reviewable table. `kind` keeps
+  // an add and a removal of the same group on the same member distinguishable.
+  const resultRows: (ScrapeRow & { kind: 'add' | 'remove' })[] = [
+    ...(status?.result?.remove?.results || []).map((r) => ({ ...r, kind: 'remove' as const })),
+    ...(status?.result?.add?.results || []).map((r) => ({ ...r, kind: 'add' as const })),
+  ]
+  const failedRows = resultRows.filter((r) => !OK_STATUSES.has(r.status || ''))
+
   async function run(mode: 'preview' | 'commit') {
     if (mode === 'commit') {
-      const n = (status?.counts?.add || 0) + (status?.counts?.remove || 0)
+      // ⚠ `counts` is null on a FINISHED job: the host dispatcher nulls
+      // grp_worklist on write-back (it carries names + uuids), so the column the
+      // endpoint counts is gone by the time a commit is offered — which made this
+      // dialog say "0 changes" over a table of 6. Fall back to the previewed rows,
+      // which are what the operator is actually approving. Either way the number
+      // is an ESTIMATE: the server recomputes the worklist from the current
+      // findings at queue time and never trusts a client-supplied one.
+      const n = status?.counts
+        ? status.counts.add + status.counts.remove
+        : resultRows.length
       const ok = await confirm({
         message: t('cdFixConfirmCommit', { count: n }),
         danger: true,
@@ -160,14 +177,6 @@ export default function ClubdeskFixGroups({ available, onDone }: Props) {
       setSubmitting(false)
     }
   }
-
-  // Flatten both scrapers' per-row results into one reviewable table. `kind` keeps
-  // an add and a removal of the same group on the same member distinguishable.
-  const resultRows: (ScrapeRow & { kind: 'add' | 'remove' })[] = [
-    ...(status?.result?.remove?.results || []).map((r) => ({ ...r, kind: 'remove' as const })),
-    ...(status?.result?.add?.results || []).map((r) => ({ ...r, kind: 'add' as const })),
-  ]
-  const failedRows = resultRows.filter((r) => !OK_STATUSES.has(r.status || ''))
 
   return (
     <>

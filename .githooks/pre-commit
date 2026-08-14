@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# Block commits that introduce credentials.
+#
+# Added 2026-08-13 after a full-history sweep found live keys committed to
+# repos that are public. Disclosure is effectively irreversible: a force-push
+# does not remove the commit, because GitHub keeps unreachable commits
+# addressable by SHA until Support runs GC on the repo. Rotation is the only
+# real remedy, so the only real control is not committing the secret.
+#
+# Enable in a fresh clone with:  git config core.hooksPath .githooks
+# (where a package.json exists, its "prepare" script does this on npm install)
+#
+# Bypass with --no-verify only if you are certain the match is a placeholder,
+# and add it to the allowlist in .gitleaks.toml so the next commit is clean.
+set -euo pipefail
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo "pre-commit: gitleaks not found on PATH — secret scan SKIPPED." >&2
+  echo "  install: https://github.com/gitleaks/gitleaks/releases" >&2
+  exit 0
+fi
+
+if ! gitleaks protect --staged --redact --no-banner --config .gitleaks.toml; then
+  echo >&2
+  echo "pre-commit: BLOCKED — a staged change looks like a credential." >&2
+  echo "  Remove it and use an env var / secret store instead." >&2
+  echo "  False positive? Add an allowlist entry to .gitleaks.toml." >&2
+  exit 1
+fi

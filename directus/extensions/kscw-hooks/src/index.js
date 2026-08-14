@@ -686,7 +686,13 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     // no way to blank a register cell at all — the date has to be removed in
     // ClubDesk by hand. The wiedisync side is still correct immediately; only
     // the register lags.
-    for (const field of ['iban', 'ahv_nummer', 'register_status', 'eintritt', 'austritt']) {
+    // ⚠ `beitragskategorie` joined this loop on 2026-08-14 and it is the field
+    // that needs it MOST: the sync-down is ClubDesk-authoritative on the column
+    // (`COALESCE(cd.categ, …)`), so an unflagged category edit is not merely
+    // un-pushable — it is REVERTED at the next sync-down. The flag is the shield
+    // as much as the licence. buildPushCsv drags the Mitgliederbeitrag cell along
+    // with it, so the register can never end up 'Gratis' next to CHF 440.
+    for (const field of ['iban', 'ahv_nummer', 'register_status', 'eintritt', 'austritt', 'beitragskategorie']) {
       if (!payload || !(field in payload) || !String(payload[field] || '').trim()) continue
       for (const id of keys) {
         try {
