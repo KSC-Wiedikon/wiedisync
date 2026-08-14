@@ -68,16 +68,16 @@ describe('buildMemberGroups', () => {
     const cache = cacheOf({ players: { '1': ['1'] }, coaches: { '1': ['1'] } })
     const m = { id: 1, sektion: 'Volleyball', role: ['user', 'vorstand'], scorer_vb: true }
     const g = flatten(buildMemberGroups([m], [m], cache))
-    expect(g['sport:volleyball/sport:volleyball:team:1']).toEqual(['1'])
-    expect(g['officials:vb/officials:vb:scorers']).toEqual(['1'])
-    expect(g['staff:volleyball/staff:volleyball:coaches']).toEqual(['1'])
+    expect(g['sport:volleyball/sport:volleyball:teams/sport:volleyball:team:1']).toEqual(['1'])
+    expect(g['sport:volleyball/officials:vb/officials:vb:scorers']).toEqual(['1'])
+    expect(g['sport:volleyball/staff:volleyball/staff:volleyball:coaches']).toEqual(['1'])
     expect(g['club:vorstand']).toEqual(['1'])
   })
 
-  it('puts a section member with no roster row under "No team", not "Unassigned"', () => {
+  it('puts a section member with no roster row under the sport\'s "Other", not "Unassigned"', () => {
     const m = { id: 7, sektion: 'Volleyball', beitragskategorie: 'Passivmitglied' }
     const g = flatten(buildMemberGroups([m], [m], cacheOf()))
-    expect(g['sport:volleyball/sport:volleyball:noteam']).toEqual(['7'])
+    expect(g['sport:volleyball/sport:volleyball:other']).toEqual(['7'])
     expect(g['club:unassigned']).toBeUndefined()
   })
 
@@ -93,15 +93,15 @@ describe('buildMemberGroups', () => {
     const g = flatten(buildMemberGroups([active], [active, departed], cacheOf()))
     expect(g['club:former']).toEqual(['2'])
     // ...while sport groups stay narrowed to the working set.
-    expect(g['sport:volleyball/sport:volleyball:noteam']).toEqual(['1'])
+    expect(g['sport:volleyball/sport:volleyball:other']).toEqual(['1'])
   })
 
   it('keeps the OTR/OTN grades separate and lets one member hold several', () => {
     const m = { id: 5, otr1_bb: true, otr2_bb: true, sektion: 'Basketball' }
     const g = flatten(buildMemberGroups([m], [m], cacheOf()))
-    expect(g['officials:bb/officials:bb:otr1']).toEqual(['5'])
-    expect(g['officials:bb/officials:bb:otr2']).toEqual(['5'])
-    expect(g['officials:bb/officials:bb:otn1']).toBeUndefined()
+    expect(g['sport:basketball/officials:bb/officials:bb:otr1']).toEqual(['5'])
+    expect(g['sport:basketball/officials:bb/officials:bb:otr2']).toEqual(['5'])
+    expect(g['sport:basketball/officials:bb/officials:bb:otn1']).toBeUndefined()
   })
 
   it('reads role from a JSON string as well as an array', () => {
@@ -126,6 +126,31 @@ describe('buildMemberGroups', () => {
     expect(nodes.every((n) => countMembers(n) > 0)).toBe(true)
   })
 
+  it('gives each sport its own Teams / Officials / Staff / Other', () => {
+    const cache = cacheOf({ players: { '1': ['1'] }, coaches: { '2': ['1'] } })
+    const a = { id: 1, scorer_vb: true }
+    const b = { id: 2 }
+    const vb = buildMemberGroups([a, b], [a, b], cache).find((n) => n.key === 'sport:volleyball')!
+    expect(vb.children!.map((c) => c.key)).toEqual([
+      'sport:volleyball:teams',
+      'officials:vb',
+      'staff:volleyball',
+    ])
+  })
+
+  /**
+   * ⚠ "Other" is a RESIDUE, not "has no team". A scorer without a squad is
+   * already findable under Officials, and repeating them here would pad the one
+   * list people scan for the unexplained.
+   */
+  it('keeps a member out of "Other" when another branch already accounts for them', () => {
+    const scorer = { id: 1, sektion: 'Volleyball', scorer_vb: true }
+    const plain = { id: 2, sektion: 'Volleyball' }
+    const g = flatten(buildMemberGroups([scorer, plain], [scorer, plain], cacheOf()))
+    expect(g['sport:volleyball/officials:vb/officials:vb:scorers']).toEqual(['1'])
+    expect(g['sport:volleyball/sport:volleyball:other']).toEqual(['2'])
+  })
+
   /**
    * ⚠ Distinct, not summed. Overlapping leaves are the design — one person can
    * hold OTR1 and OTR2, or play for two squads. Summing made "Basketball" read
@@ -135,7 +160,8 @@ describe('buildMemberGroups', () => {
     const both = { id: 1, otr1_bb: true, otr2_bb: true }
     const one = { id: 2, otr2_bb: true }
     const nodes = buildMemberGroups([both, one], [both, one], cacheOf())
-    const bb = nodes.find((n) => n.key === 'officials:bb')!
+    const bb = nodes.find((n) => n.key === 'sport:basketball')!
+      .children!.find((n) => n.key === 'officials:bb')!
     expect(countMembers(bb)).toBe(2)
     expect(bb.children!.reduce((n, c) => n + countMembers(c), 0)).toBe(3)
   })

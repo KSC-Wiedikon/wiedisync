@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '1.91.0'
+const APP_VERSION = '1.92.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,21 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.92.0',
+    date: '14.08.2026',
+    sections: [
+      {
+        title: 'Each sport owns its own groups, and the table view is grouped the same way',
+        items: [
+          'Volleyball and Basketball each hold their own Teams, Officials, Staff and Other, instead of "Volleyball officials" and "Basketball staff" sitting in one flat list next to Gap year. Open a sport and everything about that sport is under it.',
+          '"Other" is now what is left over, not "has no team". Somebody who scores but plays for no squad is under Officials, where you would look for them, and no longer padding the list you scan for the unexplained. Volleyball\'s Other went from 90 people to 60.',
+          'The table view\'s sidebar uses exactly the same groups as the tree, so picking a group in either place means the same thing. It was a flat list of teams before, and there was no way to see, say, every basketball official as a table.',
+          'A group\'s count and its rows now agree. Picking Former members showed 29 in the sidebar and 7 rows, because the group is built from everybody while the table was showing current members only.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.91.0',
     date: '14.08.2026',

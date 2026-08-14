@@ -149,61 +149,36 @@ export function buildMemberGroups(
     teamsBySport[sport].sort((a, b) => String(a.name ?? '').localeCompare(String(b.name ?? '')))
   }
 
-  const sportNode = (sport: Sport): MemberGroupNode => {
-    const inSport = members.filter((m) => sportsForMember(m, cache).includes(sport))
-    const teamIdsInSport = new Set(teamsBySport[sport].map((t) => String(t.id)))
-
-    const children: MemberGroupNode[] = teamsBySport[sport].map((team) => ({
-      key: `sport:${sport}:team:${team.id}`,
-      raw: String(team.name ?? team.id),
-      memberIds: inSport
-        .filter((m) => allTeamIds(String(m.id), cache).has(String(team.id)))
-        .map((m) => String(m.id)),
-    })).filter((n) => (n.memberIds?.length ?? 0) > 0)
-
-    // Section members with no roster row at all: passive players, referees,
-    // new signups. Under the old tree these were the "Other" bucket.
-    const noTeam = inSport.filter((m) => {
-      const attached = allTeamIds(String(m.id), cache)
-      for (const id of attached) if (teamIdsInSport.has(id)) return false
-      return true
-    })
-    if (noTeam.length > 0) {
-      children.push({ key: `sport:${sport}:noteam`, labelKey: 'explorerGroupNoTeam', memberIds: ids(noTeam) })
-    }
-
-    return { key: `sport:${sport}`, labelKey: `common:${sport}`, children }
-  }
-
   // ── Officials ───────────────────────────────────────────────────────
+  // ⚠ Gated on the LICENCE FLAG, not on the member's resolved sport. The flag
+  // is itself the statement that somebody officiates that sport — a scorer
+  // whose section is Basketball is still a volleyball scorer, and requiring
+  // both would quietly drop them off the only list that has to be complete
+  // when duties are handed out.
   const flagNode = (key: string, labelKey: string, flag: keyof GroupMember): MemberGroupNode => ({
     key,
     labelKey,
     memberIds: ids(members.filter((m) => truthy(m[flag]))),
   })
 
-  const vbOfficials: MemberGroupNode = {
-    key: 'officials:vb',
-    labelKey: 'explorerGroupVbOfficials',
-    children: [
-      flagNode('officials:vb:scorers', 'explorerGroupScorers', 'scorer_vb'),
-      flagNode('officials:vb:referees', 'explorerGroupReferees', 'referee_vb'),
-    ],
-  }
-
-  const bbOfficials: MemberGroupNode = {
-    key: 'officials:bb',
-    labelKey: 'explorerGroupBbOfficials',
-    children: [
-      // OTR/OTN are Basketplan's official grades, not a ladder we invented —
-      // a member can hold several, so these lists overlap by design.
-      { key: 'officials:bb:otr1', raw: 'OTR1', memberIds: ids(members.filter((m) => truthy(m.otr1_bb))) },
-      { key: 'officials:bb:otr2', raw: 'OTR2', memberIds: ids(members.filter((m) => truthy(m.otr2_bb))) },
-      { key: 'officials:bb:otn1', raw: 'OTN1', memberIds: ids(members.filter((m) => truthy(m.otn1_bb))) },
-      { key: 'officials:bb:otn2', raw: 'OTN2', memberIds: ids(members.filter((m) => truthy(m.otn2_bb))) },
-      flagNode('officials:bb:referees', 'explorerGroupReferees', 'referee_bb'),
-    ],
-  }
+  const officialsNode = (sport: Sport): MemberGroupNode => ({
+    key: sport === 'volleyball' ? 'officials:vb' : 'officials:bb',
+    labelKey: 'explorerGroupOfficials',
+    children: sport === 'volleyball'
+      ? [
+          flagNode('officials:vb:scorers', 'explorerGroupScorers', 'scorer_vb'),
+          flagNode('officials:vb:referees', 'explorerGroupReferees', 'referee_vb'),
+        ]
+      : [
+          // OTR/OTN are Basketplan's official grades, not a ladder we invented —
+          // a member can hold several, so these lists overlap by design.
+          { key: 'officials:bb:otr1', raw: 'OTR1', memberIds: ids(members.filter((m) => truthy(m.otr1_bb))) },
+          { key: 'officials:bb:otr2', raw: 'OTR2', memberIds: ids(members.filter((m) => truthy(m.otr2_bb))) },
+          { key: 'officials:bb:otn1', raw: 'OTN1', memberIds: ids(members.filter((m) => truthy(m.otn1_bb))) },
+          { key: 'officials:bb:otn2', raw: 'OTN2', memberIds: ids(members.filter((m) => truthy(m.otn2_bb))) },
+          flagNode('officials:bb:referees', 'explorerGroupReferees', 'referee_bb'),
+        ],
+  })
 
   // ── Staff ───────────────────────────────────────────────────────────
   // ⚠ Coaches and team responsibles are NEVER in `member_teams` — that holds
@@ -216,7 +191,7 @@ export function buildMemberGroups(
 
     return {
       key: `staff:${sport}`,
-      labelKey: sport === 'volleyball' ? 'explorerGroupVbStaff' : 'explorerGroupBbStaff',
+      labelKey: 'explorerGroupStaff',
       children: [
         {
           key: `staff:${sport}:coaches`,
@@ -228,6 +203,49 @@ export function buildMemberGroups(
           labelKey: 'explorerGroupTeamResponsibles',
           memberIds: ids(members.filter(inRelation(cache.memberTrTeams))),
         },
+      ],
+    }
+  }
+
+  // ── Sport ───────────────────────────────────────────────────────────
+  // Each sport owns its own Teams / Officials / Staff / Other, so the tree
+  // reads the way the club is actually organised rather than as one flat list
+  // where "Volleyball staff" and "Basketball staff" sit next to "Gap year".
+  const sportNode = (sport: Sport): MemberGroupNode => {
+    const inSport = members.filter((m) => sportsForMember(m, cache).includes(sport))
+
+    const teamsNode: MemberGroupNode = {
+      key: `sport:${sport}:teams`,
+      labelKey: 'explorerGroupTeams',
+      children: teamsBySport[sport].map((team) => ({
+        key: `sport:${sport}:team:${team.id}`,
+        raw: String(team.name ?? team.id),
+        memberIds: inSport
+          .filter((m) => allTeamIds(String(m.id), cache).has(String(team.id)))
+          .map((m) => String(m.id)),
+      })),
+    }
+
+    const officials = officialsNode(sport)
+    const staff = staffNode(sport)
+
+    // Everyone in this sport that none of the three branches above accounts
+    // for — a passive player, a new signup, somebody whose only trace is a
+    // section. Deliberately a RESIDUE and not "no team": a scorer without a
+    // squad is findable under Officials, so repeating them here would only
+    // pad the list people scan when they are looking for the unexplained.
+    const accounted = new Set<string>()
+    ;[teamsNode, officials, staff].forEach((n) => collectIds(n, accounted))
+    const other = inSport.filter((m) => !accounted.has(String(m.id)))
+
+    return {
+      key: `sport:${sport}`,
+      labelKey: `common:${sport}`,
+      children: [
+        teamsNode,
+        officials,
+        staff,
+        { key: `sport:${sport}:other`, labelKey: 'explorerGroupOther', memberIds: ids(other) },
       ],
     }
   }
@@ -258,22 +276,14 @@ export function buildMemberGroups(
   // The honest residue: no sport, no register status we group on, no role. It
   // must stay visible — a member the tree cannot place is a data problem
   // somebody should see, not one to hide by dropping the group.
-  const placed = new Set<string>()
-  const collect = (node: MemberGroupNode) => {
-    node.memberIds?.forEach((id) => placed.add(id))
-    node.children?.forEach(collect)
-  }
   const sportNodes = [sportNode('volleyball'), sportNode('basketball')]
-  const staffNodes = [staffNode('volleyball'), staffNode('basketball')]
-  ;[...sportNodes, vbOfficials, bbOfficials, ...staffNodes, ...clubNodes].forEach(collect)
+  const placed = new Set<string>()
+  ;[...sportNodes, ...clubNodes].forEach((n) => collectIds(n, placed))
 
   const unassigned = members.filter((m) => !placed.has(String(m.id)))
 
   return prune([
     ...sportNodes,
-    vbOfficials,
-    bbOfficials,
-    ...staffNodes,
     ...clubNodes,
     { key: 'club:unassigned', labelKey: 'explorerGroupUnassigned', memberIds: ids(unassigned) },
   ])

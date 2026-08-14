@@ -223,6 +223,7 @@ export default function ExplorePage() {
         ) : (
           <ExplorerGrid
             cache={treeData}
+            allMembers={data.members}
             query={query}
             canEdit={canEditGrid}
             isGlobalAdmin={auth.isGlobalAdmin}
