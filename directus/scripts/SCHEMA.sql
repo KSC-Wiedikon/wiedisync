@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-08-13T14:58:45.820Z
+-- Generated:   2026-08-15T10:18:24.619Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -29,7 +29,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict UD8gr2Chca5N7rzIR3oFviBn7gfQ7HOUqHTXpRwk8NGtzdAUheX2a8dmIqiNLtg
+\restrict lxKIcechAOfVsN695bEOJJtmyPnF0s72MDru6OPynpjfGWOoHOnbN86JucxNb5o
 
 -- Dumped from database version 16.14 (Debian 16.14-1.pgdg13+1)
 -- Dumped by pg_dump version 16.14 (Debian 16.14-1.pgdg13+1)
@@ -1620,6 +1620,67 @@ $$;
 
 
 --
+-- Name: trg_trainings_fill_respond_by(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.trg_trainings_fill_respond_by() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $_$
+DECLARE
+  v_days_txt text;
+  v_days     int;
+BEGIN
+  IF NEW.team IS NULL OR NEW.date IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  SELECT NULLIF(features_enabled->>'training_respond_by_days', '')
+    INTO v_days_txt
+    FROM teams WHERE id = NEW.team;
+
+  -- Tolerate junk in the JSON rather than aborting the write: an unparsable
+  -- setting means "no deadline", not "no training".
+  IF v_days_txt IS NULL OR v_days_txt !~ '^[0-9]+$' THEN
+    RETURN NEW;
+  END IF;
+  v_days := v_days_txt::int;
+
+  IF TG_OP = 'INSERT' THEN
+    IF NEW.respond_by IS NULL THEN
+      NEW.respond_by := ((NEW.date - v_days) + COALESCE(NEW.start_time, '23:59'::time))
+                        AT TIME ZONE 'Europe/Zurich';
+    END IF;
+    RETURN NEW;
+  END IF;
+
+  -- UPDATE: follow a moved date/time, but only for a derived deadline, and only
+  -- when this statement is not setting one itself.
+  IF (NEW.date IS DISTINCT FROM OLD.date OR NEW.start_time IS DISTINCT FROM OLD.start_time)
+     AND NEW.respond_by IS NOT DISTINCT FROM OLD.respond_by
+     AND (
+       OLD.respond_by IS NULL
+       OR OLD.respond_by = ((OLD.date - v_days) + COALESCE(OLD.start_time, '23:59'::time))
+                           AT TIME ZONE 'Europe/Zurich'
+     )
+  THEN
+    NEW.respond_by := ((NEW.date - v_days) + COALESCE(NEW.start_time, '23:59'::time))
+                      AT TIME ZONE 'Europe/Zurich';
+  END IF;
+
+  RETURN NEW;
+END;
+$_$;
+
+
+--
+-- Name: FUNCTION trg_trainings_fill_respond_by(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.trg_trainings_fill_respond_by() IS 'Fills trainings.respond_by from teams.features_enabled.training_respond_by_days: (date - N days) at the training start_time, Europe/Zurich. Only when NULL on insert; on update only when the date/time moved AND the stored value was the derived one. Midnight is NOT used — getDeadlineDate() reads it as a sentinel and respond_by::date would land a day early in UTC.';
+
+
+--
 -- Name: trg_trainings_notify(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -3197,6 +3258,49 @@ COMMENT ON COLUMN public.clubdesk_member_sync.grp_result IS 'Per-row outcome fro
 --
 
 COMMENT ON COLUMN public.clubdesk_member_sync.grp_requested_by_name IS 'Actor who queued the run — raw-knex writes bypass the Directus revision trail, so the actor is captured explicitly (see CLAUDE.md → Audit logging).';
+
+
+--
+-- Name: clubdesk_sync_proposals; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.clubdesk_sync_proposals (
+    id bigint NOT NULL,
+    member_id integer,
+    clubdesk_id character varying(64) NOT NULL,
+    field character varying(64),
+    current_value text,
+    proposed_value text,
+    rule character varying(16) NOT NULL,
+    status character varying(16) DEFAULT 'pending'::character varying NOT NULL,
+    payload jsonb,
+    detected_at timestamp with time zone DEFAULT now() NOT NULL,
+    decided_at timestamp with time zone,
+    decided_by_name character varying(255),
+    decided_by_email character varying(255),
+    CONSTRAINT clubdesk_sync_proposals_rule_chk CHECK (((rule)::text = ANY ((ARRAY['fill'::character varying, 'overwrite'::character varying, 'set_true'::character varying, 'create'::character varying])::text[]))),
+    CONSTRAINT clubdesk_sync_proposals_shape_chk CHECK (((((rule)::text = 'create'::text) AND (member_id IS NULL) AND (field IS NULL)) OR (((rule)::text <> 'create'::text) AND (member_id IS NOT NULL) AND (field IS NOT NULL)))),
+    CONSTRAINT clubdesk_sync_proposals_status_chk CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'accepted'::character varying, 'refused'::character varying])::text[])))
+);
+
+
+--
+-- Name: clubdesk_sync_proposals_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.clubdesk_sync_proposals_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: clubdesk_sync_proposals_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.clubdesk_sync_proposals_id_seq OWNED BY public.clubdesk_sync_proposals.id;
 
 
 --
@@ -6781,7 +6885,7 @@ CREATE TABLE public.members (
     CONSTRAINT members_register_status_values CHECK (((register_status IS NULL) OR ((register_status)::text = ANY ((ARRAY['Kein Mitglied'::character varying, 'Aktivmitglied'::character varying, 'Passivmitglied'::character varying, 'Ehrenmitglied'::character varying, 'Ehemaliges Mitglied'::character varying, 'Verstorben'::character varying, 'Zwischenjahr'::character varying])::text[])))),
     CONSTRAINT members_role_values_valid CHECK ((role <@ '["user", "admin", "superuser", "vb_admin", "bb_admin", "vorstand", "website_admin", "finance"]'::jsonb)),
     CONSTRAINT members_trainer_licences_fmt CHECK (((trainer_licences IS NULL) OR ((trainer_licences)::text ~ '^(JS|C|B|A|T1|T2|T3)(,(JS|C|B|A|T1|T2|T3))*$'::text))),
-    CONSTRAINT members_transfer_status_chk CHECK (((transfer_status IS NULL) OR ((transfer_status)::text = ANY ((ARRAY['pending'::character varying, 'done'::character varying])::text[]))))
+    CONSTRAINT members_transfer_status_chk CHECK (((transfer_status IS NULL) OR ((transfer_status)::text = ANY ((ARRAY['pending'::character varying, 'done'::character varying, 'not_needed'::character varying])::text[]))))
 );
 
 
@@ -7125,7 +7229,7 @@ COMMENT ON COLUMN public.members.otn2_bb IS 'Basketball OTN 2 (national table of
 -- Name: COLUMN members.transfer_status; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.members.transfer_status IS 'International-transfer WORK state: NULL = not reviewed, ''pending'' = being chased, ''done'' = cleared. Whether a transfer is needed at all is derived from federation_of_origin (''NONE'' or ''CH'' = not needed), never stored here.';
+COMMENT ON COLUMN public.members.transfer_status IS 'International-transfer state as the CLUB decided it: NULL = not reviewed (fall back to deriving it from federation_of_origin), ''pending'' = being chased, ''done'' = cleared, ''not_needed'' = reviewed and no transfer applies. A non-NULL value OVERRIDES the federation_of_origin derivation in both directions — ''pending'' on a CH-origin member is a transfer being chased anyway, ''not_needed'' on a foreign-origin member is a transfer the club has ruled out.';
 
 
 --
@@ -9773,6 +9877,13 @@ ALTER TABLE ONLY public.clubdesk_export ALTER COLUMN row_id SET DEFAULT nextval(
 
 
 --
+-- Name: clubdesk_sync_proposals id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.clubdesk_sync_proposals ALTER COLUMN id SET DEFAULT nextval('public.clubdesk_sync_proposals_id_seq'::regclass);
+
+
+--
 -- Name: email_sends id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -10664,6 +10775,14 @@ ALTER TABLE ONLY public.clubdesk_export
 
 ALTER TABLE ONLY public.clubdesk_member_sync
     ADD CONSTRAINT clubdesk_member_sync_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: clubdesk_sync_proposals clubdesk_sync_proposals_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.clubdesk_sync_proposals
+    ADD CONSTRAINT clubdesk_sync_proposals_pkey PRIMARY KEY (id);
 
 
 --
@@ -11955,6 +12074,41 @@ CREATE INDEX city_hall_availability_weekday_idx ON public.city_hall_availability
 --
 
 CREATE INDEX city_halls_photo_idx ON public.city_halls USING btree (einrichtung_id) WHERE (photo_url IS NOT NULL);
+
+
+--
+-- Name: clubdesk_sync_proposals_pending_create_uq; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX clubdesk_sync_proposals_pending_create_uq ON public.clubdesk_sync_proposals USING btree (clubdesk_id) WHERE (((status)::text = 'pending'::text) AND ((rule)::text = 'create'::text));
+
+
+--
+-- Name: clubdesk_sync_proposals_pending_uq; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX clubdesk_sync_proposals_pending_uq ON public.clubdesk_sync_proposals USING btree (member_id, field) WHERE (((status)::text = 'pending'::text) AND ((rule)::text <> 'create'::text));
+
+
+--
+-- Name: clubdesk_sync_proposals_refused_create_uq; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX clubdesk_sync_proposals_refused_create_uq ON public.clubdesk_sync_proposals USING btree (clubdesk_id) WHERE (((status)::text = 'refused'::text) AND ((rule)::text = 'create'::text));
+
+
+--
+-- Name: clubdesk_sync_proposals_refused_uq; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX clubdesk_sync_proposals_refused_uq ON public.clubdesk_sync_proposals USING btree (member_id, field, proposed_value) WHERE (((status)::text = 'refused'::text) AND ((rule)::text <> 'create'::text));
+
+
+--
+-- Name: clubdesk_sync_proposals_status_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX clubdesk_sync_proposals_status_idx ON public.clubdesk_sync_proposals USING btree (status, detected_at DESC);
 
 
 --
@@ -13953,6 +14107,13 @@ CREATE TRIGGER trg_trainings_clear_auto_cancel_marker BEFORE UPDATE ON public.tr
 
 
 --
+-- Name: trainings trg_trainings_fill_respond_by; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_trainings_fill_respond_by BEFORE INSERT OR UPDATE ON public.trainings FOR EACH ROW EXECUTE FUNCTION public.trg_trainings_fill_respond_by();
+
+
+--
 -- Name: trainings trg_trainings_notify; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -14259,6 +14420,14 @@ ALTER TABLE ONLY public.broadcasts
 
 ALTER TABLE ONLY public.city_hall_availability
     ADD CONSTRAINT city_hall_availability_einrichtung_id_fkey FOREIGN KEY (einrichtung_id) REFERENCES public.city_halls(einrichtung_id) ON DELETE CASCADE;
+
+
+--
+-- Name: clubdesk_sync_proposals clubdesk_sync_proposals_member_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.clubdesk_sync_proposals
+    ADD CONSTRAINT clubdesk_sync_proposals_member_id_fkey FOREIGN KEY (member_id) REFERENCES public.members(id) ON DELETE CASCADE;
 
 
 --
@@ -15941,12 +16110,12 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict UD8gr2Chca5N7rzIR3oFviBn7gfQ7HOUqHTXpRwk8NGtzdAUheX2a8dmIqiNLtg
+\unrestrict lxKIcechAOfVsN695bEOJJtmyPnF0s72MDru6OPynpjfGWOoHOnbN86JucxNb5o
 
 
 
 -- ============================================================================
--- Migration tracker seed — 320 migration(s) already in the schema above.
+-- Migration tracker seed — 327 migration(s) already in the schema above.
 -- GENERATED with the snapshot; do not hand-edit.
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS kscw_migrations (
@@ -16278,6 +16447,13 @@ FROM (VALUES
   ('312-vis-manual-player-link.sql'),
   ('313-vis-player-index-staging.sql'),
   ('314-clubdesk-group-fix-job.sql'),
-  ('315-members-kantonsschule.sql')
+  ('315-members-kantonsschule.sql'),
+  ('316-bb-juniors-aktivmitglied.sql'),
+  ('317-bb-junior-fee-stragglers.sql'),
+  ('318-schlegel-gratis.sql'),
+  ('319-schlegel-gratis-push-flag.sql'),
+  ('320-transfer-status-not-needed.sql'),
+  ('321-clubdesk-sync-proposals.sql'),
+  ('322-trainings-derive-respond-by.sql')
 ) AS v(fname)
 ON CONFLICT (filename) DO NOTHING;
