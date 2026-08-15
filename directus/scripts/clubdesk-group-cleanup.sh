@@ -105,25 +105,36 @@ WITH cd_groups AS (
   WHERE g LIKE '%(Spieler*in)%'
 ),
 team_groups AS (
-  SELECT DISTINCT (clubdesk_group || ' (Spieler*in)') AS grp
-  FROM teams WHERE clubdesk_group IS NOT NULL AND clubdesk_group <> ''
+  -- team_ids is what makes the stray test PER GROUP (2026-08-15) — mirrors
+  -- straySql. Several active teams may share one clubdesk_group.
+  SELECT (clubdesk_group || ' (Spieler*in)') AS grp, array_agg(id) AS team_ids
+  FROM teams WHERE active AND NULLIF(BTRIM(clubdesk_group), '') IS NOT NULL
+  GROUP BY clubdesk_group
 ),
 strays AS (
   SELECT m.id, m.uuid,
          BTRIM(COALESCE(m.first_name,'') || ' ' || COALESCE(m.last_name,'')) AS nm,
          cg.grp AS grp
   FROM cd_groups cg
+  JOIN team_groups tgr ON tgr.grp = cg.grp
   JOIN members m ON m.clubdesk_id = cg.clubdesk_id
-  WHERE cg.grp IN (SELECT grp FROM team_groups)
-    AND m.uuid IS NOT NULL
-    AND NOT EXISTS (SELECT 1 FROM member_teams mt WHERE mt.member = m.id AND mt.season = '$SEASON')
+  WHERE m.uuid IS NOT NULL
+    -- ⚠⚠ PER GROUP. Was "no roster row this season at all", which made a player
+    -- token for a team the member only COACHES invisible whenever they play
+    -- somewhere else. A token for team X is stray when there is no roster row
+    -- for team X. Mirrors straySql — the two must move together.
+    AND NOT EXISTS (SELECT 1 FROM member_teams mt
+                     WHERE mt.member = m.id AND mt.team = ANY(tgr.team_ids))
     AND ( EXISTS (SELECT 1 FROM clubdesk_export ce2
                    WHERE BTRIM(ce2.clubdesk_id) = m.clubdesk_id
                      AND ( ce2.status IN ('Kein Mitglied', 'Ehemaliges Mitglied', 'Verstorben')
                            OR COALESCE(BTRIM(ce2.austritt), '') <> '' ))
           OR m.kscw_membership_active = false
-          OR EXISTS (SELECT 1 FROM teams_coaches tc WHERE tc.members_id = m.id)
-          OR EXISTS (SELECT 1 FROM teams_responsibles tr WHERE tr.members_id = m.id) )
+          -- ⚠ Scoped to THIS group's teams: staffing HU20 is no licence to strip
+          -- a stale D2 player token. Unscoped + per-group would hand every
+          -- player-coach's tokens to an UNATTENDED Sunday cron.
+          OR EXISTS (SELECT 1 FROM teams_coaches tc WHERE tc.members_id = m.id AND tc.teams_id = ANY(tgr.team_ids))
+          OR EXISTS (SELECT 1 FROM teams_responsibles tr WHERE tr.members_id = m.id AND tr.teams_id = ANY(tgr.team_ids)) )
 ),
 stale AS (
   SELECT m.id, m.uuid,
