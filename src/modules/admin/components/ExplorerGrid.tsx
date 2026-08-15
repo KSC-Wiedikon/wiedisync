@@ -23,7 +23,7 @@
 // by canEdit (global admin + sport admins — the Vorstand policy is read-only
 // on members/member_teams/teams, so it gets a read-only grid).
 
-import { useCallback, useImperativeHandle, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
+import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
@@ -115,6 +115,11 @@ export interface ExplorerGridHandle {
 }
 
 type GridView = 'members' | 'teams'
+
+type FlatItem =
+  | { kind: 'section'; label: string; count: number }
+  | { kind: 'member'; member: Member }
+  | { kind: 'team'; team: Team }
 
 // ── Member-view columns ──────────────────────────────────────────
 
@@ -322,6 +327,13 @@ const TEAM_COL_BY_KEY = new Map(TEAM_COLUMNS.map((c) => [c.key, c]))
 const TEAM_DEFAULT_VISIBLE: TeamColKey[] = ['name', 'league', 'members', 'coach', 'team_responsible']
 const TEAM_VISIBLE_COLS_LS_KEY = 'kscw-explorer-grid-team-cols-v1'
 const VIEW_LS_KEY = 'kscw-explorer-grid-view'
+
+/** Measured, and uniform: every data row is exactly this tall. */
+const ROW_H = 49
+/** A group-by section header row. */
+const SECTION_H = 33
+/** Rows kept rendered beyond the viewport, so a flick does not show blanks. */
+const OVERSCAN_PX = 600
 
 /**
  * `known` is a predicate, not the column map: a saved set may name a GENERATED
@@ -567,6 +579,50 @@ export default function ExplorerGrid({
   }, [t])
 
   /** A group's own label — an i18n key, or a raw name (team, OTR1) as-is. */
+  /**
+   * Row virtualization.
+   *
+   * ⚠ Spacer rows, not absolute positioning. Every row measures exactly 49px
+   * today, but a long name CAN wrap — and with absolute positioning a wrong
+   * height overlaps or clips content, whereas a spacer only makes the scrollbar
+   * slightly imprecise. The failure mode is the whole reason for the choice.
+   *
+   * Both cases go through one flat list (section header rows interleaved with
+   * data rows) so grouping by a column virtualizes too, rather than falling
+   * back to rendering all 711.
+   */
+  const scrollRef = useRef<HTMLDivElement | null>(null)
+  // Generous first window: the ResizeObserver has not fired yet on the first
+  // paint, and showing too many rows for one frame beats showing too few.
+  const [viewport, setViewport] = useState({ top: 0, height: 1400 })
+
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    let raf = 0
+    const read = () => {
+      raf = 0
+      setViewport((prev) => (
+        prev.top === el.scrollTop && prev.height === el.clientHeight
+          ? prev
+          : { top: el.scrollTop, height: el.clientHeight }
+      ))
+    }
+    // ⚠ No synchronous read here: `react-hooks/set-state-in-effect` is an error
+    // in this repo. The observer fires once on observe, which seeds the real
+    // viewport through a callback — the sanctioned "subscribe to an external
+    // system" shape.
+    const onScroll = () => { if (!raf) raf = requestAnimationFrame(read) }
+    el.addEventListener('scroll', onScroll, { passive: true })
+    const ro = new ResizeObserver(onScroll)
+    ro.observe(el)
+    return () => {
+      el.removeEventListener('scroll', onScroll)
+      ro.disconnect()
+      if (raf) cancelAnimationFrame(raf)
+    }
+  }, [])
+
   /**
    * Every other member datapoint the page holds, offered as a read-only column.
    *
@@ -1009,6 +1065,61 @@ export default function ExplorerGrid({
 
   const visibleCols = effectiveVisibleKeys.map((k) => memberColByKey.get(k)).filter((c): c is ColDef => !!c)
   const teamVisibleCols = teamVisibleKeys.map((k) => TEAM_COL_BY_KEY.get(k)).filter((c): c is ColDef<TeamColKey> => !!c)
+  /**
+   * The rows to draw, flattened across sections so one window covers both the
+   * plain list and the grouped one.
+   */
+  const flatItems = useMemo((): FlatItem[] => {
+    const out: FlatItem[] = []
+    if (view === 'members') {
+      for (const sec of sections) {
+        if (sec.label != null) out.push({ kind: 'section', label: sec.label, count: sec.rows.length })
+        for (const m of sec.rows) out.push({ kind: 'member', member: m })
+      }
+    } else {
+      for (const sec of teamSectionsWithRows) {
+        out.push({ kind: 'section', label: sec.label, count: sec.teams.length })
+        for (const tm of sec.teams) out.push({ kind: 'team', team: tm })
+      }
+    }
+    return out
+  }, [view, sections, teamSectionsWithRows])
+
+  /** Cumulative pixel offset of each item — `offsets[i]` is where item i starts. */
+  const offsets = useMemo(() => {
+    const o = new Float64Array(flatItems.length + 1)
+    for (let i = 0; i < flatItems.length; i++) {
+      o[i + 1] = o[i] + (flatItems[i].kind === 'section' ? SECTION_H : ROW_H)
+    }
+    return o
+  }, [flatItems])
+
+  const window_ = useMemo(() => {
+    const n = flatItems.length
+    if (n === 0) return { start: 0, end: 0, padTop: 0, padBottom: 0 }
+    const top = Math.max(0, viewport.top - OVERSCAN_PX)
+    const bottom = viewport.top + viewport.height + OVERSCAN_PX
+    // First item whose end is past the top of the window.
+    let lo = 0
+    let hi = n
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1
+      if (offsets[mid + 1] <= top) lo = mid + 1
+      else hi = mid
+    }
+    const start = lo
+    let end = start
+    while (end < n && offsets[end] < bottom) end++
+    return {
+      start,
+      end,
+      padTop: offsets[start],
+      padBottom: offsets[n] - offsets[end],
+    }
+  }, [flatItems.length, offsets, viewport])
+
+  const bodyColSpan = (view === 'teams' ? teamVisibleCols.length : visibleCols.length) + 1
+
   const totalShown = view === 'members'
     ? sections.reduce((n, s) => n + s.rows.length, 0)
     : teamSectionsWithRows.reduce((n, s) => n + s.teams.length, 0)
@@ -1839,7 +1950,7 @@ export default function ExplorerGrid({
             sticky header (top-0) sticks to it instead of here → header scrolls
             away. Neutralise it with [&>div]:overflow-visible so sticky top-0 /
             left-0 anchor to this scroller and the header + first column freeze. */}
-        <div className="min-h-0 flex-1 overflow-auto [&>div]:overflow-visible">
+        <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto [&>div]:overflow-visible">
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
@@ -1903,27 +2014,22 @@ export default function ExplorerGrid({
                   </TableCell>
                 </TableRow>
               )}
-              {view === 'members'
-                ? sections.map((section, si) => (
-                  <SectionRows
-                    key={section.label ?? `s${si}`}
-                    label={section.label}
-                    colSpan={visibleCols.length + 1}
-                    count={section.rows.length}
-                  >
-                    {section.rows.map(renderMemberRow)}
-                  </SectionRows>
-                ))
-                : teamSectionsWithRows.map((section) => (
-                  <SectionRows
-                    key={section.label}
-                    label={section.label}
-                    colSpan={teamVisibleCols.length + 1}
-                    count={section.teams.length}
-                  >
-                    {section.teams.map(renderTeamRow)}
-                  </SectionRows>
-                ))}
+              {/* Virtualized: only the visible slice is in the DOM, held in
+                  place by a spacer row above and below. */}
+              <SpacerRow height={window_.padTop} colSpan={bodyColSpan} />
+              {flatItems.slice(window_.start, window_.end).map((item) => (
+                item.kind === 'section'
+                  ? (
+                    <TableRow key={`s:${item.label}`} className="hover:bg-transparent">
+                      <TableCell colSpan={bodyColSpan} className="bg-muted/60 py-1.5 text-xs font-semibold text-foreground">
+                        {item.label}
+                        <span className="ml-2 font-normal text-muted-foreground">{item.count}</span>
+                      </TableCell>
+                    </TableRow>
+                  )
+                  : item.kind === 'member' ? renderMemberRow(item.member) : renderTeamRow(item.team)
+              ))}
+              <SpacerRow height={window_.padBottom} colSpan={bodyColSpan} />
             </TableBody>
           </Table>
         </div>
@@ -1959,24 +2065,20 @@ export default function ExplorerGrid({
 }
 
 /** A group-by / sport section: optional header row + its rows. */
-function SectionRows({ label, colSpan, count, children }: {
-  label: string | null
-  colSpan: number
-  count: number
-  children: ReactNode
-}) {
+/**
+ * Reserves the height of the rows that are NOT rendered, above and below the
+ * visible window.
+ *
+ * ⚠ A `<tr>` with a height and no cell collapses in every browser, so the
+ * height has to sit on a `<td>`. Border and padding are stripped or the spacer
+ * draws a stray line where no row exists.
+ */
+function SpacerRow({ height, colSpan }: { height: number; colSpan: number }) {
+  if (height <= 0) return null
   return (
-    <>
-      {label != null && (
-        <TableRow className="hover:bg-transparent">
-          <TableCell colSpan={colSpan} className="bg-muted/60 py-1.5 text-xs font-semibold text-foreground">
-            {label}
-            <span className="ml-2 font-normal text-muted-foreground">{count}</span>
-          </TableCell>
-        </TableRow>
-      )}
-      {children}
-    </>
+    <tr aria-hidden>
+      <td colSpan={colSpan} style={{ height, padding: 0, border: 0 }} />
+    </tr>
   )
 }
 

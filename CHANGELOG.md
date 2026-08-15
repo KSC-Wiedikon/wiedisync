@@ -2,6 +2,13 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.94.0 — 2026-08-15
+
+### The Database table only draws the rows you can see
+
+- **First paint is down to about a tenth of a second.** The table used to build all 711 rows whether or not they were on screen. It now renders only the visible ones: 0.4 s to 0.1 s on the default columns, and 0.8 s to 0.16 s with thirty columns showing. The page holds ~800 elements instead of ~13,000, so scrolling, sorting and searching are lighter too.
+- **Nothing about using it changed.** Scrolling reaches every member, the scrollbar is the right length, the header and the name column still freeze, grouping still shows its section headings, and "select all" still selects all 711 and not just the visible ones.
+
 ## v1.93.2 — 2026-08-15
 
 ### The Database table opens about three times faster
