@@ -288,6 +288,21 @@ export default function ExplorerBulkEditModal({
     const targets = affected ?? members
     if (targets.length === 0) return
 
+    // Same rule the single-member editor enforces: a discount is printed on the
+    // invoice as a credit line, so it must be named. In bulk the reason has to
+    // travel in the SAME change set — one discount granted to many members with
+    // no stated reason is precisely the unexplained credit this guards against.
+    const discountChange = changes.find(
+      (c) => (c.key === 'fee_discount' || c.key === 'fee_discount_pct') && Number(c.value) > 0,
+    )
+    if (discountChange) {
+      const reason = changes.find((c) => c.key === 'fee_discount_reason')
+      if (!reason || !String(reason.value ?? '').trim()) {
+        toast.error(t('explorerFeeDiscountNeedsReason'))
+        return
+      }
+    }
+
     const labels = changes
       .map((c) => {
         const def = catalog.find((d) => d.key === c.key)

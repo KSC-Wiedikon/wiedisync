@@ -309,6 +309,9 @@ export default {
   explorerStatusDepartedTitle: 'Mettre fin à l’affiliation ?',
   explorerStatusDepartedMessage: 'Définir {{name}} sur « {{status}} » ? Cela désactive aussi son affiliation au club et son accès à l’application : la personne quitte les listes d’équipe, les listes de diffusion et le décompte des cotisations, et ne peut plus se connecter.',
   explorerStatusAustrittNeedsDeparted: 'Une date de sortie exige un statut de départ — choisissez « Ehemaliges Mitglied », « Kein Mitglied » ou « Verstorben », ou effacez la date.',
+  explorerFeeDiscountNeedsReason: 'Une réduction exige un motif — il est imprimé sur la facture comme ligne de crédit.',
+  explorerFeeDiscountNeedsReasonField: 'Obligatoire tant qu’une réduction est définie.',
+  explorerFeeDiscountOneUnit: 'Verrouillé tant que {{field}} a une valeur — videz-le pour utiliser celui-ci.',
 
   // Zone de danger (Explorateur) — suppression définitive
   explorerDangerDelete: 'Supprimer définitivement',

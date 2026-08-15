@@ -888,6 +888,9 @@ export default {
   explorerStatusDepartedTitle: 'Mitgliedschaft beenden?',
   explorerStatusDepartedMessage: '{{name}} auf «{{status}}» setzen? Damit werden auch die Vereinsmitgliedschaft und der App-Zugang deaktiviert: Die Person verschwindet aus den Teamlisten, den Mailverteilern und dem Beitragslauf und kann sich nicht mehr anmelden.',
   explorerStatusAustrittNeedsDeparted: 'Ein Austrittsdatum braucht einen Austritts-Status — wähle «Ehemaliges Mitglied», «Kein Mitglied» oder «Verstorben», oder lösche das Datum.',
+  explorerFeeDiscountNeedsReason: 'Ein Rabatt braucht einen Grund — er wird auf der Rechnung als Gutschriftszeile gedruckt.',
+  explorerFeeDiscountNeedsReasonField: 'Pflichtfeld, solange ein Rabatt gesetzt ist.',
+  explorerFeeDiscountOneUnit: 'Gesperrt, solange {{field}} einen Wert hat — leere es, um stattdessen dieses zu nutzen.',
 
   // Explorer-Gefahrenzone — endgültig löschen
   explorerDangerDelete: 'Endgültig löschen',
