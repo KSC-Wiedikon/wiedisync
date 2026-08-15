@@ -2326,8 +2326,37 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
           blankRisk.push(field)
         }
       }
-      cmp('first_name', r.first_name, r.cd_vorname, driftLower(r.first_name), driftLower(r.cd_vorname))
-      cmp('last_name', r.last_name, r.cd_nachname, driftLower(r.last_name), driftLower(r.cd_nachname))
+      // ⚠ A `?` in a ClubDesk name is NOT a difference — it is a character the
+      // export could not encode (2026-08-15). ClubDesk exports CP1252, and any
+      // codepoint outside it (ć, ń, ł, š, ž…) is written as a literal question
+      // mark by ClubDesk's own encoder. So `Curavić` in the register arrives here
+      // as `Curavi?` and compared naively reads as drift forever — unfixably,
+      // since names are never pushed and the register is already correct.
+      //
+      // Treat `?` as a single-character wildcard: if our name matches the export
+      // with each `?` standing for one character, the two agree as far as this
+      // lossy channel can tell, and asserting a difference would be a false
+      // positive about the club's legal register. Everything else still compares
+      // exactly. Verified on prod: exactly ONE contact of 1154 carries a `?`, and
+      // it is the only member whose register name holds a non-CP1252 letter —
+      // the others (Krawczyński, Kalaga) were created BY our push, which
+      // transliterates, so they really are stored ASCII.
+      const nameAgrees = (mine, cd) => {
+        const a = driftLower(mine)
+        const b = driftLower(cd)
+        if (!a || !b) return false
+        if (a === b) return true
+        if (!b.includes('?')) return false
+        // Escape the whole thing, then let each escaped `?` match one character.
+        const rx = new RegExp(`^${b.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\\\?/g, '.')}$`)
+        return rx.test(a)
+      }
+      if (!nameAgrees(r.first_name, r.cd_vorname)) {
+        cmp('first_name', r.first_name, r.cd_vorname, driftLower(r.first_name), driftLower(r.cd_vorname))
+      }
+      if (!nameAgrees(r.last_name, r.cd_nachname)) {
+        cmp('last_name', r.last_name, r.cd_nachname, driftLower(r.last_name), driftLower(r.cd_nachname))
+      }
       // Email matches when it equals EITHER ClubDesk address (primary or alt).
       const em = driftLower(r.email)
       const cdEm = driftLower(r.cd_email) || driftLower(r.cd_email_alt)
