@@ -3298,7 +3298,10 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       WHERE g LIKE '%(Spieler*in)%'
     ),
     team_groups AS (
-      SELECT (clubdesk_group || ' (Spieler*in)') AS grp, string_agg(DISTINCT sport, ', ') AS sports
+      -- team_ids is what makes the stray test PER GROUP (2026-08-15). Several
+      -- active teams may share one clubdesk_group, so it is an array, not an id.
+      SELECT (clubdesk_group || ' (Spieler*in)') AS grp, string_agg(DISTINCT sport, ', ') AS sports,
+             array_agg(id) AS team_ids
       FROM tg WHERE clubdesk_group IS NOT NULL
       GROUP BY clubdesk_group
     )
@@ -3318,8 +3321,14 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
                         AND (ce2.status IN ('Kein Mitglied', 'Ehemaliges Mitglied', 'Verstorben')
                              OR COALESCE(BTRIM(ce2.austritt), '') <> ''))
              OR m.kscw_membership_active = false
-             OR EXISTS (SELECT 1 FROM teams_coaches tc WHERE tc.members_id = m.id)
-             OR EXISTS (SELECT 1 FROM teams_responsibles tr WHERE tr.members_id = m.id)
+             -- ⚠ Scoped to THIS group's teams (2026-08-15). "Staffs a team rather
+             -- than playing on one" only licenses removing the token for the team
+             -- they staff; coaching HU20 is no reason to strip a stale D2 player
+             -- token. Unscoped it was survivable only because the stray test
+             -- required a member with no roster ANYWHERE; per-group it would hand
+             -- every player-coach's tokens to the auto-remover.
+             OR EXISTS (SELECT 1 FROM teams_coaches tc WHERE tc.members_id = m.id AND tc.teams_id = ANY(tgr.team_ids))
+             OR EXISTS (SELECT 1 FROM teams_responsibles tr WHERE tr.members_id = m.id AND tr.teams_id = ANY(tgr.team_ids))
            ) AS auto_removable,
            COALESCE(m.wiedisync_active, false) AS active,
            (COALESCE(m.referee_vb,false) OR COALESCE(m.scorer_vb,false) OR COALESCE(m.referee_bb,false)
@@ -3330,9 +3339,18 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
     FROM cd_groups cg
     JOIN team_groups tgr ON tgr.grp = cg.grp
     JOIN members m ON m.clubdesk_id = cg.clubdesk_id
+    -- ⚠⚠ PER GROUP, not per member (2026-08-15). This used to ask "does this
+    -- member sit on ANY active roster?", which meant a player token for a team
+    -- they only COACH was invisible for anyone who plays somewhere else — the
+    -- exact case that let a wrong 'VB HU23 (Spieler*in)' sit on a member whose
+    -- only HU23 role is coaching, while he legitimately plays H3. A token for
+    -- team X is stray when there is no active roster row for team X, full stop.
+    -- On prod this moved the finding count 3 → 20, and 17 of the 20 are human
+    -- calls rather than auto-removals, which is the point: most are stale tokens
+    -- left by a team change, not junk to delete.
     WHERE NOT EXISTS (
-      SELECT 1 FROM member_teams mt JOIN teams t2 ON t2.id = mt.team
-      WHERE mt.member = m.id AND t2.active)
+      SELECT 1 FROM member_teams mt
+      WHERE mt.member = m.id AND mt.team = ANY(tgr.team_ids))
     ORDER BY cg.grp, m.last_name, m.first_name`
 
   const noTeamSql = `
@@ -3433,10 +3451,16 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
   // unmapped_teams — active teams with no ClubDesk group configured at all
   // (clubdesk_group IS NULL). They are invisible to every group check, so a
   // new/renamed team can never silently drop out of coverage.
+  // ⚠ An EMPTY STRING is unmapped too (2026-08-15). `IS NULL` alone reported 0
+  // while two active basketball teams — H-Classics 1LR and Damen D-Classics 1LR —
+  // carried `clubdesk_group = ''`, so the guard that exists to say "every check
+  // below is incomplete" stayed silent about the very teams whose players were
+  // then flagged as strays for their OLD team's token. `tg` already uses
+  // NULLIF(clubdesk_group,''), so the two disagreed about what "mapped" means.
   const unmappedTeamsSql = `
     SELECT t.id, t.name, t.sport
     FROM teams t
-    WHERE t.active AND t.clubdesk_group IS NULL
+    WHERE t.active AND NULLIF(BTRIM(t.clubdesk_group), '') IS NULL
     ORDER BY t.sport, t.name`
 
   // ── Honorary drift ──────────────────────────────────────────────────
