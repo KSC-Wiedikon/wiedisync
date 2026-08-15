@@ -12,6 +12,7 @@ import { readManagedFile } from '../storage-read.js'
 import {
   sniffType, signTicket, verifyTicket, zurichToday, normalizeEmail, normalizeLicence,
   answersOf, pick, SCORER_EXAM_FOLDER, notifyExamUpload,
+  SCORER_AUSBILDUNG_EMAIL, SCORER_AUSBILDUNG_FROM,
 } from '../scorer-exam.js'
 
 const SECRET = 'test-secret-not-the-real-one'
@@ -285,7 +286,7 @@ describe('notifyExamUpload', () => {
     expect(sent).toHaveLength(1)
     const [msg] = sent
     // The default recipient is the whole point of the feature.
-    expect(msg.to).toBe('scorerausbildung@wiedisync.kscw.ch')
+    expect(msg.to).toBe('scorer@volleyball.kscw.ch')
     expect(msg.subject).toContain('Anna Beispiel')
     expect(msg.attachments).toHaveLength(1)
     expect(msg.attachments[0].content).toHaveLength(2048)
@@ -394,7 +395,7 @@ describe('EXAM_NOTIFY_EMAILS env switch', () => {
     // Pinned against the exported constant, so the mailbox is named in exactly one
     // place and wadmin.js's Reply-To cannot drift away from the notification recipient.
     expect(sent[0].to).toBe(mod.SCORER_AUSBILDUNG_EMAIL)
-    expect(sent[0].to).toBe('scorerausbildung@wiedisync.kscw.ch')
+    expect(sent[0].to).toBe('scorer@volleyball.kscw.ch')
   })
 
   it('a comma list is trimmed, lowercased and de-blanked', async () => {
@@ -402,5 +403,23 @@ describe('EXAM_NOTIFY_EMAILS env switch', () => {
     const { sent, ctx } = probe()
     await mod.notifyExamUpload(ctx, LOG, INFO)
     expect(sent[0].to).toBe('a@x.ch, b@y.ch')
+  })
+})
+
+// The address is also a From since 2026-08-15, and that is only safe on a domain AWS SES
+// holds an identity for. wiedisync.kscw.ch is not one and is DMARC p=quarantine, so
+// moving the box back there would not bounce — it would be silently quarantined at the
+// receiver, i.e. invisible. Pin the domain so that move cannot happen quietly.
+describe('the Ausbildung mailbox as a sender', () => {
+  it('lives on an SES-verified domain', () => {
+    expect(SCORER_AUSBILDUNG_EMAIL).toBe('scorer@volleyball.kscw.ch')
+    expect(SCORER_AUSBILDUNG_EMAIL.split('@')[1]).toBe('volleyball.kscw.ch')
+  })
+
+  // Directus's MailService throws InvalidPayloadError on an object From missing either
+  // half, and the exam-result mail is the only place we pass one.
+  it('is a complete From object', () => {
+    expect(SCORER_AUSBILDUNG_FROM.address).toBe(SCORER_AUSBILDUNG_EMAIL)
+    expect(SCORER_AUSBILDUNG_FROM.name).toBeTruthy()
   })
 })

@@ -18,7 +18,7 @@ import { badSlug, listSubmissions, deleteSubmission, getCloses, setCloses } from
 import { streamManagedFile, readManagedFile } from './storage-read.js'
 // Cap and type allowlist are imported, never re-declared: an admin correction must be
 // held to exactly what the participant upload accepts, and two copies would drift.
-import { SCORER_AUSBILDUNG_EMAIL, SCORER_EXAM_FOLDER, sniffType, EXT_FOR, UPLOAD_MAX_BYTES, zurichToday } from './scorer-exam.js'
+import { SCORER_AUSBILDUNG_EMAIL, SCORER_AUSBILDUNG_FROM, SCORER_EXAM_FOLDER, sniffType, EXT_FOR, UPLOAD_MAX_BYTES, zurichToday } from './scorer-exam.js'
 import { buildEmailLayout, buildAlertBox, buildInfoCard, formatDateCH, escHtml } from './email-template.js'
 
 export const ALL_SECTIONS = [
@@ -959,13 +959,16 @@ export function registerWadmin(router, ctx) {
       // MailService forwards nodemailer options, so `attachments` rides through as-is
       // (same shape kscw-hooks uses for its CSV export mail).
       //
-      // ⚠ Reply-To, not From. EMAIL_FROM is wiedisync@noreply.kscw.ch, so without this a
-      // participant answering "why did I fail?" writes into a black hole — and that mail
-      // is the one most likely to be replied to of anything the club sends. Sending AS
-      // the Ausbildung box instead would need its own SES identity on a DMARC
-      // p=quarantine domain; Reply-To needs nothing and routes the answer correctly.
+      // From AND Reply-To, both the Ausbildung box. This mail is the one most likely to
+      // be replied to of anything the club sends ("why did I fail?"), and until
+      // 2026-08-15 it went out as EMAIL_FROM (wiedisync@noreply.kscw.ch) with a Reply-To
+      // bolted on, because the old box's domain had no SES identity. The box now lives on
+      // volleyball.kscw.ch, an SES domain identity with Easy DKIM, so it can be the real
+      // sender — DKIM aligns and DMARC passes. Reply-To is kept anyway: it costs nothing
+      // and a client that answers the envelope rather than the header still lands right.
       await mail.send({
         to,
+        from: SCORER_AUSBILDUNG_FROM,
         replyTo: SCORER_AUSBILDUNG_EMAIL,
         subject,
         html,
