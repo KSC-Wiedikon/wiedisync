@@ -62,13 +62,27 @@ const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET || ''
  * The one mailbox that owns the Schreiber-Ausbildung: course signups, match-sheet
  * uploads, and replies to the result mail all land here.
  *
- * Exported so wadmin.js's exam-result route sets the SAME Reply-To — two copies would
- * drift, and the drift would only show up as a participant's reply going somewhere
- * nobody reads. It is a Migadu box on wiedisync.kscw.ch (INFRA.md → Mailbox), so it is
- * a valid RECIPIENT anywhere; it is deliberately never a From address, because sending
- * as it would need its own SES identity and that domain is DMARC p=quarantine.
+ * Exported so wadmin.js's exam-result route sets the SAME From and Reply-To — two
+ * copies would drift, and the drift would only show up as a participant's reply going
+ * somewhere nobody reads.
+ *
+ * Moved off scorerausbildung@wiedisync.kscw.ch on 2026-08-15. That address was a
+ * RECIPIENT ONLY: wiedisync.kscw.ch is DMARC p=quarantine and has no SES identity, so
+ * an unverified From there fails SPF and is silently quarantined at the receiver (the
+ * finance@mail.kscw.ch failure mode) — which is why the result mail could only ever set
+ * Reply-To. volleyball.kscw.ch has been an SES domain identity with Easy DKIM since the
+ * 2026-08-12 spielplanung migration, so this box CAN be sent as: DKIM aligns with the
+ * From domain and DMARC passes on DKIM alone.
  */
-export const SCORER_AUSBILDUNG_EMAIL = 'scorerausbildung@wiedisync.kscw.ch'
+export const SCORER_AUSBILDUNG_EMAIL = 'scorer@volleyball.kscw.ch'
+
+/**
+ * The same box as a From header. Directus's MailService takes either a bare string
+ * (which it wraps with the project name) or an object — but an object MUST carry BOTH
+ * `name` and `address` or send() throws InvalidPayloadError before anything is sent.
+ * Kept next to the address so the display name cannot drift away from it.
+ */
+export const SCORER_AUSBILDUNG_FROM = { name: 'KSCW Schreiber-Ausbildung', address: SCORER_AUSBILDUNG_EMAIL }
 
 // Who hears that a scoresheet arrived. Until 2026-07-29 nobody did: the upload wrote a
 // row and a log line and stopped there, so the only way to learn of one was to open
