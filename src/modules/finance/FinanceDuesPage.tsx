@@ -166,6 +166,20 @@ export default function FinanceDuesPage() {
                         <span className="mt-0.5 block text-xs text-gray-400 sm:hidden">
                           {inv.invoice_date ? formatDateCompactZurich(inv.invoice_date) : ''}
                         </span>
+                        {/* A CHF 0 invoice's total tells the member nothing — the
+                            positions are the message ("CHF 440 … Erlass −440"). A
+                            free membership is never emailed, so this page is the
+                            only place the member ever sees why it came to nothing. */}
+                        {toNum(inv.amount) === 0 && (inv.lines?.length ?? 0) > 1 && (
+                          <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">
+                            {inv.lines!.map((l, i) => (
+                              <span key={i} className="flex justify-between gap-3 tabular-nums">
+                                <span className="whitespace-normal break-words">{l.label}</span>
+                                <span>{formatChf(l.amount)}</span>
+                              </span>
+                            ))}
+                          </span>
+                        )}
                       </TableCell>
                       <TableCell className="hidden sm:table-cell whitespace-nowrap text-gray-600 dark:text-gray-400">
                         {inv.invoice_date ? formatDateCompactZurich(inv.invoice_date) : '–'}

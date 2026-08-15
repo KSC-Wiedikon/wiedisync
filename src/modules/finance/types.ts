@@ -38,6 +38,11 @@ export interface FinanceInvoice {
   confirmed_at?: string | null
   confirmed_via?: 'sync' | 'manual' | string | null
   cancelled_at?: string | null
+  /** Positions of a native invoice (jsonb), in the club's invoice language.
+   *  They answer "why this amount?" — and on a CHF 0 invoice they are the ONLY
+   *  thing that does: the total alone cannot tell a free membership from a
+   *  billing mistake. ClubDesk mirror rows carry none. */
+  lines?: Array<{ label: string; amount: number }> | null
   /** Author of a native invoice. ClubDesk's export carries no author field. */
   created_by_name?: string | null
   created_by_email?: string | null

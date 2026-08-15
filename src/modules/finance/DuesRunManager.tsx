@@ -28,8 +28,10 @@ function rowStatus(r: DuesPreviewRow): 'willBill' | 'alreadyBilled' | 'clubdeskB
   if (r.clubdesk_billed) return 'clubdeskBilled'
   // Since 2026-08-13 both of these still get a DOCUMENT (a CHF 0 invoice) —
   // they are separated only because "the club waived a real fee" and "this
-  // category costs nothing" are different facts to an auditor.
-  if ((r.waiver || 0) > 0) return 'waived'
+  // category costs nothing" are different facts to an auditor. `exempt` reads
+  // as waived even at 0: a 'Gratis' member whose sektion has no comparable rate
+  // still gets the named exemption on their invoice.
+  if ((r.waiver || 0) > 0 || r.exempt) return 'waived'
   if (!r.amount || r.amount <= 0) return 'zeroRate'
   return 'willBill'
 }
@@ -45,6 +47,7 @@ const STATUS_TONE: Record<string, string> = {
   clubdeskBilled: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300',
   noRate: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
   zeroRate: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300',
+  waived: 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300',
 }
 
 export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fiscalYearId: string; fiscalYearLabel: string }) {
@@ -198,6 +201,11 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
 
   const statusLabel = (s: string) => ({ willBill: t('duesStatusWillBill'), alreadyBilled: t('duesStatusAlreadyBilled'), clubdeskBilled: t('duesStatusClubdeskBilled'), noRate: t('duesStatusNoRate'), zeroRate: t('duesStatusZeroRate'), waived: t('duesStatusWaived') }[s] ?? s)
   const sektionLabel = (s: string | null) => s || t('duesSektionDefault')
+  /** Why this member's bill came to nothing — the same reason the invoice prints. */
+  const waiverWhy = (reason: DuesPreviewRow['waiver_reason']) => ({
+    honorary: t('duesWaiverWhyHonorary'), vorstand: t('duesWaiverWhyVorstand'),
+    coach: t('duesWaiverWhyCoach'), gratis: t('duesWaiverWhyGratis'),
+  }[reason ?? 'gratis'] ?? t('duesWaiverWhyGratis'))
   const sortedRates = useMemo(() => [...(ratesData?.rates ?? [])].sort((a, b) => a.category.localeCompare(b.category) || (a.sektion || '').localeCompare(b.sektion || '')), [ratesData])
 
   if (!fiscalYearId) {
@@ -412,13 +420,19 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
                             {r.amount != null ? formatChf(r.amount) : '–'}
                             {/* Why it isn't the plain category rate. Without this the
                                 treasurer has no way to answer "why does she pay 540?". */}
-                            {r.amount != null && (r.surcharge > 0 || r.guest_discount > 0 || (r.discount ?? 0) > 0) && (
+                            {r.amount != null && (r.surcharge > 0 || r.guest_discount > 0 || (r.discount ?? 0) > 0 || (r.waiver ?? 0) > 0) && (
                               <span className="mt-0.5 block text-xs font-normal text-gray-500 dark:text-gray-400">
                                 {formatChf(r.base_amount ?? 0)}
                                 {r.surcharge > 0 && <span className="text-amber-600 dark:text-amber-400"> + {formatChf(r.surcharge)}</span>}
                                 {r.guest_discount > 0 && <span className="text-emerald-600 dark:text-emerald-400"> − {formatChf(r.guest_discount)}</span>}
                                 {(r.discount ?? 0) > 0 && <span className="text-emerald-600 dark:text-emerald-400"> − {formatChf(r.discount)}</span>}
-                                <span className="block">{r.surcharge > 0 ? t('duesSurchargeWhy') : t('duesGuestWhy')}</span>
+                                {(r.waiver ?? 0) > 0 && <span className="text-teal-600 dark:text-teal-400"> − {formatChf(r.waiver)}</span>}
+                                {/* The waiver reason wins the caption: it is the one that
+                                    explains a CHF 0 line, and it is what the invoice prints. */}
+                                <span className="block">
+                                  {(r.waiver ?? 0) > 0 ? waiverWhy(r.waiver_reason)
+                                    : r.surcharge > 0 ? t('duesSurchargeWhy') : t('duesGuestWhy')}
+                                </span>
                               </span>
                             )}
                           </TableCell>
