@@ -8,11 +8,19 @@
  * migration 077) ever fires for synced games. This sweep runs once at the end of
  * each game sync and confirms every eligible member on all upcoming games.
  *
- * Eligibility per (game, member): guest_level = 0 AND
+ * Eligibility per (game, person): guest_level = 0 AND
  *   ( effective team game-auto-confirm on  OR  member opted in ).
  * Effective team setting = COALESCE(games.auto_confirm_rsvp,
  *   teams.features_enabled->>'game_auto_confirm', false) — mirrors
  *   effectiveGameAutoConfirm() in kscw-hooks.
+ *
+ * "Person" via `teamPeopleSql`, not `member_teams`: staff (coaches / team
+ * responsibles) hold no roster row and were invisible to every auto-confirm
+ * path until 2026-08-15. They land with `is_staff = true` so they stay out of
+ * the player tallies. `notGuestAnywhereSql` is what keeps a staff member who
+ * guests elsewhere from RAISING out of `trg_participations_guest_block` and
+ * aborting the whole statement — players are already covered by their own
+ * `guest_level = 0`.
  *
  * NOT EXISTS skips manual answers and absence-declines (both are rows), so the
  * sweep never overwrites a choice and is safe to re-run every sync.
@@ -24,18 +32,21 @@
  * target errors when the index is missing, while this form is simply inert on
  * a pre-246 database. The NOT EXISTS stays as the semantic filter.
  */
+import { teamPeopleSql, notGuestAnywhereSql } from './activity-roster-sql.js'
+
 export async function sweepGameAutoConfirm(db, log) {
   try {
     const res = await db.raw(`
       INSERT INTO participations (member, activity_type, activity_id, status, note, guest_count, is_staff)
-      SELECT mt.member, 'game', g.id::text, 'confirmed', '', 0, false
+      SELECT e.member, 'game', g.id::text, 'confirmed', '', 0, e.is_staff
       FROM games g
       JOIN teams t ON t.id = g.kscw_team
-      JOIN member_teams mt ON mt.team = g.kscw_team
-      JOIN members m ON m.id = mt.member
+      JOIN LATERAL ${teamPeopleSql('g.kscw_team')} e ON true
+      JOIN members m ON m.id = e.member
       WHERE g.date::date >= CURRENT_DATE
         AND COALESCE(g.status, '') NOT IN ('completed', 'postponed', 'cancelled')
-        AND mt.guest_level = 0
+        AND e.guest_level = 0
+        AND ${notGuestAnywhereSql('e.member')}
         AND (
           COALESCE(g.auto_confirm_rsvp,
                    NULLIF(t.features_enabled->>'game_auto_confirm', '')::boolean,
@@ -44,7 +55,7 @@ export async function sweepGameAutoConfirm(db, log) {
         )
         AND NOT EXISTS (
           SELECT 1 FROM participations p
-          WHERE p.activity_type = 'game' AND p.activity_id = g.id::text AND p.member = mt.member
+          WHERE p.activity_type = 'game' AND p.activity_id = g.id::text AND p.member = e.member
         )
       ON CONFLICT DO NOTHING
     `)

@@ -27,6 +27,8 @@ import { mintSignupToken, signupInviteUrl, buildGuideHtml } from '../../kscw-end
 import { bbRequiredDocs, fibaNatCode } from '../../kscw-endpoints/src/bb-docs.js'
 import { TEMPLATE_FIELDS, validateTemplate, sanitizeTemplateHtml } from '../../kscw-endpoints/src/email-templates.js'
 import { gameStartMs } from '../../kscw-endpoints/src/scorer-roster.js'
+import { teamPeopleSql, notGuestAnywhereSql } from '../../kscw-endpoints/src/activity-roster-sql.js'
+import { sweepTrainingAutoConfirm } from '../../kscw-endpoints/src/training-auto-confirm-sweep.js'
 import { currentSeasonShort, seasonStartYear } from '../../kscw-endpoints/src/season.js'
 import { resolveMemberSports, sportAdminScope, sportScopeAllows } from '../../kscw-endpoints/src/member-sport.js'
 import { isLicenceStatus, notifyLicenceStatusChange, runLicenceStatusSweep } from '../../kscw-endpoints/src/licence-status.js'
@@ -2001,22 +2003,25 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     if (typeof excluded === 'string') { try { excluded = JSON.parse(excluded) } catch { excluded = [] } }
     if (!Array.isArray(excluded)) excluded = []
     const excludedClause = excluded.length > 0
-      ? `AND mt.guest_level NOT IN (${excluded.map(() => '?').join(',')})`
+      ? `AND e.guest_level NOT IN (${excluded.map(() => '?').join(',')})`
       : ''
+    // `teamPeopleSql`, not `member_teams`: staff (coaches / team responsibles)
+    // hold no roster row and were skipped by every auto-confirm path until
+    // 2026-08-15. They come back with is_staff = true so they stay out of the
+    // player tallies and the min-participants gate.
     const ins = await database.raw(`
       INSERT INTO participations (member, activity_type, activity_id, status, note, guest_count, is_staff)
-      SELECT mt.member, 'training', ?::text, 'confirmed', '', 0, false
-      FROM member_teams mt
-      JOIN members m ON m.id = mt.member
-      WHERE mt.team = ?::integer
-        AND (${eligibleClause})
+      SELECT e.member, 'training', ?::text, 'confirmed', '', 0, e.is_staff
+      FROM ${teamPeopleSql('?::integer')} e
+      JOIN members m ON m.id = e.member
+      WHERE (${eligibleClause})
         ${excludedClause}
         AND NOT EXISTS (
           SELECT 1 FROM participations p
-          WHERE p.activity_type = 'training' AND p.activity_id = ?::text AND p.member = mt.member
+          WHERE p.activity_type = 'training' AND p.activity_id = ?::text AND p.member = e.member
         )
       ON CONFLICT DO NOTHING
-    `, [String(trainingId), training.team, ...excluded, String(trainingId)])
+    `, [String(trainingId), training.team, training.team, ...excluded, String(trainingId)])
     return ins?.rowCount || 0
   }
 
@@ -2036,20 +2041,25 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     const teamOn = await effectiveGameAutoConfirm(game, team)
     const eligibleClause = teamOn ? 'TRUE' : 'm.auto_confirm_games = true'
 
+    // Staff join via `teamPeopleSql` (see autoConfirmTraining). The extra
+    // `notGuestAnywhereSql` is game-only: trg_participations_guest_block RAISES
+    // on a confirmed game RSVP for anybody guesting on ANY team, which would
+    // abort this whole INSERT rather than skip the row. Players already carry
+    // their own `guest_level = 0` filter; staff have no roster row to filter.
     const ins = await database.raw(`
       INSERT INTO participations (member, activity_type, activity_id, status, note, guest_count, is_staff)
-      SELECT mt.member, 'game', ?::text, 'confirmed', '', 0, false
-      FROM member_teams mt
-      JOIN members m ON m.id = mt.member
-      WHERE mt.team = ?::integer
-        AND mt.guest_level = 0
+      SELECT e.member, 'game', ?::text, 'confirmed', '', 0, e.is_staff
+      FROM ${teamPeopleSql('?::integer')} e
+      JOIN members m ON m.id = e.member
+      WHERE e.guest_level = 0
+        AND ${notGuestAnywhereSql('e.member')}
         AND (${eligibleClause})
         AND NOT EXISTS (
           SELECT 1 FROM participations p
-          WHERE p.activity_type = 'game' AND p.activity_id = ?::text AND p.member = mt.member
+          WHERE p.activity_type = 'game' AND p.activity_id = ?::text AND p.member = e.member
         )
       ON CONFLICT DO NOTHING
-    `, [String(gameId), game.kscw_team, String(gameId)])
+    `, [String(gameId), game.kscw_team, game.kscw_team, String(gameId)])
     return ins?.rowCount || 0
   }
 
@@ -2103,16 +2113,21 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // so it never overwrites a prior choice. Idempotent.
   async function backfillMemberAutoConfirm(memberId, type) {
     const today = new Date().toISOString().split('T')[0]
+    // The training/game branches walk `teamPeopleSql` rather than joining
+    // `member_teams` directly, so a member's OWN opt-in reaches the teams they
+    // only coach. Before 2026-08-15 this was the sharpest edge of the staff
+    // gap: a coach could tick "auto-confirm trainings" on their profile, the
+    // flag saved, the backfill ran, and it inserted nothing — the join had no
+    // roster row to match.
     if (type === 'training') {
       const res = await database.raw(`
         INSERT INTO participations (member, activity_type, activity_id, status, note, guest_count, is_staff)
-        SELECT ?::integer, 'training', t.id::text, 'confirmed', '', 0, false
+        SELECT ?::integer, 'training', t.id::text, 'confirmed', '', 0, e.is_staff
         FROM trainings t
-        JOIN member_teams mt ON mt.team = t.team AND mt.member = ?::integer
+        JOIN LATERAL ${teamPeopleSql('t.team')} e ON e.member = ?::integer
         WHERE t.cancelled = false
           AND t.date::date >= ?::date
-          AND (t.excluded_guest_levels IS NULL
-               OR NOT (t.excluded_guest_levels::jsonb @> to_jsonb(mt.guest_level)))
+          AND NOT (COALESCE(t.excluded_guest_levels, '[]')::jsonb @> to_jsonb(e.guest_level))
           AND NOT EXISTS (
             SELECT 1 FROM participations p
             WHERE p.activity_type = 'training' AND p.activity_id = t.id::text AND p.member = ?::integer
@@ -2124,12 +2139,13 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     if (type === 'game') {
       const res = await database.raw(`
         INSERT INTO participations (member, activity_type, activity_id, status, note, guest_count, is_staff)
-        SELECT ?::integer, 'game', g.id::text, 'confirmed', '', 0, false
+        SELECT ?::integer, 'game', g.id::text, 'confirmed', '', 0, e.is_staff
         FROM games g
-        JOIN member_teams mt ON mt.team = g.kscw_team AND mt.member = ?::integer
+        JOIN LATERAL ${teamPeopleSql('g.kscw_team')} e ON e.member = ?::integer
         WHERE g.status NOT IN ('completed', 'postponed', 'cancelled')
           AND g.date::date >= ?::date
-          AND mt.guest_level = 0
+          AND e.guest_level = 0
+          AND ${notGuestAnywhereSql('e.member')}
           AND NOT EXISTS (
             SELECT 1 FROM participations p
             WHERE p.activity_type = 'game' AND p.activity_id = g.id::text AND p.member = ?::integer
@@ -3062,29 +3078,42 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   })
 
   // Team toggle flip → backfill future activities that still inherit (auto_confirm_rsvp IS NULL).
+  //
+  // Also fires on a STAFF change (`coach` / `team_responsible` in the payload —
+  // how ManageStaffModal and MemberRow write the junctions, as a nested M2M on
+  // teams). A newly attached coach has to be caught here rather than by the
+  // junction's own items.create event, because a nested M2M write is not
+  // guaranteed to surface as one. Re-reads the team's CURRENT features_enabled
+  // in that case: the payload only carries the junctions, so the toggle state
+  // has to come from the row.
   action('teams.items.update', async ({ keys, payload }) => {
-    if (!payload || !('features_enabled' in payload)) return
-    const fe = parseTeamFeatures(payload.features_enabled)
-    const wantsTraining = fe.training_auto_confirm === true
-    const wantsGame = fe.game_auto_confirm === true
-    if (!wantsTraining && !wantsGame) return
+    if (!payload) return
+    const staffChanged = 'coach' in payload || 'team_responsible' in payload
+    if (!('features_enabled' in payload) && !staffChanged) return
 
     try {
       for (const teamId of keys) {
+        const fe = 'features_enabled' in payload
+          ? parseTeamFeatures(payload.features_enabled)
+          : parseTeamFeatures((await database('teams').where('id', teamId).first('features_enabled'))?.features_enabled)
+        const wantsTraining = fe.training_auto_confirm === true
+        const wantsGame = fe.game_auto_confirm === true
+        if (!wantsTraining && !wantsGame) continue
+
         if (wantsTraining) {
           const rows = await database.raw(`
             INSERT INTO participations (member, activity_type, activity_id, status, note, guest_count, is_staff)
-            SELECT mt.member, 'training', t.id::text, 'confirmed', '', 0, false
+            SELECT e.member, 'training', t.id::text, 'confirmed', '', 0, e.is_staff
             FROM trainings t
-            JOIN member_teams mt ON mt.team = t.team
+            JOIN LATERAL ${teamPeopleSql('t.team')} e ON true
             WHERE t.team = ?::integer
               AND t.cancelled = false
               AND t.date >= CURRENT_DATE
               AND t.auto_confirm_rsvp IS NULL
-              AND NOT (COALESCE(t.excluded_guest_levels, '[]')::jsonb @> to_jsonb(mt.guest_level))
+              AND NOT (COALESCE(t.excluded_guest_levels, '[]')::jsonb @> to_jsonb(e.guest_level))
               AND NOT EXISTS (
                 SELECT 1 FROM participations p
-                WHERE p.activity_type = 'training' AND p.activity_id = t.id::text AND p.member = mt.member
+                WHERE p.activity_type = 'training' AND p.activity_id = t.id::text AND p.member = e.member
               )
             ON CONFLICT DO NOTHING
           `, [teamId])
@@ -3093,17 +3122,18 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         if (wantsGame) {
           const rows = await database.raw(`
             INSERT INTO participations (member, activity_type, activity_id, status, note, guest_count, is_staff)
-            SELECT mt.member, 'game', g.id::text, 'confirmed', '', 0, false
+            SELECT e.member, 'game', g.id::text, 'confirmed', '', 0, e.is_staff
             FROM games g
-            JOIN member_teams mt ON mt.team = g.kscw_team
+            JOIN LATERAL ${teamPeopleSql('g.kscw_team')} e ON true
             WHERE g.kscw_team = ?::integer
               AND g.date >= CURRENT_DATE
               AND g.auto_confirm_rsvp IS NULL
               AND COALESCE(g.status, '') NOT IN ('completed','postponed','cancelled')
-              AND mt.guest_level = 0
+              AND e.guest_level = 0
+              AND ${notGuestAnywhereSql('e.member')}
               AND NOT EXISTS (
                 SELECT 1 FROM participations p
-                WHERE p.activity_type = 'game' AND p.activity_id = g.id::text AND p.member = mt.member
+                WHERE p.activity_type = 'game' AND p.activity_id = g.id::text AND p.member = e.member
               )
             ON CONFLICT DO NOTHING
           `, [teamId])
@@ -3114,6 +3144,106 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       log.error({ msg: `[auto-confirm] Team toggle backfill: ${err.message}`, keys, stack: err.stack })
     }
   })
+
+  // Somebody joins a team → backfill the activities that already exist.
+  //
+  // Auto-confirm used to fire only on activity creation and on the two toggle
+  // flips, all of which are keyed on the activity or the setting — never on the
+  // roster. So a player added after their team's trainings were generated was
+  // never picked up and stayed "not responded" forever (HU14's roster, filled
+  // 2026-07-04 against trainings generated earlier: 1–5 RSVPs on a 21-strong
+  // team). Games hid the same gap because sweepGameAutoConfirm re-runs after
+  // every SVRZ/Basketplan sync; trainings had no equivalent until now.
+  //
+  // Both the junction create hooks and the nightly sweep exist deliberately:
+  // these make it immediate, the sweep is the backstop for every write path
+  // that never reaches an items event (raw SQL, imports, nested M2M).
+  const backfillJoinerAutoConfirm = async (teamId, memberId, source) => {
+    if (teamId == null || memberId == null) return
+    try {
+      const t = await autoConfirmJoiner(teamId, memberId, 'training')
+      const g = await autoConfirmJoiner(teamId, memberId, 'game')
+      if (t + g > 0) log.info(`[auto-confirm] ${source}: member ${memberId} joined team ${teamId} → ${t} training + ${g} game confirmed`)
+    } catch (err) {
+      log.error({ msg: `[auto-confirm] ${source} backfill: ${err.message}`, teamId, memberId, stack: err.stack })
+    }
+  }
+
+  // One person, one team, all future activities of that team. Effective
+  // auto-confirm is evaluated per activity — COALESCE(activity override, team
+  // default, false) OR the person's own opt-in — mirroring the sweeps exactly,
+  // so a per-activity `false` suppresses the team default but not a personal
+  // opt-in.
+  async function autoConfirmJoiner(teamId, memberId, type) {
+    if (type === 'training') {
+      const res = await database.raw(`
+        INSERT INTO participations (member, activity_type, activity_id, status, note, guest_count, is_staff)
+        SELECT e.member, 'training', tr.id::text, 'confirmed', '', 0, e.is_staff
+        FROM trainings tr
+        JOIN teams t ON t.id = tr.team
+        JOIN LATERAL ${teamPeopleSql('tr.team')} e ON e.member = ?::integer
+        JOIN members m ON m.id = e.member
+        WHERE tr.team = ?::integer
+          AND tr.cancelled = false
+          AND tr.date::date >= CURRENT_DATE
+          AND (
+            COALESCE(tr.auto_confirm_rsvp,
+                     NULLIF(t.features_enabled->>'training_auto_confirm', '')::boolean,
+                     false) = true
+            OR m.auto_confirm_trainings = true
+          )
+          AND NOT (COALESCE(tr.excluded_guest_levels, '[]')::jsonb @> to_jsonb(e.guest_level))
+          AND NOT EXISTS (
+            SELECT 1 FROM participations p
+            WHERE p.activity_type = 'training' AND p.activity_id = tr.id::text AND p.member = e.member
+          )
+        ON CONFLICT DO NOTHING
+      `, [memberId, teamId])
+      return res?.rowCount || 0
+    }
+    const res = await database.raw(`
+      INSERT INTO participations (member, activity_type, activity_id, status, note, guest_count, is_staff)
+      SELECT e.member, 'game', g.id::text, 'confirmed', '', 0, e.is_staff
+      FROM games g
+      JOIN teams t ON t.id = g.kscw_team
+      JOIN LATERAL ${teamPeopleSql('g.kscw_team')} e ON e.member = ?::integer
+      JOIN members m ON m.id = e.member
+      WHERE g.kscw_team = ?::integer
+        AND g.date::date >= CURRENT_DATE
+        AND COALESCE(g.status, '') NOT IN ('completed','postponed','cancelled')
+        AND e.guest_level = 0
+        AND ${notGuestAnywhereSql('e.member')}
+        AND (
+          COALESCE(g.auto_confirm_rsvp,
+                   NULLIF(t.features_enabled->>'game_auto_confirm', '')::boolean,
+                   false) = true
+          OR m.auto_confirm_games = true
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM participations p
+          WHERE p.activity_type = 'game' AND p.activity_id = g.id::text AND p.member = e.member
+        )
+      ON CONFLICT DO NOTHING
+    `, [memberId, teamId])
+    return res?.rowCount || 0
+  }
+
+  action('member_teams.items.create', async ({ key, payload }) => {
+    const row = key != null
+      ? await database('member_teams').where('id', key).first('team', 'member')
+      : null
+    await backfillJoinerAutoConfirm(row?.team ?? payload?.team, row?.member ?? payload?.member, 'member_teams.create')
+  })
+  // A staff-only person's rows carry is_staff = true, and a person who is BOTH
+  // coach and player is a player — teamPeopleSql decides that, not the callsite.
+  for (const junction of ['teams_coaches', 'teams_responsibles']) {
+    action(`${junction}.items.create`, async ({ key, payload }) => {
+      const row = key != null
+        ? await database(junction).where('id', key).first('teams_id', 'members_id')
+        : null
+      await backfillJoinerAutoConfirm(row?.teams_id ?? payload?.teams_id, row?.members_id ?? payload?.members_id, `${junction}.create`)
+    })
+  }
 
   action('events.items.update', async ({ keys, payload }) => {
     if (!payload || !('start_date' in payload)) return
@@ -3485,7 +3615,16 @@ export default ({ action, filter, init, schedule }, { services, database, logger
           )
       `, [tomorrowStr])
 
-      // Auto-cancel trainings past deadline with insufficient participation
+      // Auto-cancel trainings past deadline with insufficient participation.
+      //
+      // ⚠ `p.is_staff = false` is load-bearing: `min_participants` counts
+      // PLAYERS. The frontend has always agreed (`countConfirmedPlayers` in
+      // src/utils/participationWarnings.ts drops staff rows), but this query
+      // counted every confirmed row, so a coach's RSVP could hold a training
+      // open that the UI was already warning would be cancelled. Harmless while
+      // staff rarely had a row at all; from 2026-08-15 auto-confirm creates one
+      // for every coach on every training, which would have quietly raised the
+      // effective threshold on every auto-cancel team.
       const autoCancelled = await database.raw(`
         UPDATE trainings SET cancelled = true, cancel_reason = 'auto_cancel_min_not_met'
         WHERE auto_cancel_on_min = true
@@ -3495,7 +3634,8 @@ export default ({ action, filter, init, schedule }, { services, database, logger
           AND min_participants > 0
           AND (
             SELECT COUNT(*) FROM participations p
-            WHERE p.activity_type = 'training' AND p.activity_id = trainings.id::text AND p.status = 'confirmed'
+            WHERE p.activity_type = 'training' AND p.activity_id = trainings.id::text
+              AND p.status = 'confirmed' AND p.is_staff = false
           ) < min_participants
       `)
 
@@ -6161,6 +6301,23 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     } catch (err) {
       log.error({ msg: `[game-clash-decline] nightly sweep failed: ${err.message}`, event: 'game_clash_decline_cron_failed', stack: err.stack })
       logCronError('game_clash_decline', err)
+    }
+  })
+
+  // Training auto-confirm backstop, 02:40 UTC — after the 02:00 top-up (so the
+  // night's new trainings are already there) and after the 02:20 shorten/cancel
+  // sweep (so trainings cancelled by it are skipped, `cancelled = false`).
+  //
+  // The games counterpart runs off the back of each SVRZ/Basketplan sync, which
+  // is why the roster-join gap only ever bit trainings. Both are pure NOT
+  // EXISTS + ON CONFLICT DO NOTHING, so a no-op night costs one statement.
+  schedule('40 2 * * *', async () => {
+    try {
+      const n = await sweepTrainingAutoConfirm(database, log)
+      log.info({ msg: `[training-auto-confirm-sweep] nightly sweep: ${n} confirmed`, event: 'training_auto_confirm_cron_done', count: n })
+    } catch (err) {
+      log.error({ msg: `[training-auto-confirm-sweep] nightly sweep failed: ${err.message}`, event: 'training_auto_confirm_cron_failed', stack: err.stack })
+      logCronError('training_auto_confirm_sweep', err)
     }
   })
 
