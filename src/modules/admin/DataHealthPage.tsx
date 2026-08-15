@@ -36,6 +36,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import ClubdeskSyncUpModal from './components/ClubdeskSyncUpModal'
 import ClubdeskMemberSyncButton from './components/ClubdeskMemberSyncButton'
 import ClubdeskProposals from './components/ClubdeskProposals'
+import ClubdeskSyncPath from './components/ClubdeskSyncPath'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 /** Top-level page section. Functional, unlike the sport axis it replaced. */
@@ -522,6 +523,10 @@ export default function DataHealthPage() {
   const [tab, setTab] = useState<SportTab>('all')
   // Which half of the page: everything ClubDesk, or the club-wide generic checks.
   const [section, setSection] = useState<Section>('clubdesk')
+  // Lifted so the sync path can gate its decision step on it — the count is
+  // owned by the proposals table, which is the thing that changes it.
+  const [pendingProposals, setPendingProposals] = useState(0)
+  const [fixGroupsOpen, setFixGroupsOpen] = useState(false)
 
   // ── ClubDesk findings, owned here ──────────────────────────────────────────
   // One fetch feeds the group-check table AND the "Fix groups" button, so the
@@ -717,14 +722,29 @@ export default function DataHealthPage() {
                   <ArrowUpFromLine className="h-3.5 w-3.5" aria-hidden="true" />
                   {t('dhSyncUp')}
                 </Button>
-                <ClubdeskFixGroups available={fixAvailable} onDone={runChecks} />
+                <ClubdeskFixGroups
+                  available={fixAvailable}
+                  onDone={runChecks}
+                  open={fixGroupsOpen}
+                  onOpenChange={setFixGroupsOpen}
+                />
                 <p className="w-full text-xs text-gray-500 dark:text-gray-400">
                   {t('cdNeedsSyncLastUp', { time: syncMeta.lastUp ? formatDateTimeCompact(syncMeta.lastUp) : '—' })}
                 </p>
               </div>
 
+              {/* The order is forced by how the jobs read each other — the path
+                  runs what can be run and stops where a person is required. */}
+              <ClubdeskSyncPath
+                pendingProposals={pendingProposals}
+                fixableCount={Object.values(fixAvailable).reduce((a, b) => a + b, 0)}
+                onRunUp={() => setSyncUpOpen(true)}
+                onRunGroups={() => setFixGroupsOpen(true)}
+                onDone={runChecks}
+              />
+
               {/* Sync down produces proposals, never writes — see migration 321. */}
-              <ClubdeskProposals onDone={runChecks} />
+              <ClubdeskProposals onDone={runChecks} onCountChange={setPendingProposals} />
 
               <div className="flex items-center gap-2">
                 <span className="text-xs text-gray-500 dark:text-gray-400">{t('dhSportFilter')}</span>
