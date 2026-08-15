@@ -2,6 +2,14 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.93.2 — 2026-08-15
+
+### The Database table opens about three times faster
+
+- **The table was building an editor for every cell, even though you were only reading.** With 711 members and the new ten-column default that is ~7,800 editors, and every date cell carried a whole calendar. It now draws plain text until you switch editing on: first paint went from 1.1 s to 0.4 s, and from 2.0 s to 0.8 s if you have thirty columns showing.
+- **Switching editing on is quicker too** — a date cell opens its calendar when you click it, instead of all 711 opening one in advance.
+- Nothing about what you see changed: same columns, same Swiss dates, same values.
+
 ## v1.93.1 — 2026-08-15
 
 ### Honorary, passive, gap year and former, per sport as well as club-wide
