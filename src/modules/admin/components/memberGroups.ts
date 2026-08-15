@@ -207,12 +207,31 @@ export function buildMemberGroups(
     }
   }
 
+  // ── Register status ─────────────────────────────────────────────────
+  // The five states the club register itself distinguishes. Each appears TWICE
+  // in the tree on purpose: once inside a sport ("which of our volleyball
+  // people are on a gap year") and once club-wide, where it covers everybody
+  // including the people already listed under a sport. Those answer different
+  // questions and a member legitimately belongs to both.
+  const REGISTER_GROUPS = [
+    { key: 'honorary', labelKey: 'explorerGroupHonorary', status: 'Ehrenmitglied' },
+    { key: 'passive', labelKey: 'explorerGroupPassive', status: 'Passivmitglied' },
+    { key: 'gapyear', labelKey: 'explorerGroupGapYear', status: 'Zwischenjahr' },
+    { key: 'former', labelKey: 'explorerGroupFormer', status: 'Ehemaliges Mitglied' },
+    { key: 'nonmember', labelKey: 'explorerGroupNonMember', status: 'Kein Mitglied' },
+  ] as const
+
   // ── Sport ───────────────────────────────────────────────────────────
-  // Each sport owns its own Teams / Officials / Staff / Other, so the tree
-  // reads the way the club is actually organised rather than as one flat list
-  // where "Volleyball staff" and "Basketball staff" sit next to "Gap year".
+  // Each sport owns its own Teams / Officials / Staff / register states /
+  // Other, so the tree reads the way the club is actually organised rather
+  // than as one flat list where "Volleyball staff" sits next to "Gap year".
   const sportNode = (sport: Sport): MemberGroupNode => {
     const inSport = members.filter((m) => sportsForMember(m, cache).includes(sport))
+    // ⚠ The per-sport register groups read the UNFILTERED list, exactly as the
+    // club-level ones do: the page defaults to `kscw_membership_active = yes`,
+    // so sourcing "Volleyball → Former members" from the working set would make
+    // it permanently empty and imply no volleyball player has ever left.
+    const inSportAll = allMembers.filter((m) => sportsForMember(m, cache).includes(sport))
 
     const teamsNode: MemberGroupNode = {
       key: `sport:${sport}:teams`,
@@ -234,8 +253,14 @@ export function buildMemberGroups(
     // section. Deliberately a RESIDUE and not "no team": a scorer without a
     // squad is findable under Officials, so repeating them here would only
     // pad the list people scan when they are looking for the unexplained.
+    const registerNodes: MemberGroupNode[] = REGISTER_GROUPS.map((g) => ({
+      key: `sport:${sport}:${g.key}`,
+      labelKey: g.labelKey,
+      memberIds: ids(inSportAll.filter((m) => String(m.register_status ?? '') === g.status)),
+    }))
+
     const accounted = new Set<string>()
-    ;[teamsNode, officials, staff].forEach((n) => collectIds(n, accounted))
+    ;[teamsNode, officials, staff, ...registerNodes].forEach((n) => collectIds(n, accounted))
     const other = inSport.filter((m) => !accounted.has(String(m.id)))
 
     return {
@@ -245,6 +270,7 @@ export function buildMemberGroups(
         teamsNode,
         officials,
         staff,
+        ...registerNodes,
         { key: `sport:${sport}:other`, labelKey: 'explorerGroupOther', memberIds: ids(other) },
       ],
     }
@@ -260,11 +286,15 @@ export function buildMemberGroups(
       labelKey: 'explorerGroupVorstand',
       memberIds: ids(allMembers.filter((m) => hasRole(m, 'vorstand'))),
     },
-    { key: 'club:honorary', labelKey: 'explorerGroupHonorary', memberIds: byRegisterStatus('Ehrenmitglied') },
-    { key: 'club:passive', labelKey: 'explorerGroupPassive', memberIds: byRegisterStatus('Passivmitglied') },
-    { key: 'club:gapyear', labelKey: 'explorerGroupGapYear', memberIds: byRegisterStatus('Zwischenjahr') },
-    { key: 'club:former', labelKey: 'explorerGroupFormer', memberIds: byRegisterStatus('Ehemaliges Mitglied') },
-    { key: 'club:nonmember', labelKey: 'explorerGroupNonMember', memberIds: byRegisterStatus('Kein Mitglied') },
+    // ⚠ Club-wide: everybody with this status, INCLUDING the people already
+    // listed under a sport above. Not a leftovers bucket — "how many honorary
+    // members does the club have" must answer 12, not 12 minus the ones who
+    // happen to also have a section.
+    ...REGISTER_GROUPS.map((g) => ({
+      key: `club:${g.key}`,
+      labelKey: g.labelKey,
+      memberIds: byRegisterStatus(g.status),
+    })),
     {
       key: 'club:spielplaner',
       labelKey: 'explorerGroupSpielplaner',

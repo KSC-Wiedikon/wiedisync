@@ -2,6 +2,14 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.93.1 — 2026-08-15
+
+### Honorary, passive, gap year and former, per sport as well as club-wide
+
+- **Each sport now lists its own register states.** Volleyball and Basketball each hold Honorary, Passive, Gap year, Former and Non-members alongside Teams, Officials and Staff — so "which of our volleyball people are on a gap year" is a group rather than a filter you build yourself.
+- **The club-wide lists still count everybody**, including the people already shown under a sport. They answer a different question: the club has 12 honorary members, of whom 3 are on the volleyball side and the rest belong to no section.
+- **Each sport's "Other" got smaller and more useful** — 60 to 38 for volleyball — because a passive or gap-year member is now named as such instead of falling through to the leftovers.
+
 ## v1.93.0 — 2026-08-15
 
 ### Every datapoint as a column, a working set of defaults, and an edit switch
