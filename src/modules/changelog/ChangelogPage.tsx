@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '1.93.2'
+const APP_VERSION = '1.94.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,19 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.94.0',
+    date: '15.08.2026',
+    sections: [
+      {
+        title: 'The Database table only draws the rows you can see',
+        items: [
+          'First paint is down to about a tenth of a second. The table used to build all 711 rows whether or not they were on screen. It now renders only the visible ones: 0.4 s to 0.1 s on the default columns, and 0.8 s to 0.16 s with thirty columns showing. The page holds ~800 elements instead of ~13,000, so scrolling, sorting and searching are lighter too.',
+          'Nothing about using it changed. Scrolling reaches every member, the scrollbar is the right length, the header and the name column still freeze, grouping still shows its section headings, and "select all" still selects all 711 and not just the visible ones.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.93.2',
     date: '15.08.2026',
