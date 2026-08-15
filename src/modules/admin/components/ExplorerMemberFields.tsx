@@ -222,6 +222,10 @@ interface MemberFee {
   fiscal_year: { id: number; label: string } | null
   /** What the surcharge boolean is worth in CHF. Served, never hardcoded here. */
   surcharge_amount: number
+  /** Federation licence contained IN the base (migration 323) — how the invoice
+   *  itemises it. ⚠ Inside the base, never on top: adding it double-counts. */
+  licence: number
+  sektion: string | null
   derived: MemberFeeParts | null
   effective: (MemberFeeParts & { discount: number }) | null
 }
@@ -267,8 +271,15 @@ function liveFee(fee: MemberFee | null, draft: Record<string, unknown>) {
     : pct !== null && pct > 0 ? round2(owed * Math.min(pct, 100) / 100)
     : 0
   const discount = Math.min(Math.max(0, wanted), owed)
+  // The federation's share of the base, shown beside it rather than added to it.
+  // Zeroed the moment the operator pins a base override — same rule the dues run
+  // applies, because nobody recorded what a hand-typed amount is made of — and
+  // for a guest, who holds no licence at all.
+  const licence = chfOrNull(draft.fee_base_override) !== null || guestDiscount > 0
+    ? 0 : Math.min(fee.licence ?? 0, base)
   return {
     base,
+    licence,
     surcharge,
     guestDiscount,
     discount,
@@ -1463,12 +1474,25 @@ function FeeBreakdownValue({ fee, live }: { fee: MemberFee | null; live: LiveFee
     )
   }
 
-  const parts: { label: string; value: number; negative?: boolean }[] = [
-    { label: live.baseOverridden ? 'Base (overridden)' : 'Base', value: live.base },
-  ]
+  // The base splits into the club's own fee and the federation licence inside it
+  // (migration 323). Two lines summing to the base, never a third amount — and
+  // only when there is a licence to name, so a basketball or overridden row keeps
+  // reading as a single "Base".
+  const federation = live.licence > 0
+    ? ({ Volleyball: 'Swiss Volley licence', Basketball: 'Swiss Basketball licence' } as Record<string, string>)[fee.sektion ?? ''] ?? 'Federation licence'
+    : null
+  const parts: { label: string; value: number; negative?: boolean }[] = federation
+    ? [
+        { label: 'Membership', value: Math.round((live.base - live.licence) * 100) / 100 },
+        { label: federation, value: live.licence },
+      ]
+    : [{ label: live.baseOverridden ? 'Base (overridden)' : 'Base', value: live.base }]
   if (live.surcharge > 0 || live.surchargeOverridden) {
+    // ⚠ NOT a licence fee — it is the surcharge for NOT holding a scorer licence,
+    // and next to a real "Swiss Volley licence" line the old wording read as a
+    // second licence the member was being charged for.
     parts.push({
-      label: live.surchargeOverridden ? 'Scorer licence (overridden)' : 'Scorer licence',
+      label: live.surchargeOverridden ? 'No scorer licence (overridden)' : 'No scorer licence',
       value: live.surcharge,
     })
   }
