@@ -10,16 +10,19 @@
 import { describe, it, expect } from 'vitest'
 import { pickRate, isExemptCategory, feeAgeBand, referenceBase } from '../finance-dues-reference.js'
 
-// The live 2026/27 schedule (prod, 2026-08-15), trimmed to what these assert.
+// The live 2026/27 schedule (prod, 2026-08-15) with migration 323's licence
+// split, trimmed to what these assert. Basketball is seeded 0 — the club has no
+// Swiss Basketball figures yet, and a guessed split on a real invoice is worse
+// than none.
 const RATES = [
-  { category: 'Gratis', sektion: null, amount_chf: '0.00', active: true },
-  { category: 'Kein Beitrag', sektion: null, amount_chf: '0.00', active: true },
-  { category: 'VB Erwerbstätige', sektion: null, amount_chf: '440.00', active: true },
-  { category: 'VB Student*in Meisterschaft', sektion: null, amount_chf: '380.00', active: true },
-  { category: 'VB Schüler*in Meisterschaft', sektion: null, amount_chf: '310.00', active: true },
-  { category: 'BB Erwerbstätige', sektion: null, amount_chf: '520.00', active: true },
-  { category: 'BB Lernende/Studierende', sektion: null, amount_chf: '420.00', active: true },
-  { category: 'BB Jugend Meisterschaft', sektion: null, amount_chf: '320.00', active: true },
+  { category: 'Gratis', sektion: null, amount_chf: '0.00', licence_chf: '0.00', active: true },
+  { category: 'Kein Beitrag', sektion: null, amount_chf: '0.00', licence_chf: '0.00', active: true },
+  { category: 'VB Erwerbstätige', sektion: null, amount_chf: '440.00', licence_chf: '110.00', active: true },
+  { category: 'VB Student*in Meisterschaft', sektion: null, amount_chf: '380.00', licence_chf: '110.00', active: true },
+  { category: 'VB Schüler*in Meisterschaft', sektion: null, amount_chf: '310.00', licence_chf: '60.00', active: true },
+  { category: 'BB Erwerbstätige', sektion: null, amount_chf: '520.00', licence_chf: '0.00', active: true },
+  { category: 'BB Lernende/Studierende', sektion: null, amount_chf: '420.00', licence_chf: '0.00', active: true },
+  { category: 'BB Jugend Meisterschaft', sektion: null, amount_chf: '320.00', licence_chf: '0.00', active: true },
 ]
 const YEAR = 2026
 const member = (over) => ({ sektion: 'Volleyball', birthdate: '1990-05-04', ...over })
@@ -64,49 +67,61 @@ describe('feeAgeBand', () => {
 })
 
 describe('referenceBase', () => {
-  it('prices an adult against their own sport', () => {
-    expect(referenceBase(RATES, member({ sektion: 'Volleyball' }), YEAR)).toBe(440)
-    expect(referenceBase(RATES, member({ sektion: 'Basketball' }), YEAR)).toBe(520)
+  it('prices an adult against their own sport, licence included in the base', () => {
+    expect(referenceBase(RATES, member({ sektion: 'Volleyball' }), YEAR)).toEqual({ base: 440, licence: 110 })
+    expect(referenceBase(RATES, member({ sektion: 'Basketball' }), YEAR)).toEqual({ base: 520, licence: 0 })
   })
 
   it('follows the age ladder', () => {
-    expect(referenceBase(RATES, member({ sektion: 'Basketball', birthdate: '2010-03-02' }), YEAR)).toBe(420)
-    expect(referenceBase(RATES, member({ sektion: 'Volleyball', birthdate: '2013-03-02' }), YEAR)).toBe(310)
+    expect(referenceBase(RATES, member({ sektion: 'Basketball', birthdate: '2010-03-02' }), YEAR)).toEqual({ base: 420, licence: 0 })
+    expect(referenceBase(RATES, member({ sektion: 'Volleyball', birthdate: '2013-03-02' }), YEAR)).toEqual({ base: 310, licence: 60 })
   })
 
   // A CHF 320 "Jugend Meisterschaft" entitlement on a four-year-old's invoice is
   // noise, not information — the exemption line stands alone instead.
   it('gives an infant no reference', () => {
-    expect(referenceBase(RATES, member({ sektion: 'Basketball', birthdate: '2022-07-01' }), YEAR)).toBe(0)
+    expect(referenceBase(RATES, member({ sektion: 'Basketball', birthdate: '2022-07-01' }), YEAR)).toEqual({ base: 0, licence: 0 })
   })
 
   // 'KSCW' is the club-level bucket (Ehrenmitglieder, staff) — no sport, so no
   // comparable membership to quote.
   it('gives a sektion outside the two sports no reference', () => {
-    expect(referenceBase(RATES, member({ sektion: 'KSCW' }), YEAR)).toBe(0)
-    expect(referenceBase(RATES, member({ sektion: null }), YEAR)).toBe(0)
+    expect(referenceBase(RATES, member({ sektion: 'KSCW' }), YEAR).base).toBe(0)
+    expect(referenceBase(RATES, member({ sektion: null }), YEAR).base).toBe(0)
   })
 
   it('returns 0 when the mapped category has no rate this season', () => {
     const thin = RATES.filter((r) => r.category !== 'VB Erwerbstätige')
-    expect(referenceBase(thin, member({ sektion: 'Volleyball' }), YEAR)).toBe(0)
+    expect(referenceBase(thin, member({ sektion: 'Volleyball' }), YEAR).base).toBe(0)
   })
 
   // The treasurer's escape hatch: for an exempt category the rate row can never
   // be a bill, so a non-zero one is read as "this is what a free membership is
   // worth". The live row is 0.00 and must NOT hijack the mapping.
   it('lets a non-zero Gratis rate row win, and ignores the live 0.00 one', () => {
-    const pinned = [...RATES, { category: 'Gratis', sektion: 'Volleyball', amount_chf: '250.00', active: true }]
-    expect(referenceBase(pinned, member({ sektion: 'Volleyball' }), YEAR)).toBe(250)
+    const pinned = [...RATES, { category: 'Gratis', sektion: 'Volleyball', amount_chf: '250.00', licence_chf: '0.00', active: true }]
+    expect(referenceBase(pinned, member({ sektion: 'Volleyball' }), YEAR)).toEqual({ base: 250, licence: 0 })
     // …only for the sektion it names.
-    expect(referenceBase(pinned, member({ sektion: 'Basketball' }), YEAR)).toBe(520)
+    expect(referenceBase(pinned, member({ sektion: 'Basketball' }), YEAR).base).toBe(520)
     // The club-wide 0.00 row falls through to the mapping rather than zeroing it.
-    expect(referenceBase(RATES, member({ sektion: 'Volleyball' }), YEAR)).toBe(440)
+    expect(referenceBase(RATES, member({ sektion: 'Volleyball' }), YEAR).base).toBe(440)
   })
 
   it('ignores an inactive rate row', () => {
     const off = RATES.map((r) => (r.category === 'VB Erwerbstätige' ? { ...r, active: false } : r))
-    expect(referenceBase(off, member({ sektion: 'Volleyball' }), YEAR)).toBe(0)
+    expect(referenceBase(off, member({ sektion: 'Volleyball' }), YEAR).base).toBe(0)
+  })
+
+  // The licence is carved OUT of the rate, so it can never exceed it — a bad
+  // row would otherwise print a negative Mitgliederbeitrag position.
+  it('never reports a licence larger than the base', () => {
+    const silly = [{ category: 'VB Erwerbstätige', sektion: null, amount_chf: '100.00', licence_chf: '250.00', active: true }]
+    expect(referenceBase(silly, member({ sektion: 'Volleyball' }), YEAR)).toEqual({ base: 100, licence: 100 })
+  })
+
+  it('reads a missing or unparseable licence column as no licence', () => {
+    const old = [{ category: 'VB Erwerbstätige', sektion: null, amount_chf: '440.00', active: true }]
+    expect(referenceBase(old, member({ sektion: 'Volleyball' }), YEAR)).toEqual({ base: 440, licence: 0 })
   })
 })
 

@@ -2,6 +2,13 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.96.0 — 2026-08-15
+
+### Your invoice now shows what goes to Swiss Volley
+
+- **The membership fee is itemised.** A volleyball invoice used to show one number; it now shows the club's own fee and the Swiss Volley licence separately — CHF 330 plus a CHF 110 regional licence, for example, instead of a bare CHF 440. **Nobody pays more:** the licence was always inside the fee, and the total is unchanged.
+- **The website said the opposite.** kscw.ch stated that licence fees were *not* included in the membership fee and were billed alongside it. They have always been included, and no invoice ever carried a separate licence charge. The fee tables now show the licence share per category and the note has been corrected, for volleyball and basketball alike.
+
 ## v1.95.0 — 2026-08-15
 
 ### A free membership now gets a bill that says so

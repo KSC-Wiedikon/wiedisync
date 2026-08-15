@@ -63,18 +63,23 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
   const [rCat, setRCat] = useState('')
   const [rSek, setRSek] = useState('')
   const [rAmt, setRAmt] = useState('')
+  /** Federation licence contained IN the amount (migration 323), not added to it. */
+  const [rLic, setRLic] = useState('')
   const [rSubj, setRSubj] = useState('')
   const [rBusy, setRBusy] = useState(false)
   const [rErr, setRErr] = useState('')
   const rAmtNum = Number(rAmt.replace(',', '.'))
-  const rValid = !!rCat && rAmtNum >= 0 && rAmt.trim() !== ''
+  const rLicNum = rLic.trim() === '' ? 0 : Number(rLic.replace(',', '.'))
+  // A licence bigger than the rate would print a negative membership line — the
+  // DB CHECK refuses it, so catch it here rather than showing the treasurer a 400.
+  const rValid = !!rCat && rAmtNum >= 0 && rAmt.trim() !== '' && rLicNum >= 0 && rLicNum <= rAmtNum
 
   async function addRate() {
     if (!rValid) return
     setRBusy(true); setRErr('')
     try {
-      await saveDuesRate({ fiscal_year: fyNum, category: rCat, sektion: rSek || null, amount_chf: rAmtNum, subject_template: rSubj.trim() || null })
-      setRCat(''); setRSek(''); setRAmt(''); setRSubj('')
+      await saveDuesRate({ fiscal_year: fyNum, category: rCat, sektion: rSek || null, amount_chf: rAmtNum, licence_chf: rLicNum, subject_template: rSubj.trim() || null })
+      setRCat(''); setRSek(''); setRAmt(''); setRLic(''); setRSubj('')
       await refetchRates()
     } catch (e) { setRErr(apiErr(e, t('duesRateSaveError'))) } finally { setRBusy(false) }
   }
@@ -230,6 +235,7 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
                 <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('duesColCategory')}</TableHead>
                 <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('duesColSektion')}</TableHead>
                 <TableHead className="text-right text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('duesColAmount')}</TableHead>
+                <TableHead className="text-right text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('duesColLicence')}</TableHead>
                 <TableHead className="hidden sm:table-cell text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('duesColSubject')}</TableHead>
                 <TableHead className="text-right text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400"></TableHead>
               </TableRow>
@@ -240,6 +246,16 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
                   <TableCell className="whitespace-normal break-words text-gray-900 dark:text-gray-100">{r.category}</TableCell>
                   <TableCell className="whitespace-normal break-words text-gray-600 dark:text-gray-400">{sektionLabel(r.sektion)}</TableCell>
                   <TableCell className="text-right tabular-nums text-gray-900 dark:text-gray-100">{formatChf(r.amount_chf)}</TableCell>
+                  {/* Contained in the amount, so the club's own share is shown
+                      beneath it — otherwise "440 and 110" reads as 550. */}
+                  <TableCell className="text-right tabular-nums text-gray-600 dark:text-gray-400">
+                    {toNum(r.licence_chf) > 0 ? (
+                      <>
+                        {formatChf(r.licence_chf)}
+                        <span className="mt-0.5 block text-xs text-gray-400">{t('duesLicenceOfWhich', { amount: formatChf(toNum(r.amount_chf) - toNum(r.licence_chf)) })}</span>
+                      </>
+                    ) : '–'}
+                  </TableCell>
                   <TableCell className="hidden sm:table-cell whitespace-normal break-words text-xs text-gray-500 dark:text-gray-400">{r.subject_template || '–'}</TableCell>
                   <TableCell className="text-right">
                     <button type="button" onClick={() => removeRate(r.id)} aria-label={t('duesRateDelete')}
@@ -265,6 +281,9 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
                 </TableCell>
                 <TableCell>
                   <input value={rAmt} onChange={(e) => setRAmt(e.target.value)} inputMode="decimal" placeholder="0.00" className={`${inputCls} mt-0 text-right`} aria-label={t('duesColAmount')} />
+                </TableCell>
+                <TableCell>
+                  <input value={rLic} onChange={(e) => setRLic(e.target.value)} inputMode="decimal" placeholder="0.00" className={`${inputCls} mt-0 text-right`} aria-label={t('duesColLicence')} />
                 </TableCell>
                 <TableCell className="hidden sm:table-cell">
                   <input value={rSubj} onChange={(e) => setRSubj(e.target.value)} placeholder={t('duesSubjectPlaceholder')} className={`${inputCls} mt-0`} aria-label={t('duesColSubject')} />
@@ -370,6 +389,14 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
                   {preview.totals.surcharged > 0 && <span className="text-amber-700 dark:text-amber-400"> · {t('duesSurchargeNote', { count: preview.totals.surcharged, amount: formatChf(preview.totals.surcharge_amount) })}</span>}
                   {preview.totals.guests > 0 && <span className="text-emerald-700 dark:text-emerald-400"> · {t('duesGuestNote', { count: preview.totals.guests, amount: formatChf(preview.totals.guest_discount_amount) })}</span>}
                   {preview.totals.discounted > 0 && <span className="text-emerald-700 dark:text-emerald-400"> · {t('duesDiscountNote', { count: preview.totals.discounted, amount: formatChf(preview.totals.discount_amount) })}</span>}
+                </p>
+              )}
+              {/* Inside the total, not on top of it — the club forwards this to
+                  the federation, so the treasurer can read its own income off
+                  the difference without opening a single invoice. */}
+              {preview.totals.licence_amount > 0 && (
+                <p className="text-xs text-gray-600 dark:text-gray-400">
+                  {t('duesLicenceNote', { count: preview.totals.licensed, amount: formatChf(preview.totals.licence_amount) })}
                 </p>
               )}
               <div className="rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">

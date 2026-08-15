@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '1.95.0'
+const APP_VERSION = '1.96.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,19 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.96.0',
+    date: '15.08.2026',
+    sections: [
+      {
+        title: 'Your invoice now shows what goes to Swiss Volley',
+        items: [
+          "The membership fee is itemised. A volleyball invoice used to show one number; it now shows the club's own fee and the Swiss Volley licence separately — CHF 330 plus a CHF 110 regional licence, for example, instead of a bare CHF 440. Nobody pays more: the licence was always inside the fee, and the total is unchanged.",
+          'The website said the opposite. kscw.ch stated that licence fees were not included in the membership fee and were billed alongside it. They have always been included, and no invoice ever carried a separate licence charge. The fee tables now show the licence share per category and the note has been corrected.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.95.0',
     date: '15.08.2026',
