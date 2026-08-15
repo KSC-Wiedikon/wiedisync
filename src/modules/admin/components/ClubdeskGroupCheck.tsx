@@ -150,6 +150,9 @@ export default function ClubdeskGroupCheck({ data, loading, error, onRefresh, ta
       // in. They only carry a sport when the mapping itself names one.
       noTeamGroups: data.no_team_groups,
       unmapped: bySport(data.unmapped_teams),
+      // Club-level like the two above: whether somebody is an Ehrenmitglied is
+      // not a sport question, so it is not bucketed by tab.
+      honorary: data.honorary_drift,
     }
   }, [data, tab, facets])
 
@@ -159,6 +162,7 @@ export default function ClubdeskGroupCheck({ data, loading, error, onRefresh, ta
   const neverCount = view.fee.filter((r) => r.severity === 'never').length
   const total = view.noGroup.length + view.missing.length + view.coach.length
     + view.fee.length + view.stale.length + view.strays.length + view.noTeamGroups.length + view.unmapped.length
+    + view.honorary.length
 
   // Export is always English (exports-always-English convention).
   const handleExport = async () => {
@@ -289,6 +293,38 @@ export default function ClubdeskGroupCheck({ data, loading, error, onRefresh, ta
                     <TableRow key={r.team_id} className="min-h-11">
                       <TableCell className="whitespace-normal break-words font-medium">{r.name}</TableCell>
                       <TableCell><SportBadges sport={r.sport} /></TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Section>
+
+            {/* Ehrenmitglied asymmetry. Report-only: whether an honorary member
+                still owes a fee is the treasurer's call, not a value to write. */}
+            <Section
+              title={t('clubdeskHonoraryTitle')}
+              hint={t('clubdeskHonoraryHint')}
+              count={view.honorary.length}
+              tone="warn"
+            >
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead>{t('clubdeskColMember')}</TableHead>
+                    <TableHead>{t('clubdeskColIssue')}</TableHead>
+                    <TableHead className="hidden sm:table-cell">{t('clubdeskColKategorie')}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {view.honorary.map((r) => (
+                    <TableRow key={r.member_id} className="min-h-11">
+                      <TableCell className="whitespace-normal break-words font-medium">{r.member_name}</TableCell>
+                      <TableCell className="whitespace-normal break-words">
+                        {r.kind === 'fee' ? t('clubdeskHonoraryFee') : t('clubdeskHonoraryStatusOnly')}
+                      </TableCell>
+                      <TableCell className="hidden whitespace-normal break-words text-gray-500 sm:table-cell dark:text-gray-400">
+                        {r.kat || '—'}
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

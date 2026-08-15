@@ -2929,7 +2929,31 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
     const departed = new Set(departedRows.map((r) => String(r.member_id)))
     // Real field conflicts (drift). Fill-only members are treated as in_sync.
     const drift = await computeClubdeskDrift()
-    const drifted = new Set(drift.filter((c) => c.conflicts.length).map((c) => String(c.member_id)))
+    // ⚠ A name-only conflict is NOT the same finding and must not wear the same
+    // badge (2026-08-15). Names can never be reconciled by syncing in either
+    // direction: the push CSV is deliberately name-less (CD_PUSH_CONTACT_HEADERS
+    // — an update row is [Id]-keyed so a push can never overwrite the register's
+    // legal name) and the sync-down does not propose names either. So a member
+    // whose only divergence is their name sat in "Needs syncing" labelled "a
+    // field differs from ClubDesk" forever, implying an action that does not
+    // exist — 15 of the 16 rows on prod were exactly this, and most of those are
+    // OUR OWN doing (the export is CP1252, so Paweł→Pawel and Rachèle→Rachele on
+    // the way out).
+    //
+    // They are given their own status rather than hidden: the same check is what
+    // surfaces a genuine MIS-LINK. Member 163 "Aurora Cardinale Bosio" is bound
+    // to contact 1001089 "Alberto Cascino" — same email, and carrying our own
+    // pushed wiedisync_id — which reads as a name drift and is nothing of the
+    // kind. Suppressing the category would have buried it.
+    const NAME_FIELDS = new Set(['first_name', 'last_name'])
+    const drifted = new Set(
+      drift.filter((c) => c.conflicts.some((d) => !NAME_FIELDS.has(d.field)))
+        .map((c) => String(c.member_id)),
+    )
+    const nameDrifted = new Set(
+      drift.filter((c) => c.conflicts.length && c.conflicts.every((d) => NAME_FIELDS.has(d.field)))
+        .map((c) => String(c.member_id)),
+    )
 
     const statuses = {}
     for (const m of members) {
@@ -2941,6 +2965,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       else if (departed.has(id)) status = 'departed'
       else if (m.clubdesk_push_pending === true) status = 'pending'
       else if (drifted.has(id)) status = 'drift'
+      else if (nameDrifted.has(id)) status = 'name_drift'
       else status = 'in_sync'
       statuses[id] = status
     }
@@ -2968,7 +2993,10 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
   // `in_sync` and `excluded` are omitted: this is a worklist, not a census. The
   // counts of both are returned so "0 rows" reads as "everyone is in step"
   // rather than "the check stopped looking".
-  const NEEDS_SYNC_STATUSES = ['not_linked', 'stale', 'departed', 'pending', 'drift']
+  // `name_drift` is listed so the finding stays VISIBLE (it is how a mis-link
+  // surfaces) — the frontend labels it honestly as "cannot be synced" instead of
+  // offering an action that does not exist.
+  const NEEDS_SYNC_STATUSES = ['not_linked', 'stale', 'departed', 'pending', 'drift', 'name_drift']
   router.get('/clubdesk-needs-sync', async (req, res) => {
     try {
       if (!(await superGate(req))) return res.status(403).json({ error: 'Forbidden' })

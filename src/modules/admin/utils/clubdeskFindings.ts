@@ -45,8 +45,28 @@ export interface StaleFunktionRow {
   has_correct: boolean
 }
 
+/**
+ * Ehrenmitglied asymmetry: the register status and the ClubDesk "Ehrenmitglieder"
+ * group disagree, or somebody in the group is still being billed.
+ *
+ * ⚠ The backend has computed and returned this since the group checks shipped,
+ * but no frontend type named it, so it was fetched and silently dropped on every
+ * scan (found 2026-08-15). Report-only by design — whether an honorary member
+ * still owes a fee is the treasurer's call, not a value to write.
+ */
+export interface HonoraryDriftRow {
+  member_id: number; member_name: string; clubdesk_id: string
+  register_status: string | null
+  kat: string | null
+  fee_waived: boolean
+  in_group: boolean
+  /** `status_only` = status says honorary, the group does not. `fee` = in the group but still billed. */
+  kind: 'status_only' | 'fee'
+}
+
 /** GET /kscw/clubdesk-group-sync */
 export interface GroupCheckResp {
+  honorary_drift?: HonoraryDriftRow[]
   no_group?: NoGroupRow[]
   missing?: MissingRow[]
   stale_funktion?: StaleFunktionRow[]
@@ -59,7 +79,7 @@ export interface GroupCheckResp {
 
 export const EMPTY_GROUP_CHECK: Required<GroupCheckResp> = {
   no_group: [], missing: [], stale_funktion: [], coach_no_group: [], fee_no_roster: [],
-  strays: [], no_team_groups: [], unmapped_teams: [],
+  strays: [], no_team_groups: [], unmapped_teams: [], honorary_drift: [],
 }
 
 /**

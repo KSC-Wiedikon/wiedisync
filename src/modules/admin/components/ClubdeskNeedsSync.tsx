@@ -20,7 +20,7 @@ import { toXlsx, downloadBlob } from '../utils/exportResults'
 import LastBillCell from './LastBillCell'
 import { lastBillExport, type LastBill } from '../utils/clubdeskFindings'
 
-export type SyncStatus = 'not_linked' | 'stale' | 'departed' | 'pending' | 'drift'
+export type SyncStatus = 'not_linked' | 'stale' | 'departed' | 'pending' | 'drift' | 'name_drift'
 
 export interface NeedsSyncRow {
   member_id: number
@@ -32,13 +32,23 @@ export interface NeedsSyncRow {
   last_bill: LastBill | null
 }
 
-/** Red = the link itself is broken or the person has left; amber = a push is owed. */
+/**
+ * Red = the link itself is broken or the person has left; amber = a push is owed;
+ * grey = nothing a sync can do.
+ *
+ * ⚠ `name_drift` is grey on purpose. Names are the one divergence NO sync can
+ * reconcile — the push CSV is deliberately name-less so it can never overwrite
+ * the register's legal name, and the sync-down does not propose names either. It
+ * stays listed rather than hidden because a mis-linked contact surfaces here and
+ * nowhere else.
+ */
 const TONE: Record<SyncStatus, string> = {
   not_linked: 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300',
   stale: 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300',
   departed: 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300',
   pending: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
   drift: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
+  name_drift: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300',
 }
 
 // Presentational — the page owns the fetch and the single Rescan button in the
