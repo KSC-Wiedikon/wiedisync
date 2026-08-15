@@ -104,23 +104,30 @@ const REFERENCE_CATEGORY = {
 }
 
 /**
- * CHF the free member's membership would have cost, or 0 when the club has no
- * comparable rate (no sport, an infant, or the mapped category has no rate row
- * this season). Never negative, never billed.
+ * What the free member's membership would have cost, itemised the same way a
+ * paying member's is: `{ base, licence }`, where `licence` is the federation
+ * portion contained IN `base` (migration 323). Both 0 when the club has no
+ * comparable rate — no sport, an infant, or the mapped category has no rate row
+ * this season. Never negative, never billed.
  *
  * @param {Array} rates    this fiscal year's finance_dues_rates rows
  * @param {object} member  needs `sektion` + `birthdate`
  */
 export function referenceBase(rates, member, refYear = new Date().getFullYear()) {
+  const split = (row) => {
+    const base = Number(row?.amount_chf)
+    if (!Number.isFinite(base) || base <= 0) return { base: 0, licence: 0 }
+    const licence = Number(row?.licence_chf)
+    return { base, licence: Number.isFinite(licence) && licence > 0 ? Math.min(licence, base) : 0 }
+  }
   // The treasurer's own figure, if they set one: a 'Gratis' rate row with a
   // non-zero amount is read as "this is what a free membership is worth",
   // because for an exempt category the row can never be a bill.
-  const pinned = Number(pickRate(rates, 'Gratis', member?.sektion)?.amount_chf)
-  if (Number.isFinite(pinned) && pinned > 0) return pinned
+  const own = split(pickRate(rates, 'Gratis', member?.sektion))
+  if (own.base > 0) return own
 
   const sport = String(member?.sektion ?? '').trim().toLowerCase()
   const category = REFERENCE_CATEGORY[sport]?.[feeAgeBand(member, refYear)]
-  if (!category) return 0
-  const amount = Number(pickRate(rates, category, member?.sektion)?.amount_chf)
-  return Number.isFinite(amount) && amount > 0 ? amount : 0
+  if (!category) return { base: 0, licence: 0 }
+  return split(pickRate(rates, category, member?.sektion))
 }

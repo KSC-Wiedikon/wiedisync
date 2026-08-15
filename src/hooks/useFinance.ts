@@ -491,6 +491,10 @@ export interface DuesRate {
   category: string
   sektion: string | null
   amount_chf: number | string
+  /** Federation licence portion contained IN amount_chf (Swiss Volley RLL 110,
+   *  JLL 60 …). Splits the invoice into two positions; never added to the total.
+   *  0 = this category orders no licence. */
+  licence_chf: number | string
   subject_template: string | null
   active: boolean
 }
@@ -513,6 +517,8 @@ export interface SaveDuesRateInput {
   category: string
   sektion?: string | null
   amount_chf: number
+  /** Omit to leave an existing row's licence portion untouched. */
+  licence_chf?: number
   subject_template?: string | null
   active?: boolean
 }
@@ -531,6 +537,9 @@ export interface DuesPreviewRow {
    *  For an `exempt` member it is the ENTITLEMENT — what a membership like
    *  theirs would have cost — and is cancelled in full by `waiver`. */
   base_amount: number | null
+  /** Federation licence contained IN base_amount — an itemisation, not a
+   *  surcharge. 0 for a guest (holds none) and for a per-member base override. */
+  licence: number
   /** CHF 100 when the member owes scorer/table duty but holds no licence. */
   surcharge: number
   /** CHF 110 off for a pure guest (guest on a team, core on none). */
@@ -563,6 +572,8 @@ export interface DuesPreviewResult {
     /** Invoices the run will CREATE — billable plus the CHF 0 ones. */
     issuable: number
     base_amount: number; surcharge_amount: number; surcharged: number
+    /** Inside base_amount, not on top of it — what the club forwards on. */
+    licence_amount: number; licensed: number
     guest_discount_amount: number; guests: number
     discount_amount: number; discounted: number
     waived: number; waived_amount: number

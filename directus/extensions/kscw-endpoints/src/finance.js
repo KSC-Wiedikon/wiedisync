@@ -78,6 +78,17 @@ const WAIVER_LABELS = {
   default: 'Erlass',
 }
 
+/** Invoice wording for the federation licence position (migration 323). Keyed by
+ *  sektion because the two federations are different organisations charging
+ *  different tariffs, and "Verbandslizenz" on a volleyball bill tells the member
+ *  less than the name of the body that issued their licence. */
+const LICENCE_LABELS = {
+  volleyball: 'Swiss Volley Lizenz',
+  basketball: 'Swiss Basketball Lizenz',
+  default: 'Verbandslizenz',
+}
+const licenceLabel = (sektion) => LICENCE_LABELS[String(sektion ?? '').trim().toLowerCase()] || LICENCE_LABELS.default
+
 /** Reject after `ms` so one hung send can't stall a whole chunk. */
 function withTimeout(promise, ms, label) {
   let t
@@ -706,8 +717,13 @@ export function registerFinance(router, { database, logger, services, getSchema 
     }
     const discountReason = (body.discount_reason || '').toString().trim().slice(0, 120) || 'Rabatt'
 
+    // `licence_chf` (migration 323) is the federation licence portion INSIDE
+    // amount_chf. It splits the invoice's first position in two and changes no
+    // total — omit it from this SELECT and the split silently disappears from
+    // the document while every amount stays correct, which is the failure mode
+    // that is hardest to notice.
     const rates = await database('finance_dues_rates').where('fiscal_year', fy.id)
-      .select('id', 'category', 'sektion', 'amount_chf', 'subject_template', 'active')
+      .select('id', 'category', 'sektion', 'amount_chf', 'licence_chf', 'subject_template', 'active')
 
     let mq = database('members').whereIn('beitragskategorie', categories)
       .select('id', 'first_name', 'last_name', 'email', 'beitragskategorie', 'sektion',
@@ -793,7 +809,9 @@ export function registerFinance(router, { database, logger, services, getSchema 
       // and a non-numeric all coerce to "not pinned", which is the safe side.)
       const pinnedBase = Number(m.fee_base_override) > 0
       const exempt = !!rate && isExemptCategory(m.beitragskategorie) && !pinnedBase
-      const reference = exempt ? round2(referenceBase(rates, m)) : 0
+      const ref = exempt ? referenceBase(rates, m) : null
+      const reference = exempt ? round2(ref.base) : 0
+      const isGuest = guests.has(Number(m.id))
       // The schedule supplies the season's BASE; the surcharge/guest rules are
       // per-member and cannot live in a (category, sektion) rate row.
       const fee = !rate ? null
@@ -806,10 +824,20 @@ export function registerFinance(router, { database, logger, services, getSchema 
         ? { category: m.beitragskategorie, base: reference, surcharge: 0, guest_discount: 0, discount: 0, amount: reference }
         : feeBreakdown(m.beitragskategorie, m, {
             baseOverride: rate.amount_chf,
-            isGuest: guests.has(Number(m.id)),
+            isGuest,
             // Capping lives in the fee model, where it is unit-tested.
             discount: discounts.get(Number(m.id)) || 0,
           })
+      // The federation's cut, carved OUT of the base and never added to it
+      // (migration 323) — the club's rates have always been licence-inclusive.
+      // Zero in two cases: a per-member `fee_base_override`, because that number
+      // is a person-specific amount whose composition nobody recorded; and a
+      // pure guest, who holds no licence at all — the CHF 110 guest reduction IS
+      // the licence coming off, and printing both would show it twice.
+      const licence = !fee ? 0
+        : exempt ? round2(Math.min(ref.licence, fee.base))
+        : pinnedBase || isGuest ? 0
+        : round2(Math.min(Number(rate.licence_chf) || 0, fee.base))
       return {
         member: m.id,
         name: [m.first_name, m.last_name].filter(Boolean).join(' ').trim() || null,
@@ -820,6 +848,8 @@ export function registerFinance(router, { database, logger, services, getSchema 
         plz: m.plz != null ? String(m.plz) : null,
         ort: m.ort || null,
         base_amount: fee ? round2(fee.base) : null,
+        /** Federation licence contained IN base_amount — a split, not an addition. */
+        licence,
         surcharge: fee ? round2(fee.surcharge) : 0,
         guest_discount: fee ? round2(fee.guest_discount) : 0,
         discount: fee ? round2(fee.discount) : 0,
@@ -901,6 +931,11 @@ export function registerFinance(router, { database, logger, services, getSchema 
       // Broken out so the treasurer can reconcile the total against the plain
       // rate schedule — the difference is exactly these two adjustments.
       base_amount: round2(billable.reduce((s, x) => s + (x.base_amount || 0), 0)),
+      // Of that base, what the club forwards to the federations. Carved out of
+      // base_amount, so it must never be added to billable_amount — it is
+      // already inside it. Lets the treasurer see the club's own income.
+      licence_amount: round2(billable.reduce((s, x) => s + (x.licence || 0), 0)),
+      licensed: billable.filter((x) => (x.licence || 0) > 0).length,
       surcharge_amount: round2(billable.reduce((s, x) => s + (x.surcharge || 0), 0)),
       surcharged: billable.filter((x) => (x.surcharge || 0) > 0).length,
       guest_discount_amount: round2(billable.reduce((s, x) => s + (x.guest_discount || 0), 0)),
@@ -932,7 +967,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
       const fyId = Number(req.query.fiscal_year)
       const rates = Number.isInteger(fyId)
         ? await database('finance_dues_rates').where('fiscal_year', fyId).orderBy(['category', 'sektion'])
-            .select('id', 'fiscal_year', 'category', 'sektion', 'amount_chf', 'subject_template', 'active')
+            .select('id', 'fiscal_year', 'category', 'sektion', 'amount_chf', 'licence_chf', 'subject_template', 'active')
         : []
       // Free-text columns synced from ClubDesk — offer only real live values.
       const categories = await database('members').whereNotNull('beitragskategorie')
@@ -953,11 +988,20 @@ export function registerFinance(router, { database, logger, services, getSchema 
       const category = (b.category || '').toString().trim()
       const sektion = (b.sektion || '').toString().trim() || null
       const amount = round2(b.amount_chf)
+      // The federation portion INSIDE the amount (migration 323). Absent means
+      // "leave it alone" on an update — a client that predates the split must
+      // not silently zero a licence the treasurer set.
+      const licenceGiven = b.licence_chf !== undefined && b.licence_chf !== null && b.licence_chf !== ''
+      const licence = licenceGiven ? round2(b.licence_chf) : null
       const subjectTemplate = (b.subject_template || '').toString().trim() || null
       const active = b.active !== false
       if (!Number.isInteger(fiscalYear)) return res.status(400).json({ error: 'fiscal_year required' })
       if (!category) return res.status(400).json({ error: 'category required' })
       if (!(amount >= 0)) return res.status(400).json({ error: 'amount_chf must be >= 0' })
+      // Mirrors the DB CHECK, so the treasurer gets a sentence instead of a 500.
+      if (licenceGiven && !(licence >= 0 && licence <= amount)) {
+        return res.status(400).json({ error: 'licence_chf must be between 0 and amount_chf' })
+      }
 
       const existing = await database('finance_dues_rates').where('fiscal_year', fiscalYear)
         .whereRaw('lower(category) = lower(?)', [category])
@@ -966,16 +1010,17 @@ export function registerFinance(router, { database, logger, services, getSchema 
       let row
       if (existing) {
         const upd = await database('finance_dues_rates').where('id', existing.id)
-          .update({ category, sektion, amount_chf: amount, subject_template: subjectTemplate, active, date_updated: new Date() }).returning('*')
+          .update({ category, sektion, amount_chf: amount, ...(licenceGiven ? { licence_chf: licence } : {}), subject_template: subjectTemplate, active, date_updated: new Date() }).returning('*')
         row = upd[0]
       } else {
         const ins = await database('finance_dues_rates').insert({
-          fiscal_year: fiscalYear, category, sektion, amount_chf: amount, subject_template: subjectTemplate, active,
+          fiscal_year: fiscalYear, category, sektion, amount_chf: amount, licence_chf: licence ?? 0,
+          subject_template: subjectTemplate, active,
           created_by_name: mem?.name || null, created_by_email: mem?.email || null,
         }).returning('*')
         row = ins[0]
       }
-      await writeUserLog(database, log, { accountability: req.accountability, action: existing ? 'update' : 'create', collection: 'finance_dues_rates', recordId: row.id, data: { fiscal_year: fiscalYear, category, sektion, amount } })
+      await writeUserLog(database, log, { accountability: req.accountability, action: existing ? 'update' : 'create', collection: 'finance_dues_rates', recordId: row.id, data: { fiscal_year: fiscalYear, category, sektion, amount, ...(licenceGiven ? { licence_chf: licence } : {}) } })
       return res.json({ rate: row })
     } catch (e) { return err(res, req, 'dues-rate-save', e) }
   })
@@ -1025,7 +1070,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
       const fy = fyId ? await database('finance_fiscal_years').where('id', fyId).first('id', 'label') : null
       const rates = fy
         ? await database('finance_dues_rates').where('fiscal_year', fy.id)
-            .select('id', 'category', 'sektion', 'amount_chf', 'active')
+            .select('id', 'category', 'sektion', 'amount_chf', 'licence_chf', 'active')
         : []
       const rate = pickRate(rates, m.beitragskategorie, m.sektion)
 
@@ -1056,6 +1101,12 @@ export function registerFinance(router, { database, logger, services, getSchema 
         // client-side so the amount stays a server rule — the UI only ever
         // shows "on/off", never decides what "on" costs.
         surcharge_amount: NO_LICENCE_SURCHARGE,
+        // The federation licence contained IN the base (migration 323), i.e. how
+        // the invoice will itemise it. ⚠ Inside the base, never on top — adding
+        // it to `amount` double-counts. Zero for a guest (no licence) and for a
+        // per-member base override (composition unrecorded), exactly as the run.
+        licence: effective && !isGuest && !(Number(m.fee_base_override) > 0)
+          ? round2(Math.min(Number(rate?.licence_chf) || 0, effective.base)) : 0,
         derived: derived && {
           base: round2(derived.base),
           surcharge: round2(derived.surcharge),
@@ -1169,7 +1220,13 @@ export function registerFinance(router, { database, logger, services, getSchema 
               // ⚠ No "· Gratis" suffix on an exempt member's line: the base there
               // is what the membership WOULD have cost, and "Gratis  440.00"
               // contradicts itself on the page. The Erlass line below names it.
-              { label: `${subject}${x.category && !x.exempt ? ` · ${x.category}` : ''}`, amount: round2(x.base_amount) },
+              //
+              // The club's rate is licence-INCLUSIVE (migration 323), so the
+              // first position is the club's own fee and the federation licence
+              // stands beside it. The two always sum back to base_amount — this
+              // is an itemisation, never a surcharge.
+              { label: `${subject}${x.category && !x.exempt ? ` · ${x.category}` : ''}`, amount: round2(x.base_amount - (x.licence || 0)) },
+              ...(x.licence > 0 ? [{ label: licenceLabel(x.sektion), amount: round2(x.licence) }] : []),
               ...(x.surcharge > 0 ? [{ label: 'Zuschlag ohne Schreiberlizenz', amount: round2(x.surcharge) }] : []),
               ...(x.guest_discount > 0 ? [{ label: 'Abzug Gastspieler*in', amount: round2(-x.guest_discount) }] : []),
               ...(x.discount > 0 ? [{ label: x.discount_reason || 'Rabatt', amount: round2(-x.discount) }] : []),
