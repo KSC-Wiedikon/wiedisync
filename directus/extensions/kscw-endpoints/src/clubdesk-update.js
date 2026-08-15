@@ -493,6 +493,63 @@ export function changedPushFields(raw) {
   )
 }
 
+// ⚠⚠ THE WHITELIST IS A SECURITY BOUNDARY, not a convenience. `field` reaches
+// this code from a database row that a SQL detection pass wrote, but the accept
+// path turns it into a column name — so it is validated against this map and
+// never interpolated. A `field` that is not a key here is refused outright, and
+// that also makes the map the single place that says which columns the register
+// is even allowed to influence.
+//
+// The `type` drives coercion, because everything is stored as text in the
+// proposal (one column has to hold a date, a boolean and a name). Exported so
+// the whitelist itself is unit-tested rather than trusted.
+export const PROPOSAL_COLUMNS = {
+  birthdate: 'date',
+  adresse: 'text',
+  plz: 'text',
+  ort: 'text',
+  phone: 'text',
+  js_id: 'text',
+  sex: 'text',
+  anrede: 'text',
+  // ⚠ Writing `nationalitaet` is correct despite the column being
+  // trigger-derived: members_sync_nationality() resolves a written display name
+  // back to nationalitaet_codes and re-canonicalises the name. Writing the CODE
+  // column instead would be the mistake.
+  nationalitaet: 'text',
+  ahv_nummer: 'text',
+  federation_of_origin: 'text',
+  trainer_licences: 'text',
+  beitragskategorie: 'text',
+  sektion: 'text',
+  register_status: 'text',
+  eintritt: 'date',
+  austritt: 'date',
+  referee_vb: 'bool',
+  referee_bb: 'bool',
+  scorer_vb: 'bool',
+  otr1_bb: 'bool',
+  otr2_bb: 'bool',
+  otn1_bb: 'bool',
+  otn2_bb: 'bool',
+}
+
+export function coerceProposalValue(field, raw) {
+  const type = PROPOSAL_COLUMNS[field]
+  if (!type) return { ok: false }
+  const v = String(raw ?? '').trim()
+  if (!v) return { ok: false }
+  if (type === 'bool') return { ok: v === 'true', value: true }
+  // Dates are stored ISO by the detection pass (yyyy-mm-dd) precisely so this
+  // does not have to guess a locale. Anything else is rejected rather than
+  // coerced — a mis-parsed birthdate flips minor-protection.
+  if (type === 'date') {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return { ok: false }
+    return { ok: true, value: v }
+  }
+  return { ok: true, value: v }
+}
+
 export function deriveStatus(reg, member) {
   if (reg) {
     return String(reg.membership_type || '').trim().toLowerCase() === 'passive'
@@ -2633,6 +2690,164 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       return res.json({ flagged: candidates.length, skipped_blank_risk: skipped })
     } catch (err) {
       log.error({ msg: `clubdesk-drift/flag: ${err.message}`, endpoint: 'clubdesk-drift/flag', stack: err.stack })
+      return res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  // ── Sync-down proposals: review before anything reaches `members` ────────────
+  // The sync-down no longer writes (migration 321 + import-clubdesk-csv.mjs). It
+  // stages rows in clubdesk_sync_proposals and these two routes are how a
+  // superadmin resolves them.
+  //
+
+  router.get('/clubdesk-sync/proposals', async (req, res) => {
+    try {
+      if (!(await superGate(req))) return res.status(403).json({ error: 'Forbidden' })
+      const rows = await database('clubdesk_sync_proposals as p')
+        .leftJoin('members as m', 'm.id', 'p.member_id')
+        .where('p.status', 'pending')
+        .select(
+          'p.id', 'p.member_id', 'p.clubdesk_id', 'p.field', 'p.current_value',
+          'p.proposed_value', 'p.rule', 'p.payload', 'p.detected_at',
+          'm.first_name', 'm.last_name',
+        )
+        .orderBy([{ column: 'p.rule' }, { column: 'm.last_name' }, { column: 'p.field' }])
+      const counts = {}
+      for (const r of rows) counts[r.rule] = (counts[r.rule] || 0) + 1
+      return res.json({
+        proposals: rows.map((r) => ({
+          id: r.id,
+          member_id: r.member_id,
+          member_name: r.member_id
+            ? `${r.first_name || ''} ${r.last_name || ''}`.trim()
+            // A create proposal has no member row yet — the name rides in payload
+            // because clubdesk_export is TRUNCATEd on every run.
+            : [r.payload?.first_name, r.payload?.last_name].filter(Boolean).join(' ').trim(),
+          clubdesk_id: r.clubdesk_id,
+          field: r.field,
+          current_value: r.current_value,
+          proposed_value: r.proposed_value,
+          rule: r.rule,
+          email: r.payload?.email ?? null,
+          detected_at: r.detected_at,
+        })),
+        counts,
+        total: rows.length,
+      })
+    } catch (err) {
+      log.error({ msg: `clubdesk-sync/proposals: ${err.message}`, endpoint: 'clubdesk-sync/proposals', stack: err.stack })
+      return res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  // Accept → ClubDesk's value is written to `members` (or the member is created).
+  // Refuse → ours stands, the proposal becomes a tombstone so detection never
+  // asks again, and — when we actually hold a value to assert — the member is
+  // flagged so the next sync-up corrects ClubDesk instead of leaving the two
+  // systems knowingly divergent.
+  router.post('/clubdesk-sync/proposals/decide', async (req, res) => {
+    try {
+      if (!(await superGate(req))) return res.status(403).json({ error: 'Forbidden' })
+      const decision = String(req.body?.decision || '')
+      if (decision !== 'accept' && decision !== 'refuse') {
+        return res.status(400).json({ error: 'decision must be accept or refuse' })
+      }
+      const ids = (Array.isArray(req.body?.ids) ? req.body.ids : [])
+        .map(Number).filter(Number.isInteger)
+      if (!ids.length) return res.status(400).json({ error: 'ids required' })
+
+      const rows = await database('clubdesk_sync_proposals')
+        .whereIn('id', ids).andWhere('status', 'pending').select('*')
+      if (!rows.length) return res.status(409).json({ error: 'Nothing left to decide', code: 'already_decided' })
+
+      const actor = await resolveActingUser(req)
+      const stamp = { decided_at: new Date(), decided_by_name: actor.name, decided_by_email: actor.email }
+      let applied = 0, skipped = 0, flagged = 0
+
+      for (const p of rows) {
+        if (decision === 'refuse') {
+          await database('clubdesk_sync_proposals').where('id', p.id)
+            .update({ status: 'refused', ...stamp })
+          // Only assert upward when we actually hold a value. Refusing a FILL
+          // means "we are deliberately empty" — pushing that would ask ClubDesk to
+          // blank its own cell, which the push refuses to do anyway (it echoes the
+          // register's value back), so it would set a pending flag with nothing to
+          // send AND suppress this member's other proposals until it cleared.
+          if (p.member_id && String(p.current_value ?? '').trim()) {
+            const changes = [{ field: p.field, old_value: p.proposed_value, new_value: p.current_value }]
+            await database('members').where('id', p.member_id).update({
+              clubdesk_push_pending: true,
+              clubdesk_push_changes: JSON.stringify(changes),
+            })
+            flagged++
+          }
+          await writeUserLog(database, log, {
+            accountability: req.accountability, action: 'update',
+            collection: 'members', recordId: p.member_id,
+            data: { kind: 'clubdesk_proposal_refuse', field: p.field, rule: p.rule, refused_value: p.proposed_value },
+          })
+          applied++
+          continue
+        }
+
+        // ── accept ──
+        if (p.rule === 'create') {
+          // The contact may have been linked (or created) since detection ran.
+          const taken = await database('members')
+            .whereRaw('BTRIM(clubdesk_id) = ?', [String(p.clubdesk_id).trim()]).first('id')
+          if (taken) {
+            await database('clubdesk_sync_proposals').where('id', p.id)
+              .update({ status: 'accepted', ...stamp })
+            skipped++
+            continue
+          }
+          const [created] = await database('members').insert({
+            first_name: p.payload?.first_name || '',
+            last_name: p.payload?.last_name || '',
+            email: p.payload?.email || '',
+            clubdesk_id: String(p.clubdesk_id).trim(),
+          }).returning('id')
+          const newId = typeof created === 'object' ? created.id : created
+          await database('clubdesk_sync_proposals').where('id', p.id)
+            .update({ status: 'accepted', member_id: newId, ...stamp })
+          await writeUserLog(database, log, {
+            accountability: req.accountability, action: 'create',
+            collection: 'members', recordId: newId,
+            data: { kind: 'clubdesk_proposal_accept_create', clubdesk_id: p.clubdesk_id },
+          })
+          applied++
+          continue
+        }
+
+        const coerced = coerceProposalValue(p.field, p.proposed_value)
+        if (!coerced.ok) {
+          // Not a column we allow, or a value that no longer parses. Left pending
+          // on purpose: silently discarding it would hide a detection bug.
+          skipped++
+          continue
+        }
+        const patch = { [p.field]: coerced.value }
+        // ⚠ Status and Austritt are ONE fact. members_austritt_needs_departed_status
+        // (migration 302) rejects an exit date under a non-departed status, so
+        // accepting a status the register no longer calls departed has to clear the
+        // date in the same statement or the UPDATE aborts.
+        if (p.field === 'register_status' && !DEPARTED_STATUSES.includes(coerced.value)) {
+          patch.austritt = null
+        }
+        await database('members').where('id', p.member_id).update(patch)
+        await database('clubdesk_sync_proposals').where('id', p.id)
+          .update({ status: 'accepted', ...stamp })
+        await writeUserLog(database, log, {
+          accountability: req.accountability, action: 'update',
+          collection: 'members', recordId: p.member_id,
+          data: { kind: 'clubdesk_proposal_accept', field: p.field, rule: p.rule, value: coerced.value },
+        })
+        applied++
+      }
+
+      return res.json({ decided: applied, skipped, flagged_for_push: flagged })
+    } catch (err) {
+      log.error({ msg: `clubdesk-sync/proposals/decide: ${err.message}`, endpoint: 'clubdesk-sync/proposals/decide', stack: err.stack })
       return res.status(500).json({ error: 'Internal error' })
     }
   })
