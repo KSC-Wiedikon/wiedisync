@@ -28,10 +28,13 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
   ArrowDown, ArrowUp, ArrowUpDown, Check, ChevronDown, ChevronRight, Download, Eye, FileText,
-  Layers, Loader2, Pencil, Plus, Settings2, UserMinus, Users, X,
+  Layers, Loader2, Lock, Pencil, Plus, Settings2, Unlock, UserMinus, Users, X,
 } from 'lucide-react'
+import { Input } from '@/components/ui/input'
 import DatePicker from '@/components/ui/DatePicker'
 import { buildMemberGroups, countMembers, type MemberGroupNode } from './memberGroups'
+import { MEMBER_FIELDS, getFieldGroup } from './memberFieldSchema'
+import { rankMemberFields } from './memberFieldSearch'
 import type { Member, Team } from '../../../types'
 import { assetUrl, createRecord, deleteRecord, updateRecord } from '../../../lib/api'
 import { logActivity } from '../../../utils/logActivity'
@@ -115,7 +118,15 @@ type GridView = 'members' | 'teams'
 
 // ── Member-view columns ──────────────────────────────────────────
 
+/**
+ * The hand-written columns, plus any other `members` column key.
+ *
+ * ⚠ `(string & {})` keeps autocomplete on the named ones while admitting the
+ * generated ones (see `extraColumns`) — the picker offers every datapoint the
+ * page actually fetched, and those keys are only known at runtime.
+ */
 type ColKey =
+  | (string & {})
   | 'last_name' | 'first_name' | 'teams' | 'email' | 'phone'
   // `nationalitaet_codes` replaces the old free-text `nationalitaet` column:
   // that one is now trigger-derived (migration 223) and must never be editable.
@@ -136,7 +147,10 @@ interface SelectOption { value: string; label: string }
 
 interface ColDef<K extends string = ColKey> {
   key: K
-  labelKey: string
+  /** i18n key. Absent on generated columns, which carry `rawLabel` instead. */
+  labelKey?: string
+  /** English label straight from the member field schema (generated columns). */
+  rawLabel?: string
   kind: ColKind
   minW: string
   /** Whether the group-by select offers this column (members view only). */
@@ -204,6 +218,15 @@ const REG_DOC_LABEL_KEY: Record<string, string> = {
 // Full catalog — everything the explorer cache already loads (plus derived
 // columns). Default view shows only the name; the rest is opt-in via the
 // column chooser.
+/**
+ * A column's header text. Hand-written columns carry an i18n key; generated
+ * ones carry the member schema's English label, which is also exactly what an
+ * export wants — every export is English regardless of UI locale.
+ */
+function colLabel(c: { labelKey?: string; rawLabel?: string; key: string }, translate: (k: string) => string): string {
+  return c.labelKey ? translate(c.labelKey) : (c.rawLabel ?? c.key)
+}
+
 const COLUMNS: ColDef[] = [
   { key: 'last_name', labelKey: 'explorerGridColLastName', kind: 'text', minW: 'min-w-32' },
   { key: 'first_name', labelKey: 'explorerGridColFirstName', kind: 'text', minW: 'min-w-32' },
@@ -251,8 +274,31 @@ const COLUMNS: ColDef[] = [
 ]
 
 const COL_BY_KEY = new Map(COLUMNS.map((c) => [c.key, c]))
-const DEFAULT_VISIBLE: ColKey[] = ['last_name', 'first_name']
-const VISIBLE_COLS_LS_KEY = 'kscw-explorer-grid-cols-v1'
+const MEMBER_FIELD_KEYS: ReadonlySet<string> = new Set(MEMBER_FIELDS.map((f) => f.key))
+/**
+ * What the grid opens with. Two columns (name only) was a placeholder that made
+ * every fresh browser useless until you went column-shopping; this is the set
+ * the club actually works in — who they are, how to reach them, and the two
+ * register facts that decide what they owe.
+ *
+ * ⚠ Bumping the storage key below RESETS everyone's saved choice. Done
+ * deliberately when this default changed: the whole point was that the saved
+ * two-column set was the thing being complained about.
+ */
+const DEFAULT_VISIBLE: ColKey[] = [
+  'last_name', 'first_name', 'teams', 'email', 'phone',
+  'adresse', 'plz', 'ort', 'birthdate', 'register_status',
+]
+const VISIBLE_COLS_LS_KEY = 'kscw-explorer-grid-cols-v2'
+
+/**
+ * Datapoints that exist but make no sense as a grid column: a file id renders
+ * as a uuid, and the E2EE material is unreadable by design — the club genuinely
+ * cannot decrypt it, so a column of ciphertext would only invite the question.
+ */
+const SKIP_AS_COLUMN: ReadonlySet<string> = new Set([
+  'photo', 'e2ee_public_key', 'e2ee_private_key', 'e2ee_kdf_salt', 'e2ee_key_created',
+])
 
 // ── Team-view columns ────────────────────────────────────────────
 
@@ -277,13 +323,19 @@ const TEAM_DEFAULT_VISIBLE: TeamColKey[] = ['name', 'league', 'members', 'coach'
 const TEAM_VISIBLE_COLS_LS_KEY = 'kscw-explorer-grid-team-cols-v1'
 const VIEW_LS_KEY = 'kscw-explorer-grid-view'
 
-function loadVisible<K extends string>(lsKey: string, all: Map<K, unknown>, fallback: K[]): K[] {
+/**
+ * `known` is a predicate, not the column map: a saved set may name a GENERATED
+ * column, and those are only known once the cache has landed. Validating
+ * against the hand-written map alone would silently drop every datapoint column
+ * the operator had chosen, on every reload.
+ */
+function loadVisible<K extends string>(lsKey: string, known: (k: string) => boolean, fallback: K[]): K[] {
   try {
     const raw = localStorage.getItem(lsKey)
     if (!raw) return fallback
     const arr = JSON.parse(raw) as unknown
     if (!Array.isArray(arr)) return fallback
-    const valid = (arr as K[]).filter((k) => all.has(k))
+    const valid = (arr as K[]).filter((k) => known(k))
     return valid.length > 0 ? valid : fallback
   } catch {
     return fallback
@@ -341,11 +393,20 @@ export default function ExplorerGrid({
   const [view, setView] = useState<GridView>(() => {
     try { return localStorage.getItem(VIEW_LS_KEY) === 'teams' ? 'teams' : 'members' } catch { return 'members' }
   })
+  /**
+   * Inline editing is OPT-IN and never persisted.
+   *
+   * ⚠ Deliberately not remembered across sessions: this grid is mostly read —
+   * scrolling 700 members across 100 datapoints — and a mode that silently
+   * survives a reload turns a stray click on a cell into an edit of the club's
+   * legal register. Off every time you arrive; one click when you mean it.
+   */
+  const [editMode, setEditMode] = useState(false)
   const [selectedGroup, setSelectedGroup] = useState<'all' | string>('all')
   const [sort, setSort] = useState<{ key: ColKey; dir: 'asc' | 'desc' } | null>(null)
   const [teamSort, setTeamSort] = useState<{ key: TeamColKey; dir: 'asc' | 'desc' } | null>(null)
-  const [visibleKeys, setVisibleKeys] = useState<ColKey[]>(() => loadVisible(VISIBLE_COLS_LS_KEY, COL_BY_KEY, DEFAULT_VISIBLE))
-  const [teamVisibleKeys, setTeamVisibleKeys] = useState<TeamColKey[]>(() => loadVisible(TEAM_VISIBLE_COLS_LS_KEY, TEAM_COL_BY_KEY, TEAM_DEFAULT_VISIBLE))
+  const [visibleKeys, setVisibleKeys] = useState<ColKey[]>(() => loadVisible(VISIBLE_COLS_LS_KEY, (k) => COL_BY_KEY.has(k) || MEMBER_FIELD_KEYS.has(k), DEFAULT_VISIBLE))
+  const [teamVisibleKeys, setTeamVisibleKeys] = useState<TeamColKey[]>(() => loadVisible(TEAM_VISIBLE_COLS_LS_KEY, (k) => TEAM_COL_BY_KEY.has(k as TeamColKey), TEAM_DEFAULT_VISIBLE))
   const [groupBy, setGroupBy] = useState<ColKey | 'none'>('none')
   const [exporting, setExporting] = useState(false)
 
@@ -506,6 +567,33 @@ export default function ExplorerGrid({
   }, [t])
 
   /** A group's own label — an i18n key, or a raw name (team, OTR1) as-is. */
+  /**
+   * Every other member datapoint the page holds, offered as a read-only column.
+   *
+   * ⚠ Gated on the keys PRESENT IN THE FETCHED ROWS, not on the schema alone.
+   * `useExplorerCache` requests ~60 of the ~110 member columns — some are left
+   * out because they 403 the whole batch for a Vorstand or coach audience — and
+   * Directus returns only what was asked for. Offering a column the page never
+   * fetched would render an empty cell for all 700 members, which reads as
+   * "nobody has an AHV number" rather than "this page did not ask".
+   */
+  const extraColumns = useMemo((): ColDef[] => {
+    const present = new Set<string>()
+    for (const m of cache.members.slice(0, 20)) for (const k of Object.keys(m)) present.add(k)
+    return MEMBER_FIELDS
+      .filter((f) => present.has(f.key) && !COL_BY_KEY.has(f.key) && !SKIP_AS_COLUMN.has(f.key))
+      .map((f) => ({ key: f.key, rawLabel: f.label, kind: 'ro' as const, minW: 'min-w-36' }))
+  }, [cache.members])
+
+  const memberColumns = useMemo(() => [...COLUMNS, ...extraColumns], [extraColumns])
+  const memberColByKey = useMemo(
+    () => new Map(memberColumns.map((c) => [c.key, c])),
+    [memberColumns],
+  )
+
+  /** `t` narrowed to the admin namespace, for `colLabel`. */
+  const tCol = useCallback((k: string) => t(`admin:${k}`), [t])
+
   const groupLabel = useCallback(
     (node: MemberGroupNode): string => node.raw ?? (node.labelKey ? t(node.labelKey) : node.key),
     [t],
@@ -722,6 +810,9 @@ export default function ExplorerGrid({
     }
     if (query) {
       const q = query.toLowerCase()
+      // ⚠ COLUMNS, not every datapoint: the generated columns take the
+      // catalog to ~100, and rebuilding 700 × 100 cell strings on each
+      // keystroke is not what a search box should cost.
       list = list.filter((m) => COLUMNS.some((c) => cellText(m, c.key).toLowerCase().includes(q)))
     }
     if (sort) {
@@ -736,8 +827,17 @@ export default function ExplorerGrid({
 
   // ── Multi-select ───────────────────────────────────────────────────
 
-  /** Selection is a members-view feature; the teams view has no bulk actions. */
-  const selectable = view === 'members' && canEdit
+  /**
+   * May the operator change anything right now. `canEdit` is the permission;
+   * `editMode` is the intent. Both are required — see the note on `editMode`.
+   */
+  const canEditNow = canEdit && editMode
+
+  /** Selection is a members-view feature; the teams view has no bulk actions.
+   *  Gated on edit mode too: the ticks exist to feed bulk edit and departure,
+   *  so offering them while the grid is in read mode promises an action the
+   *  mode is meant to withhold. */
+  const selectable = view === 'members' && canEditNow
 
   // The leading actions column holds the eye button alone, or a tick box next to
   // it. Both the column and the first data column's sticky offset have to move
@@ -875,8 +975,8 @@ export default function ExplorerGrid({
 
   /** Focused datapoints that exist as a column here — see `focusWithoutColumn`. */
   const focusColKeys = useMemo(
-    () => (focusFields ?? []).filter((k): k is ColKey => COL_BY_KEY.has(k as ColKey)),
-    [focusFields],
+    () => (focusFields ?? []).filter((k): k is ColKey => memberColByKey.has(k)),
+    [focusFields, memberColByKey],
   )
   const focusColSet = useMemo(() => new Set<ColKey>(focusColKeys), [focusColKeys])
 
@@ -886,8 +986,8 @@ export default function ExplorerGrid({
    * focus that silently changes nothing reads as a broken feature.
    */
   const focusWithoutColumn = useMemo(
-    () => (focusFields ?? []).filter((k) => !COL_BY_KEY.has(k as ColKey)),
-    [focusFields],
+    () => (focusFields ?? []).filter((k) => !memberColByKey.has(k)),
+    [focusFields, memberColByKey],
   )
 
   /**
@@ -899,15 +999,15 @@ export default function ExplorerGrid({
   const effectiveVisibleKeys = useMemo(() => {
     if (focusColKeys.length === 0) return visibleKeys
     const ordered: ColKey[] = []
-    const push = (k: ColKey) => { if (COL_BY_KEY.has(k) && !ordered.includes(k)) ordered.push(k) }
+    const push = (k: ColKey) => { if (memberColByKey.has(k) && !ordered.includes(k)) ordered.push(k) }
     push('last_name')
     push('first_name')
     focusColKeys.forEach(push)
     visibleKeys.forEach(push)
     return ordered
-  }, [visibleKeys, focusColKeys])
+  }, [visibleKeys, focusColKeys, memberColByKey])
 
-  const visibleCols = effectiveVisibleKeys.map((k) => COL_BY_KEY.get(k)).filter((c): c is ColDef => !!c)
+  const visibleCols = effectiveVisibleKeys.map((k) => memberColByKey.get(k)).filter((c): c is ColDef => !!c)
   const teamVisibleCols = teamVisibleKeys.map((k) => TEAM_COL_BY_KEY.get(k)).filter((c): c is ColDef<TeamColKey> => !!c)
   const totalShown = view === 'members'
     ? sections.reduce((n, s) => n + s.rows.length, 0)
@@ -935,7 +1035,29 @@ export default function ExplorerGrid({
       const nextSet = new Set(prev)
       if (nextSet.has(key)) nextSet.delete(key)
       else nextSet.add(key)
-      const next = COLUMNS.map((c) => c.key).filter((k) => nextSet.has(k))
+      const next = memberColumns.map((c) => c.key).filter((k) => nextSet.has(k))
+      try { localStorage.setItem(VISIBLE_COLS_LS_KEY, JSON.stringify(next)) } catch { /* quota — non-fatal */ }
+      return next
+    })
+  }
+
+  /**
+   * Show or hide a whole batch at once — what "Show all" / "Hide all" apply to
+   * the CURRENT search, so "type ahv, show all" is two clicks instead of
+   * hunting one checkbox in a list of a hundred.
+   *
+   * ⚠ Never empties the set: a grid with no columns has no rows to read and no
+   * obvious way back, so a hide-all that would clear it keeps the first column.
+   */
+  const setManyCols = (keys: ColKey[], show: boolean) => {
+    setVisibleKeys((prev) => {
+      const nextSet = new Set(prev)
+      for (const k of keys) {
+        if (show) nextSet.add(k)
+        else nextSet.delete(k)
+      }
+      let next = memberColumns.map((c) => c.key).filter((k) => nextSet.has(k))
+      if (next.length === 0) next = [DEFAULT_VISIBLE[0]]
       try { localStorage.setItem(VISIBLE_COLS_LS_KEY, JSON.stringify(next)) } catch { /* quota — non-fatal */ }
       return next
     })
@@ -1070,7 +1192,7 @@ export default function ExplorerGrid({
   const buildExportData = () => {
     const tEn = i18n.getFixedT('en', 'admin')
     if (view === 'teams') {
-      const columns = [tEn('explorerGridGroupBy'), ...teamVisibleCols.map((c) => tEn(c.labelKey))]
+      const columns = [tEn('explorerGridGroupBy'), ...teamVisibleCols.map((c) => colLabel(c, tEn))]
       const dataRows: string[][] = []
       for (const sec of teamSectionsWithRows) {
         for (const tm of sec.teams) {
@@ -1082,7 +1204,7 @@ export default function ExplorerGrid({
     const grouped = groupBy !== 'none'
     const columns = [
       ...(grouped ? [tEn('explorerGridGroupBy')] : []),
-      ...visibleCols.map((c) => tEn(c.labelKey)),
+      ...visibleCols.map((c) => colLabel(c, tEn)),
     ]
     const dataRows: string[][] = []
     for (const section of sections) {
@@ -1206,12 +1328,12 @@ export default function ExplorerGrid({
                         label={label}
                         guest={row.guest_level > 0}
                         guestTitle={t('admin:explorerGridGuest')}
-                        canEdit={canEdit}
+                        canEdit={canEditNow}
                         onRemove={() => removeRoster(row)}
                       />
                     )
                   })}
-                  {canEdit && (
+                  {canEditNow && (
                     <TeamPicker
                       teamSections={teamSections}
                       excludeIds={new Set(memberRows.map((r) => r.team))}
@@ -1243,10 +1365,10 @@ export default function ExplorerGrid({
           }
           if (c.kind === 'bool') {
             const on = !!cellText(m, c.key)
-            const label = t(`admin:${c.labelKey}`)
+            const label = colLabel(c, tCol)
             // Writable flag → click-to-toggle; derived flags → read-only.
             // Either way, false shows no mark (only ✓ for true) for easy scanning.
-            if (c.write && canEdit) {
+            if (c.write && canEditNow) {
               return (
                 <TableCell key={c.key} className={`${c.minW} ${sticky} py-1 text-sm`}>
                   <BoolToggleCell on={on} label={label} onSave={(next) => saveCell(memberId, c.key, next)} />
@@ -1267,7 +1389,7 @@ export default function ExplorerGrid({
                 <EditableCountriesCell
                   value={(rawField(m, c.key) as string | null) ?? null}
                   text={cellText(m, c.key)}
-                  canEdit={canEdit}
+                  canEdit={canEditNow}
                   onSave={(v) => saveCell(memberId, c.key, v)}
                 />
               </TableCell>
@@ -1281,7 +1403,7 @@ export default function ExplorerGrid({
                 <EditableSelectCell
                   value={value}
                   options={c.kind === 'federation' ? federationOptions : (c.options ?? [])}
-                  canEdit={canEdit}
+                  canEdit={canEditNow}
                   onSave={(v) => saveCell(memberId, c.key, v)}
                 />
               </TableCell>
@@ -1304,7 +1426,7 @@ export default function ExplorerGrid({
               <TableCell key={c.key} className={`${c.minW} ${sticky} py-1`}>
                 <EditableDateCell
                   value={value ? value.slice(0, 10) : null}
-                  canEdit={canEdit && !c.readOnly}
+                  canEdit={canEditNow && !c.readOnly}
                   onSave={(v) => saveCell(memberId, c.key, v)}
                 />
               </TableCell>
@@ -1315,7 +1437,7 @@ export default function ExplorerGrid({
               <EditableCell
                 value={value}
                 kind={c.kind as 'text' | 'email' | 'number'}
-                canEdit={canEdit && !c.readOnly}
+                canEdit={canEditNow && !c.readOnly}
                 onSave={(v) => saveCell(memberId, c.key, v)}
               />
             </TableCell>
@@ -1336,11 +1458,11 @@ export default function ExplorerGrid({
           <Chip
             key={row.id}
             label={shortMemberName(memberById.get(row.member), row.member)}
-            canEdit={canEdit}
+            canEdit={canEditNow}
             onRemove={() => removeStaff(kind, row)}
           />
         ))}
-        {canEdit && (
+        {canEditNow && (
           <MemberPicker
             members={cache.members}
             excludeIds={new Set(rowsFor.map((r) => r.member))}
@@ -1371,11 +1493,11 @@ export default function ExplorerGrid({
                         label={shortMemberName(memberById.get(row.member), row.member)}
                         guest={row.guest_level > 0}
                         guestTitle={t('admin:explorerGridGuest')}
-                        canEdit={canEdit}
+                        canEdit={canEditNow}
                         onRemove={() => removeRoster(row)}
                       />
                     ))}
-                  {canEdit && (
+                  {canEditNow && (
                     <MemberPicker
                       members={cache.members}
                       excludeIds={new Set(roster.map((r) => r.member))}
@@ -1409,7 +1531,7 @@ export default function ExplorerGrid({
               <EditableCell
                 value={raw == null ? null : String(raw)}
                 kind="text"
-                canEdit={canEdit}
+                canEdit={canEditNow}
                 onSave={(v) => saveTeamCell(teamId, c.key, v)}
               />
             </TableCell>
@@ -1542,7 +1664,22 @@ export default function ExplorerGrid({
               {t('admin:explorerGridEnterAdds', { count: rows.length })}
             </span>
           )}
-          {!canEdit && (
+          {/* Edit mode — only offered to somebody who could edit anyway. When
+              they cannot, the badge says so and there is nothing to toggle. */}
+          {canEdit ? (
+            <Button
+              size="sm"
+              variant={editMode ? 'default' : 'outline'}
+              className="h-7 gap-1.5 px-2 text-xs"
+              onClick={() => setEditMode((v) => !v)}
+              aria-pressed={editMode}
+            >
+              {editMode ? <Unlock className="h-3.5 w-3.5" /> : <Lock className="h-3.5 w-3.5" />}
+              <span className="hidden sm:inline">
+                {editMode ? t('admin:explorerGridEditModeOn') : t('admin:explorerGridEditModeOff')}
+              </span>
+            </Button>
+          ) : (
             <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] tracking-wide text-muted-foreground">
               {t('admin:explorerGridReadOnly')}
             </span>
@@ -1562,7 +1699,7 @@ export default function ExplorerGrid({
                 >
                   <option value="none">{t('admin:explorerGridGroupNone')}</option>
                   {groupableCols.map((c) => (
-                    <option key={c.key} value={c.key}>{t(`admin:${c.labelKey}`)}</option>
+                    <option key={c.key} value={c.key}>{colLabel(c, tCol)}</option>
                   ))}
                 </select>
               </label>
@@ -1597,7 +1734,7 @@ export default function ExplorerGrid({
                   </span>
                 </Button>
               </PopoverTrigger>
-              <PopoverContent align="end" className="max-h-80 w-56 overflow-y-auto p-2">
+              <PopoverContent align="end" className="flex max-h-[70vh] w-72 flex-col p-2">
                 {/* A focused datapoint is shown without being ticked here — the
                     saved set is a preference, the focus is a temporary look. */}
                 {view === 'members' && focusColKeys.length > 0 && (
@@ -1605,21 +1742,24 @@ export default function ExplorerGrid({
                     {t('admin:explorerGridFocusNote', { count: focusColKeys.length })}
                   </p>
                 )}
-                <div className="space-y-1">
-                  {view === 'teams'
-                    ? TEAM_COLUMNS.map((c) => (
+                {view === 'teams' ? (
+                  <div className="space-y-1 overflow-y-auto">
+                    {TEAM_COLUMNS.map((c) => (
                       <label key={c.key} className="flex min-h-8 cursor-pointer items-center gap-2 rounded px-1.5 text-sm hover:bg-muted">
                         <Checkbox checked={teamVisibleKeys.includes(c.key)} onCheckedChange={() => toggleTeamCol(c.key)} />
-                        {t(`admin:${c.labelKey}`)}
-                      </label>
-                    ))
-                    : COLUMNS.map((c) => (
-                      <label key={c.key} className="flex min-h-8 cursor-pointer items-center gap-2 rounded px-1.5 text-sm hover:bg-muted">
-                        <Checkbox checked={visibleKeys.includes(c.key)} onCheckedChange={() => toggleCol(c.key)} />
-                        {t(`admin:${c.labelKey}`)}
+                        {colLabel(c, tCol)}
                       </label>
                     ))}
-                </div>
+                  </div>
+                ) : (
+                  <ColumnPicker
+                    columns={memberColumns}
+                    visibleKeys={visibleKeys}
+                    onToggle={toggleCol}
+                    onSetMany={setManyCols}
+                    label={(c) => colLabel(c, tCol)}
+                  />
+                )}
               </PopoverContent>
             </Popover>
           </div>
@@ -1717,7 +1857,7 @@ export default function ExplorerGrid({
                       className={'inline-flex items-center gap-1 font-semibold hover:text-primary '
                         + (view === 'members' && focusColSet.has(c.key as ColKey) ? 'text-primary' : 'text-foreground')}
                     >
-                      {t(`admin:${c.labelKey}`)}
+                      {colLabel(c, tCol)}
                       {(view === 'teams' ? teamSort?.key === c.key : sort?.key === c.key)
                         ? ((view === 'teams' ? teamSort?.dir : sort?.dir) === 'asc'
                           ? <ArrowUp className="h-3 w-3" />
@@ -1812,6 +1952,104 @@ function SectionRows({ label, colSpan, count, children }: {
         </TableRow>
       )}
       {children}
+    </>
+  )
+}
+
+/**
+ * The member column chooser: a search box over every datapoint the page holds,
+ * results grouped the way the member detail groups them.
+ *
+ * ⚠ Search goes through `rankMemberFields`, the same ranker the header's
+ * datapoint search uses — it carries the German aliases. Labels in
+ * memberFieldSchema are English by design, so a plain label match would fail
+ * every "Geburtsdatum" and "Lizenz" a German-speaking admin types.
+ */
+function ColumnPicker({
+  columns, visibleKeys, onToggle, onSetMany, label,
+}: {
+  columns: ColDef[]
+  visibleKeys: ColKey[]
+  onToggle: (key: ColKey) => void
+  onSetMany: (keys: ColKey[], show: boolean) => void
+  label: (c: ColDef) => string
+}) {
+  const { t } = useTranslation(['admin'])
+  const [q, setQ] = useState('')
+
+  const shown = useMemo(() => {
+    const query = q.trim()
+    if (!query) return columns
+    // Rank the whole datapoint catalog, then keep the ones that are columns
+    // here — plus a plain label match, which catches the grid-only columns
+    // (Teams, Sport, ClubDesk sync) that have no schema entry to rank.
+    const ranked = rankMemberFields(query, 500).map((m) => m.def.key)
+    const order = new Map(ranked.map((k, i) => [k, i]))
+    const lower = query.toLowerCase()
+    return columns
+      .filter((c) => order.has(c.key) || label(c).toLowerCase().includes(lower))
+      .sort((a, b) => (order.get(a.key) ?? 999) - (order.get(b.key) ?? 999))
+  }, [columns, q, label])
+
+  /** Group header for a column — the schema's group, or a catch-all for the
+   *  grid-only ones (Teams, Sport, ClubDesk sync) that have no schema entry. */
+  const groupOf = (c: ColDef): string => {
+    const def = MEMBER_FIELDS.find((f) => f.key === c.key)
+    return def ? getFieldGroup(def.group).label : t('admin:explorerGridColGroupOther')
+  }
+
+  const sections = useMemo(() => {
+    const map = new Map<string, ColDef[]>()
+    for (const c of shown) {
+      const g = groupOf(c)
+      map.set(g, [...(map.get(g) ?? []), c])
+    }
+    return [...map.entries()]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shown, t])
+
+  const shownKeys = shown.map((c) => c.key)
+  const allShown = shownKeys.length > 0 && shownKeys.every((k) => visibleKeys.includes(k))
+
+  return (
+    <>
+      <Input
+        value={q}
+        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setQ(e.target.value)}
+        placeholder={t('admin:explorerGridColumnSearch')}
+        className="mb-2 h-8 text-sm"
+        aria-label={t('admin:explorerGridColumnSearch')}
+      />
+      <div className="mb-1 flex items-center justify-between border-b border-border pb-1">
+        <span className="text-[11px] text-muted-foreground">
+          {t('admin:explorerGridColumnCount', { shown: shown.length, total: columns.length })}
+        </span>
+        <button
+          type="button"
+          onClick={() => onSetMany(shownKeys, !allShown)}
+          className="rounded px-1.5 py-0.5 text-[11px] font-medium text-primary hover:bg-muted"
+        >
+          {allShown ? t('admin:explorerGridColumnHideAll') : t('admin:explorerGridColumnShowAll')}
+        </button>
+      </div>
+      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto">
+        {sections.map(([group, cols]) => (
+          <div key={group}>
+            <div className="px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+              {group}
+            </div>
+            {cols.map((c) => (
+              <label key={c.key} className="flex min-h-8 cursor-pointer items-center gap-2 rounded px-1.5 text-sm hover:bg-muted">
+                <Checkbox checked={visibleKeys.includes(c.key)} onCheckedChange={() => onToggle(c.key)} />
+                <span className="min-w-0 flex-1 break-words">{label(c)}</span>
+              </label>
+            ))}
+          </div>
+        ))}
+        {shown.length === 0 && (
+          <p className="px-1.5 py-2 text-sm text-muted-foreground">{t('admin:explorerGridColumnNoMatch')}</p>
+        )}
+      </div>
     </>
   )
 }

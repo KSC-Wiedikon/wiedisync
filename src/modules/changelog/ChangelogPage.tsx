@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '1.92.0'
+const APP_VERSION = '1.93.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,21 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.93.0',
+    date: '15.08.2026',
+    sections: [
+      {
+        title: 'Every datapoint as a column, a working set of defaults, and an edit switch',
+        items: [
+          'The table opens with ten useful columns instead of two. Name, teams, email, phone, address, postal code, city, birthdate and register status — the set the club actually works in. A fresh browser used to show two name columns and nothing else until you went shopping in the column list. Note that this resets a column selection you had saved; pick your columns once more and it sticks.',
+          'The column list offers every datapoint the page holds — 72 of them, up from 35. Nickname, section, licence status, trainer licences, ClubDesk flags, the shell-account fields and the rest are all columns now, read-only. What is not there is what the page does not load: about 46 more datapoints, mostly finance and notification settings, sit behind narrower permissions and asking for them would break the page for anyone who is not a full admin.',
+          'The column list has a search box, grouped results and one-click show/hide. It searches German too — type "Geburtsdatum" or "Lizenz" and the right field comes up, even though the labels are English. "Show all" applies to whatever the search is showing, so "type ahv, show all" is two clicks rather than a hunt through a hundred checkboxes.',
+          'Editing is now a switch you turn on. The table is read-only when you arrive, with an Edit button at the top; cells become editable, and the selection ticks for bulk actions appear, only once you press it. It never stays on between visits — this is a page you mostly scroll, and a stray click on a cell should not change the club\'s register.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.92.0',
     date: '14.08.2026',

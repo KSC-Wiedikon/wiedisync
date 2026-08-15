@@ -2,6 +2,15 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.93.0 — 2026-08-15
+
+### Every datapoint as a column, a working set of defaults, and an edit switch
+
+- **The table opens with ten useful columns instead of two.** Name, teams, email, phone, address, postal code, city, birthdate and register status — the set the club actually works in. A fresh browser used to show two name columns and nothing else until you went shopping in the column list. ⚠ This resets a column selection you had saved; pick your columns once more and it sticks.
+- **The column list offers every datapoint the page holds — 72 of them, up from 35.** Nickname, section, licence status, trainer licences, ClubDesk flags, the shell-account fields and the rest are all columns now, read-only. What is not there is what the page does not load: about 46 more datapoints, mostly finance and notification settings, sit behind narrower permissions and asking for them would break the page for anyone who is not a full admin.
+- **The column list has a search box, grouped results and one-click show/hide.** It searches German too — type "Geburtsdatum" or "Lizenz" and the right field comes up, even though the labels are English. "Show all" applies to whatever the search is showing, so "type ahv, show all" is two clicks rather than a hunt through a hundred checkboxes.
+- **Editing is now a switch you turn on.** The table is read-only when you arrive, with an Edit button at the top; cells become editable, and the selection ticks for bulk actions appear, only once you press it. It never stays on between visits — this is a page you mostly scroll, and a stray click on a cell should not change the club's register.
+
 ## v1.92.0 — 2026-08-14
 
 ### Each sport owns its own groups, and the table view is grouped the same way
