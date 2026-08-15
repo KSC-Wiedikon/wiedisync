@@ -309,6 +309,9 @@ export default {
   explorerStatusDepartedTitle: 'Terminare l’affiliazione?',
   explorerStatusDepartedMessage: 'Impostare {{name}} su «{{status}}»? Questo disattiva anche l’affiliazione al club e l’accesso all’app: la persona esce dalle liste squadra, dalle liste di distribuzione e dal calcolo delle quote e non può più accedere.',
   explorerStatusAustrittNeedsDeparted: 'Una data di uscita richiede uno stato di uscita — scegli «Ehemaliges Mitglied», «Kein Mitglied» o «Verstorben», oppure cancella la data.',
+  explorerFeeDiscountNeedsReason: 'Uno sconto richiede un motivo — viene stampato sulla fattura come riga di credito.',
+  explorerFeeDiscountNeedsReasonField: 'Obbligatorio finché è impostato uno sconto.',
+  explorerFeeDiscountOneUnit: 'Bloccato finché {{field}} ha un valore — svuotalo per usare questo.',
 
   // Zona pericolosa (Esploratore) — eliminazione definitiva
   explorerDangerDelete: 'Elimina definitivamente',

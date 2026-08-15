@@ -785,6 +785,19 @@ export default function ExplorerMemberFields({
       return
     }
 
+    // A discount is a decision somebody made, and the invoice prints its reason
+    // as the credit line — an unnamed one shows the member a bare "Rabatt" and
+    // leaves the audit trail with no answer to "why is this person paying less?".
+    // Judged on the EFFECTIVE values, not the patch: editing only the amount on a
+    // row whose reason was already blank must still be caught.
+    const effDiscount = 'fee_discount' in patch ? patch.fee_discount : record.fee_discount
+    const effDiscountPct = 'fee_discount_pct' in patch ? patch.fee_discount_pct : record.fee_discount_pct
+    const effReason = 'fee_discount_reason' in patch ? patch.fee_discount_reason : record.fee_discount_reason
+    if ((Number(effDiscount) > 0 || Number(effDiscountPct) > 0) && !String(effReason ?? '').trim()) {
+      toast.error(t('explorerFeeDiscountNeedsReason'))
+      return
+    }
+
     setSaving(true)
     try {
       // `fields: ['*']` — without it Directus answers with its default field set
@@ -1318,6 +1331,15 @@ function NoiseToggle({
   )
 }
 
+/** The two discount units, each pointing at the one it locks out. */
+const DISCOUNT_TWIN: Record<string, string> = {
+  fee_discount: 'fee_discount_pct',
+  fee_discount_pct: 'fee_discount',
+}
+/** "Carries a value" for a numeric override: 0 is a real, deliberate entry —
+ *  only null/undefined/'' mean the operator left the field alone. */
+const hasFilledValue = (v: unknown) => v !== null && v !== undefined && v !== ''
+
 function FieldCard({
   def,
   record,
@@ -1342,6 +1364,20 @@ function FieldCard({
   const original = record[def.key]
   const current = draft[def.key]
   const isDirty = !readOnly && !def.virtual && !valueEquals(original, current)
+  // ── The two discount units are mutually exclusive ───────────────────────────
+  // `members_fee_discount_one_unit` refuses a row holding both, and feeBreakdown
+  // would have to pick one anyway. So filling either greys the other out, and it
+  // stays greyed until both are empty — switching units is "clear the one you
+  // have, then fill the other", which is a deliberate act rather than a silent
+  // overwrite the CHECK would reject on save.
+  const twinKey = DISCOUNT_TWIN[def.key]
+  const lockedByTwin = !!twinKey && hasFilledValue(draft[twinKey])
+  // The reason is not optional once money comes off — it is the credit line the
+  // member reads on their invoice. Flagged on the field itself as well as at
+  // save time, so it is answerable where it is asked.
+  const reasonMissing = def.key === 'fee_discount_reason'
+    && (Number(draft.fee_discount) > 0 || Number(draft.fee_discount_pct) > 0)
+    && !String(draft.fee_discount_reason ?? '').trim()
   // A `privileged` field locked for a sport admin says so plainly rather than
   // reusing the generic "read-only" wording.
   const lockedByPrivilege = !!def.privileged && !isGlobalAdmin
@@ -1400,11 +1436,23 @@ function FieldCard({
           <FieldEditor
             def={def}
             value={current}
-            ctx={ctx}
+            ctx={lockedByTwin ? { ...ctx, disabled: true } : ctx}
             onChange={(v) => onChange(def.key, v)}
           />
         )}
       </div>
+
+      {editing && lockedByTwin && (
+        <p className="text-xs text-muted-foreground">
+          {t('explorerFeeDiscountOneUnit', { field: memberFieldLabel(twinKey) })}
+        </p>
+      )}
+
+      {editing && reasonMissing && (
+        <p className="text-xs text-red-600 dark:text-red-400">
+          {t('explorerFeeDiscountNeedsReasonField')}
+        </p>
+      )}
 
       {governsEmpty && (
         <p className="text-xs text-red-600 dark:text-red-400">

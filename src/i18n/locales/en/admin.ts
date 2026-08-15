@@ -886,6 +886,9 @@ export default {
   explorerStatusDepartedTitle: 'End the membership?',
   explorerStatusDepartedMessage: 'Set {{name}} to "{{status}}"? This also switches off their club membership and their app access, so they leave the rosters, the mailing audiences and the dues run, and can no longer log in.',
   explorerStatusAustrittNeedsDeparted: 'An exit date needs a departed membership status — pick "Ehemaliges Mitglied", "Kein Mitglied" or "Verstorben", or clear the date.',
+  explorerFeeDiscountNeedsReason: 'A discount needs a reason — it is printed on the invoice as the credit line.',
+  explorerFeeDiscountNeedsReasonField: 'Required while a discount is set.',
+  explorerFeeDiscountOneUnit: 'Locked while {{field}} has a value — clear it to use this one instead.',
 
   // Explorer danger zone — permanent delete
   explorerDangerDelete: 'Delete permanently',

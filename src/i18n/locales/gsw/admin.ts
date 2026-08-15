@@ -522,6 +522,9 @@ export default {
   explorerStatusDepartedTitle: 'Mitgliedschaft beände?',
   explorerStatusDepartedMessage: '{{name}} uf «{{status}}» setze? Denn wärdet au d Vereinsmitgliedschaft und de App-Zuegang deaktiviert: D Person verschwindet us de Teamlischte, de Mailverteiler und em Beitragslauf und cha sich nöd meh aamälde.',
   explorerStatusAustrittNeedsDeparted: 'Es Austrittsdatum bruucht en Austritts-Status — nimm «Ehemaliges Mitglied», «Kein Mitglied» oder «Verstorben», oder lösch s Datum.',
+  explorerFeeDiscountNeedsReason: 'Es Rabatt bruucht en Grund — er chunnt uf d Rächnig als Gutschriftszile.',
+  explorerFeeDiscountNeedsReasonField: 'Pflichtfäld, solang es Rabatt gsetzt isch.',
+  explorerFeeDiscountOneUnit: 'Gsperrt, solang {{field}} en Wert het — lösch en, zum stattdesse das da bruuche.',
 
   // Explorer-Gfahrezone — ändgültig lösche
   explorerDangerDelete: 'Ändgültig lösche',
