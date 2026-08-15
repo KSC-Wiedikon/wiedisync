@@ -2,6 +2,13 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.95.0 — 2026-08-15
+
+### A free membership now gets a bill that says so
+
+- **If your membership is free, you get an invoice like everybody else — for CHF 0.** It shows what a membership like yours would have cost and the exemption that cancels it, so "CHF 0.00" reads as a decision the club made rather than something that went wrong.
+- **Nothing to pay and nothing to do:** it arrives already marked as paid, with no payment slip and no email. You will find it under Finances → My dues alongside your other invoices.
+
 ## v1.94.0 — 2026-08-15
 
 ### The Database table only draws the rows you can see

@@ -1,7 +1,7 @@
 {
   "name": "wiedisync",
   "private": true,
-  "version": "1.94.0",
+  "version": "1.95.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -62,8 +62,8 @@
     "db:finance:sync:dev": "node directus/scripts/clubdesk-scrape-finance.mjs /tmp/cd-rechnungen.csv /tmp/cd-buchhaltung.csv && node directus/scripts/import-clubdesk-finance.mjs dev /tmp/cd-rechnungen.csv /tmp/cd-buchhaltung.csv && rm -f /tmp/cd-rechnungen.csv /tmp/cd-buchhaltung.csv",
     "db:finance:sync:prod": "node directus/scripts/clubdesk-scrape-finance.mjs /tmp/cd-rechnungen.csv /tmp/cd-buchhaltung.csv && node directus/scripts/import-clubdesk-finance.mjs prod /tmp/cd-rechnungen.csv /tmp/cd-buchhaltung.csv && rm -f /tmp/cd-rechnungen.csv /tmp/cd-buchhaltung.csv",
     "ext:install": "npm --prefix directus/extensions/kscw-endpoints ci",
-    "ext:smoke:dev": "curl -fsS --retry 10 --retry-delay 3 --retry-all-errors https://directus-dev.kscw.ch/kscw/public/teams -o /dev/null && echo '\u2713 kscw-endpoints responding (dev)'",
-    "ext:smoke:prod": "curl -fsS --retry 10 --retry-delay 3 --retry-all-errors https://directus.kscw.ch/kscw/public/teams -o /dev/null && echo '\u2713 kscw-endpoints responding (prod)'",
+    "ext:smoke:dev": "curl -fsS --retry 10 --retry-delay 3 --retry-all-errors https://directus-dev.kscw.ch/kscw/public/teams -o /dev/null && echo '✓ kscw-endpoints responding (dev)'",
+    "ext:smoke:prod": "curl -fsS --retry 10 --retry-delay 3 --retry-all-errors https://directus.kscw.ch/kscw/public/teams -o /dev/null && echo '✓ kscw-endpoints responding (prod)'",
     "ext:deploy:dev": "bash scripts/deploy-extensions.sh dev",
     "ext:deploy:prod": "bash scripts/deploy-extensions.sh prod",
     "ext:deploy": "npm run ext:deploy:dev && npm run ext:deploy:prod",
@@ -72,7 +72,7 @@
     "scripts:deploy:dev": "rsync -avz directus/scripts/ hetzner:/tmp/kscw-scripts/ && ssh hetzner \"sudo rsync -a /tmp/kscw-scripts/ /opt/directus-kscw-dev/scripts/\"",
     "scripts:deploy:prod": "rsync -avz directus/scripts/ hetzner:/tmp/kscw-scripts/ && ssh hetzner \"sudo rsync -a /tmp/kscw-scripts/ /opt/directus-kscw/scripts/\"",
     "scripts:deploy": "npm run scripts:deploy:dev && npm run scripts:deploy:prod",
-    "clubdesk:deploy": "rsync -avz directus/scripts/clubdesk-*.sh directus/scripts/clubdesk-*.mjs directus/scripts/import-clubdesk-*.mjs hetzner:/tmp/clubdesk-deploy/ && ssh hetzner \"sudo cp -f /tmp/clubdesk-deploy/clubdesk-*.sh /tmp/clubdesk-deploy/clubdesk-*.mjs /tmp/clubdesk-deploy/import-clubdesk-*.mjs /opt/clubdesk-sync/ && sudo chmod +x /opt/clubdesk-sync/*.sh && ! sudo grep -lq supabase-db-vek42 /opt/clubdesk-sync/*.sh /opt/clubdesk-sync/*.mjs && echo '\u2713 clubdesk-sync scripts deployed (no stale container ref)'\"",
+    "clubdesk:deploy": "rsync -avz directus/scripts/clubdesk-*.sh directus/scripts/clubdesk-*.mjs directus/scripts/import-clubdesk-*.mjs hetzner:/tmp/clubdesk-deploy/ && ssh hetzner \"sudo cp -f /tmp/clubdesk-deploy/clubdesk-*.sh /tmp/clubdesk-deploy/clubdesk-*.mjs /tmp/clubdesk-deploy/import-clubdesk-*.mjs /opt/clubdesk-sync/ && sudo chmod +x /opt/clubdesk-sync/*.sh && ! sudo grep -lq supabase-db-vek42 /opt/clubdesk-sync/*.sh /opt/clubdesk-sync/*.mjs && echo '✓ clubdesk-sync scripts deployed (no stale container ref)'\"",
     "hallenfinder:scrape": "node directus/scripts/hallenfinder-scrape.mjs",
     "hallenfinder:sync:dev": "node directus/scripts/hallenfinder-scrape.mjs --emit-sql | ssh hetzner 'sudo docker exec -i kscw-postgres psql -U supabase_admin -d directus_kscw_dev -X -v ON_ERROR_STOP=1'",
     "hallenfinder:sync:prod": "node directus/scripts/hallenfinder-scrape.mjs --emit-sql | ssh hetzner 'sudo docker exec -i kscw-postgres psql -U supabase_admin -d postgres -X -v ON_ERROR_STOP=1'",

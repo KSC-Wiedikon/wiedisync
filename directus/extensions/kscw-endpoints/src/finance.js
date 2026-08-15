@@ -34,6 +34,8 @@ import { recomputeInvoice, deriveSettlement } from './finance-recompute.js'
 import { autopostInvoiceSafe, autopostTeamEntrySafe, autopostDuesRunSafe, removeAutopostForPaymentSafe, removeAutopostForTeamEntrySafe, FISCAL_YEAR_LOCK_NS } from './finance-autopost.js'
 // The club fee model, shared with the ClubDesk push so the two never disagree.
 import { feeBreakdown, guestMemberIdSet, resolveFeeWaivers, FEE_OVERRIDE_FIELDS, NO_LICENCE_SURCHARGE } from './clubdesk-update.js'
+// What a FREE member's membership would have cost — printed, never billed.
+import { pickRate, isExemptCategory, referenceBase } from './finance-dues-reference.js'
 
 const PAY_METHODS = ['twint', 'bank', 'cash', 'other']
 
@@ -64,24 +66,16 @@ function scorReference(idNum) {
  */
 const DUES_SUBJECT_SQL = "subject ILIKE '%mitgliederbeitrag%'"
 
-/** Invoice line wording for a rule waiver (resolveFeeWaivers' reasons).
+/** Invoice line wording for a waiver — resolveFeeWaivers' rule reasons, plus
+ *  `gratis` for the members whose CATEGORY is the exemption.
  *  German like every other invoice line — the document goes to the member and
  *  into the club's books, neither of which follow the app's UI locale. */
 const WAIVER_LABELS = {
   honorary: 'Erlass — Ehrenmitglied',
   vorstand: 'Erlass — Vorstand',
   coach: 'Erlass — Trainer*in',
+  gratis: 'Erlass — Gratismitgliedschaft',
   default: 'Erlass',
-}
-
-/** Pick the CHF dues rate for a member: a sektion-specific row wins over the
- *  category default (sektion NULL). Returns the matching rate row or null. */
-function pickRate(rates, category, sektion) {
-  const cat = (category || '').toLowerCase()
-  const inCat = rates.filter((r) => r.active && (r.category || '').toLowerCase() === cat)
-  return inCat.find((r) => r.sektion && sektion && r.sektion.toLowerCase() === String(sektion).toLowerCase())
-      || inCat.find((r) => !r.sektion)
-      || null
 }
 
 /** Reject after `ms` so one hung send can't stall a whole chunk. */
@@ -364,6 +358,11 @@ export function registerFinance(router, { database, logger, services, getSchema 
           'fi.id', 'fi.clubdesk_id', 'fi.number', 'fi.invoice_date', 'fi.subject', 'fi.amount',
           'fi.status', 'fi.dunning_status', 'fi.due_date', 'fi.amount_paid', 'fi.open_amount',
           'fi.overpaid_amount', 'fi.written_off_amount', 'fi.payment_method', 'fi.reference', 'fi.reference_type',
+          // The positions ride along because a CHF 0 invoice's total says nothing
+          // on its own: a free member's document is the entitlement plus the
+          // Erlass line that cancels it, and those lines are the whole message
+          // (they are never emailed — the page is the only place they land).
+          'fi.lines',
           'fi.fee_category', 'fi.closed_on', 'fi.recipient_name', 'fi.member', 'fi.team',
           'fi.source', 'fi.reported_paid_at', 'fi.reported_paid_method', 'fi.reported_paid_by',
           'fi.confirmed_at', 'fi.confirmed_via', 'fi.cancelled_at', 't.name as team_name',
@@ -781,16 +780,36 @@ export function registerFinance(router, { database, logger, services, getSchema 
 
     const rows = members.map((m) => {
       const rate = pickRate(rates, m.beitragskategorie, m.sektion)
+      // A 'Gratis' member owes nothing by CATEGORY. They are invoiced anyway, at
+      // 0, and since 2026-08-15 the document shows what the membership would have
+      // cost plus the exemption that cancels it — see finance-dues-reference.js.
+      // ⚠ A per-member `fee_base_override` above 0 outranks the category: the
+      // treasurer pinned that number (usually the register's own, migration 308),
+      // so those members keep being billed it instead of being handed a free
+      // membership nobody granted them. On prod that is 2 of the 94 (CHF 40 each).
+      // A pin of exactly 0 says the same thing the category does — free — so it
+      // keeps the exemption line rather than falling back to a bare 0.00 that
+      // reads as a mistake. (`numeric` arrives as a STRING through pg; NULL, ''
+      // and a non-numeric all coerce to "not pinned", which is the safe side.)
+      const pinnedBase = Number(m.fee_base_override) > 0
+      const exempt = !!rate && isExemptCategory(m.beitragskategorie) && !pinnedBase
+      const reference = exempt ? round2(referenceBase(rates, m)) : 0
       // The schedule supplies the season's BASE; the surcharge/guest rules are
       // per-member and cannot live in a (category, sektion) rate row.
-      const fee = rate
-        ? feeBreakdown(m.beitragskategorie, m, {
+      const fee = !rate ? null
+        // NOT feeBreakdown for an exempt member: the engine's answer for them is
+        // 0 and stays 0. The reference is a figure for the DOCUMENT, so it must
+        // not travel through the surcharge / guest / discount rules that price a
+        // real bill — a 'Gratis' member is not surcharged and owes no guest
+        // reduction, and either line on a CHF 0 invoice is noise.
+        : exempt
+        ? { category: m.beitragskategorie, base: reference, surcharge: 0, guest_discount: 0, discount: 0, amount: reference }
+        : feeBreakdown(m.beitragskategorie, m, {
             baseOverride: rate.amount_chf,
             isGuest: guests.has(Number(m.id)),
             // Capping lives in the fee model, where it is unit-tested.
             discount: discounts.get(Number(m.id)) || 0,
           })
-        : null
       return {
         member: m.id,
         name: [m.first_name, m.last_name].filter(Boolean).join(' ').trim() || null,
@@ -810,14 +829,19 @@ export function registerFinance(router, { database, logger, services, getSchema 
         discount_reason: !fee || fee.discount <= 0 ? null
           : discounts.has(Number(m.id)) ? discountReason
           : (m.fee_discount_reason || discountReason),
-        // The rule waiver is the LAST adjustment: it cancels whatever is still
-        // owed after base ± surcharge ± guest ± discount, so the invoice reads
+        // The waiver is the LAST adjustment: it cancels whatever is still owed
+        // after base ± surcharge ± guest ± discount, so the invoice reads
         // "440.00 / Erlass -440.00 / 0.00" instead of hiding the entitlement.
-        // A member already at 0 (category 'Gratis') has nothing to waive and
-        // gets no waiver line.
-        waiver: fee && waivers.has(Number(m.id)) ? round2(Math.max(0, fee.amount)) : 0,
-        waiver_reason: waivers.get(Number(m.id)) || null,
-        amount: fee ? round2(waivers.has(Number(m.id)) ? 0 : fee.amount) : null,
+        // Two ways to get one — a rule (Ehrenmitglied / Vorstand / Trainer*in)
+        // or the 'Gratis' category itself — and the RULE names the line when
+        // both apply: "Erlass — Trainer*in" says more than "Gratismitgliedschaft"
+        // about why this membership is free.
+        waiver: fee && (exempt || waivers.has(Number(m.id))) ? round2(Math.max(0, fee.amount)) : 0,
+        waiver_reason: waivers.get(Number(m.id)) || (exempt ? 'gratis' : null),
+        amount: fee ? round2(exempt || waivers.has(Number(m.id)) ? 0 : fee.amount) : null,
+        // Print the exemption line even at 0.00 (no comparable rate for their
+        // sektion): naming it IS the point — a bare 0.00 reads as a mistake.
+        exempt,
         subject_template: rate?.subject_template || null,
         already_billed: billed.has(Number(m.id)),
         clubdesk_billed: clubdeskBilled.has(Number(m.id)),
@@ -862,7 +886,9 @@ export function registerFinance(router, { database, logger, services, getSchema 
     //   issuable — gets a DOCUMENT. Since 2026-08-13 that includes the 0 CHF
     //              rows: a free member (rule waiver, or a 'Gratis'/'Kein
     //              Beitrag' category) is invoiced at 0 so accounting has a
-    //              record for every member, not only the paying ones.
+    //              record for every member, not only the paying ones. Since
+    //              2026-08-15 a 'Gratis' one carries the entitlement it was
+    //              granted out of, so the document explains itself.
     // MUST match the issue endpoint's filter.
     const eligible = (x) => !x.missing_rate && !x.already_billed && !x.clubdesk_billed
     const billable = rows.filter((x) => eligible(x) && round2(x.amount) > 0)
@@ -885,8 +911,11 @@ export function registerFinance(router, { database, logger, services, getSchema 
       clubdesk_billed: rows.filter((x) => !x.already_billed && x.clubdesk_billed).length,
       missing_rate: rows.filter((x) => x.missing_rate).length,
       zero_rate: rows.filter((x) => eligible(x) && round2(x.amount) <= 0).length,
-      // What the waiver rule cancelled, so the treasurer can see the club's
-      // cost of its own free memberships rather than only their count.
+      // What the waiver cancelled, so the treasurer can see the club's cost of
+      // its own free memberships rather than only their count. Since 2026-08-15
+      // that includes the 'Gratis' cohort's reference figures — notional money
+      // (they were never going to pay), which is exactly what "cost of free
+      // memberships" means.
       waived: rows.filter((x) => eligible(x) && (x.waiver || 0) > 0).length,
       waived_amount: round2(rows.filter((x) => eligible(x)).reduce((sm, x) => sm + (x.waiver || 0), 0)),
       // Only paying members are emailed (0 CHF invoices are filed, not sent),
@@ -1137,14 +1166,18 @@ export function registerFinance(router, { database, logger, services, getSchema 
             // render time: a licence granted in March must not silently restate
             // what January's invoice charged.
             lines: JSON.stringify([
-              { label: `${subject}${x.category ? ` · ${x.category}` : ''}`, amount: round2(x.base_amount) },
+              // ⚠ No "· Gratis" suffix on an exempt member's line: the base there
+              // is what the membership WOULD have cost, and "Gratis  440.00"
+              // contradicts itself on the page. The Erlass line below names it.
+              { label: `${subject}${x.category && !x.exempt ? ` · ${x.category}` : ''}`, amount: round2(x.base_amount) },
               ...(x.surcharge > 0 ? [{ label: 'Zuschlag ohne Schreiberlizenz', amount: round2(x.surcharge) }] : []),
               ...(x.guest_discount > 0 ? [{ label: 'Abzug Gastspieler*in', amount: round2(-x.guest_discount) }] : []),
               ...(x.discount > 0 ? [{ label: x.discount_reason || 'Rabatt', amount: round2(-x.discount) }] : []),
-              // The rule waiver, last and named: an auditor reading this row
-              // sees the full entitlement AND why it came to nothing. Without
-              // the label a 0 CHF invoice is indistinguishable from a mistake.
-              ...(x.waiver > 0 ? [{ label: WAIVER_LABELS[x.waiver_reason] || WAIVER_LABELS.default, amount: round2(-x.waiver) }] : []),
+              // The waiver, last and named: an auditor reading this row sees the
+              // full entitlement AND why it came to nothing. Without the label a
+              // 0 CHF invoice is indistinguishable from a mistake — which is why
+              // an exempt member gets the line even when the amount is 0.00.
+              ...(x.waiver > 0 || x.exempt ? [{ label: WAIVER_LABELS[x.waiver_reason] || WAIVER_LABELS.default, amount: round2(-x.waiver) || 0 }] : []),
             ]),
             member: x.member, team: null, dues_run: runId, fiscal_year: r.fy.id,
             source: 'native', created_by_name: mem?.name || null, created_by_email: mem?.email || null,

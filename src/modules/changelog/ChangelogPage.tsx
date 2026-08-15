@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '1.94.0'
+const APP_VERSION = '1.95.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,19 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.95.0',
+    date: '15.08.2026',
+    sections: [
+      {
+        title: 'A free membership now gets a bill that says so',
+        items: [
+          'If your membership is free, you get an invoice like everybody else — for CHF 0. It shows what a membership like yours would have cost and the exemption that cancels it, so "CHF 0.00" reads as a decision the club made rather than something that went wrong.',
+          'Nothing to pay and nothing to do: it arrives already marked as paid, with no payment slip and no email. You will find it under Finances → My dues alongside your other invoices.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.94.0',
     date: '15.08.2026',

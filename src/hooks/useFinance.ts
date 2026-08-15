@@ -527,7 +527,9 @@ export interface DuesPreviewRow {
   email: string | null
   category: string | null
   sektion: string | null
-  /** The season's rate for this category, before the per-member adjustments. */
+  /** The season's rate for this category, before the per-member adjustments.
+   *  For an `exempt` member it is the ENTITLEMENT — what a membership like
+   *  theirs would have cost — and is cancelled in full by `waiver`. */
   base_amount: number | null
   /** CHF 100 when the member owes scorer/table duty but holds no licence. */
   surcharge: number
@@ -536,11 +538,15 @@ export interface DuesPreviewRow {
   /** On-demand reduction the treasurer granted for this run. */
   discount: number
   discount_reason: string | null
-  /** CHF cancelled by a rule waiver (Ehrenmitglied / Vorstand / coach). The
-   *  member is still invoiced — at 0 — so accounting has a record for every
-   *  member, with the entitlement and the waiver both on the document. */
+  /** CHF cancelled by a waiver — a rule (Ehrenmitglied / Vorstand / coach) or
+   *  the 'Gratis' category itself. The member is still invoiced — at 0 — so
+   *  accounting has a record for every member, with the entitlement and the
+   *  waiver both on the document. */
   waiver: number
-  waiver_reason: 'honorary' | 'vorstand' | 'coach' | null
+  waiver_reason: 'honorary' | 'vorstand' | 'coach' | 'gratis' | null
+  /** Free by CATEGORY ('Gratis'). Their invoice carries the exemption line even
+   *  at 0.00 — the club has no comparable rate for every sektion. */
+  exempt: boolean
   /** base + surcharge − discounts − waiver: what the member is actually invoiced. */
   amount: number | null
   already_billed: boolean
