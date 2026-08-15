@@ -58,7 +58,11 @@ function display(v: string | null): string {
   return ISO_DATE.test(s) ? formatDateZurich(s) : s
 }
 
-export default function ClubdeskProposals({ onDone }: { onDone?: () => void | Promise<void> }) {
+export default function ClubdeskProposals({ onDone, onCountChange }: {
+  onDone?: () => void | Promise<void>
+  /** Reported upward so the sync path can gate its decision step on the count. */
+  onCountChange?: (n: number) => void
+}) {
   const { t } = useTranslation('admin')
   const [data, setData] = useState<ProposalsResp | null>(null)
   const [loading, setLoading] = useState(true)
@@ -74,13 +78,14 @@ export default function ClubdeskProposals({ onDone }: { onDone?: () => void | Pr
   const apply = useCallback((r: ProposalsResp) => {
     setData(r)
     setError(null)
+    onCountChange?.(r.total)
     // Drop selections for rows that no longer exist, or a bulk action would send
     // ids the server has already decided.
     setSelected((prev) => {
       const live = new Set(r.proposals.map((p) => p.id))
       return new Set([...prev].filter((id) => live.has(id)))
     })
-  }, [])
+  }, [onCountChange])
 
   useEffect(() => {
     let alive = true

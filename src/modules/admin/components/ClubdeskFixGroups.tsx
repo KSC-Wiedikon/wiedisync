@@ -70,12 +70,26 @@ interface Props {
   available: Record<FixClass, number>
   /** Re-run the page's checks once a commit settles. */
   onDone?: () => void | Promise<void>
+  /**
+   * Optional external open control, so the sync path can hand the user straight
+   * into this dialog at its last step. Uncontrolled (own button) when omitted —
+   * which is how it is still mounted in the ClubDesk actions bar.
+   */
+  open?: boolean
+  onOpenChange?: (v: boolean) => void
+  /** Hide the component's own trigger when something else opens it. */
+  hideTrigger?: boolean
 }
 
-export default function ClubdeskFixGroups({ available, onDone }: Props) {
+export default function ClubdeskFixGroups({ available, onDone, open: openProp, onOpenChange, hideTrigger }: Props) {
   const { t } = useTranslation('admin')
   const confirm = useConfirm()
-  const [open, setOpen] = useState(false)
+  const [openSelf, setOpenSelf] = useState(false)
+  const open = openProp ?? openSelf
+  const setOpen = (v: boolean) => {
+    if (onOpenChange) onOpenChange(v)
+    else setOpenSelf(v)
+  }
   const [status, setStatus] = useState<FixStatus | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [classes, setClasses] = useState<Set<FixClass>>(new Set(FIX_CLASSES))
@@ -180,17 +194,19 @@ export default function ClubdeskFixGroups({ available, onDone }: Props) {
 
   return (
     <>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        onClick={() => setOpen(true)}
-        disabled={busy}
-        className="gap-1.5"
-      >
-        {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wrench className="h-3.5 w-3.5" />}
-        {busy ? t('cdFixRunning') : t('cdFixButton')}
-      </Button>
+      {!hideTrigger && (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => setOpen(true)}
+          disabled={busy}
+          className="gap-1.5"
+        >
+          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wrench className="h-3.5 w-3.5" />}
+          {busy ? t('cdFixRunning') : t('cdFixButton')}
+        </Button>
+      )}
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
