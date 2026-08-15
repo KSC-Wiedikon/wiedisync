@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '1.93.0'
+const APP_VERSION = '1.93.1'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,20 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.93.1',
+    date: '15.08.2026',
+    sections: [
+      {
+        title: 'Honorary, passive, gap year and former, per sport as well as club-wide',
+        items: [
+          'Each sport now lists its own register states. Volleyball and Basketball each hold Honorary, Passive, Gap year, Former and Non-members alongside Teams, Officials and Staff — so "which of our volleyball people are on a gap year" is a group rather than a filter you build yourself.',
+          'The club-wide lists still count everybody, including the people already shown under a sport. They answer a different question: the club has 12 honorary members, of whom 3 are on the volleyball side and the rest belong to no section.',
+          "Each sport's \"Other\" got smaller and more useful — 60 to 38 for volleyball — because a passive or gap-year member is now named as such instead of falling through to the leftovers.",
+        ],
+      },
+    ],
+  },
   {
     version: '1.93.0',
     date: '15.08.2026',

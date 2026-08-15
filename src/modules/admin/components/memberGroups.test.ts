@@ -126,6 +126,37 @@ describe('buildMemberGroups', () => {
     expect(nodes.every((n) => countMembers(n) > 0)).toBe(true)
   })
 
+  /**
+   * ⚠ A register status appears in BOTH places for the same person, on purpose.
+   * The sport copy answers "which of our volleyball people are on a gap year";
+   * the club copy answers "how many gap-year members does the club have" and
+   * must therefore include the ones already listed under a sport — it is not a
+   * leftovers bucket.
+   */
+  it('lists a register status under the sport AND club-wide for the same member', () => {
+    const vbPassive = { id: 1, sektion: 'Volleyball', register_status: 'Passivmitglied' }
+    const clubPassive = { id: 2, sektion: 'KSCW', register_status: 'Passivmitglied' }
+    const g = flatten(buildMemberGroups([vbPassive, clubPassive], [vbPassive, clubPassive], cacheOf()))
+    expect(g['sport:volleyball/sport:volleyball:passive']).toEqual(['1'])
+    expect(g['club:passive']).toEqual(['1', '2'])
+  })
+
+  it('keeps a member with a register status out of the sport\'s "Other"', () => {
+    const m = { id: 1, sektion: 'Volleyball', register_status: 'Zwischenjahr' }
+    const g = flatten(buildMemberGroups([m], [m], cacheOf()))
+    expect(g['sport:volleyball/sport:volleyball:gapyear']).toEqual(['1'])
+    expect(g['sport:volleyball/sport:volleyball:other']).toBeUndefined()
+  })
+
+  it('builds the per-sport register groups from all members, not the working set', () => {
+    const active = { id: 1, sektion: 'Volleyball' }
+    const departed = {
+      id: 2, sektion: 'Volleyball', register_status: 'Ehemaliges Mitglied', kscw_membership_active: false,
+    }
+    const g = flatten(buildMemberGroups([active], [active, departed], cacheOf()))
+    expect(g['sport:volleyball/sport:volleyball:former']).toEqual(['2'])
+  })
+
   it('gives each sport its own Teams / Officials / Staff / Other', () => {
     const cache = cacheOf({ players: { '1': ['1'] }, coaches: { '2': ['1'] } })
     const a = { id: 1, scorer_vb: true }
