@@ -146,3 +146,61 @@ describe('notGuestAnywhereSql', () => {
     expect(sql).not.toContain('gmt.team')
   })
 })
+
+/**
+ * Source-level guards for kscw-hooks/src/index.js.
+ *
+ * The RSVP paths in there live inside one large closure and export nothing, so
+ * there is no seam to unit-test them through. What CAN be pinned is the shape
+ * that was wrong: a bare `member_teams` join deciding who is expected at an
+ * activity. Three reminder/decline queries had it, which is why coaches got no
+ * RSVP deadline nudge, no "training tomorrow", and — once auto-confirm started
+ * seeding them a confirmed row — no absence decline either, so a coach on
+ * holiday read as attending.
+ *
+ * These are deliberately narrow string assertions: they fail on the exact
+ * regression and stay quiet otherwise.
+ */
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import { dirname, join } from 'node:path'
+
+const HOOKS = readFileSync(
+  join(dirname(fileURLToPath(import.meta.url)), '../../../kscw-hooks/src/index.js'),
+  'utf8',
+)
+
+describe('kscw-hooks — no bare roster join decides who is expected', () => {
+  it('no training query joins member_teams directly', () => {
+    // Every one of these is now `JOIN LATERAL ${teamPeopleSql('t.team')}`.
+    expect(HOOKS).not.toContain('JOIN member_teams mt ON mt.team = t.team')
+  })
+
+  it('the game squad set includes staff as well as roster and game guests', () => {
+    const squad = HOOKS.slice(HOOKS.indexOf('const GAME_SQUAD_JOIN'))
+    const decl = squad.slice(0, squad.indexOf('mt ON mt.game = g.id'))
+    expect(decl).toContain('JOIN member_teams mt2')
+    expect(decl).toContain('FROM game_guests gg')
+    expect(decl).toContain('FROM teams_coaches')
+    expect(decl).toContain('FROM teams_responsibles')
+    // …and exposes the flag its consumers write into participations.is_staff.
+    expect(decl).toContain('AS is_staff')
+  })
+
+  it('min_participants counts players only', () => {
+    // A confirmed coach must not hold open a training the UI already says will
+    // cancel — countConfirmedPlayers has always excluded staff; this query
+    // didn't until 2026-08-15.
+    const gate = HOOKS.slice(HOOKS.indexOf("cancel_reason = 'auto_cancel_min_not_met'"))
+    expect(gate.slice(0, 600)).toContain('p.is_staff = false')
+  })
+
+  it('no auto-decline insert hardcodes is_staff false for a team-wide set', () => {
+    // A decline seeded for the whole team must carry the flag from the same set
+    // that decided eligibility, or a coach's decline lands in the player tally.
+    for (const kind of ["'training'", "'game'"]) {
+      const bad = `SELECT mt.member, ${kind}, t.id::text, 'declined', COALESCE(a.reason, ''), 0, false`
+      expect(HOOKS).not.toContain(bad)
+    }
+  })
+})
