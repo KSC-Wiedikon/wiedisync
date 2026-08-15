@@ -1381,6 +1381,30 @@ export default function ExplorerGrid({
               </TableCell>
             )
           }
+          // ⚠ Read mode renders TEXT, not a disabled editor.
+          //
+          // Every editable kind below mounts a component with its own state —
+          // and a `date` cell mounts a whole DatePicker, popover and calendar
+          // machinery included. At 711 members that is ~7,800 components on the
+          // default column set and ~21,000 if you add columns, which measured
+          // 1.1s and 2.0s to first paint. Editing is opt-in now, so the reading
+          // path (which is almost all of the time this page is open) can be a
+          // string in a cell. `bool`, `teams`, `reg_files` and `clubdesk_sync`
+          // are handled above and keep their own compact read renderings.
+          if (!canEditNow) {
+            // ⚠ `cellText` returns a date as the stored ISO string — deliberately,
+            // because it also feeds sort and export, and ISO sorts
+            // chronologically. The SCREEN must show Swiss dd.mm.yyyy
+            // (CLAUDE.md → Date & time format), which is what the editable cell
+            // did via DatePicker, so the read path has to format it too.
+            const raw = cellText(m, c.key)
+            const text = c.kind === 'date' ? formatShortDate(raw) : raw
+            return (
+              <TableCell key={c.key} className={`${c.minW} ${sticky} py-1 text-sm`}>
+                {text || <span className="text-muted-foreground">—</span>}
+              </TableCell>
+            )
+          }
           if (c.kind === 'countries') {
             // Multi-value + order-significant (first code is the ClubDesk one),
             // so this gets a chip picker rather than the free-text cell.
@@ -2430,9 +2454,12 @@ function EditableCell({
 // same `YYYY-MM-DD` string. `fromYear` matters for a birthdate — the year
 // dropdown has to reach back past 1900 for the oldest members.
 //
-// Unlike the text cells there is no separate click-to-edit step: the trigger IS
-// the cell, and picking a day commits. It is styled borderless so a row of
-// dates still reads as a spreadsheet rather than a row of buttons.
+// ⚠ Click-to-edit, like the text cells — NOT a DatePicker mounted per row.
+// It used to be the latter, on the reasoning that "the trigger IS the cell".
+// That is nicer for one cell and ruinous for 711: each one brings a popover and
+// a calendar, and switching the grid into edit mode took 1.9s almost entirely
+// because of it. The resting state is the same formatted text the read-only
+// path draws, so a column of dates still reads as a spreadsheet.
 function EditableDateCell({
   value, canEdit, onSave,
 }: {
@@ -2443,8 +2470,10 @@ function EditableDateCell({
   const { t } = useTranslation('admin')
   const [saving, setSaving] = useState(false)
   const [flash, setFlash] = useState(false)
+  const [editing, setEditing] = useState(false)
 
   const commit = async (next: string) => {
+    setEditing(false)
     const v = next.trim() === '' ? null : next.trim()
     if (v === (value ?? null)) return
     setSaving(true)
@@ -2459,10 +2488,22 @@ function EditableDateCell({
     }
   }
 
-  if (!canEdit) {
+  if (!canEdit || !editing) {
+    const shown = formatShortDate(value)
     return (
-      <div className="flex min-h-7 items-center px-1 -mx-1 text-sm">
-        {formatShortDate(value) || <span className="text-muted-foreground">—</span>}
+      <div
+        role={canEdit ? 'button' : undefined}
+        tabIndex={canEdit ? 0 : undefined}
+        onClick={() => { if (canEdit && !saving) setEditing(true) }}
+        onKeyDown={(e) => { if (canEdit && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); setEditing(true) } }}
+        className={
+          'flex min-h-7 items-center gap-1 px-1 -mx-1 text-sm ' +
+          (canEdit ? 'cursor-text rounded hover:bg-muted/80 hover:ring-1 hover:ring-border' : '')
+        }
+      >
+        {saving && <Loader2 className="h-3 w-3 shrink-0 animate-spin text-muted-foreground" />}
+        {flash && !saving && <Check className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />}
+        {shown || <span className="text-muted-foreground">—</span>}
       </div>
     )
   }

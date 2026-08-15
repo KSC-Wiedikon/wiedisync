@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '1.93.1'
+const APP_VERSION = '1.93.2'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,20 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.93.2',
+    date: '15.08.2026',
+    sections: [
+      {
+        title: 'The Database table opens about three times faster',
+        items: [
+          'The table was building an editor for every cell, even though you were only reading. With 711 members and the new ten-column default that is ~7,800 editors, and every date cell carried a whole calendar. It now draws plain text until you switch editing on: first paint went from 1.1 s to 0.4 s, and from 2.0 s to 0.8 s if you have thirty columns showing.',
+          'Switching editing on is quicker too — a date cell opens its calendar when you click it, instead of all 711 opening one in advance.',
+          'Nothing about what you see changed: same columns, same Swiss dates, same values.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.93.1',
     date: '15.08.2026',

@@ -1,7 +1,7 @@
 {
   "name": "wiedisync",
   "private": true,
-  "version": "1.93.1",
+  "version": "1.93.2",
   "type": "module",
   "scripts": {
     "dev": "vite",
