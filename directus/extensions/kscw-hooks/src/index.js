@@ -68,10 +68,11 @@ function safeDateStr(input) {
 }
 
 /**
- * Everyone expected at a game: its own roster PLUS the guests a coach opened it to
- * (migration 271). A drop-in replacement for `JOIN member_teams mt ON mt.team =
- * g.kscw_team` — it still exposes `mt.member` and `mt.guest_level`, so the surrounding
- * query is unchanged. Requires the games table to be aliased `g`.
+ * Everyone expected at a game: its own roster, PLUS the guests a coach opened it to
+ * (migration 271), PLUS the team's staff (2026-08-15). A drop-in replacement for
+ * `JOIN member_teams mt ON mt.team = g.kscw_team` — it still exposes `mt.member` and
+ * `mt.guest_level`, so the surrounding query is unchanged, and now also `mt.is_staff`.
+ * Requires the games table to be aliased `g`.
  *
  * Game guests report `guest_level = 0` deliberately: that column means "guest player of
  * this TEAM" (someone training along who may not play league games — see
@@ -79,15 +80,35 @@ function safeDateStr(input) {
  * invited precisely in order to play. The existing `guest_level = 0` filters in these
  * queries therefore include them, which is what we want.
  *
+ * Staff are the `teamPeopleSql` set inlined (coaches ∪ team responsibles, minus anyone
+ * already on the roster — a player-coach is a player, one row). They were missing from
+ * every reminder here: a coach got no RSVP deadline nudge and no "game tomorrow", on a
+ * sheet they are expected at. The second NOT EXISTS keeps a staff member who is ALSO a
+ * game guest from arriving twice with conflicting is_staff — a duplicate row here is a
+ * duplicate notification, not just a wasted join.
+ *
  * NOT used by the auto-confirm paths. Being lent to a game is not consent to play it —
  * a guest answers for themselves. Used by the reminder and absence sweeps, where the
  * whole point is to treat them like anyone else on the sheet.
  */
 const GAME_SQUAD_JOIN = `JOIN (
-          SELECT g2.id AS game, mt2.member, COALESCE(mt2.guest_level, 0) AS guest_level
+          SELECT g2.id AS game, mt2.member, COALESCE(mt2.guest_level, 0) AS guest_level, false AS is_staff
           FROM games g2 JOIN member_teams mt2 ON mt2.team = g2.kscw_team
           UNION
-          SELECT gg.game, gg.member, 0 FROM game_guests gg
+          SELECT gg.game, gg.member, 0, false FROM game_guests gg
+          UNION
+          SELECT g3.id, s.members_id, 0, true
+          FROM games g3
+          JOIN (
+            SELECT teams_id, members_id FROM teams_coaches
+            UNION
+            SELECT teams_id, members_id FROM teams_responsibles
+          ) s ON s.teams_id = g3.kscw_team
+          WHERE NOT EXISTS (
+            SELECT 1 FROM member_teams m2 WHERE m2.team = g3.kscw_team AND m2.member = s.members_id
+          ) AND NOT EXISTS (
+            SELECT 1 FROM game_guests gg2 WHERE gg2.game = g3.id AND gg2.member = s.members_id
+          )
         ) mt ON mt.game = g.id`
 
 const PUSH_WORKER_URL = process.env.PUSH_WORKER_URL || 'https://kscw-push.lucanepa.workers.dev'
@@ -1108,32 +1129,36 @@ export default ({ action, filter, init, schedule }, { services, database, logger
 
         const ins = await database.raw(`
           INSERT INTO participations (member, activity_type, activity_id, status, note, guest_count, is_staff, auto_declined_by, waitlisted_at)
-          SELECT ?::integer, 'training', t.id::text, 'declined', ?, 0, false, ?::integer, '1970-01-01 00:00:00+00'::timestamptz
+          SELECT ?::integer, 'training', t.id::text, 'declined', ?, 0, mt.is_staff, ?::integer, '1970-01-01 00:00:00+00'::timestamptz
           FROM trainings t
+          -- Respect the per-training guest toggle (excluded_guest_levels):
+          -- a member at an excluded guest level can't attend that training,
+          -- so the roster drops them. Auto-declining them would inflate the
+          -- RSVP tallies above the roster — the same drift guests caused on
+          -- games. Mirror autoConfirmTraining's exclusion. (Unlike games the
+          -- excluded set is per-training, so it is correlated to the training
+          -- row here rather than a hard guest_level = 0.)
+          --
+          -- teamPeopleSql (was a bare member_teams EXISTS), so a coach/TR on
+          -- holiday is declined out of their own trainings — and it is a LATERAL
+          -- rather than an EXISTS so the row's is_staff comes from the same
+          -- set that decided eligibility, instead of a hardcoded false. Since
+          -- 2026-08-15 auto-confirm seeds staff a confirmed row and the two
+          -- halves have to agree: the UPDATE above catches an absence filed
+          -- AFTER the confirm, this INSERT catches a training generated after
+          -- the absence. Miss it and a coach reads as attending while away.
+          JOIN LATERAL ${teamPeopleSql('t.team')} mt
+            ON mt.member = ?::integer
+           AND NOT (COALESCE(t.excluded_guest_levels, '[]')::jsonb @> to_jsonb(mt.guest_level))
           WHERE t.date >= ?::date AND t.date <= ?::date
             AND t.cancelled = false
             ${trainingDowClause}
-            -- Respect the per-training guest toggle (excluded_guest_levels):
-            -- a member at an excluded guest level can't attend that training,
-            -- so the roster drops them. Auto-declining them would inflate the
-            -- RSVP tallies above the roster — the same drift guests caused on
-            -- games. Mirror autoConfirmTraining's exclusion. (Unlike games the
-            -- excluded set is per-training, so it is correlated to the training
-            -- row here rather than a hard guest_level = 0.)
-            AND EXISTS (
-              SELECT 1 FROM member_teams mt
-              WHERE mt.team = t.team AND mt.member = ?::integer
-                AND NOT EXISTS (
-                  SELECT 1 FROM jsonb_array_elements_text(COALESCE(t.excluded_guest_levels, '[]'::jsonb)) ex(val)
-                  WHERE ex.val::int = mt.guest_level
-                )
-            )
             AND NOT EXISTS (
               SELECT 1 FROM participations p
               WHERE p.activity_type = 'training' AND p.activity_id = t.id::text AND p.member = ?::integer
             )
           ON CONFLICT DO NOTHING
-        `, [memberId, absence.reason || '', absenceId, effectiveStart, endDate, memberId, memberId])
+        `, [memberId, absence.reason || '', absenceId, memberId, effectiveStart, endDate, memberId])
         declined += ins?.rowCount || 0
       }
 
@@ -1155,31 +1180,36 @@ export default ({ action, filter, init, schedule }, { services, database, logger
 
         const ins = await database.raw(`
           INSERT INTO participations (member, activity_type, activity_id, status, note, guest_count, is_staff, auto_declined_by, waitlisted_at)
-          SELECT ?::integer, 'game', g.id::text, 'declined', ?, 0, false, ?::integer, '1970-01-01 00:00:00+00'::timestamptz
+          SELECT ?::integer, 'game', g.id::text, 'declined', ?, 0, mt.is_staff, ?::integer, '1970-01-01 00:00:00+00'::timestamptz
           FROM games g
-          WHERE g.date >= ?::date AND g.date <= ?::date
+          -- Guests (guest_level > 0) can never play league games — the
+          -- guest-block trigger forbids confirming and the UI hides RSVP
+          -- entirely. Auto-declining them creates rows that are excluded
+          -- from the game roster yet still inflate the card/modal RSVP
+          -- tallies (declined count drifts above the roster). Mirror the
+          -- auto-confirm guard (guest_level = 0) so we never seed them.
+          -- …but a GAME guest (migration 271) is the opposite case: invited to a
+          -- specific game precisely so they can play it, with no member_teams row on
+          -- that team at all. They belong in the sweep like any other player.
+          --
+          -- GAME_SQUAD_JOIN is exactly that union (roster ∪ game guests ∪ staff,
+          -- game guests reported at guest_level 0), so the two hand-rolled EXISTS
+          -- branches this replaced are now one join that also carries is_staff
+          -- — and it picks up coaches/TRs, who since 2026-08-15 hold an
+          -- auto-confirmed row that an absence has to be able to overturn.
+          ${GAME_SQUAD_JOIN}
+          WHERE mt.member = ?::integer
+            AND mt.guest_level = 0
+            AND g.date >= ?::date AND g.date <= ?::date
             AND g.kscw_team IS NOT NULL
             AND COALESCE(g.status, '') NOT IN ('completed', 'postponed', 'cancelled')
             ${pgDowClause.replace(/d\.date/g, 'g.date')}
-            -- Guests (guest_level > 0) can never play league games — the
-            -- guest-block trigger forbids confirming and the UI hides RSVP
-            -- entirely. Auto-declining them creates rows that are excluded
-            -- from the game roster yet still inflate the card/modal RSVP
-            -- tallies (declined count drifts above the roster). Mirror the
-            -- auto-confirm guard (guest_level = 0) so we never seed them.
-            -- …but a GAME guest (migration 271) is the opposite case: invited to a
-            -- specific game precisely so they can play it, with no member_teams row on
-            -- that team at all. They belong in the sweep like any other player.
-            AND (
-              EXISTS (SELECT 1 FROM member_teams mt WHERE mt.team = g.kscw_team AND mt.member = ?::integer AND mt.guest_level = 0)
-              OR EXISTS (SELECT 1 FROM game_guests gg WHERE gg.game = g.id AND gg.member = ?::integer)
-            )
             AND NOT EXISTS (
               SELECT 1 FROM participations p
               WHERE p.activity_type = 'game' AND p.activity_id = g.id::text AND p.member = ?::integer
             )
           ON CONFLICT DO NOTHING
-        `, [memberId, absence.reason || '', absenceId, effectiveStart, endDate, memberId, memberId, memberId])
+        `, [memberId, absence.reason || '', absenceId, memberId, effectiveStart, endDate, memberId])
         declined += ins?.rowCount || 0
       }
 
@@ -2195,11 +2225,10 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       if (!dateStr) return
       const res = await database.raw(`
         INSERT INTO participations (member, activity_type, activity_id, status, note, guest_count, is_staff, auto_declined_by, waitlisted_at)
-        SELECT mt.member, 'training', ?::text, 'declined', COALESCE(a.reason, ''), 0, false, a.id, '1970-01-01 00:00:00+00'::timestamptz
-        FROM member_teams mt
+        SELECT mt.member, 'training', ?::text, 'declined', COALESCE(a.reason, ''), 0, mt.is_staff, a.id, '1970-01-01 00:00:00+00'::timestamptz
+        FROM ${teamPeopleSql('?::integer')} mt
         JOIN absences a ON a.member = mt.member
-        WHERE mt.team = ?::integer
-          AND a.start_date::date <= ?::date AND a.end_date::date >= ?::date
+        WHERE a.start_date::date <= ?::date AND a.end_date::date >= ?::date
           AND (a.affects::jsonb @> '"all"' OR a.affects::jsonb @> '"trainings"')
           AND (a.type IS DISTINCT FROM 'weekly' OR (a.days_of_week::jsonb @> to_jsonb((EXTRACT(DOW FROM ?::date)::int + 6) % 7)))
           AND NOT EXISTS (
@@ -2207,7 +2236,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
             WHERE p.activity_type = 'training' AND p.activity_id = ?::text AND p.member = mt.member
           )
         ON CONFLICT DO NOTHING
-      `, [String(trainingId), training.team, dateStr, dateStr, dateStr, String(trainingId)])
+      `, [String(trainingId), training.team, training.team, dateStr, dateStr, dateStr, String(trainingId)])
       if (res?.rowCount > 0) log.info(`[absence-auto-decline] Training ${trainingId}: ${res.rowCount} members auto-declined`)
       const confirmed = await autoConfirmTraining(trainingId)
       if (confirmed > 0) log.info(`[auto-confirm] Training ${trainingId}: ${confirmed} members auto-confirmed`)
@@ -2263,11 +2292,10 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       if (!dateStr) return
       const res = await database.raw(`
         INSERT INTO participations (member, activity_type, activity_id, status, note, guest_count, is_staff, auto_declined_by, waitlisted_at)
-        SELECT mt.member, 'game', ?::text, 'declined', COALESCE(a.reason, ''), 0, false, a.id, '1970-01-01 00:00:00+00'::timestamptz
-        FROM member_teams mt
+        SELECT mt.member, 'game', ?::text, 'declined', COALESCE(a.reason, ''), 0, mt.is_staff, a.id, '1970-01-01 00:00:00+00'::timestamptz
+        FROM ${teamPeopleSql('?::integer')} mt
         JOIN absences a ON a.member = mt.member
-        WHERE mt.team = ?::integer
-          AND a.start_date::date <= ?::date AND a.end_date::date >= ?::date
+        WHERE a.start_date::date <= ?::date AND a.end_date::date >= ?::date
           AND (a.affects::jsonb @> '"all"' OR a.affects::jsonb @> '"games"')
           AND (a.type IS DISTINCT FROM 'weekly' OR (a.days_of_week::jsonb @> to_jsonb((EXTRACT(DOW FROM ?::date)::int + 6) % 7)))
           AND NOT EXISTS (
@@ -2275,7 +2303,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
             WHERE p.activity_type = 'game' AND p.activity_id = ?::text AND p.member = mt.member
           )
         ON CONFLICT DO NOTHING
-      `, [String(key), game.kscw_team, dateStr, dateStr, dateStr, String(key)])
+      `, [String(key), game.kscw_team, game.kscw_team, dateStr, dateStr, dateStr, String(key)])
       if (res?.rowCount > 0) log.info(`[absence-auto-decline] Game ${key}: ${res.rowCount} members auto-declined`)
 
       // Auto-confirm pass — per-activity override + team default. Guest-level=0
@@ -2372,7 +2400,11 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // eligibility isn't member_teams-shaped (club-wide / invited members) and
   // whose per-session rows re-check against their own session date.
 
-  async function reEvalActivityAutoDeclines(activityType, activityId, teamFilterSql, teamFilterParams, dateStr) {
+  // `teamId` replaced a caller-supplied `teamFilterSql`/`params` pair on
+  // 2026-08-15: both callers passed the identical `mt.team = ?::integer`, and
+  // the eligibility set below is no longer a bare `member_teams` scan with a
+  // `team` column to filter on.
+  async function reEvalActivityAutoDeclines(activityType, activityId, teamId, dateStr) {
     // 1. Unwind auto-declines that no longer match (new date outside window).
     //
     // ⚠ Two KINDS of row carry `auto_declined_by`, and they unwind differently —
@@ -2417,11 +2449,10 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     //    absence unwind DELETEs them rather than reverting to 'confirmed'.
     await database.raw(`
       INSERT INTO participations (member, activity_type, activity_id, status, note, guest_count, is_staff, auto_declined_by, waitlisted_at)
-      SELECT mt.member, ?, ?::text, 'declined', COALESCE(a.reason, ''), 0, false, a.id, '1970-01-01 00:00:00+00'::timestamptz
-      FROM member_teams mt
+      SELECT mt.member, ?, ?::text, 'declined', COALESCE(a.reason, ''), 0, mt.is_staff, a.id, '1970-01-01 00:00:00+00'::timestamptz
+      FROM ${teamPeopleSql('?::integer')} mt
       JOIN absences a ON a.member = mt.member
-      WHERE ${teamFilterSql}
-        AND a.start_date::date <= ?::date AND a.end_date::date >= ?::date
+      WHERE a.start_date::date <= ?::date AND a.end_date::date >= ?::date
         AND (a.affects::jsonb @> '"all"' OR a.affects::jsonb @> ?)
         AND (a.type IS DISTINCT FROM 'weekly' OR (a.days_of_week::jsonb @> to_jsonb((EXTRACT(DOW FROM ?::date)::int + 6) % 7)))
         AND NOT EXISTS (
@@ -2429,7 +2460,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
           WHERE p.activity_type = ? AND p.activity_id = ?::text AND p.member = mt.member
         )
       ON CONFLICT DO NOTHING
-    `, [activityType, String(activityId), ...teamFilterParams, dateStr, dateStr, `"${activityType}s"`, dateStr, activityType, String(activityId)])
+    `, [activityType, String(activityId), teamId, teamId, dateStr, dateStr, `"${activityType}s"`, dateStr, activityType, String(activityId)])
   }
 
   // Event flavor of the re-eval: delete stale auto-declines (whole-event rows
@@ -2859,7 +2890,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
           const t = await database('trainings').where('id', k).first()
           if (!t || t.cancelled || !t.team || !t.date) continue
           const dateStr = t.date.toISOString?.().split('T')[0] || String(t.date).split('T')[0]
-          await reEvalActivityAutoDeclines('training', k, 'mt.team = ?::integer', [t.team], dateStr)
+          await reEvalActivityAutoDeclines('training', k, t.team, dateStr)
         }
       } catch (err) {
         log.error({ msg: `[absence-auto-decline] Training update: ${err.message}`, event: 'absence_auto_decline_training_update', keys, stack: err.stack })
@@ -3058,7 +3089,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
           if (!g || !g.kscw_team || !g.date) continue
           if (['completed', 'postponed', 'cancelled'].includes(g.status)) continue
           const dateStr = g.date.toISOString?.().split('T')[0] || String(g.date).split('T')[0]
-          await reEvalActivityAutoDeclines('game', k, 'mt.team = ?::integer', [g.kscw_team], dateStr)
+          await reEvalActivityAutoDeclines('game', k, g.kscw_team, dateStr)
         }
       } catch (err) {
         log.error({ msg: `[absence-auto-decline] Game update: ${err.message}`, event: 'absence_auto_decline_game_update', keys, stack: err.stack })
@@ -3356,9 +3387,9 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       // (waitlisted_at sentinel marks these auto-decline-created → unwind DELETEs)
       const t1 = await database.raw(`
         INSERT INTO participations (member, activity_type, activity_id, status, note, guest_count, is_staff, auto_declined_by, waitlisted_at)
-        SELECT mt.member, 'training', t.id::text, 'declined', COALESCE(a.reason, ''), 0, false, a.id, '1970-01-01 00:00:00+00'::timestamptz
+        SELECT mt.member, 'training', t.id::text, 'declined', COALESCE(a.reason, ''), 0, mt.is_staff, a.id, '1970-01-01 00:00:00+00'::timestamptz
         FROM trainings t
-        JOIN member_teams mt ON mt.team = t.team
+        JOIN LATERAL ${teamPeopleSql('t.team')} mt ON true
         JOIN absences a ON a.member = mt.member
         WHERE t.date >= CURRENT_DATE AND t.cancelled = false
           AND a.start_date::date <= t.date AND a.end_date::date >= t.date
@@ -3375,7 +3406,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       // Games
       const t2 = await database.raw(`
         INSERT INTO participations (member, activity_type, activity_id, status, note, guest_count, is_staff, auto_declined_by, waitlisted_at)
-        SELECT mt.member, 'game', g.id::text, 'declined', COALESCE(a.reason, ''), 0, false, a.id, '1970-01-01 00:00:00+00'::timestamptz
+        SELECT mt.member, 'game', g.id::text, 'declined', COALESCE(a.reason, ''), 0, mt.is_staff, a.id, '1970-01-01 00:00:00+00'::timestamptz
         FROM games g
         ${GAME_SQUAD_JOIN}
         JOIN absences a ON a.member = mt.member
@@ -3602,13 +3633,12 @@ export default ({ action, filter, init, schedule }, { services, database, logger
                )::text,
                'training', t.id::text, t.team, false
         FROM trainings t
-        JOIN member_teams mt ON mt.team = t.team
+        JOIN LATERAL ${teamPeopleSql('t.team')} mt ON true
         LEFT JOIN halls h ON h.id = t.hall
         WHERE t.respond_by::date = ?::date
           AND t.team IS NOT NULL
           AND t.cancelled = false
-          AND (t.excluded_guest_levels IS NULL
-               OR NOT (t.excluded_guest_levels::jsonb @> to_jsonb(mt.guest_level)))
+          AND NOT (COALESCE(t.excluded_guest_levels, '[]')::jsonb @> to_jsonb(mt.guest_level))
           AND NOT EXISTS (
             SELECT 1 FROM participations p
             WHERE p.activity_type = 'training' AND p.activity_id = t.id::text AND p.member = mt.member
@@ -3749,7 +3779,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
                )::text,
                'training', t.id::text, t.team, false
         FROM trainings t
-        JOIN member_teams mt ON mt.team = t.team
+        JOIN LATERAL ${teamPeopleSql('t.team')} mt ON true
         LEFT JOIN halls h ON h.id = t.hall
         WHERE t.date = ?::date AND t.team IS NOT NULL AND t.cancelled = false
       `, [tomorrowStr])
