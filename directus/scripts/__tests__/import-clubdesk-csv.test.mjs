@@ -48,17 +48,29 @@ test('emit-sql exits 0 and produces the staging load', () => {
   assert.ok(copyLine.includes('trainer_lizenz'), 'trainer_lizenz missing from staging load');
 });
 
-test('member-create pass sits between the linker and the sex pass', () => {
+// The create pass STAGES a proposal now (migration 321) instead of inserting the
+// member itself, so these anchor on the proposal INSERT. The guards below did
+// not move and are still the hard part — see the create-pass comment in the
+// script: they are what keeps 447 departed contacts and every married-name
+// re-registration out of the queue. Staging a bad create is cheaper than
+// inserting one, but only because a human then has to judge it; a guard that
+// stopped working would bury the real proposals in noise.
+const CREATE_INSERT = "INSERT INTO clubdesk_sync_proposals (member_id, clubdesk_id, field, current_value, proposed_value, rule, payload)";
+
+test('create-proposal pass sits between the linker and the duplicate report', () => {
   const linker = sql.indexOf("'members_linked_clubdesk'");
-  const create = sql.indexOf('INSERT INTO members');
-  const sex = sql.indexOf("'members_missing_sex'");
-  assert.ok(linker > 0 && create > linker && sex > create, `order broken: linker=${linker} create=${create} sex=${sex}`);
-  // exactly one create pass
-  assert.equal(sql.split('INSERT INTO members').length - 1, 1);
+  const create = sql.indexOf(CREATE_INSERT);
+  const dupes = sql.indexOf("'clubdesk_contact_suspected_duplicate'");
+  assert.ok(linker > 0 && create > linker && dupes > create,
+    `order broken: linker=${linker} create=${create} dupes=${dupes}`);
+  // Linking must precede it, or every already-linked member looks missing.
+  assert.equal(sql.split(CREATE_INSERT).length - 1, 1, 'exactly one create pass');
+  assert.ok(sql.indexOf("'clubdesk_create_proposals'") > create, 'create metric missing');
 });
 
-test('create pass carries all four same-person guards and the scope filters', () => {
-  const pass = sql.slice(sql.lastIndexOf('WITH cd AS (', sql.indexOf('INSERT INTO members')), sql.indexOf('INSERT INTO members'));
+test('create-proposal pass carries all four same-person guards and the scope filters', () => {
+  const at = sql.indexOf(CREATE_INSERT);
+  const pass = sql.slice(sql.lastIndexOf('WITH cd AS (', at), at);
   assert.ok(pass.includes("btrim(status) IN ('Aktivmitglied','Passivmitglied','Ehrenmitglied','Zwischenjahr')"), 'status scope');
   assert.ok(pass.includes("NULLIF(btrim(austritt),'') IS NULL"), 'austritt scope');
   assert.ok(pass.includes('length(btrim(clubdesk_id)) <= 64'), 'cdid length cap');
@@ -67,12 +79,37 @@ test('create pass carries all four same-person guards and the scope filters', ()
   assert.match(pass, /\(length\(c2\.cdid\), c2\.cdid\) < \(length\(cd\.cdid\), cd\.cdid\)/, 'numeric-safe twin ordering');
 });
 
+test('a refused create proposal is never re-proposed', () => {
+  const at = sql.indexOf(CREATE_INSERT);
+  const pass = sql.slice(at, sql.indexOf("'clubdesk_create_proposals'"));
+  // ON CONFLICT covers the PENDING partial unique; the refused one is a
+  // DIFFERENT index, so without this NOT EXISTS a refusal would be re-raised on
+  // every run and refusing would stop being a durable decision.
+  assert.ok(pass.includes('ON CONFLICT DO NOTHING'), 're-run guard missing');
+  assert.match(pass, /NOT EXISTS[\s\S]*status = 'refused'/, 'refused tombstone not honoured');
+});
+
 test('suspected-duplicate report and public_stats refresh are emitted after the create pass', () => {
-  const create = sql.indexOf('INSERT INTO members');
+  const create = sql.indexOf(CREATE_INSERT);
+  assert.ok(create > 0, 'create pass missing entirely');
   assert.ok(sql.indexOf("'clubdesk_contact_suspected_duplicate'") > create, 'skip report missing');
   const stats = sql.indexOf("to_regclass('public.public_stats')");
   assert.ok(stats > create, 'public_stats refresh missing');
   assert.ok(sql.indexOf("'members_active_total'") > stats, 'final active-count metric missing');
+});
+
+// The whole point of migration 321: the sync-down PROPOSES and does not write.
+// Linking is the one deliberate exception — `clubdesk_id` is identity, not data,
+// and it only ever fills an empty cell. If a data column ever reappears in an
+// UPDATE here, a correction made in wiedisync can be silently reverted by the
+// next weekly cron, which is the defect the review queue exists to remove.
+test('the sync-down writes nothing to members except the clubdesk_id link', () => {
+  assert.equal(sql.split('INSERT INTO members').length - 1, 0, 'sync-down must not insert members');
+  const updates = sql.match(/UPDATE members[^\n]*\n?[^\n]*/g) ?? [];
+  assert.ok(updates.length > 0, 'the linker passes disappeared');
+  for (const u of updates) {
+    assert.match(u, /SET clubdesk_id =/, `sync-down writes a data column: ${u.trim()}`);
+  }
 });
 
 test('emitted SQL is parenthesis-balanced (guards against pass-editing slips)', () => {
