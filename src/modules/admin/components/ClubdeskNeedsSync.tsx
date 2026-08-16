@@ -169,12 +169,15 @@ export default function ClubdeskNeedsSync({
             {t('cdNeedsSyncAllGood', { count: inSync })}
           </p>
         ) : (
-          <div className="max-h-96 overflow-y-auto">
+          <div className="max-h-96 overflow-x-auto overflow-y-auto">
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
                   <TableHead>{t('clubdeskGroupColName')}</TableHead>
                   <TableHead>{t('cdSyncColStatus')}</TableHead>
+                  <TableHead>{t('cdSyncColField')}</TableHead>
+                  <TableHead>{t('cdSyncColWiedisync')}</TableHead>
+                  <TableHead>{t('cdSyncColClubdesk')}</TableHead>
                   <TableHead className="hidden sm:table-cell">{t('clubdeskGroupColClubdeskId')}</TableHead>
                   <TableHead className="hidden md:table-cell">{t('cdColLastBill')}</TableHead>
                   <TableHead className="w-32 text-right">{t('cdSyncColAction')}</TableHead>
@@ -191,23 +194,31 @@ export default function ClubdeskNeedsSync({
                       <span className="mt-0.5 block text-xs text-muted-foreground">
                         {t(`cdSyncHint_${r.status}`)}
                       </span>
-                      {(r.conflicts ?? []).length > 0 && (
-                        <ul className="mt-1 space-y-0.5">
-                          {(r.conflicts ?? []).map((d) => (
-                            <li key={d.field} className="text-xs">
-                              <span className="font-medium text-gray-700 dark:text-gray-300">
-                                {FIELD_LABEL[d.field] ? t(FIELD_LABEL[d.field]) : d.field}
-                              </span>
-                              {': '}
-                              <span className="text-gray-600 dark:text-gray-400">{d.wiedisync || '—'}</span>
-                              <span className="text-muted-foreground"> → </span>
-                              <span className="text-gray-600 dark:text-gray-400">{d.clubdesk || '—'}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
+
                     </TableCell>
-                    <TableCell className="hidden whitespace-nowrap text-muted-foreground sm:table-cell">
+                    {/* ⚠ Three cells rather than one "ours → theirs" string: an
+                        arrow does not say which end is which, and knowing which
+                        side to trust is the whole point of the row. The three
+                        lists render in the same order so the lines align across
+                        the columns when a member has several conflicts. */}
+                    <TableCell className="whitespace-normal break-words align-top text-xs font-medium text-gray-700 dark:text-gray-300">
+                      {(r.conflicts ?? []).map((d) => (
+                        <div key={d.field} className="py-0.5">
+                          {FIELD_LABEL[d.field] ? t(FIELD_LABEL[d.field]) : d.field}
+                        </div>
+                      ))}
+                    </TableCell>
+                    <TableCell className="whitespace-normal break-words align-top text-xs">
+                      {(r.conflicts ?? []).map((d) => (
+                        <div key={d.field} className="py-0.5">{d.wiedisync || '—'}</div>
+                      ))}
+                    </TableCell>
+                    <TableCell className="whitespace-normal break-words align-top text-xs">
+                      {(r.conflicts ?? []).map((d) => (
+                        <div key={d.field} className="py-0.5">{d.clubdesk || '—'}</div>
+                      ))}
+                    </TableCell>
+                    <TableCell className="hidden whitespace-nowrap align-top text-muted-foreground sm:table-cell">
                       {r.clubdesk_id || '—'}
                     </TableCell>
                     <TableCell className="hidden whitespace-normal break-words md:table-cell">
