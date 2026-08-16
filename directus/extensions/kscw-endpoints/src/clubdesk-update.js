@@ -3002,6 +3002,13 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       drift.filter((c) => c.conflicts.length && c.conflicts.every((d) => NAME_FIELDS.has(d.field)))
         .map((c) => String(c.member_id)),
     )
+    // The field-level diff, carried out so the list can say WHICH field differs
+    // instead of "a field differs" (2026-08-16). It is the same data the
+    // Club-wide findings already showed; the status list was throwing it away and
+    // leaving the reader to go and look it up somewhere else.
+    const conflictsById = new Map(
+      drift.filter((c) => c.conflicts.length).map((c) => [String(c.member_id), c.conflicts]),
+    )
 
     const statuses = {}
     for (const m of members) {
@@ -3017,7 +3024,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       else status = 'in_sync'
       statuses[id] = status
     }
-    return { statuses, members }
+    return { statuses, members, conflictsById }
   }
 
   router.get('/clubdesk-sync-status', async (req, res) => {
@@ -3048,7 +3055,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
   router.get('/clubdesk-needs-sync', async (req, res) => {
     try {
       if (!(await superGate(req))) return res.status(403).json({ error: 'Forbidden' })
-      const { statuses, members } = await computeMemberSyncStatuses()
+      const { statuses, members, conflictsById } = await computeMemberSyncStatuses()
       const rows = members.filter((m) => NEEDS_SYNC_STATUSES.includes(statuses[String(m.id)]))
 
       // Section per member, from the ONE server-side resolver. The detailed form
@@ -3074,6 +3081,9 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
             // 'both' would then claim the member plays two sports.
             sport_source: s.source,
             last_bill: bills.get(String(m.id)) || null,
+            // [{ field, wiedisync, clubdesk }] — empty for the statuses that are
+            // not a field disagreement (not_linked / stale / departed / pending).
+            conflicts: conflictsById.get(String(m.id)) || [],
           }
         }),
         in_sync: Object.values(statuses).filter((s) => s === 'in_sync').length,
