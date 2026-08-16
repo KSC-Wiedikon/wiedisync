@@ -739,6 +739,13 @@ export default function DataHealthPage() {
               <ClubdeskSyncPath
                 pendingProposals={pendingProposals}
                 fixableCount={Object.values(fixAvailable).reduce((a, b) => a + b, 0)}
+                // What the push would actually carry: members already flagged,
+                // plus the unlinked ones the CREATE set builds. Unfiltered by
+                // sport on purpose — the push is club-wide, so gating the path on
+                // the current tab's slice would stall it on an empty sport.
+                pendingPush={needsSync.filter(
+                  (r) => r.status === 'pending' || r.status === 'not_linked',
+                ).length}
                 onRunUp={() => setSyncUpOpen(true)}
                 onRunGroups={() => setFixGroupsOpen(true)}
                 onDone={runChecks}
