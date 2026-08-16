@@ -620,6 +620,9 @@ export default {
   cdSyncStatus_drift: 'Abweichung',
   cdSyncStatus_name_drift: 'Name weicht ab',
   cdSyncColAction: 'Aktion',
+  cdSyncColField: 'Feld',
+  cdSyncColWiedisync: 'Wiedisync',
+  cdSyncColClubdesk: 'ClubDesk',
   // ClubDesk field labels for the per-row diff in Needs syncing
   cdFieldFirstName: 'Vorname',
   cdFieldLastName: 'Nachname',
