@@ -2260,6 +2260,15 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
   }
 
   async function computeClubdeskDrift(memberIds = null) {
+    // alias → ISO code, both vocabularies in one map: it is what lets the
+    // nationality comparison below ask "same country?" instead of "same
+    // spelling?". Loaded once per call; the table is ~small and static.
+    const countryAlias = new Map()
+    try {
+      for (const a of await database('country_name_aliases').select('alias', 'code')) {
+        countryAlias.set(String(a.alias || '').trim().toLowerCase(), String(a.code || '').trim().toUpperCase())
+      }
+    } catch { /* no alias table → fall back to string compare, as before */ }
     // clubdesk_people lacks adresse/plz/ort/telefon_privat → dedupe the raw
     // per-group staging table ourselves (contact fields are identical across a
     // contact's group rows, so any row per clubdesk_id works).
@@ -2414,7 +2423,17 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
         }
       }
       cmpEcho('anrede', r.anrede, r.cd_anrede, driftLower(r.anrede), driftLower(r.cd_anrede))
-      cmpEcho('nationalitaet', r.nationalitaet, r.cd_nationalitaet, driftLower(r.nationalitaet), driftLower(r.cd_nationalitaet))
+      // ⚠ Nationality compares by CODE, not by display string (2026-08-15).
+      // `members.nationalitaet` is trigger-derived from `nationalitaet_codes`
+      // into OUR display name, while ClubDesk holds its own picklist spelling —
+      // so "Vereinigte Staaten" and "USA" are the same country reported as a
+      // conflict forever, with no sync able to resolve it (the column is
+      // fill-only downward and the push echoes the register's own wording back).
+      // Measured on prod: 3 of the 8 non-name conflicts were exactly this pair.
+      // country_name_aliases is the table that already knows both vocabularies.
+      const natMine = countryAlias.get(driftLower(r.nationalitaet)) || driftLower(r.nationalitaet)
+      const natCd = countryAlias.get(driftLower(r.cd_nationalitaet)) || driftLower(r.cd_nationalitaet)
+      cmpEcho('nationalitaet', r.nationalitaet, r.cd_nationalitaet, natMine, natCd)
       // Federation of Origin: wiedisync stores a code, ClubDesk a German
       // picklist string, so compare (and DISPLAY) the mapped value — same
       // computed-then-compared shape as sexCd above. Echo-protected like the

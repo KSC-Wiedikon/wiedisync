@@ -527,6 +527,7 @@ export default function DataHealthPage() {
   // owned by the proposals table, which is the thing that changes it.
   const [pendingProposals, setPendingProposals] = useState(0)
   const [fixGroupsOpen, setFixGroupsOpen] = useState(false)
+  const [flaggingMember, setFlaggingMember] = useState<number | null>(null)
 
   // ── ClubDesk findings, owned here ──────────────────────────────────────────
   // One fetch feeds the group-check table AND the "Fix groups" button, so the
@@ -767,6 +768,23 @@ export default function DataHealthPage() {
                   lastDown={syncMeta.lastDown}
                   lastUp={syncMeta.lastUp}
                   loading={loading}
+                  flagging={flaggingMember}
+                  onFlag={async (memberId) => {
+                    setFlaggingMember(memberId)
+                    try {
+                      const r = await kscwApi<{ flagged: number; skipped_blank_risk: number }>(
+                        '/clubdesk-drift/flag',
+                        { method: 'POST', body: { member_ids: [memberId] } },
+                      )
+                      if (r.flagged > 0) toast.success(t('cdSyncFlagged', { count: r.flagged }))
+                      else toast.info(t('cdSyncFlagNothing'))
+                      await runChecks()
+                    } catch (e) {
+                      toast.error(e instanceof Error ? e.message : String(e))
+                    } finally {
+                      setFlaggingMember(null)
+                    }
+                  }}
                 />
                 <ClubdeskGroupCheck
                   data={groupData}

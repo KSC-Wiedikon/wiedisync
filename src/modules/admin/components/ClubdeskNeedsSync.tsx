@@ -54,13 +54,28 @@ const TONE: Record<SyncStatus, string> = {
 // Presentational — the page owns the fetch and the single Rescan button in the
 // header, so this card deliberately has no refresh of its own.
 export default function ClubdeskNeedsSync({
-  rows, inSync, lastDown, lastUp, loading,
+  rows, inSync, lastDown, lastUp, loading, onFlag, flagging,
 }: {
   rows: NeedsSyncRow[]
   inSync: number
   lastDown: string | null
   lastUp: string | null
   loading: boolean
+  /**
+   * Resolve a `drift` row by making OUR value win: flags the member so the next
+   * sync-up writes it into the register.
+   *
+   * ⚠ This affordance has to live HERE, on the row that states the problem. A
+   * drift conflict is the one thing neither sync direction clears on its own —
+   * the down-sync is fill-only on these columns so it proposes nothing when both
+   * sides hold a value, and the up-sync only carries members already flagged. So
+   * "sync down, sync up" leaves the row exactly where it was, forever, until
+   * somebody says which side is right. The button was previously only on the
+   * Club-wide tab, one tab away from the list that shows the problem.
+   */
+  onFlag?: (memberId: number) => void | Promise<void>
+  /** member_id currently being flagged, for the row's busy state. */
+  flagging?: number | null
 }) {
   const { t, i18n } = useTranslation('admin')
 
@@ -127,6 +142,7 @@ export default function ClubdeskNeedsSync({
                   <TableHead>{t('cdSyncColStatus')}</TableHead>
                   <TableHead className="hidden sm:table-cell">{t('clubdeskGroupColClubdeskId')}</TableHead>
                   <TableHead className="hidden md:table-cell">{t('cdColLastBill')}</TableHead>
+                  <TableHead className="w-32 text-right">{t('cdSyncColAction')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -146,6 +162,22 @@ export default function ClubdeskNeedsSync({
                     </TableCell>
                     <TableCell className="hidden whitespace-normal break-words md:table-cell">
                       <LastBillCell bill={r.last_bill} />
+                    </TableCell>
+                    <TableCell className="w-32 text-right">
+                      {/* Only a drift row has an action: ours-vs-theirs is the one
+                          state a decision resolves. A name difference cannot be
+                          pushed at all (the CSV is name-less), and departed /
+                          not_linked are handled by their own flows. */}
+                      {r.status === 'drift' && onFlag && (
+                        <Button
+                          type="button" size="sm" variant="outline"
+                          disabled={flagging === r.member_id}
+                          aria-busy={flagging === r.member_id}
+                          onClick={() => void onFlag(r.member_id)}
+                        >
+                          {t('cdSyncFlagOurs')}
+                        </Button>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
