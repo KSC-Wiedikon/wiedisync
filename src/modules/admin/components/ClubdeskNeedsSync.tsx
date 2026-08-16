@@ -30,6 +30,41 @@ export interface NeedsSyncRow {
   sport: 'volleyball' | 'basketball' | 'both'
   sport_source: 'teams' | 'sektion' | 'fee' | 'unknown'
   last_bill: LastBill | null
+  /**
+   * The field-level diff behind a `drift` / `name_drift` row. Empty for the
+   * statuses that are not a disagreement about a value.
+   *
+   * ⚠ Named per field on purpose: "a field differs from ClubDesk" is true of
+   * every row and tells the reader nothing — they had to open the Club-wide tab
+   * to find out which. Showing both values is also what makes a MIS-LINK
+   * self-evident ("Aurora Cardinale Bosio" against "Alberto Cascino") rather
+   * than looking like a spelling wobble.
+   */
+  conflicts?: { field: string; wiedisync: string; clubdesk: string }[]
+}
+
+/** Field name → label key. Anything unmapped falls back to the raw column. */
+const FIELD_LABEL: Record<string, string> = {
+  first_name: 'cdFieldFirstName',
+  last_name: 'cdFieldLastName',
+  email: 'cdFieldEmail',
+  phone: 'cdFieldPhone',
+  adresse: 'cdFieldAdresse',
+  plz: 'cdFieldPlz',
+  ort: 'cdFieldOrt',
+  birthdate: 'cdFieldBirthdate',
+  sex: 'cdFieldSex',
+  iban: 'cdFieldIban',
+  anrede: 'cdFieldAnrede',
+  nationalitaet: 'cdFieldNationalitaet',
+  federation_of_origin: 'cdFieldFederation',
+  ahv_nummer: 'cdFieldAhv',
+  register_status: 'cdFieldRegisterStatus',
+  beitragskategorie: 'cdFieldKategorie',
+  eintritt: 'cdFieldEintritt',
+  austritt: 'cdFieldAustritt',
+  trainer_licences: 'cdFieldTrainerLicences',
+  gast: 'cdFieldGast',
 }
 
 /**
@@ -156,6 +191,21 @@ export default function ClubdeskNeedsSync({
                       <span className="mt-0.5 block text-xs text-muted-foreground">
                         {t(`cdSyncHint_${r.status}`)}
                       </span>
+                      {(r.conflicts ?? []).length > 0 && (
+                        <ul className="mt-1 space-y-0.5">
+                          {(r.conflicts ?? []).map((d) => (
+                            <li key={d.field} className="text-xs">
+                              <span className="font-medium text-gray-700 dark:text-gray-300">
+                                {FIELD_LABEL[d.field] ? t(FIELD_LABEL[d.field]) : d.field}
+                              </span>
+                              {': '}
+                              <span className="text-gray-600 dark:text-gray-400">{d.wiedisync || '—'}</span>
+                              <span className="text-muted-foreground"> → </span>
+                              <span className="text-gray-600 dark:text-gray-400">{d.clubdesk || '—'}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
                     </TableCell>
                     <TableCell className="hidden whitespace-nowrap text-muted-foreground sm:table-cell">
                       {r.clubdesk_id || '—'}
