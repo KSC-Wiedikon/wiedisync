@@ -40,7 +40,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { ArrowDownToLine, ArrowUpFromLine, Check, ListChecks, Loader2, Wrench } from 'lucide-react'
+import { ArrowDownToLine, ArrowUpFromLine, Check, ListChecks, Loader2, RotateCcw, Wrench } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { kscwApi } from '../../../lib/api'
 
@@ -60,12 +60,23 @@ const ICON: Record<PathStep, typeof Check> = {
 interface SyncStatus { state: string; up_state?: string }
 
 export default function ClubdeskSyncPath({
-  pendingProposals, fixableCount, onRunUp, onRunGroups, onDone,
+  pendingProposals, fixableCount, pendingPush, onRunUp, onRunGroups, onDone,
 }: {
   /** Open proposals — step 2 cannot pass while this is non-zero. */
   pendingProposals: number
   /** Group findings the fix can act on — step 5 is skipped when zero. */
   fixableCount: number
+  /**
+   * Members the sync-up would actually carry: flagged for push, plus unlinked
+   * ones the CREATE set would build. Zero means step 3 has nothing to do.
+   *
+   * ⚠ Without this the path DEAD-ENDS. Steps 3 and 5 hand off to a modal, and a
+   * modal that opens on "Nothing to push — everything is in sync" gives the
+   * runner nothing to advance on: you close it and the marker is still on step
+   * 3, forever. Knowing the step is a no-op BEFORE offering it is what keeps the
+   * chain moving.
+   */
+  pendingPush: number
   /** Hand control to the existing sync-up modal (reused, not reimplemented). */
   onRunUp: () => void
   /** Hand control to the existing Fix groups dialog (preview → commit lives there). */
@@ -108,7 +119,13 @@ export default function ClubdeskSyncPath({
   // is the cascading-render bug react-hooks/set-state-in-effect exists to catch
   // (the same trap ClubdeskProposals hit). `step` stores how far the user has
   // got; `current` is what that means given live counts.
-  const current: PathStep = step === 'decide' && pendingProposals === 0 ? 'up' : step
+  // Chained so a run with nothing to do in the middle still reaches the end:
+  // decide with no proposals falls through to the push, a push with nothing
+  // queued falls through to the second down, and no group findings means done.
+  let current: PathStep = step
+  if (current === 'decide' && pendingProposals === 0) current = 'up'
+  if (current === 'up' && pendingPush === 0) current = 'down2'
+  if (current === 'groups' && fixableCount === 0) current = 'done'
 
   const advance = useCallback(async () => {
     setActive(true)
@@ -131,13 +148,15 @@ export default function ClubdeskSyncPath({
   const label = useMemo(() => ({
     down1: t('dhPathStep1'),
     decide: t('dhPathStep2', { count: pendingProposals }),
-    up: t('dhPathStep3'),
+    up: pendingPush === 0 ? t('dhPathStep3Empty') : t('dhPathStep3'),
     down2: t('dhPathStep4'),
-    groups: t('dhPathStep5', { count: fixableCount }),
+    groups: fixableCount === 0 ? t('dhPathStep5Empty') : t('dhPathStep5', { count: fixableCount }),
     done: t('dhPathDone'),
-  }), [t, pendingProposals, fixableCount])
+  }), [t, pendingProposals, fixableCount, pendingPush])
 
-  const stepIndex = STEPS.indexOf(current)
+  // ⚠ 'done' is deliberately not in STEPS, so indexOf would give -1 and render
+  // every step as still-pending at the exact moment they are all complete.
+  const stepIndex = current === 'done' ? STEPS.length : STEPS.indexOf(current)
   const blocked = current === 'decide' && pendingProposals > 0
 
   return (
@@ -147,7 +166,16 @@ export default function ClubdeskSyncPath({
           <h3 className="text-sm font-medium text-gray-900 dark:text-white">{t('dhPathTitle')}</h3>
           <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{t('dhPathHint')}</p>
         </div>
-        {current !== 'done' && (
+        {current === 'done' ? (
+          <Button
+            type="button" size="sm" variant="outline"
+            onClick={() => { setStep('down1'); setActive(false) }}
+            className="gap-1.5"
+          >
+            <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+            {t('dhPathRestart')}
+          </Button>
+        ) : (
           <Button
             type="button" size="sm"
             variant={active ? 'default' : 'outline'}
