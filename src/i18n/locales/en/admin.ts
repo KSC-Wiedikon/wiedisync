@@ -621,6 +621,8 @@ export default {
   cdSyncStatus_name_drift: 'Name differs',
   cdSyncColAction: 'Action',
   cdSyncColField: 'Field',
+  cdSyncTabAll: 'All ({{count}})',
+  cdSyncToggleDetails: 'Show details for {{name}}',
   cdSyncColWiedisync: 'Wiedisync',
   cdSyncColClubdesk: 'ClubDesk',
   // ClubDesk field labels for the per-row diff in Needs syncing

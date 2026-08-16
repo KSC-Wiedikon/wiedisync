@@ -9,12 +9,14 @@
 // rather than "the check stopped looking" (the false all-clear that let a 401
 // print "✓ 0/80 mismatches" during the 2026-07-16 hall audit).
 
+import { Fragment, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Download, RefreshCw } from 'lucide-react'
+import { ChevronDown, ChevronRight, Download, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { formatDateZurich } from '../../../utils/dateHelpers'
 import { toXlsx, downloadBlob } from '../utils/exportResults'
 import LastBillCell from './LastBillCell'
@@ -67,6 +69,9 @@ const FIELD_LABEL: Record<string, string> = {
   gast: 'cdFieldGast',
 }
 
+/** Tab order: most actionable first, unfixable-by-sync last. */
+const STATUS_ORDER: SyncStatus[] = ['drift', 'pending', 'not_linked', 'stale', 'departed', 'name_drift']
+
 /**
  * Red = the link itself is broken or the person has left; amber = a push is owed;
  * grey = nothing a sync can do.
@@ -113,6 +118,28 @@ export default function ClubdeskNeedsSync({
   flagging?: number | null
 }) {
   const { t, i18n } = useTranslation('admin')
+  const [statusTab, setStatusTab] = useState<string>('all')
+  const [expanded, setExpanded] = useState<Set<number>>(new Set())
+
+  // Tabs are built from what is actually PRESENT, not from the full status
+  // union — an empty "Departed (0)" tab is a dead end the reader has to click to
+  // discover. Order follows STATUS_ORDER so the list does not reshuffle between
+  // scans as counts change.
+  const byStatus = useMemo(() => {
+    const m: Record<string, NeedsSyncRow[]> = {}
+    for (const r of rows) (m[r.status] ||= []).push(r)
+    return m
+  }, [rows])
+  const presentStatuses = useMemo(
+    () => STATUS_ORDER.filter((st) => (byStatus[st]?.length ?? 0) > 0),
+    [byStatus],
+  )
+  // A tab can disappear between scans (the last drift row got resolved), so fall
+  // back rather than render an empty table under a tab that no longer exists.
+  const activeTab: string = statusTab !== 'all' && !presentStatuses.includes(statusTab as SyncStatus)
+    ? 'all'
+    : statusTab
+  const shown = activeTab === 'all' ? rows : (byStatus[activeTab] ?? [])
 
   // Exports are always English regardless of UI locale.
   const handleExport = async () => {
@@ -169,82 +196,148 @@ export default function ClubdeskNeedsSync({
             {t('cdNeedsSyncAllGood', { count: inSync })}
           </p>
         ) : (
-          <div className="max-h-96 overflow-x-auto overflow-y-auto">
-            <Table>
-              <TableHeader>
-                <TableRow className="hover:bg-transparent">
-                  <TableHead>{t('clubdeskGroupColName')}</TableHead>
-                  <TableHead>{t('cdSyncColStatus')}</TableHead>
-                  <TableHead>{t('cdSyncColField')}</TableHead>
-                  <TableHead>{t('cdSyncColWiedisync')}</TableHead>
-                  <TableHead>{t('cdSyncColClubdesk')}</TableHead>
-                  <TableHead className="hidden sm:table-cell">{t('clubdeskGroupColClubdeskId')}</TableHead>
-                  <TableHead className="hidden md:table-cell">{t('cdColLastBill')}</TableHead>
-                  <TableHead className="w-32 text-right">{t('cdSyncColAction')}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map((r) => (
-                  <TableRow key={r.member_id} className="min-h-11">
-                    <TableCell className="whitespace-normal break-words font-medium">{r.member_name}</TableCell>
-                    <TableCell className="whitespace-normal break-words">
-                      <span className={`whitespace-nowrap rounded px-1.5 py-0.5 text-xs font-medium ${TONE[r.status]}`}>
-                        {t(`cdSyncStatus_${r.status}`)}
-                      </span>
-                      <span className="mt-0.5 block text-xs text-muted-foreground">
-                        {t(`cdSyncHint_${r.status}`)}
-                      </span>
-
-                    </TableCell>
-                    {/* ⚠ Three cells rather than one "ours → theirs" string: an
-                        arrow does not say which end is which, and knowing which
-                        side to trust is the whole point of the row. The three
-                        lists render in the same order so the lines align across
-                        the columns when a member has several conflicts. */}
-                    <TableCell className="whitespace-normal break-words align-top text-xs font-medium text-gray-700 dark:text-gray-300">
-                      {(r.conflicts ?? []).map((d) => (
-                        <div key={d.field} className="py-0.5">
-                          {FIELD_LABEL[d.field] ? t(FIELD_LABEL[d.field]) : d.field}
-                        </div>
-                      ))}
-                    </TableCell>
-                    <TableCell className="whitespace-normal break-words align-top text-xs">
-                      {(r.conflicts ?? []).map((d) => (
-                        <div key={d.field} className="py-0.5">{d.wiedisync || '—'}</div>
-                      ))}
-                    </TableCell>
-                    <TableCell className="whitespace-normal break-words align-top text-xs">
-                      {(r.conflicts ?? []).map((d) => (
-                        <div key={d.field} className="py-0.5">{d.clubdesk || '—'}</div>
-                      ))}
-                    </TableCell>
-                    <TableCell className="hidden whitespace-nowrap align-top text-muted-foreground sm:table-cell">
-                      {r.clubdesk_id || '—'}
-                    </TableCell>
-                    <TableCell className="hidden whitespace-normal break-words md:table-cell">
-                      <LastBillCell bill={r.last_bill} />
-                    </TableCell>
-                    <TableCell className="w-32 text-right">
-                      {/* Only a drift row has an action: ours-vs-theirs is the one
-                          state a decision resolves. A name difference cannot be
-                          pushed at all (the CSV is name-less), and departed /
-                          not_linked are handled by their own flows. */}
-                      {r.status === 'drift' && onFlag && (
-                        <Button
-                          type="button" size="sm" variant="outline"
-                          disabled={flagging === r.member_id}
-                          aria-busy={flagging === r.member_id}
-                          onClick={() => void onFlag(r.member_id)}
-                        >
-                          {t('cdSyncFlagOurs')}
-                        </Button>
-                      )}
-                    </TableCell>
-                  </TableRow>
+          <>
+            {/* ⚠ Status became a FILTER, not a column (2026-08-16). As a column it
+                carried a sentence of explanation on every row, which squeezed the
+                three value columns and pushed the action button off-screen — the
+                one thing the row exists to offer. As tabs it groups like with
+                like, states the explanation once, and gives the table its width
+                back. */}
+            <Tabs value={activeTab} onValueChange={setStatusTab}>
+              <TabsList className="mb-2 flex-wrap">
+                <TabsTrigger value="all" className="min-h-11 sm:min-h-0">
+                  {t('cdSyncTabAll', { count: rows.length })}
+                </TabsTrigger>
+                {presentStatuses.map((st) => (
+                  <TabsTrigger key={st} value={st} className="min-h-11 sm:min-h-0">
+                    {t(`cdSyncStatus_${st}`)} ({byStatus[st].length})
+                  </TabsTrigger>
                 ))}
-              </TableBody>
-            </Table>
-          </div>
+              </TabsList>
+            </Tabs>
+            {activeTab !== 'all' && (
+              <p className="mb-2 text-xs text-muted-foreground">
+                {t(`cdSyncHint_${activeTab}`)}
+              </p>
+            )}
+
+            <div className="max-h-96 overflow-x-auto overflow-y-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="w-8" />
+                    <TableHead>{t('clubdeskGroupColName')}</TableHead>
+                    {activeTab === 'all' && <TableHead>{t('cdSyncColStatus')}</TableHead>}
+                    <TableHead>{t('cdSyncColField')}</TableHead>
+                    <TableHead>{t('cdSyncColWiedisync')}</TableHead>
+                    <TableHead>{t('cdSyncColClubdesk')}</TableHead>
+                    <TableHead className="w-32 text-right">{t('cdSyncColAction')}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {shown.map((r) => {
+                    const open = expanded.has(r.member_id)
+                    // +2 for the chevron and action columns, +1 more when the
+                    // status column is showing.
+                    const span = activeTab === 'all' ? 7 : 6
+                    return (
+                      <Fragment key={r.member_id}>
+                        <TableRow className="min-h-11">
+                          <TableCell className="align-top">
+                            {/* ClubDesk id and the last bill are context, not the
+                                decision — they live behind this so the row stays
+                                narrow enough to show the button. */}
+                            <button
+                              type="button"
+                              onClick={() => setExpanded((prev) => {
+                                const next = new Set(prev)
+                                if (next.has(r.member_id)) next.delete(r.member_id)
+                                else next.add(r.member_id)
+                                return next
+                              })}
+                              aria-expanded={open}
+                              aria-label={t('cdSyncToggleDetails', { name: r.member_name })}
+                              className="flex h-11 w-8 items-center justify-center text-muted-foreground sm:h-6"
+                            >
+                              {open
+                                ? <ChevronDown className="h-4 w-4" aria-hidden="true" />
+                                : <ChevronRight className="h-4 w-4" aria-hidden="true" />}
+                            </button>
+                          </TableCell>
+                          <TableCell className="whitespace-normal break-words align-top font-medium">
+                            {r.member_name}
+                          </TableCell>
+                          {activeTab === 'all' && (
+                            <TableCell className="align-top">
+                              <span className={`whitespace-nowrap rounded px-1.5 py-0.5 text-xs font-medium ${TONE[r.status]}`}>
+                                {t(`cdSyncStatus_${r.status}`)}
+                              </span>
+                            </TableCell>
+                          )}
+                          {/* ⚠ Three cells rather than one "ours → theirs" string:
+                              an arrow does not say which end is which, and knowing
+                              which side to trust is the whole point of the row. */}
+                          <TableCell className="whitespace-normal break-words align-top text-xs font-medium text-gray-700 dark:text-gray-300">
+                            {(r.conflicts ?? []).map((d) => (
+                              <div key={d.field} className="py-0.5">
+                                {FIELD_LABEL[d.field] ? t(FIELD_LABEL[d.field]) : d.field}
+                              </div>
+                            ))}
+                          </TableCell>
+                          <TableCell className="whitespace-normal break-words align-top text-xs">
+                            {(r.conflicts ?? []).map((d) => (
+                              <div key={d.field} className="py-0.5">{d.wiedisync || '—'}</div>
+                            ))}
+                          </TableCell>
+                          <TableCell className="whitespace-normal break-words align-top text-xs">
+                            {(r.conflicts ?? []).map((d) => (
+                              <div key={d.field} className="py-0.5">{d.clubdesk || '—'}</div>
+                            ))}
+                          </TableCell>
+                          <TableCell className="w-32 text-right align-top">
+                            {/* Only a drift row has an action: ours-vs-theirs is
+                                the one state a decision resolves. A name
+                                difference cannot be pushed at all (the CSV is
+                                name-less), and departed / not_linked have their
+                                own flows. */}
+                            {r.status === 'drift' && onFlag && (
+                              <Button
+                                type="button" size="sm" variant="outline"
+                                disabled={flagging === r.member_id}
+                                aria-busy={flagging === r.member_id}
+                                onClick={() => void onFlag(r.member_id)}
+                              >
+                                {t('cdSyncFlagOurs')}
+                              </Button>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                        {open && (
+                          <TableRow className="hover:bg-transparent">
+                            <TableCell colSpan={span} className="bg-muted/30 text-xs">
+                              <div className="flex flex-wrap items-center gap-x-6 gap-y-1">
+                                <span>
+                                  <span className="text-muted-foreground">{t('clubdeskGroupColClubdeskId')}: </span>
+                                  {r.clubdesk_id || '—'}
+                                </span>
+                                <span className="flex items-center gap-1">
+                                  <span className="text-muted-foreground">{t('cdColLastBill')}: </span>
+                                  <LastBillCell bill={r.last_bill} />
+                                </span>
+                                {activeTab === 'all' && (
+                                  <span className="text-muted-foreground">{t(`cdSyncHint_${r.status}`)}</span>
+                                )}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </Fragment>
+                    )
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          </>
         )}
       </CardContent>
     </Card>
