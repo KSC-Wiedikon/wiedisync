@@ -1340,6 +1340,15 @@ async function main() {
     await setPermRead(PUBLIC_POLICY, 'sponsors', { active: { _eq: true } })
     await setPermRead(PUBLIC_POLICY, 'scorer_courses', { active: { _eq: true } })
 
+    // public_stats — the two aggregate counters (`member_count`, `team_count`)
+    // that kscw.ch/club/ueber-uns animates via `islands/live-stats.ts`. The
+    // grant existed once as a hand-patch and a later clearPolicyPermissions
+    // wiped it; because it was never declared here it could not come back, so
+    // the About page had been 403-ing since at least 13.08.2026 and silently
+    // fell back to the build-time hardcoded member figure. Three columns
+    // (`id`, `value`, `date_updated`), no PII — full read is safe.
+    await setPermRead(PUBLIC_POLICY, 'public_stats')
+
     // Events + news — kscw-website homepage and /weiteres/kalender read these.
     // Migration 035 wrongly assumed the website didn't consume `events` and
     // dropped the public read, which silently emptied the homepage events and

@@ -98,6 +98,7 @@ Used throughout — repeated literally rather than via subqueries because Direct
 | rankings | read | none | |
 | sponsors | read | `active = true` | |
 | scorer_courses | read | `active = true` | Scorer-course sign-up sessions (kscw-website) |
+| public_stats | read | none | The two aggregate counters (`member_count`, `team_count`) animated on kscw.ch/club/ueber-uns. Columns are `id, value, date_updated` — no PII. 2026-08-17: re-added after an old hand-patch was wiped by `clearPolicyPermissions` and never re-declared here; the About page had been 403-ing and falling back to a build-time hardcoded member figure |
 | events | read | `event_type _in {verein, tournament}` | Limited fields (`PUBLIC_EVENT_FIELDS`) — kscw-website homepage + calendar. Row-scoped to club-wide event types (2026-06-10 audit — was unscoped, leaking team-internal event titles to anon); mirrors Member `EVENTS_VISIBLE` club-wide branch. Event record only; RSVP junctions stay private. The `/kscw/public/events` endpoint additionally excludes any team-/member-scoped event |
 | news | read | `published_at` set & `≤ $NOW` | Limited fields (`PUBLIC_NEWS_FIELDS`) — published posts only; kscw-website homepage + /news |
 | teams_sponsors | read | none | Junction for kscw-website |
