@@ -809,8 +809,8 @@ export default {
   trFooConflictMeaningDiffers: 'Trasferimento necessario, altra federazione',
   trBlockedBanner_one: '{{count}} trasferimento è segnato come completato, ma la licenza non è convalidata',
   trBlockedBanner_other: '{{count}} trasferimenti sono segnati come completati, ma le licenze non sono convalidate',
-  trBlockedBannerDescription: 'Il certificato di trasferimento non è arrivato, quindi questi giocatori non sono eleggibili. Schierare una licenza non convalidata è sanzionabile.',
-  trNotEligible: 'Non eleggibile — nessuna licenza convalidata',
+  trBlockedBannerDescription: 'Il certificato di trasferimento non è arrivato, quindi questi giocatori non sono schierabili. Schierare una licenza non convalidata è sanzionabile.',
+  trNotEligible: 'Non schierabile — nessuna licenza convalidata',
   trProbablyDone: 'La licenza è convalidata — il certificato di trasferimento è probabilmente arrivato.',
   trProbablyDoneBanner_one: '{{count}} trasferimento in sospeso ha già una licenza convalidata e può probabilmente essere chiuso.',
   trProbablyDoneBanner_other: '{{count}} trasferimenti in sospeso hanno già licenze convalidate e possono probabilmente essere chiusi.',
@@ -899,7 +899,7 @@ export default {
   trStateChasing: 'Sollecito in corso',
   trStateAwaitingConfirmation: 'Licenza convalidata',
   trStateDone: 'Completato',
-  trStateBlocked: 'Non eleggibile',
+  trStateBlocked: 'Non schierabile',
   trStateRuledOut: 'Escluso',
   trStateDisputed: 'Contraddittorio',
   // Formulazione da indizio, mai da verdetto — stessa regola del blocco trInVis*
@@ -910,7 +910,7 @@ export default {
   trStateChasingHint: 'Qualcuno ha segnato questo trasferimento come sollecitato. Al momento non si sa altro.',
   trStateAwaitingConfirmationHint: 'Swiss Volley ha convalidato la licenza, il che di solito significa che il certificato è arrivato — ma qui il trasferimento è ancora segnato come in sospeso.',
   trStateDoneHint: 'Segnato come completato, e Swiss Volley ha convalidato la licenza.',
-  trStateBlockedHint: 'Segnato come completato, ma la licenza non è convalidata. Il certificato non è arrivato e la persona non è eleggibile.',
+  trStateBlockedHint: 'Segnato come completato, ma la licenza non è convalidata. Il certificato non è arrivato e la persona non è schierabile.',
   trStateRuledOutHint: 'Escluso a mano, oppure Swiss Volley li tessera come svizzeri. Nulla è stato modificato nella loro federazione di origine.',
 
   // Schede delle coorti + barra degli strumenti della lista di lavoro. Ogni
