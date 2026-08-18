@@ -171,7 +171,7 @@ export default {
   rosterColLicence: 'Licenza',
   rosterSourceVm: 'Lista di gara da Volleymanager',
   rosterSourceRsvp: 'Nessuna lista in Volleymanager — solo giocatori confermati',
-  rosterNotEligible: 'Non eleggibile secondo Volleymanager',
+  rosterNotEligible: 'Non schierabile secondo Volleymanager',
   rosterNoConfirmed: 'Nessun giocatore confermato al momento.',
   rosterCaptain: 'Capitano',
   rosterCaptainShort: 'C',
