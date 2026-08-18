@@ -153,11 +153,25 @@ export function registerEmailAccounts(router, { database, logger }) {
    * the instance and pretending otherwise would only be theatre.
    */
   async function tier(req) {
-    if (req.accountability?.admin) return { global: true, sports: SPORTS }
     const userId = req.accountability?.user
-    if (!userId) return null
-    const m = await database('members').where('user', userId).first('id', 'role', 'first_name', 'last_name')
+    const systemAdmin = req.accountability?.admin === true
+
+    // The member row is looked up even for a system admin, and BEFORE the
+    // early return — it is what fills created_by_name/updated_by_name. Bailing
+    // out on `accountability.admin` first left those columns null for every
+    // real admin whose role carries admin_access, which is most of them.
+    const m = userId
+      ? await database('members').where('user', userId).first('id', 'role', 'first_name', 'last_name')
+      : null
+
+    // A system token (cron-service, the static admin Bearer) has no member row.
+    // It is still global — it already bypasses every policy in the instance —
+    // just anonymous in the audit columns, where writeUserLog records the same.
+    if (systemAdmin) {
+      return { global: true, sports: SPORTS, memberId: m?.id ?? null, name: m ? memberName(m) : null }
+    }
     if (!m) return null
+
     const roles = Array.isArray(m.role)
       ? m.role
       : (m.role ? (() => { try { return JSON.parse(m.role) } catch { return [] } })() : [])
