@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+import { BarChart3, MessageSquare } from 'lucide-react'
 import { useCollection } from '../../lib/query'
 import { formatDateZurich } from '../../utils/dateHelpers'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
@@ -140,7 +141,7 @@ export default function VolleyFeedbackPage() {
       <h1 className="text-xl font-bold">Volley Feedback</h1>
 
       {/* Summary + rating cards */}
-      <DashboardSection id="vf-summary" title={t('vfOverview')} icon="📊" isLoading={isLoading} error={error?.message}>
+      <DashboardSection id="vf-summary" title={t('vfOverview')} icon={<BarChart3 className="h-4 w-4" aria-hidden="true" />} isLoading={isLoading} error={error?.message}>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div className="rounded-lg bg-primary/5 p-3 text-center">
             <div className="text-2xl font-bold text-primary">{items.length}</div>
@@ -163,7 +164,7 @@ export default function VolleyFeedbackPage() {
       </DashboardSection>
 
       {/* Response table */}
-      <DashboardSection id="vf-responses" title={t('vfIndividualResponses')} icon="💬" isLoading={isLoading} isEmpty={items.length === 0} emptyMessage={t('vfEmpty')}>
+      <DashboardSection id="vf-responses" title={t('vfIndividualResponses')} icon={<MessageSquare className="h-4 w-4" aria-hidden="true" />} isLoading={isLoading} isEmpty={items.length === 0} emptyMessage={t('vfEmpty')}>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <select
             value={teamFilter}
@@ -215,10 +216,11 @@ export default function VolleyFeedbackPage() {
                     {hasText ? (
                       <button
                         onClick={() => setSelectedItem(item)}
-                        className="cursor-pointer hover:opacity-70"
+                        className="inline-flex cursor-pointer hover:opacity-70"
                         title={t('vfReadText')}
+                        aria-label={t('vfReadText')}
                       >
-                        💬
+                        <MessageSquare className="h-4 w-4" aria-hidden="true" />
                       </button>
                     ) : '—'}
                   </TableCell>

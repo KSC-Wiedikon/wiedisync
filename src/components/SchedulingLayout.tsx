@@ -11,6 +11,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import VolleyballIcon from '@/components/VolleyballIcon'
+import BasketballIcon from '@/components/BasketballIcon'
 import { CalendarCheck, CalendarClock, Check, ChevronDown, ClipboardList, ExternalLink, LayoutDashboard, LogOut, Mail, Moon, Settings, Sun } from 'lucide-react'
 
 const WIEDISYNC_URL = 'https://wiedisync.kscw.ch'
@@ -132,7 +134,7 @@ export default function SchedulingLayout() {
                 aria-pressed={activeSport === 'volleyball'}
                 className={sportPillClass(activeSport === 'volleyball')}
               >
-                <span aria-hidden>🏐</span>
+                <VolleyballIcon className="h-4 w-4" />
                 <span className="hidden md:inline">{tb('volleyball')}</span>
               </button>
               <button
@@ -141,7 +143,7 @@ export default function SchedulingLayout() {
                 aria-pressed={activeSport === 'basketball'}
                 className={sportPillClass(activeSport === 'basketball')}
               >
-                <span aria-hidden>🏀</span>
+                <BasketballIcon className="h-4 w-4" />
                 <span className="hidden md:inline">{tb('basketball')}</span>
               </button>
             </div>

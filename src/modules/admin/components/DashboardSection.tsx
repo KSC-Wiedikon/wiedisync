@@ -3,7 +3,7 @@ import { useState, useEffect, type ReactNode } from 'react'
 interface DashboardSectionProps {
   id: string
   title: string
-  icon: string
+  icon: ReactNode
   children: ReactNode
   isLoading?: boolean
   error?: string | null
@@ -39,7 +39,7 @@ export default function DashboardSection({
         onClick={() => setOpen(!open)}
         className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-semibold hover:bg-muted/50 transition-colors"
       >
-        <span>{icon} {title}</span>
+        <span className="flex items-center gap-2">{icon}{title}</span>
         <span className="text-muted-foreground">{open ? '▼' : '▶'}</span>
       </button>
       {open && (

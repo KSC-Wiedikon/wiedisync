@@ -3,8 +3,11 @@ import { useTranslation } from 'react-i18next'
 import { kscwApi } from '../../lib/api'
 import { formatDateZurich, getCurrentSeason } from '../../utils/dateHelpers'
 import { useReportPageLoading } from '../../hooks/usePageReady'
+import { AlertTriangle, ArrowLeftRight, BarChart3, ClipboardList, PenLine, Trophy, Users } from 'lucide-react'
 import DashboardSection from './components/DashboardSection'
 import TeamChip from '../../components/TeamChip'
+import VolleyballIcon from '../../components/VolleyballIcon'
+import BasketballIcon from '../../components/BasketballIcon'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 
 // ── Types ────────────────────────────────────────────────────────
@@ -176,7 +179,11 @@ function SportHeading({ sport }: { sport: string }) {
   return (
     <TableRow className="hover:bg-transparent">
       <TableCell colSpan={99} className="pt-4 pb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-        {sport === 'volleyball' ? '🏐 Volleyball' : '🏀 Basketball'}
+        <span className="flex items-center gap-1.5">
+          {sport === 'volleyball'
+            ? <><VolleyballIcon className="h-4 w-4" />Volleyball</>
+            : <><BasketballIcon className="h-4 w-4" />Basketball</>}
+        </span>
       </TableCell>
     </TableRow>
   )
@@ -393,7 +400,7 @@ export default function ClubStatsPage() {
       )}
 
       {/* Members & Licences */}
-      <DashboardSection id="stats-members" title={t('clubStatsMembersLicences')} icon="👥">
+      <DashboardSection id="stats-members" title={t('clubStatsMembersLicences')} icon={<Users className="h-4 w-4" aria-hidden="true" />}>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <StatCard label={t('clubStatsRegistered')} value={ms.registered} />
           <StatCard label={t('clubStatsShell')} value={ms.shell} />
@@ -407,11 +414,13 @@ export default function ClubStatsPage() {
       </DashboardSection>
 
       {/* Team Roster */}
-      <DashboardSection id="stats-roster" title={t('clubStatsRoster')} icon="📋">
+      <DashboardSection id="stats-roster" title={t('clubStatsRoster')} icon={<ClipboardList className="h-4 w-4" aria-hidden="true" />}>
         {groupBySport(filtered.roster).map(group => (
           <div key={group.sport} className="mb-4 last:mb-0">
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-              {group.sport === 'volleyball' ? '🏐 Volleyball' : '🏀 Basketball'}
+            <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+              {group.sport === 'volleyball'
+                ? <><VolleyballIcon className="h-4 w-4" />Volleyball</>
+                : <><BasketballIcon className="h-4 w-4" />Basketball</>}
             </p>
             <div className="-mx-4 px-4">
               <Table className="text-sm">
@@ -464,11 +473,13 @@ export default function ClubStatsPage() {
       </DashboardSection>
 
       {/* Schreiber Coverage */}
-      <DashboardSection id="stats-schreiber" title={t('clubStatsSchreiberCoverage')} icon="✍️">
+      <DashboardSection id="stats-schreiber" title={t('clubStatsSchreiberCoverage')} icon={<PenLine className="h-4 w-4" aria-hidden="true" />}>
         {groupBySport(filtered.schreiber.filter(s => n(s.total_home_games) > 0)).map(group => (
           <div key={group.sport} className="mb-4 last:mb-0">
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-              {group.sport === 'volleyball' ? '🏐 Volleyball' : '🏀 Basketball'}
+            <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+              {group.sport === 'volleyball'
+                ? <><VolleyballIcon className="h-4 w-4" />Volleyball</>
+                : <><BasketballIcon className="h-4 w-4" />Basketball</>}
             </p>
             <div className="-mx-4 px-4">
               <Table className="text-sm">
@@ -506,7 +517,7 @@ export default function ClubStatsPage() {
 
       {/* Missing Schreiber (upcoming) */}
       {filtered.missing.length > 0 && (
-        <DashboardSection id="stats-missing" title={t('clubStatsMissingSchreiber')} icon="⚠️">
+        <DashboardSection id="stats-missing" title={t('clubStatsMissingSchreiber')} icon={<AlertTriangle className="h-4 w-4" aria-hidden="true" />}>
           <div className="space-y-2">
             {filtered.missing.map(m => (
               <div key={m.game_id} className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 p-2 rounded-lg bg-destructive/10 border border-destructive/20">
@@ -521,7 +532,7 @@ export default function ClubStatsPage() {
       )}
 
       {/* Participation Rates */}
-      <DashboardSection id="stats-participation" title={t('clubStatsParticipation')} icon="📊">
+      <DashboardSection id="stats-participation" title={t('clubStatsParticipation')} icon={<BarChart3 className="h-4 w-4" aria-hidden="true" />}>
         <div className="-mx-4 px-4">
           <Table className="text-sm">
             <TableHeader>
@@ -562,7 +573,7 @@ export default function ClubStatsPage() {
       </DashboardSection>
 
       {/* Game Results */}
-      <DashboardSection id="stats-results" title={t('clubStatsResults')} icon="🏆">
+      <DashboardSection id="stats-results" title={t('clubStatsResults')} icon={<Trophy className="h-4 w-4" aria-hidden="true" />}>
         <div className="-mx-4 px-4">
           <Table className="text-sm">
             <TableHeader>
@@ -596,7 +607,7 @@ export default function ClubStatsPage() {
 
       {/* Delegations */}
       {filtered.delegations.length > 0 && (
-        <DashboardSection id="stats-delegations" title={t('clubStatsDelegations')} icon="🔄">
+        <DashboardSection id="stats-delegations" title={t('clubStatsDelegations')} icon={<ArrowLeftRight className="h-4 w-4" aria-hidden="true" />}>
           <div className="-mx-4 px-4">
             <Table className="text-sm">
               <TableHeader>

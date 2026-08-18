@@ -806,7 +806,7 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
                 <div className={`flex flex-wrap items-center gap-1.5 ${isUnread ? 'font-semibold text-gray-900 dark:text-gray-100' : 'text-gray-700 dark:text-gray-300'}`}>
                   {isUnread && <span aria-hidden className="mt-1.5 inline-block h-2 w-2 flex-shrink-0 self-start rounded-full bg-brand-600 sm:mt-0 sm:self-auto" />}
                   <span className="min-w-0 break-words">{msg.subject || t('mailboxNoSubject')}</span>
-                  {msg.has_attachments && <span aria-hidden title={t('mailboxAttachments')}>📎</span>}
+                  {msg.has_attachments && <span aria-hidden title={t('mailboxAttachments')} className="inline-flex flex-shrink-0"><Paperclip className="h-3.5 w-3.5" /></span>}
                   {chipOpp && (
                     <Badge variant="neutral" size="sm">{chipOpp.team_name || chipOpp.club_name}</Badge>
                   )}
@@ -849,7 +849,7 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
               {/* Line 2: subject — full width, wraps */}
               <div className={`flex items-center gap-1.5 text-sm ${isUnread ? 'font-semibold text-gray-900 dark:text-gray-100' : 'text-gray-700 dark:text-gray-300'}`}>
                 <span className="min-w-0 break-words">{msg.subject || t('mailboxNoSubject')}</span>
-                {msg.has_attachments && <span aria-hidden title={t('mailboxAttachments')}>📎</span>}
+                {msg.has_attachments && <span aria-hidden title={t('mailboxAttachments')} className="inline-flex flex-shrink-0"><Paperclip className="h-3.5 w-3.5" /></span>}
               </div>
               {/* Line 3: preview — full width, clamped to 2 lines */}
               {msg.snippet && (
@@ -2046,7 +2046,7 @@ function MailboxAttachments({ message, sport }: { message: MailboxMessageFull; s
           onClick={() => setPreview({ index: i, filename: a.filename })}
           className="min-h-11 sm:min-h-0 rounded-md border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
         >
-          {`📎 ${a.filename}`}
+          <span className="inline-flex items-center gap-1"><Paperclip className="h-3.5 w-3.5 flex-shrink-0" aria-hidden="true" />{a.filename}</span>
         </button>
       ))}
       {/* Opponent clubs send schedules as PDFs — read them here rather than in

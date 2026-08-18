@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react'
-import { Sparkles, Search } from 'lucide-react'
+import { BarChart3, CalendarDays, MessageSquare, Palette, PartyPopper, Search, Settings, Sparkles, Volleyball } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 
@@ -200,7 +200,7 @@ export default function AnimatedUIPage() {
                 <InteractiveHoverButton>Hover me</InteractiveHoverButton>
               </Demo>
               <Demo title="ConfettiButton" lib="magicui" importPath="@/components/magicui/confetti">
-                <ConfettiButton>🎉 Confetti</ConfettiButton>
+                <ConfettiButton><span className="inline-flex items-center gap-2"><PartyPopper className="h-4 w-4" aria-hidden="true" />Confetti</span></ConfettiButton>
               </Demo>
               <Demo title="MovingBorder Button" lib="aceternity" importPath="@/components/aceternity/moving-border">
                 <MovingBorderButton borderRadius="1.75rem" className="bg-background text-foreground border-border">
@@ -477,9 +477,15 @@ export default function AnimatedUIPage() {
               </Demo>
               <Demo title="Dock" lib="magicui" importPath="@/components/magicui/dock">
                 <Dock>
-                  {['⚙️', '🎨', '📅', '💬', '🏐'].map((emoji) => (
-                    <DockIcon key={emoji}>
-                      <span className="text-2xl">{emoji}</span>
+                  {[
+                    { key: 'settings', Icon: Settings },
+                    { key: 'palette', Icon: Palette },
+                    { key: 'calendar', Icon: CalendarDays },
+                    { key: 'messages', Icon: MessageSquare },
+                    { key: 'volleyball', Icon: Volleyball },
+                  ].map(({ key, Icon }) => (
+                    <DockIcon key={key}>
+                      <Icon className="h-6 w-6" aria-hidden="true" />
                     </DockIcon>
                   ))}
                 </Dock>
@@ -543,7 +549,7 @@ export default function AnimatedUIPage() {
               <BentoCard
                 name="Members"
                 description="358 active across 9 teams"
-                Icon={() => <div className="text-3xl">🏐</div>}
+                Icon={Volleyball}
                 className="col-span-1 row-span-1"
                 href="#"
                 cta="View"
@@ -552,7 +558,7 @@ export default function AnimatedUIPage() {
               <BentoCard
                 name="Trainings"
                 description="12 this week"
-                Icon={() => <div className="text-3xl">📅</div>}
+                Icon={CalendarDays}
                 className="col-span-1 row-span-1"
                 href="#"
                 cta="View"
@@ -561,7 +567,7 @@ export default function AnimatedUIPage() {
               <BentoCard
                 name="Hallenplan"
                 description="Live slot conflicts"
-                Icon={() => <div className="text-3xl">📊</div>}
+                Icon={BarChart3}
                 className="col-span-2 row-span-1"
                 href="#"
                 cta="Open"

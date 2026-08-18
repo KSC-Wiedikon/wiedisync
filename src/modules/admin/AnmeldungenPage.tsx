@@ -1,11 +1,13 @@
 import { Fragment, useState, useMemo, useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Check, X, ChevronDown, ChevronUp, Save, Download, FileText, ExternalLink, Send, CheckCircle2, Link2, Clock, CircleAlert, Upload } from 'lucide-react'
+import { Check, X, ChevronDown, ChevronUp, Save, Download, FileText, ExternalLink, Send, CheckCircle2, Link2, Clock, CircleAlert, Upload, User } from 'lucide-react'
 import { useCollection, useUpdate } from '../../lib/query'
 import { useAuth } from '../../hooks/useAuth'
 import { useReportPageLoading } from '../../hooks/usePageReady'
 import { assetUrl, kscwApi, uploadFile } from '../../lib/api'
 import TeamChip from '../../components/TeamChip'
+import VolleyballIcon from '../../components/VolleyballIcon'
+import BasketballIcon from '../../components/BasketballIcon'
 import { FilePreviewDialog } from '../../components/FilePreview'
 import ClubdeskRegistrationZone from './components/ClubdeskRegistrationZone'
 import { formatDate } from '../../utils/dateHelpers'
@@ -251,9 +253,9 @@ function downloadCSV(items: Registration[]) {
 
 // ── Sport section colors ───────────────────────────────────────
 const SPORT_STYLES = {
-  volleyball: { accent: 'border-l-yellow-400', icon: '🏐', label: 'Volleyball' },
-  basketball: { accent: 'border-l-orange-400', icon: '🏀', label: 'Basketball' },
-  passive: { accent: 'border-l-gray-400', icon: '👤', label: 'Passiv' },
+  volleyball: { accent: 'border-l-yellow-400', Icon: VolleyballIcon, label: 'Volleyball' },
+  basketball: { accent: 'border-l-orange-400', Icon: BasketballIcon, label: 'Basketball' },
+  passive: { accent: 'border-l-gray-400', Icon: User, label: 'Passiv' },
 } as const
 
 export default function AnmeldungenPage() {
@@ -598,7 +600,7 @@ export default function AnmeldungenPage() {
               <div key={sport} className={`border-l-4 ${style.accent} pl-0`}>
                 {/* Section header */}
                 <div className="mb-3 flex items-center gap-2 pl-4">
-                  <span className="text-lg">{style.icon}</span>
+                  <style.Icon className="h-5 w-5 text-gray-600 dark:text-gray-300" />
                   <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
                     {sport === 'passive' ? t('anmeldungenPassive') : style.label}
                   </h2>

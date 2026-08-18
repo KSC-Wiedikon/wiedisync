@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { Check, ChevronDown } from 'lucide-react'
+import { Check, ChevronDown, Glasses } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -111,7 +111,7 @@ export default function LanguageDropdown({ size = 'sm' }: LanguageDropdownProps)
                 {i18n.language === lang.code ? (
                   <Check className="h-4 w-4 text-brand-600 dark:text-gold-400" />
                 ) : (
-                  <span className="text-xs">😎</span>
+                  <Glasses className="h-4 w-4 text-gray-400 dark:text-gray-500" aria-hidden="true" />
                 )}
               </DropdownMenuItem>
             ))}
