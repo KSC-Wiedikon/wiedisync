@@ -839,6 +839,20 @@ export default {
   trOpenInVis: 'Ouvrir dans VIS',
   trOpenInVisHint: 'VIS ne propose pas de lien vers une personne — collez le numéro dans la recherche de l’application de transferts.',
   trVisPlayerNo: 'Numéro de joueur VIS',
+  // L'enregistrement de transfert de la FIVB elle-même (migration 237), sous le
+  // contrôle de statut du club. À distinguer de `trInVis*` (présence à l'index).
+  trVisTransferHint: 'Ce que la FIVB VIS indique elle-même pour ce transfert. C\'est l\'enregistrement qui fait foi — le statut à gauche est le marqueur du club, aligné dessus chaque nuit.',
+  trVisTransferComplete: 'Transfert terminé',
+  trVisTransferProgress: 'Transfert {{percent}}%',
+  trVisTransferCancelled: 'Transfert annulé',
+  trVisTransferRefused: 'Transfert refusé',
+  trVisTransferNo: 'Numéro de transfert VIS',
+  trVisTransferFrom: 'Dès le {{date}}',
+  trVisPhaseDraft: 'Brouillon',
+  trVisPhaseSubmitted: 'Soumis',
+  trVisPhaseInProgress: 'En cours',
+  trVisPhaseEnded: 'Terminé',
+  trVisTransferRuledOut: 'Écarté ici, mais la FIVB a un transfert en cours pour ce membre. La synchronisation nocturne laisse « Pas nécessaire » intact à dessein — cela reste ainsi jusqu\'à ce que quelqu\'un tranche.',
   trCopyPlayerNo: 'Copier le numéro de joueur VIS',
   // Lien VIS manuel (migration 312).
   trManualLinkAdd: 'Lier un joueur…',

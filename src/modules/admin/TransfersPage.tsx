@@ -178,6 +178,75 @@ interface VisFederation {
   website?: string | null
 }
 
+/**
+ * One international transfer as FIVB VIS holds it (migration 237), mirrored
+ * nightly by `vis-transfer-sync.mjs`.
+ *
+ * This is the AUTHORITATIVE answer to the question the whole page is about, and
+ * it is deliberately a different fact from the three already on screen:
+ * `in_vis` is presence in a federation's player index, `licence_validated` is
+ * Swiss Volley's downstream confirmation, and `transfer_status` is what the club
+ * decided. Only this one is FIVB saying whether the ITC exists.
+ *
+ * ⚠⚠ Since 2026-08-18 the same sync WRITES `members.transfer_status` from these
+ * rows, so the two columns normally agree and a divergence is worth looking at:
+ * either the nightly run has not caught up, or a person overruled it since.
+ */
+/* ⚠⚠ The numeric fields are typed `number | string` because that is what they
+ * ACTUALLY are at runtime: `fetchItems` pipes every result through
+ * `stringifyIds` (src/lib/api.ts), which turns every integer field into a string
+ * unless its name is in `KEEP_AS_NUMBER` — an FK-flattening convenience that
+ * does not know these columns. So `percent_complete === 100` is false for a
+ * completed transfer, and `'60' > '100'` is TRUE, which picks the LEAST advanced
+ * row. Both were live bugs caught by rendering the page against fixtures.
+ * Coerce with `Number()` at every use; the type is deliberately awkward so the
+ * next reader cannot skip it. */
+interface VisTransfer {
+  vis_no: number | string
+  season_no: number | string
+  no_by_season?: number | string | null
+  status_code?: number | string | null
+  status_label?: string | null
+  percent_complete?: number | string | null
+  is_player_blocked?: boolean | null
+  start_on?: string | null
+  end_on?: string | null
+  player_no?: number | string | null
+  player_first_name?: string | null
+  player_last_name?: string | null
+  deleted_at?: string | null
+}
+
+/**
+ * ⚠⚠ MIRRORS `directus/scripts/vis-transfer-sync.mjs` (`DEAD_STATUS_CODES` /
+ * `ENDED_STATUS_CODES` / `visStateOf`). The script decides what to WRITE and
+ * this decides what to SHOW — if they drift, the page contradicts the column it
+ * is rendering. Change both in the same commit.
+ *
+ * "Complete" is 100% OR an ended code, not "ended" alone: an ITC finishes its
+ * tasks weeks before VIS moves the row to 200, which only happens once the
+ * season starts.
+ */
+const VIS_DEAD_STATUS = new Set([239, 240, 255])
+const VIS_ENDED_STATUS = new Set([200, 210, 215, 220])
+
+/** VIS status code → i18n key for the phase name. Same codes as the sync's
+ *  STATUS_LABEL, but the visible text is translated rather than stored. */
+const VIS_PHASE_KEY: Record<number, string> = {
+  10: 'trVisPhaseDraft', 12: 'trVisPhaseDraft',
+  20: 'trVisPhaseSubmitted',
+  100: 'trVisPhaseInProgress', 130: 'trVisPhaseInProgress',
+  200: 'trVisPhaseEnded', 210: 'trVisPhaseEnded', 215: 'trVisPhaseEnded', 220: 'trVisPhaseEnded',
+}
+
+type VisTransferState = 'complete' | 'in_progress' | 'dead'
+
+function visTransferState(t: VisTransfer): VisTransferState {
+  if (VIS_DEAD_STATUS.has(Number(t.status_code))) return 'dead'
+  if (Number(t.percent_complete) === 100 || VIS_ENDED_STATUS.has(Number(t.status_code))) return 'complete'
+  return 'in_progress'
+}
+
 interface VmRow {
   id: string
   association_id?: number | string | null
@@ -551,6 +620,77 @@ export default function TransfersPage() {
     }
     return map
   }, [federationsRaw])
+
+  /**
+   * FIVB's own transfer records. Small (tens of rows), so fetched whole — and,
+   * like the federation directory, deliberately OUTSIDE the boot gate: the
+   * worklist must still render if this table is empty or unreachable.
+   *
+   * ⚠ `vis_transfers` has permission rows but no `directus_collections` entry;
+   * Directus serves it off the database schema regardless (verified on prod).
+   */
+  const { data: visTransfersRaw } = useCollection<VisTransfer>('vis_transfers', {
+    fields: [
+      'vis_no', 'season_no', 'no_by_season', 'status_code', 'status_label',
+      'percent_complete', 'is_player_blocked', 'start_on', 'end_on',
+      'player_no', 'player_first_name', 'player_last_name', 'deleted_at',
+    ],
+    all: true,
+    staleTime: 600_000,
+  })
+
+  /**
+   * The season the club is working NOW, taken as the highest one staged.
+   *
+   * ⚠ The sync stages the current season AND the one before it, so a straight
+   * "all rows for this player" lookup would let LAST season's completed ITC
+   * describe this season's. Ivo Teixeira is exactly that case on prod today:
+   * 2025/26 ended at 100%, 2026/27 at 20%. Reading the max rather than encoding
+   * a number keeps this in step with the script, which derives it from VIS.
+   */
+  const visSeason = useMemo(() => {
+    let max: number | null = null
+    for (const t of visTransfersRaw ?? []) {
+      const n = Number(t.season_no)
+      if (Number.isFinite(n) && (max === null || n > max)) max = n
+    }
+    return max
+  }, [visTransfersRaw])
+
+  /**
+   * VIS player number → this season's transfers. Matching to a member is by
+   * player number ONLY, `vis_player_no_manual` ahead of `vis_player_no` — the
+   * same rule the sync writes by, and for the same reason: a name collision
+   * here would attribute a transfer to the wrong person's eligibility.
+   */
+  const visTransfersByPlayer = useMemo(() => {
+    const map = new Map<number, VisTransfer[]>()
+    for (const t of visTransfersRaw ?? []) {
+      if (t.player_no == null || t.deleted_at) continue
+      if (visSeason !== null && Number(t.season_no) !== visSeason) continue
+      const list = map.get(Number(t.player_no))
+      if (list) list.push(t)
+      else map.set(Number(t.player_no), [t])
+    }
+    return map
+  }, [visTransfersRaw, visSeason])
+
+  /**
+   * The one transfer worth showing for a member: the most advanced live row,
+   * falling back to a cancelled/refused one when that is all there is — a
+   * refusal is the answer to "why has nothing happened", so hiding it would
+   * leave the row looking untouched.
+   */
+  const visTransferOf = useCallback((m: TransferMember): VisTransfer | null => {
+    const no = m.vis_player_no_manual ?? m.vis_player_no
+    if (no == null) return null
+    const rows = visTransfersByPlayer.get(Number(no))
+    if (!rows?.length) return null
+    const live = rows.filter((t) => visTransferState(t) !== 'dead')
+    if (!live.length) return rows[0]
+    return live.find((t) => visTransferState(t) === 'complete')
+      ?? live.reduce((a, b) => (Number(b.percent_complete ?? 0) > Number(a.percent_complete ?? 0) ? b : a))
+  }, [visTransfersByPlayer])
 
   /**
    * memberId → the sports they play, from their team memberships.
@@ -1338,6 +1478,98 @@ export default function TransfersPage() {
   }
 
   /**
+   * What FIVB itself says about this member's transfer, under the control that
+   * says what the club decided. Deliberately here rather than in its own column:
+   * the two are the same question answered by two authorities, and the whole
+   * design of `vis_transfers` (migration 237) rests on keeping them comparable
+   * without conflating them — a stale toggle must never be able to hide an
+   * incomplete transfer.
+   *
+   * Renders nothing at all when VIS has no row for the member. Silence is
+   * correct here: most of the worklist is people no transfer has been opened
+   * for yet, and an "unknown" pill on every one of them would be noise.
+   */
+  const visTransferLine = (m: TransferMember) => {
+    const tr = visTransferOf(m)
+    if (!tr) return null
+    const state = visTransferState(tr)
+    const pct = Number(tr.percent_complete ?? 0)
+    const ref = tr.no_by_season ?? tr.vis_no
+    // Only 'not_needed' can disagree without the sync correcting it — the other
+    // two it rewrites itself, so a divergence there is just the nightly run not
+    // having caught up and is not worth alarming about.
+    const ruledOut = m.transfer_status === 'not_needed' && state !== 'dead'
+    // ⚠ `status_label` is the sync's own English string ('in progress',
+    // 'submitted'). Rendering it raw would print lowercase English into all five
+    // locales — CLAUDE.md's capitalisation rule covers values that come straight
+    // out of Postgres too. Translated off the CODE instead; an unmapped code
+    // shows nothing rather than inventing a phase.
+    // ⚠ A finished ITC sits at code 130 ("in progress") with 100% of its tasks
+    // done, and only becomes 200 ("ended") once the season starts. Printing VIS's
+    // literal phase there gives "Transfer complete · In progress", which reads as
+    // a contradiction and invites somebody to re-open a settled case. So the
+    // phase is shown only when it AGREES with the badge: while genuinely in
+    // progress, or once VIS itself says ended. The start date carries the rest.
+    const code = Number(tr.status_code)
+    const phase = (state === 'in_progress' || VIS_ENDED_STATUS.has(code)) && VIS_PHASE_KEY[code]
+      ? t(VIS_PHASE_KEY[code])
+      : null
+    return (
+      <div className="mt-1.5 space-y-1 border-t border-gray-100 pt-1.5 dark:border-gray-700">
+        <span className="flex flex-wrap items-center gap-1">
+          <span
+            title={t('trVisTransferHint')}
+            className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
+              state === 'complete'
+                ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+                : state === 'dead'
+                  ? 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300'
+                  : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+            }`}
+          >
+            <RadioTower className="h-3 w-3" aria-hidden="true" />
+            {state === 'complete'
+              ? t('trVisTransferComplete')
+              : state === 'dead'
+                ? t(Number(tr.status_code) === 255 ? 'trVisTransferRefused' : 'trVisTransferCancelled')
+                : t('trVisTransferProgress', { percent: pct })}
+          </span>
+          <span className="font-mono text-xs text-gray-400 dark:text-gray-500" title={t('trVisTransferNo')}>
+            #{ref}
+          </span>
+        </span>
+        {/* The bar is the part that is scannable down a column of rows: 20 vs
+            60 vs 100 is the difference between "just filed" and "waiting on the
+            start date", and reading it off two digits per row is slower. */}
+        {state === 'in_progress' && (
+          <span
+            className="block h-1 w-full max-w-[7rem] overflow-hidden rounded-full bg-gray-200 dark:bg-gray-600"
+            role="img"
+            aria-label={t('trVisTransferProgress', { percent: pct })}
+          >
+            <span className="block h-full rounded-full bg-blue-500" style={{ width: `${Math.max(0, Math.min(100, pct))}%` }} />
+          </span>
+        )}
+        {state !== 'dead' && (phase || tr.start_on) && (
+          <span className="block text-xs whitespace-normal text-gray-400 dark:text-gray-500">
+            {[phase, tr.start_on ? t('trVisTransferFrom', { date: formatDateZurich(tr.start_on) }) : null]
+              .filter(Boolean).join(' · ')}
+          </span>
+        )}
+        {/* The sync refuses to touch 'not_needed', by design — it is the one way
+            to overrule VIS permanently. So this is the only disagreement that
+            can persist, and it has to be visible or it is invisible forever. */}
+        {ruledOut && (
+          <p className="flex items-start gap-1 rounded-md bg-amber-50 px-1.5 py-1 text-xs whitespace-normal text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            {t('trVisTransferRuledOut')}
+          </p>
+        )}
+      </div>
+    )
+  }
+
+  /**
    * The whole status control for one row: the three buttons, the clear, the
    * attribution line for a completed transfer — and, when nothing is stored,
    * the DERIVED answer, said out loud.
@@ -1400,6 +1632,7 @@ export default function TransfersPage() {
               : t('trDoneOn', { date: formatDateTimeCompact(m.transfer_done_at) })}
           </p>
         )}
+        {visTransferLine(m)}
       </>
     )
   }
