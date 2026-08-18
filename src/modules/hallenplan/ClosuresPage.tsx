@@ -393,8 +393,7 @@ export default function ClosuresPage() {
     try {
       const res = await kscwApi<{
         duplicateOf: string | null
-        created: number
-        deleted: number
+        publishedThisSpan: boolean
         dryRun: boolean
         disabled: boolean
       }>('/admin/hall-closures/push-toggle', {

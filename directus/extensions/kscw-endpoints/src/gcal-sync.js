@@ -594,9 +594,12 @@ export function registerGCalSync(router, { database, logger, services, getSchema
         push,
         rows: affected,
         duplicateOf: dup?.title ?? null,
-        created: result.created,
-        updated: result.updated,
-        deleted: result.deleted,
+        // Did THIS span end up on their calendar? The reconcile counts below are
+        // global — every flagged closure — so on a second call they report the
+        // FIRST closure's work and read like this one was published when it was
+        // skipped as a duplicate.
+        publishedThisSpan: push && !dup,
+        reconcile: { created: result.created, updated: result.updated, deleted: result.deleted },
         dryRun: !!result.dryRun,
         disabled: !!result.disabled,
       })
