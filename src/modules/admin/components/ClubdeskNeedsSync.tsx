@@ -43,6 +43,13 @@ export interface NeedsSyncRow {
    * than looking like a spelling wobble.
    */
   conflicts?: { field: string; wiedisync: string; clubdesk: string }[]
+  /**
+   * Fields the push would BLANK — wiedisync's side is empty while ClubDesk still
+   * holds a value. `/clubdesk-drift/flag` refuses the whole member when this is
+   * non-empty, so a `drift` row carrying one is un-flaggable until a sync-down
+   * fills the gap: the row states that instead of offering the button.
+   */
+  blank_risk?: string[]
 }
 
 /** Field name → label key. Anything unmapped falls back to the raw column. */
@@ -301,14 +308,31 @@ export default function ClubdeskNeedsSync({
                                 name-less), and departed / not_linked have their
                                 own flows. */}
                             {r.status === 'drift' && onFlag && (
-                              <Button
-                                type="button" size="sm" variant="outline"
-                                disabled={flagging === r.member_id}
-                                aria-busy={flagging === r.member_id}
-                                onClick={() => void onFlag(r.member_id)}
-                              >
-                                {t('cdSyncFlagOurs')}
-                              </Button>
+                              // ⚠ A drift row whose member ALSO has a blank-risk
+                              // field cannot be flagged at all: the push carries the
+                              // whole row, so /clubdesk-drift/flag refuses the member
+                              // rather than send an empty cell over ClubDesk's value.
+                              // The button used to be offered anyway and answered 409
+                              // on every click, forever — the fix is a sync-down, and
+                              // saying so is the only thing this cell can usefully do.
+                              (r.blank_risk?.length ?? 0) > 0 ? (
+                                <span className="block whitespace-normal break-words text-xs text-amber-700 dark:text-amber-400">
+                                  {t('cdSyncBlankRiskBlocked', {
+                                    fields: (r.blank_risk ?? [])
+                                      .map((f) => (FIELD_LABEL[f] ? t(FIELD_LABEL[f]) : f))
+                                      .join(', '),
+                                  })}
+                                </span>
+                              ) : (
+                                <Button
+                                  type="button" size="sm" variant="outline"
+                                  disabled={flagging === r.member_id}
+                                  aria-busy={flagging === r.member_id}
+                                  onClick={() => void onFlag(r.member_id)}
+                                >
+                                  {t('cdSyncFlagOurs')}
+                                </Button>
+                              )
                             )}
                           </TableCell>
                         </TableRow>

@@ -3009,6 +3009,16 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
     const conflictsById = new Map(
       drift.filter((c) => c.conflicts.length).map((c) => [String(c.member_id), c.conflicts]),
     )
+    // The fields whose wiedisync side is EMPTY while ClubDesk holds a value.
+    // /clubdesk-drift/flag refuses such a member outright (the push sends the
+    // whole row, so it would blank the register), which made the worklist offer
+    // a "flag ours" button that answered 409 on every click with no way to tell
+    // why — Felix Stauch (405) sat like that with a real federation_of_origin
+    // conflict and an empty phone. Carried per row so the list can say "sync
+    // down first" INSTEAD of offering an action that cannot succeed.
+    const blankRiskById = new Map(
+      drift.filter((c) => c.blank_risk.length).map((c) => [String(c.member_id), c.blank_risk]),
+    )
 
     const statuses = {}
     for (const m of members) {
@@ -3024,7 +3034,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       else status = 'in_sync'
       statuses[id] = status
     }
-    return { statuses, members, conflictsById }
+    return { statuses, members, conflictsById, blankRiskById }
   }
 
   router.get('/clubdesk-sync-status', async (req, res) => {
@@ -3055,7 +3065,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
   router.get('/clubdesk-needs-sync', async (req, res) => {
     try {
       if (!(await superGate(req))) return res.status(403).json({ error: 'Forbidden' })
-      const { statuses, members, conflictsById } = await computeMemberSyncStatuses()
+      const { statuses, members, conflictsById, blankRiskById } = await computeMemberSyncStatuses()
       const rows = members.filter((m) => NEEDS_SYNC_STATUSES.includes(statuses[String(m.id)]))
 
       // Section per member, from the ONE server-side resolver. The detailed form
@@ -3084,6 +3094,9 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
             // [{ field, wiedisync, clubdesk }] — empty for the statuses that are
             // not a field disagreement (not_linked / stale / departed / pending).
             conflicts: conflictsById.get(String(m.id)) || [],
+            // Field names the push would blank → /clubdesk-drift/flag will refuse
+            // this member. Non-empty means the row's fix is "sync down", not "flag".
+            blank_risk: blankRiskById.get(String(m.id)) || [],
           }
         }),
         in_sync: Object.values(statuses).filter((s) => s === 'in_sync').length,

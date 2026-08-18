@@ -787,7 +787,24 @@ export default function DataHealthPage() {
                       else toast.info(t('cdSyncFlagNothing'))
                       await runChecks()
                     } catch (e) {
-                      toast.error(e instanceof Error ? e.message : String(e))
+                      // A 409 here is a VERDICT, not a failure: `blank_risk` means
+                      // the push would blank a ClubDesk-owned field (wiedisync's is
+                      // empty), `no_drift` that the row went stale since the scan.
+                      // Printing the raw error put the literal
+                      // 'API /clubdesk-drift/flag: 409' in front of the operator —
+                      // untranslated, and silent about the one thing that clears it
+                      // ("Sync down" first). Same mapping handleFlagDrift uses on the
+                      // Club-wide tab, so both flag buttons explain themselves alike.
+                      const code = (e as { code?: string; body?: { code?: string } })?.code
+                        ?? (e as { body?: { code?: string } })?.body?.code
+                      if (code === 'no_drift') {
+                        toast.info(t('dhDriftGone'))
+                        await runChecks()
+                      } else if (code === 'blank_risk') {
+                        toast.warning(t('dhDriftBlankRisk'))
+                      } else {
+                        toast.error(t('dhFixFailed'))
+                      }
                     } finally {
                       setFlaggingMember(null)
                     }
