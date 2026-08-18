@@ -12,6 +12,7 @@
     "lint": "eslint . && npm run lint:ui-primitives",
     "lint:ui-primitives": "eslint --no-ignore src/components/ui/AhvInput.tsx src/components/ui/EmailInput.tsx src/components/ui/IbanInput.tsx src/components/ui/PhoneInput.tsx src/components/ui/PhotoPicker.tsx src/components/ui/PostalCodeInput.tsx src/components/ui/TeamPicker.tsx src/components/ui/dialCodes.ts src/components/ui/__tests__",
     "preview": "vite preview",
+    "graph": "python3 scripts/graphify-build.py",
     "test:unit": "vitest run",
     "test:unit:watch": "vitest",
     "test:scripts": "node --test directus/scripts/__tests__/*.test.mjs",

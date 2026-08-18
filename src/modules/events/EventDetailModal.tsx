@@ -24,7 +24,7 @@ import { Calendar, Clock, MapPin, Users, Check, MessageSquare, UserPlus, Share2,
 import { toast } from 'sonner'
 import EventSignupsModal from './EventSignupsModal'
 import { teamCoachIds } from '../../utils/relations'
-import { asTeams, teamId, isHtml, isSameDay } from './eventHelpers'
+import { asTeams, teamId, isHtml, isSameDay, isGuestExcludedFromEvent, ALL_GUEST_LEVELS } from './eventHelpers'
 import type { Event, EventSession, Participation, VolleyPosition } from '../../types'
 import CancelActivityButton from '../../components/CancelActivityButton'
 
@@ -39,7 +39,7 @@ export default function EventDetailModal({ event, onClose }: EventDetailModalPro
   const { t } = useTranslation('events')
   const { t: tP } = useTranslation('participation')
   const { t: tc } = useTranslation('common')
-  const { user, canParticipateIn, isCoachOf, isStaffOnlyForTeams, coachTeamIds, teamResponsibleIds, isAdmin } = useAuth()
+  const { user, canParticipateIn, isCoachOf, isStaffOnlyForTeams, coachTeamIds, teamResponsibleIds, isAdmin, memberTeamIds, getGuestLevel } = useAuth()
   const [rosterOpen, setRosterOpen] = useState(false)
   const [signupsOpen, setSignupsOpen] = useState(false)
   const [sessionSheetOpen, setSessionSheetOpen] = useState(false)
@@ -93,7 +93,11 @@ export default function EventDetailModal({ event, onClose }: EventDetailModalPro
     }
   }
 
-  const canParticipate = !!user && !!event && (
+  // Migration 324: `invite_guests: false` drops the invited teams' guest players
+  // from the audience. They keep READ access (the policy is untouched) — the
+  // RSVP block is what changes, mirroring a training's excluded guest tier.
+  const guestExcluded = !!event && isGuestExcludedFromEvent(event, { memberId: user?.id, memberTeamIds, getGuestLevel })
+  const canParticipate = !!user && !!event && !guestExcluded && (
     !event.teams?.length || event.teams.some((tid) => canParticipateIn(teamId(tid)))
   )
   // Both questions span EVERY invited team — asking only `teams[0]` mislabels a
@@ -351,7 +355,9 @@ export default function EventDetailModal({ event, onClose }: EventDetailModalPro
           {!event.cancelled && (
           <div className="space-y-3 border-t border-gray-200 pt-3 dark:border-gray-700">
             {/* Multi-session button + note */}
-            {hasSessionMode && sessions.length > 0 ? (
+            {guestExcluded ? (
+              <p className="text-sm italic text-gray-500 dark:text-gray-400">{t('guestNotInvited')}</p>
+            ) : hasSessionMode && sessions.length > 0 ? (
               <>
                 <button
                   onClick={() => setSessionSheetOpen(true)}
@@ -420,6 +426,7 @@ export default function EventDetailModal({ event, onClose }: EventDetailModalPro
         eventSessions={hasSessionMode ? sessions : undefined}
         showRsvpTime={asTeams(event.teams).some(t => isFeatureEnabled(t.features_enabled, 'show_rsvp_time'))}
         allowMaybe={event.allow_maybe !== false}
+        excludedGuestLevels={event.invite_guests === false ? ALL_GUEST_LEVELS : undefined}
       />
 
       <EventSignupsModal

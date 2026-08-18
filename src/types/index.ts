@@ -699,6 +699,13 @@ export interface Event extends BaseRecord {
    * and from the members' `/events/:id` deep link — see ShareActivityButton.
    */
   public_share_token?: string | null
+  /**
+   * Migration 324: do the invited teams' GUEST players (member_teams.guest_level
+   * > 0) count as invited? Defaults to true — undefined/null reads as "yes", so
+   * only an explicit `false` narrows the audience to the core roster. Nothing to
+   * do with `participations.guest_count` (+1s) or the public signup door.
+   */
+  invite_guests?: boolean
   /** Migration 194: opt-in to the J+S (Jugend+Sport) export. */
   js_relevant?: boolean
   /** J+S NDS activity type used when js_relevant is set. */

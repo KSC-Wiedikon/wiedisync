@@ -23,7 +23,7 @@ import EventDetailModal from './EventDetailModal'
 import EventForm from './EventForm'
 import { Button } from '@/components/ui/button'
 import { isFeatureEnabled } from '../../utils/featureToggles'
-import { asTeams, teamId } from './eventHelpers'
+import { asTeams, teamId, ALL_GUEST_LEVELS } from './eventHelpers'
 import type { Event, EventSession, Participation } from '../../types'
 import { TourPageButton } from '../guide/TourPageButton'
 
@@ -373,6 +373,7 @@ export default function EventsPage() {
         eventSessions={rosterHasSessionMode ? rosterSessions : undefined}
         showRsvpTime={asTeams(rosterEvent?.teams).some(t => isFeatureEnabled(t.features_enabled, 'show_rsvp_time'))}
         allowMaybe={rosterEvent?.allow_maybe !== false}
+        excludedGuestLevels={rosterEvent?.invite_guests === false ? ALL_GUEST_LEVELS : undefined}
       />
     </div>
   )
