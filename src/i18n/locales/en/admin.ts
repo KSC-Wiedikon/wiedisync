@@ -652,6 +652,7 @@ export default {
   cdSyncFlagOurs: 'Keep ours',
   cdSyncFlagged: '{{count}} queued — the next sync-up writes our value to ClubDesk.',
   cdSyncFlagNothing: 'Nothing to queue — that difference has already been resolved.',
+  cdSyncBlankRiskShort: 'Sync down first',
   cdSyncBlankRiskBlocked: 'Sync down first — the push would blank {{fields}} in ClubDesk.',
   cdSyncHint_not_linked: 'No ClubDesk contact yet — create them with a sync up.',
   cdSyncHint_stale: 'The linked ClubDesk contact no longer exists.',

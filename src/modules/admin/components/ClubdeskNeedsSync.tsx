@@ -148,6 +148,11 @@ export default function ClubdeskNeedsSync({
     : statusTab
   const shown = activeTab === 'all' ? rows : (byStatus[activeTab] ?? [])
 
+  /** "Sync down first — the push would blank Phone in ClubDesk." */
+  const blankRiskText = (r: NeedsSyncRow) => t('cdSyncBlankRiskBlocked', {
+    fields: (r.blank_risk ?? []).map((f) => (FIELD_LABEL[f] ? t(FIELD_LABEL[f]) : f)).join(', '),
+  })
+
   // Exports are always English regardless of UI locale.
   const handleExport = async () => {
     try {
@@ -316,12 +321,17 @@ export default function ClubdeskNeedsSync({
                               // on every click, forever — the fix is a sync-down, and
                               // saying so is the only thing this cell can usefully do.
                               (r.blank_risk?.length ?? 0) > 0 ? (
-                                <span className="block whitespace-normal break-words text-xs text-amber-700 dark:text-amber-400">
-                                  {t('cdSyncBlankRiskBlocked', {
-                                    fields: (r.blank_risk ?? [])
-                                      .map((f) => (FIELD_LABEL[f] ? t(FIELD_LABEL[f]) : f))
-                                      .join(', '),
-                                  })}
+                                // Terse here, and the WHY behind the chevron with
+                                // the rest of the row's context: the full sentence
+                                // wraps to four lines in this 8rem column and made
+                                // every blocked row twice as tall on a phone, for
+                                // text that sits off-screen until you scroll the
+                                // table sideways anyway.
+                                <span
+                                  className="block whitespace-normal break-words text-xs text-amber-700 dark:text-amber-400"
+                                  title={blankRiskText(r)}
+                                >
+                                  {t('cdSyncBlankRiskShort')}
                                 </span>
                               ) : (
                                 <Button
@@ -350,6 +360,9 @@ export default function ClubdeskNeedsSync({
                                 </span>
                                 {activeTab === 'all' && (
                                   <span className="text-muted-foreground">{t(`cdSyncHint_${r.status}`)}</span>
+                                )}
+                                {(r.blank_risk?.length ?? 0) > 0 && (
+                                  <span className="text-amber-700 dark:text-amber-400">{blankRiskText(r)}</span>
                                 )}
                               </div>
                             </TableCell>

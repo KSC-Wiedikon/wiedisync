@@ -652,6 +652,7 @@ export default {
   cdSyncFlagOurs: 'Unseren behalten',
   cdSyncFlagged: '{{count}} vorgemerkt — der nächste Sync-up schreibt unseren Wert nach ClubDesk.',
   cdSyncFlagNothing: 'Nichts vorzumerken — diese Abweichung ist bereits gelöst.',
+  cdSyncBlankRiskShort: 'Zuerst «Sync down»',
   cdSyncBlankRiskBlocked: 'Zuerst «Sync down» — der Push würde {{fields}} in ClubDesk leeren.',
   cdSyncHint_not_linked: 'Noch kein ClubDesk-Kontakt — mit einem Upload anlegen.',
   cdSyncHint_stale: 'Der verknüpfte ClubDesk-Kontakt existiert nicht mehr.',
