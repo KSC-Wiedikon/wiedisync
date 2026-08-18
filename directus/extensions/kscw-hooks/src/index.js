@@ -1017,10 +1017,18 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // club-wide event gets zero absence-declines while auto-confirm happily
   // treats it as "everyone" — an absent opted-in member ends up confirmed.
   // `eventRef` / `memberRef` are SQL column references, never user input.
+  //
+  // Migration 324: `events.invite_guests = false` narrows the TEAM arm to the
+  // core roster. Per member, not per row — a guest on one invited team who is a
+  // core player on another still matches, and the events_members arm below is
+  // untouched, so a named personal invite outranks the switch. IS NOT FALSE (not
+  // `= true`) so a NULL from a pre-324 row still reads as "invited".
   function eventEligibilitySql(eventRef, memberRef) {
     return `(
       EXISTS (SELECT 1 FROM events_teams et JOIN member_teams mt ON mt.team = et.teams_id
-              WHERE et.events_id = ${eventRef} AND mt.member = ${memberRef})
+              JOIN events ev ON ev.id = et.events_id
+              WHERE et.events_id = ${eventRef} AND mt.member = ${memberRef}
+                AND (ev.invite_guests IS NOT FALSE OR COALESCE(mt.guest_level, 0) = 0))
       OR EXISTS (SELECT 1 FROM events_members em
                  WHERE em.events_id = ${eventRef} AND em.members_id = ${memberRef})
       OR (NOT EXISTS (SELECT 1 FROM events_teams et2 WHERE et2.events_id = ${eventRef})
@@ -2113,11 +2121,16 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       database('events_members').where('events_id', eventId).count('* as c').first(),
     ])
     const isClubWide = Number(teamCount?.c || 0) === 0 && Number(memberCount?.c || 0) === 0
+    // Migration 324: with invite_guests off, the team arm is the core roster
+    // only. UNION (not UNION ALL) with the invited-members arm, so a guest who
+    // was ALSO invited by name still comes through — same per-member rule as
+    // eventEligibilitySql.
+    const guestClause = event.invite_guests === false ? 'AND COALESCE(mt.guest_level, 0) = 0' : ''
     const eligibleSql = isClubWide
       ? `SELECT m.id AS member FROM members m WHERE m.wiedisync_active = true`
       : `SELECT mt.member FROM events_teams et
            JOIN member_teams mt ON mt.team = et.teams_id
-           WHERE et.events_id = ?::integer
+           WHERE et.events_id = ?::integer ${guestClause}
          UNION
          SELECT em.members_id AS member FROM events_members em
            WHERE em.events_id = ?::integer`
@@ -2195,7 +2208,8 @@ export default ({ action, filter, init, schedule }, { services, database, logger
           AND (
             EXISTS (SELECT 1 FROM events_teams et JOIN member_teams mt
                       ON mt.team = et.teams_id
-                    WHERE et.events_id = e.id AND mt.member = ?::integer)
+                    WHERE et.events_id = e.id AND mt.member = ?::integer
+                      AND (e.invite_guests IS NOT FALSE OR COALESCE(mt.guest_level, 0) = 0))
             OR EXISTS (SELECT 1 FROM events_members em
                        WHERE em.events_id = e.id AND em.members_id = ?::integer)
             OR (NOT EXISTS (SELECT 1 FROM events_teams et2 WHERE et2.events_id = e.id)
@@ -3277,6 +3291,45 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   }
 
   action('events.items.update', async ({ keys, payload }) => {
+    // Migration 324: guests just got un-invited — drop the RSVPs they can no
+    // longer make. Leaving them is the documented count-drift bug: the roster
+    // modal filters excluded guests out while ParticipationSummary counts every
+    // participations row, so the bricks say 8 and the list shows 6. The rows are
+    // logged before deletion; flipping the switch back does NOT restore them.
+    if (payload && payload.invite_guests === false) {
+      for (const k of keys) {
+        try {
+          const doomed = await database.raw(`
+            DELETE FROM participations p
+            USING member_teams mt, events_teams et
+            WHERE p.activity_type = 'event' AND p.activity_id = ?::text
+              AND mt.member = p.member
+              AND et.events_id = ?::integer
+              AND mt.team = et.teams_id
+              AND COALESCE(mt.guest_level, 0) > 0
+              -- Core on ANY invited team, or invited by name → still invited.
+              AND NOT EXISTS (
+                SELECT 1 FROM events_teams et2 JOIN member_teams mt2 ON mt2.team = et2.teams_id
+                WHERE et2.events_id = ?::integer AND mt2.member = p.member
+                  AND COALESCE(mt2.guest_level, 0) = 0
+              )
+              AND NOT EXISTS (
+                SELECT 1 FROM events_members em
+                WHERE em.events_id = ?::integer AND em.members_id = p.member
+              )
+            RETURNING p.member, p.status, p.note
+          `, [String(k), k, k, k])
+          const rows = doomed?.rows ?? []
+          if (rows.length > 0) {
+            log.info(`[invite-guests] Event ${k}: removed ${rows.length} guest RSVP(s): ${
+              rows.map((r) => `${r.member}=${r.status}${r.note ? ` (${r.note})` : ''}`).join(', ')}`)
+          }
+        } catch (err) {
+          log.error({ msg: `[invite-guests] Event ${k}: ${err.message}`, event: 'invite_guests_cleanup', keys: [k], stack: err.stack })
+        }
+      }
+    }
+
     if (!payload || !('start_date' in payload)) return
     try {
       for (const k of keys) await reEvalEventAutoDeclines(k)
@@ -3804,6 +3857,10 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         JOIN member_teams mt ON mt.team = et.teams_id
         LEFT JOIN halls h ON h.id = e.hall
         WHERE (e.start_date AT TIME ZONE 'Europe/Zurich')::date = ?::date
+          -- Migration 324: don't remind a guest about an event they were not
+          -- invited to. Per member (a core row on any other invited team of the
+          -- same event keeps them in), which the DISTINCT above already folds.
+          AND (e.invite_guests IS NOT FALSE OR COALESCE(mt.guest_level, 0) = 0)
       `, [tomorrowStr])
 
       log.info('Daily notification reminders sent')
@@ -5593,8 +5650,9 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // Trainings can configure `excluded_guest_levels` (jsonb array, e.g. [1,2,3])
   // to block guests at specific tiers from confirming/tentative. Games are a
   // hardcoded hard rule: guests of any level can't RSVP yes/maybe to a game.
-  // Events stay open. Declined is always allowed (lets the user cleanly opt
-  // out without an admin doing it for them).
+  // Events ask one yes/no — `invite_guests` (migration 324), default true, so
+  // they stay open unless the organiser says otherwise. Declined is always
+  // allowed (lets the user cleanly opt out without an admin doing it for them).
   /**
    * The gate itself, shared by create and update.
    *
@@ -5608,6 +5666,37 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     {
       if (!payload || !payload.activity_type || !payload.activity_id || !payload.member) return
       if (payload.status !== 'confirmed' && payload.status !== 'tentative') return
+
+      // Events are multi-team, so they can't go through the single-team lookup
+      // below — migration 324's switch is answered per MEMBER across every
+      // invited team. Mirrors isGuestExcludedFromEvent() in the frontend's
+      // eventHelpers.ts; change one, change the other.
+      if (payload.activity_type === 'event') {
+        const ev = await db('events').where('id', payload.activity_id).first('invite_guests')
+        if (!ev || ev.invite_guests !== false) return
+        const rows = await db('member_teams')
+          .join('events_teams', 'events_teams.teams_id', 'member_teams.team')
+          .where('events_teams.events_id', payload.activity_id)
+          .andWhere('member_teams.member', payload.member)
+          .select('member_teams.guest_level')
+        // On none of the invited teams → they got here by role, by name, or the
+        // event is club-wide. Not a roster question.
+        if (rows.length === 0) return
+        // Core player on at least one invited team → invited.
+        if (rows.some((r) => Number(r.guest_level || 0) === 0)) return
+        // A personal invite outranks the team-level switch.
+        const named = await db('events_members')
+          .where('events_id', payload.activity_id)
+          .andWhere('members_id', payload.member)
+          .first('id')
+        if (named) return
+        log.info(`[guest-rsvp-gate] block event=${payload.activity_id} member=${payload.member} (invite_guests off)`)
+        throw kscwScopeError(
+          'Guest players are not invited to this event',
+          403,
+          'GUEST_RSVP_BLOCKED',
+        )
+      }
 
       let teamId = null
       let excluded = null  // null = "block any positive level" (games), array = explicit list

@@ -11,6 +11,7 @@ import type { CalendarEntry, BirthdaySource } from '../../types/calendar'
 import type { Training, Event as KscwEvent, Absence, Member } from '../../types'
 import { formatDate } from '../../utils/dateUtils'
 import { asObj, memberName } from '../../utils/relations'
+import { isGuestExcludedFromEvent } from '../events/eventHelpers'
 
 interface CalendarEntryModalProps {
   entry: CalendarEntry | null
@@ -21,7 +22,8 @@ interface CalendarEntryModalProps {
 export default function CalendarEntryModal({ entry, onClose, onRefresh }: CalendarEntryModalProps) {
   const { t } = useTranslation('calendar')
   const { t: tTrainings } = useTranslation('trainings')
-  const { user, getGuestLevel } = useAuth()
+  const { t: tEvents } = useTranslation('events')
+  const { user, getGuestLevel, memberTeamIds } = useAuth()
   const [editingAbsence, setEditingAbsence] = useState(false)
 
   useEffect(() => {
@@ -189,8 +191,15 @@ export default function CalendarEntryModal({ entry, onClose, onRefresh }: Calend
           })()}
 
           {/* Participation section for events */}
-          {entry.type === 'event' && user && (
+          {entry.type === 'event' && user && (() => {
+            const ev = entry.source as KscwEvent
+            // Migration 324 — same gate as the event card / detail modal.
+            const guestExcluded = isGuestExcludedFromEvent(ev, { memberId: user.id, memberTeamIds, getGuestLevel })
+            return (
             <div className="border-t dark:border-gray-700 px-6 py-4 space-y-3">
+              {guestExcluded ? (
+                <p className="text-sm italic text-gray-500 dark:text-gray-400">{tEvents('guestNotInvited')}</p>
+              ) : (
               <ParticipationButton
                 activityType="event"
                 activityId={entry.source.id}
@@ -200,6 +209,7 @@ export default function CalendarEntryModal({ entry, onClose, onRefresh }: Calend
                 requireNoteIfAbsent={(entry.source as KscwEvent).require_note_if_absent}
                 allowMaybe={(entry.source as KscwEvent).allow_maybe !== false}
               />
+              )}
               <ParticipationSummary
                 activityType="event"
                 activityId={entry.source.id}
@@ -207,7 +217,8 @@ export default function CalendarEntryModal({ entry, onClose, onRefresh }: Calend
                 hideExtras
               />
             </div>
-          )}
+            )
+          })()}
 
           {/* Edit button for own absences */}
           {isOwnAbsence && (

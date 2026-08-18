@@ -382,7 +382,8 @@ export async function resolveAudience(database, activityType, activityId, audien
  *   game     — members of the team (`member_teams.team = games.kscw_team`),
  *              guest_level = 0 only (guests can't RSVP to games).
  *   event    — club-wide events (no team & no member junction) → all active
- *              members; otherwise `events_teams ∪ events_members`.
+ *              members; otherwise `events_teams ∪ events_members`, with the
+ *              team arm narrowed to the core roster when `invite_guests` is off.
  *
  * `wiedisync_active = true` is enforced throughout. Returns a number[] of
  * member ids.
@@ -441,9 +442,13 @@ export async function resolveUnansweredMembers(database, activityType, activityI
       rows = await database.raw(`
         SELECT DISTINCT e.member AS id
         FROM (
+          -- Migration 324: invite_guests off → core roster only. UNION with the
+          -- named-invite arm below, so a guest invited by name still counts.
           SELECT mt.member FROM events_teams et
             JOIN member_teams mt ON mt.team = et.teams_id
+            JOIN events ev ON ev.id = et.events_id
             WHERE et.events_id = ?::integer
+              AND (ev.invite_guests IS NOT FALSE OR COALESCE(mt.guest_level, 0) = 0)
           UNION
           SELECT em.members_id AS member FROM events_members em
             WHERE em.events_id = ?::integer

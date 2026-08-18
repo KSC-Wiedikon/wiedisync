@@ -408,7 +408,11 @@ export function useCalendarData({ filters, rangeStart, rangeEnd, enabled = true 
       filters.selectedTeamIds,
       teamEventIds,
     ),
-    fields: ['id', 'start_date', 'end_date', 'all_day', 'title', 'location', 'description'],
+    // `invite_guests` + the two audience junctions are what the modal's RSVP
+    // gate needs (migration 324) — without them a guest gets buttons the
+    // server then rejects with a bare 403.
+    fields: ['id', 'start_date', 'end_date', 'all_day', 'title', 'location', 'description',
+             'invite_guests', 'teams.teams_id', 'invited_members.members_id'],
     sort: ['start_date'],
     all: true,
   })

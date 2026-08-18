@@ -126,8 +126,14 @@ export function registerEventNotify(router, { services, database, getSchema, log
       const allTeamIds = (event.teams ?? []).map(t => t.teams_id ?? t)
       const teamIds = elevated ? allTeamIds : allTeamIds.filter(t => ledTeamIds.has(Number(t)))
       if (teamIds.length > 0) {
+        // Migration 324: `invite_guests: false` = core roster only. Filtered per
+        // ROW, which is what makes the rule per MEMBER — a guest on one invited
+        // team who is a core player on another still comes in on that second
+        // row, and the invited_members pass below re-adds anyone invited by
+        // name. Coaches/TRs hold no roster row, so they are never affected.
         const memberTeams = await db('member_teams')
           .whereIn('team', teamIds)
+          .modify((q) => { if (event.invite_guests === false) q.whereRaw('COALESCE(guest_level, 0) = 0') })
           .select('member')
         for (const mt of memberTeams) memberIds.add(String(mt.member))
 

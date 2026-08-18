@@ -16,7 +16,7 @@ import { useRealtime } from '../../hooks/useRealtime'
 import { useMyCoveringAbsence } from '../../hooks/useMyCoveringAbsence'
 import { useAbsenceNoteText } from '../../hooks/useAbsenceNoteText'
 import { formatDate, formatTime, getDeadlineDate } from '../../utils/dateHelpers'
-import { asTeams, teamId, isHtml, isSameDay } from './eventHelpers'
+import { asTeams, teamId, isHtml, isSameDay, isGuestExcludedFromEvent } from './eventHelpers'
 import type { Event, EventSession, Participation } from '../../types'
 import CancelActivityButton from '../../components/CancelActivityButton'
 
@@ -44,11 +44,15 @@ const statusBorderColor: Record<string, string> = {
 
 export default function EventCard({ event, onClick, onEdit, onDelete, onOpenRoster, participations, myParticipation, onParticipationSaved }: EventCardProps) {
   const { t } = useTranslation('events')
-  const { user, canParticipateIn } = useAuth()
+  const { user, canParticipateIn, memberTeamIds, getGuestLevel } = useAuth()
   const teams = asTeams(event.teams)
+  // Migration 324: `invite_guests: false` drops the invited teams' guest players
+  // from the audience — they still SEE the event (the read policy is unchanged),
+  // they just can't answer it. Same shape as a training's excluded guest tier.
+  const guestExcluded = isGuestExcludedFromEvent(event, { memberId: user?.id, memberTeamIds, getGuestLevel })
   // Club-wide events (no teams): all logged-in users can RSVP
   // Team events: only members of those teams can RSVP
-  const canRSVP = user && (
+  const canRSVP = user && !guestExcluded && (
     !event.teams?.length || event.teams.some((tid) => canParticipateIn(teamId(tid)))
   )
   const myStatus = myParticipation?.status ?? null
@@ -193,6 +197,9 @@ export default function EventCard({ event, onClick, onEdit, onDelete, onOpenRost
             </div>
           </div>
         </div>
+      )}
+      {guestExcluded && !event.cancelled && (
+        <p className="mt-2 text-xs italic text-gray-500 dark:text-gray-400">{t('guestNotInvited')}</p>
       )}
       {!canRSVP && warnings.length > 0 && (
         <div className="mt-2 flex items-center gap-2">

@@ -54,10 +54,11 @@ interface ParticipationRosterModalProps {
   participationMode?: 'whole' | 'per_day' | 'per_session' | ''
   showRsvpTime?: boolean
   allowMaybe?: boolean
-  /** Guest levels excluded from this activity (only meaningful for trainings).
-   *  Members of those levels are dropped from the roster — they can't reply
-   *  (UI hides buttons + server rejects), so showing them as "not responded"
-   *  just inflates the list. */
+  /** Guest levels excluded from this activity. Trainings pick tiers
+   *  (`excluded_guest_levels`); events answer one yes/no (`invite_guests`) and
+   *  pass the whole ladder. Members of those levels are dropped from the roster
+   *  — they can't reply (UI hides buttons + server rejects), so showing them as
+   *  "not responded" just inflates the list. */
   excludedGuestLevels?: number[]
   /** Optional override for the activity-kind line shown above the title in
    *  PNG/PDF exports and prepended to CSV metadata. Defaults to the
@@ -387,7 +388,8 @@ export default function ParticipationRosterModal({
   // Excluded guests can't reply (UI hides buttons + server rejects participations.create),
   // so dropping them from the roster keeps "not responded" counts honest.
   // Games: hard rule from commit af71850 — any guest_level > 0 cannot participate.
-  // Trainings: per-activity excludedGuestLevels list.
+  // Trainings: per-activity excludedGuestLevels list. Events: all three tiers
+  // when `invite_guests` is off (migration 324).
   const excludedSet = useMemo(() => {
     if (!excludedGuestLevels?.length) return null
     return new Set(excludedGuestLevels.map((n) => Number(n)))

@@ -120,6 +120,9 @@ export default function EventForm({ open, event, onSave, onCancel }: EventFormPr
   const [minParticipants, setMinParticipants] = useState('')
   const [requireNoteIfAbsent, setRequireNoteIfAbsent] = useState(false)
   const [allowMaybe, setAllowMaybe] = useState(true)
+  // Migration 324. `true` is the pre-324 behaviour (every roster row of an
+  // invited team is audience), so an untouched form must never narrow it.
+  const [inviteGuests, setInviteGuests] = useState(true)
   const [enablePositions, setEnablePositions] = useState(false)
   const [participationMode, setParticipationMode] = useState<'whole' | 'per_day' | 'per_session'>('whole')
   const [sessions, setSessions] = useState<SessionDraft[]>([])
@@ -201,6 +204,7 @@ export default function EventForm({ open, event, onSave, onCancel }: EventFormPr
         })
       )
       setSendEmailInvite(event.send_email_invite ?? false)
+      setInviteGuests(event.invite_guests !== false)
       setJsRelevant(!!event.js_relevant)
       setJsActivityType((event.js_activity_type as 'Training' | 'Wettkampf' | 'Trainingstag' | 'Lagertag') || 'Training')
       setSignupUrl(event.signup_url ?? '')
@@ -228,6 +232,7 @@ export default function EventForm({ open, event, onSave, onCancel }: EventFormPr
       setInvitedRoles([])
       setInvitedMembers([])
       setSendEmailInvite(false)
+      setInviteGuests(true)
       setJsRelevant(false)
       setJsActivityType('Training')
       setSignupUrl('')
@@ -464,6 +469,7 @@ export default function EventForm({ open, event, onSave, onCancel }: EventFormPr
       invited_roles: invitedRoles.length > 0 ? invitedRoles : null,
       invited_members: m2mUpdatePayload('members_id', invitedMembers, event?.invited_members),
       send_email_invite: sendEmailInvite,
+      invite_guests: inviteGuests,
       js_relevant: jsRelevant,
       js_activity_type: jsRelevant ? jsActivityType : null,
       signup_url: signupUrl.trim() || null,
@@ -849,6 +855,20 @@ export default function EventForm({ open, event, onSave, onCancel }: EventFormPr
             onChange={setSelectedTeams}
           />
         </FormField>
+
+        {/* Guest players (member_teams.guest_level > 0) of the invited teams.
+            Sits under the team picker because it only means something once a
+            team is invited — a club-wide event has no roster to read a guest
+            level from. */}
+        {selectedTeams.length > 0 && (
+          <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+            <Switch checked={inviteGuests} onCheckedChange={setInviteGuests} />
+            <div>
+              <span>{t('inviteGuests')}</span>
+              <p className="text-xs text-muted-foreground">{t('inviteGuestsHint')}</p>
+            </div>
+          </div>
+        )}
 
         {/* Role targeting */}
         <FormField label={t('inviteByRole', { ns: 'invitations' })}>
