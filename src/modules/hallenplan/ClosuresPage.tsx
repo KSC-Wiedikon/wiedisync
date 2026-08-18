@@ -208,6 +208,15 @@ export default function ClosuresPage() {
     return `${parts[2]}.${parts[1]}.${parts[0]}`
   }
 
+  /** `dd.mm.yy` — the compact form CLAUDE.md allows where space is critical
+   *  (still dot-separated and day-first). Mobile only. */
+  function formatDateShort(dateStr: string): string {
+    if (!dateStr) return ''
+    const parts = dateStr.split('-')
+    if (parts.length !== 3) return dateStr
+    return `${parts[2]}.${parts[1]}.${parts[0].slice(2)}`
+  }
+
   function startEdit(group: ClosureGroup) {
     setEditingGroup(group)
     setSelectedHalls(group.records.map((r) => r.hall))
@@ -603,7 +612,7 @@ export default function ClosuresPage() {
                 <TableHead>{t('closuresColDates')}</TableHead>
                 <TableHead>{t('gcalColEntry')}</TableHead>
                 <TableHead className="hidden sm:table-cell">{t('gcalColEffect')}</TableHead>
-                <TableHead className="w-32" />
+                <TableHead />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -620,8 +629,22 @@ export default function ClosuresPage() {
 
                 return (
                   <TableRow key={ev.id} className="min-h-[44px]">
-                    <TableCell className="whitespace-normal break-words font-medium tabular-nums">
-                      {dateRange}
+                    <TableCell className="whitespace-nowrap font-medium tabular-nums">
+                      {/* A nowrap `24.10.26–25.10.26` is ~120px and pushes the row's
+                          only action off a 390px screen. Break the range over two
+                          lines on mobile instead — same rule as the roster's
+                          two-line names. */}
+                      <span className="block leading-tight sm:hidden">
+                        {startStr === endStr ? (
+                          formatDateShort(startStr)
+                        ) : (
+                          <>
+                            {formatDateShort(startStr)}
+                            <span className="block">–{formatDateShort(endStr)}</span>
+                          </>
+                        )}
+                      </span>
+                      <span className="hidden sm:inline">{dateRange}</span>
                     </TableCell>
                     <TableCell className="whitespace-normal break-words">
                       {ev.title}
@@ -658,7 +681,7 @@ export default function ClosuresPage() {
                         loading={togglingId === ev.id}
                         onClick={() => { void toggleGcalClosure(ev) }}
                         className={cn(
-                          'w-full sm:w-auto',
+                          'whitespace-nowrap px-2 sm:px-3',
                           closes
                             ? 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700'
                             : 'text-brand-600 hover:bg-brand-50 hover:text-brand-700 dark:hover:bg-gray-800',
