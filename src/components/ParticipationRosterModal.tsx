@@ -988,18 +988,40 @@ export default function ParticipationRosterModal({
     return targets[0]?.row?.status ?? null
   }
 
+  /**
+   * Does one person belong under the active status chip?
+   *
+   * Shared by the roster block, the waitlist section and the Staff section —
+   * the chip's own count is roster-only, so a section that ignored the filter
+   * put a row on screen the count did not include ("No response (6)" listing a
+   * confirmed coach as the 7th row). `waitlisted` deliberately matches no chip:
+   * the filter offers Confirmed / Maybe / Declined / No response, so a
+   * waitlisted player only belongs under "All".
+   */
+  const matchesStatusFilter = (status: Participation['status'] | null, memberId: string): boolean => {
+    if (statusFilter === null) return true
+    if (statusFilter === 'confirmed') return status === 'confirmed'
+    if (statusFilter === 'tentative') return status === 'tentative'
+    // An absence with no participation row of its own reads as declined —
+    // mirrors `absentWithoutParticipation` in the counts above.
+    if (statusFilter === 'declined') return status === 'declined' || (absentMemberIds.has(String(memberId)) && !participations.some(p => String(p.member) === String(memberId)))
+    if (statusFilter === 'no_response') return status === null && !absentMemberIds.has(String(memberId))
+    return true
+  }
+
   const filteredMemberList = useMemo(() => {
     if (statusFilter === null) return memberList
-    return memberList.filter((m) => {
-      const s = getMemberStatus(m.id)
-      if (statusFilter === 'confirmed') return s === 'confirmed'
-      if (statusFilter === 'tentative') return s === 'tentative'
-      if (statusFilter === 'declined') return s === 'declined' || (absentMemberIds.has(String(m.id)) && !participations.some(p => String(p.member) === String(m.id)))
-      if (statusFilter === 'no_response') return s === null && !absentMemberIds.has(String(m.id))
-      return true
-    })
+    return memberList.filter((m) => matchesStatusFilter(getMemberStatus(m.id), m.id))
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusFilter, memberList, participations, absences])
+
+  // Same narrowing for the two sections that render below the roster block.
+  const filteredStaffMembers = statusFilter === null
+    ? visibleStaffMembers
+    : visibleStaffMembers.filter((sm) => matchesStatusFilter(getStaffMemberStatus(sm.id), sm.id))
+  const filteredWaitlistedParts = statusFilter === null
+    ? waitlistedParts
+    : waitlistedParts.filter((wp) => matchesStatusFilter('waitlisted', wp.member))
 
   // ---- Edit attribution (migration 046) ------------------------------------
   // Map directus_users.id → display name for the "Edited by …" line. Seeded
@@ -1251,14 +1273,15 @@ export default function ParticipationRosterModal({
       }
     })
     // Waitlist + staff, appended so the export reflects everything visible in
-    // the modal. ⚠ This used to be gated on `statusFilter === null`, but the
-    // on-screen waitlist and Staff sections render under EVERY filter — so
-    // exporting e.g. "Confirmed" silently dropped every coach and every
-    // waitlisted player from the sheet while they stayed on screen. The export
-    // mirrors the modal; the status filter narrows the roster block only.
+    // the modal. ⚠ The rule is "the export mirrors the modal", NOT "the export
+    // is the whole roster": gating these on `statusFilter === null` once
+    // dropped every coach and every waitlisted player from a "Confirmed" sheet
+    // while they stayed on screen. Both sections are now narrowed by the same
+    // `matchesStatusFilter` the roster block uses, so the two stay in step —
+    // feed them the FILTERED lists, never the raw ones.
     {
       const waitlistRows: { m: Member; wp: Participation; role: string | undefined }[] = []
-      for (const wp of waitlistedParts) {
+      for (const wp of filteredWaitlistedParts) {
         const m = memberList.find((mm) => mm.id === wp.member)
         if (!m) continue
         waitlistRows.push({ m, wp, role: leadershipRoles.get(m.id) })
@@ -1280,7 +1303,7 @@ export default function ParticipationRosterModal({
           editedBy: formatAttribution(m, wp),
         })
       }
-      const sortedStaff = [...visibleStaffMembers].sort(byLastName)
+      const sortedStaff = [...filteredStaffMembers].sort(byLastName)
       for (const sm of sortedStaff) {
         const myStaffRows = visibleStaffParticipations.filter((p) => String(p.member) === String(sm.id))
         // On a day tab the export must speak for THAT day — the staff fetch
@@ -1317,20 +1340,20 @@ export default function ParticipationRosterModal({
     }
     return rows
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filteredMemberList, participations, absences, leadershipRoles, leadershipTeamsByMember, teamsByMember, teamNameById, statusFilter, waitlistedParts, visibleStaffMembers, visibleStaffParticipations, memberList, t, translatePositions, exportSessions, sessionParticipationByMember])
+  }, [filteredMemberList, participations, absences, leadershipRoles, leadershipTeamsByMember, teamsByMember, teamNameById, statusFilter, filteredWaitlistedParts, filteredStaffMembers, visibleStaffParticipations, memberList, t, translatePositions, exportSessions, sessionParticipationByMember])
 
   // Position breakdown of the same population that exportRows covers — counts
   // each member once per declared position (a setter/outside hybrid contributes
   // to both buckets). Stable order preserved by inserting in iteration order.
   const positionSummary = useMemo<{ position: string; label: string; count: number }[]>(() => {
-    // Same population as `exportRows` — including waitlist + staff under every
-    // filter, since those blocks are always part of the sheet.
+    // Same population as `exportRows` — the roster block plus whatever the
+    // waitlist and Staff sections still show under the active filter.
     const membersForExport: Member[] = [...filteredMemberList]
-    for (const wp of waitlistedParts) {
+    for (const wp of filteredWaitlistedParts) {
       const m = memberList.find((mm) => mm.id === wp.member)
       if (m) membersForExport.push(m)
     }
-    for (const sm of visibleStaffMembers) membersForExport.push(sm)
+    for (const sm of filteredStaffMembers) membersForExport.push(sm)
     const counts = new Map<string, number>()
     for (const m of membersForExport) {
       for (const p of m.position ?? []) {
@@ -1350,7 +1373,7 @@ export default function ParticipationRosterModal({
           count: counts.get(pos) ?? 0,
         }
       })
-  }, [filteredMemberList, waitlistedParts, visibleStaffMembers, memberList, tt])
+  }, [filteredMemberList, filteredWaitlistedParts, filteredStaffMembers, memberList, tt])
 
   // Team column + grouping only earn their space when the export actually spans
   // several teams — on a single-team roster the column would repeat one value.
@@ -2101,12 +2124,12 @@ export default function ParticipationRosterModal({
           })}
 
           {/* Waitlist section */}
-          {waitlistedParts.length > 0 && (
+          {filteredWaitlistedParts.length > 0 && (
             <>
               <div className="border-b bg-orange-50 px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-orange-600 dark:border-gray-700 dark:bg-orange-900/20 dark:text-orange-400">
-                {t('waitlisted')} ({waitlistedParts.length})
+                {t('waitlisted')} ({filteredWaitlistedParts.length})
               </div>
-              {waitlistedParts.map((wp, idx) => {
+              {filteredWaitlistedParts.map((wp, idx) => {
                 const member = memberList.find(m => m.id === wp.member)
                 if (!member) return null
                 return (
@@ -2172,12 +2195,12 @@ export default function ParticipationRosterModal({
           )}
 
           {/* Staff section — coaches/team_responsible not in roster */}
-          {visibleStaffMembers.length > 0 && (
+          {filteredStaffMembers.length > 0 && (
             <>
               <div className="border-b bg-gray-50 px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">
                 {t('staff')}
               </div>
-              {visibleStaffMembers.map((member) => {
+              {filteredStaffMembers.map((member) => {
                 const status = getStaffMemberStatus(member.id)
                 // Same write path as the roster rows — `sessionTargets` resolves
                 // the day in view (or every day on the Overall tab) out of the
