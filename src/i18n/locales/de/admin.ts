@@ -1403,6 +1403,8 @@ export default {
   trUnrosteredHint: 'Volleymanager lizenziert dieses Mitglied für den Verein, in wiedisync ist es aber keinem Volleyballteam zugeteilt. Der Transfer gilt trotzdem — die fehlende Teamzuteilung ist eine separate Datenlücke, die behoben werden sollte.',
   trFooConflictBanner_one: 'Volleymanager führt bei {{count}} Mitglied einen anderen Herkunftsverband',
   trFooConflictBanner_other: 'Volleymanager führt bei {{count}} Mitgliedern einen anderen Herkunftsverband',
+  trFooConflictAlert_one: 'Bei {{count}} Mitglied führt Volleymanager einen ausländischen Verband, wir aber die Schweiz',
+  trFooConflictAlert_other: 'Bei {{count}} Mitgliedern führt Volleymanager einen ausländischen Verband, wir aber die Schweiz',
   trFooConflictDescription: 'Swiss Volley arbeitet mit ihrem Wert, nicht mit unserem. Bei einer Abweichung ist entweder unser Eintrag falsch oder ihrer — entweder Swiss Volley um Korrektur des Registers bitten oder das Mitglied hier korrigieren. Es wird nichts automatisch geändert.',
   trFooConflictColMember: 'Mitglied',
   trFooConflictColOurs: 'Unser Eintrag',
