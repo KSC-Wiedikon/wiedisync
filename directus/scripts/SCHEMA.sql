@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-08-15T10:18:24.619Z
+-- Generated:   2026-08-18T08:52:06.095Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -29,10 +29,10 @@
 -- PostgreSQL database dump
 --
 
-\restrict lxKIcechAOfVsN695bEOJJtmyPnF0s72MDru6OPynpjfGWOoHOnbN86JucxNb5o
+\restrict XhMX1WMYdlpcqtEoKz03D1fcWedgciDvczvCvcqzz5alh4JEWxcz8WdQHwD0EGf
 
--- Dumped from database version 16.14 (Debian 16.14-1.pgdg13+1)
--- Dumped by pg_dump version 16.14 (Debian 16.14-1.pgdg13+1)
+-- Dumped from database version 16.15 (Debian 16.15-1.pgdg13+2)
+-- Dumped by pg_dump version 16.15 (Debian 16.15-1.pgdg13+2)
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -3816,6 +3816,7 @@ CREATE TABLE public.events (
     js_relevant boolean DEFAULT false NOT NULL,
     js_activity_type character varying(32),
     public_share_token character varying(64),
+    invite_guests boolean DEFAULT true NOT NULL,
     CONSTRAINT events_public_share_token_format CHECK (((public_share_token IS NULL) OR ((public_share_token)::text ~ '^[A-Za-z0-9_-]{24,64}$'::text)))
 );
 
@@ -3832,6 +3833,13 @@ COMMENT ON COLUMN public.events.js_relevant IS 'Coach opt-in: include this event
 --
 
 COMMENT ON COLUMN public.events.js_activity_type IS 'NDS J+S activity type when js_relevant: Training | Wettkampf | Trainingstag | Lagertag.';
+
+
+--
+-- Name: COLUMN events.invite_guests; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.events.invite_guests IS 'Do the guest players (member_teams.guest_level > 0) of the invited teams count as invited? true (default) = yes, the audience is every roster row as before. false = core roster only: guests are dropped from the notify fan-out, auto-confirm, absence auto-decline and the deadline reminder, and the RSVP gate refuses their confirmed/tentative write. Decided per member — core on any invited team, or personally invited via events_members, keeps them in. Nothing to do with participations.guest_count (+1s) or the public signup door.';
 
 
 --
@@ -4123,7 +4131,9 @@ CREATE TABLE public.finance_dues_rates (
     date_created timestamp with time zone DEFAULT now() NOT NULL,
     date_updated timestamp with time zone,
     user_created uuid,
-    CONSTRAINT finance_dues_rates_amount_chf_check CHECK ((amount_chf >= (0)::numeric))
+    licence_chf numeric(10,2) DEFAULT 0 NOT NULL,
+    CONSTRAINT finance_dues_rates_amount_chf_check CHECK ((amount_chf >= (0)::numeric)),
+    CONSTRAINT finance_dues_rates_licence_range CHECK (((licence_chf >= (0)::numeric) AND (licence_chf <= amount_chf)))
 );
 
 
@@ -4132,6 +4142,13 @@ CREATE TABLE public.finance_dues_rates (
 --
 
 COMMENT ON TABLE public.finance_dues_rates IS 'Per-(fiscal_year, beitragskategorie[, sektion]) membership-fee schedule. sektion NULL = category default; a sektion row overrides. Treasurer-entered (no dues amount is mirrored from ClubDesk).';
+
+
+--
+-- Name: COLUMN finance_dues_rates.licence_chf; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.finance_dues_rates.licence_chf IS 'The federation licence portion INSIDE amount_chf (Swiss Volley RLL 110 / JLL 60 …), in CHF. Presentation only: the dues run splits the invoice''s first position into (amount_chf - licence_chf) + this, and the total is unchanged. 0 = the category orders no licence. Never read by feeBreakdown().';
 
 
 --
@@ -16110,12 +16127,12 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict lxKIcechAOfVsN695bEOJJtmyPnF0s72MDru6OPynpjfGWOoHOnbN86JucxNb5o
+\unrestrict XhMX1WMYdlpcqtEoKz03D1fcWedgciDvczvCvcqzz5alh4JEWxcz8WdQHwD0EGf
 
 
 
 -- ============================================================================
--- Migration tracker seed — 327 migration(s) already in the schema above.
+-- Migration tracker seed — 329 migration(s) already in the schema above.
 -- GENERATED with the snapshot; do not hand-edit.
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS kscw_migrations (
@@ -16454,6 +16471,8 @@ FROM (VALUES
   ('319-schlegel-gratis-push-flag.sql'),
   ('320-transfer-status-not-needed.sql'),
   ('321-clubdesk-sync-proposals.sql'),
-  ('322-trainings-derive-respond-by.sql')
+  ('322-trainings-derive-respond-by.sql'),
+  ('323-dues-rate-licence-split.sql'),
+  ('324-events-invite-guests.sql')
 ) AS v(fname)
 ON CONFLICT (filename) DO NOTHING;
