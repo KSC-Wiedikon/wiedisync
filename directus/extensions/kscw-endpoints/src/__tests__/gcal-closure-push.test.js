@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { closureKey, findDuplicate } from '../gcal-push.js'
 
 describe('closureKey — one calendar event per closure GROUP', () => {
@@ -69,5 +69,81 @@ describe('findDuplicate — never push what they already have', () => {
 
   it('is empty-safe', () => {
     expect(findDuplicate([], '2026-12-13', '2026-12-13')).toBeNull()
+  })
+})
+
+describe('pushEnv + dry-run — dev must not be able to write to the school calendar', () => {
+  async function load(env) {
+    const saved = { ...process.env }
+    for (const k of ['PUBLIC_URL', 'GCAL_PUSH_DRY_RUN', 'GCAL_PUSH_FORCE_WRITE']) delete process.env[k]
+    Object.assign(process.env, env)
+    vi.resetModules()
+    const mod = await import('../gcal-push.js')
+    return { mod, restore: () => { process.env = saved } }
+  }
+
+  it('reports dev vs prod from PUBLIC_URL', async () => {
+    let { mod, restore } = await load({ PUBLIC_URL: 'https://directus-dev.kscw.ch' })
+    expect(mod.pushEnv()).toBe('dev'); restore()
+    ;({ mod, restore } = await load({ PUBLIC_URL: 'https://directus.kscw.ch' }))
+    expect(mod.pushEnv()).toBe('prod'); restore()
+  })
+
+  // The whole point: dev's safety must NOT rest on one env var in one .env file.
+  // A dev run on 2026-08-18 wanted to delete both VB U20 Tournament entries off
+  // the hall administration's calendar; only GCAL_PUSH_DRY_RUN stopped it.
+  it('a dev instance with NO dry-run env var still cannot write', async () => {
+    const { mod, restore } = await load({ PUBLIC_URL: 'https://directus-dev.kscw.ch' })
+    expect(mod.isDryRun()).toBe(true)
+    restore()
+  })
+
+  it('prod writes for real', async () => {
+    const { mod, restore } = await load({ PUBLIC_URL: 'https://directus.kscw.ch' })
+    expect(mod.isDryRun()).toBe(false)
+    restore()
+  })
+
+  it('dev can still be forced to write, but only on purpose', async () => {
+    const { mod, restore } = await load({ PUBLIC_URL: 'https://directus-dev.kscw.ch', GCAL_PUSH_FORCE_WRITE: '1' })
+    expect(mod.isDryRun()).toBe(false)
+    restore()
+  })
+
+  it('the old env var still forces a dry run on prod', async () => {
+    const { mod, restore } = await load({ PUBLIC_URL: 'https://directus.kscw.ch', GCAL_PUSH_DRY_RUN: 'true' })
+    expect(mod.isDryRun()).toBe(true)
+    restore()
+  })
+
+  it('an unknown PUBLIC_URL is treated as prod — fail loud, not silently dev', async () => {
+    const { mod, restore } = await load({ PUBLIC_URL: '' })
+    expect(mod.pushEnv()).toBe('prod')
+    restore()
+  })
+})
+
+describe('mayDelete — one calendar, two environments', () => {
+  it('deletes only its own environment\'s events', async () => {
+    const { mayDelete } = await import('../gcal-push.js')
+    expect(mayDelete('prod', 'prod')).toBe(true)
+    expect(mayDelete('dev', 'dev')).toBe(true)
+  })
+
+  // The 2026-08-18 near-miss: a dev run counted both prod-published VB U20
+  // Tournament entries for deletion off the school's calendar.
+  it('never lets dev delete a prod event, or prod delete a dev one', async () => {
+    const { mayDelete } = await import('../gcal-push.js')
+    expect(mayDelete('prod', 'dev')).toBe(false)
+    expect(mayDelete('dev', 'prod')).toBe(false)
+  })
+
+  // Only prod ever wrote before the stamp existed, so prod adopts the legacy
+  // events (and stamps them on the next update); dev must not touch them.
+  it('adopts unstamped legacy events on prod only', async () => {
+    const { mayDelete } = await import('../gcal-push.js')
+    expect(mayDelete(undefined, 'prod')).toBe(true)
+    expect(mayDelete(undefined, 'dev')).toBe(false)
+    expect(mayDelete('', 'dev')).toBe(false)
   })
 })

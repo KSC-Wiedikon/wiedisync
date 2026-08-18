@@ -44,11 +44,27 @@ export function isPushEnabled() {
   return loadKey() !== null
 }
 
+// Which environment is this? Stamped onto every event we create, so ownership is
+// not merely "wiedisync wrote it" but "THIS instance wrote it".
+export const pushEnv = () => ((process.env.PUBLIC_URL || '').includes('directus-dev') ? 'dev' : 'prod')
+
 // There is exactly ONE production calendar and dev's database is a nightly clone
 // of prod — so a dev instance with a key would push the same games and then fight
-// prod over every edit. Dev therefore runs GCAL_PUSH_DRY_RUN=true: the full path
-// (auth, fetch, diff) runs and logs what it WOULD do, and nothing is written.
-const isDryRun = () => process.env.GCAL_PUSH_DRY_RUN === 'true'
+// prod over every edit.
+//
+// ⚠⚠ Dev is dry-run BY CODE, not merely by env var. It used to rest solely on
+// GCAL_PUSH_DRY_RUN=true in dev's .env, which is one lost env var — or one
+// container recreate — away from dev writing to the school's live calendar. And
+// it would not just create noise: the closure reconciler's delete loop removes
+// every event marked ours that dev does not also have flagged, and dev's
+// push_to_gcal flags diverge from prod's the moment anyone toggles one. A dev run
+// on 2026-08-18 reported `-2` — it would have deleted both VB U20 Tournament
+// entries from the hall administration's calendar.
+//
+// GCAL_PUSH_FORCE_WRITE=1 is the deliberate escape hatch for testing a real write
+// from dev; nothing sets it, and it has to be typed on purpose.
+export const isDryRun = () => process.env.GCAL_PUSH_DRY_RUN === 'true'
+  || (pushEnv() === 'dev' && process.env.GCAL_PUSH_FORCE_WRITE !== '1')
 
 async function getAccessToken() {
   if (cachedToken && cachedToken.expiresAt > Date.now() + 60_000) return cachedToken.token
@@ -297,6 +313,18 @@ export function findDuplicate(hallEvents, startDate, endDate) {
   }) || null
 }
 
+/**
+ * May THIS instance delete an event another wiedisync instance may have written?
+ *
+ * `wiedisync=closure` only says "some wiedisync wrote it" — dev and prod share
+ * one calendar and their push_to_gcal flags diverge, so "marked ours but not in
+ * my desired set" is not grounds to remove it. Unstamped events predate the
+ * stamp and only prod ever wrote, so prod adopts them and dev leaves them alone.
+ */
+export function mayDelete(eventEnv, myEnv) {
+  return eventEnv ? eventEnv === myEnv : myEnv === 'prod'
+}
+
 // All-day event covering [start, end] inclusive. Google's `end.date` is
 // EXCLUSIVE, so it is the day AFTER our inclusive end — the same conversion the
 // pull half undoes with minusOneDay().
@@ -313,7 +341,7 @@ function buildClosureEvent(group) {
     start: { date: group.start_date },
     end: { date: endExclusive.toISOString().slice(0, 10) },
     transparency: 'transparent',
-    extendedProperties: { private: { wiedisync: 'closure', closure_key: group.key } },
+    extendedProperties: { private: { wiedisync: 'closure', closure_key: group.key, env: pushEnv() } },
   }
 }
 
@@ -322,6 +350,9 @@ function closureNeedsUpdate(existing, desired) {
     existing.summary !== desired.summary
     || (existing.start?.date ?? '') !== desired.start.date
     || (existing.end?.date ?? '') !== desired.end.date
+    // Also patches the two events pushed before the stamp existed, so they stop
+    // being "unstamped legacy" after one prod run.
+    || (existing.extendedProperties?.private?.env ?? '') !== desired.extendedProperties.private.env
   )
 }
 
@@ -472,14 +503,28 @@ export async function pushClubClosures(db, log, hallEvents = []) {
   // therefore lands here as a delete. Observed on 2026-08-18: a dev run reported
   // `-2`, i.e. it would have silently removed both VB U20 Tournament entries
   // from the hall administration's calendar. Only the dry run stopped it.
+  const me = pushEnv()
+  let foreign = 0
   for (const [key, event] of existing) {
     if (desired.has(key)) continue
+    // ⚠⚠ Never delete another ENVIRONMENT's event. `wiedisync=closure` says only
+    // that some wiedisync wrote it; dev and prod share one calendar and their
+    // push_to_gcal flags diverge, so "marked ours but not in my desired set" is
+    // NOT sufficient grounds to remove it. Unstamped events predate this guard
+    // and only prod ever wrote, so prod adopts them (and stamps them on update);
+    // dev leaves them alone. This is the belt to the dry-run's braces — the
+    // failure it prevents is deleting the club's real bookings off the school's
+    // calendar, which nothing would alert us to.
+    if (!mayDelete(event.extendedProperties?.private?.env, me)) { foreign++; continue }
     if (!dryRun) {
       await api(`/calendars/${encodeURIComponent(KSCW_CALENDAR_ID)}/events/${event.id}`, {
         method: 'DELETE', query: { sendUpdates: 'none' },
       })
     }
     deleted++
+  }
+  if (foreign) {
+    log.warn({ msg: `gcal-push closures: left ${foreign} event(s) belonging to another environment untouched`, endpoint: 'gcal-sync' })
   }
 
   log.info({ msg: `gcal-push closures${dryRun ? ' (dry run — nothing written)' : ''}: +${created} ~${updated} -${deleted} (${skippedDuplicate} already on their calendar)`, endpoint: 'gcal-sync' })
