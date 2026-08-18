@@ -931,6 +931,8 @@ export default {
   trUnrosteredHint: 'De Volleymanager lizenziert das Mitglied für de Verein, i wiedisync isch es aber kem Volleyballteam zuegteilt. De Transfer gilt trotzdem — di fehlendi Teamzuteilig isch e separati Datelücke, wo mer sött flicke.',
   trFooConflictBanner_one: 'De Volleymanager füehrt bi {{count}} Mitglied en andere Herkunftsverband',
   trFooConflictBanner_other: 'De Volleymanager füehrt bi {{count}} Mitglieder en andere Herkunftsverband',
+  trFooConflictAlert_one: 'Bi {{count}} Mitglied füehrt de Volleymanager en usländische Verband, mir aber d Schwiiz',
+  trFooConflictAlert_other: 'Bi {{count}} Mitglieder füehrt de Volleymanager en usländische Verband, mir aber d Schwiiz',
   trFooConflictDescription: 'Swiss Volley schaffet mit ihrem Wert, nöd mit eusem. Bi ere Abwiichig isch entweder eusi Iitrag falsch oder ihre — entweder Swiss Volley um e Korrektur vom Register bitte oder s Mitglied da korrigiere. Es wird nüt automatisch gänderet.',
   trFooConflictColMember: 'Mitglied',
   trFooConflictColOurs: 'Eusen Iitrag',

@@ -1412,6 +1412,13 @@ export default {
   trUnrosteredHint: 'Volleymanager licenses this member for the club, but they have no volleyball team in wiedisync. The transfer still applies — the missing roster entry is a separate data gap worth fixing.',
   trFooConflictBanner_one: 'Volleymanager records a different federation of origin for {{count}} member',
   trFooConflictBanner_other: 'Volleymanager records a different federation of origin for {{count}} members',
+  // ⚠ Distinct from `trFooConflictBanner`, which the Diagnostics table uses for
+  // ALL conflict kinds. This one is the alert strip and covers the DANGEROUS
+  // direction only (we record CH/'NONE', Swiss Volley records a foreign
+  // federation), so the wording has to name that scope — the same sentence with
+  // a smaller number reads as a contradiction.
+  trFooConflictAlert_one: 'Volleymanager records a foreign federation for {{count}} member we record as Swiss',
+  trFooConflictAlert_other: 'Volleymanager records a foreign federation for {{count}} members we record as Swiss',
   trFooConflictDescription: 'Swiss Volley works from their value, not ours. Where these disagree, either our record is wrong or theirs is — ask Swiss Volley to correct the register, or correct the member here. Nothing is changed automatically.',
   trFooConflictColMember: 'Member',
   trFooConflictColOurs: 'Our record',

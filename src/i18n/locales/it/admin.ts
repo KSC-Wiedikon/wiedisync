@@ -797,6 +797,8 @@ export default {
   trUnrosteredHint: 'Volleymanager rilascia la licenza a questo membro per il club, ma in wiedisync non è assegnato a nessuna squadra di pallavolo. Il trasferimento vale comunque — l’assegnazione mancante è una lacuna di dati separata, da correggere.',
   trFooConflictBanner_one: 'Volleymanager registra una federazione di provenienza diversa per {{count}} membro',
   trFooConflictBanner_other: 'Volleymanager registra una federazione di provenienza diversa per {{count}} membri',
+  trFooConflictAlert_one: 'Volleymanager indica una federazione estera per {{count}} membro che registriamo come svizzero',
+  trFooConflictAlert_other: 'Volleymanager indica una federazione estera per {{count}} membri che registriamo come svizzeri',
   trFooConflictDescription: 'Swiss Volley si basa sul loro valore, non sul nostro. In caso di divergenza è sbagliato il nostro dato oppure il loro — chiedere a Swiss Volley di correggere il registro, oppure correggere il membro qui. Nulla viene modificato automaticamente.',
   trFooConflictColMember: 'Membro',
   trFooConflictColOurs: 'Il nostro dato',
