@@ -28,6 +28,7 @@ export default {
   adminGroupPlanning: 'Planung & Hallen',
   adminGroupGames: 'Spielbetrieb',
   adminGroupMembers: 'Mitglieder & Kommunikation',
+  adminGroupEmail: 'Vereins-E-Mail',
   adminGroupData: 'Daten & Auswertungen',
   memberTools: 'Mitglieder-Tools',
   jsExport: 'J+S-Export',

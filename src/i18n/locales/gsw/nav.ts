@@ -27,6 +27,7 @@ export default {
   adminGroupPlanning: 'Planig & Halle',
   adminGroupGames: 'Spielbetrib',
   adminGroupMembers: 'Mitglider & Kommunikation',
+  adminGroupEmail: 'Vereins-E-Mail',
   adminGroupData: 'Date & Uuswertige',
   memberTools: 'Mitglieder-Tools',
   jsExport: 'J+S-Export',
