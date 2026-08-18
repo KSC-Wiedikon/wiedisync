@@ -859,7 +859,7 @@ export default {
   trManualLinkEdit: 'Modifica collegamento',
   trManualLinkTitle: 'Collega un numero giocatore VIS',
   trManualLinkMessage: 'Inserisci il numero giocatore VIS di {{name}}. Il prossimo controllo lo confermerà nell’indice della federazione. Lascia vuoto per rimuovere il collegamento.',
-  trManualLinkPlaceholder: 'es. 243602',
+  trManualLinkPlaceholder: 'Es. 243602',
   trManualLinkInvalid: 'Inserisci un numero giocatore VIS (solo cifre).',
   trManualLinkSaved: 'Numero giocatore collegato. Avvia il controllo VIS per confermarlo.',
   trManualLinkCleared: 'Collegamento rimosso.',
@@ -884,6 +884,80 @@ export default {
   trSaveFailed: 'Salvataggio non riuscito',
   trEmptyTitle: 'Niente da fare',
   trEmptyDescription: 'Nessun trasferimento aperto né domanda in sospeso.',
+
+  // ── Situazione dedotta (colonna «Situazione», chip di filtro, «Raggruppa per situazione») ──
+  // ⚠ La situazione è un'etichetta DEDOTTA dalle quattro fonti separate —
+  // in_vis, licence_validated, transfer_status e il record FIVB vis_transfers.
+  // Non le fonde mai e non è mai un valore booleano: tutte e quattro restano
+  // leggibili singolarmente nel dettaglio della riga.
+  trColState: 'Situazione',
+  trStateCanRequest: 'Richiesta possibile',
+  trStateWaitingFederation: 'In attesa della federazione',
+  trStateInProgress: 'In corso {{percent}}%',
+  trStateChasing: 'Sollecito in corso',
+  trStateAwaitingConfirmation: 'Licenza convalidata',
+  trStateDone: 'Completato',
+  trStateBlocked: 'Non eleggibile',
+  trStateRuledOut: 'Escluso',
+  trStateDisputed: 'Contraddittorio',
+  // Formulazione da indizio, mai da verdetto — stessa regola del blocco trInVis*
+  // qui sopra. «Non trovato in VIS» è un indizio, mai «questa persona non esiste».
+  trStateCanRequestHint: 'Figurano nell’indice giocatori VIS della loro federazione di origine e non c’è ancora alcun trasferimento aperto, quindi si può presentare una richiesta per loro.',
+  trStateWaitingFederationHint: 'Nell’indice VIS non è ancora stato trovato alcun giocatore con questo nome, oppure la verifica non è ancora stata eseguita per loro. La richiesta preparata chiede alla federazione di registrarli — ma il confronto avviene sul nome, quindi un mancato riscontro di solito significa che la nostra federazione di origine era sbagliata.',
+  trStateInProgressHint: 'La FIVB VIS segnala un trasferimento aperto per questa persona. La percentuale è l’indicatore di avanzamento di VIS stesso.',
+  trStateChasingHint: 'Qualcuno ha segnato questo trasferimento come sollecitato. Al momento non si sa altro.',
+  trStateAwaitingConfirmationHint: 'Swiss Volley ha convalidato la licenza, il che di solito significa che il certificato è arrivato — ma qui il trasferimento è ancora segnato come in sospeso.',
+  trStateDoneHint: 'Segnato come completato, e Swiss Volley ha convalidato la licenza.',
+  trStateBlockedHint: 'Segnato come completato, ma la licenza non è convalidata. Il certificato non è arrivato e la persona non è eleggibile.',
+  trStateRuledOutHint: 'Escluso a mano, oppure Swiss Volley li tessera come svizzeri. Nulla è stato modificato nella loro federazione di origine.',
+
+  // Schede delle coorti + barra degli strumenti della lista di lavoro. Ogni
+  // coorte resta raggiungibile e conteggiata — è la barra delle schede a tenere
+  // distinguibili «nessuno ha bisogno di un trasferimento» e «sono stati esclusi
+  // tutti».
+  trTabWorklist: 'Lista di lavoro',
+  trTabClarify: 'Da chiarire',
+  trTabRuledOut: 'Esclusi',
+  trTabSwiss: 'Swiss Volley',
+  trTabDiagnostics: 'Diagnostica',
+  // Precede ogni chip di filtro, così la barra dei numeri non viene mai letta
+  // come un conteggio di tutto il club — conta solo la lista di lavoro.
+  trNumbersScope: 'Trasferimento necessario',
+  trSearchPlaceholder: 'Cerca per nome, licenza o numero VIS',
+  trGroupBy: 'Raggruppa per',
+  trGroupByFederation: 'Federazione',
+  trGroupByState: 'Situazione',
+  trGroupByNone: 'Nessun raggruppamento',
+  trClearFilter: 'Azzera il filtro',
+
+  trMore: 'Altro',
+  trShowThese: 'Mostra queste persone',
+  trShowInDiagnostics: 'Mostra le divergenze',
+  trShowInWorklist: 'Mostra nella lista di lavoro',
+  trRowDetail: 'Mostra tutti gli elementi',
+  // Offerto solo dove transfer_status è memorizzato come 'not_needed'. Chi è
+  // escluso perché Swiss Volley lo tessera come svizzero non può essere riaperto
+  // da qui — bucketOf lo rimetterebbe subito — al suo posto compare l'indicazione
+  // trDerivedVm.
+  trReopen: 'Riapri',
+  trRuledOutByHand: 'Escluso a mano',
+  trColRuledOutBy: 'Escluso da',
+
+  trRequestDialogTitle: 'Richiesta preparata',
+  trRequestDialogDescription: 'Da qui non viene inviato nulla. Copia il testo nel tuo programma di posta, oppure aprilo con l’indirizzo già inserito.',
+  trRequestNoAddress: 'VIS non indica alcun indirizzo per questa federazione — copia il testo e invialo dal tuo programma di posta.',
+  trAboutNumbersTitle: 'Su questi numeri',
+  trWhatIsThis: 'Che cosa significa?',
+  trDiagHiddenTitle: 'Non in questa pagina',
+  trDiagHiddenDescription: 'I membri che un filtro ha lasciato fuori, e perché. Assegna una squadra a qualcuno e ricompare.',
+  trDiagSettledTitle: 'Nessun trasferimento necessario',
+  trDiagVisTitle: 'Verifica VIS',
+  trInVisOfTotal: '{{inVis}} su {{total}} in VIS',
+  // Una riga sotto la barra dei numeri, che scompone le quattro coorti nascoste
+  // (trHiddenNoTeam / trHiddenGuests / trHiddenBasketball / trHiddenU20) in un
+  // HintPopover. Un filtro non deve mai inghiottire un trasferimento in silenzio.
+  trHiddenSummary_one: '{{count}} membro non è in questa pagina',
+  trHiddenSummary_other: '{{count}} membri non sono in questa pagina',
 
   // ── Backfilled 2026-07-27 — fr/it catch-up (was rendering in English) ──
   infraTitle: 'Infrastruttura',

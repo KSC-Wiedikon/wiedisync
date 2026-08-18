@@ -1468,7 +1468,7 @@ export default {
   trManualLinkEdit: 'Verknüpfung bearbeiten',
   trManualLinkTitle: 'VIS-Spielernummer verknüpfen',
   trManualLinkMessage: 'VIS-Spielernummer für {{name}} eingeben. Die nächste Prüfung bestätigt sie im Verbandsindex. Leer lassen, um die Verknüpfung zu entfernen.',
-  trManualLinkPlaceholder: 'z. B. 243602',
+  trManualLinkPlaceholder: 'Z. B. 243602',
   trManualLinkInvalid: 'Bitte eine VIS-Spielernummer eingeben (nur Ziffern).',
   trManualLinkSaved: 'Spielernummer verknüpft. VIS-Prüfung starten, um sie zu bestätigen.',
   trManualLinkCleared: 'Verknüpfung entfernt.',
@@ -1493,6 +1493,83 @@ export default {
   trSaveFailed: 'Speichern fehlgeschlagen',
   trEmptyTitle: 'Nichts zu tun',
   trEmptyDescription: 'Keine offenen Transfers und keine offenen Fragen.',
+
+  // ── Abgeleiteter Stand (Spalte «Stand», Filter-Chips, «Gruppieren nach Stand») ──
+  // ⚠ Der Stand ist eine ABGELEITETE Bezeichnung über die vier getrennten
+  // Quellen — in_vis, licence_validated, transfer_status und den FIVB-Eintrag
+  // vis_transfers. Er führt sie nie zusammen und ist nie ein Ja/Nein: alle vier
+  // bleiben in der Zeilendetailansicht einzeln lesbar. Ein Key pro Stand, damit
+  // Spalte, Chips und Gruppentitel nie auseinanderlaufen.
+  trColState: 'Stand',
+  trStateCanRequest: 'Kann beantragt werden',
+  trStateWaitingFederation: 'Wartet auf Verband',
+  trStateInProgress: 'In Bearbeitung {{percent}}%',
+  trStateChasing: 'Wird verfolgt',
+  trStateAwaitingConfirmation: 'Lizenz validiert',
+  trStateDone: 'Erledigt',
+  trStateBlocked: 'Nicht spielberechtigt',
+  trStateRuledOut: 'Ausgeschlossen',
+  trStateDisputed: 'Widersprüchlich',
+  // Hinweis-Wortlaut, nie Urteils-Wortlaut — dieselbe Regel wie im trInVis*-
+  // Block oben. «In VIS nicht gefunden» ist ein Hinweis, nie «diese Person
+  // existiert nicht».
+  trStateCanRequestHint: 'Sie stehen im VIS-Spielerindex ihres Herkunftsverbands und es läuft noch kein Transfer — für sie kann einer beantragt werden.',
+  trStateWaitingFederationHint: 'Im VIS-Index wurde noch niemand mit diesem Namen gefunden, oder die Prüfung ist für sie noch nicht gelaufen. Die vorbereitete Anfrage bittet den Verband, sie zu erfassen — abgeglichen wird aber über den Namen, ein fehlender Treffer heisst also meist, dass unser Herkunftsverband falsch war.',
+  trStateInProgressHint: 'FIVB VIS meldet einen laufenden Transfer für sie. Der Prozentwert ist die Fortschrittsangabe von VIS selbst.',
+  trStateChasingHint: 'Jemand hat diesen Transfer als «wird verfolgt» markiert. Mehr ist noch nicht bekannt.',
+  trStateAwaitingConfirmationHint: 'Swiss Volley hat die Lizenz validiert — das heisst meist, dass das Zertifikat eingetroffen ist. Der Transfer ist hier aber noch als offen markiert.',
+  trStateDoneHint: 'Als erledigt markiert, und Swiss Volley hat die Lizenz validiert.',
+  trStateBlockedHint: 'Als erledigt markiert, die Lizenz ist aber nicht validiert. Das Zertifikat liegt nicht vor und die Person ist nicht spielberechtigt.',
+  trStateRuledOutHint: 'Von Hand ausgeschlossen, oder Swiss Volley lizenziert sie als Schweizer*in. Am Herkunftsverband wurde nichts geändert.',
+
+  // Kohorten-Tabs + Werkzeugleiste der Arbeitsliste. Jede Kohorte bleibt
+  // erreichbar und gezählt — die Tab-Leiste ist es, die «niemand braucht einen
+  // Transfer» und «alle wurden ausgeschlossen» unterscheidbar hält.
+  trTabWorklist: 'Arbeitsliste',
+  trTabClarify: 'Abzuklären',
+  trTabRuledOut: 'Ausgeschlossen',
+  trTabSwiss: 'Swiss Volley',
+  trTabDiagnostics: 'Diagnose',
+  // Steht vor jedem Filter-Chip, damit die Zahlenleiste nie als Auswertung über
+  // den ganzen Verein gelesen wird — sie zählt nur die Arbeitsliste.
+  trNumbersScope: 'Transfer nötig',
+  trSearchPlaceholder: 'Nach Name, Lizenz oder VIS-Nummer suchen',
+  trGroupBy: 'Gruppieren nach',
+  trGroupByFederation: 'Verband',
+  trGroupByState: 'Stand',
+  trGroupByNone: 'Keine Gruppierung',
+  trClearFilter: 'Filter zurücksetzen',
+
+  trMore: 'Mehr',
+  trShowThese: 'Diese Personen anzeigen',
+  trShowInDiagnostics: 'Abweichungen anzeigen',
+  trShowInWorklist: 'In der Arbeitsliste anzeigen',
+  trRowDetail: 'Alle Belege anzeigen',
+  // Nur dort angeboten, wo transfer_status als 'not_needed' gespeichert ist. Wer
+  // ausgeschlossen ist, weil Swiss Volley ihn als Schweizer*in lizenziert, lässt
+  // sich hier nicht wieder öffnen — bucketOf würde ihn sofort zurücksetzen — für
+  // diese Personen erscheint stattdessen der trDerivedVm-Hinweis.
+  trReopen: 'Wieder öffnen',
+  trRuledOutByHand: 'Von Hand ausgeschlossen',
+  trColRuledOutBy: 'Ausgeschlossen durch',
+
+  trRequestDialogTitle: 'Vorbereitete Anfrage',
+  trRequestDialogDescription: 'Von hier wird nichts verschickt. Den Text ins eigene E-Mail-Programm kopieren oder ihn mit bereits eingetragener Adresse öffnen.',
+  trRequestNoAddress: 'VIS führt für diesen Verband keine Adresse — den Text kopieren und aus dem eigenen E-Mail-Programm senden.',
+  trAboutNumbersTitle: 'Zu diesen Zahlen',
+  trWhatIsThis: 'Was heisst das?',
+  trDiagHiddenTitle: 'Nicht auf dieser Seite',
+  trDiagHiddenDescription: 'Mitglieder, die ein Filter ausgelassen hat, und warum. Wer ein Team bekommt, erscheint wieder.',
+  trDiagSettledTitle: 'Kein Transfer nötig',
+  trDiagVisTitle: 'VIS-Prüfung',
+  trInVisOfTotal: '{{inVis}} von {{total}} in VIS',
+  // Eine Zeile unter der Zahlenleiste, die die vier ausgeblendeten Kohorten
+  // (trHiddenNoTeam / trHiddenGuests / trHiddenBasketball / trHiddenU20) in einem
+  // HintPopover aufschlüsselt. Ein Filter darf nie stillschweigend einen Transfer
+  // verschlucken.
+  trHiddenSummary_one: '{{count}} Mitglied steht nicht auf dieser Seite',
+  trHiddenSummary_other: '{{count}} Mitglieder stehen nicht auf dieser Seite',
+
   anmeldungenLicenceStatus: 'Lizenzstatus',
   anmeldungenLicenceStatusHint: 'Das Mitglied wird benachrichtigt. «Lizenziert» setzt normalerweise der Swiss-Volley-/Basketplan-Sync.',
   anmeldungenLicenceStatusSaved: 'Lizenzstatus gespeichert',

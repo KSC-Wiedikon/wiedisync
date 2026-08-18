@@ -127,7 +127,18 @@ function buildAdminGroups(
           // so it carries the `admin:` prefix like the finance items above.
           { to: '/admin/transfers', labelKey: 'admin:trNavTransfers', icon: <ArrowRightLeft className={iconClass} /> },
           { to: '/admin/announcements', labelKey: 'announcements', icon: <Megaphone className={iconClass} /> },
+          { to: '/admin/reports', labelKey: 'moderationReports', icon: <Flag className={iconClass} /> },
+          { to: '/admin/volley-feedback', labelKey: 'volleyFeedback', icon: <MessageSquare className={iconClass} /> },
         ] : []),
+      ],
+    },
+    {
+      // Club email — mailbox + the two things that shape what leaves it. Split out
+      // of "Members & communication" (2026-08-18); mirrors useNavItems, where the
+      // reasoning is written out. Grouping is layout only: the gates inside differ
+      // and must stay that way.
+      labelKey: 'adminGroupEmail',
+      items: [
         // Club mailbox: admin||superuser only — mirrors the server's
         // authForAccount('admin'). NOT isAdmin (includes vb/bb admins, whom the
         // server 403s) and NOT isVorstand (board was rejected).
@@ -139,8 +150,6 @@ function buildAdminGroups(
           { to: '/admin/email-templates', labelKey: 'admin:etTitle', icon: <MailOpen className={iconClass} /> },
           // Emails Garage — same isAdmin gate as the route + endpoint read gate.
           { to: '/admin/emails-garage', labelKey: 'admin:egNav', icon: <KeyRound className={iconClass} /> },
-          { to: '/admin/reports', labelKey: 'moderationReports', icon: <Flag className={iconClass} /> },
-          { to: '/admin/volley-feedback', labelKey: 'volleyFeedback', icon: <MessageSquare className={iconClass} /> },
         ] : []),
       ],
     },

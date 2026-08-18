@@ -1482,7 +1482,7 @@ export default {
   trManualLinkEdit: 'Edit link',
   trManualLinkTitle: 'Link a VIS player number',
   trManualLinkMessage: 'Enter the VIS player number for {{name}}. The next check confirms it against the federation index. Leave empty to remove the link.',
-  trManualLinkPlaceholder: 'e.g. 243602',
+  trManualLinkPlaceholder: 'E.g. 243602',
   trManualLinkInvalid: 'Enter a VIS player number (digits only).',
   trManualLinkSaved: 'Player number linked. Run the VIS check to confirm it.',
   trManualLinkCleared: 'Link removed.',
@@ -1511,6 +1511,82 @@ export default {
   trSaveFailed: 'Could not save',
   trEmptyTitle: 'Nothing to work through',
   trEmptyDescription: 'No open transfers and no open questions.',
+
+  // ── Derived state (the `State` column, the filter chips, "Group by state") ──
+  // ⚠ The state is a derived LABEL over the four separate authorities — in_vis,
+  // licence_validated, transfer_status and the FIVB vis_transfers row. It is
+  // never a merge of them and never a boolean: every one of the four stays
+  // readable on its own in the row detail. One key per state so the column, the
+  // chips and the group headings can never drift apart.
+  trColState: 'State',
+  trStateCanRequest: 'Can request',
+  trStateWaitingFederation: 'Waiting on federation',
+  trStateInProgress: 'In progress {{percent}}%',
+  trStateChasing: 'Chasing',
+  trStateAwaitingConfirmation: 'Licence validated',
+  trStateDone: 'Done',
+  trStateBlocked: 'Not eligible',
+  trStateRuledOut: 'Ruled out',
+  trStateDisputed: 'Disputed',
+  // Evidence wording, never verdict wording — the same rule as the trInVis*
+  // block above. "Not found in VIS" is a lead, never "this player does not
+  // exist". Shown in the HintPopover on the chip and again in the row detail.
+  trStateCanRequestHint: 'They are in the VIS player index of their federation of origin and no transfer is open yet, so a request can be filed for them.',
+  trStateWaitingFederationHint: 'No player of this name was found in the VIS index yet, or the check has not run for them. The prepared request asks the federation to enter them — but the check matches by name, so a miss usually means our federation of origin was wrong.',
+  trStateInProgressHint: 'FIVB VIS reports an open transfer for them. The percentage is VIS’s own progress figure.',
+  trStateChasingHint: 'Someone marked this transfer as being chased. Nothing else is known yet.',
+  trStateAwaitingConfirmationHint: 'Swiss Volley has validated the licence, which usually means the certificate arrived — but the transfer is still marked pending here.',
+  trStateDoneHint: 'Marked done, and Swiss Volley has validated the licence.',
+  trStateBlockedHint: 'Marked done, but the licence is not validated. The certificate has not arrived and the player is not eligible to play.',
+  trStateRuledOutHint: 'Ruled out by hand, or Swiss Volley licences them as Swiss. Nothing about their federation of origin was changed.',
+
+  // Cohort tabs + worklist toolbar. Every cohort stays reachable and counted —
+  // the tab strip is what keeps "nobody needs a transfer" and "everybody was
+  // ruled out" distinguishable.
+  trTabWorklist: 'Worklist',
+  trTabClarify: 'To clarify',
+  trTabRuledOut: 'Ruled out',
+  trTabSwiss: 'Swiss Volley',
+  trTabDiagnostics: 'Diagnostics',
+  // Prefixes every filter chip, so the numbers bar can never be read as a
+  // tally over the whole club — it counts the worklist cohort only.
+  trNumbersScope: 'Needs a transfer',
+  trSearchPlaceholder: 'Search by name, licence or VIS number',
+  trGroupBy: 'Group by',
+  trGroupByFederation: 'Federation',
+  trGroupByState: 'State',
+  trGroupByNone: 'No grouping',
+  trClearFilter: 'Clear filter',
+
+  trMore: 'More',
+  trShowThese: 'Show these players',
+  trShowInDiagnostics: 'Show the conflicts',
+  trShowInWorklist: 'Show in worklist',
+  trRowDetail: 'Show all evidence',
+  // Offered only where transfer_status is stored as 'not_needed'. A member
+  // ruled out because Swiss Volley licences them as Swiss cannot be reopened
+  // from here — bucketOf would put them straight back — so they get the
+  // trDerivedVm pill and its hint instead.
+  trReopen: 'Reopen',
+  trRuledOutByHand: 'Ruled out by hand',
+  trColRuledOutBy: 'Ruled out by',
+
+  trRequestDialogTitle: 'Prepared request',
+  trRequestDialogDescription: 'Nothing is sent from here. Copy the text into your own email, or open it pre-addressed.',
+  trRequestNoAddress: 'VIS lists no address for this federation — copy the text and send it from your own email.',
+  trAboutNumbersTitle: 'About these numbers',
+  trWhatIsThis: 'What does this mean?',
+  trDiagHiddenTitle: 'Not on this page',
+  trDiagHiddenDescription: 'Members a filter left out, and why. Give someone a team and they reappear.',
+  trDiagSettledTitle: 'Needs no transfer',
+  trDiagVisTitle: 'VIS check',
+  trInVisOfTotal: '{{inVis}} of {{total}} in VIS',
+  // One line under the numbers bar, breaking the four hidden-cohort tallies
+  // (trHiddenNoTeam / trHiddenGuests / trHiddenBasketball / trHiddenU20) down in
+  // a HintPopover. A filter must never silently swallow a transfer.
+  trHiddenSummary_one: '{{count}} member is not on this page',
+  trHiddenSummary_other: '{{count}} members are not on this page',
+
   // Licence status (migration 301) — buttons on an approved registration, and
   // the explorer's filter row.
   anmeldungenLicenceStatus: 'Licence status',

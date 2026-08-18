@@ -122,11 +122,11 @@ export function useNavItems(isLoggedIn: boolean, isApproved: boolean, memberId?:
     //
     // Items are gated INDIVIDUALLY, not by one section-wide isAdmin: every entry
     // here is AdminRoute-guarded (isAdmin) except the club mailbox, which is
-    // VorstandRoute-guarded (isVorstand). Neither set contains the other — a
-    // vb_admin is isAdmin but NOT isVorstand (server 403s them on the mailbox),
-    // while a plain vorstand is the reverse. Empty groups are dropped so a board
-    // member who isn't an admin sees just the mailbox instead of a section full
-    // of links that would bounce them back to '/'.
+    // GlobalAdminRoute-guarded (isGlobalAdmin = admin || superuser) to mirror the
+    // server's authForAccount('admin'). isAdmin is the WIDER set — it also holds
+    // vb_admin / bb_admin, whom the server 403s on the mailbox — so the two cannot
+    // share a gate. Empty groups are dropped so a sport admin does not see a
+    // section whose only entry would bounce them back to '/'.
     adminGroups: [
       {
         label: t('adminGroupPlanning'),
@@ -155,7 +155,22 @@ export function useNavItems(isLoggedIn: boolean, isApproved: boolean, memberId?:
             // prefix — same cross-namespace form as the finance items above.
             { to: '/admin/transfers', label: t('admin:trNavTransfers'), icon: <ArrowRightLeft className={iconClass} /> },
             { to: '/admin/announcements', label: t('announcements'), icon: <Megaphone className={iconClass} /> },
+            { to: '/admin/reports', label: t('moderationReports'), icon: <Flag className={iconClass} /> },
+            { to: '/admin/volley-feedback', label: t('volleyFeedback'), icon: <MessageSquare className={iconClass} /> },
           ] : []),
+        ] as NavItem[],
+      },
+      {
+        // Club email — the mailbox plus the two things that shape what leaves it.
+        // Split out of "Members & communication" (2026-08-18): the template editor
+        // holds exactly one template (registration_docs_request × 5 locales) and
+        // the garage is a credential store, so neither earned a top-level slot on
+        // its own, but together they are one coherent destination.
+        //
+        // ⚠ The gates inside DIFFER and must stay that way — grouping is layout
+        // only, it does not unify access. See the section header above.
+        label: t('adminGroupEmail'),
+        items: [
           // Club mailbox: admin||superuser only — mirrors the server's
           // authForAccount('admin'). NOT isAdmin (that includes vb/bb admins,
           // whom the server 403s) and NOT isVorstand (board was rejected).
@@ -169,8 +184,6 @@ export function useNavItems(isLoggedIn: boolean, isApproved: boolean, memberId?:
             // AdminRoute guard and the endpoint's read gate. A sport admin sees
             // it and gets their own section's accounts read-only.
             { to: '/admin/emails-garage', label: t('admin:egNav'), icon: <KeyRound className={iconClass} /> },
-            { to: '/admin/reports', label: t('moderationReports'), icon: <Flag className={iconClass} /> },
-            { to: '/admin/volley-feedback', label: t('volleyFeedback'), icon: <MessageSquare className={iconClass} /> },
           ] : []),
         ] as NavItem[],
       },
