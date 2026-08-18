@@ -75,6 +75,7 @@ import { registerFinance } from './finance.js'
 import { registerFinanceCamt } from './finance-camt.js'
 import { registerFinanceLedger } from './finance-ledger.js'
 import { registerDeleteImpact } from './delete-impact.js'
+import { registerEmailAccounts } from './email-accounts.js'
 
 // ── Helpers ──────────────────────────────────────────────────────
 
@@ -2752,6 +2753,7 @@ export default {
     registerFinanceCamt(router, ctx)
     registerFinanceLedger(router, ctx)
     registerDeleteImpact(router, ctx)
+    registerEmailAccounts(router, ctx)
 
     log.info('KSCW endpoints loaded: ~63 routes')
   },

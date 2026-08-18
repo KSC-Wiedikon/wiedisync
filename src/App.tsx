@@ -85,6 +85,7 @@ const ConversationPage = lazy(() => import('./modules/messaging/pages/Conversati
 const MessagingSettingsPage = lazy(() => import('./modules/messaging/pages/MessagingSettingsPage'))
 const AdminReportsPage = lazy(() => import('./modules/admin/AdminReportsPage'))
 const AdminMailboxPage = lazy(() => import('./modules/admin/AdminMailboxPage'))
+const EmailsGaragePage = lazy(() => import('./modules/admin/EmailsGaragePage'))
 
 // Stale lazy-import chunk recovery (deploy rotates hashed chunk names → a tab on
 // an older bundle fails to import a now-missing chunk). Detection + one-time
@@ -243,6 +244,12 @@ export default function App() {
             <Route path="admin/volley-feedback" element={<AdminRoute><VolleyFeedbackPage /></AdminRoute>} />
             <Route path="admin/anmeldungen" element={<AdminRoute><AnmeldungenPage /></AdminRoute>} />
             <Route path="admin/email-templates" element={<AdminRoute><EmailTemplatesPage /></AdminRoute>} />
+            {/* Emails Garage — mailbox credential store. AdminRoute (isAdmin =
+                admin | superuser | vb_admin | bb_admin) mirrors the server's READ
+                gate; the endpoint additionally scopes rows by sport and refuses
+                writes to anyone but a global admin. Widening one without the
+                other shows links that bounce or 403s people on their own page. */}
+            <Route path="admin/emails-garage" element={<AdminRoute><Suspense fallback={null}><EmailsGaragePage /></Suspense></AdminRoute>} />
             <Route path="admin/explore" element={<AdminRoute><ExplorePage /></AdminRoute>} />
             <Route path="admin/announcements" element={<AdminRoute><AnnouncementsPage /></AdminRoute>} />
             <Route path="admin/reports" element={<AdminRoute><Suspense fallback={null}><AdminReportsPage /></Suspense></AdminRoute>} />

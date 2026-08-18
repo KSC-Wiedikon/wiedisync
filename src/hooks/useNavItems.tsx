@@ -6,7 +6,7 @@ import { SCHEDULING_ORIGIN } from '../lib/api'
 import {
   Home, Calendar, UserX, PenSquare, PartyPopper, Users, Radio,
   Building2, CalendarClock, Activity, ClipboardList, ClipboardCheck,
-  HeartPulse, MessageSquare, Inbox, Mail, Banknote, BarChart3, UserPlus, Bug, Database, Megaphone, Newspaper, Flag, ScrollText, Terminal, Gavel, Wallet, Landmark, ReceiptText, FileWarning, GraduationCap, ArrowRightLeft, MailOpen,
+  HeartPulse, MessageSquare, Inbox, Mail, Banknote, BarChart3, UserPlus, Bug, Database, Megaphone, Newspaper, Flag, ScrollText, Terminal, Gavel, Wallet, Landmark, ReceiptText, FileWarning, GraduationCap, ArrowRightLeft, MailOpen, KeyRound,
 } from 'lucide-react'
 import WhistleIcon from '../components/WhistleIcon'
 
@@ -165,6 +165,10 @@ export function useNavItems(isLoggedIn: boolean, isApproved: boolean, memberId?:
             // the route's AdminRoute guard and the policy grants (Sport Admin +
             // Vorstand hold email_templates CRUD).
             { to: '/admin/email-templates', label: t('admin:etTitle'), icon: <MailOpen className={iconClass} /> },
+            // Emails Garage (migration 326) — isAdmin, matching the route's
+            // AdminRoute guard and the endpoint's read gate. A sport admin sees
+            // it and gets their own section's accounts read-only.
+            { to: '/admin/emails-garage', label: t('admin:egNav'), icon: <KeyRound className={iconClass} /> },
             { to: '/admin/reports', label: t('moderationReports'), icon: <Flag className={iconClass} /> },
             { to: '/admin/volley-feedback', label: t('volleyFeedback'), icon: <MessageSquare className={iconClass} /> },
           ] : []),

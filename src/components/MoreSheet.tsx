@@ -8,7 +8,7 @@ import SwitchToggle from '@/components/SwitchToggle'
 import LanguageDropdown from '@/components/LanguageDropdown'
 import { getFileUrl } from '../utils/fileUrl'
 import AdminToggle from './AdminToggle'
-import { Bell, UserX, PenSquare, PartyPopper, Building2, CalendarClock, HeartPulse, LogIn, User, Users, Settings, ChevronDown, ScrollText, MessageSquare, MessageCircle, Inbox, Mail, Banknote, BarChart3, UserPlus, Bug, Activity, GraduationCap, Database, Megaphone, Newspaper, Flag, Terminal, Gavel, Wallet, Landmark, ReceiptText, FileWarning, ClipboardList, ArrowRightLeft, Coffee, MailOpen } from 'lucide-react'
+import { Bell, UserX, PenSquare, PartyPopper, Building2, CalendarClock, HeartPulse, LogIn, User, Users, Settings, ChevronDown, ScrollText, MessageSquare, MessageCircle, Inbox, Mail, Banknote, BarChart3, UserPlus, Bug, Activity, GraduationCap, Database, Megaphone, Newspaper, Flag, Terminal, Gavel, Wallet, Landmark, ReceiptText, FileWarning, ClipboardList, ArrowRightLeft, Coffee, MailOpen, KeyRound } from 'lucide-react'
 import type { MemberTeam, Team } from '../types'
 import { asObj, memberDisplayName } from '../utils/relations'
 import { messagingFeatureEnabled } from '../utils/messagingFeatureFlag'
@@ -137,6 +137,8 @@ function buildAdminGroups(
           // the route's AdminRoute guard and the policy grants (Sport Admin +
           // Vorstand hold email_templates CRUD).
           { to: '/admin/email-templates', labelKey: 'admin:etTitle', icon: <MailOpen className={iconClass} /> },
+          // Emails Garage — same isAdmin gate as the route + endpoint read gate.
+          { to: '/admin/emails-garage', labelKey: 'admin:egNav', icon: <KeyRound className={iconClass} /> },
           { to: '/admin/reports', labelKey: 'moderationReports', icon: <Flag className={iconClass} /> },
           { to: '/admin/volley-feedback', labelKey: 'volleyFeedback', icon: <MessageSquare className={iconClass} /> },
         ] : []),
