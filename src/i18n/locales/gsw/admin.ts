@@ -1087,4 +1087,20 @@ export default {
   egSaveFailed: 'Speichere gaht nöd',
   egSave: 'Speichere',
   egCancel: 'Abbräche',
+
+  // Reichwiiti / Versandwäg (Migration 328)
+  egBroadOnly: 'Nur vereinswiiti Absänder',
+  egBroadBadge: 'Erreicht de ganz Verein',
+  egSendsVia: 'Versand über {{path}}',
+  egSendsNone: 'Nur Empfang',
+  egSendPath_none: 'Nur Empfang',
+  egSendPath_ses: 'AWS SES',
+  egSendPath_migadu: 'Migadu',
+  egSendPath_clubdesk: 'ClubDesk',
+  egFieldSendsVia: 'Versandwäg',
+  egFieldSendsViaHint: 'Wie Mail under däre Adress usegaht. Nöd s Gliiche wie de Aabieter, wo si aachunnt \u2014 es Migadu-Poschtfach cha über AWS SES versände.',
+  egFieldBroad: 'Cha de ganz Verein aaschriibe',
+  egFieldBroadHint: 'Nur aachrüzle, wenn die Adress d ganzi Mitgliedschaft erreicht. Wer s Passwort hät, erbt die Reichwiiti.',
+  egFieldReachNote: 'Begründig',
+  egFieldReachNotePlaceholder: 'Wen die Adress erreicht und wie',
 } as const

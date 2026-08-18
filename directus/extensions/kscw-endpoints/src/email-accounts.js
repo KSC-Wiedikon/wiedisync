@@ -44,6 +44,13 @@ const SPORTS = ['volleyball', 'basketball', 'club']
 const PROVIDERS = ['migadu', 'ses', 'clubdesk', 'google', 'other']
 
 /**
+ * How mail LEAVES as an address (migration 328), as opposed to `provider`, which
+ * is where it lands. The two genuinely differ: the scheduling boxes are Migadu
+ * inboxes that send through SES.
+ */
+const SEND_PATHS = ['none', 'ses', 'migadu', 'clubdesk']
+
+/**
  * Domains the Migadu sweep asks about. Migadu's API is per-domain — there is no
  * "list every mailbox on the account" call — so an unlisted domain is simply
  * never seen, silently. Override with MIGADU_DOMAINS when a new subdomain lands.
@@ -62,11 +69,12 @@ const MIGADU_API = 'https://api.migadu.com/v1'
 /** Columns safe to return in a list — password_enc is deliberately absent. */
 const LIST_COLUMNS = [
   'id', 'address', 'domain', 'label', 'sport', 'provider', 'notes',
+  'sends_via', 'broad_audience', 'reach_note',
   'migadu_managed', 'is_active', 'last_seen_at', 'sort',
   'created_by_name', 'updated_by_name', 'date_created', 'date_updated',
 ]
 
-const MAX_LEN = { label: 200, notes: 2000, password: 512, address: 320 }
+const MAX_LEN = { label: 200, notes: 2000, password: 512, address: 320, reach_note: 1000 }
 
 // ── Crypto ───────────────────────────────────────────────────────
 
@@ -348,6 +356,12 @@ export function registerEmailAccounts(router, { database, logger }) {
         updated_by_name: who.name,
       }
 
+      if (SEND_PATHS.includes(body.sends_via)) row.sends_via = body.sends_via
+      // Explicit Boolean(): a missing key must mean "narrow", never "unknown" —
+      // the badge has to mean somebody established the reach.
+      if (body.broad_audience !== undefined) row.broad_audience = Boolean(body.broad_audience)
+      if (body.reach_note !== undefined) row.reach_note = clampText(body.reach_note, MAX_LEN.reach_note)
+
       const password = clampText(body.password, MAX_LEN.password)
       if (password) {
         const key = vaultKey()
@@ -412,6 +426,17 @@ export function registerEmailAccounts(router, { database, logger }) {
         if (!PROVIDERS.includes(body.provider)) return res.status(400).json({ error: 'Unknown provider', code: 'bad_provider' })
         patch.provider = body.provider
       }
+      if (body.sends_via !== undefined) {
+        if (!SEND_PATHS.includes(body.sends_via)) return res.status(400).json({ error: 'Unknown send path', code: 'bad_sends_via' })
+        patch.sends_via = body.sends_via
+      }
+      if (body.broad_audience !== undefined) {
+        patch.broad_audience = Boolean(body.broad_audience)
+        // Worth an audit line of its own: this flag is the "can mail everyone"
+        // marker, and flipping it off quietly would hide a large blast radius.
+        logged.broad_audience = patch.broad_audience
+      }
+      if (body.reach_note !== undefined) patch.reach_note = clampText(body.reach_note, MAX_LEN.reach_note)
       if (body.is_active !== undefined) patch.is_active = Boolean(body.is_active)
       if (body.sort !== undefined) patch.sort = Number.isInteger(body.sort) ? body.sort : null
 

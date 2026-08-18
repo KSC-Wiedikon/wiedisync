@@ -1386,4 +1386,21 @@ export default {
   egSaveFailed: 'Enregistrement impossible',
   egSave: 'Enregistrer',
   egCancel: 'Annuler',
+
+  // Portée / voie d’envoi (migration 328)
+  egBroadOnly: 'Uniquement les expéditeurs de tout le club',
+  egBroadOnlyShort: 'Tout le club',
+  egBroadBadge: 'Atteint tout le club',
+  egSendsVia: 'Envoi via {{path}}',
+  egSendsNone: 'Réception seule',
+  egSendPath_none: 'Réception seule',
+  egSendPath_ses: 'AWS SES',
+  egSendPath_migadu: 'Migadu',
+  egSendPath_clubdesk: 'ClubDesk',
+  egFieldSendsVia: 'Voie d’envoi',
+  egFieldSendsViaHint: 'Comment le courrier part sous cette adresse. Différent du fournisseur, qui est là où il arrive \u2014 une boîte Migadu peut envoyer via AWS SES.',
+  egFieldBroad: 'Peut écrire à tout le club',
+  egFieldBroadHint: 'À cocher seulement si cette adresse atteint l’ensemble des membres. Qui détient ce mot de passe hérite de cette portée.',
+  egFieldReachNote: 'Pourquoi',
+  egFieldReachNotePlaceholder: 'Qui cette adresse atteint, et comment',
 } as const

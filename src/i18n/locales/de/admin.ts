@@ -1562,4 +1562,20 @@ export default {
   egSaveFailed: 'Speichern nicht möglich',
   egSave: 'Speichern',
   egCancel: 'Abbrechen',
+
+  // Reichweite / Versandweg (Migration 328)
+  egBroadOnly: 'Nur vereinsweite Absender',
+  egBroadBadge: 'Erreicht den ganzen Verein',
+  egSendsVia: 'Versand über {{path}}',
+  egSendsNone: 'Nur Empfang',
+  egSendPath_none: 'Nur Empfang',
+  egSendPath_ses: 'AWS SES',
+  egSendPath_migadu: 'Migadu',
+  egSendPath_clubdesk: 'ClubDesk',
+  egFieldSendsVia: 'Versandweg',
+  egFieldSendsViaHint: 'Wie Mail unter dieser Adresse rausgeht. Nicht dasselbe wie der Anbieter, bei dem sie ankommt \u2014 ein Migadu-Postfach kann über AWS SES versenden.',
+  egFieldBroad: 'Kann den ganzen Verein anschreiben',
+  egFieldBroadHint: 'Nur ankreuzen, wenn diese Adresse die gesamte Mitgliedschaft erreicht. Wer das Passwort hat, erbt diese Reichweite.',
+  egFieldReachNote: 'Begründung',
+  egFieldReachNotePlaceholder: 'Wen diese Adresse erreicht und wie',
 } as const

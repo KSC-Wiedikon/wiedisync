@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { AlertTriangle, Check, Copy, Eye, EyeOff, KeyRound, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react'
+import { AlertTriangle, Check, Copy, Eye, EyeOff, KeyRound, Megaphone, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { kscwApi } from '../../lib/api'
 import { useReportPageLoading } from '../../hooks/usePageReady'
@@ -15,6 +15,8 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 
 type Sport = 'volleyball' | 'basketball' | 'club'
 type Provider = 'migadu' | 'ses' | 'clubdesk' | 'google' | 'other'
+/** How mail LEAVES as this address — distinct from `provider` (where it lands). */
+type SendPath = 'none' | 'ses' | 'migadu' | 'clubdesk'
 
 interface EmailAccount {
   id: number
@@ -24,6 +26,9 @@ interface EmailAccount {
   sport: Sport
   provider: Provider
   notes: string | null
+  sends_via: SendPath
+  broad_audience: boolean
+  reach_note: string | null
   migadu_managed: boolean
   is_active: boolean
   last_seen_at: string | null
@@ -45,6 +50,7 @@ interface ListResponse {
 
 const SPORTS: Sport[] = ['club', 'volleyball', 'basketball']
 const PROVIDERS: Provider[] = ['migadu', 'ses', 'clubdesk', 'google', 'other']
+const SEND_PATHS: SendPath[] = ['none', 'ses', 'migadu', 'clubdesk']
 
 /**
  * How long a revealed password stays on screen. Short enough that a walked-away
@@ -63,6 +69,7 @@ export default function EmailsGaragePage() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [sportFilter, setSportFilter] = useState<'' | Sport>('')
+  const [broadOnly, setBroadOnly] = useState(false)
   const [syncing, setSyncing] = useState(false)
 
   // address → plaintext, only ever populated by an explicit reveal click.
@@ -108,10 +115,11 @@ export default function EmailsGaragePage() {
     const q = search.trim().toLowerCase()
     return accounts.filter((a) => {
       if (sportFilter && a.sport !== sportFilter) return false
+      if (broadOnly && !a.broad_audience) return false
       if (!q) return true
       return [a.address, a.label, a.notes, a.domain].some((v) => v?.toLowerCase().includes(q))
     })
-  }, [data, search, sportFilter])
+  }, [data, search, sportFilter, broadOnly])
 
   const hide = useCallback((id: number) => {
     clearTimeout(timers.current[id])
@@ -215,6 +223,11 @@ export default function EmailsGaragePage() {
           ))}
         </select>
 
+        <label className="flex min-h-[44px] cursor-pointer items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+          <input type="checkbox" checked={broadOnly} onChange={(e) => setBroadOnly(e.target.checked)} />
+          {t('egBroadOnly')}
+        </label>
+
         {canEdit && (
           <>
             <button
@@ -269,12 +282,25 @@ export default function EmailsGaragePage() {
                       >
                         {a.address}
                       </button>
+                      {/* The one thing you must see before handing this password
+                          over: whoever holds it can mail the entire club. Sits on
+                          the address, not in a column that hides below lg. */}
+                      {a.broad_audience && (
+                        <span
+                          title={a.reach_note || undefined}
+                          className="mt-1 inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-900 dark:bg-amber-950/60 dark:text-amber-200"
+                        >
+                          <Megaphone className="h-3 w-3" />
+                          {t('egBroadBadge')}
+                        </span>
+                      )}
                       {a.label && <span className="block text-xs text-gray-500 dark:text-gray-400">{a.label}</span>}
                       {/* The columns hidden on narrow screens fold in here rather
                           than truncating — a sport admin on a phone still needs
                           to know which section an address belongs to. */}
                       <span className="mt-0.5 block text-xs text-gray-500 md:hidden dark:text-gray-400">
                         {t(`egSport_${a.sport}`)} · {t(`egProvider_${a.provider}`)}
+                        {a.sends_via !== 'none' && ` · ${t(`egSendPath_${a.sends_via}`)}`}
                       </span>
                       {!a.is_active && (
                         <span className="mt-0.5 block text-xs text-amber-700 dark:text-amber-400">{t('egInactive')}</span>
@@ -287,6 +313,12 @@ export default function EmailsGaragePage() {
 
                     <TableCell className="hidden lg:table-cell whitespace-normal align-top text-gray-700 dark:text-gray-300">
                       {t(`egProvider_${a.provider}`)}
+                      {/* Inbound host and outbound path are different questions —
+                          a Migadu inbox that sends through SES reads "Migadu →
+                          Sends via AWS SES" rather than picking one and lying. */}
+                      <span className="block text-xs text-gray-500 dark:text-gray-400">
+                        {a.sends_via === 'none' ? t('egSendsNone') : t('egSendsVia', { path: t(`egSendPath_${a.sends_via}`) })}
+                      </span>
                       {a.migadu_managed && (
                         <span className="block text-xs text-gray-400 dark:text-gray-500">
                           {a.last_seen_at ? t('egSeen', { when: formatDateTimeCompact(a.last_seen_at) }) : t('egSynced')}
@@ -396,6 +428,9 @@ function AccountDialog({ account, vaultConfigured, onClose, onSaved }: {
   const [sport, setSport] = useState<Sport>(account?.sport ?? 'club')
   const [provider, setProvider] = useState<Provider>(account?.provider ?? 'migadu')
   const [notes, setNotes] = useState(account?.notes ?? '')
+  const [sendsVia, setSendsVia] = useState<SendPath>(account?.sends_via ?? 'none')
+  const [broadAudience, setBroadAudience] = useState(account?.broad_audience ?? false)
+  const [reachNote, setReachNote] = useState(account?.reach_note ?? '')
   const [isActive, setIsActive] = useState(account?.is_active ?? true)
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -416,6 +451,9 @@ function AccountDialog({ account, vaultConfigured, onClose, onSaved }: {
         sport,
         provider,
         notes: notes.trim() || null,
+        sends_via: sendsVia,
+        broad_audience: broadAudience,
+        reach_note: reachNote.trim() || null,
         is_active: isActive,
       }
       if (clearPassword) body.password = ''
@@ -468,6 +506,29 @@ function AccountDialog({ account, vaultConfigured, onClose, onSaved }: {
               <select id="eg-provider" value={provider} onChange={(e) => setProvider(e.target.value as Provider)} className={field}>
                 {PROVIDERS.map((p) => <option key={p} value={p}>{t(`egProvider_${p}`)}</option>)}
               </select>
+            </div>
+          </div>
+
+          <div>
+            <label className={labelCls} htmlFor="eg-sends">{t('egFieldSendsVia')}</label>
+            <select id="eg-sends" value={sendsVia} onChange={(e) => setSendsVia(e.target.value as SendPath)} className={field}>
+              {SEND_PATHS.map((sp) => <option key={sp} value={sp}>{t(`egSendPath_${sp}`)}</option>)}
+            </select>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('egFieldSendsViaHint')}</p>
+          </div>
+
+          <div className="rounded-md border border-amber-300 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950/30">
+            <label className="flex items-start gap-2 text-sm text-gray-800 dark:text-gray-200">
+              <input type="checkbox" className="mt-1" checked={broadAudience} onChange={(e) => setBroadAudience(e.target.checked)} />
+              <span>
+                {t('egFieldBroad')}
+                <span className="block text-xs text-gray-600 dark:text-gray-400">{t('egFieldBroadHint')}</span>
+              </span>
+            </label>
+            <div className="mt-2">
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300" htmlFor="eg-reach">{t('egFieldReachNote')}</label>
+              <textarea id="eg-reach" rows={2} value={reachNote} onChange={(e) => setReachNote(e.target.value)}
+                placeholder={t('egFieldReachNotePlaceholder')} className={field} />
             </div>
           </div>
 

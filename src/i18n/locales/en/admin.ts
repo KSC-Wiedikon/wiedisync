@@ -1585,4 +1585,20 @@ export default {
   egSaveFailed: 'Could not save',
   egSave: 'Save',
   egCancel: 'Cancel',
+
+  // Reach / sending path (migration 328)
+  egBroadOnly: 'Only club-wide senders',
+  egBroadBadge: 'Reaches the whole club',
+  egSendsVia: 'Sends via {{path}}',
+  egSendsNone: 'Receive-only',
+  egSendPath_none: 'Receive-only',
+  egSendPath_ses: 'AWS SES',
+  egSendPath_migadu: 'Migadu',
+  egSendPath_clubdesk: 'ClubDesk',
+  egFieldSendsVia: 'Sending path',
+  egFieldSendsViaHint: 'How mail leaves as this address. Different from the provider, which is where mail lands \u2014 a Migadu inbox can send through AWS SES.',
+  egFieldBroad: 'Can mail the whole club',
+  egFieldBroadHint: 'Tick only when this address reaches the entire membership. Whoever holds this password inherits that reach.',
+  egFieldReachNote: 'Why',
+  egFieldReachNotePlaceholder: 'What this address can reach, and how',
 } as const
