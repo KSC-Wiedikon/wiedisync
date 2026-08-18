@@ -20,6 +20,7 @@
 
 import { pushHomeGames, KSCW_CALENDAR_ID } from './gcal-push.js'
 import { writeUserLog } from './activity-log.js'
+import { emptyChanges, hasChanges, notifyGCalChanges } from './gcal-notify.js'
 
 const GCAL_IDS = [
   // KSCW public calendar (kscw.ch/weiteres/kalender → embedded Google Calendar).
@@ -94,8 +95,18 @@ function isClosureEvent(title) {
 export function registerGCalSync(router, { database, logger, services, getSchema }) {
   const log = logger.child({ endpoint: 'gcal-sync' })
 
-  async function runSync(db, schema) {
+  // Normalise a value read back from Postgres for comparison with what we are
+  // about to write: knex hands `date` columns back as Date objects and `time`
+  // columns as 'HH:MM:SS', while the ICS parser produces 'YYYY-MM-DD' / 'HH:MM'.
+  // Compare the normalised forms or every row looks changed on every run.
+  const asDay = (v) => (v instanceof Date ? v.toISOString().slice(0, 10) : String(v ?? '').slice(0, 10))
+  const asTime = (v) => (v == null || v === '' ? '' : String(v).slice(0, 5))
+  const asText = (v) => String(v ?? '').trim()
+
+  async function runSync(db, schema, { trigger = 'manual' } = {}) {
     const { ItemsService } = services
+    // What the Hausdienst actually changed this run — drives the admin digest.
+    const changes = emptyChanges()
 
     // ── PUSH first: our home games onto the calendar. It hands back the ids of
     // every event we own, so the import below can skip its own output instead of
@@ -182,10 +193,27 @@ export function registerGCalSync(router, { database, logger, services, getSchema
         }
         const existing = await db('hall_events').where('uid', ev.uid).first()
         if (existing) {
+          // The UPDATE below is unconditional (cheap, and it refreshes
+          // date_updated), so `eventsUpdated` counts every row in the feed and is
+          // NOT a change signal. Diff the stored row first so the digest reports
+          // only what the hall administration actually moved.
+          const diffs = []
+          const cmp = (field, before, after) => { if (before !== after) diffs.push({ field, from: before, to: after }) }
+          cmp('title', asText(existing.title), asText(record.title))
+          cmp('date', asDay(existing.date), asDay(record.date))
+          cmp('start_time', asTime(existing.start_time), asTime(record.start_time))
+          cmp('end_time', asTime(existing.end_time), asTime(record.end_time))
+          cmp('location', asText(existing.location), asText(record.location))
+          cmp('all_day', String(!!existing.all_day), String(!!record.all_day))
+          if (diffs.length) changes.eventsChanged.push({ title: record.title, date: record.date, diffs })
           await db('hall_events').where('id', existing.id).update({ ...record, date_updated: new Date() })
           eventsUpdated++
         } else {
           await db('hall_events').insert({ ...record, date_created: new Date(), date_updated: new Date() })
+          changes.eventsNew.push({
+            title: record.title, date: record.date, time: record.start_time,
+            endTime: record.end_time, allDay: record.all_day, location: record.location,
+          })
           eventsCreated++
         }
 
@@ -205,9 +233,13 @@ export function registerGCalSync(router, { database, logger, services, getSchema
       }
 
       // Delete hall_events no longer in the feed (raw knex).
-      const existingEvents = await db('hall_events').where('source', 'gcal').select('id', 'uid')
+      const existingEvents = await db('hall_events').where('source', 'gcal').select('id', 'uid', 'title', 'date')
       for (const row of existingEvents) {
-        if (!seenUids.has(row.uid)) { await db('hall_events').where('id', row.id).delete(); eventsDeleted++ }
+        if (!seenUids.has(row.uid)) {
+          await db('hall_events').where('id', row.id).delete()
+          changes.eventsRemoved.push({ title: row.title, date: asDay(row.date) })
+          eventsDeleted++
+        }
       }
 
       // Reconcile hall_closures (source='gcal') via ItemsService so the training
@@ -217,33 +249,98 @@ export function registerGCalSync(router, { database, logger, services, getSchema
       const closures = new ItemsService('hall_closures', { schema, knex: db })
       const existingClos = await db('hall_closures')
         .where('source', 'gcal').andWhere('end_date', '>=', seasonStart)
-        .select('id', 'hall', db.raw('start_date::text as start_date'), db.raw('end_date::text as end_date'))
+        .select('id', 'hall', 'reason', db.raw('start_date::text as start_date'), db.raw('end_date::text as end_date'))
       const existKeys = new Map()
       for (const c of existingClos) {
-        existKeys.set(`${c.hall}|${(c.start_date || '').slice(0, 10)}|${(c.end_date || '').slice(0, 10)}`, c.id)
+        existKeys.set(`${c.hall}|${(c.start_date || '').slice(0, 10)}|${(c.end_date || '').slice(0, 10)}`, c)
       }
+
+      // ── Digest bookkeeping ──
+      // One calendar entry becomes one closure row PER KWI hall, so report them
+      // grouped by span+reason with the hall names listed, not as three rows.
+      const hallName = new Map(halls.map(h => [h.id, h.name]))
+      const groupInto = (bucket, { hall, start, end, reason }) => {
+        const key = `${start}|${end}|${reason || ''}`
+        const g = bucket.get(key) || { halls: [], start, end, reason: reason || 'Halle geschlossen' }
+        g.halls.push(hallName.get(hall) || `Halle ${hall}`)
+        bucket.set(key, g)
+      }
+      const newClosureGroups = new Map()
+      const goneClosureGroups = new Map()
+
+      // The training auto-cancel/reverse runs in a fire-and-forget `action` hook,
+      // so reading the affected trainings AFTER the write races it. Read them
+      // BEFORE, using the hook's own selection logic.
+      const trainingRows = (qb) => qb
+        .leftJoin('teams', 'teams.id', 'trainings.team')
+        .leftJoin('halls', 'halls.id', 'trainings.hall')
+        .select(db.raw('trainings.date::text as date'), 'trainings.start_time',
+          'teams.name as team', 'halls.name as hall')
+        .orderBy('trainings.date')
+
       // Delete stale closures (no longer in the feed). Never delete a gcal
       // closure that now sits under a Zurich school holiday — leave it as a
       // harmless duplicate rather than risk reversing a training cancellation.
-      for (const [k, id] of existKeys) {
+      for (const [k, row] of existKeys) {
         if (desiredClosures.has(k)) continue
         const [h, s, e] = k.split('|')
         if (coveredBySchoolHoliday(parseInt(h, 10), s, e)) continue
-        await closures.deleteOne(id); closuresDeleted++
+        // Mirrors the delete hook's NOT EXISTS guard: a training another closure
+        // still covers stays cancelled and must not be reported as reinstated.
+        const restored = await trainingRows(db('trainings'))
+          .where('trainings.auto_cancelled_by_closure', row.id)
+          .whereRaw('trainings.date >= CURRENT_DATE')
+          .whereRaw(
+            'NOT EXISTS (SELECT 1 FROM hall_closures c2 WHERE c2.hall = trainings.hall'
+            + ' AND c2.id <> ?::integer AND trainings.date BETWEEN c2.start_date AND c2.end_date)',
+            [row.id],
+          )
+        changes.trainingsRestored.push(...restored)
+        groupInto(goneClosureGroups, { hall: parseInt(h, 10), start: s, end: e, reason: row.reason })
+        await closures.deleteOne(row.id); closuresDeleted++
       }
       // Insert newly-appeared closures.
       for (const [k, c] of desiredClosures) {
         if (!existKeys.has(k)) {
+          // Same window the hook cancels: today forward, not-yet-cancelled.
+          const willCancel = await trainingRows(db('trainings'))
+            .where('trainings.hall', c.hall)
+            .andWhere('trainings.cancelled', false)
+            .whereRaw('trainings.date >= GREATEST(CURRENT_DATE, ?::date)', [c.start_date])
+            .whereRaw('trainings.date <= ?::date', [c.end_date])
+          changes.trainingsCancelled.push(...willCancel)
+          groupInto(newClosureGroups, { hall: c.hall, start: c.start_date, end: c.end_date, reason: c.reason })
           await closures.createOne({ hall: c.hall, start_date: c.start_date, end_date: c.end_date, reason: c.reason, source: 'gcal' })
           closuresCreated++
         }
       }
+      changes.closuresNew.push(...newClosureGroups.values())
+      changes.closuresRemoved.push(...goneClosureGroups.values())
     }
+
+    // ── Tell the club what the hall administration changed ──
+    // Only the IMPORT side is reported: the push half is our own writes and the
+    // club already knows about its own games. Mail failures are swallowed inside
+    // notifyGCalChanges — the sync has already committed by here.
+    const { MailService } = services
+    const notified = await notifyGCalChanges({
+      changes,
+      trigger,
+      mail: new MailService({ schema, knex: db }),
+      log,
+    })
 
     return {
       eventsCreated, eventsUpdated, eventsDeleted, closuresCreated, closuresDeleted,
       gamesPushed: push.created, gamesUpdated: push.updated, gamesRemoved: push.deleted,
       gamesSkipped: push.skipped, pushEnabled: !push.disabled,
+      // `eventsUpdated` counts every feed row (unconditional UPDATE); this is the
+      // count of rows whose content actually moved.
+      eventsChanged: changes.eventsChanged.length,
+      trainingsCancelled: changes.trainingsCancelled.length,
+      trainingsRestored: changes.trainingsRestored.length,
+      changed: hasChanges(changes),
+      notified,
     }
   }
 
@@ -252,7 +349,7 @@ export function registerGCalSync(router, { database, logger, services, getSchema
     try {
       log.info('Manual GCal sync triggered')
       const schema = await getSchema()
-      const result = await runSync(database, schema)
+      const result = await runSync(database, schema, { trigger: req.get('x-kscw-trigger') === 'cron' ? 'cron' : 'manual' })
       // Writes to a calendar the hall administration reads — record who triggered it.
       await writeUserLog(database, log, {
         accountability: req.accountability,

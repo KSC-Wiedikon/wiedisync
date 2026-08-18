@@ -4227,7 +4227,8 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       if (!token) return
       const res = await fetch('http://localhost:8055/kscw/admin/gcal-sync', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
+        // Labels the club-admin change digest "Nightly sync" instead of "Manual".
+        headers: { Authorization: `Bearer ${token}`, 'x-kscw-trigger': 'cron' },
       })
       const body = await res.text()
       if (!res.ok) throw new Error(`${res.status} ${body}`)
