@@ -87,6 +87,23 @@ export default {
   gcalTrainingsRestoredToast_one: '1 allenamento è di nuovo attivo',
   gcalTrainingsRestoredToast_other: '{{count}} allenamenti sono di nuovo attivi',
 
+  // Publishing a club closure to the hall administration's calendar
+  gcalPushCol: 'Calendario palestre',
+  gcalPushNo: 'Non pubblicato',
+  gcalPushYes: 'Pubblicato',
+  gcalPushDuplicate: 'Già presente',
+  gcalPushNotEligible: '—',
+  gcalPushAction: 'Pubblica',
+  gcalPushRemoveAction: 'Rimuovi',
+  gcalPushConfirm: 'Pubblicare questa chiusura nel calendario della gestione palestre? La vedranno come una prenotazione del KSCW.',
+  gcalPushRemoveConfirm: 'Rimuovere questa chiusura dal calendario della gestione palestre?',
+  gcalPushedToast: 'Pubblicato nel calendario palestre',
+  gcalPushRemovedToast: 'Rimosso dal calendario palestre',
+  gcalPushDuplicateToast: 'Non pubblicato — la gestione palestre copre già questo periodo ({{title}})',
+  gcalPushDryRunToast: 'Contrassegnato per la pubblicazione (dev gira a vuoto — nulla è stato scritto)',
+  gcalPushDisabledToast: 'Contrassegnato, ma la pubblicazione sul calendario non è configurata in questo ambiente',
+
+
 
   // Closure sources
   source: 'Fonte',

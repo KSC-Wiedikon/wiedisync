@@ -87,6 +87,23 @@ export default {
   gcalTrainingsRestoredToast_one: '1 training is active again',
   gcalTrainingsRestoredToast_other: '{{count}} trainings are active again',
 
+  // Publishing a club closure to the hall administration's calendar
+  gcalPushCol: 'Hall calendar',
+  gcalPushNo: 'Not published',
+  gcalPushYes: 'Published',
+  gcalPushDuplicate: 'They have it',
+  gcalPushNotEligible: '—',
+  gcalPushAction: 'Publish',
+  gcalPushRemoveAction: 'Remove',
+  gcalPushConfirm: 'Publish this closure to the hall administration\'s calendar? They will see it as a KSCW booking.',
+  gcalPushRemoveConfirm: 'Remove this closure from the hall administration\'s calendar?',
+  gcalPushedToast: 'Published to the hall calendar',
+  gcalPushRemovedToast: 'Removed from the hall calendar',
+  gcalPushDuplicateToast: 'Not published — the hall administration already has this covered ({{title}})',
+  gcalPushDryRunToast: 'Marked for publishing (dev runs dry — nothing was written)',
+  gcalPushDisabledToast: 'Marked, but calendar push is not configured on this environment',
+
+
 
   // Closure sources
   source: 'Source',

@@ -412,7 +412,13 @@ export interface HallClosure extends BaseRecord {
   end_date: string
   reason: string
   source: 'hauswart' | 'admin' | 'auto' | 'gcal' | 'school_holidays'
-
+  /**
+   * Publish this closure to the hall administration's Google calendar
+   * (migration 328). Opt-in — that calendar is the school's. Ignored for
+   * source 'gcal' (came from there) and 'school_holidays' (theirs to enter).
+   * Written for every row of a span+reason group at once.
+   */
+  push_to_gcal: boolean
 }
 
 export interface Game extends BaseRecord {

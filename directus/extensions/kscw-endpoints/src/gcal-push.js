@@ -264,3 +264,214 @@ export async function pushHomeGames(db, log) {
   log.info({ msg: `gcal-push${dryRun ? ' (dry run — nothing written)' : ''}: +${created} ~${updated} -${deleted}`, endpoint: 'gcal-sync' })
   return { created, updated, deleted, skipped, dryRun, eventIds }
 }
+
+// ── club closures → their calendar ────────────────────────────────────────────
+
+/**
+ * Stable identity for a closure GROUP. A KWI closure is three rows (hall A/B/C)
+ * and the calendar convention is one entry naming the halls, so the key is the
+ * span + reason, not a row id — which also means re-saving a closure (delete +
+ * recreate, as the edit path does) keeps the same calendar event instead of
+ * orphaning one and creating another.
+ */
+export function closureKey(startDate, endDate, reason) {
+  return crypto.createHash('sha1')
+    .update(`${startDate}|${endDate}|${String(reason || '').trim().toLowerCase()}`)
+    .digest('hex').slice(0, 32)
+}
+
+/**
+ * Does the hall administration already cover this span?
+ *
+ * Read from `hall_events` — our mirror of THEIR calendar. Our own pushed events
+ * never land there (the pull half skips them by event id), so any overlap is
+ * genuinely theirs and pushing on top would be the duplicate the club asked us
+ * to avoid. Derived per run, never cached: their entry can appear or vanish at
+ * any time, and a stale boolean is the exact failure this feature exists to fix.
+ */
+export function findDuplicate(hallEvents, startDate, endDate) {
+  return hallEvents.find((he) => {
+    const s = String(he.date || '').slice(0, 10)
+    const e = String(he.end_date || he.date || '').slice(0, 10)
+    return s && s <= endDate && e >= startDate
+  }) || null
+}
+
+// All-day event covering [start, end] inclusive. Google's `end.date` is
+// EXCLUSIVE, so it is the day AFTER our inclusive end — the same conversion the
+// pull half undoes with minusOneDay().
+function buildClosureEvent(group) {
+  const endExclusive = new Date(`${group.end_date}T00:00:00Z`)
+  endExclusive.setUTCDate(endExclusive.getUTCDate() + 1)
+  const halls = group.halls.slice().sort()
+  const hallText = halls.length ? ` (${halls.join(', ')})` : ''
+
+  return {
+    summary: `KSCW: ${group.reason}${hallText}`,
+    description: `Belegung durch KSC Wiedikon.\nDetails: wiedisync.kscw.ch`,
+    location: KWI_ADDRESS,
+    start: { date: group.start_date },
+    end: { date: endExclusive.toISOString().slice(0, 10) },
+    transparency: 'transparent',
+    extendedProperties: { private: { wiedisync: 'closure', closure_key: group.key } },
+  }
+}
+
+function closureNeedsUpdate(existing, desired) {
+  return (
+    existing.summary !== desired.summary
+    || (existing.start?.date ?? '') !== desired.start.date
+    || (existing.end?.date ?? '') !== desired.end.date
+  )
+}
+
+/**
+ * Ids of every closure event WE own, today forward.
+ *
+ * The pull half parses the ICS feed, which carries no extendedProperties — so an
+ * event we wrote is indistinguishable from the Hausdienst's unless we hand the
+ * importer the ids. Games solve this by returning them from their push; closures
+ * cannot, because their push must run AFTER the import (it needs the fresh
+ * hall_events mirror to detect duplicates). Hence this separate cheap lookup,
+ * called before the import.
+ *
+ * Without it our own pushed closure round-trips: imported as a hall_event, and
+ * since migration 325 every hall_event closes the halls — so it would re-create
+ * the very closure it describes, as a second row from a different source.
+ */
+export async function listOwnedClosureEventIds() {
+  if (!isPushEnabled()) return new Set()
+  const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Zurich' }).format(new Date())
+  const ids = new Set()
+  let pageToken
+  do {
+    const page = await api(`/calendars/${encodeURIComponent(KSCW_CALENDAR_ID)}/events`, {
+      query: {
+        timeMin: `${today}T00:00:00Z`, singleEvents: 'true', maxResults: '250',
+        privateExtendedProperty: 'wiedisync=closure',
+        ...(pageToken ? { pageToken } : {}),
+      },
+    })
+    for (const ev of page.items ?? []) ids.add(ev.id)
+    pageToken = page.nextPageToken
+  } while (pageToken)
+  return ids
+}
+
+/**
+ * Reconcile the club's OWN blocked dates onto the hall administration's calendar.
+ *
+ * Opt-in per closure (`hall_closures.push_to_gcal`), because that calendar is the
+ * school's. Sources 'gcal' (came from there) and 'school_holidays' (theirs to
+ * enter) are excluded regardless of the flag.
+ *
+ * ⚠ Ownership: only events carrying `wiedisync=closure` are ever updated or
+ * deleted. Their closures, the Handball tournament, ASVZ Volleynight are never
+ * touched — and note this marker is distinct from the games' `wiedisync=game`,
+ * so the two reconcilers can never delete each other's events.
+ *
+ * @returns { created, updated, deleted, skippedDuplicate, eventIds }
+ */
+export async function pushClubClosures(db, log, hallEvents = []) {
+  if (!isPushEnabled()) {
+    return { created: 0, updated: 0, deleted: 0, skippedDuplicate: 0, eventIds: new Set(), disabled: true }
+  }
+
+  // Today forward only — same rule as the games half. Past closures are frozen
+  // history and pushing them tells the school nothing it can act on.
+  const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Zurich' }).format(new Date())
+
+  const rows = await db('hall_closures as c')
+    .join('halls as h', 'h.id', 'c.hall')
+    .where('c.push_to_gcal', true)
+    .whereNotIn('c.source', ['gcal', 'school_holidays'])
+    .andWhere('c.end_date', '>=', today)
+    .select(
+      db.raw('c.start_date::text as start_date'),
+      db.raw('c.end_date::text as end_date'),
+      'c.reason',
+      'h.name as hall_name',
+    )
+
+  // One event per (span, reason); the halls become part of the title.
+  const groups = new Map()
+  for (const r of rows) {
+    const key = closureKey(r.start_date, r.end_date, r.reason)
+    const g = groups.get(key)
+      || { key, start_date: r.start_date, end_date: r.end_date, reason: r.reason, halls: [] }
+    if (r.hall_name && !g.halls.includes(r.hall_name)) g.halls.push(r.hall_name)
+    groups.set(key, g)
+  }
+
+  const desired = new Map()
+  let skippedDuplicate = 0
+  for (const [key, g] of groups) {
+    const dup = findDuplicate(hallEvents, g.start_date, g.end_date)
+    if (dup) {
+      skippedDuplicate++
+      log.info({ msg: `gcal-push: closure "${g.reason}" ${g.start_date}..${g.end_date} already covered by their "${dup.title}" — not pushed`, endpoint: 'gcal-sync' })
+      continue
+    }
+    desired.set(key, buildClosureEvent(g))
+  }
+
+  // Everything WE own on the closure side, today forward.
+  const existing = new Map()
+  let pageToken
+  do {
+    const page = await api(`/calendars/${encodeURIComponent(KSCW_CALENDAR_ID)}/events`, {
+      query: {
+        timeMin: `${today}T00:00:00Z`, singleEvents: 'true', maxResults: '250',
+        privateExtendedProperty: 'wiedisync=closure',
+        ...(pageToken ? { pageToken } : {}),
+      },
+    })
+    for (const ev of page.items ?? []) {
+      const k = ev.extendedProperties?.private?.closure_key
+      if (k) existing.set(k, ev)
+    }
+    pageToken = page.nextPageToken
+  } while (pageToken)
+
+  const dryRun = isDryRun()
+  let created = 0, updated = 0, deleted = 0
+  const eventIds = new Set()
+
+  for (const [key, event] of desired) {
+    const current = existing.get(key)
+    if (!current) {
+      if (!dryRun) {
+        const made = await api(`/calendars/${encodeURIComponent(KSCW_CALENDAR_ID)}/events`, {
+          method: 'POST', body: event, query: { sendUpdates: 'none' },
+        })
+        eventIds.add(made.id)
+      }
+      created++
+    } else {
+      eventIds.add(current.id)
+      if (closureNeedsUpdate(current, event)) {
+        if (!dryRun) {
+          await api(`/calendars/${encodeURIComponent(KSCW_CALENDAR_ID)}/events/${current.id}`, {
+            method: 'PATCH', body: event, query: { sendUpdates: 'none' },
+          })
+        }
+        updated++
+      }
+    }
+  }
+
+  // Ours, but no longer wanted — un-ticked, deleted, or now covered by one of
+  // their own entries. Only `wiedisync=closure` events reach this loop.
+  for (const [key, event] of existing) {
+    if (desired.has(key)) continue
+    if (!dryRun) {
+      await api(`/calendars/${encodeURIComponent(KSCW_CALENDAR_ID)}/events/${event.id}`, {
+        method: 'DELETE', query: { sendUpdates: 'none' },
+      })
+    }
+    deleted++
+  }
+
+  log.info({ msg: `gcal-push closures${dryRun ? ' (dry run — nothing written)' : ''}: +${created} ~${updated} -${deleted} (${skippedDuplicate} already on their calendar)`, endpoint: 'gcal-sync' })
+  return { created, updated, deleted, skippedDuplicate, dryRun, eventIds }
+}

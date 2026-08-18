@@ -24,6 +24,9 @@ interface ClosureGroup {
   source: HallClosure['source']
   hallNames: string[]
   records: HallClosure[]
+  /** True when every row of the group is flagged — the flag is written per row
+   *  but decided per group, because one calendar entry names all the halls. */
+  pushToGcal: boolean
 }
 
 const emptyForm: {
@@ -90,7 +93,7 @@ export default function ClosuresPage() {
   } = useCollection<HallClosure>('hall_closures', {
     filter: scope === 'upcoming' ? { end_date: { _gte: today } } : undefined,
     sort: scope === 'upcoming' ? ['start_date'] : ['-start_date'],
-    fields: ['id', 'hall', 'start_date', 'end_date', 'reason', 'source'],
+    fields: ['id', 'hall', 'start_date', 'end_date', 'reason', 'source', 'push_to_gcal'],
     limit: 1000,
   })
   const closures = closuresRaw ?? EMPTY_CLOSURES
@@ -110,6 +113,7 @@ export default function ClosuresPage() {
   })
   const gcalEvents = gcalEventsRaw ?? EMPTY_EVENTS
   const [togglingId, setTogglingId] = useState<string | null>(null)
+  const [pushingKey, setPushingKey] = useState<string | null>(null)
 
   useReportPageLoading(isLoading)
 
@@ -182,6 +186,7 @@ export default function ClosuresPage() {
       if (existing) {
         existing.hallNames.push(nameOf(c.hall))
         existing.records.push(c)
+        existing.pushToGcal = existing.pushToGcal && !!c.push_to_gcal
       } else {
         map.set(key, {
           key,
@@ -191,6 +196,7 @@ export default function ClosuresPage() {
           source: c.source,
           hallNames: [nameOf(c.hall)],
           records: [c],
+          pushToGcal: !!c.push_to_gcal,
         })
       }
     }
@@ -369,6 +375,49 @@ export default function ClosuresPage() {
     }
   }
 
+  /**
+   * Publish (or withdraw) one closure on the hall administration's calendar.
+   *
+   * Per GROUP, not per row: a KWI closure is three rows and their calendar
+   * convention is one entry naming the halls. The endpoint pushes immediately
+   * rather than waiting for the 04:00 cron, so the admin learns straight away
+   * whether it landed — or that it did not because the Hausdienst already has
+   * that span covered, which is a success, not a failure.
+   */
+  async function togglePushToGcal(group: ClosureGroup) {
+    const turningOn = !group.pushToGcal
+    const msg = turningOn ? t('gcalPushConfirm') : t('gcalPushRemoveConfirm')
+    if (!(await confirm({ message: msg, danger: !turningOn }))) return
+
+    setPushingKey(group.key)
+    try {
+      const res = await kscwApi<{
+        duplicateOf: string | null
+        created: number
+        deleted: number
+        dryRun: boolean
+        disabled: boolean
+      }>('/admin/hall-closures/push-toggle', {
+        method: 'POST',
+        body: {
+          start_date: group.start_date,
+          end_date: group.end_date,
+          reason: group.reason,
+          push: turningOn,
+        },
+      })
+      await refetch()
+      if (turningOn && res.duplicateOf) toast.info(t('gcalPushDuplicateToast', { title: res.duplicateOf }))
+      else if (res.disabled) toast.warning(t('gcalPushDisabledToast'))
+      else if (res.dryRun) toast.info(t('gcalPushDryRunToast'))
+      else toast.success(turningOn ? t('gcalPushedToast') : t('gcalPushRemovedToast'))
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t('common:errorSaving'))
+    } finally {
+      setPushingKey(null)
+    }
+  }
+
   const hasHalls = halls.length > 0
 
   return (
@@ -531,6 +580,7 @@ export default function ClosuresPage() {
                 <TableHead>{t('common:reason')}</TableHead>
                 <TableHead>{t('hallsField')}</TableHead>
                 <TableHead className="hidden sm:table-cell">{t('source')}</TableHead>
+                <TableHead className="hidden md:table-cell">{t('gcalPushCol')}</TableHead>
                 <TableHead className="w-24" />
               </TableRow>
             </TableHeader>
@@ -564,6 +614,36 @@ export default function ClosuresPage() {
                       <span className={`inline-flex rounded-full px-2 py-0.5 text-xs ${SOURCE_COLORS[group.source] ?? SOURCE_COLORS.admin}`}>
                         {sourceLabel(group.source)}
                       </span>
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      {SYNC_OWNED.includes(group.source) ? (
+                        // Came FROM their calendar, or is the city's school-holiday
+                        // feed which they enter themselves — nothing to publish.
+                        <span className="text-xs text-gray-400 dark:text-gray-500">{t('gcalPushNotEligible')}</span>
+                      ) : (
+                        <div className="flex flex-col items-start gap-1">
+                          <span
+                            className={cn(
+                              'inline-flex rounded-full px-2 py-0.5 text-xs',
+                              group.pushToGcal
+                                ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
+                                : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300',
+                            )}
+                          >
+                            {group.pushToGcal ? t('gcalPushYes') : t('gcalPushNo')}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={pushingKey === group.key}
+                            loading={pushingKey === group.key}
+                            onClick={() => { void togglePushToGcal(group) }}
+                            className="h-auto whitespace-nowrap px-2 py-1 text-xs text-brand-600 hover:bg-brand-50 hover:text-brand-700 dark:hover:bg-gray-800"
+                          >
+                            {group.pushToGcal ? t('gcalPushRemoveAction') : t('gcalPushAction')}
+                          </Button>
+                        </div>
+                      )}
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-col gap-1 sm:flex-row">

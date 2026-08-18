@@ -18,7 +18,7 @@
  * so nothing churns for unchanged entries.
  */
 
-import { pushHomeGames, KSCW_CALENDAR_ID } from './gcal-push.js'
+import { pushHomeGames, pushClubClosures, listOwnedClosureEventIds, findDuplicate, KSCW_CALENDAR_ID } from './gcal-push.js'
 import { writeUserLog } from './activity-log.js'
 import { emptyChanges, hasChanges, notifyGCalChanges } from './gcal-notify.js'
 
@@ -128,6 +128,21 @@ export function registerGCalSync(router, { database, logger, services, getSchema
     // re-importing our games as duplicate hall_events display rows.
     const push = await pushHomeGames(db, log)
 
+    // Ids of the closure events we own. Fetched HERE, before the import, because
+    // the ICS feed carries no extendedProperties: without them our own pushed
+    // closure is imported as a hall_event, and since migration 325 every
+    // hall_event closes the halls — so it would re-create the very closure it
+    // describes, from a second source. The closure PUSH itself runs after the
+    // import, which is why it cannot hand these back the way the games push does.
+    let ownedClosureIds = new Set()
+    try {
+      ownedClosureIds = await listOwnedClosureEventIds()
+    } catch (err) {
+      // A failure here must not abort the pull. Worst case we re-import our own
+      // closure as a hall_event, which the next run reconciles away.
+      log.warn({ msg: `gcal-sync: could not list owned closure events: ${err.message}`, endpoint: 'gcal-sync' })
+    }
+
     const halls = await db('halls').select('id', 'name')
     // Halls a calendar closure applies to: the KWI school gym (A/B/C). These are
     // the halls the public calendar's "Halle geschlossen" entries refer to and
@@ -204,7 +219,8 @@ export function registerGCalSync(router, { database, logger, services, getSchema
         // hall_events on dev — i.e. showed the hall as free while a junior game
         // was being played in it. Other people's events keep importing exactly as
         // they did before.
-        if (push.eventIds.has(String(ev.uid).split('@')[0])) continue
+        const evId = String(ev.uid).split('@')[0]
+        if (push.eventIds.has(evId) || ownedClosureIds.has(evId)) continue
         if (ev.title?.startsWith('VB ')) continue // club VB games — app-managed, never a closure
         seenUids.add(ev.uid)
 
@@ -359,6 +375,22 @@ export function registerGCalSync(router, { database, logger, services, getSchema
       changes.closuresRemoved.push(...goneClosureGroups.values())
     }
 
+    // ── PUSH the club's own blocked dates (opt-in per closure) ──
+    // After the import on purpose: duplicate detection reads `hall_events`, our
+    // mirror of THEIR calendar, and it has to be this run's version — a span
+    // they covered an hour ago must suppress our push now, not tomorrow.
+    let closurePush = { created: 0, updated: 0, deleted: 0, skippedDuplicate: 0, disabled: true }
+    try {
+      const mirror = await db('hall_events')
+        .where('source', 'gcal')
+        .select(db.raw('date::text as date'), db.raw('end_date::text as end_date'), 'title')
+      closurePush = await pushClubClosures(db, log, mirror)
+    } catch (err) {
+      // Never fail the sync for the push half — the pull (closures IN, which
+      // cancels trainings) is the load-bearing direction.
+      log.error({ msg: `gcal-sync: closure push failed: ${err.message}`, endpoint: 'gcal-sync', stack: err.stack })
+    }
+
     // ── Tell the club what the hall administration changed ──
     // Only the IMPORT side is reported: the push half is our own writes and the
     // club already knows about its own games. Mail failures are swallowed inside
@@ -381,6 +413,10 @@ export function registerGCalSync(router, { database, logger, services, getSchema
       overriddenOff,
       trainingsCancelled: changes.trainingsCancelled.length,
       trainingsRestored: changes.trainingsRestored.length,
+      closuresPushed: closurePush.created,
+      closurePushUpdated: closurePush.updated,
+      closurePushRemoved: closurePush.deleted,
+      closurePushSkippedDuplicate: closurePush.skippedDuplicate,
       changed: hasChanges(changes),
       notified,
     }
@@ -504,6 +540,68 @@ export function registerGCalSync(router, { database, logger, services, getSchema
       })
     } catch (err) {
       log.error({ msg: `hall-event closure-override: ${err.message}`, endpoint: 'hall-events/:id/closure-override', userId: req?.accountability?.user || null, method: req?.method, stack: err.stack })
+      res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  // ── Admin choice: publish this closure to the hall administration's calendar ──
+  //
+  // Per (start_date, end_date, reason) GROUP, not per row: a KWI closure is three
+  // rows (hall A/B/C) and the calendar convention is one entry naming the halls.
+  // Pushes immediately rather than waiting for the 04:00 cron, so the admin sees
+  // whether it landed — or why it did not.
+  router.post('/admin/hall-closures/push-toggle', async (req, res) => {
+    if (!req.accountability?.admin) return res.status(403).json({ error: 'Admin access required' })
+    try {
+      const { start_date: startD, end_date: endD, reason, push } = req.body || {}
+      if (typeof push !== 'boolean') return res.status(400).json({ error: 'push must be true or false' })
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(String(startD)) || !/^\d{4}-\d{2}-\d{2}$/.test(String(endD))) {
+        return res.status(400).json({ error: 'start_date and end_date must be yyyy-mm-dd' })
+      }
+
+      // Never publish what came FROM that calendar, nor the city's school
+      // holidays which the hall administration enters themselves. Excluded here
+      // as well as in the pusher — this is the door a human can knock on.
+      const affected = await database('hall_closures')
+        .whereRaw('start_date = ?::date AND end_date = ?::date', [startD, endD])
+        .andWhere('reason', reason ?? '')
+        .whereNotIn('source', ['gcal', 'school_holidays'])
+        .update({ push_to_gcal: push })
+
+      if (!affected) {
+        return res.status(404).json({ error: 'No eligible closure found for that span and reason' })
+      }
+
+      const mirror = await database('hall_events')
+        .where('source', 'gcal')
+        .select(database.raw('date::text as date'), database.raw('end_date::text as end_date'), 'title')
+      const result = await pushClubClosures(database, log, mirror)
+
+      // The push is silent about WHY nothing happened, and "already on their
+      // calendar" is the answer the admin most needs. Re-derive it for this span.
+      const dup = push ? findDuplicate(mirror, startD, endD) : null
+
+      await writeUserLog(database, log, {
+        accountability: req.accountability,
+        action: 'hall_closure_gcal_push',
+        collection: 'hall_closures',
+        recordId: null,
+        data: { start: startD, end: endD, reason, push, rows: affected, duplicateOf: dup?.title ?? null },
+      })
+
+      res.json({
+        status: 'ok',
+        push,
+        rows: affected,
+        duplicateOf: dup?.title ?? null,
+        created: result.created,
+        updated: result.updated,
+        deleted: result.deleted,
+        dryRun: !!result.dryRun,
+        disabled: !!result.disabled,
+      })
+    } catch (err) {
+      log.error({ msg: `hall-closures push-toggle: ${err.message}`, endpoint: 'hall-closures/push-toggle', userId: req?.accountability?.user || null, method: req?.method, stack: err.stack })
       res.status(500).json({ error: 'Internal error' })
     }
   })

@@ -87,6 +87,23 @@ export default {
   gcalTrainingsRestoredToast_one: '1 Training isch wieder aktiv',
   gcalTrainingsRestoredToast_other: '{{count}} Trainings sind wieder aktiv',
 
+  // Publishing a club closure to the hall administration's calendar
+  gcalPushCol: 'Hallechalender',
+  gcalPushNo: 'Nöd publiziert',
+  gcalPushYes: 'Publiziert',
+  gcalPushDuplicate: 'Scho erfasst',
+  gcalPushNotEligible: '—',
+  gcalPushAction: 'Publiziere',
+  gcalPushRemoveAction: 'Entferne',
+  gcalPushConfirm: 'Die Sperrig im Chalender vo de Hallenverwaltig publiziere? Si gsehnd si als KSCW-Belegig.',
+  gcalPushRemoveConfirm: 'Die Sperrig us em Chalender vo de Hallenverwaltig entferne?',
+  gcalPushedToast: 'Im Hallechalender publiziert',
+  gcalPushRemovedToast: 'Us em Hallechalender entfernt',
+  gcalPushDuplicateToast: 'Nöd publiziert — d Hallenverwaltig hät dä Zitruum scho erfasst ({{title}})',
+  gcalPushDryRunToast: 'Zum Publiziere markiert (Dev laufft trocke — nüt gschriebe)',
+  gcalPushDisabledToast: 'Markiert, aber de Chalender-Push isch uf dere Umgebig nöd konfiguriert',
+
+
 
   // Closure sources
   source: 'Quelle',

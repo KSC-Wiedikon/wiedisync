@@ -87,6 +87,23 @@ export default {
   gcalTrainingsRestoredToast_one: '1 Training ist wieder aktiv',
   gcalTrainingsRestoredToast_other: '{{count}} Trainings sind wieder aktiv',
 
+  // Publishing a club closure to the hall administration's calendar
+  gcalPushCol: 'Hallenkalender',
+  gcalPushNo: 'Nicht publiziert',
+  gcalPushYes: 'Publiziert',
+  gcalPushDuplicate: 'Bereits erfasst',
+  gcalPushNotEligible: '—',
+  gcalPushAction: 'Publizieren',
+  gcalPushRemoveAction: 'Entfernen',
+  gcalPushConfirm: 'Diese Sperrung im Kalender der Hallenverwaltung publizieren? Sie sehen sie als KSCW-Belegung.',
+  gcalPushRemoveConfirm: 'Diese Sperrung aus dem Kalender der Hallenverwaltung entfernen?',
+  gcalPushedToast: 'Im Hallenkalender publiziert',
+  gcalPushRemovedToast: 'Aus dem Hallenkalender entfernt',
+  gcalPushDuplicateToast: 'Nicht publiziert — die Hallenverwaltung hat diesen Zeitraum bereits erfasst ({{title}})',
+  gcalPushDryRunToast: 'Zum Publizieren markiert (Dev läuft trocken — nichts geschrieben)',
+  gcalPushDisabledToast: 'Markiert, aber der Kalender-Push ist auf dieser Umgebung nicht konfiguriert',
+
+
 
   // Closure sources
   source: 'Quelle',
