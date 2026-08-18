@@ -973,6 +973,20 @@ export default {
   trOpenInVis: 'In VIS uufmache',
   trOpenInVisHint: 'VIS het kein Link uf ei einzelni Person — d Nummere i de Suechi vo de Transfer-App iifüege.',
   trVisPlayerNo: 'VIS-Spilernummere',
+  // De Transfer-Datesatz vo FIVB sälber (Migration 237), under de Status-
+  // Stüürig vom Club. Nöd s glich wie `trInVis*` (Präsenz im Index).
+  trVisTransferHint: 'Was FIVB VIS sälber zu dem Transfer meldet. Das isch de massgäbend Iitrag — de Status linggs isch d Markierig vom Club und wird jedi Nacht demit abgliche.',
+  trVisTransferComplete: 'Transfer abgschlosse',
+  trVisTransferProgress: 'Transfer {{percent}}%',
+  trVisTransferCancelled: 'Transfer storniert',
+  trVisTransferRefused: 'Transfer abglehnt',
+  trVisTransferNo: 'VIS-Transfernummere',
+  trVisTransferFrom: 'Ab {{date}}',
+  trVisPhaseDraft: 'Entwurf',
+  trVisPhaseSubmitted: 'Iigreicht',
+  trVisPhaseInProgress: 'I de Bearbeitig',
+  trVisPhaseEnded: 'Abgschlosse',
+  trVisTransferRuledOut: 'Da usgschlosse, aber FIVB hät en laufende Transfer für das Mitglied. D nächtlich Synchronisation lat «Nöd nötig» bewusst i Rueh — das blibt so, bis öpper entscheidet.',
   trCopyPlayerNo: 'VIS-Spilernummere kopiere',
   // Manuelle VIS-Link (Migration 312).
   trManualLinkAdd: 'Spiler verknüpfe…',

@@ -1458,6 +1458,20 @@ export default {
   trOpenInVis: 'Open in VIS',
   trOpenInVisHint: 'VIS has no link to a single player — paste the number into the search in the transfers app.',
   trVisPlayerNo: 'VIS player number',
+  // FIVB's own transfer record (migration 237), shown under the club's status
+  // control. Distinct from `trInVis*`, which is presence in a player index.
+  trVisTransferHint: 'What FIVB VIS itself reports for this transfer. This is the authoritative record — the status on the left is the club\'s own marker, kept in step with it nightly.',
+  trVisTransferComplete: 'Transfer complete',
+  trVisTransferProgress: 'Transfer {{percent}}%',
+  trVisTransferCancelled: 'Transfer cancelled',
+  trVisTransferRefused: 'Transfer refused',
+  trVisTransferNo: 'VIS transfer number',
+  trVisTransferFrom: 'From {{date}}',
+  trVisPhaseDraft: 'Draft',
+  trVisPhaseSubmitted: 'Submitted',
+  trVisPhaseInProgress: 'In progress',
+  trVisPhaseEnded: 'Ended',
+  trVisTransferRuledOut: 'Ruled out here, but FIVB has a live transfer for this member. The nightly sync leaves "Not needed" alone on purpose, so this stays until somebody decides.',
   trCopyPlayerNo: 'Copy the VIS player number',
   // Manual VIS link (migration 312) — the escape hatch for the members name
   // matching cannot reach. Worded as a link, never as proof: the number only
