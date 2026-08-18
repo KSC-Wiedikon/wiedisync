@@ -462,6 +462,16 @@ export async function pushClubClosures(db, log, hallEvents = []) {
 
   // Ours, but no longer wanted — un-ticked, deleted, or now covered by one of
   // their own entries. Only `wiedisync=closure` events reach this loop.
+  //
+  // ⚠⚠ THIS LOOP IS WHY `GCAL_PUSH_DRY_RUN=true` ON DEV IS LOAD-BEARING, and more
+  // sharply so than for games. There is one production calendar, and the READ
+  // above is never dry — so dev sees the events PROD published. Dev's `desired`
+  // set is built from dev's own `push_to_gcal` flags, which diverge from prod's
+  // the moment anybody toggles one on dev (they only agree just after the 03:00
+  // clone). Every prod-published closure dev does not also have flagged
+  // therefore lands here as a delete. Observed on 2026-08-18: a dev run reported
+  // `-2`, i.e. it would have silently removed both VB U20 Tournament entries
+  // from the hall administration's calendar. Only the dry run stopped it.
   for (const [key, event] of existing) {
     if (desired.has(key)) continue
     if (!dryRun) {
