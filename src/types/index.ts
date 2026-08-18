@@ -737,11 +737,19 @@ export interface HallEvent extends BaseRecord {
   uid: string
   title: string
   date: string
+  /** Last day covered, INCLUSIVE (migration 325). Null/equal to `date` = single day. */
+  end_date: string | null
   start_time: string
   end_time: string
   location: string
   all_day: boolean
   source: string
+  /**
+   * Does this calendar entry close the KWI halls? Since migration 325 every
+   * hall-administration entry does, so: null = automatic (closes), false = admin
+   * override, closes nothing, true = admin confirmed it closes.
+   */
+  closure_override: boolean | null
 }
 
 export type VolleyPosition = 'Setter' | 'Outside' | 'Middle' | 'Opposite' | 'Libero' | 'Universal'

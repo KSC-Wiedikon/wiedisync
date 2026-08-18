@@ -13,8 +13,8 @@ import { logActivity } from '../../utils/logActivity'
 import { useConfirm } from '../../components/ConfirmProvider'
 import { useCollection } from '../../lib/query'
 import { useReportPageLoading } from '../../hooks/usePageReady'
-import type { Hall, HallClosure } from '../../types'
-import { createRecord, deleteRecord, updateRecord } from '../../lib/api'
+import type { Hall, HallClosure, HallEvent } from '../../types'
+import { createRecord, deleteRecord, kscwApi, updateRecord } from '../../lib/api'
 
 interface ClosureGroup {
   key: string
@@ -52,6 +52,7 @@ const SYNC_OWNED: HallClosure['source'][] = ['gcal', 'school_holidays']
 
 const EMPTY_HALLS: Hall[] = []
 const EMPTY_CLOSURES: HallClosure[] = []
+const EMPTY_EVENTS: HallEvent[] = []
 
 /** Normalise a Directus date to `yyyy-mm-dd` (rows come back bare or with a time part). */
 function dateKey(value: string): string {
@@ -93,6 +94,22 @@ export default function ClosuresPage() {
     limit: 1000,
   })
   const closures = closuresRaw ?? EMPTY_CLOSURES
+
+  // The hall administration's own calendar. Since migration 325 EVERY entry here
+  // closes the KWI halls — this list is the only place a human can say "not this
+  // one", so it shows the entries themselves, not the closures they produced.
+  const {
+    data: gcalEventsRaw,
+    isLoading: gcalLoading,
+    refetch: refetchGcal,
+  } = useCollection<HallEvent>('hall_events', {
+    filter: { source: { _eq: 'gcal' }, _or: [{ end_date: { _gte: today } }, { date: { _gte: today } }] },
+    sort: ['date'],
+    fields: ['id', 'uid', 'title', 'date', 'end_date', 'all_day', 'start_time', 'end_time', 'location', 'closure_override'],
+    limit: 500,
+  })
+  const gcalEvents = gcalEventsRaw ?? EMPTY_EVENTS
+  const [togglingId, setTogglingId] = useState<string | null>(null)
 
   useReportPageLoading(isLoading)
 
@@ -304,6 +321,42 @@ export default function ClosuresPage() {
       toast.success(t('closureDeletedToast'))
     } catch (err) {
       setError(err instanceof Error ? err.message : t('common:errorSaving'))
+    }
+  }
+
+  /**
+   * Flip one calendar entry between "closes the halls" and "closes nothing".
+   *
+   * The endpoint reconciles the hall_closures rows immediately rather than
+   * waiting for the 04:00 cron, so the trainings a closure had cancelled come
+   * back the moment it is switched off — that reversal is the whole point of the
+   * override, and a user who has to wait a night cannot tell it worked.
+   */
+  async function toggleGcalClosure(ev: HallEvent) {
+    const willClose = ev.closure_override === false
+    // Only the closing direction is destructive (it cancels trainings);
+    // switching a closure off only ever gives trainings back.
+    if (willClose && !(await confirm({ message: t('gcalCloseConfirm'), danger: true }))) return
+
+    setTogglingId(ev.id)
+    try {
+      const res = await kscwApi<{
+        trainingsCancelled: number
+        trainingsRestored: number
+      }>(`/admin/hall-events/${ev.id}/closure-override`, {
+        method: 'POST',
+        body: { override: willClose ? true : false },
+      })
+      await Promise.all([refetchGcal(), refetch()])
+      const detail = willClose
+        ? (res.trainingsCancelled > 0 ? t('gcalTrainingsCancelledToast', { count: res.trainingsCancelled }) : '')
+        : (res.trainingsRestored > 0 ? t('gcalTrainingsRestoredToast', { count: res.trainingsRestored }) : '')
+      const head = willClose ? t('gcalOverrideOnToast') : t('gcalOverrideOffToast')
+      toast.success(detail ? `${head} — ${detail}` : head)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t('common:errorSaving'))
+    } finally {
+      setTogglingId(null)
     }
   }
 
@@ -522,6 +575,97 @@ export default function ClosuresPage() {
                           {t('common:delete')}
                         </Button>
                       </div>
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
+            </TableBody>
+          </Table>
+        )}
+      </div>
+
+      {/* Hall-administration calendar — the per-entry closure override.
+          Its own list rather than a column on the closures table above: a
+          switched-off entry HAS no closure rows, so it would be invisible there
+          exactly when the admin needs to find it again. */}
+      <div className="mt-6 rounded-lg border border-gray-200 bg-white p-4 sm:p-6 dark:border-gray-700 dark:bg-gray-800">
+        <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{t('gcalEntriesTitle')}</h2>
+        <p className="mt-1 mb-3 text-sm text-gray-500 dark:text-gray-400">{t('gcalEntriesSubtitle')}</p>
+
+        {gcalLoading ? (
+          <p className="py-6 text-center text-sm text-gray-400 dark:text-gray-500">{t('common:loading')}</p>
+        ) : gcalEvents.length === 0 ? (
+          <p className="py-6 text-center text-sm text-gray-500 dark:text-gray-400">{t('gcalEntriesEmpty')}</p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t('closuresColDates')}</TableHead>
+                <TableHead>{t('gcalColEntry')}</TableHead>
+                <TableHead className="hidden sm:table-cell">{t('gcalColEffect')}</TableHead>
+                <TableHead className="w-32" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {gcalEvents.map((ev) => {
+                const startStr = dateKey(ev.date)
+                const endStr = ev.end_date ? dateKey(ev.end_date) : startStr
+                const dateRange = startStr === endStr
+                  ? formatDateDisplay(startStr)
+                  : `${formatDateDisplay(startStr)} – ${formatDateDisplay(endStr)}`
+                const closes = ev.closure_override !== false
+                const effect = ev.closure_override === true
+                  ? t('gcalEffectConfirmed')
+                  : closes ? t('gcalEffectCloses') : t('gcalEffectOpen')
+
+                return (
+                  <TableRow key={ev.id} className="min-h-[44px]">
+                    <TableCell className="whitespace-normal break-words font-medium tabular-nums">
+                      {dateRange}
+                    </TableCell>
+                    <TableCell className="whitespace-normal break-words">
+                      {ev.title}
+                      {/* The effect badge is the row's most important fact, so it
+                          must survive the mobile column drop, not hide with it. */}
+                      <span
+                        className={cn(
+                          'mt-1 inline-flex rounded-full px-2 py-0.5 text-xs sm:hidden',
+                          closes
+                            ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300'
+                            : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300',
+                        )}
+                      >
+                        {effect}
+                      </span>
+                    </TableCell>
+                    <TableCell className="hidden sm:table-cell">
+                      <span
+                        className={cn(
+                          'inline-flex rounded-full px-2 py-0.5 text-xs',
+                          closes
+                            ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300'
+                            : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300',
+                        )}
+                      >
+                        {effect}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={togglingId === ev.id}
+                        loading={togglingId === ev.id}
+                        onClick={() => { void toggleGcalClosure(ev) }}
+                        className={cn(
+                          'w-full sm:w-auto',
+                          closes
+                            ? 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700'
+                            : 'text-brand-600 hover:bg-brand-50 hover:text-brand-700 dark:hover:bg-gray-800',
+                        )}
+                      >
+                        {closes ? t('gcalActionOpen') : t('gcalActionClose')}
+                      </Button>
                     </TableCell>
                   </TableRow>
                 )

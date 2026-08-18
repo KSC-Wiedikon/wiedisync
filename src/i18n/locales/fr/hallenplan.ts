@@ -68,6 +68,26 @@ export default {
   closureDeletedToast: 'Fermeture supprimee',
   closureSyncOwnedWarning: 'Cette source est geree par une synchronisation automatique — une fermeture enregistree ici sera supprimee au prochain passage. Utilisez « Admin » ou « Concierge » pour une fermeture manuelle.',
 
+  // Hall-administration calendar (gcal) — per-entry closure override
+  gcalEntriesTitle: 'Calendrier de la gestion des salles',
+  gcalEntriesSubtitle: 'Chaque entrée que la gestion des salles inscrit dans ce calendrier ferme les salles KWI. Si une entrée n\'est pas une vraie fermeture — un match ou un entraînement du club saisi par leurs soins —, désactive-la ici; les entraînements annulés redeviennent actifs.',
+  gcalEntriesEmpty: 'Aucune entrée à venir de la gestion des salles',
+  gcalColEntry: 'Entrée',
+  gcalColEffect: 'Effet',
+  gcalEffectCloses: 'Ferme les salles',
+  gcalEffectOpen: 'Pas de fermeture',
+  gcalEffectConfirmed: 'Ferme les salles (confirmé)',
+  gcalActionOpen: 'Pas de fermeture',
+  gcalActionClose: 'Fermer les salles',
+  gcalCloseConfirm: 'Fermer les salles KWI pour cette entrée? Les entraînements de ces jours seront annulés.',
+  gcalOverrideOffToast: 'Plus une fermeture',
+  gcalOverrideOnToast: 'Salles fermées',
+  gcalTrainingsCancelledToast_one: '1 entraînement annulé',
+  gcalTrainingsCancelledToast_other: '{{count}} entraînements annulés',
+  gcalTrainingsRestoredToast_one: '1 entraînement est de nouveau actif',
+  gcalTrainingsRestoredToast_other: '{{count}} entraînements sont de nouveau actifs',
+
+
   // Closure sources
   source: 'Source',
   sourceCaretaker: 'Concierge',

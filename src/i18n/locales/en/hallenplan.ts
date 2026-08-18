@@ -68,6 +68,26 @@ export default {
   closureDeletedToast: 'Closure deleted',
   closureSyncOwnedWarning: 'This source is managed by an automatic sync — a closure saved here is deleted again on the next run. Use "Admin" or "Caretaker" for a manual closure.',
 
+  // Hall-administration calendar (gcal) — per-entry closure override
+  gcalEntriesTitle: 'Hall administration calendar',
+  gcalEntriesSubtitle: 'Every entry the hall administration puts on this calendar closes the KWI halls. If one of them is not really a closure — a club game or training they typed in themselves — switch it off here and any training it cancelled comes back.',
+  gcalEntriesEmpty: 'No upcoming entries from the hall administration',
+  gcalColEntry: 'Entry',
+  gcalColEffect: 'Effect',
+  gcalEffectCloses: 'Closes the halls',
+  gcalEffectOpen: 'No closure',
+  gcalEffectConfirmed: 'Closes the halls (confirmed)',
+  gcalActionOpen: 'Not a closure',
+  gcalActionClose: 'Close the halls',
+  gcalCloseConfirm: 'Close the KWI halls for this entry? Trainings on those days will be cancelled.',
+  gcalOverrideOffToast: 'No longer a closure',
+  gcalOverrideOnToast: 'Halls closed',
+  gcalTrainingsCancelledToast_one: '1 training cancelled',
+  gcalTrainingsCancelledToast_other: '{{count}} trainings cancelled',
+  gcalTrainingsRestoredToast_one: '1 training is active again',
+  gcalTrainingsRestoredToast_other: '{{count}} trainings are active again',
+
+
   // Closure sources
   source: 'Source',
   sourceCaretaker: 'Caretaker',

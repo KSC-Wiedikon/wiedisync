@@ -68,6 +68,26 @@ export default {
   closureDeletedToast: 'Sperrung gelöscht',
   closureSyncOwnedWarning: 'Diese Quelle wird von einem automatischen Sync verwaltet — eine hier gespeicherte Sperrung wird beim nächsten Lauf wieder gelöscht. Nimm «Admin» oder «Hauswart» für eine manuelle Sperrung.',
 
+  // Hall-administration calendar (gcal) — per-entry closure override
+  gcalEntriesTitle: 'Kalender der Hallenverwaltung',
+  gcalEntriesSubtitle: 'Jeder Eintrag, den die Hallenverwaltung in diesen Kalender stellt, sperrt die KWI-Hallen. Ist ein Eintrag keine echte Sperrung — etwa ein selbst eingetragenes Spiel oder Training des Vereins —, kannst du ihn hier abschalten; abgesagte Trainings werden dann wieder aktiv.',
+  gcalEntriesEmpty: 'Keine bevorstehenden Einträge der Hallenverwaltung',
+  gcalColEntry: 'Eintrag',
+  gcalColEffect: 'Wirkung',
+  gcalEffectCloses: 'Sperrt die Hallen',
+  gcalEffectOpen: 'Keine Sperrung',
+  gcalEffectConfirmed: 'Sperrt die Hallen (bestätigt)',
+  gcalActionOpen: 'Keine Sperrung',
+  gcalActionClose: 'Hallen sperren',
+  gcalCloseConfirm: 'KWI-Hallen für diesen Eintrag sperren? Trainings an diesen Tagen werden abgesagt.',
+  gcalOverrideOffToast: 'Keine Sperrung mehr',
+  gcalOverrideOnToast: 'Hallen gesperrt',
+  gcalTrainingsCancelledToast_one: '1 Training abgesagt',
+  gcalTrainingsCancelledToast_other: '{{count}} Trainings abgesagt',
+  gcalTrainingsRestoredToast_one: '1 Training ist wieder aktiv',
+  gcalTrainingsRestoredToast_other: '{{count}} Trainings sind wieder aktiv',
+
+
   // Closure sources
   source: 'Quelle',
   sourceCaretaker: 'Hauswart',

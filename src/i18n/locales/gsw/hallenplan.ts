@@ -68,6 +68,26 @@ export default {
   closureDeletedToast: 'Sperrig glöscht',
   closureSyncOwnedWarning: 'Die Quelle wird vomene automatische Sync verwaltet — e Sperrig, wo du da speichersch, wird bim nächste Lauf wieder glöscht. Nimm «Admin» oder «Hauswart» für e manuelli Sperrig.',
 
+  // Hall-administration calendar (gcal) — per-entry closure override
+  gcalEntriesTitle: 'Kalender vo de Hallenverwaltig',
+  gcalEntriesSubtitle: 'Jede Iitrag, wo d Hallenverwaltig i dä Kalender stellt, sperrt d KWI-Halle. Isch en Iitrag kei echti Sperrig — zum Bispil es sälber iitreits Spiel oder Training vom Verein —, chasch en da abschalte; abgseiti Trainings sind denn wieder aktiv.',
+  gcalEntriesEmpty: 'Kei aastehendi Iiträg vo de Hallenverwaltig',
+  gcalColEntry: 'Iitrag',
+  gcalColEffect: 'Wirkig',
+  gcalEffectCloses: 'Sperrt d Halle',
+  gcalEffectOpen: 'Kei Sperrig',
+  gcalEffectConfirmed: 'Sperrt d Halle (bestätigt)',
+  gcalActionOpen: 'Kei Sperrig',
+  gcalActionClose: 'Halle sperre',
+  gcalCloseConfirm: 'KWI-Halle für dä Iitrag sperre? Trainings a dene Täg werded abgseit.',
+  gcalOverrideOffToast: 'Kei Sperrig meh',
+  gcalOverrideOnToast: 'Halle gsperrt',
+  gcalTrainingsCancelledToast_one: '1 Training abgseit',
+  gcalTrainingsCancelledToast_other: '{{count}} Trainings abgseit',
+  gcalTrainingsRestoredToast_one: '1 Training isch wieder aktiv',
+  gcalTrainingsRestoredToast_other: '{{count}} Trainings sind wieder aktiv',
+
+
   // Closure sources
   source: 'Quelle',
   sourceCaretaker: 'Huuswart',

@@ -68,6 +68,26 @@ export default {
   closureDeletedToast: 'Chiusura eliminata',
   closureSyncOwnedWarning: 'Questa origine e gestita da una sincronizzazione automatica — una chiusura salvata qui viene eliminata alla prossima esecuzione. Usa "Admin" o "Custode" per una chiusura manuale.',
 
+  // Hall-administration calendar (gcal) — per-entry closure override
+  gcalEntriesTitle: 'Calendario della gestione palestre',
+  gcalEntriesSubtitle: 'Ogni voce che la gestione palestre inserisce in questo calendario chiude le palestre KWI. Se una voce non è una vera chiusura — per esempio una partita o un allenamento del club inserito da loro —, disattivala qui; gli allenamenti annullati tornano attivi.',
+  gcalEntriesEmpty: 'Nessuna voce imminente dalla gestione palestre',
+  gcalColEntry: 'Voce',
+  gcalColEffect: 'Effetto',
+  gcalEffectCloses: 'Chiude le palestre',
+  gcalEffectOpen: 'Nessuna chiusura',
+  gcalEffectConfirmed: 'Chiude le palestre (confermato)',
+  gcalActionOpen: 'Nessuna chiusura',
+  gcalActionClose: 'Chiudi le palestre',
+  gcalCloseConfirm: 'Chiudere le palestre KWI per questa voce? Gli allenamenti di quei giorni verranno annullati.',
+  gcalOverrideOffToast: 'Non è più una chiusura',
+  gcalOverrideOnToast: 'Palestre chiuse',
+  gcalTrainingsCancelledToast_one: '1 allenamento annullato',
+  gcalTrainingsCancelledToast_other: '{{count}} allenamenti annullati',
+  gcalTrainingsRestoredToast_one: '1 allenamento è di nuovo attivo',
+  gcalTrainingsRestoredToast_other: '{{count}} allenamenti sono di nuovo attivi',
+
+
   // Closure sources
   source: 'Fonte',
   sourceCaretaker: 'Custode',
