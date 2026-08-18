@@ -88,7 +88,7 @@ function vaultKey() {
 }
 
 /** AES-256-GCM → `v1:<iv_b64>:<tag_b64>:<ct_b64>`. */
-function encryptSecret(plain, key) {
+export function encryptSecret(plain, key) {
   const iv = crypto.randomBytes(12)
   const cipher = crypto.createCipheriv('aes-256-gcm', key, iv)
   const ct = Buffer.concat([cipher.update(String(plain), 'utf8'), cipher.final()])
@@ -100,7 +100,7 @@ function encryptSecret(plain, key) {
  * authenticates), which the caller turns into a 500 with a distinct message —
  * "the key changed" and "there is no password" must not look alike.
  */
-function decryptSecret(blob, key) {
+export function decryptSecret(blob, key) {
   const parts = String(blob).split(':')
   if (parts.length !== 4 || parts[0] !== 'v1') throw new Error('unknown ciphertext format')
   const [, ivB64, tagB64, ctB64] = parts
@@ -117,14 +117,40 @@ function decryptSecret(blob, key) {
  * is the safe direction — 'club' is visible to MORE admins, never fewer, so a
  * wrong guess never hides a mailbox from the person who needs it.
  */
-function sportForAddress(address) {
+export function sportForAddress(address) {
   const domain = String(address || '').split('@')[1]?.toLowerCase() || ''
   if (domain === 'volleyball.kscw.ch') return 'volleyball'
   if (domain === 'basketball.kscw.ch') return 'basketball'
   return 'club'
 }
 
-function normalizeAddress(raw) {
+/**
+ * Turn a member's role array into the account scope it grants, or null when it
+ * grants none.
+ *
+ *   global admin  → every sport, may write
+ *   vb_admin      → ['club', 'volleyball'], read-only
+ *   bb_admin      → ['club', 'basketball'], read-only
+ *   both hats     → both sections, read-only (they accumulate, never collide)
+ *   anything else → null
+ *
+ * Exported and pure so the scope rule can be tested without a database — it is
+ * the whole access-control decision for this module, and the alternative is
+ * proving it by handing a real member a role they should not keep.
+ */
+export function scopeForRoles(roles) {
+  const list = Array.isArray(roles) ? roles : []
+  if (GLOBAL_ROLES.some((r) => list.includes(r))) return { global: true, sports: [...SPORTS] }
+
+  const sports = ['club']
+  for (const [role, sport] of Object.entries(SPORT_ROLES)) {
+    if (list.includes(role)) sports.push(sport)
+  }
+  // 'club' alone means no sport hat and no global role — not an admin at all.
+  return sports.length === 1 ? null : { global: false, sports }
+}
+
+export function normalizeAddress(raw) {
   const address = String(raw || '').trim().toLowerCase()
   if (!address || address.length > MAX_LEN.address) return null
   // Same shape as the table's CHECK — reject here so the caller gets a readable
@@ -176,19 +202,9 @@ export function registerEmailAccounts(router, { database, logger }) {
       ? m.role
       : (m.role ? (() => { try { return JSON.parse(m.role) } catch { return [] } })() : [])
 
-    const global = GLOBAL_ROLES.some((r) => roles.includes(r))
-    if (global) {
-      return { global: true, sports: SPORTS, memberId: m.id, name: memberName(m) }
-    }
-
-    // A sport admin sees their own section plus everything club-wide. Two hats
-    // (vb_admin + bb_admin) accumulate rather than collide.
-    const sports = ['club']
-    for (const [role, sport] of Object.entries(SPORT_ROLES)) {
-      if (roles.includes(role)) sports.push(sport)
-    }
-    if (sports.length === 1) return null // no sport hat and not global → not an admin at all
-    return { global: false, sports, memberId: m.id, name: memberName(m) }
+    const scope = scopeForRoles(roles)
+    if (!scope) return null
+    return { ...scope, memberId: m.id, name: memberName(m) }
   }
 
   function memberName(m) {
