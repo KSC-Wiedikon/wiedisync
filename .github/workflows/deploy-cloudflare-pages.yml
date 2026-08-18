@@ -74,8 +74,26 @@ jobs:
           # with *** everywhere — repo name, paths, wrangler output — and make the
           # logs useless. Neither of these is sensitive.
           # Verified from a successful Cloudflare build log ("Organization: kscw /
-          # Projects: wiedisync"). Do NOT infer the org from the sntrys_ token — that
-          # gives 'aequitax', which sentry-cli rejects with "Project not found" → 403.
+          # Projects: wiedisync").
+          #
+          # ⚠⚠ SENTRY_ORG BELOW IS NOT A FIX AND CANNOT BE ONE. An `sntrys_` org auth
+          # token embeds its own org, and sentry-cli USES THE EMBEDDED ORG AND IGNORES
+          # SENTRY_ORG — it says so out loud and then fails:
+          #   WARN  Using organization `aequitax` (embedded in token) rather than
+          #         manually-configured organization `kscw`.
+          #   error: Project not found.
+          # Setting SENTRY_ORG: kscw here (a722ad2d, 11.08.2026) therefore never worked;
+          # every deploy since the move to Actions has 403'd — dev AND prod — and every
+          # release in Sentry has minified stack traces. Confirmed 18.08.2026: the token
+          # in secrets.SENTRY_AUTH_TOKEN decodes to org 'aequitax' (Luca's other org),
+          # as does the vault entry services/sentry "Sentry - auth token (kscw)", whose
+          # NAME is wrong — decode the base64 payload of an sntrys_ token to check.
+          #
+          # THE ONLY FIX is a token minted in the kscw org itself (de.sentry.io, EU):
+          # Organization Settings → Auth Tokens → scopes project:releases + org:read,
+          # then `gh secret set SENTRY_AUTH_TOKEN --repo KSC-Wiedikon/wiedisync`.
+          # SENTRY_ORG is kept only as documentation of the intended org.
+          #
           # A failed upload does NOT fail this build: the plugin deletes the .map files
           # either way, so the only symptom is minified stack traces in Sentry.
           SENTRY_ORG: kscw
