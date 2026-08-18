@@ -106,7 +106,9 @@ export function closesTheHall(override) {
 
 export function registerGCalSync(router, { database, logger, services, getSchema }) {
   const log = logger.child({ endpoint: 'gcal-sync' })
-  const ItemsServiceFor = (schema) => new services.ItemsService('hall_closures', { schema, knex: database })
+  // Factory, NOT a class — lowercase on purpose: `new ItemsServiceFor(...)` is a
+  // TypeError that only shows up at request time (eslint no-undef cannot see it).
+  const itemsServiceFor = (schema) => new services.ItemsService('hall_closures', { schema, knex: database })
 
   // Normalise a value read back from Postgres for comparison with what we are
   // about to write: knex hands `date` columns back as Date objects and `time`
@@ -417,7 +419,7 @@ export function registerGCalSync(router, { database, logger, services, getSchema
       if (!startD) return res.status(400).json({ error: 'Hall event has no date' })
 
       const schema = await getSchema()
-      const closures = new ItemsServiceFor(schema)
+      const closures = itemsServiceFor(schema)
       const halls = await database('halls').select('id', 'name')
       const kwiHallIds = halls.filter(h => /^kwi/i.test(h.name)).map(h => h.id)
       const reason = (row.title || 'Halle geschlossen').slice(0, 255)
