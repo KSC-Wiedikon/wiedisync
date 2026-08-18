@@ -75,6 +75,32 @@ npm test                # Playwright E2E
 npm run test:unit       # Vitest unit tests
 ```
 
+## Code graph
+
+`npm run graph` builds a navigable knowledge graph of the repo into `graphify-out/`
+(gitignored) — `graph.html` to browse, `GRAPH_REPORT.md` for the audit report,
+`graph.json` for querying. Pure tree-sitter AST: deterministic, ~25s, zero LLM tokens.
+
+One-time setup:
+
+```bash
+uv tool install graphifyy
+uv pip install --python "$(uv tool run --from graphifyy python -c 'import sys; print(sys.executable)')" tree-sitter-sql
+```
+
+`tree-sitter-sql` is **required**, not optional — without it graphify silently drops
+all 328 `.sql` files (SCHEMA.sql plus every migration). `npm run graph` hard-fails
+with the exact install command rather than producing a graph that looks complete.
+Do not `pip install` either package: system Python is PEP 668 externally-managed and
+lacks `ensurepip`, so `pip install` and `python3 -m venv` both fail; and graphify's uv
+tool venv has no `pip`, which is why the second command uses `uv pip --python`.
+
+The script also patches two graphify gaps documented in its docstring: tsconfig
+project `references` (this repo's `@/*` alias lives in `tsconfig.app.json`, which
+graphify never reads) and a `queries` bridge from data-access call sites to the SQL
+tables they name. Bridge edges are tagged `INFERRED`; for AST-only ground truth drop
+`relation in {"queries", "indirect_call"}`.
+
 ## Deployment
 
 All changes go through `dev` first.

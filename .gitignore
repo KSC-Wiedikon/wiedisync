@@ -68,3 +68,6 @@ clubdesk-export*.csv
 # Google service-account keys (never commit)
 *service-account*.json
 kscw-calendar-*.json
+
+# graphify knowledge graph output (~2MB, regenerable)
+graphify-out/
