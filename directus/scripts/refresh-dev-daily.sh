@@ -161,6 +161,16 @@ UPDATE svrz_spielplaner_contacts SET contact_email = CASE WHEN contact_email IS 
                                      contact_phone = NULL;
 UPDATE vm_vb_spielplan_contact   SET "Email"       = 'scrub_'||substr(md5("Email"),1,16)||'@devsink.invalid'       WHERE "Email" IS NOT NULL AND "Email"<>'';
 
+-- Mailbox credentials (Emails Garage, migration 326).
+-- ⚠⚠ The INVENTORY is useful on dev; the CIPHERTEXT is not. Without this, a
+-- clone hands dev every club mailbox password, and the only thing standing
+-- between dev and plaintext is EMAIL_VAULT_KEY differing between the two
+-- containers — a one-line env mistake away from being the same key. Null the
+-- column instead so the question cannot arise: dev's page lists the accounts
+-- and honestly reports "no password stored".
+-- ⚠ Keep in sync with refresh-dev-from-prod.sh, which carries the same block.
+UPDATE email_accounts SET password_enc = NULL WHERE password_enc IS NOT NULL;
+
 -- Devices / transient state
 TRUNCATE push_subscriptions;
 DELETE FROM email_verifications;
