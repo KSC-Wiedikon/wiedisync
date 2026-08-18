@@ -260,11 +260,11 @@ export default function EmailsGaragePage() {
                 const plain = revealed[a.id]
                 return (
                   <TableRow key={a.id} className={`border-gray-200 dark:border-gray-700 ${a.is_active ? '' : 'opacity-50'}`}>
-                    <TableCell className="min-h-[44px] whitespace-normal break-words align-top">
+                    <TableCell className="min-h-[44px] min-w-[10rem] whitespace-normal align-top sm:min-w-[16rem]">
                       <button
                         type="button"
                         onClick={() => copy(a, a.address)}
-                        className="text-left font-medium text-gray-900 hover:underline dark:text-gray-100"
+                        className="break-all text-left font-medium text-gray-900 hover:underline sm:break-words dark:text-gray-100"
                         title={t('egCopyAddress')}
                       >
                         {a.address}
@@ -294,25 +294,27 @@ export default function EmailsGaragePage() {
                       )}
                     </TableCell>
 
-                    <TableCell className="align-top">
+                    <TableCell className="align-top sm:min-w-[13rem]">
                       {!a.has_password ? (
                         <span className="text-sm text-gray-400 dark:text-gray-500">{t('egNoPassword')}</span>
                       ) : (
-                        <div className="flex flex-col gap-1 sm:flex-row sm:items-center">
-                          <button
-                            type="button"
-                            onClick={() => reveal(a)}
-                            disabled={revealing === a.id || data?.vault_configured === false}
-                            className="flex min-h-[44px] items-center gap-1.5 rounded-md border border-gray-200 px-2 py-1 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-40 sm:min-h-0 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
-                          >
-                            {plain !== undefined ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                            {plain !== undefined ? t('egHide') : t('egReveal')}
-                          </button>
-                          {plain !== undefined && (
-                            <>
-                              <code className="select-all break-all rounded bg-gray-100 px-2 py-1 font-mono text-sm text-gray-900 dark:bg-gray-900 dark:text-gray-100">
-                                {plain}
-                              </code>
+                        // The password sits on its own line under the buttons, not
+                        // beside them: sharing the row left a 16-character password
+                        // wrapping mid-token, and a password is read character by
+                        // character. Full cell width means only genuinely long ones
+                        // wrap, and Copy is there for those.
+                        <div className="flex flex-col gap-1">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => reveal(a)}
+                              disabled={revealing === a.id || data?.vault_configured === false}
+                              className="flex min-h-[44px] items-center gap-1.5 rounded-md border border-gray-200 px-2 py-1 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-40 sm:min-h-0 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+                            >
+                              {plain !== undefined ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                              {plain !== undefined ? t('egHide') : t('egReveal')}
+                            </button>
+                            {plain !== undefined && (
                               <button
                                 type="button"
                                 onClick={() => copy(a, plain)}
@@ -321,7 +323,12 @@ export default function EmailsGaragePage() {
                                 {copied === a.id ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
                                 {copied === a.id ? t('egCopied') : t('egCopy')}
                               </button>
-                            </>
+                            )}
+                          </div>
+                          {plain !== undefined && (
+                            <code className="select-all break-all rounded bg-gray-100 px-2 py-1 font-mono text-sm text-gray-900 dark:bg-gray-900 dark:text-gray-100">
+                              {plain}
+                            </code>
                           )}
                         </div>
                       )}
