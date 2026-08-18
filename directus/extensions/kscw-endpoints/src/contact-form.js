@@ -69,6 +69,13 @@ const BB_YOUTH_EMAIL = process.env.CONTACT_EMAIL_BB_YOUTH || 'anne.grimshaw@kscw
 // used for junior detection in game-scheduling.js.
 const isYouthTeam = (name) => /u\d/i.test(String(name || ''))
 
+// The club-wide basketball-youth waiting list — the one form every full youth
+// team points at. Mirrors DEFAULT_WAITLIST_URL in the kscw-website repo
+// (src/lib/fetch/youthBasketball.ts, public/js/youth-status.js,
+// public/js/contact-form.js).
+const DEFAULT_WAITLIST_URL =
+  'https://docs.google.com/forms/d/e/1FAIpQLSfvak-SELFox7Bv2RVLrjA_uZ2K6vTiKYgRheDtck92VH8crQ/viewform'
+
 async function verifyTurnstile(token) {
   if (!TURNSTILE_SECRET) {
     console.error('[contact-form] TURNSTILE_SECRET not configured — rejecting request')
@@ -171,24 +178,34 @@ export function registerContactForm(router, { database, logger, services, getSch
             .where('teams_responsibles.teams_id', team_id)
             .whereNotNull('members.email')
             .select('members.email'),
-          database('teams').where('id', team_id).first('id', 'full_name', 'name', 'sport', 'waitlist_url', 'waitlist_label'),
+          database('teams').where('id', team_id).first('id', 'full_name', 'name', 'sport', 'open_for_players'),
         ])
         if (teamRow) teamName = teamRow.full_name || teamRow.name || null
 
-        // Full team → it runs a waiting list, so a contact submission must NOT
-        // fan out to the coaches / basketball youth coordinator (that turned
-        // closed youth teams into a steady stream of join inquiries). The
-        // website already hides submit for these, but /contact is public, so a
-        // cached / bookmarked / direct POST must be rejected here too — point
-        // the sender at the waiting list instead. "Full" ≡ a non-empty
-        // waitlist_url; a team that is merely open_for_players=false but has no
-        // waiting list stays contactable.
-        const waitlistUrl = teamRow && teamRow.waitlist_url ? String(teamRow.waitlist_url).trim() : ''
-        if (waitlistUrl) {
+        // A CLOSED BASKETBALL YOUTH team runs the club-wide waiting list, so a
+        // contact submission must NOT fan out to the coaches / basketball youth
+        // coordinator (that turned closed youth teams into a steady stream of
+        // join inquiries). The website already hides submit for these, but
+        // /contact is public, so a cached / bookmarked / direct POST must be
+        // rejected here too — point the sender at the waiting list instead.
+        //
+        // "Full" is open_for_players === false, NOT a non-empty waitlist_url as
+        // before. That column doubled as the flag and outranked open_for_players,
+        // so a coach who reopened a team stayed blocked here (DU12, 2026-08-18);
+        // every value in it was the same club-wide form, and it has been cleared.
+        //
+        // Youth-only on purpose: 13 active senior and volleyball teams sit at
+        // open_for_players=false and must stay contactable, and a volleyball
+        // enquiry must never be pointed at a basketball youth waiting list.
+        const isClosedYouth = !!teamRow
+          && teamRow.sport === 'basketball'
+          && isYouthTeam(teamRow.name)
+          && teamRow.open_for_players === false
+        if (isClosedYouth) {
           return res.status(409).json({
             error: 'team_full',
-            waitlist_url: waitlistUrl,
-            waitlist_label: (teamRow.waitlist_label ? String(teamRow.waitlist_label).trim() : '') || null,
+            waitlist_url: DEFAULT_WAITLIST_URL,
+            waitlist_label: null,
           })
         }
 
