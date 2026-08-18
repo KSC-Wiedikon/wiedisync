@@ -2808,6 +2808,14 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
         .whereIn('id', ids).andWhere('status', 'pending').select('*')
       if (!rows.length) return res.status(409).json({ error: 'Nothing left to decide', code: 'already_decided' })
 
+      // ⚠ Status and Austritt are ONE fact, and accepting them is therefore
+      // ORDER-DEPENDENT: an exit date under a still-active status aborts on
+      // members_austritt_needs_departed_status (migration 302). Applying every
+      // register_status row of the batch first makes a multi-select accept
+      // order-independent; the single-row accept carries its sibling along
+      // below. Ordering only — no row is added, dropped or reinterpreted.
+      rows.sort((a, b) => (b.field === 'register_status') - (a.field === 'register_status'))
+
       const actor = await resolveActingUser(req)
       const stamp = { decided_at: new Date(), decided_by_name: actor.name, decided_by_email: actor.email }
       let applied = 0, skipped = 0, flagged = 0
@@ -2882,6 +2890,30 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
         if (p.field === 'register_status' && !DEPARTED_STATUSES.includes(coerced.value)) {
           patch.austritt = null
         }
+        // The mirror image, and the one the UI can actually reach: accepting an
+        // exit date on a member we still call active. Detection never raises an
+        // `austritt` proposal unless the REGISTER already calls them departed
+        // (import-clubdesk-csv.mjs gates it on cd_reg_status), so the sibling
+        // register_status proposal exists in exactly the cases that would abort
+        // — and the register's own status is the only defensible answer to
+        // "departed how". A NULL status is left alone: the constraint permits a
+        // date under it, and NULL means "wiedisync has never been told".
+        let sibling = null
+        if (p.field === 'austritt') {
+          const held = (await database('members').where('id', p.member_id).first('register_status'))?.register_status ?? null
+          if (held !== null && !DEPARTED_STATUSES.includes(String(held))) {
+            sibling = await database('clubdesk_sync_proposals')
+              .where({ member_id: p.member_id, field: 'register_status', status: 'pending' })
+              .whereIn('proposed_value', DEPARTED_STATUSES)
+              .first('id', 'proposed_value', 'rule')
+            // No sibling means the status half was refused (or decided in an
+            // older run): the two systems genuinely disagree about whether this
+            // person left. Leave the date pending for a human rather than
+            // forcing a departure nobody approved.
+            if (!sibling) { skipped++; continue }
+            patch.register_status = sibling.proposed_value
+          }
+        }
         await database('members').where('id', p.member_id).update(patch)
         await database('clubdesk_sync_proposals').where('id', p.id)
           .update({ status: 'accepted', ...stamp })
@@ -2891,6 +2923,19 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
           data: { kind: 'clubdesk_proposal_accept', field: p.field, rule: p.rule, value: coerced.value },
         })
         applied++
+        if (sibling) {
+          await database('clubdesk_sync_proposals').where('id', sibling.id)
+            .update({ status: 'accepted', ...stamp })
+          await writeUserLog(database, log, {
+            accountability: req.accountability, action: 'update',
+            collection: 'members', recordId: p.member_id,
+            data: {
+              kind: 'clubdesk_proposal_accept', field: 'register_status', rule: sibling.rule,
+              value: sibling.proposed_value, with_austritt: true,
+            },
+          })
+          applied++
+        }
       }
 
       return res.json({ decided: applied, skipped, flagged_for_push: flagged })
