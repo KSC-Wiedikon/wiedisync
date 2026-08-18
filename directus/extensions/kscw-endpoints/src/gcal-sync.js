@@ -145,14 +145,26 @@ export function registerGCalSync(router, { database, logger, services, getSchema
       const icsText = await resp.text()
       const events = parseIcs(icsText)
 
-      // Season start (Sept 1 of current or previous year). We only manage
-      // closures from here forward so past (frozen) data is never churned.
+      // Season start (Sept 1 of current or previous year) — the floor for
+      // importing hall_events DISPLAY rows, so the Hallenplan can still show the
+      // season behind us.
       const now = new Date()
       // ⚠ Sep 1, NOT the club's Jun 1 cutover (season.js) — deliberate. This is a
-      // churn floor for closure rows, not a season label: we only manage closures
-      // from the fixture calendar onward so past data stays frozen.
+      // churn floor, not a season label.
       const seasonStart = new Date(now.getMonth() < 8 ? now.getFullYear() - 1 : now.getFullYear(), 8, 1)
         .toISOString().split('T')[0]
+
+      // ⚠ CLOSURES are managed from TODAY forward only, which is a tighter floor
+      // than the display rows above. Under the old keyword rule the two could
+      // share a floor because barely any past entry matched; since migration 325
+      // every entry is a closure, and a season floor back-filled 150 closure rows
+      // in one run — every club game and training the hall administration had
+      // hand-typed since September, retroactively "closing" halls for evenings
+      // that are long over. It cancelled nothing (the auto-cancel hook is bounded
+      // to CURRENT_DATE), it was pure noise in the closures list. Closing a hall
+      // in the past achieves nothing, so we neither create nor delete back there
+      // — past closures stay exactly as they were.
+      const todayYmd = new Date().toISOString().slice(0, 10)
 
       // Zurich school holidays are the curated source of truth and take
       // PRIORITY: never create a gcal closure where a school_holidays closure
@@ -160,7 +172,7 @@ export function registerGCalSync(router, { database, logger, services, getSchema
       // and we don't churn/reverse it). Mirrors schulferien-sync's own
       // skip-if-overlapping rule.
       const shRows = await db('hall_closures')
-        .where('source', 'school_holidays').andWhere('end_date', '>=', seasonStart)
+        .where('source', 'school_holidays').andWhere('end_date', '>=', todayYmd)
         .select('hall', db.raw('start_date::text as s'), db.raw('end_date::text as e'))
       const shByHall = new Map()
       for (const r of shRows) {
@@ -248,13 +260,13 @@ export function registerGCalSync(router, { database, logger, services, getSchema
         // span unless an admin has overridden this one. `existing` is the row as
         // it was BEFORE this run's update, which is what carries the override
         // (the upsert payload deliberately does not include it). ──
-        if (closesTheHall(existing?.closure_override)) {
+        if (endD >= todayYmd && closesTheHall(existing?.closure_override)) {
           const reason = (ev.title || 'Halle geschlossen').slice(0, 255)
           for (const h of kwiHallIds) {
             if (coveredBySchoolHoliday(h, startD, endD)) continue // Zurich holiday wins
             desiredClosures.set(`${h}|${startD}|${endD}`, { hall: h, start_date: startD, end_date: endD, reason })
           }
-        } else {
+        } else if (endD >= todayYmd) {
           overriddenOff++
         }
       }
@@ -271,11 +283,11 @@ export function registerGCalSync(router, { database, logger, services, getSchema
 
       // Reconcile hall_closures (source='gcal') via ItemsService so the training
       // auto-cancel hook fires on create and reverses on delete. Scoped to
-      // end_date >= seasonStart so past closures (and their frozen training
+      // end_date >= today so past closures (and their frozen training
       // cancellations) are never touched.
       const closures = new ItemsService('hall_closures', { schema, knex: db })
       const existingClos = await db('hall_closures')
-        .where('source', 'gcal').andWhere('end_date', '>=', seasonStart)
+        .where('source', 'gcal').andWhere('end_date', '>=', todayYmd)
         .select('id', 'hall', 'reason', db.raw('start_date::text as start_date'), db.raw('end_date::text as end_date'))
       const existKeys = new Map()
       for (const c of existingClos) {
