@@ -993,7 +993,7 @@ export default {
   trManualLinkEdit: 'Verknüpfig bearbeite',
   trManualLinkTitle: 'VIS-Spilernummere verknüpfe',
   trManualLinkMessage: 'VIS-Spilernummere für {{name}} iigee. Di nächst Prüefig bestätigt si im Verbandsindex. Leer la, zum d Verknüpfig ewägneh.',
-  trManualLinkPlaceholder: 'z. B. 243602',
+  trManualLinkPlaceholder: 'Z. B. 243602',
   trManualLinkInvalid: 'Bitte e VIS-Spilernummere iigee (nur Ziffere).',
   trManualLinkSaved: 'Spilernummere verknüpft. VIS-Prüefig starte, zum si z bestätige.',
   trManualLinkCleared: 'Verknüpfig ewägnoh.',
@@ -1018,6 +1018,80 @@ export default {
   trSaveFailed: 'Spichere fehlgschlage',
   trEmptyTitle: 'Nüt z tue',
   trEmptyDescription: 'Kei offeni Transfers und kei offeni Frooge.',
+
+  // ── Abgleitete Stand (Spalte «Stand», Filter-Chips, «Gruppiere nach Stand») ──
+  // ⚠ De Stand isch e ABGLEITETI Bezeichnig über di vier getrennte Quelle —
+  // in_vis, licence_validated, transfer_status und de FIVB-Iitrag vis_transfers.
+  // Er füehrt si nie zäme und isch nie es Ja/Nei: alli vier blibed i de
+  // Zeiledetail einzeln läsbar.
+  trColState: 'Stand',
+  trStateCanRequest: 'Cha beantragt werde',
+  trStateWaitingFederation: 'Wartet uf de Verband',
+  trStateInProgress: 'I de Bearbeitig {{percent}}%',
+  trStateChasing: 'Wird verfolgt',
+  trStateAwaitingConfirmation: 'Lizenz validiert',
+  trStateDone: 'Erledigt',
+  trStateBlocked: 'Nöd spilberechtigt',
+  trStateRuledOut: 'Usgschlosse',
+  trStateDisputed: 'Widersprüchlich',
+  // Hiiwiis-Wortlaut, nie Urteils-Wortlaut — gliichi Regle wie im trInVis*-Block
+  // obe. «In VIS nöd gfunde» isch en Hiiwiis, nie «die Person git s nöd».
+  trStateCanRequestHint: 'Si stönd im VIS-Spilerindex vo ihrem Herkunftsverband und es lauft no kein Transfer — für si cha me eine beantrage.',
+  trStateWaitingFederationHint: 'Im VIS-Index isch no niemert mit dem Name gfunde worde, oder d Prüefig isch für si no nöd gloffe. D vorbereiteti Aafrog bittet de Verband, si z erfasse — abglichen wird aber über de Name, en fehlende Treffer heisst also meischtens, dass eusen Herkunftsverband falsch gsi isch.',
+  trStateInProgressHint: 'FIVB VIS meldet en laufende Transfer für si. De Prozänt isch d Fortschrittsaagab vo VIS sälber.',
+  trStateChasingHint: 'Öpper hät de Transfer als «wird verfolgt» markiert. Meh isch no nöd bekannt.',
+  trStateAwaitingConfirmationHint: 'Swiss Volley hät d Lizenz validiert — das heisst meischtens, s Zertifikat isch cho. De Transfer isch da aber no als offe markiert.',
+  trStateDoneHint: 'As erledigt markiert, und Swiss Volley hät d Lizenz validiert.',
+  trStateBlockedHint: 'As erledigt markiert, d Lizenz isch aber nöd validiert. S Zertifikat liit nöd vor und d Person isch nöd spilberechtigt.',
+  trStateRuledOutHint: 'Vo Hand usgschlosse, oder Swiss Volley lizenziert si als Schwiizer*in. Am Herkunftsverband isch nüt gänderet worde.',
+
+  // Kohorte-Tabs + Wärchzügleiste vo de Arbetsliste. Jedi Kohorte blibt
+  // erreichbar und zellt — d Tab-Leiste isch das, wo «niemert bruucht en
+  // Transfer» und «alli sind usgschlosse worde» underscheidbar haltet.
+  trTabWorklist: 'Arbetsliste',
+  trTabClarify: 'Abzklääre',
+  trTabRuledOut: 'Usgschlosse',
+  trTabSwiss: 'Swiss Volley',
+  trTabDiagnostics: 'Diagnose',
+  // Staat vor jedem Filter-Chip, damit d Zahleleiste nie als Uuswertig über de
+  // ganz Verein glese wird — si zellt nur d Arbetsliste.
+  trNumbersScope: 'Transfer nötig',
+  trSearchPlaceholder: 'Nach Name, Lizenz oder VIS-Nummere sueche',
+  trGroupBy: 'Gruppiere nach',
+  trGroupByFederation: 'Verband',
+  trGroupByState: 'Stand',
+  trGroupByNone: 'Kei Gruppierig',
+  trClearFilter: 'Filter zrugsetze',
+
+  trMore: 'Meh',
+  trShowThese: 'Die Lüt aazeige',
+  trShowInDiagnostics: 'D Abwiichige aazeige',
+  trShowInWorklist: 'I de Arbetsliste aazeige',
+  trRowDetail: 'Alli Beleg aazeige',
+  // Nur det aabote, wo transfer_status als 'not_needed' gspeicheret isch. Wer
+  // usgschlosse isch, wil Swiss Volley en als Schwiizer*in lizenziert, lat sich
+  // da nöd wieder ufmache — bucketOf würd en sofort zrugsetze — für die Lüt
+  // erschiint stattdesse de trDerivedVm-Hiiwiis.
+  trReopen: 'Wieder ufmache',
+  trRuledOutByHand: 'Vo Hand usgschlosse',
+  trColRuledOutBy: 'Usgschlosse dur',
+
+  trRequestDialogTitle: 'Vorbereiteti Aafrog',
+  trRequestDialogDescription: 'Vo do wird nüt verschickt. De Text is eigene E-Mail-Programm kopiere oder en mit scho iigsetzter Adress uufmache.',
+  trRequestNoAddress: 'VIS füehrt für de Verband kei Adress — de Text kopiere und us em eigene E-Mail-Programm schicke.',
+  trAboutNumbersTitle: 'Zu dene Zahle',
+  trWhatIsThis: 'Was heisst das?',
+  trDiagHiddenTitle: 'Nöd uf dere Siite',
+  trDiagHiddenDescription: 'Mitglieder, wo en Filter uselo hät, und werum. Wer es Team überchunnt, erschiint wieder.',
+  trDiagSettledTitle: 'Kein Transfer nötig',
+  trDiagVisTitle: 'VIS-Prüefig',
+  trInVisOfTotal: '{{inVis}} vo {{total}} i VIS',
+  // Ei Zeile under de Zahleleiste, wo di vier usblendete Kohorte (trHiddenNoTeam
+  // / trHiddenGuests / trHiddenBasketball / trHiddenU20) imene HintPopover
+  // ufschlüsselt. En Filter dörf nie stillschwiigend en Transfer verschlucke.
+  trHiddenSummary_one: '{{count}} Mitglid staat nöd uf dere Siite',
+  trHiddenSummary_other: '{{count}} Mitglider stönd nöd uf dere Siite',
+
   anmeldungenLicenceStatus: 'Lizänzstatus',
   anmeldungenLicenceStatusHint: 'S Mitglied wird benachrichtigt. «Lizenziert» setzt normalerwiis de Swiss-Volley-/Basketplan-Sync.',
   anmeldungenLicenceStatusSaved: 'Lizänzstatus gspeicheret',
