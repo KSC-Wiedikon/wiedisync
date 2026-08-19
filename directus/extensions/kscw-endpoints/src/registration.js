@@ -1787,22 +1787,43 @@ export function registerRegistration(router, { database, logger, services, getSc
       || req.ip || 'unknown'
   }
 
-  /** Staff gate for the admin duplicate/merge routes — same rule as
-   *  /registration/:id/request-docs: Directus admin, app-role admin/superuser/
-   *  vorstand, or the sport admin for THIS registration's sport. */
-  const assertRegistrationAdmin = async (req, membershipType) => {
+  const ALL_MEMBERSHIP_TYPES = ['volleyball', 'basketball', 'passive']
+
+  /** Which registrations this caller may see, as a membership_type list — or
+   *  null when they may see none. Same tiers as /registration/:id/request-docs:
+   *  Directus admin and app-role admin/superuser/vorstand see everything; a
+   *  sport admin sees their own sport only.
+   *
+   *  ⚠ Returns the SCOPE, not a yes/no. The batch route covers a whole page of
+   *  mixed-sport rows, so a boolean gate keyed on one membership_type answered
+   *  403 for every pure vb_admin/bb_admin — and they are exactly the people who
+   *  approve these registrations, so the flags would have been invisible to the
+   *  staff who most need them (the badge fetch fails soft, so it would have
+   *  looked like "no duplicates" rather than an error). */
+  const registrationScope = async (req) => {
     if (!req.accountability?.user) return { status: 401, error: 'Authentication required' }
     const actor = await database('members').where('user', req.accountability.user).first('id', 'role')
     const actorRoles = Array.isArray(actor?.role) ? actor.role
       : (() => { try { return JSON.parse(actor?.role || '[]') } catch { return [] } })()
-    const sportRole = membershipType === 'basketball' ? 'bb_admin'
-      : membershipType === 'volleyball' ? 'vb_admin' : null
-    const allowed = req.accountability.admin === true
+    if (req.accountability.admin === true
       || actorRoles.includes('admin')
       || actorRoles.includes('superuser')
-      || actorRoles.includes('vorstand')
-      || (!!sportRole && actorRoles.includes(sportRole))
-    return allowed ? null : { status: 403, error: 'Not authorized' }
+      || actorRoles.includes('vorstand')) {
+      return { sports: ALL_MEMBERSHIP_TYPES }
+    }
+    // Passive registrations have no sport, so they stay with the global tiers —
+    // a sport admin has no claim on them.
+    const sports = []
+    if (actorRoles.includes('vb_admin')) sports.push('volleyball')
+    if (actorRoles.includes('bb_admin')) sports.push('basketball')
+    return sports.length ? { sports } : { status: 403, error: 'Not authorized' }
+  }
+
+  /** Single-registration variant: resolve the scope, then check this row's sport. */
+  const assertRegistrationAdmin = async (req, membershipType) => {
+    const scope = await registrationScope(req)
+    if (scope.status) return scope
+    return scope.sports.includes(membershipType) ? null : { status: 403, error: 'Not authorized' }
   }
 
   // POST /kscw/registration/check-duplicate — PUBLIC live check for the website form.
@@ -1848,15 +1869,19 @@ export function registerRegistration(router, { database, logger, services, getSc
   // One call for the whole page instead of a probe per row.
   router.post('/registration/duplicates', async (req, res) => {
     try {
-      const denied = await assertRegistrationAdmin(req, null)
-      if (denied) return res.status(denied.status).json({ error: denied.error })
+      const scope = await registrationScope(req)
+      if (scope.status) return res.status(scope.status).json({ error: scope.error })
 
       const ids = Array.isArray(req.body?.registration_ids)
         ? req.body.registration_ids.map(Number).filter(Number.isInteger).slice(0, 500)
         : []
       if (!ids.length) return res.json({ flags: {} })
 
+      // Scoped in the QUERY, not filtered after: a sport admin asking about a
+      // registration outside their sport simply gets no flag for it, and learns
+      // nothing about a row they cannot open.
       const regs = await database('registrations').whereIn('id', ids)
+        .whereIn('membership_type', scope.sports)
         .select('id', 'vorname', 'nachname', 'email', 'telefon_mobil', 'geburtsdatum', 'member')
       const flags = {}
       for (const reg of regs) {
