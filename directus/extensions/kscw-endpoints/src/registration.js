@@ -845,31 +845,6 @@ export function registerRegistration(router, { database, logger, services, getSc
         return res.status(400).json({ error: 'Invalid membership_type' })
       }
 
-      // ── Already a member? (2026-08-19) ────────────────────────────────────
-      // Until now this route had NO identity check: an existing member could
-      // file a second registration for themselves, and five of the first 36
-      // prod rows did exactly that (REG-2026-7074 arrived with the *same*
-      // email as member #195). Blocking is limited to an ACTIVE member whose
-      // email AND first name AND last name all match — never email alone,
-      // because families legitimately share one mailbox (members.email has no
-      // unique index for that reason). A FORMER member rejoining, or a softer
-      // name/birthdate resemblance, is deliberately let through and flagged
-      // for /admin/anmeldungen instead: blocking a returning ehemalige would
-      // leave them no route back into the club.
-      //
-      // The website form runs the same check live (/registration/check-duplicate)
-      // so nobody fills 40 fields first; this is the bypass/stale-cache backstop.
-      const blocker = await findBlockingMember(database, { ...body, email: emailNorm.value })
-      if (blocker) {
-        log.warn({ msg: `Registration blocked — already an active member (#${blocker.id})`, email: emailNorm.value, memberId: blocker.id })
-        return res.status(409).json({
-          error: isEn
-            ? 'You are already registered with KSC Wiedikon. Log in at wiedisync.kscw.ch, or write to admin@wiedisync.kscw.ch to change sport or team.'
-            : 'Du bist bereits beim KSC Wiedikon angemeldet. Melde dich auf wiedisync.kscw.ch an, oder schreibe an admin@wiedisync.kscw.ch, um Sportart oder Team zu ändern.',
-          code: 'already_member',
-        })
-      }
-
       // A guest (funktion "Guest" on a VB/BB registration — see the signup form's
       // "Gast (Guest)" option) trains with a team but is not licensed to play
       // league games, so they skip the licence apparatus: no AHV requirement and
@@ -921,6 +896,37 @@ export function registerRegistration(router, { database, logger, services, getSc
 
       if (!body.turnstile_token || !(await verifyTurnstile(body.turnstile_token))) {
         return res.status(400).json({ error: 'Captcha verification failed' })
+      }
+
+      // ── Already a member? (2026-08-19) ────────────────────────────────────
+      // Until now this route had NO identity check: an existing member could
+      // file a second registration for themselves, and five of the first 36
+      // prod rows did exactly that (REG-2026-7074 arrived with the *same*
+      // email as member #195). Blocking is limited to an ACTIVE member whose
+      // email AND first name AND last name all match — never email alone,
+      // because families legitimately share one mailbox (members.email has no
+      // unique index for that reason). A FORMER member rejoining, or a softer
+      // name/birthdate resemblance, is deliberately let through and flagged
+      // for /admin/anmeldungen instead: blocking a returning ehemalige would
+      // leave them no route back into the club.
+      //
+      // The website form runs the same check live (/registration/check-duplicate)
+      // so nobody fills 40 fields first; this is the bypass/stale-cache backstop.
+      //
+      // ⚠ Deliberately placed AFTER the rate limit and Turnstile. The gate
+      // answers "is this exact person an active member"; running it earlier
+      // would turn the create route into an uncaptcha'd, unthrottled membership
+      // oracle — strictly weaker than /registration/check-duplicate, which
+      // carries its own per-IP limit for exactly that reason.
+      const blocker = await findBlockingMember(database, { ...body, email: emailNorm.value })
+      if (blocker) {
+        log.warn({ msg: `Registration blocked — already an active member (#${blocker.id})`, email: emailNorm.value, memberId: blocker.id })
+        return res.status(409).json({
+          error: isEn
+            ? 'You are already registered with KSC Wiedikon. Log in at wiedisync.kscw.ch, or write to admin@wiedisync.kscw.ch to change sport or team.'
+            : 'Du bist bereits beim KSC Wiedikon angemeldet. Melde dich auf wiedisync.kscw.ch an, oder schreibe an admin@wiedisync.kscw.ch, um Sportart oder Team zu ändern.',
+          code: 'already_member',
+        })
       }
 
       // Server-side document enforcement (basketball): the registration is only
