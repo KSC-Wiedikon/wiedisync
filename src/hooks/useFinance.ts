@@ -332,16 +332,20 @@ export interface FinanceExpense {
 }
 // Member-facing (own submissions) — MUST stay within the MEMBER_POLICY field
 // scope on finance_expenses (setup-permissions.mjs). The TK/section columns are
-// board-only and are NOT listed here.
+// board-only and are NOT listed here, and neither are the internal actor columns
+// (`status_changed_by_name`/`_email`, `user_created`) — those are endpoint-only by
+// design, so asking for one here 403s the WHOLE query and the member's own expense
+// list comes back empty (prod, 15. + 19.08.2026).
 const MY_EXPENSE_FIELDS = [
   'id', 'member.id', 'member.first_name', 'member.last_name', 'member.nickname', 'file', 'amount', 'currency',
   'expense_date', 'vendor', 'description', 'reference', 'pay_to_iban', 'member_note',
-  'status', 'finance_note', 'payout', 'status_changed_by_name', 'date_created',
+  'status', 'finance_note', 'payout', 'date_created',
 ]
-// Board/finance view (Vorstand + Finance policies grant `*`, so the TK/section
-// columns added in migration 192 are readable here).
+// Board/finance view (Vorstand + Finance policies grant `*`, so the actor column
+// and the TK/section columns added in migration 192 are readable here).
 const EXPENSE_FIELDS = [
   ...MY_EXPENSE_FIELDS,
+  'status_changed_by_name',
   'section', 'member_already_paid', 'tk_confirmed_at', 'tk_confirmed_by_name',
   'tk_confirmed_by_email', 'tk_already_paid', 'tk_note', 'internal_note',
 ]

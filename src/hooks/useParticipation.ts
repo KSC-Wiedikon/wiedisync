@@ -1,6 +1,7 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { fetchItems } from '../lib/api'
 import { useCollection } from '../lib/query'
 import { useMutation } from './useMutation'
 import { useAuth } from './useAuth'
@@ -57,6 +58,13 @@ export function useParticipation(
 
   const participation = participations[0] ?? null
 
+  // The row this hook last wrote for the current activity. `participations` is a
+  // cached read that only catches up on the next refetch/realtime tick, so a second
+  // click inside that window would take the create branch again and trip the
+  // (activity_type, activity_id, member[, session_id]) partial unique index from
+  // migration 246. Keyed like `optimistic` so a switched activity can't reuse it.
+  const writtenRef = useRef<{ key: string; id: string | number } | null>(null)
+
   // Auto-decline is handled by the backend (Directus hooks) when absences
   // or activities are created. The frontend only displays the absence state.
 
@@ -75,8 +83,10 @@ export function useParticipation(
       position_2: positions.position_2 || null,
       position_3: positions.position_3 || null,
     } : {}
+    const writtenId = writtenRef.current?.key === activityKey ? writtenRef.current.id : null
+    const existingId = participation?.id ?? writtenId
     try {
-      if (participation) {
+      if (existingId) {
         // Preserve the row's original is_staff classification on update — set it
         // only on create (matches GameCard / TrainingCard / EventCard /
         // ParticipationButton, which all omit is_staff on update). Writing it
@@ -84,19 +94,43 @@ export function useParticipation(
         // role context drifted (e.g. a season-lagged member_teams row makes
         // isStaffOnly flip true), silently yanking the row out of the player
         // tally so the participation bricks dropped to zero on every click.
-        await update(participation.id, { status, note, guest_count: guestCount, ...posFields })
+        await update(existingId, { status, note, guest_count: guestCount, ...posFields })
       } else {
-        await create({
-          member: user.id,
-          activity_type: activityType,
-          activity_id: activityId,
-          status,
-          note,
-          guest_count: guestCount,
-          is_staff: isStaff ?? false,
-          ...(sessionId ? { session_id: sessionId } : {}),
-          ...posFields,
-        })
+        try {
+          const created = await create({
+            member: user.id,
+            activity_type: activityType,
+            activity_id: activityId,
+            status,
+            note,
+            guest_count: guestCount,
+            is_staff: isStaff ?? false,
+            ...(sessionId ? { session_id: sessionId } : {}),
+            ...posFields,
+          }, { silentOnUnique: true })
+          writtenRef.current = { key: activityKey, id: created.id }
+        } catch (err) {
+          // A row already exists that our cached read never saw — a second click
+          // inside the refetch window, or the backend auto-decline hook wrote it
+          // first. Update that row so the click still lands instead of failing at
+          // the user with a bare error toast (prod, 18. + 19.08.2026). The lookup
+          // matches whichever partial unique index was violated, hence the explicit
+          // session_id IS NULL leg — a session-less RSVP must not adopt a per-day row.
+          if (!/has to be unique/i.test(err instanceof Error ? err.message : String(err))) throw err
+          const [row] = await fetchItems<Participation>('participations', {
+            filter: { _and: [
+              { member: { _eq: user.id } },
+              { activity_type: { _eq: activityType } },
+              { activity_id: { _eq: activityId } },
+              sessionId ? { session_id: { _eq: sessionId } } : { session_id: { _null: true } },
+            ] },
+            limit: 1,
+          })
+          if (!row) throw err
+          writtenRef.current = { key: activityKey, id: row.id }
+          await update(row.id, { status, note, guest_count: guestCount, ...posFields })
+          refetch()
+        }
       }
       setSaveConfirmed(true)
       // Skip explicit refetch — realtime subscription handles data sync
@@ -105,18 +139,24 @@ export function useParticipation(
       setOptimistic(null)
       toast.error(t('error'))
     }
-  }, [user, participation, activityType, activityId, activityKey, isStaff, sessionId, create, update, t])
+  }, [user, participation, activityType, activityId, activityKey, isStaff, sessionId, create, update, refetch, t])
 
   const clearStatus = useCallback(async () => {
-    if (participation) {
+    // Same blind spot as setStatus: a just-created row is not in `participations`
+    // yet, and without the ref the clear would silently no-op and leave the RSVP.
+    const writtenId = writtenRef.current?.key === activityKey ? writtenRef.current.id : null
+    const existingId = participation?.id ?? writtenId
+    if (existingId) {
+      const previous = participation?.status ?? null
       setOptimistic(null)
       setSaveConfirmed(false)
       try {
-        await remove(participation.id)
+        await remove(existingId)
+        writtenRef.current = null
         // Skip explicit refetch — realtime subscription handles data sync
       } catch {
         // Revert — restore the original status + surface the failure to the user
-        setOptimistic({ key: activityKey, status: participation.status })
+        if (previous) setOptimistic({ key: activityKey, status: previous })
         toast.error(t('error'))
       }
     }
