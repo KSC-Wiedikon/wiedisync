@@ -711,6 +711,10 @@ export default {
   anmeldungenInviteError: 'Impossible d\'envoyer l\'invitation',
 
   // Détection de doublons (inscription ↔ membre existant).
+  anmeldungenDupBadgeBlocked: 'Déjà membre',
+  anmeldungenDupBadgeBlockedTitle: 'Est déjà un membre actif — {{name}} (#{{id}})',
+  anmeldungenDupBlockedTitle: 'Cette personne est déjà un membre actif',
+  anmeldungenDupBlockedHint: "Le formulaire le refuse désormais. Cette inscription date d'avant ce contrôle — fusionne-la avec la fiche existante pour préserver l'historique, puis rejette-la. Une fois fusionnée, approuver est aussi sans risque : cela lie au lieu de créer un second membre.",
   anmeldungenDupBadgeReturning: 'Ancien membre',
   anmeldungenDupBadgePossible: 'Doublon possible',
   anmeldungenDupBadgeReturningTitle: 'Était déjà membre — {{name}} (#{{id}})',

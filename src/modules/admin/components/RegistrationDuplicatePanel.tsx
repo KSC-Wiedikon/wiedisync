@@ -168,21 +168,29 @@ export default function RegistrationDuplicatePanel({
     return null
   }
 
-  const tone = data.level === 'returning'
-    ? 'border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-900/20'
-    : 'border-blue-300 bg-blue-50 dark:border-blue-700 dark:bg-blue-900/20'
+  // `blocked` reaches this panel only for rows filed BEFORE the create gate
+  // existed — REG-2026-7074 and the four like it on prod. They are the most
+  // clear-cut duplicates in the table, so they get the strongest presentation
+  // rather than falling through to the softest one.
+  const tone = data.level === 'blocked'
+    ? 'border-red-300 bg-red-50 dark:border-red-700 dark:bg-red-900/20'
+    : data.level === 'returning'
+      ? 'border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-900/20'
+      : 'border-blue-300 bg-blue-50 dark:border-blue-700 dark:bg-blue-900/20'
+  const titleKey = data.level === 'blocked' ? 'anmeldungenDupBlockedTitle'
+    : data.level === 'returning' ? 'anmeldungenDupReturningTitle' : 'anmeldungenDupPossibleTitle'
+  const hintKey = data.level === 'blocked' ? 'anmeldungenDupBlockedHint'
+    : data.level === 'returning' ? 'anmeldungenDupReturningHint' : 'anmeldungenDupPossibleHint'
 
   return (
     <div className={`rounded-lg border p-3 ${tone}`}>
       <div className="flex items-start gap-2">
-        <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+        <CircleAlert className={`mt-0.5 h-4 w-4 shrink-0 ${
+          data.level === 'blocked' ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-400'
+        }`} />
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-            {data.level === 'returning' ? t('anmeldungenDupReturningTitle') : t('anmeldungenDupPossibleTitle')}
-          </p>
-          <p className="mt-0.5 text-xs text-gray-600 dark:text-gray-300">
-            {data.level === 'returning' ? t('anmeldungenDupReturningHint') : t('anmeldungenDupPossibleHint')}
-          </p>
+          <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{t(titleKey)}</p>
+          <p className="mt-0.5 text-xs text-gray-600 dark:text-gray-300">{t(hintKey)}</p>
         </div>
       </div>
 

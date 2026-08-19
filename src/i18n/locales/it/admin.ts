@@ -711,6 +711,10 @@ export default {
   anmeldungenInviteError: 'Impossibile inviare l\'invito',
 
   // Rilevamento duplicati (iscrizione ↔ membro esistente).
+  anmeldungenDupBadgeBlocked: 'Già membro',
+  anmeldungenDupBadgeBlockedTitle: 'È già un membro attivo — {{name}} (#{{id}})',
+  anmeldungenDupBlockedTitle: 'Questa persona è già un membro attivo',
+  anmeldungenDupBlockedHint: "Il modulo ora lo rifiuta. Questa iscrizione è precedente a quel controllo — uniscila alla scheda esistente per conservare lo storico, poi rifiutala. Una volta unita anche approvare è sicuro: collega invece di creare un secondo membro.",
   anmeldungenDupBadgeReturning: 'Ex membro',
   anmeldungenDupBadgePossible: 'Possibile duplicato',
   anmeldungenDupBadgeReturningTitle: 'Era già membro — {{name}} (#{{id}})',

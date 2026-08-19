@@ -465,6 +465,10 @@ export default {
   // Formular blockiert AKTIVE Mitglieder, die sich erneut anmelden — hier
   // landen die weicheren Fälle: Wiedereintritte und dieselbe Person unter
   // einer neuen E-Mail-Adresse.
+  anmeldungenDupBadgeBlocked: 'Bereits Mitglied',
+  anmeldungenDupBadgeBlockedTitle: 'Ist bereits aktives Mitglied — {{name}} (#{{id}})',
+  anmeldungenDupBlockedTitle: 'Diese Person ist bereits aktives Mitglied',
+  anmeldungenDupBlockedHint: 'Das Formular lehnt das inzwischen ab. Diese Anmeldung stammt aus der Zeit davor — führe sie mit dem bestehenden Datensatz zusammen, damit die Historie erhalten bleibt, und lehne sie dann ab. Nach dem Zusammenführen ist auch Bestätigen unbedenklich: es verknüpft, statt ein zweites Mitglied anzulegen.',
   anmeldungenDupBadgeReturning: 'Wiedereintritt',
   anmeldungenDupBadgePossible: 'Mögliches Duplikat',
   anmeldungenDupBadgeReturningTitle: 'War bereits Mitglied — {{name}} (#{{id}})',

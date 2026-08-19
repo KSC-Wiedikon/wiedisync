@@ -345,23 +345,35 @@ export default function AnmeldungenPage() {
     return () => { alive = false }
   }, [registrationsRaw, dupFetchKey])
 
+  // Three levels, three colours. `blocked` only ever appears on rows filed
+  // BEFORE the create gate existed (the form refuses them now) — those are the
+  // certain duplicates, so they read loudest.
+  const DUP_TONE: Record<string, { cls: string; label: string; title: string }> = {
+    blocked: {
+      cls: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
+      label: 'anmeldungenDupBadgeBlocked', title: 'anmeldungenDupBadgeBlockedTitle',
+    },
+    returning: {
+      cls: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300',
+      label: 'anmeldungenDupBadgeReturning', title: 'anmeldungenDupBadgeReturningTitle',
+    },
+    possible: {
+      cls: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
+      label: 'anmeldungenDupBadgePossible', title: 'anmeldungenDupBadgePossibleTitle',
+    },
+  }
+
   const dupBadge = (reg: Registration) => {
     const f = dupFlags[String(reg.id)]
-    if (!f) return null
-    const returning = f.level === 'returning'
+    const tone = f && DUP_TONE[f.level]
+    if (!f || !tone) return null
     return (
       <span
-        className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[11px] font-medium ${
-          returning
-            ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300'
-            : 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
-        }`}
-        title={t(returning ? 'anmeldungenDupBadgeReturningTitle' : 'anmeldungenDupBadgePossibleTitle', {
-          name: f.member_name, id: f.member_id,
-        })}
+        className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[11px] font-medium ${tone.cls}`}
+        title={t(tone.title, { name: f.member_name, id: f.member_id })}
       >
         <CircleAlert className="h-3 w-3 shrink-0" />
-        {t(returning ? 'anmeldungenDupBadgeReturning' : 'anmeldungenDupBadgePossible')}
+        {t(tone.label)}
       </span>
     )
   }

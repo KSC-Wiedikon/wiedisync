@@ -465,6 +465,10 @@ export default {
   // hard-blocks an ACTIVE member re-registering as themselves, so these are the
   // softer cases it deliberately lets through: a returning ehemalige, or the
   // same person under a new email address.
+  anmeldungenDupBadgeBlocked: 'Already a member',
+  anmeldungenDupBadgeBlockedTitle: 'Is already an active member — {{name}} (#{{id}})',
+  anmeldungenDupBlockedTitle: 'This person is already an active member',
+  anmeldungenDupBlockedHint: 'The form refuses this now. This row was filed before that gate existed — merge it onto the existing record to keep their history, then reject it. Approving instead is safe once merged: it links rather than creating a second member.',
   anmeldungenDupBadgeReturning: 'Returning member',
   anmeldungenDupBadgePossible: 'Possible duplicate',
   anmeldungenDupBadgeReturningTitle: 'Was already a member — {{name}} (#{{id}})',
