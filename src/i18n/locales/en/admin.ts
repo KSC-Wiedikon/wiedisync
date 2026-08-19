@@ -465,6 +465,8 @@ export default {
   // hard-blocks an ACTIVE member re-registering as themselves, so these are the
   // softer cases it deliberately lets through: a returning ehemalige, or the
   // same person under a new email address.
+  anmeldungenDupAlreadyLinked: 'Already linked to {{name}} (#{{id}}). Merging onto somebody else re-points this registration and leaves that member behind — with their signup invite, team roster rows and ClubDesk flag — referenced by nothing.',
+  anmeldungenDupRelinkConfirm: 'Re-point this registration from {{from}} to {{to}}? {{from}} keeps their signup invite, roster rows and ClubDesk flag but is no longer referenced by any registration. Check them afterwards.',
   anmeldungenDupBadgeBlocked: 'Already a member',
   anmeldungenDupBadgeBlockedTitle: 'Is already an active member — {{name}} (#{{id}})',
   anmeldungenDupBlockedTitle: 'This person is already an active member',

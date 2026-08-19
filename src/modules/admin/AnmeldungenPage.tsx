@@ -10,6 +10,7 @@ import VolleyballIcon from '../../components/VolleyballIcon'
 import BasketballIcon from '../../components/BasketballIcon'
 import { FilePreviewDialog } from '../../components/FilePreview'
 import ClubdeskRegistrationZone from './components/ClubdeskRegistrationZone'
+import RegistrationDuplicatePanel, { type DupFlag } from './components/RegistrationDuplicatePanel'
 import { formatDate } from '../../utils/dateHelpers'
 import { currentSeasonShort } from '../../utils/season'
 import { LICENCE_STATUSES, LICENCE_STATUS_BADGE, effectiveLicenceStatus } from '../../utils/licenceStatus'
@@ -317,6 +318,65 @@ export default function AnmeldungenPage() {
       .catch(() => { /* badge is best-effort — the expanded zone still works */ })
     return () => { alive = false }
   }, [isGlobalAdmin, registrationsRaw])
+
+  // Duplicate flags for the OVERVIEW rows — one batch call for the page, same
+  // shape as the ClubDesk badges above. The expanded panel does its own fresh
+  // fetch (with the diff) before offering to merge.
+  //
+  // ⚠ Not gated on isGlobalAdmin: unlike the ClubDesk zone, a duplicate is a
+  // sport admin's problem too — they are the ones approving these rows, and
+  // approving a flagged row blind is what creates the second member.
+  const [dupFlags, setDupFlags] = useState<Record<string, DupFlag>>({})
+  const [dupFetchKey, setDupFetchKey] = useState(0)
+  const refetchDupFlags = useCallback(() => setDupFetchKey((k) => k + 1), [])
+  useEffect(() => {
+    const ids = (registrationsRaw ?? []).map((r) => r.id)
+    // Bail without touching state — a synchronous setState in an effect
+    // cascades renders (and fails the lint gate). An empty list renders no
+    // rows, so stale flags are unreachable anyway.
+    if (!ids.length) return
+    let alive = true
+    kscwApi<{ flags: Record<string, DupFlag> }>('/registration/duplicates', {
+      method: 'POST',
+      body: { registration_ids: ids },
+    })
+      .then((res) => { if (alive) setDupFlags(res.flags ?? {}) })
+      .catch(() => { /* badge is best-effort — the expanded panel still works */ })
+    return () => { alive = false }
+  }, [registrationsRaw, dupFetchKey])
+
+  // Three levels, three colours. `blocked` only ever appears on rows filed
+  // BEFORE the create gate existed (the form refuses them now) — those are the
+  // certain duplicates, so they read loudest.
+  const DUP_TONE: Record<string, { cls: string; label: string; title: string }> = {
+    blocked: {
+      cls: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
+      label: 'anmeldungenDupBadgeBlocked', title: 'anmeldungenDupBadgeBlockedTitle',
+    },
+    returning: {
+      cls: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300',
+      label: 'anmeldungenDupBadgeReturning', title: 'anmeldungenDupBadgeReturningTitle',
+    },
+    possible: {
+      cls: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
+      label: 'anmeldungenDupBadgePossible', title: 'anmeldungenDupBadgePossibleTitle',
+    },
+  }
+
+  const dupBadge = (reg: Registration) => {
+    const f = dupFlags[String(reg.id)]
+    const tone = f && DUP_TONE[f.level]
+    if (!f || !tone) return null
+    return (
+      <span
+        className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[11px] font-medium ${tone.cls}`}
+        title={t(tone.title, { name: f.member_name, id: f.member_id })}
+      >
+        <CircleAlert className="h-3 w-3 shrink-0" />
+        {t(tone.label)}
+      </span>
+    )
+  }
 
   const cdBadge = (reg: Registration) => {
     if (reg.status !== 'approved') return null
@@ -640,6 +700,7 @@ export default function AnmeldungenPage() {
                                   <span className="block sm:inline font-medium text-gray-900 dark:text-gray-100">{reg.nachname}{reg.vorname ? ',' : ''}</span>
                                   <span className="block sm:inline text-gray-600 dark:text-gray-400 sm:text-gray-900 sm:dark:text-gray-100">{reg.vorname}</span>
                                   <span className="sm:hidden">{statusBadge(reg.status)}</span>
+                                  {dupBadge(reg)}
                                 </div>
                                 <div className="mt-0.5 text-xs text-gray-500 dark:text-gray-400 break-all">{reg.email}</div>
                                 <div className="md:hidden mt-1 flex flex-wrap items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
@@ -706,6 +767,7 @@ export default function AnmeldungenPage() {
                                     onResendInvite={() => handleResendInvite(reg)}
                                     onRequestDocs={() => handleRequestDocs(reg)}
                                     onPreviewFile={setPreviewFile}
+                                    onMerged={refetchDupFlags}
                                     isUpdating={isUpdating}
                                     isResending={resendingId === reg.id}
                                     isRequestingDocs={requestingId === reg.id}
@@ -871,6 +933,7 @@ function ExpandedDetails({
   onResendInvite,
   onRequestDocs,
   onPreviewFile,
+  onMerged,
   isUpdating,
   isResending,
   isRequestingDocs,
@@ -884,6 +947,7 @@ function ExpandedDetails({
   onResendInvite: () => void
   onRequestDocs: () => void
   onPreviewFile: (file: { fileId: string; label: string }) => void
+  onMerged: () => void
   isUpdating: boolean
   isResending: boolean
   isRequestingDocs: boolean
@@ -1173,6 +1237,14 @@ function ExpandedDetails({
 
   return (
     <div className="border-t border-gray-200 px-4 py-3 dark:border-gray-700">
+      {/* Possible duplicate — first thing in the details, because it changes
+          what approving this row will DO. The form hard-blocks an active member
+          re-registering as themselves, so what lands here is a returning
+          ehemalige or somebody who used a new email; approving either without
+          merging first mints a second member row for a person the club has. */}
+      <div className="mb-3">
+        <RegistrationDuplicatePanel registrationId={String(reg.id)} onMerged={onMerged} />
+      </div>
       <div className="grid grid-cols-1 gap-x-6 gap-y-2.5 text-sm sm:grid-cols-2">
         {field('vorname', t('anmeldungenFirstName'))}
         {field('nachname', t('anmeldungenLastName'))}

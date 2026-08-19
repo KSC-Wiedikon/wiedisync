@@ -711,6 +711,8 @@ export default {
   anmeldungenInviteError: 'Impossible d\'envoyer l\'invitation',
 
   // Détection de doublons (inscription ↔ membre existant).
+  anmeldungenDupAlreadyLinked: "Déjà lié à {{name}} (#{{id}}). Fusionner avec quelqu'un d'autre redirige cette inscription et laisse ce membre derrière — avec son invitation, ses lignes d'effectif et son indicateur ClubDesk — sans plus aucune référence.",
+  anmeldungenDupRelinkConfirm: 'Rediriger cette inscription de {{from}} vers {{to}} ? {{from}} conserve son invitation, ses lignes d\'effectif et son indicateur ClubDesk, mais n\'est plus référencé par aucune inscription. À vérifier ensuite.',
   anmeldungenDupBadgeBlocked: 'Déjà membre',
   anmeldungenDupBadgeBlockedTitle: 'Est déjà un membre actif — {{name}} (#{{id}})',
   anmeldungenDupBlockedTitle: 'Cette personne est déjà un membre actif',

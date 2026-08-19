@@ -465,6 +465,8 @@ export default {
   // Formular blockiert AKTIVE Mitglieder, die sich erneut anmelden — hier
   // landen die weicheren Fälle: Wiedereintritte und dieselbe Person unter
   // einer neuen E-Mail-Adresse.
+  anmeldungenDupAlreadyLinked: 'Bereits mit {{name}} (#{{id}}) verknüpft. Ein Zusammenführen mit jemand anderem hängt diese Anmeldung um und lässt dieses Mitglied zurück — mit Einladung, Teamzuordnungen und ClubDesk-Flag, aber ohne jede Referenz.',
+  anmeldungenDupRelinkConfirm: 'Diese Anmeldung von {{from}} auf {{to}} umhängen? {{from}} behält Einladung, Teamzuordnungen und ClubDesk-Flag, wird aber von keiner Anmeldung mehr referenziert. Danach prüfen.',
   anmeldungenDupBadgeBlocked: 'Bereits Mitglied',
   anmeldungenDupBadgeBlockedTitle: 'Ist bereits aktives Mitglied — {{name}} (#{{id}})',
   anmeldungenDupBlockedTitle: 'Diese Person ist bereits aktives Mitglied',

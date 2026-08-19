@@ -711,6 +711,8 @@ export default {
   anmeldungenInviteError: 'Impossibile inviare l\'invito',
 
   // Rilevamento duplicati (iscrizione ↔ membro esistente).
+  anmeldungenDupAlreadyLinked: 'Già collegata a {{name}} (#{{id}}). Unirla a qualcun altro sposta questa iscrizione e lascia indietro quel membro — con invito, righe di rosa e flag ClubDesk — senza più alcun riferimento.',
+  anmeldungenDupRelinkConfirm: 'Spostare questa iscrizione da {{from}} a {{to}}? {{from}} mantiene invito, righe di rosa e flag ClubDesk, ma non è più riferito da nessuna iscrizione. Controlla dopo.',
   anmeldungenDupBadgeBlocked: 'Già membro',
   anmeldungenDupBadgeBlockedTitle: 'È già un membro attivo — {{name}} (#{{id}})',
   anmeldungenDupBlockedTitle: 'Questa persona è già un membro attivo',
