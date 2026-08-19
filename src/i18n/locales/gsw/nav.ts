@@ -71,4 +71,5 @@ export default {
   news: 'News',
   moderationReports: 'Moderationsberichte',
   messagingSettings: 'Nachrichten',
+  allAdminTools: 'Alli Admin-Tools',
 } as const

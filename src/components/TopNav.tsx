@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
-  ChevronDown, Settings, MessageSquare, MessageCircle, Activity, ScrollText, GraduationCap, LogOut, User as UserIcon, Coffee,
+  ChevronDown, Settings, MessageSquare, MessageCircle, Activity, ScrollText, GraduationCap, LogOut, User as UserIcon, Coffee, ArrowRight, LayoutGrid,
 } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { useDonateVisible } from '../modules/support/donateConfig'
@@ -34,6 +34,7 @@ interface TopNavProps {
 }
 
 const TRIGGER_ACTIVE = 'bg-brand-50 text-brand-700 dark:bg-brand-800 dark:text-gold-400'
+const SECTION_LABEL = 'text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500'
 const TRIGGER_IDLE = 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-brand-800 dark:hover:text-white'
 
 function pathMatches(pathname: string, to: string) {
@@ -43,23 +44,30 @@ function pathMatches(pathname: string, to: string) {
 
 /** A grouped top-nav category that opens a dropdown of its items. */
 function NavCategory({
-  label, items, groups, leadingItem, extra, extraLabel, messagingOn, unreadMessages,
+  label, items, groups, extra, extraLabel, footerItem, wide, messagingOn, unreadMessages,
 }: {
   label: string
   /** Flat item list — mutually exclusive with `groups`. */
   items?: NavItem[]
   /** Labeled sections rendered with sub-headers (used by the Admin dropdown). */
   groups?: Array<{ label: string; items: NavItem[] }>
-  leadingItem?: NavItem | null
   extra?: NavItem[]
   extraLabel?: string
+  /** Full-width link pinned to the bottom (the Admin dropdown's "/admin" hub). */
+  footerItem?: NavItem
+  /**
+   * Mega-menu layout: sections flow into balanced CSS columns instead of one
+   * scrolling stack. The Admin dropdown outgrew the single column (19 entries
+   * across 6 sections needed a scrollbar on a 1080p screen).
+   */
+  wide?: boolean
   messagingOn: boolean
   unreadMessages: number
 }) {
   const location = useLocation()
   const navigate = useNavigate()
   const flat = groups ? groups.flatMap((g) => g.items) : (items ?? [])
-  const all = [...(leadingItem ? [leadingItem] : []), ...flat, ...(extra ?? [])]
+  const all = [...flat, ...(extra ?? []), ...(footerItem ? [footerItem] : [])]
   const isActive = all.some((i) => i.to && pathMatches(location.pathname, i.to))
   const hasInboxBadge = messagingOn && unreadMessages > 0 && flat.some((i) => i.to === '/inbox')
 
@@ -102,37 +110,61 @@ function NavCategory({
           {hasInboxBadge && <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-primary" />}
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="min-w-[14rem]">
+      <DropdownMenuContent
+        align="start"
+        className={wide ? 'w-[48rem] max-w-[calc(100vw-1.5rem)] p-2' : 'min-w-[14rem]'}
+      >
         {groups ? (
-          groups.map((g, gi) => (
-            <div key={g.label}>
-              {gi > 0 && <DropdownMenuSeparator />}
-              <DropdownMenuLabel className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
-                {g.label}
-              </DropdownMenuLabel>
-              {/* The dynamic Planning entry (scheduling subdomain) leads the first group. */}
-              {gi === 0 && leadingItem && renderItem(leadingItem)}
-              {g.items.map(renderItem)}
+          wide ? (
+            /* Balanced CSS columns: sections keep their own header and never split
+               across a column boundary (break-inside-avoid). Arrow-key/typeahead
+               navigation still follows DOM order, so grouping stays intact. */
+            <div className="columns-3 gap-2 [column-fill:balance]">
+              {groups.map((g) => (
+                <div key={g.label} className="mb-2 break-inside-avoid">
+                  <DropdownMenuLabel className={SECTION_LABEL}>{g.label}</DropdownMenuLabel>
+                  {g.items.map(renderItem)}
+                </div>
+              ))}
             </div>
-          ))
+          ) : (
+            groups.map((g, gi) => (
+              <div key={g.label}>
+                {gi > 0 && <DropdownMenuSeparator />}
+                <DropdownMenuLabel className={SECTION_LABEL}>{g.label}</DropdownMenuLabel>
+                {g.items.map(renderItem)}
+              </div>
+            ))
+          )
         ) : (
-          <>
-            {leadingItem && (
-              <>
-                {renderItem(leadingItem)}
-                <DropdownMenuSeparator />
-              </>
-            )}
-            {(items ?? []).map(renderItem)}
-          </>
+          (items ?? []).map(renderItem)
         )}
         {extra && extra.length > 0 && (
           <>
             <DropdownMenuSeparator />
-            <DropdownMenuLabel className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
-              {extraLabel}
-            </DropdownMenuLabel>
-            {extra.map(renderItem)}
+            <DropdownMenuLabel className={SECTION_LABEL}>{extraLabel}</DropdownMenuLabel>
+            {wide ? (
+              <div className="columns-3 gap-2">
+                {extra.map((item) => (
+                  <div key={item.to} className="break-inside-avoid">{renderItem(item)}</div>
+                ))}
+              </div>
+            ) : (
+              extra.map(renderItem)
+            )}
+          </>
+        )}
+        {footerItem && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onSelect={() => go(footerItem)}
+              className="cursor-pointer justify-center gap-2 text-sm font-medium text-brand-700 dark:text-gold-400"
+            >
+              {footerItem.icon}
+              {footerItem.label}
+              <ArrowRight className="h-4 w-4" />
+            </DropdownMenuItem>
           </>
         )}
       </DropdownMenuContent>
@@ -243,9 +275,10 @@ export default function TopNav({ unreadCount, onOpenNotifications, memberTeams }
           <NavCategory
             label={t('admin')}
             groups={adminGroups}
-            leadingItem={schedulingItem}
             extra={isSuperAdmin ? superadminItems : undefined}
             extraLabel={t('superadmin')}
+            footerItem={{ to: '/admin', label: t('allAdminTools'), icon: <LayoutGrid className="h-4 w-4" /> }}
+            wide
             messagingOn={messagingOn}
             unreadMessages={unreadMessages}
           />

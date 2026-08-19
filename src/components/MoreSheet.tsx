@@ -8,11 +8,12 @@ import SwitchToggle from '@/components/SwitchToggle'
 import LanguageDropdown from '@/components/LanguageDropdown'
 import { getFileUrl } from '../utils/fileUrl'
 import AdminToggle from './AdminToggle'
-import { Bell, UserX, PenSquare, PartyPopper, Building2, CalendarClock, HeartPulse, LogIn, User, Users, Settings, ChevronDown, ScrollText, MessageSquare, MessageCircle, Inbox, Mail, Banknote, BarChart3, UserPlus, Bug, Activity, GraduationCap, Database, Megaphone, Newspaper, Flag, Terminal, Gavel, Wallet, Landmark, ReceiptText, FileWarning, ClipboardList, ArrowRightLeft, Coffee, MailOpen, KeyRound } from 'lucide-react'
+import { Bell, LayoutGrid, UserX, PenSquare, PartyPopper, CalendarClock, LogIn, User, Users, Settings, ChevronDown, ScrollText, MessageSquare, MessageCircle, Inbox, Activity, GraduationCap, Newspaper, Gavel, Wallet, Landmark, ReceiptText, Coffee } from 'lucide-react'
 import type { MemberTeam, Team } from '../types'
 import { asObj, memberDisplayName } from '../utils/relations'
 import { messagingFeatureEnabled } from '../utils/messagingFeatureFlag'
 import { SCHEDULING_ORIGIN } from '../lib/api'
+import { buildAdminGroups, buildSuperadminItems, type AdminNavEntry } from '../lib/adminNav'
 import { handlePWAExternalClick } from '../utils/pwa'
 import { APP_VERSION } from '../modules/changelog/ChangelogPage'
 import { useDonateVisible } from '../modules/support/donateConfig'
@@ -86,94 +87,19 @@ function buildSecondaryItems(
 
 interface NavItem { to: string; labelKey: string; icon: ReactNode }
 
-// Admin tools grouped into labeled sections — mirrors useNavItems.adminGroups
-// (desktop dropdown). Keep the two in sync when adding admin pages.
-//
-// Items are gated INDIVIDUALLY, not by one section-wide isAdmin: every entry
-// here is AdminRoute-guarded (isAdmin) except the club mailbox, which is
-// GlobalAdminRoute-guarded (isGlobalAdmin = admin || superuser) to mirror the
-// server's authForAccount('admin'). isAdmin is the WIDER set — it also contains
-// vb_admin / bb_admin, whom the server 403s on the mailbox — so the two cannot
-// share a gate. Empty groups are dropped so nobody sees a section of links that
-// would bounce them back to '/'.
-function buildAdminGroups(
-  { isAdmin, isGlobalAdmin }: { isAdmin: boolean; isGlobalAdmin: boolean },
-): Array<{ labelKey: string; items: NavItem[] }> {
-  return [
-    {
-      labelKey: 'adminGroupPlanning',
-      items: [
-        ...(isAdmin ? [{ to: '/admin/hallenplan', labelKey: 'hallenplan', icon: <Building2 className={iconClass} /> }] : []),
-        ...(isAdmin ? [{ to: '/admin/hallenfinder', labelKey: 'hallenfinder', icon: <CalendarClock className={iconClass} /> }] : []),
-      ],
-    },
-    {
-      labelKey: 'adminGroupGames',
-      items: [
-        ...(isAdmin ? [
-          { to: '/admin/scorer-assign', labelKey: 'scorerAssign', icon: <ClipboardList className={iconClass} /> },
-          { to: '/admin/vb-referees', labelKey: 'vbReferees', icon: <Gavel className={iconClass} /> },
-          { to: '/admin/referee-expenses', labelKey: 'refereeExpenses', icon: <Banknote className={iconClass} /> },
-        ] : []),
-      ],
-    },
-    {
-      labelKey: 'adminGroupMembers',
-      items: [
-        ...(isAdmin ? [
-          { to: '/admin/anmeldungen', labelKey: 'anmeldungen', icon: <UserPlus className={iconClass} /> },
-          // International transfers (AdminRoute). Mirrors useNavItems — the label
-          // lives in the `admin` namespace with the rest of the page's strings,
-          // so it carries the `admin:` prefix like the finance items above.
-          { to: '/admin/transfers', labelKey: 'admin:trNavTransfers', icon: <ArrowRightLeft className={iconClass} /> },
-          { to: '/admin/announcements', labelKey: 'announcements', icon: <Megaphone className={iconClass} /> },
-          { to: '/admin/reports', labelKey: 'moderationReports', icon: <Flag className={iconClass} /> },
-          { to: '/admin/volley-feedback', labelKey: 'volleyFeedback', icon: <MessageSquare className={iconClass} /> },
-        ] : []),
-      ],
-    },
-    {
-      // Club email — mailbox + the two things that shape what leaves it. Split out
-      // of "Members & communication" (2026-08-18); mirrors useNavItems, where the
-      // reasoning is written out. Grouping is layout only: the gates inside differ
-      // and must stay that way.
-      labelKey: 'adminGroupEmail',
-      items: [
-        // Club mailbox: admin||superuser only — mirrors the server's
-        // authForAccount('admin'). NOT isAdmin (includes vb/bb admins, whom the
-        // server 403s) and NOT isVorstand (board was rejected).
-        ...(isGlobalAdmin ? [{ to: '/admin/mailbox', labelKey: 'clubMailbox', icon: <Mail className={iconClass} /> }] : []),
-        ...(isAdmin ? [
-          // Editable transactional email copy (migration 287). isAdmin, matching
-          // the route's AdminRoute guard and the policy grants (Sport Admin +
-          // Vorstand hold email_templates CRUD).
-          { to: '/admin/email-templates', labelKey: 'admin:etTitle', icon: <MailOpen className={iconClass} /> },
-          // Emails Garage — same isAdmin gate as the route + endpoint read gate.
-          { to: '/admin/emails-garage', labelKey: 'admin:egNav', icon: <KeyRound className={iconClass} /> },
-        ] : []),
-      ],
-    },
-    {
-      labelKey: 'adminGroupData',
-      items: [
-        ...(isAdmin ? [
-          { to: '/admin/explore', labelKey: 'adminExplorer', icon: <Database className={iconClass} /> },
-          { to: '/admin/club-stats', labelKey: 'clubStats', icon: <BarChart3 className={iconClass} /> },
-        ] : []),
-      ],
-    },
-  ].filter((g) => g.items.length > 0)
-}
+// Admin nav comes from `../lib/adminNav` — ONE definition shared with the desktop
+// mega-menu (`TopNav` via `useNavItems`) and the /admin hub table. Adding an admin
+// page there lights it up on all three surfaces; this file only maps the shared
+// entry (i18n key + icon component) onto the sheet's NavItem shape.
+const toSheetItem = (e: AdminNavEntry): NavItem => ({
+  to: e.to,
+  labelKey: e.labelKey,
+  icon: <e.icon className={iconClass} />,
+})
 
-const superAdminItems: NavItem[] = [
-  // ClubDesk sync merged into Data health (2026-08-13) — one destination, one entry.
-  { to: '/admin/data-health', labelKey: 'dataHealth', icon: <HeartPulse className={iconClass} /> },
-  { to: '/admin/infra', labelKey: 'infraHealth', icon: <Activity className={iconClass} /> },
-  { to: '/admin/audit-log', labelKey: 'auditLog', icon: <ScrollText className={iconClass} /> },
-  { to: '/admin/error-logs', labelKey: 'errorLogs', icon: <FileWarning className={iconClass} /> },
-  { to: '/admin/sql', labelKey: 'sqlWorkspace', icon: <Terminal className={iconClass} /> },
-  { to: '/bugfixes', labelKey: 'bugfixes', icon: <Bug className={iconClass} /> },
-]
+// Superadmin block — rendered under its own top-level header, so it stays out of
+// the sections above. `true` because the caller already gates on isSuperAdmin.
+const superAdminItems: NavItem[] = buildSuperadminItems(true).map(toSheetItem)
 
 function OptionsAccordion({ theme, toggleTheme, onClose, memberId }: { theme: string; toggleTheme: () => void; onClose?: () => void; memberId?: number | string | null }) {
   const [open, setOpen] = useState(false)
@@ -312,7 +238,11 @@ interface MoreSheetProps {
 export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNotifications, memberTeams = [] }: MoreSheetProps) {
   const { user, isApproved, isAdmin, isGlobalAdmin, isSuperAdmin, isVorstand, canAccessFinance, is_spielplaner, spielplanerTeamIds, coachTeamIds, teamResponsibleIds, logout } = useAuth()
   const canManageForms = isAdmin || isVorstand || coachTeamIds.length > 0 || teamResponsibleIds.length > 0
-  const adminGroups = buildAdminGroups({ isAdmin, isGlobalAdmin })
+  // scheduling: null — on mobile the Spielplanung entry keeps its own section
+  // below (see buildSecondaryItems), it does not lead the Planning group.
+  // isSuperAdmin: false — the superadmin block renders separately, below.
+  const adminGroups = buildAdminGroups({ isAdmin, isGlobalAdmin, isSuperAdmin: false, scheduling: null })
+    .map((g) => ({ labelKey: g.labelKey, items: g.items.map(toSheetItem) }))
   const { theme, toggleTheme } = useTheme()
   const { t } = useTranslation('nav')
   const { t: tn } = useTranslation('notifications')
@@ -512,6 +442,9 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
               <p className="mb-1 px-4 text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
                 {t('admin')}
               </p>
+              {/* Hub first: the searchable /admin table is the fastest way to a
+                  tool on a phone, where the sections below are a long scroll. */}
+              {renderNavItem({ to: '/admin', labelKey: 'allAdminTools', icon: <LayoutGrid className={iconClass} /> })}
               {adminGroups.map((g) => (
                 <div key={g.labelKey}>
                   <p className="mb-0.5 mt-2 px-4 text-[10px] font-semibold uppercase tracking-wider text-gray-400/80 dark:text-gray-500/80">

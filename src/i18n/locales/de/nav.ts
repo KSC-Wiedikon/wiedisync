@@ -74,4 +74,5 @@ export default {
   news: 'News',
   moderationReports: 'Moderationsberichte',
   messagingSettings: 'Nachrichten',
+  allAdminTools: 'Alle Admin-Tools',
 } as const

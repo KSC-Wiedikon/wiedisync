@@ -1179,4 +1179,16 @@ export default {
   egFieldBroadHint: 'Nur aachrüzle, wenn die Adress d ganzi Mitgliedschaft erreicht. Wer s Passwort hät, erbt die Reichwiiti.',
   egFieldReachNote: 'Begründig',
   egFieldReachNotePlaceholder: 'Wen die Adress erreicht und wie',
+
+  // ── Admin-Hub (/admin) ─────────────────────────────────────────
+  hubTitle: 'Admin',
+  hubSubtitle: 'Alli Admin-Tools, wo du chasch bruuche, a eim Ort.',
+  hubSearch: 'Tools sueche…',
+  hubColTool: 'Tool',
+  hubColSection: 'Bereich',
+  hubColAccess: 'Zuegriff',
+  hubAccessAdmin: 'Admin',
+  hubAccessGlobal: 'Vereinsadmin',
+  hubAccessSuper: 'Superadmin',
+  hubNone: 'Kei Tools gfunde.',
 } as const

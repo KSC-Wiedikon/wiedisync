@@ -31,6 +31,7 @@ import TransfersPage from './modules/admin/TransfersPage'
 import AuditLogPage from './modules/admin/AuditLogPage'
 import RefereeExpensesPage from './modules/admin/RefereeExpensesPage'
 import ClubStatsPage from './modules/admin/ClubStatsPage'
+import AdminHubPage from './modules/admin/AdminHubPage'
 import VolleyFeedbackPage from './modules/admin/VolleyFeedbackPage'
 import AnmeldungenPage from './modules/admin/AnmeldungenPage'
 import EmailTemplatesPage from './modules/admin/EmailTemplatesPage'
@@ -229,6 +230,10 @@ export default function App() {
             <Route path="inbox" element={<AuthRoute><Suspense fallback={null}><InboxPage /></Suspense></AuthRoute>} />
             <Route path="inbox/:conversationId" element={<AuthRoute><Suspense fallback={null}><ConversationPage /></Suspense></AuthRoute>} />
             <Route path="options/messaging" element={<AuthRoute><Suspense fallback={null}><MessagingSettingsPage /></Suspense></AuthRoute>} />
+            {/* Admin hub — every admin destination in one searchable table. AdminRoute
+                (isAdmin) is the right gate: isGlobalAdmin ⊆ isAdmin, so anyone with
+                a single admin entry passes it. */}
+            <Route path="admin" element={<AdminRoute><AdminHubPage /></AdminRoute>} />
             <Route path="admin/spielplanung" element={<SchedulingRedirect />} />
             <Route path="admin/hallenplan" element={<AdminRoute><HallenplanPage /></AdminRoute>} />
             <Route path="admin/hallenplan/closures" element={<AdminRoute><ClosuresPage /></AdminRoute>} />

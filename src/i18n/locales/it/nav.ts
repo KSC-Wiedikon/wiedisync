@@ -76,4 +76,5 @@ export default {
   hallenfinder: 'Trova palestre',
   errorLogs: 'Log degli errori',
   volleyFeedback: 'Feedback volley',
+  allAdminTools: 'Tutti gli strumenti admin',
 } as const

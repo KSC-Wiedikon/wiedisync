@@ -76,4 +76,5 @@ export default {
   hallenfinder: 'Recherche de salles',
   errorLogs: 'Journal des erreurs',
   volleyFeedback: 'Feedback volley',
+  allAdminTools: 'Tous les outils admin',
 } as const

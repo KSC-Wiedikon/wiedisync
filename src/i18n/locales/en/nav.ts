@@ -74,4 +74,5 @@ export default {
   news: 'News',
   moderationReports: 'Moderation reports',
   messagingSettings: 'Messaging',
+  allAdminTools: 'All admin tools',
 } as const
