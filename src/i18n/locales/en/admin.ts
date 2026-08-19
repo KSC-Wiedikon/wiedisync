@@ -461,6 +461,44 @@ export default {
   anmeldungenInviteNoMember: 'No member found for this registration yet',
   anmeldungenInviteError: 'Could not send the invite',
 
+  // Duplicate detection (registration ↔ existing member). The public form
+  // hard-blocks an ACTIVE member re-registering as themselves, so these are the
+  // softer cases it deliberately lets through: a returning ehemalige, or the
+  // same person under a new email address.
+  anmeldungenDupBadgeReturning: 'Returning member',
+  anmeldungenDupBadgePossible: 'Possible duplicate',
+  anmeldungenDupBadgeReturningTitle: 'Was already a member — {{name}} (#{{id}})',
+  anmeldungenDupBadgePossibleTitle: 'Looks like an existing member — {{name}} (#{{id}})',
+  anmeldungenDupChecking: 'Checking for an existing member…',
+  anmeldungenDupCheckFailed: 'Could not check for duplicates — tap to retry',
+  anmeldungenDupLinked: 'Linked to member #{{id}}',
+  anmeldungenDupReturningTitle: 'This person was already a member',
+  anmeldungenDupReturningHint: 'Merge onto the existing record instead of approving straight away — that keeps their ClubDesk link and history. Merging does not approve; approve afterwards as usual.',
+  anmeldungenDupPossibleTitle: 'This may be an existing member',
+  anmeldungenDupPossibleHint: 'Same name, birthdate or phone as somebody already on file, but a different email. Check before approving — approving creates a second member record.',
+  anmeldungenDupActive: 'Active',
+  anmeldungenDupFormer: 'Former member',
+  anmeldungenDupMatchedOn: 'Matched on:',
+  anmeldungenDupReason_email: 'email',
+  anmeldungenDupReason_first_name: 'first name',
+  anmeldungenDupReason_last_name: 'last name',
+  anmeldungenDupReason_birthdate: 'date of birth',
+  anmeldungenDupReason_phone: 'phone',
+  anmeldungenDupOpenMember: 'Open member',
+  anmeldungenDupReview: 'Review & merge',
+  anmeldungenDupNoDiff: 'Nothing differs — the registration adds no new data. Link it by merging, or just approve.',
+  anmeldungenDupColField: 'Field',
+  anmeldungenDupColMember: 'Member record',
+  anmeldungenDupColRegistration: 'Registration',
+  anmeldungenDupOverwrite: 'Overwrites',
+  anmeldungenDupMergeNote: 'Merging links the registration to this member. It does not approve it.',
+  anmeldungenDupCancel: 'Cancel',
+  anmeldungenDupMergeAction: 'Merge {{count}} field(s)',
+  anmeldungenDupMergeConfirm: 'Link this registration to {{name}} and apply {{count}} field(s)?',
+  anmeldungenDupMergeConfirmOverwrite: 'Link this registration to {{name}} and apply {{count}} field(s)? {{overwrites}} of them overwrite data already on the member record.',
+  anmeldungenDupMerged: 'Merged into {{name}} — {{count}} field(s) applied',
+  anmeldungenDupMergeError: 'Could not merge',
+
   // ClubDesk member sync (superadmin)
   clubdeskSyncDown: 'Sync down from ClubDesk',
   clubdeskSyncing: 'Syncing…',
@@ -1684,4 +1722,16 @@ export default {
   egFieldBroadHint: 'Tick only when this address reaches the entire membership. Whoever holds this password inherits that reach.',
   egFieldReachNote: 'Why',
   egFieldReachNotePlaceholder: 'What this address can reach, and how',
+
+  // ── Admin hub (/admin) ─────────────────────────────────────────
+  hubTitle: 'Admin',
+  hubSubtitle: 'Every admin tool you can reach, in one place.',
+  hubSearch: 'Search tools…',
+  hubColTool: 'Tool',
+  hubColSection: 'Section',
+  hubColAccess: 'Access',
+  hubAccessAdmin: 'Admin',
+  hubAccessGlobal: 'Club admin',
+  hubAccessSuper: 'Superadmin',
+  hubNone: 'No tools match your search.',
 } as const

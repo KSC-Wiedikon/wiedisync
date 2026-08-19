@@ -10,6 +10,9 @@ import { BB_SITUATIONS, bbRequiredDocs, fibaNatCode } from './bb-docs.js'
 import { BB_PDF_TEMPLATES, fillBbForm } from './bb-pdf-fill.js'
 import { federationName, NO_FEDERATION } from './federations.js'
 import { writeUserLog } from './activity-log.js'
+import {
+  findDuplicateCandidates, findBlockingMember, buildMergeDiff, buildMergePatch,
+} from './registration-duplicates.js'
 import { loadTemplate, mergeTemplate, renderTemplate, sanitizeTemplateHtml, recordEmailSend, validateTemplate } from './email-templates.js'
 import crypto from 'crypto'
 import { streamManagedFile } from './storage-read.js'
@@ -840,6 +843,31 @@ export function registerRegistration(router, { database, logger, services, getSc
       const validTypes = ['volleyball', 'basketball', 'passive']
       if (!validTypes.includes(body.membership_type)) {
         return res.status(400).json({ error: 'Invalid membership_type' })
+      }
+
+      // ── Already a member? (2026-08-19) ────────────────────────────────────
+      // Until now this route had NO identity check: an existing member could
+      // file a second registration for themselves, and five of the first 36
+      // prod rows did exactly that (REG-2026-7074 arrived with the *same*
+      // email as member #195). Blocking is limited to an ACTIVE member whose
+      // email AND first name AND last name all match — never email alone,
+      // because families legitimately share one mailbox (members.email has no
+      // unique index for that reason). A FORMER member rejoining, or a softer
+      // name/birthdate resemblance, is deliberately let through and flagged
+      // for /admin/anmeldungen instead: blocking a returning ehemalige would
+      // leave them no route back into the club.
+      //
+      // The website form runs the same check live (/registration/check-duplicate)
+      // so nobody fills 40 fields first; this is the bypass/stale-cache backstop.
+      const blocker = await findBlockingMember(database, { ...body, email: emailNorm.value })
+      if (blocker) {
+        log.warn({ msg: `Registration blocked — already an active member (#${blocker.id})`, email: emailNorm.value, memberId: blocker.id })
+        return res.status(409).json({
+          error: isEn
+            ? 'You are already registered with KSC Wiedikon. Log in at wiedisync.kscw.ch, or write to admin@wiedisync.kscw.ch to change sport or team.'
+            : 'Du bist bereits beim KSC Wiedikon angemeldet. Melde dich auf wiedisync.kscw.ch an, oder schreibe an admin@wiedisync.kscw.ch, um Sportart oder Team zu ändern.',
+          code: 'already_member',
+        })
       }
 
       // A guest (funktion "Guest" on a VB/BB registration — see the signup form's
@@ -1735,6 +1763,220 @@ export function registerRegistration(router, { database, logger, services, getSc
         stack: err.stack,
       })
       res.status(500).json({ error: 'Upload failed' })
+    }
+  })
+
+  // ── Duplicate detection: public live check + admin flag/merge ───────────────
+
+  // Per-IP throttle for the live form check. It fires as somebody types (the
+  // form debounces to blur), so the budget is generous — but it must exist:
+  // the route answers "is this exact person already an active member", and
+  // without a limit it becomes a membership oracle to grind against.
+  const dupCheckIp = new Map() // ip → { count, resetAt }
+
+  const clientIp = (req) => {
+    const xff = req.headers['x-forwarded-for']
+    return req.headers['cf-connecting-ip']
+      || (typeof xff === 'string' ? xff.split(',')[0].trim() : '')
+      || req.ip || 'unknown'
+  }
+
+  /** Staff gate for the admin duplicate/merge routes — same rule as
+   *  /registration/:id/request-docs: Directus admin, app-role admin/superuser/
+   *  vorstand, or the sport admin for THIS registration's sport. */
+  const assertRegistrationAdmin = async (req, membershipType) => {
+    if (!req.accountability?.user) return { status: 401, error: 'Authentication required' }
+    const actor = await database('members').where('user', req.accountability.user).first('id', 'role')
+    const actorRoles = Array.isArray(actor?.role) ? actor.role
+      : (() => { try { return JSON.parse(actor?.role || '[]') } catch { return [] } })()
+    const sportRole = membershipType === 'basketball' ? 'bb_admin'
+      : membershipType === 'volleyball' ? 'vb_admin' : null
+    const allowed = req.accountability.admin === true
+      || actorRoles.includes('admin')
+      || actorRoles.includes('superuser')
+      || actorRoles.includes('vorstand')
+      || (!!sportRole && actorRoles.includes(sportRole))
+    return allowed ? null : { status: 403, error: 'Not authorized' }
+  }
+
+  // POST /kscw/registration/check-duplicate — PUBLIC live check for the website form.
+  //
+  // ⚠ Answers a strict BOOLEAN and nothing else. It never returns the member's
+  // id, name, email or status, and it only says `true` when first name AND last
+  // name AND email all match an ACTIVE member — so a caller has to already know
+  // the whole identity to learn anything, which makes it useless for harvesting.
+  // The softer tiers (returning member, name/birthdate resemblance) are staff-only
+  // and are deliberately NOT surfaced here: telling a stranger "someone with this
+  // birthday is on file" is exactly the leak this shape avoids.
+  router.post('/registration/check-duplicate', async (req, res) => {
+    try {
+      const ip = clientIp(req)
+      const now = Date.now()
+      const entry = dupCheckIp.get(ip)
+      if (entry && now < entry.resetAt) {
+        if (entry.count >= 60) return res.status(429).json({ error: 'Too many requests' })
+        entry.count++
+      } else {
+        dupCheckIp.set(ip, { count: 1, resetAt: now + 10 * 60 * 1000 })
+      }
+      if (dupCheckIp.size > 1000) {
+        for (const [k, v] of dupCheckIp) { if (now > v.resetAt) dupCheckIp.delete(k) }
+      }
+
+      const { vorname, nachname, email } = req.body || {}
+      if (!vorname || !nachname || !email) return res.json({ already_member: false })
+      const emailNorm = normalizeEmail(email)
+      if (!emailNorm.ok || !emailNorm.value) return res.json({ already_member: false })
+
+      const blocker = await findBlockingMember(database, { vorname, nachname, email: emailNorm.value })
+      return res.json({ already_member: !!blocker })
+    } catch (err) {
+      log.error({ msg: `registration/check-duplicate: ${err.message}`, endpoint: 'registration/check-duplicate', stack: err.stack })
+      // Never fail the form over an advisory check — the create route re-runs
+      // the same rule and is the one that actually decides.
+      return res.json({ already_member: false })
+    }
+  })
+
+  // POST /kscw/registration/duplicates — batch flags for the /admin/anmeldungen list.
+  // One call for the whole page instead of a probe per row.
+  router.post('/registration/duplicates', async (req, res) => {
+    try {
+      const denied = await assertRegistrationAdmin(req, null)
+      if (denied) return res.status(denied.status).json({ error: denied.error })
+
+      const ids = Array.isArray(req.body?.registration_ids)
+        ? req.body.registration_ids.map(Number).filter(Number.isInteger).slice(0, 500)
+        : []
+      if (!ids.length) return res.json({ flags: {} })
+
+      const regs = await database('registrations').whereIn('id', ids)
+        .select('id', 'vorname', 'nachname', 'email', 'telefon_mobil', 'geburtsdatum', 'member')
+      const flags = {}
+      for (const reg of regs) {
+        // A registration already linked to a member is not "a possible duplicate
+        // of that member" — it IS them. Exclude the link so an approved row
+        // stops flagging itself forever.
+        const { level, candidates } = await findDuplicateCandidates(database, reg, { excludeMemberId: reg.member })
+        if (level === 'none') continue
+        const top = candidates[0]
+        flags[String(reg.id)] = {
+          level,
+          count: candidates.length,
+          member_id: top.id,
+          member_name: [top.first_name, top.last_name].filter(Boolean).join(' '),
+          match: top.match,
+          active: !!top.kscw_membership_active,
+        }
+      }
+      return res.json({ flags })
+    } catch (err) {
+      log.error({ msg: `registration/duplicates: ${err.message}`, endpoint: 'registration/duplicates', stack: err.stack })
+      return res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  // GET /kscw/registration/:id/duplicates — candidates + field-by-field diff for
+  // the expanded row. One diff per candidate, so staff pick the right person
+  // before they pick the fields.
+  router.get('/registration/:id/duplicates', async (req, res) => {
+    try {
+      const id = Number(req.params.id)
+      if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'Invalid registration id' })
+      const reg = await database('registrations').where('id', id).first()
+      if (!reg) return res.status(404).json({ error: 'Registration not found' })
+
+      const denied = await assertRegistrationAdmin(req, reg.membership_type)
+      if (denied) return res.status(denied.status).json({ error: denied.error })
+
+      const { level, candidates } = await findDuplicateCandidates(database, reg, { excludeMemberId: reg.member })
+      const withDiff = []
+      for (const c of candidates) {
+        withDiff.push({
+          member_id: c.id,
+          name: [c.first_name, c.last_name].filter(Boolean).join(' '),
+          email: c.email,
+          match: c.match,
+          reasons: c.reasons,
+          active: !!c.kscw_membership_active,
+          has_account: !!c.user,
+          clubdesk_id: c.clubdesk_id || null,
+          shell: !!c.shell,
+          diff: await buildMergeDiff(database, reg, c),
+        })
+      }
+      return res.json({ level, linked_member: reg.member ?? null, candidates: withDiff })
+    } catch (err) {
+      log.error({ msg: `registration/:id/duplicates: ${err.message}`, endpoint: 'registration/duplicates', stack: err.stack })
+      return res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  // POST /kscw/registration/:id/merge — link the registration to an existing
+  // member and apply the chosen fields onto that member.
+  //
+  // Merge does NOT approve. It only settles identity ("this form is member
+  // #195") plus whatever data staff ticked; the normal approve button still
+  // runs afterwards for the team roster, the ClubDesk push and the email — and
+  // now finds the link already stamped, so it can no longer mint a second
+  // member row for the same person.
+  router.post('/registration/:id/merge', async (req, res) => {
+    try {
+      const id = Number(req.params.id)
+      if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'Invalid registration id' })
+      const reg = await database('registrations').where('id', id).first()
+      if (!reg) return res.status(404).json({ error: 'Registration not found' })
+
+      const denied = await assertRegistrationAdmin(req, reg.membership_type)
+      if (denied) return res.status(denied.status).json({ error: denied.error })
+
+      const memberId = Number(req.body?.member_id)
+      if (!Number.isInteger(memberId) || memberId <= 0) {
+        return res.status(400).json({ error: 'member_id required', code: 'member_required' })
+      }
+      const member = await database('members').where('id', memberId).first()
+      if (!member) return res.status(404).json({ error: 'Member not found', code: 'no_member' })
+
+      // Only fields this exact pairing actually offers can be written — the
+      // client sends KEYS, never values, so a crafted request cannot set a
+      // column to something the registration does not contain.
+      const diff = await buildMergeDiff(database, reg, member)
+      const patch = buildMergePatch(diff, req.body?.fields)
+
+      if (Object.keys(patch).length) {
+        await database('members').where('id', memberId).update(patch)
+        // A merged member has gained contact fields ClubDesk should see.
+        try {
+          await database('members').where('id', memberId).update({ clubdesk_push_pending: true })
+        } catch (flagErr) {
+          log.warn({ msg: `clubdesk push-flag (merge) failed: ${flagErr.message}`, memberId })
+        }
+      }
+      await database('registrations').where('id', id).update({ member: memberId })
+
+      // Raw-knex writes bypass Directus's own revision trail, so the actor is
+      // captured explicitly (CLAUDE.md → audit logging). Both sides are logged:
+      // the member row that changed, and the registration that was re-pointed.
+      await writeUserLog(database, log, {
+        accountability: req.accountability,
+        action: 'update',
+        collection: 'members',
+        recordId: memberId,
+        data: { merged_from_registration: reg.reference_number, applied: patch },
+      })
+      await writeUserLog(database, log, {
+        accountability: req.accountability,
+        action: 'update',
+        collection: 'registrations',
+        recordId: id,
+        data: { merged_into_member: memberId, fields_applied: Object.keys(patch) },
+      })
+
+      log.info({ msg: 'Registration merged into existing member', id, memberId, fields: Object.keys(patch) })
+      return res.json({ member_id: memberId, applied: Object.keys(patch) })
+    } catch (err) {
+      log.error({ msg: `registration/:id/merge: ${err.message}`, endpoint: 'registration/merge', stack: err.stack })
+      return res.status(500).json({ error: 'Internal error' })
     }
   })
 }

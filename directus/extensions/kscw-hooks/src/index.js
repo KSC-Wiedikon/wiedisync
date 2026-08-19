@@ -4805,14 +4805,30 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     const email = reg.email.toLowerCase().trim()
     const rolle = (reg.rolle || '').toLowerCase()
 
-    // 1. Check if member already exists (case-insensitive). Fetch ALL rows for
-    // the email and pick the NAME-MATCHING one. A bare .first() with no
-    // ORDER BY returns an arbitrary same-email row when a family shares the
-    // address — if it happened to return the sibling, the name guard below
-    // nulled it and a duplicate row was created for a person who already
-    // existed. This is why members.email deliberately has no unique index.
-    const emailRows = await db('members').whereRaw('LOWER(email) = ?', [email])
-    let existingMember = emailRows.find(r => firstNamesMatch(r.first_name, reg.vorname)) || null
+    // 0. A staff-confirmed link wins over every heuristic below. /admin/anmeldungen
+    // can merge a registration onto an existing member (registration.js →
+    // /registration/:id/merge) — typically a returning ehemalige, or somebody who
+    // re-registered under a NEW address. Email matching cannot see either case, so
+    // without this an approval would happily mint a SECOND member row for a person
+    // an admin had just finished identifying by hand.
+    let existingMember = null
+    if (reg.member) {
+      existingMember = await db('members').where('id', reg.member).first()
+      if (existingMember) {
+        log.info({ msg: 'Registration carries a staff-confirmed member link', memberId: existingMember.id, email })
+      } else {
+        log.warn({ msg: `registrations.member=${reg.member} points at no member row — falling back to email matching`, email })
+      }
+    }
+
+    // 1. Otherwise match by email (case-insensitive). Fetch ALL rows for the
+    // email and pick the NAME-MATCHING one. A bare .first() with no ORDER BY
+    // returns an arbitrary same-email row when a family shares the address — if
+    // it happened to return the sibling, the name guard below nulled it and a
+    // duplicate row was created for a person who already existed. This is why
+    // members.email deliberately has no unique index.
+    const emailRows = existingMember ? [] : await db('members').whereRaw('LOWER(email) = ?', [email])
+    if (!existingMember) existingMember = emailRows.find(r => firstNamesMatch(r.first_name, reg.vorname)) || null
     if (!existingMember && emailRows.length) {
       // Same email, no name match → a DIFFERENT person shares the address
       // (parent/sibling). Create a separate row rather than graft onto them.
