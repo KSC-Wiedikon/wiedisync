@@ -18,7 +18,8 @@
  */
 import { describe, it, expect } from 'vitest'
 import {
-  findDuplicateCandidates, findBlockingMember, firstNamesMatch, nameKey,
+  findDuplicateCandidates, findDuplicateCandidatesBatch, findBlockingMember,
+  firstNamesMatch, firstNamesEqual, nameKey,
   buildMergeDiff, buildMergePatch, mapLicences, normalizeSex,
 } from '../registration-duplicates.js'
 
@@ -30,6 +31,10 @@ const MEMBERS = [
   { id: 553, first_name: 'Jason', last_name: 'Chatzichrisafis', email: 'nikos.chatzichrisafis@gmail.com', phone: null, birthdate: '2012-09-19', kscw_membership_active: true },
   { id: 34, first_name: 'Christiane', last_name: 'Clüver', email: 'jannileinchen@web.de', phone: null, birthdate: '1979-01-30', kscw_membership_active: true },
   { id: 471, first_name: 'Paula', last_name: 'Gadola', email: 'pg@paulagadola.ch', phone: null, birthdate: null, kscw_membership_active: true },
+  // Prefix-sibling pair on ONE family mailbox — "Dani" is the member, "Daniela"
+  // is her sister and has never registered. The reason the blocking tier uses
+  // exact first-name equality instead of the prefix rule.
+  { id: 601, first_name: 'Dani', last_name: 'Meier', email: 'familie.meier@bluewin.ch', phone: null, birthdate: '2006-03-11', kscw_membership_active: true },
 ]
 
 /** Knex stand-in: supports exactly the four probes the module builds. */
@@ -93,6 +98,19 @@ describe('firstNamesMatch', () => {
   })
 })
 
+describe('firstNamesEqual (the blocking rule)', () => {
+  it('folds case and accents but does NOT accept a prefix', () => {
+    expect(firstNamesEqual('Anaïs', 'anais')).toBe(true)
+    expect(firstNamesEqual('Dani', 'Daniela')).toBe(false)
+    expect(firstNamesEqual('Luca', 'Lucas')).toBe(false)
+  })
+
+  it('never matches on missing data', () => {
+    expect(firstNamesEqual('', 'Oskar')).toBe(false)
+    expect(firstNamesEqual('Oskar', null)).toBe(false)
+  })
+})
+
 describe('findDuplicateCandidates — blocking', () => {
   it('blocks an ACTIVE member re-registering as themselves', async () => {
     const r = await findDuplicateCandidates(db, {
@@ -132,6 +150,17 @@ describe('findDuplicateCandidates — must NOT block', () => {
       vorname: 'Marie', nachname: 'Clüver', email: 'jannileinchen@web.de', geburtsdatum: '2011-06-08',
     })
     expect(r.level).toBe('none')
+  })
+
+  // Regression: the prefix rule would call this the same person and 409 her.
+  it('lets a PREFIX-named sibling register on the shared family mailbox', async () => {
+    const r = await findDuplicateCandidates(db, {
+      vorname: 'Daniela', nachname: 'Meier', email: 'familie.meier@bluewin.ch', geburtsdatum: '2009-08-02',
+    })
+    expect(r.level).not.toBe('blocked')
+    expect(await findBlockingMember(db, {
+      vorname: 'Daniela', nachname: 'Meier', email: 'familie.meier@bluewin.ch',
+    })).toBeNull()
   })
 
   it('ignores a shared surname alone', async () => {
@@ -182,6 +211,22 @@ describe('findDuplicateCandidates — soft tiers', () => {
     expect(r.candidates.some((c) => c.id === 195)).toBe(true)
   })
 
+  // Ranking: candidates[0] is what the list badge names, so an email-bearing
+  // match must outrank a surname+birthdate one.
+  it('ranks an email + surname + birthdate match above surname + birthdate', async () => {
+    const r = await findDuplicateCandidates(db, {
+      vorname: 'Oscar', nachname: 'Fassbind', email: 'oskar.fassbind2@gmail.com', geburtsdatum: '2009-02-01',
+    })
+    expect(r.candidates[0]).toMatchObject({ id: 195, match: 'name_dob' })
+  })
+
+  it('ignores an unparseable phone instead of probing with the raw string', async () => {
+    const r = await findDuplicateCandidates(db, {
+      vorname: 'Nobody', nachname: 'Unrelated', email: 'nobody@example.com', telefon_mobil: 'call me maybe',
+    })
+    expect(r.level).toBe('none')
+  })
+
   // An approved row is linked to its member; without the exclusion it would
   // flag itself as a duplicate of itself, forever.
   it('excludes the member the registration is already linked to', async () => {
@@ -191,6 +236,61 @@ describe('findDuplicateCandidates — soft tiers', () => {
       { excludeMemberId: 195 },
     )
     expect(r.level).toBe('none')
+  })
+})
+
+describe('findDuplicateCandidatesBatch', () => {
+  // The batch classifies every registration against ONE preloaded member set,
+  // so it has to agree with the per-row path exactly — a superset of rows must
+  // not widen anyone's candidate list.
+  function batchDb(rows = MEMBERS) {
+    return (table) => {
+      let pred = () => false
+      const q = {
+        whereRaw(sql, [vals]) {
+          pred = sql.includes('LOWER(email)')
+            ? (m) => vals.includes(String(m.email || '').toLowerCase())
+            : (m) => vals.includes(String(m.last_name || '').toLowerCase())
+          return q
+        },
+        whereIn(col, vals) {
+          pred = col === 'birthdate'
+            ? (m) => vals.includes(String(m.birthdate || '').slice(0, 10))
+            : (m) => vals.includes(String(m[col] || ''))
+          return q
+        },
+        select: () => q,
+        then: (res, rej) => Promise.resolve(rows.filter(pred)).then(res, rej),
+      }
+      return q
+    }
+  }
+
+  const REGS = [
+    { id: 1, vorname: 'Oskar', nachname: 'Fassbind', email: 'oskar.fassbind2@gmail.com', geburtsdatum: '2009-02-01', member: null },
+    { id: 2, vorname: 'Anaïs', nachname: 'Ramp', email: 'anflura@gmx.ch', geburtsdatum: '2001-05-14', member: null },
+    { id: 3, vorname: 'Mia', nachname: 'Zurbriggen', email: 'mia.z@example.com', geburtsdatum: '2004-11-11', member: null },
+    { id: 4, vorname: 'Daniela', nachname: 'Meier', email: 'familie.meier@bluewin.ch', geburtsdatum: '2009-08-02', member: null },
+  ]
+
+  it('agrees with the per-row path for every registration', async () => {
+    const batch = await findDuplicateCandidatesBatch(batchDb(), REGS)
+    for (const reg of REGS) {
+      const single = await findDuplicateCandidates(db, reg, { excludeMemberId: reg.member })
+      expect(batch.get(reg.id).level).toBe(single.level)
+      expect(batch.get(reg.id).candidates.map((c) => c.id)).toEqual(single.candidates.map((c) => c.id))
+    }
+  })
+
+  it('still excludes each row\'s own link', async () => {
+    const batch = await findDuplicateCandidatesBatch(batchDb(), [{ ...REGS[0], member: 195 }])
+    expect(batch.get(1).level).toBe('none')
+  })
+
+  it('returns an entry for every registration, flagged or not', async () => {
+    const batch = await findDuplicateCandidatesBatch(batchDb(), REGS)
+    expect([...batch.keys()].sort()).toEqual([1, 2, 3, 4])
+    expect(batch.get(3).level).toBe('none')
   })
 })
 

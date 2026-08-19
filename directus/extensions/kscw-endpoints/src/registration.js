@@ -11,7 +11,8 @@ import { BB_PDF_TEMPLATES, fillBbForm } from './bb-pdf-fill.js'
 import { federationName, NO_FEDERATION } from './federations.js'
 import { writeUserLog } from './activity-log.js'
 import {
-  findDuplicateCandidates, findBlockingMember, buildMergeDiff, buildMergePatch,
+  findDuplicateCandidates, findDuplicateCandidatesBatch, findBlockingMember,
+  buildMergeDiff, buildMergePatch,
 } from './registration-duplicates.js'
 import { loadTemplate, mergeTemplate, renderTemplate, sanitizeTemplateHtml, recordEmailSend, validateTemplate } from './email-templates.js'
 import crypto from 'crypto'
@@ -1883,12 +1884,14 @@ export function registerRegistration(router, { database, logger, services, getSc
       const regs = await database('registrations').whereIn('id', ids)
         .whereIn('membership_type', scope.sports)
         .select('id', 'vorname', 'nachname', 'email', 'telefon_mobil', 'geburtsdatum', 'member')
+      // Four queries for the whole page, not four per row. A registration
+      // already linked to a member is not "a possible duplicate of that member"
+      // — it IS them — so the batch excludes each row's own link, which is what
+      // stops an approved row flagging itself forever.
+      const results = await findDuplicateCandidatesBatch(database, regs)
       const flags = {}
       for (const reg of regs) {
-        // A registration already linked to a member is not "a possible duplicate
-        // of that member" — it IS them. Exclude the link so an approved row
-        // stops flagging itself forever.
-        const { level, candidates } = await findDuplicateCandidates(database, reg, { excludeMemberId: reg.member })
+        const { level, candidates } = results.get(reg.id)
         if (level === 'none') continue
         const top = candidates[0]
         flags[String(reg.id)] = {
@@ -1921,6 +1924,14 @@ export function registerRegistration(router, { database, logger, services, getSc
       if (denied) return res.status(denied.status).json({ error: denied.error })
 
       const { level, candidates } = await findDuplicateCandidates(database, reg, { excludeMemberId: reg.member })
+      // Name the member this row is ALREADY linked to. The candidate list
+      // deliberately excludes them (or every approved row would flag itself
+      // forever), which means the panel can only ever offer somebody ELSE — so
+      // it has to say out loud that a link exists, or a merge silently
+      // re-points the registration and orphans the member the approval made.
+      const linked = reg.member
+        ? await database('members').where('id', reg.member).first('id', 'first_name', 'last_name', 'email')
+        : null
       const withDiff = []
       for (const c of candidates) {
         withDiff.push({
@@ -1936,7 +1947,12 @@ export function registerRegistration(router, { database, logger, services, getSc
           diff: await buildMergeDiff(database, reg, c),
         })
       }
-      return res.json({ level, linked_member: reg.member ?? null, candidates: withDiff })
+      return res.json({
+        level,
+        linked_member: reg.member ?? null,
+        linked_member_name: linked ? [linked.first_name, linked.last_name].filter(Boolean).join(' ') : null,
+        candidates: withDiff,
+      })
     } catch (err) {
       log.error({ msg: `registration/:id/duplicates: ${err.message}`, endpoint: 'registration/duplicates', stack: err.stack })
       return res.status(500).json({ error: 'Internal error' })
@@ -1968,6 +1984,24 @@ export function registerRegistration(router, { database, logger, services, getSc
       const member = await database('members').where('id', memberId).first()
       if (!member) return res.status(404).json({ error: 'Member not found', code: 'no_member' })
 
+      // ⚠ Re-pointing an existing link is never a silent operation. If this
+      // registration was already approved, `reg.member` is the member the
+      // approval created or linked — and that row owns a signup token, team
+      // roster rows and a ClubDesk push flag. Overwriting the link leaves it
+      // referenced by nothing. Exactly the shape of the legacy prod rows this
+      // feature exists to clean up, so it must be a decision, not a side effect.
+      if (reg.member && Number(reg.member) !== memberId && req.body?.relink !== true) {
+        const current = await database('members').where('id', reg.member)
+          .first('id', 'first_name', 'last_name')
+        return res.status(409).json({
+          error: 'This registration is already linked to another member.',
+          code: 'already_linked',
+          linked_member: reg.member,
+          linked_member_name: current ? [current.first_name, current.last_name].filter(Boolean).join(' ') : null,
+        })
+      }
+      const relinkedFrom = reg.member && Number(reg.member) !== memberId ? Number(reg.member) : null
+
       // Only fields this exact pairing actually offers can be written — the
       // client sends KEYS, never values, so a crafted request cannot set a
       // column to something the registration does not contain.
@@ -1988,23 +2022,36 @@ export function registerRegistration(router, { database, logger, services, getSc
       // Raw-knex writes bypass Directus's own revision trail, so the actor is
       // captured explicitly (CLAUDE.md → audit logging). Both sides are logged:
       // the member row that changed, and the registration that was re-pointed.
+      // ⚠ Field NAMES only, never the values. The patch can carry ahv_nummer,
+      // iban and birthdate, and `user_logs` is append-only by design (the
+      // update/delete filter hooks refuse everyone), so a value written here
+      // can never be redacted again. The registration-side entry below has
+      // always logged keys; this one has to match.
       await writeUserLog(database, log, {
         accountability: req.accountability,
         action: 'update',
         collection: 'members',
         recordId: memberId,
-        data: { merged_from_registration: reg.reference_number, applied: patch },
+        data: {
+          merged_from_registration: reg.reference_number,
+          fields_applied: Object.keys(patch),
+          ...(relinkedFrom ? { relinked_from_member: relinkedFrom } : {}),
+        },
       })
       await writeUserLog(database, log, {
         accountability: req.accountability,
         action: 'update',
         collection: 'registrations',
         recordId: id,
-        data: { merged_into_member: memberId, fields_applied: Object.keys(patch) },
+        data: {
+          merged_into_member: memberId,
+          fields_applied: Object.keys(patch),
+          ...(relinkedFrom ? { relinked_from_member: relinkedFrom } : {}),
+        },
       })
 
       log.info({ msg: 'Registration merged into existing member', id, memberId, fields: Object.keys(patch) })
-      return res.json({ member_id: memberId, applied: Object.keys(patch) })
+      return res.json({ member_id: memberId, applied: Object.keys(patch), relinked_from: relinkedFrom })
     } catch (err) {
       log.error({ msg: `registration/:id/merge: ${err.message}`, endpoint: 'registration/merge', stack: err.stack })
       return res.status(500).json({ error: 'Internal error' })

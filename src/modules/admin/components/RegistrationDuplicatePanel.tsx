@@ -28,6 +28,16 @@ interface DiffRow {
   member_empty: boolean
 }
 
+interface DupResponse {
+  level: DupLevel
+  /** The member this registration is ALREADY linked to, if any. Excluded from
+   *  `candidates` on purpose (else an approved row flags itself forever), so
+   *  this is the only place the panel learns a link exists. */
+  linked_member: number | null
+  linked_member_name: string | null
+  candidates: Candidate[]
+}
+
 interface Candidate {
   member_id: number
   name: string
@@ -66,7 +76,7 @@ export default function RegistrationDuplicatePanel({
 }) {
   const { t } = useTranslation('admin')
   const confirm = useConfirm()
-  const [data, setData] = useState<{ level: DupLevel; linked_member: number | null; candidates: Candidate[] } | null>(null)
+  const [data, setData] = useState<DupResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [failed, setFailed] = useState(false)
   const [fetchKey, setFetchKey] = useState(0)
@@ -81,9 +91,7 @@ export default function RegistrationDuplicatePanel({
   // ClubdeskRegistrationZone routes its reset through the refetch callback.
   useEffect(() => {
     let alive = true
-    kscwApi<{ level: DupLevel; linked_member: number | null; candidates: Candidate[] }>(
-      `/registration/${encodeURIComponent(registrationId)}/duplicates`,
-    )
+    kscwApi<DupResponse>(`/registration/${encodeURIComponent(registrationId)}/duplicates`)
       .then((d) => { if (alive) { setData(d); setFailed(false); setLoading(false) } })
       .catch(() => { if (alive) { setFailed(true); setLoading(false) } })
     return () => { alive = false }
@@ -113,6 +121,18 @@ export default function RegistrationDuplicatePanel({
   const doMerge = useCallback(async () => {
     if (!openCandidate || merging) return
     const overwrites = openCandidate.diff.filter((d) => d.differs && picked[d.key] && !d.member_empty).length
+    // Re-pointing an existing link orphans the member the approval created —
+    // its signup token, roster rows and ClubDesk flag stay behind, referenced
+    // by nothing. The backend refuses it outright without `relink`, so the
+    // decision is taken here, explicitly and separately from the field picks.
+    const relink = data?.linked_member != null && data.linked_member !== openCandidate.member_id
+    if (relink && !(await confirm({
+      message: t('anmeldungenDupRelinkConfirm', {
+        from: data?.linked_member_name || `#${data?.linked_member}`,
+        to: openCandidate.name,
+      }),
+      danger: true,
+    }))) return
     if (!(await confirm({
       message: overwrites
         ? t('anmeldungenDupMergeConfirmOverwrite', { name: openCandidate.name, count: pickedCount, overwrites })
@@ -123,7 +143,14 @@ export default function RegistrationDuplicatePanel({
     try {
       const res = await kscwApi<{ member_id: number; applied: string[] }>(
         `/registration/${encodeURIComponent(registrationId)}/merge`,
-        { method: 'POST', body: { member_id: openCandidate.member_id, fields: Object.keys(picked).filter((k) => picked[k]) } },
+        {
+          method: 'POST',
+          body: {
+            member_id: openCandidate.member_id,
+            fields: Object.keys(picked).filter((k) => picked[k]),
+            ...(relink ? { relink: true } : {}),
+          },
+        },
       )
       toast.success(t('anmeldungenDupMerged', { name: openCandidate.name, count: res.applied.length }))
       setOpenId(null)
@@ -134,7 +161,7 @@ export default function RegistrationDuplicatePanel({
     } finally {
       setMerging(false)
     }
-  }, [openCandidate, merging, picked, pickedCount, registrationId, confirm, t, onMerged, refetch])
+  }, [openCandidate, merging, picked, pickedCount, registrationId, confirm, t, onMerged, refetch, data])
 
   if (loading) {
     return (
@@ -193,6 +220,15 @@ export default function RegistrationDuplicatePanel({
           <p className="mt-0.5 text-xs text-gray-600 dark:text-gray-300">{t(hintKey)}</p>
         </div>
       </div>
+
+      {data.linked_member != null && (
+        <p className="mt-2 rounded-md border border-red-300 bg-red-50 px-2 py-1.5 text-xs text-red-800 dark:border-red-700 dark:bg-red-900/20 dark:text-red-300">
+          {t('anmeldungenDupAlreadyLinked', {
+            name: data.linked_member_name || `#${data.linked_member}`,
+            id: data.linked_member,
+          })}
+        </p>
+      )}
 
       {/* Candidates */}
       <div className="mt-3 space-y-2">

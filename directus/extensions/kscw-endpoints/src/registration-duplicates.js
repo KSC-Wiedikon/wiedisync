@@ -45,6 +45,25 @@ export function firstNamesMatch(a, b, strict = false) {
   return x === y || x.startsWith(y) || y.startsWith(x)
 }
 
+/** Exact folded first-name equality — the rule the BLOCKING tier uses.
+ *
+ *  ⚠ The prefix rule above is fine for "is this worth a look", but it must
+ *  never decide a refusal: on a shared family mailbox "Dani Meier" (member) and
+ *  her sister "Daniela Meier" prefix-match, so the softer rule would 409 a
+ *  legitimate new person with no route into the club — the exact thing the
+ *  family-mailbox carve-out exists to prevent. Same for Luca/Lucas, Jan/Jana,
+ *  Ann/Anna, Elia/Elias.
+ *
+ *  The cost is a miss: a member whose row says "Dani" registering as "Daniel"
+ *  is no longer blocked. That is the right direction to fail — they land in the
+ *  admin queue as a soft flag instead. (All five real duplicates found on prod
+ *  match their member row's first name exactly, so nothing is lost today.) */
+export function firstNamesEqual(a, b) {
+  const x = nameKey(a)
+  const y = nameKey(b)
+  return !!x && !!y && x === y
+}
+
 /** Comparison key for a name: accent-folded, lowercased, punctuation-collapsed.
  *  "Clüver" ↔ "Cluver" and "Månsson" ↔ "Mansson" are the same surname to a
  *  family filling a form twice, and Postgres `unaccent` is not installed —
@@ -94,10 +113,13 @@ export const MEMBER_MATCH_FIELDS = [
  */
 export async function findDuplicateCandidates(db, reg, opts = {}) {
   const email = emailKey(reg.email)
-  const first = nameKey(reg.vorname)
-  const last = nameKey(reg.nachname)
   const dob = dateKey(reg.geburtsdatum)
-  const phone = normalizePhone(reg.telefon_mobil).value || ''
+  // ⚠ Only a phone that actually NORMALIZED may be probed. normalizePhone
+  // returns the raw input verbatim on failure (`{ ok: false, value: s0 }`), so
+  // ignoring `.ok` would both query members.phone for junk and let two members
+  // holding the same unnormalised legacy string count as the same person.
+  const phoneNorm = normalizePhone(reg.telefon_mobil)
+  const phone = phoneNorm.ok ? (phoneNorm.value || '') : ''
 
   const probes = []
   if (email) probes.push(db('members').whereRaw('LOWER(email) = ?', [email]).select(MEMBER_MATCH_FIELDS))
@@ -110,6 +132,24 @@ export async function findDuplicateCandidates(db, reg, opts = {}) {
   if (!probes.length) return { level: 'none', candidates: [] }
 
   const rows = (await Promise.all(probes)).flat()
+  return classifyCandidates(reg, rows, opts)
+}
+
+/**
+ * Pure classifier: which of `rows` are plausibly the same person as `reg`.
+ *
+ * Split out of the fetching so the batch path can preload ONE member set for a
+ * whole page instead of firing four queries per registration — /admin/anmeldungen
+ * asks about every row it renders, and the serial version was ~4N round trips
+ * on every page load.
+ */
+export function classifyCandidates(reg, rows, opts = {}) {
+  const email = emailKey(reg.email)
+  const last = nameKey(reg.nachname)
+  const dob = dateKey(reg.geburtsdatum)
+  const phoneNorm = normalizePhone(reg.telefon_mobil)
+  const phone = phoneNorm.ok ? (phoneNorm.value || '') : ''
+
   const byId = new Map()
   for (const r of rows) if (!byId.has(r.id)) byId.set(r.id, r)
   if (opts.excludeMemberId != null) byId.delete(Number(opts.excludeMemberId))
@@ -120,17 +160,24 @@ export async function findDuplicateCandidates(db, reg, opts = {}) {
     const mLast = nameKey(m.last_name)
     const sameEmail = !!email && emailKey(m.email) === email
     const sameLast = !!last && mLast === last
+    // Two strengths: equality decides a BLOCK, the prefix rule only decides
+    // whether staff should look. See firstNamesEqual above.
+    const sameFirstExact = firstNamesEqual(m.first_name, reg.vorname)
     const sameFirst = firstNamesMatch(m.first_name, reg.vorname, true)
     const sameDob = !!dob && dateKey(m.birthdate) === dob
     const samePhone = !!phone && String(m.phone || '') === phone
 
-    // The reasons, strongest first. `exact` is the only one that can block.
+    // Strongest reason wins, and the order IS the ranking — `candidates[0]` is
+    // what the list badge names. Email-bearing tests come first: a match that
+    // includes the address is stronger than one that doesn't, and putting
+    // `surname_dob` above them made the email+surname+birthdate case
+    // unreachable and rank it below weaker candidates.
     let match = null
-    if (sameEmail && sameFirst && sameLast) match = 'exact'
+    if (sameEmail && sameFirstExact && sameLast) match = 'exact'
+    else if (sameEmail && sameLast && sameDob) match = 'name_dob'
     else if (sameLast && sameFirst && sameDob) match = 'name_dob'
     else if (sameLast && sameDob) match = 'surname_dob'
     else if (sameLast && sameFirst) match = 'name'
-    else if (sameEmail && sameLast && sameDob) match = 'name_dob'
     else if (samePhone && sameLast) match = 'phone'
     if (!match) continue
 
@@ -155,6 +202,46 @@ export async function findDuplicateCandidates(db, reg, opts = {}) {
         : 'none'
 
   return { level, candidates }
+}
+
+/**
+ * Batch variant for /admin/anmeldungen: the same rule over many registrations
+ * in a FIXED four queries, instead of four per row.
+ *
+ * The page asks about every registration it renders, so the serial version was
+ * ~4N sequential round trips on every load — fine at today's 36 rows, linear in
+ * the table forever after. The probes are the same four; they just carry every
+ * registration's keys at once and the classifier runs in memory.
+ *
+ * @returns {Promise<Map<number, {level: string, candidates: object[]}>>} keyed by registration id
+ */
+export async function findDuplicateCandidatesBatch(db, regs) {
+  const emails = new Set()
+  const surnames = new Set()
+  const dobs = new Set()
+  const phones = new Set()
+  for (const r of regs) {
+    const e = emailKey(r.email); if (e) emails.add(e)
+    const l = String(r.nachname || '').trim().toLowerCase(); if (l) surnames.add(l)
+    const d = dateKey(r.geburtsdatum); if (d) dobs.add(d)
+    const p = normalizePhone(r.telefon_mobil); if (p.ok && p.value) phones.add(p.value)
+  }
+
+  const probes = []
+  if (emails.size) probes.push(db('members').whereRaw('LOWER(email) = ANY(?)', [[...emails]]).select(MEMBER_MATCH_FIELDS))
+  if (surnames.size) probes.push(db('members').whereRaw('LOWER(last_name) = ANY(?)', [[...surnames]]).select(MEMBER_MATCH_FIELDS))
+  if (dobs.size) probes.push(db('members').whereIn('birthdate', [...dobs]).select(MEMBER_MATCH_FIELDS))
+  if (phones.size) probes.push(db('members').whereIn('phone', [...phones]).select(MEMBER_MATCH_FIELDS))
+
+  const rows = probes.length ? (await Promise.all(probes)).flat() : []
+  const out = new Map()
+  for (const r of regs) {
+    // Classifying against the WHOLE preloaded set is safe — it is a superset of
+    // what this row's own four probes would have returned, and every candidate
+    // still has to satisfy the same per-row rules to be kept.
+    out.set(r.id, classifyCandidates(r, rows, { excludeMemberId: r.member }))
+  }
+  return out
 }
 
 /** The blocking subset — an ACTIVE member who IS this person. Used by both the
