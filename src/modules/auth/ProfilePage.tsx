@@ -332,10 +332,10 @@ export default function ProfilePage() {
             <img
               src={getFileUrl('members', user.id, user.photo)}
               alt={memberName(user)}
-              className="h-16 w-16 rounded-full object-cover ring-2 ring-brand-500/20 dark:ring-brand-400/30"
+              className="h-16 w-16 shrink-0 rounded-full object-cover ring-2 ring-brand-500/20 dark:ring-brand-400/30"
             />
           ) : (
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-brand-50 text-lg font-bold text-brand-600 ring-2 ring-brand-500/20 dark:bg-brand-900/30 dark:text-brand-400 dark:ring-brand-400/30">
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-brand-50 text-lg font-bold text-brand-600 ring-2 ring-brand-500/20 dark:bg-brand-900/30 dark:text-brand-400 dark:ring-brand-400/30">
               {initials}
             </div>
           )}

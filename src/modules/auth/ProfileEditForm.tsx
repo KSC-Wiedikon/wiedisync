@@ -565,10 +565,10 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
           <img
             src={currentPhoto}
             alt=""
-            className="h-16 w-16 rounded-full object-cover"
+            className="h-16 w-16 shrink-0 rounded-full object-cover"
           />
         ) : (
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gray-200 text-lg font-bold text-gray-500 dark:bg-gray-700 dark:text-gray-400">
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-gray-200 text-lg font-bold text-gray-500 dark:bg-gray-700 dark:text-gray-400">
             {initials}
           </div>
         )}

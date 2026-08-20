@@ -612,10 +612,10 @@ export default function RosterEditor() {
                     <img
                       src={getFileUrl('members', m.id, m.photo)}
                       alt=""
-                      className="h-6 w-6 rounded-full object-cover"
+                      className="h-6 w-6 shrink-0 rounded-full object-cover"
                     />
                   ) : (
-                    <div className="flex h-6 w-6 items-center justify-center rounded-full bg-gray-200 dark:bg-gray-600 text-xs text-gray-600 dark:text-gray-300">
+                    <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gray-200 dark:bg-gray-600 text-xs text-gray-600 dark:text-gray-300">
                       {memberFirstName(m)[0]}{m.last_name?.[0]}
                     </div>
                   )}

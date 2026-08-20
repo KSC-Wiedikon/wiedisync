@@ -367,9 +367,9 @@ export default function TopNav({ unreadCount, onOpenNotifications, memberTeams }
                 aria-label={t('myProfile')}
               >
                 {user.photo ? (
-                  <img src={getFileUrl('members', user.id, user.photo)} alt="" className="h-8 w-8 rounded-full object-cover" />
+                  <img src={getFileUrl('members', user.id, user.photo)} alt="" className="h-8 w-8 shrink-0 rounded-full object-cover" />
                 ) : (
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200 text-xs font-bold text-gray-500 dark:bg-brand-800 dark:text-gray-300">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-200 text-xs font-bold text-gray-500 dark:bg-brand-800 dark:text-gray-300">
                     {`${memberFirstName(user)[0] ?? ''}${user.last_name?.[0] ?? ''}`.toUpperCase()}
                   </div>
                 )}

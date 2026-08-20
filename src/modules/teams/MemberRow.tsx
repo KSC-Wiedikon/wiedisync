@@ -156,7 +156,7 @@ export default function MemberRow({ memberTeam, teamSlug, team, canEdit, isAdmin
                 role="button"
                 tabIndex={0}
                 aria-label={displayName}
-                className="h-8 w-8 cursor-pointer rounded-full object-cover"
+                className="h-8 w-8 shrink-0 cursor-pointer rounded-full object-cover"
                 onClick={() => setLightboxOpen(true)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') {
@@ -173,7 +173,7 @@ export default function MemberRow({ memberTeam, teamSlug, team, canEdit, isAdmin
               />
             </>
           ) : (
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200 text-xs font-medium text-gray-600 dark:text-gray-400">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-200 text-xs font-medium text-gray-600 dark:text-gray-400">
               {initials}
             </div>
           )}
