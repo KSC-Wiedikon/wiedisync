@@ -34,12 +34,18 @@ interface EventCardProps {
   onParticipationSaved?: () => void
 }
 
+/** Status shown on the card's left-edge banner. `mixed` is not a participation
+ *  status — it's what a per-day event looks like when the member answered its
+ *  sessions differently (some yes, some no), which has no single colour. */
+type BannerStatus = Participation['status'] | 'mixed'
+
 const statusBorderColor: Record<string, string> = {
   confirmed: 'bg-green-500 dark:bg-green-400',
   tentative: 'bg-yellow-500 dark:bg-yellow-400',
   declined: 'bg-red-500 dark:bg-red-400',
   waitlisted: 'bg-orange-500 dark:bg-orange-400',
   absent: 'bg-gray-400 dark:bg-gray-500',
+  mixed: 'bg-gradient-to-b from-green-500 to-red-500 dark:from-green-400 dark:to-red-400',
 }
 
 export default function EventCard({ event, onClick, onEdit, onDelete, onOpenRoster, participations, myParticipation, onParticipationSaved }: EventCardProps) {
@@ -55,8 +61,24 @@ export default function EventCard({ event, onClick, onEdit, onDelete, onOpenRost
   const canRSVP = user && !guestExcluded && (
     !event.teams?.length || event.teams.some((tid) => canParticipateIn(teamId(tid)))
   )
-  const myStatus = myParticipation?.status ?? null
   const warnings = getEventWarnings(participations ?? [], event.min_participants)
+
+  // The banner used to read `myParticipation.status` — the batch-fetched SERVER
+  // row — while the Yes/Maybe/No buttons right below it read their own optimistic
+  // state. So the button flipped on click and the coloured strip only caught up a
+  // refetch later (and for a brand-new RSVP appeared out of nowhere). The RSVP
+  // control now reports the status it is actually displaying and the banner
+  // follows it, so both change in the same frame.
+  //
+  // It also fixes per-day events: `myParticipation` is whichever of the member's
+  // per-session rows the batch map happened to keep last, so a member who
+  // confirmed day 1 and declined day 2 got an arbitrary colour. The session
+  // control reports its aggregate instead ('mixed' when the days disagree).
+  const rsvpControlsVisible = !!canRSVP && !event.cancelled
+  const [liveStatus, setLiveStatus] = useState<BannerStatus | null | undefined>(undefined)
+  const myStatus: BannerStatus | null = rsvpControlsVisible && liveStatus !== undefined
+    ? liveStatus
+    : (myParticipation?.status ?? null)
 
   return (
     <div
@@ -181,12 +203,14 @@ export default function EventCard({ event, onClick, onEdit, onDelete, onOpenRost
               <EventCardSessionParticipation
                 event={event}
                 onSaved={onParticipationSaved}
+                onStatusChange={setLiveStatus}
               />
             ) : (
               <EventCardParticipation
                 event={event}
                 existingParticipation={myParticipation}
                 onSaved={onParticipationSaved}
+                onStatusChange={setLiveStatus}
               />
             )}
             <div className="flex items-center gap-2">
@@ -212,7 +236,7 @@ export default function EventCard({ event, onClick, onEdit, onDelete, onOpenRost
 }
 
 /** Inline Yes/Maybe/No buttons for event cards — matches training/game card pattern, no dropdown overflow */
-function EventCardParticipation({ event, existingParticipation, onSaved }: { event: Event; existingParticipation?: Participation; onSaved?: () => void }) {
+function EventCardParticipation({ event, existingParticipation, onSaved, onStatusChange }: { event: Event; existingParticipation?: Participation; onSaved?: () => void; onStatusChange?: (status: Participation['status'] | null) => void }) {
   const { t } = useTranslation('participation')
   const { user, isStaffOnlyForTeams } = useAuth()
   const isStaff = isStaffOnlyForTeams((event.teams ?? []).map((tm) => teamId(tm)))
@@ -249,6 +273,12 @@ function EventCardParticipation({ event, existingParticipation, onSaved }: { eve
     const timer = setTimeout(() => setSaveConfirmed(false), 2000)
     return () => clearTimeout(timer)
   }, [saveConfirmed])
+
+  // Report what these buttons are showing so the card's left-edge banner can
+  // paint the same thing in the same frame. `displayStatus` already folds in the
+  // optimistic value and reverts to the server row if the save throws, so the
+  // banner self-corrects without any extra bookkeeping.
+  useEffect(() => { onStatusChange?.(displayStatus) }, [displayStatus, onStatusChange])
 
   const setStatus = useCallback(async (status: Participation['status'], note?: string) => {
     if (!user) return
@@ -372,7 +402,7 @@ function EventCardParticipation({ event, existingParticipation, onSaved }: { eve
  *  did that, which is why the roster's day tabs showed 0 while Overall showed
  *  N/2). Aggregate status: all-same → that button is active; mixed → no button
  *  active, and an "X/Y confirmed" hint shows. */
-function EventCardSessionParticipation({ event, onSaved }: { event: Event; onSaved?: () => void }) {
+function EventCardSessionParticipation({ event, onSaved, onStatusChange }: { event: Event; onSaved?: () => void; onStatusChange?: (status: Participation['status'] | 'mixed' | null | undefined) => void }) {
   const { t } = useTranslation('participation')
   const { t: te } = useTranslation('events')
   const { user, isStaffOnlyForTeams } = useAuth()
@@ -427,6 +457,21 @@ function EventCardSessionParticipation({ event, onSaved }: { event: Event; onSav
     ? getDeadlineDate(event.respond_by, event.start_date ? formatTime(event.start_date) : undefined) < new Date()
     : false
   const isLocked = deadlinePassed
+
+  // Same reporter as the whole-event control, but the value that matters here is
+  // the AGGREGATE across sessions — 'mixed' when the member answered the days
+  // differently, which is exactly the case the banner used to render as an
+  // arbitrary single colour. Declared above the `total === 0` early return so the
+  // hook order stays stable.
+  //
+  // `undefined` while this control's own two queries are still in flight: it means
+  // "I have nothing to say yet", so the banner keeps showing the batch-fetched
+  // server row instead of blinking off and back on — which is the very lag this
+  // change is here to remove.
+  const sessionDataReady = sessionsRaw !== undefined && myRowsRaw !== undefined
+  useEffect(() => {
+    onStatusChange?.(sessionDataReady ? (aggregate ?? (mixed ? 'mixed' : null)) : undefined)
+  }, [sessionDataReady, aggregate, mixed, onStatusChange])
 
   const setAll = useCallback(async (status: Participation['status']) => {
     if (!user || savingAll || total === 0) return

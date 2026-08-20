@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Pencil, ChevronDown, Check, Download, FileText, Image as ImageIcon, FileType, X, HelpCircle, Hourglass, Minus, Users } from 'lucide-react'
+import { Pencil, ChevronDown, Check, Download, FileText, Image as ImageIcon, FileType, X, HelpCircle, Hourglass, Minus, Users, UserCog } from 'lucide-react'
 import Modal from '@/components/Modal'
 import {
   DropdownMenu,
@@ -60,6 +60,10 @@ interface ParticipationRosterModalProps {
    *  — they can't reply (UI hides buttons + server rejects), so showing them as
    *  "not responded" just inflates the list. */
   excludedGuestLevels?: number[]
+  /** `events.invited_roles` — the roles this event was targeted at. Drives the
+   *  role half of the filter row; absent/empty (every event on prod today) means
+   *  no role dropdown is offered at all. */
+  invitedRoles?: string[] | null
   /** Optional override for the activity-kind line shown above the title in
    *  PNG/PDF exports and prepended to CSV metadata. Defaults to the
    *  translated activity type ("Training" / "Game" / "Event"). Game call
@@ -80,6 +84,31 @@ function mergeGameGuests(roster: Member[], guests: Member[]): Member[] {
   if (guests.length === 0) return roster
   const seen = new Set(roster.map((m) => String(m.id)))
   return [...roster, ...guests.filter((g) => !seen.has(String(g.id)))]
+}
+
+/** Both naming conventions for one "Edited by …" attribution. The on-screen
+ *  roster lists people by first name, the PNG/PDF export by full legal name —
+ *  the attribution line has to follow whichever surface it is printed on, or it
+ *  reads as a second, contradictory naming scheme two lines below the first. */
+type EditorLabel = { short: string; full: string }
+
+/** Short editor label for somebody who is NOT on this roster (an admin, a coach
+ *  of another team): first name + last initial. `disambiguateFirstNames` can't
+ *  help here — it only knows the roster — so the initial is always included. */
+function editorLabelFor(m: Pick<Member, 'first_name' | 'last_name'> & { nickname?: string | null }): EditorLabel | null {
+  const first = ((m.nickname && m.nickname.trim()) || m.first_name || '').trim()
+  const last = (m.last_name ?? '').trim()
+  const full = `${m.first_name ?? ''} ${last}`.trim()
+  if (!first && !last) return null
+  return { short: first ? (last ? `${first} ${last[0]}.` : first) : last, full: full || first || last }
+}
+
+/** `invited_roles` values that are a function ON A TEAM rather than a column on
+ *  `members` — resolved from the coach / team_responsible / captain junctions. */
+const TEAM_FUNCTION_ROLES: Record<string, 'coach' | 'tr' | 'captain'> = {
+  coach: 'coach',
+  team_responsible: 'tr',
+  captain: 'captain',
 }
 
 /** Sort comparator: by first_name then last_name, locale-aware + case-insensitive. */
@@ -199,12 +228,17 @@ export default function ParticipationRosterModal({
   showRsvpTime = true,
   allowMaybe = true,
   excludedGuestLevels,
+  invitedRoles,
   activityKind,
 }: ParticipationRosterModalProps) {
   const { t, i18n } = useTranslation('participation')
   const { t: te } = useTranslation('events')
   const { t: ta } = useTranslation('absences')
   const { t: tt } = useTranslation('teams')
+  // Role chips reuse the `invitations` namespace's `role_*` keys — the same
+  // labels EventForm offers when picking the audience and EventDetailModal
+  // shows as the event's targeting chips.
+  const { t: tv } = useTranslation('invitations')
   const { members, teamsByMember, isLoading: membersLoading } = useMultiTeamMembers(teamIds)
 
   // Players this game was opened to from outside its own roster (migration 271).
@@ -259,6 +293,9 @@ export default function ParticipationRosterModal({
   // Guest filter (multi-team events with guests). Narrows the whole modal to
   // guest players (member_teams.guest_level > 0), combinable with the team filter.
   const [guestsOnly, setGuestsOnly] = useState(false)
+  // Role filter (role-targeted events only). `null` = all roles; a non-empty Set
+  // keeps members holding at least one selected role. ANDed with the team filter.
+  const [selectedRoles, setSelectedRoles] = useState<Set<string> | null>(null)
 
   // Fetch team leadership roles (coach, captain, team_responsible)
   const { data: teamsRaw } = useCollection<Team>('teams', {
@@ -320,6 +357,7 @@ export default function ParticipationRosterModal({
       setStatusFilter(null)
       setSelectedTeams(null)
       setGuestsOnly(false)
+      setSelectedRoles(null)
       setEditingMemberId(null)
     }
   }
@@ -377,7 +415,17 @@ export default function ParticipationRosterModal({
     const uniqueMemberIds = [...new Set(clubWideParticipations.map(p => p.member))]
     fetchAllItems<Member>('members', {
       filter: { id: { _in: uniqueMemberIds } },
-      fields: ['id', 'nickname', 'first_name', 'last_name', 'photo'],
+      // `user` is load-bearing, exactly as in the staff fetch below: without it
+      // `member.user` is undefined, getEditAttribution() reads that as "this
+      // member cannot self-edit", and EVERY row of a club-wide roster printed a
+      // bogus "Edited to <status> by <the member themselves>" line. The
+      // team-based path never hit it because it fetches `member.*`.
+      // `role` + the licence booleans back the role filter (invited_roles); all
+      // of these are club-wide readable (MEMBER_VISIBLE_FIELDS).
+      fields: [
+        'id', 'nickname', 'first_name', 'last_name', 'photo', 'user', 'role',
+        'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn1_bb', 'otn2_bb', 'referee_bb',
+      ],
     })
       .then(m => setClubWideMembers(m.sort(byFirstThenLastName)))
       .catch(() => setClubWideMembers([]))
@@ -394,15 +442,6 @@ export default function ParticipationRosterModal({
     if (!excludedGuestLevels?.length) return null
     return new Set(excludedGuestLevels.map((n) => Number(n)))
   }, [excludedGuestLevels])
-
-  // Team filter is only meaningful for a multi-team, non-club-wide event.
-  // `null`/empty Set = all teams (no narrowing).
-  const teamFilterActive = !isClubWide && teamIds.length > 1 && selectedTeams != null && selectedTeams.size > 0
-  const memberInSelectedTeams = useCallback((memberTeamIds: string[] | undefined): boolean => {
-    if (!teamFilterActive) return true
-    if (!memberTeamIds || memberTeamIds.length === 0) return false
-    return memberTeamIds.some((tid) => selectedTeams!.has(String(tid)))
-  }, [teamFilterActive, selectedTeams])
 
   // Full roster (guest-excluded, NOT team-filtered). Drives the participation /
   // absence FETCHES and the staff-vs-player split — those must stay stable when
@@ -426,6 +465,108 @@ export default function ParticipationRosterModal({
 
   const rosterMemberIds = rosterMembers.map((m) => m.id)
 
+  // ── Team buckets for the filter ──────────────────────────────────────────
+  //
+  // A club-wide event invites nobody in particular, so `teamIds` is empty,
+  // `useMultiTeamMembers` has nothing to key on and `teamsByMember` comes back
+  // empty — which is why the 108-person Photoday roster could only be sliced by
+  // response. Resolve the respondents' OWN teams straight off the junction
+  // instead: a single-level `member _in` filter, never a walk through
+  // `members.member_teams`, which is the deep-M2M-vs-policy silent-[] trap.
+  // `member_teams` is club-wide readable (MEMBER_POLICY), so this works for an
+  // ordinary member opening the roster, not just staff.
+  const { data: clubWideTeamRows } = useCollection<{
+    member: string | number
+    team: { id: string | number; name?: string; active?: boolean } | string | number | null
+  }>('member_teams', {
+    filter: { member: { _in: rosterMemberIds.length > 0 ? rosterMemberIds : [-1] } },
+    fields: ['member', 'team.id', 'team.name', 'team.active'],
+    all: true,
+    enabled: isClubWide && open && rosterMemberIds.length > 0,
+  })
+
+  const { clubWideTeamsByMember, clubWideTeamNames } = useMemo(() => {
+    const byMember = new Map<string, string[]>()
+    const names = new Map<string, string>()
+    for (const row of clubWideTeamRows ?? []) {
+      const team = asObj<{ id: string | number; name?: string; active?: boolean }>(row.team)
+      // Gate on `teams.active`, never on `member_teams.season`: rosters are
+      // CLONED forward at rollover and the old junction rows are never deleted,
+      // so an inactive team is last season's membership and would offer a dead
+      // bucket in the dropdown.
+      if (!team || team.active === false) continue
+      const tid = String(team.id)
+      // `member` comes back as a scalar FK for the field list above, but read it
+      // the way the rest of this file reads relations so a widened `fields:`
+      // (which would expand it into an object) can't silently key every row
+      // under "[object Object]".
+      const mid = String(asObj<Member>(row.member)?.id ?? row.member)
+      names.set(tid, team.name ?? tid)
+      const arr = byMember.get(mid)
+      if (arr) { if (!arr.includes(tid)) arr.push(tid) }
+      else byMember.set(mid, [tid])
+    }
+    return { clubWideTeamsByMember: byMember, clubWideTeamNames: names }
+  }, [clubWideTeamRows])
+
+  const effectiveTeamsByMember = isClubWide ? clubWideTeamsByMember : teamsByMember
+  const effectiveTeamNameById = isClubWide ? clubWideTeamNames : teamNameById
+  // What the team dropdown offers: the event's invited teams normally, the teams
+  // the respondents actually belong to when the event is club-wide.
+  const filterTeamIds: string[] = isClubWide
+    ? [...clubWideTeamNames.keys()].sort((a, b) =>
+        (clubWideTeamNames.get(a) ?? '').localeCompare(clubWideTeamNames.get(b) ?? '', undefined, { sensitivity: 'base' }))
+    : teamIds.map(String)
+
+  // One bucket is not a filter — a single-team activity keeps the dropdown hidden
+  // exactly as before. `null`/empty Set = all teams (no narrowing).
+  const teamFilterActive = filterTeamIds.length > 1 && selectedTeams != null && selectedTeams.size > 0
+  const memberInSelectedTeams = useCallback((memberTeamIds: string[] | undefined): boolean => {
+    if (!teamFilterActive) return true
+    if (!memberTeamIds || memberTeamIds.length === 0) return false
+    return memberTeamIds.some((tid) => selectedTeams!.has(String(tid)))
+  }, [teamFilterActive, selectedTeams])
+
+  // ── Role buckets (role-targeted events) ──────────────────────────────────
+  const roleOptions = useMemo(() => [...new Set((invitedRoles ?? []).map(String))], [invitedRoles])
+  const roleFilterAvailable = roleOptions.length > 0
+  const roleFilterActive = roleFilterAvailable && selectedRoles != null && selectedRoles.size > 0
+
+  // coach / team_responsible / captain aren't columns on `members` — they're
+  // junctions on `teams`. The team-scoped `teams` query above only covers the
+  // event's own teams, so resolve them club-wide, and only when a leadership
+  // role is actually one of the buckets being offered.
+  const needsLeadershipRoles = roleFilterAvailable && roleOptions.some((r) => r in TEAM_FUNCTION_ROLES)
+  const { data: allActiveTeamsRaw } = useCollection<Team>('teams', {
+    filter: { active: { _eq: true } },
+    fields: ['id', 'captain', 'coach.members_id', 'team_responsible.members_id'],
+    all: true,
+    enabled: open && needsLeadershipRoles,
+  })
+  const roleHolders = useMemo(() => {
+    const holders = { coach: new Set<string>(), tr: new Set<string>(), captain: new Set<string>() }
+    for (const team of allActiveTeamsRaw ?? []) {
+      for (const id of flattenMemberIds(team.coach)) holders.coach.add(String(id))
+      for (const id of flattenMemberIds(team.team_responsible)) holders.tr.add(String(id))
+      for (const id of flattenMemberIds(team.captain)) holders.captain.add(String(id))
+    }
+    return holders
+  }, [allActiveTeamsRaw])
+
+  /** Does this member hold `role`, in the same sense `matchesRole()` means it for
+   *  the logged-in user? Three shapes: a team function (junction on `teams`), a
+   *  base account role (the `members.role` array), or a licence flag (its own
+   *  boolean column, migration 067). `is_spielplaner` is deliberately NOT
+   *  club-wide readable, so it resolves to false rather than throwing a 403. */
+  const memberMatchesRole = useCallback((m: Member, role: string): boolean => {
+    const fn = TEAM_FUNCTION_ROLES[role]
+    if (fn) return roleHolders[fn].has(String(m.id))
+    if (Array.isArray(m.role) && (m.role as string[]).includes(role)) return true
+    // `otn_bb` is the coarse legacy chip; Basketplan issues the two levels.
+    if (role === 'otn_bb') return m.otn1_bb === true || m.otn2_bb === true
+    return (m as unknown as Record<string, unknown>)[role] === true
+  }, [roleHolders])
+
   // Guest players (member_teams.guest_level > 0) → memberId → level. Surfaced
   // with a "Guest <level>" badge in each row so a coach can tell core players
   // from guests borrowed off another team, and used by the guest filter. Empty
@@ -445,8 +586,8 @@ export default function ParticipationRosterModal({
 
   // Filtered view — narrows the summary counts, the visible list, the waitlist
   // and the export to the selected team(s) and/or guests. Passthrough when no
-  // filter is active (single-team, club-wide, or "All").
-  const memberList: Member[] = (teamFilterActive || guestsOnly)
+  // filter is active (single-team or "All").
+  const teamFilteredMembers: Member[] = (teamFilterActive || guestsOnly)
     ? rosterMembers.filter((m) => {
         const isGuest = guestLevels.has(String(m.id))
         // "Guests" bucket: every guest player (guest_level > 0), team-independent.
@@ -455,10 +596,17 @@ export default function ParticipationRosterModal({
         // borrowed onto a team are deliberately excluded here — they live in
         // the separate "Guests" bucket — so filtering "H3" shows H3's own
         // roster rather than H3 + everyone borrowed onto it.
-        if (teamFilterActive && !isGuest && memberInSelectedTeams(teamsByMember.get(String(m.id)))) return true
+        if (teamFilterActive && !isGuest && memberInSelectedTeams(effectiveTeamsByMember.get(String(m.id)))) return true
         return false
       })
     : rosterMembers
+
+  // Roles narrow ON TOP of the team/guest selection (AND), so "D1" + "Coach"
+  // reads as "D1's coaches" rather than "D1 plus every coach in the club".
+  // Within the role dropdown itself the selections are OR-ed, like teams.
+  const memberList: Member[] = roleFilterActive
+    ? teamFilteredMembers.filter((m) => [...selectedRoles!].some((r) => memberMatchesRole(m, r)))
+    : teamFilteredMembers
 
   // For regular (non-session) mode, filter by session tab if active
   const { participations: regularParticipations, isLoading: regularLoading } = useTeamParticipations(
@@ -885,7 +1033,7 @@ export default function ParticipationRosterModal({
   // is_staff RSVP by a non-leader) are hidden while filtering — they can't be
   // attributed to the selected team(s).
   const staffMemberInSelectedTeams = (id: string): boolean =>
-    memberInSelectedTeams([...(leadershipTeamsByMember.get(String(id)) ?? [])])
+    memberInSelectedTeams([...(leadershipTeamsByMember.get(String(id)) ?? effectiveTeamsByMember.get(String(id)) ?? [])])
   // Never list a player-coach in the staff section: they already appear in the
   // player list with a "(Coach)" badge (and their confirmed player row feeds
   // "Staff present"). `staffMembers` is seeded async from the coach/TR
@@ -1030,18 +1178,37 @@ export default function ParticipationRosterModal({
   // belong to people outside this team (e.g. an admin editing the roster from
   // another team's perspective). Cheap rebuild because `members` only changes
   // when the team set or roster shape changes.
-  const [externalEditorNames, setExternalEditorNames] = useState<Map<string, string>>(new Map())
-  const editorNameByUserId = useMemo(() => {
-    const m = new Map<string, string>()
+  const [externalEditorNames, setExternalEditorNames] = useState<Map<string, EditorLabel>>(new Map())
+
+  // Short display names: first name only, disambiguated with last-name initials.
+  // Declared here rather than next to its render sites because the attribution
+  // map below is keyed off it.
+  const displayNames = useMemo(
+    () => disambiguateFirstNames([...memberList, ...staffMembers]),
+    [memberList, staffMembers],
+  )
+
+  // Editor labels for the "Edited by …" lines. These used to spell out the full
+  // legal name while the row above them showed only "Aaliyah" — two different
+  // naming conventions two lines apart. Everyone on the roster now reads with the
+  // exact label their own row carries; an editor from outside the roster (an
+  // admin, a coach of another team) gets the same shape, first name + last
+  // initial, built in the fetch below.
+  const editorLabelByUserId = useMemo(() => {
+    const m = new Map<string, EditorLabel>()
     const all = [...memberList, ...staffMembers]
     for (const member of all) {
-      if (member.user) m.set(member.user, `${member.first_name ?? ''} ${member.last_name ?? ''}`.trim() || t('staffFallback', { defaultValue: 'Staff' }))
+      if (!member.user) continue
+      m.set(member.user, {
+        short: displayNames.get(String(member.id)) || memberFirstName(member) || t('staffFallback', { defaultValue: 'Staff' }),
+        full: `${member.first_name ?? ''} ${member.last_name ?? ''}`.trim() || t('staffFallback', { defaultValue: 'Staff' }),
+      })
     }
-    for (const [uid, name] of externalEditorNames) {
-      if (!m.has(uid)) m.set(uid, name)
+    for (const [uid, label] of externalEditorNames) {
+      if (!m.has(uid)) m.set(uid, label)
     }
     return m
-  }, [memberList, staffMembers, externalEditorNames, t])
+  }, [memberList, staffMembers, displayNames, externalEditorNames, t])
 
   // Fetch display names for editor user IDs that don't belong to anyone on
   // the roster — typically admins (or coaches of a different team) editing
@@ -1063,7 +1230,9 @@ export default function ParticipationRosterModal({
     const ids = [...missing]
     fetchAllItems<Member>('members', {
       filter: { user: { _in: ids } },
-      fields: ['user', 'first_name', 'last_name'],
+      // `nickname` so an outside editor reads under the same name the app shows
+      // them by everywhere else (migration 215).
+      fields: ['user', 'nickname', 'first_name', 'last_name'],
     })
       .then((rows) => {
         if (rows.length === 0) return
@@ -1072,8 +1241,8 @@ export default function ParticipationRosterModal({
           for (const r of rows) {
             const uid = (r as Member & { user?: string }).user
             if (!uid || next.has(uid)) continue
-            const name = `${r.first_name ?? ''} ${r.last_name ?? ''}`.trim()
-            if (name) next.set(uid, name)
+            const label = editorLabelFor(r)
+            if (label) next.set(uid, label)
           }
           return next
         })
@@ -1093,10 +1262,12 @@ export default function ParticipationRosterModal({
    *  own status. Members with no linked directus_users account (shell
    *  records) can't self-edit, so any populated tracker is by definition a
    *  staff edit. */
-  function getEditAttribution(member: Member, p: Participation | null): {
+  function getEditAttribution(member: Member, p: Participation | null, nameStyle: keyof EditorLabel = 'short'): {
     status: { name: string; status: string; at: string } | null
     note: { name: string; at: string } | null
   } {
+    const editorName = (uid: string) =>
+      editorLabelByUserId.get(uid)?.[nameStyle] ?? t('staffFallback', { defaultValue: 'Staff' })
     // App-wide format: `dd.mm.yyyy, HH:MM` (Swiss dot date + 24h time).
     // formatDateTimeCompact (= formatDateCompactZurich + formatTimeZurich)
     // is hardcoded to `de-CH` so the format is uniform regardless of the
@@ -1106,14 +1277,14 @@ export default function ParticipationRosterModal({
     let noteAttr: { name: string; at: string } | null = null
     if (p?.last_status_edited_by && p.last_status_edited_at && (!member.user || member.user !== p.last_status_edited_by)) {
       statusAttr = {
-        name: editorNameByUserId.get(p.last_status_edited_by) ?? t('staffFallback', { defaultValue: 'Staff' }),
+        name: editorName(p.last_status_edited_by),
         status: statusLabelText(member.id, p.status ?? null),
         at: fmtAt(p.last_status_edited_at),
       }
     }
     if (p?.last_note_edited_by && p.last_note_edited_at && (!member.user || member.user !== p.last_note_edited_by)) {
       noteAttr = {
-        name: editorNameByUserId.get(p.last_note_edited_by) ?? t('staffFallback', { defaultValue: 'Staff' }),
+        name: editorName(p.last_note_edited_by),
         at: fmtAt(p.last_note_edited_at),
       }
     }
@@ -1182,7 +1353,10 @@ export default function ParticipationRosterModal({
 
   const exportRows = useMemo<RosterExportRow[]>(() => {
     const formatAttribution = (member: Member, p: Participation | null): string => {
-      const { status: statusAttr, note: noteAttr } = getEditAttribution(member, p)
+      // 'full': the export's Name column is full legal names (coaches print these
+      // and clip them to a board), so the attribution matches THAT surface — the
+      // on-screen roster, which shows first names, gets the short label instead.
+      const { status: statusAttr, note: noteAttr } = getEditAttribution(member, p, 'full')
       const lines: string[] = []
       if (statusAttr) lines.push(t('editedByOn', { defaultValue: 'Edited to {{status}} by {{name}} on {{at}}', ...statusAttr }))
       if (noteAttr) lines.push(t('noteEditedByOn', { defaultValue: 'Note edited by {{name}} on {{at}}', ...noteAttr }))
@@ -1440,12 +1614,6 @@ export default function ParticipationRosterModal({
     }
   }, [exporting, exportRows, exportMeta, t])
 
-  // Short display names: first name only, disambiguated with last-name initials.
-  const displayNames = useMemo(
-    () => disambiguateFirstNames([...memberList, ...staffMembers]),
-    [memberList, staffMembers],
-  )
-
   const statusLabels: Record<string, string> = {
     confirmed: t('confirmed'),
     tentative: t('tentative'),
@@ -1532,15 +1700,18 @@ export default function ParticipationRosterModal({
           // so a team's count matches what selecting that team now shows (core
           // roster only).
           if (guestMemberIds.has(String(mem.id))) continue
-          for (const tid of teamsByMember.get(String(mem.id)) ?? []) {
+          for (const tid of effectiveTeamsByMember.get(String(mem.id)) ?? []) {
             teamMemberCounts.set(tid, (teamMemberCounts.get(tid) ?? 0) + 1)
           }
         }
-        const showTeamFilter = !isClubWide && teamIds.length > 1
+        // Offered whenever there is more than one bucket to choose between —
+        // which now includes club-wide and role-targeted events, whose buckets
+        // are the teams the respondents themselves belong to.
+        const showTeamFilter = filterTeamIds.length > 1
         const labelParts: string[] = []
         if (teamFilterActive) {
           labelParts.push(selectedTeams!.size === 1
-            ? (teamNameById.get(String([...selectedTeams!][0])) ?? t('allTeams', { defaultValue: 'All teams' }))
+            ? (effectiveTeamNameById.get(String([...selectedTeams!][0])) ?? t('allTeams', { defaultValue: 'All teams' }))
             : t('teamsCount', { count: selectedTeams!.size, defaultValue: '{{count}} teams' }))
         }
         if (guestsOnly) labelParts.push(t('guestsFilterLabel', { defaultValue: 'Guests' }))
@@ -1553,7 +1724,28 @@ export default function ParticipationRosterModal({
             if (next.has(teamId)) next.delete(teamId)
             else next.add(teamId)
             // Empty or every-team-selected both collapse to "all" (null).
-            if (next.size === 0 || next.size === teamIds.length) return null
+            if (next.size === 0 || next.size === filterTeamIds.length) return null
+            return next
+          })
+        }
+        // Role buckets, offered only when the event actually targets roles.
+        const roleMemberCounts = new Map<string, number>()
+        if (roleFilterAvailable) {
+          for (const role of roleOptions) {
+            roleMemberCounts.set(role, rosterMembers.reduce((n, mem) => n + (memberMatchesRole(mem, role) ? 1 : 0), 0))
+          }
+        }
+        const roleTriggerLabel = roleFilterActive
+          ? (selectedRoles!.size === 1
+              ? tv(`role_${[...selectedRoles!][0]}`, { ns: 'invitations' })
+              : t('rolesCount', { count: selectedRoles!.size, defaultValue: '{{count}} roles' }))
+          : t('allRoles', { defaultValue: 'All roles' })
+        const toggleRole = (role: string) => {
+          setSelectedRoles((prev) => {
+            const next = new Set(prev ?? [])
+            if (next.has(role)) next.delete(role)
+            else next.add(role)
+            if (next.size === 0 || next.size === roleOptions.length) return null
             return next
           })
         }
@@ -1582,7 +1774,7 @@ export default function ParticipationRosterModal({
                     <span className="text-xs text-gray-400 dark:text-gray-500">{rosterMembers.length}</span>
                   </DropdownMenuCheckboxItem>
                   <DropdownMenuSeparator />
-                  {teamIds.map((tid) => {
+                  {filterTeamIds.map((tid) => {
                     const id = String(tid)
                     return (
                       <DropdownMenuCheckboxItem
@@ -1591,7 +1783,7 @@ export default function ParticipationRosterModal({
                         onSelect={(e) => { e.preventDefault(); toggleTeam(id) }}
                         className="cursor-pointer"
                       >
-                        <span className="flex-1 break-words">{teamNameById.get(id) ?? id}</span>
+                        <span className="flex-1 break-words">{effectiveTeamNameById.get(id) ?? id}</span>
                         <span className="text-xs text-gray-400 dark:text-gray-500">{teamMemberCounts.get(id) ?? 0}</span>
                       </DropdownMenuCheckboxItem>
                     )
@@ -1609,6 +1801,43 @@ export default function ParticipationRosterModal({
                       </DropdownMenuCheckboxItem>
                     </>
                   )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+            {roleFilterAvailable && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    className="inline-flex min-h-[36px] items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                  >
+                    <UserCog className="h-4 w-4 text-gray-400" />
+                    <span>{roleTriggerLabel}</span>
+                    <ChevronDown className="h-3.5 w-3.5 text-gray-400" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="min-w-[220px]">
+                  <DropdownMenuLabel>{t('filterByRole', { defaultValue: 'Filter by role' })}</DropdownMenuLabel>
+                  <DropdownMenuCheckboxItem
+                    checked={!roleFilterActive}
+                    onSelect={(e) => { e.preventDefault(); setSelectedRoles(null) }}
+                    className="cursor-pointer"
+                  >
+                    <span className="flex-1">{t('allRoles', { defaultValue: 'All roles' })}</span>
+                    <span className="text-xs text-gray-400 dark:text-gray-500">{rosterMembers.length}</span>
+                  </DropdownMenuCheckboxItem>
+                  <DropdownMenuSeparator />
+                  {roleOptions.map((role) => (
+                    <DropdownMenuCheckboxItem
+                      key={role}
+                      checked={selectedRoles?.has(role) ?? false}
+                      onSelect={(e) => { e.preventDefault(); toggleRole(role) }}
+                      className="cursor-pointer"
+                    >
+                      <span className="flex-1 break-words">{tv(`role_${role}`, { ns: 'invitations' })}</span>
+                      <span className="text-xs text-gray-400 dark:text-gray-500">{roleMemberCounts.get(role) ?? 0}</span>
+                    </DropdownMenuCheckboxItem>
+                  ))}
                 </DropdownMenuContent>
               </DropdownMenu>
             )}

@@ -374,6 +374,7 @@ export default function EventsPage() {
         showRsvpTime={asTeams(rosterEvent?.teams).some(t => isFeatureEnabled(t.features_enabled, 'show_rsvp_time'))}
         allowMaybe={rosterEvent?.allow_maybe !== false}
         excludedGuestLevels={rosterEvent?.invite_guests === false ? ALL_GUEST_LEVELS : undefined}
+        invitedRoles={rosterEvent?.invited_roles}
       />
     </div>
   )

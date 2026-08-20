@@ -427,6 +427,7 @@ export default function EventDetailModal({ event, onClose }: EventDetailModalPro
         showRsvpTime={asTeams(event.teams).some(t => isFeatureEnabled(t.features_enabled, 'show_rsvp_time'))}
         allowMaybe={event.allow_maybe !== false}
         excludedGuestLevels={event.invite_guests === false ? ALL_GUEST_LEVELS : undefined}
+        invitedRoles={event.invited_roles}
       />
 
       <EventSignupsModal
