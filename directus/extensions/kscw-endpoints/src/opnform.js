@@ -56,9 +56,19 @@ async function getFormMeta(slug) {
   const form = json?.data || json
   const properties = Array.isArray(form?.properties) ? form.properties : []
   const meta = {
-    properties: properties.map((p) => ({
-      id: p.id, name: p.name, type: p.type,
-    })),
+    properties: properties.map((p) => {
+      // Choice lists for select/multi_select, so an admin correcting an answer
+      // picks from the same options the participant saw instead of retyping one
+      // by hand (a typo'd "Teilnahme" is a value the export cannot read back).
+      // ⚠ Only the option NAMES are exposed — this is the form's own public
+      // config, visible to anyone who opens the form, and deliberately not the
+      // rest of the property (prefill, logic, validation) which nothing here
+      // needs and which keeps the payload small.
+      const choice = (p && p.type && p[p.type] && Array.isArray(p[p.type].options))
+        ? p[p.type].options.map((o) => (o && o.name != null ? String(o.name) : String(o ?? ''))).filter(Boolean)
+        : null
+      return { id: p.id, name: p.name, type: p.type, ...(choice && choice.length ? { options: choice } : {}) }
+    }),
     title: form?.title || slug,
     expiresAt: Date.now() + FORM_META_CACHE_TTL_MS,
   }

@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import { Link } from 'react-router-dom'
 import { Info } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog'
@@ -83,7 +84,12 @@ export default function MemberRow({ memberTeam, teamSlug, team, canEdit, isAdmin
         ;(memberRef as Record<string, unknown>)[field] = value
       }
     } catch {
-      // ignore
+      // A silent catch here is what turned the staff-row 403 (migration 331)
+      // into "the app is broken": the cell just snapped back to its old value
+      // with no message, on every device, for every staff-only teammate. The
+      // write is already logged to Sentry + the JSONL by updateRecord — this
+      // only makes the failure visible to the person who caused it.
+      toast.error(t('common:errorSaving'))
     }
     setEditingField(null)
   }
@@ -111,7 +117,9 @@ export default function MemberRow({ memberTeam, teamSlug, team, canEdit, isAdmin
       logActivity('update', 'teams', team.id, { [roleKey]: nextIds })
       onTeamUpdate({ [roleKey]: (isJunction && saved[roleKey]) || junctionPayload })
     } catch {
-      // ignore
+      // Same reasoning as saveField: a rejected staff toggle must say so rather
+      // than leave the badge looking unchanged for no stated reason.
+      toast.error(t('common:errorSaving'))
     }
   }
 

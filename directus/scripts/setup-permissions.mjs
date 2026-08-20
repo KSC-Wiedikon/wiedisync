@@ -2111,6 +2111,37 @@ async function main() {
   }
   await setPerm(LEADER_POLICY, 'members', 'update', COACH_REQUESTED_TEAM, ['kscw_membership_active', 'wiedisync_active', 'requested_team'])
 
+  // Third update row: STAFF-ONLY people on a team I lead. A coach/TR who has no
+  // `member_teams` row for the team they coach (38 people across 25 active teams
+  // on 2026-08-20) is invisible to COACH_TEAM_MEMBERS above, yet TeamDetail's
+  // Staff section renders them from a separate fetch (`extraCoaches`) with the
+  // same editable number + position cells as any roster row. Every such edit
+  // 403'd and MemberRow.saveField swallowed it, so the value silently snapped
+  // back — reported as "I can't change my players" by D2's (volleyball) coach.
+  // Walks the member SIDE of each staff junction, named by migration 331
+  // (`members.coach_of` / `members.team_responsible_of`); before that migration
+  // there was no path from a member to the teams they are staff of.
+  // Fields stay ['position','number'] — the only two MemberRow.saveField writes.
+  // Deliberately NOT `coach_approved_team`: approval is a roster act and
+  // TeamDetail.handleApprove creates the member_teams row first, which puts the
+  // target inside COACH_TEAM_MEMBERS anyway.
+  const COACH_TEAM_STAFF_SCOPE = {
+    teams_id: {
+      active: { _eq: true },
+      _or: [
+        { coach: { members_id: { user: { _eq: '$CURRENT_USER' } } } },
+        { team_responsible: { members_id: { user: { _eq: '$CURRENT_USER' } } } },
+      ],
+    },
+  }
+  const COACH_TEAM_STAFF = {
+    _or: [
+      { coach_of: COACH_TEAM_STAFF_SCOPE },
+      { team_responsible_of: COACH_TEAM_STAFF_SCOPE },
+    ],
+  }
+  await setPerm(LEADER_POLICY, 'members', 'update', COACH_TEAM_STAFF, ['position', 'number'])
+
   // Coach Dashboard prefs — explicit read for Leader (Coach/TR).
   // PUBLIC_TEAM_FIELDS doesn't include these, so KSCW Member never sees them.
   await setPermRead(LEADER_POLICY, 'teams', null, LEADER_TEAM_DASHBOARD_FIELDS)

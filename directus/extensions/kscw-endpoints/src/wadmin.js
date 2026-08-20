@@ -658,6 +658,65 @@ export function registerWadmin(router, ctx) {
     }
   })
 
+  // ── current SV licence lookup ──────────────────────────────────────────────
+  //
+  // The signup table's SV-licence box renders `attendance.sv_license || <the form
+  // answer>` — so it shows whatever the participant typed at signup until a staff
+  // member overtypes it, and NEVER consults the member register. Licences the club
+  // corrects in wiedisync are therefore invisible here: on 2026-08-20, 20 of 49
+  // signups still displayed raw form input, and Paula Fiorella Farina's box read
+  // "0000000" (her own "not licensed yet") while member #729 had held 339816 for
+  // days. This route is what lets the box know.
+  //
+  // ⚠ Same narrow contract as member-addresses above, for the same reason: /admin
+  // cannot read `members` and must not start to. It returns ONLY the licence number
+  // and the member id, only for names ALREADY ON the caller's own signup list — so
+  // it cannot enumerate members or probe for an arbitrary person. No email, no
+  // birthdate, no address.
+  //
+  // ⚠ Surnames are matched as written AND with a parenthesised maiden name both
+  // stripped and used on its own: member #202 is stored "Duc (Fölmli)" and signed
+  // up as "Daniela Duc", which exact matching silently missed — the failure mode
+  // being a blank rather than an error, i.e. invisible.
+  router.get('/wadmin/scorer_courses/opnform/forms/:slug/member-licences', async (req, res) => {
+    if (!(await guardScorer(req, res))) return
+    try {
+      const listing = await listSubmissions(req.params.slug, { page: 1, perPage: 100 })
+      const fields = listing.fields || []
+      const idsOf = (re) => fields.filter((f) => re.test(String(f.name || ''))).map((f) => f.id)
+      const firstIds = idsOf(/vorname|first\s*name/i)
+      const lastIds = idsOf(/nachname|last\s*name/i)
+
+      const rows = await database('members').select('id', 'first_name', 'last_name', 'license_nr')
+      const byName = new Map()
+      const put = (k, v) => { if (byName.has(k)) byName.set(k, null); else byName.set(k, v) }
+      for (const m of rows) {
+        const raw = String(m.last_name || '')
+        const inner = (raw.match(/\((.*?)\)/) || [])[1] || ''
+        for (const variant of new Set([norm(raw), norm(raw.replace(/\(.*?\)/g, '')), norm(inner)])) {
+          if (!variant) continue
+          put(`${norm(m.first_name)}|${variant}`, m)
+        }
+      }
+
+      const out = {}
+      for (const row of listing.data || []) {
+        const answers = (row && row.data) || row || {}
+        const pick = (ids) => { for (const i of ids) { const v = answers[i]; if (v != null && v !== '') return String(v) } return '' }
+        const hit = byName.get(`${norm(pick(firstIds))}|${norm(pick(lastIds))}`)
+        // A member with no licence on file still answers, with licence null — the
+        // page needs to tell "we know them and they have none" apart from "we do
+        // not know who this is", and only the first of those is safe to act on.
+        if (hit) out[String(row.id)] = { member_id: hit.id, licence: hit.license_nr || null }
+      }
+      res.json({ data: out })
+    } catch (err) {
+      if (err.status === 404) return res.status(404).json({ error: 'Form not found' })
+      log.warn({ msg: `member-licences lookup failed: ${err.message}` })
+      res.status(500).json({ error: 'internal' })
+    }
+  })
+
   // ── exam scoresheets ───────────────────────────────────────────────────────
   //
   // Participants upload these themselves (scorer-exam.js). They are personal data and
