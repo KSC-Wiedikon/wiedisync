@@ -2,6 +2,13 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.96.1 — 2026-08-20
+
+### Avatars stay round when there is no photo
+
+- **A member without a photo showed a squashed oval, not a circle.** In a team roster on a narrow screen the initials badge was pressed down to 19 of its 32 pixels wide while keeping its full height. Members *with* a photo were never affected, which is why it looked arbitrary: a browser lets a circle of text shrink to the width of the text, but gives a picture its full size to hold on to.
+- The badge now keeps its shape everywhere it appears — team rosters, the add-member list, the profile page, the profile editor and the avatar in the top bar. On a tight row the name wraps one line further instead, exactly as it already did next to a photo.
+
 ## v1.96.0 — 2026-08-15
 
 ### Your invoice now shows what goes to Swiss Volley

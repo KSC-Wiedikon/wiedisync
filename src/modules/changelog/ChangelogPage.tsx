@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '1.96.0'
+const APP_VERSION = '1.96.1'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,19 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.96.1',
+    date: '20.08.2026',
+    sections: [
+      {
+        title: 'Avatars stay round when there is no photo',
+        items: [
+          'A member without a photo showed a squashed oval, not a circle. In a team roster on a narrow screen the initials badge was pressed down to 19 of its 32 pixels wide while keeping its full height. Members with a photo were never affected, which is why it looked arbitrary: a browser lets a circle of text shrink to the width of the text, but gives a picture its full size to hold on to.',
+          'The badge now keeps its shape everywhere it appears — team rosters, the add-member list, the profile page, the profile editor and the avatar in the top bar. On a tight row the name wraps one line further instead, exactly as it already did next to a photo.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.96.0',
     date: '15.08.2026',
