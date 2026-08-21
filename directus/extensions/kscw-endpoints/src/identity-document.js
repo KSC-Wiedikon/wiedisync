@@ -8,6 +8,7 @@
  *   GET    /kscw/identity/document/:member      — metadata + MY envelope for it
  *   GET    /kscw/identity/document/:member/bytes— the ciphertext
  *   DELETE /kscw/identity/document/:member      — remove it
+ *   GET    /kscw/identity/status/:team          — WHO on a team has one (presence, no key)
  *
  * WE CANNOT READ ANY OF THIS. Not the server, not an admin, not root on the VPS. The file
  * arrives already encrypted (AES-256-GCM, in the member's browser) and the content key
@@ -34,6 +35,7 @@
 
 import { Transform } from 'node:stream'
 import { writeUserLog } from './activity-log.js'
+import { teamPeopleSql } from './activity-roster-sql.js'
 import { streamManagedFile } from './storage-read.js'
 
 const UPLOAD_MAX_BYTES = 10 * 1024 * 1024
@@ -137,6 +139,48 @@ async function recipientsFor(database, memberId) {
     public_key: r.e2ee_public_key,
     key_created: r.e2ee_key_created,
   }))
+}
+
+/** `members.role` is a JSON array column that has also been seen holding a bare string. */
+function parseRoles(raw) {
+  if (!raw) return []
+  try {
+    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw
+    return Array.isArray(parsed) ? parsed.map(String) : [String(parsed)]
+  } catch {
+    return [String(raw)]
+  }
+}
+
+/**
+ * May `caller` see WHO on this team has a document? Coaches and TRs of the team, plus the
+ * club's admins — a sport admin only for teams of their own sport, mirroring
+ * `hasAdminAccessToTeam()` in the app.
+ *
+ * ⚠ The sport-admin branch is not decoration: `accountability.admin` is true only for real
+ * Directus admins, and vb_admin/bb_admin have not held `admin_access` since the 2026-07
+ * access reconcile. Without it every sport admin gets a 403 on a page they are allowed to
+ * manage — and a refused list reads as "nobody uploaded anything", which is the one wrong
+ * answer this column must never give.
+ */
+async function isTeamStaffOrAdmin(database, caller, teamId) {
+  if (!caller) return false
+
+  const [coach, tr] = await Promise.all([
+    database('teams_coaches').where({ teams_id: teamId, members_id: caller.id }).first('id'),
+    database('teams_responsibles').where({ teams_id: teamId, members_id: caller.id }).first('id'),
+  ])
+  if (coach || tr) return true
+
+  const row = await database('members').where('id', caller.id).first('role')
+  const roles = parseRoles(row?.role)
+  if (roles.includes('admin') || roles.includes('superuser')) return true
+  if (!roles.includes('vb_admin') && !roles.includes('bb_admin')) return false
+
+  const team = await database('teams').where('id', teamId).first('sport')
+  const sport = String(team?.sport ?? '')
+  return (sport === 'volleyball' && roles.includes('vb_admin'))
+    || (sport === 'basketball' && roles.includes('bb_admin'))
 }
 
 /**
@@ -519,6 +563,55 @@ export function registerIdentityDocument(router, ctx) {
     } catch (err) {
       log.error({ msg: `GET identity/document/bytes: ${err.message}`, stack: err.stack })
       if (!res.headersSent) res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  // ── who on a team has uploaded one ─────────────────────────────────────────
+  //
+  // Presence, never content: member id + upload date, no envelope and no ciphertext. The
+  // roster page needs it so a coach can chase whoever still owes an ID, and that question is
+  // asked weeks before any game, so this deliberately does NOT go through mayRead() — its
+  // pre-load window is about DECRYPTING a document, and knowing that one exists is not
+  // knowing what is in it.
+  //
+  // Staff scope, not team scope: only the coaches/TRs of the team (or an admin) get the
+  // list. A teammate has no business knowing whose passport is on file.
+  //
+  // ⚠ `teamPeopleSql`, not a bare `member_teams` join — a staff-only coach has no
+  // member_teams row, so joining the junction alone would report every one of them as
+  // missing a document they had in fact uploaded.
+  router.get('/identity/status/:team', async (req, res) => {
+    try {
+      const me = await callerMember(database, req)
+      const isAdmin = req.accountability?.admin === true
+      if (!me && !isAdmin) return res.status(401).json({ error: 'Authentication required' })
+
+      const teamId = Number(req.params.team)
+      if (!Number.isInteger(teamId)) return res.status(400).json({ error: 'Bad team' })
+
+      if (!isAdmin && !(await isTeamStaffOrAdmin(database, me, teamId))) {
+        return res.status(403).json({ error: 'Not staff of this team', code: 'not_staff' })
+      }
+
+      const { rows } = await database.raw(
+        `SELECT d.member AS member, d.date_created AS uploaded_at, d.uploaded_by_self AS uploaded_by_self
+           FROM identity_documents d
+          WHERE d.member IN (SELECT p.member FROM ${teamPeopleSql('?')} p)`,
+        [teamId, teamId],
+      )
+
+      res.json({
+        data: {
+          documents: rows.map((r) => ({
+            member: Number(r.member),
+            uploaded_at: r.uploaded_at,
+            uploaded_by_self: r.uploaded_by_self,
+          })),
+        },
+      })
+    } catch (err) {
+      log.error({ msg: `GET identity/status: ${err.message}`, stack: err.stack })
+      res.status(500).json({ error: 'Internal error' })
     }
   })
 

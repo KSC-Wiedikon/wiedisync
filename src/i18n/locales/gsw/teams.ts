@@ -40,6 +40,10 @@ export default {
   emailCol: 'E-Mail',
   phoneCol: 'Telefon',
   birthdateCol: 'Geburtstag',
+  identityCol: 'ID',
+  identityUploaded: 'Uswiisdokumänt uufeglade',
+  identityUploadedOn: 'Uswiisdokumänt uufeglade am {{date}}',
+  identityMissing: 'Kes Uswiisdokumänt',
   roleCol: 'Rolle',
 
   // Roster editor
