@@ -5,6 +5,7 @@ import { useParams, Link } from 'react-router-dom'
 import { Move, Check, X as XIcon, XCircle, User, ZoomIn, ZoomOut, MessageSquare, ChevronDown, ChevronUp } from 'lucide-react'
 import { logActivity } from '../../utils/logActivity'
 import { useTeamMembers } from '../../hooks/useTeamMembers'
+import { useTeamIdentityDocs } from '../../hooks/useTeamIdentityDocs'
 import type { ExpandedMemberTeam } from '../../hooks/useTeamMembers'
 import { useAuth } from '../../hooks/useAuth'
 import { useAdminMode } from '../../hooks/useAdminMode'
@@ -35,7 +36,7 @@ import { useConversationsContext } from '../messaging/ConversationsProvider'
 import { createRecord, fetchAllItems, fetchItems, updateRecord } from '../../lib/api'
 import { useReportPageLoading } from '../../hooks/usePageReady'
 
-type SortKey = 'name' | 'number' | 'position' | 'email' | 'phone' | 'birthdate' | 'role'
+type SortKey = 'name' | 'number' | 'position' | 'email' | 'phone' | 'birthdate' | 'identity' | 'role'
 type SortDir = 'asc' | 'desc'
 
 // Stable empty identities — kept module-level so the derived values below don't
@@ -70,6 +71,8 @@ export default function TeamDetail() {
   const teamId = team?.id
   const { members, isLoading: membersLoading } = useTeamMembers(teamId)
   const canManage = isCoachOf(teamId ?? '') || (effectiveIsAdmin && hasAdminAccessToTeam(teamId ?? ''))
+  // Who has an identity document on file. Staff-only, and `null` (unknown) hides the column.
+  const identityDocs = useTeamIdentityDocs(teamId, canManage)
   const { data: pendingMembers, refetch: refetchPending } = usePendingMembers(canManage ? teamId : undefined)
 
   // Team join requests from existing members
@@ -237,6 +240,14 @@ export default function TeamDetail() {
         case 'birthdate':
           cmp = (ma.birthdate_visibility === 'hidden' ? '' : ma.birthdate ?? '').localeCompare(mb.birthdate_visibility === 'hidden' ? '' : mb.birthdate ?? '')
           break
+        case 'identity': {
+          // Ascending puts the people still owing a document at the top — that is the
+          // question this column is asked to answer, not "who uploaded first".
+          const ua = identityDocs?.get(String(ma.id)) ?? ''
+          const ub = identityDocs?.get(String(mb.id)) ?? ''
+          cmp = (ua ? 1 : 0) - (ub ? 1 : 0) || ua.localeCompare(ub)
+          break
+        }
         case 'role': {
           const ra = getMemberRole(ma.id, team) ?? ''
           const rb = getMemberRole(mb.id, team) ?? ''
@@ -247,7 +258,7 @@ export default function TeamDetail() {
       return cmp * dir
     })
     return sorted
-  }, [sortKey, sortDir, team])
+  }, [sortKey, sortDir, team, identityDocs])
 
   // Staff = coaches + team responsibles. A staff member with no real playing
   // position is non-playing staff and must NOT be listed among the players.
@@ -678,6 +689,7 @@ export default function TeamDetail() {
               sortDir={sortDir}
               onSort={handleSort}
               onTeamUpdate={(updated) => setTeam((prev) => prev ? { ...prev, ...updated } : prev)}
+              identityDocs={identityDocs}
               canEditRole={false}
             />
           )}
@@ -713,6 +725,7 @@ export default function TeamDetail() {
             sortDir={sortDir}
             onSort={handleSort}
             onTeamUpdate={(updated) => setTeam((prev) => prev ? { ...prev, ...updated } : prev)}
+            identityDocs={identityDocs}
           />
         )}
       </div>
@@ -730,6 +743,7 @@ export default function TeamDetail() {
             sortDir={sortDir}
             onSort={handleSort}
             onTeamUpdate={(updated) => setTeam((prev) => prev ? { ...prev, ...updated } : prev)}
+            identityDocs={identityDocs}
             showGuestColumn
           />
         </div>
@@ -795,6 +809,7 @@ function RosterTable({
   sortDir,
   onSort,
   onTeamUpdate,
+  identityDocs,
   canEditRole = true,
   showGuestColumn = false,
 }: {
@@ -806,10 +821,14 @@ function RosterTable({
   sortDir: SortDir
   onSort: (key: SortKey) => void
   onTeamUpdate: (updated: Partial<Team>) => void
+  /** member id → upload timestamp; `null` = unknown, and the column is then not rendered. */
+  identityDocs: Map<string, string> | null
   canEditRole?: boolean
   showGuestColumn?: boolean
 }) {
   const { t } = useTranslation('teams')
+  // Staff-only, and only once we actually have an answer — see useTeamIdentityDocs.
+  const showIdentity = canManage && identityDocs !== null
   return (
     <div className="mt-4 rounded-lg border bg-white dark:bg-gray-800">
       <Table>
@@ -824,6 +843,7 @@ function RosterTable({
             {canManage && <SortHeader label={t('emailCol')} sortKey="email" current={sortKey} dir={sortDir} onClick={onSort} className="hidden md:table-cell" />}
             {canManage && <SortHeader label={t('phoneCol')} sortKey="phone" current={sortKey} dir={sortDir} onClick={onSort} className="hidden md:table-cell" />}
             {canManage && <SortHeader label={t('birthdateCol')} sortKey="birthdate" current={sortKey} dir={sortDir} onClick={onSort} className="hidden lg:table-cell" />}
+            {showIdentity && <SortHeader label={t('identityCol')} sortKey="identity" current={sortKey} dir={sortDir} onClick={onSort} className="text-center" />}
             <SortHeader label={t('roleCol')} sortKey="role" current={sortKey} dir={sortDir} onClick={onSort} />
           </TableRow>
         </TableHeader>
@@ -839,6 +859,8 @@ function RosterTable({
               isAdmin={isAdmin}
               canEditRole={canEditRole}
               showContact={canManage}
+              showIdentity={showIdentity}
+              identityUploadedAt={identityDocs?.get(String(asObj<Member>(mt.member)?.id ?? mt.member)) ?? null}
               showGuestColumn={showGuestColumn}
               onTeamUpdate={onTeamUpdate}
             />

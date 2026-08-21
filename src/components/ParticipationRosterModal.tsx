@@ -86,21 +86,15 @@ function mergeGameGuests(roster: Member[], guests: Member[]): Member[] {
   return [...roster, ...guests.filter((g) => !seen.has(String(g.id)))]
 }
 
-/** Both naming conventions for one "Edited by …" attribution. The on-screen
- *  roster lists people by first name, the PNG/PDF export by full legal name —
- *  the attribution line has to follow whichever surface it is printed on, or it
- *  reads as a second, contradictory naming scheme two lines below the first. */
-type EditorLabel = { short: string; full: string }
-
-/** Short editor label for somebody who is NOT on this roster (an admin, a coach
- *  of another team): first name + last initial. `disambiguateFirstNames` can't
- *  help here — it only knows the roster — so the initial is always included. */
-function editorLabelFor(m: Pick<Member, 'first_name' | 'last_name'> & { nickname?: string | null }): EditorLabel | null {
+/** Editor label for somebody who is NOT on this roster (an admin, a coach of
+ *  another team): first name + last initial. `disambiguateFirstNames` can't help
+ *  here — it only knows the roster — so the initial is always included.
+ *  Nobody is named by their full legal name in this modal or in its exports. */
+function editorLabelFor(m: Pick<Member, 'first_name' | 'last_name'> & { nickname?: string | null }): string | null {
   const first = ((m.nickname && m.nickname.trim()) || m.first_name || '').trim()
   const last = (m.last_name ?? '').trim()
-  const full = `${m.first_name ?? ''} ${last}`.trim()
   if (!first && !last) return null
-  return { short: first ? (last ? `${first} ${last[0]}.` : first) : last, full: full || first || last }
+  return first ? (last ? `${first} ${last[0]}.` : first) : last
 }
 
 /** `invited_roles` values that are a function ON A TEAM rather than a column on
@@ -1178,7 +1172,7 @@ export default function ParticipationRosterModal({
   // belong to people outside this team (e.g. an admin editing the roster from
   // another team's perspective). Cheap rebuild because `members` only changes
   // when the team set or roster shape changes.
-  const [externalEditorNames, setExternalEditorNames] = useState<Map<string, EditorLabel>>(new Map())
+  const [externalEditorNames, setExternalEditorNames] = useState<Map<string, string>>(new Map())
 
   // Short display names: first name only, disambiguated with last-name initials.
   // Declared here rather than next to its render sites because the attribution
@@ -1194,15 +1188,12 @@ export default function ParticipationRosterModal({
   // exact label their own row carries; an editor from outside the roster (an
   // admin, a coach of another team) gets the same shape, first name + last
   // initial, built in the fetch below.
-  const editorLabelByUserId = useMemo(() => {
-    const m = new Map<string, EditorLabel>()
+  const editorNameByUserId = useMemo(() => {
+    const m = new Map<string, string>()
     const all = [...memberList, ...staffMembers]
     for (const member of all) {
       if (!member.user) continue
-      m.set(member.user, {
-        short: displayNames.get(String(member.id)) || memberFirstName(member) || t('staffFallback', { defaultValue: 'Staff' }),
-        full: `${member.first_name ?? ''} ${member.last_name ?? ''}`.trim() || t('staffFallback', { defaultValue: 'Staff' }),
-      })
+      m.set(member.user, displayNames.get(String(member.id)) || memberFirstName(member) || t('staffFallback', { defaultValue: 'Staff' }))
     }
     for (const [uid, label] of externalEditorNames) {
       if (!m.has(uid)) m.set(uid, label)
@@ -1262,12 +1253,12 @@ export default function ParticipationRosterModal({
    *  own status. Members with no linked directus_users account (shell
    *  records) can't self-edit, so any populated tracker is by definition a
    *  staff edit. */
-  function getEditAttribution(member: Member, p: Participation | null, nameStyle: keyof EditorLabel = 'short'): {
+  function getEditAttribution(member: Member, p: Participation | null): {
     status: { name: string; status: string; at: string } | null
     note: { name: string; at: string } | null
   } {
     const editorName = (uid: string) =>
-      editorLabelByUserId.get(uid)?.[nameStyle] ?? t('staffFallback', { defaultValue: 'Staff' })
+      editorNameByUserId.get(uid) ?? t('staffFallback', { defaultValue: 'Staff' })
     // App-wide format: `dd.mm.yyyy, HH:MM` (Swiss dot date + 24h time).
     // formatDateTimeCompact (= formatDateCompactZurich + formatTimeZurich)
     // is hardcoded to `de-CH` so the format is uniform regardless of the
@@ -1309,8 +1300,12 @@ export default function ParticipationRosterModal({
     return t(baseStatus)
   }
 
-  function fullName(m: Member, role?: string): string {
-    const base = `${m.first_name ?? ''} ${m.last_name ?? ''}`.trim()
+  /** The name printed on an exported row. The SAME label the on-screen roster
+   *  shows — first name, with just enough of the surname to tell two people
+   *  apart — so a PDF handed round the club reads like the list it was taken
+   *  from, and nobody's full legal name leaves the app on a shared document. */
+  function exportName(m: Member, role?: string): string {
+    const base = displayNames.get(String(m.id)) || memberFirstName(m) || (m.last_name ?? '').trim()
     const suffix = role === 'coach' ? ` (${t('roleCoach')})` : role === 'captain' ? ` (${t('roleCaptainAbbr')})` : role === 'tr' ? ` (${t('roleTeamRespAbbr')})` : ''
     return base + suffix
   }
@@ -1353,10 +1348,7 @@ export default function ParticipationRosterModal({
 
   const exportRows = useMemo<RosterExportRow[]>(() => {
     const formatAttribution = (member: Member, p: Participation | null): string => {
-      // 'full': the export's Name column is full legal names (coaches print these
-      // and clip them to a board), so the attribution matches THAT surface — the
-      // on-screen roster, which shows first names, gets the short label instead.
-      const { status: statusAttr, note: noteAttr } = getEditAttribution(member, p, 'full')
+      const { status: statusAttr, note: noteAttr } = getEditAttribution(member, p)
       const lines: string[] = []
       if (statusAttr) lines.push(t('editedByOn', { defaultValue: 'Edited to {{status}} by {{name}} on {{at}}', ...statusAttr }))
       if (noteAttr) lines.push(t('noteEditedByOn', { defaultValue: 'Note edited by {{name}} on {{at}}', ...noteAttr }))
@@ -1373,13 +1365,6 @@ export default function ParticipationRosterModal({
       if (mid) guestLevelByMember.set(mid, lvl)
     }
     const isGuestMember = (m: Member): boolean => (guestLevelByMember.get(String(m.id)) ?? 0) > 0
-    // Sort export by last name (then first name) — admins print these to clip
-    // to a board where alphabetical-by-surname is the convention.
-    const byLastName = <T extends { last_name?: string | null; first_name?: string | null }>(a: T, b: T) => {
-      const cmp = (a.last_name ?? '').localeCompare(b.last_name ?? '', undefined, { sensitivity: 'base' })
-      if (cmp !== 0) return cmp
-      return (a.first_name ?? '').localeCompare(b.first_name ?? '', undefined, { sensitivity: 'base' })
-    }
     // Per-day status list for a member on the Overall tab of a session event.
     // Undefined when not a session-overall export → callers fall back to the
     // single-status column.
@@ -1407,15 +1392,20 @@ export default function ParticipationRosterModal({
     // suffixes — the export used to carry a separate ✓ column saying the same
     // thing beside a "Guests" (plus-ones) column, which read as a duplicate.
     const nameWithGuest = (m: Member, role?: string): string =>
-      fullName(m, role) + (isGuestMember(m) ? ` (${t('guestBadge')})` : '')
-    // Grouped by team, then by surname inside each team. Single-team exports
-    // are unaffected (one group), so this is just the old sort with a leading
+      exportName(m, role) + (isGuestMember(m) ? ` (${t('guestBadge')})` : '')
+    // Grouped by team, then alphabetically inside each team. Single-team exports
+    // are unaffected (one group), so this is just the row sort with a leading
     // key. Guests sort under their host team like anyone else.
-    const byTeamThenLastName = (a: Member, b: Member) => {
+    //
+    // Sorted by FIRST name, matching the on-screen list: the export used to sort
+    // by surname because it printed surnames, and a surname sort over a column
+    // that now reads "Aaliyah" / "Aditya" is a sort on an invisible key — the
+    // reader just sees an unordered list.
+    const byTeamThenName = (a: Member, b: Member) => {
       const cmp = teamLabel(a.id).localeCompare(teamLabel(b.id), undefined, { sensitivity: 'base' })
-      return cmp !== 0 ? cmp : byLastName(a, b)
+      return cmp !== 0 ? cmp : byFirstThenLastName(a, b)
     }
-    const sortedMembers = [...filteredMemberList].sort(byTeamThenLastName)
+    const sortedMembers = [...filteredMemberList].sort(byTeamThenName)
     const rows: RosterExportRow[] = sortedMembers.map((m) => {
       const p = participationByMember.preferred.get(m.id) ?? null
       const status = getMemberStatus(m.id)
@@ -1460,7 +1450,7 @@ export default function ParticipationRosterModal({
         if (!m) continue
         waitlistRows.push({ m, wp, role: leadershipRoles.get(m.id) })
       }
-      waitlistRows.sort((a, b) => byTeamThenLastName(a.m, b.m))
+      waitlistRows.sort((a, b) => byTeamThenName(a.m, b.m))
       for (const { m, wp, role } of waitlistRows) {
         const ts = wp.date_updated ?? wp.date_created ?? ''
         rows.push({
@@ -1477,7 +1467,7 @@ export default function ParticipationRosterModal({
           editedBy: formatAttribution(m, wp),
         })
       }
-      const sortedStaff = [...filteredStaffMembers].sort(byLastName)
+      const sortedStaff = [...filteredStaffMembers].sort(byFirstThenLastName)
       for (const sm of sortedStaff) {
         const myStaffRows = visibleStaffParticipations.filter((p) => String(p.member) === String(sm.id))
         // On a day tab the export must speak for THAT day — the staff fetch
@@ -1495,7 +1485,7 @@ export default function ParticipationRosterModal({
           return { label: formatSessionLabel(s), status: st, statusLabel: st ? t(st) : t('notResponded') }
         })
         rows.push({
-          name: `${(sm.first_name ?? '').trim()} ${(sm.last_name ?? '').trim()}`.trim() + ` (${t('staff')})`,
+          name: exportName(sm) + ` (${t('staff')})`,
           team: teamLabel(sm.id, true),
           section: 'staff' as const,
           jerseyNumber: sm.number && sm.number > 0 ? sm.number : null,
@@ -1513,8 +1503,11 @@ export default function ParticipationRosterModal({
       }
     }
     return rows
+  // `displayNames` is what the Name column prints now, so a change to it has to
+  // rebuild the rows — it is derived from memberList/staffMembers, but reached
+  // through the `exportName` function declaration rather than read here directly.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filteredMemberList, participations, absences, leadershipRoles, leadershipTeamsByMember, teamsByMember, teamNameById, statusFilter, filteredWaitlistedParts, filteredStaffMembers, visibleStaffParticipations, memberList, t, translatePositions, exportSessions, sessionParticipationByMember])
+  }, [filteredMemberList, participations, absences, leadershipRoles, leadershipTeamsByMember, teamsByMember, teamNameById, statusFilter, filteredWaitlistedParts, filteredStaffMembers, visibleStaffParticipations, memberList, displayNames, t, translatePositions, exportSessions, sessionParticipationByMember])
 
   // Position breakdown of the same population that exportRows covers — counts
   // each member once per declared position (a setter/outside hybrid contributes

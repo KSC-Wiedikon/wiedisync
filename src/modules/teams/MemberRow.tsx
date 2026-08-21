@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Link } from 'react-router-dom'
-import { Info } from 'lucide-react'
+import { Info, ShieldCheck, ShieldX } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog'
 import { logActivity } from '../../utils/logActivity'
 import { coercePositions, getPositionI18nKey, getSelectablePositions, isNonPlayingStaff } from '../../utils/memberPositions'
@@ -30,6 +30,11 @@ interface MemberRowProps {
    * table, where staff roles are managed via the "Manage staff" modal instead. Defaults to true. */
   canEditRole?: boolean
   showContact?: boolean
+  /** Render the identity-document column. Staff-only; see `useTeamIdentityDocs`. */
+  showIdentity?: boolean
+  /** When the member's identity document was uploaded, or null if there is none on file.
+   *  PRESENCE ONLY — this row never holds a key or a byte of the document itself. */
+  identityUploadedAt?: string | null
   /** Render a dedicated guest-level column (used by the Guests table) so the badge lines up. */
   showGuestColumn?: boolean
   onTeamUpdate?: (updated: Partial<Team>) => void
@@ -45,7 +50,7 @@ const roleI18nKeys: Record<LeadershipRole, string> = {
   team_responsible: 'roleTeamResponsible',
 }
 
-export default function MemberRow({ memberTeam, teamSlug, team, canEdit, isAdmin, canEditRole = true, showContact = true, showGuestColumn = false, onTeamUpdate, onExtendShell, isEditing }: MemberRowProps) {
+export default function MemberRow({ memberTeam, teamSlug, team, canEdit, isAdmin, canEditRole = true, showContact = true, showIdentity = false, identityUploadedAt = null, showGuestColumn = false, onTeamUpdate, onExtendShell, isEditing }: MemberRowProps) {
   const { t } = useTranslation('teams')
   const member = asObj<Member>(memberTeam.member)
   const [editingField, setEditingField] = useState<string | null>(null)
@@ -341,6 +346,25 @@ export default function MemberRow({ memberTeam, teamSlug, team, canEdit, isAdmin
       {showContact && (
         <td className="hidden px-4 py-3 text-sm text-gray-500 lg:table-cell dark:text-gray-400">
           {birthdateDisplay || '—'}
+        </td>
+      )}
+
+      {/* Identity document — has one / doesn't. Never a link and never the document: the
+          bytes only ever open in the Show-IDs screen, inside the match window. Deliberately
+          NOT hidden on small screens; chasing a missing ID is a phone-in-the-hall job. */}
+      {showIdentity && (
+        <td className="px-4 py-3 text-center">
+          {identityUploadedAt ? (
+            <span title={t('identityUploadedOn', { date: formatDate(identityUploadedAt) })}>
+              <ShieldCheck className="mx-auto h-4 w-4 text-green-600 dark:text-green-400" aria-hidden="true" />
+              <span className="sr-only">{t('identityUploaded')}</span>
+            </span>
+          ) : (
+            <span title={t('identityMissing')}>
+              <ShieldX className="mx-auto h-4 w-4 text-gray-400 dark:text-gray-500" aria-hidden="true" />
+              <span className="sr-only">{t('identityMissing')}</span>
+            </span>
+          )}
         </td>
       )}
 

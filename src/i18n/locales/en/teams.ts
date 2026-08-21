@@ -41,6 +41,10 @@ export default {
   emailCol: 'Email',
   phoneCol: 'Phone',
   birthdateCol: 'Birthdate',
+  identityCol: 'ID',
+  identityUploaded: 'Identity document uploaded',
+  identityUploadedOn: 'Identity document uploaded on {{date}}',
+  identityMissing: 'No identity document',
   roleCol: 'Role',
 
   // Roster editor
