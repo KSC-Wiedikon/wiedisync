@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-08-18T08:52:06.095Z
+-- Generated:   2026-08-22T10:20:33.891Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -29,7 +29,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict XhMX1WMYdlpcqtEoKz03D1fcWedgciDvczvCvcqzz5alh4JEWxcz8WdQHwD0EGf
+\restrict PWLUW6PupX2axOd6SAzTRLTjKJGGMmF8EFKhLBQ9ja0KPFUIXwLLdqN6WfN3k3L
 
 -- Dumped from database version 16.15 (Debian 16.15-1.pgdg13+2)
 -- Dumped by pg_dump version 16.15 (Debian 16.15-1.pgdg13+2)
@@ -245,6 +245,20 @@ BEGIN
      AND activity_id   = OLD.id;
   RETURN OLD;
 END;
+$$;
+
+
+--
+-- Name: fn_event_open_roster(integer, json); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.fn_event_open_roster(p_event integer, p_roles json) RETURNS boolean
+    LANGUAGE sql STABLE
+    AS $$
+  SELECT (SELECT count(*) FROM events_teams et WHERE et.events_id = p_event) <> 1
+      OR (p_roles IS NOT NULL
+          AND json_typeof(p_roles) = 'array'
+          AND json_array_length(p_roles) > 0);
 $$;
 
 
@@ -1166,6 +1180,46 @@ $$;
 
 
 --
+-- Name: trg_events_open_roster(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.trg_events_open_roster() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  NEW.open_roster := fn_event_open_roster(NEW.id, NEW.invited_roles);
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: trg_events_teams_open_roster(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.trg_events_teams_open_roster() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  ids integer[];
+  eid integer;
+BEGIN
+  ids := ARRAY(SELECT DISTINCT x FROM unnest(ARRAY[
+           CASE WHEN TG_OP <> 'DELETE' THEN NEW.events_id END,
+           CASE WHEN TG_OP <> 'INSERT' THEN OLD.events_id END
+         ]) AS x WHERE x IS NOT NULL);
+  FOREACH eid IN ARRAY ids LOOP
+    UPDATE events e
+       SET open_roster = fn_event_open_roster(e.id, e.invited_roles)
+     WHERE e.id = eid
+       AND e.open_roster IS DISTINCT FROM fn_event_open_roster(e.id, e.invited_roles);
+  END LOOP;
+  RETURN NULL;
+END;
+$$;
+
+
+--
 -- Name: trg_form_submissions_guard(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1457,6 +1511,24 @@ BEGIN
         END IF;
       END IF;
     END IF;
+  END IF;
+  RETURN NEW;
+END;
+$_$;
+
+
+--
+-- Name: trg_participations_sync_event(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.trg_participations_sync_event() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $_$
+BEGIN
+  IF NEW.activity_type = 'event' AND NEW.activity_id ~ '^[0-9]+$' THEN
+    NEW.event := NEW.activity_id::int;
+  ELSE
+    NEW.event := NULL;
   END IF;
   RETURN NEW;
 END;
@@ -3404,6 +3476,105 @@ COMMENT ON TABLE public.country_name_aliases IS 'Lowercased country-name spellin
 
 
 --
+-- Name: email_accounts; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.email_accounts (
+    id integer NOT NULL,
+    address text NOT NULL,
+    label text,
+    sport text DEFAULT 'club'::text NOT NULL,
+    provider text DEFAULT 'migadu'::text NOT NULL,
+    password_enc text,
+    notes text,
+    migadu_managed boolean DEFAULT false NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    last_seen_at timestamp with time zone,
+    sort integer,
+    created_by_name text,
+    updated_by_name text,
+    date_created timestamp with time zone DEFAULT now() NOT NULL,
+    date_updated timestamp with time zone,
+    domain text GENERATED ALWAYS AS (lower(split_part(address, '@'::text, 2))) STORED,
+    sends_via text DEFAULT 'none'::text NOT NULL,
+    broad_audience boolean DEFAULT false NOT NULL,
+    reach_note text,
+    CONSTRAINT email_accounts_address_check CHECK (((address ~~ '%@%.%'::text) AND (address !~~ '%@'::text) AND (address !~~ '@%'::text))),
+    CONSTRAINT email_accounts_sends_via_check CHECK ((sends_via = ANY (ARRAY['none'::text, 'ses'::text, 'migadu'::text, 'clubdesk'::text]))),
+    CONSTRAINT email_accounts_sport_check CHECK ((sport = ANY (ARRAY['volleyball'::text, 'basketball'::text, 'club'::text])))
+);
+
+
+--
+-- Name: TABLE email_accounts; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.email_accounts IS 'The club mailbox credential store behind /admin/emails-garage. NOT registered in directus_collections on purpose — the only reader is kscw-endpoints/src/email-accounts.js, which enforces the per-sport scope and audits every password reveal. password_enc is AES-256-GCM ciphertext under EMAIL_VAULT_KEY (container env), never plaintext.';
+
+
+--
+-- Name: COLUMN email_accounts.sport; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.email_accounts.sport IS 'Visibility scope: volleyball = global admin + vb_admin, basketball = global admin + bb_admin, club = every admin tier on the page. Seeded from the domain, editable — intent beats DNS.';
+
+
+--
+-- Name: COLUMN email_accounts.password_enc; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.email_accounts.password_enc IS 'v1:<iv_b64>:<tag_b64>:<ct_b64> — AES-256-GCM under EMAIL_VAULT_KEY. NULL = no password on file (the account is listed, the page shows "not stored"). Never select this into any response that is not the audited single-row reveal.';
+
+
+--
+-- Name: COLUMN email_accounts.migadu_managed; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.email_accounts.migadu_managed IS 'true once the Migadu mailbox sweep saw this address. The sweep only ever deactivates rows it owns, so a hand-entered ClubDesk/SES address is never touched by it.';
+
+
+--
+-- Name: COLUMN email_accounts.sends_via; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.email_accounts.sends_via IS 'How mail LEAVES as this address, as opposed to `provider` which is where it lands. ''none'' = receive-only (postmaster boxes, DMARC report inboxes, archives). Checked against the domain SPF, not assumed from the domain name.';
+
+
+--
+-- Name: COLUMN email_accounts.broad_audience; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.email_accounts.broad_audience IS 'true = whoever holds this password can mail the whole club (or a large slice of it). NOT a synonym for sends_via=''ses'': kscw.ch sends via ClubDesk and reaches every member, while most SES senders here write to a handful of opponents or course participants. Drives the warning badge on /admin/emails-garage.';
+
+
+--
+-- Name: COLUMN email_accounts.reach_note; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.email_accounts.reach_note IS 'Why this account has the reach it has — shown in the UI so the badge is auditable rather than a value someone has to trust.';
+
+
+--
+-- Name: email_accounts_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.email_accounts_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: email_accounts_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.email_accounts_id_seq OWNED BY public.email_accounts.id;
+
+
+--
 -- Name: email_sends; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -3817,6 +3988,7 @@ CREATE TABLE public.events (
     js_activity_type character varying(32),
     public_share_token character varying(64),
     invite_guests boolean DEFAULT true NOT NULL,
+    open_roster boolean DEFAULT false NOT NULL,
     CONSTRAINT events_public_share_token_format CHECK (((public_share_token IS NULL) OR ((public_share_token)::text ~ '^[A-Za-z0-9_-]{24,64}$'::text)))
 );
 
@@ -3840,6 +4012,13 @@ COMMENT ON COLUMN public.events.js_activity_type IS 'NDS J+S activity type when 
 --
 
 COMMENT ON COLUMN public.events.invite_guests IS 'Do the guest players (member_teams.guest_level > 0) of the invited teams count as invited? true (default) = yes, the audience is every roster row as before. false = core roster only: guests are dropped from the notify fan-out, auto-confirm, absence auto-decline and the deadline reminder, and the RSVP gate refuses their confirmed/tentative write. Decided per member — core on any invited team, or personally invited via events_members, keeps them in. Nothing to do with participations.guest_count (+1s) or the public signup door.';
+
+
+--
+-- Name: COLUMN events.open_roster; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.events.open_roster IS 'TRUE when the audience spans more than one team (teams <> 1, or invited_roles non-empty) — such an event shows its full RSVP roster to everyone who can see it. Derived; maintained by trg_events_open_roster + trg_events_teams_open_roster. Never write it by hand.';
 
 
 --
@@ -6255,8 +6434,16 @@ CREATE TABLE public.hall_closures (
     hall integer,
     date_created timestamp with time zone,
     date_updated timestamp with time zone,
+    push_to_gcal boolean DEFAULT false NOT NULL,
     CONSTRAINT hall_closures_range_chk CHECK (((start_date IS NULL) OR (end_date IS NULL) OR (end_date >= start_date)))
 );
+
+
+--
+-- Name: COLUMN hall_closures.push_to_gcal; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hall_closures.push_to_gcal IS 'Publish this closure to the hall administration''s Google calendar (KSCW Heimspiele/Halle KWI)? Default false — opt-in per closure, because that calendar is the school''s. Ignored for source IN (''gcal'',''school_holidays''): the first came FROM that calendar and the second is theirs to enter. Set for every row of a (start_date, end_date, reason) group at once; the pusher emits ONE event per group naming the halls. A span the Hausdienst already covers is skipped at push time (derived from hall_events), never pushed as a duplicate.';
 
 
 --
@@ -6294,8 +6481,24 @@ CREATE TABLE public.hall_events (
     all_day boolean DEFAULT false NOT NULL,
     source character varying(255) DEFAULT NULL::character varying,
     date_created timestamp with time zone,
-    date_updated timestamp with time zone
+    date_updated timestamp with time zone,
+    end_date date,
+    closure_override boolean
 );
+
+
+--
+-- Name: COLUMN hall_events.end_date; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hall_events.end_date IS 'Last day the entry covers, INCLUSIVE (the ICS DTEND is exclusive for all-day events and is converted on import). NULL = single-day, same as `date`. Needed so the closure span can be recomputed outside a sync run.';
+
+
+--
+-- Name: COLUMN hall_events.closure_override; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hall_events.closure_override IS 'Does this calendar entry close the KWI halls? NULL = automatic — since migration 325 every hall-administration entry closes them. false = admin override, closes nothing (its hall_closures rows are removed and the auto-cancelled trainings come back). true = admin confirmed it closes, recorded so the decision is not re-litigated. Only meaningful for source = gcal.';
 
 
 --
@@ -7617,6 +7820,7 @@ CREATE TABLE public.participations (
     last_note_edited_by uuid,
     last_note_edited_at timestamp with time zone,
     auto_declined_by_game integer,
+    event integer,
     CONSTRAINT participations_activity_type_chk CHECK (((activity_type)::text = ANY ((ARRAY['training'::character varying, 'game'::character varying, 'event'::character varying])::text[]))),
     CONSTRAINT participations_status_chk CHECK (((status)::text = ANY ((ARRAY['confirmed'::character varying, 'declined'::character varying, 'tentative'::character varying, 'waitlisted'::character varying])::text[])))
 );
@@ -7648,6 +7852,13 @@ COMMENT ON COLUMN public.participations.last_note_edited_by IS 'directus_users.i
 --
 
 COMMENT ON COLUMN public.participations.last_note_edited_at IS 'Wall-clock of the last `note` write by an authenticated session.';
+
+
+--
+-- Name: COLUMN participations.event; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.participations.event IS 'Derived mirror of activity_id when activity_type = ''event'' (NULL otherwise). Maintained by trg_participations_sync_event — never write it by hand. Exists so policy filters can join an RSVP to its event; (activity_type, activity_id) remain the source of truth.';
 
 
 --
@@ -8288,8 +8499,16 @@ CREATE TABLE public.scorer_course_attendance (
     exam_result character varying(255),
     exam_file_corrected uuid,
     exam_file_corrected_by character varying(255),
-    exam_file_corrected_on timestamp with time zone
+    exam_file_corrected_on timestamp with time zone,
+    field_overrides text
 );
+
+
+--
+-- Name: COLUMN scorer_course_attendance.field_overrides; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.scorer_course_attendance.field_overrides IS 'JSON object of staff corrections to the OpnForm answers, keyed by OpnForm field UUID. Absent key = no correction. Never written back to OpnForm (that would re-fire its email integrations).';
 
 
 --
@@ -9901,6 +10120,13 @@ ALTER TABLE ONLY public.clubdesk_sync_proposals ALTER COLUMN id SET DEFAULT next
 
 
 --
+-- Name: email_accounts id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.email_accounts ALTER COLUMN id SET DEFAULT nextval('public.email_accounts_id_seq'::regclass);
+
+
+--
 -- Name: email_sends id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -10832,6 +11058,14 @@ ALTER TABLE ONLY public.country_codes
 
 ALTER TABLE ONLY public.country_name_aliases
     ADD CONSTRAINT country_name_aliases_pkey PRIMARY KEY (alias);
+
+
+--
+-- Name: email_accounts email_accounts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.email_accounts
+    ADD CONSTRAINT email_accounts_pkey PRIMARY KEY (id);
 
 
 --
@@ -12143,6 +12377,20 @@ CREATE INDEX country_codes_name_en_lower_idx ON public.country_codes USING btree
 
 
 --
+-- Name: email_accounts_address_key; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX email_accounts_address_key ON public.email_accounts USING btree (lower(address));
+
+
+--
+-- Name: email_accounts_sport_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX email_accounts_sport_idx ON public.email_accounts USING btree (sport);
+
+
+--
 -- Name: email_sends_record_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -13354,6 +13602,13 @@ CREATE UNIQUE INDEX participations_activity_member_uq ON public.participations U
 
 
 --
+-- Name: participations_event_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX participations_event_idx ON public.participations USING btree (event) WHERE (event IS NOT NULL);
+
+
+--
 -- Name: participations_member_index; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -13907,6 +14162,20 @@ CREATE TRIGGER trg_events_notify AFTER INSERT OR DELETE OR UPDATE ON public.even
 
 
 --
+-- Name: events trg_events_open_roster; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_events_open_roster BEFORE INSERT OR UPDATE ON public.events FOR EACH ROW EXECUTE FUNCTION public.trg_events_open_roster();
+
+
+--
+-- Name: events_teams trg_events_teams_open_roster; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_events_teams_open_roster AFTER INSERT OR DELETE OR UPDATE ON public.events_teams FOR EACH ROW EXECUTE FUNCTION public.trg_events_teams_open_roster();
+
+
+--
 -- Name: finance_transactions trg_finance_native_txn_lock; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -14058,6 +14327,13 @@ CREATE TRIGGER trg_participations_clear_auto_marker BEFORE UPDATE ON public.part
 --
 
 CREATE TRIGGER trg_participations_guest_block BEFORE INSERT OR UPDATE ON public.participations FOR EACH ROW EXECUTE FUNCTION public.trg_participations_guest_block();
+
+
+--
+-- Name: participations trg_participations_sync_event; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_participations_sync_event BEFORE INSERT OR UPDATE ON public.participations FOR EACH ROW EXECUTE FUNCTION public.trg_participations_sync_event();
 
 
 --
@@ -15448,6 +15724,14 @@ ALTER TABLE ONLY public.notifications
 
 
 --
+-- Name: participations participations_event_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.participations
+    ADD CONSTRAINT participations_event_foreign FOREIGN KEY (event) REFERENCES public.events(id) ON DELETE CASCADE;
+
+
+--
 -- Name: participations participations_last_note_edited_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -16127,12 +16411,12 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict XhMX1WMYdlpcqtEoKz03D1fcWedgciDvczvCvcqzz5alh4JEWxcz8WdQHwD0EGf
+\unrestrict PWLUW6PupX2axOd6SAzTRLTjKJGGMmF8EFKhLBQ9ja0KPFUIXwLLdqN6WfN3k3L
 
 
 
 -- ============================================================================
--- Migration tracker seed — 329 migration(s) already in the schema above.
+-- Migration tracker seed — 340 migration(s) already in the schema above.
 -- GENERATED with the snapshot; do not hand-edit.
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS kscw_migrations (
@@ -16473,6 +16757,17 @@ FROM (VALUES
   ('321-clubdesk-sync-proposals.sql'),
   ('322-trainings-derive-respond-by.sql'),
   ('323-dues-rate-licence-split.sql'),
-  ('324-events-invite-guests.sql')
+  ('324-events-invite-guests.sql'),
+  ('325-hall-events-closure-override.sql'),
+  ('326-email-accounts.sql'),
+  ('327-email-accounts-seed.sql'),
+  ('328-email-accounts-reach.sql'),
+  ('328-hall-closures-push-to-gcal.sql'),
+  ('329-email-accounts-clubdesk-aliases.sql'),
+  ('330-email-accounts-mailjet-correction.sql'),
+  ('331-members-staff-reverse-aliases.sql'),
+  ('332-scorer-attendance-field-overrides.sql'),
+  ('333-participation-event-fk.sql'),
+  ('334-events-open-roster.sql')
 ) AS v(fname)
 ON CONFLICT (filename) DO NOTHING;
