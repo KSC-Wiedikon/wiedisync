@@ -1611,7 +1611,38 @@ async function main() {
       ],
     },
   ]
-  const SAME_TEAM_OR_GAME_AS_ME = { _or: [...SAME_TEAM_AS_ME._or, ...SAME_GAME_AS_ME] }
+  // Events (migration 333). The member-side trick above does not scale to them:
+  // a game has one team, an event has a SET of teams + roles + individuals, and
+  // "do we share a team?" is simply the wrong question to ask of a 12-team club
+  // tournament. On event 27 (Photoday mixed tournament — 214 invited, 32
+  // confirmed) it meant a DU20 player read 0 of the 32 confirmations and an H3
+  // player 6; nobody but an admin saw more than 9. The roster still listed all
+  // 214 names because `members` read is unfiltered — only the RSVP column was
+  // missing, so the page said "hardly anyone answered" rather than "you may not
+  // see this". Coaches were cut identically by COACH_OR_TR_OF_PARTICIPATION.
+  //
+  // Migration 333 stops working around the missing join and adds it:
+  // `participations.event`, a real m2o kept in sync with activity_id by trigger.
+  // The rule is then one sentence — YOU CAN READ THE RSVPS OF ANY EVENT YOU CAN
+  // SEE — expressed by handing the *same object* to both permissions, so event
+  // visibility and roster visibility can never drift apart.
+  //
+  // ⚠ This is deliberately keyed on event visibility, NOT on "is it multi-team".
+  // Consequence worth knowing: a SINGLE-team event of type verein/tournament
+  // (e.g. "Rämi Turnier", 1 team) also gets a club-visible roster, because that
+  // event is already club-visible in the calendar. Single-team events of the
+  // other types (`friendly` — "VBC Limmattal - D4") stay team-scoped exactly as
+  // before, since EVENTS_VISIBLE never opened them. Free-text `note` rides along
+  // with `status`; there is no per-branch field split in a Directus policy.
+  const EVENT_ROSTER_VISIBLE = {
+    _and: [
+      { activity_type: { _eq: 'event' } },
+      { event: EVENTS_VISIBLE },
+    ],
+  }
+  const PARTICIPATION_VISIBLE = {
+    _or: [...SAME_TEAM_AS_ME._or, ...SAME_GAME_AS_ME, EVENT_ROSTER_VISIBLE],
+  }
   // 2026-05-12 audit #12: participations.last_*_edited_by are directus_users
   // UUIDs (migrations 046/047) which let Members enumerate Directus user
   // UUIDs by cross-referencing. Members get the timestamps but not the
@@ -1619,6 +1650,9 @@ async function main() {
   // Absences gained `last_edited_by/at` in migration 051 — same pattern.
   const MEMBER_PARTICIPATION_FIELDS = [
     'id', 'member', 'activity_type', 'activity_id', 'status', 'note',
+    // `event` (migration 333) is the m2o the EVENT_ROSTER_VISIBLE branch walks.
+    // Listed so Directus accepts it as a filter target and the app can read it.
+    'event',
     'guest_count', 'is_staff',
     'session_id', 'waitlisted_at',
     'auto_declined_by', 'auto_declined_by_game', 'auto_cancelled_by_closure',
@@ -1630,7 +1664,7 @@ async function main() {
     'reason', 'reason_detail', 'affects', 'days_of_week',
     'last_edited_at', 'date_created', 'date_updated',
   ]
-  await setPermRead(MEMBER_POLICY, 'participations', SAME_TEAM_OR_GAME_AS_ME, MEMBER_PARTICIPATION_FIELDS)
+  await setPermRead(MEMBER_POLICY, 'participations', PARTICIPATION_VISIBLE, MEMBER_PARTICIPATION_FIELDS)
   // Absences stay on the narrower rule: a guest invitation is not a reason to read
   // someone's absence reasons, and the roster only needs their RSVP.
   await setPermRead(MEMBER_POLICY, 'absences', SAME_TEAM_AS_ME, MEMBER_ABSENCE_FIELDS)
@@ -2215,7 +2249,10 @@ async function main() {
   // plus club-wide events, plus events they created, plus events they were
   // personally invited to. Mirrors the Member read policy (migration 033)
   // but adds the coach/TR M2M traversal.
-  await setPermRead(LEADER_POLICY, 'events', {
+  // Hoisted to a const because `participations` read reuses it verbatim below
+  // (migration 333) — a leader reads the RSVPs of any event they can see, and
+  // the two rules must not drift apart.
+  const LEADER_EVENTS_VISIBLE = {
     _or: [
       { created_by: { user: { _eq: '$CURRENT_USER' } } },
       { event_type: { _in: ['verein', 'tournament'] } },
@@ -2225,7 +2262,8 @@ async function main() {
       { teams: { teams_id: { active: { _eq: true }, members: { member: { user: { _eq: '$CURRENT_USER' } } } } } },
       { invited_members: { members_id: { user: { _eq: '$CURRENT_USER' } } } },
     ],
-  })
+  }
+  await setPermRead(LEADER_POLICY, 'events', LEADER_EVENTS_VISIBLE)
   await setPerm(LEADER_POLICY, 'events', 'create')
   // 2026-05-12 audit: update was unfiltered; scope to creator OR coach/TR of
   // an invited team (mirrors the delete filter below).
@@ -2335,7 +2373,18 @@ async function main() {
       },
     ],
   }
-  await setPermRead(LEADER_POLICY, 'participations', COACH_OR_TR_OF_PARTICIPATION)
+  // READ is wider than update/delete (migration 333): a leader sees the whole
+  // roster of any event they can see — same one-sentence rule as the Member
+  // policy — but may still only EDIT the RSVPs of their own people. Sharing a
+  // club tournament with H3 is not a mandate over H3's answers, so the write
+  // rules below stay on COACH_OR_TR_OF_PARTICIPATION.
+  const COACH_OR_TR_PARTICIPATION_READ = {
+    _or: [
+      ...COACH_OR_TR_OF_PARTICIPATION._or,
+      { _and: [{ activity_type: { _eq: 'event' } }, { event: LEADER_EVENTS_VISIBLE }] },
+    ],
+  }
+  await setPermRead(LEADER_POLICY, 'participations', COACH_OR_TR_PARTICIPATION_READ)
   await setPerm(LEADER_POLICY, 'participations', 'update', COACH_OR_TR_OF_PARTICIPATION)
 
   // ── Game guest invitations (migration 271) ──────────────────────
