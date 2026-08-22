@@ -1627,17 +1627,25 @@ async function main() {
   // SEE — expressed by handing the *same object* to both permissions, so event
   // visibility and roster visibility can never drift apart.
   //
-  // ⚠ This is deliberately keyed on event visibility, NOT on "is it multi-team".
-  // Consequence worth knowing: a SINGLE-team event of type verein/tournament
-  // (e.g. "Rämi Turnier", 1 team) also gets a club-visible roster, because that
-  // event is already club-visible in the calendar. Single-team events of the
-  // other types (`friendly` — "VBC Limmattal - D4") stay team-scoped exactly as
-  // before, since EVENTS_VISIBLE never opened them. Free-text `note` rides along
-  // with `status`; there is no per-branch field split in a Directus policy.
+  // ⚠ TWO conditions, and the second one is the point. "Can I see the event?"
+  // alone is too loose: EVENTS_VISIBLE opens every verein/tournament event to
+  // the whole club so it lands in everyone's calendar, but plenty of those are
+  // one team's day out — "Rämi Turnier" is H3 only. Being LISTED club-wide and
+  // being ROSTERED club-wide are different questions. So the roster also has to
+  // be genuinely cross-team: `events.open_roster` (migration 334) is true when
+  // the event spans more than one team (teams <> 1 — zero means club-wide, the
+  // broadest audience of all — or invited_roles is non-empty).
+  //
+  // A single-team event needs nothing from this branch anyway: everyone in its
+  // audience shares that team, so SAME_TEAM_AS_ME above already shows them the
+  // whole roster. This widens exactly the case that was broken and no other.
+  //
+  // ⚠ Free-text `note` rides along with `status` — a Directus policy has no
+  // per-branch field split.
   const EVENT_ROSTER_VISIBLE = {
     _and: [
       { activity_type: { _eq: 'event' } },
-      { event: EVENTS_VISIBLE },
+      { event: { _and: [{ open_roster: { _eq: true } }, EVENTS_VISIBLE] } },
     ],
   }
   const PARTICIPATION_VISIBLE = {
@@ -2381,7 +2389,7 @@ async function main() {
   const COACH_OR_TR_PARTICIPATION_READ = {
     _or: [
       ...COACH_OR_TR_OF_PARTICIPATION._or,
-      { _and: [{ activity_type: { _eq: 'event' } }, { event: LEADER_EVENTS_VISIBLE }] },
+      { _and: [{ activity_type: { _eq: 'event' } }, { event: { _and: [{ open_roster: { _eq: true } }, LEADER_EVENTS_VISIBLE] } }] },
     ],
   }
   await setPermRead(LEADER_POLICY, 'participations', COACH_OR_TR_PARTICIPATION_READ)
