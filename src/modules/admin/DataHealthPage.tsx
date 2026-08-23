@@ -31,6 +31,7 @@ import {
 } from 'lucide-react'
 import { toXlsx, downloadBlob } from './utils/exportResults'
 import { Checkbox } from '../../components/ui/checkbox'
+import { useConfirm } from '../../components/ConfirmProvider'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import ClubdeskSyncUpModal from './components/ClubdeskSyncUpModal'
@@ -57,7 +58,7 @@ import {
 import { useReportPageLoading } from '../../hooks/usePageReady'
 import {
   runAllChecks, autoFix, autoFixAll, manualFix, linkClubdesk, deactivateMember, flagClubdeskDrift,
-  flagClubdeskDriftBulk,
+  flagClubdeskDriftBulk, resolveStaleLink,
   type CollectionHealth, type DataIssue, type IssueKey,
 } from './utils/dataHealthChecks'
 
@@ -72,6 +73,8 @@ const ISSUE_LABEL_KEY: Record<IssueKey, string> = {
   missingSex: 'dhIssueMissingSex',
   clubdeskNameMatch: 'dhIssueClubdeskNameMatch',
   clubdeskDeparted: 'dhIssueClubdeskDeparted',
+  clubdeskStale: 'dhIssueClubdeskStale',
+  clubdeskStaleSuppressed: 'dhIssueClubdeskStaleSuppressed',
   clubdeskDrift: 'dhIssueClubdeskDrift',
   clubdeskDriftBlocked: 'dhIssueClubdeskDriftBlocked',
   clubdeskFill: 'dhIssueClubdeskFill',
@@ -109,6 +112,7 @@ function CollectionCard({
   onFixed: () => void
 }) {
   const { t } = useTranslation('admin')
+  const confirm = useConfirm()
   const [expanded, setExpanded] = useState(health.issues.length > 0)
   const [fixingId, setFixingId] = useState<string | null>(null)
   const [fixingAll, setFixingAll] = useState(false)
@@ -248,7 +252,18 @@ function CollectionCard({
     }
   }
 
+  // ⚠ Confirm first: this is the one row action on this page that DELETES data —
+  // it drops every active-team roster row for the member on top of flipping them
+  // to not-a-member. The server re-verifies the departed condition, but it cannot
+  // second-guess a mis-click on a 200-row list.
   async function handleDeactivate(issue: DataIssue) {
+    const ok = await confirm({
+      title: t('dhDeactivate'),
+      message: t('dhConfirmDeactivate', { name: issue.detail }),
+      confirmLabel: t('dhDeactivate'),
+      danger: true,
+    })
+    if (!ok) return
     setManualFixingId(issue.id)
     try {
       await deactivateMember(issue)
@@ -256,6 +271,41 @@ function CollectionCard({
       onFixed()
     } catch {
       toast.error(t('dhFixFailed'))
+    } finally {
+      setManualFixingId(null)
+    }
+  }
+
+  // Broken link (the ClubDesk contact was deleted): unlink keeps the member and
+  // frees them to be re-created on the next sync-up; deactivate treats the
+  // deletion as the departure. Both confirm — one changes the club register's
+  // identity link, the other drops rosters.
+  async function handleStale(issue: DataIssue, action: 'unlink' | 'deactivate') {
+    const ok = await confirm({
+      title: action === 'unlink' ? t('dhUnlink') : t('dhDeactivate'),
+      message: t(action === 'unlink' ? 'dhConfirmUnlink' : 'dhConfirmDeactivate', { name: issue.detail }),
+      confirmLabel: action === 'unlink' ? t('dhUnlink') : t('dhDeactivate'),
+      danger: action === 'deactivate',
+    })
+    if (!ok) return
+    setManualFixingId(issue.id)
+    try {
+      await resolveStaleLink(issue, action)
+      toast.success(`${t('dhFixed')}: ${issue.detail}`)
+      onFixed()
+    } catch (err) {
+      const code = (err as { code?: string; body?: { code?: string } })?.code
+        ?? (err as { body?: { code?: string } })?.body?.code
+      if (code === 'not_stale') {
+        // A sync-down landed between the scan and the click — the link is live
+        // again. Informational, and rescan so the row disappears.
+        toast.info(t('dhStaleGone'))
+        onFixed()
+      } else if (code === 'down_in_progress' || code === 'export_empty' || code === 'export_incomplete') {
+        toast.warning(t('dhStaleSnapshotUnusable'))
+      } else {
+        toast.error(t('dhFixFailed'))
+      }
     } finally {
       setManualFixingId(null)
     }
@@ -451,6 +501,28 @@ function CollectionCard({
                       >
                         {manualFixingId === issue.id ? t('dhFixing') : t('dhDeactivate')}
                       </button>
+                    ) : issue.manualKind === 'clubdeskStale' ? (
+                      // A deleted ClubDesk contact has two honest readings and
+                      // the server cannot pick between them — so both are
+                      // offered, side by side, rather than guessing.
+                      <div className="inline-flex flex-col gap-1.5 sm:flex-row">
+                        <button
+                          onClick={() => void handleStale(issue, 'unlink')}
+                          disabled={manualFixingId === issue.id}
+                          aria-busy={manualFixingId === issue.id}
+                          className="inline-flex min-h-[44px] items-center justify-center rounded-md border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-50 sm:min-h-0 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+                        >
+                          {manualFixingId === issue.id ? t('dhFixing') : t('dhUnlink')}
+                        </button>
+                        <button
+                          onClick={() => void handleStale(issue, 'deactivate')}
+                          disabled={manualFixingId === issue.id}
+                          aria-busy={manualFixingId === issue.id}
+                          className="inline-flex min-h-[44px] items-center justify-center rounded-md border border-red-200 px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 sm:min-h-0 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/30"
+                        >
+                          {manualFixingId === issue.id ? t('dhFixing') : t('dhDeactivate')}
+                        </button>
+                      </div>
                     ) : issue.manualKind === 'clubdeskDriftFlag' ? (
                       <button
                         onClick={() => handleFlagDrift(issue)}

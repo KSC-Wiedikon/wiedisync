@@ -28,6 +28,8 @@ export type IssueKey =
   | 'missingSex'
   | 'clubdeskNameMatch'
   | 'clubdeskDeparted'
+  | 'clubdeskStale'
+  | 'clubdeskStaleSuppressed'
   | 'clubdeskDrift'
   | 'clubdeskDriftBlocked'
   | 'clubdeskFill'
@@ -65,9 +67,11 @@ export interface DataIssue {
    * Non-auto fix that needs an admin choice (no single deterministic value).
    * The component renders inline controls and dispatches the matching handler.
    * 'sex' → male/female buttons (manualFix). 'clubdeskLink' → a single "Link"
-   * button (linkClubdesk). Excluded from "Fix all".
+   * button (linkClubdesk). 'clubdeskStale' → Unlink / Deactivate, the two honest
+   * readings of a deleted ClubDesk contact. Excluded from "Fix all".
    */
   manualKind?: 'sex' | 'clubdeskLink' | 'clubdeskDeactivate' | 'clubdeskDriftFlag'
+    | 'clubdeskStale'
   /** For manualKind 'clubdeskLink': the ClubDesk contact to link to. */
   link?: { clubdeskId: string; clubdeskEmail?: string | null }
   /** For manualKind 'clubdeskDriftFlag' aggregate (fill) rows: all member ids to flag. */
@@ -101,6 +105,26 @@ interface ClubdeskFillAgg {
   count: number
   member_ids: number[]
   at_risk: number
+}
+
+/**
+ * /clubdesk-stale. `suppressed` is null or a reason code — the endpoint refuses to
+ * report candidates when the ClubDesk snapshot is mid-reload, empty, or so
+ * incomplete that most of the club reads as stale, because every row here carries
+ * a Deactivate button.
+ */
+interface ClubdeskStaleResp {
+  candidates: {
+    member_id: number
+    member_name: string
+    clubdesk_id: string
+    pushed_at: string | null
+    current_teams: string[]
+  }[]
+  suppressed: 'down_in_progress' | 'export_empty' | 'export_incomplete' | null
+  linked: number
+  export_rows: number
+  stale_count: number
 }
 
 interface ClubdeskNameMatch {
@@ -363,6 +387,44 @@ async function checkMembers(): Promise<CollectionHealth> {
         detail: `${c.member_name} — ${c.status}${c.austritt ? ` (${c.austritt})` : ''}${teams}`,
         autoFixable: false,
         manualKind: 'clubdeskDeactivate',
+      })
+    }
+  } catch {
+    // Best-effort — see above.
+  }
+
+  // Members whose linked ClubDesk contact has been DELETED from the register —
+  // the mirror of "departed" (there the contact says they left; here there is no
+  // contact left to say anything). Two decisions, because the server cannot tell
+  // an accidental deletion from a real departure: unlink (keep the member, drop
+  // the dead id so the next sync-up can re-create the contact) or deactivate
+  // (same write as the departed flow). Best-effort for the rows — but NOT for the
+  // suppression, which is reported as its own issue: a snapshot-shaped false
+  // negative here reads as "no broken links" while the check has stopped looking.
+  try {
+    const stale = await kscwApi<ClubdeskStaleResp>('/clubdesk-stale')
+    if (stale.suppressed) {
+      issues.push({
+        id: 'clubdesk-stale-suppressed',
+        collection: 'members',
+        field: 'clubdesk_id',
+        severity: 'warning',
+        issueKey: 'clubdeskStaleSuppressed',
+        detail: `${stale.suppressed} · ${stale.stale_count}/${stale.linked} linked · ${stale.export_rows} rows in snapshot`,
+        autoFixable: false,
+      })
+    }
+    for (const c of stale.candidates || []) {
+      const teams = c.current_teams.length ? ` · ${c.current_teams.join(', ')}` : ''
+      issues.push({
+        id: String(c.member_id),
+        collection: 'members',
+        field: 'clubdesk_id',
+        severity: 'warning',
+        issueKey: 'clubdeskStale',
+        detail: `${c.member_name} — ClubDesk ${c.clubdesk_id}${teams}`,
+        autoFixable: false,
+        manualKind: 'clubdeskStale',
       })
     }
   } catch {
@@ -733,6 +795,25 @@ export async function deactivateMember(issue: DataIssue): Promise<void> {
   await kscwApi('/clubdesk-deactivate', {
     method: 'POST',
     body: { member_id: Number(issue.id) },
+  })
+}
+
+/**
+ * Resolve a broken ClubDesk link (the contact was deleted register-side).
+ *   'unlink'     — clear the dead clubdesk_id (+ clubdesk_pushed_at, or the member
+ *                  would fall out of BOTH sync-up preview lists); they become
+ *                  "not linked" and the next sync-up can create the contact again.
+ *   'deactivate' — treat the deletion as the departure: not-a-member, inactive,
+ *                  active-team rosters dropped.
+ * The server re-derives the finding (snapshot-health guards included) before
+ * writing, so a decision taken against a stale scan 409s instead of applying.
+ */
+export async function resolveStaleLink(
+  issue: DataIssue, action: 'unlink' | 'deactivate',
+): Promise<void> {
+  await kscwApi('/clubdesk-stale/resolve', {
+    method: 'POST',
+    body: { member_id: Number(issue.id), action },
   })
 }
 

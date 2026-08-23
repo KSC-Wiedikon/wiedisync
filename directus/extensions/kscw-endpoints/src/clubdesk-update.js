@@ -2983,6 +2983,199 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
     }
   })
 
+  // ── Broken-link (stale) detection + resolution (Data Health) ────────────────
+  // The mirror image of /clubdesk-departed. There the register says the person
+  // LEFT; here the register no longer holds the contact AT ALL — the member's
+  // clubdesk_id has no row in the last export, i.e. somebody deleted the contact
+  // in ClubDesk.
+  //
+  // Until now that was DETECTED and nowhere actionable: computeMemberSyncStatuses
+  // called it 'stale' and painted a red "Broken link" badge, and there the trail
+  // ended. The member stayed active on every roster; /clubdesk-deactivate refused
+  // them by construction (its predicate needs a LIVE contact row in a departed
+  // status → 409 not_departed); the sync-up skipped them via the stale-link guard
+  // (an unknown [Id] hard-aborts the whole ClubDesk import). A deleted contact was
+  // a permanent read-only finding.
+  //
+  // ⚠⚠ `clubdesk_export` is TRUNCATEd and re-\copy'd on every sync-down, so an
+  // empty or half-loaded snapshot makes EVERY linked member look stale. That is
+  // survivable for a badge and NOT survivable for a list carrying a Deactivate
+  // button on each row, so this check suppresses ITSELF rather than reporting a
+  // club-wide false positive — and reports the suppression, because "no broken
+  // links" and "the check refused to run" must never render identically.
+  //
+  // ⚠ The suppression is deliberately DATA-shaped, not state-shaped.
+  // `clubdesk_member_sync.down_state` is a reliable BUSY signal but not a reliable
+  // SUCCESS one: the weekly cron (Sat 22:00 UTC) runs clubdesk-sync.sh straight
+  // from root's crontab and never touches the singleton, so a 'failed' left by an
+  // old button press outlives any number of good cron runs — gating on it would
+  // suppress this check forever on a club that syncs on the schedule.
+  const STALE_SUPPRESS_FLOOR = 10
+  const STALE_SUPPRESS_RATIO = 0.25
+
+  /**
+   * Linked + active members whose ClubDesk contact is gone from the snapshot.
+   * Returns { candidates, suppressed, linked, export_rows, stale_count } where
+   * `suppressed` is null or one of down_in_progress / export_empty /
+   * export_incomplete — never an exception, so a bad snapshot degrades to
+   * "cannot tell" instead of failing the whole Data Health run.
+   */
+  async function computeStaleLinks() {
+    const empty = { candidates: [], linked: 0, export_rows: 0, stale_count: 0 }
+    // A sync-down mid-flight is reloading the snapshot as
+    // `BEGIN; TRUNCATE clubdesk_export; \copy …; COMMIT` — reads below would
+    // block on that ACCESS EXCLUSIVE lock for the length of the run.
+    const busy = await database('clubdesk_member_sync').where('id', 1).first('down_state')
+    if (isBusy(busy?.down_state)) return { ...empty, suppressed: 'down_in_progress' }
+
+    const linkedRows = await database('members')
+      .where('kscw_membership_active', true)
+      .where('clubdesk_sync_exclude', false)
+      .whereRaw("NULLIF(BTRIM(clubdesk_id), '') IS NOT NULL")
+      .select('id', 'first_name', 'last_name', 'clubdesk_id', 'clubdesk_pushed_at')
+      .orderBy(['last_name', 'first_name'])
+    const exportRows = Number((await database('clubdesk_export').count({ n: '*' }).first())?.n ?? 0)
+    if (!exportRows) {
+      return { ...empty, suppressed: 'export_empty', linked: linkedRows.length }
+    }
+
+    const present = new Set(
+      (await database('clubdesk_export')
+        .whereRaw("NULLIF(BTRIM(clubdesk_id), '') IS NOT NULL")
+        .distinct(database.raw('BTRIM(clubdesk_id) AS cdid'))).map((r) => r.cdid),
+    )
+    const stale = linkedRows.filter((m) => !present.has(String(m.clubdesk_id).trim()))
+    // Above this share of the linked cohort, "everybody is stale" describes a
+    // broken snapshot, not a register full of deletions. The floor keeps a small
+    // cohort (or a dev DB with a handful of links) from suppressing on 2 real ones.
+    const cap = Math.max(STALE_SUPPRESS_FLOOR, Math.round(linkedRows.length * STALE_SUPPRESS_RATIO))
+    if (stale.length > cap) {
+      return {
+        candidates: [], suppressed: 'export_incomplete',
+        linked: linkedRows.length, export_rows: exportRows, stale_count: stale.length,
+      }
+    }
+
+    const candidates = []
+    for (const m of stale) {
+      const teams = await database('member_teams as mt').join('teams as t', 't.id', 'mt.team')
+        .where('mt.member', m.id).andWhere('t.active', true).distinct('t.name')
+      candidates.push({
+        member_id: m.id,
+        member_name: `${m.first_name || ''} ${m.last_name || ''}`.trim(),
+        clubdesk_id: String(m.clubdesk_id).trim(),
+        pushed_at: m.clubdesk_pushed_at || null,
+        current_teams: teams.map((t) => t.name),
+      })
+    }
+    return {
+      candidates, suppressed: null,
+      linked: linkedRows.length, export_rows: exportRows, stale_count: stale.length,
+    }
+  }
+
+  router.get('/clubdesk-stale', async (req, res) => {
+    try {
+      if (!(await superGate(req))) return res.status(403).json({ error: 'Forbidden' })
+      return res.json(await computeStaleLinks())
+    } catch (err) {
+      log.error({ msg: `clubdesk-stale: ${err.message}`, endpoint: 'clubdesk-stale', stack: err.stack })
+      return res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  /**
+   * The deactivation write itself, shared by the departed and broken-link flows.
+   * ⚠ Drops rosters by MEMBERSHIP (every ACTIVE team), never by season string —
+   * keying on the season left a departed member's roster row alive whenever the
+   * stamp lagged, and every unseasoned reader still counted them as squad. See
+   * the note on /clubdesk-deactivate.
+   */
+  async function deactivateMemberRow(req, memberId, kind) {
+    const season = getCurrentSeason()
+    const activeTeamIds = await database('teams').where('active', true).pluck('id')
+    const dropped = activeTeamIds.length
+      ? await database('member_teams').where('member', memberId).whereIn('team', activeTeamIds).del()
+      : 0
+    await database('members').where('id', memberId)
+      .update({ kscw_membership_active: false, wiedisync_active: false })
+    await writeUserLog(database, log, {
+      accountability: req.accountability, action: 'update',
+      collection: 'members', recordId: memberId,
+      data: { kind, season, rosters_dropped: dropped },
+    })
+    return dropped
+  }
+
+  // Two decisions, because a vanished contact has two honest readings and the
+  // server cannot tell them apart:
+  //   unlink     — the contact was deleted in error (or merged into another one).
+  //                The person is still ours: drop the dead id so they read as
+  //                `not_linked` and the next sync-up can CREATE them afresh.
+  //   deactivate — the deletion WAS the departure. Same write as
+  //                /clubdesk-deactivate: not-a-member + active rosters dropped.
+  //
+  // ⚠ `unlink` MUST clear `clubdesk_pushed_at` as well. The up-preview's CREATE
+  // list is `clubdesk_id IS NULL AND clubdesk_pushed_at IS NULL` — the latter
+  // means "already pushed as new, awaiting its link back" — so a previously-pushed
+  // member would unlink into a state that appears in NEITHER preview list, and go
+  // invisible to both directions of the sync permanently.
+  //
+  // ⚠ `deactivate` KEEPS the dead clubdesk_id on purpose: it is the evidence of
+  // which contact this was, and an inactive member drops out of every sync verdict
+  // anyway (computeMemberSyncStatuses only looks at kscw_membership_active), so it
+  // cannot come back as a finding.
+  router.post('/clubdesk-stale/resolve', async (req, res) => {
+    try {
+      if (!(await superGate(req))) return res.status(403).json({ error: 'Forbidden' })
+      const memberId = Number(req.body?.member_id)
+      const action = String(req.body?.action || '')
+      if (!Number.isInteger(memberId)) return res.status(400).json({ error: 'member_id required' })
+      if (!['unlink', 'deactivate'].includes(action)) {
+        return res.status(400).json({ error: "action must be 'unlink' or 'deactivate'", code: 'bad_action' })
+      }
+      const member = await database('members').where('id', memberId).first('id', 'clubdesk_id')
+      if (!member) return res.status(404).json({ error: 'Member not found' })
+      if (!String(member.clubdesk_id || '').trim()) {
+        return res.status(409).json({ error: 'Member is not linked to a ClubDesk contact', code: 'not_linked' })
+      }
+      // Re-derive the finding server-side — snapshot guards included — rather than
+      // trusting the list the caller clicked: a Data Health scan can be minutes
+      // old, and a sync-down landing in between is precisely the case where the
+      // link is no longer broken.
+      const stale = await computeStaleLinks()
+      if (stale.suppressed) {
+        return res.status(409).json({
+          error: 'The ClubDesk snapshot is not usable right now — run a sync down first',
+          code: stale.suppressed,
+        })
+      }
+      if (!stale.candidates.some((c) => c.member_id === memberId)) {
+        return res.status(409).json({
+          error: 'This ClubDesk link is no longer broken — refresh Data Health',
+          code: 'not_stale',
+        })
+      }
+
+      if (action === 'unlink') {
+        await database('members').where('id', memberId)
+          .update({ clubdesk_id: null, clubdesk_pushed_at: null })
+        await writeUserLog(database, log, {
+          accountability: req.accountability, action: 'update',
+          collection: 'members', recordId: memberId,
+          data: { kind: 'clubdesk_stale_unlink', clubdesk_id: String(member.clubdesk_id).trim() },
+        })
+        return res.json({ success: true, member_id: memberId, action })
+      }
+
+      const dropped = await deactivateMemberRow(req, memberId, 'clubdesk_stale_deactivate')
+      return res.json({ success: true, member_id: memberId, action, rosters_dropped: dropped })
+    } catch (err) {
+      log.error({ msg: `clubdesk-stale/resolve: ${err.message}`, endpoint: 'clubdesk-stale/resolve', stack: err.stack })
+      return res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
   // ── Per-member ClubDesk sync verdict (Data Explorer "ClubDesk sync" column) ──
   // Returns { statuses: { [member_id]: status } } with NO PII — one of:
   //   excluded   — clubdesk_sync_exclude (muted system account, out of scope)
@@ -4002,26 +4195,9 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       if (!departed) {
         return res.status(409).json({ error: 'ClubDesk contact is not in a departed status — refresh Data Health', code: 'not_departed' })
       }
-      // ⚠ Delete by MEMBERSHIP, not by season string. Keyed on the season this
-      // left a departed member's roster row alive whenever the stamp lagged, and
-      // every unseasoned reader (team page roster, mailbox `teams:` audience,
-      // LEADER policy scopes, sharedPlayerTeams) still counted them as squad —
-      // so they kept receiving team mail indefinitely while the admin was told
-      // deactivation succeeded. This is the write that made the read-side bugs
-      // permanent instead of self-healing. History stays reconstructable from
-      // the archived teams' own rows.
-      const season = getCurrentSeason()
-      const activeTeamIds = await database('teams').where('active', true).pluck('id')
-      const dropped = activeTeamIds.length
-        ? await database('member_teams').where('member', memberId).whereIn('team', activeTeamIds).del()
-        : 0
-      await database('members').where('id', memberId)
-        .update({ kscw_membership_active: false, wiedisync_active: false })
-      await writeUserLog(database, log, {
-        accountability: req.accountability, action: 'update',
-        collection: 'members', recordId: memberId,
-        data: { kind: 'clubdesk_deactivate', season, rosters_dropped: dropped },
-      })
+      // ⚠ Deletes rosters by MEMBERSHIP, not by season string — see
+      // deactivateMemberRow, which the broken-link flow shares.
+      const dropped = await deactivateMemberRow(req, memberId, 'clubdesk_deactivate')
       return res.json({ success: true, member_id: memberId, rosters_dropped: dropped })
     } catch (err) {
       log.error({ msg: `clubdesk-deactivate: ${err.message}`, endpoint: 'clubdesk-deactivate', stack: err.stack })
