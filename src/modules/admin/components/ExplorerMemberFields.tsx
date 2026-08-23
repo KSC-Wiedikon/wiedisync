@@ -26,7 +26,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Pencil, Save, X, Loader2, Eye, EyeOff, AlertTriangle, Crosshair } from 'lucide-react'
+import { Pencil, Save, X, Loader2, Eye, EyeOff, AlertTriangle, Crosshair, Check } from 'lucide-react'
 import { assetUrl, createRecord, deleteRecord, fetchItem, kscwApi, updateRecord } from '../../../lib/api'
 import { logActivity } from '../../../utils/logActivity'
 import { getCurrentSeason, todayLocal } from '../../../utils/dateHelpers'
@@ -41,7 +41,7 @@ import {
 } from '../../../utils/trainerLicences'
 import { coercePositions, getPositionI18nKey, getSelectablePositions } from '../../../utils/memberPositions'
 import { useConfirm } from '../../../components/ConfirmProvider'
-import type { Team } from '../../../types'
+import type { MemberPosition, Team } from '../../../types'
 import type { CacheShape } from './explorerHelpers'
 import { teamLabel } from './explorerHelpers'
 import { TEAM_LINK_KIND_LIST, teamLinkKind } from './teamLinks'
@@ -2141,6 +2141,65 @@ function JsonEditor({ value, onChange }: { value: unknown; onChange: (v: unknown
 }
 
 /**
+ * The one multi-select control for every "tick several of these" field —
+ * positions, coaching qualifications and any `multiselect` option list.
+ *
+ * Chips, not native `<input type="checkbox">`. The native boxes were 20px
+ * targets sitting next to a 44px label, which on a phone meant the tap only
+ * registered on half the row, and a ticked box reads as an *empty* box from
+ * arm's length because the tick is the only difference between the two states.
+ * A chip flips its whole surface to the brand colour, so selected/unselected is
+ * legible without focusing on a 3px glyph, the entire pill is the hit target,
+ * and the set wraps like the filter pills the explorer header already uses.
+ *
+ * ⚠ `role="checkbox"` + `aria-checked`, not a bare button: this IS a checkbox
+ * group semantically and screen readers must still announce it as one.
+ * ⚠ The marker slot is a fixed `size-4` — a tick when selected, an empty ring
+ * when not — so the chip keeps its width and the labels do not jump sideways
+ * (with a wrapping set, one chip changing width reflows the whole group).
+ */
+function OptionChips({
+  options,
+  selected,
+  onToggle,
+}: {
+  options: readonly { value: string; label: string }[]
+  selected: readonly string[]
+  onToggle: (value: string) => void
+}) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {options.map((o) => {
+        const active = selected.includes(o.value)
+        return (
+          <button
+            key={o.value}
+            type="button"
+            role="checkbox"
+            aria-checked={active}
+            onClick={() => onToggle(o.value)}
+            className={
+              'inline-flex min-h-[44px] items-center gap-1.5 rounded-full border px-3 py-1.5 '
+              + 'text-sm transition-colors sm:min-h-[36px] '
+              + (active
+                ? 'border-primary bg-primary text-primary-foreground shadow-sm'
+                : 'border-border bg-card text-foreground hover:border-primary/50 hover:bg-muted')
+            }
+          >
+            <span className="flex size-4 shrink-0 items-center justify-center">
+              {active
+                ? <Check className="size-4" strokeWidth={3} />
+                : <span className="size-3.5 rounded-full border border-muted-foreground/50" />}
+            </span>
+            {o.label}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+/**
  * Playing positions — the profile picker's own option set, so the explorer can
  * never offer a position the app does not render. A legacy value already on the
  * record stays selectable.
@@ -2158,30 +2217,21 @@ function PositionsEditor({
   const selected = coercePositions(value)
   // 'both' → undefined, which is how getPositionsForSport spells "offer all".
   const sportArg = sport === 'both' ? undefined : (sport as Team['sport'])
+  const options = getSelectablePositions(sportArg, value).map((p) => {
+    const i18nKey = getPositionI18nKey(p)
+    return { value: p, label: i18nKey ? t(i18nKey) : p }
+  })
   return (
-    <div className="flex flex-wrap gap-x-4 gap-y-1">
-      {getSelectablePositions(sportArg, value).map((p) => {
-        const i18nKey = getPositionI18nKey(p)
-        return (
-          <label
-            key={p}
-            className="flex min-h-[44px] cursor-pointer items-center gap-2 text-sm text-foreground"
-          >
-            <input
-              type="checkbox"
-              checked={selected.includes(p)}
-              onChange={(e) => {
-                onChange(e.target.checked
-                  ? [...selected, p]
-                  : selected.filter((c) => c !== p))
-              }}
-              className="size-5 accent-primary"
-            />
-            {i18nKey ? t(i18nKey) : p}
-          </label>
-        )
-      })}
-    </div>
+    <OptionChips
+      options={options}
+      selected={selected}
+      onToggle={(raw) => {
+        // OptionChips speaks `string`; the option list it was handed is
+        // `MemberPosition[]`, so the round trip is safe.
+        const p = raw as MemberPosition
+        onChange(selected.includes(p) ? selected.filter((c) => c !== p) : [...selected, p])
+      }}
+    />
   )
 }
 
@@ -2215,27 +2265,16 @@ function TrainerLicenceEditor({
     (c) => c === 'JS' || base.includes(c) || selected.includes(c),
   )
   return (
-    <div className="flex flex-wrap gap-x-4 gap-y-1">
-      {offered.map((code) => (
-        <label
-          key={code}
-          className="flex min-h-[44px] cursor-pointer items-center gap-2 text-sm text-foreground"
-        >
-          <input
-            type="checkbox"
-            checked={selected.includes(code)}
-            onChange={(e) => {
-              const next = e.target.checked
-                ? [...selected, code]
-                : selected.filter((c) => c !== code)
-              onChange(serializeTrainerLicences(next))
-            }}
-            className="size-5 accent-primary"
-          />
-          {t(TRAINER_LICENCE_I18N_KEYS[code])}
-        </label>
-      ))}
-    </div>
+    <OptionChips
+      options={offered.map((code) => ({ value: code, label: t(TRAINER_LICENCE_I18N_KEYS[code]) }))}
+      selected={selected}
+      onToggle={(code) => {
+        const next = selected.includes(code as TrainerLicence)
+          ? selected.filter((c) => c !== code)
+          : [...selected, code as TrainerLicence]
+        onChange(serializeTrainerLicences(next))
+      }}
+    />
   )
 }
 
@@ -2301,25 +2340,12 @@ function MultiSelectEditor({
       .map((c) => ({ value: c, label: `${c} (unrecognised)` })),
   ]
   return (
-    <div className="flex flex-wrap gap-x-4 gap-y-1">
-      {shown.map((o) => (
-        <label
-          key={o.value}
-          className="flex min-h-[44px] cursor-pointer items-center gap-2 text-sm text-foreground"
-        >
-          <input
-            type="checkbox"
-            checked={selected.includes(o.value)}
-            onChange={(e) => {
-              onChange(e.target.checked
-                ? [...selected, o.value]
-                : selected.filter((c) => c !== o.value))
-            }}
-            className="size-5 accent-primary"
-          />
-          {o.label}
-        </label>
-      ))}
-    </div>
+    <OptionChips
+      options={shown}
+      selected={selected}
+      onToggle={(v) => {
+        onChange(selected.includes(v) ? selected.filter((c) => c !== v) : [...selected, v])
+      }}
+    />
   )
 }

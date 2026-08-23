@@ -166,9 +166,17 @@ export default function ExplorePage() {
     // so h-full + min-h-0 fills the viewport exactly — internal scrolling only.
     <div className="flex flex-col bg-background text-foreground md:min-h-0 md:flex-1 md:h-full">
       {/* Header */}
-      <header className="flex items-center gap-2 border-b border-border bg-card px-3 py-2 md:px-4">
+      {/* `flex-wrap`: five controls do not fit next to a usable search box on a
+          phone. Wrapping puts the search on its own full-width row and the
+          buttons underneath instead of running them off the right edge. */}
+      <header className="flex flex-wrap items-center gap-2 border-b border-border bg-card px-3 py-2 md:px-4">
         <h1 className="hidden text-sm font-bold text-primary md:block">{t('explorerTitle')}</h1>
-        <div className="max-w-md flex-1">
+        {/* ⚠ `min-w-0` is load-bearing: a flex item defaults to `min-width:auto`,
+            and the search box's intrinsic width (icon + a text input's default
+            preferred size) is ~200px — so on a phone the header could not shrink
+            and pushed the filter + view toggle off the right edge, giving the
+            whole page a horizontal scroll. */}
+        <div className="min-w-0 max-w-md flex-1 basis-full sm:basis-56">
           <ExplorerSearch value={query} onChange={setQuery} onEnter={handleSearchEnter} />
         </div>
         <ExplorerFieldSearch value={focusFields} onChange={setFocusFields} />

@@ -442,7 +442,12 @@ describe('sanitizeRecord', () => {
 // columns. They surfaced in the amber "Unmapped columns" group on 2026-08-06 and
 // were nearly dropped as dead schema — `member_teams` is the entire club roster.
 describe('relation aliases are not fields', () => {
-  const ALIASES = ['member_teams', 'game_guests', 'spielplaner_assignments']
+  // ⚠ `coach_of` / `team_responsible_of` (migration 331) reached the amber group
+  // on 2026-08-23 rendering a comma-joined list of junction ids ("11,25").
+  const ALIASES = [
+    'member_teams', 'game_guests', 'spielplaner_assignments',
+    'coach_of', 'team_responsible_of',
+  ]
 
   it.each(ALIASES)('%s is recognised as an alias, not a column', (key) => {
     expect(isRelationAlias(key)).toBe(true)
@@ -466,6 +471,8 @@ describe('relation aliases are not fields', () => {
       member_teams: [2199],
       game_guests: [],
       spielplaner_assignments: [],
+      coach_of: [21],
+      team_responsible_of: [11, 25],
       grp_identity: null,
     })
     for (const key of [...ALIASES, 'grp_identity']) {

@@ -52,11 +52,14 @@ export interface MemberDangerZoneProps {
   onDeleted: () => void
 }
 
-/** `Yes` emerald / `No` red — the same colour language the field grid uses. */
-function BoolValue({ value }: { value: boolean }) {
+/**
+ * `Yes` emerald / `No` red — the same colour language the field grid uses.
+ * ⚠ The label is translated: it was hardcoded English in a five-locale app.
+ */
+function BoolValue({ value, t }: { value: boolean; t: (key: string) => string }) {
   return (
     <span className={value ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}>
-      {value ? 'Yes' : 'No'}
+      {value ? t('yes') : t('no')}
     </span>
   )
 }
@@ -151,7 +154,7 @@ export default function MemberDangerZone({
     {
       key: 'kscw_membership_active',
       label: t('explorerDangerMembership'),
-      current: <BoolValue value={membershipActive} />,
+      current: <BoolValue t={tCommon} value={membershipActive} />,
       action: (
         <Switch
           checked={membershipActive}
@@ -172,7 +175,7 @@ export default function MemberDangerZone({
     {
       key: 'wiedisync_active',
       label: t('explorerDangerAppAccess'),
-      current: <BoolValue value={appActive} />,
+      current: <BoolValue t={tCommon} value={appActive} />,
       action: (
         <Switch
           checked={appActive}
@@ -193,7 +196,7 @@ export default function MemberDangerZone({
     {
       key: 'shell',
       label: t('explorerDangerShell'),
-      current: <BoolValue value={isShell} />,
+      current: <BoolValue t={tCommon} value={isShell} />,
       action: (
         <Switch
           checked={isShell}
@@ -225,11 +228,15 @@ export default function MemberDangerZone({
       ),
       action: (
         <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
+          {/* Explicit desktop width: in a table cell the control is sized from
+              its content, and its content is intentionally allowed to shrink,
+              which otherwise wraps the time field onto a second line even on a
+              1440px screen. `min-w-0` keeps it free to shrink on a phone. */}
           <DateTimePicker
             value={shellExpires}
             onChange={setShellExpires}
             disabled={!canEditStatus || savingKey !== null}
-            className="min-w-0"
+            className="min-w-0 sm:w-[19rem]"
           />
           <Button
             type="button"
@@ -262,12 +269,24 @@ export default function MemberDangerZone({
       <h2 className="text-base font-semibold text-destructive">{t('explorerDangerTitle')}</h2>
       <p className="mb-3 text-xs text-muted-foreground">{t('explorerDangerDescription')}</p>
 
+      {/* ⚠ `table-fixed`. With auto layout the column widths come from the
+          content's min-content, and the date+time picker's is ~280px, so the
+          table demanded 460px inside a 292px card and everything from the third
+          column on was clipped behind the overflow container. Fixed layout
+          sizes the columns from the percentages below instead, and the picker
+          then wraps inside whatever it is given. */}
       {canEditStatus && (
-        <Table>
+        <Table className="table-fixed">
           <TableHeader>
             <TableRow>
-              <TableHead>{t('explorerDangerColSetting')}</TableHead>
-              <TableHead>{t('explorerDangerColState')}</TableHead>
+              <TableHead className="w-[38%] sm:w-[30%]">{t('explorerDangerColSetting')}</TableHead>
+              {/* The state column is redundant on a phone — the switch in the
+                  action column already shows on/off, and the expiry picker
+                  already shows the stored date — and three columns plus a date
+                  field do not fit 390px, so the table used to scroll away under
+                  its own card. Hidden below `sm`, kept on desktop where the
+                  explicit Yes/No is the faster read. */}
+              <TableHead className="hidden sm:table-cell sm:w-[15%]">{t('explorerDangerColState')}</TableHead>
               <TableHead>{t('explorerDangerColAction')}</TableHead>
             </TableRow>
           </TableHeader>
@@ -275,7 +294,7 @@ export default function MemberDangerZone({
             {rows.map((r) => (
               <TableRow key={r.key} className="min-h-[44px]">
                 <TableCell className="text-sm font-medium">{r.label}</TableCell>
-                <TableCell className="text-sm">{r.current}</TableCell>
+                <TableCell className="hidden text-sm sm:table-cell">{r.current}</TableCell>
                 <TableCell>{r.action}</TableCell>
               </TableRow>
             ))}

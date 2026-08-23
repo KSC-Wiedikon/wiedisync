@@ -918,7 +918,10 @@ export function looksSecret(key: string): boolean {
  * on prod — every player↔team assignment); `game_guests` holds the called-up
  * players. Dropping either empties a core feature. `spielplaner_assignments` is
  * legitimately empty (Spielplaner scope is club-wide unless narrowed), which is
- * exactly what made it look disposable.
+ * exactly what made it look disposable. `coach_of` / `team_responsible_of` are
+ * the reverse of `teams.coach` / `teams.team_responsible`; dropping either
+ * relation's `one_field` silently un-scopes migration 331's permission row and
+ * every staff-only edit 403s again.
  *
  * Dropped from the record entirely rather than shown read-only: this form
  * PATCHes `members`, and an o2m alias in a PATCH body is a RELATIONAL write —
@@ -937,6 +940,15 @@ const MEMBER_RELATION_ALIASES: ReadonlySet<string> = new Set([
   'member_teams',
   'game_guests',
   'spielplaner_assignments',
+  // Migration 331 — the member side of the two STAFF junctions
+  // (`teams_coaches` / `teams_responsibles`). Metadata only: the migration
+  // filled in `one_field` so `setup-permissions.mjs` could scope a coach's
+  // `members.update` row through `coach_of.teams_id.…`. They exist for the
+  // permission engine, not for this form, and they arrive on a `fields: ['*']`
+  // read as a comma-joined list of JUNCTION row ids ("11,25") — which is what
+  // an admin saw in the amber group, looking like an undescribed column.
+  'coach_of',
+  'team_responsible_of',
 ])
 
 /** True for a key that is a Directus alias rather than a `members` column. */

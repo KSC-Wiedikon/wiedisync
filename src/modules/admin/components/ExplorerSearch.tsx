@@ -26,7 +26,7 @@ export default function ExplorerSearch({ value, onChange, onEnter }: Props) {
   }, [])
 
   return (
-    <div className="flex items-center gap-2 rounded-md border border-border bg-card px-3 py-1.5">
+    <div className="flex min-w-0 items-center gap-2 rounded-md border border-border bg-card px-3 py-1.5">
       <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
       <input
         ref={inputRef}
@@ -38,7 +38,9 @@ export default function ExplorerSearch({ value, onChange, onEnter }: Props) {
           if (e.key === 'Escape') onChange('')
         }}
         placeholder={t('explorerSearchPlaceholder')}
-        className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+        // `min-w-0`: without it the input refuses to shrink below its default
+        // preferred size and the header overflows the viewport on a phone.
+        className="w-full min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
         autoComplete="off"
       />
       <kbd className="hidden sm:inline-block rounded border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground">

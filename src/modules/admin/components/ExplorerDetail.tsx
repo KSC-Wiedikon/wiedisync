@@ -178,7 +178,7 @@ export default function ExplorerDetail({
       </div>
 
       {/* Fields + sections per type */}
-      {type === 'members' && renderMember(entity as never, cache, onNavigate, related, t, showRestrictedSections, memberGate)}
+      {type === 'members' && renderMember(entity as never, cache, onNavigate, related, t, tCommon, showRestrictedSections, memberGate)}
       {type === 'teams' && renderTeam(entity as never, cache, onNavigate, related, t, tCommon)}
       {type === 'events' && renderEvent(entity as never, cache, onNavigate, related, t)}
       {type === 'trainings' && renderTraining(entity as never, cache, onNavigate, related, t)}
@@ -337,6 +337,7 @@ function renderMember(
   onNavigate: Props['onSelect'],
   related: ReturnType<typeof useRelatedEntities>,
   t: TFn,
+  tCommon: TFn,
   showRestrictedSections: boolean,
   gate: MemberFieldsGate,
 ) {
@@ -426,7 +427,7 @@ function renderMember(
             error={state?.error}
           >
             {s === 'participations' && renderMemberParticipationsTable(state?.data ?? [], cache, onNavigate, teamName, t)}
-            {s === 'absences' && renderAbsencesTable(state?.data ?? [], t)}
+            {s === 'absences' && renderAbsencesTable(state?.data ?? [], t, tCommon)}
             {s === 'refereeExpenses' && renderRefereeExpensesTable(state?.data ?? [], t)}
           </ExplorerSectionCard>
         )
@@ -493,7 +494,21 @@ function renderMemberParticipationsTable(
   )
 }
 
-function renderAbsencesTable(rows: unknown[], t: TFn) {
+/**
+ * `absences.reason` is a lowercase enum code straight out of Postgres
+ * (`vacation` / `injury` / `work` / `personal` / `other`) and was rendered raw,
+ * so the table read "vacation" — lowercase, and English regardless of the UI
+ * language. The five codes already have labels in the `common` namespace in all
+ * five locales (that is what StatusBadge shows on the member's own profile), so
+ * this reuses them rather than string-capitalising a DB value. An unknown code
+ * (a new enum member landing before the translation) still gets sentence case.
+ */
+function absenceReasonLabel(reason: string | undefined, tCommon: TFn): string {
+  if (!reason) return ''
+  return tCommon(reason, { defaultValue: capitalize(reason) })
+}
+
+function renderAbsencesTable(rows: unknown[], t: TFn, tCommon: TFn) {
   return (
     <CompactTable
       cols={[
@@ -503,7 +518,8 @@ function renderAbsencesTable(rows: unknown[], t: TFn) {
       ]}
       rows={rows.map((row) => {
         const r = row as { start_date?: string; end_date?: string; reason?: string; reason_detail?: string }
-        const reason = r.reason_detail ? `${r.reason ?? ''} — ${r.reason_detail}` : (r.reason ?? '—')
+        const label = absenceReasonLabel(r.reason, tCommon)
+        const reason = r.reason_detail ? `${label} — ${r.reason_detail}` : (label || '—')
         return [
           formatShortDate(r.start_date) || '—',
           formatShortDate(r.end_date) || '—',

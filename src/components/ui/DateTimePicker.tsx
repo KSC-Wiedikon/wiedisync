@@ -60,8 +60,19 @@ export default function DateTimePicker({
           {label}
         </Label>
       )}
-      <div className="flex gap-2">
-        <div className="flex-1">
+      {/* `flex-wrap`: the date field alone has a 140px floor and the time field
+          is another 120px, so side by side they never fit a narrow column (the
+          member Danger zone's action cell on a phone). Wrapping drops the time
+          under the date instead of overflowing the container. */}
+      <div className="flex flex-wrap gap-2">
+        {/* ⚠ An explicit basis, and deliberately NO `min-w-0`: the date box
+            carries a 140px floor, so with a zero basis flexbox packs both
+            fields onto one line and lets the date box overflow its own flex
+            item instead of wrapping. The basis is also this control's PREFERRED
+            width — 11rem + gap + the 7.5rem time field is what an auto-sized
+            parent (a table cell, a flex row) hands it, and anything less makes
+            the time field wrap on a desktop that had room for both. */}
+        <div className="flex-1 basis-44">
           <DatePicker
             id={inputId}
             value={datePart}

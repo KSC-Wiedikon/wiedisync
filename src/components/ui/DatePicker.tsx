@@ -180,6 +180,16 @@ export default function DatePicker({
               // ⚠ iOS's numeric keypad has no `.`, which is why `parseTypedDate`
               // also accepts bare digits: `24031998` is the mobile typing path.
               inputMode="numeric"
+              // ⚠ `size`, not just `min-w-0`. A text input's intrinsic width
+              // comes from its `size` attribute (default 20 ≈ 210px) and
+              // `min-width: 0` does NOT lower it — so inside a narrow flex or
+              // table column the whole field refused to shrink and overflowed
+              // its container (the member Danger zone on a phone). 6 puts the
+              // whole field's intrinsic width at the wrapper's own 140px floor,
+              // so a narrow parent decides the width instead of the input's
+              // default. The input is `flex-1`, so it still fills whatever room
+              // there is — `size` only decides how narrow it MAY get.
+              size={6}
               autoComplete="off"
               spellCheck={false}
               aria-invalid={error || typedInvalid ? true : undefined}
