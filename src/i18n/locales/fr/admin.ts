@@ -617,7 +617,7 @@ export default {
   dhIssueClubdeskStaleSuppressed: 'Vérification ignorée — l\'instantané ClubDesk est inutilisable',
   dhUnlink: 'Dissocier',
   dhConfirmDeactivate: 'Désactiver {{name}} ? La personne devient non-membre et est retirée de toutes les équipes actives. Cette action n\'est pas annulée automatiquement.',
-  dhConfirmUnlink: 'Dissocier {{name}} de ClubDesk ? Le membre reste actif ici, et la prochaine synchronisation montante pourra créer un nouveau contact ClubDesk.',
+  dhConfirmUnlink: 'Dissocier {{name}} de ClubDesk ? Le membre reste actif ici, et la prochaine synchronisation montante pourra créer un nouveau contact ClubDesk. Si le contact a été supprimé pour honorer une demande d\'effacement, ne pas dissocier — désactiver plutôt, ou effacer le membre dans l\'explorateur de données.',
   dhStaleGone: 'Le lien ClubDesk n\'est plus rompu.',
   dhStaleSnapshotUnusable: 'L\'instantané ClubDesk est inutilisable pour le moment — lancez d\'abord une synchronisation descendante.',
   dhIssueClubdeskDrift: 'Désynchronisé de ClubDesk',

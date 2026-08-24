@@ -145,7 +145,7 @@ export default {
   dhIssueClubdeskStaleSuppressed: 'Prüfung übersprungen — der ClubDesk-Snapshot ist unbrauchbar',
   dhUnlink: 'Verknüpfung lösen',
   dhConfirmDeactivate: '{{name}} deaktivieren? Die Person wird zum Nichtmitglied und aus allen aktiven Teams entfernt. Das wird nicht automatisch rückgängig gemacht.',
-  dhConfirmUnlink: 'Verknüpfung von {{name}} zu ClubDesk lösen? Das Mitglied bleibt hier aktiv, und der nächste Sync-up kann einen neuen ClubDesk-Kontakt anlegen.',
+  dhConfirmUnlink: 'Verknüpfung von {{name}} zu ClubDesk lösen? Das Mitglied bleibt hier aktiv, und der nächste Sync-up kann einen neuen ClubDesk-Kontakt anlegen. Wurde der Kontakt wegen eines Löschbegehrens entfernt, nicht lösen — stattdessen deaktivieren oder das Mitglied im Daten-Explorer löschen.',
   dhStaleGone: 'Die ClubDesk-Verknüpfung ist nicht mehr defekt.',
   dhStaleSnapshotUnusable: 'Der ClubDesk-Snapshot ist momentan unbrauchbar — zuerst einen Sync-down ausführen.',
   dhIssueClubdeskDrift: 'Nicht synchron mit ClubDesk',

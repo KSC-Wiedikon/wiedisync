@@ -145,7 +145,7 @@ export default {
   dhIssueClubdeskStaleSuppressed: 'Broken-link check skipped — the ClubDesk snapshot is not usable',
   dhUnlink: 'Unlink',
   dhConfirmDeactivate: 'Deactivate {{name}}? They become a non-member and are removed from every active team roster. This is not undone automatically.',
-  dhConfirmUnlink: 'Unlink {{name}} from ClubDesk? The member stays active here, and the next sync up can create a new ClubDesk contact for them.',
+  dhConfirmUnlink: 'Unlink {{name}} from ClubDesk? The member stays active here, and the next sync up can create a new ClubDesk contact for them. If the contact was deleted to honour an erasure request, do not unlink — deactivate instead, or erase the member in the Data Explorer.',
   dhStaleGone: 'The ClubDesk link is no longer broken.',
   dhStaleSnapshotUnusable: 'The ClubDesk snapshot is not usable right now — run a sync down first.',
   dhIssueClubdeskDrift: 'Out of sync with ClubDesk',

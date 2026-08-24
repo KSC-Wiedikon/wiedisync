@@ -140,7 +140,7 @@ export default {
   dhIssueClubdeskStaleSuppressed: 'Prüefig übersprunge — de ClubDesk-Snapshot isch unbruuchbar',
   dhUnlink: 'Verknüpfig löse',
   dhConfirmDeactivate: '{{name}} deaktiviere? D Person wird zum Nichtmitglied und us allne aktive Teams gnoh. Das wird nöd automatisch rückgängig gmacht.',
-  dhConfirmUnlink: 'D Verknüpfig vo {{name}} zu ClubDesk löse? S Mitglied bliibt do aktiv, und de nächst Sync-up cha en neue ClubDesk-Kontakt aalege.',
+  dhConfirmUnlink: 'D Verknüpfig vo {{name}} zu ClubDesk löse? S Mitglied bliibt do aktiv, und de nächst Sync-up cha en neue ClubDesk-Kontakt aalege. Isch de Kontakt wäge eme Löschbegehre entfernt worde, nöd löse — lieber deaktiviere oder s Mitglied im Date-Explorer lösche.',
   dhStaleGone: 'D ClubDesk-Verknüpfig isch nüme kaputt.',
   dhStaleSnapshotUnusable: 'De ClubDesk-Snapshot isch momentan unbruuchbar — zerst en Sync-down laufe lah.',
   dhIssueClubdeskDrift: 'Nöd synchron mit ClubDesk',

@@ -617,7 +617,7 @@ export default {
   dhIssueClubdeskStaleSuppressed: 'Controllo saltato — lo snapshot ClubDesk non è utilizzabile',
   dhUnlink: 'Scollega',
   dhConfirmDeactivate: 'Disattivare {{name}}? La persona diventa non socio e viene rimossa da tutte le squadre attive. L\'operazione non viene annullata automaticamente.',
-  dhConfirmUnlink: 'Scollegare {{name}} da ClubDesk? Il membro resta attivo qui e la prossima sincronizzazione in salita può creare un nuovo contatto ClubDesk.',
+  dhConfirmUnlink: 'Scollegare {{name}} da ClubDesk? Il membro resta attivo qui e la prossima sincronizzazione in salita può creare un nuovo contatto ClubDesk. Se il contatto è stato eliminato per soddisfare una richiesta di cancellazione, non scollegare — disattiva invece, oppure elimina il membro nell\'esploratore dati.',
   dhStaleGone: 'Il collegamento ClubDesk non è più interrotto.',
   dhStaleSnapshotUnusable: 'Lo snapshot ClubDesk al momento non è utilizzabile — esegui prima una sincronizzazione in discesa.',
   dhIssueClubdeskDrift: 'Non sincronizzato con ClubDesk',
