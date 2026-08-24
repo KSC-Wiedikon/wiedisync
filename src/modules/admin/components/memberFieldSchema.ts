@@ -413,6 +413,17 @@ const MEMBERSHIP = block('membership', undefined, [
     readOnly: true, dangerZone: true, provenance: P_DANGER_ZONE,
   },
   {
+    // Migration 335. Trigger-owned (`trg_members_deactivated_at`): stamped when
+    // `kscw_membership_active` goes true→false, cleared on the way back. It is
+    // the start of any retention period for an ex-member, so a hand-edit would
+    // move a legal clock — hence readOnly, and hence the danger-zone grouping
+    // next to the flag it follows.
+    key: 'deactivated_at', label: 'Deactivated on', kind: 'datetime',
+    readOnly: true, dangerZone: true,
+    provenance:
+      'Set and cleared by the trigger trg_members_deactivated_at, never by hand — it follows Club membership active. Backfilled from the ClubDesk exit date where the register had one; empty means nobody has dated this departure yet.',
+  },
+  {
     key: 'shell', label: 'Shell account', kind: 'bool',
     help: 'A placeholder record for somebody who has not claimed a login yet.',
     readOnly: true, dangerZone: true,

@@ -5,7 +5,8 @@
 // columns from migrations 299/300 (105), + the four licence-status columns
 // from migration 301 (109), + later single-column migrations, + the two
 // hand-linked VIS columns from migration 312, which shipped unclassified and
-// were only given a schema entry on 2026-08-14 (114 today):
+// were only given a schema entry on 2026-08-14, + migration 335's
+// `deactivated_at` (115 today):
 //
 //   ssh hetzner "sudo docker exec kscw-postgres psql -U supabase_admin -d postgres \
 //     -At -c \"select column_name from information_schema.columns \
@@ -143,4 +144,7 @@ export const MEMBERS_COLUMNS: string[] = [
   // column" warning until 2026-08-14.
   'vis_player_no_manual',
   'vis_manual_vis_name',
+  // Migration 335 — when the club membership was last switched off, so a
+  // retention period for an ex-member has a start date. Trigger-owned.
+  'deactivated_at',
 ]
