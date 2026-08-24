@@ -2,6 +2,13 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.97.0 — 2026-08-24
+
+### When somebody leaves the club, the app notices
+
+- **A contact deleted from the club register no longer goes unnoticed here.** If somebody is removed in ClubDesk, the app used to keep them on their team, on the team's mailing list and in the roster counts indefinitely — it could see the link was broken but had nothing to offer about it. An administrator now gets the choice: restore the link, or end the membership, which also takes the person off every current team.
+- **Departures are now dated.** The app records when a membership was switched off, so the club can tell how long a former member's data has been kept. That is the first step towards deleting what it no longer needs.
+
 ## v1.96.1 — 2026-08-20
 
 ### Avatars stay round when there is no photo
