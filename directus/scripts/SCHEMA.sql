@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-08-22T10:20:33.891Z
+-- Generated:   2026-08-24T15:22:55.967Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -29,7 +29,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict PWLUW6PupX2axOd6SAzTRLTjKJGGMmF8EFKhLBQ9ja0KPFUIXwLLdqN6WfN3k3L
+\restrict Twd9Hi4blYiUHbo0B3x8BYOeEdoT7eecGOtkLckthePmPeGLpWcekLx6YbUDfll
 
 -- Dumped from database version 16.15 (Debian 16.15-1.pgdg13+2)
 -- Dumped by pg_dump version 16.15 (Debian 16.15-1.pgdg13+2)
@@ -954,6 +954,29 @@ BEGIN
     RAISE EXCEPTION
       'members.email cannot be cleared once set (member id %): it is the member''s only contact channel and is required for notifications and ClubDesk sync', OLD.id
       USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: members_stamp_deactivated_at(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.members_stamp_deactivated_at() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  -- Deactivated now: start the clock. COALESCE so a re-run of the same
+  -- transition (or a backfilled row being touched) never moves an existing stamp.
+  IF NEW.kscw_membership_active IS DISTINCT FROM OLD.kscw_membership_active THEN
+    IF NEW.kscw_membership_active IS FALSE THEN
+      NEW.deactivated_at := COALESCE(NEW.deactivated_at, now());
+    ELSIF NEW.kscw_membership_active IS TRUE THEN
+      -- Back in the club — no retention period is running.
+      NEW.deactivated_at := NULL;
+    END IF;
   END IF;
   RETURN NEW;
 END;
@@ -7093,6 +7116,7 @@ CREATE TABLE public.members (
     vis_player_no_manual integer,
     vis_manual_vis_name text,
     kantonsschule character varying(64),
+    deactivated_at timestamp with time zone,
     CONSTRAINT members_austritt_needs_departed_status CHECK (((austritt IS NULL) OR (register_status IS NULL) OR ((register_status)::text = ANY ((ARRAY['Kein Mitglied'::character varying, 'Ehemaliges Mitglied'::character varying, 'Verstorben'::character varying])::text[])))),
     CONSTRAINT members_federation_of_origin_fmt CHECK (((federation_of_origin IS NULL) OR ((federation_of_origin)::text = 'NONE'::text) OR ((federation_of_origin)::text ~ '^[A-Z]{2}$'::text))),
     CONSTRAINT members_fee_discount_one_unit CHECK (((fee_discount IS NULL) OR (fee_discount_pct IS NULL))),
@@ -7611,6 +7635,13 @@ COMMENT ON COLUMN public.members.vis_manual_vis_name IS 'VIS''s own "FirstName L
 --
 
 COMMENT ON COLUMN public.members.kantonsschule IS 'Which Zurich Kantonsschule this member attends. ''Nein'' = asked and not at one; NULL = never asked. Mirrors the signup form''s list (kscw-website weiteres/anmeldung.astro); intentionally unconstrained — see migration 315.';
+
+
+--
+-- Name: COLUMN members.deactivated_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.deactivated_at IS 'When kscw_membership_active last went true→false. Trigger-owned (trg_members_deactivated_at); cleared on reactivation. The start of any retention period for an ex-member.';
 
 
 --
@@ -14253,6 +14284,13 @@ CREATE TRIGGER trg_members_coach_approval_guard BEFORE UPDATE ON public.members 
 
 
 --
+-- Name: members trg_members_deactivated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_members_deactivated_at BEFORE UPDATE ON public.members FOR EACH ROW EXECUTE FUNCTION public.members_stamp_deactivated_at();
+
+
+--
 -- Name: members trg_members_prevent_email_blanking; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -16411,12 +16449,12 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict PWLUW6PupX2axOd6SAzTRLTjKJGGMmF8EFKhLBQ9ja0KPFUIXwLLdqN6WfN3k3L
+\unrestrict Twd9Hi4blYiUHbo0B3x8BYOeEdoT7eecGOtkLckthePmPeGLpWcekLx6YbUDfll
 
 
 
 -- ============================================================================
--- Migration tracker seed — 340 migration(s) already in the schema above.
+-- Migration tracker seed — 341 migration(s) already in the schema above.
 -- GENERATED with the snapshot; do not hand-edit.
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS kscw_migrations (
@@ -16768,6 +16806,7 @@ FROM (VALUES
   ('331-members-staff-reverse-aliases.sql'),
   ('332-scorer-attendance-field-overrides.sql'),
   ('333-participation-event-fk.sql'),
-  ('334-events-open-roster.sql')
+  ('334-events-open-roster.sql'),
+  ('335-members-deactivated-at.sql')
 ) AS v(fname)
 ON CONFLICT (filename) DO NOTHING;
