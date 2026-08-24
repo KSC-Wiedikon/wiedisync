@@ -77,9 +77,9 @@ describe('memberFieldSchema — completeness', () => {
     expect([...keys].sort()).toEqual(expected)
   })
 
-  it('has 114 real columns and 4 virtual fields', () => {
-    expect(MEMBERS_COLUMNS).toHaveLength(114)
-    expect(MEMBER_FIELDS.filter((f) => !f.virtual)).toHaveLength(114)
+  it('has 115 real columns and 4 virtual fields', () => {
+    expect(MEMBERS_COLUMNS).toHaveLength(115)
+    expect(MEMBER_FIELDS.filter((f) => !f.virtual)).toHaveLength(115)
     // The three team multiselects each write their own junction collection; the
     // Beitrag card is computed by the server's fee engine. None is a `members`
     // column, and none may ever reach a PATCH body.
@@ -102,7 +102,7 @@ describe('memberFieldSchema — completeness', () => {
     const count = (id: MemberFieldGroupId) => MEMBER_FIELDS.filter((f) => f.group === id).length
     expect(count('identity')).toBe(11)
     expect(count('contact')).toBe(7)
-    expect(count('membership')).toBe(15) // 12 columns + the 3 team links
+    expect(count('membership')).toBe(16) // 13 columns + the 3 team links
     expect(count('playing')).toBe(3)
     expect(count('association')).toBe(23)
     expect(count('roles_access')).toBe(3)
@@ -155,7 +155,7 @@ describe('memberFieldSchema — invariants', () => {
   it('makes every danger-zone field read-only in the grid', () => {
     const dz = MEMBER_FIELDS.filter((f) => f.dangerZone)
     expect(dz.map((f) => f.key).sort()).toEqual(
-      ['kscw_membership_active', 'shell', 'shell_expires', 'wiedisync_active'],
+      ['deactivated_at', 'kscw_membership_active', 'shell', 'shell_expires', 'wiedisync_active'],
     )
     for (const f of dz) expect(f.readOnly).toBe(true)
   })

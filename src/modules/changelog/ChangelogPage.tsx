@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '1.96.1'
+const APP_VERSION = '1.97.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,19 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.97.0',
+    date: '24.08.2026',
+    sections: [
+      {
+        title: 'When somebody leaves the club, the app notices',
+        items: [
+          'A contact deleted from the club register no longer goes unnoticed here. If somebody is removed in ClubDesk, the app used to keep them on their team, on the team\'s mailing list and in the roster counts indefinitely — it could see the link was broken but had nothing to offer about it. An administrator now gets the choice: restore the link, or end the membership, which also takes the person off every current team.',
+          'Departures are now dated. The app records when a membership was switched off, so the club can tell how long a former member\'s data has been kept. That is the first step towards deleting what it no longer needs.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.96.1',
     date: '20.08.2026',
