@@ -2,9 +2,9 @@
  * Unit tests for the J+S export pure helpers (js-export.js) — the row-shaping
  * rules that carry the BASPO NDS format invariants:
  *   • DATUM is Swiss dot format dd.mm.yyyy.
- *   • Wettkampf rows carry NO time and NO location (spec forbids them).
- *   • Trainingstag carries a duration ≥240, Lagertag carries none.
- *   • Training duration honours the migration-191 game auto-shorten.
+ *   • Wettkampf rows carry NO time, NO duration and NO location (spec forbids them).
+ *   • DAUER is the closed NG-1 value set: Training 90, Trainingstag 240|300,
+ *     Lagertag/Wettkampf none.
  *   • Attendance exclusion uses the POSITIVE absence signal only (date-range,
  *     weekly-aware) — a person is present unless explicitly absent/declined.
  *
@@ -12,7 +12,7 @@
  */
 import { describe, it, expect } from 'vitest'
 import {
-  ymdToDots, hhmm, sanitizeDauer, computeTrainingMinutes, applyJsFieldRules,
+  ymdToDots, hhmm, sanitizeDauer, applyJsFieldRules,
   weekdayMon0, absenceCoversDate, seasonWindow, parseYmd,
 } from '../js-export.js'
 
@@ -42,34 +42,26 @@ describe('sanitizeDauer', () => {
   })
 })
 
-describe('computeTrainingMinutes', () => {
-  it('end − start in minutes', () => {
-    expect(computeTrainingMinutes({ start_time: '16:15', end_time: '17:45' })).toBe(90)
-    expect(computeTrainingMinutes({ start_time: '18:00:00', end_time: '20:00:00' })).toBe(120)
-  })
-  it('uses original_end_time when the block was game-shortened (migration 191)', () => {
-    expect(computeTrainingMinutes({
-      start_time: '18:00', end_time: '19:00',
-      auto_shortened_by_game: 42, original_end_time: '20:00',
-    })).toBe(120)
-  })
-  it('returns "" for invalid / non-positive spans', () => {
-    expect(computeTrainingMinutes({ start_time: '20:00', end_time: '19:00' })).toBe('')
-    expect(computeTrainingMinutes({ start_time: '', end_time: '19:00' })).toBe('')
-  })
-})
-
 describe('applyJsFieldRules — per-type field suppression', () => {
   const raw = { zeit: '16:15', dauer: 90, ort: 'KWI C' }
-  it('Training keeps time, duration and location', () => {
+  it('Training keeps time and location, and reports the fixed 90 minutes', () => {
     expect(applyJsFieldRules('Training', raw)).toEqual({ zeit: '16:15', dauer: 90, ort: 'KWI C' })
   })
-  it('Wettkampf drops time and location, uses the fixed game duration', () => {
-    expect(applyJsFieldRules('Wettkampf', raw, { gameMin: 120 })).toEqual({ zeit: '', dauer: 120, ort: '' })
+  it('Training ignores the measured block length — 60/75/90 is a closed set', () => {
+    expect(applyJsFieldRules('Training', { ...raw, dauer: 105 }).dauer).toBe(90)
+    expect(applyJsFieldRules('Training', { ...raw, dauer: '' }).dauer).toBe(90)
   })
-  it('Trainingstag drops time/location, floors duration at 240', () => {
+  it('Wettkampf carries the date only — no time, no duration, no location', () => {
+    expect(applyJsFieldRules('Wettkampf', raw)).toEqual({ zeit: '', dauer: '', ort: '' })
+    expect(applyJsFieldRules('Wettkampf', { zeit: '', dauer: 120, ort: '' }).dauer).toBe('')
+  })
+  it('Trainingstag drops time/location and snaps duration to exactly 240 or 300', () => {
     expect(applyJsFieldRules('Trainingstag', { zeit: '09:00', dauer: 90, ort: 'x' })).toEqual({ zeit: '', dauer: 240, ort: '' })
     expect(applyJsFieldRules('Trainingstag', { zeit: '', dauer: 300, ort: '' })).toEqual({ zeit: '', dauer: 300, ort: '' })
+    // 270 and 360 are outside the permitted set — the import rejects the file.
+    expect(applyJsFieldRules('Trainingstag', { dauer: 270 }).dauer).toBe(300)
+    expect(applyJsFieldRules('Trainingstag', { dauer: 360 }).dauer).toBe(300)
+    expect(applyJsFieldRules('Trainingstag', { dauer: 269 }).dauer).toBe(240)
   })
   it('Lagertag carries date only', () => {
     expect(applyJsFieldRules('Lagertag', raw)).toEqual({ zeit: '', dauer: '', ort: '' })

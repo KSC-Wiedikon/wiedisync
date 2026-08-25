@@ -6400,12 +6400,12 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     }
   })
 
-  // Nightly rolling top-up for indefinite training slots — keeps ~12 weeks
-  // of trainings always populated. `indefinite=true` slots have no upper
-  // bound (the cascade never trims their tail), so we need a daily push to
-  // keep the horizon advancing. Runs at 02:00 UTC (04:00 Zurich, after most
-  // sync crons) to give a fresh batch each morning. logCronRun gives the
-  // /status dashboard a heartbeat to confirm the cron is alive.
+  // Nightly rolling top-up for indefinite training slots. A slot with an
+  // explicit `valid_until` generates its whole remaining window in one pass;
+  // an undated one keeps ~12 weeks populated and needs the daily push to keep
+  // that horizon advancing. Runs at 02:00 UTC (04:00 Zurich, after most sync
+  // crons) to give a fresh batch each morning. logCronRun gives the /status
+  // dashboard a heartbeat to confirm the cron is alive.
   schedule('0 2 * * *', async () => {
     const startedAt = Date.now()
     try {
