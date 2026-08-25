@@ -283,6 +283,18 @@ export function registerJsExport(router, { database, logger }) {
       }
       activities.sort((a, b) => a.dateYMD.localeCompare(b.dateYMD) || a.type.localeCompare(b.type))
 
+      // ZEIT and ORT are MANDATORY on a Training (import spec, footnotes 1+3) —
+      // an empty cell has the NDS reject the file AFTER the coach uploaded it.
+      // Covers js_relevant events typed Training too: the rule is per activity
+      // type, not per source table.
+      // ⚠ No .sort() — `activities` is already in dateYMD order; sorting the
+      // dd.mm.yyyy strings would order them by day-of-month.
+      const missingTrainingField = (field) => [...new Set(
+        activities.filter((a) => a.type === 'Training' && !a[field]).map((a) => a.datum),
+      )]
+      const trainingsMissingOrt = missingTrainingField('ort')
+      const trainingsMissingZeit = missingTrainingField('zeit')
+
       // ── Roster (players) + leaders ──────────────────────────────────────────
       // ⚠ No `mt.season` filter — `rosterTeamId` already pins the season (see
       // the lineage block above). Adding it back reintroduces the zero-
@@ -405,6 +417,8 @@ export function registerJsExport(router, { database, logger }) {
           warnings: {
             participantsMissingJsId: [...participantsMissingJsId].sort(),
             leadersMissingJsId: [...leadersMissingJsId].sort(),
+            trainingsMissingOrt,
+            trainingsMissingZeit,
             emptyRoster,
           },
         },
