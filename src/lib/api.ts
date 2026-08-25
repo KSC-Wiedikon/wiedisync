@@ -725,6 +725,17 @@ const EXPECTED_ERROR_CODES = new Set([
   // page renders inline — neither is a bug to file.
   'vis_check_running',
   'vis_credentials_missing',
+  // Identity documents. `outside_window` is the designed refusal outside the
+  // pre-load window, and `no_envelope` means the caller is entitled staff who
+  // was never wrapped a key (they set their identity key up after the upload) —
+  // both are inline states with their own copy, not bugs. Left uncarved they
+  // fire one Sentry event PER PLAYER on a Show-IDs pre-load: nine per team for
+  // one coach, which is exactly the burst that trips the tunnel's rate cap.
+  'no_envelope',
+  'outside_window',
+  // Nothing left to re-grant — a repair that raced another device, or a stale
+  // banner. The UI just re-reads; there is no failure to report.
+  'nothing_to_add',
 ])
 
 /**

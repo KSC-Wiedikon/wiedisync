@@ -244,6 +244,8 @@ export default {
   idsPreloadHint: 'Lad d Dokumänt abe, solang du no Empfang hesch — i de Halle het s oft kein.',
   idsDownloaded_one: '{{count}} Dokumänt abeglade und offline parat.',
   idsDownloaded_other: '{{count}} Dokumänt abeglade und offline parat.',
+  idsNoEnvelope_one: 'Du chasch de Uswis vo {{count}} Person nöd öffne. Frag öpper vo de Teamleitig, dass er din Zuegriff uf de Teamsite wiederherstellt.',
+  idsNoEnvelope_other: 'Du chasch d Uswis vo {{count}} Persone nöd öffne. Frag öpper vo de Teamleitig, dass er din Zuegriff uf de Teamsite wiederherstellt.',
   idsReadyOffline_one: '{{count}} Dokumänt offline parat.',
   idsReadyOffline_other: '{{count}} Dokumänt offline parat.',
   idsShow: 'Uswiis zeige',

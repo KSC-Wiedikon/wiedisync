@@ -9,6 +9,10 @@
  *   GET    /kscw/identity/document/:member/bytes— the ciphertext
  *   DELETE /kscw/identity/document/:member      — remove it
  *   GET    /kscw/identity/status/:team          — WHO on a team has one (presence, no key)
+ *   GET    /kscw/identity/gaps                 — who is entitled to MY document but unwrapped
+ *   GET    /kscw/identity/gaps/team/:team      — the same, for documents I can repair
+ *   POST   /kscw/identity/envelopes            — grant an entitled reader a key (additive)
+ *   GET    /kscw/identity/access/:team       — who can actually open a team's documents
  *
  * WE CANNOT READ ANY OF THIS. Not the server, not an admin, not root on the VPS. The file
  * arrives already encrypted (AES-256-GCM, in the member's browser) and the content key
@@ -611,6 +615,316 @@ export function registerIdentityDocument(router, ctx) {
       })
     } catch (err) {
       log.error({ msg: `GET identity/status: ${err.message}`, stack: err.stack })
+      res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+
+  // ── who is entitled but has no envelope ────────────────────────────────────
+  //
+  // THE GAP IS A SERVER-SIDE FACT, THE REPAIR IS NOT. We can see perfectly well who ought to
+  // hold a key and does not — `recipientsFor()` minus `identity_document_keys` is a plain
+  // join, no key material involved. What we cannot do is close it: the content key exists
+  // only inside a device that already holds an envelope. So these endpoints DETECT, and hand
+  // the arithmetic to a browser that can actually open something.
+  //
+  // Two shapes, because the two gaps arise differently:
+  //   • owner-side  — a coach set up their keypair AFTER the member uploaded (the common
+  //     case: `recipientsFor` skips anyone with no public key, so they were never wrapped to)
+  //   • staff-side  — same gap, closed on behalf of a whole team by a colleague who already
+  //     holds envelopes, so one person repairs N documents instead of N members each acting
+  //
+  // ⚠ A member with NO keypair at all is NOT a gap and never appears here. There is nothing
+  // to wrap to until they generate one; `recipientsFor()` filters them out at source. The
+  // fix for that person is "create your identity key", not "someone re-wraps for you", and
+  // conflating the two produces a banner nobody can action.
+  async function missingFor(database, ownerId, docId) {
+    const [allowed, held] = await Promise.all([
+      recipientsFor(database, ownerId),
+      database('identity_document_keys').where('document', docId).select('recipient'),
+    ])
+    const haveIt = new Set(held.map((r) => Number(r.recipient)))
+    return allowed.filter((r) => !r.is_self && !haveIt.has(r.member))
+  }
+
+  // My own document: who is entitled to it and cannot open it.
+  router.get('/identity/gaps', async (req, res) => {
+    try {
+      const me = await callerMember(database, req)
+      if (!me) return res.status(401).json({ error: 'Authentication required' })
+
+      const doc = await database('identity_documents').where('member', me.id).first('id')
+      if (!doc) return res.json({ data: { document: null, missing: [] } })
+
+      res.json({ data: { document: doc.id, missing: await missingFor(database, me.id, doc.id) } })
+    } catch (err) {
+      log.error({ msg: `GET identity/gaps: ${err.message}`, stack: err.stack })
+      res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  // A team's documents that I can repair — i.e. the ones I already hold an envelope for.
+  //
+  // ⚠ THIS RETURNS MY ENVELOPE OUTSIDE THE PRE-LOAD WINDOW, and that is deliberate. Re-
+  // granting needs the CONTENT KEY; looking at the document needs the content key AND the
+  // ciphertext, and `/bytes` stays window-gated by `mayRead()`. So a repair run at 3am hands
+  // back a key that opens nothing the caller can fetch. Window-gating the repair instead
+  // would mean access could only ever be restored during a match — which is precisely when
+  // nobody has time to fix it.
+  router.get('/identity/gaps/team/:team', async (req, res) => {
+    try {
+      const me = await callerMember(database, req)
+      if (!me) return res.status(401).json({ error: 'Authentication required' })
+
+      const teamId = Number(req.params.team)
+      if (!Number.isInteger(teamId)) return res.status(400).json({ error: 'Bad team' })
+      if (!(await isTeamStaffOrAdmin(database, me, teamId))) {
+        return res.status(403).json({ error: 'Not team staff', code: 'not_allowed' })
+      }
+
+      // Documents belonging to people on this team, joined to MY envelope for them. An inner
+      // join is the access check: no envelope, no row, nothing to repair.
+      const rows = await database('identity_documents as d')
+        .join('member_teams as mt', 'mt.member', 'd.member')
+        .join('identity_document_keys as k', function () {
+          this.on('k.document', 'd.id').andOn('k.recipient', database.raw('?', [me.id]))
+        })
+        .join('members as m', 'm.id', 'd.member')
+        .where('mt.team', teamId)
+        .distinct('d.id as doc', 'd.member', 'd.iv', 'm.first_name', 'm.last_name',
+          'k.eph_public_key', 'k.wrap_iv', 'k.wrapped_key')
+
+      const documents = []
+      for (const r of rows) {
+        const missing = await missingFor(database, Number(r.member), r.doc)
+        if (!missing.length) continue
+        documents.push({
+          document: r.doc,
+          member: Number(r.member),
+          first_name: r.first_name,
+          last_name: r.last_name,
+          /** Mine, to unwrap the content key with. Opens no bytes on its own — see above. */
+          envelope: {
+            eph_public_key: r.eph_public_key,
+            wrap_iv: r.wrap_iv,
+            wrapped_key: r.wrapped_key,
+          },
+          missing,
+        })
+      }
+
+      res.json({ data: { documents } })
+    } catch (err) {
+      log.error({ msg: `GET identity/gaps/team: ${err.message}`, stack: err.stack })
+      res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  // ── add envelopes to an existing document (the repair) ─────────────────────
+  //
+  // ADDITIVE ONLY. Never deletes, never replaces, never touches the ciphertext. The worst a
+  // buggy client can do here is fail to add a row.
+  //
+  // Who may call it: the owner, or someone who already holds an envelope for the document
+  // (which, by construction, means they were entitled staff when it was uploaded). Holding
+  // an envelope is the capability — we are not granting a new one, we are letting an
+  // existing key-holder pass the key along the list the SERVER already decided.
+  //
+  // Who may receive one: `recipientsFor()` and nothing else. So a coach cannot widen access
+  // beyond the member's own current staff, even by lying about the recipient — same gate the
+  // upload path uses.
+  router.post('/identity/envelopes', async (req, res) => {
+    try {
+      const me = await callerMember(database, req)
+      if (!me) return res.status(401).json({ error: 'Authentication required' })
+
+      const { member, envelopes } = req.body ?? {}
+      const target = Number(member)
+      if (!Number.isInteger(target) || !Array.isArray(envelopes) || !envelopes.length) {
+        return res.status(400).json({ error: 'member and envelopes are required' })
+      }
+
+      const doc = await database('identity_documents').where('member', target).first('id')
+      if (!doc) return res.status(404).json({ error: 'No document', code: 'no_document' })
+
+      if (Number(me.id) !== target) {
+        const mine = await database('identity_document_keys')
+          .where({ document: doc.id, recipient: me.id }).first('id')
+        if (!mine) return res.status(403).json({ error: 'No key for you', code: 'no_envelope' })
+      }
+
+      const allowed = await recipientsFor(database, target)
+      const allowedById = new Map(allowed.map((r) => [r.member, r]))
+      const accepted = envelopes
+        .filter((e) => e && allowedById.has(Number(e.recipient)))
+        .filter((e) => Number(e.recipient) !== target) // the owner's own envelope already exists
+        .filter((e) => e.eph_public_key && e.wrap_iv && e.wrapped_key)
+      const rejected = envelopes.length - accepted.length
+
+      if (!accepted.length) {
+        return res.status(400).json({ error: 'No acceptable envelopes', code: 'nothing_to_add' })
+      }
+
+      // ON CONFLICT DO NOTHING against the (document, recipient) unique: a concurrent repair
+      // from two devices must not 500, and re-running must be a no-op rather than a replace.
+      // Replacing a live envelope with one wrapped from a stale content key would lock the
+      // recipient OUT — the one outcome a repair must never produce.
+      const inserted = await database('identity_document_keys')
+        .insert(accepted.map((e) => ({
+          document: doc.id,
+          recipient: Number(e.recipient),
+          eph_public_key: e.eph_public_key,
+          wrap_iv: e.wrap_iv,
+          wrapped_key: e.wrapped_key,
+          recipient_key_created: allowedById.get(Number(e.recipient))?.key_created ?? null,
+          date_created: new Date(),
+        })))
+        .onConflict(['document', 'recipient'])
+        .ignore()
+        .returning('recipient')
+
+      await writeUserLog(database, log, {
+        accountability: req.accountability,
+        action: 'update',
+        collection: 'identity_documents',
+        recordId: String(target),
+        data: {
+          what: 'identity_document_regrant',
+          member: target,
+          by_self: Number(me.id) === target,
+          granted: inserted.map((r) => Number(typeof r === 'object' ? r.recipient : r)),
+          rejected_recipients: rejected,
+        },
+      })
+
+      res.json({ data: { ok: true, granted: inserted.length, rejected } })
+    } catch (err) {
+      log.error({ msg: `POST identity/envelopes: ${err.message}`, stack: err.stack })
+      res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+
+  // ── who can actually open what (access transparency) ───────────────────────
+  //
+  // "Entitled" and "able to open" are different facts, and until now nothing showed the
+  // difference. A coach appeared in the grant list, held no envelope, and everyone found out
+  // at the hall. This is the view that makes the gap visible BEFORE match day.
+  //
+  // Four states, and the distinction between the last two is the whole point:
+  //   holds    — an envelope exists; they can open it
+  //   stale    — an envelope exists but was wrapped to a key they have since replaced, so it
+  //              will NOT decrypt. Replacing a keypair deletes these, so it should never
+  //              appear; it is reported rather than assumed away because "looks fine, fails
+  //              on contact" is the failure mode this whole feature cannot afford.
+  //   missing  — entitled, has a keypair, was never wrapped to. REPAIRABLE from the team page.
+  //   no_key   — entitled by role but has no keypair at all. NOT repairable by anyone: there
+  //              is no public key to wrap to. Their fix is to create one, and showing this
+  //              separately is what stops people pressing a repair button that cannot help.
+  //
+  // Deliberately COMPLETE: it lists holders who are staff of the member's other teams too.
+  // A partial access list is worse than none — the point is to be able to answer "who can
+  // see my passport" without qualification.
+  router.get('/identity/access/:team', async (req, res) => {
+    try {
+      const me = await callerMember(database, req)
+      if (!me) return res.status(401).json({ error: 'Authentication required' })
+
+      const teamId = Number(req.params.team)
+      if (!Number.isInteger(teamId)) return res.status(400).json({ error: 'Bad team' })
+      if (!(await isTeamStaffOrAdmin(database, me, teamId))) {
+        return res.status(403).json({ error: 'Not team staff', code: 'not_allowed' })
+      }
+
+      const docs = await database('identity_documents as d')
+        .join('member_teams as mt', 'mt.member', 'd.member')
+        .join('members as m', 'm.id', 'd.member')
+        .where('mt.team', teamId)
+        .distinct('d.id as doc', 'd.member', 'd.date_created', 'm.first_name', 'm.last_name')
+        .orderBy(['m.last_name', 'm.first_name'])
+
+      const documents = []
+      for (const d of docs) {
+        const owner = Number(d.member)
+        const teamIds = await memberTeamIds(database, owner)
+
+        // Everyone entitled by ROLE — including those with no keypair, which `recipientsFor`
+        // filters out at source and which is exactly the case we need to name here.
+        const staffRows = teamIds.length
+          ? await database('members as m')
+            .whereIn('m.id', function () {
+              this.select('members_id').from('teams_coaches').whereIn('teams_id', teamIds)
+                .union(function () {
+                  this.select('members_id').from('teams_responsibles').whereIn('teams_id', teamIds)
+                })
+            })
+            .select('m.id', 'm.first_name', 'm.last_name', 'm.e2ee_public_key', 'm.e2ee_key_created')
+          : []
+
+        const held = await database('identity_document_keys')
+          .where('document', d.doc)
+          .select('recipient', 'recipient_key_created')
+        const heldBy = new Map(held.map((r) => [Number(r.recipient), r.recipient_key_created]))
+
+        const ownerRow = await database('members').where('id', owner)
+          .first('first_name', 'last_name', 'e2ee_key_created')
+
+        const reader = (id, first, last, keyCreated, hasKey, isSelf) => {
+          let state
+          if (heldBy.has(id)) {
+            const wrapped = heldBy.get(id)
+            // Compare as epoch ms: knex hands back Date objects, and `!==` on two Dates for
+            // the same instant is always true.
+            const a = wrapped ? new Date(wrapped).getTime() : null
+            const b = keyCreated ? new Date(keyCreated).getTime() : null
+            state = a != null && b != null && a !== b ? 'stale' : 'holds'
+          } else if (!hasKey) {
+            state = 'no_key'
+          } else {
+            state = 'missing'
+          }
+          return { member: id, first_name: first, last_name: last, is_self: isSelf, state }
+        }
+
+        const readers = [
+          reader(owner, ownerRow?.first_name, ownerRow?.last_name, ownerRow?.e2ee_key_created, true, true),
+          ...staffRows
+            .filter((s) => Number(s.id) !== owner)
+            .map((s) => reader(
+              Number(s.id), s.first_name, s.last_name, s.e2ee_key_created, !!s.e2ee_public_key, false,
+            )),
+        ]
+
+        // Anyone holding an envelope who is no longer entitled by role — they left the staff
+        // after the upload. The key is not revoked by removing them from a team, so saying
+        // "these people can still open it" is the honest answer.
+        for (const [id, wrapped] of heldBy) {
+          if (readers.some((r) => r.member === id)) continue
+          const m = await database('members').where('id', id)
+            .first('first_name', 'last_name', 'e2ee_key_created')
+          readers.push({
+            member: id,
+            first_name: m?.first_name,
+            last_name: m?.last_name,
+            is_self: false,
+            state: wrapped && m?.e2ee_key_created
+              && new Date(wrapped).getTime() !== new Date(m.e2ee_key_created).getTime()
+              ? 'stale' : 'former',
+          })
+        }
+
+        documents.push({
+          member: owner,
+          first_name: d.first_name,
+          last_name: d.last_name,
+          uploaded_at: d.date_created,
+          readers,
+        })
+      }
+
+      res.json({ data: { documents } })
+    } catch (err) {
+      log.error({ msg: `GET identity/access: ${err.message}`, stack: err.stack })
       res.status(500).json({ error: 'Internal error' })
     }
   })

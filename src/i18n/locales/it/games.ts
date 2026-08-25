@@ -241,6 +241,8 @@ export default {
   idsPreloadHint: 'Scarica i documenti finché hai ancora campo — nelle palestre spesso non ce n\'è.',
   idsDownloaded_one: '{{count}} documento scaricato e pronto offline.',
   idsDownloaded_other: '{{count}} documenti scaricati e pronti offline.',
+  idsNoEnvelope_one: 'Non puoi aprire il documento di {{count}} giocatore. Chiedi a un collega di ripristinare il tuo accesso dalla pagina della squadra.',
+  idsNoEnvelope_other: 'Non puoi aprire i documenti di {{count}} giocatori. Chiedi a un collega di ripristinare il tuo accesso dalla pagina della squadra.',
   idsReadyOffline_one: '{{count}} documento pronto offline.',
   idsReadyOffline_other: '{{count}} documenti pronti offline.',
   idsShow: 'Mostra i documenti d\'identità',
