@@ -5,6 +5,7 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '.
 import { fetchAllItems } from '../../../lib/api'
 import type { GameSchedulingSeason, GameSchedulingSlot, GameSchedulingOpponent, Team } from '../../../types'
 import type { ExpandedBooking } from '../hooks/useAdminBookings'
+import type { CalendarGame } from './SchedulingCalendar'
 
 // Member-facing, read-only LIST of a single team's games — the chronological
 // alternative to SchedulingCalendar's month grid, shown on the calendar page's
@@ -18,6 +19,12 @@ interface Props {
   bookings: ExpandedBooking[]
   team: Team
   season: GameSchedulingSeason
+  /** Fixtures from `games` (VolleyManager / Swiss Volley). */
+  games?: CalendarGame[]
+  /** Where a confirmed fixture comes from — see SchedulingCalendar's prop of the
+   *  same name. 'games' suppresses the rows this list would otherwise rebuild
+   *  from booked slots + confirmed away proposals. */
+  confirmedFrom?: 'bookings' | 'games'
 }
 
 // 'YYYY-MM-DD' (or ISO) → local-midnight Date (no TZ shift).
@@ -45,6 +52,8 @@ const slotTime = (d: Date | null, startTime: string | null | undefined): string 
 // app-wide date rule, regardless of UI language.
 const fmtDate = (d: Date): string =>
   new Intl.DateTimeFormat('de-CH', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' }).format(d)
+// 'KSC Wiedikon H1' → 'H1' — the club prefix is noise on our own schedule.
+const shortName = (n: string): string => String(n).replace(/^KSC Wiedikon\s+/, '')
 
 interface ConfirmedRow {
   id: string
@@ -63,7 +72,7 @@ interface ProposedRow {
   sortKey: string
 }
 
-export default function TeamScheduleList({ slots, bookings, team }: Props) {
+export default function TeamScheduleList({ slots, bookings, team, games = [], confirmedFrom = 'bookings' }: Props) {
   const { t } = useTranslation('gameScheduling')
 
   const [halls, setHalls] = useState<{ id: number; name: string }[]>([])
@@ -107,8 +116,10 @@ export default function TeamScheduleList({ slots, bookings, team }: Props) {
     const confirmedRows: ConfirmedRow[] = []
     const proposedRows: ProposedRow[] = []
 
-    // Home confirmed games — booked slots.
-    for (const s of slots) {
+    // Home confirmed games — booked slots. Skipped entirely when the `games`
+    // feed is authoritative: the fixture rows below already cover them, and a
+    // booked slot goes stale the moment the federation re-dates the game.
+    for (const s of confirmedFrom === 'games' ? [] : slots) {
       if (s.status !== 'booked') continue
       const d = parseYmd(s.date)
       if (!d) continue
@@ -127,6 +138,7 @@ export default function TeamScheduleList({ slots, bookings, team }: Props) {
     for (const b of bookings) {
       const opp = oppLabel(b)
       if (b.type === 'away_proposal' && b.status === 'confirmed' && b.confirmed_proposal) {
+        if (confirmedFrom === 'games') continue // the `games` row is the fixture
         const dt = (b as Record<string, unknown>)[`proposed_datetime_${b.confirmed_proposal}`] as string | undefined
         const d = parseYmd(dt)
         if (d) confirmedRows.push({
@@ -156,10 +168,28 @@ export default function TeamScheduleList({ slots, bookings, team }: Props) {
       }
     }
 
+    // Real fixtures out of `games` — what is actually being played.
+    for (const g of games) {
+      const d = parseYmd(g.date)
+      if (!d) continue
+      const isHome = g.type !== 'away'
+      confirmedRows.push({
+        id: `g-${g.id}`,
+        date: d,
+        sortKey: String(g.date).slice(0, 10),
+        time: hhmm(g.time),
+        isHome,
+        opponent: shortName(isHome ? g.away_team : g.home_team),
+        // Away venues are federation free text; a derby's away leg is the one
+        // away game played in a KWI hall, so fall back to the hall FK.
+        venue: (isHome ? hallName(g.hall) : g.away_hall_json?.name || hallName(g.hall)) || '—',
+      })
+    }
+
     confirmedRows.sort((a, b) => a.sortKey.localeCompare(b.sortKey))
     proposedRows.sort((a, b) => a.sortKey.localeCompare(b.sortKey))
     return { confirmed: confirmedRows, proposed: proposedRows }
-  }, [slots, bookings, oppBySlot, slotsById, hallName])
+  }, [slots, bookings, games, confirmedFrom, oppBySlot, slotsById, hallName])
 
   const MatchCell = ({ isHome, opponent }: { isHome: boolean; opponent: string }) => (
     <span

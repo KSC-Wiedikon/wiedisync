@@ -30,9 +30,13 @@ type EntryKind =
   | 'bb_game'      // a basketball game placed at KWI (cross-sport hall coordination)
   | 'training'     // the team's own training (single-team calendars only — context, not a blocker)
 
-/** An intra-club game (e.g. the H1↔H3 derby) — not a booking; comes from `games`.
- *  Rendered as a normal confirmed home/away game per the team's perspective. */
-export interface IntraClubGame {
+/** A real fixture out of `games` — the VolleyManager / Swiss Volley feed, which
+ *  is the source of truth for what is actually being played. One row per KSCW
+ *  team's perspective (a derby therefore has two). Rendered as a confirmed
+ *  home/away game. With `confirmedFrom='games'` these REPLACE the entries the
+ *  calendar would otherwise reconstruct from booked slots + confirmed away
+ *  proposals — see the prop. */
+export interface CalendarGame {
   id: number
   game_id?: string | null
   date: string
@@ -41,6 +45,11 @@ export interface IntraClubGame {
   away_team: string
   kscw_team: number
   type?: string | null
+  /** KWI hall — set on home legs (and on both legs of a derby, which is a home
+   *  game for one of the two KSCW sides), so the day detail can name a venue. */
+  hall?: number | string | null
+  /** Away venue, as synced from the federation (no `halls` row exists for it). */
+  away_hall_json?: { name?: string | null } | null
 }
 
 interface SchedEntry {
@@ -77,8 +86,18 @@ interface Props {
   bookings: ExpandedBooking[]
   teams: Team[]
   season: GameSchedulingSeason
-  /** Intra-club games (derby) to surface on the calendar — not bookings. */
-  games?: IntraClubGame[]
+  /** Fixtures from `games` to surface on the calendar — not bookings. */
+  games?: CalendarGame[]
+  /** Where a CONFIRMED fixture comes from. 'bookings' (default) reconstructs it
+   *  from booked slots + confirmed away proposals — right for the planner, whose
+   *  job is the negotiation itself. 'games' takes it from the `games` feed
+   *  instead (VolleyManager / Swiss Volley), which is what is actually being
+   *  played: it also carries cup fixtures, derbies and manually placed games
+   *  that never had a booking, and it reflects any date the federation moved
+   *  after we booked. Booking-derived confirmed entries are suppressed then, so
+   *  the two sources cannot double up. Pending proposals still come from
+   *  bookings either way — they are not fixtures yet. */
+  confirmedFrom?: 'bookings' | 'games'
   // Heading text — defaults to the season-wide overview title. Pass a
   // team-scoped title when rendering this inside a single team's panel.
   title?: string
@@ -143,7 +162,7 @@ interface LinkWarning {
   severity: 'clash' | 'note'
 }
 
-export default function SchedulingCalendar({ slots, bookings, teams, season, games = [], title, showAbsences }: Props) {
+export default function SchedulingCalendar({ slots, bookings, teams, season, games = [], confirmedFrom = 'bookings', title, showAbsences }: Props) {
   const { t } = useTranslation('gameScheduling')
 
   // Manual coach/player-sharing links for this season (volleyball). Fail-soft: an
@@ -522,6 +541,10 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
       if ((s as { source?: string }).source === 'derby') continue
       const team = teamName(s.kscw_team)
       const tid = String(s.kscw_team ?? '')
+      // The booked slot says a home game was agreed HERE; the `games` row says
+      // what is being played. When games are authoritative the slot would only
+      // duplicate it (or contradict it, if the federation moved the date).
+      if (s.status === 'booked' && confirmedFrom === 'games') continue
       if (s.status === 'booked') {
         const opp = oppBySlot.get(String(s.id))
         out.push({
@@ -552,6 +575,7 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
       const team = typeof b.opponent === 'object' ? teamName((b.opponent as GameSchedulingOpponent).kscw_team) : '—'
       const place = (n: number) => (b as Record<string, unknown>)[`proposed_place_${n}`] as string | undefined
       if (b.type === 'away_proposal' && b.status === 'confirmed' && b.confirmed_proposal) {
+        if (confirmedFrom === 'games') continue // the `games` row is the fixture
         const dt = (b as Record<string, unknown>)[`proposed_datetime_${b.confirmed_proposal}`] as string | undefined
         const d = parseYmd(dt)
         if (d) out.push({ id: `awc-${b.id}`, date: d, kind: 'away_confirmed', label: team, teamId: tid, time: dtTime(dt), opponent: opp, hallName: place(b.confirmed_proposal) || '', title: `${t('legendAwayConfirmed')}: ${team}${opp ? ` @ ${opp}` : ''}` })
@@ -572,9 +596,9 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
       }
     }
 
-    // Intra-club games (e.g. the H1↔H3 derby) — not bookings, so they arrive via
-    // `games` (one row per team's perspective). Render each as a normal confirmed
-    // home/away game so they look like every other game on the calendar.
+    // Real fixtures out of `games` (one row per team's perspective). With
+    // confirmedFrom='games' this is THE source of confirmed games; on the
+    // planner it is the top-up for what has no booking behind it (derbies, cup).
     const shortName = (n: string) => String(n).replace(/^KSC Wiedikon\s+/, '')
     for (const g of games) {
       const d = parseYmd(g.date)
@@ -583,10 +607,14 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
       const isHome = g.type !== 'away'
       const opp = shortName(isHome ? g.away_team : g.home_team)
       const time = g.time ? hhmm(g.time) : ''
+      // Home legs sit in a KWI hall (an FK); away legs carry the federation's
+      // venue as free text — there is no `halls` row for an opponent's gym. A
+      // derby's away leg is the exception: it IS played in a KWI hall.
+      const venue = isHome ? hallName(g.hall) : (g.away_hall_json?.name || hallName(g.hall))
       if (isHome) {
-        out.push({ id: `g-${g.id}`, date: d, kind: 'home_confirmed', label: me, teamId: String(g.kscw_team), time, opponent: opp, title: `${t('legendHomeConfirmed')}: ${me} vs ${opp}` })
+        out.push({ id: `g-${g.id}`, date: d, kind: 'home_confirmed', label: me, teamId: String(g.kscw_team), time, opponent: opp, hallName: venue, title: `${t('legendHomeConfirmed')}: ${me} vs ${opp}` })
       } else {
-        out.push({ id: `g-${g.id}`, date: d, kind: 'away_confirmed', label: me, teamId: String(g.kscw_team), time, opponent: opp, title: `${t('legendAwayConfirmed')}: ${me} @ ${opp}` })
+        out.push({ id: `g-${g.id}`, date: d, kind: 'away_confirmed', label: me, teamId: String(g.kscw_team), time, opponent: opp, hallName: venue, title: `${t('legendAwayConfirmed')}: ${me} @ ${opp}` })
       }
     }
 
@@ -670,7 +698,7 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
       })
     }
     return out
-  }, [slots, bookings, slotsById, oppBySlot, teamName, hallName, t, games, blocks, clubBlocks, teamEvents, bbGames, trainings])
+  }, [slots, bookings, slotsById, oppBySlot, teamName, hallName, t, games, confirmedFrom, blocks, clubBlocks, teamEvents, bbGames, trainings])
 
   // Team-link warnings per day: when two manually-linked teams (Settings → Team
   // links) both have games on the same day. A 'diff'/'adjacent' pair at the SAME
@@ -953,6 +981,11 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
                 // a house for home legs, a plane (travel) for away legs.
                 const isHomeKind = e.kind === 'home_confirmed' || e.kind === 'home_proposed'
                 const isAwayKind = e.kind === 'away_confirmed' || e.kind === 'away_proposed'
+                // A team-scoped calendar repeats the same team name on every
+                // chip, so the informative half of a fixture there is the
+                // opponent — show that instead. The season overview keeps the
+                // team name (its primary axis is which team plays when).
+                const chipText = isTeamScoped && e.opponent ? e.opponent : e.label
                 return (
                   <span
                     key={e.id}
@@ -962,7 +995,7 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
                     {e.time && <span className="shrink-0 tabular-nums">{e.time}</span>}
                     {isHomeKind && <House className="h-2.5 w-2.5 shrink-0" aria-hidden />}
                     {isAwayKind && <Plane className="h-2.5 w-2.5 shrink-0" aria-hidden />}
-                    <span className="truncate">{e.label}</span>
+                    <span className="truncate">{chipText}</span>
                   </span>
                 )
               })}

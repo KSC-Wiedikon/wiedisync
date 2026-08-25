@@ -19,7 +19,7 @@ import {
   bytesToBase64, exportFilename, XLSX_MIME, PDF_MIME,
 } from '../lib/scheduleExport'
 import TeamAvailabilityDialog from '../components/TeamAvailabilityDialog'
-import SchedulingCalendar, { type IntraClubGame } from '../components/SchedulingCalendar'
+import SchedulingCalendar, { type CalendarGame } from '../components/SchedulingCalendar'
 import { useMailbox, classifyMessages, messagesForOwner, contactAddressSet, type MailboxMessage, type OpponentContacts } from '../hooks/useMailbox'
 import { useConfirm } from '../../../components/ConfirmProvider'
 import { Badge } from '../../../components/ui/badge'
@@ -254,16 +254,16 @@ function VolleyballDashboardBody() {
 
   // Intra-club games (e.g. the H1↔H3 derby) — not bookings, so they don't come
   // through useAdminBookings. Surface them on the overview + per-team calendars.
-  const [derbyGames, setDerbyGames] = useState<IntraClubGame[]>([])
+  const [derbyGames, setDerbyGames] = useState<CalendarGame[]>([])
   // Tracks the first derby fetch so the page can wait for it before rendering
   // (otherwise the intra-club games pop into the calendars after the spinner).
   const [derbyLoaded, setDerbyLoaded] = useState(false)
   useEffect(() => {
     if (!season?.season) return
     let cancelled = false
-    fetchAllItems<IntraClubGame>('games', {
+    fetchAllItems<CalendarGame>('games', {
       filter: { season: { _eq: season.season }, home_team: { _starts_with: 'KSC Wiedikon' }, away_team: { _starts_with: 'KSC Wiedikon' } },
-      fields: ['id', 'game_id', 'date', 'time', 'home_team', 'away_team', 'kscw_team', 'type'],
+      fields: ['id', 'game_id', 'date', 'time', 'home_team', 'away_team', 'kscw_team', 'type', 'hall'],
     }).then((g) => { if (!cancelled) setDerbyGames(g) })
       .catch(() => { if (!cancelled) setDerbyGames([]) })
       .finally(() => { if (!cancelled) setDerbyLoaded(true) })
