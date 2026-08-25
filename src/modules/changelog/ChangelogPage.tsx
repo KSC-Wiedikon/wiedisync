@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '1.97.0'
+const APP_VERSION = '1.97.1'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,19 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.97.1',
+    date: '25.08.2026',
+    sections: [
+      {
+        title: 'The trainings list stops asking the same question 47 times',
+        items: [
+          'Pages with a long list of trainings, games or events were slow to settle, worst of all on a phone. Every single card asked the server on its own whether you were marked absent that day. A season view of the trainings page meant 47 separate questions where one would do — 94 of the 155 requests on that page, all for an answer the app could have looked up once. The requests then queued behind each other, so the same trivial lookup that normally takes 50 milliseconds was taking 650.',
+          'The app now fetches your absences once and works out the rest itself. Nothing changes about what you see — the "Absent" and "Unavailable" markers behave exactly as before, they just appear without the wait.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.97.0',
     date: '24.08.2026',
