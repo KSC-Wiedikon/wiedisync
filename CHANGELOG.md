@@ -2,6 +2,13 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.98.0 — 2026-08-25
+
+### Former members' details are deleted after a year
+
+- **When somebody leaves the club, their contact and payment details are now erased twelve months later.** Bank details, AHV number, phone, address and email address are removed for good. Name, date of birth, the teams they played in and their dues history are kept, so the club's own record of who played when stays intact.
+- **Nothing is deleted automatically.** Each erasure is a decision an administrator takes, and it is recorded in the audit log. Invoices keep the address they were issued to, so the club's accounts stay complete.
+
 ## v1.97.1 — 2026-08-25
 
 ### The trainings list stops asking the same question 47 times

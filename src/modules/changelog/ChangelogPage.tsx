@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '1.97.1'
+const APP_VERSION = '1.98.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,19 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.98.0',
+    date: '25.08.2026',
+    sections: [
+      {
+        title: "Former members' details are deleted after a year",
+        items: [
+          'When somebody leaves the club, their contact and payment details are now erased twelve months later. Bank details, AHV number, phone, address and email address are removed for good. Name, date of birth, the teams they played in and their dues history are kept, so the club\'s own record of who played when stays intact.',
+          'Nothing is deleted automatically. Each erasure is a decision an administrator takes, and it is recorded in the audit log. Invoices keep the address they were issued to, so the club\'s accounts stay complete.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.97.1',
     date: '25.08.2026',
