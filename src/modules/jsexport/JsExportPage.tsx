@@ -80,12 +80,23 @@ export default function JsExportPage() {
   if (!canJsExport) return <Navigate to="/" replace />
 
   function surfaceWarnings(data: JsExportData) {
-    const { participantsMissingJsId, leadersMissingJsId, emptyRoster } = data.warnings
+    const {
+      participantsMissingJsId, leadersMissingJsId, emptyRoster,
+      trainingsMissingOrt = [], trainingsMissingZeit = [],
+    } = data.warnings
     // Leaders but no participants is never a valid J+S export — it means the
     // requested season resolved to a team row with no roster. Loud, because the
     // CSV still downloads and looks plausible.
     if (emptyRoster) {
       toast.error(t('emptyRosterWarning'), { duration: 20_000 })
+    }
+    // ZEIT and ORT are mandatory on a Training — the NDS rejects the whole file
+    // on an empty cell, and it does so only after the coach has uploaded it.
+    if (trainingsMissingOrt.length || trainingsMissingZeit.length) {
+      const missing: string[] = []
+      if (trainingsMissingOrt.length) missing.push(`${t('missingOrt')}: ${trainingsMissingOrt.join(', ')}`)
+      if (trainingsMissingZeit.length) missing.push(`${t('missingZeit')}: ${trainingsMissingZeit.join(', ')}`)
+      toast.warning(t('trainingFieldsWarning'), { description: missing.join(' · '), duration: 15_000 })
     }
     if (!participantsMissingJsId.length && !leadersMissingJsId.length) return
     const parts: string[] = []

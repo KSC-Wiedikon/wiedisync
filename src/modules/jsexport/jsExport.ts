@@ -39,7 +39,14 @@ export interface JsExportData {
   activities: JsActivityRow[]
   attendance: JsAttendanceRow[]
   counts: { trainings: number; games: number; events: number; players: number; leaders: number; activities: number }
-  warnings: { participantsMissingJsId: string[]; leadersMissingJsId: string[]; emptyRoster?: boolean }
+  warnings: {
+    participantsMissingJsId: string[]
+    leadersMissingJsId: string[]
+    // Optional: an endpoint deployed before the ZEIT/ORT check omits these.
+    trainingsMissingOrt?: string[]
+    trainingsMissingZeit?: string[]
+    emptyRoster?: boolean
+  }
 }
 
 // Exact NDS header rows (order + spelling are mandated — do NOT localise these).
