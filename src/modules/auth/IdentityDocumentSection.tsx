@@ -280,7 +280,9 @@ export default function IdentityDocumentSection() {
         method: 'POST',
         body: { member: memberId, envelopes },
       })
-      toast.success(t('idGranted', { count: data.granted }))
+      // A zero here means someone else already repaired it — the banner clearing IS the
+      // feedback, and "access granted to 0 team leaders" reads as a failure.
+      if (data.granted > 0) toast.success(t('idGranted', { count: data.granted }))
       await loadGaps()
     } catch (err) {
       captureApiError(err, {

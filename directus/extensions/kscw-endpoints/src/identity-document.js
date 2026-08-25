@@ -769,19 +769,33 @@ export function registerIdentityDocument(router, ctx) {
       // from two devices must not 500, and re-running must be a no-op rather than a replace.
       // Replacing a live envelope with one wrapped from a stale content key would lock the
       // recipient OUT — the one outcome a repair must never produce.
-      const inserted = await database('identity_document_keys')
-        .insert(accepted.map((e) => ({
-          document: doc.id,
-          recipient: Number(e.recipient),
-          eph_public_key: e.eph_public_key,
-          wrap_iv: e.wrap_iv,
-          wrapped_key: e.wrapped_key,
-          recipient_key_created: allowedById.get(Number(e.recipient))?.key_created ?? null,
-          date_created: new Date(),
-        })))
-        .onConflict(['document', 'recipient'])
-        .ignore()
-        .returning('recipient')
+      //
+      // ⚠ The count comes from a read INSIDE the transaction, not from `.returning()`.
+      // knex drops the RETURNING clause when `.ignore()` is used, so the insert succeeded
+      // and reported zero — a repair that says "0 restored" while having restored nine is
+      // worse than one that fails outright, because nobody re-runs it. Caught on dev by
+      // checking the row landed rather than trusting the response.
+      const granted = await database.transaction(async (trx) => {
+        const existing = new Set(
+          (await trx('identity_document_keys').where('document', doc.id).select('recipient'))
+            .map((r) => Number(r.recipient)),
+        )
+        const fresh = accepted.filter((e) => !existing.has(Number(e.recipient)))
+        if (!fresh.length) return []
+        await trx('identity_document_keys')
+          .insert(fresh.map((e) => ({
+            document: doc.id,
+            recipient: Number(e.recipient),
+            eph_public_key: e.eph_public_key,
+            wrap_iv: e.wrap_iv,
+            wrapped_key: e.wrapped_key,
+            recipient_key_created: allowedById.get(Number(e.recipient))?.key_created ?? null,
+            date_created: new Date(),
+          })))
+          .onConflict(['document', 'recipient'])
+          .ignore()
+        return fresh.map((e) => Number(e.recipient))
+      })
 
       await writeUserLog(database, log, {
         accountability: req.accountability,
@@ -792,12 +806,12 @@ export function registerIdentityDocument(router, ctx) {
           what: 'identity_document_regrant',
           member: target,
           by_self: Number(me.id) === target,
-          granted: inserted.map((r) => Number(typeof r === 'object' ? r.recipient : r)),
+          granted,
           rejected_recipients: rejected,
         },
       })
 
-      res.json({ data: { ok: true, granted: inserted.length, rejected } })
+      res.json({ data: { ok: true, granted: granted.length, rejected } })
     } catch (err) {
       log.error({ msg: `POST identity/envelopes: ${err.message}`, stack: err.stack })
       res.status(500).json({ error: 'Internal error' })
