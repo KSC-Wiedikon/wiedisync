@@ -58,7 +58,7 @@ import {
 import { useReportPageLoading } from '../../hooks/usePageReady'
 import {
   runAllChecks, autoFix, autoFixAll, manualFix, linkClubdesk, deactivateMember, flagClubdeskDrift,
-  flagClubdeskDriftBulk, resolveStaleLink,
+  flagClubdeskDriftBulk, resolveStaleLink, eraseRetentionData,
   type CollectionHealth, type DataIssue, type IssueKey,
 } from './utils/dataHealthChecks'
 
@@ -75,6 +75,8 @@ const ISSUE_LABEL_KEY: Record<IssueKey, string> = {
   clubdeskDeparted: 'dhIssueClubdeskDeparted',
   clubdeskStale: 'dhIssueClubdeskStale',
   clubdeskStaleSuppressed: 'dhIssueClubdeskStaleSuppressed',
+  retentionDue: 'dhIssueRetentionDue',
+  retentionUndated: 'dhIssueRetentionUndated',
   clubdeskDrift: 'dhIssueClubdeskDrift',
   clubdeskDriftBlocked: 'dhIssueClubdeskDriftBlocked',
   clubdeskFill: 'dhIssueClubdeskFill',
@@ -311,6 +313,38 @@ function CollectionCard({
     }
   }
 
+  // ⚠ The only irreversible action on this page: it destroys personal data
+  // outright rather than flipping a flag. Confirms with the member's name and
+  // the exact field list, and the server re-derives eligibility before writing.
+  async function handleRetentionErase(issue: DataIssue) {
+    const ok = await confirm({
+      title: t('dhErase'),
+      message: t('dhConfirmErase', { name: issue.detail }),
+      confirmLabel: t('dhErase'),
+      danger: true,
+    })
+    if (!ok) return
+    setManualFixingId(issue.id)
+    try {
+      await eraseRetentionData(issue)
+      toast.success(`${t('dhFixed')}: ${issue.detail}`)
+      onFixed()
+    } catch (err) {
+      const code = (err as { code?: string; body?: { code?: string } })?.code
+        ?? (err as { body?: { code?: string } })?.body?.code
+      if (code === 'already_erased' || code === 'not_due' || code === 'still_active') {
+        toast.info(t('dhEraseGone'))
+        onFixed()
+      } else if (code === 'has_login') {
+        toast.warning(t('dhEraseHasLogin'))
+      } else {
+        toast.error(t('dhFixFailed'))
+      }
+    } finally {
+      setManualFixingId(null)
+    }
+  }
+
   async function handleFixAll() {
     setFixingAll(true)
     try {
@@ -500,6 +534,15 @@ function CollectionCard({
                         className="inline-flex min-h-[44px] items-center justify-center rounded-md border border-red-200 px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 sm:min-h-0 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/30"
                       >
                         {manualFixingId === issue.id ? t('dhFixing') : t('dhDeactivate')}
+                      </button>
+                    ) : issue.manualKind === 'retentionErase' ? (
+                      <button
+                        onClick={() => void handleRetentionErase(issue)}
+                        disabled={manualFixingId === issue.id}
+                        aria-busy={manualFixingId === issue.id}
+                        className="inline-flex min-h-[44px] items-center justify-center rounded-md border border-red-200 px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 sm:min-h-0 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/30"
+                      >
+                        {manualFixingId === issue.id ? t('dhFixing') : t('dhErase')}
                       </button>
                     ) : issue.manualKind === 'clubdeskStale' ? (
                       // A deleted ClubDesk contact has two honest readings and

@@ -30,6 +30,8 @@ export type IssueKey =
   | 'clubdeskDeparted'
   | 'clubdeskStale'
   | 'clubdeskStaleSuppressed'
+  | 'retentionDue'
+  | 'retentionUndated'
   | 'clubdeskDrift'
   | 'clubdeskDriftBlocked'
   | 'clubdeskFill'
@@ -71,7 +73,7 @@ export interface DataIssue {
    * readings of a deleted ClubDesk contact. Excluded from "Fix all".
    */
   manualKind?: 'sex' | 'clubdeskLink' | 'clubdeskDeactivate' | 'clubdeskDriftFlag'
-    | 'clubdeskStale'
+    | 'clubdeskStale' | 'retentionErase'
   /** For manualKind 'clubdeskLink': the ClubDesk contact to link to. */
   link?: { clubdeskId: string; clubdeskEmail?: string | null }
   /** For manualKind 'clubdeskDriftFlag' aggregate (fill) rows: all member ids to flag. */
@@ -125,6 +127,27 @@ interface ClubdeskStaleResp {
   linked: number
   export_rows: number
   stale_count: number
+}
+
+/**
+ * /retention-due. Former members whose personal data has passed the club's
+ * retention period (12 months after deactivation). `undated` counts the
+ * ex-members whose departure nobody has dated — they cannot be assessed at all,
+ * and a check that quietly omitted them would report "nothing due" while not
+ * looking at them.
+ */
+interface RetentionDueResp {
+  candidates: {
+    member_id: number
+    member_name: string
+    deactivated_at: string
+    fields: string[]
+    invoices_to_snapshot: number
+    has_login: boolean
+  }[]
+  undated: number
+  retention_months: number
+  fields: string[]
 }
 
 interface ClubdeskNameMatch {
@@ -425,6 +448,48 @@ async function checkMembers(): Promise<CollectionHealth> {
         detail: `${c.member_name} — ClubDesk ${c.clubdesk_id}${teams}`,
         autoFixable: false,
         manualKind: 'clubdeskStale',
+      })
+    }
+  } catch {
+    // Best-effort — see above.
+  }
+
+  // Former members whose personal data has outlived its purpose — 12 months
+  // after deactivation, per the club's retention decision. Deactivation stops
+  // processing; nothing until now stopped storing. One decision per member: the
+  // erase clears IBAN, AHV number, phone, address and email while keeping name,
+  // birthdate, teams and dues history, and snapshots the recipient onto any
+  // invoice that lacks one FIRST, so the books do not lose a payer.
+  try {
+    const ret = await kscwApi<RetentionDueResp>('/retention-due')
+    for (const c of ret.candidates || []) {
+      // ⚠ A member who still holds a login is listed but NOT offered the button:
+      // clearing `members.email` while directus_users still holds the address and
+      // the password hash would be theatre. Full account removal owns that case.
+      const since = formatDateZurich(c.deactivated_at)
+      const inv = c.invoices_to_snapshot > 0 ? ` · ${c.invoices_to_snapshot} invoices to stamp first` : ''
+      issues.push({
+        id: String(c.member_id),
+        collection: 'members',
+        field: c.fields.join(', '),
+        severity: 'warning',
+        issueKey: 'retentionDue',
+        detail: `${c.member_name} — left ${since} · ${c.fields.join(', ')}${inv}`,
+        autoFixable: false,
+        manualKind: c.has_login ? undefined : 'retentionErase',
+      })
+    }
+    // Not a nag: without a date there is no clock, so these are invisible to the
+    // rule above and would otherwise never be looked at again.
+    if (ret.undated > 0) {
+      issues.push({
+        id: 'retention-undated',
+        collection: 'members',
+        field: 'deactivated_at',
+        severity: 'warning',
+        issueKey: 'retentionUndated',
+        detail: String(ret.undated),
+        autoFixable: false,
       })
     }
   } catch {
@@ -814,6 +879,21 @@ export async function resolveStaleLink(
   await kscwApi('/clubdesk-stale/resolve', {
     method: 'POST',
     body: { member_id: Number(issue.id), action },
+  })
+}
+
+/**
+ * Erase a former member's personal data once the retention period has passed.
+ * Clears IBAN, AHV number, phone, address and email (the last to a
+ * non-deliverable `erased-<id>@invalid`, since the column is NOT NULL) and keeps
+ * name, birthdate, teams and dues history. The server re-derives eligibility and
+ * snapshots the recipient onto any invoice missing one before clearing, so an
+ * erasure cannot quietly leave the books without a payer.
+ */
+export async function eraseRetentionData(issue: DataIssue): Promise<void> {
+  await kscwApi('/retention-erase', {
+    method: 'POST',
+    body: { member_id: Number(issue.id) },
   })
 }
 
