@@ -2,6 +2,13 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.98.1 — 2026-08-25
+
+### A failed ClubDesk sync now says so
+
+- **A sync that failed used to look like one that worked.** The time under the button was stamped whether the sync succeeded or not, so a failed run showed a fresh "last sync" and the club register quietly stayed out of date. That line now only ever shows the last sync that actually succeeded.
+- **When a sync does fail, the page says why** — whether ClubDesk did not respond, refused the login, or our own tool could not start — instead of pointing at a log file only a developer can open.
+
 ## v1.98.0 — 2026-08-25
 
 ### Former members' details are deleted after a year
