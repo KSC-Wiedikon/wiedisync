@@ -18,7 +18,7 @@
  * J+S field rules baked in (per the BASPO import spec, jugendundsport.ch/datenimport):
  *   - Training  carries DATUM + ZEIT + DAUER + ORT (ZEIT and ORT are MANDATORY).
  *   - Wettkampf carries DATUM only — ZEIT, DAUER and ORT are NOT allowed.
- *   - Trainingstag carries DATUM + DAUER (240/300) only.
+ *   - Trainingstag carries DATUM + DAUER (exactly 240 or 300) only.
  *   - Lagertag  carries DATUM only.
  *   - DAUER is a closed value set, not a measured length — see TRAINING_DAUER_MIN.
  *   - Cancelled activities are excluded.
@@ -35,6 +35,8 @@
 // ⚠ NG-dependent: under NG 2 a Wettkampf DOES carry a duration. If a course
 // ever runs under another Nutzergruppe this has to become a per-course setting.
 const TRAINING_DAUER_MIN = 90
+const TRAININGSTAG_LONG_MIN = 300
+const TRAININGSTAG_SHORT_MIN = 240
 const JS_ACTIVITY_TYPES = new Set(['Training', 'Wettkampf', 'Trainingstag', 'Lagertag'])
 
 // ── Pure helpers (unit-tested in __tests__/js-export.test.js) ──────────────────
@@ -64,8 +66,10 @@ export function applyJsFieldRules(type, raw) {
     case 'Wettkampf':
       return { zeit: '', dauer: '', ort: '' }
     case 'Trainingstag': {
+      // 240 or 300 — nothing else. A 4.5h event (270) or a 6h one (360) is out
+      // of the permitted set and the import rejects the whole file.
       const d = sanitizeDauer(raw.dauer)
-      return { zeit: '', dauer: d && d >= 240 ? d : 240, ort: '' }
+      return { zeit: '', dauer: d && d >= 270 ? TRAININGSTAG_LONG_MIN : TRAININGSTAG_SHORT_MIN, ort: '' }
     }
     case 'Lagertag':
       return { zeit: '', dauer: '', ort: '' }

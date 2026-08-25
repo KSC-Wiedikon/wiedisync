@@ -55,9 +55,13 @@ describe('applyJsFieldRules — per-type field suppression', () => {
     expect(applyJsFieldRules('Wettkampf', raw)).toEqual({ zeit: '', dauer: '', ort: '' })
     expect(applyJsFieldRules('Wettkampf', { zeit: '', dauer: 120, ort: '' }).dauer).toBe('')
   })
-  it('Trainingstag drops time/location, floors duration at 240', () => {
+  it('Trainingstag drops time/location and snaps duration to exactly 240 or 300', () => {
     expect(applyJsFieldRules('Trainingstag', { zeit: '09:00', dauer: 90, ort: 'x' })).toEqual({ zeit: '', dauer: 240, ort: '' })
     expect(applyJsFieldRules('Trainingstag', { zeit: '', dauer: 300, ort: '' })).toEqual({ zeit: '', dauer: 300, ort: '' })
+    // 270 and 360 are outside the permitted set — the import rejects the file.
+    expect(applyJsFieldRules('Trainingstag', { dauer: 270 }).dauer).toBe(300)
+    expect(applyJsFieldRules('Trainingstag', { dauer: 360 }).dauer).toBe(300)
+    expect(applyJsFieldRules('Trainingstag', { dauer: 269 }).dauer).toBe(240)
   })
   it('Lagertag carries date only', () => {
     expect(applyJsFieldRules('Lagertag', raw)).toEqual({ zeit: '', dauer: '', ort: '' })
