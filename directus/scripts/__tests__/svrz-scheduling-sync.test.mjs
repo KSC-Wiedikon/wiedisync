@@ -379,3 +379,73 @@ test('fetchTeamResponsibles ignores non-responsible roles and skips KSCW + missi
   assert.equal(rows.length, 1);
   assert.equal(rows[0].contact_email, 'tina@opp.ch');
 });
+
+// ── One summary audit row per run ──────────────────────────────────────
+//
+// The audit hook no longer logs `svrz_games` / `svrz_spielplaner_contacts`
+// (SKIP_COLLECTIONS in kscw-hooks/src/audit.js), because `upsertByPersistenceId`
+// PATCHes one row at a time and so produced one audit row per fixture — 388,901
+// of them on prod, 584 MB. `writeSyncSummary` is what replaces that, so these
+// tests are the only thing standing between a silent drop and an untracked cron.
+//
+// ⚠ eslint has `no-undef` OFF for directus/scripts/, so an unbound identifier in
+//   here would not fail the lint gate — EXECUTING every branch is the gate.
+
+import { writeSyncSummary } from '../svrz-scheduling-sync.mjs';
+
+test('runSync writes exactly ONE summary row, after the upserts', async () => {
+  process.env.VM_USERNAME = 'u'; process.env.VM_PASSWORD = 'p';
+  const calls = [];
+  const io = {
+    login: async () => ({}),
+    useRole: async () => true,
+    csrf: async () => ({ csrf: 'c', wuid: 'w' }),
+    getGames: async () => ({ items: [{ __identity: 'g1', number: 1, status: 'open' }], total: 1 }),
+    getContacts: async () => ({ items: [] }),
+    upsert: async (c, rows) => { calls.push(`upsert:${c}`); return { created: rows.length, updated: 2, seen_count: rows.length }; },
+    logSummary: async (r) => { calls.push('summary'); return { logged: true, got: r }; },
+  };
+  const result = await runSync({ seasonUuid: 'uuid', seasonName: '2025/2026' }, io);
+
+  const summaries = calls.filter(c => c === 'summary');
+  assert.equal(summaries.length, 1, 'exactly one summary row per run — not one per fixture');
+  assert.equal(calls[calls.length - 1], 'summary', 'summary must be the LAST thing the run does');
+  assert.ok(calls.some(c => c.startsWith('upsert:')), 'sanity: the upserts still happened');
+  // The run still returns its result unchanged — logging must not alter it.
+  assert.equal(result.games.created, 1);
+  assert.equal(result.games.updated, 2);
+});
+
+test('writeSyncSummary no-ops without a token instead of throwing', async () => {
+  const prev = process.env.DIRECTUS_TOKEN;
+  delete process.env.DIRECTUS_TOKEN;
+  try {
+    // Module read DIRECTUS_TOKEN at import time, so this asserts the shape the
+    // test environment actually hits: no token configured -> a clean skip.
+    const out = await writeSyncSummary({ games: { created: 1, updated: 2 } });
+    assert.equal(out.logged, false);
+    assert.equal(out.skipped, 'no_token');
+  } finally {
+    if (prev !== undefined) process.env.DIRECTUS_TOKEN = prev;
+  }
+});
+
+test('a failing summary write never fails the sync that produced it', async () => {
+  process.env.VM_USERNAME = 'u'; process.env.VM_PASSWORD = 'p';
+  const io = {
+    login: async () => ({}),
+    useRole: async () => true,
+    csrf: async () => ({ csrf: 'c', wuid: 'w' }),
+    getGames: async () => ({ items: [{ __identity: 'g1', number: 1, status: 'open' }], total: 1 }),
+    getContacts: async () => ({ items: [] }),
+    upsert: async (_c, rows) => ({ created: rows.length, updated: 0, seen_count: rows.length }),
+    // The real one swallows its own errors; this proves runSync survives even a
+    // logger that does NOT — the fixtures are already written by this point and
+    // an audit row must never be able to undo them. The hook that spawns this
+    // script treats a non-zero exit as "sync failed" and alerts on it, so a
+    // propagating audit error would raise a false alarm about live schedule data.
+    logSummary: async () => { throw new Error('directus 500'); },
+  };
+  const result = await runSync({ seasonUuid: 'uuid', seasonName: '2025/2026' }, io);
+  assert.equal(result.games.created, 1, 'the sync completed and returned its real result');
+});

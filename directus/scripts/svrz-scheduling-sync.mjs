@@ -313,6 +313,65 @@ async function directusFetch(pathQ, init = {}) {
   return r.status === 204 ? null : r.json();
 }
 
+/**
+ * ONE audit row per run, instead of one per touched fixture.
+ *
+ * The audit hook (`kscw-hooks/src/audit.js`) used to log every items-API write,
+ * and `upsertByPersistenceId` PATCHes one row at a time, so a nightly run wrote
+ * ~3,135 identical "cron-service updated svrz_games" rows. On prod 2026-08-25
+ * that was 388,901 + 32,012 rows = 96.5% of every update row in `user_logs` and
+ * 584 MB of an 861 MB table. Both collections are now in the hook's
+ * SKIP_COLLECTIONS, and this is what replaces them.
+ *
+ * Same shape the `gcal_sync` summary already uses: an action name, the primary
+ * collection, and a counts object. It answers "did the sync run, and what did it
+ * do" — which the per-row spam never did, because 3,135 rows and 0 rows both
+ * looked like noise.
+ *
+ * ⚠ This is NOT the same record as the `sync_runs` heartbeat the spawning
+ *   endpoint writes. `logCronRun` upserts `.onConflict('source').merge()`, so
+ *   `sync_runs` holds exactly ONE row per source describing the LATEST run — it
+ *   is current health, and every previous run's numbers are overwritten. This
+ *   row is the append-only HISTORY (inside user_logs' 90-day window): what each
+ *   individual run created, updated and pruned. Neither replaces the other, and
+ *   deleting this one would leave no way to answer "when did the fixture count
+ *   jump" after the next run overwrites the heartbeat.
+ *
+ * ⚠ Never throws. A failed audit row must not fail the sync that produced it —
+ *   the fixtures are already written by this point. Returns a status instead so
+ *   the caller can surface it, and warns on stderr.
+ * ⚠ No-ops without DIRECTUS_TOKEN so unit tests (which inject fakes for every
+ *   other IO seam and set no token) do not attempt a real POST.
+ */
+export async function writeSyncSummary(result) {
+  if (!DIRECTUS_TOKEN) return { logged: false, skipped: 'no_token' };
+  try {
+    await directusFetch('/items/user_logs', {
+      method: 'POST',
+      body: JSON.stringify({
+        action: 'svrz_sync',
+        collection_name: 'svrz_games',
+        data: {
+          games_created: result?.games?.created ?? 0,
+          games_updated: result?.games?.updated ?? 0,
+          games_fetched: result?.games?.total_fetched ?? 0,
+          pruned: result?.prune?.pruned ?? 0,
+          prune_skipped: result?.prune?.skipped ?? null,
+          contacts_created: result?.contacts?.created ?? 0,
+          contacts_updated: result?.contacts?.updated ?? 0,
+          team_responsibles_created: result?.teamResponsibles?.created ?? 0,
+          team_responsibles_updated: result?.teamResponsibles?.updated ?? 0,
+          contacts_skipped: result?.contacts?.skipped ?? null,
+        },
+      }),
+    });
+    return { logged: true };
+  } catch (err) {
+    console.warn(`[svrz-sync] ⚠ summary audit row failed: ${err.message}`);
+    return { logged: false, error: err.message };
+  }
+}
+
 async function fetchExistingPersistenceIds(collection) {
   const existing = new Map();
   for (let page = 1; ; page++) {
@@ -418,6 +477,7 @@ export async function runSync({ seasonUuid, seasonName = '' }, io = {}) {
     upsert = upsertByPersistenceId,
     prune = pruneOrphanedGames,
     useRole = vmUseRole,
+    logSummary = writeSyncSummary,
   } = io;
 
   const username = process.env.VM_USERNAME;
@@ -511,12 +571,29 @@ export async function runSync({ seasonUuid, seasonName = '' }, io = {}) {
     teamResponsibleResult = { skipped: true, error: err.message, created: 0, updated: 0, total_fetched: 0 };
   }
 
-  return {
+  const result = {
     games: { ...gamesResult, total_fetched: games.items.length },
     prune: pruneResult,
     contacts: contactsResult,
     teamResponsibles: teamResponsibleResult,
   };
+
+  // One audit row for the whole run — see writeSyncSummary. Deliberately the
+  // last thing the run does, and deliberately unable to fail it: the fixtures
+  // are already written by this point, so a failed AUDIT row must never be able
+  // to turn a successful sync into a failed one (the hook that spawns this
+  // treats a non-zero exit as "sync failed" and alerts on it).
+  //
+  // ⚠ The guard belongs HERE, not only inside writeSyncSummary. That function
+  //   swallows its own errors, but it is an injectable IO seam — this is the
+  //   only place that holds for ANY logger the seam is given.
+  try {
+    await logSummary(result);
+  } catch (err) {
+    console.warn(`[svrz-sync] ⚠ summary audit row failed: ${err.message}`);
+  }
+
+  return result;
 }
 
 // ─── CLI ───────────────────────────────────────────────────────────────

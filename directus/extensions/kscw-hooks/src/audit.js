@@ -24,6 +24,22 @@ const SKIP_COLLECTIONS = new Set([
   // High-volume normal traffic:
   'notifications',
   'spielplaner_assignments',
+  // Machine-synced from Volleymanager nightly, and the sync PATCHes one row at a
+  // time (`upsertByPersistenceId`: "Updates must go one-by-one"), so this hook
+  // fired once per fixture and wrote one audit row per fixture. Measured on prod
+  // 2026-08-25: 388,901 `svrz_games` + 32,012 `svrz_spielplaner_contacts` rows =
+  // 96.5% of every update row in `user_logs`, 584 MB of an 861 MB table, all of it
+  // "cron-service updated a fixture" repeated 3,135 times a night.
+  //
+  // ⚠ These are NOT unaudited — `svrz-scheduling-sync.mjs` writes ONE summary row
+  //   per run (`action: 'svrz_sync'`, the same shape `gcal_sync` already uses),
+  //   carrying created/updated/pruned counts. That is strictly more useful than
+  //   the per-row spam: it says what the run DID, and a missing summary row is a
+  //   visible "the sync did not complete" signal that 3,135 identical rows never
+  //   gave. Keep the two in step — dropping the summary write would leave the
+  //   nightly sync genuinely untracked.
+  'svrz_games',
+  'svrz_spielplaner_contacts',
   // Realtime / ephemeral:
   'messages_read_state', 'message_reactions',
 ])
