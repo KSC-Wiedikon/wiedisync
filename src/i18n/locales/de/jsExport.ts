@@ -5,7 +5,7 @@ export default {
   howto1: 'Saison und Team wählen, dann beide CSV-Dateien herunterladen.',
   howto2: 'In der NDS zuerst die Aktivitäten-Datei importieren, danach die Anwesenheits-Datei – der Aktivitäten-Import ersetzt alle bereits erfassten Aktivitäten und Anwesenheiten im Kurs.',
   howto3: 'Alle brauchen eine J+S-Personennummer. Personen ohne Nummer werden übersprungen und in einer Warnung aufgelistet.',
-  formatNote: 'Die Dateien sind semikolon-getrennt, UTF-8, mit Schweizer Punkt-Datum (TT.MM.JJJJ). Wettkämpfe enthalten gemäss J+S-Vorgabe keine Zeit- und Ortsangabe.',
+  formatNote: 'Die Dateien sind semikolon-getrennt, UTF-8, mit Schweizer Punkt-Datum (TT.MM.JJJJ). Gemäss J+S-Vorgabe enthalten Wettkämpfe keine Zeit-, Dauer- und Ortsangabe, und Trainingsdauern werden als 60, 75 oder 90 Minuten gemeldet.',
   season: 'Saison',
   from: 'Von',
   to: 'Bis',

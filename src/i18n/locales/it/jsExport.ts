@@ -5,7 +5,7 @@ export default {
   howto1: 'Scegli stagione e squadra, poi scarica entrambi i file CSV.',
   howto2: 'Nella NDS importa prima il file delle attività, poi quello delle presenze — l\'importazione delle attività sostituisce tutte le attività e presenze già registrate nel corso.',
   howto3: 'Tutti hanno bisogno di un numero personale J+S. Le persone senza numero vengono saltate ed elencate in un avviso.',
-  formatNote: 'I file sono separati da punto e virgola, UTF-8, con date in formato svizzero con i punti (dd.mm.yyyy). Le partite non riportano ora né luogo, come previsto dalle direttive J+S.',
+  formatNote: 'I file sono separati da punto e virgola, UTF-8, con date in formato svizzero con i punti (dd.mm.yyyy). Come previsto dalle direttive J+S, le partite non riportano ora, durata né luogo, e le durate degli allenamenti sono indicate come 60, 75 o 90 minuti.',
   season: 'Stagione',
   from: 'Da',
   to: 'A',

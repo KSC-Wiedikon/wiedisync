@@ -16,18 +16,24 @@
  * Reads only → no actor capture needed (repo audit rule).
  *
  * J+S field rules baked in (per the BASPO import spec, jugendundsport.ch/datenimport):
- *   - Training  carries DATUM + ZEIT + DAUER + ORT.
- *   - Wettkampf carries DATUM + DAUER only — ZEIT and ORT are NOT allowed.
+ *   - Training  carries DATUM + ZEIT + DAUER + ORT, and NDS accepts DAUER only
+ *     from the fixed set 60/75/90 — anything else is rejected on import, so the
+ *     real block length is snapped onto it (see snapTrainingDauer).
+ *   - Wettkampf carries DATUM only — ZEIT, DAUER and ORT are NOT allowed.
  *   - Trainingstag carries DATUM + DAUER (240/300) only.
  *   - Lagertag  carries DATUM only.
- *   - Games have no end-time → fixed DAUER per sport (Volleyball 120, Basketball 90).
  *   - Cancelled activities are excluded.
  *   - Attendance = roster (players + leaders) MINUS anyone with a declined RSVP or a
  *     covering absence on that date (the positive-absence signal only).
  */
 
-const GAME_DURATION_MIN = { volleyball: 120, basketball: 90 }
 const JS_ACTIVITY_TYPES = new Set(['Training', 'Wettkampf', 'Trainingstag', 'Lagertag'])
+
+/** The ONLY DAUER values NDS accepts on a Training row (its import dropdown).
+ *  A block of any other length is rejected, so every training duration is
+ *  snapped onto this set — 90 is both the cap and the fallback. */
+const TRAINING_DAUER_ALLOWED = [60, 75, 90]
+const TRAINING_DAUER_DEFAULT = 90
 
 // ── Pure helpers (unit-tested in __tests__/js-export.test.js) ──────────────────
 
@@ -65,12 +71,28 @@ export function computeTrainingMinutes(t) {
   return end - start
 }
 
+/** Snap a real block length onto the 60/75/90 minutes NDS will accept.
+ *  Nearest wins (sanitizeDauer rounds to whole minutes first, so the 67.5/82.5
+ *  midpoints can never actually occur); anything longer than 90 caps at 90 and
+ *  an unknown length falls back to 90.
+ *  ⚠ Do NOT "fix" this by passing the true length through — a 105- or 120-minute
+ *  DAUER makes NDS reject the whole import row. */
+export function snapTrainingDauer(v) {
+  const n = sanitizeDauer(v)
+  if (n === '') return TRAINING_DAUER_DEFAULT
+  return TRAINING_DAUER_ALLOWED.reduce(
+    (best, a) => (Math.abs(a - n) < Math.abs(best - n) ? a : best),
+    TRAINING_DAUER_DEFAULT,
+  )
+}
+
 /** Apply the per-type J+S field-suppression rules to a raw {zeit,dauer,ort}. */
-export function applyJsFieldRules(type, raw, opts = {}) {
-  const gameMin = opts.gameMin ?? 90
+export function applyJsFieldRules(type, raw) {
   switch (type) {
     case 'Wettkampf':
-      return { zeit: '', dauer: gameMin, ort: '' }
+      // Date only. A game has no end time in our data and NDS wants none — it
+      // derives the competition length itself.
+      return { zeit: '', dauer: '', ort: '' }
     case 'Trainingstag': {
       const d = sanitizeDauer(raw.dauer)
       return { zeit: '', dauer: d && d >= 240 ? d : 240, ort: '' }
@@ -79,7 +101,7 @@ export function applyJsFieldRules(type, raw, opts = {}) {
       return { zeit: '', dauer: '', ort: '' }
     case 'Training':
     default:
-      return { zeit: raw.zeit || '', dauer: sanitizeDauer(raw.dauer), ort: raw.ort || '' }
+      return { zeit: raw.zeit || '', dauer: snapTrainingDauer(raw.dauer), ort: raw.ort || '' }
   }
 }
 
@@ -181,8 +203,6 @@ export function registerJsExport(router, { database, logger }) {
         }
       }
 
-      const gameMin = GAME_DURATION_MIN[team.sport] ?? 90
-
       // ── Resolve the team LINEAGE ────────────────────────────────────────────
       // A team exists once per season: the rollover clones it to a NEW id and
       // archives the old row, keyed on `team_id` (falling back to the name) —
@@ -266,14 +286,14 @@ export function registerJsExport(router, { database, logger }) {
       for (const t of trainings) {
         activities.push({
           type: 'Training', dateYMD: t.date_ymd, datum: ymdToDots(t.date_ymd),
-          zeit: hhmm(t.start_time), dauer: computeTrainingMinutes(t), ort: (t.ort || '').trim(),
+          zeit: hhmm(t.start_time), dauer: snapTrainingDauer(computeTrainingMinutes(t)), ort: (t.ort || '').trim(),
           partType: 'training', activityId: String(t.id),
         })
       }
       for (const g of games) {
         activities.push({
           type: 'Wettkampf', dateYMD: g.date_ymd, datum: ymdToDots(g.date_ymd),
-          zeit: '', dauer: gameMin, ort: '',
+          zeit: '', dauer: '', ort: '',
           partType: 'game', activityId: String(g.id),
         })
       }
@@ -281,7 +301,7 @@ export function registerJsExport(router, { database, logger }) {
         const type = JS_ACTIVITY_TYPES.has(e.js_activity_type) ? e.js_activity_type : 'Training'
         const cells = applyJsFieldRules(type, {
           zeit: e.all_day ? '' : hhmm(e.start_hm), dauer: e.dauer_min, ort: (e.location || '').trim(),
-        }, { gameMin })
+        })
         activities.push({
           type, dateYMD: e.date_ymd, datum: ymdToDots(e.date_ymd),
           zeit: cells.zeit, dauer: cells.dauer, ort: cells.ort,

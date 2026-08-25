@@ -2,9 +2,10 @@
  * Unit tests for the J+S export pure helpers (js-export.js) — the row-shaping
  * rules that carry the BASPO NDS format invariants:
  *   • DATUM is Swiss dot format dd.mm.yyyy.
- *   • Wettkampf rows carry NO time and NO location (spec forbids them).
+ *   • Wettkampf rows carry a DATE ONLY — no time, no duration, no location.
  *   • Trainingstag carries a duration ≥240, Lagertag carries none.
- *   • Training duration honours the migration-191 game auto-shorten.
+ *   • Training duration honours the migration-191 game auto-shorten, then snaps
+ *     onto the 60/75/90 NDS accepts.
  *   • Attendance exclusion uses the POSITIVE absence signal only (date-range,
  *     weekly-aware) — a person is present unless explicitly absent/declined.
  *
@@ -12,7 +13,7 @@
  */
 import { describe, it, expect } from 'vitest'
 import {
-  ymdToDots, hhmm, sanitizeDauer, computeTrainingMinutes, applyJsFieldRules,
+  ymdToDots, hhmm, sanitizeDauer, computeTrainingMinutes, snapTrainingDauer, applyJsFieldRules,
   weekdayMon0, absenceCoversDate, seasonWindow, parseYmd,
 } from '../js-export.js'
 
@@ -59,13 +60,42 @@ describe('computeTrainingMinutes', () => {
   })
 })
 
+describe('snapTrainingDauer — NDS only accepts 60/75/90', () => {
+  it('passes an already-allowed length through', () => {
+    expect(snapTrainingDauer(60)).toBe(60)
+    expect(snapTrainingDauer(75)).toBe(75)
+    expect(snapTrainingDauer(90)).toBe(90)
+  })
+  it('caps anything longer than 90 at 90', () => {
+    expect(snapTrainingDauer(105)).toBe(90)
+    expect(snapTrainingDauer(120)).toBe(90)
+    expect(snapTrainingDauer(240)).toBe(90)
+  })
+  it('snaps an in-between length to the nearest allowed value', () => {
+    expect(snapTrainingDauer(70)).toBe(75)
+    expect(snapTrainingDauer(65)).toBe(60)
+    expect(snapTrainingDauer(80)).toBe(75)
+    expect(snapTrainingDauer(67.5)).toBe(75) // rounded to 68 first, so nearer 75
+  })
+  it('falls back to 90 when the length is unknown or nonsense', () => {
+    expect(snapTrainingDauer('')).toBe(90)
+    expect(snapTrainingDauer(0)).toBe(90)
+    expect(snapTrainingDauer(-30)).toBe(90)
+    expect(snapTrainingDauer('abc')).toBe(90)
+  })
+})
+
 describe('applyJsFieldRules — per-type field suppression', () => {
   const raw = { zeit: '16:15', dauer: 90, ort: 'KWI C' }
   it('Training keeps time, duration and location', () => {
     expect(applyJsFieldRules('Training', raw)).toEqual({ zeit: '16:15', dauer: 90, ort: 'KWI C' })
   })
-  it('Wettkampf drops time and location, uses the fixed game duration', () => {
-    expect(applyJsFieldRules('Wettkampf', raw, { gameMin: 120 })).toEqual({ zeit: '', dauer: 120, ort: '' })
+  it('Training snaps a non-NDS duration onto the allowed set', () => {
+    expect(applyJsFieldRules('Training', { ...raw, dauer: 120 })).toEqual({ zeit: '16:15', dauer: 90, ort: 'KWI C' })
+    expect(applyJsFieldRules('Training', { ...raw, dauer: 60 })).toEqual({ zeit: '16:15', dauer: 60, ort: 'KWI C' })
+  })
+  it('Wettkampf carries a date only — no time, no duration, no location', () => {
+    expect(applyJsFieldRules('Wettkampf', raw)).toEqual({ zeit: '', dauer: '', ort: '' })
   })
   it('Trainingstag drops time/location, floors duration at 240', () => {
     expect(applyJsFieldRules('Trainingstag', { zeit: '09:00', dauer: 90, ort: 'x' })).toEqual({ zeit: '', dauer: 240, ort: '' })
