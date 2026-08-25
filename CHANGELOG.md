@@ -2,6 +2,13 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.97.1 — 2026-08-25
+
+### The trainings list stops asking the same question 47 times
+
+- **Pages with a long list of trainings, games or events were slow to settle, worst of all on a phone.** Every single card asked the server on its own whether you were marked absent that day. A season view of the trainings page meant 47 separate questions where one would do — 94 of that page's 155 requests, all for an answer the app could have looked up once. The requests then queued behind each other, so the same trivial lookup that normally takes 50 milliseconds was taking 650.
+- The app now fetches your absences once and works out the rest itself. Nothing changes about what you see — the "Absent" and "Unavailable" markers behave exactly as before, they just appear without the wait.
+
 ## v1.97.0 — 2026-08-24
 
 ### When somebody leaves the club, the app notices
