@@ -24,6 +24,10 @@
  *                              generate missing dates inside the new window
  *                              (skipping closures + existing dates).
  *
+ * Window rule: `valid_until` is the bound whenever it is set, `indefinite` or
+ * not — indefinite only decides what happens when there is NO end date (the
+ * rolling 12-week horizon). See effectiveEnd / validityEnd.
+ *
  * Create-time generation (called from `hall_slots.items.create`) lives in
  * the same module so the rules match exactly.
  */
@@ -61,13 +65,26 @@ function parseDate(s) {
   return new Date(str + 'T00:00:00Z')
 }
 
-/** Rolling-horizon length for indefinite training slots. "Indefinite" can't
- *  mean literally forever (the trainings table would be unbounded), so the
- *  cron + cascade keep `INDEFINITE_HORIZON_WEEKS` worth of upcoming
- *  trainings always populated and never trim past that point. 12 weeks is
- *  the PlayerPlus default and matches the typical "next 3 months" planning
- *  window members care about. Tune here when needed. */
+/** Rolling-horizon length for training slots with NO end date at all.
+ *  "Indefinite" can't mean literally forever (the trainings table would be
+ *  unbounded), so the cron + cascade keep `INDEFINITE_HORIZON_WEEKS` worth of
+ *  upcoming trainings always populated and never trim past that point. 12
+ *  weeks is the PlayerPlus default and matches the typical "next 3 months"
+ *  planning window members care about. Tune here when needed.
+ *
+ *  ⚠ This is the FALLBACK, not the rule: an indefinite slot that carries an
+ *  explicit `valid_until` is bounded, and generates to that date instead (see
+ *  effectiveEnd). Treating those as open-ended is what left the 2026/27 season
+ *  materialised only to today+12 weeks while the Hallenplan ran to 17.08.2027,
+ *  so the J+S activity export stopped mid-November. */
 const INDEFINITE_HORIZON_WEEKS = 12
+
+/** Hard ceiling on how far ONE generation pass may reach, so a typo'd
+ *  `valid_until` (2077) can't materialise decades of rows in a single insert.
+ *  Soft by design: the nightly top-up walks it forward as today moves, exactly
+ *  like the rolling horizon does. Only applies to indefinite slots — bounded
+ *  ones are not topped up, so clamping them would strand the tail. */
+const MAX_GENERATION_DAYS = 400
 
 /** Season-end fallback for non-indefinite slots that omit `valid_until` —
  *  legacy create-time behavior the React editor used to apply. Returns
@@ -79,6 +96,13 @@ const seasonEndDate = sharedSeasonEndDate
 function rollingHorizonDate() {
   const d = parseDate(todayStr())
   d.setUTCDate(d.getUTCDate() + INDEFINITE_HORIZON_WEEKS * 7)
+  return toISODate(d)
+}
+
+/** YYYY-MM-DD `MAX_GENERATION_DAYS` from today. */
+function maxGenerationDate() {
+  const d = parseDate(todayStr())
+  d.setUTCDate(d.getUTCDate() + MAX_GENERATION_DAYS)
   return toISODate(d)
 }
 
@@ -164,13 +188,34 @@ export async function snapshotSlot(database, slotId) {
   }
 }
 
-/** Effective window end for generation. For indefinite slots this is the
- *  rolling horizon (today + N weeks) — the upper bound is "soft" because
- *  the nightly cron keeps extending it. For bounded slots, explicit
- *  `valid_until` wins; falls back to season-end on legacy rows that have
- *  neither indefinite nor valid_until set. */
-function effectiveEnd(slot) {
-  if (slot.indefinite) return rollingHorizonDate()
+/** The slot's HARD validity end — the bound trimming is allowed to delete
+ *  against. `null` means genuinely open-ended (indefinite with no end date),
+ *  where the only upper bound is the soft rolling horizon and deleting past it
+ *  would fight the nightly top-up. Legacy rows that are neither indefinite nor
+ *  dated fall back to season-end, the old React create-time behaviour. */
+export function validityEnd(slot) {
+  if (slot.valid_until) return slot.valid_until
+  return slot.indefinite ? null : seasonEndDate()
+}
+
+/** Effective window end for GENERATION.
+ *
+ *  ⚠ `indefinite` and `valid_until` are not alternatives — a slot can be both,
+ *  and a dated one is bounded, it just keeps generating until that date. This
+ *  used to return the rolling horizon for every indefinite slot and ignore
+ *  `valid_until` entirely, which cut both ways: the HS26 plan ran to 17.08.2027
+ *  but only ~12 weeks of it ever existed as concrete trainings, and stale slots
+ *  whose valid_until had passed kept spawning phantoms past season end (purged
+ *  by hand in July 2026). Honouring the date fixes both.
+ *
+ *  Clamped to MAX_GENERATION_DAYS for indefinite slots only; that clamp is soft
+ *  and never trimmed against — see validityEnd. */
+export function effectiveEnd(slot) {
+  if (slot.indefinite) {
+    const end = slot.valid_until || rollingHorizonDate()
+    const cap = maxGenerationDate()
+    return end < cap ? end : cap
+  }
   return slot.valid_until || seasonEndDate()
 }
 
@@ -336,10 +381,15 @@ export async function cascadeSlotUpdate(database, slotId, pre, log) {
       }
     }
 
-    // 3. Trim trainings outside the new validity window. Lower bound
-    //    always trims; upper bound only for bounded slots.
+    // 3. Trim trainings outside the new validity window. Lower bound always
+    //    trims; the upper bound trims whenever the slot HAS one — which now
+    //    includes indefinite slots carrying an explicit valid_until. Trimming
+    //    against `newEnd` would be wrong here: that is the clamped GENERATION
+    //    bound, and on a slot dated past the clamp it would delete exactly the
+    //    rows a later top-up is meant to keep.
     const newStart = effectiveStart(post)
     const newEnd = effectiveEnd(post)
+    const hardEnd = validityEnd(post)
 
     await trx('trainings')
       .where('hall_slot', slotId)
@@ -347,11 +397,11 @@ export async function cascadeSlotUpdate(database, slotId, pre, log) {
       .andWhere('date', '<', newStart)
       .del()
 
-    if (!post.indefinite) {
+    if (hardEnd) {
       await trx('trainings')
         .where('hall_slot', slotId)
         .andWhere('date', '>=', today)
-        .andWhere('date', '>', newEnd)
+        .andWhere('date', '>', hardEnd)
         .del()
     }
 
@@ -402,7 +452,6 @@ export async function topUpIndefiniteSlots(database, log, onCreated) {
     .select('*')
   if (slots.length === 0) return 0
   const today = todayStr()
-  const horizon = rollingHorizonDate()
   let totalCreated = 0
   for (const slotRow of slots) {
     try {
@@ -413,7 +462,15 @@ export async function topUpIndefiniteSlots(database, log, onCreated) {
       // Respect valid_from when set — don't generate before a slot starts.
       const slotStart = slotRow.valid_from ? toISODate(parseDate(slotRow.valid_from)) : today
       const start = slotStart > today ? slotStart : today
-      const desired = await expectedDates(database, slotRow, start, horizon)
+      // Per slot, not one shared horizon: a dated slot generates its whole
+      // remaining window, an undated one rides the rolling 12 weeks. A slot
+      // whose valid_until has already passed yields an empty range and stops
+      // generating instead of trailing phantoms behind the season.
+      const end = effectiveEnd({
+        indefinite: true,
+        valid_until: slotRow.valid_until ? toISODate(parseDate(slotRow.valid_until)) : null,
+      })
+      const desired = await expectedDates(database, slotRow, start, end)
       if (desired.length === 0) continue
       const existing = await database('trainings')
         .where('hall_slot', slotRow.id)
