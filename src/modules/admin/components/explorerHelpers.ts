@@ -38,7 +38,8 @@ export interface ClubdeskInfo {
 
 /** Per-member ClubDesk sync verdict from GET /kscw/clubdesk-sync-status. */
 export type ClubdeskSyncStatus =
-  | 'in_sync' | 'drift' | 'pending' | 'not_linked' | 'stale' | 'departed' | 'excluded'
+  | 'in_sync' | 'drift' | 'name_drift' | 'pending' | 'not_linked' | 'awaiting_link'
+  | 'stale' | 'departed' | 'excluded'
 
 /** One retained registration document (post-approval) for the reg-files column. */
 export interface RegFileDoc {

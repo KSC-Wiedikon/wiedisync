@@ -650,8 +650,11 @@ export default function DataHealthPage() {
   const [groupData, setGroupData] = useState<Required<GroupCheckResp>>(EMPTY_GROUP_CHECK)
   const [groupErr, setGroupErr] = useState<string | null>(null)
   const [needsSync, setNeedsSync] = useState<NeedsSyncRow[]>([])
-  const [syncMeta, setSyncMeta] = useState<{ inSync: number; lastDown: string | null; lastUp: string | null }>(
-    { inSync: 0, lastDown: null, lastUp: null })
+  const [syncMeta, setSyncMeta] = useState<
+    // pendingPush is null while the backend predates /clubdesk-needs-sync's
+    // `pending_push` — see the fallback at the ClubdeskSyncPath call site.
+    { inSync: number; pendingPush: number | null; lastDown: string | null; lastUp: string | null }
+  >({ inSync: 0, pendingPush: null, lastDown: null, lastUp: null })
   const [facets, setFacets] = useState<MemberFacets>(EMPTY_FACETS)
 
   const runChecks = useCallback(async () => {
@@ -665,7 +668,8 @@ export default function DataHealthPage() {
       runAllChecks(),
       kscwApi<GroupCheckResp>('/clubdesk-group-sync'),
       kscwApi<{
-        rows: NeedsSyncRow[]; in_sync: number; last_down: string | null; last_up: string | null
+        rows: NeedsSyncRow[]; in_sync: number; pending_push?: number
+        last_down: string | null; last_up: string | null
       }>('/clubdesk-needs-sync'),
       kscwApi<MemberFacets>('/clubdesk-member-facets'),
     ])
@@ -680,6 +684,7 @@ export default function DataHealthPage() {
       setNeedsSync(needs.value.rows || [])
       setSyncMeta({
         inSync: needs.value.in_sync || 0,
+        pendingPush: needs.value.pending_push == null ? null : Number(needs.value.pending_push) || 0,
         lastDown: needs.value.last_down,
         lastUp: needs.value.last_up,
       })
@@ -854,11 +859,23 @@ export default function DataHealthPage() {
               <ClubdeskSyncPath
                 pendingProposals={pendingProposals}
                 fixableCount={Object.values(fixAvailable).reduce((a, b) => a + b, 0)}
-                // What the push would actually carry: members already flagged,
-                // plus the unlinked ones the CREATE set builds. Unfiltered by
-                // sport on purpose — the push is club-wide, so gating the path on
-                // the current tab's slice would stall it on an empty sport.
-                pendingPush={needsSync.filter(
+                // ⚠ From the server, computed with the up-preview's own
+                // predicate — NOT re-derived from the worklist rows. Counting
+                // `not_linked` here was the 25.08.2026 dead end: it also holds
+                // the members already pushed and awaiting link-back, which the
+                // CREATE set skips, so the path offered a step whose modal said
+                // "Nothing to push" and never advanced. Club-wide on purpose —
+                // the push ignores the sport tabs, so gating the path on the
+                // current slice would stall it on an empty sport.
+                //
+                // ⚠ The old derivation is kept as the fallback for exactly one
+                // window: this page (Cloudflare Pages, auto-deploys on push)
+                // reaches users before the endpoint (ext:deploy, by hand), and
+                // reading a field an older backend does not send would make the
+                // count 0 and SKIP step 3 whenever there really was something to
+                // push — a worse failure than the one being fixed, and a silent
+                // one. `null` means "backend predates pending_push", never zero.
+                pendingPush={syncMeta.pendingPush ?? needsSync.filter(
                   (r) => r.status === 'pending' || r.status === 'not_linked',
                 ).length}
                 onRunUp={() => setSyncUpOpen(true)}

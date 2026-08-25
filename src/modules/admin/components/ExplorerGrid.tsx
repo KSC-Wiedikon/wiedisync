@@ -188,11 +188,17 @@ const SEX_OPTIONS: SelectOption[] = [
 const LANGUAGE_OPTIONS: SelectOption[] = LANGUAGES.map((l) => ({ value: l.backendValue, label: l.nativeName }))
 
 // ClubDesk sync status → i18n label + chip colour. Derived read-only column.
+// ⚠ Every verdict computeMemberSyncStatuses can return needs an entry: the map
+// is indexed straight with the server's string, so a missing one renders
+// `t(undefined)` — the raw key, or nothing. `name_drift` had been returned and
+// unmapped since it was split out of `drift`.
 const SYNC_LABEL_KEY: Record<ClubdeskSyncStatus, string> = {
   in_sync: 'explorerGridSyncInSync',
   drift: 'explorerGridSyncDrift',
+  name_drift: 'explorerGridSyncNameDrift',
   pending: 'explorerGridSyncPending',
   not_linked: 'explorerGridSyncNotLinked',
+  awaiting_link: 'explorerGridSyncAwaitingLink',
   stale: 'explorerGridSyncStale',
   departed: 'explorerGridSyncDeparted',
   excluded: 'explorerGridSyncExcluded',
@@ -200,8 +206,10 @@ const SYNC_LABEL_KEY: Record<ClubdeskSyncStatus, string> = {
 const SYNC_CHIP_CLASS: Record<ClubdeskSyncStatus, string> = {
   in_sync: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300',
   drift: 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300',
+  name_drift: 'bg-muted text-muted-foreground',
   pending: 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300',
   not_linked: 'bg-muted text-muted-foreground',
+  awaiting_link: 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300',
   stale: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
   departed: 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300',
   excluded: 'bg-muted text-muted-foreground',

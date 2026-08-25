@@ -22,7 +22,7 @@ import { toXlsx, downloadBlob } from '../utils/exportResults'
 import LastBillCell from './LastBillCell'
 import { lastBillExport, type LastBill } from '../utils/clubdeskFindings'
 
-export type SyncStatus = 'not_linked' | 'stale' | 'departed' | 'pending' | 'drift' | 'name_drift'
+export type SyncStatus = 'not_linked' | 'awaiting_link' | 'stale' | 'departed' | 'pending' | 'drift' | 'name_drift'
 
 export interface NeedsSyncRow {
   member_id: number
@@ -77,11 +77,19 @@ const FIELD_LABEL: Record<string, string> = {
 }
 
 /** Tab order: most actionable first, unfixable-by-sync last. */
-const STATUS_ORDER: SyncStatus[] = ['drift', 'pending', 'not_linked', 'stale', 'departed', 'name_drift']
+const STATUS_ORDER: SyncStatus[] = ['drift', 'pending', 'not_linked', 'awaiting_link', 'stale', 'departed', 'name_drift']
 
 /**
  * Red = the link itself is broken or the person has left; amber = a push is owed;
- * grey = nothing a sync can do.
+ * blue = already in flight, waiting on the next sync down; grey = nothing a sync
+ * can do.
+ *
+ * ⚠ `awaiting_link` is NOT `not_linked` wearing a different colour. The contact
+ * exists in ClubDesk already — it was created by the last push and is waiting
+ * for a sync down to read its [Id] back. Pushing it again duplicates it in the
+ * legal register, which is why the CREATE set skips it. Sharing the red "create
+ * them with a sync up" badge is what parked the sync path on step 3 while its
+ * modal reported nothing to push.
  *
  * ⚠ `name_drift` is grey on purpose. Names are the one divergence NO sync can
  * reconcile — the push CSV is deliberately name-less so it can never overwrite
@@ -91,6 +99,7 @@ const STATUS_ORDER: SyncStatus[] = ['drift', 'pending', 'not_linked', 'stale', '
  */
 const TONE: Record<SyncStatus, string> = {
   not_linked: 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300',
+  awaiting_link: 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300',
   stale: 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300',
   departed: 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300',
   pending: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',

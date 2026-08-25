@@ -1555,6 +1555,34 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
     }
   })
 
+  /**
+   * The two halves of the push set, as query builders — the ONE definition of
+   * "what a sync-up would carry".
+   *
+   * ⚠ Lifted out of up-preview because a second caller re-derived it and got a
+   * different answer. The sync-path runner needs the COUNT (to know whether step
+   * 3 has anything to do) and computed it from the /clubdesk-needs-sync
+   * worklist instead — where a pushed-awaiting-link member still reads
+   * `not_linked`. The path therefore parked on "Sync up" while the modal it
+   * opens said "Nothing to push", with no way forward: three members created on
+   * 25.08.2026 16:21 held the runner on step 3 while the very step that clears
+   * them (the second sync down) sat one place further on, unreachable.
+   * Both callers now read the same predicate, so the runner offers step 3 if and
+   * only if the modal has rows.
+   */
+  const pushableUpdates = () => database('members')
+    .where('clubdesk_push_pending', true).whereNotNull('clubdesk_id')
+    // Muted members (clubdesk_sync_exclude, migration 190 — e.g. the System
+    // KSCW technical account) never appear in either preview list.
+    .where('clubdesk_sync_exclude', false)
+  // ⚠ `clubdesk_pushed_at IS NULL` is not freshness, it is the duplicate guard:
+  // a member already pushed as new and not yet linked back must NOT be offered
+  // again — see the CREATE-set comment below.
+  const pushableCreates = () => database('members')
+    .whereNull('clubdesk_id')
+    .whereNull('clubdesk_pushed_at')
+    .where('clubdesk_sync_exclude', false)
+
   // ── Sync-UP: preview what would be pushed to ClubDesk ───────────────────────
   // changed  = members edited in wiedisync since the last push AND linked to a
   //            ClubDesk contact (clubdesk_id) → ClubDesk will UPDATE them.
@@ -1576,11 +1604,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       if (isBusy(busy?.down_state)) {
         return res.json({ changed: [], unlinked: [], blocked_by_down: busy.down_state })
       }
-      const changedRows = await database('members')
-        .where('clubdesk_push_pending', true).whereNotNull('clubdesk_id')
-        // Muted members (clubdesk_sync_exclude, migration 190 — e.g. the System
-        // KSCW technical account) never appear in either preview list.
-        .where('clubdesk_sync_exclude', false)
+      const changedRows = await pushableUpdates()
         .select('id', 'first_name', 'last_name', 'email', 'clubdesk_id', 'clubdesk_push_changes')
         .orderBy('last_name')
       // Stale-link flag (2026-07-08): a changed member whose clubdesk_id has no
@@ -1606,10 +1630,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       // link" — offering it again would DUPLICATE the contact in ClubDesk. It
       // reappears here only once a write-back sets its clubdesk_id (TODO: scrape the
       // new ClubDesk [Id] back — see clubdesk-member-up-dispatch.sh).
-      const unlinkedRows = await database('members')
-        .whereNull('clubdesk_id')
-        .whereNull('clubdesk_pushed_at')
-        .where('clubdesk_sync_exclude', false)
+      const unlinkedRows = await pushableCreates()
         .select('id', 'first_name', 'last_name', 'email', 'beitragskategorie',
           'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn1_bb', 'otn2_bb', 'referee_bb',
           // `birthdate` gates the youth surcharge (isU16Plus). Without it the
@@ -3184,6 +3205,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
   // ── Per-member ClubDesk sync verdict (Data Explorer "ClubDesk sync" column) ──
   // Returns { statuses: { [member_id]: status } } with NO PII — one of:
   //   excluded   — clubdesk_sync_exclude (muted system account, out of scope)
+  //   awaiting_link — pushed to ClubDesk as a new contact, not yet linked back
   //   not_linked — no clubdesk_id (never matched a ClubDesk contact)
   //   stale      — linked but the clubdesk_id has no live clubdesk_export row
   //   departed   — linked contact left the club (DEPARTED_STATUSES + Austritt)
@@ -3203,7 +3225,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
     const members = await database('members')
       .where('kscw_membership_active', true)
       .select('id', 'first_name', 'last_name', 'sektion', 'beitragskategorie',
-        'clubdesk_id', 'clubdesk_push_pending', 'clubdesk_sync_exclude')
+        'clubdesk_id', 'clubdesk_push_pending', 'clubdesk_sync_exclude', 'clubdesk_pushed_at')
     // ClubDesk ids that actually exist in the register mirror → stale-link check.
     const exportIds = await database('clubdesk_export')
       .whereRaw("NULLIF(BTRIM(clubdesk_id), '') IS NOT NULL")
@@ -3268,6 +3290,15 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       const id = String(m.id)
       let status
       if (m.clubdesk_sync_exclude === true) status = 'excluded'
+      // ⚠ BEFORE not_linked, and it is not a nicety. Both states are "no
+      // clubdesk_id", but only one of them is pushable: a member with a
+      // clubdesk_pushed_at was already created in ClubDesk and is waiting for
+      // the next sync-down to read its [Id] back — offering it again would
+      // DUPLICATE the contact, which is why the CREATE set excludes it. Calling
+      // that `not_linked` made the worklist say "create them with a sync up"
+      // about a contact that already exists, and stalled the sync path on a
+      // step whose modal was empty.
+      else if (!m.clubdesk_id && m.clubdesk_pushed_at) status = 'awaiting_link'
       else if (!m.clubdesk_id) status = 'not_linked'
       else if (!present.has(String(m.clubdesk_id).trim())) status = 'stale'
       else if (departed.has(id)) status = 'departed'
@@ -3304,7 +3335,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
   // `name_drift` is listed so the finding stays VISIBLE (it is how a mis-link
   // surfaces) — the frontend labels it honestly as "cannot be synced" instead of
   // offering an action that does not exist.
-  const NEEDS_SYNC_STATUSES = ['not_linked', 'stale', 'departed', 'pending', 'drift', 'name_drift']
+  const NEEDS_SYNC_STATUSES = ['not_linked', 'awaiting_link', 'stale', 'departed', 'pending', 'drift', 'name_drift']
   router.get('/clubdesk-needs-sync', async (req, res) => {
     try {
       if (!(await superGate(req))) return res.status(403).json({ error: 'Forbidden' })
@@ -3320,6 +3351,16 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
 
       const sync = await database('clubdesk_member_sync').where('id', 1)
         .first('down_last_success_at', 'up_finished_at')
+
+      // How many members a sync-up would actually carry, from the SAME predicate
+      // the up-preview lists — never re-derived from the statuses above. The
+      // worklist and the push set answer different questions and disagree on
+      // exactly the rows that matter: `awaiting_link` is listed here (the
+      // operator should see it) and is deliberately unpushable.
+      const [upd, cre] = await Promise.all([
+        pushableUpdates().count({ n: '*' }).first(),
+        pushableCreates().count({ n: '*' }).first(),
+      ])
 
       return res.json({
         rows: rows.map((m) => {
@@ -3342,6 +3383,9 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
             blank_risk: blankRiskById.get(String(m.id)) || [],
           }
         }),
+        // ⚠ The sync-path runner gates step 3 on this. It counts what the push
+        // CARRIES, which is not the same as the rows listed above.
+        pending_push: Number(upd?.n || 0) + Number(cre?.n || 0),
         in_sync: Object.values(statuses).filter((s) => s === 'in_sync').length,
         excluded: Object.values(statuses).filter((s) => s === 'excluded').length,
         // ⚠ The last SUCCESSFUL down, never merely the last finished one.
