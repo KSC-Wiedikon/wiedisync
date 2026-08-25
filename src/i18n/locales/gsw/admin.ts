@@ -622,6 +622,8 @@ export default {
   explorerGridSyncDrift: 'Abwychig',
   explorerGridSyncPending: 'Push pendent',
   explorerGridSyncNotLinked: 'Nöd verknüpft',
+  explorerGridSyncAwaitingLink: 'Verknüpfig usstehend',
+  explorerGridSyncNameDrift: 'Name weicht ab',
   explorerGridSyncStale: 'Verwaisti Verknüpfig',
   explorerGridSyncDeparted: 'Uustrete',
   explorerGridSyncExcluded: 'Uusgschlosse',

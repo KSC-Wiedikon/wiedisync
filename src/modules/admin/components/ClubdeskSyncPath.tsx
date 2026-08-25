@@ -75,6 +75,14 @@ export default function ClubdeskSyncPath({
    * runner nothing to advance on: you close it and the marker is still on step
    * 3, forever. Knowing the step is a no-op BEFORE offering it is what keeps the
    * chain moving.
+   *
+   * ⚠⚠ It must therefore come from the SAME predicate the modal previews
+   * (`pending_push` off /clubdesk-needs-sync), never from the worklist statuses.
+   * Counting `not_linked` rows looked equivalent and was not: a member already
+   * created in ClubDesk and awaiting link-back still reads `not_linked` while
+   * being deliberately excluded from the CREATE set, so the runner parked here
+   * with an empty modal — and step 4, the sync down that clears exactly that
+   * state, was the unreachable step behind it (25.08.2026, three members).
    */
   pendingPush: number
   /** Hand control to the existing sync-up modal (reused, not reimplemented). */
