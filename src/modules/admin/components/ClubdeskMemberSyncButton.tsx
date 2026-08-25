@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { Loader2, RefreshCw } from 'lucide-react'
 import { Button } from '../../../components/ui/button'
 import { kscwApi } from '../../../lib/api'
+import { classifySyncFailure, SYNC_FAILURE_KEY } from '../utils/syncFailure'
 import { formatDateTimeCompact } from '../../../utils/dateHelpers'
 
 type SyncState = 'idle' | 'queued' | 'running' | 'done' | 'failed'
@@ -36,6 +37,9 @@ export default function ClubdeskMemberSyncButton({ onDone, className }: Props) {
   const [syncing, setSyncing] = useState(false)
   const [lastSync, setLastSync] = useState<string | null>(null)
   const [upBusy, setUpBusy] = useState(false)
+  // ⚠ Kept in state, not just toasted: a toast is gone in seconds and the reason a
+  // sync failed is the thing the operator needs while deciding what to do next.
+  const [failure, setFailure] = useState<string | null>(null)
 
   // Show the last successful sync time on mount, and keep the sync-up state
   // fresh so the button greys out for as long as a push holds the pipeline.
@@ -51,6 +55,11 @@ export default function ClubdeskMemberSyncButton({ onDone, className }: Props) {
         .then((s) => {
           if (!alive) return
           if (s.finished_at) setLastSync(s.finished_at)
+          // ⚠ Carry a failed LAST run onto the panel on mount. The failure the
+          // operator needs to read most is the one they navigated away from and
+          // came back to — a toast they already dismissed helps nobody. Cleared
+          // whenever the last run is not a failure, so a later success removes it.
+          setFailure(s.state === 'failed' ? (s.message || null) : null)
           setUpBusy(BUSY.includes(s.up_state as SyncState))
         })
         .catch(() => { /* not a superadmin or transient — leave blank */ })
@@ -65,6 +74,7 @@ export default function ClubdeskMemberSyncButton({ onDone, className }: Props) {
   // ClubDesk snapshot out from under a set that already passed review. The POST
   // returns 409 `up_in_progress`; this disabled state just makes it visible.
   const go = useCallback(async () => {
+    setFailure(null)   // a new attempt must not sit under the previous one's error
     if (syncing || upBusy) return
     setSyncing(true)
     try {
@@ -74,7 +84,7 @@ export default function ClubdeskMemberSyncButton({ onDone, className }: Props) {
         await new Promise((r) => setTimeout(r, 5_000))
         const s = await kscwApi<SyncStatus>('/clubdesk-member-sync')
         if (s.state === 'done') { setLastSync(s.finished_at); break }
-        if (s.state === 'failed') throw new Error(s.message || t('clubdeskSyncFailed'))
+        if (s.state === 'failed') { setFailure(s.message || null); throw new Error(s.message || t('clubdeskSyncFailed')) }
         if (Date.now() > deadline) { toast.info(t('clubdeskSyncTimeout')); await onDone?.(); return }
       }
       toast.success(t('clubdeskSyncDone'))
@@ -90,7 +100,9 @@ export default function ClubdeskMemberSyncButton({ onDone, className }: Props) {
       } else if (body?.state === 'queued' || body?.state === 'running') {
         toast.info(t('clubdeskSyncInProgress'))
       } else {
-        toast.error(body?.error || (e as Error)?.message || t('clubdeskSyncFailed'))
+        // Lead with the explanation, not the Chromium error code.
+        const raw = body?.error || (e as Error)?.message || null
+        toast.error(t(SYNC_FAILURE_KEY[classifySyncFailure(raw)]))
       }
     } finally {
       setSyncing(false)
@@ -107,6 +119,18 @@ export default function ClubdeskMemberSyncButton({ onDone, className }: Props) {
         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('clubdeskSyncNote')}</p>
       ) : upBusy ? (
         <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">{t('clubdeskSyncBlockedByUp')}</p>
+      ) : failure ? (
+        // ⚠ Explanation AND the raw line. A classifier that swallowed the original
+        // would be a prettier version of the problem it exists to solve — when the
+        // guess is wrong, the operator still needs what the scraper actually said.
+        <div className="mt-1 space-y-0.5">
+          <p className="text-xs text-red-600 dark:text-red-400">
+            {t(SYNC_FAILURE_KEY[classifySyncFailure(failure)])}
+          </p>
+          <p className="break-words text-[11px] text-gray-500 dark:text-gray-400" title={failure}>
+            {failure}
+          </p>
+        </div>
       ) : lastSync ? (
         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('clubdeskLastSync', { time: formatDateTimeCompact(lastSync) })}</p>
       ) : null}
