@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '1.98.0'
+const APP_VERSION = '1.98.1'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,19 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.98.1',
+    date: '25.08.2026',
+    sections: [
+      {
+        title: 'A failed ClubDesk sync now says so',
+        items: [
+          'A sync that failed used to look like one that worked. The time under the button was stamped whether the sync succeeded or not, so a failed run showed a fresh "last sync" and the club register quietly stayed out of date. That line now only ever shows the last sync that actually succeeded.',
+          'When a sync does fail, the page says why — whether ClubDesk did not respond, refused the login, or our own tool could not start — instead of pointing at a log file only a developer can open.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.98.0',
     date: '25.08.2026',

@@ -55,10 +55,38 @@ claim=$(psqlc "WITH u AS (UPDATE clubdesk_member_sync SET down_state='running' W
 echo "=== dispatch: member sync requested — running $(date -u +%FT%TZ) ==="
 # Serialise the ClubDesk login against the up/finance/weekly scrapes (one session
 # per account) — blocking, so a concurrent scrape makes us wait, not collide.
-if flock "$DIR/.sync.lock" /opt/clubdesk-sync/clubdesk-sync.sh; then
-  psqlc "UPDATE clubdesk_member_sync SET down_state='done', down_requested_at=NULL, down_finished_at=now(), down_message='Synced from ClubDesk' WHERE id=1"
+# ⚠ The run output is TEE'd, not just streamed. Until 2026-08-25 a failure wrote
+# the fixed string 'Sync failed — see the member sync log' and threw the actual
+# error away — and that log is a file on this host, which the superadmin who
+# pressed the button cannot read. So the app could not tell them the difference
+# between "ClubDesk is down, try later" and "our scraper is broken", which is the
+# whole difference between waiting and calling for help. Real case: ClubDesk's
+# app host went dark and two runs died on `page.goto: net::ERR_TIMED_OUT`, while
+# the UI said only "see the log".
+#
+# ⚠ `set -uo pipefail` is set at the top, so `if … | tee` still tests the SYNC's
+# exit status and not tee's. Do not remove pipefail without revisiting this.
+RUNLOG="$(mktemp)"
+trap 'rm -f "$RUNLOG"' EXIT
+if flock "$DIR/.sync.lock" /opt/clubdesk-sync/clubdesk-sync.sh 2>&1 | tee "$RUNLOG"; then
+  # ⚠ down_last_success_at (migration 336) is stamped HERE and only here.
+  # down_finished_at is written by both branches, so it can never answer
+  # "when did a sync last succeed" — reading it as such painted a fresh
+  # timestamp under the button after a FAILED run.
+  psqlc "UPDATE clubdesk_member_sync SET down_state='done', down_requested_at=NULL, down_finished_at=now(), down_last_success_at=now(), down_message='Synced from ClubDesk' WHERE id=1"
   echo "=== dispatch: done ==="
 else
-  psqlc "UPDATE clubdesk_member_sync SET down_state='failed', down_requested_at=NULL, down_finished_at=now(), down_message='Sync failed — see the member sync log' WHERE id=1"
+  # The scraper marks its fatal line with '✗'. Take the FIRST one — later lines are
+  # usually Playwright's call-log echo of the same failure. Fall back to the last
+  # non-empty line, so an error that never printed a ✗ still says something.
+  ERR="$(grep -m1 '✗' "$RUNLOG" 2>/dev/null | sed 's/^[[:space:]]*✗[[:space:]]*//')"
+  [ -n "$ERR" ] || ERR="$(grep -v '^[[:space:]]*$' "$RUNLOG" 2>/dev/null | tail -1)"
+  [ -n "$ERR" ] || ERR="Sync failed — see the member sync log"
+  # ⚠ Capped and single-quote-escaped: this string is interpolated into SQL, and a
+  # Playwright error can quote page content. 300 chars is well past the useful part
+  # of every error the scraper has ever produced.
+  ERR="$(printf '%s' "$ERR" | tr -d '\r' | cut -c1-300)"
+  ERRQ="$(printf '%s' "$ERR" | sed "s/'/''/g")"
+  psqlc "UPDATE clubdesk_member_sync SET down_state='failed', down_requested_at=NULL, down_finished_at=now(), down_message='${ERRQ}' WHERE id=1"
   echo "=== dispatch: FAILED ==="
 fi

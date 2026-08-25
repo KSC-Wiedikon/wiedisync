@@ -120,6 +120,24 @@ docker exec "$PGC" psql -U supabase_admin -d "$DEV_DB" -v ON_ERROR_STOP=1 </dev/
 docker exec "$PGC" psql -U supabase_admin -d "$DEV_DB" -v ON_ERROR_STOP=1 </dev/null \
   -c "DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public; GRANT ALL ON SCHEMA public TO supabase_admin; GRANT USAGE ON SCHEMA public TO anon, authenticated;" >/dev/null
 
+# ⚠⚠ EXTENSIONS ARE NOT IN THE DUMP. `DROP SCHEMA public CASCADE` above takes
+# every extension installed into that schema with it, and `pg_dump -n public`
+# never emits CREATE EXTENSION (extensions are database-level objects, excluded
+# by a schema filter). So each refresh silently left dev without `unaccent`, and
+# the ClubDesk sync-down died every day on the accent-insensitive linker pass
+# (`function unaccent(text) does not exist`) — invisible until the dispatcher
+# started reporting real errors on 25.08.2026.
+#
+# ⚠ A migration CANNOT fix this on its own: `kscw_migrations` lives in the public
+# schema, so the clone restores PROD's tracker, which already lists the migration
+# as applied. The runner would then skip it forever while the extension stays
+# gone. It has to be recreated here, on every refresh.
+echo "[3b/7] Recreating database-level extensions (not carried by a schema-only dump)"
+for ext in unaccent; do
+  docker exec "$PGC" psql -U supabase_admin -d "$DEV_DB" -v ON_ERROR_STOP=1 </dev/null \
+    -c "CREATE EXTENSION IF NOT EXISTS $ext;" >/dev/null && echo "     ✓ $ext" || echo "     ⚠ $ext FAILED — the ClubDesk sync will break on dev"
+done
+
 echo "[4/7] Cloning prod -> dev (public schema)"
 docker exec "$PGC" pg_dump -U supabase_admin -d "$PROD_DB" -n public --no-owner --no-acl </dev/null \
   | docker exec -i "$PGC" psql -U supabase_admin -d "$DEV_DB" -q -v ON_ERROR_STOP=0 > "$RLOG" 2>&1 || true

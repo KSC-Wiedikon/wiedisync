@@ -1483,12 +1483,17 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
     try {
       if (!(await superGate(req))) return res.status(403).json({ error: 'Forbidden' })
       const s = await database('clubdesk_member_sync').where('id', 1)
-        .first('down_state', 'down_message', 'down_requested_at', 'down_finished_at', 'up_state')
+        .first('down_state', 'down_message', 'down_requested_at', 'down_finished_at', 'down_last_success_at', 'up_state')
       return res.json({
         state: s?.down_state || 'idle',
         message: s?.down_message || null,
         requested_at: s?.down_requested_at || null,
+        // ⚠ When the last run FINISHED (either outcome) — the poll loop needs it.
         finished_at: s?.down_finished_at || null,
+        // ⚠ When a run last SUCCEEDED (migration 336). This is the one a UI may
+        // label "last sync": finished_at is stamped on failure too, and showing
+        // that as the last sync is how a three-failure outage read as success.
+        last_success_at: s?.down_last_success_at || null,
         // The button greys itself out while a sync-up holds the pipeline (the
         // POST below refuses it anyway — this just makes the block visible).
         up_state: s?.up_state || 'idle',
@@ -3314,7 +3319,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       const bills = await lastBillsByMember(rows.map((m) => m.id))
 
       const sync = await database('clubdesk_member_sync').where('id', 1)
-        .first('down_finished_at', 'up_finished_at')
+        .first('down_last_success_at', 'up_finished_at')
 
       return res.json({
         rows: rows.map((m) => {
@@ -3339,7 +3344,8 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
         }),
         in_sync: Object.values(statuses).filter((s) => s === 'in_sync').length,
         excluded: Object.values(statuses).filter((s) => s === 'excluded').length,
-        last_down: sync?.down_finished_at || null,
+        // ⚠ The last SUCCESSFUL down, never merely the last finished one.
+        last_down: sync?.down_last_success_at || null,
         last_up: sync?.up_finished_at || null,
       })
     } catch (err) {
