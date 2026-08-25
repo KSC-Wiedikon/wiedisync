@@ -2,6 +2,19 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v1.99.0 — 2026-08-25
+
+### The J+S export matches what the national database accepts
+
+- **Training length is now always reported as 90 minutes.** Jugend+Sport only accepts 60, 75 or 90, and we were sending the measured block length — 105 or 120 — which made the national database refuse the file. Matches no longer carry a duration at all, as the J+S rules require.
+- **Full-day activities are reported as 4 or 6 hours,** the only two lengths J+S allows. A four-and-a-half-hour event used to be sent as 4.5 hours and rejected.
+- **The export now warns you before you download** if any training has no location or no time. Both are mandatory, and until now the file was only refused after you had uploaded it.
+
+### The training plan runs to the summer holidays
+
+- **Trainings are now created for the whole planned season instead of the next twelve weeks.** The hall plan runs to August 2027, but only about three months of it existed as actual sessions — so the calendar, and the J+S activity list built from it, ran out in November for most teams and at the end of May for the rest.
+- **Every team's plan now reaches mid-July 2027,** stopping by itself at the summer holidays. School holidays, Sportferien, Easter, Whit Monday and every hall closure are skipped, as before.
+
 ## v1.98.1 — 2026-08-25
 
 ### A failed ClubDesk sync now says so

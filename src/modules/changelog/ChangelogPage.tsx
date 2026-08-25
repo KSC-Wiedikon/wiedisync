@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '1.98.1'
+const APP_VERSION = '1.99.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,27 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.99.0',
+    date: '25.08.2026',
+    sections: [
+      {
+        title: 'The J+S export matches what the national database accepts',
+        items: [
+          'Training length is now always reported as 90 minutes. Jugend+Sport only accepts 60, 75 or 90, and we were sending the measured block length — 105 or 120 — which made the national database refuse the file. Matches no longer carry a duration at all, as the J+S rules require.',
+          'Full-day activities are reported as 4 or 6 hours, the only two lengths J+S allows. A four-and-a-half-hour event used to be sent as 4.5 hours and rejected.',
+          'The export now warns you before you download if any training has no location or no time. Both are mandatory, and until now the file was only refused after you had uploaded it.',
+        ],
+      },
+      {
+        title: 'The training plan runs to the summer holidays',
+        items: [
+          'Trainings are now created for the whole planned season instead of the next twelve weeks. The hall plan runs to August 2027, but only about three months of it existed as actual sessions — so the calendar, and the J+S activity list built from it, ran out in November for most teams and at the end of May for the rest.',
+          "Every team's plan now reaches mid-July 2027, stopping by itself at the summer holidays. School holidays, Sportferien, Easter, Whit Monday and every hall closure are skipped, as before.",
+        ],
+      },
+    ],
+  },
   {
     version: '1.98.1',
     date: '25.08.2026',
