@@ -5,7 +5,7 @@ export default {
   howto1: 'Pick a season and a team, then download both CSV files.',
   howto2: 'In the NDS, import the activities file first, then the attendance file — importing activities replaces all activities and attendance already in that course.',
   howto3: 'Everyone needs a J+S Personennummer. People without one are skipped and listed in a warning.',
-  formatNote: 'Files are semicolon-separated, UTF-8, with Swiss dot dates (dd.mm.yyyy). Games carry no time or location, per J+S rules.',
+  formatNote: 'Files are semicolon-separated, UTF-8, with Swiss dot dates (dd.mm.yyyy). Per J+S rules, games carry no time, duration or location, and every training is reported as 90 minutes (J+S only accepts 60, 75 or 90).',
   season: 'Season',
   from: 'From',
   to: 'To',
