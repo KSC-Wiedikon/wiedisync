@@ -69,7 +69,11 @@ echo "=== dispatch: member sync requested — running $(date -u +%FT%TZ) ==="
 RUNLOG="$(mktemp)"
 trap 'rm -f "$RUNLOG"' EXIT
 if flock "$DIR/.sync.lock" /opt/clubdesk-sync/clubdesk-sync.sh 2>&1 | tee "$RUNLOG"; then
-  psqlc "UPDATE clubdesk_member_sync SET down_state='done', down_requested_at=NULL, down_finished_at=now(), down_message='Synced from ClubDesk' WHERE id=1"
+  # ⚠ down_last_success_at (migration 336) is stamped HERE and only here.
+  # down_finished_at is written by both branches, so it can never answer
+  # "when did a sync last succeed" — reading it as such painted a fresh
+  # timestamp under the button after a FAILED run.
+  psqlc "UPDATE clubdesk_member_sync SET down_state='done', down_requested_at=NULL, down_finished_at=now(), down_last_success_at=now(), down_message='Synced from ClubDesk' WHERE id=1"
   echo "=== dispatch: done ==="
 else
   # The scraper marks its fatal line with '✗'. Take the FIRST one — later lines are

@@ -12,7 +12,13 @@ interface SyncStatus {
   state: SyncState
   message: string | null
   requested_at: string | null
+  /** When the last run FINISHED — either outcome. Not a "last sync" time. */
   finished_at: string | null
+  /**
+   * When a run last SUCCEEDED (migration 336). ⚠ This is the only field a UI may
+   * label "last sync": `finished_at` is stamped on failure too.
+   */
+  last_success_at: string | null
   /** Sync-up direction — the two are mutually exclusive (see the note on `go`). */
   up_state?: SyncState
 }
@@ -54,7 +60,14 @@ export default function ClubdeskMemberSyncButton({ onDone, className }: Props) {
       kscwApi<SyncStatus>('/clubdesk-member-sync')
         .then((s) => {
           if (!alive) return
-          if (s.finished_at) setLastSync(s.finished_at)
+          // ⚠⚠ The LAST SUCCESS, never merely the last finish. The dispatcher
+          // stamps `down_finished_at` on failure too, so reading that painted
+          // "Last sync: <a minute ago>" straight after a FAILED sync — which is
+          // indistinguishable from success, and is exactly how a ClubDesk outage
+          // on 25.08.2026 was reported as "it worked, slow but did" while all
+          // three attempts had failed and the snapshot was five days stale.
+          // Migration 336 gives us the honest field.
+          if (s.last_success_at) setLastSync(s.last_success_at)
           // ⚠ Carry a failed LAST run onto the panel on mount. The failure the
           // operator needs to read most is the one they navigated away from and
           // came back to — a toast they already dismissed helps nobody. Cleared
