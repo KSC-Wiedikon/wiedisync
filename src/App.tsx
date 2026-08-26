@@ -10,6 +10,7 @@ import { ConfirmProvider } from './components/ConfirmDialogProvider'
 import { PageReadyProvider } from './hooks/PageReadyProvider'
 import { TourProvider } from './modules/guide/TourProvider'
 import Layout from './components/Layout'
+import { NotificationsProvider } from './components/NotificationsStoreProvider'
 import BootOverlay from './components/BootOverlay'
 import AdminRoute from './components/AdminRoute'
 import GlobalAdminRoute from './components/GlobalAdminRoute'
@@ -189,7 +190,13 @@ export default function App() {
               instead, because an external signup writes no participation row. */}
           <Route path="e/:token" element={<PublicEventSignupPage />} />
 
-          <Route element={<Layout />}>
+          {/* One notification store for the whole authenticated shell. Layout (the
+              bell), HomePage (the news feed) and NewsArchivePage all read it, and
+              HomePage renders inside Layout's Outlet — so calling the hook in each
+              meant two concurrent fetches AND, the part users saw, two separate
+              states: marking a news item read did not decrement the bell badge.
+              Provided here rather than inside Layout because Layout consumes it. */}
+          <Route element={<NotificationsProvider><Layout /></NotificationsProvider>}>
             <Route index element={<AuthRoute><HomePage /></AuthRoute>} />
             <Route path="calendar" element={<AuthRoute><CalendarPage /></AuthRoute>} />
             <Route path="games" element={<GamesPage />} />

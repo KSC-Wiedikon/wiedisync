@@ -6,7 +6,7 @@ import { useAuth } from '../../hooks/useAuth'
 import { useCollection } from '../../lib/query'
 import { fetchSeasons } from '../../lib/api'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { useNotifications } from '../../hooks/useNotifications'
+import { useNotificationsContext } from '../../hooks/NotificationsContext'
 import { useSportPreference } from '../../hooks/useSportPreference'
 import { formatDate, formatDateCompact, formatTime, formatWeekday, getCurrentSeason, formatSeasonLong, todayLocal, toZurichDateString, formatDateTimeCompactZurich } from '../../utils/dateHelpers'
 import { asObj, relId, teamCoachIds } from '../../utils/relations'
@@ -101,7 +101,7 @@ export default function HomePage() {
   // `Date.now()` is impure during render. The banner is a one-way cut-off, so a
   // per-mount read is equivalent to a per-render one.
   const [beforeAbsencesDeadline] = useState(() => Date.now() < ABSENCES_ALERT_DEADLINE)
-  const { notifications: allNotifs, unreadCount, markAsRead, markAllAsRead, deleteNotification, clearAllRead } = useNotifications()
+  const { notifications: allNotifs, unreadCount, markAsRead, markAllAsRead, deleteNotification, clearAllRead } = useNotificationsContext()
   const { announcements } = useAnnouncements({ limit: 10 })
   // An open bill leads the news feed. It is derived from the member's invoices
   // (not a stored notification), so it clears itself once they pay or mark the

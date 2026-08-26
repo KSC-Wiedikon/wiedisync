@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Megaphone, Pin } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
-import { useNotifications } from '../../hooks/useNotifications'
+import { useNotificationsContext } from '../../hooks/NotificationsContext'
 import { useAnnouncements, pickTranslation } from '../../hooks/useAnnouncements'
 import { stripHtml } from '../../utils/stripHtml'
 import { assetUrl } from '../../lib/api'
@@ -25,7 +25,7 @@ export default function NewsArchivePage() {
   const { t: tn } = useTranslation('notifications')
   const navigate = useNavigate()
   const { user, isApproved } = useAuth()
-  const { notifications, isLoading: notifLoading, markAsRead } = useNotifications()
+  const { notifications, isLoading: notifLoading, markAsRead } = useNotificationsContext()
   const { announcements, isLoading: annLoading } = useAnnouncements({ limit: 100 })
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<Announcement | null>(null)
   const [page, setPage] = useState(0)

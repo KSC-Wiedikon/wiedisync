@@ -3,7 +3,7 @@ import { Outlet, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../hooks/useAuth'
 import { useIsDesktop } from '../hooks/useMediaQuery'
-import { useNotifications } from '../hooks/useNotifications'
+import { useNotificationsContext } from '../hooks/NotificationsContext'
 import { isAuthenticated } from '../lib/api'
 import { useAdminMode } from '../hooks/useAdminMode'
 import { useProfileReviewDue } from '../hooks/useProfileReviewDue'
@@ -25,7 +25,7 @@ export default function Layout() {
   const { user, isApproved, isProfileComplete, isImpersonating, isLoading, teamsLoading } = useAuth()
   // Already excludes impersonation and unapproved accounts — see the hook.
   const profileReviewDue = useProfileReviewDue()
-  const { notifications, unreadCount, markAsRead, markAllAsRead, deleteNotification, clearAllRead } = useNotifications()
+  const { notifications, unreadCount, markAsRead, markAllAsRead, deleteNotification, clearAllRead } = useNotificationsContext()
   const { t } = useTranslation('nav')
   const isDesktop = useIsDesktop()
   const { isAdminMode } = useAdminMode()
