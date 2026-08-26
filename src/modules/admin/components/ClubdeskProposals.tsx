@@ -38,7 +38,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { kscwApi } from '../../../lib/api'
 import { formatDateZurich } from '../../../utils/dateHelpers'
 import { useConfirm } from '@/components/ConfirmProvider'
-import { CD_FIELD_LABEL } from '../utils/clubdeskFieldLabels'
+import { cdFieldLabel } from '../utils/clubdeskFieldLabels'
 
 export interface Proposal {
   id: number
@@ -62,9 +62,17 @@ interface ProposalsResp {
 // Dates arrive ISO (the detection pass stores them that way so the accept path
 // never has to guess a locale) but must READ Swiss — CLAUDE.md date rule.
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
-function display(v: string | null): string {
+/**
+ * ⚠ `t` is threaded through for the booleans. A `set_true` proposal stores the
+ * literal strings 'false' and 'true', and the table printed them raw — a
+ * lowercase machine value in a column of sentence-case text, and unreadable as
+ * "does this member hold the licence" besides.
+ */
+function display(v: string | null, t: (k: string) => string): string {
   const s = String(v ?? '').trim()
   if (!s) return '—'
+  if (s === 'true') return t('common:yes')
+  if (s === 'false') return t('common:no')
   return ISO_DATE.test(s) ? formatDateZurich(s) : s
 }
 
@@ -278,9 +286,7 @@ export default function ClubdeskProposals({ onDone, onCountChange }: {
                   )}
                 </TableCell>
                 <TableCell className="whitespace-normal break-words">
-                  {p.rule === 'create'
-                    ? t('dhProposalNewMember')
-                    : (p.field && CD_FIELD_LABEL[p.field] ? t(CD_FIELD_LABEL[p.field]) : p.field)}
+                  {p.rule === 'create' ? t('dhProposalNewMember') : cdFieldLabel(t, p.field)}
                   {p.field === 'email' && (
                     <span className="mt-0.5 block text-xs font-normal text-amber-700 dark:text-amber-400">
                       {t('dhProposalEmailWarning')}
@@ -288,9 +294,9 @@ export default function ClubdeskProposals({ onDone, onCountChange }: {
                   )}
                 </TableCell>
                 <TableCell className="hidden whitespace-normal break-words text-gray-500 sm:table-cell dark:text-gray-400">
-                  {display(p.current_value)}
+                  {display(p.current_value, t)}
                 </TableCell>
-                <TableCell className="whitespace-normal break-words">{display(p.proposed_value)}</TableCell>
+                <TableCell className="whitespace-normal break-words">{display(p.proposed_value, t)}</TableCell>
                 <TableCell className="hidden text-xs text-gray-500 md:table-cell dark:text-gray-400">
                   {ruleLabel[p.rule]}
                 </TableCell>

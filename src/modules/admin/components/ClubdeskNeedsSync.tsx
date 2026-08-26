@@ -21,7 +21,7 @@ import { formatDateZurich } from '../../../utils/dateHelpers'
 import { toXlsx, downloadBlob } from '../utils/exportResults'
 import LastBillCell from './LastBillCell'
 import { lastBillExport, type LastBill } from '../utils/clubdeskFindings'
-import { CD_FIELD_LABEL } from '../utils/clubdeskFieldLabels'
+import { cdFieldLabel } from '../utils/clubdeskFieldLabels'
 
 // ⚠ No `drift` (migration 338). A value disagreement is a DECISION and lives in
 // the proposals queue as a `conflict` row, where refusing is durable. This board
@@ -279,7 +279,7 @@ export default function ClubdeskNeedsSync({
                           <TableCell className="whitespace-normal break-words align-top text-xs font-medium text-gray-700 dark:text-gray-300">
                             {(r.conflicts ?? []).map((d) => (
                               <div key={d.field} className="py-0.5">
-                                {CD_FIELD_LABEL[d.field] ? t(CD_FIELD_LABEL[d.field]) : d.field}
+                                {cdFieldLabel(t, d.field)}
                               </div>
                             ))}
                           </TableCell>
