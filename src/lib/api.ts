@@ -801,7 +801,13 @@ export async function kscwApi<T = unknown>(
 
   if (!res.ok) {
     const responseBody = await res.text().catch(() => '')
-    const err = new Error(`API ${path}: ${res.status}`) as Error & { code?: string; body?: unknown }
+    const err = new Error(`API ${path}: ${res.status}`) as Error & { code?: string; body?: unknown; status?: number }
+    // The HTTP status, carried as a field rather than only inside the message.
+    // Callers that need to tell one failure from another were parsing the string
+    // — and the one case that really needs it is a 404 during a deploy window,
+    // where the frontend has shipped ahead of an endpoint that does not exist
+    // yet and must stay quiet instead of alarming the operator.
+    err.status = res.status
     // Parse response body and attach error code + full body if present (callers
     // like the Terminplanung opponent flow map on body.error / body.teams).
     try { const parsed = JSON.parse(responseBody); if (parsed?.code) err.code = parsed.code; err.body = parsed } catch { /* ignore */ }

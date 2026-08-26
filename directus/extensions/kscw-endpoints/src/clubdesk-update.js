@@ -2928,6 +2928,13 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
     try {
       if (!(await superGate(req))) return res.status(403).json({ error: 'Forbidden' })
       const { staged, considered } = await stageConflictProposals()
+      // ⚠ Stamped even when nothing was staged (migration 339). The watermark
+      // means "drift has been examined for the current sync-down", not "rows
+      // were written" — the scheduled hook compares it against
+      // down_last_success_at, so a run that legitimately finds nothing has to
+      // close the window or the hook re-examines the same sync every tick.
+      await database('clubdesk_member_sync').where('id', 1)
+        .update({ conflicts_staged_at: new Date() })
       if (staged > 0) {
         await writeUserLog(database, log, {
           accountability: req.accountability, action: 'create',

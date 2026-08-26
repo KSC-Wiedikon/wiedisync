@@ -83,6 +83,13 @@ const STATUS_ORDER: SyncStatus[] = ['pending', 'not_linked', 'awaiting_link', 's
  * stays listed rather than hidden because a mis-linked contact surfaces here and
  * nowhere else.
  */
+// Any status this build does not know — which, during a deploy window, means a
+// `drift` row from an endpoint that has not shipped yet (Cloudflare Pages
+// deploys this page on push; ext:deploy is run by hand). Neutral rather than
+// absent: an unstyled chip with a readable label degrades quietly, where
+// `TONE[unknown]` renders `className={undefined}` and the row loses its badge.
+const TONE_UNKNOWN = 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
+
 const TONE: Record<SyncStatus, string> = {
   not_linked: 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300',
   awaiting_link: 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300',
@@ -258,8 +265,11 @@ export default function ClubdeskNeedsSync({
                           </TableCell>
                           {activeTab === 'all' && (
                             <TableCell className="align-top">
-                              <span className={`whitespace-nowrap rounded px-1.5 py-0.5 text-xs font-medium ${TONE[r.status]}`}>
-                                {t(`cdSyncStatus_${r.status}`)}
+                              <span className={`whitespace-nowrap rounded px-1.5 py-0.5 text-xs font-medium ${TONE[r.status] ?? TONE_UNKNOWN}`}>
+                                {/* defaultValue keeps a status this build has
+                                    never heard of readable as itself rather
+                                    than printing the raw i18n key. */}
+                                {t(`cdSyncStatus_${r.status}`, { defaultValue: r.status })}
                               </span>
                             </TableCell>
                           )}
@@ -297,7 +307,9 @@ export default function ClubdeskNeedsSync({
                                   <LastBillCell bill={r.last_bill} />
                                 </span>
                                 {activeTab === 'all' && (
-                                  <span className="text-muted-foreground">{t(`cdSyncHint_${r.status}`)}</span>
+                                  <span className="text-muted-foreground">
+                                    {t(`cdSyncHint_${r.status}`, { defaultValue: '' })}
+                                  </span>
                                 )}
                               </div>
                             </TableCell>

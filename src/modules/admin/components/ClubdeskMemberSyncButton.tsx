@@ -104,7 +104,7 @@ export default function ClubdeskMemberSyncButton({ onDone, className }: Props) {
           // took the other door. ⚠ Never fatal: the import already succeeded.
           try {
             const staged = await detectClubdeskConflicts()
-            if (staged > 0) toast.info(t('dhPathConflictsStaged', { count: staged }))
+            if (staged !== null && staged > 0) toast.info(t('dhPathConflictsStaged', { count: staged }))
           } catch { /* reported by the proposals table on next load */ }
           break
         }

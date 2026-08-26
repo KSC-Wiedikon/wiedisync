@@ -153,7 +153,7 @@ export default function ClubdeskSyncPath({
       // reports and the path carries on; the next down re-detects.
       try {
         const staged = await detectClubdeskConflicts()
-        if (staged > 0) toast.info(t('dhPathConflictsStaged', { count: staged }))
+        if (staged !== null && staged > 0) toast.info(t('dhPathConflictsStaged', { count: staged }))
       } catch (e) {
         toast.warning(e instanceof Error ? e.message : String(e))
       }
