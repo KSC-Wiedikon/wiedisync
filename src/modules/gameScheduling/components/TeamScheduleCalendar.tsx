@@ -26,7 +26,7 @@ interface TeamCalendarResponse {
 // chronological TeamScheduleList instead of the month grid (calendar page's
 // "Schedule" tab); 'calendar' (default) keeps the SchedulingCalendar month grid
 // used on the team detail page.
-export default function TeamScheduleCalendar({ team, hideWhenEmpty = true, variant = 'calendar' }: { team: Team; hideWhenEmpty?: boolean; variant?: 'calendar' | 'list' }) {
+export default function TeamScheduleCalendar({ team, hideWhenEmpty = true, variant = 'calendar' }: { team: Team; hideWhenEmpty?: boolean; variant?: 'calendar' | 'list' | 'proposals' }) {
   const { t } = useTranslation('gameScheduling')
   const [data, setData] = useState<TeamCalendarResponse | null>(null)
 
@@ -65,7 +65,7 @@ export default function TeamScheduleCalendar({ team, hideWhenEmpty = true, varia
   useEffect(() => {
     // No reset here: nothing renders without a season anyway (the guard below
     // returns null), and a synchronous setState in an effect body cascades.
-    if (!schedulable || !seasonLabel) return
+    if (!schedulable || !seasonLabel || variant === 'proposals') return
     let cancelled = false
     fetchAllItems<CalendarGame>('games', {
       filter: { season: { _eq: seasonLabel }, kscw_team: { _eq: team.id } },
@@ -73,14 +73,34 @@ export default function TeamScheduleCalendar({ team, hideWhenEmpty = true, varia
     }).then((g) => { if (!cancelled) setGames(g) })
       .catch(() => { if (!cancelled) setGames([]) })
     return () => { cancelled = true }
-  }, [schedulable, seasonLabel, team.id])
+  }, [schedulable, seasonLabel, team.id, variant])
 
   if (!schedulable || !data?.season) return null
-  if (hideWhenEmpty && data.slots.length === 0 && data.bookings.length === 0 && games.length === 0) return null
+  // 'proposals' renders nothing at all once every fixture is agreed — which, mid
+  // season, is most of the time. Deciding that HERE rather than inside the list is
+  // what stops an empty `mt-8` wrapper leaving a dead gap on the team page.
+  if (variant === 'proposals') {
+    const hasPending = data.bookings.some(
+      (b) => b.status === 'pending' && (b.type === 'away_proposal' || b.type === 'home_slot_pick'),
+    )
+    if (!hasPending) return null
+  } else if (hideWhenEmpty && data.slots.length === 0 && data.bookings.length === 0 && games.length === 0) {
+    return null
+  }
 
   return (
     <div className="mt-8">
-      {variant === 'list' ? (
+      {variant === 'proposals' ? (
+        <TeamScheduleList
+          slots={data.slots}
+          bookings={data.bookings}
+          team={team}
+          season={data.season}
+          confirmedFrom="games"
+          hideConfirmed
+          showHeading={false}
+        />
+      ) : variant === 'list' ? (
         <TeamScheduleList slots={data.slots} bookings={data.bookings} team={team} season={data.season} games={games} confirmedFrom="games" />
       ) : (
         <SchedulingCalendar

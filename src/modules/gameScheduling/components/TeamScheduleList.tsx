@@ -21,6 +21,15 @@ interface Props {
   season: GameSchedulingSeason
   /** Fixtures from `games` (VolleyManager / Swiss Volley). */
   games?: CalendarGame[]
+  /** Hide the team-name heading — for a caller that already has one above. */
+  showHeading?: boolean
+  /**
+   * Render ONLY the still-open proposals, dropping the confirmed table. The team
+   * page shows confirmed fixtures on its own calendar now, so repeating them here
+   * would say the same thing twice; what the calendar cannot show is a date that is
+   * still three candidates wide.
+   */
+  hideConfirmed?: boolean
   /** Where a confirmed fixture comes from — see SchedulingCalendar's prop of the
    *  same name. 'games' suppresses the rows this list would otherwise rebuild
    *  from booked slots + confirmed away proposals. */
@@ -72,7 +81,7 @@ interface ProposedRow {
   sortKey: string
 }
 
-export default function TeamScheduleList({ slots, bookings, team, games = [], confirmedFrom = 'bookings' }: Props) {
+export default function TeamScheduleList({ slots, bookings, team, games = [], confirmedFrom = 'bookings', showHeading = true, hideConfirmed = false }: Props) {
   const { t } = useTranslation('gameScheduling')
 
   const [halls, setHalls] = useState<{ id: number; name: string }[]>([])
@@ -191,6 +200,9 @@ export default function TeamScheduleList({ slots, bookings, team, games = [], co
     return { confirmed: confirmedRows, proposed: proposedRows }
   }, [slots, bookings, games, confirmedFrom, oppBySlot, slotsById, hallName])
 
+  // AFTER every hook (rules of hooks — the build gate does not catch this, lint does).
+  if (hideConfirmed && proposed.length === 0) return null
+
   const MatchCell = ({ isHome, opponent }: { isHome: boolean; opponent: string }) => (
     <span
       className="inline-flex items-center gap-1.5 whitespace-normal break-words"
@@ -205,14 +217,16 @@ export default function TeamScheduleList({ slots, bookings, team, games = [], co
 
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
-      <h2 className="mb-3 text-lg font-semibold text-gray-900 dark:text-gray-100">{team.name}</h2>
+      {showHeading && (
+        <h2 className="mb-3 text-lg font-semibold text-gray-900 dark:text-gray-100">{team.name}</h2>
+      )}
 
-      {confirmed.length === 0 && proposed.length === 0 ? (
+      {(hideConfirmed ? proposed.length === 0 : confirmed.length === 0 && proposed.length === 0) ? (
         <p className="text-sm text-gray-500 dark:text-gray-400">{t('listEmpty')}</p>
       ) : (
         <div className="space-y-6">
           {/* Confirmed games */}
-          {confirmed.length > 0 && (
+          {!hideConfirmed && confirmed.length > 0 && (
             <div>
               <h3 className="mb-2 text-sm font-semibold text-gray-700 dark:text-gray-300">{t('listConfirmedHeading')}</h3>
               <Table>

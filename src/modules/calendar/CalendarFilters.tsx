@@ -16,9 +16,16 @@ interface CalendarFiltersProps {
   allowedSources?: SourceFilter[]
   userTeamIds?: string[]
   isAdmin?: boolean
+  /**
+   * Whether to offer the team picker. False on a calendar whose team is fixed by
+   * the page it sits on — there the scope is imposed, not chosen. Belt-and-braces:
+   * with neither `userTeamIds` nor `isAdmin` the option list is already empty, but
+   * saying it explicitly stops a future default from growing a picker there.
+   */
+  showTeamFilter?: boolean
 }
 
-export default function CalendarFilters({ open, onClose, filters, onChange, allowedSources, userTeamIds, isAdmin }: CalendarFiltersProps) {
+export default function CalendarFilters({ open, onClose, filters, onChange, allowedSources, userTeamIds, isAdmin, showTeamFilter }: CalendarFiltersProps) {
   const { t } = useTranslation('calendar')
   const { t: tc } = useTranslation('common')
 
@@ -72,7 +79,7 @@ export default function CalendarFilters({ open, onClose, filters, onChange, allo
         </div>
 
         {/* Team filter */}
-        {teamOptions.length > 0 && (
+        {showTeamFilter !== false && teamOptions.length > 0 && (
           <div>
             <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
               {tc('team')}
