@@ -3758,20 +3758,58 @@ export function registerGameScheduling(router, { database, logger, services, get
           }
         }
 
+        // Don't duplicate a surviving booked/blocked slot at the same key.
+        //
+        // This used to be two queries PER CANDIDATE inside this per-team loop — a
+        // SELECT to look for a clash and an INSERT — which came to ~4,000 sequential
+        // round-trips for a season across 11 teams (~2,200 candidates, and because
+        // the pre-pass deletes every `available` slot first, nearly all of them miss
+        // and insert). Each query was itself fast (index scan, 0.13 ms); the cost was
+        // purely round-trip count, ~3-8 s of it, in front of a spielplaner staring at
+        // a spinner. One SELECT + chunked INSERTs instead.
+        //
+        // ⚠ The clash key is asymmetric and that is not an accident — the old query
+        // only constrained `hall` when the candidate HAD one, so a hall-less candidate
+        // clashed with a slot at that date/time in ANY hall. Both shapes are kept.
+        //
+        // ⚠ No season filter, also deliberate: the original clash check had none, so a
+        // slot left over from another season at the same key still blocks. Preserved.
+        const existingRows = await database('game_scheduling_slots')
+          .where('kscw_team', team.id)
+          .select(
+            database.raw("to_char(date, 'YYYY-MM-DD') AS date"),
+            database.raw("to_char(start_time, 'HH24:MI:SS') AS start_time"),
+            'hall',
+          )
+        const tkey = (v) => String(v).slice(0, 8)
+        // Exact (date, time, hall) — used when the candidate names a hall.
+        const takenWithHall = new Set(existingRows.map((r) => `${r.date}|${tkey(r.start_time)}|${r.hall}`))
+        // (date, time) regardless of hall — used when the candidate has none.
+        const takenAnyHall = new Set(existingRows.map((r) => `${r.date}|${tkey(r.start_time)}`))
+
+        const pending = []
         for (const c of candidates) {
-          // Don't duplicate a surviving booked/blocked slot at the same key.
-          const clash = await database('game_scheduling_slots')
-            .where({ kscw_team: team.id, date: c.date, start_time: c.start_time })
-            .modify((q) => { if (c.hall != null) q.where('hall', c.hall) })
-            .first()
+          const t = tkey(c.start_time)
+          const clash = c.hall != null
+            ? takenWithHall.has(`${c.date}|${t}|${c.hall}`)
+            : takenAnyHall.has(`${c.date}|${t}`)
           if (clash) continue
-          await database('game_scheduling_slots').insert({
+          // ⚠ The old loop inserted immediately, so a later duplicate candidate found
+          // the earlier one and was skipped. Batching would lose that unless the sets
+          // are updated as we accept — two identical candidates would both insert.
+          takenAnyHall.add(`${c.date}|${t}`)
+          if (c.hall != null) takenWithHall.add(`${c.date}|${t}|${c.hall}`)
+          pending.push({
             season: seasonKey, kscw_team: team.id, date: c.date,
             start_time: c.start_time, end_time: c.end_time, hall: c.hall,
             source: c.source, status: 'available',
           })
-          total_created++
         }
+        const INSERT_CHUNK = 400
+        for (let i = 0; i < pending.length; i += INSERT_CHUNK) {
+          await database('game_scheduling_slots').insert(pending.slice(i, i + INSERT_CHUNK))
+        }
+        total_created += pending.length
       }
 
       // Auto-cleanup: drop any PENDING home proposal left orphaned — none of its
