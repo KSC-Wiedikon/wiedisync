@@ -31,6 +31,8 @@
     "db:setup-perms:prod": "DIRECTUS_URL=https://directus.kscw.ch node directus/scripts/setup-permissions.mjs",
     "db:smoke:dev": "SMOKE_TEST_URL=https://directus-dev.kscw.ch node directus/scripts/smoke-test.mjs",
     "db:smoke:prod": "SMOKE_TEST_URL=https://directus.kscw.ch node directus/scripts/smoke-test.mjs",
+    "db:audit-filters:dev": "node directus/scripts/audit-read-filters.mjs dev",
+    "db:audit-filters:prod": "node directus/scripts/audit-read-filters.mjs prod",
     "db:verify-pv:dev": "ssh hetzner \"sudo docker exec -i kscw-postgres psql -U supabase_admin -d directus_kscw_dev -tA -v ON_ERROR_STOP=1 -c \\\"SELECT kind||' '||participation||' '||viewer_user FROM verify_participation_visibility()\\\"\" | (! grep .) && echo '\u2713 participation_visibility: no drift (dev)'",
     "db:verify-pv:prod": "ssh hetzner \"sudo docker exec -i kscw-postgres psql -U supabase_admin -d postgres -tA -v ON_ERROR_STOP=1 -c \\\"SELECT kind||' '||participation||' '||viewer_user FROM verify_participation_visibility()\\\"\" | (! grep .) && echo '\u2713 participation_visibility: no drift (prod)'",
     "db:refresh-dev": "bash directus/scripts/refresh-dev-from-prod.sh",
