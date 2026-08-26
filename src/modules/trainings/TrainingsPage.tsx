@@ -7,6 +7,7 @@ import { useDeepLinkedActivity, DEEP_LINK_FIELDS } from '../../hooks/useDeepLink
 import { useAdminMode } from '../../hooks/useAdminMode'
 import { useActivitiesWithParticipations } from '../../lib/query'
 import { useRealtime } from '../../hooks/useRealtime'
+import { useDebouncedRefetch } from '../../hooks/useDebouncedRefetch'
 import { useMutation } from '../../hooks/useMutation'
 import { todayLocal, formatDate } from '../../utils/dateHelpers'
 import TeamFilter from '../../components/TeamFilter'
@@ -137,8 +138,22 @@ export default function TrainingsPage() {
 
   const { remove } = useMutation<Training>('trainings')
 
-  useRealtime('trainings', () => refetch())
-  useRealtime('participations', () => refetch())
+  // ⚠ Both handlers refetch the WHOLE page payload — `POST /kscw/activities/training/
+  // with-participations`, which reads participations through `ItemsService` under the
+  // caller's accountability, i.e. the same permission engine that stalled on 26.08.2026.
+  // Two guards, because it used to have neither:
+  //   · debounce, so a cascade that rewrites a week of trainings costs one refetch
+  //     rather than one per row (see `useDebouncedRefetch`);
+  //   · an activity_type guard, so a teammate's RSVP on a GAME or an EVENT no longer
+  //     re-POSTs this page's trainings. A delete frame carries only primary keys, so
+  //     `activity_type` is absent there — fall through and refetch, since an
+  //     unidentifiable delete may well be one of ours.
+  const debouncedRefetch = useDebouncedRefetch(refetch)
+  useRealtime('trainings', debouncedRefetch)
+  useRealtime<Participation>('participations', (e) => {
+    if (e.record.activity_type && e.record.activity_type !== 'training') return
+    debouncedRefetch()
+  })
 
   function handleEdit(training: Training) {
     setEditingTraining(training)

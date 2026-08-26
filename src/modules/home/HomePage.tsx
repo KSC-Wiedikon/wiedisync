@@ -754,7 +754,7 @@ export default function HomePage() {
               <SectionHeader title={t('nextTrainings')} linkTo="/trainings" linkLabel={t('allTrainings')} />
               <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
                 {nextTrainings.map((tr) => (
-                  <CompactTrainingRow key={tr.id} training={tr} onClick={() => setSelectedTraining(tr)} participationStatus={getParticipationStatus('training', tr.id)} />
+                  <CompactTrainingRow key={tr.id} training={tr} onClick={() => setSelectedTraining(tr)} participationStatus={getParticipationStatus('training', tr.id)} participations={getParticipations('training', tr.id)} />
                 ))}
               </div>
             </div>
@@ -790,7 +790,7 @@ export default function HomePage() {
                   />
                   <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
                     {latestResults.map((g) => (
-                      <CompactGameRow key={g.id} game={g} showScore onClick={() => setSelectedGame(g)} participationStatus={getParticipationStatus('game', g.id)} />
+                      <CompactGameRow key={g.id} game={g} showScore onClick={() => setSelectedGame(g)} participationStatus={getParticipationStatus('game', g.id)} participations={getParticipations('game', g.id)} />
                     ))}
                   </div>
                 </div>
@@ -810,7 +810,7 @@ export default function HomePage() {
                   />
                   <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
                     {nextGames.map((g) => (
-                      <CompactGameRow key={g.id} game={g} showScore={false} onClick={() => setSelectedGame(g)} participationStatus={getParticipationStatus('game', g.id)} />
+                      <CompactGameRow key={g.id} game={g} showScore={false} onClick={() => setSelectedGame(g)} participationStatus={getParticipationStatus('game', g.id)} participations={getParticipations('game', g.id)} />
                     ))}
                   </div>
                 </div>
@@ -823,7 +823,7 @@ export default function HomePage() {
               <SectionHeader title={t('nextGames')} linkTo="/games" linkLabel={t('allGames')} />
               <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
                 {nextGames.map((g) => (
-                  <CompactGameRow key={g.id} game={g} showScore={false} onClick={() => setSelectedGame(g)} participationStatus={getParticipationStatus('game', g.id)} />
+                  <CompactGameRow key={g.id} game={g} showScore={false} onClick={() => setSelectedGame(g)} participationStatus={getParticipationStatus('game', g.id)} participations={getParticipations('game', g.id)} />
                 ))}
               </div>
             </div>
@@ -961,7 +961,7 @@ function NewsRow({ notification, onMarkAsRead }: { notification: Notification; o
   )
 }
 
-function CompactGameRow({ game, showScore, onClick, participationStatus }: { game: ExpandedGame; showScore: boolean; onClick?: () => void; participationStatus?: string }) {
+function CompactGameRow({ game, showScore, onClick, participationStatus, participations }: { game: ExpandedGame; showScore: boolean; onClick?: () => void; participationStatus?: string; participations?: Participation[] }) {
   const { user } = useAuth()
   const dateStr = game.date ? formatDateCompact(game.date) : ''
   const homeWon = Number(game.home_score) > Number(game.away_score)
@@ -1030,7 +1030,7 @@ function CompactGameRow({ game, showScore, onClick, participationStatus }: { gam
         {/* Participation bars — own row beneath info */}
         {game.status === 'scheduled' && (
           <div className="mt-1.5 pl-[calc(3.5rem+0.75rem)]">
-            <ParticipationSummary activityType="game" activityId={game.id} bars coachMemberIds={teamCoachIds(asObj<Team>(game.kscw_team))} />
+            <ParticipationSummary activityType="game" activityId={game.id} bars coachMemberIds={teamCoachIds(asObj<Team>(game.kscw_team))} participations={participations} />
           </div>
         )}
       </div>
@@ -1038,7 +1038,7 @@ function CompactGameRow({ game, showScore, onClick, participationStatus }: { gam
   )
 }
 
-function CompactTrainingRow({ training, onClick, participationStatus }: { training: TrainingExpanded; onClick?: () => void; participationStatus?: string }) {
+function CompactTrainingRow({ training, onClick, participationStatus, participations }: { training: TrainingExpanded; onClick?: () => void; participationStatus?: string; participations?: Participation[] }) {
   const { user } = useAuth()
   const team = asObj<Team>(training.team)
   const hall = asObj<Hall>(training.hall)
@@ -1086,7 +1086,7 @@ function CompactTrainingRow({ training, onClick, participationStatus }: { traini
 
         {/* Participation bars — own row beneath info */}
         <div className="mt-1.5 pl-[calc(6rem+0.75rem)]">
-          <ParticipationSummary activityType="training" activityId={training.id} bars coachMemberIds={teamCoachIds(team)} />
+          <ParticipationSummary activityType="training" activityId={training.id} bars coachMemberIds={teamCoachIds(team)} participations={participations} />
         </div>
       </div>
     </div>
