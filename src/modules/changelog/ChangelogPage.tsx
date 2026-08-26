@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '1.99.1'
+const APP_VERSION = '2.0.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,28 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.0.0',
+    date: '26.08.2026',
+    sections: [
+      {
+        title: 'Coaches who set up their key late can be given access to identity documents',
+        items: [
+          'An identity document is locked to the people named when it is uploaded, and nobody else — not the club, not an administrator. That is deliberate, but it had a sharp edge: a coach who set up their identity key after their players had uploaded was never given a key, so they could open nothing. It only became apparent when they tried to show the documents at a match. One team had nine documents its own coach could not open.',
+          'Your profile now tells you when someone on your team\'s staff cannot open your document, and gives you a button to grant them access. Your document is not uploaded again, and nobody outside your own coaches and team responsibles can ever be added.',
+          'A coach or team responsible who can already open a team\'s documents can restore access for a colleague across the whole team at once, from the team page. This is the only way it can work: the club\'s servers have never held the key, so only a device that can already open a document is able to pass access on.',
+          'If you cannot open a player\'s document at a match, the app now says so and tells you how to get access. Before, it simply downloaded nothing and gave no reason.',
+        ],
+      },
+      {
+        title: 'You can see who can open a team\'s identity documents',
+        items: [
+          'Coaches and team responsibles have a new "Document access" view on the team page, listing every uploaded document and exactly who can open it. Being on a team\'s staff does not by itself grant access, and until now there was no way to tell the difference.',
+          'It distinguishes the cases that need different action: who can open it, who is waiting for access to be restored, who has not set up an identity key at all — which nobody else can fix for them — and who has left the team but still holds access, because removing someone from a team does not reach into their phone. Only uploading the document again withdraws that.',
+        ],
+      },
+    ],
+  },
   {
     version: '1.99.1',
     date: '25.08.2026',
