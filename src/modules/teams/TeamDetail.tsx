@@ -21,6 +21,8 @@ import BasketballIcon from '../../components/BasketballIcon'
 import MemberRow from './MemberRow'
 import { getMemberRole } from './memberRole'
 import ManageStaffModal from './ManageStaffModal'
+import TeamIdentityRepair from './TeamIdentityRepair'
+import TeamIdentityAccessModal from './TeamIdentityAccessModal'
 import { getFileUrl } from '../../utils/fileUrl'
 import { coercePositions } from '../../utils/memberPositions'
 import { getCurrentSeason } from '../../utils/dateHelpers'
@@ -135,6 +137,7 @@ export default function TeamDetail() {
   const [sortKey, setSortKey] = useState<SortKey>('name')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [manageStaffOpen, setManageStaffOpen] = useState(false)
+  const [accessOpen, setAccessOpen] = useState(false)
   const [lightboxOpen, setLightboxOpen] = useState(false)
   const [adjustingCrop, setAdjustingCrop] = useState(false)
   const [cropPos, setCropPos] = useState({ x: 50, y: 50 })
@@ -696,8 +699,21 @@ export default function TeamDetail() {
         </div>
       )}
 
+      {/* Staff-only, and self-hiding when there is nothing to repair. Sits above the roster
+          because the identity column below is exactly where the gap becomes visible. */}
+      <TeamIdentityRepair teamId={teamId} enabled={canManage} />
+
       <div className="mt-8">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('currentRoster', { count: rosterMembers.length })}</h2>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('currentRoster', { count: rosterMembers.length })}</h2>
+          {/* Staff-only, and only once the identity column has an answer — same gate as the
+              column itself, so the button never offers a view the server will refuse. */}
+          {canManage && identityDocs !== null && identityDocs.size > 0 && (
+            <Button variant="outline" size="sm" onClick={() => setAccessOpen(true)}>
+              {t('identityAccessButton')}
+            </Button>
+          )}
+        </div>
 
         {members.length === 0 ? (
           <EmptyState
@@ -792,6 +808,10 @@ export default function TeamDetail() {
           team={team}
           onTeamUpdate={(updated) => setTeam((prev) => prev ? { ...prev, ...updated } : prev)}
         />
+      )}
+
+      {canManage && (
+        <TeamIdentityAccessModal teamId={teamId} open={accessOpen} onOpenChange={setAccessOpen} />
       )}
     </div>
   )

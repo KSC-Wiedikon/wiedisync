@@ -241,6 +241,8 @@ export default {
   idsPreloadHint: 'Téléchargez les documents tant que vous avez encore du réseau — les salles n\'en ont souvent pas.',
   idsDownloaded_one: '{{count}} document téléchargé et disponible hors ligne.',
   idsDownloaded_other: '{{count}} documents téléchargés et disponibles hors ligne.',
+  idsNoEnvelope_one: 'Vous ne pouvez pas ouvrir la pièce d\'identité de {{count}} joueur. Demandez à un collègue de rétablir votre accès depuis la page de l\'équipe.',
+  idsNoEnvelope_other: 'Vous ne pouvez pas ouvrir les pièces d\'identité de {{count}} joueurs. Demandez à un collègue de rétablir votre accès depuis la page de l\'équipe.',
   idsReadyOffline_one: '{{count}} document disponible hors ligne.',
   idsReadyOffline_other: '{{count}} documents disponibles hors ligne.',
   idsShow: 'Afficher les documents d\'identité',

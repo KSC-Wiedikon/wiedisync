@@ -247,6 +247,8 @@ export default {
   idsPreloadHint: 'Download the documents while you still have signal — halls often have none.',
   idsDownloaded_one: '{{count}} document downloaded and ready offline.',
   idsDownloaded_other: '{{count}} documents downloaded and ready offline.',
+  idsNoEnvelope_one: '{{count}} player\'s ID cannot be opened by you. Ask a colleague to restore your access from the team page.',
+  idsNoEnvelope_other: '{{count}} players\' IDs cannot be opened by you. Ask a colleague to restore your access from the team page.',
   idsReadyOffline_one: '{{count}} document ready offline.',
   idsReadyOffline_other: '{{count}} documents ready offline.',
   idsShow: 'Show IDs',

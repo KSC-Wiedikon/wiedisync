@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '1.99.0'
+const APP_VERSION = '1.99.1'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,20 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.99.1',
+    date: '25.08.2026',
+    sections: [
+      {
+        title: "Your team's calendar shows every game",
+        items: [
+          "A team's games now come from the official Swiss Volley fixture list instead of being pieced together from the hall bookings made while arranging them. Any game that never went through our own booking process was simply missing — the H1 v H3 derby above all, which by definition has no booking because both sides are us. H3's calendar showed 17 of its 19 games; the missing two were the derby and an away game the opponent scheduled directly.",
+          'Kick-off times and venues are the federation\'s own. The calendar used to show the hall reservation window rather than the real start — 19:30 for a game that starts at 20:00 — and away games showed no venue at all. If a game is moved after we booked the hall, the calendar now follows the move instead of showing the old date.',
+          "A game says who you are playing. Every entry on a team's calendar used to read that team's own name, over and over, with the opponent hidden in a tooltip.",
+        ],
+      },
+    ],
+  },
   {
     version: '1.99.0',
     date: '25.08.2026',

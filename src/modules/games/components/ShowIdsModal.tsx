@@ -191,6 +191,8 @@ export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModa
   const preload = useCallback(async () => {
     setBusy(true)
     let ok = 0
+    // Entitled, but never wrapped a key — see `blocked` handling below.
+    let blocked = 0
     try {
       for (const r of roster) {
         if (r.member == null) continue
@@ -209,13 +211,18 @@ export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModa
             envelope: meta.data.envelope,
           })
           ok++
-        } catch {
-          // A player with no document, or one whose envelope was never wrapped to this
-          // coach, is simply absent from the deck — not a failure of the whole download.
+        } catch (err) {
+          // A player with no document is simply absent from the deck — not a failure of the
+          // whole download. But `no_envelope` is NOT that: it means this coach is entitled
+          // and holds no key, because they set their identity key up after the upload. That
+          // used to be swallowed here, so the symptom was "0 IDs downloaded" with no reason
+          // given, discovered at the hall. It is repairable, and the coach must be told.
+          if ((err as { code?: string }).code === 'no_envelope') blocked += 1
         }
       }
       setCachedCount(ok)
       toast.success(t('idsDownloaded', { count: ok }))
+      if (blocked > 0) toast.warning(t('idsNoEnvelope', { count: blocked }), { duration: 10000 })
     } finally {
       setBusy(false)
     }

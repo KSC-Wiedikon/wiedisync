@@ -246,6 +246,8 @@ export default {
   idsPreloadHint: 'Lade die Dokumente herunter, solange du noch Empfang hast — in Hallen fehlt er oft.',
   idsDownloaded_one: '{{count}} Dokument heruntergeladen und offline bereit.',
   idsDownloaded_other: '{{count}} Dokumente heruntergeladen und offline bereit.',
+  idsNoEnvelope_one: 'Du kannst den Ausweis von {{count}} Person nicht öffnen. Bitte eine Kollegin oder einen Kollegen, deinen Zugriff auf der Teamseite wiederherzustellen.',
+  idsNoEnvelope_other: 'Du kannst die Ausweise von {{count}} Personen nicht öffnen. Bitte eine Kollegin oder einen Kollegen, deinen Zugriff auf der Teamseite wiederherzustellen.',
   idsReadyOffline_one: '{{count}} Dokument offline bereit.',
   idsReadyOffline_other: '{{count}} Dokumente offline bereit.',
   idsShow: 'Ausweise zeigen',

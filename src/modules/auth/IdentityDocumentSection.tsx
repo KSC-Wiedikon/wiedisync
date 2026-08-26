@@ -46,6 +46,10 @@ interface Recipient {
   public_key: string
 }
 
+interface GapsResponse {
+  data: { document: number | null; missing: Recipient[] }
+}
+
 interface DocResponse {
   data: {
     iv: string
@@ -87,10 +91,25 @@ export default function IdentityDocumentSection() {
   const [checked, setChecked] = useState(false)
   /** A picked image waiting to be cropped/rotated. PDFs skip this and upload as-is. */
   const [pending, setPending] = useState<File | null>(null)
+  /**
+   * Staff who are entitled to this document but hold no envelope — almost always a coach who
+   * set their identity key up AFTER the upload, so there was no public key to wrap to at the
+   * time. Nobody notices until they try to open it at a match, so we surface it here.
+   */
+  const [gaps, setGaps] = useState<Recipient[]>([])
 
   // Revoke the object URL when it changes or the section unmounts — a decrypted ID left in
   // a live blob URL is exactly the thing this feature exists to avoid leaving lying around.
   useEffect(() => () => { if (preview) URL.revokeObjectURL(preview) }, [preview])
+
+  /** Never throws: a failed gap check must not make the section look broken. */
+  const loadGaps = useCallback(async () => {
+    try {
+      setGaps((await kscwApi<GapsResponse>('/identity/gaps')).data?.missing ?? [])
+    } catch {
+      setGaps([])
+    }
+  }, [])
 
   /** Re-read after a write. Only ever called from an event handler, never from an effect. */
   const loadDoc = useCallback(async () => {
@@ -100,7 +119,8 @@ export default function IdentityDocumentSection() {
     } catch {
       setDoc(null)
     }
-  }, [memberId])
+    await loadGaps()
+  }, [memberId, loadGaps])
 
   // First read, once the key is in hand. Every setState sits inside a promise callback:
   // a synchronous one in the effect body cascades a render.
@@ -108,11 +128,11 @@ export default function IdentityDocumentSection() {
     if (memberId == null || state !== 'unlocked' || checked) return
     let cancelled = false
     kscwApi<DocResponse>(`/identity/document/${memberId}`)
-      .then((res) => { if (!cancelled) setDoc(res.data) })
+      .then((res) => { if (!cancelled) { setDoc(res.data); void loadGaps() } })
       .catch(() => { if (!cancelled) setDoc(null) })
       .finally(() => { if (!cancelled) setChecked(true) })
     return () => { cancelled = true }
-  }, [memberId, state, checked])
+  }, [memberId, state, checked, loadGaps])
 
   const handleKeyAction = async () => {
     if (!password) return
@@ -237,6 +257,46 @@ export default function IdentityDocumentSection() {
     }
   }
 
+  /**
+   * Grant the missing staff a key, WITHOUT re-uploading.
+   *
+   * The server cannot do this — it has never held the content key. We unwrap it here with
+   * the member's own envelope and wrap a fresh one per recipient, exactly as the upload path
+   * does. The ciphertext is never touched and never even fetched: re-granting needs the
+   * content key, viewing needs the key AND the bytes.
+   */
+  const handleRegrant = async () => {
+    if (!doc || !privateKey || !gaps.length) return
+    setBusy(true)
+    try {
+      const key = await unwrapContentKey(doc.envelope, privateKey)
+      const envelopes = await Promise.all(
+        gaps.map(async (r) => ({
+          recipient: r.member,
+          ...(await wrapContentKeyFor(key, r.public_key)),
+        })),
+      )
+      const { data } = await kscwApi<{ data: { granted: number } }>('/identity/envelopes', {
+        method: 'POST',
+        body: { member: memberId, envelopes },
+      })
+      // A zero here means someone else already repaired it — the banner clearing IS the
+      // feedback, and "access granted to 0 team leaders" reads as a failure.
+      if (data.granted > 0) toast.success(t('idGranted', { count: data.granted }))
+      await loadGaps()
+    } catch (err) {
+      captureApiError(err, {
+        operation: 'identityRegrant',
+        endpoint: '/identity/envelopes',
+        method: 'POST',
+        payload: { recipients: gaps.length },
+      })
+      toast.error(t('idGrantFailed'))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const handleDelete = async () => {
     if (memberId == null) return
     if (!(await confirm({ message: t('idDeleteConfirm'), danger: true }))) return
@@ -320,6 +380,27 @@ export default function IdentityDocumentSection() {
                 {t('idStored', { date: formatDateZurich(doc.uploaded_at) })}
                 {!doc.uploaded_by_self && <> · {t('idUploadedByAdmin')}</>}
               </div>
+
+              {/* Actionable, not decorative: this only ever appears when a button press
+                  actually fixes it. Someone with no identity key at all is NOT listed —
+                  the server filters them out, because no re-wrap can help until they
+                  make a key. */}
+              {gaps.length > 0 && (
+                <div className="space-y-2 rounded-md border border-amber-300 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950/40">
+                  <p className="text-xs font-medium text-amber-900 dark:text-amber-200">
+                    {t('idGapTitle', { count: gaps.length })}
+                  </p>
+                  <p className="text-xs leading-relaxed text-amber-800 dark:text-amber-300">
+                    {t('idGapHint', {
+                      names: gaps.map((r) => `${r.first_name} ${r.last_name}`).join(', '),
+                    })}
+                  </p>
+                  <Button type="button" size="sm" onClick={() => void handleRegrant()} loading={busy}>
+                    <ShieldCheck className="mr-1.5 h-4 w-4" aria-hidden="true" />
+                    {t('idGrant')}
+                  </Button>
+                </div>
+              )}
 
               {/* The upload accepts PDFs as well as photos — rendering one through
                   <img> showed a broken icon. Preview off the SAME decrypted blob
