@@ -33,6 +33,13 @@ interface UseCalendarDataOptions {
    * schedule, and would read as one.
    */
   includeViewerGuestGames?: boolean
+  /**
+   * Extra game ids to OR into the team filter, for fixtures a team plays that are
+   * not filed under its own `kscw_team` — a cup tie entered under another team's
+   * name (see useTeamGuestGameIds). Must be a stable reference: it lands in a
+   * react-query key, so a fresh array each render refetches forever.
+   */
+  extraGameIds?: string[]
 }
 
 /**
@@ -338,7 +345,7 @@ function entryOverlapsRange(entry: CalendarEntry, rangeStart: Date, rangeEnd: Da
   return !isAfter(entry.date, rangeEnd) && !isBefore(entryEnd, rangeStart)
 }
 
-export function useCalendarData({ filters, rangeStart, rangeEnd, enabled = true, includeViewerGuestGames = true }: UseCalendarDataOptions) {
+export function useCalendarData({ filters, rangeStart, rangeEnd, enabled = true, includeViewerGuestGames = true, extraGameIds }: UseCalendarDataOptions) {
   const fetchRange = useFetchRange(rangeStart)
   const { user } = useAuth()
   const { t } = useTranslation('common')
@@ -368,7 +375,9 @@ export function useCalendarData({ filters, rangeStart, rangeEnd, enabled = true,
     filter: addGameTeamFilter(
       [...buildDateFilter('date', fetchRange.start, fetchRange.end), { away_team: { _nnull: true } }, { time: { _nnull: true } }],
       filters.selectedTeamIds,
-      includeViewerGuestGames ? guestGameIds : [],
+      extraGameIds && extraGameIds.length > 0
+        ? [...(includeViewerGuestGames ? guestGameIds : []), ...extraGameIds]
+        : includeViewerGuestGames ? guestGameIds : [],
     ),
     fields: ['*', 'kscw_team.*', 'kscw_team.coach.members_id', 'kscw_team.team_responsible.members_id', 'hall.*'],
     sort: ['date', 'time'],
