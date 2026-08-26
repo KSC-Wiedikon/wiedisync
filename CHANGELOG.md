@@ -12,6 +12,12 @@ All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file 
 - Various pages now ask the server for far less than they used to. Trainings, games, the scorer list and team chat used to reload everything whenever anyone anywhere changed a reply; they no longer do.
 - The notification bell and the news feed now agree with each other: reading a news item marks it read in both places straight away.
 
+### The sign-up form asks which federation licensed you first
+
+- **"None" is gone from the federation-of-origin question.** Nobody is without a federation: if no association has licensed you before, the one issuing your first licence — Swiss Volley or Swiss Basketball — *is* your federation of origin, so the answer is Switzerland. It was the first option in the list and was being chosen by most people who answered, nearly all of them juniors getting their first licence from us.
+- **The question changed with it: which federation licensed you *first*, not which one licensed you at 14.** Under the old wording someone first licensed abroad at 20 truthfully answered "nobody at 14", and the club never learned to request their transfer certificate before they could play.
+- **Members who had answered "None" now read as Switzerland**, except where their nationality is not Swiss — those appear on the club's transfer list so somebody asks them, rather than the club quietly assuming.
+
 ## v2.1.0 — 2026-08-26
 
 ### Games, trainings and events can carry a meeting time
