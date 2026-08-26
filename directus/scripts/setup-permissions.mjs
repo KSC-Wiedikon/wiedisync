@@ -1713,10 +1713,36 @@ async function main() {
   // see `.planning/2026-08-26-participation-visibility-design.md` (stage 2:
   // `participation_visibility(participation, viewer_user)`, one branch, one hop,
   // built verifier-first because a missed trigger source is a SILENT LEAK).
+  // ── STAGE 2 (migration 341) ────────────────────────────────────────────────
+  // `SAME_GAME_AS_ME` is GONE as a filter and is not coming back. The same truth is
+  // now materialised in `participation_visibility` (participation, viewer_user),
+  // reconciled by trigger from `game_guests` + the host roster + coaches/TRs.
+  //
+  // This branch is ONE hop, and `viewer_user` is a LOCAL column on the junction, so
+  // there is no second-level walk for the other branches to multiply against. The
+  // fanout is data-dependent: a participation on a game with no guests joins to
+  // nothing. Measured on the dev clone, same 302 driving rows:
+  //
+  //   team + event branches (stage 1)                622,853 rows   127 ms
+  //   + this junction branch                         641,739 rows   251 ms   (+3%)
+  //   the same feature expressed as a FILTER     148,915,476 rows  17.9 s    (+23,800%)
+  //
+  // ⚠⚠ The club has 22 guest rows on exactly ONE game (572, H1, 17.09.2026). That
+  // single fixture is what the 254× amplification was being paid for, permanently,
+  // on every read. Materialised it is 429 rows.
+  //
+  // ⚠ The junction is NARROWER than the old filter, deliberately. The filter granted
+  // "every game RSVP of anyone in a guest relationship with you" because Directus
+  // cannot join `activity_id` (varchar) back to `games` — breadth was a limitation,
+  // not an intent. This is row-correlated per fixture: lending a player for one
+  // Saturday shows you that Saturday, nothing else. Narrowing cannot leak.
+  //
+  // ⚠ ONE branch serves BOTH policies — the junction's audience already includes the
+  // host team's coaches and TRs, so LEADER walks the identical alias below.
+  const GUEST_ROSTER_VISIBLE = { visible_to: { viewer_user: { _eq: '$CURRENT_USER' } } }
   const PARTICIPATION_VISIBLE = {
-    _or: [...SAME_TEAM_AS_ME._or, EVENT_ROSTER_VISIBLE],
+    _or: [...SAME_TEAM_AS_ME._or, EVENT_ROSTER_VISIBLE, GUEST_ROSTER_VISIBLE],
   }
-  // Parked (migration 271): ...SAME_GAME_AS_ME — restore only via stage 2, never as a filter.
   // 2026-05-12 audit #12: participations.last_*_edited_by are directus_users
   // UUIDs (migrations 046/047) which let Members enumerate Directus user
   // UUIDs by cross-referencing. Members get the timestamps but not the
@@ -2481,12 +2507,20 @@ async function main() {
       { member: { member_teams: { team: { active: { _eq: true }, coach: { members_id: { user: { _eq: '$CURRENT_USER' } } } } } } },
       { member: { member_teams: { team: { active: { _eq: true }, team_responsible: { members_id: { user: { _eq: '$CURRENT_USER' } } } } } } },
       { _and: [{ activity_type: { _eq: 'event' } }, { event: { _and: [{ open_roster: { _eq: true } }, LEADER_EVENTS_VISIBLE] } }] },
+      // STAGE 2 (migration 341): the guest branch, materialised. The junction's
+      // audience already includes the host team's coaches and TRs, so this is the
+      // SAME alias the Member rule walks — one definition, no drift between policies.
+      // Replaces `member.game_guests.game.kscw_team.{coach,team_responsible}`, which
+      // cost 254× as a filter and +3% as this.
+      GUEST_ROSTER_VISIBLE,
     ],
   }
   await setPermRead(LEADER_POLICY, 'participations', COACH_OR_TR_PARTICIPATION_READ_NARROWED)
-  // Parked (migration 271): the `member.game_guests.game.kscw_team.{coach,team_responsible}`
-  // branch that COACH_OR_TR_OF_PARTICIPATION still carries for update/delete. Read stays
-  // without it until stage 2 — see the Member rule above for why.
+  // ⚠ update/delete still carry the FULL COACH_OR_TR_OF_PARTICIPATION, whose guest
+  // branch is broader than this read branch (whole-person vs per-fixture). A write
+  // filter matches one row so it costs nothing, but it does mean a coach can still
+  // edit a guest RSVP on a fixture whose roster they cannot read. Narrow it to match
+  // only after confirming no coach workflow depends on the wider write scope.
   await setPerm(LEADER_POLICY, 'participations', 'update', COACH_OR_TR_OF_PARTICIPATION)
 
   // ── Game guest invitations (migration 271) ──────────────────────
