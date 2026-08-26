@@ -457,6 +457,10 @@ export default {
   vmAuthorityHelp: 'Jusqu\'à cette date, les dates planifiées dans l\'outil sont protégées du flux Swiss Volley (qui peut encore afficher une date provisoire tant que les adversaires n\'ont pas saisi leurs matchs à l\'extérieur dans Volleymanager). À partir de cette date, le flux officiel fait foi pour la date, l\'heure et le lieu. Laisser vide pour protéger les matchs planifiés jusqu\'à leur déroulement.',
   vmAuthoritySaved: 'Date de reprise du flux enregistrée',
   outsideSeasonLabel: 'Saison non ouverte',
+  // The calendar's off-season band. Deliberately NOT `outsideSeasonLabel`:
+  // that one is a form warning ("you cannot propose yet"), this one names
+  // a stretch of the grid.
+  offSeasonBand: 'Hors saison',
   save: 'Enregistrer',
   statusArchived: 'Archivée',
   archiveSeason: 'Archiver la saison',

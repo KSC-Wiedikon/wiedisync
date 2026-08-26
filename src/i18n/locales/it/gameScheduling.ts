@@ -458,6 +458,10 @@ export default {
   vmAuthorityHelp: 'Fino a questa data, le date pianificate nello strumento sono protette dal feed Swiss Volley (che può ancora mostrare una data provvisoria finché gli avversari non inseriscono le loro partite in trasferta in Volleymanager). Da questa data, il feed ufficiale fa fede per data, ora e luogo. Lasciare vuoto per proteggere le partite pianificate fino al loro svolgimento.',
   vmAuthoritySaved: 'Data di subentro salvata',
   outsideSeasonLabel: 'Stagione non aperta',
+  // The calendar's off-season band. Deliberately NOT `outsideSeasonLabel`:
+  // that one is a form warning ("you cannot propose yet"), this one names
+  // a stretch of the grid.
+  offSeasonBand: 'Fuori stagione',
   save: 'Salva',
   statusArchived: 'Archiviata',
   archiveSeason: 'Archivia stagione',
