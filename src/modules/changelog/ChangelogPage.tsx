@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.1.0'
+const APP_VERSION = '2.1.1'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,22 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.1.1',
+    date: '26.08.2026',
+    sections: [
+      {
+        title: 'The app no longer hangs on the loading screen',
+        items: [
+          'Logging in and then watching the logo spin — sometimes for minutes, sometimes until the page gave up — is fixed. The app was asking the database one question that had quietly become enormously expensive, and at busy times, like everyone checking in before training in the morning, those questions piled up until nothing got through. It now answers in well under a second.',
+          'Who has replied to a club or multi-team event is visible again. On events that span more than one team — the Photoday, a mixed tournament, a Trainingswochenende — you could only see the replies of people on your own team, so a well-attended event looked like nobody had answered. You now see the whole list.',
+          'Players called up to another team\'s game, and that team, can see each other\'s replies again — so the coach picking the squad sees a full roster instead of blanks.',
+          'Various pages now ask the server for far less than they used to. Trainings, games, the scorer list and team chat used to reload everything whenever anyone anywhere changed a reply; they no longer do.',
+          'The notification bell and the news feed now agree with each other: reading a news item marks it read in both places straight away.',
+        ],
+      },
+    ],
+  },
   {
     version: '2.1.0',
     date: '26.08.2026',
