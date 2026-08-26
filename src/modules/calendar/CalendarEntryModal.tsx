@@ -13,6 +13,7 @@ import { formatDate } from '../../utils/dateUtils'
 import { formatTime, meetingTimeFromOffset } from '../../utils/dateHelpers'
 import { asObj, memberName } from '../../utils/relations'
 import { isGuestExcludedFromEvent } from '../events/eventHelpers'
+import { eventTypeLabelKey } from './eventTypeLabel'
 
 interface CalendarEntryModalProps {
   entry: CalendarEntry | null
@@ -316,21 +317,13 @@ function renderAbsenceDetails(absence: Absence, t: (key: string) => string) {
 function renderEventDetails(event: KscwEvent, t: (key: string) => string) {
   if (!event) return null
 
-  const eventTypeKeys: Record<string, string> = {
-    verein: 'eventTypeVerein',
-    social: 'eventTypeSocial',
-    meeting: 'eventTypeMeeting',
-    tournament: 'eventTypeTournament',
-    trainingsweekend: 'eventTypeTrainingsweekend',
-    friendly: 'eventTypeFriendly',
-    other: 'eventTypeOther',
-  }
+  // Shared with the home ticker and the appointments list, so the three cannot
+  // disagree on what an event type is called.
+  const typeKey = eventTypeLabelKey(event.event_type)
 
   return (
     <>
-      {event.event_type && (
-        <DetailRow label={t('common:type')} value={t(eventTypeKeys[event.event_type] ?? 'eventTypeOther')} />
-      )}
+      {typeKey && <DetailRow label={t('common:type')} value={t(typeKey)} />}
       {event.description && (
         <div className="flex items-start gap-3 text-sm">
           <span className="w-20 shrink-0 text-gray-500 dark:text-gray-400">{t('common:details')}</span>

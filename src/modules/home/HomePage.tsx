@@ -45,6 +45,7 @@ import { useFillableForms, type FillableForm } from '../../hooks/useFillableForm
 import YourDuesCard from '../finance/YourDuesCard'
 import HomePollsCard from '../polls/HomePollsCard'
 import UpcomingTicker from './components/UpcomingTicker'
+import { eventTypeLabelKey } from '../calendar/eventTypeLabel'
 import HomeDelegationCard from './components/HomeDelegationCard'
 import MyDutyBanner from './components/MyDutyBanner'
 import { useMyDuties, DUTY_ROLE_LABEL_KEYS, type MyDuty } from '../../hooks/useMyDuties'
@@ -1116,6 +1117,7 @@ function AppointmentRow({ appointment, onClick, participationStatus, participati
   participations?: Participation[]
 }) {
   const { user } = useAuth()
+  const { t: tCal } = useTranslation('calendar')
 
   const effectiveStatus = participationStatus
 
@@ -1158,7 +1160,12 @@ function AppointmentRow({ appointment, onClick, participationStatus, participati
     if (g.time) timeStr = formatTime(g.time)
   } else {
     const ev = appointment.data as EventExpanded
-    label = ev.title
+    // An event title is free text and says nothing about what KIND of thing it
+    // is — a friendly entered as "VBC Limmattal - D4" reads as a league fixture
+    // next to the real ones. Lead with the translated type; the cards elsewhere
+    // carry it as a StatusBadge, this row has no room for one.
+    const typeKey = eventTypeLabelKey(ev.event_type)
+    label = typeKey ? `${tCal(typeKey)} · ${ev.title}` : ev.title
     if (!ev.all_day && ev.start_date) timeStr = formatTime(ev.start_date)
   }
 
@@ -1217,6 +1224,7 @@ function AppointmentTableRow({ appointment, onClick, participationStatus, partic
   participations?: Participation[]
 }) {
   const { user } = useAuth()
+  const { t: tCal } = useTranslation('calendar')
   const effectiveStatus = participationStatus
 
   const statusBorderBg: Record<string, string> = {
@@ -1258,7 +1266,12 @@ function AppointmentTableRow({ appointment, onClick, participationStatus, partic
     if (g.time) timeStr = formatTime(g.time)
   } else {
     const ev = appointment.data as EventExpanded
-    label = ev.title
+    // An event title is free text and says nothing about what KIND of thing it
+    // is — a friendly entered as "VBC Limmattal - D4" reads as a league fixture
+    // next to the real ones. Lead with the translated type; the cards elsewhere
+    // carry it as a StatusBadge, this row has no room for one.
+    const typeKey = eventTypeLabelKey(ev.event_type)
+    label = typeKey ? `${tCal(typeKey)} · ${ev.title}` : ev.title
     if (!ev.all_day && ev.start_date) timeStr = formatTime(ev.start_date)
   }
 

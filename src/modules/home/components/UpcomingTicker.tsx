@@ -6,6 +6,7 @@ import VolleyballIcon from '../../../components/VolleyballIcon'
 import BasketballIcon from '../../../components/BasketballIcon'
 import { useCalendarData } from '../../calendar/hooks/useCalendarData'
 import { entryIconColor, cancelledClasses } from '../../calendar/entryStyle'
+import { eventTypeLabelKey } from '../../calendar/eventTypeLabel'
 import type { CalendarEntry, CalendarFilterState, BirthdaySource } from '../../../types/calendar'
 import { addDays, formatWeekdayZurich, formatDayMonthZurich } from '../../../utils/dateHelpers'
 import { toDateKey } from '../../../utils/dateUtils'
@@ -41,17 +42,24 @@ const PILL_CLASS =
 
 function TickerPill({ entry, todayKey }: { entry: CalendarEntry; todayKey: string }) {
   const { t } = useTranslation('home')
+  const { t: tCal } = useTranslation('calendar')
   const isToday = toDateKey(entry.date) === todayKey
   const when = isToday
     ? t('today')
     : `${formatWeekdayZurich(entry.date)} ${formatDayMonthZurich(entry.date)}`
   const time = entry.startTime ? ` ${entry.startTime}` : ''
 
-  let main = entry.title
+  let main: string
   if (entry.type === 'birthday') {
     main = `${entry.title} · ${t('turnsAge', { age: (entry.source as BirthdaySource).age })}`
-  } else if (entry.location && entry.type !== 'game') {
-    main = `${entry.title} · ${entry.location}`
+  } else {
+    // An event's title is free text and says nothing about what KIND of thing it
+    // is — "VBC Limmattal - D4" is a friendly, and next to a real fixture in the
+    // same strip it reads as one. Lead with the translated type, which also
+    // matches how a training already announces itself here ("Training HU16").
+    const typeKey = entry.type === 'event' ? eventTypeLabelKey(entry.eventType) : null
+    const head = typeKey ? `${tCal(typeKey)} · ${entry.title}` : entry.title
+    main = entry.location && entry.type !== 'game' ? `${head} · ${entry.location}` : head
   }
 
   return (

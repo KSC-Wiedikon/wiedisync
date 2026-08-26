@@ -225,6 +225,7 @@ function eventToEntry(event: Event): CalendarEntry {
     endTime: event.all_day ? null : (event.end_date ? formatTime(event.end_date) || null : null),
     allDay: event.all_day || !!isMultiDay,
     location: event.location ?? '',
+    eventType: event.event_type,
     teamNames: [],
     cancelled: event.cancelled === true,
     description: event.description ?? '',
@@ -443,9 +444,12 @@ export function useCalendarData({ filters, rangeStart, rangeEnd, enabled = true,
     // server then rejects with a bare 403.
     // ⚠ `meeting_time` rides this explicit list too (migration 340) — an events
     // query that names its fields is exactly how a new column silently fails to
-    // reach the calendar modal.
+    // reach the calendar modal. `event_type` is here for the same reason: the
+    // ticker and the appointments list render it next to the title, and a
+    // missing column would degrade silently to "no type" rather than erroring.
     fields: ['id', 'start_date', 'end_date', 'all_day', 'title', 'location', 'description',
-             'invite_guests', 'meeting_time', 'teams.teams_id', 'invited_members.members_id'],
+             'event_type', 'invite_guests', 'meeting_time', 'teams.teams_id',
+             'invited_members.members_id'],
     sort: ['start_date'],
     all: true,
   })

@@ -43,6 +43,17 @@ export interface CalendarEntry {
   /** Sport type — set for game entries to show correct ball icon */
   sport?: 'volleyball' | 'basketball'
   /**
+   * Only set for event entries — the `events.event_type` behind the row.
+   *
+   * An event's title is free text, so nothing in it says what KIND of thing it
+   * is: a friendly titled "VBC Limmattal - D4" reads exactly like a league
+   * fixture, and the generic event icon does not disambiguate it. Views that
+   * show an event as a single line of text (the home ticker, the appointments
+   * list) render the translated type alongside the title — the cards and modals
+   * already carry it as a `StatusBadge`. Translate via `calendar:eventType*`.
+   */
+  eventType?: Event['event_type']
+  /**
    * Optional MonthGrid palette-key override (e.g. 'blue'). Recolours the entry
    * without changing its `type` — the icon shape still follows `type`. Used to
    * tint events blue on the team absence calendar.
