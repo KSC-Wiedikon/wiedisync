@@ -4,6 +4,7 @@ import { SlidersHorizontal } from 'lucide-react'
 import type { Team } from '../../types'
 import type { CalendarEntry, CalendarFilterState, SourceFilter } from '../../types/calendar'
 import { useCalendarData } from './hooks/useCalendarData'
+import { useTeamGuestGameIds } from '../../hooks/useTeamGuestGameIds'
 import { monthGridRange } from './monthRange'
 import { getActiveFilterCount } from './filterCount'
 import CalendarFilters from './CalendarFilters'
@@ -36,6 +37,11 @@ import EntryDetailModals from './components/EntryDetailModals'
  * on this page; a coach who wants "who is out this week" can switch them on, and the
  * dedicated absence view is still where that question really belongs. Nothing is
  * newly exposed either way — the same policies govern them on /calendar.
+ *
+ * ⚠ Fixtures this team was INVITED to (`game_guest_teams`) are included even though
+ * `games.kscw_team` names another team. The Mobiliar Cup is registered for H1 and
+ * D1 only, so an H1 cup tie is played by the H3 squad — scoping on `kscw_team`
+ * alone hides from a team the match it is actually playing.
  *
  * ⚠ Club-wide events (those with no team junction at all) DO appear here, because
  * the events filter treats "belongs to no team" as "belongs to everyone". That is
@@ -74,6 +80,9 @@ export default function TeamCalendar({ team }: { team: Team }) {
 
   const { rangeStart, rangeEnd } = useMemo(() => monthGridRange(month), [month])
 
+  // Cup ties and the like, entered under another team's name — see the hook.
+  const { guestGameIds } = useTeamGuestGameIds(team.id)
+
   const { entries, closedDates, isLoading } = useCalendarData({
     filters: effectiveFilters,
     rangeStart,
@@ -82,6 +91,9 @@ export default function TeamCalendar({ team }: { team: Team }) {
     // A fixture the VIEWER was borrowed for belongs on their own calendar, not on
     // a page headed by a team they may not even play for.
     includeViewerGuestGames: false,
+    // Team-scoped, unlike the option above: every member of this team sees these,
+    // not just whoever happens to be called up.
+    extraGameIds: guestGameIds,
   })
 
   // Latched exactly like /calendar: show the grid once, then never blank it again on
