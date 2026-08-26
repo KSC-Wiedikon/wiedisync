@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.0.0'
+const APP_VERSION = '2.1.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,21 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.1.0',
+    date: '26.08.2026',
+    sections: [
+      {
+        title: 'Games, trainings and events can carry a meeting time',
+        items: [
+          'When a team meets before the start — Besammlung — is now on the record next to the start time, instead of living in the training notes, a chat message, or nobody\'s head. It shows in the game, training and event details, and in the calendar.',
+          'Games default to an hour before the first whistle and trainings to ten minutes before the start; both are already filled in on every existing game and training. Events have none unless you set one, because most of them do not need one.',
+          'The coach sets how long before the start the team meets, and the app works out the clock time. That means a game moved by Swiss Volley brings its meeting time with it: a 16:00 game meeting at 15:00 that moves to 18:00 now meets at 17:00, with nobody having to remember to change it.',
+          'Events take a plain time instead, so an all-day tournament can still say "be there at 08:30" — the case where a meeting time matters most.',
+        ],
+      },
+    ],
+  },
   {
     version: '2.0.0',
     date: '26.08.2026',
