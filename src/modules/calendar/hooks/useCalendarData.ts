@@ -122,6 +122,15 @@ function addEventTeamFilter(
 }
 
 /**
+ * Drop our OWN club prefix from an opponent's name. An intra-club derby arrives as
+ * "KSC Wiedikon H1", which is three quarters redundant inside a KSCW app and long
+ * enough to truncate a month-grid chip to "H3 vs KSC Wiedi…". Another club's name
+ * is left exactly as the federation writes it — only the prefix we are is removed.
+ */
+const shortOpponent = (name: string | null | undefined): string =>
+  String(name ?? '').replace(/^KSC Wiedikon\s+/, '')
+
+/**
  * Map a game to a calendar entry. With `duty=true` it's rendered as a
  * scorer/scoreboard-duty entry (its own entry so it auto-appears on the member's
  * in-app calendar — the analogue of the auto-accepted iCal duty event): duty
@@ -166,7 +175,7 @@ function gameToEntry(
     location: expandedHall?.name ?? game.away_hall_json?.name ?? '',
     teamNames: expandedTeam ? [expandedTeam.name] : [],
     gameType: game.type,
-    opponent: game.type === 'home' ? game.away_team : game.home_team,
+    opponent: shortOpponent(game.type === 'home' ? game.away_team : game.home_team),
     sport: expandedTeam?.sport ?? (game.source === 'basketplan' ? 'basketball' : 'volleyball'),
   }
 }
