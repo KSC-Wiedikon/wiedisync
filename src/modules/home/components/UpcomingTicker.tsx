@@ -103,8 +103,9 @@ function TickerSkeleton({ label }: { label: string }) {
  * calendar's data engine (team-scoped, authed) over a 7-day window. Renders
  * nothing when there's nothing coming up.
  *
- * `teamIds` is the caller's scope: a member's own teams, or every team an admin
- * can see (all of them for a global admin, sport-scoped for VB/BB admins).
+ * `teamIds` is the caller's scope: the viewer's own teams, admins included — this
+ * strip answers "what's coming up for me", and an admin's club-wide view belongs
+ * in the calendar, not scrolling past their own training.
  * `scopeLoading` covers the step BEFORE that scope is known (the member's teams
  * are still being fetched) — the strip sits at the top of the home page, so it
  * has to hold its space across both waits or everything below it jumps twice.
@@ -158,7 +159,7 @@ export default function UpcomingTicker({
         <Marquee
           pauseOnHover
           repeat={items.length <= 8 ? 4 : 2}
-          className="[--duration:60s] [--gap:0.75rem] py-1 [mask-image:linear-gradient(to_right,transparent,black_4%,black_96%,transparent)]"
+          className="[--duration:69s] [--gap:0.75rem] py-1 [mask-image:linear-gradient(to_right,transparent,black_4%,black_96%,transparent)]"
         >
           {items.map((entry) => (
             <TickerPill key={entry.id} entry={entry} todayKey={todayKey} />

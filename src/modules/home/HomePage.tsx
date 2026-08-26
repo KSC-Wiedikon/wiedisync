@@ -74,7 +74,7 @@ export default function HomePage() {
   const { t: tf } = useTranslation('forms')
   const { t: tg } = useTranslation('games')
 
-  const { user, isApproved, primarySport, coachTeamIds, isCoachOf, isAdmin, hasAdminAccessToTeam } = useAuth()
+  const { user, isApproved, primarySport, coachTeamIds, isCoachOf } = useAuth()
   const { items: fillableForms, refetch: refetchForms } = useFillableForms()
   const [fillItem, setFillItem] = useState<FillableForm | null>(null)
   // IBAN nudge — finance needs every member's up-to-date IBAN. Show a dismissible
@@ -168,23 +168,17 @@ export default function HomePage() {
   ].filter(Boolean))], [memberTeams, coachTeamIds])
   const hasTeams = userTeamIds.length > 0
 
-  // The upcoming-ticker scope: a member sees their own teams; an admin sees every
-  // team they can (all of them for a global admin, sport-scoped for VB/BB admins).
-  const { data: allActiveTeamsRaw, isLoading: allActiveTeamsLoading } = useCollection<Team>('teams', {
-    enabled: !!user && isAdmin,
-    filter: { active: { _eq: true } },
-    fields: ['id', 'sport'],
-    all: true,
-  })
-  const tickerTeamIds = useMemo(() => {
-    if (isAdmin) return (allActiveTeamsRaw ?? []).filter((tm) => hasAdminAccessToTeam(tm.id)).map((tm) => tm.id)
-    return userTeamIds
-  }, [isAdmin, allActiveTeamsRaw, hasAdminAccessToTeam, userTeamIds])
-  // The ticker can't query anything until its scope resolves, so an empty
-  // `tickerTeamIds` means either "no teams" or "not known yet" — the ticker
-  // needs to tell those apart to decide between rendering nothing and holding
-  // its space.
-  const tickerScopeLoading = isAdmin ? allActiveTeamsLoading : memberTeamsLoading
+  // The upcoming-ticker scope: everyone's own teams, admins included. It used to
+  // widen to every team an admin could see, which turned a "what's coming up for
+  // me" strip into a club-wide firehose — five other teams' trainings scrolling
+  // past before your own. The club-wide view already exists, in the calendar.
+  //
+  // The ticker can't query anything until this resolves, so an empty
+  // `tickerTeamIds` means either "no teams" or "not known yet" — the ticker needs
+  // to tell those apart to decide between rendering nothing and holding its
+  // space. That wait is now exactly `memberTeamsLoading`, which the call site
+  // below passes as `scopeLoading`.
+  const tickerTeamIds = userTeamIds
 
   // Games this member was invited to as a guest (migration 271) — filed under
   // another team, so the team filter below would drop them.
@@ -444,10 +438,9 @@ export default function HomePage() {
   // empty, which then popped in a moment later — the gate has to cover the
   // query that gates the query.
   //
-  // `tickerScopeLoading` resolves to `allActiveTeamsLoading` for admins and
-  // `memberTeamsLoading` otherwise; it feeds the results ticker's team scope,
-  // so revealing before it lands showed a ticker that then re-scoped itself.
-  const isInitialLoading = memberTeamsLoading || tickerScopeLoading || gamesLoading
+  // `memberTeamsLoading` also feeds the ticker's team scope, so revealing before
+  // it lands showed a ticker that then re-scoped itself.
+  const isInitialLoading = memberTeamsLoading || gamesLoading
     || resultsLoading || eventIdsLoading || eventsLoading || (hasTeams && trainingsLoading)
     || bulkPartLoading || bulkRsvpLoading
 
@@ -525,10 +518,10 @@ export default function HomePage() {
         </p>
       </div>
 
-      {/* Upcoming ticker — next 7 days across the user's teams (all teams for
-          admins): games, trainings, events, closures, duties, birthdays. */}
-      {user && isApproved && (tickerTeamIds.length > 0 || tickerScopeLoading) && (
-        <UpcomingTicker teamIds={tickerTeamIds} scopeLoading={tickerScopeLoading} />
+      {/* Upcoming ticker — next 7 days across the user's own teams, admins
+          included: games, trainings, events, closures, duties, birthdays. */}
+      {user && isApproved && (tickerTeamIds.length > 0 || memberTeamsLoading) && (
+        <UpcomingTicker teamIds={tickerTeamIds} scopeLoading={memberTeamsLoading} />
       )}
 
       {/* Pending duty-delegation requests — accept/decline without leaving home.
