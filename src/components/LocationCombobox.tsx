@@ -4,6 +4,7 @@ import { MapPin } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useGooglePlacesSearch } from '@/hooks/useGooglePlacesSearch'
 import { useHallSearch } from '@/hooks/useHallSearch'
+import { formatLocationLabel } from '@/utils/locationLabel'
 import type { LocationResult } from '@/types'
 
 interface LocationComboboxProps {
@@ -48,7 +49,11 @@ export default function LocationCombobox({
   }, [open])
 
   const handleSelect = (result: LocationResult) => {
-    const display = [result.name, result.address, result.city].filter(Boolean).join(', ')
+    // ⚠ Not a plain `[name, address, city].join(', ')`. That is right for a hall
+    // from our own table (three separate columns) and wrong for a Google Places
+    // result, whose `address` is `formattedAddress` — already street + postcode +
+    // city + country. See `tidyLocationLabel`.
+    const display = formatLocationLabel(result)
     onChange(display)
     onSelect?.(result)
     setOpen(false)
