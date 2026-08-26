@@ -518,6 +518,18 @@ export const PROPOSAL_COLUMNS = {
   // column instead would be the mistake.
   nationalitaet: 'text',
   ahv_nummer: 'text',
+  // ⚠⚠ `email` is the member's LOGIN identity, not just a contact cell.
+  // Accepting ClubDesk's address changes where that person signs in, so it gets
+  // its own coercion (a value that is not an address must never reach the
+  // column) and the UI warns on the row and in the bulk confirm. It is here at
+  // all because the `conflict` rule (migration 338) made email decidable: before
+  // it, an email disagreement could only ever be answered "keep ours".
+  email: 'email',
+  // Was excluded from the down-sync entirely until now — import-clubdesk-csv.mjs
+  // documents why: "a member who deletes their IBAN would have it resurrected
+  // every sync... needs a tombstone before importing". proposals_refused_uq IS
+  // that tombstone, so the column can finally be offered.
+  iban: 'iban',
   federation_of_origin: 'text',
   trainer_licences: 'text',
   beitragskategorie: 'text',
@@ -546,6 +558,23 @@ export function coerceProposalValue(field, raw) {
   if (type === 'date') {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return { ok: false }
     return { ok: true, value: v }
+  }
+  // ⚠ The login address. A register cell that is not an address (ClubDesk holds
+  // plenty of "-", "keine", a bare name) must never land in the column that
+  // decides where a member signs in — reject rather than coerce, exactly as the
+  // date branch does. Lower-cased because that is how every lookup reads it
+  // (driftLower, the auth match, the suppression list).
+  if (type === 'email') {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v)) return { ok: false }
+    return { ok: true, value: v.toLowerCase() }
+  }
+  // Stored space-stripped and upper-case (verified against prod: every row is
+  // `CH…` with no separators), which is also the form the drift comparison
+  // normalises to — so accepting one cannot re-open the same conflict.
+  if (type === 'iban') {
+    const norm = v.replace(/\s+/g, '').toUpperCase()
+    if (!/^[A-Z]{2}\d{2}[A-Z0-9]{10,30}$/.test(norm)) return { ok: false }
+    return { ok: true, value: norm }
   }
   return { ok: true, value: v }
 }
@@ -2814,6 +2843,105 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
     }
   })
 
+  /**
+   * Stage a `conflict` proposal for every live drift conflict (migration 338).
+   *
+   * This is the half of the merge that moves decisions out of the "Needs
+   * syncing" board and into the queue that can remember an answer. A drift row
+   * is recomputed from `members` vs `clubdesk_export` on every read, so it has
+   * no memory: "Keep ours" queues a push and the row returns unchanged until
+   * that push lands, and there has never been a way to take ClubDesk's side at
+   * all. As a proposal it gets both verbs and a durable tombstone.
+   *
+   * ⚠ Runs off computeClubdeskDrift() rather than a SQL pass next to the other
+   * four rules — see migration 338 for why restating that normalisation in SQL
+   * would create a third opinion.
+   *
+   * ⚠ Two exclusions, both deliberate:
+   *   names — the push CSV is name-less, so neither direction can act; they stay
+   *           a `name_drift` status, which is also how a mis-link surfaces.
+   *   gast  — wiedisync owns rosters and ClubDesk's Gast cell is derived from
+   *           our own push, so accepting it would let a round-trip overwrite its
+   *           own source. It is not in PROPOSAL_COLUMNS, and the whitelist test
+   *           below is what enforces that rather than a second list to keep.
+   */
+  async function stageConflictProposals() {
+    const drift = await computeClubdeskDrift()
+    const NAME_FIELDS = new Set(['first_name', 'last_name'])
+    const wanted = []
+    for (const c of drift) {
+      for (const d of c.conflicts) {
+        if (NAME_FIELDS.has(d.field)) continue
+        // The accept path's whitelist IS the gate: a field it cannot write must
+        // not be offered as a decision.
+        if (!PROPOSAL_COLUMNS[d.field]) continue
+        wanted.push({
+          member_id: c.member_id,
+          clubdesk_id: c.clubdesk_id,
+          field: d.field,
+          current_value: d.wiedisync ?? null,
+          proposed_value: d.clubdesk ?? null,
+          rule: 'conflict',
+        })
+      }
+    }
+    if (!wanted.length) return { staged: 0, considered: 0 }
+
+    // ⚠⚠ Read-then-insert, NOT insert-and-count. `.onConflict().ignore()` drops
+    // RETURNING on knex 3.1 (the version in the container), so an insert that
+    // worked reports zero rows — a write that lies about having done nothing is
+    // never re-run. The existing rows are read inside the transaction and only
+    // genuinely new ones are inserted; ON CONFLICT stays purely as a race
+    // backstop against a concurrent detection run.
+    const memberIds = [...new Set(wanted.map((w) => w.member_id))]
+    return await database.transaction(async (trx) => {
+      const seen = await trx('clubdesk_sync_proposals')
+        .whereIn('member_id', memberIds)
+        .whereIn('status', ['pending', 'refused'])
+        .select('member_id', 'field', 'proposed_value', 'status')
+      // A PENDING proposal for this (member, field) blocks a second one whatever
+      // its value — the partial unique says so, and asking the same question
+      // twice is the thing that index exists to prevent. A REFUSED one blocks
+      // only its own value, so a later, genuinely different ClubDesk value still
+      // reaches the operator.
+      // `|` is unambiguous here and greppable: member_id is numeric and a field
+      // name is [a-z_]+, so neither can contain one, and the free-text value is
+      // always last.
+      const pending = new Set(seen.filter((r) => r.status === 'pending')
+        .map((r) => `${r.member_id}|${r.field}`))
+      const refused = new Set(seen.filter((r) => r.status === 'refused')
+        .map((r) => `${r.member_id}|${r.field}|${r.proposed_value ?? ''}`))
+      const fresh = wanted.filter((w) =>
+        !pending.has(`${w.member_id}|${w.field}`)
+        && !refused.has(`${w.member_id}|${w.field}|${w.proposed_value ?? ''}`))
+      if (!fresh.length) return { staged: 0, considered: wanted.length }
+      await trx('clubdesk_sync_proposals').insert(fresh).onConflict().ignore()
+      return { staged: fresh.length, considered: wanted.length }
+    })
+  }
+
+  // Called by the sync path the moment a sync-down settles (and available on its
+  // own). Deliberately a POST and never folded into the proposals GET: staging
+  // writes rows, and a list endpoint that mutates on read is how a refresh turns
+  // into a side effect.
+  router.post('/clubdesk-sync/proposals/detect', async (req, res) => {
+    try {
+      if (!(await superGate(req))) return res.status(403).json({ error: 'Forbidden' })
+      const { staged, considered } = await stageConflictProposals()
+      if (staged > 0) {
+        await writeUserLog(database, log, {
+          accountability: req.accountability, action: 'create',
+          collection: 'clubdesk_sync_proposals', recordId: null,
+          data: { kind: 'clubdesk_conflict_detect', staged, considered },
+        })
+      }
+      return res.json({ staged, considered })
+    } catch (err) {
+      log.error({ msg: `clubdesk conflict detect: ${err.message}`, endpoint: 'clubdesk-sync/proposals/detect', stack: err.stack })
+      return res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
   // Accept → ClubDesk's value is written to `members` (or the member is created).
   // Refuse → ours stands, the proposal becomes a tombstone so detection never
   // asks again, and — when we actually hold a value to assert — the member is
@@ -3335,7 +3463,18 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
   // `name_drift` is listed so the finding stays VISIBLE (it is how a mis-link
   // surfaces) — the frontend labels it honestly as "cannot be synced" instead of
   // offering an action that does not exist.
-  const NEEDS_SYNC_STATUSES = ['not_linked', 'awaiting_link', 'stale', 'departed', 'pending', 'drift', 'name_drift']
+  // ⚠ `drift` is deliberately ABSENT (migration 338). A value disagreement is a
+  // decision, and decisions live in clubdesk_sync_proposals as `conflict` rows —
+  // where refusing is durable. Listing it here too gave one disagreement two
+  // homes and two verbs ("Refuse" and "Keep ours" both flag for push), and the
+  // board's copy was the one that could not remember the answer.
+  // ⚠ `name_drift` STAYS: no sync in either direction can reconcile a name, so
+  // it is a standing state rather than a pending decision — and it is the only
+  // place a mis-linked contact surfaces.
+  // ⓘ computeMemberSyncStatuses still RETURNS `drift`; the Data Explorer's
+  // per-member column reads it and would otherwise report a member with an open
+  // conflict as "In sync".
+  const NEEDS_SYNC_STATUSES = ['not_linked', 'awaiting_link', 'stale', 'departed', 'pending', 'name_drift']
   router.get('/clubdesk-needs-sync', async (req, res) => {
     try {
       if (!(await superGate(req))) return res.status(403).json({ error: 'Forbidden' })

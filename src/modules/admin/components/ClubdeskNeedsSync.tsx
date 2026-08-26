@@ -21,8 +21,14 @@ import { formatDateZurich } from '../../../utils/dateHelpers'
 import { toXlsx, downloadBlob } from '../utils/exportResults'
 import LastBillCell from './LastBillCell'
 import { lastBillExport, type LastBill } from '../utils/clubdeskFindings'
+import { CD_FIELD_LABEL } from '../utils/clubdeskFieldLabels'
 
-export type SyncStatus = 'not_linked' | 'awaiting_link' | 'stale' | 'departed' | 'pending' | 'drift' | 'name_drift'
+// ⚠ No `drift` (migration 338). A value disagreement is a DECISION and lives in
+// the proposals queue as a `conflict` row, where refusing is durable. This board
+// is now only what no decision can resolve — states you wait out or repair, not
+// questions you answer. `name_drift` stays for exactly that reason: no sync in
+// either direction can reconcile a name.
+export type SyncStatus = 'not_linked' | 'awaiting_link' | 'stale' | 'departed' | 'pending' | 'name_drift'
 
 export interface NeedsSyncRow {
   member_id: number
@@ -33,8 +39,9 @@ export interface NeedsSyncRow {
   sport_source: 'teams' | 'sektion' | 'fee' | 'unknown'
   last_bill: LastBill | null
   /**
-   * The field-level diff behind a `drift` / `name_drift` row. Empty for the
-   * statuses that are not a disagreement about a value.
+   * The field-level diff behind a `name_drift` row. Empty for the statuses that
+   * are not a disagreement about a value — which, since migration 338 moved
+   * value conflicts into the proposals queue, is every other status here.
    *
    * ⚠ Named per field on purpose: "a field differs from ClubDesk" is true of
    * every row and tells the reader nothing — they had to open the Club-wide tab
@@ -45,39 +52,18 @@ export interface NeedsSyncRow {
   conflicts?: { field: string; wiedisync: string; clubdesk: string }[]
   /**
    * Fields the push would BLANK — wiedisync's side is empty while ClubDesk still
-   * holds a value. `/clubdesk-drift/flag` refuses the whole member when this is
-   * non-empty, so a `drift` row carrying one is un-flaggable until a sync-down
-   * fills the gap: the row states that instead of offering the button.
+   * holds a value. Still sent by the server (the sync-up's own guard reads it)
+   * and still typed here so the shape stays honest, but no longer rendered: a
+   * blank-risk field is by definition one where ClubDesk has a value and we do
+   * not, which is a `fill` PROPOSAL. The board used to print "sync down first"
+   * about a decision already waiting in the other table.
    */
   blank_risk?: string[]
 }
 
-/** Field name → label key. Anything unmapped falls back to the raw column. */
-const FIELD_LABEL: Record<string, string> = {
-  first_name: 'cdFieldFirstName',
-  last_name: 'cdFieldLastName',
-  email: 'cdFieldEmail',
-  phone: 'cdFieldPhone',
-  adresse: 'cdFieldAdresse',
-  plz: 'cdFieldPlz',
-  ort: 'cdFieldOrt',
-  birthdate: 'cdFieldBirthdate',
-  sex: 'cdFieldSex',
-  iban: 'cdFieldIban',
-  anrede: 'cdFieldAnrede',
-  nationalitaet: 'cdFieldNationalitaet',
-  federation_of_origin: 'cdFieldFederation',
-  ahv_nummer: 'cdFieldAhv',
-  register_status: 'cdFieldRegisterStatus',
-  beitragskategorie: 'cdFieldKategorie',
-  eintritt: 'cdFieldEintritt',
-  austritt: 'cdFieldAustritt',
-  trainer_licences: 'cdFieldTrainerLicences',
-  gast: 'cdFieldGast',
-}
 
 /** Tab order: most actionable first, unfixable-by-sync last. */
-const STATUS_ORDER: SyncStatus[] = ['drift', 'pending', 'not_linked', 'awaiting_link', 'stale', 'departed', 'name_drift']
+const STATUS_ORDER: SyncStatus[] = ['pending', 'not_linked', 'awaiting_link', 'stale', 'departed', 'name_drift']
 
 /**
  * Red = the link itself is broken or the person has left; amber = a push is owed;
@@ -103,35 +89,23 @@ const TONE: Record<SyncStatus, string> = {
   stale: 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300',
   departed: 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300',
   pending: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
-  drift: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
   name_drift: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300',
 }
 
 // Presentational — the page owns the fetch and the single Rescan button in the
 // header, so this card deliberately has no refresh of its own.
 export default function ClubdeskNeedsSync({
-  rows, inSync, lastDown, lastUp, loading, onFlag, flagging,
+  rows, inSync, lastDown, lastUp, loading,
 }: {
   rows: NeedsSyncRow[]
   inSync: number
   lastDown: string | null
   lastUp: string | null
   loading: boolean
-  /**
-   * Resolve a `drift` row by making OUR value win: flags the member so the next
-   * sync-up writes it into the register.
-   *
-   * ⚠ This affordance has to live HERE, on the row that states the problem. A
-   * drift conflict is the one thing neither sync direction clears on its own —
-   * the down-sync is fill-only on these columns so it proposes nothing when both
-   * sides hold a value, and the up-sync only carries members already flagged. So
-   * "sync down, sync up" leaves the row exactly where it was, forever, until
-   * somebody says which side is right. The button was previously only on the
-   * Club-wide tab, one tab away from the list that shows the problem.
-   */
-  onFlag?: (memberId: number) => void | Promise<void>
-  /** member_id currently being flagged, for the row's busy state. */
-  flagging?: number | null
+  // ⓘ No onFlag. "Keep ours" moved to the proposals queue as Refuse, which does
+  // the same thing (flags the member for the next push) AND leaves a tombstone,
+  // so the question is never asked again. A board row is no longer something you
+  // answer.
 }) {
   const { t, i18n } = useTranslation('admin')
   const [statusTab, setStatusTab] = useState<string>('all')
@@ -150,17 +124,12 @@ export default function ClubdeskNeedsSync({
     () => STATUS_ORDER.filter((st) => (byStatus[st]?.length ?? 0) > 0),
     [byStatus],
   )
-  // A tab can disappear between scans (the last drift row got resolved), so fall
+  // A tab can disappear between scans (the last push landed), so fall
   // back rather than render an empty table under a tab that no longer exists.
   const activeTab: string = statusTab !== 'all' && !presentStatuses.includes(statusTab as SyncStatus)
     ? 'all'
     : statusTab
   const shown = activeTab === 'all' ? rows : (byStatus[activeTab] ?? [])
-
-  /** "Sync down first — the push would blank Phone in ClubDesk." */
-  const blankRiskText = (r: NeedsSyncRow) => t('cdSyncBlankRiskBlocked', {
-    fields: (r.blank_risk ?? []).map((f) => (FIELD_LABEL[f] ? t(FIELD_LABEL[f]) : f)).join(', '),
-  })
 
   // Exports are always English regardless of UI locale.
   const handleExport = async () => {
@@ -252,7 +221,6 @@ export default function ClubdeskNeedsSync({
                     <TableHead>{t('cdSyncColField')}</TableHead>
                     <TableHead>{t('cdSyncColWiedisync')}</TableHead>
                     <TableHead>{t('cdSyncColClubdesk')}</TableHead>
-                    <TableHead className="w-32 text-right">{t('cdSyncColAction')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -260,7 +228,7 @@ export default function ClubdeskNeedsSync({
                     const open = expanded.has(r.member_id)
                     // +2 for the chevron and action columns, +1 more when the
                     // status column is showing.
-                    const span = activeTab === 'all' ? 7 : 6
+                    const span = activeTab === 'all' ? 6 : 5
                     return (
                       <Fragment key={r.member_id}>
                         <TableRow className="min-h-11">
@@ -301,7 +269,7 @@ export default function ClubdeskNeedsSync({
                           <TableCell className="whitespace-normal break-words align-top text-xs font-medium text-gray-700 dark:text-gray-300">
                             {(r.conflicts ?? []).map((d) => (
                               <div key={d.field} className="py-0.5">
-                                {FIELD_LABEL[d.field] ? t(FIELD_LABEL[d.field]) : d.field}
+                                {CD_FIELD_LABEL[d.field] ? t(CD_FIELD_LABEL[d.field]) : d.field}
                               </div>
                             ))}
                           </TableCell>
@@ -314,45 +282,6 @@ export default function ClubdeskNeedsSync({
                             {(r.conflicts ?? []).map((d) => (
                               <div key={d.field} className="py-0.5">{d.clubdesk || '—'}</div>
                             ))}
-                          </TableCell>
-                          <TableCell className="w-32 text-right align-top">
-                            {/* Only a drift row has an action: ours-vs-theirs is
-                                the one state a decision resolves. A name
-                                difference cannot be pushed at all (the CSV is
-                                name-less), and departed / not_linked have their
-                                own flows. */}
-                            {r.status === 'drift' && onFlag && (
-                              // ⚠ A drift row whose member ALSO has a blank-risk
-                              // field cannot be flagged at all: the push carries the
-                              // whole row, so /clubdesk-drift/flag refuses the member
-                              // rather than send an empty cell over ClubDesk's value.
-                              // The button used to be offered anyway and answered 409
-                              // on every click, forever — the fix is a sync-down, and
-                              // saying so is the only thing this cell can usefully do.
-                              (r.blank_risk?.length ?? 0) > 0 ? (
-                                // Terse here, and the WHY behind the chevron with
-                                // the rest of the row's context: the full sentence
-                                // wraps to four lines in this 8rem column and made
-                                // every blocked row twice as tall on a phone, for
-                                // text that sits off-screen until you scroll the
-                                // table sideways anyway.
-                                <span
-                                  className="block whitespace-normal break-words text-xs text-amber-700 dark:text-amber-400"
-                                  title={blankRiskText(r)}
-                                >
-                                  {t('cdSyncBlankRiskShort')}
-                                </span>
-                              ) : (
-                                <Button
-                                  type="button" size="sm" variant="outline"
-                                  disabled={flagging === r.member_id}
-                                  aria-busy={flagging === r.member_id}
-                                  onClick={() => void onFlag(r.member_id)}
-                                >
-                                  {t('cdSyncFlagOurs')}
-                                </Button>
-                              )
-                            )}
                           </TableCell>
                         </TableRow>
                         {open && (
@@ -369,9 +298,6 @@ export default function ClubdeskNeedsSync({
                                 </span>
                                 {activeTab === 'all' && (
                                   <span className="text-muted-foreground">{t(`cdSyncHint_${r.status}`)}</span>
-                                )}
-                                {(r.blank_risk?.length ?? 0) > 0 && (
-                                  <span className="text-amber-700 dark:text-amber-400">{blankRiskText(r)}</span>
                                 )}
                               </div>
                             </TableCell>

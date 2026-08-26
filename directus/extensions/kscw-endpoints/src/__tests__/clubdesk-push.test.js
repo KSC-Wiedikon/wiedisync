@@ -401,6 +401,40 @@ describe('coerceProposalValue (the sync-down accept whitelist, 2026-08-14)', () 
     expect(coerceProposalValue('otr2_bb', '').ok).toBe(false)
   })
 
+  it('email is coerced, not trusted — it is the login address (migration 338)', () => {
+    // A `conflict` proposal on email is now decidable, so this value can reach
+    // members.email — the column that decides where somebody signs in. ClubDesk
+    // register cells are free text and hold plenty of non-addresses.
+    expect(coerceProposalValue('email', 'Anna.Muster@bluewin.ch'))
+      .toEqual({ ok: true, value: 'anna.muster@bluewin.ch' })
+    expect(coerceProposalValue('email', '-').ok).toBe(false)
+    expect(coerceProposalValue('email', 'keine').ok).toBe(false)
+    expect(coerceProposalValue('email', 'anna muster').ok).toBe(false)
+    expect(coerceProposalValue('email', 'anna@bluewin').ok).toBe(false)
+  })
+
+  it('iban normalises to the stored form, so accepting cannot re-open the conflict', () => {
+    // Prod stores them space-stripped and upper-case, which is also what the
+    // drift comparison normalises to: accepting ClubDesk's prettier spelling
+    // must land in the same shape or the row comes straight back.
+    expect(coerceProposalValue('iban', 'CH34 0070 0114 8023 5495 7'))
+      .toEqual({ ok: true, value: 'CH3400700114802354957' })
+    expect(coerceProposalValue('iban', 'ch3400700114802354957'))
+      .toEqual({ ok: true, value: 'CH3400700114802354957' })
+    expect(coerceProposalValue('iban', 'Postkonto 80-470-3').ok).toBe(false)
+    expect(coerceProposalValue('iban', 'CH34').ok).toBe(false)
+  })
+
+  it('gast and the names stay OFF the whitelist — neither is decidable', () => {
+    // gast: wiedisync owns rosters and ClubDesk's cell is derived from our own
+    // push, so accepting it would let a round-trip overwrite its own source.
+    expect(coerceProposalValue('gast', 'Ja').ok).toBe(false)
+    // names: the push CSV is name-less, so no decision here can be carried out
+    // in either direction — they stay a `name_drift` status.
+    expect(coerceProposalValue('first_name', 'Milo').ok).toBe(false)
+    expect(coerceProposalValue('last_name', 'Frey').ok).toBe(false)
+  })
+
   it('an empty or missing value is never applied', () => {
     expect(coerceProposalValue('adresse', '').ok).toBe(false)
     expect(coerceProposalValue('adresse', '   ').ok).toBe(false)
@@ -409,8 +443,12 @@ describe('coerceProposalValue (the sync-down accept whitelist, 2026-08-14)', () 
   })
 
   it('every whitelisted column has a known type', () => {
+    // ⚠ This list must match the branches in coerceProposalValue. A type with no
+    // branch falls through to the permissive `return { ok: true, value: v }` at
+    // the bottom, which for `email` would mean any register free-text landing in
+    // the login column — the exact thing the email branch exists to stop.
     for (const [field, type] of Object.entries(PROPOSAL_COLUMNS)) {
-      expect(['text', 'date', 'bool'], `${field} has type ${type}`).toContain(type)
+      expect(['text', 'date', 'bool', 'email', 'iban'], `${field} has type ${type}`).toContain(type)
     }
   })
 })
