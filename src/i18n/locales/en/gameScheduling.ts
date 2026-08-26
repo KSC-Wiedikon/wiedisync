@@ -446,6 +446,10 @@ export default {
   vmAuthorityHelp: 'Until this date, the dates you scheduled in the tool are protected from the Swiss Volley feed (which may still show a placeholder until opponents enter their away games in Volleymanager). On and after this date, the official feed becomes authoritative for date, time and venue. Leave empty to protect scheduled games until they are played.',
   vmAuthoritySaved: 'Feed takeover date saved',
   outsideSeasonLabel: 'Season not open',
+  // The calendar's off-season band. Deliberately NOT `outsideSeasonLabel`:
+  // that one is a form warning ("you cannot propose yet"), this one names
+  // a stretch of the grid.
+  offSeasonBand: 'Off-season',
   save: 'Save',
 
   // Season archive

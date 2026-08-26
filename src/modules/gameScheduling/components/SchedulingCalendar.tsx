@@ -619,7 +619,10 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
     }
 
     // Team blocks (scheduling_blocks) — one chip per day in the range so the whole
-    // "no games" period is visible and the reason is one click/hover away.
+    // "no games" period is visible and the reason is one click/hover away. Days
+    // already outside the season window are skipped: that stretch is drawn as the
+    // off-season band, which says "no games" more plainly than 13 stacked chips,
+    // and the day is not clickable there anyway (so nothing is hidden by it).
     for (const bl of blocks) {
       const start = parseYmd(bl.start_date); const end = parseYmd(bl.end_date)
       if (!start || !end) continue
@@ -627,6 +630,7 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
       const team = teamName(bl.team)
       const reason = (bl.reason || '').trim()
       for (let d = new Date(start), guard = 0; d <= end && guard < 400; d.setDate(d.getDate() + 1), guard++) {
+        if (outOfSeasonDates.has(toDateKey(d))) continue
         out.push({
           id: `blk-${bl.id}-${toDateKey(d)}`, date: new Date(d), kind: 'team_block', label: t('blockNoGames'),
           teamId: tid, detail: reason || undefined,
@@ -643,6 +647,7 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
       if (!start || !end) continue
       const reason = (cb.reason || '').trim()
       for (let d = new Date(start), guard = 0; d <= end && guard < 400; d.setDate(d.getDate() + 1), guard++) {
+        if (outOfSeasonDates.has(toDateKey(d))) continue
         out.push({
           id: `cblk-${cb.id}-${toDateKey(d)}`, date: new Date(d), kind: 'club_block', label: t('clubBlockLegend'),
           teamId: '', detail: reason || undefined,
@@ -698,7 +703,7 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
       })
     }
     return out
-  }, [slots, bookings, slotsById, oppBySlot, teamName, hallName, t, games, confirmedFrom, blocks, clubBlocks, teamEvents, bbGames, trainings])
+  }, [slots, bookings, slotsById, oppBySlot, teamName, hallName, t, games, confirmedFrom, blocks, clubBlocks, outOfSeasonDates, teamEvents, bbGames, trainings])
 
   // Team-link warnings per day: when two manually-linked teams (Settings → Team
   // links) both have games on the same day. A 'diff'/'adjacent' pair at the SAME
@@ -800,7 +805,10 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
     // "No games" + event blockers are per-team only — keep them out of the
     // all-teams overview legend too.
     ...(isTeamScoped ? [
-      { kind: 'team_block' as EntryKind, label: t('blockNoGames') },
+      // Only when one actually renders: a team whose sole block is the pre-season
+      // stretch now shows the off-season band instead, and a legend swatch for a
+      // chip that appears nowhere on the grid is just a puzzle.
+      ...(entries.some((e) => e.kind === 'team_block') ? [{ kind: 'team_block' as EntryKind, label: t('blockNoGames') }] : []),
       { kind: 'team_event' as EntryKind, label: t('teamEventLabel') },
     ] : []),
     // Trainings are per-team context chips — only in the legend when any render.
@@ -957,7 +965,7 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
         highlightClassName="bg-gold-100 dark:bg-gold-500/20"
         highlightLabel={t('spielsamstag')}
         outOfSeasonDates={outOfSeasonDates}
-        outOfSeasonLabel={t('outsideSeasonLabel')}
+        outOfSeasonLabel={t('offSeasonBand')}
         onDayClick={(date, items) => {
           const open = openByDate.get(toDateKey(date)) || 0
           const absent = absencesByDate.get(toDateKey(date))?.length || 0

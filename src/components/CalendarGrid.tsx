@@ -141,8 +141,22 @@ export default function CalendarGrid<T>({
 
       {/* Day grid */}
       <div className="grid flex-1 grid-cols-7 border-l border-gray-200 dark:border-gray-700" style={{ gridAutoRows: '1fr' }}>
-        {days.map((date) => {
+        {days.map((date, i) => {
           const key = toDateKey(date)
+          // A multi-day closure / block / off-season stretch is ONE thing, not one
+          // thing per day: the tint already draws it as a continuous band, so its
+          // caption is written once at the start of the run and again wherever the
+          // band wraps onto a new week row. Repeating it on all 13 cells of a
+          // pre-season stretch is noise that crowds out the day's real content.
+          // Keyed on the caption's own text, not just on "is this day in the set":
+          // two different closures back to back are two runs, and each must still
+          // name itself.
+          // A previous day from the neighbouring month breaks the run: captions only
+          // render in-month, so continuing one across the boundary would leave the
+          // band's first visible day unlabelled (01.09 sits right after 31.08).
+          const prevKey = i > 0 && isSameMonth(days[i - 1], month) ? toDateKey(days[i - 1]) : null
+          const startsRun = (caption: (k: string) => string | null) =>
+            i % 7 === 0 || prevKey === null || caption(prevKey) !== caption(key)
           const inMonth = isSameMonth(date, month)
           const isToday = isSameDay(date, today)
           const items = itemsByDate.get(key) ?? []
@@ -210,15 +224,15 @@ export default function CalendarGrid<T>({
                 )}
               </div>
 
-              {/* Out-of-season label (e.g. "Season not open") — black-day overlay */}
-              {isOutOfSeason && inMonth && outOfSeasonLabel && (
+              {/* Out-of-season label (e.g. "Off-season") — black-day overlay */}
+              {isOutOfSeason && inMonth && outOfSeasonLabel && startsRun((k) => (outOfSeasonDates?.has(k) ? 'x' : null)) && (
                 <div className="truncate text-[9px] font-semibold uppercase tracking-wide text-white/70" title={outOfSeasonLabel}>
                   {outOfSeasonLabel}
                 </div>
               )}
 
               {/* Closure label + reason (small) */}
-              {isClosed && inMonth && closedLabel && (
+              {isClosed && inMonth && closedLabel && startsRun((k) => (closedDates?.has(k) ? closureReasons?.get(k) ?? '' : null)) && (
                 <div className="relative mb-0.5 leading-tight">
                   <div className="truncate text-[9px] font-semibold uppercase tracking-wide text-red-700 dark:text-red-300">
                     {closedLabel}
@@ -232,7 +246,7 @@ export default function CalendarGrid<T>({
               )}
 
               {/* Blocked label + reason (e.g. "Blocked" / "U20 Tournament") */}
-              {isBlocked && inMonth && blockedLabel && (
+              {isBlocked && inMonth && blockedLabel && startsRun((k) => blockedDates?.get(k) ?? null) && (
                 <div className="relative mb-0.5 leading-tight">
                   <div className="truncate text-[9px] font-bold uppercase tracking-wide text-red-800 dark:text-red-100">
                     {blockedLabel}

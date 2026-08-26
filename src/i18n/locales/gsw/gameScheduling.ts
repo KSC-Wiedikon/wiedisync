@@ -458,6 +458,10 @@ export default {
   vmAuthorityHelp: 'Bis zu däm Datum sind di im Tool plante Termin vor em Swiss-Volley-Feed gschützt (wo bis d Gägner ihri Uswärtsspiel i Volleymanager iigäh no es Platzhalterdatum cha zeige). Ab däm Datum gilt de offiziell Feed für Datum, Ziit und Ort. Läär la, zum plante Spiel bis zum Spieltag schütze.',
   vmAuthoritySaved: 'Übernahmsdatum gspeicheret',
   outsideSeasonLabel: 'Saison nöd offe',
+  // The calendar's off-season band. Deliberately NOT `outsideSeasonLabel`:
+  // that one is a form warning ("you cannot propose yet"), this one names
+  // a stretch of the grid.
+  offSeasonBand: 'Usserhalb de Saison',
   save: 'Speichere',
   statusArchived: 'Archiviert',
   archiveSeason: 'Saison archiviere',
