@@ -2,10 +2,8 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { CalendarEntry } from '../../../types/calendar'
 import { relId } from '../../../utils/relations'
-import { CalendarOff, TrafficCone, CircleX, Star, ClipboardList, Cake } from 'lucide-react'
-import BasketballIcon from '../../../components/BasketballIcon'
-import VolleyballIcon from '../../../components/VolleyballIcon'
 import { barColors, dotColors, colorKey, paintKey, cancelledClasses } from '../entryStyle'
+import CalendarTypeIcon from './CalendarTypeIcon'
 import { trimBBTeamName } from '../../../utils/teamColors'
 import {
   startOfMonth,
@@ -20,41 +18,6 @@ import {
   formatDate,
   dayHeaders,
 } from '../../../utils/dateUtils'
-
-/* ── type icons (lucide-react, colored via currentColor) ─── */
-
-const ICON_CLASS = 'inline-block h-3.5 w-3.5 shrink-0'
-
-const TypeIcon = ({ type, sport, className = '' }: { type: string; sport?: 'volleyball' | 'basketball'; className?: string }) => {
-  if (type === 'training') {
-    return <TrafficCone className={`${ICON_CLASS} ${className}`} strokeWidth={2.5} />
-  }
-  if (type === 'closure') {
-    return <CircleX className={`${ICON_CLASS} ${className}`} strokeWidth={2.5} />
-  }
-  if (type === 'game' || type === 'game-home' || type === 'game-away') {
-    return sport === 'basketball'
-      ? <BasketballIcon className={`${ICON_CLASS} ${className}`} />
-      : <VolleyballIcon className={`${ICON_CLASS} ${className}`} />
-  }
-  if (type === 'event') {
-    return <Star className={`${ICON_CLASS} ${className}`} fill="currentColor" strokeWidth={2} />
-  }
-  if (type === 'absence') {
-    return <CalendarOff className={`${ICON_CLASS} ${className}`} strokeWidth={2.5} />
-  }
-  if (type === 'scorer-duty') {
-    return <ClipboardList className={`${ICON_CLASS} ${className}`} strokeWidth={2.5} />
-  }
-  if (type === 'birthday') {
-    return <Cake className={`${ICON_CLASS} ${className}`} strokeWidth={2.5} />
-  }
-  if (type === 'hall') {
-    return <BasketballIcon className={ICON_CLASS} filled />
-  }
-  // Fallback dot
-  return <span className={`inline-block h-2 w-2 shrink-0 rounded-full bg-current ${className}`} />
-}
 
 /* ── spanning bar layout algorithm ───────────────────────── */
 
@@ -389,7 +352,7 @@ export default function MonthGrid({
                                     : 'text-gray-800 dark:text-gray-200'
                               } ${cancelledClasses(entry)}`}
                             >
-                              <TypeIcon type={colorKey(entry)} sport={entry.sport} className={dotColors[paintKey(entry)].replace('bg-', 'text-')} />
+                              <CalendarTypeIcon type={colorKey(entry)} sport={entry.sport} className={(dotColors[paintKey(entry)] ?? '').replace('bg-', 'text-')} />
                               {entry.startTime && (
                                 <span className="font-semibold">{entry.startTime}</span>
                               )}
@@ -499,7 +462,7 @@ export default function MonthGrid({
                             }
                           }}
                         >
-                          <TypeIcon type="absence" className="text-current" />
+                          <CalendarTypeIcon type="absence" className="text-current" />
                           <span className="truncate">{label}</span>
                         </button>
                       )

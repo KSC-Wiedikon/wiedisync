@@ -6,6 +6,7 @@ import { Button } from '../../../components/ui/button'
 import { kscwApi } from '../../../lib/api'
 import { classifySyncFailure, SYNC_FAILURE_KEY } from '../utils/syncFailure'
 import { formatDateTimeCompact } from '../../../utils/dateHelpers'
+import { detectClubdeskConflicts } from '../utils/clubdeskConflicts'
 
 type SyncState = 'idle' | 'queued' | 'running' | 'done' | 'failed'
 interface SyncStatus {
@@ -96,7 +97,17 @@ export default function ClubdeskMemberSyncButton({ onDone, className }: Props) {
       for (;;) {
         await new Promise((r) => setTimeout(r, 5_000))
         const s = await kscwApi<SyncStatus>('/clubdesk-member-sync')
-        if (s.state === 'done') { setLastSync(s.finished_at); break }
+        if (s.state === 'done') {
+          setLastSync(s.finished_at)
+          // Same staging step the sync path runs — a sync-down started from this
+          // button must not leave the value conflicts undetected just because it
+          // took the other door. ⚠ Never fatal: the import already succeeded.
+          try {
+            const staged = await detectClubdeskConflicts()
+            if (staged !== null && staged > 0) toast.info(t('dhPathConflictsStaged', { count: staged }))
+          } catch { /* reported by the proposals table on next load */ }
+          break
+        }
         if (s.state === 'failed') { setFailure(s.message || null); throw new Error(s.message || t('clubdeskSyncFailed')) }
         if (Date.now() > deadline) { toast.info(t('clubdeskSyncTimeout')); await onDone?.(); return }
       }

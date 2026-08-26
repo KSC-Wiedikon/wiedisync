@@ -17,8 +17,16 @@
  *
  * `rule` is shown as a "why" column because it is the only thing that makes the
  * decision informed: a `fill` is the register offering something we lack, an
- * `overwrite` is a genuine disagreement, and a `set_true` is a qualification the
- * register asserts.
+ * `overwrite` is a genuine disagreement on a register column, a `set_true` is a
+ * qualification the register asserts, and a `conflict` (migration 338) is a
+ * disagreement on a contact column that used to have nowhere to be decided —
+ * it appeared in Data Health's "Needs syncing" board, which could only ever
+ * answer "keep ours" and could not remember that it had.
+ *
+ * ⚠⚠ One field is not like the others: `email` is the member's LOGIN identity.
+ * Accepting ClubDesk's address changes where that person signs in, so the row
+ * says so and the bulk confirm counts them separately — a select-all must not be
+ * able to move somebody's login silently.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -29,6 +37,8 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { kscwApi } from '../../../lib/api'
 import { formatDateZurich } from '../../../utils/dateHelpers'
+import { useConfirm } from '@/components/ConfirmProvider'
+import { CD_FIELD_LABEL } from '../utils/clubdeskFieldLabels'
 
 export interface Proposal {
   id: number
@@ -38,7 +48,7 @@ export interface Proposal {
   field: string | null
   current_value: string | null
   proposed_value: string | null
-  rule: 'fill' | 'overwrite' | 'set_true' | 'create'
+  rule: 'fill' | 'overwrite' | 'set_true' | 'create' | 'conflict'
   email: string | null
   detected_at: string
 }
@@ -69,6 +79,7 @@ export default function ClubdeskProposals({ onDone, onCountChange }: {
   const [error, setError] = useState<string | null>(null)
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [busy, setBusy] = useState<number | 'bulk' | null>(null)
+  const confirm = useConfirm()
 
   // ⚠ The state updates live in an async IIFE inside the effect rather than in a
   // function the effect calls. A synchronous setState from an effect body is the
@@ -118,6 +129,22 @@ export default function ClubdeskProposals({ onDone, onCountChange }: {
 
   const decide = useCallback(async (ids: number[], decision: 'accept' | 'refuse') => {
     if (!ids.length) return
+    // ⚠⚠ Accepting an email moves the member's LOGIN address. Refusing is safe
+    // (ours stands), and so is accepting anything else, so this asks only where
+    // it matters — and it counts the emails inside a mixed bulk selection, which
+    // is the case a select-all creates and the row-level warning cannot cover.
+    if (decision === 'accept') {
+      const emails = (data?.proposals ?? []).filter((p) => ids.includes(p.id) && p.field === 'email')
+      if (emails.length && !(await confirm({
+        title: t('dhProposalEmailConfirmTitle'),
+        message: t('dhProposalEmailConfirm', {
+          count: emails.length,
+          names: emails.map((p) => p.member_name).join(', '),
+        }),
+        confirmLabel: t('dhProposalAccept'),
+        danger: true,
+      }))) return
+    }
     setBusy(ids.length === 1 ? ids[0] : 'bulk')
     try {
       const r = await kscwApi<{ decided: number; skipped: number; flagged_for_push: number }>(
@@ -139,13 +166,14 @@ export default function ClubdeskProposals({ onDone, onCountChange }: {
     } finally {
       setBusy(null)
     }
-  }, [load, onDone, t])
+  }, [load, onDone, t, confirm, data])
 
   const ruleLabel = useMemo(() => ({
     fill: t('dhProposalRuleFill'),
     overwrite: t('dhProposalRuleOverwrite'),
     set_true: t('dhProposalRuleSetTrue'),
     create: t('dhProposalRuleCreate'),
+    conflict: t('dhProposalRuleConflict'),
   }), [t])
 
   if (loading && !data) {
@@ -250,7 +278,14 @@ export default function ClubdeskProposals({ onDone, onCountChange }: {
                   )}
                 </TableCell>
                 <TableCell className="whitespace-normal break-words">
-                  {p.rule === 'create' ? t('dhProposalNewMember') : p.field}
+                  {p.rule === 'create'
+                    ? t('dhProposalNewMember')
+                    : (p.field && CD_FIELD_LABEL[p.field] ? t(CD_FIELD_LABEL[p.field]) : p.field)}
+                  {p.field === 'email' && (
+                    <span className="mt-0.5 block text-xs font-normal text-amber-700 dark:text-amber-400">
+                      {t('dhProposalEmailWarning')}
+                    </span>
+                  )}
                 </TableCell>
                 <TableCell className="hidden whitespace-normal break-words text-gray-500 sm:table-cell dark:text-gray-400">
                   {display(p.current_value)}

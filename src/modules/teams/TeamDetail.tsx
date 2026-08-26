@@ -31,6 +31,7 @@ import type { Team, Member, Sponsor } from '../../types'
 import { asObj, flattenMemberIds, memberDisplayName } from '../../utils/relations'
 import PollsSection from '../polls/PollsSection'
 import TeamScheduleCalendar from '../gameScheduling/components/TeamScheduleCalendar'
+import TeamCalendar from '../calendar/TeamCalendar'
 import { isFeatureEnabled } from '../../utils/featureToggles'
 import { messagingFeatureEnabled } from '../../utils/messagingFeatureFlag'
 import TeamMessagesTab from '../messaging/components/TeamMessagesTab'
@@ -766,7 +767,15 @@ export default function TeamDetail() {
       )}
 
       {/* Game schedule — proposed + confirmed games (volleyball, members) */}
-      <TeamScheduleCalendar team={team} />
+      {/* Team calendar — the member calendar (/calendar), scoped to this team.
+          Games, trainings, events and hall closures, in the same visual language a
+          player already knows from the calendar page. */}
+      <TeamCalendar team={team} />
+
+      {/* Still-open game negotiations — the one scheduling fact a calendar cannot
+          show, because the date is still several candidates wide. Renders nothing
+          once everything is agreed. */}
+      <TeamScheduleCalendar team={team} variant="proposals" />
 
       {/* Polls */}
       {teamId && isFeatureEnabled(team.features_enabled, 'polls') && (

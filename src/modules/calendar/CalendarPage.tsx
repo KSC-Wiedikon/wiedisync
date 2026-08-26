@@ -1,69 +1,28 @@
 import { useState, useRef, useMemo, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import ViewToggle from '../../components/ViewToggle'
-import Modal from '@/components/Modal'
 import CalendarFilters from './CalendarFilters'
 import { getActiveFilterCount } from './filterCount'
-import MonthGrid from './components/MonthGrid'
+import { monthGridRange } from './monthRange'
 import WeekGrid from './components/WeekGrid'
-import MobileMonthView from './components/MobileMonthView'
 import MobileWeekGrid from './components/MobileWeekGrid'
+import MonthSurface from './components/MonthSurface'
+import DayOverflowModal from './components/DayOverflowModal'
+import EntryDetailModals from './components/EntryDetailModals'
 import HallenplanView from './HallenplanView'
-import CalendarEntryModal from './CalendarEntryModal'
-import GameDetailModal from '../games/components/GameDetailModal'
 import ICalModal from './ICalModal'
 import { useCalendarData } from './hooks/useCalendarData'
 import { useAuth } from '../../hooks/useAuth'
 import { useAdminMode } from '../../hooks/useAdminMode'
 import { useIsMobile } from '../../hooks/useMediaQuery'
-import {
-  startOfMonth,
-  endOfMonth,
-  startOfWeek,
-  endOfWeek,
-  formatDate,
-} from '../../utils/dateUtils'
-import { SlidersHorizontal, ClipboardList, TrafficCone, Star, CircleX, CalendarOff, Cake } from 'lucide-react'
-import BasketballIcon from '../../components/BasketballIcon'
-import VolleyballIcon from '../../components/VolleyballIcon'
+import { startOfMonth, startOfWeek, endOfWeek } from '../../utils/dateUtils'
+import { SlidersHorizontal } from 'lucide-react'
 import type { CalendarViewMode, CalendarFilterState, SourceFilter, CalendarEntry } from '../../types/calendar'
-import type { Game, Team } from '../../types'
+import type { Team } from '../../types'
 import { useCollection } from '../../lib/query'
 import { isSchedulableTeam } from '../gameScheduling/utils/schedulableTeams'
 import TeamScheduleCalendar from '../gameScheduling/components/TeamScheduleCalendar'
 import { useReportPageLoading } from '../../hooks/usePageReady'
-import { entryIconColor, cancelledClasses } from './entryStyle'
-
-/** Inline type icon for the overflow modal */
-const TypeIcon = ({ type, sport, className = '' }: { type: string; sport?: 'volleyball' | 'basketball'; className?: string }) => {
-  if (type === 'training') {
-    return <TrafficCone className={`h-3 w-3 shrink-0 ${className}`} strokeWidth={2.5} />
-  }
-  if (type === 'game') {
-    return sport === 'basketball'
-      ? <BasketballIcon className="h-3 w-3 shrink-0" filled />
-      : <VolleyballIcon className="h-3 w-3 shrink-0" filled />
-  }
-  if (type === 'event') {
-    return <Star className={`h-3 w-3 shrink-0 ${className}`} fill="currentColor" strokeWidth={2} />
-  }
-  if (type === 'closure') {
-    return <CircleX className={`h-3 w-3 shrink-0 ${className}`} strokeWidth={2.5} />
-  }
-  if (type === 'absence') {
-    return <CalendarOff className={`h-3 w-3 shrink-0 ${className}`} strokeWidth={2.5} />
-  }
-  if (type === 'scorer-duty') {
-    return <ClipboardList className={`h-3 w-3 shrink-0 ${className}`} strokeWidth={2.5} />
-  }
-  if (type === 'birthday') {
-    return <Cake className={`h-3 w-3 shrink-0 ${className}`} strokeWidth={2.5} />
-  }
-  if (type === 'hall') {
-    return <BasketballIcon className="h-3 w-3 shrink-0" filled />
-  }
-  return <span className={`inline-block h-2.5 w-2.5 shrink-0 rounded-full bg-current ${className}`} />
-}
 
 export default function CalendarPage() {
   const { t } = useTranslation('calendar')
@@ -150,12 +109,8 @@ export default function CalendarPage() {
 
   // Compute visible range based on view mode
   const { rangeStart, rangeEnd } = useMemo(() => {
-    if (viewMode === 'month') {
-      // For month view, include the full grid (prev/next month days visible)
-      const ms = startOfMonth(month)
-      const me = endOfMonth(month)
-      return { rangeStart: startOfWeek(ms), rangeEnd: endOfWeek(me) }
-    }
+    // The month grid paints leading/trailing days of the neighbouring months too.
+    if (viewMode === 'month') return monthGridRange(month)
     if (viewMode === 'week') {
       if (isMobile) {
         // 3-day mobile view
@@ -287,24 +242,14 @@ export default function CalendarPage() {
         <div data-tour="calendar-grid" className="flex flex-1 flex-col">
           {/* Month view */}
           {viewMode === 'month' && (
-            isMobile ? (
-              <MobileMonthView
-                entries={entries}
-                closedDates={closedDates}
-                month={month}
-                onMonthChange={setMonth}
-                onEntryClick={setSelectedEntry}
-              />
-            ) : (
-              <MonthGrid
-                entries={entries}
-                closedDates={closedDates}
-                month={month}
-                onMonthChange={setMonth}
-                onEntryClick={setSelectedEntry}
-                onOverflowClick={(items, date) => setDayOverflow({ entries: items, date })}
-              />
-            )
+            <MonthSurface
+              entries={entries}
+              closedDates={closedDates}
+              month={month}
+              onMonthChange={setMonth}
+              onEntryClick={setSelectedEntry}
+              onOverflowClick={(items, date) => setDayOverflow({ entries: items, date })}
+            />
           )}
 
           {/* Week view */}
@@ -331,53 +276,16 @@ export default function CalendarPage() {
       )}
 
       {/* Day overflow modal */}
-      <Modal
+      <DayOverflowModal
         open={!!dayOverflow}
+        date={dayOverflow?.date ?? null}
+        entries={dayOverflow?.entries ?? []}
         onClose={() => setDayOverflow(null)}
-        title={dayOverflow ? formatDate(dayOverflow.date, 'EEEE, d MMMM') : ''}
-        size="sm"
-      >
-        {dayOverflow && (
-          <div className="space-y-2">
-            {dayOverflow.entries.map((entry) => (
-              <button
-                key={entry.id}
-                type="button"
-                onClick={() => {
-                  setDayOverflow(null)
-                  setSelectedEntry(entry)
-                }}
-                className="flex w-full items-center gap-3 rounded-lg p-3 text-left transition-colors hover:bg-gray-50 active:bg-gray-100 dark:hover:bg-gray-700 dark:active:bg-gray-600"
-              >
-                <TypeIcon type={entry.type} sport={entry.sport} className={entryIconColor(entry)} />
-                <div className={`min-w-0 flex-1 ${cancelledClasses(entry)}`}>
-                  <p className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">
-                    {entry.title}
-                  </p>
-                  <p className="text-xs text-gray-600 dark:text-gray-400">
-                    {entry.startTime ?? ''}{entry.location ? ` · ${entry.location}` : ''}
-                  </p>
-                </div>
-              </button>
-            ))}
-          </div>
-        )}
-      </Modal>
+        onSelect={setSelectedEntry}
+      />
 
       {/* Detail modals */}
-      {selectedEntry?.type === 'game' && (
-        <GameDetailModal
-          game={selectedEntry.source as Game}
-          onClose={() => setSelectedEntry(null)}
-          readOnly
-        />
-      )}
-      {selectedEntry && selectedEntry.type !== 'game' && (
-        <CalendarEntryModal
-          entry={selectedEntry}
-          onClose={() => setSelectedEntry(null)}
-        />
-      )}
+      <EntryDetailModals entry={selectedEntry} onClose={() => setSelectedEntry(null)} />
 
       {/* iCal subscribe/download modal */}
       <ICalModal

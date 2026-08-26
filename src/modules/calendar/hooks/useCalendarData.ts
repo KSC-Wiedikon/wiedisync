@@ -25,6 +25,14 @@ interface UseCalendarDataOptions {
   /** Visible range end (inclusive) */
   rangeEnd: Date
   enabled?: boolean
+  /**
+   * Whether to OR in the fixtures the VIEWER was borrowed for as a guest.
+   * True (the default) is right for a personal calendar — a borrowed fixture is
+   * genuinely yours. False for a calendar headed by a TEAM: there, a game the
+   * viewer happens to be called up to for another team is not this team's
+   * schedule, and would read as one.
+   */
+  includeViewerGuestGames?: boolean
 }
 
 /**
@@ -330,7 +338,7 @@ function entryOverlapsRange(entry: CalendarEntry, rangeStart: Date, rangeEnd: Da
   return !isAfter(entry.date, rangeEnd) && !isBefore(entryEnd, rangeStart)
 }
 
-export function useCalendarData({ filters, rangeStart, rangeEnd, enabled = true }: UseCalendarDataOptions) {
+export function useCalendarData({ filters, rangeStart, rangeEnd, enabled = true, includeViewerGuestGames = true }: UseCalendarDataOptions) {
   const fetchRange = useFetchRange(rangeStart)
   const { user } = useAuth()
   const { t } = useTranslation('common')
@@ -349,14 +357,18 @@ export function useCalendarData({ filters, rangeStart, rangeEnd, enabled = true 
   const wantBirthdays = filters.sources.includes('birthday')
 
   // Guest invitations (migration 271) survive the team filter — see addGameTeamFilter.
-  const { guestGameIds } = useUserVisibleGameIds(user?.id, enabled && authed)
+  // ⚠ Gating the hook is NOT enough on its own: this is react-query, and the
+  // `game_guests` key is already populated by GameCard/useIsCalledUpToGame, so a
+  // disabled hook still hands back that cached array. The ids must ALSO be dropped
+  // where they are consumed, below.
+  const { guestGameIds } = useUserVisibleGameIds(user?.id, enabled && authed && includeViewerGuestGames)
 
   const { data: gamesRaw, isLoading: gamesLoading } = useCollection<Game>('games', {
     enabled: fetchGames,
     filter: addGameTeamFilter(
       [...buildDateFilter('date', fetchRange.start, fetchRange.end), { away_team: { _nnull: true } }, { time: { _nnull: true } }],
       filters.selectedTeamIds,
-      guestGameIds,
+      includeViewerGuestGames ? guestGameIds : [],
     ),
     fields: ['*', 'kscw_team.*', 'kscw_team.coach.members_id', 'kscw_team.team_responsible.members_id', 'hall.*'],
     sort: ['date', 'time'],

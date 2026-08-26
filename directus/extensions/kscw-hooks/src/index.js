@@ -3967,6 +3967,56 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     }
   })
 
+  // ── 9b. Cron: stage ClubDesk value conflicts after a cron sync-down ──────────
+  // Migration 338 made a value disagreement a DECISION (a `conflict` proposal)
+  // instead of a row on a board that could not remember an answer. Staging runs
+  // in kscw-endpoints off computeClubdeskDrift() — the same JS comparison that
+  // renders the finding, and the only correct one — and the Data Health page
+  // calls it after every sync-down a human triggers.
+  //
+  // The WEEKLY sync-down (Sat 22:00 UTC) has no browser to make that call, and a
+  // host-run sync has none either. Their conflicts would wait for somebody to
+  // happen to press "Sync down" in the app — silent, and in the worse direction:
+  // an empty decision queue reads as "nothing to decide".
+  //
+  // ⚠ Watermark, not a timer. It fires on down_last_success_at moving past
+  // conflicts_staged_at (migration 339), so it covers the weekly cron, a hand-run
+  // host sync and a dispatcher retry without assuming when any of them happen —
+  // and it does NOT re-do a staging the UI already did seconds earlier.
+  // ⚠ down_last_SUCCESS_at, never down_finished_at: the latter is stamped on
+  // failure too, and staging drift against a half-loaded clubdesk_export is how
+  // you propose that every member's data disagrees.
+  // ⚠ Calls the ROUTE rather than importing the function: staging is a closure
+  // over `database` inside registerClubdeskUpdate, and the route carries the
+  // gate, the watermark and the audit row with it. Same shape as the SV/BP sync
+  // crons above.
+  schedule('*/15 * * * *', async () => {
+    const startedAt = Date.now()
+    try {
+      const row = await database('clubdesk_member_sync').where('id', 1)
+        .first('down_last_success_at', 'conflicts_staged_at')
+      if (!row?.down_last_success_at) return
+      const synced = new Date(row.down_last_success_at).getTime()
+      const staged = row.conflicts_staged_at ? new Date(row.conflicts_staged_at).getTime() : 0
+      if (staged >= synced) return
+
+      const token = await getCronAccessToken(log, 'ClubDesk conflict staging')
+      if (!token) return
+      const res = await fetch('http://localhost:8055/kscw/clubdesk-sync/proposals/detect', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const body = await res.text()
+      if (!res.ok) throw new Error(`${res.status} ${body.slice(0, 200)}`)
+      log.info(`ClubDesk conflict staging: ${body}`)
+      await logCronRun(database, 'clubdesk_conflict_staging', { status: 'ok', durationMs: Date.now() - startedAt })
+    } catch (err) {
+      log.error({ msg: `ClubDesk conflict staging: ${err.message}`, event: 'cron.clubdesk_conflict_staging', stack: err.stack })
+      logCronError('clubdesk_conflict_staging', err)
+      await logCronRun(database, 'clubdesk_conflict_staging', { status: 'error', durationMs: Date.now() - startedAt, errorMessage: err.message })
+    }
+  })
+
   // ── 10. Cron: Basketplan Sync (06:05 UTC) ─────────────────────
   // Calls the existing BP sync endpoint via internal HTTP
 

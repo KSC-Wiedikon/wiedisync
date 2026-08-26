@@ -5,7 +5,11 @@
  * The order is not a convention, it is forced by how the pieces read each other:
  *
  *   1. Sync down    refreshes `clubdesk_export` (TRUNCATE + reload) and stages
- *                   proposals. EVERYTHING downstream reads that table — the
+ *                   proposals — the SQL pass stages fill/overwrite/set_true/
+ *                   create, and this runner then calls
+ *                   /clubdesk-sync/proposals/detect to stage the `conflict`
+ *                   rows, which are computed in JS off the same drift function
+ *                   that renders them (migration 338). EVERYTHING downstream reads that table — the
  *                   sync-up preview computes drift against it and its stale-link
  *                   guard checks membership in it; the group checks read
  *                   `gruppen_bracketed` from it. Run anything on a stale export
@@ -43,6 +47,7 @@ import { toast } from 'sonner'
 import { ArrowDownToLine, ArrowUpFromLine, Check, ListChecks, Loader2, RotateCcw, Wrench } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { kscwApi } from '../../../lib/api'
+import { detectClubdeskConflicts } from '../utils/clubdeskConflicts'
 
 export type PathStep = 'down1' | 'decide' | 'up' | 'down2' | 'groups' | 'done'
 
@@ -140,6 +145,18 @@ export default function ClubdeskSyncPath({
     if (current === 'down1' || current === 'down2') {
       const ok = await runSyncDown()
       if (!ok) return
+      // Value conflicts are staged HERE rather than by the sync-down's SQL pass:
+      // the comparison is JS (accents, phone shapes, country aliases, AHV
+      // digits-only, either-address email), and a second implementation in SQL
+      // would disagree with the one that draws the finding. ⚠ Never fatal — a
+      // failed staging must not undo a sync-down that already succeeded, so it
+      // reports and the path carries on; the next down re-detects.
+      try {
+        const staged = await detectClubdeskConflicts()
+        if (staged !== null && staged > 0) toast.info(t('dhPathConflictsStaged', { count: staged }))
+      } catch (e) {
+        toast.warning(e instanceof Error ? e.message : String(e))
+      }
       await onDone?.()
       // After the FIRST down the decision gate is next; after the second, groups.
       // The gate then opens by itself through `current` once nothing is pending.
@@ -151,7 +168,7 @@ export default function ClubdeskSyncPath({
     // reimplemented: the group commit in particular must keep its own gate.
     if (current === 'up') { onRunUp(); return }
     if (current === 'groups') { onRunGroups(); return }
-  }, [current, runSyncDown, onRunUp, onRunGroups, onDone])
+  }, [current, runSyncDown, onRunUp, onRunGroups, onDone, t])
 
   const label = useMemo(() => ({
     down1: t('dhPathStep1'),
