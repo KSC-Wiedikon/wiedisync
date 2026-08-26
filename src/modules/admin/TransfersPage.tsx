@@ -107,9 +107,9 @@ export default function TransfersPage() {
   }
 
   /**
-   * Only the DANGEROUS direction is promoted to a strip: we record CH (or
-   * 'NONE') and Swiss Volley records a foreign federation, so nobody is chasing
-   * a transfer that may be required. The other two kinds are reported in the
+   * Only the DANGEROUS direction is promoted to a strip: we record CH and
+   * Swiss Volley records a foreign federation, so nobody is chasing a transfer
+   * that may be required. The other two kinds are reported in the
    * Diagnostics table, which is where all three are counted.
    */
   const dangerousConflictCount = data.fooConflicts.filter((c) => c.kind === 'vmSaysForeign').length

@@ -12,18 +12,6 @@ export { COUNTRIES }
  */
 export const FAVORITE_CODES = ['CH', 'DE', 'FR', 'AT', 'IT'] as const
 
-/**
- * Sentinel stored in `members.federation_of_origin` (and the registration
- * column) for "has never held a licence with any federation" — i.e. their first
- * licence will be issued here. Distinct from NULL, which means the member simply
- * hasn't answered; only an explicit NONE tells us there is no prior federation
- * to establish.
- *
- * Note the field is the federation that FIRST licensed the member, not the most
- * recent one — that is what makes it a federation of *origin*.
- */
-export const NO_FEDERATION = 'NONE'
-
 const BY_CODE = new Map(COUNTRIES.map((c) => [c.code, c]))
 
 /**

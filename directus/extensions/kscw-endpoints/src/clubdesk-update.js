@@ -237,8 +237,9 @@ const CD_PUSH_CONTACT_HEADERS = [
   // Swiss Volley transfer certificate / FIBA letter of clearance before the
   // player may be licensed here. Asked on the registration form and editable in
   // the profile, so WIEDISYNC owns it (ClubDesk has no other source); stored as
-  // an ISO alpha-2 code or the sentinel 'NONE' (migration 223) and mapped to
-  // ClubDesk's German picklist wording on the way out — see federationCell.
+  // an ISO alpha-2 code (migration 223; the 'NONE' sentinel was retired by 342)
+  // and mapped to ClubDesk's German picklist wording on the way out — see
+  // federationCell.
   // Echo-protected exactly like Nationalität: an unanswered wiedisync field
   // sends ClubDesk's own value back instead of an empty cell.
   'Federation of Origin',
@@ -1029,16 +1030,15 @@ export async function loadCountryPushNames(database) {
 // (ISO alpha-2), ClubDesk a German picklist string, so this is the only place
 // the two shapes meet:
 //   'IT'   → 'Italien'  (whatever country_codes.name_de_clubdesk says)
-//   'NONE' → 'Keiner'   (explicitly never licensed elsewhere — a real answer,
-//                        distinct from "not answered", so it must be pushed)
 //   NULL/'' → ''        (not answered — an empty cell is a no-op on import)
+// There is no "Keiner": a member whose first licence is issued here is 'CH' and
+// pushes as 'Schweiz' (migration 342 retired the 'NONE' sentinel).
 // An unknown code (or a missing map) also yields '' rather than a guessed
 // spelling ClubDesk would reject; the caller's echo-back then fills the cell
 // with ClubDesk's own value, so we can never blank the register.
 export function federationCell(code, countryNames) {
   const v = String(code ?? '').trim().toUpperCase()
   if (!v) return ''
-  if (v === 'NONE') return 'Keiner'
   return (countryNames && countryNames.get(v)) || ''
 }
 

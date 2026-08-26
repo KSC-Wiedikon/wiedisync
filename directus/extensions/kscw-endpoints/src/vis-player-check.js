@@ -237,11 +237,13 @@ function matchMember(m, { roster, byTokens, players, byNo }) {
 
 /**
  * WHO IS CHECKED — mirror of the SELECT in `vis-player-check.mjs`.
- *   • Everyone with a federation of origin other than 'NONE', INCLUDING 'CH':
- *     Swiss Volley is a VIS federation with its own player index (no. 189 / SUI)
- *     exactly like the others, and the Transfers page groups our Swiss-origin
- *     members under it. Their `in_vis = false` blocks nothing.
- *   • 'NONE' stays out — there is no federation to look them up in.
+ *   • Everyone who has answered the federation-of-origin question, INCLUDING
+ *     'CH': Swiss Volley is a VIS federation with its own player index (no. 189
+ *     / SUI) exactly like the others, and the Transfers page groups our
+ *     Swiss-origin members under it. Their `in_vis = false` blocks nothing.
+ *     Since migration 342 every answer is a federation — a member whose first
+ *     licence is issued here answers 'CH', so nobody is excluded by their
+ *     answer any more.
  *   • GUESTS STAY OUT. A member whose every `member_teams` row has
  *     `guest_level > 0` trains with a team without being licensed by the club, so
  *     there is no eligibility to establish. Kept in step with the page, which
@@ -252,7 +254,6 @@ async function loadCohort(database) {
     SELECT m.id, m.first_name, m.last_name, m.federation_of_origin, m.vis_player_no_manual
       FROM members m
      WHERE m.federation_of_origin IS NOT NULL
-       AND m.federation_of_origin <> 'NONE'
        AND m.kscw_membership_active
        -- ⚠ CURRENT season: join teams and require active. Unqualified, this
        -- answered "is this member a licensed player?" from EVERY season ever, so

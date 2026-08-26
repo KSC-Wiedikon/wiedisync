@@ -8,7 +8,7 @@ import { buildEmailLayout, buildInfoCard, formatDateCH, bucketEmailsByLocale, es
 import { normalizePhone, normalizeIban, normalizeAhv, normalizeEmail, titleCaseName } from './normalize.js'
 import { BB_SITUATIONS, bbRequiredDocs, fibaNatCode } from './bb-docs.js'
 import { BB_PDF_TEMPLATES, fillBbForm } from './bb-pdf-fill.js'
-import { federationName, NO_FEDERATION } from './federations.js'
+import { federationName } from './federations.js'
 import { writeUserLog } from './activity-log.js'
 import {
   findDuplicateCandidates, findDuplicateCandidatesBatch, findBlockingMember,
@@ -96,19 +96,24 @@ function normalizeCountryCodes(raw) {
   return codes.length ? codes.join(',') : null
 }
 
-/** Federation of origin: an ISO alpha-2 code, the literal 'NONE' sentinel, or
- *  NULL. 'NONE' ("never licensed with another federation") is a real answer and
- *  must stay distinct from NULL ("didn't answer") — only an explicit NONE lets
- *  the licensing admin skip chasing a transfer certificate. */
+/** Federation of origin: an ISO alpha-2 code, or NULL ("didn't answer").
+ *
+ *  ⚠ 'NONE' is a RETIRED sentinel (migration 342) and the column's CHECK no
+ *  longer accepts it. It is mapped to 'CH' rather than rejected because that is
+ *  what it meant: nobody has licensed this applicant yet, so their first licence
+ *  is the one being issued here and Swiss Volley / Swiss Basketball IS their
+ *  federation of origin. A cached form bundle can still send it — that is
+ *  exactly how REG-2026-6400 arrived NULL the day the client gate shipped — and
+ *  a 400 at that point costs the applicant everything they typed. */
 export function normalizeFederation(raw) {
   const v = String(raw ?? '').trim().toUpperCase()
-  if (v === 'NONE') return 'NONE'
+  if (v === 'NONE') return 'CH'
   return /^[A-Z]{2}$/.test(v) ? v : null
 }
 
 /** A volleyball licence needs an explicit federation-of-origin answer — a
- *  federation code or the 'NONE' sentinel; NULL leaves the club guessing
- *  whether a transfer certificate must be chased. Guests are never licensed,
+ *  federation code; NULL leaves the club guessing whether a transfer
+ *  certificate must be chased. Guests are never licensed,
  *  so they are exempt. Second enforcement point after the client form gate
  *  (kscw-website registration-form.js, 2026-07-27) — server-side because
  *  REG-2026-6400 arrived NULL from a stale cached bundle the day after that
@@ -971,8 +976,8 @@ export function registerRegistration(router, { database, logger, services, getSc
       const federationOfOrigin = normalizeFederation(body.federation_of_origin)
       if (vbFederationMissing(body.membership_type, isGuest, federationOfOrigin)) {
         const msg = isEn
-          ? 'Please select your federation of origin — or "None" if you were not licensed with a national federation at 14. If you cannot see this field, please reload the page.'
-          : 'Bitte wähle deinen Herkunftsverband — oder «Keiner», falls du mit 14 bei keinem nationalen Verband lizenziert warst. Falls du dieses Feld nicht siehst, lade die Seite bitte neu.'
+          ? 'Please select your federation of origin — choose Switzerland if this is your first licence. If you cannot see this field, please reload the page.'
+          : 'Bitte wähle deinen Herkunftsverband — wähle die Schweiz, falls dies deine erste Lizenz ist. Falls du dieses Feld nicht siehst, lade die Seite bitte neu.'
         return res.status(400).json({ error: msg, code: 'federation_required' })
       }
       if (body.membership_type === 'basketball' && !isGuest) {
@@ -1433,9 +1438,7 @@ export function registerRegistration(router, { database, logger, services, getSc
       // completes beats us asserting a federation they never named.
       const fedCode = String(reg.federation_of_origin || '').trim().toUpperCase()
       let federationOfOrigin = ''
-      if (fedCode === NO_FEDERATION) {
-        federationOfOrigin = 'None (first licence)'
-      } else if (fedCode) {
+      if (fedCode) {
         let country = fedCode
         try { country = new Intl.DisplayNames(['en'], { type: 'region' }).of(fedCode) || fedCode } catch { /* unknown code */ }
         const fed = federationName(fedCode, 'basketball')

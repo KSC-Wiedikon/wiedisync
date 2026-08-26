@@ -1082,7 +1082,6 @@ export default {
   explorerGridColFederation: 'Federation of origin',
   memberFilterHasFederation: 'Has federation of origin',
   anmeldungenFederation: 'Federation of origin',
-  federationNone: 'None',
   explorerGridColBirthdate: 'Birthdate',
   explorerGridColTeams: 'Teams',
   explorerGridAddToTeam: 'Add to team',
@@ -1411,31 +1410,31 @@ export default {
   errorLogsCancel: 'Cancel',
 
   // ── International transfers (/admin/transfers) ──
-  // "Federation of origin" = the association that held the member's licence at
-  // AGE 14 (Swiss Volley / FIVB Sports Regulations), not simply the first one
-  // they ever played under. Keep every string here consistent with the shared
-  // `auth:federationOfOriginHint` / `auth:federationOfOriginNone` wording.
+  // "Federation of origin" = the association that FIRST licensed the member
+  // (migration 227), not the most recent one. A first-ever licence is issued
+  // here, so that case is CH — there is no "none" answer (migration 342). Keep
+  // every string here consistent with `auth:federationOfOriginHint`.
   trNavTransfers: 'Transfers',
   trTitle: 'International transfers',
-  trDescription: 'Members who need an international transfer, grouped by the federation that licensed them at 14.',
+  trDescription: 'Members who need an international transfer, grouped by the federation that first licensed them.',
   // ⚠ Volleyball only — the sport toggle is gone. FIBA transfers run through
   // Swiss Basketball, and every mechanism on this page (VIS, the federation
   // directory, the Swiss Volley licence check) is FIVB's.
   trRefresh: 'Refresh',
   trNeedsTitle: 'Needs a transfer',
-  trNeedsDescription: 'Licensed at age 14 by a federation outside Switzerland. Swiss Volley requires an international transfer certificate before they may play here — at every level, even where the fee is CHF 0.',
+  trNeedsDescription: 'First licensed by a federation outside Switzerland. Swiss Volley requires an international transfer certificate before they may play here — at every level, even where the fee is CHF 0.',
   trClarifyTitle: 'To clarify',
-  trClarifyDescription: 'No answer yet. Ask which federation licensed them at 14 — their nationality only hints at whom to ask, it is not the trigger.',
+  trClarifyDescription: 'No answer yet. Ask which federation first licensed them — their nationality only hints at whom to ask, it is not the trigger.',
   trSettledCount_one: '{{count}} member needs no transfer',
   trSettledCount_other: '{{count}} members need no transfer',
-  trSettledDescription: 'They held no national-federation licence at 14, or they were already licensed in Switzerland.',
+  trSettledDescription: 'Someone ruled the transfer unnecessary, or Swiss Volley already licenses them as Swiss.',
   // The Swiss cohort, listed under Swiss Volley instead of only counted. Swiss
   // Volley is a federation in VIS with its own player index (vis_no 189/SUI)
   // exactly like the others, so these members can be grouped and looked up the
   // same way — but no INTERNATIONAL transfer exists for them, so the wording must
   // never imply one is owed or pending.
-  trSwissTitle: 'Licensed in Switzerland at 14',
-  trSwissDescription: 'Swiss Volley held their licence at 14, so no international transfer applies. They are grouped under Swiss Volley because it is a federation in VIS like any other — worth knowing whether our own players are in the index, even though nothing here is blocked.',
+  trSwissTitle: 'First licensed in Switzerland',
+  trSwissDescription: 'Swiss Volley issued their first licence, so no international transfer applies. They are grouped under Swiss Volley because it is a federation in VIS like any other — worth knowing whether our own players are in the index, even though nothing here is blocked.',
   trSwissInVisYesHint: 'Found in Swiss Volley’s VIS player index.',
   trSwissInVisNoHint: 'No player of this name was found in Swiss Volley’s VIS index. Nothing is blocked — no international transfer applies to them — but the check matches by name, so read it as a lead worth following, not a fact.',
   trMemberCount_one: '{{count}} member',
@@ -1492,7 +1491,7 @@ export default {
   trFooConflictBanner_other: 'Volleymanager records a different federation of origin for {{count}} members',
   // ⚠ Distinct from `trFooConflictBanner`, which the Diagnostics table uses for
   // ALL conflict kinds. This one is the alert strip and covers the DANGEROUS
-  // direction only (we record CH/'NONE', Swiss Volley records a foreign
+  // direction only (we record CH, Swiss Volley records a foreign
   // federation), so the wording has to name that scope — the same sentence with
   // a smaller number reads as a contradiction.
   trFooConflictAlert_one: 'Volleymanager records a foreign federation for {{count}} member we record as Swiss',

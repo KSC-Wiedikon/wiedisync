@@ -17,9 +17,6 @@
  * the picker named a federation.
  */
 
-/** Sentinel in `members.federation_of_origin`: answered "never licensed anywhere". */
-export const NO_FEDERATION = 'NONE'
-
 const VOLLEYBALL = {
   AF: 'Afghanistan Volleyball Federation', AL: 'FSHV', AT: 'ÖVV', AU: 'Volleyball Australia',
   BG: 'Bulgarian Volleyball Federation', BR: 'CBV', CH: 'Swiss Volley', CO: 'Fedevoley',
@@ -41,9 +38,6 @@ const BASKETBALL = {
   PE: 'FDPB', PL: 'PZKosz', PT: 'FPB', RS: 'KSS', RU: 'Russian Basketball Federation',
   SE: 'Svenska Basketbollförbundet', SI: 'KZS', US: 'USA Basketball',
 }
-
-/** Short per-locale label for the NONE sentinel (the picker's full wording — "Keiner / mit 14 bei keinem nationalen Verband lizenziert" — does not fit a three-column table). */
-const NONE_LABEL = { de: 'Keiner', gsw: 'Kene', en: 'None', fr: 'Aucune', it: 'Nessuna' }
 
 /** Per-locale display of `members.sex`. ClubDesk's own value stays the German lowercase pair — see sexPushLabel(). */
 const SEX_LABEL = {
@@ -168,13 +162,13 @@ export function countryCodesDisplay(value, locale = 'de', names = null) {
 
 /**
  * Federation of origin for a human: "🇨🇭 Swiss Volley" (or the localized country
- * name where no federation is mapped for the member's sport), the localized
- * "none" label for the NONE sentinel, '' for unanswered.
+ * name where no federation is mapped for the member's sport), '' for
+ * unanswered. There is no "none" answer — a first-ever licence is issued by
+ * Swiss Volley / Swiss Basketball, so that case is 'CH' (migration 342).
  */
 export function federationDisplay(code, sport, locale = 'de', names = null) {
   const v = up(code)
   if (!v) return ''
-  if (v === NO_FEDERATION) return (NONE_LABEL[locale] || NONE_LABEL.de)
   if (!/^[A-Z]{2}$/.test(v)) return String(code).trim()
   const name = federationNames(v, sport) || countryDisplay(v, locale, names)
   const flag = countryFlag(v)

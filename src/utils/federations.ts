@@ -13,7 +13,7 @@ import { countryFlag, countryLabel, countryOptions, type CountryOption } from '.
  * plain country name, which is still a correct answer to "which federation" —
  * just less specific. Adding a country here is safe and needs no migration.
  *
- * The stored value is unchanged either way: an ISO code (or the 'NONE' sentinel).
+ * The stored value is unchanged either way: an ISO code.
  * These strings are display only and never reach ClubDesk or the DB.
  */
 type Sport = 'volleyball' | 'basketball'

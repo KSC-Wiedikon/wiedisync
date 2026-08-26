@@ -221,7 +221,7 @@ export interface VisCheckStatus {
  * Which way our `federation_of_origin` and Volleymanager's playing nationality
  * disagree.
  *
- *   'vmSaysForeign' — we record CH (or 'NONE') and Swiss Volley records a foreign
+ *   'vmSaysForeign' — we record CH and Swiss Volley records a foreign
  *                     federation. The DANGEROUS direction: nobody is chasing a
  *                     transfer that may be required.
  *   'bothForeign'   — two different foreign federations.
@@ -249,7 +249,7 @@ export interface FooConflict {
  * `notNeeded` is a LIST for the opposite reason: these are members the federation
  * column puts squarely on the worklist and an override takes off it, so they are
  * the only cohort whose membership is a judgement rather than a fact. Members the
- * federation column ALREADY settled ('NONE') stay in the bare `settled` tally:
+ * federation column never put on the worklist stay in the bare `settled` tally:
  * nothing was overridden for them.
  */
 export interface TransferCohorts {

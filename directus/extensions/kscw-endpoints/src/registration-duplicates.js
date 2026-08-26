@@ -323,9 +323,12 @@ export async function registrationNatCodes(db, reg) {
   return alias?.code || null
 }
 
+// Mirrors normalizeFederation() in registration.js: the retired 'NONE'
+// sentinel (migration 342) reads as 'CH', so a legacy registration row and the
+// member it produced do not compare as a difference.
 const normFederation = (raw) => {
   const v = String(raw ?? '').trim().toUpperCase()
-  if (v === 'NONE') return 'NONE'
+  if (v === 'NONE') return 'CH'
   return /^[A-Z]{2}$/.test(v) ? v : null
 }
 

@@ -605,7 +605,6 @@ export default {
   explorerGridColFederation: 'Herkunftsverband',
   memberFilterHasFederation: 'Herkunftsverband vorhande',
   anmeldungenFederation: 'Herkunftsverband',
-  federationNone: 'Kene',
   explorerGridColBirthdate: 'Geburtsdatum',
   explorerGridColTeams: 'Teams',
   explorerGridAddToTeam: 'Zu Team dezuefüege',
@@ -880,22 +879,24 @@ export default {
   chartRows_other: '{{count}} Ziile',
 
   // ── Internationali Transfers (/admin/transfers) ──
-  // «Herkunftsverband» = de Verband, wo s Mitglid MIT 14 lizenziert hät.
+  // «Herkunftsverband» = de Verband, wo s Mitglid ZERSCHT lizenziert hät. Di
+  // allererschti Lizenz wird da usgstellt, also isch das CH — es «Kene» gits
+  // nöd (Migration 342).
   trNavTransfers: 'Transfers',
   trTitle: 'Internationali Transfers',
-  trDescription: 'Mitglider, wo en internationale Transfer bruuched — gruppiert nach em Verband, wo si mit 14 lizenziert hät.',
+  trDescription: 'Mitglider, wo en internationale Transfer bruuched — gruppiert nach em Verband, wo si zerscht lizenziert hät.',
   // ⚠ Nur Volleyball — d Sportart-Umschaltig isch weg. FIBA-Transfers laufed
   // über Swiss Basketball; alles uf dere Siite ghört zur FIVB.
   trRefresh: 'Aktualisiere',
   trNeedsTitle: 'Transfer nötig',
-  trNeedsDescription: 'Mit 14 vomene Verband usserhalb vo de Schwiiz lizenziert. Swiss Volley verlangt vor em Iisatz es internationals Transferzertifikat — uf jeder Stuefe, au wo d Gebühr CHF 0 isch.',
+  trNeedsDescription: 'Zerscht vomene Verband usserhalb vo de Schwiiz lizenziert. Swiss Volley verlangt vor em Iisatz es internationals Transferzertifikat — uf jeder Stuefe, au wo d Gebühr CHF 0 isch.',
   trClarifyTitle: 'Abzklääre',
-  trClarifyDescription: 'No kei Antwort. Nachefrooge, welche Verband si mit 14 lizenziert hät — d Nationalität isch nur en Hinwiis, wen mer frögt, nöd de Uslöser.',
+  trClarifyDescription: 'No kei Antwort. Nachefrooge, welche Verband si zerscht lizenziert hät — d Nationalität isch nur en Hinwiis, wen mer frögt, nöd de Uslöser.',
   trSettledCount_one: '{{count}} Mitglid bruucht kein Transfer',
   trSettledCount_other: '{{count}} Mitglider bruuched kein Transfer',
-  trSettledDescription: 'Si hend mit 14 kei Lizenz bimene nationale Verband gha oder sind scho i de Schwiiz lizenziert gsi.',
-  trSwissTitle: 'Mit 14 i de Schwiiz lizenziert',
-  trSwissDescription: 'Swiss Volley hät ihri Lizenz mit 14 gha, drum bruucht s kein internationale Transfer. Si sind under Swiss Volley gruppiert, wil das au en Verband i VIS isch wie jede anderi — s isch guet z wüsse, öb üsi eigene Spiler im Index stönd, au wenn da nüt blockiert isch.',
+  trSettledDescription: 'Öpper hät entschide, dass kein Transfer nötig isch, oder Swiss Volley lizenziert si scho i de Schwiiz.',
+  trSwissTitle: 'Zerscht i de Schwiiz lizenziert',
+  trSwissDescription: 'Swiss Volley hät ihri erschti Lizenz usgstellt, drum bruucht s kein internationale Transfer. Si sind under Swiss Volley gruppiert, wil das au en Verband i VIS isch wie jede anderi — s isch guet z wüsse, öb üsi eigene Spiler im Index stönd, au wenn da nüt blockiert isch.',
   trSwissInVisYesHint: 'Im VIS-Spilerindex vo Swiss Volley gfunde.',
   trSwissInVisNoHint: 'Im VIS-Index vo Swiss Volley isch niemert mit dem Name gfunde worde. Nüt isch blockiert — en internationale Transfer entfallt für si — aber d Prüefig verglicht Näme, also lis es als Hinwiis, nöd als Tatsach.',
   trMemberCount_one: '{{count}} Mitglid',

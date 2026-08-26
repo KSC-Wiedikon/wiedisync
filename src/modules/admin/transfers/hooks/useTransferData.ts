@@ -109,8 +109,8 @@ export function useTransferData(): TransferData {
   const { data: membersRaw, refetch, isFetching } = useCollection<TransferMember>('members', {
     filter: {
       _or: [
-        // Everyone who has answered. 'NONE'/'CH' answers are needed here too —
-        // they feed the "no transfer needed" count.
+        // Everyone who has answered. 'CH' answers are needed here too — they
+        // feed the Swiss reference list and the "no transfer needed" count.
         { federation_of_origin: { _nnull: true } },
         // Never asked, but plausibly relevant. The "no Swiss nationality" half
         // is applied client-side (`bucketOf`) because the column is a

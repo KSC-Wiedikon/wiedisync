@@ -19,7 +19,7 @@ import LanguageSelect from '@/components/LanguageSelect'
 import SearchableSelect from '@/components/ui/SearchableSelect'
 import CountryMultiSelect from '@/components/CountryMultiSelect'
 import {
-  NO_FEDERATION, codeFromCountryName, countryNameDe,
+  codeFromCountryName, countryNameDe,
   parseCountryCodes, serializeCountryCodes,
 } from '../../utils/countries'
 import { federationOptions } from '../../utils/federations'
@@ -163,20 +163,17 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
   }
 
   /**
-   * Federation-of-origin options: the explicit "none" sentinel first, then the
-   * country list. NULL (never answered) and 'NONE' (answered: never licensed
-   * elsewhere) are different states — only the latter lets the club skip
-   * chasing a transfer certificate, so it has to be selectable.
+   * Federation-of-origin options: the plain country list, no "none" entry.
+   * A member who has never held a licence anywhere is not federation-less —
+   * their first licence is issued by Swiss Volley / Swiss Basketball, so the
+   * answer is Switzerland (migration 342 retired the 'NONE' sentinel).
    */
   // Labelled with the federation for the member's sport ("FIPAV (Italy)") rather
   // than the bare country — the question asks which BODY licensed them, and the
   // answer differs by sport. `both` (or no sport) has no single right federation,
   // so those members see plain country names.
   const fedSport = primarySport === 'volleyball' || primarySport === 'basketball' ? primarySport : undefined
-  const fedOptions = [
-    { value: NO_FEDERATION, label: t('federationOfOriginNone') },
-    ...federationOptions(fedSport),
-  ]
+  const fedOptions = federationOptions(fedSport)
 
 
   /**

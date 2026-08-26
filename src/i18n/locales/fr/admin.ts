@@ -379,7 +379,6 @@ export default {
   explorerGridColFederation: "Fédération d'origine",
   memberFilterHasFederation: "A une fédération d'origine",
   anmeldungenFederation: "Fédération d'origine",
-  federationNone: 'Aucune',
   explorerGridColBirthdate: 'Date de naissance',
   explorerGridColTeams: 'Équipes',
   explorerGridAddToTeam: 'Ajouter à une équipe',
@@ -786,23 +785,24 @@ export default {
   chartRows_other: '{{count}} lignes',
 
   // ── Transferts internationaux (/admin/transfers) ──
-  // « Fédération d’origine » = l’association qui détenait la licence du membre
-  // À 14 ANS (Swiss Volley / FIVB Sports Regulations).
+  // « Fédération d’origine » = l’association qui a licencié le membre EN
+  // PREMIER (migration 227). Une toute première licence est délivrée ici, donc
+  // c’est CH — il n’y a pas d’« aucune » (migration 342).
   trNavTransfers: 'Transferts',
   trTitle: 'Transferts internationaux',
-  trDescription: 'Membres nécessitant un transfert international, groupés par la fédération qui les a licenciés à 14 ans.',
+  trDescription: 'Membres nécessitant un transfert international, groupés par la fédération qui les a licenciés en premier.',
   // ⚠ Volleyball uniquement — le sélecteur de sport a été supprimé. Un transfert
   // FIBA passe par Swiss Basketball ; tout ce qui suit relève de la FIVB.
   trRefresh: 'Actualiser',
   trNeedsTitle: 'Transfert nécessaire',
-  trNeedsDescription: 'Licenciés à 14 ans par une fédération hors de Suisse. Swiss Volley exige un certificat de transfert international avant toute participation — à tous les niveaux, même lorsque la taxe est de CHF 0.',
+  trNeedsDescription: 'Licenciés pour la première fois par une fédération hors de Suisse. Swiss Volley exige un certificat de transfert international avant toute participation — à tous les niveaux, même lorsque la taxe est de CHF 0.',
   trClarifyTitle: 'À clarifier',
-  trClarifyDescription: 'Pas encore de réponse. Demandez quelle fédération les a licenciés à 14 ans — la nationalité indique seulement à qui poser la question, ce n’est pas le critère.',
+  trClarifyDescription: 'Pas encore de réponse. Demandez quelle fédération les a licenciés en premier — la nationalité indique seulement à qui poser la question, ce n’est pas le critère.',
   trSettledCount_one: '{{count}} membre n’a pas besoin de transfert',
   trSettledCount_other: '{{count}} membres n’ont pas besoin de transfert',
-  trSettledDescription: 'Ils n’avaient aucune licence auprès d’une fédération nationale à 14 ans, ou étaient déjà licenciés en Suisse.',
-  trSwissTitle: 'Licenciés en Suisse à 14 ans',
-  trSwissDescription: 'Swiss Volley détenait leur licence à 14 ans, aucun transfert international ne s’applique donc. Ils sont regroupés sous Swiss Volley car c’est une fédération dans VIS comme les autres — il est utile de savoir si nos propres joueuses et joueurs figurent dans l’index, même si rien n’est bloqué ici.',
+  trSettledDescription: 'Quelqu’un a jugé le transfert inutile, ou Swiss Volley les licencie déjà en Suisse.',
+  trSwissTitle: 'Première licence en Suisse',
+  trSwissDescription: 'Swiss Volley a délivré leur première licence, aucun transfert international ne s’applique donc. Ils sont regroupés sous Swiss Volley car c’est une fédération dans VIS comme les autres — il est utile de savoir si nos propres joueuses et joueurs figurent dans l’index, même si rien n’est bloqué ici.',
   trSwissInVisYesHint: 'Trouvé dans l’index des joueurs VIS de Swiss Volley.',
   trSwissInVisNoHint: 'Aucun joueur de ce nom n’a été trouvé dans l’index VIS de Swiss Volley. Rien n’est bloqué — aucun transfert international ne s’applique — mais la vérification compare les noms, à lire donc comme une piste et non comme un fait.',
   trMemberCount_one: '{{count}} membre',

@@ -5,7 +5,7 @@
 // on its own: everything else on that page reports, and only this decides who
 // is on the list at all.
 
-import { NO_FEDERATION, parseCountryCodes } from '../../../utils/countries'
+import { parseCountryCodes } from '../../../utils/countries'
 
 /** The slice of a member this decision reads — nothing else is relevant to it. */
 export interface TransferBucketInput {
@@ -18,32 +18,32 @@ export interface TransferBucketInput {
 /**
  * Which bucket a member falls into. Derived, never stored.
  *
- * `federation_of_origin` is the association that held the member's licence **at
- * age 14** (Swiss Volley / FIVB Sports Regulations) — NOT simply the first
- * federation they ever played under. Someone licensed in Italy at 8 and by Swiss
- * Volley at 14 has federation of origin CH.
+ * `federation_of_origin` is the association that FIRST licensed the member
+ * (migration 227) — not the most recent one. A member who has never held a
+ * licence anywhere is not federation-less: their first licence is issued by
+ * Swiss Volley / Swiss Basketball, so they answer 'CH'. That is why there is no
+ * "none" bucket — migration 342 retired the sentinel that used to feed one.
  *
- *  - `needs`  — licensed at 14 by a federation that is neither 'NONE' nor 'CH'.
- *               This maps 1:1 onto Swiss Volley's transfer trigger: an ITC is
- *               required for anyone licensed abroad at 14, "egal ob der Spieler
- *               seit längerem in der Schweiz wohnt, nur Amateur ist, keinen
- *               Vertrag hat" — including RL/JL, where the fee is CHF 0 but the
- *               transfer is still mandatory. The actionable cohort.
- *  - `swiss`  — 'CH': Swiss Volley held the age-14 licence, so no INTERNATIONAL
- *               transfer applies. Split out from `settled` because Swiss Volley
- *               is a federation in VIS with its own player index exactly like
- *               the others (`vis_federations` vis_no 189 / SUI) — so these
- *               members can be grouped, contacted and VIS-checked under it
- *               rather than disappearing into a bare tally. No transfer control:
- *               there is no transfer to have a status about.
- *  - `settled`— 'NONE' — held no national-federation licence at 14, because a
- *               purely recreational body such as CSI/UISP/PGS is not an
- *               FIVB/FIBA member. Counted only; there is no federation to group
- *               them under and no index to look them up in.
+ *  - `needs`  — first licensed by a federation other than 'CH'. This maps onto
+ *               Swiss Volley's transfer trigger: an ITC is required for anyone
+ *               licensed abroad, "egal ob der Spieler seit längerem in der
+ *               Schweiz wohnt, nur Amateur ist, keinen Vertrag hat" — including
+ *               RL/JL, where the fee is CHF 0 but the transfer is still
+ *               mandatory. The actionable cohort.
+ *  - `swiss`  — 'CH': the first licence was Swiss (or is being issued here now),
+ *               so no INTERNATIONAL transfer applies. Split out from `settled`
+ *               because Swiss Volley is a federation in VIS with its own player
+ *               index exactly like the others (`vis_federations` vis_no 189 /
+ *               SUI) — so these members can be grouped, contacted and
+ *               VIS-checked under it rather than disappearing into a bare
+ *               tally. No transfer control: there is no transfer to have a
+ *               status about.
+ *  - `settled`— an explicit ruling took them off the list (see below). Counted
+ *               only, never grouped.
  *  - `clarify`— never answered, but holds a non-Swiss nationality and is an
  *               active KSCW member. A question to ask, not a pending transfer.
  *               Nationality is only a heuristic for WHOM to ask — it is not the
- *               trigger; the age-14 licence is.
+ *               trigger; the foreign first licence is.
  *  - `ignore` — nothing to act on (Swiss nationality, or inactive).
  *
  * Two things outrank the federation column, and BOTH only ever take work AWAY
@@ -77,9 +77,9 @@ export function bucketOf(m: TransferBucketInput, vmSaysSwiss = false): Bucket {
 export function federationBucketOf(m: TransferBucketInput): Bucket {
   const fed = String(m.federation_of_origin ?? '').trim().toUpperCase()
   if (fed === 'CH') return 'swiss'
-  if (fed) return fed === NO_FEDERATION ? 'settled' : 'needs'
+  if (fed) return 'needs'
   // No answer yet. Only worth chasing for active members holding a nationality
-  // we know is not Swiss — a Swiss passport makes a Swiss age-14 licence by far
+  // we know is not Swiss — a Swiss passport makes a Swiss first licence by far
   // the likeliest answer, so those are not worth a chase list.
   if (!m.kscw_membership_active) return 'ignore'
   const codes = parseCountryCodes(m.nationalitaet_codes)

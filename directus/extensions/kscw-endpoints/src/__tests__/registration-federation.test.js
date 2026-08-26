@@ -22,9 +22,13 @@ describe('normalizeFederation', () => {
     expect(normalizeFederation('af')).toBe('AF')
   })
 
-  it("keeps the explicit 'NONE' sentinel — a real answer, distinct from NULL", () => {
-    expect(normalizeFederation('NONE')).toBe('NONE')
-    expect(normalizeFederation('none')).toBe('NONE')
+  it("folds the retired 'NONE' sentinel into CH rather than rejecting it", () => {
+    // Migration 342: "nobody has licensed me yet" means the first licence is
+    // the one being issued here, i.e. Swiss Volley / Swiss Basketball. A cached
+    // form bundle can still send the old value; a 400 there would cost the
+    // applicant everything they typed.
+    expect(normalizeFederation('NONE')).toBe('CH')
+    expect(normalizeFederation('none')).toBe('CH')
   })
 
   it('normalizes everything else to NULL — junk must never reach the CHECK', () => {
@@ -41,9 +45,9 @@ describe('vbFederationMissing', () => {
     expect(vbFederationMissing('volleyball', false, null)).toBe(true)
   })
 
-  it('passes a volleyball non-guest with a federation or the NONE sentinel', () => {
+  it('passes a volleyball non-guest with a federation', () => {
     expect(vbFederationMissing('volleyball', false, 'CH')).toBe(false)
-    expect(vbFederationMissing('volleyball', false, 'NONE')).toBe(false)
+    expect(vbFederationMissing('volleyball', false, 'IT')).toBe(false)
   })
 
   it('exempts guests — never licensed, so there is no origin federation', () => {

@@ -221,9 +221,9 @@ export interface Member extends BaseRecord {
   nationalitaet: string
   nationalitaet_codes: string | null
   // Federation the member was FIRST licensed with (their federation of origin):
-  // an ISO alpha-2 code, the
-  // literal 'NONE' (never licensed elsewhere), or null (not answered) — the
-  // NONE/null distinction is what lets us skip a transfer-certificate chase.
+  // an ISO alpha-2 code, or null (not answered). A first-ever licence is issued
+  // by Swiss Volley / Swiss Basketball, so that case is 'CH' — there is no
+  // "none" answer (migration 342 retired the sentinel).
   federation_of_origin: string | null
   /** Zurich Kantonsschule (migration 315). 'Nein' = asked and not at one; null = never asked. */
   kantonsschule?: string | null
@@ -234,8 +234,8 @@ export interface Member extends BaseRecord {
   // full admins) can.
   //
   // NULL means "nobody has looked", and the answer is then DERIVED from
-  // `federation_of_origin` ('NONE' = never licensed with a national federation,
-  // 'CH' = already Swiss-licensed → nothing to do). A stored value is a decision
+  // `federation_of_origin` ('CH' = Swiss-licensed, first licence included →
+  // nothing to do). A stored value is a decision
   // a person made and OVERRIDES that derivation in both directions (migration
   // 320): 'not_needed' clears a foreign-origin member off the worklist without
   // falsifying their own federation answer, and 'pending' chases a transfer for

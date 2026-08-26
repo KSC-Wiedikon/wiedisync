@@ -65,8 +65,8 @@ export function TransferAlerts({ blockedCount, dangerousConflictCount, onShowBlo
       )}
 
       {/* Where Swiss Volley's own federation of origin disagrees with ours, in
-          the DANGEROUS direction only: we record CH (or 'NONE') and they record
-          a foreign federation, so nobody is chasing a transfer that may be
+          the DANGEROUS direction only: we record CH and they record a foreign
+          federation, so nobody is chasing a transfer that may be
           required. Swiss Volley works from THEIR value.
 
           ⚠ It stays above the fold even though the full table moved behind the

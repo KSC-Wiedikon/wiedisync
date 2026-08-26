@@ -304,7 +304,7 @@ describe('merge diff + patch', () => {
   const reg = {
     vorname: 'Oskar', nachname: 'Fassbind', email: 'oskar.fassbind2@gmail.com',
     telefon_mobil: '+41 79 444 55 66', adresse: 'Birmensdorferstrasse 12', plz: '8003', ort: 'Zürich',
-    geburtsdatum: '2009-02-01', nationalitaet_codes: 'CH', federation_of_origin: 'NONE',
+    geburtsdatum: '2009-02-01', nationalitaet_codes: 'CH', federation_of_origin: 'CH',
     geschlecht: 'm', anrede: 'Herr', ahv_nummer: '756.1234.5678.97', iban: 'CH9300762011623852957',
     beitragskategorie: 'Schüler', lizenz: 'Schreiber', membership_type: 'volleyball',
   }

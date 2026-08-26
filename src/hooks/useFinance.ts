@@ -194,7 +194,7 @@ export interface FinanceMember {
   nationalitaet?: string | null
   /** Ordered ISO alpha-2 list, e.g. "CH,IT"; the first code is the primary one. */
   nationalitaet_codes?: string | null
-  /** ISO alpha-2, the literal 'NONE', or null (not answered). */
+  /** ISO alpha-2, or null (not answered). */
   federation_of_origin?: string | null
   sex?: string | null
   birthdate?: string | null

@@ -33,7 +33,7 @@
  * WEEKLY (Mondays, `date +%u` = 1) the same day.
  *
  * WHO IS CHECKED
- *   • Everyone with a federation of origin other than 'NONE' — INCLUDING 'CH'.
+ *   • Everyone who has answered the question — INCLUDING 'CH'.
  *     Swiss Volley is a federation in VIS with its own player index (no. 189 /
  *     SUI) exactly like the others, so the same question is answerable for our
  *     Swiss-origin members and the Transfers page groups them under it. Their
@@ -41,7 +41,8 @@
  *     them), it is simply "no player of that name in Swiss Volley's index" —
  *     which is still worth seeing. ⚠ This reverses the original design; the
  *     comments on migration 240 still describe CH as deliberately skipped.
- *   • 'NONE' stays out: there is no federation to look them up in.
+ *     Since migration 342 every answer IS a federation: a member whose first
+ *     licence is issued here answers 'CH', so no answer excludes anyone.
  *   • GUESTS STAY OUT. A member whose every `member_teams` row has
  *     `guest_level > 0` trains with a team without being licensed by the club, so
  *     there is no eligibility to establish and nothing on the Transfers page
@@ -309,7 +310,6 @@ async function main() {
              coalesce(m.vis_player_no_manual::text, '')
       FROM members m
      WHERE m.federation_of_origin IS NOT NULL
-       AND m.federation_of_origin <> 'NONE'
        AND m.kscw_membership_active
        -- Guests hold no club licence, so nothing about eligibility or transfers
        -- applies to them. A member who is a full player on ANY team qualifies.

@@ -379,7 +379,6 @@ export default {
   explorerGridColFederation: 'Federazione di origine',
   memberFilterHasFederation: 'Ha federazione di origine',
   anmeldungenFederation: 'Federazione di origine',
-  federationNone: 'Nessuna',
   explorerGridColBirthdate: 'Data di nascita',
   explorerGridColTeams: 'Squadre',
   explorerGridAddToTeam: 'Aggiungi a una squadra',
@@ -786,23 +785,24 @@ export default {
   chartRows_other: '{{count}} righe',
 
   // ── Trasferimenti internazionali (/admin/transfers) ──
-  // «Federazione di origine» = l’associazione che deteneva il tesseramento del
-  // membro A 14 ANNI (Swiss Volley / FIVB Sports Regulations).
+  // «Federazione di origine» = l’associazione che ha tesserato il membro PER
+  // PRIMA (migrazione 227). Il primo tesseramento in assoluto viene rilasciato
+  // qui, quindi è CH — non esiste una «nessuna» (migrazione 342).
   trNavTransfers: 'Trasferimenti',
   trTitle: 'Trasferimenti internazionali',
-  trDescription: 'Membri che necessitano di un trasferimento internazionale, raggruppati per la federazione che li ha tesserati a 14 anni.',
+  trDescription: 'Membri che necessitano di un trasferimento internazionale, raggruppati per la federazione che li ha tesserati per prima.',
   // ⚠ Solo pallavolo — il selettore dello sport è stato rimosso. Un trasferimento
   // FIBA passa da Swiss Basketball; tutto ciò che segue appartiene alla FIVB.
   trRefresh: 'Aggiorna',
   trNeedsTitle: 'Trasferimento necessario',
-  trNeedsDescription: 'Tesserati a 14 anni da una federazione fuori dalla Svizzera. Swiss Volley richiede un certificato di trasferimento internazionale prima dell’impiego — a ogni livello, anche dove la tassa è di CHF 0.',
+  trNeedsDescription: 'Tesserati per la prima volta da una federazione fuori dalla Svizzera. Swiss Volley richiede un certificato di trasferimento internazionale prima dell’impiego — a ogni livello, anche dove la tassa è di CHF 0.',
   trClarifyTitle: 'Da chiarire',
-  trClarifyDescription: 'Nessuna risposta finora. Chiedere quale federazione li ha tesserati a 14 anni — la nazionalità indica solo a chi rivolgersi, non è il criterio.',
+  trClarifyDescription: 'Nessuna risposta finora. Chiedere quale federazione li ha tesserati per prima — la nazionalità indica solo a chi rivolgersi, non è il criterio.',
   trSettledCount_one: '{{count}} membro non necessita di trasferimento',
   trSettledCount_other: '{{count}} membri non necessitano di trasferimento',
-  trSettledDescription: 'A 14 anni non avevano alcun tesseramento con una federazione nazionale, oppure erano già tesserati in Svizzera.',
-  trSwissTitle: 'Tesserati in Svizzera a 14 anni',
-  trSwissDescription: 'A 14 anni erano tesserati con Swiss Volley, quindi non serve alcun trasferimento internazionale. Sono raggruppati sotto Swiss Volley perché è una federazione in VIS come tutte le altre — è utile sapere se i nostri giocatori figurano nell’indice, anche se qui non c’è nulla di bloccato.',
+  trSettledDescription: 'Qualcuno ha stabilito che il trasferimento non serve, oppure Swiss Volley li tessera già in Svizzera.',
+  trSwissTitle: 'Primo tesseramento in Svizzera',
+  trSwissDescription: 'Swiss Volley ha rilasciato il loro primo tesseramento, quindi non serve alcun trasferimento internazionale. Sono raggruppati sotto Swiss Volley perché è una federazione in VIS come tutte le altre — è utile sapere se i nostri giocatori figurano nell’indice, anche se qui non c’è nulla di bloccato.',
   trSwissInVisYesHint: 'Trovato nell’indice giocatori VIS di Swiss Volley.',
   trSwissInVisNoHint: 'Nessun giocatore con questo nome è stato trovato nell’indice VIS di Swiss Volley. Nulla è bloccato — per loro non serve alcun trasferimento internazionale — ma la verifica confronta i nomi, quindi va letta come un indizio e non come un fatto.',
   trMemberCount_one: '{{count}} membro',

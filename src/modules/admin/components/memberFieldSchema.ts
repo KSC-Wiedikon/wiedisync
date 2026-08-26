@@ -462,7 +462,7 @@ const PLAYING = block('playing', undefined, [
 const ASSOC_COMMON = block('association', 'assoc_common', [
   {
     key: 'federation_of_origin', label: 'Federation of origin', kind: 'country',
-    help: 'The federation that first licensed this member — not the most recent one. "None" is an explicit answer, different from empty.',
+    help: 'The federation that first licensed this member — not the most recent one. A first-ever licence is issued here, so that case is Switzerland; empty means unanswered.',
   },
   {
     // ⚠ NOT a volleyball field. Basketball licences live in this same column —

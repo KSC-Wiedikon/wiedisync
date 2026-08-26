@@ -83,7 +83,7 @@ describe('buildPushCsv (update set)', () => {
     expect(empty[14]).toBe('') // no uuid/id on the fixture → empty
   })
 
-  it('maps Federation of Origin to ClubDesk German, keeps the NONE sentinel, echoes when unanswered', () => {
+  it('maps Federation of Origin to ClubDesk German, echoes when unanswered', () => {
     // wiedisync stores an ISO code; ClubDesk's picklist wants its OWN German
     // spelling (country_codes.name_de_clubdesk — "Großbritannien", not CLDR's
     // "Vereinigtes Königreich"), so the map is passed in, never guessed.
@@ -91,8 +91,6 @@ describe('buildPushCsv (update set)', () => {
     const cell = (m) => buildPushCsv([{ ...kacper, ...m }], { countryNames }).trim().split('\n')[1].split(';')[11]
     expect(cell({ federation_of_origin: 'IT' })).toBe('Italien')
     expect(cell({ federation_of_origin: 'GB' })).toBe('Großbritannien')
-    // 'NONE' = "never licensed elsewhere" — a real answer, pushed as Keiner.
-    expect(cell({ federation_of_origin: 'NONE' })).toBe('Keiner')
     // Not answered → /up's echo of ClubDesk's own cell, never an empty cell
     // that could blank the register (the echo can't ride on the code column).
     expect(cell({ federation_of_origin: null, federation_of_origin_cd: 'Frankreich' })).toBe('Frankreich')
@@ -773,9 +771,8 @@ describe('federationCell / nationalityCell (the PUSH shape of the coded fields)'
     ['CH', 'Schweiz'], ['DE', 'Deutschland'], ['GB', 'Großbritannien'],
   ])
 
-  it('maps a federation code to ClubDesk German, and NONE to its sentinel word', () => {
+  it('maps a federation code to ClubDesk German — a first licence here is Schweiz', () => {
     expect(federationCell('CH', CD_NAMES)).toBe('Schweiz')
-    expect(federationCell('NONE', CD_NAMES)).toBe('Keiner')
     expect(federationCell('', CD_NAMES)).toBe('')
     // An unknown code yields '' so the echo-back fills ClubDesk's own value
     // rather than a guessed spelling the import would reject.

@@ -266,8 +266,7 @@ export default {
   kantonsschuleNo: 'Nein — I am not at a Kantonsschule',
   kantonsschuleSearch: 'Search schools…',
   federationOfOrigin: 'Federation of origin',
-  federationOfOriginNone: 'None / not licensed with a national federation at 14',
-  federationOfOriginHint: 'The national federation that licensed you at age 14 — not necessarily where you first played.',
+  federationOfOriginHint: 'The national federation that first licensed you. If this is your first licence, choose Switzerland — Swiss Volley or Swiss Basketball then becomes your federation of origin.',
   nationalitaetHint: 'Select all that apply.',
   // Coaching education (migration 274). "J+S" is the federal Jugend+Sport
   // programme and keeps its Swiss name in every locale — it is a brand, not a

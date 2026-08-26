@@ -12,7 +12,6 @@
  * that decision; no view may re-derive a cohort for itself.
  */
 
-import { NO_FEDERATION } from '../../../../utils/countries'
 import { bucketOf, federationBucketOf } from '../../utils/transferBucket'
 import { SPORT } from '../constants'
 import type { Team } from '../../../../types'
@@ -51,8 +50,8 @@ export function groupRows(
  * takes off it, so they are the only cohort whose membership is a judgement
  * rather than a fact — the one place where "the list got shorter" could hide a
  * mistake. They get a table, a count and their status control, so the decision
- * is visible and reversible. Members the federation column ALREADY settled
- * ('NONE') stay in the bare `settled` tally: nothing was overridden for them.
+ * is visible and reversible. Members the federation column never put on the
+ * worklist stay in the bare `settled` tally: nothing was overridden for them.
  *
  * ⚠ `notNeeded` is therefore NOT out of scope for the eligibility alarm: the
  * "marked done, licence not validated" check runs over `needs.concat(notNeeded)`,
@@ -83,9 +82,9 @@ export function buildCohorts(
     if (bucket === 'ignore') continue
     const id = String(m.id)
     if (!deps.playsVolleyball(id)) continue
-    // The exemption only removes WORK. A U20 player with a Swiss or 'NONE'
-    // answer keeps their place in the settled tally and the Swiss reference
-    // list below — nothing about them changed, they were never work.
+    // The exemption only removes WORK. A U20 player with a Swiss answer keeps
+    // their place in the Swiss reference list below — nothing about them
+    // changed, they were never work.
     if ((bucket === 'needs' || bucket === 'clarify') && deps.u20OnlyMembers.has(id)) {
       acc.u20 += 1
       continue
@@ -180,11 +179,9 @@ export function findFooConflicts(
     if (!vmIso) continue
     const ourIso = String(m.federation_of_origin ?? '').trim().toUpperCase()
     if (!ourIso || ourIso === vmIso) continue
-    // 'NONE' vs CH is not a disagreement worth reporting: both mean no ITC.
-    if (ourIso === NO_FEDERATION && vmIso === 'CH') continue
     const kind: FooConflictKind = vmIso === 'CH'
       ? 'vmSaysSwiss'
-      : (ourIso === 'CH' || ourIso === NO_FEDERATION) ? 'vmSaysForeign' : 'bothForeign'
+      : ourIso === 'CH' ? 'vmSaysForeign' : 'bothForeign'
     out.push({ m, ourIso, vmIso, vmCode, kind })
   }
   // Dangerous direction first: a possibly-missing transfer outranks a

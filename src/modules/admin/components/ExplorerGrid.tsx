@@ -41,7 +41,7 @@ import { logActivity } from '../../../utils/logActivity'
 import { getCurrentSeason } from '../../../utils/dateHelpers'
 import { localizeCountryName } from '../../../utils/countryName'
 import {
-  NO_FEDERATION, countryLabel, countryOptions, formatCountryCodes,
+  countryLabel, countryOptions, formatCountryCodes,
   parseCountryCodes, serializeCountryCodes,
 } from '../../../utils/countries'
 import { LANGUAGES } from '../../../i18n/languageConfig'
@@ -673,13 +673,14 @@ export default function ExplorerGrid({
     return t(`admin:${SYNC_LABEL_KEY[status]}`)
   }, [t])
 
-  // 'NONE' is an explicit answer ("never licensed elsewhere") and must read as
-  // such — null is simply unanswered and stays blank.
+  // Null is simply unanswered and stays blank. Every answered row is a country
+  // code — a first-ever licence issued here reads as Switzerland, not "none".
   const federationLabel = useMemo(() => (code: string | null | undefined): string => {
     const v = String(code ?? '').trim().toUpperCase()
     if (!v) return ''
-    return v === NO_FEDERATION ? t('admin:federationNone') : (countryLabel(v) || v)
-  }, [t])
+    return countryLabel(v) || v
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- countryLabel() is locale-derived
+  }, [i18n.language])
 
   // Positions ARE localized (the roster and the profile picker show the same
   // names), unlike the role / sex lists, whose one label set in
@@ -690,9 +691,9 @@ export default function ExplorerGrid({
   }, [t])
 
   // Options for the inline federation select — localized, so rebuilt on a
-  // language switch. 'None' leads; the rest is favourites-first countryOptions.
+  // language switch. Favourites-first countryOptions.
   const federationOptions = useMemo<SelectOption[]>(
-    () => [{ value: NO_FEDERATION, label: t('admin:federationNone') }, ...countryOptions()],
+    () => countryOptions(),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- countryOptions() is locale-derived
     [t, i18n.language],
   )

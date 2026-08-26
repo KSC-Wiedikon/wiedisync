@@ -31,7 +31,7 @@ import { assetUrl, createRecord, deleteRecord, fetchItem, kscwApi, updateRecord 
 import { logActivity } from '../../../utils/logActivity'
 import { getCurrentSeason, todayLocal } from '../../../utils/dateHelpers'
 import {
-  NO_FEDERATION, countryLabel, countryOptions, formatCountryCodes,
+  countryLabel, countryOptions, formatCountryCodes,
   parseCountryCodes, serializeCountryCodes,
 } from '../../../utils/countries'
 import CountryMultiSelect from '../../../components/CountryMultiSelect'
@@ -1701,8 +1701,8 @@ function DisplayValue({
 
     case 'country':
       // Two different shapes share this kind: `federation_of_origin` holds an
-      // ISO-2 code (or the explicit 'NONE'), while the derived `nationalitaet`
-      // holds ClubDesk's German country NAME.
+      // ISO-2 code, while the derived `nationalitaet` holds ClubDesk's German
+      // country NAME.
       //
       // ⚠ `nationalitaet` is printed RAW. Running it through localizeCountryName
       // reverse-maps "Schweiz" → CH → the viewer's locale, so the one field whose
@@ -1845,12 +1845,11 @@ function TrainerLicencesValue({ value }: { value: string }) {
   )
 }
 
-/** 'NONE' is an explicit "never licensed elsewhere", not a missing answer. */
+/** Every answered federation of origin is a country code — a member whose first
+ *  licence is issued here reads as Switzerland (migration 342 dropped 'NONE'). */
 function FederationValue({ value }: { value: string }) {
-  const { t } = useTranslation('admin')
   const code = value.trim().toUpperCase()
-  const label = code === NO_FEDERATION ? t('federationNone') : (countryLabel(code) || code)
-  return <span className="break-words text-foreground">{label}</span>
+  return <span className="break-words text-foreground">{countryLabel(code) || code}</span>
 }
 
 // ── Editors ────────────────────────────────────────────────────────────
@@ -1951,7 +1950,7 @@ export function FieldEditor({
     case 'country':
       return (
         <SearchableSelect
-          options={[{ value: NO_FEDERATION, label: t('admin:federationNone') }, ...countryOptions()]}
+          options={countryOptions()}
           value={typeof value === 'string' ? value.trim().toUpperCase() : ''}
           onChange={(v) => onChange(v === '' ? null : v)}
           searchPlaceholder={t('common:searchCountry')}

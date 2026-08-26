@@ -17,7 +17,7 @@ import { LICENCE_STATUSES, LICENCE_STATUS_BADGE, effectiveLicenceStatus } from '
 import { localizeCountryName } from '../../utils/countryName'
 import {
   countryNameDe, countryOptions,
-  parseCountryCodes, serializeCountryCodes, NO_FEDERATION,
+  parseCountryCodes, serializeCountryCodes,
 } from '../../utils/countries'
 import CountryMultiSelect from '../../components/CountryMultiSelect'
 import SearchableSelect from '../../components/ui/SearchableSelect'
@@ -1059,8 +1059,9 @@ function ExpandedDetails({
     )
   }
 
-  // 'NONE' = explicitly never licensed elsewhere; empty = simply not asked
-  // (every registration predating the field) → show nothing, not "None".
+  // Empty = simply not asked (every registration predating the field) → show
+  // nothing preselected. There is no "none" option: a first-ever licence is
+  // issued here, so the answer is CH (migration 342).
   const federationField = () => {
     const stored = (reg.federation_of_origin ?? '').trim().toUpperCase()
     const value = edits.federation_of_origin ?? stored
@@ -1068,7 +1069,7 @@ function ExpandedDetails({
       <div>
         {codedLabel(t('anmeldungenFederation'))}
         <SearchableSelect
-          options={[{ value: NO_FEDERATION, label: t('federationNone') }, ...countryOptions()]}
+          options={countryOptions()}
           value={value}
           onChange={(v) => setCoded('federation_of_origin', v, stored)}
           searchPlaceholder={tAll('common:searchCountry')}

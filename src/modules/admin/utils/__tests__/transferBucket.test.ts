@@ -28,8 +28,10 @@ describe('federationBucketOf — the federation column alone', () => {
     expect(federationBucketOf(member({ federation_of_origin: 'CH' }))).toBe('swiss')
   })
 
-  it('treats the explicit "never licensed nationally" answer as settled', () => {
-    expect(federationBucketOf(member({ federation_of_origin: 'NONE' }))).toBe('settled')
+  it('has no "never licensed anywhere" answer — a first licence issued here is CH', () => {
+    // Migration 342 retired the 'NONE' sentinel; anything that is not a country
+    // code the club recognises still reads as a foreign federation, i.e. work.
+    expect(federationBucketOf(member({ federation_of_origin: 'NONE' }))).toBe('needs')
   })
 
   it('normalises case and whitespace before deciding', () => {
@@ -82,7 +84,7 @@ describe('bucketOf — the overrides', () => {
   })
 
   it('leaves an already-settled member exactly where they were', () => {
-    expect(bucketOf(member({ federation_of_origin: 'NONE', transfer_status: 'not_needed' }), true))
+    expect(bucketOf(member({ federation_of_origin: 'DE', transfer_status: 'not_needed' }), true))
       .toBe('settled')
   })
 

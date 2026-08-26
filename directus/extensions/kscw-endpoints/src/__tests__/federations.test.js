@@ -65,9 +65,9 @@ describe('federationDisplay', () => {
     expect(federationDisplay('CH', undefined, 'en', NAMES)).toBe('🇨🇭 Swiss Volley / Swiss Basketball')
   })
 
-  it('renders the NONE sentinel as a word, and unanswered as empty', () => {
-    expect(federationDisplay('NONE', 'volleyball', 'en', NAMES)).toBe('None')
-    expect(federationDisplay('NONE', 'volleyball', 'de', NAMES)).toBe('Keiner')
+  it('renders unanswered as empty — there is no "none" answer left to render', () => {
+    // Migration 342 retired the 'NONE' sentinel: a first-ever licence is issued
+    // by Swiss Volley / Swiss Basketball, so that member answers 'CH'.
     expect(federationDisplay('', 'volleyball', 'en', NAMES)).toBe('')
     expect(federationDisplay(null, 'volleyball', 'en', NAMES)).toBe('')
   })
