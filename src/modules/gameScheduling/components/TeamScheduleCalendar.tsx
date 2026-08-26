@@ -90,6 +90,10 @@ export default function TeamScheduleCalendar({ team, hideWhenEmpty = true, varia
           season={data.season}
           games={games}
           confirmedFrom="games"
+          // A basketball game at KWI is a hall fact the volleyball PLANNER needs
+          // (that court is gone); on a volleyball team's own page it is another
+          // sport's fixture and simply not this team's schedule.
+          showCrossSport={false}
           title={t('teamCalendarTitle')}
         />
       )}

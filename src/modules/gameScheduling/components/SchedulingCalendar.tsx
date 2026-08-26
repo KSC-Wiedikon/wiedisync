@@ -98,6 +98,12 @@ interface Props {
    *  the two sources cannot double up. Pending proposals still come from
    *  bookings either way — they are not fixtures yet. */
   confirmedFrom?: 'bookings' | 'games'
+  /** Show cross-sport context — basketball games holding a KWI court. True by
+   *  default: a volleyball PLANNER needs it, because that court is then gone.
+   *  False for a member-facing team calendar, where another sport's fixture is
+   *  simply not this team's schedule. Also skips the `basketball_slot_plan`
+   *  fetch, so a member viewing a team page does not request it at all. */
+  showCrossSport?: boolean
   // Heading text — defaults to the season-wide overview title. Pass a
   // team-scoped title when rendering this inside a single team's panel.
   title?: string
@@ -162,7 +168,7 @@ interface LinkWarning {
   severity: 'clash' | 'note'
 }
 
-export default function SchedulingCalendar({ slots, bookings, teams, season, games = [], confirmedFrom = 'bookings', title, showAbsences }: Props) {
+export default function SchedulingCalendar({ slots, bookings, teams, season, games = [], confirmedFrom = 'bookings', showCrossSport = true, title, showAbsences }: Props) {
   const { t } = useTranslation('gameScheduling')
 
   // Manual coach/player-sharing links for this season (volleyball). Fail-soft: an
@@ -317,7 +323,7 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
   // calendar's `teams` prop, so the team name comes from the expand / free-text label.
   const [bbGames, setBbGames] = useState<{ id: string; date: string; time?: string | null; team: string; opponent?: string | null }[]>([])
   useEffect(() => {
-    if (season.id == null) return
+    if (season.id == null || !showCrossSport) return
     let cancelled = false
     fetchAllItems<{ id: string; date: string; time?: string | null; opponent?: string | null; kscw_team_label?: string | null; kscw_team?: { name?: string } | null }>('basketball_slot_plan', {
       fields: ['id', 'date', 'time', 'opponent', 'kscw_team_label', 'kscw_team.name'],
@@ -335,7 +341,7 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
       })
       .catch(() => { if (!cancelled) setBbGames([]) })
     return () => { cancelled = true }
-  }, [season.id])
+  }, [season.id, showCrossSport])
 
   // Team events that block games (a tournament weekend, a team trip). The backend
   // drops every slot whose date falls in a linked event, so they too vanish
@@ -993,7 +999,10 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
                 // chip, so the informative half of a fixture there is the
                 // opponent — show that instead. The season overview keeps the
                 // team name (its primary axis is which team plays when).
-                const chipText = isTeamScoped && e.opponent ? e.opponent : e.label
+                // Only for THIS team's own fixtures: a basketball chip's label is
+                // a different team, not a repeated own name, so swapping it for
+                // its opponent loses the one thing that chip is there to say.
+                const chipText = isTeamScoped && (isHomeKind || isAwayKind) && e.opponent ? e.opponent : e.label
                 return (
                   <span
                     key={e.id}
