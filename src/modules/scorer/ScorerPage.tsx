@@ -7,6 +7,7 @@ import { licencesOf } from '../../types'
 import { memberDisplayName } from '../../utils/relations'
 import { useCollection } from '../../lib/query'
 import { useRealtime } from '../../hooks/useRealtime'
+import { useDebouncedRefetch } from '../../hooks/useDebouncedRefetch'
 import { useAuth } from '../../hooks/useAuth'
 import { useAdminMode } from '../../hooks/useAdminMode'
 import { logActivity } from '../../utils/logActivity'
@@ -285,7 +286,17 @@ export default function ScorerPage() {
     return teamObj?.sport ?? (g.source === 'basketplan' ? 'basketball' : 'volleyball')
   }
 
-  useRealtime<Game>('games', () => { refetch() }, ['update'])
+  // ⚠ Debounced: `ScorerAssignPage` saves a whole season as ~200 chunked PATCHes, and
+  // Directus emits one frame per changed row. Undebounced, every client sitting on
+  // /scorer re-issued this deliberately unbounded season query per frame — and
+  // TanStack's `refetch()` defaults to `cancelRefetch: true`, so in-flight requests
+  // were torn down and restarted rather than deduped. Tens of MB on a mobile
+  // connection and a visibly churning list for ~20s, once or twice a season.
+  // (`games` read is unfiltered for Member, so this is a plain single-table scan of
+  // 565 rows, NOT the participations cross-product — the cost here is request count
+  // and payload size, not the permission engine.)
+  const debouncedRefetch = useDebouncedRefetch(refetch)
+  useRealtime<Game>('games', debouncedRefetch, ['update'])
 
   // Teams of the current sport — the team filters must never offer the other
   // sport (a VB view listing BB teams like 1xDU18 is just noise).
