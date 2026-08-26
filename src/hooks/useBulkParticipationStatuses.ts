@@ -24,8 +24,13 @@ export function useBulkParticipationStatuses(
   // type filter the JS map below collides them and the wrong row wins.
   const activityTypes = useMemo(() => Array.from(new Set(activities.map(a => a.type))), [activities])
   const activityIds = useMemo(() => activities.map(a => a.id), [activities])
-  const participationFilter = useMemo((): Record<string, unknown> | undefined => {
-    if (!user || activities.length === 0) return undefined
+  // Sentinel rather than `undefined` for the same reason as `useBulkParticipations`
+  // below — a falsy filter is dropped by `buildQuery` and `all: true` forces
+  // `limit: -1`, so the empty case would read the whole table. This hook's realtime
+  // guard checks `e.record.member`, which is absent on a delete frame, so it is not
+  // reachable the way the other one was — but the trap is identical and one line.
+  const participationFilter = useMemo((): Record<string, unknown> => {
+    if (!user || activities.length === 0) return { activity_id: { _in: [-1] } }
     return { _and: [
       { member: { _eq: user.id } },
       { activity_type: { _in: activityTypes } },
@@ -132,8 +137,20 @@ export function useBulkParticipations(
 ) {
   const { user } = useAuth()
 
-  const filter = useMemo((): Record<string, unknown> | undefined => {
-    if (!user || activities.length === 0) return undefined
+  // ⚠⚠ NEVER return `undefined` here. `buildQuery` drops a falsy filter
+  // (`src/lib/api.ts` — `if (query?.filter)`), and `fetchAllItems` forces `limit: -1`,
+  // so an empty `activities` array would send `GET /items/participations?limit=-1`
+  // with NO filter — a full-table read of every RSVP the policy lets you see, all of
+  // which is then discarded because `byActivity` is keyed on an empty array.
+  // `enabled` does not save us: TanStack's `refetch()` calls `fetch()` directly and
+  // consults `enabled` only on mount/optional refetch, and the realtime handler below
+  // calls `refetch()`. The empty window is reachable on the home page's hot path
+  // (`allActivities` is `[]` until everything loads) and stays open permanently for a
+  // teamless member, off-season, or during the season-rollover gap.
+  // Same impossible-match sentinel the other participations consumers already use
+  // (`EventsPage.tsx`, `EventCard.tsx`, `SessionParticipationSheet.tsx`).
+  const filter = useMemo((): Record<string, unknown> => {
+    if (!user || activities.length === 0) return { activity_id: { _in: [-1] } }
     const idsByType = new Map<string, string[]>()
     for (const a of activities) {
       const ids = idsByType.get(a.type) ?? []
@@ -156,9 +173,18 @@ export function useBulkParticipations(
   // so live updates must come from here. Delete payloads may carry only the PK
   // — refetch on those too rather than going stale.
   const activityIdSet = useMemo(() => new Set(activities.map((a) => a.id)), [activities])
+  // ⚠ A DELETE frame carries primary keys, not records, so `e.record.activity_id` is
+  // ALWAYS undefined on a delete — the `!e.record.activity_id` arm therefore fired for
+  // every participation delete anywhere in the club, on every connected client, and
+  // `refetch()` bypasses `enabled`. Deletes are also the one action Directus does NOT
+  // permission-filter before dispatching, so this was genuinely club-wide fan-out.
+  // Keeping the arm (a delete we cannot identify may well be one of ours) but gating it
+  // on actually having something to refetch, so the empty window can never issue the
+  // unfiltered read the sentinel above now also guards.
   useRealtime<Participation>('participations', (e) => {
+    if (activities.length === 0) return
     if (!e.record.activity_id || activityIdSet.has(String(e.record.activity_id))) refetch()
-  })
+  }, undefined, activities.length === 0)
 
   const byActivity = useMemo(() => {
     const map = new Map<string, Participation[]>()

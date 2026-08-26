@@ -10,6 +10,7 @@ import { useMutation } from '../../hooks/useMutation'
 import type { Game, Ranking, Team, Participation, ParticipationWithMember } from '../../types'
 import { useCollection, useActivitiesWithParticipations } from '../../lib/query'
 import { useRealtime } from '../../hooks/useRealtime'
+import { useDebouncedRefetch } from '../../hooks/useDebouncedRefetch'
 import { useEffectiveSeason } from '../../hooks/useEffectiveSeason'
 import { useQuery } from '@tanstack/react-query'
 import { teamIds } from '../../utils/teamColors'
@@ -266,7 +267,15 @@ export default function GamesPage() {
   const games = combined?.items ?? []
   const allParticipations = combined?.participations ?? []
 
-  useRealtime('participations', () => refetchCombined())
+  // Same two guards as TrainingsPage: debounce the burst, and ignore RSVPs that cannot
+  // belong to this page. `perPage` reaches 500 after "show all", so an unguarded
+  // refetch here re-reads a whole season's games plus their participations through the
+  // permission engine. Delete frames carry no `activity_type` — fall through.
+  const debouncedRefetchCombined = useDebouncedRefetch(refetchCombined)
+  useRealtime<Participation>('participations', (e) => {
+    if (e.record.activity_type && e.record.activity_type !== 'game') return
+    debouncedRefetchCombined()
+  })
 
   const { remove: removeGame } = useMutation<Game>('games')
 

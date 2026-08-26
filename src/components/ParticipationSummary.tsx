@@ -70,8 +70,18 @@ export default function ParticipationSummary({
   })
   const fetched = fetchedRaw ?? []
 
-  // Auto-refresh when participations change (create/update/delete)
-  useRealtime('participations', () => { if (!skipFetch) refetch() })
+  // Auto-refresh when participations change (create/update/delete).
+  // ⚠ `skipFetch` MUST be the `disabled` argument, not just an early return inside the
+  // callback. A guard in the callback still opens the subscription, and the server side
+  // is not free: Directus dispatches create/update by calling `readMany` under the
+  // SUBSCRIBER's accountability — one permission-filtered `participations` read per
+  // subscription, awaited sequentially across every connected client. The home page
+  // mounts both the desktop table and the mobile list (CSS-hidden, both in the DOM), so
+  // at ~20 rows that was ~20 policy-filtered reads per client per RSVP, every one of
+  // them discarded because `prefetched` was already supplying the data. This is the
+  // (instances × clients) multiplier that turned the 26.08.2026 participations read
+  // from 7s uncontended into 2m05s under load — see DEVLOG 26.08.2026.
+  useRealtime('participations', () => { refetch() }, undefined, skipFetch)
 
   // Mixed tournament: non-member signups (kscw-website form) don't create a
   // participations row (FK to members), so fetch them separately and add to confirmed.
