@@ -23,12 +23,32 @@ import { kscwApi } from '../../../lib/api'
  * minutes regardless. Returns null so the caller can stay silent rather than
  * report "0 staged", which would be a different and untrue claim.
  */
-export async function detectClubdeskConflicts(): Promise<number | null> {
+export interface ConflictStagingResult {
+  staged: number
+  /** How many conflicts were found, which is not how many were staged when capped. */
+  considered: number
+  /**
+   * The server refused to stage because the count exceeded its runaway cap — a
+   * stale or half-loaded clubdesk_export makes hundreds of members "disagree" at
+   * once. `staged` is 0 and that is NOT "nothing to decide": the caller must say
+   * so, or the loudest possible data fault reads as the quietest possible
+   * all-clear.
+   */
+  capped: boolean
+  cap: number
+}
+
+export async function detectClubdeskConflicts(): Promise<ConflictStagingResult | null> {
   try {
-    const r = await kscwApi<{ staged: number }>(
+    const r = await kscwApi<Partial<ConflictStagingResult>>(
       '/clubdesk-sync/proposals/detect', { method: 'POST' },
     )
-    return Number(r?.staged) || 0
+    return {
+      staged: Number(r?.staged) || 0,
+      considered: Number(r?.considered) || 0,
+      capped: r?.capped === true,
+      cap: Number(r?.cap) || 0,
+    }
   } catch (e) {
     if ((e as { status?: number })?.status === 404) return null
     throw e

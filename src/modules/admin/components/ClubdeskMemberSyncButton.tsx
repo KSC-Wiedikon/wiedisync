@@ -103,8 +103,11 @@ export default function ClubdeskMemberSyncButton({ onDone, className }: Props) {
           // button must not leave the value conflicts undetected just because it
           // took the other door. ⚠ Never fatal: the import already succeeded.
           try {
-            const staged = await detectClubdeskConflicts()
-            if (staged !== null && staged > 0) toast.info(t('dhPathConflictsStaged', { count: staged }))
+            const r = await detectClubdeskConflicts()
+            // ⚠ `capped` first: it also reports staged 0, and reporting that as
+            // "nothing to decide" turns the loudest data fault into silence.
+            if (r?.capped) toast.warning(t('dhPathConflictsCapped', { count: r.considered, cap: r.cap }))
+            else if (r && r.staged > 0) toast.info(t('dhPathConflictsStaged', { count: r.staged }))
           } catch { /* reported by the proposals table on next load */ }
           break
         }
