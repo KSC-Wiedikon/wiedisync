@@ -16,6 +16,7 @@ export default {
   endDate: 'Ende',
   startTime: 'Startzeit',
   endTime: 'Endzeit',
+  meetingTimeHint: 'Optional — wann sich die Gruppe trifft. Funktioniert auch bei ganztägigen Anlässen.',
   allDay: 'Ganzer Tag',
   publicSignupName: 'Dein Name',
   publicSignupEmail: 'E-Mail-Adresse',

@@ -16,6 +16,7 @@ export default {
   endDate: 'Fin',
   startTime: 'Heure de debut',
   endTime: 'Heure de fin',
+  meetingTimeHint: 'Facultatif — quand le groupe se retrouve. Fonctionne aussi pour les événements sur toute la journée.',
   allDay: 'Toute la journee',
   publicSignupName: 'Ton nom',
   publicSignupEmail: 'Adresse e-mail',

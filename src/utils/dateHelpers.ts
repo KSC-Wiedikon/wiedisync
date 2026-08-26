@@ -367,6 +367,37 @@ export function formatTime(t: string, locale?: string): string {
   return formatTimeZurich(t, locale)
 }
 
+/**
+ * Besammlung: the clock time a team meets, derived from an activity's start
+ * time and its stored offset (`games.meeting_offset_minutes`,
+ * `trainings.meeting_offset_minutes`).
+ *
+ * The offset is the stored truth and the clock is derived on every render —
+ * that is what keeps a meeting time correct after Swiss Volley moves a fixture
+ * or slot-cascade regenerates a training (migration 340). Returns '' when there
+ * is no start time or no offset; '' is the "no meeting time" case and must
+ * render nothing at all rather than a placeholder.
+ *
+ * ⚠ `offset` accepts a string on purpose: Directus integers arrive as strings
+ * unless the field is listed in KEEP_AS_NUMBER (src/lib/api.ts), and a silent
+ * `1170 - '10'` coercion is the kind of thing tsc never sees.
+ */
+export function meetingTimeFromOffset(
+  startClock: string | null | undefined,
+  offset: number | string | null | undefined,
+): string {
+  if (!startClock) return ''
+  if (offset === null || offset === undefined || offset === '') return ''
+  const mins = Number(offset)
+  if (!Number.isFinite(mins) || mins < 0) return ''
+  const m = /^(\d{1,2}):(\d{2})/.exec(startClock)
+  if (!m) return ''
+  const startMinutes = Number(m[1]) * 60 + Number(m[2])
+  // Wrap inside the day so an early-morning start never renders a negative clock.
+  const at = (((startMinutes - mins) % 1440) + 1440) % 1440
+  return `${String(Math.floor(at / 60)).padStart(2, '0')}:${String(at % 60).padStart(2, '0')}`
+}
+
 export function isDateInRange(date: string, start: string, end: string): boolean {
   const d = new Date(date).getTime()
   return d >= new Date(start).getTime() && d <= new Date(end).getTime()

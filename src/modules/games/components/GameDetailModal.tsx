@@ -4,6 +4,7 @@ import { MessageSquare, X, Check, AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Game, Team, Hall, Member, BaseRecord, Participation } from '../../../types'
 import { Button } from '@/components/ui/button'
+import { MeetingTimeSelect } from '@/components/MeetingTimeSelect'
 import TeamChip from '../../../components/TeamChip'
 import { teamNameToColorKey } from '../../../utils/teamColors'
 import ParticipationSummary from '../../../components/ParticipationSummary'
@@ -23,7 +24,7 @@ import { invalidateForCollection } from '../../../lib/query'
 import { useConfirm } from '../../../components/ConfirmProvider'
 import { sanitizeUrl } from '../../../utils/sanitizeUrl'
 import DatePicker from '@/components/ui/DatePicker'
-import { currentLocale, formatDate, formatTime, formatDateTimeCompactZurich, parseRespondByTime, toUtcIsoFromDatetimeLocal, isWithinDutyLateWindow, gameKickoffMs } from '../../../utils/dateHelpers'
+import { currentLocale, formatDate, formatTime, formatDateTimeCompactZurich, parseRespondByTime, toUtcIsoFromDatetimeLocal, isWithinDutyLateWindow, gameKickoffMs, meetingTimeFromOffset } from '../../../utils/dateHelpers'
 import RefereeExpenseSection from './RefereeExpenseSection'
 import GameGuestSection from './GameGuestSection'
 import BroadcastButton from '../../broadcast/BroadcastButton'
@@ -110,6 +111,7 @@ const NOMINATION_STATUS_TONE: Record<NominationStatus, string> = {
 
 export default function GameDetailModal({ game, onClose, readOnly, participations }: GameDetailModalProps) {
   const { t } = useTranslation('games')
+  const { t: tc } = useTranslation('common')
   const { user, isCoachOf, isStaffOnly, canParticipateIn, isGuestIn, coachTeamIds, teamResponsibleIds, hasAdminAccessToTeam } = useAuth()
   const confirm = useConfirm()
   const [rosterOpen, setRosterOpen] = useState(false)
@@ -691,6 +693,12 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
           {game.league && <DetailRow label={t('league')} value={game.league} />}
           <DetailRow label={t('date')} value={dateStr} />
           <DetailRow label={t('kickoff')} value={game.time ? formatTime(game.time) : '–'} />
+          {meetingTimeFromOffset(game.time, game.meeting_offset_minutes) && (
+            <DetailRow
+              label={tc('meetingTime')}
+              value={meetingTimeFromOffset(game.time, game.meeting_offset_minutes)}
+            />
+          )}
           <DetailRow label={t('gameType')} value={game.type === 'home' ? t('typeHome') : t('typeAway')} />
           {game.game_id && <DetailRow label={t('gameNumber')} value={game.game_id.replace(/^(vb_|bb_)/, '')} />}
           {game.season && <DetailRow label={t('season')} value={game.season} />}
@@ -913,6 +921,16 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
             set one) so it never leaves an empty bordered strip. */}
         {game.status === 'scheduled' && (game.respond_by || (!readOnly && isCoachOf(kscwTeamId))) && (
           <div className="space-y-3 border-t dark:border-gray-700 px-6 py-4">
+            {/* Besammlung (migration 340). Stored as minutes before kickoff, so
+                it stays right when Swiss Volley moves the fixture — the coach
+                picks the gap once and never revisits it after a reschedule. */}
+            {!readOnly && isCoachOf(kscwTeamId) && (
+              <MeetingTimeSelect
+                value={game.meeting_offset_minutes ?? null}
+                onChange={(v) => { void updateGame(game.id, { meeting_offset_minutes: v }) }}
+                startClock={game.time}
+              />
+            )}
             {game.respond_by && !editingDeadline && (
               <DetailRow label={t('respondBy')} value={`${formatDate(game.respond_by)}${(() => { const p = parseRespondByTime(game.respond_by, game.time); return p?.time ? `, ${p.time}` : '' })()}`} />
             )}

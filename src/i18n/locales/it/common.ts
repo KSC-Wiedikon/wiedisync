@@ -17,6 +17,13 @@ export default {
   close: 'Chiudi',
   update: 'Aggiorna',
 
+  // Besammlung (migration 340). Shared by games, trainings and events,
+  // so it lives in `common` rather than being triplicated per namespace.
+  meetingTime: 'Ritrovo',
+  meetingTimeNone: 'Nessun ritrovo',
+  minutesBefore_one: '{{count}} min prima',
+  minutesBefore_other: '{{count}} min prima',
+
   // States
   loading: 'Caricamento...',
   noData: 'Nessun dato',

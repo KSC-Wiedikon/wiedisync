@@ -16,6 +16,7 @@ export default {
   endDate: 'End',
   startTime: 'Start time',
   endTime: 'End time',
+  meetingTimeHint: 'Optional — when the group meets. Works for all-day events too.',
   allDay: 'All day',
   publicSignupName: 'Your name',
   publicSignupEmail: 'Email address',

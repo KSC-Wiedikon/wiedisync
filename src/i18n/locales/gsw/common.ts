@@ -17,6 +17,13 @@ export default {
   close: 'Zuämache',
   update: 'Aktualisiere',
 
+  // Besammlung (migration 340). Shared by games, trainings and events,
+  // so it lives in `common` rather than being triplicated per namespace.
+  meetingTime: 'Bsammlig',
+  meetingTimeNone: 'Kei Bsammlig',
+  minutesBefore_one: '{{count}} Min. vorher',
+  minutesBefore_other: '{{count}} Min. vorher',
+
   // States
   loading: 'Lade...',
   noData: 'Nüt da',

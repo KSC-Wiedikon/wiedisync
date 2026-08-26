@@ -17,6 +17,13 @@ export default {
   close: 'Close',
   update: 'Update',
 
+  // Besammlung (migration 340). Shared by games, trainings and events,
+  // so it lives in `common` rather than being triplicated per namespace.
+  meetingTime: 'Meeting time',
+  meetingTimeNone: 'No meeting time',
+  minutesBefore_one: '{{count}} min before',
+  minutesBefore_other: '{{count}} min before',
+
   // States
   loading: 'Loading...',
   noData: 'No data',

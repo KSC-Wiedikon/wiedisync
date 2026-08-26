@@ -9,7 +9,7 @@ import { useAuth } from '../../hooks/useAuth'
 import { useParticipation } from '../../hooks/useParticipation'
 import { useMyCoveringAbsence } from '../../hooks/useMyCoveringAbsence'
 import { useAbsenceNoteText } from '../../hooks/useAbsenceNoteText'
-import { formatDate, formatWeekday, formatTime, getDeadlineDate } from '../../utils/dateHelpers'
+import { formatDate, formatWeekday, formatTime, getDeadlineDate, meetingTimeFromOffset } from '../../utils/dateHelpers'
 import BroadcastButton from '../broadcast/BroadcastButton'
 import ShareActivityButton from '../../components/ShareActivityButton'
 import { sanitizeUrl } from '../../utils/sanitizeUrl'
@@ -17,7 +17,7 @@ import { isFeatureEnabled } from '../../utils/featureToggles'
 import type { Training, Team, Hall, Member } from '../../types'
 import { asObj, relId, teamCoachIds, memberDisplayName } from '../../utils/relations'
 import CancelActivityButton from '../../components/CancelActivityButton'
-import { MapPin, Clock, MessageSquare, User, Users, Calendar, Check, UserPlus } from 'lucide-react'
+import { MapPin, Clock, MessageSquare, User, Users, Calendar, Check, UserPlus, AlarmClock } from 'lucide-react'
 
 type TrainingExpanded = Training & {
   team: Team | string
@@ -32,6 +32,7 @@ interface TrainingDetailModalProps {
 
 export default function TrainingDetailModal({ training, onClose }: TrainingDetailModalProps) {
   const { t } = useTranslation('trainings')
+  const { t: tc } = useTranslation('common')
   const { user, canParticipateIn, isCoachOf, isStaffOnly, coachTeamIds, teamResponsibleIds } = useAuth()
   const [rosterOpen, setRosterOpen] = useState(false)
 
@@ -120,6 +121,14 @@ export default function TrainingDetailModal({ training, onClose }: TrainingDetai
               <Clock className="h-4 w-4 shrink-0 text-gray-500 dark:text-gray-400" />
               <span>{formatTime(training.start_time)} – {formatTime(training.end_time)}</span>
             </div>
+            {meetingTimeFromOffset(training.start_time, training.meeting_offset_minutes) && (
+              <div className="flex items-center gap-2">
+                <AlarmClock className="h-4 w-4 shrink-0 text-gray-500 dark:text-gray-400" />
+                <span>
+                  {tc('meetingTime')}: {meetingTimeFromOffset(training.start_time, training.meeting_offset_minutes)}
+                </span>
+              </div>
+            )}
             {(hall || training.hall_name) && (
               <div className="flex items-center gap-2">
                 <MapPin className="h-4 w-4 shrink-0 text-gray-500 dark:text-gray-400" />

@@ -8,8 +8,9 @@ import ParticipationSummary from '../../components/ParticipationSummary'
 import AbsenceForm from '../absences/AbsenceForm'
 import { useAuth } from '../../hooks/useAuth'
 import type { CalendarEntry, BirthdaySource } from '../../types/calendar'
-import type { Training, Event as KscwEvent, Absence, Member } from '../../types'
+import type { Training, Event as KscwEvent, Game, Absence, Member } from '../../types'
 import { formatDate } from '../../utils/dateUtils'
+import { formatTime, meetingTimeFromOffset } from '../../utils/dateHelpers'
 import { asObj, memberName } from '../../utils/relations'
 import { isGuestExcludedFromEvent } from '../events/eventHelpers'
 
@@ -133,6 +134,17 @@ export default function CalendarEntryModal({ entry, onClose, onRefresh }: Calend
                 value={entry.endTime ? `${entry.startTime} – ${entry.endTime}` : entry.startTime}
               />
             ) : null}
+
+            {(() => {
+              const meeting = entry.type === 'training'
+                ? meetingTimeFromOffset((entry.source as Training).start_time, (entry.source as Training).meeting_offset_minutes)
+                : entry.type === 'game'
+                  ? meetingTimeFromOffset((entry.source as Game).time, (entry.source as Game).meeting_offset_minutes)
+                  : entry.type === 'event'
+                    ? formatTime((entry.source as KscwEvent).meeting_time ?? '')
+                    : ''
+              return meeting ? <DetailRow label={t('common:meetingTime')} value={meeting} /> : null
+            })()}
 
             {entry.location && (
               <DetailRow label={t('common:hall')} value={entry.location} />

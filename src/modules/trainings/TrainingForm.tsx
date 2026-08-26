@@ -13,6 +13,7 @@ import { FormInput, FormTextarea, FormField } from '@/components/FormField'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import DatePicker from '@/components/ui/DatePicker'
 import { Switch } from '@/components/ui/switch'
+import { MeetingTimeSelect } from '@/components/MeetingTimeSelect'
 import type { Training, Team, Hall, HallSlot, SlotClaim, TeamSettings } from '../../types'
 import type { RecurringEditScope } from './RecurringEditDialog'
 import { fetchAllItems, fetchItem, updateRecord, flattenM2MTeams } from '../../lib/api'
@@ -85,6 +86,7 @@ export default function TrainingForm({ open, training, editScope = 'this', defau
   const [autoConfirmRsvp, setAutoConfirmRsvp] = useState<boolean | null>(null)
   const [teamAutoConfirmDefault, setTeamAutoConfirmDefault] = useState(false)
   const [isTrial, setIsTrial] = useState(false)
+  const [meetingOffset, setMeetingOffset] = useState<number | null>(10)
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
 
@@ -274,6 +276,7 @@ export default function TrainingForm({ open, training, editScope = 'this', defau
       const rawAcr = (training as Training).auto_confirm_rsvp
       setAutoConfirmRsvp(rawAcr === true ? true : rawAcr === false ? false : null)
       setIsTrial(!!training.is_trial)
+      setMeetingOffset(training.meeting_offset_minutes ?? null)
       // Edit mode: if training has a hall_slot, start in auto mode with it pre-selected
       if (training.hall_slot) {
         setSlotMode('auto')
@@ -381,6 +384,7 @@ export default function TrainingForm({ open, training, editScope = 'this', defau
       excluded_guest_levels: excludedGuestLevels,
       auto_confirm_rsvp: autoConfirmRsvp,
       is_trial: isTrial,
+      meeting_offset_minutes: meetingOffset,
     }
 
     setIsLoading(true)
@@ -420,6 +424,7 @@ export default function TrainingForm({ open, training, editScope = 'this', defau
       auto_cancel_on_min: data.auto_cancel_on_min,
       excluded_guest_levels: data.excluded_guest_levels,
       auto_confirm_rsvp: data.auto_confirm_rsvp,
+      meeting_offset_minutes: data.meeting_offset_minutes,
     }
 
     // Find sibling trainings with same hall_slot, excluding the one we already updated
@@ -630,6 +635,12 @@ export default function TrainingForm({ open, training, editScope = 'this', defau
             min={0}
           />
         </div>
+
+        <MeetingTimeSelect
+          value={meetingOffset}
+          onChange={setMeetingOffset}
+          startClock={startTime}
+        />
 
         {minParticipants && Number(minParticipants) > 0 && (
           <div className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300">

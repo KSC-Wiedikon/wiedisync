@@ -110,6 +110,10 @@ export default function EventForm({ open, event, onSave, onCancel }: EventFormPr
   const [endDate, setEndDate] = useState('')
   const [startTime, setStartTime] = useState('')
   const [endTime, setEndTime] = useState('')
+  // Besammlung (migration 340). An absolute clock, not an offset: an all-day
+  // event has no start time to count back from, and a full-day tournament is
+  // exactly the case this exists for. '' = none, which is the default.
+  const [meetingTime, setMeetingTime] = useState('')
   const [allDay, setAllDay] = useState(true)
   const [location, setLocation] = useState('')
   const [description, setDescription] = useState('')
@@ -173,6 +177,7 @@ export default function EventForm({ open, event, onSave, onCancel }: EventFormPr
         setEndTime(e.split('T')[1] ?? '')
       }
       setAllDay(event.all_day)
+      setMeetingTime((event.meeting_time ?? '').slice(0, 5))
       setLocation(event.location ?? '')
       setDescription(event.description ?? '')
       // teams from API are junction objects [{teams_id: {id, ...}}, ...] — extract team IDs
@@ -216,6 +221,7 @@ export default function EventForm({ open, event, onSave, onCancel }: EventFormPr
       setStartTime('')
       setEndTime('')
       setAllDay(true)
+      setMeetingTime('')
       setLocation('')
       setDescription('')
       setSelectedTeams([])
@@ -453,6 +459,7 @@ export default function EventForm({ open, event, onSave, onCancel }: EventFormPr
         ? (endDate || startDate)
         : toUtcIsoFromDatetimeLocal(`${endDate || startDate}T${endTime || startTime || '00:00'}`),
       all_day: allDay,
+      meeting_time: meetingTime || null,
       location,
       description,
       teams: m2mUpdatePayload('teams_id', selectedTeams, event?.teams),
@@ -618,6 +625,14 @@ export default function EventForm({ open, event, onSave, onCancel }: EventFormPr
             )}
           </div>
         </div>
+
+        <FormInput
+          label={tc('meetingTime')}
+          type="time"
+          value={meetingTime}
+          onChange={(e) => setMeetingTime(e.target.value)}
+          helperText={t('meetingTimeHint')}
+        />
 
         <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
           <Switch

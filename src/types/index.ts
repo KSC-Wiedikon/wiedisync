@@ -423,6 +423,12 @@ export interface HallClosure extends BaseRecord {
 
 export interface Game extends BaseRecord {
   game_id: string
+  /**
+   * Besammlung: minutes BEFORE the start that the team meets (migration 340).
+   * null = no meeting time. Stored as an offset, not a clock, so it survives a
+   * reschedule — derive the displayed time with meetingTimeFromOffset().
+   */
+  meeting_offset_minutes?: number | null
   home_team: string
   away_team: string
   kscw_team: string
@@ -598,6 +604,12 @@ export interface Ranking extends BaseRecord {
 
 export interface Training extends BaseRecord {
   team: string
+  /**
+   * Besammlung: minutes BEFORE the start that the team meets (migration 340).
+   * null = no meeting time. Stored as an offset, not a clock, so it survives a
+   * reschedule — derive the displayed time with meetingTimeFromOffset().
+   */
+  meeting_offset_minutes?: number | null
   hall_slot: string
   date: string
   start_time: string
@@ -671,6 +683,12 @@ export interface SchedulingBlock extends BaseRecord {
 
 export interface Event extends BaseRecord {
   title: string
+  /**
+   * Besammlung: the wall-clock time ('HH:MM:SS') the group meets on the start
+   * date (migration 340). null = none. Absolute rather than an offset because
+   * an all_day event has no start clock to count back from.
+   */
+  meeting_time?: string | null
   description: string
   event_type: 'verein' | 'social' | 'meeting' | 'tournament' | 'trainingsweekend' | 'friendly' | 'other'
   start_date: string

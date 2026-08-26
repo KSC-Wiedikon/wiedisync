@@ -970,7 +970,7 @@ const GAME_WRITE_FIELDS = [
   // deliberately absent from this list (see the header).
   'auto_nomination_list',
   // Besammlung offset (migration 340). Coach-owned: the whole point is that
-  // the team's own coach sets when to meet. Omitted here it would be
+  // the team's own coach sets when the team meets. Omitted here it would be
   // silently read-only to every non-admin — field perms are an allow-list.
   'meeting_offset_minutes',
 

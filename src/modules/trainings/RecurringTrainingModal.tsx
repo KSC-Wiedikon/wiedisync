@@ -13,6 +13,7 @@ import type { TeamSettings } from '../../types'
 import TeamChip from '../../components/TeamChip'
 import DatePicker from '@/components/ui/DatePicker'
 import { Switch } from '@/components/ui/switch'
+import { MeetingTimeSelect } from '@/components/MeetingTimeSelect'
 import { createRecords, fetchAllItems, fetchItem } from '../../lib/api'
 import { relId, asObj } from '../../utils/relations'
 
@@ -105,6 +106,7 @@ export default function RecurringTrainingModal({ open, onClose, onGenerated, sel
   const [minParticipants, setMinParticipants] = useState('')
   const [maxParticipants, setMaxParticipants] = useState('')
   const [requireNoteIfAbsent, setRequireNoteIfAbsent] = useState(false)
+  const [meetingOffset, setMeetingOffset] = useState<number | null>(10)
   const [autoCancelOnMin, setAutoCancelOnMin] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -290,6 +292,7 @@ export default function RecurringTrainingModal({ open, onClose, onGenerated, sel
           min_participants: minParticipants ? Number(minParticipants) : null,
           max_participants: maxParticipants ? Number(maxParticipants) : null,
           require_note_if_absent: requireNoteIfAbsent,
+          meeting_offset_minutes: meetingOffset,
         }))
         const created = await createRecords<{ id: string }>('trainings', payloads)
         created.forEach((rec, i) => {
@@ -505,6 +508,12 @@ export default function RecurringTrainingModal({ open, onClose, onGenerated, sel
             />
           </div>
         </div>
+
+        <MeetingTimeSelect
+          value={meetingOffset}
+          onChange={setMeetingOffset}
+          startClock={slot?.start_time}
+        />
 
         {minParticipants && Number(minParticipants) > 0 && (
           <div className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300">

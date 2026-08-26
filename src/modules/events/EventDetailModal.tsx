@@ -20,7 +20,7 @@ import { formatDate, formatTime } from '../../utils/dateHelpers'
 import BroadcastButton from '../broadcast/BroadcastButton'
 import ShareActivityButton from '../../components/ShareActivityButton'
 import { isFeatureEnabled } from '../../utils/featureToggles'
-import { Calendar, Clock, MapPin, Users, Check, MessageSquare, UserPlus, Share2, ClipboardList, Link2 } from 'lucide-react'
+import { Calendar, Clock, MapPin, Users, Check, MessageSquare, UserPlus, Share2, ClipboardList, Link2, AlarmClock } from 'lucide-react'
 import { toast } from 'sonner'
 import EventSignupsModal from './EventSignupsModal'
 import { teamCoachIds } from '../../utils/relations'
@@ -208,6 +208,12 @@ export default function EventDetailModal({ event, onClose }: EventDetailModalPro
                   {formatTime(event.start_date)}
                   {event.end_date && ` – ${formatTime(event.end_date)}`}
                 </span>
+              </div>
+            )}
+            {event.meeting_time && (
+              <div className="flex items-center gap-2">
+                <AlarmClock className="h-4 w-4 shrink-0 text-gray-500 dark:text-gray-400" />
+                <span>{tc('meetingTime')}: {formatTime(event.meeting_time)}</span>
               </div>
             )}
             {event.location && (

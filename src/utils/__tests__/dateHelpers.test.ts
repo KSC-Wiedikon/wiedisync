@@ -4,7 +4,7 @@ import {
   formatWeekdayZurich,
   formatDateTimeCompactZurich, formatRelativeTimeZurich,
   toUtcIsoFromDatetimeLocal, toDatetimeLocalFromUtcIso,
-  parseRespondByTime, getDeadlineDate,
+  parseRespondByTime, getDeadlineDate, meetingTimeFromOffset,
 } from '../dateHelpers';
 
 describe('formatTimeZurich', () => {
@@ -157,3 +157,43 @@ describe('getDeadlineDate', () => {
 });
 
 
+
+describe('meetingTimeFromOffset (Besammlung, migration 340)', () => {
+  it('subtracts the offset from a game kickoff', () => {
+    expect(meetingTimeFromOffset('16:00', 60)).toBe('15:00');
+    expect(meetingTimeFromOffset('16:00:00', 60)).toBe('15:00');
+  });
+
+  it('handles the training default and non-round gaps', () => {
+    expect(meetingTimeFromOffset('19:30', 10)).toBe('19:20');
+    expect(meetingTimeFromOffset('20:15', 45)).toBe('19:30');
+  });
+
+  it('treats 0 as "meet at the start time", not as absent', () => {
+    expect(meetingTimeFromOffset('18:00', 0)).toBe('18:00');
+  });
+
+  // Directus stringifies integers unless the field is in KEEP_AS_NUMBER
+  // (src/lib/api.ts). If that entry is ever dropped this must still not
+  // silently produce NaN — a wrong meeting time is worse than none.
+  it('coerces a stringified offset', () => {
+    expect(meetingTimeFromOffset('16:00', '60')).toBe('15:00');
+  });
+
+  it('renders nothing when there is no meeting time or no start', () => {
+    expect(meetingTimeFromOffset('16:00', null)).toBe('');
+    expect(meetingTimeFromOffset('16:00', undefined)).toBe('');
+    expect(meetingTimeFromOffset('16:00', '')).toBe('');
+    expect(meetingTimeFromOffset(null, 60)).toBe('');
+    expect(meetingTimeFromOffset('', 60)).toBe('');
+  });
+
+  it('never renders a negative clock when the offset crosses midnight', () => {
+    expect(meetingTimeFromOffset('00:30', 60)).toBe('23:30');
+  });
+
+  it('rejects nonsense rather than rendering it', () => {
+    expect(meetingTimeFromOffset('16:00', -30)).toBe('');
+    expect(meetingTimeFromOffset('not a time', 60)).toBe('');
+  });
+});
