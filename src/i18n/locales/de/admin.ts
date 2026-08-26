@@ -638,6 +638,7 @@ export default {
   dhPathTimeout: 'Dieser Schritt dauert zu lange — siehe Sync-Log.',
   dhPathStep1: '1. Sync down',
   dhPathConflictsStaged_one: '1 Wertkonflikt zu deinen Entscheidungen hinzugefügt',
+  dhPathConflictsCapped: '{{count}} Wertkonflikte gefunden — mehr als das Limit von {{cap}}, daher wurde keiner übernommen. Der ClubDesk-Export ist vermutlich veraltet oder unvollständig. Bitte erneut synchronisieren.',
   dhPathConflictsStaged_other: '{{count}} Wertkonflikte zu deinen Entscheidungen hinzugefügt',
   dhPathStep2: '2. Entscheiden ({{count}})',
   dhPathStep3: '3. Sync up',

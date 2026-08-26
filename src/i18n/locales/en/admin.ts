@@ -638,6 +638,7 @@ export default {
   dhPathTimeout: 'That step is taking too long — check the sync log.',
   dhPathStep1: '1. Sync down',
   dhPathConflictsStaged_one: '1 value disagreement added to your decisions',
+  dhPathConflictsCapped: '{{count}} value disagreements found — more than the limit of {{cap}}, so none were added. The ClubDesk export is probably stale or incomplete. Sync down again.',
   dhPathConflictsStaged_other: '{{count}} value disagreements added to your decisions',
   dhPathStep2: '2. Decide ({{count}})',
   dhPathStep3: '3. Sync up',

@@ -19,7 +19,7 @@ const apiError = (status: number) =>
  * Catching it here is not a weaker assertion: it pins down the same two facts,
  * whether the call returned and with what, or threw and carrying which status.
  */
-async function outcome(): Promise<{ value: number | null } | { threwStatus?: number }> {
+async function outcome(): Promise<{ value: unknown } | { threwStatus?: number }> {
   try {
     return { value: await detectClubdeskConflicts() }
   } catch (e) {
@@ -36,13 +36,28 @@ async function outcome(): Promise<{ value: number | null } | { threwStatus?: num
  */
 describe('detectClubdeskConflicts', () => {
   it('returns the staged count', async () => {
-    api.kscwApi.mockResolvedValue({ staged: 3 })
-    expect(await outcome()).toEqual({ value: 3 })
+    api.kscwApi.mockResolvedValue({ staged: 3, considered: 3, capped: false, cap: 150 })
+    expect(await outcome()).toEqual({ value: { staged: 3, considered: 3, capped: false, cap: 150 } })
   })
 
   it('reports 0 when the endpoint answers but stages nothing', async () => {
-    api.kscwApi.mockResolvedValue({ staged: 0 })
-    expect(await outcome()).toEqual({ value: 0 })
+    api.kscwApi.mockResolvedValue({ staged: 0, considered: 0, capped: false, cap: 150 })
+    expect(await outcome()).toEqual({ value: { staged: 0, considered: 0, capped: false, cap: 150 } })
+  })
+
+  it('carries `capped` through — staged 0 there means the OPPOSITE of "nothing to decide"', async () => {
+    // The runaway guard refuses to stage when the inputs are clearly wrong (a
+    // stale or half-loaded clubdesk_export makes hundreds of members disagree at
+    // once — dev stages 698 email conflicts purely from its PII scrub). The flag
+    // has to survive the boundary, or the caller reports the loudest data fault
+    // as the quietest all-clear.
+    api.kscwApi.mockResolvedValue({ staged: 0, considered: 700, capped: true, cap: 150 })
+    expect(await outcome()).toEqual({ value: { staged: 0, considered: 700, capped: true, cap: 150 } })
+  })
+
+  it('defaults a missing capped flag to false rather than undefined', async () => {
+    api.kscwApi.mockResolvedValue({ staged: 2 })
+    expect(await outcome()).toEqual({ value: { staged: 2, considered: 0, capped: false, cap: 0 } })
   })
 
   it('treats a 404 as the deploy window and returns null, NOT 0', async () => {

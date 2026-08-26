@@ -2865,6 +2865,25 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
    *           own source. It is not in PROPOSAL_COLUMNS, and the whitelist test
    *           below is what enforces that rather than a second list to keep.
    */
+  /**
+   * Runaway guard, same reasoning as GROUP_FIX_CAP: past this, the INPUTS are
+   * wrong and the correct response is never to turn the symptom into a work
+   * list. Prod carries 3 conflicts today and its historic high was 8; a stale or
+   * half-loaded clubdesk_export makes hundreds of members "disagree" at once,
+   * and dev proves the shape — its nightly PII scrub rewrites members.email to
+   * member_143@devsink.invalid and clubdesk_export.email to
+   * scrub_8dfa…@devsink.invalid, two different schemes, so 698 of its 700
+   * conflicts are email and none of them are real.
+   *
+   * ⚠ It matters more here than it looks, because pending proposals BLOCK step 2
+   * of the sync path: an uncapped flood would not just be noise, it would park
+   * the whole run behind hundreds of decisions nobody can make.
+   *
+   * ⚠ Stages NOTHING rather than the first N. A partial queue is worse than
+   * none — you would decide an arbitrary slice while the rest vanished silently.
+   */
+  const CONFLICT_STAGING_CAP = 150
+
   async function stageConflictProposals() {
     const drift = await computeClubdeskDrift()
     const NAME_FIELDS = new Set(['first_name', 'last_name'])
@@ -2885,7 +2904,13 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
         })
       }
     }
-    if (!wanted.length) return { staged: 0, considered: 0 }
+    if (!wanted.length) return { staged: 0, considered: 0, capped: false }
+    if (wanted.length > CONFLICT_STAGING_CAP) {
+      // Loud, not silent: this is the one outcome where "0 staged" would read as
+      // "nothing to decide" while the truth is "everything disagrees".
+      log.warn(`ClubDesk conflict staging: ${wanted.length} conflicts exceed the cap of ${CONFLICT_STAGING_CAP} — staged none (clubdesk_export is probably stale or half-loaded)`)
+      return { staged: 0, considered: wanted.length, capped: true }
+    }
 
     // ⚠⚠ Read-then-insert, NOT insert-and-count. `.onConflict().ignore()` drops
     // RETURNING on knex 3.1 (the version in the container), so an insert that
@@ -2914,9 +2939,9 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       const fresh = wanted.filter((w) =>
         !pending.has(`${w.member_id}|${w.field}`)
         && !refused.has(`${w.member_id}|${w.field}|${w.proposed_value ?? ''}`))
-      if (!fresh.length) return { staged: 0, considered: wanted.length }
+      if (!fresh.length) return { staged: 0, considered: wanted.length, capped: false }
       await trx('clubdesk_sync_proposals').insert(fresh).onConflict().ignore()
-      return { staged: fresh.length, considered: wanted.length }
+      return { staged: fresh.length, considered: wanted.length, capped: false }
     })
   }
 
@@ -2927,7 +2952,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
   router.post('/clubdesk-sync/proposals/detect', async (req, res) => {
     try {
       if (!(await superGate(req))) return res.status(403).json({ error: 'Forbidden' })
-      const { staged, considered } = await stageConflictProposals()
+      const { staged, considered, capped } = await stageConflictProposals()
       // ⚠ Stamped even when nothing was staged (migration 339). The watermark
       // means "drift has been examined for the current sync-down", not "rows
       // were written" — the scheduled hook compares it against
@@ -2942,7 +2967,10 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
           data: { kind: 'clubdesk_conflict_detect', staged, considered },
         })
       }
-      return res.json({ staged, considered })
+      // ⚠ The watermark is stamped even when the cap refused everything. Re-running
+      // the same computation against the same export every 15 minutes would hit
+      // the same cap; the next sync-down is what can actually change the answer.
+      return res.json({ staged, considered, capped: capped === true, cap: CONFLICT_STAGING_CAP })
     } catch (err) {
       log.error({ msg: `clubdesk conflict detect: ${err.message}`, endpoint: 'clubdesk-sync/proposals/detect', stack: err.stack })
       return res.status(500).json({ error: 'Internal error' })

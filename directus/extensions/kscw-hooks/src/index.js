@@ -3997,8 +3997,8 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         .first('down_last_success_at', 'conflicts_staged_at')
       if (!row?.down_last_success_at) return
       const synced = new Date(row.down_last_success_at).getTime()
-      const staged = row.conflicts_staged_at ? new Date(row.conflicts_staged_at).getTime() : 0
-      if (staged >= synced) return
+      const watermark = row.conflicts_staged_at ? new Date(row.conflicts_staged_at).getTime() : 0
+      if (watermark >= synced) return
 
       const token = await getCronAccessToken(log, 'ClubDesk conflict staging')
       if (!token) return
@@ -4008,8 +4008,19 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       })
       const body = await res.text()
       if (!res.ok) throw new Error(`${res.status} ${body.slice(0, 200)}`)
+      // ⚠ A capped run answers 200 with staged:0. Logged at warn, because the
+      // count it refused is a data fault worth chasing (a stale or half-loaded
+      // clubdesk_export), and at info level it would read as a quiet no-op.
+      let staged = 0
+      try {
+        const parsed = JSON.parse(body)
+        staged = Number(parsed?.staged) || 0
+        if (parsed?.capped) {
+          log.warn(`ClubDesk conflict staging: ${parsed.considered} conflicts exceed the cap of ${parsed.cap} — staged none`)
+        }
+      } catch { /* body already logged below */ }
       log.info(`ClubDesk conflict staging: ${body}`)
-      await logCronRun(database, 'clubdesk_conflict_staging', { status: 'ok', durationMs: Date.now() - startedAt })
+      await logCronRun(database, 'clubdesk_conflict_staging', { status: 'ok', rowsChanged: staged, durationMs: Date.now() - startedAt })
     } catch (err) {
       log.error({ msg: `ClubDesk conflict staging: ${err.message}`, event: 'cron.clubdesk_conflict_staging', stack: err.stack })
       logCronError('clubdesk_conflict_staging', err)

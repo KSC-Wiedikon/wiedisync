@@ -152,8 +152,11 @@ export default function ClubdeskSyncPath({
       // failed staging must not undo a sync-down that already succeeded, so it
       // reports and the path carries on; the next down re-detects.
       try {
-        const staged = await detectClubdeskConflicts()
-        if (staged !== null && staged > 0) toast.info(t('dhPathConflictsStaged', { count: staged }))
+        const r = await detectClubdeskConflicts()
+        // ⚠ `capped` first: it also reports staged 0, and reporting that as
+        // "nothing to decide" turns the loudest data fault into silence.
+        if (r?.capped) toast.warning(t('dhPathConflictsCapped', { count: r.considered, cap: r.cap }))
+        else if (r && r.staged > 0) toast.info(t('dhPathConflictsStaged', { count: r.staged }))
       } catch (e) {
         toast.warning(e instanceof Error ? e.message : String(e))
       }
