@@ -1685,11 +1685,38 @@ async function main() {
   // Both must come back. The fix is to stop expressing "whose RSVP may I see?" as
   // repeated deep relation walks and precompute it — the same move migration 334
   // already made with the trigger-derived `events.open_roster`. See DEVLOG 26.08.2026.
-  const PARTICIPATION_VISIBLE = SAME_TEAM_AS_ME
-  // Parked full rule — restore verbatim once the walks are flattened:
-  //   const PARTICIPATION_VISIBLE = {
-  //     _or: [...SAME_TEAM_AS_ME._or, ...SAME_GAME_AS_ME, EVENT_ROSTER_VISIBLE],
-  //   }
+  // ── STAGE 1 (26.08.2026, later the same day) ───────────────────────────────
+  // `EVENT_ROSTER_VISIBLE` is restored; `SAME_GAME_AS_ME` stays parked.
+  //
+  // The two parked branches are NOT equally expensive, and the difference decides
+  // the whole plan. Measured separately on the dev clone, same 302 driving rows:
+  //   full rule (both branches)          148,915,476   6,700×
+  //   minus EVENT_ROSTER_VISIBLE (271)     5,625,450     254×   ← game-guest is the pig
+  //   minus SAME_GAME_AS_ME (333)            622,853      28×   ← event roster is cheap
+  //   team-scope only (the stopgap)           22,175       1×
+  // The factors MULTIPLY (28 × 254 ≈ 7,100 ≈ the observed 6,700×). So migration 333 —
+  // the change everyone including this file's own morning DEVLOG entry assumed was the
+  // culprit — is the cheaper of the two by an order of magnitude, and can come back on
+  // its own for ~28× of a very small number (≈30ms extrapolated from the 7s baseline).
+  //
+  // What this un-hides: Photoday Day 2 (16.09.2026, club-wide, 56 RSVPs) and
+  // Trainingsweekend (03.10.2026, 2 teams, 84 RSVPs) were showing their rosters as
+  // unanswered to most of their audience — invisibly, because `members` read is
+  // unfiltered so all the names still rendered.
+  //
+  // ⚠ This is STILL a 2-branch policy and it STILL multiplies. It is acceptable
+  // because 28× of a small number is a small number, NOT because the shape is safe.
+  // Do NOT add a third to-many branch on top of it.
+  //
+  // ⚠⚠ `SAME_GAME_AS_ME` must never come back as a filter. 254× on top of this is
+  // ~7,600× and reinstates the outage. It has to stop being a relation walk —
+  // see `.planning/2026-08-26-participation-visibility-design.md` (stage 2:
+  // `participation_visibility(participation, viewer_user)`, one branch, one hop,
+  // built verifier-first because a missed trigger source is a SILENT LEAK).
+  const PARTICIPATION_VISIBLE = {
+    _or: [...SAME_TEAM_AS_ME._or, EVENT_ROSTER_VISIBLE],
+  }
+  // Parked (migration 271): ...SAME_GAME_AS_ME — restore only via stage 2, never as a filter.
   // 2026-05-12 audit #12: participations.last_*_edited_by are directus_users
   // UUIDs (migrations 046/047) which let Members enumerate Directus user
   // UUIDs by cross-referencing. Members get the timestamps but not the
@@ -2442,15 +2469,24 @@ async function main() {
   // nothing, and narrowing writes would silently strip coaches of RSVP edits.
   // That does mean a leader can currently update a guest's game RSVP they can no
   // longer read; restoring the parked rule closes that gap again.
+  // STAGE 1 (26.08.2026): the event-roster branch is restored here too, mirroring the
+  // Member rule — the captured prod SQL carried BOTH policies' predicates OR-ed
+  // together, so a leader on the narrowed rule would still not see a club tournament's
+  // roster even though every player could. The game-guest branch stays parked.
+  // The event branch hands `LEADER_EVENTS_VISIBLE` to the SAME object the `events` read
+  // rule uses, so event visibility and roster visibility cannot drift apart (mig 333).
   const COACH_OR_TR_PARTICIPATION_READ_NARROWED = {
     _or: [
       { member: { user: { _eq: '$CURRENT_USER' } } },
       { member: { member_teams: { team: { active: { _eq: true }, coach: { members_id: { user: { _eq: '$CURRENT_USER' } } } } } } },
       { member: { member_teams: { team: { active: { _eq: true }, team_responsible: { members_id: { user: { _eq: '$CURRENT_USER' } } } } } } },
+      { _and: [{ activity_type: { _eq: 'event' } }, { event: { _and: [{ open_roster: { _eq: true } }, LEADER_EVENTS_VISIBLE] } }] },
     ],
   }
   await setPermRead(LEADER_POLICY, 'participations', COACH_OR_TR_PARTICIPATION_READ_NARROWED)
-  // Parked: await setPermRead(LEADER_POLICY, 'participations', COACH_OR_TR_PARTICIPATION_READ)
+  // Parked (migration 271): the `member.game_guests.game.kscw_team.{coach,team_responsible}`
+  // branch that COACH_OR_TR_OF_PARTICIPATION still carries for update/delete. Read stays
+  // without it until stage 2 — see the Member rule above for why.
   await setPerm(LEADER_POLICY, 'participations', 'update', COACH_OR_TR_OF_PARTICIPATION)
 
   // ── Game guest invitations (migration 271) ──────────────────────
