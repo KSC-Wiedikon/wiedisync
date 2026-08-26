@@ -3587,6 +3587,64 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     }
   })
 
+  // ── 4b. Cron: participation_visibility drift check (04:20 UTC) ──
+  //
+  // `participation_visibility` (migration 341) materialises the guest-roster
+  // branch of the `participations` read policy, because expressing it as a filter
+  // cost 254× — Directus compiles a policy `_or` into flat sibling LEFT JOINs that
+  // cross-multiply (26.08.2026: 302 rows → 148,915,476 intermediate rows).
+  //
+  // ⚠⚠ The table is reconciled by ~10 triggers. A missed trigger SOURCE is a
+  // SILENT LEAK — someone keeps read access they should have lost — and that is
+  // strictly worse than the performance bug it replaced, because nobody notices.
+  // This cron is the safety net that makes it noisy instead.
+  //
+  // `extra`   = readable by someone who must NOT → treat as a security incident.
+  // `missing` = not readable by someone who should → merely annoying.
+  //
+  // It HEALS as well as reports: leaving a known leak open until a human reads a
+  // log is not a defensible default. The drift is logged in full FIRST, so the
+  // evidence survives the repair and the missing trigger can still be found.
+  schedule('20 4 * * *', async () => {
+    try {
+      // Tolerate an environment where migration 341 has not been applied yet
+      // (fresh install, or a dev DB restored from an older baseline) — otherwise
+      // this would log a fatal every night on a perfectly healthy system.
+      const fn = await database.raw(
+        "SELECT to_regprocedure('verify_participation_visibility()') IS NOT NULL AS present")
+      if (!fn?.rows?.[0]?.present) return
+
+      const before = (await database.raw('SELECT kind, participation, viewer_user FROM verify_participation_visibility()'))?.rows ?? []
+      if (before.length === 0) return
+
+      const extra = before.filter((r) => r.kind === 'extra')
+      const missing = before.filter((r) => r.kind === 'missing')
+      log.error({
+        msg: `participation_visibility DRIFT: ${extra.length} extra (LEAK), ${missing.length} missing`,
+        event: 'cron.participation_visibility_drift',
+        sample: before.slice(0, 20),
+      })
+      logCronError('participation_visibility_drift',
+        new Error(`${extra.length} extra (leak), ${missing.length} missing — a trigger source is missing`))
+
+      await database.raw('SELECT refresh_participation_visibility()')
+      const after = (await database.raw('SELECT count(*)::int AS n FROM verify_participation_visibility()'))?.rows?.[0]?.n ?? -1
+      if (after === 0) {
+        log.info('participation_visibility: drift healed by refresh — find the missing trigger source')
+      } else {
+        // Refresh could not fix it ⇒ the view itself disagrees with reality, which
+        // is a different and worse bug than a stale trigger.
+        log.error({
+          msg: `participation_visibility: STILL ${after} drifted after refresh`,
+          event: 'cron.participation_visibility_drift',
+        })
+      }
+    } catch (err) {
+      log.error({ msg: `participation_visibility check: ${err.message}`, event: 'cron.participation_visibility_drift', stack: err.stack })
+      logCronError('participation_visibility_drift', err)
+    }
+  })
+
   // ── 5. Cron: Notification Cleanup (04:00 UTC) ──────────────────
   // 1) Delete notifications for past activities (day after activity date)
   // 2) Delete orphaned notifications (activity was deleted)
