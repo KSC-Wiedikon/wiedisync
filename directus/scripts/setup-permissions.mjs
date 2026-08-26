@@ -969,6 +969,10 @@ const GAME_WRITE_FIELDS = [
   // model as auto_confirm_rsvp above. The vm_nomination_* journal it drives is
   // deliberately absent from this list (see the header).
   'auto_nomination_list',
+  // Besammlung offset (migration 340). Coach-owned: the whole point is that
+  // the team's own coach sets when to meet. Omitted here it would be
+  // silently read-only to every non-admin — field perms are an allow-list.
+  'meeting_offset_minutes',
 
   // ── Deliberately NOT in this list: backend-owned columns ────────────────────
   // Directus field permissions are an allow-list, so anything omitted here is
@@ -2573,6 +2577,16 @@ async function main() {
   // `reason` / `reason_detail`, flagged above as potentially health-related, and
   // the unguarded walk let an ex-coach read AND delete them indefinitely.
   const COACH_TEAM_ABSENCE_SCOPE = { member: COACH_TEAM_MEMBERS }
+  // ⚠ SCALE NOTE (audit 26.08.2026) — this rule has the SAME SHAPE as the one that
+  // took the app down: three sibling `_or` branches, each walking
+  // `member → member_teams → team → {coach,team_responsible}`. Directus emits those as
+  // flat sibling LEFT JOINs that CROSS-MULTIPLY, and re-evaluates the predicate once
+  // per selected field. It is safe here ONLY because `absences` is small — 260 rows
+  // against `participations`' 12,309 — so the intermediate product is ~10⁴ instead of
+  // 1.5×10⁸. Nothing about the shape is safe; the row count is.
+  // Before adding a branch here, or before this table grows an order of magnitude,
+  // measure it: `SELECT count(*) FROM absences <the joins>` — see the parked
+  // PARTICIPATION_VISIBLE rule above for the method and the numbers.
   await setPermRead(LEADER_POLICY, 'absences', {
     _or: [
       { member: { user: { _eq: '$CURRENT_USER' } } },

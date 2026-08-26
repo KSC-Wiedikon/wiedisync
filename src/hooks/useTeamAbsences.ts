@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useRealtime } from './useRealtime'
+import { useDebouncedRefetch } from './useDebouncedRefetch'
 import type { Member } from '../types'
 import { fetchTeamAbsences } from './teamAbsencesFetch'
 import type { AbsenceWithMember, MemberTeamRef } from './teamAbsencesFetch'
@@ -85,10 +86,21 @@ export function useTeamAbsences(teamIds: string[], startDate: string, endDate: s
   // current scope, refetch so team-scope views (e.g. coach creating a weekly
   // for a player) update immediately. A delete payload may omit `member`, so
   // refetch on an unknown member too rather than miss the change.
+  // ⚠ The `mid == null` arm cannot be tightened, and that is deliberate: Directus
+  // delete frames carry bare primary keys (`getItemsPayload` → `case "delete": return
+  // event.keys`), unfiltered by permissions, so `member` is ALWAYS absent on a delete
+  // and refetching is the only correct behaviour. Create/update are already safe —
+  // those dispatch through a permission-filtered `readMany` and are dropped when the
+  // subscriber may read nothing.
+  // What IS fixable is the cost of each wake: `fetch` runs 3–4 SEQUENTIAL
+  // `fetchAllItems` round-trips, so it is debounced here, and skipped entirely when
+  // there is no team in scope (`fetch` would only reset four pieces of state and
+  // re-render for nothing).
+  const debouncedFetch = useDebouncedRefetch(fetch)
   useRealtime<AbsenceWithMember>('absences', (e) => {
     const mid = e.record?.member
-    if (mid == null || memberIdSet.has(String(mid))) fetch()
-  })
+    if (mid == null || memberIdSet.has(String(mid))) debouncedFetch()
+  }, undefined, teamIds.length === 0)
 
   return { absences, memberMap, memberTeams, isLoading, error, refetch: fetch }
 }
