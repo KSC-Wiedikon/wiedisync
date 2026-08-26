@@ -1648,9 +1648,44 @@ async function main() {
       { event: { _and: [{ open_roster: { _eq: true } }, EVENTS_VISIBLE] } },
     ],
   }
-  const PARTICIPATION_VISIBLE = {
-    _or: [...SAME_TEAM_AS_ME._or, ...SAME_GAME_AS_ME, EVENT_ROSTER_VISIBLE],
-  }
+  // ⚠⚠ NARROWED 2026-08-26 — PERFORMANCE STOPGAP, NOT A SECURITY DECISION.
+  //
+  // The full rule below (`SAME_TEAM_AS_ME` + `SAME_GAME_AS_ME` + `EVENT_ROSTER_VISIBLE`)
+  // is CORRECT and stays here for restoration. It is parked because Directus does not
+  // compile a policy `_or` into subqueries — it emits one flat LEFT JOIN per relation
+  // hop, as siblings, and then re-evaluates the whole predicate inside a
+  // `COUNT(CASE WHEN … )` aggregate ONCE PER READABLE FIELD (22 of them here).
+  // Sibling LEFT JOINs cross-multiply, so the branches do not add — they MULTIPLY:
+  //
+  //   302 participation rows  →  46 LEFT JOINs  →  148,915,476 intermediate rows
+  //   measured factors: teammates 41× · my-team-games→guests 36×
+  //                     event-roster 29× · I-am-guest 11× · coaches/TRs 3.6×
+  //
+  // Prod cost, measured 26.08.2026: 7s uncontended, 80s+ under concurrency, and
+  // 1m50s–2m05s during the morning login peak — members watched the logo spin until
+  // the browser gave up. It is NOT data volume (12,309 participations, 713 members)
+  // and NOT a missing index: each branch hand-written as a subquery returns in 2–6ms.
+  // `work_mem` does not help (tested 4/64/256MB — 64MB was *slower*). Nor does
+  // `join_collapse_limit`: no join order fixes a genuine 149M-row cross-product, and
+  // raising it to 16 costs ~600ms of extra PLANNING on every such query.
+  //
+  // Measured on the dev clone (identical data), intermediate rows / time:
+  //   all 5 branches (full rule)            148,915,476   60s
+  //   without EVENT_ROSTER_VISIBLE            5,625,450   2.9s
+  //   without SAME_GAME_AS_ME                   622,853   0.19s
+  //   SAME_TEAM_AS_ME only (this stopgap)        22,175   0.012s   ← ~6,700× cheaper
+  //
+  // Dropping branches only ever NARROWS visibility — it cannot leak. What regresses:
+  //   · migration 271 — called-up guests can no longer read each other's game RSVPs
+  //   · migration 333 — multi-team event rosters go back to the pre-Photoday gap
+  // Both must come back. The fix is to stop expressing "whose RSVP may I see?" as
+  // repeated deep relation walks and precompute it — the same move migration 334
+  // already made with the trigger-derived `events.open_roster`. See DEVLOG 26.08.2026.
+  const PARTICIPATION_VISIBLE = SAME_TEAM_AS_ME
+  // Parked full rule — restore verbatim once the walks are flattened:
+  //   const PARTICIPATION_VISIBLE = {
+  //     _or: [...SAME_TEAM_AS_ME._or, ...SAME_GAME_AS_ME, EVENT_ROSTER_VISIBLE],
+  //   }
   // 2026-05-12 audit #12: participations.last_*_edited_by are directus_users
   // UUIDs (migrations 046/047) which let Members enumerate Directus user
   // UUIDs by cross-referencing. Members get the timestamps but not the
@@ -2392,7 +2427,26 @@ async function main() {
       { _and: [{ activity_type: { _eq: 'event' } }, { event: { _and: [{ open_roster: { _eq: true } }, LEADER_EVENTS_VISIBLE] } }] },
     ],
   }
-  await setPermRead(LEADER_POLICY, 'participations', COACH_OR_TR_PARTICIPATION_READ)
+  // ⚠⚠ NARROWED 2026-08-26 alongside the Member rule — same stopgap, same reason.
+  // The captured prod SQL carried BOTH policies' predicates OR-ed together, so
+  // narrowing only the Member side would have left the cross-product intact for
+  // anyone holding LEADER. Drops the two relation-walking branches from READ:
+  // the event-roster branch (migration 333) and the game-guest branch
+  // (migration 271, `member.game_guests.game.kscw_team.{coach,team_responsible}`).
+  // ⚠ update/delete deliberately keep the FULL `COACH_OR_TR_OF_PARTICIPATION`
+  // below — a write filter is evaluated against one target row, so it costs
+  // nothing, and narrowing writes would silently strip coaches of RSVP edits.
+  // That does mean a leader can currently update a guest's game RSVP they can no
+  // longer read; restoring the parked rule closes that gap again.
+  const COACH_OR_TR_PARTICIPATION_READ_NARROWED = {
+    _or: [
+      { member: { user: { _eq: '$CURRENT_USER' } } },
+      { member: { member_teams: { team: { active: { _eq: true }, coach: { members_id: { user: { _eq: '$CURRENT_USER' } } } } } } },
+      { member: { member_teams: { team: { active: { _eq: true }, team_responsible: { members_id: { user: { _eq: '$CURRENT_USER' } } } } } } },
+    ],
+  }
+  await setPermRead(LEADER_POLICY, 'participations', COACH_OR_TR_PARTICIPATION_READ_NARROWED)
+  // Parked: await setPermRead(LEADER_POLICY, 'participations', COACH_OR_TR_PARTICIPATION_READ)
   await setPerm(LEADER_POLICY, 'participations', 'update', COACH_OR_TR_OF_PARTICIPATION)
 
   // ── Game guest invitations (migration 271) ──────────────────────
