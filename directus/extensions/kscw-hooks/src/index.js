@@ -2309,7 +2309,15 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         SELECT mt.member, 'game', ?::text, 'declined', COALESCE(a.reason, ''), 0, mt.is_staff, a.id, '1970-01-01 00:00:00+00'::timestamptz
         FROM ${teamPeopleSql('?::integer')} mt
         JOIN absences a ON a.member = mt.member
-        WHERE a.start_date::date <= ?::date AND a.end_date::date >= ?::date
+        -- Guests (member_teams.guest_level > 0) can never play a league game, so
+        -- the roster modal drops them from every game — but the RSVP bricks count
+        -- each row they leave behind, and the declined tally drifts one above the
+        -- roster for every guest with a standing absence. Migration 124 purged
+        -- that once and guarded autoDeclineForAbsence; this sweep (a NEW fixture
+        -- landing inside an existing absence) was writing the same rows unguarded
+        -- and re-seeded 128 of them by 27.08.2026. Same guard, same reason.
+        WHERE mt.guest_level = 0
+          AND a.start_date::date <= ?::date AND a.end_date::date >= ?::date
           AND (a.affects::jsonb @> '"all"' OR a.affects::jsonb @> '"games"')
           AND (a.type IS DISTINCT FROM 'weekly' OR (a.days_of_week::jsonb @> to_jsonb((EXTRACT(DOW FROM ?::date)::int + 6) % 7)))
           AND NOT EXISTS (
@@ -2461,6 +2469,18 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     // 2. Insert fresh auto-declines for the new date (NOT EXISTS skips manual overrides)
     //    Sentinel waitlisted_at marks these as auto-decline-created so the
     //    absence unwind DELETEs them rather than reverting to 'confirmed'.
+    //
+    // The guest guard is the same one `autoDeclineForAbsence` applies, in the
+    // same two flavours: a game is closed to every guest level (they may not
+    // play league games at all), a training only to the levels that training
+    // excluded. Without it a date move re-seeds exactly the rows the roster
+    // hides and the RSVP bricks count — the drift migration 124 cleaned up and
+    // 345 had to clean up again. Bound LAST so every existing `?` keeps its
+    // position.
+    const guestGuard = activityType === 'game'
+      ? 'AND mt.guest_level = 0'
+      : `AND NOT (COALESCE((SELECT t2.excluded_guest_levels FROM trainings t2 WHERE t2.id = ?::integer), '[]')::jsonb @> to_jsonb(mt.guest_level))`
+    const guestGuardParams = activityType === 'game' ? [] : [Number(activityId)]
     await database.raw(`
       INSERT INTO participations (member, activity_type, activity_id, status, note, guest_count, is_staff, auto_declined_by, waitlisted_at)
       SELECT mt.member, ?, ?::text, 'declined', COALESCE(a.reason, ''), 0, mt.is_staff, a.id, '1970-01-01 00:00:00+00'::timestamptz
@@ -2473,8 +2493,9 @@ export default ({ action, filter, init, schedule }, { services, database, logger
           SELECT 1 FROM participations p
           WHERE p.activity_type = ? AND p.activity_id = ?::text AND p.member = mt.member
         )
+        ${guestGuard}
       ON CONFLICT DO NOTHING
-    `, [activityType, String(activityId), teamId, teamId, dateStr, dateStr, `"${activityType}s"`, dateStr, activityType, String(activityId)])
+    `, [activityType, String(activityId), teamId, teamId, dateStr, dateStr, `"${activityType}s"`, dateStr, activityType, String(activityId), ...guestGuardParams])
   }
 
   // Event flavor of the re-eval: delete stale auto-declines (whole-event rows

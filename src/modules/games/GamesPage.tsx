@@ -45,6 +45,18 @@ import LiveNowBanner from '../live/components/LiveNowBanner'
  * them. When the user has explicitly picked teams in the filter bar, that selection
  * is answered literally; quietly adding another team's fixture to an explicit "H3"
  * filter would read as a bug.
+ *
+ * ⚠ "Implicit" is NOT `selectedTeams.length === 0`. The page auto-selects the
+ * member's own teams on mount (twice — the autoSelect block and the sport sync), so
+ * for anyone with a team the array is never empty and this argument arrived as `[]`
+ * every single time: the OR-branch below was dead code, and a called-up player
+ * simply never saw their fixture on /games (reported 27.08.2026 — H3 opened for
+ * H1's Mobiliar Cup tie, invisible here while the home page and the calendar, which
+ * OR guest games in unconditionally, both showed it). The caller now passes
+ * `pickedTeams` — true only after a real click in the filter bar — and, for an
+ * explicit pick, the guest games whose call-up came THROUGH a selected team
+ * (`game_guests.via_team`): H3 opened for H1's cup tie is an H3 matter, so it
+ * belongs under an "H3" filter rather than reading as another team's fixture.
  */
 function buildTeamFilter(teamPbIds: string[], guestGameIds: string[] = []): Record<string, unknown> | null {
   const teamPart = teamPbIds.length === 0
@@ -73,6 +85,11 @@ export default function GamesPage() {
     return tab === 'rankings' || tab === 'results' || tab === 'scoreboard' || tab === 'dashboard' ? tab : 'upcoming'
   })
   const [selectedTeams, setSelectedTeams] = useState<string[]>([])
+  // Did the user actually touch the team filter? `selectedTeams` cannot answer that —
+  // it is auto-populated with the member's own teams on mount. Only the filter bar's
+  // own onChange sets this; the programmatic writes (auto-select, sport reset, the
+  // dashboard-tab collapse) deliberately do not. See buildTeamFilter.
+  const [pickedTeams, setPickedTeams] = useState(false)
   const [selectedGame, setSelectedGame] = useState<Game | null>(null)
   const [rosterGame, setRosterGame] = useState<Game | null>(null)
   const [deletingGameId, setDeletingGameId] = useState<string | null>(null)
@@ -146,9 +163,17 @@ export default function GamesPage() {
   const filterTeamIds = effectiveTeamIds.length > 0
     ? effectiveTeamIds
     : (!(effectiveIsAdmin || effectiveIsVorstand) && allUserTeamIds.length > 0 ? allUserTeamIds : [])
-  // Only the implicit personal scope carries guest invitations — see buildTeamFilter.
-  const { guestGameIds } = useUserVisibleGameIds(user?.id, !!user)
-  const teamFilter = buildTeamFilter(filterTeamIds, selectedTeams.length > 0 ? [] : guestGameIds)
+  // Guest invitations — see buildTeamFilter for which of them survive the team filter.
+  const { guestGameIds, guestGameVia } = useUserVisibleGameIds(user?.id, !!user)
+  // `filterTeamIds` is a fresh array every render — memoize on its CONTENT.
+  const teamScopeKey = filterTeamIds.join(',')
+  const visibleGuestGameIds = useMemo(() => {
+    if (!pickedTeams) return guestGameIds
+    if (!teamScopeKey) return []
+    const scope = new Set(teamScopeKey.split(','))
+    return guestGameIds.filter((id) => scope.has(guestGameVia.get(id) ?? ''))
+  }, [pickedTeams, guestGameIds, guestGameVia, teamScopeKey])
+  const teamFilter = buildTeamFilter(filterTeamIds, visibleGuestGameIds)
 
   // Dashboard team ID resolution (priority: first selected → first coached → null).
   // Note: selectedTeams holds team NAMES; effectiveTeamIds is the resolved ID array
@@ -465,7 +490,7 @@ export default function GamesPage() {
           </div>
         )}
         <div data-tour="team-filter">
-          <TeamFilterBar selected={selectedTeams} onChange={setSelectedTeams} sport={sport} limitToTeams={effectiveIsAdmin || effectiveIsVorstand || !user ? undefined : allUserTeamNames} singleSelect={activeTab === 'dashboard'} />
+          <TeamFilterBar selected={selectedTeams} onChange={(next) => { setPickedTeams(true); setSelectedTeams(next) }} sport={sport} limitToTeams={effectiveIsAdmin || effectiveIsVorstand || !user ? undefined : allUserTeamNames} singleSelect={activeTab === 'dashboard'} />
         </div>
         <div data-tour="game-tabs">
           <GameTabs activeTab={activeTab} onChange={(tab) => { setActiveTab(tab); setShowAll(false) }} tabs={visibleTabs} />

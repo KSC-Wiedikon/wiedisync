@@ -5,6 +5,14 @@ import { relId } from '../utils/relations'
 interface Result {
   /** Games this member was invited to as a guest, beyond their own teams' fixtures. */
   guestGameIds: string[]
+  /**
+   * gameId → the team the call-up came THROUGH (`game_guests.via_team`, set when a
+   * whole team is opened up for a fixture). Lets a team-scoped view keep the game:
+   * H3 opened for H1's cup tie is an H3 matter even though the fixture is filed
+   * under H1. Absent for an individually called-up player — there is no team the
+   * invitation belongs to, so those only ride the implicit "my games" scope.
+   */
+  guestGameVia: Map<string, string>
   isLoading: boolean
   error: Error | null
 }
@@ -30,10 +38,10 @@ interface Result {
  * key and therefore one round-trip no matter how many cards are on screen.
  */
 export function useUserVisibleGameIds(userId: string | undefined, enabled = true): Result {
-  const { data, isLoading, error } = useCollection<{ game: string | number }>('game_guests', {
+  const { data, isLoading, error } = useCollection<{ game: string | number; via_team: string | number | null }>('game_guests', {
     // Keep the key stable across callers: same filter/fields object shape everywhere.
     filter: { member: { _eq: userId ?? '' } },
-    fields: ['game'],
+    fields: ['game', 'via_team'],
     all: true,
     enabled: enabled && !!userId,
   })
@@ -43,7 +51,17 @@ export function useUserVisibleGameIds(userId: string | undefined, enabled = true
     [data],
   )
 
-  return { guestGameIds, isLoading, error: error ?? null }
+  const guestGameVia = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const r of data ?? []) {
+      const game = relId(r.game)
+      const via = r.via_team == null ? '' : relId(r.via_team)
+      if (game && via) map.set(game, via)
+    }
+    return map
+  }, [data])
+
+  return { guestGameIds, guestGameVia, isLoading, error: error ?? null }
 }
 
 /**
