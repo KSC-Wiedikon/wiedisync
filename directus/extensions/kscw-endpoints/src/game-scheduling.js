@@ -732,6 +732,65 @@ export function registerGameScheduling(router, { database, logger, services, get
     return set
   }
 
+  // ── Cross-sport: basketball holds a KWI floor (migration 346) ─────────
+  // `basketball_slot_plan` places a basketball game on a KWI court; migration 295
+  // projects each placement onto the physical floors it occupies
+  // (`basketball_floor_claims`, A+B claiming both halves). That court is then gone
+  // for volleyball too, so a home slot standing on it must stop being offered and
+  // must not be bookable — until this, the coordination ran one way only and the
+  // basketball chip on the planner's calendar was the sole warning.
+  //
+  // Both helpers below express the SAME predicate, in SQL, via the two functions
+  // migration 346 adds — which in turn mirror `vbBlocksSlot()` in
+  // src/modules/gameScheduling/utils/hallOccupancy.ts (volleyball occupies
+  // start−30…end+30, basketball tip…tip+120). The planner's calendar computes it in
+  // TypeScript from the same numbers; a divergence would show as a slot the
+  // calendar counts as open and the backend refuses to book.
+  //
+  // ⚠ Draft placements block too — see migration 295: a draft occupies the physical
+  // court exactly as much as a confirmed game, and the claims table carries no
+  // status to filter on.
+
+  /** knex modifier: drop every slot a basketball placement has taken the floor from. */
+  const excludeBbFloorClaims = (q) => q.whereNotExists(function () {
+    this.select(database.raw('1'))
+      .from('basketball_floor_claims as fc')
+      .whereRaw('fc.date = game_scheduling_slots.date')
+      .whereRaw('fc.floor = ANY (vb_slot_floors(game_scheduling_slots.hall, game_scheduling_slots.additional_halls::jsonb))')
+      .whereRaw('bb_vb_time_overlap(game_scheduling_slots.start_time, game_scheduling_slots.end_time, fc."time")')
+  })
+
+  /**
+   * The basketball placement standing on a would-be home booking, or null.
+   *
+   * Returns the row (not a boolean) so the refusal can name the game and the court —
+   * "KWI B is taken by KSCW Herren 2 (basketball) at 20:00" is actionable, "slot
+   * unavailable" is not. Takes raw values rather than a slot id because the manual
+   * booking path invents its slot on the fly.
+   */
+  async function bbFloorConflict(dateYmd, hallId, additionalHalls, startTime, endTime, db = database) {
+    if (!dateYmd || hallId == null) return null
+    // `additional_halls` is a plain `json` column, so pg hands it back already parsed.
+    // Binding a JS array would make knex send a Postgres ARRAY literal ('{1,2}'), which
+    // ::jsonb rejects — stringify it back into JSON text first.
+    const extra = additionalHalls == null
+      ? null
+      : (typeof additionalHalls === 'string' ? additionalHalls : JSON.stringify(additionalHalls))
+    return db('basketball_floor_claims as fc')
+      .join('basketball_slot_plan as p', 'p.id', 'fc.plan')
+      .leftJoin('teams as t', 't.id', 'p.kscw_team')
+      .where('fc.date', dateYmd)
+      .whereRaw('fc.floor = ANY (vb_slot_floors(?::int, ?::jsonb))', [hallId, extra])
+      .whereRaw('bb_vb_time_overlap(?::time, ?::time, fc."time")', [startTime ?? null, endTime ?? null])
+      .first('p.hall as bb_hall', 'p.time as bb_time', 'p.opponent as bb_opponent',
+             db.raw('COALESCE(t.name, p.kscw_team_label) as bb_team'))
+  }
+
+  /** Human-readable refusal for a slot a basketball game already holds. */
+  const bbConflictMessage = (hit) =>
+    `${hit.bb_hall} is taken by ${hit.bb_team ? `KSCW ${hit.bb_team}` : 'a basketball game'}` +
+    `${hit.bb_opponent ? ` vs ${hit.bb_opponent}` : ''} (basketball) at ${String(hit.bb_time).slice(0, 5)} — pick another court or time.`
+
   // ── Intra-club derby anchoring (Art. 27 SVRZ) ────────────────────────
   // When two KSCW teams share a league group (e.g. H1 & H3 in 2L), their two
   // head-to-head games MUST be the first game of the Vorrunde and of the
@@ -1381,6 +1440,10 @@ export function registerGameScheduling(router, { database, logger, services, get
           .whereRaw('hc.hall = game_scheduling_slots.hall')
           .whereRaw('game_scheduling_slots.date BETWEEN hc.start_date AND hc.end_date')
       })
+      // A basketball game on that court takes the floor for volleyball too
+      // (migration 346). Read-time like the closures above, so a placement made
+      // after slot generation is respected without regenerating.
+      .modify(excludeBbFloorClaims)
       // Never offer a court that a multi-hall game already claims (migration 221).
       // A combo booking marks only its PRIMARY hall taken; the extra courts live
       // in `additional_halls`, which no other availability query reads. Slots are
@@ -2058,6 +2121,10 @@ export function registerGameScheduling(router, { database, logger, services, get
             .whereRaw('hc.hall = game_scheduling_slots.hall')
             .whereRaw('game_scheduling_slots.date BETWEEN hc.start_date AND hc.end_date')
         })
+        // A basketball game on that court takes the floor for volleyball too
+        // (migration 346). Read-time like the closures above, so a placement made
+        // after slot generation is respected without regenerating.
+        .modify(excludeBbFloorClaims)
         // Games / booked slots / confirmed proposals are filtered in JS below via
         // the committed sets. Per-slot absent-player count is kept as a COLUMN
         // (not a hard filter) so the tiering below can offer absence-laden slots
@@ -2774,6 +2841,13 @@ export function registerGameScheduling(router, { database, logger, services, get
           .whereRaw('?::date BETWEEN start_date AND end_date', [slot.date])
           .first()
         if (closureCover) throw Object.assign(new Error('Slot falls on a hall closure'), { httpStatus: 400 })
+
+        // Same court, other sport: a placed basketball game holds this floor
+        // (migration 346). The offer query already hides such slots, so reaching
+        // here means the placement landed AFTER the opponent picked — refuse
+        // rather than put two games on one court.
+        const bbHit = await bbFloorConflict(slotYmd, slot.hall, slot.additional_halls, slot.start_time, slot.end_time, trx)
+        if (bbHit) throw Object.assign(new Error(bbConflictMessage(bbHit)), { httpStatus: 400 })
 
         // Intra-club derby clamp (Art. 27): nothing may be booked before this
         // team's confirmed derby date within its half. Mirrors offer-time + health.
@@ -4076,6 +4150,14 @@ export function registerGameScheduling(router, { database, logger, services, get
             homeExtraHalls = JSON.stringify(extras)
           }
         }
+
+        // Cross-sport (migration 346): a placed basketball game holds this floor.
+        // Checked for the primary hall AND any extra court, and before the
+        // transaction so the refusal names the game rather than dying on a
+        // half-built booking. A manual booking is the planner overriding the offer
+        // list, which is exactly the path that never saw the basketball placement.
+        const bbHit = await bbFloorConflict(home.date, home.hall, homeExtraHalls, home.start_time, home.end_time || null)
+        if (bbHit) return res.status(400).json({ error: bbConflictMessage(bbHit) })
 
         await database.transaction(async (trx) => {
           await trx.raw('SELECT pg_advisory_xact_lock(?, ?)', [GSCH_BOOK_LOCK_CLASS, opponent.kscw_team])

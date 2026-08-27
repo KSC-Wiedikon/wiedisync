@@ -5,6 +5,8 @@ import {
   hallsCollide,
   vbBusyWindow,
   vbBlocksSlot,
+  bbBlocksVbSlot,
+  hallFloors,
   hallStatusAt,
   dayHallAvailability,
   contiguousRuns,
@@ -303,5 +305,82 @@ describe('availabilityWindows', () => {
 
   it('returns nothing when no hall is free', () => {
     expect(availabilityWindows(times, [{ hall: HALL_A, free: [] }])).toEqual([])
+  })
+})
+
+// ── The other direction: basketball holds a court, volleyball must see it ────
+describe('hallFloors', () => {
+  it('maps the KWI courts, A+B covering both halves', () => {
+    expect(hallFloors(HALL_A)).toEqual(['A'])
+    expect(hallFloors(HALL_B)).toEqual(['B'])
+    expect(hallFloors(HALL_C)).toEqual(['C'])
+    expect(hallFloors(HALL_AB)).toEqual(['A', 'B'])
+  })
+
+  it('claims nothing for a hall outside KWI', () => {
+    expect(hallFloors('Döltschi 1')).toEqual([])
+    expect(hallFloors('')).toEqual([])
+  })
+})
+
+describe('bbBlocksVbSlot', () => {
+  const evening: VbBooking = { hall: HALL_B, start: '19:30', end: '21:30' }
+
+  it('blocks the court the game is on', () => {
+    expect(bbBlocksVbSlot([{ hall: HALL_B, time: '20:00' }], evening)).toBe(true)
+  })
+
+  it('leaves the other half and KWI C alone', () => {
+    const bb = [{ hall: HALL_B, time: '20:00' }]
+    expect(bbBlocksVbSlot(bb, { ...evening, hall: HALL_A })).toBe(false)
+    expect(bbBlocksVbSlot(bb, { ...evening, hall: HALL_C })).toBe(false)
+  })
+
+  it('A+B collides with either half, in both directions', () => {
+    expect(bbBlocksVbSlot([{ hall: HALL_AB, time: '20:00' }], evening)).toBe(true)
+    expect(bbBlocksVbSlot([{ hall: HALL_AB, time: '20:00' }], { ...evening, hall: HALL_A })).toBe(true)
+    expect(bbBlocksVbSlot([{ hall: HALL_B, time: '20:00' }], { ...evening, hall: HALL_AB })).toBe(true)
+    expect(bbBlocksVbSlot([{ hall: HALL_C, time: '20:00' }], { ...evening, hall: HALL_AB })).toBe(false)
+  })
+
+  it('counts the changeover either side of the volleyball match', () => {
+    // 19:30-21:30 volleyball occupies 19:00-22:00. A 16:00 tip-off ends at 18:00
+    // and clears it; 17:00 runs to 19:00 and still clears it by a boundary.
+    expect(bbBlocksVbSlot([{ hall: HALL_B, time: '16:00' }], evening)).toBe(false)
+    expect(bbBlocksVbSlot([{ hall: HALL_B, time: '17:00' }], evening)).toBe(false)
+    expect(bbBlocksVbSlot([{ hall: HALL_B, time: '17:30' }], evening)).toBe(true)
+  })
+
+  it('falls back to a normal match length when end_time is missing', () => {
+    const noEnd: VbBooking = { hall: HALL_B, start: '19:30', end: null }
+    expect(bbBlocksVbSlot([{ hall: HALL_B, time: '20:00' }], noEnd)).toBe(true)
+    expect(bbBlocksVbSlot([{ hall: HALL_B, time: '16:00' }], noEnd)).toBe(false)
+  })
+
+  it('fails safe: an unknown volleyball start or tip-off blocks', () => {
+    expect(bbBlocksVbSlot([{ hall: HALL_B, time: '20:00' }], { hall: HALL_B, start: null })).toBe(true)
+    expect(bbBlocksVbSlot([{ hall: HALL_B, time: null }], evening)).toBe(true)
+  })
+
+  it('never touches a hall basketball cannot claim', () => {
+    expect(bbBlocksVbSlot([{ hall: HALL_B, time: '20:00' }], { hall: 'Döltschi 1', start: null })).toBe(false)
+    expect(bbBlocksVbSlot([{ hall: 'Rebhügel', time: '20:00' }], { hall: 'Rebhügel', start: '19:30', end: '21:30' })).toBe(false)
+  })
+
+  it('agrees with vbBlocksSlot on every KWI pairing — the two must never disagree', () => {
+    const halls = [HALL_A, HALL_B, HALL_C, HALL_AB]
+    const tips = ['11:00', '13:30', '16:00', '18:30', '20:00']
+    const windows: [string, string][] = [['19:30', '21:30'], ['13:30', '15:30'], ['11:00', '13:00']]
+    for (const vbHall of halls) {
+      for (const bbHall of halls) {
+        for (const tip of tips) {
+          for (const [start, end] of windows) {
+            const booking: VbBooking = { hall: vbHall, start, end }
+            expect(bbBlocksVbSlot([{ hall: bbHall, time: tip }], booking))
+              .toBe(vbBlocksSlot([booking], bbHall, tip))
+          }
+        }
+      }
+    }
   })
 })

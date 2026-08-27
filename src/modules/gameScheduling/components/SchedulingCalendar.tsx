@@ -13,6 +13,7 @@ import type { ExpandedBooking } from '../hooks/useAdminBookings'
 import CrossTeamBadge from '../../spielplanung/CrossTeamBadge'
 import { useCrossTeamConflicts } from '../../spielplanung/hooks/useCrossTeamConflicts'
 import { useTeamLinks } from '../hooks/useTeamLinks'
+import { bbBlocksVbSlot, type BbPlacement } from '../utils/hallOccupancy'
 
 // Season-wide overview of the Terminplanung for all teams: confirmed + proposed
 // home and away games, blocked slots, and a count of remaining open home slots,
@@ -124,6 +125,9 @@ const parseYmd = (s: string | null | undefined): Date | null => {
 
 // 'HH:MM:SS' (a slot time) → 'HH:MM'.
 const hhmm = (s: string | null | undefined): string => (s ? String(s).slice(0, 5) : '')
+// 'KWI B' → 'B'. Which COURT a basketball game takes is the whole reason its chip
+// is on a volleyball calendar, and the chip has room for one letter, not a hall name.
+const shortCourt = (h: string | null | undefined): string => String(h ?? '').replace(/^KWI\s*/i, '')
 // A proposed datetime ('YYYY-MM-DD HH:MM:SS' or ISO 'YYYY-MM-DDTHH:MM:SS') → 'HH:MM'.
 const dtTime = (s: string | null | undefined): string => {
   const m = String(s ?? '').match(/[T ](\d{2}:\d{2})/)
@@ -321,12 +325,12 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
   // (BB)". Read-only + fail-soft — a non-admin viewer without basketball_slot_plan
   // read simply gets none (same pattern as clubBlocks). BB teams aren't in this
   // calendar's `teams` prop, so the team name comes from the expand / free-text label.
-  const [bbGames, setBbGames] = useState<{ id: string; date: string; time?: string | null; team: string; opponent?: string | null }[]>([])
+  const [bbGames, setBbGames] = useState<{ id: string; date: string; time?: string | null; hall: string; team: string; opponent?: string | null }[]>([])
   useEffect(() => {
     if (season.id == null || !showCrossSport) return
     let cancelled = false
-    fetchAllItems<{ id: string; date: string; time?: string | null; opponent?: string | null; kscw_team_label?: string | null; kscw_team?: { name?: string } | null }>('basketball_slot_plan', {
-      fields: ['id', 'date', 'time', 'opponent', 'kscw_team_label', 'kscw_team.name'],
+    fetchAllItems<{ id: string; date: string; time?: string | null; hall?: string | null; opponent?: string | null; kscw_team_label?: string | null; kscw_team?: { name?: string } | null }>('basketball_slot_plan', {
+      fields: ['id', 'date', 'time', 'hall', 'opponent', 'kscw_team_label', 'kscw_team.name'],
       filter: { season: { _eq: season.id } },
       // A viewer without basketball_slot_plan read is the expected case here,
       // not a bug — see the `optional` contract on fetchItems.
@@ -335,7 +339,7 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
       .then((rows) => {
         if (cancelled) return
         setBbGames(rows.map((r) => ({
-          id: String(r.id), date: r.date, time: r.time,
+          id: String(r.id), date: r.date, time: r.time, hall: r.hall || '',
           team: r.kscw_team?.name || r.kscw_team_label || '', opponent: r.opponent,
         })))
       })
@@ -689,8 +693,11 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
       const time = g.time ? hhmm(g.time) : ''
       out.push({
         id: `bb-${g.id}`, date: d, kind: 'bb_game', label: g.team || t('legendHomeBb'),
-        teamId: '', time, opponent: g.opponent || undefined,
-        title: `${t('legendHomeBb')}: ${g.team}${g.opponent ? ` vs ${g.opponent}` : ''}${time ? ` · ${time}` : ''}`,
+        teamId: '', time, opponent: g.opponent || undefined, hallName: g.hall || '',
+        // The court belongs in the tooltip even though the chip shows it: WHICH
+        // floor is gone is the fact a volleyball planner acts on.
+        title: `${t('legendHomeBb')}: ${g.team}${g.opponent ? ` vs ${g.opponent}` : ''}`
+          + `${g.hall ? ` · ${g.hall}` : ''}${time ? ` · ${time}` : ''}`,
       })
     }
 
@@ -761,6 +768,37 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
   }, [entries, teams])
 
   // Remaining open home slots per day (de-emphasised count, not chips).
+  // Basketball placements by date, for the open-slot maths below.
+  const bbByDate = useMemo(() => {
+    const m = new Map<string, BbPlacement[]>()
+    for (const g of bbGames) {
+      const d = parseYmd(g.date)
+      if (!d) continue
+      const k = toDateKey(d)
+      const arr = m.get(k) ?? []
+      arr.push({ hall: g.hall, time: g.time ?? null })
+      m.set(k, arr)
+    }
+    return m
+  }, [bbGames])
+
+  /**
+   * Does a placed basketball game hold this slot's court?
+   *
+   * A KWI court under a basketball game is not an open volleyball slot, so counting it
+   * as one invites the planner to book a double. The backend refuses such a booking and
+   * stops offering the slot (migration 346); this is the same predicate in TypeScript,
+   * from `hallOccupancy.ts`, so the count on screen matches what can actually be booked.
+   *
+   * Empty whenever `showCrossSport` is off (a member-facing team calendar never fetches
+   * basketball), which leaves the count exactly as it was before.
+   */
+  const bbTakesSlot = useMemo(() => (s: GameSchedulingSlot, dateKey: string): boolean => {
+    const placements = bbByDate.get(dateKey)
+    if (!placements?.length) return false
+    return bbBlocksVbSlot(placements, { hall: hallName(s.hall), start: s.start_time, end: s.end_time })
+  }, [bbByDate, hallName])
+
   const openByDate = useMemo(() => {
     const m = new Map<string, number>()
     for (const s of slots) {
@@ -769,10 +807,11 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
       const d = parseYmd(s.date)
       if (!d) continue
       const k = toDateKey(d)
+      if (bbTakesSlot(s, k)) continue
       m.set(k, (m.get(k) || 0) + 1)
     }
     return m
-  }, [slots, teamFilter])
+  }, [slots, teamFilter, bbTakesSlot])
 
   const itemsByDate = useMemo(() => {
     const map = new Map<string, SchedEntry[]>()
@@ -859,12 +898,14 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
     const open: DayRow[] = slots
       .filter((s) => s.status === 'available'
         && (teamFilter.size === 0 || teamFilter.has(String(s.kscw_team)))
-        && toDateKey(parseYmd(s.date) ?? new Date(0)) === key)
+        && toDateKey(parseYmd(s.date) ?? new Date(0)) === key
+        // Same rule as the cell's count — a court basketball holds is not open.
+        && !bbTakesSlot(s, key))
       .map((s) => { const team = teamName(s.kscw_team); return { id: `open-${s.id}`, time: slotTime(parseYmd(s.date), s.start_time), team, match: team, hall: hallName(s.hall), kind: 'open' as const } })
       .sort((a, b) => a.team.localeCompare(b.team) || a.time.localeCompare(b.time))
     const absent = absencesByDate.get(key) || []
     return { games, blockers, open, absent }
-  }, [dayDetail, slots, teamFilter, teamName, hallName, absencesByDate, KIND_LABEL])
+  }, [dayDetail, slots, teamFilter, teamName, hallName, absencesByDate, KIND_LABEL, bbTakesSlot])
 
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
@@ -1013,6 +1054,11 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
                     {isHomeKind && <House className="h-2.5 w-2.5 shrink-0" aria-hidden />}
                     {isAwayKind && <Plane className="h-2.5 w-2.5 shrink-0" aria-hidden />}
                     <span className="truncate">{chipText}</span>
+                    {/* Which court a basketball game takes is what a volleyball
+                        planner needs from that chip — one letter, always visible. */}
+                    {e.kind === 'bb_game' && e.hallName && (
+                      <span className="shrink-0 font-semibold opacity-90">{shortCourt(e.hallName)}</span>
+                    )}
                   </span>
                 )
               })}

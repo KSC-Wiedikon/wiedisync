@@ -15,7 +15,7 @@
  * volleyball afternoon; the block has to be time-aware.
  */
 
-import { HALL_A, HALL_B, HALL_AB, slotEndTime, slotsForDate } from './probasketSeason'
+import { HALL_A, HALL_B, HALL_C, HALL_AB, slotEndTime, slotsForDate } from './probasketSeason'
 
 // ── Durations ────────────────────────────────────────────────────────────────
 
@@ -122,6 +122,64 @@ export function vbBlocksSlot(bookings: readonly VbBooking[], hall: string, bbSta
     // conservative reading is "busy all day". Never silently frees the hall.
     if (!win) return true
     if (intervalsOverlap(win.start, win.end, gameStart, gameEnd)) return true
+  }
+  return false
+}
+
+// ── Basketball occupancy (the other direction) ───────────────────────────────
+
+/**
+ * The physical KWI floors a hall name occupies. Mirrors `bb_hall_floors()` (migration
+ * 295) and its SQL sibling `vb_slot_floors()` (migration 346).
+ *
+ * A hall outside KWI claims NO floor and therefore never collides — Döltschi, Rebhügel
+ * and the rest are not our floor to protect. That is why the volleyball direction below
+ * intersects floors instead of calling `hallsCollide()`: the two agree on every KWI
+ * name, but `hallsCollide('Rebhügel', 'Rebhügel')` is true, and a stray basketball row
+ * naming a hall we do not map must not delete a volleyball slot there.
+ */
+export function hallFloors(hall: string): readonly string[] {
+  switch (hall) {
+    case HALL_A: return ['A']
+    case HALL_B: return ['B']
+    case HALL_AB: return ['A', 'B']
+    case HALL_C: return ['C']
+    default: return []
+  }
+}
+
+/** A basketball game placed on a KWI court (`basketball_slot_plan`). */
+export interface BbPlacement {
+  /** 'KWI A' | 'KWI B' | 'KWI C' | 'KWI A+B'. Anything else claims no floor. */
+  hall: string
+  /** 'HH:MM' tip-off. The game runs `BB_GAME_MINUTES`. */
+  time: string | null
+}
+
+/**
+ * Is a volleyball slot standing on a court basketball has already taken?
+ *
+ * The exact mirror of `vbBlocksSlot()` — same windows, same arithmetic, arguments
+ * swapped — so the two sports can never disagree about who owns the floor. The backend
+ * computes the same predicate in SQL (`bb_vb_time_overlap`, migration 346); this copy
+ * exists so the planner's calendar can count open slots without a round trip.
+ *
+ * ⚠ Every placement blocks, DRAFT included (migration 295: a draft occupies the
+ * physical court exactly as much as a confirmed game). What keeps that from being
+ * invisible is the "Home game (BB)" chip on the same calendar, which names the court.
+ */
+export function bbBlocksVbSlot(placements: readonly BbPlacement[], slot: VbBooking): boolean {
+  const floors = hallFloors(slot.hall)
+  if (floors.length === 0) return false // not a KWI court — basketball never claims it
+  const win = vbBusyWindow(slot)
+  for (const p of placements) {
+    if (!hallFloors(p.hall).some((f) => floors.includes(f))) continue
+    // An unknown window on either side must fail SAFE (busy), never silently free
+    // the court — same contract as vbBlocksSlot().
+    if (!win) return true
+    const tip = minutesOfDay(p.time)
+    if (tip == null) return true
+    if (intervalsOverlap(win.start, win.end, tip, tip + BB_GAME_MINUTES)) return true
   }
   return false
 }
