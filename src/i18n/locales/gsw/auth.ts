@@ -61,6 +61,7 @@ export default {
   errorSaving: 'Bim Speichere isch öppis schief gange',
   fileTooLarge: 'Datei isch z gross (max. 5 MB)',
   invalidImageType: 'Dateityp gaht nöd. Erlaubt: JPEG, PNG, WebP, GIF',
+  preparingPhoto: 'Foti wird vorbereitet…',
 
   // Training label
   training: 'Training',

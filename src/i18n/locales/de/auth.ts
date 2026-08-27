@@ -61,6 +61,7 @@ export default {
   errorSaving: 'Fehler beim Speichern',
   fileTooLarge: 'Datei ist zu gross (max. 5 MB)',
   invalidImageType: 'Ungültiger Dateityp. Erlaubt: JPEG, PNG, WebP, GIF',
+  preparingPhoto: 'Foto wird vorbereitet…',
 
   // Training label
   training: 'Training',

@@ -2,6 +2,14 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.1.4 — 2026-08-28
+
+### Changing your profile photo works with a photo from your camera
+
+- **Picking a photo straight off a phone or camera now works.** Anything over 5 MB was refused, and almost every photo a modern camera takes is bigger than that — so choosing one appeared to do nothing at all, and the old picture stayed. The app now shrinks the photo for you before uploading it, so any size goes through.
+- **On the rare occasion a photo really cannot be used, you are told so next to the button** instead of in a message far below the bottom of the form, and picking the same file again works rather than being silently ignored.
+- The same fix applies to the member photo in the admin member editor.
+
 ## v2.1.3 — 2026-08-27
 
 ### The reply counts on a game match the roster again

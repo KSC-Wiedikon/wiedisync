@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.1.3'
+const APP_VERSION = '2.1.4'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,20 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.1.4',
+    date: '28.08.2026',
+    sections: [
+      {
+        title: 'Changing your profile photo works with a photo from your camera',
+        items: [
+          'Picking a photo straight off a phone or camera now works. Anything over 5 MB was refused, and almost every photo a modern camera takes is bigger than that — so choosing one appeared to do nothing at all, and the old picture stayed. The app now shrinks the photo for you before uploading it, so any size goes through.',
+          'On the rare occasion a photo really cannot be used, you are told so next to the button instead of in a message far below the bottom of the form, and picking the same file again works rather than being silently ignored.',
+          'The same fix applies to the member photo in the admin member editor.',
+        ],
+      },
+    ],
+  },
   {
     version: '2.1.3',
     date: '27.08.2026',

@@ -19,6 +19,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { ImageUp, Loader2, Trash2 } from 'lucide-react'
 import { assetUrl, uploadFile } from '@/lib/api'
+import { downscaleImage } from '@/utils/imageResize'
 import { cn } from '@/lib/utils'
 
 export interface PhotoPickerProps {
@@ -88,7 +89,17 @@ export default function PhotoPicker({
   const src = localUrl ?? (value && brokenId !== value ? assetUrl(value) : null)
   const hasPhoto = Boolean(value || pending)
 
-  async function handleFile(file: File) {
+  async function handleFile(picked: File) {
+    // Shrink first: a phone/camera original blows past `maxBytes` for a photo
+    // that is only ever rendered at 64 px. Falls through untouched when the
+    // file is already small or cannot be safely re-encoded.
+    setBusy(true)
+    let file: File
+    try {
+      file = await downscaleImage(picked)
+    } finally {
+      setBusy(false)
+    }
     const allowed = accept.split(',').map((s) => s.trim()).filter(Boolean)
     // An empty `file.type` (some Android pickers) is let through — the server
     // still validates, and blocking here would reject legitimate images.

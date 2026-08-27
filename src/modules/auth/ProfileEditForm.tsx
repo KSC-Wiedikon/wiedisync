@@ -9,6 +9,7 @@ import DatePicker from '@/components/ui/DatePicker'
 import { Switch } from '@/components/ui/switch'
 import { useAuth } from '../../hooks/useAuth'
 import { getFileUrl } from '../../utils/fileUrl'
+import { downscaleImage } from '../../utils/imageResize'
 import { coercePositions, getPositionI18nKey, getSelectablePositions } from '../../utils/memberPositions'
 import { backendLangToI18n } from '../../utils/languageMap'
 import { asObj, relId, memberName } from '../../utils/relations'
@@ -88,6 +89,7 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
   const [infoOpen, setInfoOpen] = useState(false)
   const [photoFile, setPhotoFile] = useState<File | null>(null)
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
+  const [photoBusy, setPhotoBusy] = useState(false)
   const [selectedPositions, setSelectedPositions] = useState<MemberPosition[]>([])
   const [positionDropdownOpen, setPositionDropdownOpen] = useState(false)
   // Coaching education (migration 274). Multi-select: J+S is a separate track
@@ -227,19 +229,45 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
     return codes.length ? codes : [codeFromCountryName(user?.nationalitaet)].filter(Boolean)
   }
 
-  function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    if (file.size > 5 * 1024 * 1024) {
-      setError(t('fileTooLarge'))
-      return
+  // Photo errors get a toast as well as `error`: the error line renders at the
+  // very bottom of this form, hundreds of pixels below the photo control, so on
+  // its own it reads as "clicking Open did nothing".
+  function photoError(msg: string) {
+    setError(msg)
+    toast.error(msg)
+  }
+
+  async function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const picked = e.target.files?.[0]
+    // Reset the input so re-picking the SAME file fires `change` again — after a
+    // rejection the retry would otherwise be a second silent no-op.
+    e.target.value = ''
+    if (!picked) return
+
+    // Shrink before validating: a 5.8 MB camera export is an ordinary profile
+    // photo, and this control's 5 MB cap used to reject it outright.
+    setPhotoBusy(true)
+    let file: File
+    try {
+      file = await downscaleImage(picked)
+    } finally {
+      setPhotoBusy(false)
     }
+
     const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
     if (!validTypes.includes(file.type)) {
-      setError(t('invalidImageType'))
+      photoError(t('invalidImageType'))
       return
     }
+    if (file.size > 5 * 1024 * 1024) {
+      photoError(t('fileTooLarge'))
+      return
+    }
+    setError('')
     setPhotoFile(file)
+    // Release the previous pick's object URL — an un-revoked one pins the whole
+    // bitmap in memory for the life of the document.
+    if (photoPreview) URL.revokeObjectURL(photoPreview)
     setPhotoPreview(URL.createObjectURL(file))
   }
 
@@ -575,9 +603,10 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
               type="button"
               variant="outline"
               size="sm"
+              disabled={photoBusy}
               onClick={() => fileInputRef.current?.click()}
             >
-              {t('changePhoto')}
+              {photoBusy ? t('preparingPhoto') : t('changePhoto')}
             </Button>
             <input
               ref={fileInputRef}

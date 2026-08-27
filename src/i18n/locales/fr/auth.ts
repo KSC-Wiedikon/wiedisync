@@ -61,6 +61,7 @@ export default {
   errorSaving: 'Erreur lors de l\'enregistrement',
   fileTooLarge: 'Le fichier est trop volumineux (max 5 Mo)',
   invalidImageType: 'Type de fichier invalide. Autorise : JPEG, PNG, WebP, GIF',
+  preparingPhoto: 'Préparation de la photo…',
 
   // Training label
   training: 'Entrainement',
