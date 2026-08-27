@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-08-24T15:22:55.967Z
+-- Generated:   2026-08-27T13:31:34.199Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -29,7 +29,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict Twd9Hi4blYiUHbo0B3x8BYOeEdoT7eecGOtkLckthePmPeGLpWcekLx6YbUDfll
+\restrict qnfoFbQtrGgyFrMmm1UZoVpwrRxIJLTaohsqfIhd3xYp4hN6GiYGAcobJVPBioo
 
 -- Dumped from database version 16.15 (Debian 16.15-1.pgdg13+2)
 -- Dumped by pg_dump version 16.15 (Debian 16.15-1.pgdg13+2)
@@ -169,6 +169,41 @@ BEGIN
   END IF;
   RETURN NULL;
 END $$;
+
+
+--
+-- Name: bb_vb_time_overlap(time without time zone, time without time zone, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.bb_vb_time_overlap(p_vb_start time without time zone, p_vb_end time without time zone, p_bb_time text) RETURNS boolean
+    LANGUAGE plpgsql IMMUTABLE
+    AS $$
+DECLARE
+  vb_s int;   -- volleyball window start, minutes since midnight
+  vb_e int;   -- volleyball window end
+  bb_s int;   -- basketball tip-off
+BEGIN
+  IF p_vb_start IS NULL THEN RETURN true; END IF;
+  IF p_bb_time IS NULL OR p_bb_time !~ '^[0-9]{1,2}:[0-9]{2}' THEN RETURN true; END IF;
+
+  bb_s := split_part(p_bb_time, ':', 1)::int * 60
+        + substring(split_part(p_bb_time, ':', 2) from 1 for 2)::int;
+
+  vb_s := (EXTRACT(EPOCH FROM p_vb_start) / 60)::int;
+  vb_e := CASE WHEN p_vb_end IS NULL THEN NULL ELSE (EXTRACT(EPOCH FROM p_vb_end) / 60)::int END;
+  IF vb_e IS NULL OR vb_e <= vb_s THEN vb_e := vb_s + 120; END IF;  -- VB_DEFAULT_MINUTES
+
+  -- Minutes, not `time + interval`: 23:00 + 120 min wraps past midnight and would
+  -- silently free the court. VB_CHANGEOVER_MINUTES = 30, BB_GAME_MINUTES = 120.
+  RETURN (vb_s - 30) < (bb_s + 120) AND bb_s < (vb_e + 30);
+END $$;
+
+
+--
+-- Name: FUNCTION bb_vb_time_overlap(p_vb_start time without time zone, p_vb_end time without time zone, p_bb_time text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.bb_vb_time_overlap(p_vb_start time without time zone, p_vb_end time without time zone, p_bb_time text) IS 'Does a volleyball slot (start, end) collide with a basketball tip-off on the same floor? Mirrors vbBlocksSlot() in hallOccupancy.ts: VB occupies start-30..end+30, BB occupies tip..tip+120, strict overlap. NULL/unparseable input fails SAFE (true).';
 
 
 --
@@ -877,6 +912,44 @@ END $_$;
 
 
 --
+-- Name: kscw_pv_refresh_participations(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.kscw_pv_refresh_participations() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE touched boolean := false;
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    SELECT EXISTS (SELECT 1 FROM new_rows WHERE activity_type = 'game') INTO touched;
+  ELSIF TG_OP = 'DELETE' THEN
+    SELECT EXISTS (SELECT 1 FROM old_rows WHERE activity_type = 'game') INTO touched;
+  ELSE
+    SELECT EXISTS (SELECT 1 FROM new_rows WHERE activity_type = 'game')
+        OR EXISTS (SELECT 1 FROM old_rows WHERE activity_type = 'game') INTO touched;
+  END IF;
+
+  IF touched THEN
+    PERFORM refresh_participation_visibility();
+  END IF;
+  RETURN NULL;
+END $$;
+
+
+--
+-- Name: kscw_pv_refresh_trigger(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.kscw_pv_refresh_trigger() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  PERFORM refresh_participation_visibility();
+  RETURN NULL;                       -- AFTER STATEMENT trigger
+END $$;
+
+
+--
 -- Name: member_teams_sync_game_guests(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1071,6 +1144,25 @@ BEGIN
   IF TG_OP = 'DELETE' THEN RETURN OLD; ELSE RETURN NEW; END IF;
 END;
 $$;
+
+
+--
+-- Name: refresh_participation_visibility(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.refresh_participation_visibility() RETURNS void
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  DELETE FROM participation_visibility a
+   WHERE NOT EXISTS (
+     SELECT 1 FROM participation_visibility_expected e
+      WHERE e.participation = a.participation AND e.viewer_user = a.viewer_user);
+
+  INSERT INTO participation_visibility (participation, viewer_user)
+  SELECT e.participation, e.viewer_user FROM participation_visibility_expected e
+  ON CONFLICT DO NOTHING;
+END $$;
 
 
 --
@@ -1939,6 +2031,59 @@ BEGIN
 
   RETURN NULL;
 END;
+$$;
+
+
+--
+-- Name: vb_slot_floors(integer, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.vb_slot_floors(p_hall integer, p_additional jsonb) RETURNS text[]
+    LANGUAGE sql STABLE
+    AS $_$
+  WITH ids AS (
+    SELECT p_hall AS id
+    UNION
+    SELECT e::int
+    FROM jsonb_array_elements_text(
+           CASE WHEN jsonb_typeof(p_additional) = 'array' THEN p_additional ELSE '[]'::jsonb END
+         ) AS e
+    -- Defensive: the column is plain `json`, so a hand-edited row could hold
+    -- anything. A non-numeric entry is dropped rather than aborting the query.
+    WHERE e ~ '^[0-9]+$'
+  )
+  SELECT COALESCE(array_agg(DISTINCT f), ARRAY[]::text[])
+  FROM ids
+  JOIN halls h ON h.id = ids.id,
+  LATERAL unnest(bb_hall_floors(h.name)) AS f;
+$_$;
+
+
+--
+-- Name: FUNCTION vb_slot_floors(p_hall integer, p_additional jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.vb_slot_floors(p_hall integer, p_additional jsonb) IS 'The physical KWI floors a volleyball slot occupies: its hall plus additional_halls (migration 221 combo bookings), mapped through bb_hall_floors. Empty array for halls outside KWI — they are not our floor to protect.';
+
+
+--
+-- Name: verify_participation_visibility(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.verify_participation_visibility() RETURNS TABLE(kind text, participation integer, viewer_user uuid)
+    LANGUAGE sql STABLE
+    AS $$
+  SELECT 'missing'::text, e.participation, e.viewer_user
+    FROM participation_visibility_expected e
+    LEFT JOIN participation_visibility a
+           ON a.participation = e.participation AND a.viewer_user = e.viewer_user
+   WHERE a.participation IS NULL
+  UNION ALL
+  SELECT 'extra'::text, a.participation, a.viewer_user
+    FROM participation_visibility a
+    LEFT JOIN participation_visibility_expected e
+           ON e.participation = a.participation AND e.viewer_user = a.viewer_user
+   WHERE e.participation IS NULL;
 $$;
 
 
@@ -3314,6 +3459,8 @@ CREATE TABLE public.clubdesk_member_sync (
     grp_result jsonb,
     grp_requested_by_name character varying(255),
     grp_requested_by_email character varying(255),
+    down_last_success_at timestamp with time zone,
+    conflicts_staged_at timestamp with time zone,
     CONSTRAINT clubdesk_member_sync_grp_mode_check CHECK (((grp_mode IS NULL) OR ((grp_mode)::text = ANY ((ARRAY['preview'::character varying, 'commit'::character varying])::text[])))),
     CONSTRAINT clubdesk_member_sync_grp_state_check CHECK (((grp_state)::text = ANY ((ARRAY['idle'::character varying, 'queued'::character varying, 'running'::character varying, 'done'::character varying, 'failed'::character varying])::text[]))),
     CONSTRAINT clubdesk_member_sync_singleton CHECK ((id = 1))
@@ -3356,6 +3503,13 @@ COMMENT ON COLUMN public.clubdesk_member_sync.grp_requested_by_name IS 'Actor wh
 
 
 --
+-- Name: COLUMN clubdesk_member_sync.down_last_success_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.clubdesk_member_sync.down_last_success_at IS 'When the sync-down last COMPLETED SUCCESSFULLY. down_finished_at is stamped on failure too and must never be shown as "last sync".';
+
+
+--
 -- Name: clubdesk_sync_proposals; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -3373,7 +3527,7 @@ CREATE TABLE public.clubdesk_sync_proposals (
     decided_at timestamp with time zone,
     decided_by_name character varying(255),
     decided_by_email character varying(255),
-    CONSTRAINT clubdesk_sync_proposals_rule_chk CHECK (((rule)::text = ANY ((ARRAY['fill'::character varying, 'overwrite'::character varying, 'set_true'::character varying, 'create'::character varying])::text[]))),
+    CONSTRAINT clubdesk_sync_proposals_rule_chk CHECK (((rule)::text = ANY ((ARRAY['fill'::character varying, 'overwrite'::character varying, 'set_true'::character varying, 'create'::character varying, 'conflict'::character varying])::text[]))),
     CONSTRAINT clubdesk_sync_proposals_shape_chk CHECK (((((rule)::text = 'create'::text) AND (member_id IS NULL) AND (field IS NULL)) OR (((rule)::text <> 'create'::text) AND (member_id IS NOT NULL) AND (field IS NOT NULL)))),
     CONSTRAINT clubdesk_sync_proposals_status_chk CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'accepted'::character varying, 'refused'::character varying])::text[])))
 );
@@ -4012,6 +4166,7 @@ CREATE TABLE public.events (
     public_share_token character varying(64),
     invite_guests boolean DEFAULT true NOT NULL,
     open_roster boolean DEFAULT false NOT NULL,
+    meeting_time time without time zone,
     CONSTRAINT events_public_share_token_format CHECK (((public_share_token IS NULL) OR ((public_share_token)::text ~ '^[A-Za-z0-9_-]{24,64}$'::text)))
 );
 
@@ -4042,6 +4197,13 @@ COMMENT ON COLUMN public.events.invite_guests IS 'Do the guest players (member_t
 --
 
 COMMENT ON COLUMN public.events.open_roster IS 'TRUE when the audience spans more than one team (teams <> 1, or invited_roles non-empty) — such an event shows its full RSVP roster to everyone who can see it. Derived; maintained by trg_events_open_roster + trg_events_teams_open_roster. Never write it by hand.';
+
+
+--
+-- Name: COLUMN events.meeting_time; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.events.meeting_time IS 'Besammlung: the wall-clock time the group meets on the event''s start date. NULL (the default) = none, which is right for most events. Absolute rather than an offset because `all_day` events — tournaments, the case this was built for — have no start clock to count back from, and because no sync rewrites events.start_date.';
 
 
 --
@@ -6364,6 +6526,8 @@ CREATE TABLE public.games (
     vm_nomination_count integer,
     vm_nomination_pushed_at timestamp with time zone,
     vm_nomination_error text,
+    meeting_offset_minutes integer DEFAULT 60,
+    CONSTRAINT games_meeting_offset_range CHECK (((meeting_offset_minutes IS NULL) OR ((meeting_offset_minutes >= 0) AND (meeting_offset_minutes <= 1440)))),
     CONSTRAINT games_status_chk CHECK (((status IS NULL) OR ((status)::text = ANY ((ARRAY['scheduled'::character varying, 'completed'::character varying, 'cancelled'::character varying, 'postponed'::character varying])::text[]))))
 );
 
@@ -6422,6 +6586,13 @@ COMMENT ON COLUMN public.games.vm_nomination_count IS 'Players actually filed on
 --
 
 COMMENT ON COLUMN public.games.vm_nomination_error IS 'Last push failure, surfaced to the coach in the game detail modal.';
+
+
+--
+-- Name: COLUMN games.meeting_offset_minutes; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.games.meeting_offset_minutes IS 'Besammlung: minutes BEFORE `time` that the team meets. NULL = no meeting time shown. Stored as an offset, not a clock, so it follows a Swiss Volley reschedule (sv-sync rewrites `time`) without going stale. DEFAULT 60 is what gives sync-created fixtures a meeting time with no code in sv-sync.';
 
 
 --
@@ -7118,7 +7289,7 @@ CREATE TABLE public.members (
     kantonsschule character varying(64),
     deactivated_at timestamp with time zone,
     CONSTRAINT members_austritt_needs_departed_status CHECK (((austritt IS NULL) OR (register_status IS NULL) OR ((register_status)::text = ANY ((ARRAY['Kein Mitglied'::character varying, 'Ehemaliges Mitglied'::character varying, 'Verstorben'::character varying])::text[])))),
-    CONSTRAINT members_federation_of_origin_fmt CHECK (((federation_of_origin IS NULL) OR ((federation_of_origin)::text = 'NONE'::text) OR ((federation_of_origin)::text ~ '^[A-Z]{2}$'::text))),
+    CONSTRAINT members_federation_of_origin_fmt CHECK (((federation_of_origin IS NULL) OR ((federation_of_origin)::text ~ '^[A-Z]{2}$'::text))),
     CONSTRAINT members_fee_discount_one_unit CHECK (((fee_discount IS NULL) OR (fee_discount_pct IS NULL))),
     CONSTRAINT members_fee_discount_reason_nonblank CHECK (((fee_discount_reason IS NULL) OR (btrim((fee_discount_reason)::text) <> ''::text))),
     CONSTRAINT members_fee_override_range CHECK ((((fee_base_override IS NULL) OR ((fee_base_override >= (0)::numeric) AND (fee_base_override <= (10000)::numeric))) AND ((fee_discount IS NULL) OR ((fee_discount >= (0)::numeric) AND (fee_discount <= (10000)::numeric))) AND ((fee_discount_pct IS NULL) OR ((fee_discount_pct >= (0)::numeric) AND (fee_discount_pct <= (100)::numeric))))),
@@ -7452,7 +7623,7 @@ COMMENT ON COLUMN public.members.nationalitaet_codes IS 'Canonical nationality: 
 -- Name: COLUMN members.federation_of_origin; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.members.federation_of_origin IS 'National federation that FIRST licensed the member (their federation of origin — NOT the most recent one). ISO 3166-1 alpha-2, or ''NONE'' = has never held a licence with any federation, or NULL = not answered.';
+COMMENT ON COLUMN public.members.federation_of_origin IS 'National federation that FIRST licensed the member (their federation of origin — NOT the most recent one). ISO 3166-1 alpha-2, or NULL = not answered. A member whose first licence is issued here is ''CH'': there is no "none" — migration 342 retired that sentinel.';
 
 
 --
@@ -7826,6 +7997,17 @@ ALTER SEQUENCE public.notifications_id_seq OWNED BY public.notifications.id;
 
 
 --
+-- Name: participation_visibility; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.participation_visibility (
+    participation integer NOT NULL,
+    viewer_user uuid NOT NULL,
+    id integer NOT NULL
+);
+
+
+--
 -- Name: participations; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -7890,6 +8072,189 @@ COMMENT ON COLUMN public.participations.last_note_edited_at IS 'Wall-clock of th
 --
 
 COMMENT ON COLUMN public.participations.event IS 'Derived mirror of activity_id when activity_type = ''event'' (NULL otherwise). Maintained by trg_participations_sync_event — never write it by hand. Exists so policy filters can join an RSVP to its event; (activity_type, activity_id) remain the source of truth.';
+
+
+--
+-- Name: teams; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.teams (
+    id integer NOT NULL,
+    name character varying(255) DEFAULT NULL::character varying NOT NULL,
+    full_name character varying(255) DEFAULT NULL::character varying,
+    team_id character varying(255) DEFAULT NULL::character varying,
+    sport character varying(255) DEFAULT NULL::character varying,
+    league character varying(255) DEFAULT NULL::character varying,
+    season character varying(255) DEFAULT NULL::character varying,
+    color character varying(255) DEFAULT NULL::character varying,
+    active boolean DEFAULT true NOT NULL,
+    team_picture uuid,
+    team_picture_pos character varying(255) DEFAULT NULL::character varying,
+    social_url character varying(255) DEFAULT NULL::character varying,
+    bb_source_id character varying(255) DEFAULT NULL::character varying,
+    features_enabled json,
+    date_created timestamp with time zone,
+    date_updated timestamp with time zone,
+    captain integer,
+    open_for_players boolean DEFAULT false,
+    facebook_url character varying(255) DEFAULT NULL::character varying,
+    tiktok_url character varying(255) DEFAULT NULL::character varying,
+    show_guests_on_website boolean DEFAULT true NOT NULL,
+    dashboard_range_from date,
+    dashboard_range_to date,
+    dashboard_league_only boolean DEFAULT false NOT NULL,
+    recruiting_positions jsonb,
+    waitlist_url character varying(500),
+    waitlist_label character varying(100),
+    gender character varying(8),
+    duty_credit integer DEFAULT 0 NOT NULL,
+    clubdesk_group text,
+    open_for_girls boolean DEFAULT false,
+    open_for_boys boolean DEFAULT false,
+    CONSTRAINT teams_gender_check CHECK (((gender IS NULL) OR ((gender)::text = ANY (ARRAY[('m'::character varying)::text, ('f'::character varying)::text, ('mixed'::character varying)::text])))),
+    CONSTRAINT teams_season_format_check CHECK (((season IS NULL) OR ((season)::text ~ '^[0-9]{4}/[0-9]{2}$'::text)))
+);
+
+
+--
+-- Name: COLUMN teams.dashboard_range_from; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.teams.dashboard_range_from IS 'Coach Dashboard "From" date (NULL = use rolling default of most recent 01-06 ≤ today)';
+
+
+--
+-- Name: COLUMN teams.dashboard_range_to; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.teams.dashboard_range_to IS 'Coach Dashboard "To" date (NULL = use today)';
+
+
+--
+-- Name: COLUMN teams.dashboard_league_only; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.teams.dashboard_league_only IS 'Coach Dashboard: exclude cup/tournament games from the games attendance count';
+
+
+--
+-- Name: COLUMN teams.recruiting_positions; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.teams.recruiting_positions IS 'Positions the team is recruiting for (e.g. ["setter","middle"]). NULL/[] = open to all positions. Surfaced on the public team page when open_for_players=true.';
+
+
+--
+-- Name: COLUMN teams.duty_credit; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.teams.duty_credit IS 'Scorer-duty manual credit: duties this team is excused from (higher = fewer scorer/scoreboard assignments). Stacks on top of the automatic referee credit. Edited on the scorer-assignment page.';
+
+
+--
+-- Name: COLUMN teams.clubdesk_group; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.teams.clubdesk_group IS 'ClubDesk group token for this team (e.g. ''VB D1''). NULL = not configured yet (flagged by the ClubDesk group check); '''' = intentionally no ClubDesk group (league umbrella).';
+
+
+--
+-- Name: COLUMN teams.open_for_girls; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.teams.open_for_girls IS 'Mixed (MU) teams only: recruiting girls. Sub-toggle of open_for_players — ignored while that is false. Both this and open_for_boys false/true = the team recruits without a gender split.';
+
+
+--
+-- Name: COLUMN teams.open_for_boys; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.teams.open_for_boys IS 'Mixed (MU) teams only: recruiting boys. Sub-toggle of open_for_players — see open_for_girls.';
+
+
+--
+-- Name: teams_coaches; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.teams_coaches (
+    id integer NOT NULL,
+    teams_id integer NOT NULL,
+    members_id integer NOT NULL
+);
+
+
+--
+-- Name: teams_responsibles; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.teams_responsibles (
+    id integer NOT NULL,
+    teams_id integer NOT NULL,
+    members_id integer NOT NULL
+);
+
+
+--
+-- Name: participation_visibility_expected; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.participation_visibility_expected AS
+ WITH guest_games AS (
+         SELECT DISTINCT game_guests.game AS game_id
+           FROM public.game_guests
+        ), audience AS (
+         SELECT gg.game_id,
+            m.id AS member_id,
+            m."user" AS viewer_user
+           FROM ((((guest_games gg
+             JOIN public.games g ON ((g.id = gg.game_id)))
+             JOIN public.member_teams mt ON ((mt.team = g.kscw_team)))
+             JOIN public.teams t ON (((t.id = mt.team) AND t.active)))
+             JOIN public.members m ON ((m.id = mt.member)))
+        UNION
+         SELECT gg.game_id,
+            m.id,
+            m."user"
+           FROM ((guest_games gg
+             JOIN public.game_guests x ON ((x.game = gg.game_id)))
+             JOIN public.members m ON ((m.id = x.member)))
+        UNION
+         SELECT gg.game_id,
+            m.id,
+            m."user"
+           FROM (((guest_games gg
+             JOIN public.games g ON ((g.id = gg.game_id)))
+             JOIN public.teams_coaches tc ON ((tc.teams_id = g.kscw_team)))
+             JOIN public.members m ON ((m.id = tc.members_id)))
+        UNION
+         SELECT gg.game_id,
+            m.id,
+            m."user"
+           FROM (((guest_games gg
+             JOIN public.games g ON ((g.id = gg.game_id)))
+             JOIN public.teams_responsibles tr ON ((tr.teams_id = g.kscw_team)))
+             JOIN public.members m ON ((m.id = tr.members_id)))
+        )
+ SELECT DISTINCT p.id AS participation,
+    v.viewer_user
+   FROM ((public.participations p
+     JOIN audience s ON (((s.member_id = p.member) AND ((p.activity_type)::text = 'game'::text) AND ((p.activity_id)::text = ((s.game_id)::character varying)::text))))
+     JOIN audience v ON ((v.game_id = s.game_id)))
+  WHERE (v.viewer_user IS NOT NULL);
+
+
+--
+-- Name: participation_visibility_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.participation_visibility ALTER COLUMN id ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME public.participation_visibility_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
 
 
 --
@@ -8206,7 +8571,7 @@ CREATE TABLE public.registrations (
     federation_of_origin character varying(8),
     bb_recent_licence character varying(4),
     CONSTRAINT registrations_bb_recent_licence_check CHECK (((bb_recent_licence IS NULL) OR ((bb_recent_licence)::text = ANY ((ARRAY['ja'::character varying, 'nein'::character varying])::text[])))),
-    CONSTRAINT registrations_federation_of_origin_fmt CHECK (((federation_of_origin IS NULL) OR ((federation_of_origin)::text = 'NONE'::text) OR ((federation_of_origin)::text ~ '^[A-Z]{2}$'::text))),
+    CONSTRAINT registrations_federation_of_origin_fmt CHECK (((federation_of_origin IS NULL) OR ((federation_of_origin)::text ~ '^[A-Z]{2}$'::text))),
     CONSTRAINT registrations_nationalitaet_codes_fmt CHECK (((nationalitaet_codes IS NULL) OR ((nationalitaet_codes)::text ~ '^[A-Z]{2}(,[A-Z]{2})*$'::text)))
 );
 
@@ -8222,7 +8587,7 @@ COMMENT ON COLUMN public.registrations.nationalitaet_codes IS 'Ordered, comma-se
 -- Name: COLUMN registrations.federation_of_origin; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.registrations.federation_of_origin IS 'Federation of origin from the public form: the federation that FIRST licensed the applicant. ISO alpha-2, ''NONE'' (never licensed before), or NULL (not answered).';
+COMMENT ON COLUMN public.registrations.federation_of_origin IS 'Federation of origin from the public form: the federation that FIRST licensed the applicant. ISO alpha-2, or NULL (not answered). First-ever licence = ''CH'' (the sentinel ''NONE'' was retired by migration 342).';
 
 
 --
@@ -8820,104 +9185,6 @@ ALTER SEQUENCE public.sponsors_id_seq OWNED BY public.sponsors.id;
 
 
 --
--- Name: teams; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.teams (
-    id integer NOT NULL,
-    name character varying(255) DEFAULT NULL::character varying NOT NULL,
-    full_name character varying(255) DEFAULT NULL::character varying,
-    team_id character varying(255) DEFAULT NULL::character varying,
-    sport character varying(255) DEFAULT NULL::character varying,
-    league character varying(255) DEFAULT NULL::character varying,
-    season character varying(255) DEFAULT NULL::character varying,
-    color character varying(255) DEFAULT NULL::character varying,
-    active boolean DEFAULT true NOT NULL,
-    team_picture uuid,
-    team_picture_pos character varying(255) DEFAULT NULL::character varying,
-    social_url character varying(255) DEFAULT NULL::character varying,
-    bb_source_id character varying(255) DEFAULT NULL::character varying,
-    features_enabled json,
-    date_created timestamp with time zone,
-    date_updated timestamp with time zone,
-    captain integer,
-    open_for_players boolean DEFAULT false,
-    facebook_url character varying(255) DEFAULT NULL::character varying,
-    tiktok_url character varying(255) DEFAULT NULL::character varying,
-    show_guests_on_website boolean DEFAULT true NOT NULL,
-    dashboard_range_from date,
-    dashboard_range_to date,
-    dashboard_league_only boolean DEFAULT false NOT NULL,
-    recruiting_positions jsonb,
-    waitlist_url character varying(500),
-    waitlist_label character varying(100),
-    gender character varying(8),
-    duty_credit integer DEFAULT 0 NOT NULL,
-    clubdesk_group text,
-    open_for_girls boolean DEFAULT false,
-    open_for_boys boolean DEFAULT false,
-    CONSTRAINT teams_gender_check CHECK (((gender IS NULL) OR ((gender)::text = ANY (ARRAY[('m'::character varying)::text, ('f'::character varying)::text, ('mixed'::character varying)::text])))),
-    CONSTRAINT teams_season_format_check CHECK (((season IS NULL) OR ((season)::text ~ '^[0-9]{4}/[0-9]{2}$'::text)))
-);
-
-
---
--- Name: COLUMN teams.dashboard_range_from; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.teams.dashboard_range_from IS 'Coach Dashboard "From" date (NULL = use rolling default of most recent 01-06 ≤ today)';
-
-
---
--- Name: COLUMN teams.dashboard_range_to; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.teams.dashboard_range_to IS 'Coach Dashboard "To" date (NULL = use today)';
-
-
---
--- Name: COLUMN teams.dashboard_league_only; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.teams.dashboard_league_only IS 'Coach Dashboard: exclude cup/tournament games from the games attendance count';
-
-
---
--- Name: COLUMN teams.recruiting_positions; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.teams.recruiting_positions IS 'Positions the team is recruiting for (e.g. ["setter","middle"]). NULL/[] = open to all positions. Surfaced on the public team page when open_for_players=true.';
-
-
---
--- Name: COLUMN teams.duty_credit; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.teams.duty_credit IS 'Scorer-duty manual credit: duties this team is excused from (higher = fewer scorer/scoreboard assignments). Stacks on top of the automatic referee credit. Edited on the scorer-assignment page.';
-
-
---
--- Name: COLUMN teams.clubdesk_group; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.teams.clubdesk_group IS 'ClubDesk group token for this team (e.g. ''VB D1''). NULL = not configured yet (flagged by the ClubDesk group check); '''' = intentionally no ClubDesk group (league umbrella).';
-
-
---
--- Name: COLUMN teams.open_for_girls; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.teams.open_for_girls IS 'Mixed (MU) teams only: recruiting girls. Sub-toggle of open_for_players — ignored while that is false. Both this and open_for_boys false/true = the team recruits without a gender split.';
-
-
---
--- Name: COLUMN teams.open_for_boys; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.teams.open_for_boys IS 'Mixed (MU) teams only: recruiting boys. Sub-toggle of open_for_players — see open_for_girls.';
-
-
---
 -- Name: trainings; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -8948,7 +9215,9 @@ CREATE TABLE public.trainings (
     auto_cancelled_by_trial integer,
     recruiting_positions jsonb,
     auto_shortened_by_game integer,
-    original_end_time time without time zone
+    original_end_time time without time zone,
+    meeting_offset_minutes integer DEFAULT 10,
+    CONSTRAINT trainings_meeting_offset_range CHECK (((meeting_offset_minutes IS NULL) OR ((meeting_offset_minutes >= 0) AND (meeting_offset_minutes <= 1440))))
 );
 
 
@@ -8978,6 +9247,13 @@ COMMENT ON COLUMN public.trainings.auto_cancelled_by_trial IS 'When non-null, th
 --
 
 COMMENT ON COLUMN public.trainings.recruiting_positions IS 'Trial trainings only: MemberPosition[] the team is recruiting for (e.g. ["setter","middle"]). NULL/[] = open to all positions. Surfaced on the public team page when open_for_players=true.';
+
+
+--
+-- Name: COLUMN trainings.meeting_offset_minutes; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.trainings.meeting_offset_minutes IS 'Besammlung: minutes BEFORE `start_time` that the team meets. NULL = no meeting time shown. An offset, not a clock, so slot-cascade regeneration and the game-shorten hook can move a training without stranding it. DEFAULT 10 is what gives cascade-generated trainings a meeting time with no code in slot-cascade.js.';
 
 
 --
@@ -9585,17 +9861,6 @@ ALTER SEQUENCE public.team_requests_id_seq OWNED BY public.team_requests.id;
 
 
 --
--- Name: teams_coaches; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.teams_coaches (
-    id integer NOT NULL,
-    teams_id integer NOT NULL,
-    members_id integer NOT NULL
-);
-
-
---
 -- Name: teams_coaches_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
@@ -9633,17 +9898,6 @@ CREATE SEQUENCE public.teams_id_seq
 --
 
 ALTER SEQUENCE public.teams_id_seq OWNED BY public.teams.id;
-
-
---
--- Name: teams_responsibles; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.teams_responsibles (
-    id integer NOT NULL,
-    teams_id integer NOT NULL,
-    members_id integer NOT NULL
-);
 
 
 --
@@ -11772,6 +12026,22 @@ ALTER TABLE ONLY public.notifications
 
 
 --
+-- Name: participation_visibility participation_visibility_pair_uniq; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.participation_visibility
+    ADD CONSTRAINT participation_visibility_pair_uniq UNIQUE (participation, viewer_user);
+
+
+--
+-- Name: participation_visibility participation_visibility_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.participation_visibility
+    ADD CONSTRAINT participation_visibility_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: participations participations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -13619,6 +13889,13 @@ CREATE INDEX notifications_team_index ON public.notifications USING btree (team)
 
 
 --
+-- Name: participation_visibility_viewer_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX participation_visibility_viewer_idx ON public.participation_visibility USING btree (viewer_user);
+
+
+--
 -- Name: participations_activity_member_session_uq; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -14372,6 +14649,76 @@ CREATE TRIGGER trg_participations_guest_block BEFORE INSERT OR UPDATE ON public.
 --
 
 CREATE TRIGGER trg_participations_sync_event BEFORE INSERT OR UPDATE ON public.participations FOR EACH ROW EXECUTE FUNCTION public.trg_participations_sync_event();
+
+
+--
+-- Name: game_guests trg_pv_game_guests; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_pv_game_guests AFTER INSERT OR DELETE OR UPDATE ON public.game_guests FOR EACH STATEMENT EXECUTE FUNCTION public.kscw_pv_refresh_trigger();
+
+
+--
+-- Name: games trg_pv_games; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_pv_games AFTER INSERT OR DELETE OR UPDATE ON public.games FOR EACH STATEMENT EXECUTE FUNCTION public.kscw_pv_refresh_trigger();
+
+
+--
+-- Name: member_teams trg_pv_member_teams; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_pv_member_teams AFTER INSERT OR DELETE OR UPDATE ON public.member_teams FOR EACH STATEMENT EXECUTE FUNCTION public.kscw_pv_refresh_trigger();
+
+
+--
+-- Name: members trg_pv_members; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_pv_members AFTER INSERT OR DELETE OR UPDATE ON public.members FOR EACH STATEMENT EXECUTE FUNCTION public.kscw_pv_refresh_trigger();
+
+
+--
+-- Name: participations trg_pv_participations_del; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_pv_participations_del AFTER DELETE ON public.participations REFERENCING OLD TABLE AS old_rows FOR EACH STATEMENT EXECUTE FUNCTION public.kscw_pv_refresh_participations();
+
+
+--
+-- Name: participations trg_pv_participations_ins; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_pv_participations_ins AFTER INSERT ON public.participations REFERENCING NEW TABLE AS new_rows FOR EACH STATEMENT EXECUTE FUNCTION public.kscw_pv_refresh_participations();
+
+
+--
+-- Name: participations trg_pv_participations_upd; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_pv_participations_upd AFTER UPDATE ON public.participations REFERENCING OLD TABLE AS old_rows NEW TABLE AS new_rows FOR EACH STATEMENT EXECUTE FUNCTION public.kscw_pv_refresh_participations();
+
+
+--
+-- Name: teams trg_pv_teams; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_pv_teams AFTER INSERT OR DELETE OR UPDATE ON public.teams FOR EACH STATEMENT EXECUTE FUNCTION public.kscw_pv_refresh_trigger();
+
+
+--
+-- Name: teams_coaches trg_pv_teams_coaches; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_pv_teams_coaches AFTER INSERT OR DELETE OR UPDATE ON public.teams_coaches FOR EACH STATEMENT EXECUTE FUNCTION public.kscw_pv_refresh_trigger();
+
+
+--
+-- Name: teams_responsibles trg_pv_teams_responsibles; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_pv_teams_responsibles AFTER INSERT OR DELETE OR UPDATE ON public.teams_responsibles FOR EACH STATEMENT EXECUTE FUNCTION public.kscw_pv_refresh_trigger();
 
 
 --
@@ -15762,6 +16109,22 @@ ALTER TABLE ONLY public.notifications
 
 
 --
+-- Name: participation_visibility participation_visibility_participation_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.participation_visibility
+    ADD CONSTRAINT participation_visibility_participation_fkey FOREIGN KEY (participation) REFERENCES public.participations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: participation_visibility participation_visibility_viewer_user_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.participation_visibility
+    ADD CONSTRAINT participation_visibility_viewer_user_fkey FOREIGN KEY (viewer_user) REFERENCES public.directus_users(id) ON DELETE CASCADE;
+
+
+--
 -- Name: participations participations_event_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -16449,12 +16812,12 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict Twd9Hi4blYiUHbo0B3x8BYOeEdoT7eecGOtkLckthePmPeGLpWcekLx6YbUDfll
+\unrestrict qnfoFbQtrGgyFrMmm1UZoVpwrRxIJLTaohsqfIhd3xYp4hN6GiYGAcobJVPBioo
 
 
 
 -- ============================================================================
--- Migration tracker seed — 341 migration(s) already in the schema above.
+-- Migration tracker seed — 353 migration(s) already in the schema above.
 -- GENERATED with the snapshot; do not hand-edit.
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS kscw_migrations (
@@ -16807,6 +17170,18 @@ FROM (VALUES
   ('332-scorer-attendance-field-overrides.sql'),
   ('333-participation-event-fk.sql'),
   ('334-events-open-roster.sql'),
-  ('335-members-deactivated-at.sql')
+  ('335-members-deactivated-at.sql'),
+  ('336-clubdesk-sync-last-success.sql'),
+  ('336-sync-collections-activity-only.sql'),
+  ('337-clubdesk-sync-last-success.sql'),
+  ('338-clubdesk-proposal-conflict-rule.sql'),
+  ('339-clubdesk-conflicts-staged-at.sql'),
+  ('340-meeting-time.sql'),
+  ('341-participation-visibility.sql'),
+  ('342-federation-of-origin-drop-none.sql'),
+  ('343-participation-visibility-single-pk.sql'),
+  ('344-tidy-event-locations.sql'),
+  ('345-purge-guest-and-orphan-game-rsvps.sql'),
+  ('346-vb-slots-respect-bb-floor-claims.sql')
 ) AS v(fname)
 ON CONFLICT (filename) DO NOTHING;
