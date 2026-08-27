@@ -2,6 +2,17 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.1.2 — 2026-08-27
+
+### The reply counts on a game match the roster again
+
+- **A game card no longer counts a "no" from somebody the roster does not list.** Guest players cannot be entered on a match sheet, so they are left off every game roster — but when one of them filed a holiday the app still wrote them a "no" for each game in that window, and the red counter on the card counted it. A card read "1 declined" over a roster where nobody had declined. Those replies are gone, and no new ones are written.
+- **One player was also carrying a "no" on the other team's copy of the H1 v H3 derby**, left behind by a sync fault in July that briefly moved the fixture between the two teams. Removed.
+
+### A game you were called up to shows on the games page
+
+- **Being called up to another team's fixture now puts it on your games page**, where it belonged all along — until now it appeared on your home page and in your calendar but never in the games list, so the whole H3 squad opened up for H1's cup tie could not find it. Filtering by a team keeps the fixtures you were called up to through that team.
+
 ## v2.1.1 — 2026-08-26
 
 ### The app no longer hangs on the loading screen

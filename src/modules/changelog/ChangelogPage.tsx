@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.1.1'
+const APP_VERSION = '2.1.2'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,25 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.1.2',
+    date: '27.08.2026',
+    sections: [
+      {
+        title: 'The reply counts on a game match the roster again',
+        items: [
+          'A game card no longer counts a "no" from somebody the roster does not list. Guest players cannot be entered on a match sheet, so they are left off every game roster — but when one of them filed a holiday the app still wrote them a "no" for each game in that window, and the red counter on the card counted it. A card read "1 declined" over a roster where nobody had declined. Those replies are gone, and no new ones are written.',
+          'One player was also carrying a "no" on the other team\'s copy of the H1 v H3 derby, left behind by a sync fault in July that briefly moved the fixture between the two teams. Removed.',
+        ],
+      },
+      {
+        title: 'A game you were called up to shows on the games page',
+        items: [
+          'Being called up to another team\'s fixture now puts it on your games page, where it belonged all along — until now it appeared on your home page and in your calendar but never in the games list, so the whole H3 squad opened up for H1\'s cup tie could not find it. Filtering by a team keeps the fixtures you were called up to through that team.',
+        ],
+      },
+    ],
+  },
   {
     version: '2.1.1',
     date: '26.08.2026',
