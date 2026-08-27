@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.1.2'
+const APP_VERSION = '2.1.3'
 
 interface ChangelogEntry {
   version: string
@@ -14,7 +14,7 @@ interface ChangelogEntry {
 
 const CHANGELOG: ChangelogEntry[] = [
   {
-    version: '2.1.2',
+    version: '2.1.3',
     date: '27.08.2026',
     sections: [
       {
@@ -27,7 +27,7 @@ const CHANGELOG: ChangelogEntry[] = [
       {
         title: 'A game you were called up to shows on the games page',
         items: [
-          'Being called up to another team\'s fixture now puts it on your games page, where it belonged all along — until now it appeared on your home page and in your calendar but never in the games list, so the whole H3 squad opened up for H1\'s cup tie could not find it. Filtering by a team keeps the fixtures you were called up to through that team.',
+          'Being called up to another team\'s fixture now puts it on your games page, where it belonged all along — until now it appeared on your home page and in your calendar but never in the games list, so the whole H3 squad opened up for H1\'s cup tie could not find it. It stays there whichever team you filter by: a call-up is yours personally, so no team chip hides it.',
         ],
       },
     ],

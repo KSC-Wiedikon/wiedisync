@@ -39,24 +39,22 @@ import { useUserVisibleGameIds } from '../../hooks/useUserVisibleGameIds'
 import LiveNowBanner from '../live/components/LiveNowBanner'
 
 /**
- * `guestGameIds` are the fixtures this member was invited to as a guest (migration
- * 271). They belong to another team, so the team filter drops them — but only the
- * IMPLICIT scope ("games of my teams", what a member sees by default) should carry
- * them. When the user has explicitly picked teams in the filter bar, that selection
- * is answered literally; quietly adding another team's fixture to an explicit "H3"
- * filter would read as a bug.
+ * `guestGameIds` are the fixtures this member was called up to (migration 271).
+ * They are filed under another team, so the team filter would drop them — and they
+ * are OR-ed back in UNCONDITIONALLY, exactly as `HomePage` and the calendar do it.
  *
- * ⚠ "Implicit" is NOT `selectedTeams.length === 0`. The page auto-selects the
- * member's own teams on mount (twice — the autoSelect block and the sport sync), so
- * for anyone with a team the array is never empty and this argument arrived as `[]`
- * every single time: the OR-branch below was dead code, and a called-up player
- * simply never saw their fixture on /games (reported 27.08.2026 — H3 opened for
- * H1's Mobiliar Cup tie, invisible here while the home page and the calendar, which
- * OR guest games in unconditionally, both showed it). The caller now passes
- * `pickedTeams` — true only after a real click in the filter bar — and, for an
- * explicit pick, the guest games whose call-up came THROUGH a selected team
- * (`game_guests.via_team`): H3 opened for H1's cup tie is an H3 matter, so it
- * belongs under an "H3" filter rather than reading as another team's fixture.
+ * ⚠ This used to be conditional on "the user has not explicitly picked teams", on
+ * the theory that an explicit "H3" filter should be answered literally. Twice over
+ * that cost the user the fixture and never once bought anything:
+ *   1. the condition was `selectedTeams.length === 0`, but the page auto-selects the
+ *      member's own teams on mount (twice — the autoSelect block and the sport sync),
+ *      so for anyone with a team it is never empty and the OR-branch was dead code;
+ *   2. narrowing it instead to "called up THROUGH a selected team"
+ *      (`game_guests.via_team`) still left a fixture that is unambiguously yours
+ *      hidden behind a filter state you cannot see.
+ * A call-up is per PERSON, not per team — being on it is the whole point — so it
+ * outranks a team filter the same way it does on every other surface. Keeping the
+ * three surfaces on one rule is worth more than answering a chip literally.
  */
 function buildTeamFilter(teamPbIds: string[], guestGameIds: string[] = []): Record<string, unknown> | null {
   const teamPart = teamPbIds.length === 0
@@ -85,11 +83,6 @@ export default function GamesPage() {
     return tab === 'rankings' || tab === 'results' || tab === 'scoreboard' || tab === 'dashboard' ? tab : 'upcoming'
   })
   const [selectedTeams, setSelectedTeams] = useState<string[]>([])
-  // Did the user actually touch the team filter? `selectedTeams` cannot answer that —
-  // it is auto-populated with the member's own teams on mount. Only the filter bar's
-  // own onChange sets this; the programmatic writes (auto-select, sport reset, the
-  // dashboard-tab collapse) deliberately do not. See buildTeamFilter.
-  const [pickedTeams, setPickedTeams] = useState(false)
   const [selectedGame, setSelectedGame] = useState<Game | null>(null)
   const [rosterGame, setRosterGame] = useState<Game | null>(null)
   const [deletingGameId, setDeletingGameId] = useState<string | null>(null)
@@ -163,17 +156,9 @@ export default function GamesPage() {
   const filterTeamIds = effectiveTeamIds.length > 0
     ? effectiveTeamIds
     : (!(effectiveIsAdmin || effectiveIsVorstand) && allUserTeamIds.length > 0 ? allUserTeamIds : [])
-  // Guest invitations — see buildTeamFilter for which of them survive the team filter.
-  const { guestGameIds, guestGameVia } = useUserVisibleGameIds(user?.id, !!user)
-  // `filterTeamIds` is a fresh array every render — memoize on its CONTENT.
-  const teamScopeKey = filterTeamIds.join(',')
-  const visibleGuestGameIds = useMemo(() => {
-    if (!pickedTeams) return guestGameIds
-    if (!teamScopeKey) return []
-    const scope = new Set(teamScopeKey.split(','))
-    return guestGameIds.filter((id) => scope.has(guestGameVia.get(id) ?? ''))
-  }, [pickedTeams, guestGameIds, guestGameVia, teamScopeKey])
-  const teamFilter = buildTeamFilter(filterTeamIds, visibleGuestGameIds)
+  // Fixtures this member was called up to — always kept, see buildTeamFilter.
+  const { guestGameIds } = useUserVisibleGameIds(user?.id, !!user)
+  const teamFilter = buildTeamFilter(filterTeamIds, guestGameIds)
 
   // Dashboard team ID resolution (priority: first selected → first coached → null).
   // Note: selectedTeams holds team NAMES; effectiveTeamIds is the resolved ID array
@@ -490,7 +475,7 @@ export default function GamesPage() {
           </div>
         )}
         <div data-tour="team-filter">
-          <TeamFilterBar selected={selectedTeams} onChange={(next) => { setPickedTeams(true); setSelectedTeams(next) }} sport={sport} limitToTeams={effectiveIsAdmin || effectiveIsVorstand || !user ? undefined : allUserTeamNames} singleSelect={activeTab === 'dashboard'} />
+          <TeamFilterBar selected={selectedTeams} onChange={setSelectedTeams} sport={sport} limitToTeams={effectiveIsAdmin || effectiveIsVorstand || !user ? undefined : allUserTeamNames} singleSelect={activeTab === 'dashboard'} />
         </div>
         <div data-tour="game-tabs">
           <GameTabs activeTab={activeTab} onChange={(tab) => { setActiveTab(tab); setShowAll(false) }} tabs={visibleTabs} />

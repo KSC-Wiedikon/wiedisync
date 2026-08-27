@@ -2,7 +2,7 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
-## v2.1.2 — 2026-08-27
+## v2.1.3 — 2026-08-27
 
 ### The reply counts on a game match the roster again
 
@@ -11,7 +11,7 @@ All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file 
 
 ### A game you were called up to shows on the games page
 
-- **Being called up to another team's fixture now puts it on your games page**, where it belonged all along — until now it appeared on your home page and in your calendar but never in the games list, so the whole H3 squad opened up for H1's cup tie could not find it. Filtering by a team keeps the fixtures you were called up to through that team.
+- **Being called up to another team's fixture now puts it on your games page**, where it belonged all along — until now it appeared on your home page and in your calendar but never in the games list, so the whole H3 squad opened up for H1's cup tie could not find it. It stays there whichever team you filter by: a call-up is yours personally, so no team chip hides it.
 
 ## v2.1.1 — 2026-08-26
 
