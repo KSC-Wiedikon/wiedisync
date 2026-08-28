@@ -8,6 +8,7 @@ export default {
   overviewRole: 'Duty',
   overviewPerson: 'Signed up',
   overviewOpen: 'Open',
+  overviewNobodySummoned: 'Nobody summoned',
   overviewFilled: 'Filled',
   overviewStatus: 'Status',
   overviewOnlyEmpty: 'Only show empty spots',

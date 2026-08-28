@@ -8,6 +8,7 @@ export default {
   overviewRole: 'Tâche',
   overviewPerson: 'Inscrit',
   overviewOpen: 'Libre',
+  overviewNobodySummoned: 'Personne convoquée',
   overviewFilled: 'Occupé',
   overviewStatus: 'Statut',
   overviewOnlyEmpty: 'Afficher uniquement les places libres',

@@ -9,9 +9,13 @@
 
 import type { Game } from '../../../types'
 import { relId } from '../../../utils/relations'
+// Deliberately the ALGORITHM's isCupGame, not the looser one in
+// utils/leagueClassification: a game the planner renders as an on-call slot and
+// a game the overview renders as one must be the same set, always.
+import { isCupGame } from '../components/AssignmentAlgorithm'
 
 export type DutyRole =
-  | 'scorer' | 'scoreboard' | 'scorer_scoreboard' | 'referee'
+  | 'scorer' | 'scoreboard' | 'scorer_scoreboard' | 'referee' | 'cup_on_call'
   | 'bb_scorer' | 'bb_timekeeper' | 'bb_24s_official'
 
 export interface DutySpot {
@@ -23,11 +27,18 @@ export interface DutySpot {
   memberId: string
   /** null when the id resolves to nobody (e.g. a member who left the club). */
   memberName: string | null
+  /**
+   * A cup game's on-call (Pikett) slot: shown so the game is visible, but a free
+   * slot BY DESIGN, never an open gap. Callers must exclude it from the
+   * open-spot count and the "only empty spots" filter — `!memberId` alone would
+   * paint it red and send somebody chasing a duty nobody owes.
+   */
+  onCall: boolean
 }
 
 // Within one game: the order the roles are listed in.
 const ROLE_ORDER: Record<DutyRole, number> = {
-  scorer: 0, scoreboard: 1, scorer_scoreboard: 2, referee: 3,
+  scorer: 0, scoreboard: 1, scorer_scoreboard: 2, referee: 3, cup_on_call: 4,
   bb_scorer: 0, bb_timekeeper: 1, bb_24s_official: 2,
 }
 
@@ -58,15 +69,27 @@ export function buildDutySpots(
       teamName: teamId ? (teamNameById.get(teamId) ?? '?') : '',
       memberId,
       memberName: memberId ? (memberNameById.get(memberId) ?? null) : null,
+      onCall: false,
     })
   }
 
   for (const game of games) {
     if (sport === 'volleyball') {
+      const before = out.length
       add(game, 'scorer_scoreboard', game.scorer_scoreboard_duty_team, game.scorer_scoreboard_member)
       add(game, 'scorer', game.scorer_duty_team, game.scorer_member)
       add(game, 'scoreboard', game.scoreboard_duty_team, game.scoreboard_member)
       add(game, 'referee', game.referee_duty_team, game.referee_member)
+      // A cup home game is assigned to nobody on purpose (runAssignment's 'cup'
+      // mode = on-call/Pikett), so the four adds above emit nothing and the game
+      // used to drop out of the overview entirely — a home game that still needs
+      // somebody at the desk, invisible in the one view used to check coverage.
+      // Emit a single standing row instead. Guarded on `before` so a cup game
+      // that HAS been given a duty team or an assignee by hand keeps its real
+      // spots rather than gaining a phantom second row.
+      if (out.length === before && isCupGame(game.league)) {
+        out.push({ game, role: 'cup_on_call', teamId: '', teamName: '', memberId: '', memberName: null, onCall: true })
+      }
     } else {
       // One duty team supplies the whole crew unless a per-role team overrides it.
       const shared = relId(game.bb_duty_team)

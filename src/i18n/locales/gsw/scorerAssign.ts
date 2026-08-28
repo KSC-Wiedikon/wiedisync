@@ -8,6 +8,7 @@ export default {
   overviewRole: 'Dienscht',
   overviewPerson: 'Iiträit',
   overviewOpen: 'Offe',
+  overviewNobodySummoned: 'Niemert ufbote',
   overviewFilled: 'Bsetzt',
   overviewStatus: 'Status',
   overviewOnlyEmpty: 'Nur offni Plätz aazeige',

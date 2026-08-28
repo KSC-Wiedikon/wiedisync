@@ -2,6 +2,12 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.1.5 — 2026-08-28
+
+### Cup home games show up in the duty overview
+
+- **A home cup game no longer disappears from the duty overview** on the scorer assignment page. Nobody is summoned for cup duty — officials are on standby instead — and the overview only listed games that had a duty team, so a cup game we host vanished from the one view used to check that every game is covered. It now stands in the list as "On call", and is not counted as an unfilled duty.
+
 ## v2.1.4 — 2026-08-28
 
 ### Changing your profile photo works with a photo from your camera

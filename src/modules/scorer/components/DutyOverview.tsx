@@ -58,8 +58,12 @@ export default function DutyOverview({ games, teams, members, hallNameById, spor
     return buildDutySpots(inScope, sport, teamNameById, memberNameById)
   }, [games, showPast, today, sport, teamNameById, memberNameById])
 
-  const openCount = useMemo(() => spots.filter((s) => !s.memberId).length, [spots])
-  const visible = useMemo(() => (onlyEmpty ? spots.filter((s) => !s.memberId) : spots), [spots, onlyEmpty])
+  // The ONE open-gap test. A cup on-call slot has no member either, but it is a
+  // free slot by design — counting it would report a duty nobody owes as unfilled.
+  const isOpenSpot = (s: DutySpot) => !s.onCall && !s.memberId
+
+  const openCount = useMemo(() => spots.filter(isOpenSpot).length, [spots])
+  const visible = useMemo(() => (onlyEmpty ? spots.filter(isOpenSpot) : spots), [spots, onlyEmpty])
 
   const roleLabel = (tr: typeof t, role: DutyRole): string => {
     switch (role) {
@@ -67,6 +71,7 @@ export default function DutyOverview({ games, teams, members, hallNameById, spor
       case 'scoreboard': return tr('autoTaefeler')
       case 'scorer_scoreboard': return tr('combinedCount')
       case 'referee': return tr('refereeCount')
+      case 'cup_on_call': return tr('cupOnCall')
       case 'bb_scorer': return tr('bbScorer')
       case 'bb_timekeeper': return tr('bbTimekeeper')
       default: return tr('bb24sOfficial')
@@ -76,7 +81,9 @@ export default function DutyOverview({ games, teams, members, hallNameById, spor
   // The person cell: their name, "Unknown member" when the id no longer resolves
   // (they left the club — still FILLED), or the open-slot marker.
   const personLabel = (tr: typeof t, s: DutySpot): string =>
-    s.memberId ? (s.memberName ?? tr('overviewUnknownMember')) : tr('overviewOpen')
+    s.memberId ? (s.memberName ?? tr('overviewUnknownMember'))
+      : s.onCall ? tr('overviewNobodySummoned')
+        : tr('overviewOpen')
 
   async function handleDownload() {
     setDownloading(true)
@@ -93,8 +100,8 @@ export default function DutyOverview({ games, teams, members, hallNameById, spor
         role: roleLabel(tEn, s.role),
         dutyTeam: s.teamName,
         person: personLabel(tEn, s),
-        status: s.memberId ? tEn('overviewFilled') : tEn('overviewOpen'),
-        open: !s.memberId,
+        status: s.onCall ? tEn('cupOnCall') : s.memberId ? tEn('overviewFilled') : tEn('overviewOpen'),
+        open: isOpenSpot(s),
       }))
       const L: XlsxOverviewLabels = {
         sheet: tEn('overviewSheet'),
@@ -169,11 +176,14 @@ export default function DutyOverview({ games, teams, members, hallNameById, spor
             </TableHeader>
             <TableBody>
               {visible.map((s) => {
-                const isOpen = !s.memberId
+                const isOpen = isOpenSpot(s)
                 return (
                   <TableRow
                     key={`${s.game.id}-${s.role}`}
-                    className={`border-b border-gray-100 dark:border-gray-700/50 ${isOpen ? 'bg-red-50 dark:bg-red-900/10' : ''}`}
+                    // Blue, not red — same signal the plan tab gives a cup row.
+                    className={`border-b border-gray-100 dark:border-gray-700/50 ${
+                      s.onCall ? 'bg-blue-50/50 dark:bg-blue-900/10' : isOpen ? 'bg-red-50 dark:bg-red-900/10' : ''
+                    }`}
                   >
                     <TableCell className="px-2 py-2 align-top text-gray-700 whitespace-normal dark:text-gray-300">
                       <div className="whitespace-nowrap"><span className="text-gray-400 dark:text-gray-500">{weekdayShort(s.game.date)}</span> {formatDateCompact(s.game.date)}</div>
@@ -200,7 +210,11 @@ export default function DutyOverview({ games, teams, members, hallNameById, spor
                     <TableCell className="hidden px-2 py-2 align-top sm:table-cell">
                       {s.teamName ? <TeamChip team={s.teamName} size="sm" /> : <span className="text-gray-400 dark:text-gray-500">—</span>}
                     </TableCell>
-                    <TableCell className={`whitespace-normal break-words px-2 py-2 align-top ${isOpen ? 'font-medium text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-gray-100'}`}>
+                    <TableCell className={`whitespace-normal break-words px-2 py-2 align-top ${
+                      s.onCall ? 'text-gray-500 dark:text-gray-400'
+                        : isOpen ? 'font-medium text-red-600 dark:text-red-400'
+                          : 'text-gray-900 dark:text-gray-100'
+                    }`}>
                       {personLabel(t, s)}
                     </TableCell>
                   </TableRow>

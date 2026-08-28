@@ -8,6 +8,7 @@ export default {
   overviewRole: 'Dienst',
   overviewPerson: 'Eingetragen',
   overviewOpen: 'Offen',
+  overviewNobodySummoned: 'Niemand aufgeboten',
   overviewFilled: 'Besetzt',
   overviewStatus: 'Status',
   overviewOnlyEmpty: 'Nur offene Plätze anzeigen',

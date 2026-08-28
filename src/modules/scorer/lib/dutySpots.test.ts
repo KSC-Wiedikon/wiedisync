@@ -23,9 +23,48 @@ describe('buildDutySpots — volleyball', () => {
   })
 
   it('ignores roles the game has no duty for', () => {
-    // A cup game carries no duty team at all → no spots, so it can never show up
-    // as an "empty spot" to chase.
-    expect(spots([game('g1', { league: 'Züri Cup' })])).toEqual([])
+    expect(spots([game('g1', { league: '2L' })])).toEqual([])
+  })
+
+  // A cup home game is assigned to nobody on purpose. It must still be VISIBLE —
+  // it is a home game somebody has to cover — without counting as an open gap.
+  it('emits a standing on-call row for a cup game nobody is assigned to', () => {
+    const [s, ...rest] = spots([game('g1', { league: 'Züri Cup — Runde 2, Spiel 3' })])
+    expect(rest).toEqual([])
+    expect(s).toMatchObject({ role: 'cup_on_call', teamId: '', teamName: '', memberId: '', memberName: null, onCall: true })
+  })
+
+  it('marks the on-call row so callers can keep it out of the open-gap count', () => {
+    // `!memberId` alone is true for both, which is exactly the trap: the overview
+    // must use `!onCall && !memberId` or a cup slot paints red as an unfilled duty.
+    // Distinct dates: with equal date+time the sort falls through to ROLE_ORDER,
+    // which would order these by role rather than by the game they belong to.
+    const out = spots([game('g1', { league: 'Züri Cup' }), game('g2', { date: '2026-09-19', scorer_duty_team: 't1' })])
+    expect(out.map((x) => [x.role, x.onCall, !x.memberId])).toEqual([
+      ['cup_on_call', true, true],
+      ['scorer', false, true],
+    ])
+    expect(out.filter((x) => !x.onCall && !x.memberId)).toHaveLength(1)
+  })
+
+  it('does not add a phantom row to a cup game that WAS given a duty by hand', () => {
+    const out = spots([game('g1', { league: 'Züri Cup', scorer_scoreboard_duty_team: 't2', scorer_scoreboard_member: 'm1' })])
+    expect(out.map((x) => x.role)).toEqual(['scorer_scoreboard'])
+    expect(out[0].onCall).toBe(false)
+  })
+
+  it('matches every cup spelling the planner does — and no league name', () => {
+    const cupRow = (league: string) => spots([game('g1', { league })])[0]
+    for (const league of ['Züri Cup — Runde 2, Spiel 3', 'Mobiliar Volley Cup — Tour 1, Spiel 34', 'Schweizer Cup', 'Coppa Ticino', 'Deutscher Pokal']) {
+      expect(cupRow(league)?.role, league).toBe('cup_on_call')
+    }
+    for (const league of ['2L', 'Frauen 3. Liga Gruppe A', 'Männer U23 1. Stärkeklasse']) {
+      expect(cupRow(league), league).toBeUndefined()
+    }
+  })
+
+  it('leaves basketball alone — its algorithm assigns cup games a duty team like any other', () => {
+    expect(spots([game('g1', { league: 'Cup' })], 'basketball')).toEqual([])
   })
 
   it('keeps a spot whose member no longer resolves as FILLED', () => {

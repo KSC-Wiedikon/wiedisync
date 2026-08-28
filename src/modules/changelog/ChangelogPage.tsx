@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.1.4'
+const APP_VERSION = '2.1.5'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,18 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.1.5',
+    date: '28.08.2026',
+    sections: [
+      {
+        title: 'Cup home games show up in the duty overview',
+        items: [
+          'A home cup game no longer disappears from the duty overview on the scorer assignment page. Nobody is summoned for cup duty — officials are on standby instead — and the overview only listed games that had a duty team, so a cup game we host vanished from the one view used to check that every game is covered. It now stands in the list as "On call", and is not counted as an unfilled duty.',
+        ],
+      },
+    ],
+  },
   {
     version: '2.1.4',
     date: '28.08.2026',

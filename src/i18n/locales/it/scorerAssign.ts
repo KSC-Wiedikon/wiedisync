@@ -8,6 +8,7 @@ export default {
   overviewRole: 'Incarico',
   overviewPerson: 'Iscritto',
   overviewOpen: 'Libero',
+  overviewNobodySummoned: 'Nessuno convocato',
   overviewFilled: 'Occupato',
   overviewStatus: 'Stato',
   overviewOnlyEmpty: 'Mostra solo i posti liberi',
