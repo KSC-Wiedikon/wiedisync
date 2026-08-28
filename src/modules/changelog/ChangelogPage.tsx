@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.1.6'
+const APP_VERSION = '2.1.7'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,18 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.1.7',
+    date: '28.08.2026',
+    sections: [
+      {
+        title: 'The duty overview updates as soon as you roll out',
+        items: [
+          'After rolling out a duty plan, the overview tab now shows what you just saved. It used to keep showing the picture from when you opened the page, so a duty team you had changed still appeared under its old team until you reloaded — the one view meant to confirm what is committed was the one showing stale information. The change itself was always saved correctly; only the display lagged.',
+        ],
+      },
+    ],
+  },
   {
     version: '2.1.6',
     date: '28.08.2026',

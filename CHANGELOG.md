@@ -2,6 +2,12 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.1.7 — 2026-08-28
+
+### The duty overview updates as soon as you roll out
+
+- **After rolling out a duty plan, the overview tab now shows what you just saved.** It used to keep showing the picture from when you opened the page, so a duty team you had changed still appeared under its old team until you reloaded — the one view meant to confirm what is committed was the one showing stale information. The change itself was always saved correctly; only the display lagged.
+
 ## v2.1.6 — 2026-08-28
 
 ### A cup home game can now be given a duty team

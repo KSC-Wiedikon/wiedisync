@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Navigate } from 'react-router-dom'
 import type { Game, Team, Training, Member, MemberTeam, Hall, LicenceType } from '../../types'
 import { memberDisplayName, relId } from '../../utils/relations'
-import { useCollection } from '../../lib/query'
+import { useCollection, invalidateForCollection } from '../../lib/query'
 import { useAuth } from '../../hooks/useAuth'
 import { getCurrentSeason, getSeasonDateRange, formatDateCompact, formatTime } from '../../utils/dateHelpers'
 import { logActivity } from '../../utils/logActivity'
@@ -407,6 +407,13 @@ export default function ScorerAssignPage() {
           }),
         )
       }
+      // Re-read the games we just wrote. `updateRecord` is a bare PATCH (only the
+      // useUpdate hook invalidates), and with staleTime 30s + refetchOnWindowFocus
+      // off nothing else ever triggers a refetch — so the Overview tab, which
+      // deliberately renders the SAVED state, kept showing the pre-roll-out
+      // snapshot until the page was reloaded. It lied precisely about the
+      // operation you would open it to verify.
+      if (tasks.length > 0) invalidateForCollection('games')
       setSaveMsg({ text: t('saveSuccess', { count: tasks.length }), error: false })
     } catch {
       setSaveMsg({ text: t('saveError'), error: true })
