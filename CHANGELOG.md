@@ -2,6 +2,13 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.1.6 — 2026-08-28
+
+### A cup home game can now be given a duty team
+
+- **Cup home games can be assigned a duty team and a person** on the scorer assignment page. Until now the row was read-only: nobody is summoned for cup duty by default, because the playing team covers its own cup match — but there was no way to put somebody on it when you wanted to. The row now has the same team and person pickers as every other game, and stays marked "On call" for as long as you leave it empty.
+- **Once you do assign somebody, the duty behaves like any other**: it appears on their scorer page and it counts toward that team's share of the season's duties. Recomputing the plan keeps it.
+
 ## v2.1.5 — 2026-08-28
 
 ### Cup home games show up in the duty overview

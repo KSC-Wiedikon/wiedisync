@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.1.5'
+const APP_VERSION = '2.1.6'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,19 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.1.6',
+    date: '28.08.2026',
+    sections: [
+      {
+        title: 'A cup home game can now be given a duty team',
+        items: [
+          'Cup home games can be assigned a duty team and a person on the scorer assignment page. Until now the row was read-only: nobody is summoned for cup duty by default, because the playing team covers its own cup match — but there was no way to put somebody on it when you wanted to. The row now has the same team and person pickers as every other game, and stays marked "On call" for as long as you leave it empty.',
+          'Once you do assign somebody, the duty behaves like any other: it appears on their scorer page and it counts toward that team\u2019s share of the season\u2019s duties. Recomputing the plan keeps it.',
+        ],
+      },
+    ],
+  },
   {
     version: '2.1.5',
     date: '28.08.2026',

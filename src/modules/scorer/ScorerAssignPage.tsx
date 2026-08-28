@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Navigate } from 'react-router-dom'
 import type { Game, Team, Training, Member, MemberTeam, Hall, LicenceType } from '../../types'
-import { memberDisplayName } from '../../utils/relations'
+import { memberDisplayName, relId } from '../../utils/relations'
 import { useCollection } from '../../lib/query'
 import { useAuth } from '../../hooks/useAuth'
 import { getCurrentSeason, getSeasonDateRange, formatDateCompact, formatTime } from '../../utils/dateHelpers'
@@ -16,7 +16,7 @@ import AssignmentEditor from './components/AssignmentEditor'
 import DutyOverview from './components/DutyOverview'
 import SportToggle from '../../components/SportToggle'
 import TabBar from '../../components/TabBar'
-import { runAssignment, getTeamCounts, buildTeamGameTimes, buildTrainingDates, buildGamesByDateHall, getAdjacentTeams, timeToMin, EXCLUDED_DUTY_TEAM_NAMES, type GameAssignment } from './components/AssignmentAlgorithm'
+import { runAssignment, getTeamCounts, buildTeamGameTimes, buildTrainingDates, buildGamesByDateHall, getAdjacentTeams, timeToMin, classifyVbMode, EXCLUDED_DUTY_TEAM_NAMES, type GameAssignment } from './components/AssignmentAlgorithm'
 import { runBbAssignment, getBbTeamCounts, type BbGameAssignment } from './components/AssignmentAlgorithmBb'
 import { buildAssignmentXlsx, buildTeamColors, downloadBytes, XLSX_MIME, type XlsxGameRow, type XlsxSummaryRow, type XlsxLabels } from './lib/assignmentExport'
 import { weekdayShort } from './lib/dutySpots'
@@ -253,8 +253,13 @@ export default function ScorerAssignPage() {
   // Recomputed from the current assignment so filling/clearing a slot toggles them.
   const vbStatusNotes = (tr: typeof t, a: GameAssignment): Note[] => {
     const s: Note[] = []
-    // Cup games are on-call/Pikett slots — a free slot, not a gap to fill.
-    if (a.mode === 'cup') return [{ text: tr('cupOnCall'), tone: 'muted' }]
+    // Cup games are on-call/Pikett slots: nobody is summoned automatically, but
+    // the planner may assign somebody by hand. Say "on call" only while the row is
+    // still empty, and never warn about an unfilled slot nobody owes.
+    if (a.mode === 'cup') {
+      const picked = a.scorerTeamId || a.scoreboardTeamId || a.combinedTeamId || a.refereeTeamId
+      return picked ? [] : [{ text: tr('cupOnCall'), tone: 'muted' }]
+    }
     if (a.conflicts.some((c) => c.key === 'existingKept')) s.push({ text: tr('existingKept'), tone: 'muted' })
     if (a.mode === 'combined') { if (!a.combinedTeamId) s.push({ text: tr('noTeamAvailable'), tone: 'warn' }) }
     else if (a.mode === 'referee') { if (!a.refereeTeamId) s.push({ text: tr('noRefereeAvailable'), tone: 'warn' }) }
@@ -517,6 +522,16 @@ export default function ScorerAssignPage() {
 
   // One duty's team+person editor in the results table (reuses the /scorer editor
   // so the person-first linking, team→member filtering and orphan-reset match).
+  // A cup row has no mode of its own (runAssignment gives every cup game mode
+  // 'cup'), so its duty cells are laid out by the PLAYING team's mode.
+  // classifyVbMode reads that team's own name + league, which is why the game's
+  // "Züri Cup — Runde 2, Spiel 3" league string does not throw it off.
+  const cupLayoutMode = (gameId: string): 'separate' | 'combined' | 'referee' => {
+    const g = homeGames.find((x) => x.id === gameId)
+    const tm = g ? vbTeams.find((x) => String(x.id) === relId(g.kscw_team)) : undefined
+    return classifyVbMode(tm?.name ?? '', tm?.league ?? '')
+  }
+
   const renderVbDuty = (
     gameId: string,
     role: 'scorer' | 'scoreboard' | 'combined' | 'referee',
@@ -652,12 +667,14 @@ export default function ScorerAssignPage() {
       if (isVb) {
         setVbAssignments((prev) => prev.map((a) => {
           const u = vbUpdates.get(a.gameId); if (!u) return a
-          if (a.mode === 'cup') return a // cup = free slot, never assigned from an upload
           // Clamp to the game's mode so a stray value in an irrelevant column
-          // (e.g. Scorer filled on a combined game) can't pollute roll-out.
+          // (e.g. Scorer filled on a combined game) can't pollute roll-out. A cup
+          // row has no mode of its own — clamp it to the playing team's layout,
+          // the same one its editor renders.
+          const layout = a.mode === 'cup' ? cupLayoutMode(a.gameId) : a.mode
           const b = { ...stripExisting(a), scorerTeamId: null, scorerTeamName: null, scoreboardTeamId: null, scoreboardTeamName: null, combinedTeamId: null, combinedTeamName: null, refereeTeamId: null, refereeTeamName: null }
-          if (a.mode === 'combined') return { ...b, combinedTeamId: u.combined, combinedTeamName: nameOf(u.combined) }
-          if (a.mode === 'referee') return { ...b, refereeTeamId: u.referee, refereeTeamName: nameOf(u.referee) }
+          if (layout === 'combined') return { ...b, combinedTeamId: u.combined, combinedTeamName: nameOf(u.combined) }
+          if (layout === 'referee') return { ...b, refereeTeamId: u.referee, refereeTeamName: nameOf(u.referee) }
           return { ...b, scorerTeamId: u.scorer, scorerTeamName: nameOf(u.scorer), scoreboardTeamId: u.scoreboard, scoreboardTeamName: nameOf(u.scoreboard) }
         }))
       } else {
@@ -960,6 +977,9 @@ export default function ScorerAssignPage() {
                     if (!game) return null
                     const hallName = hallNameById.get(String(game.hall)) ?? ''
                     const isCup = a.mode === 'cup'
+                    // Cup rows are assignable — nobody is summoned automatically,
+                    // but the planner can pick a team/person like any other game.
+                    const layoutMode = isCup ? cupLayoutMode(a.gameId) : a.mode
                     const isExisting = a.conflicts.some((c) => c.key === 'existingKept')
                     // Cup games are intentionally unassigned (free slot) → not a red gap.
                     const hasNoAssignment = !isCup && !a.scorerTeamId && !a.scoreboardTeamId && !a.combinedTeamId && !a.refereeTeamId
@@ -984,18 +1004,14 @@ export default function ScorerAssignPage() {
                         <TableCell className="px-2 py-2 text-gray-500 dark:text-gray-400">
                           <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs dark:bg-gray-700">{game.league}</span>
                         </TableCell>
-                        {a.mode === 'cup' ? (
-                          <TableCell className="px-2 py-2 text-center" colSpan={3}>
-                            <span className="rounded bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">{t('cupOnCall')}</span>
-                          </TableCell>
-                        ) : a.mode === 'combined' ? (
+                        {layoutMode === 'combined' ? (
                           <>
                             <TableCell className="px-2 py-2 align-top" colSpan={2}>
                               {renderVbDuty(a.gameId, 'combined', a.combinedTeamId, a.combinedMemberId, game.scorer_scoreboard_member)}
                             </TableCell>
                             <TableCell className="px-2 py-2 text-center text-gray-300 dark:text-gray-600">—</TableCell>
                           </>
-                        ) : a.mode === 'referee' ? (
+                        ) : layoutMode === 'referee' ? (
                           <>
                             <TableCell className="px-2 py-2 text-center text-gray-300 dark:text-gray-600">—</TableCell>
                             <TableCell className="px-2 py-2 text-center text-gray-300 dark:text-gray-600">—</TableCell>

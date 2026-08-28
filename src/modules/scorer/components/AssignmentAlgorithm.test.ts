@@ -156,6 +156,38 @@ describe('runAssignment', () => {
     for (const c of counts.values()) expect(c.totalDuties).toBe(0)
   })
 
+  it('keeps a cup duty a planner assigned by hand — the cup rule must not outrank it', () => {
+    // A cup tie is assignable on the plan row. Once a team is saved on it, a
+    // recompute has to hand it back as 'existingKept'; if the cup rule ran first
+    // it would blank the decision back to "on call" on every re-run.
+    const assigned = game('c1', '2', '2026-09-15', {
+      league: 'Züri Cup — Runde 2, Spiel 3',
+      scorer_scoreboard_duty_team: '3',
+    })
+    const [a] = runAssignment(base([assigned], LIC_MEMBERS, LIC_TEAMS))
+    expect(a.mode).toBe('combined')
+    expect(a.combinedTeamId).toBe('3')
+    expect(a.combinedTeamName).toBe('H2')
+    expect(a.conflicts.some((c) => c.key === 'existingKept')).toBe(true)
+    expect(a.conflicts.some((c) => c.key === 'cupOnCall')).toBe(false)
+  })
+
+  it('still leaves an untouched cup game on call', () => {
+    // The precedence change must not start auto-summoning teams for cup ties.
+    const [a] = runAssignment(base([game('c1', '2', '2026-09-15', { league: 'Züri Cup — Runde 2, Spiel 3' })], LIC_MEMBERS, LIC_TEAMS))
+    expect(a.mode).toBe('cup')
+    expect(a.combinedTeamId).toBeNull()
+  })
+
+  it('a hand-assigned cup duty counts toward the team it was given to', () => {
+    // It is a real duty now, so fairness must see it — unlike an on-call slot.
+    const assigned = game('c1', '2', '2026-09-15', { league: 'Züri Cup — Runde 2, Spiel 3', scorer_scoreboard_duty_team: '3' })
+    const counts = getTeamCounts(runAssignment(base([assigned], LIC_MEMBERS, LIC_TEAMS)), TEAMS, [assigned])
+    // getTeamCounts is keyed by team NAME, not id.
+    expect(counts.get('H2')?.totalDuties).toBe(1)
+    expect(counts.get('H2')?.combined).toBe(1)
+  })
+
   it('Legends is steered off scorer onto scoreboard, even when it is licenced', () => {
     // Rebalance (Thamy): Legends offloads scorer onto other teams and backfills
     // with the easier täfeler/combined duty. Here Legends HOLDS a scorer licence

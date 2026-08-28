@@ -396,21 +396,10 @@ export function runAssignment(input: AssignmentInput): GameAssignment[] {
   }
 
   for (const game of homeGames) {
-    // Cup game → on-call/Pikett free slot: no team is summoned for cup duty.
-    // Surface it (so it's visible in the plan) but assign nobody.
-    if (isCupGame(game.league)) {
-      const a = blank(game.id, 'cup')
-      a.conflicts.push({ key: 'cupOnCall' })
-      results.push(a)
-      continue
-    }
-
-    const adjacentTeams = getAdjacentTeams(game, gamesByDateHall)
-    const playingTeamId = game.kscw_team
-    const playingTeam = vbTeams.find((t) => t.id === playingTeamId)
-    const mode = classifyVbMode(playingTeam?.name ?? '', playingTeam?.league ?? '')
-
-    // Skip games that already have assignments (keep them, still count for fairness)
+    // Skip games that already have assignments (keep them, still count for fairness).
+    // ⚠ This runs BEFORE the cup rule on purpose. A cup tie is assignable by hand,
+    // and once a planner has put a team on one, a recompute must keep it — reversing
+    // these two blanks that decision back to "on call" every time the plan is re-run.
     const alreadyHasSeparate = !!(game.scorer_duty_team || game.scoreboard_duty_team)
     const alreadyHasCombined = !!game.scorer_scoreboard_duty_team
     const alreadyHasReferee = !!game.referee_duty_team
@@ -434,6 +423,21 @@ export function runAssignment(input: AssignmentInput): GameAssignment[] {
       results.push(a)
       continue
     }
+
+    // Cup game → on-call/Pikett free slot: no team is SUMMONED for cup duty, since
+    // a cup home game is the playing team's own desk. This governs the algorithm
+    // only — the planner can still assign somebody by hand on the plan row.
+    if (isCupGame(game.league)) {
+      const a = blank(game.id, 'cup')
+      a.conflicts.push({ key: 'cupOnCall' })
+      results.push(a)
+      continue
+    }
+
+    const adjacentTeams = getAdjacentTeams(game, gamesByDateHall)
+    const playingTeamId = game.kscw_team
+    const playingTeam = vbTeams.find((t) => t.id === playingTeamId)
+    const mode = classifyVbMode(playingTeam?.name ?? '', playingTeam?.league ?? '')
 
     if (mode === 'referee') {
       // === REFEREE ONLY (HU20) ===
