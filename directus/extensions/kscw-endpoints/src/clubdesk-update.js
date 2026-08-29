@@ -511,7 +511,11 @@ export const PROPOSAL_COLUMNS = {
   ort: 'text',
   phone: 'text',
   js_id: 'text',
-  sex: 'text',
+  // ⚠ NOT 'text'. members.sex stores 'm'/'f' and has NO CHECK constraint, while
+  // the `conflict` rule stages ClubDesk's own German cell — so a raw write would
+  // not fail loudly, it would quietly put 'männlich' in the column the whole
+  // gender pipeline reads (fees, the join-team picker, the licence exports).
+  sex: 'sex',
   anrede: 'text',
   // ⚠ Writing `nationalitaet` is correct despite the column being
   // trigger-derived: members_sync_nationality() resolves a written display name
@@ -531,8 +535,13 @@ export const PROPOSAL_COLUMNS = {
   // every sync... needs a tombstone before importing". proposals_refused_uq IS
   // that tombstone, so the column can finally be offered.
   iban: 'iban',
-  federation_of_origin: 'text',
-  trainer_licences: 'text',
+  // ⚠ Both store a CANONICAL form behind a CHECK constraint (an ISO alpha-2
+  // code; a code SET like 'JS,B') while the `conflict` rule stages what the
+  // admin READS — ClubDesk's German picklist name, its hand-edited cell. Typed
+  // so coerceProposalValue inverts the display back to storage instead of
+  // writing it verbatim, which is what 500'd every federation accept.
+  federation_of_origin: 'federation',
+  trainer_licences: 'trainer_licences',
   beitragskategorie: 'text',
   sektion: 'text',
   register_status: 'text',
@@ -547,18 +556,71 @@ export const PROPOSAL_COLUMNS = {
   otn2_bb: 'bool',
 }
 
-export function coerceProposalValue(field, raw) {
+export function coerceProposalValue(field, raw, ctx = {}) {
   const type = PROPOSAL_COLUMNS[field]
   if (!type) return { ok: false }
   const v = String(raw ?? '').trim()
   if (!v) return { ok: false }
   if (type === 'bool') return { ok: v === 'true', value: true }
-  // Dates are stored ISO by the detection pass (yyyy-mm-dd) precisely so this
-  // does not have to guess a locale. Anything else is rejected rather than
-  // coerced — a mis-parsed birthdate flips minor-protection.
+  // ⚠⚠ TWO vocabularies reach this function, and forgetting the second one is
+  // the whole bug class it now guards (2026-08-29). `proposed_value` is written
+  // by two different detection passes:
+  //   • the SQL rules (import-clubdesk-csv.mjs) stage the STORAGE shape — ISO
+  //     dates, 'm'/'f', an ISO federation code;
+  //   • the `conflict` rule (migration 338) stages what the ADMIN READS on the
+  //     row — ClubDesk's own cell: '18.08.2026', 'männlich', 'Schweiz', 'J+S, B'.
+  // Writing the second verbatim is what made every federation accept a 500
+  // (members_federation_of_origin_fmt) and every date conflict a silent skip.
+  // So each type below accepts BOTH shapes and emits exactly one.
+  //
+  // Dates: both forms are unambiguous, and neither is guessed. A dotted date is
+  // Swiss day-first by definition (CLAUDE.md) and mm.dd never occurs here; the
+  // round-trip check rejects 31.02.2026, which has the right shape and is not a
+  // date. Anything else is refused rather than coerced — a mis-parsed birthdate
+  // flips minor-protection.
   if (type === 'date') {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return { ok: false }
-    return { ok: true, value: v }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return { ok: true, value: v }
+    const m = v.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/)
+    if (!m) return { ok: false }
+    const iso = `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`
+    const d = new Date(`${iso}T00:00:00Z`)
+    if (Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== iso) return { ok: false }
+    return { ok: true, value: iso }
+  }
+  // members.sex is 'm'/'f' with NO CHECK constraint behind it — see the
+  // PROPOSAL_COLUMNS note. ClubDesk's Geschlecht cell is the German pair
+  // (sexPushLabel writes it, the drift pass compares it), so both go in.
+  if (type === 'sex') {
+    const s = v.toLowerCase()
+    if (s === 'm' || s === 'männlich' || s === 'maennlich') return { ok: true, value: 'm' }
+    if (s === 'f' || s === 'weiblich') return { ok: true, value: 'f' }
+    return { ok: false }
+  }
+  // members.federation_of_origin is an ISO alpha-2 code (members_federation_of_
+  // origin_fmt); ClubDesk holds the German picklist NAME. `ctx.countryCodes` is
+  // the same pair of vocabularies computeClubdeskDrift already resolves through
+  // (country_codes + country_name_aliases) — see loadCountryCodeLookup.
+  // ⚠ An unresolvable name is REFUSED, not guessed: the proposal stays pending
+  // and surfaces as `skipped`, which is a question a human can still answer.
+  if (type === 'federation') {
+    const u = v.toUpperCase()
+    // Retired sentinel (migration 342). Mapped rather than rejected, exactly as
+    // normalizeFederation() and registration-duplicates.js do: a pre-342 row
+    // decided today must not 500 under a human's finger. Nothing stages it any
+    // more — import-clubdesk-csv.mjs stopped emitting it the same day.
+    if (u === 'NONE') return { ok: true, value: 'CH' }
+    if (/^[A-Z]{2}$/.test(u)) return { ok: true, value: u }
+    const code = ctx.countryCodes instanceof Map ? ctx.countryCodes.get(v.toLowerCase()) : null
+    return code ? { ok: true, value: code } : { ok: false }
+  }
+  // members.trainer_licences is a code SET ('JS,B') under members_trainer_
+  // licences_fmt; ClubDesk's cell is hand-edited free text ('J+S, B', 'js b',
+  // 'Trainer 2'). parseTrainerLicenceCell is the inverse the drift comparison
+  // already runs BOTH sides through, and it swallows a stored code list too, so
+  // one call covers both vocabularies. '' (nothing recognised) → refused.
+  if (type === 'trainer_licences') {
+    const codes = parseTrainerLicenceCell(v)
+    return codes ? { ok: true, value: codes } : { ok: false }
   }
   // ⚠ The login address. A register cell that is not an address (ClubDesk holds
   // plenty of "-", "keine", a bare name) must never land in the column that
@@ -1040,6 +1102,37 @@ export function federationCell(code, countryNames) {
   const v = String(code ?? '').trim().toUpperCase()
   if (!v) return ''
   return (countryNames && countryNames.get(v)) || ''
+}
+
+// The INVERSE of federationCell: every German/English country name the two
+// systems use → its ISO code, in ONE map. Both vocabularies are needed because
+// the name being resolved can come from either side of the sync — ClubDesk's
+// picklist spelling (`name_de_clubdesk`, e.g. "Großbritannien") or the club's
+// own display spelling (`name_de`/`name_en`) — and `country_name_aliases` then
+// fills in everything either side has ever been seen writing.
+//
+// ⚠ country_codes is loaded FIRST and first spelling wins, so the curated
+// column beats an alias row if they ever disagree.
+//
+// Used by the proposal accept path (coerceProposalValue) to turn the name an
+// admin decided on back into the code the column stores. Loaded once per
+// request, never per row — the two tables are small and static.
+export async function loadCountryCodeLookup(database) {
+  const map = new Map()
+  const add = (name, code) => {
+    const n = String(name ?? '').trim().toLowerCase()
+    const c = String(code ?? '').trim().toUpperCase()
+    if (n && /^[A-Z]{2}$/.test(c) && !map.has(n)) map.set(n, c)
+  }
+  for (const r of await database('country_codes').select('code', 'name_de', 'name_en', 'name_de_clubdesk')) {
+    add(r.name_de_clubdesk, r.code)
+    add(r.name_de, r.code)
+    add(r.name_en, r.code)
+  }
+  try {
+    for (const a of await database('country_name_aliases').select('alias', 'code')) add(a.alias, a.code)
+  } catch { /* no alias table → the curated names still resolve, as before */ }
+  return map
 }
 
 // members.nationalitaet_codes → the ClubDesk cell, same picklist spellings as
@@ -3009,6 +3102,14 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       const stamp = { decided_at: new Date(), decided_by_name: actor.name, decided_by_email: actor.email }
       let applied = 0, skipped = 0, flagged = 0
 
+      // Name → ISO code, for the federation coercion below. Loaded once for the
+      // whole batch and only when the batch actually contains one, so an accept
+      // of anything else costs no extra query.
+      const coerceCtx = {}
+      if (decision === 'accept' && rows.some((p) => p.field === 'federation_of_origin')) {
+        coerceCtx.countryCodes = await loadCountryCodeLookup(database)
+      }
+
       for (const p of rows) {
         if (decision === 'refuse') {
           await database('clubdesk_sync_proposals').where('id', p.id)
@@ -3064,10 +3165,12 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
           continue
         }
 
-        const coerced = coerceProposalValue(p.field, p.proposed_value)
+        const coerced = coerceProposalValue(p.field, p.proposed_value, coerceCtx)
         if (!coerced.ok) {
           // Not a column we allow, or a value that no longer parses. Left pending
-          // on purpose: silently discarding it would hide a detection bug.
+          // on purpose: silently discarding it would hide a detection bug. The UI
+          // surfaces the count as a warning toast, so it is not silent to a human
+          // either.
           skipped++
           continue
         }

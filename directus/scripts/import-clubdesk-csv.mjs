@@ -571,7 +571,15 @@ const psqlInput =
   '                      FROM generate_series(1,13) g(i)) % 10 = 0\n' +
   "              THEN substr(cd_ahv_digits,1,3)||'.'||substr(cd_ahv_digits,4,4)||'.'||substr(cd_ahv_digits,8,4)||'.'||substr(cd_ahv_digits,12,2)\n" +
   '         END AS cd_ahv,\n' +
-  "         COALESCE(CASE WHEN cd1.cd_fed_name IN ('keiner','keine','none') THEN 'NONE' END, a.code) AS cd_fed,\n" +
+  // ⚠⚠ The 'keiner'/'keine'/'none' → 'NONE' branch was REMOVED 2026-08-29.
+  // Migration 342 retired that sentinel and members_federation_of_origin_fmt now
+  // rejects it outright, so a `fill` proposal carrying it was a guaranteed 500
+  // the moment a superadmin accepted it (9 contacts still say "Keiner" in the
+  // export). It is dropped rather than re-mapped to 'CH': under 342's definition
+  // the register cell carries NO answer, and asserting Swiss origin for a
+  // possibly-foreign member is exactly the silent miss 342 exists to stop. NULL
+  // here means the `fill` rule's `cd_fed IS NOT NULL` never asks the question.
+  '         a.code AS cd_fed,\n' +
   '         (\n' +
   "           SELECT string_agg(code, ',' ORDER BY rank) FROM (\n" +
   "             SELECT 'JS' AS code, 0 AS rank WHERE cd1.cd_trainer_raw ~ 'j\\s*\\+?\\s*s|jugend\\s*\\+?\\s*sport'\n" +

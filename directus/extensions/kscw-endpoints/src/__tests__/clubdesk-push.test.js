@@ -382,13 +382,55 @@ describe('coerceProposalValue (the sync-down accept whitelist, 2026-08-14)', () 
     expect(coerceProposalValue('register_status', 'Aktivmitglied')).toEqual({ ok: true, value: 'Aktivmitglied' })
   })
 
-  it('takes dates ONLY as ISO — a mis-parsed birthdate flips minor-protection', () => {
+  it('takes dates in BOTH vocabularies and emits ISO — the conflict rule stages the Swiss cell', () => {
+    // ⚠ This assertion was inverted on 2026-08-29. The SQL rules stage ISO, but
+    // the `conflict` rule (migration 338) stages ClubDesk's own dd.mm.yyyy cell
+    // because that is what the admin reads on the row — so ISO-only meant every
+    // date conflict was silently skipped and could never be decided at all.
+    // Accepting both is not a guess: a dotted date is Swiss day-first by
+    // definition and mm.dd never occurs here.
     expect(coerceProposalValue('birthdate', '2009-09-01')).toEqual({ ok: true, value: '2009-09-01' })
-    // Swiss display format is what a human types; the detection pass stores ISO
-    // precisely so this never has to guess which of the two it is looking at.
-    expect(coerceProposalValue('birthdate', '01.09.2009').ok).toBe(false)
-    expect(coerceProposalValue('eintritt', '1.9.2009').ok).toBe(false)
+    expect(coerceProposalValue('birthdate', '01.09.2009')).toEqual({ ok: true, value: '2009-09-01' })
+    expect(coerceProposalValue('eintritt', '1.9.2009')).toEqual({ ok: true, value: '2009-09-01' })
+    // Right shape, not a date — the round-trip check is what catches it, and a
+    // mis-parsed birthdate flips minor-protection.
+    expect(coerceProposalValue('birthdate', '31.02.2026').ok).toBe(false)
     expect(coerceProposalValue('austritt', 'yesterday').ok).toBe(false)
+    expect(coerceProposalValue('austritt', '09/01/2009').ok).toBe(false)
+  })
+
+  it('inverts the DISPLAY value back to the stored one — the conflict rule stages what the admin reads (2026-08-29)', () => {
+    // ⚠⚠ The bug this covers: `conflict` proposals carry ClubDesk's own cell,
+    // not the storage shape, so accepting one wrote 'Schweiz' into a column
+    // whose CHECK is ^[A-Z]{2}$ → 500 on /clubdesk-sync/proposals/decide, with
+    // three real conflicts sitting undecidable on prod.
+    const countryCodes = new Map([['schweiz', 'CH'], ['italien', 'IT'], ['deutschland', 'DE']])
+    expect(coerceProposalValue('federation_of_origin', 'Schweiz', { countryCodes }))
+      .toEqual({ ok: true, value: 'CH' })
+    // The SQL `fill` rule stages the code itself — both shapes, one output.
+    expect(coerceProposalValue('federation_of_origin', 'IT', { countryCodes }))
+      .toEqual({ ok: true, value: 'IT' })
+    // Retired sentinel (migration 342): mapped, never 500'd under a human's finger.
+    expect(coerceProposalValue('federation_of_origin', 'NONE', { countryCodes }))
+      .toEqual({ ok: true, value: 'CH' })
+    // Unresolvable → refused, NOT guessed. The proposal stays pending and the UI
+    // reports it as skipped, which is a question a human can still answer.
+    expect(coerceProposalValue('federation_of_origin', 'Keiner', { countryCodes }).ok).toBe(false)
+    expect(coerceProposalValue('federation_of_origin', 'Schweiz').ok).toBe(false)
+
+    // sex: members.sex has NO CHECK constraint, so 'männlich' would not fail —
+    // it would quietly corrupt the column the gender pipeline reads.
+    expect(coerceProposalValue('sex', 'männlich')).toEqual({ ok: true, value: 'm' })
+    expect(coerceProposalValue('sex', 'Weiblich')).toEqual({ ok: true, value: 'f' })
+    expect(coerceProposalValue('sex', 'f')).toEqual({ ok: true, value: 'f' })
+    expect(coerceProposalValue('sex', 'divers').ok).toBe(false)
+
+    // trainer_licences: a code SET behind members_trainer_licences_fmt, staged as
+    // ClubDesk's hand-edited cell.
+    expect(coerceProposalValue('trainer_licences', 'J+S, B')).toEqual({ ok: true, value: 'JS,B' })
+    expect(coerceProposalValue('trainer_licences', 'JS,B')).toEqual({ ok: true, value: 'JS,B' })
+    expect(coerceProposalValue('trainer_licences', 'Trainer 2')).toEqual({ ok: true, value: 'T2' })
+    expect(coerceProposalValue('trainer_licences', 'Basketball').ok).toBe(false)
   })
 
   it('booleans are set-true only — a "false" proposal is not applied', () => {
@@ -446,7 +488,8 @@ describe('coerceProposalValue (the sync-down accept whitelist, 2026-08-14)', () 
     // the bottom, which for `email` would mean any register free-text landing in
     // the login column — the exact thing the email branch exists to stop.
     for (const [field, type] of Object.entries(PROPOSAL_COLUMNS)) {
-      expect(['text', 'date', 'bool', 'email', 'iban'], `${field} has type ${type}`).toContain(type)
+      expect(['text', 'date', 'bool', 'email', 'iban', 'sex', 'federation', 'trainer_licences'],
+        `${field} has type ${type}`).toContain(type)
     }
   })
 })
