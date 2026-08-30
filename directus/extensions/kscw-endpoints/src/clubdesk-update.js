@@ -2514,7 +2514,21 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       if (!nameAgrees(r.last_name, r.cd_nachname)) {
         cmp('last_name', r.last_name, r.cd_nachname, driftLower(r.last_name), driftLower(r.cd_nachname))
       }
-      // Email matches when it equals EITHER ClubDesk address (primary or alt).
+      // ⚠⚠ Email and phone are the two fields ClubDesk keeps in TWO columns and
+      // the push writes only ONE of. Agreement is rightly checked against both
+      // (holding the number under "Mobil" still means we agree with the
+      // register), but blank_risk must be scoped to the column an UPDATE row
+      // actually writes — `E-Mail` and `Telefon Privat`, per
+      // CD_PUSH_CONTACT_HEADERS. Widening it to the alternate column asserts
+      // that an empty cell would blank a value the push never touches, and that
+      // verdict DROPS THE MEMBER FROM EVERY PUSH (the /up blank-risk guard) with
+      // no way out: sync-down cannot heal it either, because it skips
+      // clubdesk_push_pending members entirely. Measured on prod 2026-08-30:
+      // both of the club's two phone blank_risks were exactly this — ClubDesk's
+      // `Telefon Privat` EMPTY, a number only under `Telefon Mobil` — and one of
+      // them (the only member pending a push) 409'd the whole sync-up with
+      // "Every eligible member would blank ClubDesk data … run Sync down first",
+      // advice that could never work. Real risk in both columns: zero.
       const em = driftLower(r.email)
       const cdEm = driftLower(r.cd_email) || driftLower(r.cd_email_alt)
       if (em && cdEm) {
@@ -2523,7 +2537,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
         }
       } else if (em) {
         fills.push({ field: 'email', wiedisync: driftNorm(r.email) })
-      } else if (cdEm) {
+      } else if (driftLower(r.cd_email)) {
         blankRisk.push('email')
       }
       // Phone matches when it equals EITHER ClubDesk number (privat or mobil).
@@ -2535,7 +2549,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
         }
       } else if (ph) {
         fills.push({ field: 'phone', wiedisync: driftNorm(r.phone) })
-      } else if (cdPhones.length) {
+      } else if (driftPhone(r.cd_tel_priv)) {
         blankRisk.push('phone')
       }
       cmp('adresse', r.adresse, r.cd_adresse, driftLower(r.adresse), driftLower(r.cd_adresse))
