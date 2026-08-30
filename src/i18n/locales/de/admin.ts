@@ -683,6 +683,7 @@ export default {
   dhProposalRefused: '{{count}} von wiedisync behalten.',
   dhProposalFlagged: '{{count}} für den nächsten Sync-up vorgemerkt.',
   dhProposalSkipped: '{{count}} konnten nicht angewendet werden und bleiben offen.',
+  dhProposalAlreadyDecided: 'Diese Entscheide wurden bereits getroffen — die aktuelle Liste wird angezeigt.',
 
   cdNeedsSyncTitle: 'Muss synchronisiert werden',
   cdNeedsSyncDescription: 'Mitglieder, die seit der letzten Synchronisation nicht mit ClubDesk übereinstimmen.',

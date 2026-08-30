@@ -179,7 +179,20 @@ export default function ClubdeskProposals({ onDone, onCountChange }: {
       await load()
       await onDone?.()
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : String(e))
+      // ⚠ `already_decided` is staleness, not failure: every id in the click had
+      // already been decided (a second admin, or this tab left open across a
+      // sync-down, which re-detects and can close a row on its own). The rows on
+      // screen are the thing that is wrong, so re-read them and say so plainly —
+      // a red toast reading "API …/decide: 409" tells the operator nothing about
+      // what to do, and the answer is always "here is the current list".
+      if ((e as { code?: string })?.code === 'already_decided') {
+        toast.info(t('dhProposalAlreadyDecided'))
+        setSelected(new Set())
+        await load()
+        await onDone?.()
+      } else {
+        toast.error(e instanceof Error ? e.message : String(e))
+      }
     } finally {
       setBusy(null)
     }

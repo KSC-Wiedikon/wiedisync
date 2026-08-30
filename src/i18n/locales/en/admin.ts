@@ -683,6 +683,7 @@ export default {
   dhProposalRefused: '{{count}} kept from wiedisync.',
   dhProposalFlagged: '{{count}} queued for the next sync-up.',
   dhProposalSkipped: '{{count}} could not be applied and stay open.',
+  dhProposalAlreadyDecided: 'Those decisions were already made — showing the current list.',
 
   cdNeedsSyncTitle: 'Needs syncing',
   cdNeedsSyncDescription: 'Members out of step with ClubDesk since the last sync.',

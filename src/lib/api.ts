@@ -739,6 +739,10 @@ const EXPECTED_ERROR_CODES = new Set([
   // Nothing left to re-grant — a repair that raced another device, or a stale
   // banner. The UI just re-reads; there is no failure to report.
   'nothing_to_add',
+  // Same shape on the ClubDesk decision table: every id in the click was already
+  // decided — by a second admin, or by this admin's own tab left open across a
+  // sync-down. The list is what is stale, so the UI re-reads it. Not a failure.
+  'already_decided',
 ])
 
 /**
