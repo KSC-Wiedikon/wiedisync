@@ -134,6 +134,13 @@ export default function ClubdeskFixGroups({ available, onDone, open: openProp, o
   // A commit is only offered once a preview of the *current* job succeeded — the
   // server enforces this too (code 'preview_required'); this just makes it visible.
   const canCommit = status?.state === 'done' && status.mode === 'preview' && !!status.result
+  // ⚠ A finished commit had NO terminal state: the result table rendered, the
+  // commit button greyed out (canCommit needs a FRESH preview), and the footer
+  // still offered only "Run preview" / "Commit to ClubDesk" — so the operator
+  // was left asking "why doesn't it say complete, what do I click?" (2026-08-30)
+  // with the work already done. A commit that succeeded says so and offers the
+  // way out.
+  const committed = status?.state === 'done' && status.mode === 'commit'
 
   const toggleClass = (c: FixClass) => {
     setClasses((prev) => {
@@ -151,6 +158,7 @@ export default function ClubdeskFixGroups({ available, onDone, open: openProp, o
     ...(status?.result?.add?.results || []).map((r) => ({ ...r, kind: 'add' as const })),
   ]
   const failedRows = resultRows.filter((r) => !OK_STATUSES.has(r.status || ''))
+  const okRows = resultRows.filter((r) => OK_STATUSES.has(r.status || ''))
 
   async function run(mode: 'preview' | 'commit') {
     if (mode === 'commit') {
@@ -265,6 +273,13 @@ export default function ClubdeskFixGroups({ available, onDone, open: openProp, o
             </p>
           )}
 
+          {committed && (
+            <p className="flex items-start gap-2 rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200">
+              <Check className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+              {t('cdFixCommitted', { count: okRows.length })}
+            </p>
+          )}
+
           {/* Per-row outcome — this IS what the operator approves before committing. */}
           {status?.state === 'done' && resultRows.length > 0 && (
             <div className="space-y-2">
@@ -327,15 +342,21 @@ export default function ClubdeskFixGroups({ available, onDone, open: openProp, o
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               {t('cdFixPreviewButton')}
             </Button>
-            <Button
-              type="button"
-              onClick={() => { void run('commit') }}
-              disabled={submitting || busy || !!blockedBy || !canCommit}
-              className="gap-1.5"
-              title={canCommit ? undefined : t('cdFixPreviewRequired')}
-            >
-              {t('cdFixCommitButton')}
-            </Button>
+            {committed ? (
+              <Button type="button" onClick={() => setOpen(false)} className="gap-1.5">
+                {t('cdFixCloseButton')}
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                onClick={() => { void run('commit') }}
+                disabled={submitting || busy || !!blockedBy || !canCommit}
+                className="gap-1.5"
+                title={canCommit ? undefined : t('cdFixPreviewRequired')}
+              >
+                {t('cdFixCommitButton')}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
