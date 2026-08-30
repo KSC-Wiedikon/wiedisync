@@ -641,6 +641,11 @@ export default function DataHealthPage() {
   // Lifted so the sync path can gate its decision step on it — the count is
   // owned by the proposals table, which is the thing that changes it.
   const [pendingProposals, setPendingProposals] = useState(0)
+  // Bumped after a job that can rewrite the proposal queue (a sync-down, or a
+  // path step that runs one) so ClubdeskProposals re-reads instead of showing
+  // its mount-time snapshot. `runChecks` alone does not reach it — that table
+  // owns its own fetch.
+  const [proposalsReload, setProposalsReload] = useState(0)
   const [fixGroupsOpen, setFixGroupsOpen] = useState(false)
 
   // ── ClubDesk findings, owned here ──────────────────────────────────────────
@@ -695,6 +700,16 @@ export default function DataHealthPage() {
     setLastCheck(formatTimeZurich(new Date()))
     setLoading(false)
   }, [])
+
+  // A sync-down (directly, or as a step the path runs) is the ONE job that
+  // rewrites the proposal queue, so it must refresh the queue as well as the
+  // page's own checks. Deciding a proposal deliberately does not come through
+  // here: that table reloads itself, and bumping the key from its own callback
+  // would make the two refetch each other.
+  const afterSyncJob = useCallback(async () => {
+    setProposalsReload((n) => n + 1)
+    await runChecks()
+  }, [runChecks])
 
   // Auto-run once on mount — checks are read-only, mirroring InfraHealthPage.
   // runChecks flips `loading` synchronously (intentional one-shot mount fetch),
@@ -837,7 +852,7 @@ export default function DataHealthPage() {
                   <ArrowDownToLine className="h-4 w-4" aria-hidden="true" />
                   {t('dhClubdeskActions')}
                 </span>
-                <ClubdeskMemberSyncButton onDone={runChecks} />
+                <ClubdeskMemberSyncButton onDone={afterSyncJob} />
                 <Button type="button" variant="outline" size="sm" onClick={() => setSyncUpOpen(true)} className="gap-1.5">
                   <ArrowUpFromLine className="h-3.5 w-3.5" aria-hidden="true" />
                   {t('dhSyncUp')}
@@ -879,11 +894,15 @@ export default function DataHealthPage() {
                 ).length}
                 onRunUp={() => setSyncUpOpen(true)}
                 onRunGroups={() => setFixGroupsOpen(true)}
-                onDone={runChecks}
+                onDone={afterSyncJob}
               />
 
               {/* Sync down produces proposals, never writes — see migration 321. */}
-              <ClubdeskProposals onDone={runChecks} onCountChange={setPendingProposals} />
+              <ClubdeskProposals
+                onDone={runChecks}
+                onCountChange={setPendingProposals}
+                reloadKey={proposalsReload}
+              />
 
               <div className="flex items-center gap-2">
                 <span className="text-xs text-gray-500 dark:text-gray-400">{t('dhSportFilter')}</span>

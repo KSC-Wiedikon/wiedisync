@@ -85,10 +85,20 @@ function display(v: string | null, t: (k: string) => string): string {
   return ISO_DATE.test(s) ? formatDateZurich(s) : s
 }
 
-export default function ClubdeskProposals({ onDone, onCountChange }: {
+export default function ClubdeskProposals({ onDone, onCountChange, reloadKey = 0 }: {
   onDone?: () => void | Promise<void>
   /** Reported upward so the sync path can gate its decision step on the count. */
   onCountChange?: (n: number) => void
+  /**
+   * Bumped by the page whenever a sync-down finishes. Without it this table
+   * keeps its MOUNT-TIME snapshot: the one operation that rewrites the proposal
+   * queue is the very one that left the rows on screen stale, and the sync
+   * banner above refreshes while the table below does not — so the path reads
+   * "1. Sync down ✓ → 2. Decide (2)" against two rows the sync already closed,
+   * and clicking one 409s (already_decided). Deciding a row reloads through
+   * `load()` and must NOT bump this, or the two would drive each other.
+   */
+  reloadKey?: number
 }) {
   const { t } = useTranslation('admin')
   const [data, setData] = useState<ProposalsResp | null>(null)
@@ -128,7 +138,7 @@ export default function ClubdeskProposals({ onDone, onCountChange }: {
       }
     })()
     return () => { alive = false }
-  }, [apply])
+  }, [apply, reloadKey])
 
   // Manual refetch after a decision — never called from an effect, so it may set
   // state directly. It deliberately leaves `loading` alone: the table stays on
