@@ -786,6 +786,8 @@ export default {
   clubdeskUpPushing: 'Pushing to ClubDesk…',
   clubdeskUpPushingNote: 'Uploading to ClubDesk and confirming — this can take a minute. Please keep this open.',
   clubdeskUpResult: 'Done — {{neu}} created, {{veraendert}} updated in ClubDesk.',
+  clubdeskUpUnchanged_one: '1 row was already identical in ClubDesk — sent, nothing to change.',
+  clubdeskUpUnchanged_other: '{{count}} rows were already identical in ClubDesk — sent, nothing to change.',
   clubdeskUpReadback: 'Run "Sync down" to pull the confirmed data back and verify it landed.',
   clubdeskUpDoneToast: 'Synced up to ClubDesk.',
   clubdeskUpFailed: 'Sync up failed.',

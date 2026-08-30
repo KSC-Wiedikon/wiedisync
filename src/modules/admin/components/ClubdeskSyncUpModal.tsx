@@ -21,7 +21,7 @@ interface UnlinkedMember { id: number; first_name: string; last_name: string; em
 // blank-risk, would-duplicate) reads the clubdesk_export snapshot the down run is
 // in the middle of replacing, and /up refuses the push anyway.
 interface Preview { changed: ChangedMember[]; unlinked: UnlinkedMember[]; blocked_by_down?: string }
-interface UpResult { total?: number | null; neu?: number | null; veraendert?: number | null; committed?: boolean }
+interface UpResult { total?: number | null; neu?: number | null; veraendert?: number | null; unveraendert?: number | null; committed?: boolean }
 interface UpStatus { state: 'idle' | 'queued' | 'running' | 'done' | 'failed'; message: string | null; result: UpResult | null }
 
 type Phase = 'loading' | 'review' | 'pushing' | 'done' | 'error' | 'blocked'
@@ -59,6 +59,12 @@ export default function ClubdeskSyncUpModal({ open, onOpenChange, onDone }: {
   const [preview, setPreview] = useState<Preview>({ changed: [], unlinked: [] })
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [result, setResult] = useState<UpResult | null>(null)
+  // ClubDesk's own verdict for a row it compared and found identical. The
+  // dispatcher keeps it per set but never totals it, so derive it — and fall
+  // back to the arithmetic (total = neu + veraendert + unchanged) so a result
+  // written by an older dispatcher still reads correctly.
+  const unchanged = result?.unveraendert
+    ?? Math.max(0, (result?.total ?? 0) - (result?.neu ?? 0) - (result?.veraendert ?? 0))
   const [error, setError] = useState('')
   const openRef = useRef(false)
 
@@ -369,6 +375,17 @@ export default function ClubdeskSyncUpModal({ open, onOpenChange, onDone }: {
           <div className="flex flex-col items-center justify-center gap-3 py-10 text-center">
             <CheckCircle2 className="h-8 w-8 text-green-600 dark:text-green-400" />
             <p className="text-sm font-medium">{t('clubdeskUpResult', { neu: result?.neu ?? 0, veraendert: result?.veraendert ?? 0 })}</p>
+            {/* ⚠ "0 created, 0 updated" reads as "the push did nothing" and sent an
+                operator hunting for a bug (2026-08-30) — when what actually happened
+                is that the rows WERE sent and ClubDesk found nothing to change.
+                ClubDesk reports that as `unveraendert`, which the dispatcher keeps
+                per set but does not total, so derive it: total = neu + veraendert +
+                unchanged. Shown only when it is the whole story a reader is missing. */}
+            {unchanged > 0 && (
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                {t('clubdeskUpUnchanged', { count: unchanged })}
+              </p>
+            )}
             <p className="max-w-sm text-xs text-gray-500 dark:text-gray-400">{t('clubdeskUpReadback')}</p>
             <Button variant="outline" onClick={() => handleOpenChange(false)}>{t('clubdeskUpClose')}</Button>
           </div>

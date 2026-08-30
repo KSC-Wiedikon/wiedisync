@@ -786,6 +786,8 @@ export default {
   clubdeskUpPushing: 'Übertragung zu ClubDesk…',
   clubdeskUpPushingNote: 'Wird zu ClubDesk hochgeladen und bestätigt — das kann eine Minute dauern. Bitte offen lassen.',
   clubdeskUpResult: 'Fertig — {{neu}} erstellt, {{veraendert}} aktualisiert in ClubDesk.',
+  clubdeskUpUnchanged_one: '1 Zeile war in ClubDesk bereits identisch — gesendet, nichts zu ändern.',
+  clubdeskUpUnchanged_other: '{{count}} Zeilen waren in ClubDesk bereits identisch — gesendet, nichts zu ändern.',
   clubdeskUpReadback: 'Führe „Von ClubDesk herunterladen“ aus, um die bestätigten Daten zurückzuholen und zu prüfen.',
   clubdeskUpDoneToast: 'Zu ClubDesk hochsynchronisiert.',
   clubdeskUpFailed: 'Hochsynchronisieren fehlgeschlagen.',
