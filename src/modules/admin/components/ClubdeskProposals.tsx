@@ -15,6 +15,15 @@
  * accepting changes our database, refusing changes ClubDesk's — eventually, and
  * only via a push somebody still has to approve.
  *
+ * ⚠ The BUTTONS are therefore labelled with the system that WINS, not with the
+ * verb: "Wiedisync" is refuse (ours stands), "ClubDesk" is accept (theirs is
+ * written in). "Accept"/"Refuse" said nothing about which of two visible values
+ * the click was approving; the source name says it in the same word as the
+ * column it comes from. Order matches the columns — Wiedisync, then ClubDesk —
+ * so the leftmost, easiest-to-hit button is the one that does NOT touch our
+ * data. `create` rows get their own tooltip: there is nothing to overwrite, the
+ * choice is whether the member is created at all.
+ *
  * `rule` is shown as a "why" column because it is the only thing that makes the
  * decision informed: a `fill` is the register offering something we lack, an
  * `overwrite` is a genuine disagreement on a register column, a `set_true` is a
@@ -31,7 +40,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { AlertTriangle, Check, Loader2, X } from 'lucide-react'
+import { AlertTriangle, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -149,7 +158,7 @@ export default function ClubdeskProposals({ onDone, onCountChange }: {
           count: emails.length,
           names: emails.map((p) => p.member_name).join(', '),
         }),
-        confirmLabel: t('dhProposalAccept'),
+        confirmLabel: t('dhProposalEmailConfirmLabel'),
         danger: true,
       }))) return
     }
@@ -226,20 +235,18 @@ export default function ClubdeskProposals({ onDone, onCountChange }: {
             <Button
               type="button" size="sm" variant="outline"
               disabled={busy !== null} aria-busy={busy === 'bulk'}
-              onClick={() => void decide([...selected], 'accept')}
-              className="gap-1.5"
+              title={t('dhProposalRefuseTitle')}
+              onClick={() => void decide([...selected], 'refuse')}
             >
-              <Check className="h-3.5 w-3.5" aria-hidden="true" />
-              {t('dhProposalAcceptN', { count: selected.size })}
+              {t('dhProposalRefuseN', { count: selected.size })}
             </Button>
             <Button
               type="button" size="sm" variant="outline"
               disabled={busy !== null} aria-busy={busy === 'bulk'}
-              onClick={() => void decide([...selected], 'refuse')}
-              className="gap-1.5"
+              title={t('dhProposalAcceptTitle')}
+              onClick={() => void decide([...selected], 'accept')}
             >
-              <X className="h-3.5 w-3.5" aria-hidden="true" />
-              {t('dhProposalRefuseN', { count: selected.size })}
+              {t('dhProposalAcceptN', { count: selected.size })}
             </Button>
           </div>
         )}
@@ -305,16 +312,18 @@ export default function ClubdeskProposals({ onDone, onCountChange }: {
                     <Button
                       type="button" size="sm" variant="outline"
                       disabled={busy !== null} aria-busy={busy === p.id}
-                      onClick={() => void decide([p.id], 'accept')}
-                    >
-                      {t('dhProposalAccept')}
-                    </Button>
-                    <Button
-                      type="button" size="sm" variant="ghost"
-                      disabled={busy !== null} aria-busy={busy === p.id}
+                      title={t(p.rule === 'create' ? 'dhProposalRefuseCreateTitle' : 'dhProposalRefuseTitle')}
                       onClick={() => void decide([p.id], 'refuse')}
                     >
                       {t('dhProposalRefuse')}
+                    </Button>
+                    <Button
+                      type="button" size="sm" variant="outline"
+                      disabled={busy !== null} aria-busy={busy === p.id}
+                      title={t(p.rule === 'create' ? 'dhProposalAcceptCreateTitle' : 'dhProposalAcceptTitle')}
+                      onClick={() => void decide([p.id], 'accept')}
+                    >
+                      {t('dhProposalAccept')}
                     </Button>
                   </div>
                 </TableCell>
