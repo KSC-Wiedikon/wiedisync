@@ -977,6 +977,27 @@ describe('buildPushCsv — Trainer Lizenz column', () => {
   })
 })
 
+describe('buildPushCsv — Telefon Privat echo', () => {
+  it('sends the member number, and ClubDesk own number VERBATIM when wiedisync has none', () => {
+    const csv = buildPushCsv([
+      { id: 1, clubdesk_id: '100', phone: '079 794 50 99' },
+      // /up stashes ClubDesk's own `Telefon Privat` here when wiedisync is empty.
+      // It must go back UNCHANGED: normalizePhone is an outgoing repair for OUR
+      // value, and reshaping a cell we are only handing back would rewrite the
+      // register. `079598279` is a real prod case — 9 digits, one short of a CH
+      // mobile, so it does not normalize at all.
+      { id: 2, clubdesk_id: '101', phone: null, phone_cd: '079598279' },
+      { id: 3, clubdesk_id: '102', phone: null },
+    ])
+    const lines = csv.split('\n')
+    const col = lines[0].split(';').indexOf('Telefon Privat')
+    expect(col).toBeGreaterThan(-1)
+    expect(lines[1].split(';')[col]).toBe('+41 79 794 50 99')
+    expect(lines[2].split(';')[col]).toBe('079598279')
+    expect(lines[3].split(';')[col]).toBe('')
+  })
+})
+
 // The native dues run bills from feeBreakdown, so the itemisation is not a
 // display detail — `amount` is what a member is actually invoiced. The
 // deriveMitgliederbeitrag suite above already pins the arithmetic; these pin

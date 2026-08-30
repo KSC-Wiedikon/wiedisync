@@ -1281,7 +1281,11 @@ export function buildPushCsv(members, { create = false, countryNames = null } = 
     const emailOut = normVal(normalizeEmail, m.email)
     // Shared contact cells — order mirrors CD_PUSH_CONTACT_HEADERS exactly.
     const contactCells = [
-      emailOut, phoneOut, m.adresse, m.plz, m.ort,
+      // phoneOut falls back to ClubDesk's own `Telefon Privat`, stashed by /up
+      // when wiedisync holds no number — the same one-hop echo Federation of
+      // Origin uses, and for the same reason (the normalizer must not reshape a
+      // value we are only echoing). Creates never have a mirror to fall back to.
+      emailOut, phoneOut || String(m.phone_cd || '').trim(), m.adresse, m.plz, m.ort,
       fmtBirthdateDDMMYYYY(m.birthdate),
       m.sex === 'm' ? 'männlich' : m.sex === 'f' ? 'weiblich' : '',
       // /up pre-resolves m.iban / m.anrede / m.nationalitaet / m.ahv_nummer to
@@ -1926,7 +1930,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
         const echoRows = cdids.length ? await database.raw(`
           SELECT DISTINCT ON (BTRIM(clubdesk_id)) BTRIM(clubdesk_id) AS cdid,
                  iban, anrede, nationalitaet, ahv_nummer, federation_of_origin,
-                 trainer_lizenz,
+                 trainer_lizenz, telefon_privat, adresse, plz, ort,
                  beitragskategorie, eintritt, mitgliederbeitrag, lizenznummer, lizenzart,
                  status, austritt, offiziellen_lizenz
           FROM clubdesk_export WHERE BTRIM(clubdesk_id) = ANY(?) ORDER BY BTRIM(clubdesk_id), row_id
@@ -1940,6 +1944,25 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
           if (!String(m.anrede || '').trim()) m.anrede = String(cd.anrede || '').trim()
           if (!String(m.nationalitaet || '').trim()) m.nationalitaet = String(cd.nationalitaet || '').trim()
           if (!String(m.ahv_nummer || '').trim()) m.ahv_nummer = String(cd.ahv_nummer || '').trim()
+          // ⚠⚠ Address + phone joined the echo on 2026-08-30, which is what takes
+          // them OUT of blank_risk (see computeClubdeskDrift). They were in the
+          // push scope from day one and never echoed, so an empty wiedisync cell
+          // made the member blank-risky — dropped from EVERY push, with no way
+          // back: a sync-down cannot heal a member it skips for being
+          // push-pending, and since migration 321 it would only PROPOSE the fill
+          // anyway. Echoing ClubDesk's own value makes the cell a provable
+          // no-op, exactly as it has always done for IBAN and Anrede.
+          if (!String(m.adresse || '').trim()) m.adresse = String(cd.adresse || '').trim()
+          if (!String(m.plz || '').trim()) m.plz = String(cd.plz || '').trim()
+          if (!String(m.ort || '').trim()) m.ort = String(cd.ort || '').trim()
+          // ⚠ Phone echoes ONE HOP (like Federation of Origin), not back onto
+          // m.phone: buildPushCsv runs m.phone through normalizePhone as an
+          // outgoing repair, and canonicalising a number we are only handing
+          // back would REWRITE a register cell wiedisync has no opinion about.
+          // The mirror is sent verbatim. `Telefon Privat` is the only phone
+          // column an UPDATE row writes — echoing Mobil here would MOVE the
+          // number between columns, which is a mutation, not an echo.
+          if (!String(m.phone || '').trim()) m.phone_cd = String(cd.telefon_privat || '').trim()
           // Federation of Origin echoes into a SEPARATE field, not back onto
           // federation_of_origin itself: that column holds an ISO code (CHECK
           // constraint, migration 223) while ClubDesk's cell is a German picklist
@@ -1986,7 +2009,12 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
             ? 'Every eligible member already exists in ClubDesk under this name (divergent email) — relink them to the existing contact instead of creating a duplicate'
             : staleOnly
               ? 'Every eligible member has a stale ClubDesk link (contact no longer exists in ClubDesk) — mute or relink them'
-              : 'Every eligible member would blank ClubDesk data (empty fields ClubDesk still owns) — run "Sync down" first',
+              // ⚠ NOT "run Sync down first". Since migration 321 a sync-down
+              // only PROPOSES the fill, and it skips clubdesk_push_pending
+              // members outright — so for the members who see this, the old
+              // advice was unreachable twice over. Name the thing that actually
+              // clears it.
+              : 'Every eligible member would blank ClubDesk data (empty fields ClubDesk still owns) — fill those fields in wiedisync, or accept the pending fill proposals; a sync-down cannot do it for a member already flagged for a push',
           code: dupOnly ? 'would_duplicate' : staleOnly ? 'stale_link' : 'blank_risk',
           skipped_blank_risk: blankRiskSkipped, skipped_stale_link: staleLinkSkipped,
           skipped_would_duplicate: wouldDuplicateSkipped,
@@ -2483,6 +2511,20 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
           blankRisk.push(field)
         }
       }
+      // The echo-protected variant: identical, minus the blank_risk branch.
+      // /up resolves these cells to ClubDesk's OWN value when wiedisync's is
+      // empty, so the push provably cannot blank them and calling the member
+      // "at risk" would only drop them from every push for no reason (the IBAN
+      // note below is the original statement of this rule). Declared beside
+      // `cmp` because a `const` arrow cannot be called above its own line —
+      // adresse/plz/ort sit between here and where it used to live.
+      const cmpEcho = (field, wRaw, cRaw, wNorm, cNorm) => {
+        if (wNorm && cNorm) {
+          if (wNorm !== cNorm) conflicts.push({ field, wiedisync: driftNorm(wRaw), clubdesk: driftNorm(cRaw) })
+        } else if (wNorm) {
+          fills.push({ field, wiedisync: driftNorm(wRaw) })
+        }
+      }
       // ⚠ A `?` in a ClubDesk name is NOT a difference — it is a character the
       // export could not encode (2026-08-15). ClubDesk exports CP1252, and any
       // codepoint outside it (ć, ń, ł, š, ž…) is written as a literal question
@@ -2515,20 +2557,21 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
         cmp('last_name', r.last_name, r.cd_nachname, driftLower(r.last_name), driftLower(r.cd_nachname))
       }
       // ⚠⚠ Email and phone are the two fields ClubDesk keeps in TWO columns and
-      // the push writes only ONE of. Agreement is rightly checked against both
-      // (holding the number under "Mobil" still means we agree with the
-      // register), but blank_risk must be scoped to the column an UPDATE row
-      // actually writes — `E-Mail` and `Telefon Privat`, per
-      // CD_PUSH_CONTACT_HEADERS. Widening it to the alternate column asserts
-      // that an empty cell would blank a value the push never touches, and that
-      // verdict DROPS THE MEMBER FROM EVERY PUSH (the /up blank-risk guard) with
-      // no way out: sync-down cannot heal it either, because it skips
-      // clubdesk_push_pending members entirely. Measured on prod 2026-08-30:
-      // both of the club's two phone blank_risks were exactly this — ClubDesk's
-      // `Telefon Privat` EMPTY, a number only under `Telefon Mobil` — and one of
-      // them (the only member pending a push) 409'd the whole sync-up with
-      // "Every eligible member would blank ClubDesk data … run Sync down first",
-      // advice that could never work. Real risk in both columns: zero.
+      // the push writes only ONE of (`E-Mail` and `Telefon Privat`, per
+      // CD_PUSH_CONTACT_HEADERS). Agreement is rightly checked against both —
+      // holding the number under "Mobil" still means we agree with the register
+      // — but blank_risk may never look past the column an UPDATE row writes.
+      // Widening it there asserts that an empty cell would blank a value the
+      // push does not touch, and that verdict DROPS THE MEMBER FROM EVERY PUSH.
+      // Measured on prod 2026-08-30: both of the club's phone blank_risks were
+      // exactly that (Privat empty, a number only under Mobil), and one of them
+      // 409'd the entire club's sync-up.
+      //
+      // Phone then left blank_risk altogether, because /up now echoes ClubDesk's
+      // own `Telefon Privat` back (m.phone_cd) — same guarantee as IBAN. Email
+      // stays: it is the LOGIN identity, wiedisync owns it, and a member with no
+      // address here is a data-quality question a human should answer, not a
+      // cell to paper over.
       const em = driftLower(r.email)
       const cdEm = driftLower(r.cd_email) || driftLower(r.cd_email_alt)
       if (em && cdEm) {
@@ -2549,12 +2592,10 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
         }
       } else if (ph) {
         fills.push({ field: 'phone', wiedisync: driftNorm(r.phone) })
-      } else if (driftPhone(r.cd_tel_priv)) {
-        blankRisk.push('phone')
       }
-      cmp('adresse', r.adresse, r.cd_adresse, driftLower(r.adresse), driftLower(r.cd_adresse))
-      cmp('plz', r.plz, r.cd_plz, driftNorm(r.plz), driftNorm(r.cd_plz))
-      cmp('ort', r.ort, r.cd_ort, driftLower(r.ort), driftLower(r.cd_ort))
+      cmpEcho('adresse', r.adresse, r.cd_adresse, driftLower(r.adresse), driftLower(r.cd_adresse))
+      cmpEcho('plz', r.plz, r.cd_plz, driftNorm(r.plz), driftNorm(r.cd_plz))
+      cmpEcho('ort', r.ort, r.cd_ort, driftLower(r.ort), driftLower(r.cd_ort))
       // Display both sides Swiss-style (dd.mm.yyyy); compare on ISO.
       const bdIso = driftDateMember(r.birthdate)
       const bdDisp = bdIso ? `${bdIso.slice(8, 10)}.${bdIso.slice(5, 7)}.${bdIso.slice(0, 4)}` : ''
@@ -2573,17 +2614,8 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       } else if (wIban) {
         fills.push({ field: 'iban', wiedisync: driftNorm(r.iban) })
       }
-      // Anrede / Nationalität / AHV: echo-protected like IBAN — conflict/fill
-      // only, NEVER blank_risk (the /up echo-back sends ClubDesk's own value
-      // when wiedisync's is empty, so an empty wiedisync field cannot blank it).
+      // Anrede / Nationalität / AHV are echo-protected — see cmpEcho above.
       // AHV compares digits-only (dot formatting differs between the systems).
-      const cmpEcho = (field, wRaw, cRaw, wNorm, cNorm) => {
-        if (wNorm && cNorm) {
-          if (wNorm !== cNorm) conflicts.push({ field, wiedisync: driftNorm(wRaw), clubdesk: driftNorm(cRaw) })
-        } else if (wNorm) {
-          fills.push({ field, wiedisync: driftNorm(wRaw) })
-        }
-      }
       cmpEcho('anrede', r.anrede, r.cd_anrede, driftLower(r.anrede), driftLower(r.cd_anrede))
       // ⚠ Nationality compares by CODE, not by display string (2026-08-15).
       // `members.nationalitaet` is trigger-derived from `nationalitaet_codes`
@@ -2880,7 +2912,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       const candidates = computed.filter((c) => !c.blank_risk.length)
       const skipped = computed.length - candidates.length
       if (!candidates.length) {
-        return res.status(409).json({ error: 'Push would blank ClubDesk data (member has empty fields ClubDesk still owns) — run "Sync down" first', code: 'blank_risk' })
+        return res.status(409).json({ error: 'Push would blank ClubDesk data (member has empty fields ClubDesk still owns) — fill those fields in wiedisync, or accept the pending fill proposals; a sync-down cannot do it for a member already flagged for a push', code: 'blank_risk' })
       }
       for (const c of candidates) {
         const changes = [

@@ -157,7 +157,7 @@ export default {
   dhIssueClubdeskDrift: 'Nicht synchron mit ClubDesk',
   dhIssueClubdeskDriftBlocked: 'Nicht synchron mit ClubDesk — zuerst «Sync down» ausführen',
   dhDriftGone: 'Für diesen Eintrag gibt es nichts mehr zu synchronisieren — Liste aktualisiert.',
-  dhDriftBlankRisk: 'Nicht vorgemerkt: der Push würde ClubDesk-Daten leeren. Zuerst «Sync down» ausführen, dann neu scannen.',
+  dhDriftBlankRisk: 'Nicht markiert: der Push würde ClubDesk-Daten leeren. Fehlende Felder zuerst in wiedisync ausfüllen, dann neu prüfen.',
   dhIssueClubdeskFill: 'Daten fehlen in ClubDesk (Sammel-Fill)',
   dhIssueClubdeskGroupMissing: 'Fehlende ClubDesk-Gruppe',
   dhIssueClubdeskGroupStray: 'In einer ClubDesk-Gruppe, aber kein Wiedisync-Spieler',
@@ -189,7 +189,7 @@ export default {
   dhBulkSelected: '{{count}} ausgewählt',
   dhBulkMark: '{{count}} für Sync-up vormerken',
   dhBulkMarked: '{{count}} für Sync-up vorgemerkt',
-  dhBulkBlankRisk: '{{count}} übersprungen — würde ClubDesk-Daten leeren, zuerst «Sync down»',
+  dhBulkBlankRisk: '{{count}} übersprungen — würde ClubDesk-Daten leeren, fehlende Felder zuerst in wiedisync ausfüllen',
 
   // Audit Log
   auditTitle: 'Audit Log',
@@ -734,7 +734,7 @@ export default {
   cdSyncFlagged: '{{count}} vorgemerkt — der nächste Sync-up schreibt unseren Wert nach ClubDesk.',
   cdSyncFlagNothing: 'Nichts vorzumerken — diese Abweichung ist bereits gelöst.',
   cdSyncBlankRiskShort: 'Zuerst «Sync down»',
-  cdSyncBlankRiskBlocked: 'Zuerst «Sync down» — der Push würde {{fields}} in ClubDesk leeren.',
+  cdSyncBlankRiskBlocked: 'Blockiert — der Push würde {{fields}} in ClubDesk leeren. Zuerst in wiedisync ausfüllen.',
   cdSyncHint_not_linked: 'Noch kein ClubDesk-Kontakt — mit einem Upload anlegen.',
   cdSyncHint_awaiting_link: 'Beim letzten Upload bereits in ClubDesk angelegt — der nächste Download verknüpft den Kontakt. Nicht erneut hochladen.',
   cdSyncHint_stale: 'Der verknüpfte ClubDesk-Kontakt existiert nicht mehr.',

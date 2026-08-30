@@ -239,8 +239,18 @@ if [ -s "$CSVUTF_U" ]; then
   if ! printf '%s' "$RES_U" | grep -q '"committed":true'; then
     # Creates (if any) are committed + stamped above; the update members keep
     # clubdesk_push_pending and are retried on the next push.
+    #
+    # ⚠ The message MUST distinguish the two cases. It used to assert "create set
+    # was committed" unconditionally, and most failed runs carry NO create set at
+    # all ($RES_C empty) — so the operator was told new contacts had been written
+    # into the legal register when nothing had, and went hunting for phantom
+    # duplicates. 2026-08-30: exactly that, on a one-row update push.
     RES=$(merge_results false "$RES_U" "$RES_C")
-    fail_run 'Push failed (update set; create set was committed) — see up-run.log' "$RES"
+    if [ -n "$RES_C" ]; then
+      fail_run 'Push failed (update set) — the CREATE set WAS committed and stamped; do not re-create those contacts. See up-run.log' "$RES"
+    else
+      fail_run 'Push failed (update set) — nothing was written to ClubDesk. The members stay flagged and go again on the next push. See up-run.log' "$RES"
+    fi
     echo "=== up-dispatch: FAILED (update set) ==="; exit 0
   fi
 fi

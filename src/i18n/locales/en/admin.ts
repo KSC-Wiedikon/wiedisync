@@ -157,7 +157,7 @@ export default {
   dhIssueClubdeskDrift: 'Out of sync with ClubDesk',
   dhIssueClubdeskDriftBlocked: 'Out of sync with ClubDesk — run \'Sync down\' first',
   dhDriftGone: 'Nothing left to sync for this entry — list refreshed.',
-  dhDriftBlankRisk: 'Not marked: the push would blank ClubDesk data. Run \'Sync down\' first, then rescan.',
+  dhDriftBlankRisk: 'Not marked: the push would blank ClubDesk data. Fill the missing fields in wiedisync, then rescan.',
   dhIssueClubdeskFill: 'ClubDesk missing data (bulk fill)',
   dhIssueClubdeskGroupMissing: 'Missing ClubDesk group',
   dhIssueClubdeskGroupStray: 'In a ClubDesk group but not a Wiedisync player',
@@ -189,7 +189,7 @@ export default {
   dhBulkSelected: '{{count}} selected',
   dhBulkMark: 'Mark {{count}} for sync-up',
   dhBulkMarked: '{{count}} marked for sync-up',
-  dhBulkBlankRisk: '{{count}} skipped — would blank ClubDesk data, run \'Sync down\' first',
+  dhBulkBlankRisk: '{{count}} skipped — would blank ClubDesk data, fill the missing fields in wiedisync first',
 
   // Audit Log
   auditTitle: 'Audit log',
@@ -734,7 +734,7 @@ export default {
   cdSyncFlagged: '{{count}} queued — the next sync-up writes our value to ClubDesk.',
   cdSyncFlagNothing: 'Nothing to queue — that difference has already been resolved.',
   cdSyncBlankRiskShort: 'Sync down first',
-  cdSyncBlankRiskBlocked: 'Sync down first — the push would blank {{fields}} in ClubDesk.',
+  cdSyncBlankRiskBlocked: 'Blocked — the push would blank {{fields}} in ClubDesk. Fill it in wiedisync first.',
   cdSyncHint_not_linked: 'No ClubDesk contact yet — create them with a sync up.',
   cdSyncHint_awaiting_link: 'Already created in ClubDesk by the last sync up — the next sync down links the contact back. Do not push again.',
   cdSyncHint_stale: 'The linked ClubDesk contact no longer exists.',
