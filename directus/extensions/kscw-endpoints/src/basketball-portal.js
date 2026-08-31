@@ -214,6 +214,28 @@ export function registerBasketballPortal(router, { database, logger }) {
     return true
   }
 
+  /**
+   * Who on the KSCW side is performing this action, for the row-level audit pair
+   * (CLAUDE.md → Audit logging option (b)). Mirrors game-scheduling.js's helper of the
+   * same name, reimplemented because that one is a closure-local function.
+   *
+   * ⚠ Falls back to `directus_users` when the account has no linked `members` row — a
+   * bb_admin logging in with a Directus-only account would otherwise record an offline
+   * agreement signed by nobody, which is exactly the thing this column exists to prevent.
+   * Returns {name:null} only for an unauthenticated or wholly unresolvable caller.
+   */
+  async function resolveActingUser(req) {
+    const userId = req.accountability?.user
+    if (!userId) return { name: null, email: null }
+    const m = await database('members').where('user', userId).first('first_name', 'last_name', 'email')
+    const fromMember = m ? [m.first_name, m.last_name].filter(Boolean).join(' ').trim() : ''
+    if (fromMember) return { name: fromMember, email: m.email || null }
+    const u = await database('directus_users').where('id', userId).first('first_name', 'last_name', 'email')
+    if (!u) return { name: m?.email || null, email: m?.email || null }
+    const fromUser = [u.first_name, u.last_name].filter(Boolean).join(' ').trim()
+    return { name: fromUser || u.email || null, email: u.email || m?.email || null }
+  }
+
   // ── Mail ──────────────────────────────────────────────────────────────────
   /**
    * Send from spielplanung@basketball.kscw.ch. Best-effort by contract: callers
@@ -1223,5 +1245,145 @@ export function registerBasketballPortal(router, { database, logger }) {
       })
       res.json({ success: true, updated })
     } catch (err) { fail(res, 'admin/terminplanung/bb/unoffer', err, req) }
+  })
+
+  // ── POST /kscw/admin/terminplanung/bb/mark-agreed ─────────────────────────
+  // Record an agreement the opponent gave OFF the portal (phone, email, corridor
+  // at a previous Sitzung). Migration 347.
+  //
+  // Body: { season, ids: number[], agreed_with: string, note?: string, override?: boolean }
+  //
+  // WHY THIS EXISTS: 'accepted' was reachable only by the club answering through its
+  // token link, or by a planner accepting a date the club picked itself. `/offer` stops
+  // at 'offered'. But the deliverable is the WSR Art. 18 escape — a game agreed before
+  // the Spielplansitzung needs nobody there — and most of those agreements happen on the
+  // phone. Without this route such a game sits at 'draft' forever and the panel counts
+  // it as outstanding work that is in fact done.
+  //
+  // ⚠ `agreed_with` is REQUIRED. An agreement with nobody in particular is a note to
+  // self, and this row is the evidence we would show ProBasket. It lands in
+  // `responded_by_name` (the OPPONENT side); the KSCW planner who recorded it lands in
+  // `agreed_offline_by_name`. Both, never one — see migration 347's header.
+  //
+  // ⚠ A club's own answer is never silently overwritten. 'declined' and 'countered'
+  // rows are refused unless the caller passes `override: true`, which the UI only sends
+  // after showing what the club actually said. 'club_proposed' is refused outright —
+  // that has its own Accept button with different semantics (the club picked the date).
+  // 'accepted' rows are reported back as already agreed, not treated as an error, so
+  // re-submitting a selection is harmless.
+  //
+  // ⚠ `opponent_note` and `counter_proposals` are NEVER touched. They hold what the club
+  // said in its own words; an offline agreement adds to the record, it does not edit it.
+  //
+  // ⚠ Each row is updated under a status guard (`.where('proposal_status', <as read>)`),
+  // so a club answering through its link while this modal was open loses no answer — the
+  // row is reported back as `changed_meanwhile` instead of being clobbered.
+  router.post('/admin/terminplanung/bb/mark-agreed', async (req, res) => {
+    if (await denyUnlessBb(req, res)) return
+    try {
+      const season = Number(req.body?.season)
+      // Deduped: the length comparison below is how we prove every id exists, so a
+      // repeated id would otherwise read as "one of these does not exist".
+      const ids = Array.isArray(req.body?.ids)
+        ? [...new Set(req.body.ids.map(Number).filter(Number.isFinite))] : []
+      const agreedWith = String(req.body?.agreed_with ?? '').replace(/\s+/g, ' ').trim().slice(0, 120)
+      const rawNote = String(req.body?.note ?? '').trim().slice(0, 500)
+      const override = req.body?.override === true
+
+      if (!season || !ids.length) return res.status(400).json({ error: 'season and ids required' })
+      if (ids.length > 200) return res.status(400).json({ error: 'too many ids' })
+      if (!agreedWith) return res.status(400).json({ error: 'agreed_with required' })
+
+      const rows = await database('basketball_slot_plan')
+        .where('season', season).whereIn('id', ids)
+        .select('id', 'opponent_club', 'proposal_status', 'game_type', 'note')
+      if (rows.length !== ids.length) return res.status(400).json({ error: 'invalid ids' })
+
+      // A 'guest' row is somebody else's game borrowing our hall — there is no agreement
+      // of ours to record on it. Same refusal as /offer.
+      if (rows.some((r) => r.game_type !== 'home')) {
+        return res.status(400).json({ error: 'guest_game_not_offerable' })
+      }
+      // Migration 280's CHECK: any non-draft status requires a club. Fail with the same
+      // error string /offer uses, so the UI's existing "pick a club first" message fits.
+      const missingClub = rows.filter((r) => r.opponent_club == null)
+      if (missingClub.length) {
+        return res.status(400).json({ error: 'opponent_club required', ids: missingClub.map((r) => r.id) })
+      }
+      const clubPicked = rows.filter((r) => r.proposal_status === 'club_proposed')
+      if (clubPicked.length) {
+        return res.status(400).json({ error: 'use_club_picks', ids: clubPicked.map((r) => r.id) })
+      }
+      const answered = rows.filter((r) => r.proposal_status === 'declined' || r.proposal_status === 'countered')
+      if (answered.length && !override) {
+        return res.status(400).json({
+          error: 'would_overwrite_club_answer',
+          ids: answered.map((r) => r.id),
+          statuses: answered.map((r) => ({ id: r.id, status: r.proposal_status })),
+        })
+      }
+
+      const alreadyAgreed = rows.filter((r) => r.proposal_status === 'accepted').map((r) => r.id)
+      const targets = rows.filter((r) => r.proposal_status !== 'accepted')
+      if (!targets.length) {
+        return res.json({ success: true, updated: 0, already_agreed: alreadyAgreed, skipped: [] })
+      }
+
+      const actor = await resolveActingUser(req)
+      const now = new Date()
+      const nowIso = now.toISOString()
+      // dd.mm.yyyy in Europe/Zurich — the app-wide Swiss format, so the appended line
+      // reads the same as every other date the planner sees.
+      // ⚠ NOT fmtDate(): that reads UTC parts, which is right for a `date` column (UTC
+      // midnight) and wrong for a timestamp — a call logged at 00:30 Zurich would be
+      // stamped with the previous day.
+      const stamp = new Intl.DateTimeFormat('de-CH', {
+        timeZone: 'Europe/Zurich', day: '2-digit', month: '2-digit', year: 'numeric',
+      }).format(now)
+      const skipped = []
+      let updated = 0
+
+      // One transaction: a half-recorded batch is worse than none, because the panel
+      // would then show some of a phone call's outcome and hide the rest.
+      await database.transaction(async (trx) => {
+        for (const r of targets) {
+          // The planner's own note is APPENDED to the row's own `note` column — never to
+          // `opponent_note`, which belongs to the club. Existing text is kept.
+          const line = `${stamp}: agreed offline with ${agreedWith}${actor.name ? ` (recorded by ${actor.name})` : ''}${rawNote ? ` — ${rawNote}` : ''}`
+          const nextNote = r.note && String(r.note).trim() ? `${String(r.note).trimEnd()}\n${line}` : line
+
+          const affected = await trx('basketball_slot_plan')
+            .where('id', r.id)
+            // Optimistic guard: if the club answered through its link since we read the
+            // row, this matches nothing and the answer survives.
+            .where('proposal_status', r.proposal_status)
+            .update({
+              proposal_status: 'accepted',
+              agreed_offline: true,
+              agreed_offline_by_name: actor.name,
+              responded_at: nowIso,
+              responded_by_name: agreedWith,
+              // Deliberately cleared: an offline agreement has no portal responder, and a
+              // stale address here would read as "the club answered from this mailbox".
+              responded_by_email: null,
+              note: nextNote,
+              date_updated: nowIso,
+            })
+          if (affected) updated += affected
+          else skipped.push({ id: r.id, reason: 'changed_meanwhile' })
+        }
+      })
+
+      await writeUserLog(database, log, {
+        accountability: req.accountability, action: 'update',
+        collection: 'basketball_slot_plan', recordId: null,
+        data: {
+          action: 'mark_agreed_offline', season, ids,
+          agreed_with: agreedWith, recorded_by: actor.name, override, updated,
+          skipped: skipped.length, already_agreed: alreadyAgreed.length,
+        },
+      })
+      res.json({ success: true, updated, already_agreed: alreadyAgreed, skipped })
+    } catch (err) { fail(res, 'admin/terminplanung/bb/mark-agreed', err, req) }
   })
 }

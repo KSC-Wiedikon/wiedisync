@@ -291,6 +291,35 @@ export default {
   proposal_countered: 'Alternative vorgschlage',
   counterProposals: 'Alternative',
 
+  // ── Agreements made off the portal (migration 347) ──────────────────────
+  // A game agreed by phone is settled (WSR Art. 18) but had no way to say so: the
+  // only route to 'accepted' was the club answering through its own link. These
+  // strings deliberately keep the two apart everywhere they surface — an agreement
+  // WE wrote down is weaker evidence than one the club gave in its own words.
+  proposal_agreed_offline: 'Vereinbart (usserhalb)',
+  agreedSelected: '{{count}} als vereinbart markiere',
+  agreedTitle: 'Vereinbarig usserhalb vom Portal erfasse',
+  agreedHint: 'Für de Fall, wo de Gegnerklub telefonisch oder per E-Mail zuegseit hät statt über sin Link. S Spiel gilt denn als greglet und bruucht niemert a de Spielplansitzig.',
+  agreedGamesHeading: '{{count}} Spiel mit {{club}}',
+  agreedOneClubOnly: 'D Uswahl umfasst {{count}} verschiedeni Klubs. E Vereinbarig gilt für ei Klub — wähl d Spiel vo eim Klub und mach s denn für de nächst.',
+  agreedOverwriteWarning: '{{count}} devo hät de Klub scho über sin Link beantwortet. E Vereinbarig ersetzt die Antwort.',
+  agreedOverwriteConfirm: 'Mir isch bewusst, dass das d Antwort vom Klub ersetzt.',
+  agreedBlocked: '{{count}} usgwählti Spiel blibed usse: Si händ no kein Gegnerklub, oder de Klub hät s Datum sälber vorgschlage — defür gits «Aanäh».',
+  agreedAlready: '{{count}} usgwählti Spiel sind scho vereinbart und blibed wie si sind.',
+  agreedWithLabel: 'Wer bim Klub zuegseit hät',
+  agreedWithPlaceholder: 'Vor- und Nachname',
+  agreedWithHint: 'Pflichtfäld. De Name haltet fescht, wer uf de Gegesiite zuegseit hät — din eigene Name chunnt automatisch dezue.',
+  agreedNoteLabel: 'Notiz (optional)',
+  agreedNotePlaceholder: 'Z. B. telefonisch vereinbart, Bestätigung a de Spielplansitzig.',
+  agreedSubmit: '{{count}} als vereinbart erfasse',
+  agreedDone: '{{count}} Spiel als vereinbart erfasst.',
+  agreedSkipped: 'De Klub hät {{count}} Spiel i de Zwüschezyt beantwortet — si sind nöd veränderet worde.',
+  agreedRecordedBy: 'Erfasst vo {{name}}',
+  agreedUseClubPicks: 'Die Date hät de Klub sälber vorgschlage — bitte «Aanäh» bruuche.',
+  agreedOverwriteRefused: 'De Klub hät die scho beantwortet. Bestätigung aachrüzle, zum d Antwort ersetze.',
+  agreedGuestGame: 'Es Gaschtspiel ghört emene andere Klub — da gits nüt vo eus z vereinbare.',
+  agreedWithRequired: 'Bitte iitrage, wer bim Klub zuegseit hät.',
+
   opponentClubs: 'Gägnerklubs',
   opponentClubsHint:
     'Ei Link pro Gägnerklub, gültig für all sini Teams. De Klub bestätigt, lehnt ab oder schlaht pro Spiel en Alternative vor — vor de Spielplansitzig abgmachti Spiel bruuched dört kei Aawäseheit.',

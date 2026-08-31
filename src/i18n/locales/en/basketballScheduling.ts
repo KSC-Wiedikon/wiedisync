@@ -287,6 +287,35 @@ export default {
   proposal_countered: 'Alternative proposed',
   counterProposals: 'Alternatives',
 
+  // ── Agreements made off the portal (migration 347) ──────────────────────
+  // A game agreed by phone is settled (WSR Art. 18) but had no way to say so: the
+  // only route to 'accepted' was the club answering through its own link. These
+  // strings deliberately keep the two apart everywhere they surface — an agreement
+  // WE wrote down is weaker evidence than one the club gave in its own words.
+  proposal_agreed_offline: 'Agreed (offline)',
+  agreedSelected: 'Mark {{count}} as agreed',
+  agreedTitle: 'Record an agreement made off the portal',
+  agreedHint: 'Use this when the opponent club agreed by phone or email instead of through its link. The game then counts as settled and needs nobody at the Spielplansitzung.',
+  agreedGamesHeading: '{{count}} games with {{club}}',
+  agreedOneClubOnly: 'The selection covers {{count}} different clubs. One agreement is with one club — select the games of a single club, then repeat for the next.',
+  agreedOverwriteWarning: 'The club has already answered {{count}} of these through its link. Recording an agreement replaces that answer.',
+  agreedOverwriteConfirm: 'I know this replaces what the club answered.',
+  agreedBlocked: '{{count}} selected games are left out: they have no opponent club yet, or the club proposed the date itself — use "Accept" for those.',
+  agreedAlready: '{{count}} selected games are already agreed and stay as they are.',
+  agreedWithLabel: 'Who agreed, at the club',
+  agreedWithPlaceholder: 'First name and surname',
+  agreedWithHint: 'Required. This name is the record of who agreed on the other side — your own name is added automatically.',
+  agreedNoteLabel: 'Note (optional)',
+  agreedNotePlaceholder: 'E.g. agreed by phone, they will confirm at the Spielplansitzung.',
+  agreedSubmit: 'Record {{count}} as agreed',
+  agreedDone: '{{count}} games recorded as agreed.',
+  agreedSkipped: 'The club answered {{count}} games while this was open — they were left untouched.',
+  agreedRecordedBy: 'Recorded by {{name}}',
+  agreedUseClubPicks: 'The club proposed these dates itself — use "Accept" instead.',
+  agreedOverwriteRefused: 'The club has already answered these. Tick the confirmation to replace its answer.',
+  agreedGuestGame: 'A guest game belongs to another club — there is nothing of ours to agree.',
+  agreedWithRequired: 'Enter who agreed at the club.',
+
   opponentClubs: 'Opponent clubs',
   opponentClubsHint:
     'One link per opponent club, covering all their teams. The club confirms, declines or proposes an alternative for every game — games agreed before the Spielplansitzung need no attendance there.',
