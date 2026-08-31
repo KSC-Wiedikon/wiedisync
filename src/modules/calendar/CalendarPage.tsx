@@ -20,7 +20,7 @@ import { SlidersHorizontal } from 'lucide-react'
 import type { CalendarViewMode, CalendarFilterState, SourceFilter, CalendarEntry } from '../../types/calendar'
 import type { Team } from '../../types'
 import { useCollection } from '../../lib/query'
-import { isSchedulableTeam } from '../gameScheduling/utils/schedulableTeams'
+import { hasFixtureSchedule } from '../gameScheduling/utils/schedulableTeams'
 import TeamScheduleCalendar from '../gameScheduling/components/TeamScheduleCalendar'
 import { useReportPageLoading } from '../../hooks/usePageReady'
 
@@ -40,8 +40,11 @@ export default function CalendarPage() {
     return [...set]
   }, [memberTeamIds, coachTeamIds])
 
-  // The user's schedulable (volleyball, non-excluded) teams — drives the
-  // optional "Schedule" view that shows their proposed + confirmed games.
+  // The user's teams that have a fixture list — drives the optional "Schedule"
+  // view. ⚠ NOT `isSchedulableTeam`: that gate is about the volleyball
+  // negotiation, and using it here hid the whole tab from a basketball-only
+  // member (the tab is only offered when some team passes), so a basketball
+  // fixture had nowhere to appear.
   const { data: userTeamsRaw } = useCollection<Team>('teams', {
     enabled: !!user && userTeamIds.length > 0,
     filter: userTeamIds.length > 0 ? { id: { _in: userTeamIds } } : { id: { _eq: -1 } },
@@ -49,7 +52,7 @@ export default function CalendarPage() {
     all: true,
   })
   const scheduleTeams = useMemo(
-    () => (userTeamsRaw ?? []).filter(isSchedulableTeam),
+    () => (userTeamsRaw ?? []).filter(hasFixtureSchedule),
     [userTeamsRaw],
   )
 

@@ -291,6 +291,37 @@ export default {
   proposal_countered: 'Alternative vorgeschlagen',
   counterProposals: 'Alternativen',
 
+  selectionNeedsClub: '{{count}} der ausgewählten Spiele haben noch keinen Gegnerklub — wähle zuerst einen in der Spalte «Gegnerklub».',
+  selectionNothingToDo: 'Für diese Auswahl gibt es nichts zu tun: Die Spiele sind bereits geregelt oder warten auf den Gegnerklub.',
+  // ── Agreements made off the portal (migration 347) ──────────────────────
+  // A game agreed by phone is settled (WSR Art. 18) but had no way to say so: the
+  // only route to 'accepted' was the club answering through its own link. These
+  // strings deliberately keep the two apart everywhere they surface — an agreement
+  // WE wrote down is weaker evidence than one the club gave in its own words.
+  proposal_agreed_offline: 'Vereinbart (ausserhalb)',
+  agreedSelected: '{{count}} als vereinbart markieren',
+  agreedTitle: 'Vereinbarung ausserhalb des Portals erfassen',
+  agreedHint: 'Dafür gedacht, wenn der Gegnerklub telefonisch oder per E-Mail zugesagt hat statt über seinen Link. Das Spiel gilt damit als geregelt und braucht niemanden an der Spielplansitzung.',
+  agreedGamesHeading: '{{count}} Spiele mit {{club}}',
+  agreedOneClubOnly: 'Die Auswahl umfasst {{count}} verschiedene Klubs. Eine Vereinbarung gilt für einen Klub — wähle die Spiele eines einzelnen Klubs und wiederhole es für den nächsten.',
+  agreedOverwriteWarning: '{{count}} davon hat der Klub bereits über seinen Link beantwortet. Eine Vereinbarung ersetzt diese Antwort.',
+  agreedOverwriteConfirm: 'Mir ist bewusst, dass dies die Antwort des Klubs ersetzt.',
+  agreedBlocked: '{{count}} ausgewählte Spiele bleiben aussen vor: Sie haben noch keinen Gegnerklub, oder der Klub hat das Datum selbst vorgeschlagen — dafür gibt es «Annehmen».',
+  agreedAlready: '{{count}} ausgewählte Spiele sind bereits vereinbart und bleiben unverändert.',
+  agreedWithLabel: 'Wer beim Klub zugesagt hat',
+  agreedWithPlaceholder: 'Vor- und Nachname',
+  agreedWithHint: 'Pflichtfeld. Dieser Name hält fest, wer auf der Gegenseite zugesagt hat — dein eigener Name wird automatisch ergänzt.',
+  agreedNoteLabel: 'Notiz (optional)',
+  agreedNotePlaceholder: 'Z. B. telefonisch vereinbart, Bestätigung an der Spielplansitzung.',
+  agreedSubmit: '{{count}} als vereinbart erfassen',
+  agreedDone: '{{count}} Spiele als vereinbart erfasst.',
+  agreedSkipped: 'Der Klub hat {{count}} Spiele in der Zwischenzeit beantwortet — sie wurden nicht verändert.',
+  agreedRecordedBy: 'Erfasst von {{name}}',
+  agreedUseClubPicks: 'Diese Daten hat der Klub selbst vorgeschlagen — bitte «Annehmen» verwenden.',
+  agreedOverwriteRefused: 'Der Klub hat diese bereits beantwortet. Bestätigung ankreuzen, um die Antwort zu ersetzen.',
+  agreedGuestGame: 'Ein Gastspiel gehört einem anderen Klub — da gibt es nichts von uns zu vereinbaren.',
+  agreedWithRequired: 'Bitte eintragen, wer beim Klub zugesagt hat.',
+
   opponentClubs: 'Gegnerklubs',
   opponentClubsHint:
     'Ein Link pro Gegnerklub, gültig für alle seine Teams. Der Klub bestätigt, lehnt ab oder schlägt für jedes Spiel eine Alternative vor — vor der Spielplansitzung abgemachte Spiele brauchen dort keine Anwesenheit.',

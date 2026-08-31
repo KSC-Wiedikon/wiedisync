@@ -43,7 +43,21 @@ export interface BbOfferRow extends BasketballSlotPlan {
   responded_by_email?: string | null
   opponent_note?: string | null
   counter_proposals?: BbCounterProposal[] | null
+  /**
+   * TRUE when a KSCW planner recorded this agreement outside the portal (migration 347).
+   * ⚠ Only ever true on an `accepted` row (DB CHECK). It is what tells "the club answered
+   * through its link" apart from "we wrote down a phone call" — the two look identical
+   * otherwise, and only one of them is the club's own words.
+   */
+  agreed_offline?: boolean | null
+  /** The KSCW planner who recorded it. The opponent-side name is `responded_by_name`. */
+  agreed_offline_by_name?: string | null
 }
+
+/** Statuses a planner may record an offline agreement on. See `markAgreed` below. */
+export const MARK_AGREED_FRESH_STATUSES: BbProposalStatus[] = ['draft', 'offered']
+/** Statuses that carry a real answer from the club — overwriting one needs `override`. */
+export const MARK_AGREED_OVERRIDE_STATUSES: BbProposalStatus[] = ['declined', 'countered']
 
 /** Statuses the opponent can see. Mirrors OFFER_VISIBLE_STATUSES in basketball-portal.js. */
 export const OFFER_VISIBLE_STATUSES: BbProposalStatus[] = ['offered', 'accepted', 'declined', 'countered']
@@ -166,6 +180,50 @@ export function useBasketballOffers(seasonId: string | number | null | undefined
     [enabled, seasonId, refetch],
   )
 
+  /**
+   * Record an agreement the opponent gave OFF the portal — the phone call before the
+   * Spielplansitzung, which is what WSR Art. 18 actually excuses attendance for.
+   *
+   * ⚠ `agreedWith` (who at the club agreed) is required by the endpoint, not decoration:
+   * it lands in `responded_by_name` and is the evidence half of the row. The KSCW planner
+   * is resolved server-side into `agreed_offline_by_name` — the client never names itself.
+   *
+   * ⚠ `override` is only for rows the club already DECLINED or COUNTERED. Without it the
+   * endpoint refuses them (`would_overwrite_club_answer`) rather than quietly replacing
+   * what a third party said.
+   */
+  const markAgreed = useCallback(
+    async (
+      ids: Array<string | number>,
+      opts: { agreedWith: string; note?: string; override?: boolean },
+    ) => {
+      if (!enabled || !ids.length) return null
+      setBusy(true)
+      try {
+        const res = await kscwApi<{
+          success: boolean
+          updated: number
+          already_agreed: number[]
+          skipped: Array<{ id: number; reason: string }>
+        }>('/admin/terminplanung/bb/mark-agreed', {
+          method: 'POST',
+          body: {
+            season: Number(seasonId),
+            ids: ids.map(Number),
+            agreed_with: opts.agreedWith,
+            ...(opts.note ? { note: opts.note } : {}),
+            ...(opts.override ? { override: true } : {}),
+          },
+        })
+        await refetch()
+        return res
+      } finally {
+        setBusy(false)
+      }
+    },
+    [enabled, seasonId, refetch],
+  )
+
   const unoffer = useCallback(
     async (ids: Array<string | number>) => {
       if (!enabled || !ids.length) return null
@@ -195,6 +253,7 @@ export function useBasketballOffers(seasonId: string | number | null | undefined
     offer,
     unoffer,
     answerClubProposal,
+    markAgreed,
     refetch,
   }
 }

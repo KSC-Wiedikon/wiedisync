@@ -216,6 +216,7 @@ export default function BasketballSettingsPage() {
             offer={offers.offer}
             unoffer={offers.unoffer}
             answerClubProposal={offers.answerClubProposal}
+            markAgreed={offers.markAgreed}
           />
 
           <BasketballDatePrefsPanel

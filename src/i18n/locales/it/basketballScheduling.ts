@@ -291,6 +291,37 @@ export default {
   proposal_countered: 'Alternativa proposta',
   counterProposals: 'Alternative',
 
+  selectionNeedsClub: '{{count}} delle partite selezionate non hanno ancora un club avversario — scegline uno nella colonna «Club avversario».',
+  selectionNothingToDo: 'Nulla da fare per questa selezione: le partite sono già sistemate oppure attendono il club avversario.',
+  // ── Agreements made off the portal (migration 347) ──────────────────────
+  // A game agreed by phone is settled (WSR Art. 18) but had no way to say so: the
+  // only route to 'accepted' was the club answering through its own link. These
+  // strings deliberately keep the two apart everywhere they surface — an agreement
+  // WE wrote down is weaker evidence than one the club gave in its own words.
+  proposal_agreed_offline: 'Concordato (fuori portale)',
+  agreedSelected: 'Segna {{count}} come concordati',
+  agreedTitle: 'Registrare un accordo preso fuori dal portale',
+  agreedHint: 'Da usare quando il club avversario ha dato il proprio accordo per telefono o e-mail invece che tramite il suo link. La partita risulta così sistemata e non richiede nessuno alla riunione di calendario.',
+  agreedGamesHeading: '{{count}} partite con {{club}}',
+  agreedOneClubOnly: 'La selezione comprende {{count}} club diversi. Un accordo vale per un solo club — seleziona le partite di un singolo club e ripeti per il successivo.',
+  agreedOverwriteWarning: 'Il club ha già risposto a {{count}} di queste tramite il suo link. Registrare un accordo sostituisce quella risposta.',
+  agreedOverwriteConfirm: 'So che questo sostituisce la risposta del club.',
+  agreedBlocked: '{{count}} partite selezionate restano escluse: non hanno ancora un club avversario, oppure la data l’ha proposta il club stesso — in quel caso usa «Accetta».',
+  agreedAlready: '{{count}} partite selezionate sono già concordate e restano invariate.',
+  agreedWithLabel: 'Chi ha dato l’accordo, presso il club',
+  agreedWithPlaceholder: 'Nome e cognome',
+  agreedWithHint: 'Obbligatorio. Questo nome documenta chi ha dato l’accordo dall’altra parte — il tuo nome viene aggiunto automaticamente.',
+  agreedNoteLabel: 'Nota (facoltativa)',
+  agreedNotePlaceholder: 'Ad es. concordato per telefono, conferma alla riunione di calendario.',
+  agreedSubmit: 'Registra {{count}} come concordati',
+  agreedDone: '{{count}} partite registrate come concordate.',
+  agreedSkipped: 'Nel frattempo il club ha risposto a {{count}} partite — non sono state modificate.',
+  agreedRecordedBy: 'Registrato da {{name}}',
+  agreedUseClubPicks: 'Queste date le ha proposte il club stesso — usa «Accetta».',
+  agreedOverwriteRefused: 'Il club ha già risposto. Spunta la conferma per sostituire la sua risposta.',
+  agreedGuestGame: 'Una partita ospite appartiene a un altro club — non c’è nulla di nostro da concordare.',
+  agreedWithRequired: 'Indica chi ha dato l’accordo presso il club.',
+
   opponentClubs: 'Club avversari',
   opponentClubsHint:
     'Un link per club avversario, valido per tutte le sue squadre. Il club conferma, rifiuta o propone un’alternativa per ogni partita — le partite concordate prima della riunione di pianificazione non richiedono la presenza a quest’ultima.',

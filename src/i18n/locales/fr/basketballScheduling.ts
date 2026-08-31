@@ -291,6 +291,37 @@ export default {
   proposal_countered: 'Alternative proposée',
   counterProposals: 'Alternatives',
 
+  selectionNeedsClub: '{{count}} des matchs sélectionnés n’ont pas encore de club adverse — choisissez-en un dans la colonne « Club adverse ».',
+  selectionNothingToDo: 'Rien à faire pour cette sélection : ces matchs sont déjà réglés ou attendent la réponse du club adverse.',
+  // ── Agreements made off the portal (migration 347) ──────────────────────
+  // A game agreed by phone is settled (WSR Art. 18) but had no way to say so: the
+  // only route to 'accepted' was the club answering through its own link. These
+  // strings deliberately keep the two apart everywhere they surface — an agreement
+  // WE wrote down is weaker evidence than one the club gave in its own words.
+  proposal_agreed_offline: 'Convenu (hors portail)',
+  agreedSelected: 'Marquer {{count}} comme convenus',
+  agreedTitle: 'Enregistrer un accord conclu hors du portail',
+  agreedHint: 'À utiliser lorsque le club adverse a donné son accord par téléphone ou par e-mail plutôt que via son lien. Le match est alors réglé et ne nécessite personne à la séance de planification.',
+  agreedGamesHeading: '{{count}} matchs avec {{club}}',
+  agreedOneClubOnly: 'La sélection couvre {{count}} clubs différents. Un accord se conclut avec un seul club — sélectionnez les matchs d’un seul club, puis recommencez pour le suivant.',
+  agreedOverwriteWarning: 'Le club a déjà répondu à {{count}} d’entre eux via son lien. Enregistrer un accord remplace cette réponse.',
+  agreedOverwriteConfirm: 'Je sais que cela remplace la réponse du club.',
+  agreedBlocked: '{{count}} matchs sélectionnés sont écartés : ils n’ont pas encore de club adverse, ou le club a proposé la date lui-même — utilisez « Accepter » dans ce cas.',
+  agreedAlready: '{{count}} matchs sélectionnés sont déjà convenus et restent inchangés.',
+  agreedWithLabel: 'Qui a donné son accord, au club',
+  agreedWithPlaceholder: 'Prénom et nom',
+  agreedWithHint: 'Obligatoire. Ce nom atteste qui a donné son accord de l’autre côté — votre propre nom est ajouté automatiquement.',
+  agreedNoteLabel: 'Remarque (facultatif)',
+  agreedNotePlaceholder: 'P. ex. convenu par téléphone, confirmation à la séance de planification.',
+  agreedSubmit: 'Enregistrer {{count}} comme convenus',
+  agreedDone: '{{count}} matchs enregistrés comme convenus.',
+  agreedSkipped: 'Le club a répondu à {{count}} matchs entre-temps — ils n’ont pas été modifiés.',
+  agreedRecordedBy: 'Enregistré par {{name}}',
+  agreedUseClubPicks: 'Le club a proposé ces dates lui-même — utilisez « Accepter ».',
+  agreedOverwriteRefused: 'Le club y a déjà répondu. Cochez la confirmation pour remplacer sa réponse.',
+  agreedGuestGame: 'Un match invité appartient à un autre club — nous n’avons rien à convenir.',
+  agreedWithRequired: 'Indiquez qui a donné son accord au club.',
+
   opponentClubs: 'Clubs adverses',
   opponentClubsHint:
     'Un lien par club adverse, valable pour toutes ses équipes. Le club confirme, refuse ou propose une alternative pour chaque match — les matchs convenus avant la séance de planification n’y exigent aucune présence.',

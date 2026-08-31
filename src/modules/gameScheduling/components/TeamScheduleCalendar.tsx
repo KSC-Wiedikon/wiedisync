@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import type { Team, GameSchedulingSeason, GameSchedulingSlot } from '../../../types'
 import type { ExpandedBooking } from '../hooks/useAdminBookings'
 import { fetchAllItems, kscwApi } from '../../../lib/api'
-import { isSchedulableTeam } from '../utils/schedulableTeams'
+import { hasFixtureSchedule, isSchedulableTeam } from '../utils/schedulableTeams'
 import SchedulingCalendar, { type CalendarGame } from './SchedulingCalendar'
 import TeamScheduleList from './TeamScheduleList'
 
@@ -19,8 +19,17 @@ interface TeamCalendarResponse {
 // token / admin notes), so any logged-in member can see it without granting
 // broad reads on the scheduling collections. The endpoint supplies the OPEN
 // side of the schedule (free slots, blocks, pending proposals); the fixtures
-// themselves come from `games` — see below. Renders nothing for non-schedulable
-// teams (non-volleyball, MiniVB/DU20) or until the season has at least one entry.
+// themselves come from `games` — see below.
+//
+// ⚠ TWO GATES, not one. `hasFixtureSchedule` decides whether this team has games
+// worth listing (any sport); `isSchedulableTeam` decides whether it also has a
+// volleyball NEGOTIATION to show. Basketball passes the first and fails the
+// second: ProBasket settles the schedule at the Spielplansitzung, so there are no
+// slots, no invites and no proposals — but there is a full fixture list, and
+// collapsing the two gates into one is what left every basketball team's schedule
+// blank (and hid the calendar page's "Schedule" tab from a basketball-only member
+// entirely, since that tab only appears when some team passes).
+//
 // Pass hideWhenEmpty={false} (e.g. the calendar page's Schedule view) to render
 // even when the team has no slots/bookings yet. variant='list' renders the
 // chronological TeamScheduleList instead of the month grid (calendar page's
@@ -30,26 +39,33 @@ export default function TeamScheduleCalendar({ team, hideWhenEmpty = true, varia
   const { t } = useTranslation('gameScheduling')
   const [data, setData] = useState<TeamCalendarResponse | null>(null)
 
+  /** Has a volleyball negotiation (slots, invites, proposals) — see the header. */
   const schedulable = isSchedulableTeam(team)
+  /** Has a fixture list worth showing, whichever sport produced it. */
+  const showsFixtures = hasFixtureSchedule(team)
 
-  // Drop a previously loaded calendar the moment the team stops being
-  // schedulable — React's adjust-state-during-render pattern, replacing the
-  // `setData(null)` that used to sit synchronously in the effect below.
+  // Drop a previously loaded calendar the moment the team stops qualifying —
+  // React's adjust-state-during-render pattern, replacing the `setData(null)` that
+  // used to sit synchronously in the effect below.
   // (Nothing paints in that state anyway: the guard below returns null.)
-  const [prevSchedulable, setPrevSchedulable] = useState(schedulable)
-  if (prevSchedulable !== schedulable) {
-    setPrevSchedulable(schedulable)
-    if (!schedulable) setData(null)
+  const [prevShowsFixtures, setPrevShowsFixtures] = useState(showsFixtures)
+  if (prevShowsFixtures !== showsFixtures) {
+    setPrevShowsFixtures(showsFixtures)
+    if (!showsFixtures) setData(null)
   }
 
+  // Called for a basketball team too, and deliberately: `game_scheduling_seasons`
+  // is the SHARED season table (the basketball settings page reads the same row),
+  // so this is how the season label below is resolved. A basketball team simply
+  // comes back with empty `slots`/`bookings`, which is the truth.
   useEffect(() => {
-    if (!schedulable) return
+    if (!showsFixtures) return
     let cancelled = false
     kscwApi<TeamCalendarResponse>(`/terminplanung/team-calendar/${team.id}`)
       .then((resp) => { if (!cancelled) setData(resp) })
       .catch(() => { if (!cancelled) setData(null) })
     return () => { cancelled = true }
-  }, [team.id, schedulable])
+  }, [team.id, showsFixtures])
 
   // The team's fixtures, straight from `games` — the VolleyManager / Swiss
   // Volley feed. This is the schedule a player actually plays, so it is what the
@@ -65,7 +81,7 @@ export default function TeamScheduleCalendar({ team, hideWhenEmpty = true, varia
   useEffect(() => {
     // No reset here: nothing renders without a season anyway (the guard below
     // returns null), and a synchronous setState in an effect body cascades.
-    if (!schedulable || !seasonLabel || variant === 'proposals') return
+    if (!showsFixtures || !seasonLabel || variant === 'proposals') return
     let cancelled = false
     fetchAllItems<CalendarGame>('games', {
       filter: { season: { _eq: seasonLabel }, kscw_team: { _eq: team.id } },
@@ -73,13 +89,16 @@ export default function TeamScheduleCalendar({ team, hideWhenEmpty = true, varia
     }).then((g) => { if (!cancelled) setGames(g) })
       .catch(() => { if (!cancelled) setGames([]) })
     return () => { cancelled = true }
-  }, [schedulable, seasonLabel, team.id, variant])
+  }, [showsFixtures, seasonLabel, team.id, variant])
 
-  if (!schedulable || !data?.season) return null
+  if (!showsFixtures || !data?.season) return null
   // 'proposals' renders nothing at all once every fixture is agreed — which, mid
   // season, is most of the time. Deciding that HERE rather than inside the list is
   // what stops an empty `mt-8` wrapper leaving a dead gap on the team page.
+  // A non-schedulable team has no negotiation at all, so it short-circuits here
+  // rather than relying on `bookings` happening to be empty.
   if (variant === 'proposals') {
+    if (!schedulable) return null
     const hasPending = data.bookings.some(
       (b) => b.status === 'pending' && (b.type === 'away_proposal' || b.type === 'home_slot_pick'),
     )
