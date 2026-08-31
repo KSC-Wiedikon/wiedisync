@@ -169,6 +169,21 @@ export default function BasketballOffersPanel({
     [agreeClubIds, opponentClubs],
   )
   const agreeMultiClub = agreeClubIds.length > 1
+  /**
+   * A selection that no button can act on. This is the panel's oldest sharp edge:
+   * every button counts its OWN eligible rows, so ticking a game that is not eligible
+   * for any of them leaves five buttons reading "0", all greyed, and nothing saying
+   * why — which is exactly how the 31.08 report ("where do I send these?") started.
+   * Name the reason instead of leaving the planner to infer it.
+   */
+  const selectedNoClub = useMemo(() => selected.filter((g) => g.opponent_club == null), [selected])
+  const nothingActionable =
+    checked.size > 0
+    && offerable.length === 0
+    && withdrawable.length === 0
+    && clubProposed.length === 0
+    && agreeTargets.length === 0
+
   const agreeCanSubmit =
     agreeTargets.length > 0
     && !agreeMultiClub
@@ -341,6 +356,14 @@ export default function BasketballOffersPanel({
           </Button>
         </div>
       </div>
+
+      {nothingActionable && (
+        <p className="mt-3 rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-xs text-gray-700 dark:border-gray-600 dark:bg-gray-900/40 dark:text-gray-300">
+          {selectedNoClub.length > 0
+            ? t('selectionNeedsClub', { count: selectedNoClub.length })
+            : t('selectionNothingToDo')}
+        </p>
+      )}
 
       {/* The one state waiting on us — easy to miss in a long table, so name it up front. */}
       {pendingClubPicks > 0 && (

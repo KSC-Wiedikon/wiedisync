@@ -291,6 +291,8 @@ export default {
   proposal_countered: 'Alternative vorgschlage',
   counterProposals: 'Alternative',
 
+  selectionNeedsClub: '{{count}} vo de usgwählte Spiel händ no kein Gegnerklub — wähl zerscht ein i de Spalte «Gegnerklub».',
+  selectionNothingToDo: 'Für die Uswahl gits nüt z tue: D Spiel sind scho greglet oder warted uf de Gegnerklub.',
   // ── Agreements made off the portal (migration 347) ──────────────────────
   // A game agreed by phone is settled (WSR Art. 18) but had no way to say so: the
   // only route to 'accepted' was the club answering through its own link. These

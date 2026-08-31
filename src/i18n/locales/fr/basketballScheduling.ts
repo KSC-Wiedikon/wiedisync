@@ -291,6 +291,8 @@ export default {
   proposal_countered: 'Alternative proposée',
   counterProposals: 'Alternatives',
 
+  selectionNeedsClub: '{{count}} des matchs sélectionnés n’ont pas encore de club adverse — choisissez-en un dans la colonne « Club adverse ».',
+  selectionNothingToDo: 'Rien à faire pour cette sélection : ces matchs sont déjà réglés ou attendent la réponse du club adverse.',
   // ── Agreements made off the portal (migration 347) ──────────────────────
   // A game agreed by phone is settled (WSR Art. 18) but had no way to say so: the
   // only route to 'accepted' was the club answering through its own link. These
