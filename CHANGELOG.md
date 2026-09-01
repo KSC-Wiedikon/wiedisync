@@ -2,6 +2,17 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.2.0 — 2026-09-01
+
+### One login for the whole family
+
+- Parents who look after more than one child in the club can now do it from a single login. A bar at the top of every screen shows whose account you are using; tap it and pick another child. No second password, no logging out and back in.
+- Each child keeps her own separate member record — her own team, her own RSVPs, her own fees and licence. Nothing about that changes. What changes is only who is allowed to sign in and act for her.
+- Children who are looked after this way have no password at all and cannot sign in. That is deliberate: it means one fewer set of login details in circulation for a twelve-year-old, and a parent's access can be withdrawn completely at any time.
+- The child's name appears inside the buttons themselves — "Mila is coming" rather than just "Yes" — so it is under your thumb at the moment you decide, and there is no doubt about who you just answered for.
+- A child old enough to have her own login can remove a parent's access herself, from her profile. Private messages stay private either way: a parent managing RSVPs cannot read her child's conversations with teammates and coaches.
+- Club admins can set families up under Options → Households.
+
 ## v2.1.7 — 2026-08-28
 
 ### The duty overview updates as soon as you roll out
