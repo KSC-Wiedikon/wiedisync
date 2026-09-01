@@ -277,8 +277,13 @@ async function main() {
   const ACTING = 'X-KSCW-Acting-Member'
 
   await check('acting: unlinked member refused', async () => {
-    // memberId is this token's own member; acting on oneself is not a grant.
-    const r = await api('GET', '/users/me?fields=id', null, { [ACTING]: String(memberId) })
+    // ⚠ Must NOT depend on `memberId`: that comes from an /items read, which is
+    // licence-restricted on the keyless dev box, so it is undefined there and a
+    // NaN header would return 400 (malformed) instead of exercising the grant
+    // check at all — the test would pass for the wrong reason, or fail for one.
+    // A valid integer this token provably has no grant over is what we want.
+    const target = Number.isInteger(memberId) ? memberId : 1
+    const r = await api('GET', '/users/me?fields=id', null, { [ACTING]: String(target) })
     return r.status === 403
       ? { status: 200, ok: true }
       : { status: 500, ok: false, text: `expected 403, got ${r.status} — an unlinked acting header was ACCEPTED` }

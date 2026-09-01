@@ -185,11 +185,15 @@ export function createActingMemberMiddleware(database, logger) {
       const acc = req.accountability
       if (!acc?.user) return next()          // unauthenticated — nothing to narrow
       if (acc.share) return next()           // share links are their own identity
-      if (acc.admin === true) {
-        // A Directus admin bypasses every filter, so "acting" would be a no-op
-        // that silently looked like it worked. Refuse loudly instead.
-        return res.status(403).json({ error: 'Not available for admin accounts', code: 'KSCW_ACTING_DENIED' })
-      }
+      // ⚠ Admins are NOT refused, and that is deliberate. The swap REPLACES the
+      // accountability wholesale, so an admin acting for a child genuinely
+      // becomes that child for the request — admin:false, the child's policies,
+      // the child's row filters. It narrows, exactly like it does for anyone
+      // else, and the {admin:false, app:true} assertion below still has to pass.
+      // Refusing them bought no safety (a stolen admin session can already do
+      // anything, including changing passwords) while blocking the club's own
+      // admins who are also parents, and making the feature untestable by the
+      // people most likely to test it. A grant row is still required.
 
       const path = String(req.path || req.url || '').toLowerCase()
       if (SKIP_PREFIXES.some((p) => path.startsWith(p))) return next()
