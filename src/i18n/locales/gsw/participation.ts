@@ -1,4 +1,9 @@
 export default {
+  // Household guardians (migration 348) — the child's name goes INSIDE the
+  // RSVP label, under the parent's thumb at the moment of the decision.
+  rsvpConfirmedFor: '{{name}} chunt',
+  rsvpDeclinedFor: '{{name}} cha nöd',
+  rsvpTentativeFor: 'Vilicht, {{name}}',
   // Auto sign-in (per-member auto-confirm RSVP) — profile toggles
   autoSignInTitle: 'Automatisch zuesäge',
   autoSignInHint: 'Wenns aa isch, wirsch bi neue Aktivitäte vo dem Typ automatisch zuegseit. Scho beantworteti Aktivitäte werded nie gänderet – du chasch jederziit einzeln absäge.',

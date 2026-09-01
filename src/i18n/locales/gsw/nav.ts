@@ -48,6 +48,7 @@ export default {
   dataHealth: 'Datequalität',
   clubdeskSync: 'ClubDesk-Sync',
   auditLog: 'Audit Log',
+  households: 'Haushalt',
   sqlWorkspace: 'SQL-Workspace',
   bugfixes: 'Bugfixes',
   status: 'Status',

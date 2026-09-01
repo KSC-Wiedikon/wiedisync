@@ -9,15 +9,15 @@
 import { useEffect, useState, useCallback, useMemo, type ReactNode } from 'react'
 import { readMe } from '@directus/sdk'
 import { toast } from 'sonner'
-import { client, login as apiLogin, logout as apiLogout, refreshAuth, isAuthenticated, setCurrentMemberId, setImpersonating, fetchItems, fetchAllItems, kscwApi } from '../lib/api'
+import { client, login as apiLogin, logout as apiLogout, refreshAuth, isAuthenticated, setCurrentMemberId, setImpersonating, setActingMemberId, fetchItems, fetchAllItems, kscwApi } from '../lib/api'
 import { clearDeviceKey, clearAllCachedDocuments } from '../lib/e2eeStore'
 import { queryClient } from '../lib/query'
-import { setSentryUser, captureAuthError, captureApiError, addBreadcrumb, isTransientNetworkMessage } from '../lib/sentry'
+import { setSentryUser, captureAuthError, captureApiError, addBreadcrumb, clearBreadcrumbs, isTransientNetworkMessage } from '../lib/sentry'
 import i18n from '../i18n'
 import { backendLangToI18n } from '../utils/languageMap'
 import { LICENCE_TYPES } from '../types'
 import type { Member, Team, LicenceType } from '../types'
-import { AuthContext, type AuthContextValue, type MemberUser } from './useAuth'
+import { AuthContext, type AuthContextValue, type MemberUser, type HouseholdMember } from './useAuth'
 import { bootstrapIdentityKey } from '../lib/identityBootstrap'
 
 // ── Roles ───────────────────────────────────────────────────────────
@@ -32,6 +32,17 @@ const isLicenceFlag = (r: string): r is LicenceType => (LICENCE_TYPES as readonl
 // Persists a read-only "View as" target across reloads (session-scoped).
 const IMPERSONATE_KEY = 'wiedisync-impersonate'
 
+// Remembers the last child a guardian used, per session owner. Keyed by the
+// REAL member's id so a different login on a shared family phone never inherits
+// the previous one's state.
+//
+// ⚠⚠ This is a HINT, never a restore. Cold start always boots as the guardian
+// herself — see the init effect. Silently restoring a write-authority mode
+// across a PWA relaunch is the worst mode error available here: a parent who
+// opens the app days later and taps "going" would answer for whichever child
+// she last used, with no signal that she had.
+const ACTING_HINT_KEY = (realMemberId: string | number) => `wiedisync-acting-member:${realMemberId}`
+
 // ── Provider ────────────────────────────────────────────────────────
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -41,7 +52,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // real) member, so every screen renders exactly what that member would see.
   const [realUser, setRealUser] = useState<MemberUser | null>(null)
   const [impersonatedMember, setImpersonatedMember] = useState<MemberUser | null>(null)
-  const user = impersonatedMember ?? realUser
+  // Household acting (migration 348): a guardian administering her children.
+  // Mutually exclusive with impersonation — entering one clears the other, so
+  // `user` never has to resolve a three-way precedence.
+  const [householdMembers, setHouseholdMembers] = useState<HouseholdMember[]>([])
+  const [actingMember, setActingMember] = useState<MemberUser | null>(null)
+  const user = actingMember ?? impersonatedMember ?? realUser
   // True only while a session restore is actually running. With no auth-hint
   // cookie there is nothing to restore (the init effect below bails out), so it
   // starts false rather than flipping to false from inside that effect — every
@@ -201,6 +217,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  const loadHousehold = useCallback(async (): Promise<HouseholdMember[]> => {
+    try {
+      const r = await kscwApi<{ data: { managed: HouseholdMember[] } }>('/household/me')
+      const managed = r?.data?.managed ?? []
+      setHouseholdMembers(managed)
+      return managed
+    } catch {
+      // A household is an enhancement; failing to load one must never block boot.
+      setHouseholdMembers([])
+      return []
+    }
+  }, [])
+
   // ── Init ────────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -216,6 +245,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           addBreadcrumb('auth.init', { memberId: member.id })
           setSentryUser({ id: member.id, displayName: [member.first_name, member.last_name].filter(Boolean).join(' ').trim() || undefined })
           await loadTeamContext(member.id)
+          // Household members, if any. ⚠ We load the LIST but deliberately do
+          // NOT restore the last acting child: cold start is always the
+          // guardian herself. The stored hint is surfaced as a one-tap
+          // "Continue with <name>" affordance instead, so resuming is a choice
+          // she makes, not a state she wakes up inside.
+          void loadHousehold()
           // Restore a read-only "View as" session across reloads (superadmin only).
           const impId = sessionStorage.getItem(IMPERSONATE_KEY)
           if (impId && Array.isArray(member.role) && member.role.includes('superuser') && String(impId) !== String(member.id)) {
@@ -255,7 +290,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setIsLoading(false)
       }
     })()
-  }, [fetchMember, loadTeamContext])
+  }, [fetchMember, loadTeamContext, loadHousehold])
 
   // Sync i18n to the REAL operator's language — a superadmin viewing "as" a
   // member keeps their own UI language rather than being flipped to the
@@ -333,6 +368,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setImpersonating(false)
     setImpersonatedMember(null)
     sessionStorage.removeItem(IMPERSONATE_KEY)
+    // Household acting. apiLogout() already cleared the transport-level header
+    // and swept the stored hints; this drops the React state that mirrors them,
+    // so the next login on a shared family phone starts as nobody.
+    setActingMemberId(null)
+    setActingMember(null)
+    setHouseholdMembers([])
     setCurrentMemberId(null)
     setSentryUser(null)
     setRealUser(null)
@@ -354,6 +395,89 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const member = await fetchMember()
     if (member) setRealUser(member)
   }, [fetchMember])
+
+  // ── Household acting ("use my daughter's account") ───────────────
+
+  /**
+   * Switch the whole app to a member this guardian administers, or back to
+   * herself with `null`.
+   *
+   * ⚠⚠ queryClient.clear() is MANDATORY, not defensive, and on BOTH directions.
+   * Query keys carry no identity and the client sets `placeholderData:
+   * keepPreviousData`, so without it the previous child's roster paints under
+   * the new child's name with `isLoading === false` — indistinguishable from
+   * real data. This is the highest-probability silent bug in the whole feature.
+   */
+  const switchTo = useCallback(async (memberId: number | null) => {
+    if (!realUser) return
+    // Realtime is off while acting (the WS cannot carry the acting header), so
+    // window-focus refetch is what keeps a guardian's screens current. Restored
+    // to the default when she switches back to herself.
+    queryClient.setDefaultOptions({
+      queries: {
+        ...(queryClient.getDefaultOptions().queries ?? {}),
+        refetchOnWindowFocus: memberId != null,
+      },
+    })
+    if (memberId == null) {
+      setActingMemberId(null)
+      setActingMember(null)
+      setCurrentMemberId(realUser.id)
+      try { localStorage.removeItem(ACTING_HINT_KEY(realUser.id)) } catch { /* storage unavailable */ }
+      queryClient.clear()
+      addBreadcrumb('auth.household_switch', { target: 'self' })
+      setSentryUser({ id: realUser.id, displayName: [realUser.first_name, realUser.last_name].filter(Boolean).join(' ').trim() || undefined })
+      setTeamsReady(false)
+      await loadTeamContext(realUser.id)
+      return
+    }
+    if (!householdMembers.some((m) => Number(m.id) === Number(memberId))) return
+
+    // Set the header BEFORE fetching, so the member read resolves as the child.
+    setActingMemberId(memberId)
+    queryClient.clear()
+    let target: MemberUser | null
+    try {
+      const rows = await fetchItems<MemberUser>('members', { filter: { id: { _eq: String(memberId) } }, limit: 1 })
+      target = rows[0] ?? null
+    } catch { target = null }
+    if (!target) {
+      setActingMemberId(null)
+      toast.error(i18n.t('common:error'))
+      return
+    }
+    // Acting and impersonation are mutually exclusive.
+    setImpersonating(false)
+    setImpersonatedMember(null)
+    sessionStorage.removeItem(IMPERSONATE_KEY)
+
+    setActingMember(target)
+    setCurrentMemberId(target.id)
+    try { localStorage.setItem(ACTING_HINT_KEY(realUser.id), String(memberId)) } catch { /* storage unavailable */ }
+    addBreadcrumb('auth.household_switch', { target: target.id })
+    // Drop the guardian's navigation trail so a crash on the child's screen is
+    // not reported with the previous identity's breadcrumbs.
+    clearBreadcrumbs()
+    setSentryUser({ id: target.id, displayName: [target.first_name, target.last_name].filter(Boolean).join(' ').trim() || undefined })
+    setTeamsReady(false)
+    await loadTeamContext(target.id)
+  }, [realUser, householdMembers, loadTeamContext])
+
+  // One identity per device: a switch in another tab flips this one too, so a
+  // parent with two tabs open can never be two children at once.
+  useEffect(() => {
+    if (!realUser) return
+    const key = ACTING_HINT_KEY(realUser.id)
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== key) return
+      const next = e.newValue ? Number(e.newValue) : null
+      const current = actingMember ? Number(actingMember.id) : null
+      if (next === current) return
+      void switchTo(next)
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+  }, [realUser, actingMember, switchTo])
 
   // ── Read-only impersonation ("View as member", superadmin only) ──
   const startImpersonation = useCallback(async (memberId: string) => {
@@ -489,6 +613,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<AuthContextValue>(() => ({
     user, isImpersonating, canImpersonate, realUser, startImpersonation, stopImpersonation,
+    householdMembers, actingMember, isActingForOther: !!actingMember, switchTo,
+    identityMemberId: user?.id ?? null,
     isSuperAdmin, isAdmin, isGlobalAdmin, isVbAdmin, isBbAdmin,
     hasAdminAccessToSport, hasAdminAccessToTeam, isApproved, isProfileComplete,
     isCoach, isCoachOf, canParticipateIn, isStaffOnly, isStaffOnlyForTeams, coachTeamIds, coachTeamNames,
@@ -498,6 +624,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     refreshTeamContext, refreshUser,
   }), [
     user, isImpersonating, canImpersonate, realUser, startImpersonation, stopImpersonation,
+    householdMembers, actingMember, switchTo,
     isSuperAdmin, isAdmin, isGlobalAdmin, isVbAdmin, isBbAdmin,
     hasAdminAccessToSport, hasAdminAccessToTeam, isApproved, isProfileComplete,
     isCoach, isCoachOf, canParticipateIn, isStaffOnly, isStaffOnlyForTeams, coachTeamIds, coachTeamNames,

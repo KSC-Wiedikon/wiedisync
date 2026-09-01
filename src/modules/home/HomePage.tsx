@@ -80,12 +80,24 @@ export default function HomePage() {
   const [fillItem, setFillItem] = useState<FillableForm | null>(null)
   // IBAN nudge — finance needs every member's up-to-date IBAN. Show a dismissible
   // banner to members who haven't set one; the CTA opens the profile editor.
-  const [ibanNudgeDismissed, setIbanNudgeDismissed] = useState(() => {
-    try { return localStorage.getItem('wiedisync_iban_nudge') === '1' } catch { return false }
-  })
+  // ⚠ Keyed per MEMBER, not per device (migration 348). A household guardian
+  // switches between her children on one phone; a device-global key meant
+  // dismissing this for one daughter silently hid a real financial prompt for
+  // the other two, and the club would never learn their IBAN.
+  const ibanNudgeKey = `wiedisync_iban_nudge:${user?.id ?? 'anon'}`
+  // Derived from the key, not held in state: a useState initialiser runs once,
+  // so switching child would carry the previous one's dismissal, and resyncing
+  // from an effect is a cascading render. `bump` re-reads after a dismiss.
+  const [ibanNudgeBump, setIbanNudgeBump] = useState(0)
+  const ibanNudgeDismissed = useMemo(() => {
+    try { return localStorage.getItem(ibanNudgeKey) === '1' } catch { return false }
+    // `ibanNudgeBump` is not "unnecessary": localStorage is an external store the
+    // linter cannot see, and without it this never re-reads after a dismiss.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ibanNudgeKey, ibanNudgeBump])
   const dismissIbanNudge = () => {
-    try { localStorage.setItem('wiedisync_iban_nudge', '1') } catch { /* ignore */ }
-    setIbanNudgeDismissed(true)
+    try { localStorage.setItem(ibanNudgeKey, '1') } catch { /* ignore */ }
+    setIbanNudgeBump((n) => n + 1)
   }
   const { sport, setSport } = useSportPreference()
   // Hide sport toggle for users who play only one sport

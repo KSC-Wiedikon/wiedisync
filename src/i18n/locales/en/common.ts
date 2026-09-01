@@ -118,6 +118,15 @@ export default {
   readOnlyImpersonation: 'Read-only while viewing as a member',
   impersonationBanner: 'Viewing as {{name}} (read-only)',
   impersonationExit: 'Exit',
+
+  // Households (migration 348) — a parent administering her children's
+  // accounts. Sentence case; no jargon (never 'guardian', 'session', 'acting').
+  householdActingFor: "You are using {{name}}'s account",
+  householdSwitchTitle: 'Who are you doing this for?',
+  householdSelf: 'Me',
+  switchAccount: 'Switch account',
+  householdSwitchDesync: 'Something went out of sync — reloading to be safe',
+  householdResume: 'Continue with {{name}}',
   confirmDelete: 'Delete this item?',
   overlapDetected: 'Overlap detected:',
   tryAdjustingFilter: 'Try adjusting the team filter.',

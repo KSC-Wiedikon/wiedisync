@@ -118,6 +118,15 @@ export default {
   readOnlyImpersonation: 'Lecture seule pendant la vue en tant que membre',
   impersonationBanner: 'Vue en tant que {{name}} (lecture seule)',
   impersonationExit: 'Quitter',
+
+  // Households (migration 348) — a parent administering her children's
+  // accounts. Sentence case; no jargon (never 'guardian', 'session', 'acting').
+  householdActingFor: 'Tu utilises le compte de {{name}}',
+  householdSwitchTitle: 'Pour qui fais-tu cela ?',
+  householdSelf: 'Moi',
+  switchAccount: 'Changer de compte',
+  householdSwitchDesync: 'Quelque chose s’est désynchronisé — rechargement par sécurité',
+  householdResume: 'Continuer avec {{name}}',
   confirmDelete: 'Supprimer cet élément ?',
   overlapDetected: 'Chevauchement detecte :',
   tryAdjustingFilter: 'Essayez d\'ajuster le filtre d\'equipe.',

@@ -12,6 +12,7 @@ import MoreSheet from './MoreSheet'
 import NotificationPanel from './NotificationPanel'
 import TopNav from './TopNav'
 import ImpersonationBanner from './ImpersonationBanner'
+import ActingBanner from './ActingBanner'
 import { useCollection } from '../lib/query'
 import ProfileEditModal from '../modules/auth/ProfileEditModal'
 import { ConversationsProvider } from '../modules/messaging/ConversationsStoreProvider'
@@ -64,6 +65,7 @@ export default function Layout() {
           page's own data loads they render underneath <BootOverlay/> (masked). */}
       {!authBooting && (<>
       <ImpersonationBanner />
+      <ActingBanner />
       {/* Desktop top navbar (replaces the old side rail). Mobile keeps the
           bottom tab bar + More sheet below. */}
       {isDesktop && (

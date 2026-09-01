@@ -72,12 +72,13 @@ let token = null
 const failures = []
 const checks = []
 
-async function api(method, path, body) {
+async function api(method, path, body, extraHeaders) {
   const res = await fetch(`${URL}${path}`, {
     method,
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(extraHeaders || {}),
     },
     ...(body ? { body: JSON.stringify(body) } : {}),
   })
@@ -260,6 +261,60 @@ async function main() {
   } else {
     console.log('\n[smoke] (skipping coach-token negative checks — no DIRECTUS_*_USER_TOKEN_COACH set)')
   }
+
+  // 4b. Household acting-member (migration 348) — NEGATIVE checks.
+  //
+  // ⚠ These need no household to exist: they assert that an UNLINKED acting
+  // header is refused. That is the security property that matters, and it holds
+  // for any member token, so this gate runs on every deploy.
+  //
+  // ⚠ A positive check ("a real guardian can act") is deliberately NOT here:
+  // the harness authenticates with a static PRESET_TOKEN and has no household,
+  // and dev cannot evaluate the /items path at all (keyless → licence-restricted).
+  // The positive path is proven on prod against one real test household.
+  console.log('\n[smoke] Household acting-member (negative):')
+
+  const ACTING = 'X-KSCW-Acting-Member'
+
+  await check('acting: unlinked member refused', async () => {
+    // memberId is this token's own member; acting on oneself is not a grant.
+    const r = await api('GET', '/users/me?fields=id', null, { [ACTING]: String(memberId) })
+    return r.status === 403
+      ? { status: 200, ok: true }
+      : { status: 500, ok: false, text: `expected 403, got ${r.status} — an unlinked acting header was ACCEPTED` }
+  })
+
+  await check('acting: garbage header rejected', async () => {
+    const r = await api('GET', '/users/me?fields=id', null, { [ACTING]: 'not-a-number' })
+    return r.status === 400 || r.status === 403
+      ? { status: 200, ok: true }
+      : { status: 500, ok: false, text: `expected 400/403, got ${r.status}` }
+  })
+
+  await check('acting: opaque refusal code (no enumeration oracle)', async () => {
+    // Two different unlinked targets — one plausibly staff, one plausibly not —
+    // must be indistinguishable, or the header becomes a way to map who holds
+    // an elevated role.
+    const a = await api('GET', '/users/me?fields=id', null, { [ACTING]: '1' })
+    const b = await api('GET', '/users/me?fields=id', null, { [ACTING]: '999999' })
+    const codeA = a.json?.code ?? a.json?.errors?.[0]?.extensions?.code
+    const codeB = b.json?.code ?? b.json?.errors?.[0]?.extensions?.code
+    return a.status === b.status && codeA === codeB
+      ? { status: 200, ok: true }
+      : { status: 500, ok: false, text: `refusals differ: ${a.status}/${codeA} vs ${b.status}/${codeB}` }
+  })
+
+  await check('acting: no header ⇒ own identity, untouched', async () => {
+    // The control for the three refusals above: without the header the very same
+    // request must still resolve as this token's own user. A middleware that
+    // broke ordinary traffic would otherwise pass every negative check above.
+    const r = await api('GET', '/users/me?fields=id')
+    return r.status === 200 && r.json?.data?.id === me?.json?.data?.id
+      ? { status: 200, ok: true }
+      : { status: 500, ok: false, text: `expected own identity, got ${r.status} ${JSON.stringify(r.json?.data ?? null)}` }
+  })
+
+  await check('household/me reachable', () => api('GET', '/kscw/household/me'))
 
   // 5. Result
   console.log('\n' + '─'.repeat(50))

@@ -5,6 +5,7 @@ import { useAuth } from '../../hooks/useAuth'
 import { useTheme } from '../../hooks/useTheme'
 import ProfileEditModal from './ProfileEditModal'
 import ImpersonationBanner from '../../components/ImpersonationBanner'
+import ActingBanner from '../../components/ActingBanner'
 import { Button } from '@/components/ui/button'
 import type { Team } from '../../types'
 import { client, fetchItem } from '../../lib/api'
@@ -52,6 +53,7 @@ export default function PendingPage() {
   return (
     <>
     <ImpersonationBanner />
+    <ActingBanner />
     <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 dark:bg-gray-900">
       <div className="w-full max-w-sm">
         <div className="mb-8 flex justify-center">

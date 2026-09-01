@@ -118,6 +118,15 @@ export default {
   readOnlyImpersonation: 'Nur läse, wärend du als Mitglied luegsch',
   impersonationBanner: 'Ansicht als {{name}} (nur läse)',
   impersonationExit: 'Beände',
+
+  // Households (migration 348) — a parent administering her children's
+  // accounts. Sentence case; no jargon (never 'guardian', 'session', 'acting').
+  householdActingFor: 'Du bisch grad i {{name}}s Konto',
+  householdSwitchTitle: 'Für wen machsch das?',
+  householdSelf: 'Ich',
+  switchAccount: 'Konto wächsle',
+  householdSwitchDesync: 'Öppis isch us em Takt cho — wird sicherheitshalber neu glade',
+  householdResume: 'Wiiter mit {{name}}',
   confirmDelete: 'Das Iitrag lösche?',
   overlapDetected: 'Überschnidig gfunde:',
   tryAdjustingFilter: 'Probier de Teamfilter azpasse.',

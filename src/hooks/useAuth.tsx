@@ -14,14 +14,45 @@ import type { Member } from '../types'
 
 export type MemberUser = Member & { id: string }
 
+/**
+ * A member the logged-in user administers on behalf of (migration 348) —
+ * typically a parent's child. Served by GET /kscw/household/me; deliberately a
+ * thin shape, not a full `Member`, because the switcher only needs enough to
+ * render a row.
+ */
+export interface HouseholdMember {
+  id: number
+  first_name: string | null
+  last_name: string | null
+  photo: string | null
+  /** Stable colour token for the switcher — sky | ochre | plum | teal | rose. */
+  accent: string
+  household: number
+  teams: string[]
+}
+
 export interface AuthContextValue {
   user: MemberUser | null
   /** A superadmin is currently viewing the app as another member (read-only). */
   isImpersonating: boolean
   /** The real logged-in superadmin may start a read-only "View as" session. */
   canImpersonate: boolean
-  /** The actual logged-in member — unchanged while impersonating. */
+  /** The actual logged-in member — unchanged while impersonating or acting. */
   realUser: MemberUser | null
+  /** Members this login may act for (parent → children). Empty for everyone else. */
+  householdMembers: HouseholdMember[]
+  /** The member currently being acted for, or null when acting as oneself. */
+  actingMember: MemberUser | null
+  /** True while this login is acting as one of its household members. */
+  isActingForOther: boolean
+  /**
+   * Switch the app to a household member, or back to oneself with `null`.
+   * ⚠ Unlike impersonation this is WRITE-CAPABLE — the server genuinely resolves
+   * the request as that member.
+   */
+  switchTo: (memberId: number | null) => Promise<void>
+  /** The effective member id — the identity every query key is namespaced by. */
+  identityMemberId: string | null
   /** Start a read-only "View as <member>" session (superadmin only). */
   startImpersonation: (memberId: string) => Promise<void>
   /** Exit the read-only "View as" session and restore the real identity. */
