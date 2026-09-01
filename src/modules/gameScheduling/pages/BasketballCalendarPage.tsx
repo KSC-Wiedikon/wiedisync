@@ -1,8 +1,10 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { House } from 'lucide-react'
+import { House, Plane, Plus } from 'lucide-react'
 import CalendarGrid from '../../../components/CalendarGrid'
 import Modal from '../../../components/Modal'
+import { Button } from '../../../components/ui/button'
+import ManualGameModal from '../../spielplanung/ManualGameModal'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../components/ui/table'
 import { toDateKey, getSeasonYear } from '../../../utils/dateUtils'
 import { formatDateZurich } from '../../../utils/dateHelpers'
@@ -11,11 +13,16 @@ import { useBasketballPlan } from '../hooks/useBasketballPlan'
 import { parseYmd } from '../utils/probasketSeason'
 import type { BasketballSlotPlan, Team } from '../../../types'
 
-// One thing shown on a calendar day: a basketball game (home/guest) or a
-// cross-sport volleyball home game (venue coordination). Hall closures render as
-// the grid's red day background, not as items.
+// One thing shown on a calendar day: a basketball game (home/guest), a basketball
+// AWAY fixture, or a cross-sport volleyball home game (venue coordination). Hall
+// closures render as the grid's red day background, not as items.
+//
+// ⚠ 'away' comes from `games`, not from `basketball_slot_plan` — see useBasketballPlan.
+// It holds no KWI court, so its `hall` is the opponent's venue (often blank) and it must
+// never be styled or counted as an occupied pitch.
 type CalItem =
   | { id: string; kind: 'bb'; time: string; hall: string; label: string; guest: boolean }
+  | { id: string; kind: 'away'; time: string; hall: string; label: string }
   | { id: string; kind: 'vb'; time: string; hall: string }
 
 export interface BasketballCalendarPanelProps {
@@ -25,6 +32,8 @@ export interface BasketballCalendarPanelProps {
   placements: Map<string, BasketballSlotPlan>
   /** Booked volleyball slots — cross-sport hall coordination. */
   vbGames: { date: string; time: string; hall: string }[]
+  /** Basketball AWAY fixtures from `games` — they hold no court but do hold the date. */
+  awayGames?: { id: string; date: string; time: string; team: string | null; opponent: string; venue: string }[]
   closureEntries: { start: string; end: string; hall: string | null; reason: string }[]
   /** date → "no game may be played" reason (ProBasket blackout / club-wide block). */
   blockedDayReasons?: Map<string, string>
@@ -39,7 +48,7 @@ export interface BasketballCalendarPanelProps {
  * needs the whole month, not just the KWI home pitches.
  */
 export function BasketballCalendarPanel({
-  seasonName, teams, placements, vbGames, closureEntries, blockedDayReasons,
+  seasonName, teams, placements, vbGames, awayGames = [], closureEntries, blockedDayReasons,
 }: BasketballCalendarPanelProps) {
   const { t } = useTranslation('basketballScheduling')
 
@@ -79,11 +88,20 @@ export function BasketballCalendarPanel({
         guest: p.game_type === 'guest',
       })
     }
+    for (const g of awayGames) {
+      push(g.date, {
+        id: `away-${g.id}`, kind: 'away', time: g.time,
+        // The opponent's gym, when the fixture carries one. Blank is normal and honest —
+        // a bilaterally agreed away game often has no venue typed in yet.
+        hall: g.venue,
+        label: `${teamName(g.team, null)} @ ${g.opponent || '?'}`,
+      })
+    }
     for (const g of vbGames) push(g.date, { id: `vb-${g.date}-${g.time}-${g.hall}`, kind: 'vb', time: g.time, hall: g.hall })
     // Sort each day's items by time.
     for (const arr of m.values()) arr.sort((a, b) => a.time.localeCompare(b.time))
     return m
-  }, [placements, vbGames, teamName])
+  }, [placements, vbGames, awayGames, teamName])
 
   // Hall closures → red day background + a per-day reason, expanding each range.
   const { closedDates, closureReasons } = useMemo(() => {
@@ -104,6 +122,16 @@ export function BasketballCalendarPanel({
   }, [closureEntries])
 
   const [dayDetail, setDayDetail] = useState<{ date: Date; items: CalItem[] } | null>(null)
+  /** The date an away game is being added for — drives ManualGameModal. */
+  const [addAwayOn, setAddAwayOn] = useState<Date | null>(null)
+
+  /**
+   * Every active basketball team. Reaching this page already means `canManageBb`
+   * (admin / superuser / bb_admin / club-wide Spielplaner), and that gate is club-wide
+   * for basketball by design — so the editable set is simply "all of them" rather than a
+   * narrower per-team scope that would not match the page the button sits on.
+   */
+  const editableTeamIds = useMemo(() => teams.map((tm) => String(tm.id)), [teams])
 
   return (
     <div className="space-y-3">
@@ -114,6 +142,9 @@ export function BasketballCalendarPanel({
         </span>
         <span className="inline-flex items-center gap-1.5">
           <span className="inline-block h-3 w-3 rounded bg-purple-500" />{t('type_guest')}
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="inline-block h-3 w-3 rounded bg-blue-500" />{t('type_away')}
         </span>
         <span className="inline-flex items-center gap-1.5">
           <span className="inline-block h-3 w-3 rounded bg-amber-400" />{t('homeGameVb')}
@@ -144,27 +175,35 @@ export function BasketballCalendarPanel({
               closureReasons={closureReasons}
               blockedDates={blockedDayReasons}
               blockedLabel={t('blockedLabel')}
-              onDayClick={(date, items) => {
-                if (items.length === 0) return
-                setDayDetail({ date, items })
-              }}
+              // ⚠ NO early return on an empty day. CalendarGrid paints every in-month,
+              // in-season cell as clickable (pointer + hover) the moment a handler is
+              // passed, so refusing to act on the empty ones made ~200 days advertise a
+              // click that did nothing — reported 31.08.2026 as "the icon switches when I
+              // hover but it doesn't do anything when I click". Every day now opens the
+              // same panel; an empty one says so and offers the away-game form.
+              onDayClick={(date, items) => setDayDetail({ date, items })}
               renderDayContent={(_date, items) => (
                 <div className="flex flex-col gap-0.5">
                   {items.slice(0, 3).map((it) => (
                     <span
                       key={it.id}
-                      title={it.kind === 'bb' ? `${it.time} · ${it.hall} · ${it.label}` : `${it.time} · ${it.hall} · ${t('homeGameVb')}`}
+                      title={it.kind === 'vb'
+                        ? `${it.time} · ${it.hall} · ${t('homeGameVb')}`
+                        : `${it.time} · ${it.hall || t('type_away')} · ${it.label}`}
                       className={`flex items-center gap-0.5 rounded px-1 py-0.5 text-[10px] leading-tight ${
                         it.kind === 'vb'
                           ? 'bg-amber-200 text-amber-900 dark:bg-amber-900/50 dark:text-amber-200'
-                          : it.guest
-                            ? 'bg-purple-500 text-white'
-                            : 'bg-brand-500 text-white'
+                          : it.kind === 'away'
+                            ? 'bg-blue-500 text-white'
+                            : it.guest
+                              ? 'bg-purple-500 text-white'
+                              : 'bg-brand-500 text-white'
                       }`}
                     >
                       {it.time && <span className="shrink-0 tabular-nums">{it.time}</span>}
                       {it.kind === 'bb' && !it.guest && <House className="h-2.5 w-2.5 shrink-0" aria-hidden />}
-                      <span className="truncate">{it.kind === 'bb' ? it.label : t('homeGameVb')}</span>
+                      {it.kind === 'away' && <Plane className="h-2.5 w-2.5 shrink-0" aria-hidden />}
+                      <span className="truncate">{it.kind === 'vb' ? t('homeGameVb') : it.label}</span>
                     </span>
                   ))}
                   {items.length > 3 && (
@@ -185,7 +224,11 @@ export function BasketballCalendarPanel({
         size="lg"
       >
         {dayDetail && (
-          <div className="overflow-x-auto">
+          <div className="space-y-4">
+            {dayDetail.items.length === 0 ? (
+              <p className="text-sm text-muted-foreground">{t('dayEmpty')}</p>
+            ) : (
+              <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -198,9 +241,16 @@ export function BasketballCalendarPanel({
                 {dayDetail.items.map((it) => (
                   <TableRow key={it.id}>
                     <TableCell className="whitespace-nowrap tabular-nums">{it.time || '—'}</TableCell>
-                    <TableCell className="whitespace-normal break-words">{it.hall}</TableCell>
+                    <TableCell className="whitespace-normal break-words">{it.hall || '—'}</TableCell>
                     <TableCell className="whitespace-normal break-words">
-                      {it.kind === 'bb' ? (
+                      {it.kind === 'away' ? (
+                        <span className="inline-flex flex-wrap items-center gap-2">
+                          <span className="rounded bg-blue-100 px-2 py-0.5 text-xs text-blue-800 dark:bg-blue-900/40 dark:text-blue-200">
+                            {t('type_away')}
+                          </span>
+                          {it.label}
+                        </span>
+                      ) : it.kind === 'bb' ? (
                         <span className="inline-flex flex-wrap items-center gap-2">
                           <span
                             className={`rounded px-2 py-0.5 text-xs ${
@@ -223,9 +273,30 @@ export function BasketballCalendarPanel({
                 ))}
               </TableBody>
             </Table>
+              </div>
+            )}
+
+            {/* The one thing a planner cannot do anywhere else in this section: record a
+                game agreed bilaterally at the OPPONENT's gym. It holds no KWI court, so it
+                is not a placement — it is a `games` fixture, and from here it also closes
+                the date for that team in the slot grid and the generator. */}
+            <div className="flex justify-end">
+              <Button className="min-h-11" onClick={() => setAddAwayOn(dayDetail.date)}>
+                <Plus className="h-4 w-4" aria-hidden /> {t('addAwayGame')}
+              </Button>
+            </div>
           </div>
         )}
       </Modal>
+
+      <ManualGameModal
+        open={!!addAwayOn}
+        onClose={() => setAddAwayOn(null)}
+        editableTeamIds={editableTeamIds}
+        initialDate={addAwayOn}
+        initialSport="basketball"
+        initialGameType="away"
+      />
     </div>
   )
 }
@@ -241,7 +312,7 @@ export function BasketballCalendarPanel({
 export default function BasketballCalendarPage() {
   const { t } = useTranslation('basketballScheduling')
   const { season, allSeasons, setSeason } = useGameSchedulingSeason()
-  const { teams, placements, vbGames, closureEntries, blockedDayReasons } = useBasketballPlan(season)
+  const { teams, placements, vbGames, awayGames, closureEntries, blockedDayReasons } = useBasketballPlan(season)
 
   const selectClass = 'rounded-md border border-border bg-transparent px-3 py-2 text-sm dark:bg-gray-800'
 
@@ -268,6 +339,7 @@ export default function BasketballCalendarPage() {
         teams={teams}
         placements={placements}
         vbGames={vbGames}
+        awayGames={awayGames}
         closureEntries={closureEntries}
         blockedDayReasons={blockedDayReasons}
       />

@@ -33,6 +33,18 @@ export default {
   useCombinedAB: 'Kombiniertes Feld A+B',
   type_home: 'Heim',
   type_guest: 'Gast',
+
+  // ── Away fixtures + per-team date blocks (2026-09-01) ───────────────────
+  // An away game holds no KWI court but does hold the DATE: the team is in the
+  // opponent's gym. It lives in `games`, never in basketball_slot_plan — see
+  // useBasketballPlan for why putting one there would steal a court from volleyball.
+  type_away: 'Auswärts',
+  addAwayGame: 'Auswärtsspiel erfassen',
+  dayEmpty: 'An diesem Datum ist noch nichts eingetragen.',
+  blockDate: 'Datum sperren',
+  unblockDate: 'Sperre aufheben',
+  reason_away_game: 'Spielt auswärts bei {{opponent}}',
+  reason_team_blocked: 'Von der Planung gesperrt',
   nearbyGames: 'Andere Spiele um dieses Datum',
   note: 'Notiz',
   notePlaceholder: 'Notiz',

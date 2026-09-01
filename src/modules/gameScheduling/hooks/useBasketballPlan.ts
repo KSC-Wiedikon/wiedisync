@@ -12,6 +12,7 @@ import type {
   GameSchedulingSlot,
   BasketballSlotPlan,
   BasketballHallAvailability,
+  Game,
 } from '../../../types'
 import {
   probasketConfigForSeason,
@@ -157,6 +158,32 @@ export function useBasketballPlan(season: GameSchedulingSeason | null, opts: Bas
     all: true,
     enabled: hasSeason,
   })
+  /**
+   * The teams' AWAY fixtures, straight from `games`.
+   *
+   * ⚠ An away game is NOT a `basketball_slot_plan` row and must never become one: that
+   * table is keyed to a KWI pitch (`hall` NOT NULL, unique per season/date/time/hall) and
+   * one of its three triggers files a `basketball_floor_claims` row — an away row would
+   * claim a KWI floor and take a court off volleyball for a game played in the opponent's
+   * gym. `games` is the fixture table; the planner only reads it.
+   *
+   * ⚠ Filtered by an explicit `kscw_team _in` over the basketball teams already loaded
+   * above, rather than by walking `kscw_team.sport`. A plain `_in` on an M2O cannot
+   * interact with a policy filter the way a walked relation can (CLAUDE.md → "M2M deep
+   * filter + policy walk = silent empty"), and the ids are free — we have them.
+   */
+  const bbTeamIds = useMemo(() => (teamsQ.data ?? []).map((t) => t.id), [teamsQ.data])
+  const awayQ = useCollection<Game>('games', {
+    filter: {
+      season: { _eq: season?.season ?? '' },
+      type: { _eq: 'away' },
+      kscw_team: { _in: bbTeamIds },
+    },
+    fields: ['id', 'date', 'time', 'kscw_team', 'home_team', 'away_team', 'away_hall_json'],
+    all: true,
+    enabled: hasSeason && !!season?.season && bbTeamIds.length > 0,
+  })
+
   const clubBlocksQ = useQuery<ClubBlock[]>({
     queryKey: ['bb-prep', 'club-blocked-dates'],
     queryFn: async () => {
@@ -279,6 +306,52 @@ export function useBasketballPlan(season: GameSchedulingSeason | null, opts: Bas
     for (const r of availQ.data ?? []) m.set(availKey(r.team, r.date), r)
     return m
   }, [availQ.data])
+
+  /**
+   * Away fixtures for the calendar: one entry per game, with the opponent and venue
+   * already resolved so the panel does not have to know the home/away column swap
+   * (on an away row `home_team` is the OPPONENT and `away_team` is us).
+   */
+  const awayGames = useMemo(
+    () =>
+      (awayQ.data ?? [])
+        .filter((g) => !!g.date)
+        .map((g) => ({
+          id: String(g.id),
+          date: String(g.date).slice(0, 10),
+          time: String(g.time ?? '').slice(0, 5),
+          team: g.kscw_team == null ? null : String(g.kscw_team),
+          opponent: g.home_team ?? '',
+          venue: (g.away_hall_json as { name?: string } | null)?.name ?? '',
+        }))
+        .sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time)),
+    [awayQ.data],
+  )
+
+  /** `teamId|date` for every away fixture — the same key shape the generator builds. */
+  const awayTeamDates = useMemo(() => {
+    const m = new Map<string, { opponent: string; time: string }>()
+    for (const g of awayGames) if (g.team) m.set(availKey(g.team, g.date), { opponent: g.opponent, time: g.time })
+    return m
+  }, [awayGames])
+
+  /**
+   * Why this team cannot host on this date, or null. Mirrors the two per-team hard
+   * rejects in `basketball-slots.js` (`team_unavailable`, `away_game`) so the grid and
+   * the generator cannot disagree about which dates are gone — a grid that offers a
+   * pitch the generator will never produce is worse than no grid.
+   */
+  const teamBlockedOn = useCallback(
+    (teamId: string | number | null | undefined, date: string):
+      { reason: 'away_game'; opponent: string; time: string } | { reason: 'manual' } | null => {
+      if (teamId == null) return null
+      const away = awayTeamDates.get(availKey(teamId, date))
+      if (away) return { reason: 'away_game', opponent: away.opponent, time: away.time }
+      if (availability.get(availKey(teamId, date))?.unavailable) return { reason: 'manual' }
+      return null
+    },
+    [awayTeamDates, availability],
+  )
 
   /** Per-hall view of a (date, time): status + placement, resolving A+B combined occupancy. */
   const slotView = useCallback(
@@ -432,6 +505,8 @@ export function useBasketballPlan(season: GameSchedulingSeason | null, opts: Bas
     placements,
     availability,
     availKey,
+    awayGames,
+    teamBlockedOn,
     slotView,
     vbGames,
     closureEntries,

@@ -61,8 +61,12 @@ export default function BasketballPrepPage() {
   const {
     config, candidateDates, teams, dateInfoByDate, blockers, blockedDayReasons,
     placements, availability, availKey, slotView, highlightFor, vbGames, closureEntries,
+    awayGames, teamBlockedOn, setDateUnavailable,
     isLoading, error, placeGame, removeGame,
   } = useBasketballPlan(season, { bbSourceId })
+
+  /** Which date's block toggle is mid-flight, so the button can't be double-fired. */
+  const [blockingDate, setBlockingDate] = useState<string | null>(null)
 
   const teamId =
     picked != null && teams.some((tm) => String(tm.id) === String(picked)) ? picked : teams[0]?.id ?? ''
@@ -126,9 +130,14 @@ export default function BasketballPrepPage() {
 
   /**
    * Suggestions the world has moved past: the generator offered them, but the court is
-   * no longer free (a volleyball booking, a closure or a placement landed since). They
-   * are not hidden — a stale count with a "re-generate" hint is honest, silently
-   * dropping them would make the inventory look smaller than it is.
+   * no longer free (a volleyball booking, a closure or a placement landed since), or the
+   * TEAM is no longer free (an away fixture, a hand-set block). They are not hidden — a
+   * stale count with a "re-generate" hint is honest, silently dropping them would make
+   * the inventory look smaller than it is.
+   *
+   * ⚠ The per-team causes have to be counted here too. The date card for a blocked date
+   * does not render at all, so a suggestion sitting on one would otherwise be counted as
+   * live while being invisible — the count and the grid must tell the same story.
    */
   const staleCount = useMemo(() => {
     let n = 0
@@ -136,13 +145,14 @@ export default function BasketballPrepPage() {
       if (s.status !== 'available') continue
       const dow = dowByDate.get(s.date)
       if (dow == null) continue
+      if (teamId && teamBlockedOn(teamId, s.date)) { n++; continue }
       const { cells } = slotView(s.date, dow, s.time)
       const needed = s.hall === HALL_AB ? [HALL_A, HALL_B] : [s.hall]
       const free = needed.every((h) => cells.find((c) => c.hall === h)?.status === 'free')
       if (!free) n++
     }
     return n
-  }, [mySlots, dowByDate, slotView])
+  }, [mySlots, dowByDate, slotView, teamId, teamBlockedOn])
 
   /** "Why this score": every soft term that produced it, translated, as a tooltip. */
   const scoreTitle = (slot: BasketballSlot): string => {
@@ -177,8 +187,20 @@ export default function BasketballPrepPage() {
 
   const selectClass = 'rounded-md border border-border bg-transparent px-3 py-2 text-sm dark:bg-gray-800'
 
-  /** Human reason a whole date cannot host a game, named so the planner can act on it. */
+  /**
+   * Human reason a whole date cannot host a game, named so the planner can act on it.
+   *
+   * ⚠ The per-TEAM causes come first and are checked against `teamBlockedOn`, which
+   * mirrors the generator's two per-team hard rejects. A hall-level reason ("volleyball
+   * has the court") would be actively misleading on a date the selected team simply
+   * cannot play, and it points at the wrong fix.
+   */
   const dateBlockedLabel = (date: string): string => {
+    const own = teamId ? teamBlockedOn(teamId, date) : null
+    if (own?.reason === 'away_game') {
+      return t('reason_away_game', { opponent: own.opponent || '—' })
+    }
+    if (own?.reason === 'manual') return t('reason_team_blocked')
     const info = dateInfoByDate.get(date)
     switch (info?.reason) {
       case 'blackout':
@@ -321,6 +343,7 @@ export default function BasketballPrepPage() {
             teams={teams}
             placements={placements}
             vbGames={vbGames}
+            awayGames={awayGames}
             closureEntries={closureEntries}
             blockedDayReasons={blockedDayReasons}
           />
@@ -343,20 +366,47 @@ export default function BasketballPrepPage() {
             // A date is dead only when NOTHING can be placed AND nothing is placed —
             // an existing game always keeps its card so it stays removable.
             const anyPlaceable = rows.some((r) => r.cells.some((c) => c.status === 'free' || c.status === 'game'))
-            if (!anyPlaceable) {
+            // The selected team's OWN blockers (away fixture / hand-set block). These close
+            // the date even when the halls are wide open, because the team is elsewhere.
+            const ownBlock = teamId ? teamBlockedOn(teamId, cd.date) : null
+            /** Toggle the hand-set block. Only offered where it means something. */
+            const blockToggle = teamId && !ownBlock?.reason.startsWith('away') ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="ml-auto min-h-9"
+                disabled={blockingDate === cd.date}
+                onClick={async () => {
+                  setBlockingDate(cd.date)
+                  try {
+                    await setDateUnavailable(teamId, cd.date, ownBlock?.reason !== 'manual')
+                  } catch (err) {
+                    toast.error(err instanceof Error ? err.message : String(err))
+                  } finally {
+                    setBlockingDate(null)
+                  }
+                }}
+              >
+                {ownBlock?.reason === 'manual' ? t('unblockDate') : t('blockDate')}
+              </Button>
+            ) : null
+
+            if (ownBlock || !anyPlaceable) {
               return (
                 <div key={cd.date} className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm opacity-70">
                   <span className="font-medium">{weekday(cd.date, i18n.language)} {formatDateZurich(cd.date)}</span>
                   <span className="rounded px-2 py-0.5 text-xs bg-gray-200 text-gray-700 dark:bg-gray-800 dark:text-gray-300">
                     {t('statusUnavailable')} — {dateBlockedLabel(cd.date)}
                   </span>
+                  {blockToggle}
                 </div>
               )
             }
             return (
               <div key={cd.date} className="rounded-lg border border-border">
-                <div className="border-b border-border px-3 py-2 text-sm font-semibold">
-                  {weekday(cd.date, i18n.language)} {formatDateZurich(cd.date)}
+                <div className="flex flex-wrap items-center gap-3 border-b border-border px-3 py-2 text-sm font-semibold">
+                  <span>{weekday(cd.date, i18n.language)} {formatDateZurich(cd.date)}</span>
+                  {blockToggle}
                 </div>
                 <div className="divide-y divide-border">
                   {rows.map(({ time, cells, canCombineAB }) => {

@@ -49,6 +49,7 @@ function ctx(over = {}) {
     exclusivePartners: new Map(),
     adjacentPartners: new Map(),
     unavailableTeamDates: new Set(),
+    awayGameTeamDates: new Set(),
     ...over,
   }
 }
@@ -384,6 +385,30 @@ describe('hardReject', () => {
     expect(hardReject(cand, team(), ctx({ unavailableTeamDates: new Set([`86|${SAT}`]) })))
       .toBe(REJECT_CODES.TEAM_UNAVAILABLE)
     expect(hardReject(cand, team(), ctx({ unavailableTeamDates: new Set([`99|${SAT}`]) }))).toBeNull()
+  })
+
+  it('a team playing away that day cannot also host at KWI', () => {
+    // The report that produced this rule: Herren 2 agreed 03.03.2027 at Unicorns 02's gym
+    // bilaterally, and the planner kept offering KWI pitches on the same date because
+    // nothing in the generator had ever read `games`.
+    expect(hardReject(cand, team(), ctx({ awayGameTeamDates: new Set([`86|${SAT}`]) })))
+      .toBe(REJECT_CODES.AWAY_GAME)
+  })
+
+  it('blocks only the team that travels, and only on that date', () => {
+    expect(hardReject(cand, team(), ctx({ awayGameTeamDates: new Set([`99|${SAT}`]) }))).toBeNull()
+    expect(hardReject(cand, team(), ctx({ awayGameTeamDates: new Set(['86|2026-12-25']) }))).toBeNull()
+  })
+
+  it('keeps the away block distinct from a hand-set unavailability', () => {
+    // Same effect, different fix: a manual block is undone by un-blocking it, an away
+    // fixture only by moving the game. One shared code would send the planner to the
+    // wrong screen.
+    expect(hardReject(cand, team(), ctx({ unavailableTeamDates: new Set([`86|${SAT}`]) })))
+      .toBe(REJECT_CODES.TEAM_UNAVAILABLE)
+    expect(hardReject(cand, team(), ctx({ awayGameTeamDates: new Set([`86|${SAT}`]) })))
+      .toBe(REJECT_CODES.AWAY_GAME)
+    expect(REJECT_CODES.AWAY_GAME).not.toBe(REJECT_CODES.TEAM_UNAVAILABLE)
   })
 
   it('a placed game takes the pitch — including across the A+B / A boundary', () => {
