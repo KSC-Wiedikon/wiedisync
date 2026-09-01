@@ -397,6 +397,8 @@ export const REJECT_CODES = {
   HALL_NOT_ALLOWED: 'hall_not_allowed',
   CATEGORY_NOT_ALLOWED: 'category_not_allowed',
   TEAM_UNAVAILABLE: 'team_unavailable',
+  /** The team plays AWAY that day (a `games` row), so it cannot host at KWI. */
+  AWAY_GAME: 'away_game',
   PITCH_TAKEN: 'pitch_taken',
   PARTNER_SAME_TIME: 'partner_same_time',
   NOT_A_SPIELSAMSTAG: 'not_a_spielsamstag',
@@ -513,6 +515,19 @@ export function hardReject(cand, team, ctx) {
 
   // ── The planner marked this team unavailable on this date (basketball_hall_availability). ──
   if (ctx.unavailableTeamDates.has(`${team.team}|${date}`)) return REJECT_CODES.TEAM_UNAVAILABLE
+
+  // ── The team already plays AWAY that day (a `games` fixture). You cannot host at KWI
+  //    and be in the opponent's gym on the same date, so this is hard, not a penalty.
+  //
+  //    ⚠ Kept as its OWN code rather than folded into TEAM_UNAVAILABLE: the two have
+  //    different fixes. A manual block is undone by the planner un-blocking it; an away
+  //    fixture is undone only by moving or deleting the game. A reject tally that cannot
+  //    tell them apart sends the planner to the wrong screen.
+  //
+  //    ⚠ AWAY only. A `games` HOME row is either the placement we made here (in which case
+  //    blocking its own date would fight the own-slot exemption below) or a post-
+  //    Spielplansitzung fixture ProBasket owns — neither is this rule's business.
+  if (ctx.awayGameTeamDates.has(`${team.team}|${date}`)) return REJECT_CODES.AWAY_GAME
 
   // ── A placed game already holds a colliding court at this pitch (unless it is ours). ──
   const placedHere = ctx.placementsByPitch.get(`${date}|${time}`) || []
@@ -834,6 +849,31 @@ export function registerBasketballSlots(router, { database, logger }) {
       .select('team', database.raw('date::text as date'))
     const unavailableTeamDates = new Set(avail.map((a) => `${a.team}|${String(a.date).slice(0, 10)}`))
 
+    // ── Away fixtures. A team in the opponent's gym cannot also host at KWI that day.
+    //
+    // ⚠ Read from `games`, NOT from basketball_slot_plan — an away game must never become a
+    // slot-plan row. That table is keyed to a KWI pitch (`hall` NOT NULL, UNIQUE per
+    // season/date/time/hall) and carries three triggers, one of which files a
+    // `basketball_floor_claims` row: an away row would claim a KWI floor and take a court
+    // away from volleyball for a game played somewhere else entirely.
+    //
+    // ⚠ Matched on the season LABEL ('2026/27'), which is what `games.season` stores — the
+    // scheduling season's numeric id means nothing to that table. A season row with no
+    // label yields no away blocks rather than an accidental club-wide match.
+    const seasonLabel = String(season.season || '').trim()
+    const awayGames = seasonLabel
+      ? await database('games as g')
+        .join('teams as t', 't.id', 'g.kscw_team')
+        .where('t.sport', 'basketball')
+        .where('g.season', seasonLabel)
+        .where('g.type', 'away')
+        .whereNotNull('g.date')
+        .select('g.kscw_team', database.raw('g.date::text as date'))
+      : []
+    const awayGameTeamDates = new Set(
+      awayGames.map((g) => `${g.kscw_team}|${String(g.date).slice(0, 10)}`),
+    )
+
     // Club-wide weekend cap. `spielsamstage_hard` makes the Spielsamstag list a HARD
     // filter for every team (see hardReject); `max_weekends` is carried for reporting
     // so a mismatch between the agreed cap and the configured list is visible rather
@@ -846,6 +886,7 @@ export function registerBasketballSlots(router, { database, logger }) {
       closedHallsByDate, holidayRanges, clubBlockedDates, vbBusyByDate,
       placementsByPitch, bbPlacementCountByDate, exclusivePartners, adjacentPartners,
       unavailableTeamDates,
+      awayGameTeamDates,
     }
   }
 

@@ -33,6 +33,18 @@ export default {
   useCombinedAB: 'Terrain combiné A+B',
   type_home: 'Domicile',
   type_guest: 'Invité',
+
+  // ── Away fixtures + per-team date blocks (2026-09-01) ───────────────────
+  // An away game holds no KWI court but does hold the DATE: the team is in the
+  // opponent's gym. It lives in `games`, never in basketball_slot_plan — see
+  // useBasketballPlan for why putting one there would steal a court from volleyball.
+  type_away: 'Extérieur',
+  addAwayGame: 'Ajouter un match à l’extérieur',
+  dayEmpty: 'Rien n’est encore inscrit à cette date.',
+  blockDate: 'Bloquer cette date',
+  unblockDate: 'Débloquer cette date',
+  reason_away_game: 'Joue à l’extérieur chez {{opponent}}',
+  reason_team_blocked: 'Bloqué par la planification',
   nearbyGames: 'Autres matchs autour de cette date',
   note: 'Note',
   notePlaceholder: 'Note',
