@@ -31,6 +31,7 @@ interface ScorerRowProps {
   isAdmin?: boolean
   showContact: boolean
   userId?: string
+  /** Teams whose duty this user may claim — roster ∪ coach/TR (see myDutyTeamIds). */
   userTeamIds?: string[]
   userLicences?: LicenceType[]
   sport: 'volleyball' | 'basketball'
@@ -617,6 +618,7 @@ export default function ScorerRow({
           members={members}
           teams={teams}
           memberTeams={memberTeams}
+          dutyTeamPeopleIds={teamMemberIds.get(getDutyTeamForRole(delegateRole))}
           currentUserId={userId ?? ''}
           onDelegate={handleDelegateConfirm}
           onClose={() => setDelegateRole(null)}

@@ -12,6 +12,10 @@ interface DelegationModalProps {
   members: Member[]
   teams: Team[]
   memberTeams: MemberTeam[]
+  /** Everyone on the duty team — roster ∪ coaches/TR (see useTeamPeopleIds).
+   *  Drives the "same team" split; without it a staff-only coach of the duty
+   *  team would be listed under "other teams". */
+  dutyTeamPeopleIds?: Set<string>
   currentUserId: string
   onDelegate: (toMemberId: string, toTeamId: string) => void
   onClose: () => void
@@ -38,6 +42,7 @@ export default function DelegationModal({
   members,
   teams,
   memberTeams,
+  dutyTeamPeopleIds,
   currentUserId,
   onDelegate,
   onClose,
@@ -82,7 +87,7 @@ export default function DelegationModal({
 
   // Split into same-team and cross-team
   const { sameTeamMembers, crossTeamMembers } = useMemo(() => {
-    const dutyTeamMemberIds = new Set(
+    const dutyTeamMemberIds = dutyTeamPeopleIds ?? new Set(
       memberTeams.filter((mt) => mt.team === dutyTeamId).map((mt) => mt.member),
     )
     const same: Member[] = []
@@ -97,7 +102,7 @@ export default function DelegationModal({
     same.sort(sortFn)
     cross.sort(sortFn)
     return { sameTeamMembers: same, crossTeamMembers: cross }
-  }, [eligibleMembers, memberTeams, dutyTeamId])
+  }, [eligibleMembers, memberTeams, dutyTeamId, dutyTeamPeopleIds, i18n.language])
 
   // Apply search filter
   const q = search.toLowerCase().trim()

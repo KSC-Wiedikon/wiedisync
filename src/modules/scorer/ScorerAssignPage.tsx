@@ -5,6 +5,7 @@ import type { Game, Team, Training, Member, MemberTeam, Hall, LicenceType } from
 import { memberDisplayName, relId } from '../../utils/relations'
 import { useCollection, invalidateForCollection } from '../../lib/query'
 import { useAuth } from '../../hooks/useAuth'
+import { useTeamPeopleIds } from '../../hooks/useTeamPeopleIds'
 import { getCurrentSeason, getSeasonDateRange, formatDateCompact, formatTime } from '../../utils/dateHelpers'
 import { logActivity } from '../../utils/logActivity'
 import { Button } from '@/components/ui/button'
@@ -111,16 +112,11 @@ export default function ScorerAssignPage() {
   const memberTeams = useMemo(() => memberTeamsRaw ?? [], [memberTeamsRaw])
 
   // Team → member ids, and guest member ids — for the per-duty person editor.
-  const teamMemberIds = useMemo(() => {
-    const m = new Map<string, Set<string>>()
-    for (const mt of memberTeams) {
-      const tid = String(mt.team)
-      let set = m.get(tid)
-      if (!set) { set = new Set(); m.set(tid, set) }
-      set.add(String(mt.member))
-    }
-    return m
-  }, [memberTeams])
+  // "Member of the duty team" includes its coaches / team responsibles, who
+  // never get a `member_teams` row: built from that table alone the person
+  // dropdown offered players only, so a staff-only coach could not be assigned
+  // their own team's duty.
+  const { teamPeopleIds: teamMemberIds, staffLoading } = useTeamPeopleIds(memberTeams, !!user)
   const guestMemberIds = useMemo(() => {
     const s = new Set<string>()
     for (const mt of memberTeams) if ((mt.guest_level ?? 0) > 0) s.add(String(mt.member))
@@ -137,7 +133,7 @@ export default function ScorerAssignPage() {
   // member_teams + halls. Gate the whole page on ALL of them so the spinner,
   // "games loaded" banner, Run button and empty state never flash a half-loaded
   // view (e.g. "0 games" before teams/halls land).
-  const dataLoading = gamesLoading || teamsLoading || trainingsLoading || membersLoading || memberTeamsLoading || hallsLoading
+  const dataLoading = gamesLoading || teamsLoading || trainingsLoading || membersLoading || memberTeamsLoading || staffLoading || hallsLoading
 
   // Report to the app boot gate — see usePageReady.tsx
   useReportPageLoading(dataLoading)
