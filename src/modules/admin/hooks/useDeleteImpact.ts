@@ -35,6 +35,25 @@ export interface DeleteImpactLinkedUser {
   status: string | null
 }
 
+/**
+ * The ClubDesk contact this member is linked to — reported so the modal can say
+ * out loud that the delete does NOT touch it.
+ *
+ * wiedisync never deletes a contact from the club's legal member register: the
+ * CSV import wizard has no delete verb, and the register's own answer to "this
+ * person left" is Status + Austritt, which the departure flow pushes. Without
+ * this notice a member delete orphans the contact silently and it returns later
+ * as a /clubdesk-stale finding or a duplicate in the next sync-down.
+ */
+export interface DeleteImpactClubdesk {
+  /** `members.clubdesk_id` — the register's own record identity. */
+  id: string
+  /** Name as the register spells it, or null when the snapshot has no row. */
+  name: string | null
+  /** The contact's register Status, e.g. "Aktivmitglied". Null when unknown. */
+  status: string | null
+}
+
 export interface DeleteImpact {
   collection: 'members' | 'events' | 'trainings' | 'games'
   id: number
@@ -45,6 +64,8 @@ export interface DeleteImpact {
   polymorphic: DeleteImpactRow[]
   /** members only — null for the other collections. */
   linkedUser: DeleteImpactLinkedUser | null
+  /** members only — the linked ClubDesk contact, which is NOT deleted. */
+  clubdesk: DeleteImpactClubdesk | null
   /** games only — the derby sibling row that survives. 0 otherwise. */
   derbySiblings: number
   total: number

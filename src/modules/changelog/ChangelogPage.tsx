@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.2.0'
+const APP_VERSION = '2.3.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,21 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.3.0',
+    date: '02.09.2026',
+    sections: [
+      {
+        title: 'A member who has left is now one button',
+        items: [
+          'The member page in the Data Explorer has a "Member left" button. It writes the whole departure at once: the register status, the exit date, club membership and app access switched off, and the person comes off their current-season team rosters. Past seasons are kept \u2014 the match sheets and the "who played for D2 in 2024/25" answer live there.',
+          'Until now this had to be done column by column. Switching "Club membership" off on its own left the club register still saying the person is a member, with no exit date, and Data Health then reported them under "Former members without an exit date".',
+          'A departure typed in here now clears the current team rosters, exactly as a departure coming from ClubDesk always has. The same event used to have two different outcomes depending on which side it was entered from.',
+          'Deleting a member now says on screen that the ClubDesk contact stays. Nothing in wiedisync ever deletes a contact from the club register \u2014 so if somebody has simply left the club, "Member left" is the action that ends the membership properly and pushes the status and the exit date into the register at the next approved sync-up.',
+        ],
+      },
+    ],
+  },
   {
     version: '2.2.0',
     date: '01.09.2026',

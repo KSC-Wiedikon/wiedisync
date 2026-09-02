@@ -1,22 +1,39 @@
 // src/modules/admin/components/MemberDangerZone.tsx
 //
-// The last block of the member detail in the Data Explorer: the four status
-// columns that decide whether a person is still a club member and can still log
-// in, plus the hard delete.
+// The last block of the member detail in the Data Explorer, in the order an
+// operator escalates through it:
 //
-// Why these four live here and nowhere else: they render READ-ONLY in the field
-// grid above (see memberFieldSchema.ts → `dangerZone`). One column, one editing
-// surface. Two competing affordances for "switch off this person's login" is
-// how you end up flipping it by accident while fixing a typo in their address.
+//   1. the four status columns — the LOW LEVEL switches for club membership,
+//      app access and the shell account,
+//   2. "Member left" — the whole departure as one action (MemberDepartModal),
+//   3. "Delete permanently" — the hard delete (DeleteImpactModal).
 //
-// Status changes are ordinary PATCHes behind an ordinary confirm. The delete is
-// not: it goes through DeleteImpactModal, which counts every dependent row
-// first and makes the operator type `DELETE`.
+// Why the four columns live here and nowhere else: they render READ-ONLY in the
+// field grid above (see memberFieldSchema.ts → `dangerZone`). One column, one
+// editing surface. Two competing affordances for "switch off this person's
+// login" is how you end up flipping it by accident while fixing a typo in their
+// address.
+//
+// ⚠ 1 IS NOT 2. Flipping "Club membership" off is one column: it drops the
+// person out of the app, but the club register still says they are a member,
+// there is no exit date, nothing is pushed to ClubDesk, and Data Health reports
+// them under "Former members without an exit date (no retention period
+// running)". It is the temporary switch-off. The departure is (2).
+//
+// ⚠ 2 IS NOT 3 EITHER. Deleting destroys the person's wiedisync history and
+// does NOT remove their ClubDesk contact — nothing in wiedisync ever deletes a
+// register contact. For somebody who has simply left the club, (2) is the
+// correct action; DeleteImpactModal says so on screen when the member is linked.
+//
+// Status changes are ordinary PATCHes behind an ordinary confirm. The departure
+// writes five things at once through departMember.ts, shared with the grid's
+// bulk action. The delete goes through DeleteImpactModal, which counts every
+// dependent row first and makes the operator type `DELETE`.
 
 import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Trash2 } from 'lucide-react'
+import { Trash2, UserMinus } from 'lucide-react'
 import { updateRecord } from '../../../lib/api'
 import { logActivity } from '../../../utils/logActivity'
 import { formatDateTimeCompactZurich } from '../../../utils/dateHelpers'
@@ -28,6 +45,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '../../../components/ui/table'
 import DeleteImpactModal from './DeleteImpactModal'
+import MemberDepartModal from './MemberDepartModal'
 
 export interface MemberDangerZoneProps {
   memberId: string
@@ -97,6 +115,7 @@ export default function MemberDangerZone({
   const confirm = useConfirm()
 
   const [savingKey, setSavingKey] = useState<string | null>(null)
+  const [departOpen, setDepartOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
 
   // The picker is a draft over the stored value. Re-sync it whenever the record
@@ -302,6 +321,28 @@ export default function MemberDangerZone({
         </Table>
       )}
 
+      {/* ── Member left ────────────────────────────────────────────────────
+          The departure, as one action. The four switches above are the LOW
+          LEVEL columns: flipping "Club membership" off on its own leaves the
+          register saying this person is still a member with no exit date, and
+          Data Health then reports them under "Former members without an exit
+          date (no retention period running)". This button writes the whole
+          statement — status, exit date, both flags, and the current-season
+          rosters — via the same helper the grid's bulk action uses. */}
+      {canEditStatus && (
+        <div className="mt-4 border-t border-destructive/30 pt-4">
+          <Button
+            type="button"
+            variant="destructive"
+            icon={<UserMinus />}
+            onClick={() => setDepartOpen(true)}
+          >
+            {t('explorerDangerDepart')}
+          </Button>
+          <p className="mt-2 text-xs text-muted-foreground">{t('explorerDangerDepartHint')}</p>
+        </div>
+      )}
+
       {canDelete && (
         <div className="mt-4 border-t border-destructive/30 pt-4">
           <Button
@@ -312,7 +353,19 @@ export default function MemberDangerZone({
           >
             {t('explorerDangerDelete')}
           </Button>
+          <p className="mt-2 text-xs text-muted-foreground">{t('explorerDangerDeleteHint')}</p>
         </div>
+      )}
+
+      {canEditStatus && departOpen && (
+        <MemberDepartModal
+          open={departOpen}
+          onClose={() => setDepartOpen(false)}
+          memberId={memberId}
+          memberName={name}
+          member={member}
+          onDeparted={onPatched}
+        />
       )}
 
       {canDelete && deleteOpen && (

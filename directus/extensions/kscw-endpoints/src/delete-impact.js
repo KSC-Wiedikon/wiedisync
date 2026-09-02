@@ -375,16 +375,50 @@ export function registerDeleteImpact(router, { database, logger, services, getSc
         else setNull.push(row)
       }
 
-      // members-only extras: the protected sentinel + the linked login.
+      // members-only extras: the protected sentinel, the linked login, and the
+      // ClubDesk contact.
       let linkedUser = null
+      let clubdesk = null
       if (collection === 'members') {
-        const member = await database('members').where({ id }).first('id', 'user', 'email')
+        const member = await database('members')
+          .where({ id })
+          .first('id', 'user', 'email', 'clubdesk_id')
         if (String(member?.email || '').trim().toLowerCase() === SENTINEL_EMAIL) {
           blockers.push({ kind: 'sentinel', table: 'members' })
         }
         if (member?.user) {
           const u = await database('directus_users').where({ id: member.user }).first('id', 'email', 'status')
           if (u) linkedUser = { id: String(u.id), email: u.email ?? null, status: u.status ?? null }
+        }
+        // ── The ClubDesk contact this delete does NOT touch ──────────────────
+        //
+        // wiedisync never deletes a contact from the club's legal member
+        // register — there is no delete verb in the CSV import wizard, and the
+        // register's own answer to "this person left" is Status +
+        // Austritt, which the departure flow already pushes. So a member delete
+        // ORPHANS the contact silently: nothing warned, and the row comes back
+        // later as a /clubdesk-stale finding or a duplicate in the next
+        // sync-down.
+        //
+        // Reported here so the modal can say it out loud and point at "Member
+        // left" instead. Best-effort: the snapshot table is a cron mirror and a
+        // missing row must not break a delete preview.
+        const cdId = String(member?.clubdesk_id || '').trim()
+        if (cdId) {
+          let contactName = null
+          let contactStatus = null
+          try {
+            const row = await database('clubdesk_export')
+              .whereRaw('BTRIM(clubdesk_id) = ?', [cdId])
+              .first('vorname', 'nachname', 'status')
+            if (row) {
+              contactName = [row.vorname, row.nachname].filter(Boolean).join(' ').trim() || null
+              contactStatus = row.status ? String(row.status).trim() : null
+            }
+          } catch (err) {
+            log.warn(`delete-impact ${id}: clubdesk_export lookup failed: ${err.message}`)
+          }
+          clubdesk = { id: cdId, name: contactName, status: contactStatus }
         }
       }
 
@@ -417,6 +451,7 @@ export function registerDeleteImpact(router, { database, logger, services, getSc
         setNull,
         polymorphic: polymorphic.filter((p) => p.count > 0),
         linkedUser,
+        clubdesk,
         derbySiblings,
         total,
       })
