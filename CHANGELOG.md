@@ -2,6 +2,26 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.3.0 — 2026-09-02
+
+### A member who has left is now one button
+
+- **The member page in the Data Explorer has a "Member left" button.** It writes the whole departure at once: the register status, the exit date, club membership and app access switched off, and the person comes off their current-season team rosters. Past seasons are kept — the match sheets and the "who played for D2 in 2024/25" answer live there.
+- **Until now this had to be done column by column.** Switching "Club membership" off on its own left the club register still saying the person is a member, with no exit date, and Data Health then reported them under "Former members without an exit date".
+- **A departure typed in here now clears the current team rosters**, exactly as a departure coming from ClubDesk always has. The same event used to have two different outcomes depending on which side it was entered from.
+- **Deleting a member now says on screen that the ClubDesk contact stays.** Nothing in wiedisync ever deletes a contact from the club register — so if somebody has simply left the club, "Member left" is the action that ends the membership properly and pushes the status and the exit date into the register at the next approved sync-up.
+
+## v2.2.0 — 2026-09-01
+
+### One login for the whole family
+
+- Parents who look after more than one child in the club can now do it from a single login. A bar at the top of every screen shows whose account you are using; tap it and pick another child. No second password, no logging out and back in.
+- Each child keeps her own separate member record — her own team, her own RSVPs, her own fees and licence. Nothing about that changes. What changes is only who is allowed to sign in and act for her.
+- Children who are looked after this way have no password at all and cannot sign in. That is deliberate: it means one fewer set of login details in circulation for a twelve-year-old, and a parent's access can be withdrawn completely at any time.
+- The child's name appears inside the buttons themselves — "Mila is coming" rather than just "Yes" — so it is under your thumb at the moment you decide, and there is no doubt about who you just answered for.
+- A child old enough to have her own login can remove a parent's access herself, from her profile. Private messages stay private either way: a parent managing RSVPs cannot read her child's conversations with teammates and coaches.
+- Club admins can set families up under Options → Households.
+
 ## v2.1.8 — 2026-09-02
 
 ### A fine the team owes now reaches the team

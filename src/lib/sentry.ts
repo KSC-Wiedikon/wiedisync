@@ -499,6 +499,18 @@ export function addBreadcrumb(message: string, data?: Record<string, unknown>) {
   })
 }
 
+/**
+ * Drop the accumulated navigation trail.
+ *
+ * Used when the effective identity changes (a household guardian switching to
+ * one of her children): a crash on the child's screen should not be reported
+ * carrying the previous identity's breadcrumbs, which would read as one member
+ * having visited another member's screens.
+ */
+export function clearBreadcrumbs() {
+  try { Sentry.getCurrentScope().clearBreadcrumbs() } catch { /* SDK not initialised */ }
+}
+
 // ── Error normalization ──────────────────────────────────────────
 // `toError` lives in utils/toError.ts (shared with useMutation) so the
 // Directus-shape unwrapping logic can't drift between the two call sites.

@@ -128,7 +128,16 @@ const SDK_BASE = API_URL.startsWith('/') && typeof window !== 'undefined'
   : API_URL
 export const client = createDirectus(SDK_BASE)
   .with(authentication('session', { credentials: 'include', autoRefresh: true }))
-  .with(rest({ credentials: 'include' }))
+  .with(rest({
+    credentials: 'include',
+    // Stamps the acting-member header on every SDK data request. Applied ONLY
+    // by the rest composable — `authentication()` never runs it, so login and
+    // refresh are structurally guaranteed to stay the real session owner's.
+    onRequest: (options) => {
+      if (_actingMemberId == null) return options
+      return { ...options, headers: { ...(options.headers as Record<string, string>), [ACTING_HEADER]: String(_actingMemberId) } }
+    },
+  }))
   .with(realtime({
     // The Directus SDK detects URL overrides with `'url' in config` — passing
     // `url: undefined` still hits that branch, then `new URL(undefined)`
@@ -182,6 +191,19 @@ export async function logout() {
   // Clean up legacy token storage from the pre-cookie era + local caches.
   localStorage.removeItem('directus_auth')
   sessionStorage.removeItem('directus_auth')
+  // Household acting state — both the in-memory header and the per-session
+  // "last used" hints, swept by prefix because the key carries the session
+  // owner's id (a fixed removeItem would clear nothing and read as if it had —
+  // the exact failure the SQL-workspace comment below records).
+  _actingMemberId = null
+  try {
+    const acting: string[] = []
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i)
+      if (key?.startsWith('wiedisync-acting-member:')) acting.push(key)
+    }
+    acting.forEach((key) => localStorage.removeItem(key))
+  } catch { /* storage unavailable */ }
   // ⚠ The key cleared here used to be 'wiedisync-sql-history', which NOTHING
   // writes — so the SQL workspace's real drafts and history survived logout on
   // a shared machine, while the cleanup read as if they did not (audit
@@ -260,6 +282,49 @@ function assertWritable(): void {
   if (!_impersonating) return
   try { toast.error(i18n.t('common:readOnlyImpersonation')) } catch { /* toast/i18n not ready — still block */ }
   throw new ReadOnlyImpersonationError()
+}
+
+// ── Household acting-member (migration 348) ─────────────────────────
+// A guardian (a parent) may act as a member she administers. Unlike the
+// read-only impersonation above, this is WRITE-CAPABLE by design: the server
+// genuinely resolves the request as the child, so the write really is hers.
+//
+// ⚠ These are two different modes with one flag each, deliberately kept apart.
+// `assertWritable()` above is NOT reused here — folding guardian acting into
+// the read-only impersonation guard would produce three-way logic in every
+// write path, and the first mistake in that logic silently blocks or silently
+// allows.
+//
+// ⚠ The header rides on `rest({ onRequest })` and on kscwApi's own headers. It
+// is structurally impossible for it to reach /auth/login or /auth/refresh: the
+// SDK applies `onRequest` only inside the `rest` composable, never in
+// `authentication()`. So a switch can never change WHOSE SESSION this is.
+export const ACTING_HEADER = 'X-KSCW-Acting-Member'
+
+let _actingMemberId: number | null = null
+
+export function setActingMemberId(id: number | null): void { _actingMemberId = id }
+export function getActingMemberId(): number | null { return _actingMemberId }
+
+/**
+ * The app's idea of who it is acting as, versus the server's.
+ *
+ * A desync is unreachable in theory — which is exactly why it must be loud if it
+ * ever happens. The server echoes the identity it actually resolved; if it
+ * disagrees with ours, every subsequent render is about the wrong child, so we
+ * reload rather than paint one daughter's data under another's name.
+ *
+ * ⚠ Requires CORS_EXPOSED_HEADERS to include the header — without it a
+ * cross-origin read returns null and this check silently passes.
+ */
+function assertActingEcho(res: Response): void {
+  const echoed = res.headers.get(ACTING_HEADER)
+  const expected = _actingMemberId == null ? null : String(_actingMemberId)
+  if (echoed === expected) return
+  // A null echo with no expectation is the normal, header-less case.
+  if (echoed == null && expected == null) return
+  try { toast.error(i18n.t('common:householdSwitchDesync')) } catch { /* i18n not ready */ }
+  setTimeout(() => { try { window.location.reload() } catch { /* ignore */ } }, 1200)
 }
 
 /** Detect Directus "no permission" errors (token refresh race). */
@@ -757,7 +822,7 @@ const EXPECTED_ERROR_CODES = new Set([
  */
 export async function kscwApi<T = unknown>(
   path: string,
-  options?: { method?: string; body?: unknown; headers?: Record<string, string>; anonymous?: boolean },
+  options?: { method?: string; body?: unknown; headers?: Record<string, string>; anonymous?: boolean; actAs?: number },
 ): Promise<T> {
   const method = options?.method || 'GET'
   const anonymous = options?.anonymous === true
@@ -776,6 +841,15 @@ export async function kscwApi<T = unknown>(
       credentials: anonymous ? 'omit' : 'include',
       headers: {
         'Content-Type': 'application/json',
+        // Household acting-member. `actAs` is a per-call override for the rare
+        // case of acting on one member's behalf while the app is showing
+        // another (the RSVP undo toast re-issues against the id captured at
+        // press time, not whoever is current by the time it fires).
+        // Never on anonymous calls — those are token-in-URL public endpoints
+        // with no session to narrow.
+        ...(!anonymous && (options?.actAs ?? _actingMemberId) != null
+          ? { [ACTING_HEADER]: String(options?.actAs ?? _actingMemberId) }
+          : {}),
         ...options?.headers,
       },
       ...(options?.body ? { body: JSON.stringify(options.body) } : {}),
@@ -785,6 +859,7 @@ export async function kscwApi<T = unknown>(
   let res: Response
   try {
     res = await doFetch()
+    if (!anonymous && options?.actAs == null) assertActingEcho(res)
   } catch (err) {
     // Network error (offline, DNS, CORS)
     captureApiError(err, {

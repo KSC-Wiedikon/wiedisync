@@ -31,6 +31,7 @@ import { registerNominationPush } from './nomination-push.js'
 import { registerIdentityDocument } from './identity-document.js'
 import { registerChangePassword } from './change-password.js'
 import { registerImpersonate } from './impersonate.js'
+import { registerHousehold } from './household.js'
 import { registerJsExport } from './js-export.js'
 import { registerGameScheduling } from './game-scheduling.js'
 import { registerBasketballSlots } from './basketball-slots.js'
@@ -491,6 +492,11 @@ export default {
     router.post('/delete-account', async (req, res) => {
       try {
         requireAuth(req, log)
+        // ⚠ Deleting a member is not an administrative errand a guardian may run
+        // from inside someone else's session. An admin can still do it directly.
+        if (req.accountability?.kscwGuardian) {
+          return res.status(403).json({ error: 'Not available while using another account', code: 'acting_forbidden' })
+        }
 
         const userId = req.accountability.user
         const isAdmin = req.accountability.admin
@@ -1626,6 +1632,11 @@ export default {
 
     router.post('/set-password', async (req, res) => {
       try {
+        // ⚠ A guardian may never set a managed member's password — that would turn
+        // a revocable acting grant into a permanent credential outliving revocation.
+        if (req.accountability?.kscwGuardian) {
+          return res.status(403).json({ error: 'Not available while using another account', code: 'acting_forbidden' })
+        }
         const { password, email: rawEmail, token } = req.body
         const pwError = validatePassword(password)
         if (pwError) {
@@ -2711,6 +2722,7 @@ export default {
     registerIdentityDocument(router, ctx)
     registerChangePassword(router, ctx)
     registerImpersonate(router, ctx)
+    registerHousehold(router, ctx)
     registerJsExport(router, ctx)
     registerGameScheduling(router, ctx)
     registerBasketballSlots(router, ctx)

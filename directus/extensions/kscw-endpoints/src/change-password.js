@@ -44,6 +44,12 @@ export function registerChangePassword(router, { database, services, getSchema, 
     try {
       const userId = req.accountability?.user
       if (!userId) return res.status(401).json({ error: 'Authentication required' })
+      // ⚠ A guardian may never change a managed member's password. Doing so would
+      // convert a revocable, audited acting grant into a permanent credential
+      // that survives revocation — the exact property this design exists to avoid.
+      if (req.accountability?.kscwGuardian) {
+        return res.status(403).json({ error: 'Not available while using another account', code: 'acting_forbidden' })
+      }
 
       const { current_password: current, new_password: next, e2ee } = req.body ?? {}
       if (!current || !next) {

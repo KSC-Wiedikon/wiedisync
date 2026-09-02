@@ -24,6 +24,19 @@ export function requireAuth(req) {
   if (!userId) {
     throw new MessagingError(401, 'messaging/unauthenticated', 'Authentication required')
   }
+  // ⚠ Household guardians may not read or send a managed member's private
+  // messages (club decision, 01.09.2026). A parent who administers a
+  // 12-year-old's RSVPs must not thereby gain access to that child's private
+  // conversations with teammates and coaches.
+  //
+  // This is THE authoritative guard, not the DENY_PREFIXES list in
+  // acting-member.js: Express matches `/kscw/*` case-insensitively, so
+  // `/kscw/Messaging/...` slips past a path-prefix check but still lands here.
+  // Every messaging route calls requireAuth, which is why it lives here rather
+  // than being repeated 14 times.
+  if (req.accountability?.kscwGuardian) {
+    throw new MessagingError(403, 'messaging/acting_forbidden', 'Messages are not available while using another account')
+  }
   return userId
 }
 

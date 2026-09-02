@@ -16,7 +16,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { AlertTriangle, Loader2, UserX } from 'lucide-react'
+import { AlertTriangle, Building2, Loader2, UserX } from 'lucide-react'
 import { deleteRecord, kscwApi } from '../../../lib/api'
 import {
   Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow,
@@ -219,6 +219,23 @@ export default function DeleteImpactModal({
               <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                 <span>{t('explorerDangerBlockedSentinel')}</span>
+              </div>
+            )}
+            {/* ⚠ The register keeps the contact. Loud, and above the linked-login
+                notice, because it is the one thing on this screen that is
+                usually a reason NOT to press the button: for somebody who has
+                simply left the club, "Member left" is the correct action and
+                this one throws away their wiedisync history for nothing. */}
+            {data.clubdesk && (
+              <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-300">
+                <Building2 className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>
+                  <span className="font-medium">{t('explorerDangerClubdeskTitle')}</span>{' '}
+                  {t('explorerDangerClubdeskBody', {
+                    contact: data.clubdesk.name || data.clubdesk.id,
+                    status: data.clubdesk.status || '—',
+                  })}
+                </span>
               </div>
             )}
             {data.linkedUser && (

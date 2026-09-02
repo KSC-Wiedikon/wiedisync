@@ -31,6 +31,7 @@ import { teamPeopleSql, notGuestAnywhereSql } from '../../kscw-endpoints/src/act
 import { sweepTrainingAutoConfirm } from '../../kscw-endpoints/src/training-auto-confirm-sweep.js'
 import { currentSeasonShort, seasonStartYear } from '../../kscw-endpoints/src/season.js'
 import { resolveMemberSports, sportAdminScope, sportScopeAllows } from '../../kscw-endpoints/src/member-sport.js'
+import { createActingMemberMiddleware } from './acting-member.js'
 import { isLicenceStatus, notifyLicenceStatusChange, runLicenceStatusSweep } from '../../kscw-endpoints/src/licence-status.js'
 import { parseJsonArray, resolveMemberAudience } from '../../kscw-endpoints/src/audience.js'
 import { loadSuppressed } from '../../kscw-endpoints/src/email-suppression.js'
@@ -264,6 +265,16 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       const token = req.headers['x-turnstile-token'] || ''
       turnstileStore.run({ turnstileToken: token }, next)
     })
+  })
+
+  // ── 0b. Acting-member swap (households, migration 348) ─────────
+  // MUST be 'middlewares.after': it narrows an already-authenticated identity,
+  // so it has to run AFTER Directus's `authenticate` (which builds
+  // req.accountability) and BEFORE any route reads it. Verified ordering in the
+  // running image: authenticate :220 → cache :226 → middlewares.after :227 →
+  // endpoint router :273. See acting-member.js for the full contract.
+  init('middlewares.after', ({ app }) => {
+    app.use(createActingMemberMiddleware(database, log))
   })
 
   // Block unauthenticated members.create / feedback.create / event_signups.create / mixed_tournament_signups.create without valid Turnstile
@@ -5988,10 +5999,27 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // crons, auto-confirm/auto-decline, triggers) and admins. For participations/
   // absences a team coach/TR may also write for their own team members (roster
   // editing); the strictly-personal collections are self-only.
-  async function assertCreateOwnership(accountability, db, affectedMemberId, { allowLeader }) {
+  // Collections a household guardian may NOT write even though the acting swap
+  // makes her look exactly like the member (migration 348).
+  //
+  // ⚠⚠ WITHOUT THIS SET, THE SWAP SILENTLY INVERTS THE RULE BELOW. Acting makes
+  // `editor.id === affectedMemberId`, so the "self only" branch returns early and
+  // every strictly-personal collection quietly becomes guardian-writable. The
+  // comment on the allowLeader:false list says "nobody votes or delegates on
+  // another member's behalf" — this is what keeps that true.
+  //
+  // ⚠ push_subscriptions and team_requests are deliberately NOT here: writing a
+  // child's push row from the parent's device is exactly the intent (Stage 5),
+  // and requesting to join a team is a legitimate parent action.
+  const GUARDIAN_FORBIDDEN_CREATE = new Set(['poll_votes', 'scorer_delegations'])
+
+  async function assertCreateOwnership(accountability, db, affectedMemberId, { allowLeader, collection }) {
     if (!accountability?.user) return          // system context
     if (accountability.admin) return           // admins bypass
     if (affectedMemberId == null) return        // owner omitted — NOT NULL / other filters handle it
+    if (accountability.kscwGuardian && collection && GUARDIAN_FORBIDDEN_CREATE.has(collection)) {
+      throw kscwScopeError('Not permitted while using another account', 403, 'NOT_OWNER')
+    }
     const editor = await db('members').where('user', accountability.user).select('id').first()
     if (editor && Number(editor.id) === Number(affectedMemberId)) return  // self
     if (allowLeader && editor) {
@@ -6017,7 +6045,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // member-owned, coach/TR of the member's team may also create (roster editing)
   for (const coll of ['participations', 'absences']) {
     filter(`${coll}.items.create`, async (payload, _meta, { database: db, accountability }) => {
-      await assertCreateOwnership(accountability, db, payload?.member, { allowLeader: true })
+      await assertCreateOwnership(accountability, db, payload?.member, { allowLeader: true, collection: coll })
       return payload
     })
   }
@@ -6027,7 +6055,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     ['scorer_delegations', 'from_member'],
   ]) {
     filter(`${coll}.items.create`, async (payload, _meta, { database: db, accountability }) => {
-      await assertCreateOwnership(accountability, db, payload?.[field], { allowLeader: false })
+      await assertCreateOwnership(accountability, db, payload?.[field], { allowLeader: false, collection: coll })
       return payload
     })
   }

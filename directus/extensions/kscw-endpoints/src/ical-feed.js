@@ -490,6 +490,13 @@ export function registerICalFeed(router, { database, logger }) {
     try {
       const userId = req.accountability?.user
       if (!userId) return res.status(401).json({ error: 'Authentication required' })
+      // ⚠⚠ This route MINTS a long-lived bearer token on READ. Handed to a
+      // guardian it would be a permanent, unrevocable feed of a child's fixtures
+      // that outlives the household link. Refused while acting; a combined
+      // household feed is the clean way to offer this later.
+      if (req.accountability?.kscwGuardian) {
+        return res.status(403).json({ error: 'Not available while using another account', code: 'acting_forbidden' })
+      }
       const m = await database('members').where('user', userId).first('id', 'ical_token')
       if (!m) return res.status(404).json({ error: 'No member for this account' })
       let token = m.ical_token
@@ -509,6 +516,10 @@ export function registerICalFeed(router, { database, logger }) {
     try {
       const userId = req.accountability?.user
       if (!userId) return res.status(401).json({ error: 'Authentication required' })
+      // Same reasoning as the mint above.
+      if (req.accountability?.kscwGuardian) {
+        return res.status(403).json({ error: 'Not available while using another account', code: 'acting_forbidden' })
+      }
       const m = await database('members').where('user', userId).first('id')
       if (!m) return res.status(404).json({ error: 'No member for this account' })
       const token = newIcalToken()
