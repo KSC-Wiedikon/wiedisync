@@ -14,9 +14,13 @@
  * Guards: role open (race-safe via whereNull), caller is an active member IN the
  * role's duty team, holds the required licence. Never lets a member set anyone
  * but themselves, or touch any non-member field.
+ *
+ * ⚠ "in the duty team" is `teamPeopleSql` (players ∪ coaches ∪ team
+ * responsibles), NOT a bare `member_teams` lookup — staff have no roster row.
  */
 
 import { writeUserLog } from './activity-log.js'
+import { teamPeopleSql } from './activity-roster-sql.js'
 
 // role → assignee column, duty-team column, confirmed-by pair, required licence
 // (any-of), and whether BB roles fall back to the shared bb_duty_team.
@@ -64,8 +68,17 @@ export function registerScorerClaim(router, ctx) {
 
       const dutyTeam = game[def.duty] != null ? game[def.duty] : (def.bbFallback ? game.bb_duty_team : null)
       if (dutyTeam == null) return res.status(409).json({ error: 'No duty team assigned for this role' })
-      const inTeam = await database('member_teams').where({ member: member.id, team: dutyTeam }).first('id')
-      if (!inTeam) return res.status(403).json({ error: 'You are not in the duty team for this role' })
+      // `teamPeopleSql`, not a bare `member_teams` join — coaches and team
+      // responsibles have no roster row, so the bare join denied a staff-only
+      // coach their OWN team's duty (the frontend claim button was equally
+      // blind; both now union the staff junctions).
+      // ⚠ teamPeopleSql interpolates its team expression TWICE (roster branch +
+      // staff branch) — hence the duplicated binding.
+      const { rows: inTeam } = await database.raw(
+        `SELECT 1 FROM ${teamPeopleSql('?')} p WHERE p.member = ? LIMIT 1`,
+        [dutyTeam, dutyTeam, member.id],
+      )
+      if (!inTeam.length) return res.status(403).json({ error: 'You are not in the duty team for this role' })
 
       const now = new Date().toISOString()
       const fullName = [member.first_name, member.last_name].filter(Boolean).join(' ').trim() || null

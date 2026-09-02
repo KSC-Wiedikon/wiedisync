@@ -9,6 +9,7 @@ import { useCollection } from '../../lib/query'
 import { useRealtime } from '../../hooks/useRealtime'
 import { useDebouncedRefetch } from '../../hooks/useDebouncedRefetch'
 import { useAuth } from '../../hooks/useAuth'
+import { useTeamPeopleIds } from '../../hooks/useTeamPeopleIds'
 import { useAdminMode } from '../../hooks/useAdminMode'
 import { logActivity } from '../../utils/logActivity'
 import { todayLocal, isWithinGameContactWindow, getCurrentSeason, getSeasonDateRange } from '../../utils/dateHelpers'
@@ -225,20 +226,18 @@ export default function ScorerPage() {
     all: true,
     enabled: !!user,
   })
-  const allMemberTeams = allMemberTeamsRaw ?? []
+  const allMemberTeams = useMemo(() => allMemberTeamsRaw ?? [], [allMemberTeamsRaw])
 
-  // Supporting data ScorerRow renders from (members/teams/member_teams). Both the
-  // upcoming and past sections gate on this in addition to games loading so rows
-  // never render against empty lookup maps.
-  const supportingLoading = membersLoading || teamsDataLoading || memberTeamsLoading
-  const teamMemberIds = useMemo(() => {
-    const map = new Map<string, Set<string>>()
-    for (const mt of allMemberTeams) {
-      if (!map.has(mt.team)) map.set(mt.team, new Set())
-      map.get(mt.team)!.add(mt.member)
-    }
-    return map
-  }, [allMemberTeams])
+  // Duty-team → everyone on it: the roster PLUS the coaches / team responsibles,
+  // who have no `member_teams` row at all. Built from `member_teams` alone this
+  // map meant "players only", so a staff-only coach was unpickable for their own
+  // team's duty (and could not self-claim it either — see `myDutyTeamIds` below).
+  const { teamPeopleIds: teamMemberIds, staffLoading } = useTeamPeopleIds(allMemberTeams, !!user)
+
+  // Supporting data ScorerRow renders from (members/teams/member_teams/staff).
+  // Both the upcoming and past sections gate on this in addition to games loading
+  // so rows never render against empty lookup maps.
+  const supportingLoading = membersLoading || teamsDataLoading || memberTeamsLoading || staffLoading
 
   const guestMemberIds = useMemo(() => {
     const guests = new Set<string>()
@@ -257,9 +256,11 @@ export default function ScorerPage() {
     return ids
   }, [allMemberTeams, user])
 
-  // Teams whose duty games this user may see: teams they play in PLUS teams they
-  // coach / are responsible for (so a staff-only coach — not a roster member —
-  // still sees their team's duty games, and the assigned official's contact).
+  // Teams whose duty games this user may see AND may claim: teams they play in
+  // PLUS teams they coach / are responsible for (so a staff-only coach — not a
+  // roster member — still sees their team's duty games, the assigned official's
+  // contact, and gets the self-claim button on their own team's open duties;
+  // the duty-claim endpoint applies the same union server-side).
   const myDutyTeamIds = useMemo(
     () => [...new Set([...userTeamIds, ...coachTeamIds, ...teamResponsibleIds])],
     [userTeamIds, coachTeamIds, teamResponsibleIds],
@@ -583,7 +584,7 @@ export default function ScorerPage() {
       isAdmin={isSportAdmin}
       showContact={showContactForGame(g)}
       userId={user?.id}
-      userTeamIds={userTeamIds}
+      userTeamIds={myDutyTeamIds}
       userLicences={user ? licencesOf(user) : []}
       sport={sportTab}
       onDelegate={isPast ? undefined : handleDelegate}
