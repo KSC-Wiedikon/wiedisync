@@ -6712,6 +6712,9 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // ── Fines (migration 069) — escalation engine + notifications ──
   //
   // filter('fines.items.create'):
+  //   `member` may be null — that's a TEAM-level fine (migration 350), owed by
+  //   the team itself. It skips the escalation engine (which counts offenses
+  //   per member×team×category) and therefore needs an explicit amount.
   //   If the leader leaves `amount` null, compute it via the SQL helper
   //   kscw_compute_fine_amount(member,team,category) and snapshot
   //   tier_offense + reset_window_at_issue onto the row. If amount is
@@ -6766,9 +6769,12 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   filter('fines.items.create', async (payload, _meta, { accountability, database: db }) => {
     try {
       if (!payload) return payload
-      if (!payload.member || !payload.team || !payload.category) {
-        throw kscwScopeError('fines.create requires member, team, category', 400, 'INVALID_PAYLOAD')
+      // `member` is optional since migration 350: a member-less row is a
+      // TEAM-level fine (forfait, missing scorer) owed by the team itself.
+      if (!payload.team || !payload.category) {
+        throw kscwScopeError('fines.create requires team, category', 400, 'INVALID_PAYLOAD')
       }
+      const isTeamFine = payload.member == null
 
       // 0. Team-scope gate — caller must coach / be TR of payload.team.
       await assertFineTeamScope(accountability, db, payload.team)
@@ -6783,13 +6789,17 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       // 2. Engine snapshot — runs whether or not amount was provided. Caller's
       //    amount wins (leader override), but tier_offense + reset_window_at_issue
       //    always reflect the engine's view for audit.
+      //    A team fine has no offense counter (the engine keys on member×team×
+      //    category), so it skips the engine entirely and must carry an amount.
       let computed = null
       try {
-        const res = await db.raw(
-          'SELECT amount, tier_offense, reset_window_at_issue FROM kscw_compute_fine_amount(?::int, ?::int, ?::text)',
-          [Number(payload.member), Number(payload.team), String(payload.category)],
-        )
-        computed = res?.rows?.[0] || null
+        if (!isTeamFine) {
+          const res = await db.raw(
+            'SELECT amount, tier_offense, reset_window_at_issue FROM kscw_compute_fine_amount(?::int, ?::int, ?::text)',
+            [Number(payload.member), Number(payload.team), String(payload.category)],
+          )
+          computed = res?.rows?.[0] || null
+        }
       } catch (err) {
         // Engine errors shouldn't block the insert — leaders can still issue
         // ad-hoc fines without a rule. Just log + skip snapshot.
@@ -6800,7 +6810,9 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       if (filled.amount == null) {
         if (!computed) {
           throw kscwScopeError(
-            'No fine_rule for this team/category and no amount supplied — set an explicit amount or configure a rule first.',
+            isTeamFine
+              ? 'A team-level fine has no escalation tier — supply an explicit amount.'
+              : 'No fine_rule for this team/category and no amount supplied — set an explicit amount or configure a rule first.',
             400, 'FINE_NO_RULE',
           )
         }
@@ -6934,6 +6946,9 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       const rows = await database('fines')
         .where('status', 'open')
         .where('issued_at', '<=', cutoff)
+        // Team-level fines (member IS NULL, migration 350) have no recipient —
+        // aggregating them would push to a phantom member id.
+        .whereNotNull('member')
         .select('member', 'amount', 'currency')
       if (rows.length === 0) {
         log.info({ msg: '[fines] reminder cron: no overdue fines', event: 'fines_reminder_cron_noop', duration_ms: Date.now() - startedAt })

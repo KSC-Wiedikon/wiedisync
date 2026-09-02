@@ -1327,7 +1327,8 @@ export interface FineRule extends BaseRecord {
 }
 
 export interface Fine extends BaseRecord {
-  member: string
+  /** `null` = a team-level fine (migration 350): owed by the team, not a member. */
+  member: string | null
   team: string
   category: FineCategory
   amount: number

@@ -83,7 +83,7 @@ export default function FinesPage() {
   // Resolve member + team names. Members can only see own fines so the
   // visible set is tiny; leaders may see hundreds — keep this lean by fetching
   // only the IDs the table needs.
-  const memberIds = [...new Set(fines.map((f) => String(f.member)))]
+  const memberIds = [...new Set(fines.filter((f) => f.member != null).map((f) => String(f.member)))]
   const teamIds = [...new Set(fines.map((f) => String(f.team)))]
   const { data: membersRaw, isLoading: membersLoading } = useCollection<Member>('members', {
     filter: memberIds.length ? { id: { _in: memberIds } } : undefined,
@@ -129,7 +129,8 @@ export default function FinesPage() {
   )
   const { data: issueTeamsRaw } = useCollection<Team>('teams', {
     filter: issueTeamsFilter,
-    fields: ['id', 'name'],
+    // `sport` feeds the picker's per-sport <optgroup>s.
+    fields: ['id', 'name', 'sport'],
     enabled: isLeader,
     all: true,
   })
@@ -250,11 +251,17 @@ export default function FinesPage() {
             {fines.map((f) => {
               const m = memberMap.get(String(f.member))
               const tm = teamMap.get(String(f.team))
-              const memberName = m ? `${m.last_name ?? ''} ${m.nickname || m.first_name || ''}`.trim() : `#${f.member}`
+              const memberName = f.member == null
+                ? t('fines:teamFineRow')
+                : m ? `${m.last_name ?? ''} ${m.nickname || m.first_name || ''}`.trim() : `#${f.member}`
               const teamName = (tm?.name as string) ?? `Team ${f.team}`
               return (
                 <TableRow key={f.id} className="min-h-[44px]">
-                  {scope === 'team' && <TableCell className="font-medium">{memberName}</TableCell>}
+                  {scope === 'team' && (
+                    <TableCell className={`font-medium whitespace-normal break-words ${f.member == null ? 'italic text-amber-700 dark:text-amber-400' : ''}`}>
+                      {memberName}
+                    </TableCell>
+                  )}
                   <TableCell className="hidden sm:table-cell text-xs text-gray-600 dark:text-gray-400">{teamName}</TableCell>
                   <TableCell className="text-sm">{t(`fines:${categoryLabelKey(f.category)}`)}</TableCell>
                   <TableCell className="text-right font-medium tabular-nums">{formatFineAmount(f.amount, f.currency)}</TableCell>

@@ -9,7 +9,8 @@ import type { Fine, FineActivityType, FineCategory } from '../../types'
 interface IssueFineModalProps {
   open: boolean
   onClose: () => void
-  memberId: string | number
+  /** `null` = fine the team itself (migration 350) — no member owes it. */
+  memberId: string | number | null
   memberName: string
   teamId: string | number
   teamName?: string
@@ -59,8 +60,15 @@ export default function IssueFineModal({
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Engine quote — re-runs when category changes.
-  const quote = useFineQuote(memberId, teamId, category, { enabled: open })
+  // A team-level fine is owed by the team, not a member: the escalation engine
+  // counts offenses per member×team×category, so there is no tier to quote and
+  // the amount is always entered by hand.
+  const isTeamFine = memberId == null
+
+  // Engine quote — re-runs when category changes. useFineQuote reports
+  // not-ready (data null, isLoading false) for a null memberId, so a team fine
+  // never fires the rules/priors queries.
+  const quote = useFineQuote(memberId, teamId, category, { enabled: open && !isTeamFine })
 
   // Whenever a fresh quote arrives, populate the amount field — unless the
   // leader has typed something themselves. Adjust-state-during-render (React's
@@ -99,7 +107,7 @@ export default function IssueFineModal({
         throw new Error(t('fines:amountLabel') + ' …')
       }
       const payload: Record<string, unknown> = {
-        member: Number(memberId),
+        member: isTeamFine ? null : Number(memberId),
         team: Number(teamId),
         category,
         amount: amountNum,
@@ -120,6 +128,7 @@ export default function IssueFineModal({
   }
 
   const previewLine = (() => {
+    if (isTeamFine) return null
     if (quote.isLoading) return null
     if (!quote.rule) return t('fines:previewNoRule')
     if (!quote.data) return t('fines:previewError')
@@ -132,11 +141,21 @@ export default function IssueFineModal({
   })()
 
   return (
-    <Modal open={open} onClose={onClose} title={t('fines:issueFineFor', { name: memberName })}>
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={isTeamFine
+        ? t('fines:issueFineForTeam', { name: teamName ?? '' })
+        : t('fines:issueFineFor', { name: memberName })}
+    >
       <form onSubmit={handleSubmit} className="space-y-4">
-        {teamName && (
+        {isTeamFine ? (
+          <div className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
+            {t('fines:targetTeamHint')}
+          </div>
+        ) : teamName ? (
           <div className="text-xs text-gray-500 dark:text-gray-400">{teamName}</div>
-        )}
+        ) : null}
 
         {/* Category */}
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -163,7 +182,7 @@ export default function IssueFineModal({
             min="0"
             value={amountText}
             onChange={(e) => { setAmountText(e.target.value); setAmountOverridden(true) }}
-            placeholder={t('fines:amountPlaceholder')}
+            placeholder={isTeamFine ? t('fines:amountPlaceholderTeam') : t('fines:amountPlaceholder')}
             required
             className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
           />
