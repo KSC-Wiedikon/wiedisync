@@ -111,8 +111,8 @@ async function generateSummary(locale, data, monthLabel, year) {
   try {
     const baseUrl = WEBSITE_URL;
 
-    const vbLabel = locale === 'de' ? 'Volleyball' : 'Volleyball';
-    const bbLabel = locale === 'de' ? 'Basketball' : 'Basketball';
+    const vbLabel = 'Volleyball';
+    const bbLabel = 'Basketball';
     const newsLabel = 'News';
     const outlookLabel = locale === 'de' ? 'Ausblick' : 'Outlook';
 
@@ -126,7 +126,11 @@ async function generateSummary(locale, data, monthLabel, year) {
       `3. <b>🏀 ${bbLabel}</b> — 1-2 sentences about basketball results/highlights ONLY. Only mention basketball teams here.`,
       `4. <b>${outlookLabel}</b> — 1-2 sentences about upcoming games, split by sport.`,
       `The data has [volleyball] or [basketball] tags — use them to assign teams to the correct sport section. NEVER put a basketball team in the volleyball section or vice versa.`,
-      `This newsletter covers ${monthLabel} ${year} ONLY. Do NOT mention any other month or the future.`,
+      // Sections 1-3 are the retrospective; section 4 is the ONLY forward-looking one.
+      // Stated as a scope per section, because a blanket "do not mention the future"
+      // contradicts the Ausblick/Outlook section three lines above it and the model has
+      // to pick one — silently, and usually against the section subscribers read for it.
+      `Sections 1-3 report on ${monthLabel} ${year}. The ${outlookLabel} section is the one place that looks ahead.`,
       `No markdown. Only HTML (<b>, <a>, <br>). No <p> tags, no # headers.`,
       `Write enthusiastically but factually. Keep each section concise.`,
     ].join(' ');
@@ -153,6 +157,15 @@ async function generateSummary(locale, data, monthLabel, year) {
       console.error('Claude API error:', result.error.message || JSON.stringify(result.error));
       return null;
     }
+    // Token accounting. The other two Claude call sites (sql-ai.js, expense-upload.js)
+    // log usage; without it there is no way to see what a prompt change costs here, or
+    // whether a summary is being truncated against max_tokens.
+    const usage = result.usage || {};
+    console.log('[newsletter-digest] summary generated', JSON.stringify({
+      locale,
+      tokensIn: usage.input_tokens ?? null,
+      tokensOut: usage.output_tokens ?? null,
+    }));
     return result.content?.[0]?.text || null;
   } catch (err) {
     console.error('Claude API call failed:', err.message);
