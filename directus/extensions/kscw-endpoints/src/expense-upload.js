@@ -104,19 +104,33 @@ Rules:
 
 const EXTRACT_TOOL = {
   name: 'extract_expense',
-  description: 'Return the structured fields extracted from the expense document.',
+  // A tool description is a contract, and this one is read on every scan: the ambiguity of
+  // a Swiss receipt (Zwischentotal above the Total, an MwSt line that looks like an amount,
+  // an invoice date next to a due date) belongs HERE, in the parameter semantics, not in
+  // the prose instruction. Measured on a synthetic receipt carrying all four traps.
+  description: `Record the fields read off one expense receipt or invoice that a club member paid personally and is claiming back.
+Call it once per document, after reading the whole page — a Swiss receipt puts the grand total below the VAT breakdown, so the last amount is usually the right one and the first rarely is.
+Pass null for any field that is genuinely not printed; the form asks the member to fill the gaps, and a guessed value is worse than an empty one because it looks confirmed.
+It records only what is on the paper: it does not validate the IBAN, convert currency, decide whether the expense is reimbursable, or store anything.`,
+  // Keeps the schema-valid-arguments guarantee that tool_choice:'tool' used to give.
+  strict: true,
   input_schema: {
     type: 'object',
     properties: {
-      amount: { type: ['number', 'null'], description: 'Total amount paid' },
-      currency: { type: 'string', description: 'ISO 4217 currency code, default CHF' },
-      date: { type: ['string', 'null'], description: 'Document date as yyyy-mm-dd' },
-      vendor: { type: ['string', 'null'], description: 'Merchant / payee name' },
-      description: { type: ['string', 'null'], description: 'Short description of the purchase' },
-      reference: { type: ['string', 'null'], description: 'Invoice/reference number or null' },
-      payee_iban: { type: ['string', 'null'], description: "Vendor's IBAN if printed, else null" },
+      amount: { type: ['number', 'null'], description: 'Grand total actually paid, VAT included — the "Total" / "Betrag" line, not a subtotal, not the VAT amount, not a single line item. Dot decimal separator.' },
+      currency: { type: 'string', description: 'ISO 4217 code of the amount above (CHF, EUR, …). CHF when the receipt shows no currency.' },
+      date: { type: ['string', 'null'], description: 'Date the purchase was made, yyyy-mm-dd. On an invoice this is the invoice date, not the due date or a service period.' },
+      vendor: { type: ['string', 'null'], description: 'Name of the merchant or supplier who was paid, as printed at the top of the document.' },
+      description: { type: ['string', 'null'], description: 'What was bought, in a short phrase (~80 chars) a treasurer can scan — e.g. "Team dinner, 12 people" or "2 match balls".' },
+      reference: { type: ['string', 'null'], description: 'Invoice number, receipt number or QR-bill reference, if one is printed.' },
+      // ⚠ "Copy it exactly as printed" is load-bearing, not politeness: asked for a compacted
+      // IBAN the model drops or duplicates a digit roughly a third of the time (measured
+      // 2/5 and 2/6 across two prompt variants), and every corruption was in a re-typed,
+      // space-stripped rendering. Verbatim: 6/6. cleanIban() strips the spaces for us.
+      payee_iban: { type: ['string', 'null'], description: "IBAN to pay the vendor, typically from a QR-bill payment part. The VENDOR's account — never the member's, and never one written in by hand. Copy it exactly as printed, spaces and all — do not reformat or compact it." },
     },
     required: ['amount', 'currency', 'date', 'vendor', 'description', 'reference', 'payee_iban'],
+    additionalProperties: false,
   },
 }
 
@@ -292,7 +306,7 @@ export function registerExpenseUpload(router, { database, logger, services, getS
           model: OCR_MODEL,
           max_tokens: 1024,
           tools: [EXTRACT_TOOL],
-          tool_choice: { type: 'tool', name: 'extract_expense' },
+          tool_choice: { type: 'auto' },
           messages: [{
             role: 'user',
             content: [fileBlock, { type: 'text', text: OCR_INSTRUCTIONS }],
@@ -322,7 +336,11 @@ export function registerExpenseUpload(router, { database, logger, services, getS
         vendor: typeof raw.vendor === 'string' ? raw.vendor.slice(0, 200) : null,
         description: typeof raw.description === 'string' ? raw.description.slice(0, 300) : null,
         reference: typeof raw.reference === 'string' ? raw.reference.slice(0, 140) : null,
-        payee_iban: typeof raw.payee_iban === 'string' ? raw.payee_iban.replace(/\s+/g, '').toUpperCase().slice(0, 34) : null,
+        payee_iban: (() => {
+          if (typeof raw.payee_iban !== 'string') return null
+          const iban = cleanIban(raw.payee_iban).slice(0, 34)
+          return isValidIban(iban) ? iban : null
+        })(),
       }
 
       const usage = data.usage || {}
