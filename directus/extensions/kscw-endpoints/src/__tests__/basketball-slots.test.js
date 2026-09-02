@@ -24,6 +24,7 @@ import {
   minutesOfDay, intervalsOverlap, hallsCollide, vbBusyWindow, vbBlocksSlot,
   addDays, dowOf, eachDate, candidateSlots, expandBlockedRules,
   hardReject, scoreSlot, planSlots, slotKey, parseJsonColumn,
+  restGapApplies, REST_GAP_DAYS,
   REJECT_CODES, SCORE,
 } from '../basketball-slots.js'
 
@@ -50,6 +51,7 @@ function ctx(over = {}) {
     adjacentPartners: new Map(),
     unavailableTeamDates: new Set(),
     awayGameTeamDates: new Set(),
+    teamGameDates: new Set(),
     ...over,
   }
 }
@@ -69,6 +71,7 @@ function team(over = {}) {
     start_hard: true,
     halls: { hard: false, tiers: [] },
     own_back_to_back: true,
+    rest_gap: true,          // category 'seniors' — prepareTeamRule derives it
     blockedDates: new Set(),
     ...over,
   }
@@ -409,6 +412,47 @@ describe('hardReject', () => {
     expect(hardReject(cand, team(), ctx({ awayGameTeamDates: new Set([`86|${SAT}`]) })))
       .toBe(REJECT_CODES.AWAY_GAME)
     expect(REJECT_CODES.AWAY_GAME).not.toBe(REJECT_CODES.TEAM_UNAVAILABLE)
+  })
+
+  it('does not offer the day after one of the team\'s own placed games', () => {
+    // Club rule 2026-09-02: "soft block one day before and one day after … so that a game
+    // can be placed manually but the date gets not suggested". Not writing the candidate
+    // IS the soft block — the prep grid's pitches come from the weekday grid, not from
+    // this inventory, so the date stays clickable.
+    expect(hardReject(cand, team(), ctx({ teamGameDates: new Set([`86|${FRI}`]) })))
+      .toBe(REJECT_CODES.ADJACENT_GAME)
+  })
+
+  it('does not offer the day before one either — an away fixture counts the same', () => {
+    expect(hardReject(cand, team(), ctx({ teamGameDates: new Set([`86|${SUN}`]) })))
+      .toBe(REJECT_CODES.ADJACENT_GAME)
+  })
+
+  it('reaches exactly one day, and only for this team', () => {
+    // Two days out is untouched: the gap is a rest day, not a weekend exclusion.
+    expect(hardReject(cand, team(), ctx({ teamGameDates: new Set(['86|2026-11-05']) }))).toBeNull()
+    expect(hardReject(cand, team(), ctx({ teamGameDates: new Set(['86|2026-11-09']) }))).toBeNull()
+    expect(hardReject(cand, team(), ctx({ teamGameDates: new Set([`99|${FRI}`]) }))).toBeNull()
+    expect(REST_GAP_DAYS).toBe(1)
+  })
+
+  it('exempts junior teams — back-to-back days are at times unavoidable for them', () => {
+    expect(restGapApplies('seniors')).toBe(true)
+    expect(restGapApplies('u18')).toBe(false)
+    expect(restGapApplies('youth')).toBe(false)
+    expect(restGapApplies(null)).toBe(false)
+    const junior = team({ category: 'youth', rest_gap: restGapApplies('youth') })
+    expect(hardReject(cand, junior, ctx({ teamGameDates: new Set([`86|${FRI}`]) }))).toBeNull()
+  })
+
+  it('says nothing about the day itself — that is the away block\'s job', () => {
+    // A game ON the date has a different fix, so it must keep its own code: an away
+    // fixture is undone by moving the game, a rest gap by placing it by hand anyway.
+    expect(hardReject(cand, team(), ctx({ teamGameDates: new Set([`86|${SAT}`]) }))).toBeNull()
+    expect(hardReject(cand, team(), ctx({
+      teamGameDates: new Set([`86|${SAT}`]),
+      awayGameTeamDates: new Set([`86|${SAT}`]),
+    }))).toBe(REJECT_CODES.AWAY_GAME)
   })
 
   it('a placed game takes the pitch — including across the A+B / A boundary', () => {

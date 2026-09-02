@@ -44,6 +44,8 @@ export default {
   blockDate: 'Bloquer cette date',
   unblockDate: 'Débloquer cette date',
   reason_away_game: 'Joue à l’extérieur chez {{opponent}}',
+  restGapBadge: 'Jour de repos',
+  restGapHint: 'Non proposé — cette équipe joue le {{date}}. Un match peut tout de même être placé à la main.',
   reason_team_blocked: 'Bloqué par la planification',
   nearbyGames: 'Autres matchs autour de cette date',
   note: 'Note',
@@ -240,6 +242,8 @@ export default {
   reject_hall_not_allowed: 'Salle non autorisée',
   reject_volleyball: 'Le volleyball occupe la salle',
   reject_team_unavailable: 'Équipe marquée indisponible',
+  reject_away_game: 'Joue à l’extérieur ce jour-là',
+  reject_adjacent_game: 'Veille ou lendemain d’un autre match',
   reject_pitch_taken: 'Un autre match occupe ce terrain',
   reject_partner_same_time: 'Une équipe liée joue à cette heure',
 

@@ -2,10 +2,14 @@ import { describe, it, expect } from 'vitest'
 import {
   FERIEN_HARD_LEAGUES,
   HALL_PRESET_RULES,
+  REST_GAP_CATEGORIES,
+  REST_GAP_DAYS,
+  adjacentGameDate,
   defaultRulePayload,
   guessCategory,
   hallPresetOf,
   normalizeRule,
+  restGapApplies,
   type BasketballHallRule,
 } from '../basketballRules'
 import type { Team } from '../../../../types'
@@ -169,5 +173,42 @@ describe('defaultRulePayload', () => {
     // No bb_source_id → the documented junior-regional default window, Ferien soft.
     expect(fresh.league).toBe('JUN_REG')
     expect(FERIEN_HARD_LEAGUES.has(String(fresh.league))).toBe(false)
+  })
+})
+
+/**
+ * The rest gap is MIRRORED in kscw-endpoints/src/basketball-slots.js (REST_GAP_DAYS,
+ * REST_GAP_CATEGORIES, restGapApplies). The values are pinned on both sides, so editing
+ * one half of the mirror fails here or in basketball-slots.test.js — never silently.
+ */
+describe('rest gap — one day either side of the team\'s own game', () => {
+  it('pins the window and the categories it binds', () => {
+    expect(REST_GAP_DAYS).toBe(1)
+    expect([...REST_GAP_CATEGORIES]).toEqual(['seniors'])
+  })
+
+  it('exempts junior teams, and a team with no category at all', () => {
+    // Club rule 2026-09-02: back-to-backs are at times unavoidable for the juniors.
+    expect(restGapApplies('seniors')).toBe(true)
+    expect(restGapApplies('u18')).toBe(false)
+    expect(restGapApplies('youth')).toBe(false)
+    expect(restGapApplies(null)).toBe(false)
+  })
+
+  it('finds the game one day either side, and ignores the day itself', () => {
+    // 2026-11-07 is the Saturday; 11-06 Friday, 11-08 Sunday.
+    expect(adjacentGameDate(new Set(['2026-11-06']), '2026-11-07')).toBe('2026-11-06')
+    expect(adjacentGameDate(new Set(['2026-11-08']), '2026-11-07')).toBe('2026-11-08')
+    // A game ON the date is a different fact with a different fix (an away fixture closes
+    // the date outright), so it must not read as a rest gap.
+    expect(adjacentGameDate(new Set(['2026-11-07']), '2026-11-07')).toBeNull()
+    expect(adjacentGameDate(new Set(['2026-11-05', '2026-11-09']), '2026-11-07')).toBeNull()
+    expect(adjacentGameDate(new Set(), '2026-11-07')).toBeNull()
+  })
+
+  it('crosses a month boundary without drifting', () => {
+    // The trap a plain string compare falls into: 30.11 → 01.12 and 01.03 → 28.02.
+    expect(adjacentGameDate(new Set(['2026-11-30']), '2026-12-01')).toBe('2026-11-30')
+    expect(adjacentGameDate(new Set(['2027-02-28']), '2027-03-01')).toBe('2027-02-28')
   })
 })

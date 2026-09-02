@@ -58,6 +58,8 @@ const REJECT_ORDER = [
   'hall_not_allowed',
   'volleyball',
   'team_unavailable',
+  'away_game',
+  'adjacent_game',
   'pitch_taken',
   'partner_same_time',
 ]

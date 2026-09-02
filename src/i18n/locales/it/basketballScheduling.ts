@@ -44,6 +44,8 @@ export default {
   blockDate: 'Blocca questa data',
   unblockDate: 'Sblocca questa data',
   reason_away_game: 'Gioca in trasferta da {{opponent}}',
+  restGapBadge: 'Giorno di riposo',
+  restGapHint: 'Non proposto — questa squadra gioca il {{date}}. Una partita può comunque essere inserita a mano.',
   reason_team_blocked: 'Bloccato dalla pianificazione',
   nearbyGames: 'Altre partite attorno a questa data',
   note: 'Nota',
@@ -242,6 +244,8 @@ export default {
   reject_hall_not_allowed: 'Palestra non consentita',
   reject_volleyball: 'La pallavolo occupa la palestra',
   reject_team_unavailable: 'Squadra segnata come non disponibile',
+  reject_away_game: 'Gioca in trasferta quel giorno',
+  reject_adjacent_game: 'Giorno prima o dopo un’altra partita',
   reject_pitch_taken: 'Un’altra partita occupa questo campo',
   reject_partner_same_time: 'Una squadra collegata gioca a quest’ora',
 

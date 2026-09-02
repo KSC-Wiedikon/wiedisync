@@ -44,6 +44,8 @@ export default {
   blockDate: 'Block this date',
   unblockDate: 'Unblock this date',
   reason_away_game: 'Plays away at {{opponent}}',
+  restGapBadge: 'Rest day',
+  restGapHint: 'Not suggested — this team plays on {{date}}. You can still place a game here by hand.',
   reason_team_blocked: 'Blocked by the planner',
   nearbyGames: 'Other games around this date',
   note: 'Note',
@@ -238,6 +240,8 @@ export default {
   reject_hall_not_allowed: 'Hall not allowed',
   reject_volleyball: 'Volleyball is using the hall',
   reject_team_unavailable: 'Team marked unavailable',
+  reject_away_game: 'Plays away that day',
+  reject_adjacent_game: 'Day before or after another game',
   reject_pitch_taken: 'Another game already has this court',
   reject_partner_same_time: 'A linked team plays at this time',
 

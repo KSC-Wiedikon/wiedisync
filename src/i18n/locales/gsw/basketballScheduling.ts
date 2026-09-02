@@ -44,6 +44,8 @@ export default {
   blockDate: 'Datum sperre',
   unblockDate: 'Sperri ufhebe',
   reason_away_game: 'Spielt uswärts bi {{opponent}}',
+  restGapBadge: 'Ruhetag',
+  restGapHint: 'Kein Vorschlag — das Team spielt am {{date}}. Es cha trotzdem vo Hand es Spiel gsetzt werde.',
   reason_team_blocked: 'Vo de Planig gsperrt',
   nearbyGames: 'Anderi Spiel um das Datum ume',
   note: 'Notiz',
@@ -242,6 +244,8 @@ export default {
   reject_hall_not_allowed: 'Halle nöd erlaubt',
   reject_volleyball: 'Volleyball belegt d Halle',
   reject_team_unavailable: 'Team als nöd verfüegbar markiert',
+  reject_away_game: 'Spielt a dem Tag uswärts',
+  reject_adjacent_game: 'Tag vor oder nach eme andere Spiel',
   reject_pitch_taken: 'Es anders Spiel belegt das Fäld',
   reject_partner_same_time: 'Es verknüpfts Team spielt zu dere Ziit',
 

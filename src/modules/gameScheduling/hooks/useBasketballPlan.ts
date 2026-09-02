@@ -4,6 +4,8 @@ import { createRecord, deleteRecord, updateRecord, kscwApi } from '../../../lib/
 import { useCollection } from '../../../lib/query'
 import { useAuth } from '../../../hooks/useAuth'
 import { useTeamLinks } from './useTeamLinks'
+import { useBasketballTeamRules } from './useBasketballTeamRules'
+import { adjacentGameDate, restGapApplies } from '../utils/basketballRules'
 import type {
   GameSchedulingSeason,
   Team,
@@ -143,6 +145,10 @@ export function useBasketballPlan(season: GameSchedulingSeason | null, opts: Bas
     hasSeason ? seasonId : null,
     'basketball',
   )
+  // The club's per-team constraint matrix — read here for ONE field, `category`, which
+  // decides whether the rest gap binds (juniors are exempt). Same query key as the
+  // settings panel's, so react-query serves both from one fetch.
+  const { byTeam: rulesByTeam } = useBasketballTeamRules(hasSeason ? seasonId : null)
   const hallsQ = useCollection<Hall>('halls', { fields: ['id', 'name'], sort: ['name'], all: true, staleTime: 120_000 })
   const closuresQ = useCollection<HallClosure>('hall_closures', {
     fields: ['hall', 'start_date', 'end_date', 'reason', 'source'],
@@ -353,6 +359,51 @@ export function useBasketballPlan(season: GameSchedulingSeason | null, opts: Bas
     [awayTeamDates, availability],
   )
 
+  /**
+   * teams.id → every date that team already plays: a placed home game (basketball_slot_plan)
+   * or an away fixture (`games`). The two sources the generator's rest gap reads, so the
+   * grid and the inventory agree about which dates sit next to a game.
+   */
+  const gameDatesByTeam = useMemo(() => {
+    const m = new Map<string, Set<string>>()
+    const add = (team: string | number | null | undefined, date: string) => {
+      if (team == null || !date) return
+      const k = String(team)
+      const set = m.get(k) ?? new Set<string>()
+      set.add(date)
+      m.set(k, set)
+    }
+    for (const p of placements.values()) add(p.kscw_team, p.date)
+    for (const g of awayGames) add(g.team, g.date)
+    return m
+  }, [placements, awayGames])
+
+  /**
+   * The team's own game one day either side of this date, or null — the club's SOFT block
+   * (rule 2026-09-02). Nothing is closed: the date keeps its card and still takes a
+   * hand-placed game. It only stops the date being SUGGESTED, which is what the generator
+   * does by not writing the candidate at all (basketball-slots.js → REST_GAP_DAYS).
+   *
+   * ⚠ Applied live, on top of the stored inventory: a suggestion generated before the
+   * neighbouring game was placed would otherwise keep advertising itself until the next
+   * generation run.
+   *
+   * ⚠ Junior teams are exempt, keyed on the SAME `basketball_team_rules.category` the
+   * generator reads — never on a league guess from the team name.
+   */
+  const teamRestBlockedOn = useCallback(
+    (teamId: string | number | null | undefined, date: string): { date: string } | null => {
+      if (teamId == null) return null
+      const rule = rulesByTeam.get(String(teamId))
+      if (!rule || !restGapApplies(rule.category)) return null
+      const dates = gameDatesByTeam.get(String(teamId))
+      if (!dates || !dates.size) return null
+      const at = adjacentGameDate(dates, date)
+      return at ? { date: at } : null
+    },
+    [rulesByTeam, gameDatesByTeam],
+  )
+
   /** Per-hall view of a (date, time): status + placement, resolving A+B combined occupancy. */
   const slotView = useCallback(
     (date: string, dow: number, time: string): { cells: HallCell[]; canCombineAB: boolean } => {
@@ -507,6 +558,7 @@ export function useBasketballPlan(season: GameSchedulingSeason | null, opts: Bas
     availKey,
     awayGames,
     teamBlockedOn,
+    teamRestBlockedOn,
     slotView,
     vbGames,
     closureEntries,
