@@ -6858,13 +6858,64 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     return payload
   })
 
+  /**
+   * Team-level fines (member IS NULL, migration 350) have no recipient of their
+   * own — the Teamkasse owes them, not a person. Until now that meant NOBODY
+   * was told: both fine actions bail on a member-less row and the reminder cron
+   * skips them, so a team fine only existed for whoever happened to open
+   * /fines. Fan the bell + push out to the team instead.
+   *
+   * `teamPeopleSql`, not a bare `member_teams` scan: a staff-only coach / team
+   * responsible has no roster row, and they are exactly the people who settle a
+   * Teamkasse fine. The placeholder is interpolated twice — bind the team id
+   * twice.
+   */
+  async function notifyTeamFine(fine, kind) {
+    const teamRow = await database('teams').where('id', fine.team).first('name')
+    const teamName = teamRow?.name || `Team ${fine.team}`
+    const amountStr = formatChf(fine.amount, fine.currency)
+    const reasonStr = (fine.reason || '').trim().slice(0, 80) || ''
+
+    const people = await database.raw(
+      `SELECT e.member AS member
+         FROM ${teamPeopleSql('?::integer')} e
+         JOIN members m ON m.id = e.member
+        WHERE m.wiedisync_active = true`,
+      [fine.team, fine.team],
+    )
+    const recipientIds = [...new Set((people?.rows || []).map(r => r.member).filter(Boolean))]
+    if (recipientIds.length === 0) return
+
+    const type = kind === 'issued' ? 'team_fine_issued' : kind === 'paid' ? 'team_fine_paid' : 'team_fine_waived'
+    const pushKey = kind === 'issued' ? 'teamFineIssued' : kind === 'paid' ? 'teamFinePaid' : 'teamFineWaived'
+
+    await database('notifications').insert(recipientIds.map(rid => ({
+      member: rid,
+      type,
+      title: type,
+      body: JSON.stringify({ team: teamName, amount: amountStr, reason: reasonStr, fineId: fine.id }),
+      activity_type: 'fine',
+      activity_id: String(fine.id),
+      team: fine.team,
+      read: false,
+    })))
+
+    await sendLocalizedPush(
+      database, recipientIds,
+      (ids, title, body) => sendPushToMembers(database, ids, title, body, `${FRONTEND_URL}/fines`, `team-fine-${fine.id}-${kind}`, log),
+      `${pushKey}.title`, `${pushKey}.body`,
+      { team: teamName, amount: amountStr, reason: reasonStr },
+    )
+  }
+
   action('fines.items.create', async ({ key }) => {
     try {
       if (!key) return
       const fine = await database('fines').where('id', key).first(
         'id', 'member', 'team', 'category', 'amount', 'currency', 'reason',
       )
-      if (!fine?.member) return
+      if (!fine) return
+      if (!fine.member) { await notifyTeamFine(fine, 'issued'); return }
       const team = await database('teams').where('id', fine.team).first('name')
       const teamName = team?.name || `Team ${fine.team}`
       const amountStr = formatChf(fine.amount, fine.currency)
@@ -6903,10 +6954,12 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       if (newStatus !== 'paid' && newStatus !== 'waived') return
 
       const rows = await database('fines').whereIn('id', keys).select(
-        'id', 'member', 'team', 'amount', 'currency',
+        'id', 'member', 'team', 'amount', 'currency', 'reason',
       )
       for (const fine of rows) {
-        if (!fine?.member) continue
+        if (!fine) continue
+        // Team-level fine: the team settled it, so the team hears about it.
+        if (!fine.member) { await notifyTeamFine(fine, newStatus); continue }
         const team = await database('teams').where('id', fine.team).first('name')
         const teamName = team?.name || `Team ${fine.team}`
         const amountStr = formatChf(fine.amount, fine.currency)

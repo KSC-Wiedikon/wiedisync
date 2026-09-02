@@ -43,6 +43,7 @@ import InstallBanner from '../guide/install/InstallBanner'
 import FormFillModal from '../forms/FormFillModal'
 import { useFillableForms, type FillableForm } from '../../hooks/useFillableForms'
 import YourDuesCard from '../finance/YourDuesCard'
+import YourFinesCard from '../fines/YourFinesCard'
 import HomePollsCard from '../polls/HomePollsCard'
 import UpcomingTicker from './components/UpcomingTicker'
 import { eventTypeLabelKey } from '../calendar/eventTypeLabel'
@@ -673,6 +674,9 @@ export default function HomePage() {
 
       {/* Your dues — member's open invoices (renders null when nothing is open) */}
       {user && isApproved && <YourDuesCard />}
+
+      {/* Open fines — own + the team fines the Teamkasse owes (null when clean) */}
+      {user && isApproved && <YourFinesCard />}
 
       {/* View toggle: unified appointments vs categorized sections */}
       {user && isApproved && (

@@ -85,4 +85,16 @@ export default {
   // the READER's language, not the sender's.
   licenceStatus: 'Licence',
   licence_status_changed: 'Your licence status for {{season}} is now: {{status}}',
+
+  // Fines (migration 069 / team fines migration 350). The row stores the key as
+  // its title and a {team, amount, reason} bag as its body, so the bell renders
+  // in the READER's language. Untranslated until 2026-09-02 — the bell showed
+  // the raw key.
+  fineLabel: 'Fine',
+  fine_issued: 'New fine from {{team}}: {{amount}}',
+  fine_paid: 'Your fine of {{amount}} ({{team}}) is marked as paid',
+  fine_waived: 'Your fine of {{amount}} ({{team}}) was waived',
+  team_fine_issued: '{{team}} was fined {{amount}} as a team',
+  team_fine_paid: 'The team fine of {{amount}} ({{team}}) is marked as paid',
+  team_fine_waived: 'The team fine of {{amount}} ({{team}}) was waived',
 } as const

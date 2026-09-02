@@ -81,4 +81,13 @@ export default {
   daysAgo: 'vor {{count}} T.',
   licenceStatus: 'Lizenz',
   licence_status_changed: 'Dein Lizenzstatus für {{season}} ist jetzt: {{status}}',
+
+  // Bussen (Migration 069 / Teambussen Migration 350)
+  fineLabel: 'Busse',
+  fine_issued: 'Neue Busse von {{team}}: {{amount}}',
+  fine_paid: 'Deine Busse über {{amount}} ({{team}}) ist als bezahlt markiert',
+  fine_waived: 'Deine Busse über {{amount}} ({{team}}) wurde erlassen',
+  team_fine_issued: '{{team}} hat als Team eine Busse über {{amount}} erhalten',
+  team_fine_paid: 'Die Teambusse über {{amount}} ({{team}}) ist als bezahlt markiert',
+  team_fine_waived: 'Die Teambusse über {{amount}} ({{team}}) wurde erlassen',
 } as const

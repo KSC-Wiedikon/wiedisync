@@ -301,6 +301,51 @@ const T = {
     fr: '{team} : {amount} a été annulée',
     it: '{team}: {amount} è stata annullata',
   },
+  // Team-level fines (migration 350) — owed by the Teamkasse, so the whole team
+  // (players AND staff) is the recipient. {team} = team name, {amount} =
+  // preformatted, {reason} = short freeform from the leader.
+  'teamFineIssued.title': {
+    de: 'Neue Teambusse',
+    gsw: 'Neui Teambueß',
+    en: 'New team fine',
+    fr: 'Nouvelle amende d\'équipe',
+    it: 'Nuova multa di squadra',
+  },
+  'teamFineIssued.body': {
+    de: '{team} • {amount}: {reason}',
+    gsw: '{team} • {amount}: {reason}',
+    en: '{team} • {amount}: {reason}',
+    fr: '{team} • {amount} : {reason}',
+    it: '{team} • {amount}: {reason}',
+  },
+  'teamFinePaid.title': {
+    de: 'Teambusse bezahlt',
+    gsw: 'Teambueß zahlt',
+    en: 'Team fine paid',
+    fr: 'Amende d\'équipe payée',
+    it: 'Multa di squadra pagata',
+  },
+  'teamFinePaid.body': {
+    de: '{team}: {amount} als bezahlt markiert',
+    gsw: '{team}: {amount} als zahlt markiert',
+    en: '{team}: {amount} marked as paid',
+    fr: '{team} : {amount} marqué comme payé',
+    it: '{team}: {amount} segnato come pagato',
+  },
+  'teamFineWaived.title': {
+    de: 'Teambusse erlassen',
+    gsw: 'Teambueß erlah',
+    en: 'Team fine waived',
+    fr: 'Amende d\'équipe annulée',
+    it: 'Multa di squadra annullata',
+  },
+  'teamFineWaived.body': {
+    de: '{team}: {amount} wurde erlassen',
+    gsw: '{team}: {amount} isch erlah worde',
+    en: '{team}: {amount} was waived',
+    fr: '{team} : {amount} a été annulée',
+    it: '{team}: {amount} è stata annullata',
+  },
   'fineReminder.title': {
     de: 'Offene Busse(n)',
     gsw: 'Offeni Bueße',

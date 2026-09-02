@@ -125,4 +125,10 @@ export default {
   ordinal2nd: '2ª',
   ordinal3rd: '3ª',
   ordinalNth: '{{n}}ª',
+
+  // Scheda home (multe aperte proprie + multe dovute dalla cassa squadra)
+  homeCardTitle: 'Multe aperte',
+  homeCardMine_one: 'Le tue: {{amount}} ({{count}} multa)',
+  homeCardMine_other: 'Le tue: {{amount}} ({{count}} multe)',
+  homeCardTeamOwes: '{{team}} deve {{amount}} come squadra',
 }

@@ -1135,7 +1135,7 @@ export interface Notification extends BaseRecord {
   type: 'activity_change' | 'upcoming_activity' | 'deadline_reminder' | 'result_available' | 'duty_delegation_request' | 'member_join_request' | 'poll_created' | 'event_invite' | 'new_report' | 'form_published' | 'form_submission' | 'form_reminder' | 'expense_status' | 'announcement' | 'licence_status'
   title: string
   body: string
-  activity_type: 'game' | 'training' | 'event' | 'scorer_duty' | 'team' | 'poll' | 'report' | 'form' | 'expense' | 'announcement' | ''
+  activity_type: 'game' | 'training' | 'event' | 'scorer_duty' | 'team' | 'poll' | 'report' | 'form' | 'expense' | 'announcement' | 'fine' | ''
   activity_id: string
   team: string
   read: boolean

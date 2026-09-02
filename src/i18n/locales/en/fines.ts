@@ -139,4 +139,10 @@ export default {
   ordinal2nd: '2nd',
   ordinal3rd: '3rd',
   ordinalNth: '{{n}}th',
+
+  // Home card (own open fines + the team fines the Teamkasse owes)
+  homeCardTitle: 'Open fines',
+  homeCardMine_one: 'Yours: {{amount}} ({{count}} fine)',
+  homeCardMine_other: 'Yours: {{amount}} ({{count}} fines)',
+  homeCardTeamOwes: '{{team}} owes {{amount}} as a team',
 }

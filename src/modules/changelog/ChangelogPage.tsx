@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.1.7'
+const APP_VERSION = '2.1.8'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,21 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.1.8',
+    date: '02.09.2026',
+    sections: [
+      {
+        title: 'A fine the team owes now reaches the team',
+        items: [
+          'Open fines appear on the home page. Your own open fines and the fines your team owes as a team are shown together at the top, split so it stays clear which is which \u2014 the card only appears when something is actually open.',
+          'A fine issued against a whole team now notifies that team. Team fines (a forfait, a missing scorer, a late match sheet) are paid out of the team fund and belonged to no single player, so nobody was told they existed: they were visible only to whoever happened to open the fines page. Everyone on the team \u2014 players and staff \u2014 now gets the notification when one is issued, marked as paid, or waived.',
+          'Your fines list shows the team fines of your teams, marked "Whole team". They are kept out of your personal outstanding total, which stays exactly what you owe yourself.',
+          'Fine notifications are translated and now open the fines page. They used to show an internal code instead of a message and took you to the home page when tapped.',
+        ],
+      },
+    ],
+  },
   {
     version: '2.1.7',
     date: '28.08.2026',

@@ -125,4 +125,10 @@ export default {
   ordinal2nd: '2.',
   ordinal3rd: '3.',
   ordinalNth: '{{n}}.',
+
+  // Home-Charte (eigeni offeni Bueße + Bueße vo de Teamkasse)
+  homeCardTitle: 'Offeni Bueße',
+  homeCardMine_one: 'Dini: {{amount}} ({{count}} Bueß)',
+  homeCardMine_other: 'Dini: {{amount}} ({{count}} Bueße)',
+  homeCardTeamOwes: '{{team}} schuldet {{amount}} als Team',
 }

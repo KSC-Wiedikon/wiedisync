@@ -80,4 +80,13 @@ export default {
   daysAgo: '{{count}}g fa',
   licenceStatus: 'Licenza',
   licence_status_changed: 'Il tuo stato della licenza per {{season}} ora è: {{status}}',
+
+  // Multe (migrazione 069 / multe di squadra migrazione 350)
+  fineLabel: 'Multa',
+  fine_issued: 'Nuova multa da {{team}}: {{amount}}',
+  fine_paid: 'La tua multa di {{amount}} ({{team}}) è segnata come pagata',
+  fine_waived: 'La tua multa di {{amount}} ({{team}}) è stata annullata',
+  team_fine_issued: '{{team}} ha ricevuto una multa di squadra di {{amount}}',
+  team_fine_paid: 'La multa di squadra di {{amount}} ({{team}}) è segnata come pagata',
+  team_fine_waived: 'La multa di squadra di {{amount}} ({{team}}) è stata annullata',
 } as const

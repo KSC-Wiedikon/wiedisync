@@ -125,4 +125,10 @@ export default {
   ordinal2nd: '2.',
   ordinal3rd: '3.',
   ordinalNth: '{{n}}.',
+
+  // Home-Karte (eigene offene Bussen + Bussen der Teamkasse)
+  homeCardTitle: 'Offene Bussen',
+  homeCardMine_one: 'Deine: {{amount}} ({{count}} Busse)',
+  homeCardMine_other: 'Deine: {{amount}} ({{count}} Bussen)',
+  homeCardTeamOwes: '{{team}} schuldet {{amount}} als Team',
 }

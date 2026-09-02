@@ -80,4 +80,13 @@ export default {
   daysAgo: 'il y a {{count}} j',
   licenceStatus: 'Licence',
   licence_status_changed: 'Ton statut de licence pour {{season}} est maintenant : {{status}}',
+
+  // Amendes (migration 069 / amendes d'équipe migration 350)
+  fineLabel: 'Amende',
+  fine_issued: 'Nouvelle amende de {{team}} : {{amount}}',
+  fine_paid: 'Ton amende de {{amount}} ({{team}}) est marquée comme payée',
+  fine_waived: 'Ton amende de {{amount}} ({{team}}) a été annulée',
+  team_fine_issued: '{{team}} a reçu une amende d\'équipe de {{amount}}',
+  team_fine_paid: 'L\'amende d\'équipe de {{amount}} ({{team}}) est marquée comme payée',
+  team_fine_waived: 'L\'amende d\'équipe de {{amount}} ({{team}}) a été annulée',
 } as const

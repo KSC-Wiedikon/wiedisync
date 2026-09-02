@@ -157,7 +157,7 @@ Used throughout — repeated literally rather than via subqueries because Direct
 | announcement_recipients | `OWN_MEMBER` | `id, announcement, member` only | **219** |
 | polls | `MY_TEAMS` (via team)| `*` | 035 |
 | referee_expenses | `MY_TEAMS` (via team) | `*` | 035 |
-| fines | `member.user = $CURRENT_USER` | `*` | **069** |
+| fines | `member.user = $CURRENT_USER` **OR** (`member IS NULL` AND `team.members.member.user = $CURRENT_USER`) — own fines, plus the TEAM-level fines (migration 350) of teams I'm on. 350 left team fines leader-only, which meant nobody on the team ever learned the Teamkasse owed one (both notification actions bail on a member-less row, and it never appeared on /fines for a player). Personal balances are untouched — the row still has no `member`, so the frontend sums the two branches separately. | `*` | **069 / 350** |
 | fine_rules | `team.member_teams.member.user = $CURRENT_USER` | `*` | **069** |
 | forms | `FORMS_VISIBLE` — `status _in {open, closed}` AND (`audience = club_wide` OR an attached team I'm a member of). Frontend resolves visibility via the two-step junction fetch (`useUserVisibleFormIds`); the policy walk of `forms.teams` is why the frontend must NOT also deep-filter it (M2M-deep-filter + policy-walk silent-`[]` landmine) | `*` | **086 / 087** |
 | forms_teams | none | `*` — junction read for the forms M2M | **086 / 087** |

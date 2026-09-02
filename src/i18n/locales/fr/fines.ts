@@ -125,4 +125,10 @@ export default {
   ordinal2nd: '2e',
   ordinal3rd: '3e',
   ordinalNth: '{{n}}e',
+
+  // Carte d'accueil (amendes ouvertes perso + amendes dues par la caisse d'équipe)
+  homeCardTitle: 'Amendes ouvertes',
+  homeCardMine_one: 'Les tiennes : {{amount}} ({{count}} amende)',
+  homeCardMine_other: 'Les tiennes : {{amount}} ({{count}} amendes)',
+  homeCardTeamOwes: '{{team}} doit {{amount}} en tant qu\'équipe',
 }

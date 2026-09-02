@@ -2066,7 +2066,27 @@ async function main() {
   // Filter walks: fines.member.user (own fines) — different alias from any
   // frontend filter (FE uses `{ member: { _eq: myId } }`) so the M2M
   // double-walk trap doesn't apply.
-  await setPermRead(MEMBER_POLICY, 'fines', { member: { user: { _eq: '$CURRENT_USER' } } })
+  //
+  // Second branch = TEAM-level fines (`member IS NULL`, migration 350). 350 left
+  // them leader-only, which meant a team owing CHF 50 out of the Teamkasse was
+  // invisible to the team: no bell, no push (both actions bail on a member-less
+  // row), no row on /fines. The team pays it, so the team must be able to see
+  // it. Scoped to teams the reader is ON — same `team.members.member.user` walk
+  // `fine_rules` below already uses (`members` is the o2m junction alias on
+  // teams). Personal balances are untouched: the row still has no `member`, so
+  // it never lands in anybody's own total — the frontend sums the two branches
+  // separately (YourFinesCard).
+  await setPermRead(MEMBER_POLICY, 'fines', {
+    _or: [
+      { member: { user: { _eq: '$CURRENT_USER' } } },
+      {
+        _and: [
+          { member: { _null: true } },
+          { team: { members: { member: { user: { _eq: '$CURRENT_USER' } } } } },
+        ],
+      },
+    ],
+  })
   await setPermRead(MEMBER_POLICY, 'fine_rules', {
     // `members` is the o2m alias on teams (each row is a member_teams junction);
     // `teams.member_teams` is NOT a relational field → "Invalid query" that

@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { ClipboardList, Clock, AlertTriangle, Trophy, Bell, ArrowRightLeft, BellRing, BellOff, UserPlus, Trash2, ChevronDown, X, Banknote, Megaphone, IdCard } from 'lucide-react'
+import { ClipboardList, Clock, AlertTriangle, Trophy, Bell, ArrowRightLeft, BellRing, BellOff, UserPlus, Trash2, ChevronDown, X, Banknote, Megaphone, IdCard, Gavel } from 'lucide-react'
 import type { Notification } from '../types'
 import { usePushNotifications } from '../hooks/usePushNotifications'
 
@@ -26,6 +26,12 @@ const typeIcons: Record<string, React.ReactNode> = {
   expense_status: <Banknote className="h-4 w-4" />,
   announcement: <Megaphone className="h-4 w-4" />,
   licence_status: <IdCard className="h-4 w-4" />,
+  fine_issued: <Gavel className="h-4 w-4" />,
+  fine_paid: <Gavel className="h-4 w-4" />,
+  fine_waived: <Gavel className="h-4 w-4" />,
+  team_fine_issued: <Gavel className="h-4 w-4" />,
+  team_fine_paid: <Gavel className="h-4 w-4" />,
+  team_fine_waived: <Gavel className="h-4 w-4" />,
 }
 
 const typeLabels: Record<string, string> = {
@@ -39,6 +45,12 @@ const typeLabels: Record<string, string> = {
   expense_status: 'expenseStatus',
   announcement: 'announcement',
   licence_status: 'licenceStatus',
+  fine_issued: 'fineLabel',
+  fine_paid: 'fineLabel',
+  fine_waived: 'fineLabel',
+  team_fine_issued: 'fineLabel',
+  team_fine_paid: 'fineLabel',
+  team_fine_waived: 'fineLabel',
 }
 
 function timeAgo(dateStr: string, t: (key: string, opts?: Record<string, unknown>) => string): string {
@@ -73,6 +85,8 @@ function getNavigationPath(n: Notification): string {
     case 'training': return n.activity_id ? `/trainings/${n.activity_id}` : '/trainings'
     case 'event': return n.activity_id ? `/events/${n.activity_id}` : '/events'
     case 'form': return '/forms'
+    // Fines have no detail route — the list is the detail view.
+    case 'fine': return '/fines'
     default: return '/'
   }
 }

@@ -46,7 +46,7 @@ function categoryLabelKey(c: string): string {
 
 export default function FinesPage() {
   const { t } = useTranslation(['fines', 'common'])
-  const { user, isCoach, coachTeamIds } = useAuth()
+  const { user, isCoach, coachTeamIds, memberTeamIds } = useAuth()
   const { effectiveIsAdmin, effectiveIsVorstand } = useAdminMode()
   const isLeader = isCoach || effectiveIsAdmin || effectiveIsVorstand
 
@@ -62,18 +62,30 @@ export default function FinesPage() {
   // `userId` is read out of `user` before the memo so the compiler-inferred
   // dependency matches the declared one (a `user?.id` dep infers as `user`).
   const userId = user?.id
+  // Roster teams + coached/TR teams — the scope of TEAM-level fines (member IS
+  // NULL, migration 350) the user is entitled to see. A staff-only coach has no
+  // member_teams row but is exactly who settles a Teamkasse fine.
+  const myTeamIds = useMemo(
+    () => [...new Set([...memberTeamIds, ...coachTeamIds])],
+    [memberTeamIds, coachTeamIds],
+  )
   const finesFilter = useMemo<Record<string, unknown> | undefined>(() => {
     const filters: Record<string, unknown>[] = []
     if (scope === 'mine' || !isLeader) {
       if (!userId) return { id: { _eq: -1 } }
-      filters.push({ member: { _eq: userId } })
+      // Own fines PLUS the team fines of teams the user is on: those are owed
+      // by the Teamkasse, so the whole team — not just its leaders — has to be
+      // able to see them. They stay out of the personal total below.
+      const branches: Record<string, unknown>[] = [{ member: { _eq: userId } }]
+      if (myTeamIds.length) branches.push({ _and: [{ member: { _null: true } }, { team: { _in: myTeamIds } }] })
+      filters.push(branches.length === 1 ? branches[0] : { _or: branches })
     }
     if (statusFilter !== 'all') filters.push({ status: { _eq: statusFilter } })
     if (scope === 'team' && teamFilter !== 'all') filters.push({ team: { _eq: teamFilter } })
     if (filters.length === 0) return undefined
     if (filters.length === 1) return filters[0]
     return { _and: filters }
-  }, [scope, isLeader, userId, statusFilter, teamFilter])
+  }, [scope, isLeader, userId, myTeamIds, statusFilter, teamFilter])
 
   const { data: finesRaw, refetch, isLoading } = useFines({ filter: finesFilter })
   const fines = finesRaw ?? []
@@ -141,7 +153,9 @@ export default function FinesPage() {
 
   // Totals strip (for the active filter)
   const total = fines.reduce((acc, f) => acc + (Number(f.amount) || 0), 0)
-  const openOnly = fines.filter((f) => f.status === 'open')
+  // The "outstanding" strip is the member's PERSONAL balance — a team fine is
+  // owed by the Teamkasse and must never inflate it (migration 350).
+  const openOnly = fines.filter((f) => f.status === 'open' && f.member != null)
   const openTotal = openOnly.reduce((acc, f) => acc + (Number(f.amount) || 0), 0)
 
   async function handleMarkPaid(fine: Fine) {
@@ -262,7 +276,14 @@ export default function FinesPage() {
                       {memberName}
                     </TableCell>
                   )}
-                  <TableCell className="hidden sm:table-cell text-xs text-gray-600 dark:text-gray-400">{teamName}</TableCell>
+                  <TableCell className={`text-xs text-gray-600 dark:text-gray-400 ${scope === 'team' ? 'hidden sm:table-cell' : ''}`}>
+                    {teamName}
+                    {scope === 'mine' && f.member == null && (
+                      <span className="ml-1 inline-block whitespace-nowrap rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+                        {t('fines:teamFineRow')}
+                      </span>
+                    )}
+                  </TableCell>
                   <TableCell className="text-sm">{t(`fines:${categoryLabelKey(f.category)}`)}</TableCell>
                   <TableCell className="text-right font-medium tabular-nums">{formatFineAmount(f.amount, f.currency)}</TableCell>
                   <TableCell><StatusBadge status={f.status} /></TableCell>

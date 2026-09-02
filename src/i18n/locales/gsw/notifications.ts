@@ -80,4 +80,13 @@ export default {
   daysAgo: 'vor {{count}} T.',
   licenceStatus: 'Lizänz',
   licence_status_changed: 'Din Lizänzstatus für {{season}} isch jetz: {{status}}',
+
+  // Bueße (Migration 069 / Teambueße Migration 350)
+  fineLabel: 'Bueß',
+  fine_issued: 'Neui Bueß vo {{team}}: {{amount}}',
+  fine_paid: 'Dini Bueß über {{amount}} ({{team}}) isch als zahlt markiert',
+  fine_waived: 'Dini Bueß über {{amount}} ({{team}}) isch erlah worde',
+  team_fine_issued: '{{team}} hät als Team e Bueß über {{amount}} übercho',
+  team_fine_paid: 'D Teambueß über {{amount}} ({{team}}) isch als zahlt markiert',
+  team_fine_waived: 'D Teambueß über {{amount}} ({{team}}) isch erlah worde',
 } as const
