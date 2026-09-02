@@ -49,6 +49,7 @@ export default {
   dataHealth: 'Datenqualität',
   clubdeskSync: 'ClubDesk-Sync',
   auditLog: 'Audit Log',
+  households: 'Haushalte',
   errorLogs: 'Fehlerprotokolle',
   sqlWorkspace: 'SQL-Workspace',
   bugfixes: 'Bugfixes',

@@ -2040,6 +2040,18 @@ async function main() {
   await setPerm(MEMBER_POLICY, 'user_logs', 'create')
   await setPermRead(MEMBER_POLICY, 'user_logs', OWN_DU)
 
+  // `households` / `household_members` / `member_guardians` (migration 348) —
+  // NO Member grant at all, and that absence is deliberate, not an oversight.
+  // The account switcher reads GET /kscw/household/me, a custom endpoint, so
+  // the Member policy needs zero rows here. That is the point: dev has been
+  // keyless since 2026-07-15, so a filtered permission added here could be
+  // neither written nor evaluated before it reached prod. Revoking one's own
+  // guardian link goes through DELETE /kscw/household/:id/members/:hmId, which
+  // authorises the member herself server-side.
+  // ⚠ If a future change is tempted to expose these via /items, note that a
+  // read filter walking household_members → members would be a deep-M2M policy
+  // walk of exactly the shape that returns a silent [] for non-admins.
+
   // Feedback — create + read own (migration 043 scoped read by submitter email).
   await setPerm(MEMBER_POLICY, 'feedback', 'create')
   await setPermRead(MEMBER_POLICY, 'feedback', { email: { _eq: '$CURRENT_USER.email' } })
@@ -2886,6 +2898,10 @@ async function main() {
     'finance_dues_rates', 'finance_dues_runs',
     // Expense submissions (migration 177) — board read; writes via /kscw/expenses/*.
     'finance_expenses',
+    // Households (migration 348) — board READ for oversight of who may act for
+    // whom. Creation stays admin/superuser only (see the Sport Admin block);
+    // `member_guardians` is granted to nobody, being trigger-derived.
+    'households', 'household_members',
   ]
   for (const col of VORSTAND_READ_ALL) {
     await setPermRead(VORSTAND_POLICY, col)
@@ -3028,6 +3044,18 @@ async function main() {
   // ⚠ Rows contain the recipient's name + address inside body_html — never grant
   // this to MEMBER_POLICY.
   await setPermRead(SPORT_ADMIN_POLICY, 'email_sends')
+  // Households (migration 348) — READ only, deliberately NOT in
+  // SPORT_ADMIN_FULL_CRUD. A household link is privilege-bearing: it hands one
+  // login write access to another member's record via the acting-member swap.
+  // Granting create here would let any Sport Admin put herself in a household
+  // with any member and become them — a larger privilege than the admin_access
+  // incident in SECURITY.md. Creation is admin/superuser only and goes through
+  // POST /kscw/household, which gates on the 'superuser' member role.
+  // `member_guardians` is trigger-derived and granted to NOBODY, not even for
+  // read: a hand-written row there is an acting grant with no household behind
+  // it. It is registered hidden + readonly in migration 348.
+  await setPermRead(SPORT_ADMIN_POLICY, 'households')
+  await setPermRead(SPORT_ADMIN_POLICY, 'household_members')
   // poll_votes — read non-anonymous polls only (2026-07-02 audit #5/#14); keep
   // create/update/delete for oversight/correction. Anonymous results via the
   // counts endpoint. (Full Directus admins still bypass all filters by design.)

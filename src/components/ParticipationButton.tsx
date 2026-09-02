@@ -154,7 +154,7 @@ function ParticipationButtonInner({
   data: { participation, effectiveStatus, setStatus, saveConfirmed, dismissConfirmed },
 }: ParticipationButtonProps & { data: ParticipationData }) {
   const { t } = useTranslation('participation')
-  const { isGuestIn, isStaffOnly } = useAuth()
+  const { isGuestIn, isStaffOnly, isActingForOther, user } = useAuth()
   // The per-day sheet writes its own rows, so it needs the same staff
   // classification the whole-event path applies (both wrappers derive it from
   // `teamId` before handing the props down).
@@ -211,12 +211,27 @@ function ParticipationButtonInner({
 
   const hasSessionMode = participationMode && participationMode !== 'whole' && eventSessions && eventSessions.length > 0
 
-  const statusLabels: Record<string, string> = {
-    confirmed: t('confirmed'),
-    declined: t('declined'),
-    tentative: t('tentative'),
-    waitlisted: t('waitlisted'),
-  }
+  // ⚠ The anti-mistake device for household guardians (migration 348).
+  // While a parent is acting for one of her children, the child's NAME goes
+  // inside the RSVP labels themselves — so it is under her thumb at the exact
+  // instant of the decision. This beats a confirmation dialog, because a parent
+  // doing a dozen RSVPs a week taps through dialogs blind by the second day.
+  // Together with the banner colour and the banner name, it is the third of
+  // three simultaneous answers to "which child am I?".
+  const actingName = isActingForOther ? (user?.first_name || '') : ''
+  const statusLabels: Record<string, string> = actingName
+    ? {
+      confirmed: t('rsvpConfirmedFor', { name: actingName }),
+      declined: t('rsvpDeclinedFor', { name: actingName }),
+      tentative: t('rsvpTentativeFor', { name: actingName }),
+      waitlisted: t('waitlisted'),
+    }
+    : {
+      confirmed: t('confirmed'),
+      declined: t('declined'),
+      tentative: t('tentative'),
+      waitlisted: t('waitlisted'),
+    }
 
   const deadlinePassed = respondBy
     ? getDeadlineDate(respondBy, activityStartTime) < new Date()

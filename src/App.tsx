@@ -30,6 +30,7 @@ import InfraHealthPage from './modules/admin/InfraHealthPage'
 import DataHealthPage from './modules/admin/DataHealthPage'
 import TransfersPage from './modules/admin/TransfersPage'
 import AuditLogPage from './modules/admin/AuditLogPage'
+import HouseholdsPage from './modules/admin/HouseholdsPage'
 import RefereeExpensesPage from './modules/admin/RefereeExpensesPage'
 import ClubStatsPage from './modules/admin/ClubStatsPage'
 import AdminHubPage from './modules/admin/AdminHubPage'
@@ -287,6 +288,7 @@ export default function App() {
                 bookmarks, in notification links and in the user guide PDFs.
                 `replace` so Back doesn't bounce off it. */}
             <Route path="admin/clubdesk-sync" element={<Navigate to="/admin/data-health" replace />} />
+            <Route path="admin/households" element={<SuperAdminRoute><HouseholdsPage /></SuperAdminRoute>} />
             <Route path="admin/audit-log" element={<SuperAdminRoute><AuditLogPage /></SuperAdminRoute>} />
             <Route path="admin/error-logs" element={<SuperAdminRoute><ErrorLogsPage /></SuperAdminRoute>} />
             <Route path="admin/sql" element={<SuperAdminRoute><SqlWorkspacePage /></SuperAdminRoute>} />

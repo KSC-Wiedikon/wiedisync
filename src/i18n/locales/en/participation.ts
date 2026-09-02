@@ -1,4 +1,9 @@
 export default {
+  // Household guardians (migration 348) — the child's name goes INSIDE the
+  // RSVP label, under the parent's thumb at the moment of the decision.
+  rsvpConfirmedFor: '{{name}} is coming',
+  rsvpDeclinedFor: "{{name}} can't",
+  rsvpTentativeFor: 'Maybe, {{name}}',
   // Auto sign-in (per-member auto-confirm RSVP) — profile toggles
   autoSignInTitle: 'Auto sign-in',
   autoSignInHint: "When on, you're automatically confirmed for new activities of that type. Activities you've already answered are never changed — you can still decline any individually.",

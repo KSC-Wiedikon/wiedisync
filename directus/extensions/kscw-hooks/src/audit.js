@@ -141,6 +141,13 @@ export function registerAuditHook({ action, schedule }, { database, logger }) {
         record_id: recordId != null ? String(recordId) : null,
         data: data == null ? null : JSON.stringify(data),
         user: memberId,
+        // Household guardians (migration 348/349). accountability.user is the
+        // CHILD while acting, so without this every RSVP a parent makes for her
+        // daughter is logged as the daughter and the parent is invisible.
+        // ⚠ This writer is the authoritative one — it binds action('items.*')
+        // and inserts with raw knex, so the `user_logs.items.create` FILTER hook
+        // never sees these rows and cannot stamp them on our behalf.
+        acting_guardian: accountability.kscwGuardian?.memberId ?? null,
         date_created: new Date(),
       })
     } catch (err) {

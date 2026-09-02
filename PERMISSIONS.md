@@ -76,6 +76,19 @@ Inheritance (additive): `Sport Admin` → `Team Responsible` → `Member`. `Vors
 
 **The role → policy attachments above are the complete declared set** (`DECLARED_ROLE_POLICIES`, `setup-permissions.mjs` §3). Since 2026-08-05 the **§3b reconcile** deletes every role-level `directus_access` row that is not in that list and dedups repeats to one row per pair, so the table is enforced rather than merely documented. Adding a line grants a tier; **removing a line revokes it on the next `db:setup-perms` run.** Note in particular that `Sport Admin` must NEVER hold `KSCW Admin` — that exact row existed on prod and made every sport admin a Directus superadmin. Never touched by the reconcile: user-level rows (the orthogonal policies below), the Public row, the `Administrator` role, and roles this script does not model. Run with `--reconcile-dry-run` to see what it would delete without deleting it.
 
+**Households (migrations 348/349) — an identity mechanism, not a policy tier.** A household guardian acts *as* the member she administers: `kscw-hooks/src/acting-member.js` swaps `req.accountability` to that member for one request when `X-KSCW-Acting-Member` is sent and a live `member_guardians` grant exists. She therefore carries **exactly the target's own permissions**, never her own — so this adds no row to any policy and every existing `$CURRENT_USER` filter keeps working verbatim.
+
+| Collection | Member | Team Responsible | Sport Admin | Vorstand | KSCW Admin |
+|---|---|---|---|---|---|
+| `households` | — | — | read | read | (admin_access) |
+| `household_members` | — | — | read | read | (admin_access) |
+| `member_guardians` | — | — | — | — | (admin_access) |
+
+- **No Member grant at all, deliberately.** The switcher reads `GET /kscw/household/me` and the admin page `GET /kscw/household` — custom endpoints, so the Member policy needs zero rows. That is the point: dev is keyless, so a filtered permission added here could be neither written nor evaluated before reaching prod. A member revokes her own guardian link via `DELETE /kscw/household/:id/members/:hmId`, authorised server-side.
+- **Creation is admin/superuser ONLY** (gated in `household.js` on the `superuser` member role, Directus admins bypass). Sport Admin and Vorstand get **read for oversight** and cannot create a link: a household link is privilege-bearing — it hands one login write access to another member's record — and granting create would let any Sport Admin put herself in a household with any member and become them, a larger privilege than the 2026-08-05 `admin_access` incident.
+- **`member_guardians` is granted to nobody, not even read.** It is trigger-derived from `household_members`; a hand-written row there would be an acting grant with no household behind it. Registered `hidden` + readonly in migration 348.
+- `user_logs.acting_guardian` (migration 349) rides the existing unrestricted-field grants; `user_logs` stays create+read for Sport Admin, never update/delete.
+
 **Orthogonal policies** — attached per-user via `directus_access` (NOT base roles), layered on top of whatever base role the user holds:
 - `KSCW Terminplanung` — members with `is_spielplaner = true` (game-scheduling + basketball prep; see its own section below).
 - `KSCW Spielplaner` — members with `is_spielplaner = true` OR at least one `spielplaner_assignments` row (per-team spielplaners). Manual-game create/update/delete in the Spielplanung planner, scoped to `source = 'manual'` at the policy layer; team scope is hook-enforced (kscw-hooks games guard). Reconciled by `setup-permissions.mjs §14` on every deploy.

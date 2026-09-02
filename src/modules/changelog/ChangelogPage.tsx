@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.1.8'
+const APP_VERSION = '2.3.0'
 
 interface ChangelogEntry {
   version: string
@@ -14,9 +14,18 @@ interface ChangelogEntry {
 
 const CHANGELOG: ChangelogEntry[] = [
   {
-    version: '2.1.8',
+    version: '2.3.0',
     date: '02.09.2026',
     sections: [
+      {
+        title: 'A member who has left is now one button',
+        items: [
+          'The member page in the Data Explorer has a "Member left" button. It writes the whole departure at once: the register status, the exit date, club membership and app access switched off, and the person comes off their current-season team rosters. Past seasons are kept \u2014 the match sheets and the "who played for D2 in 2024/25" answer live there.',
+          'Until now this had to be done column by column. Switching "Club membership" off on its own left the club register still saying the person is a member, with no exit date, and Data Health then reported them under "Former members without an exit date".',
+          'A departure typed in here now clears the current team rosters, exactly as a departure coming from ClubDesk always has. The same event used to have two different outcomes depending on which side it was entered from.',
+          'Deleting a member now says on screen that the ClubDesk contact stays. Nothing in wiedisync ever deletes a contact from the club register \u2014 so if somebody has simply left the club, "Member left" is the action that ends the membership properly and pushes the status and the exit date into the register at the next approved sync-up.',
+        ],
+      },
       {
         title: 'A fine the team owes now reaches the team',
         items: [
@@ -24,6 +33,23 @@ const CHANGELOG: ChangelogEntry[] = [
           'A fine issued against a whole team now notifies that team. Team fines (a forfait, a missing scorer, a late match sheet) are paid out of the team fund and belonged to no single player, so nobody was told they existed: they were visible only to whoever happened to open the fines page. Everyone on the team \u2014 players and staff \u2014 now gets the notification when one is issued, marked as paid, or waived.',
           'Your fines list shows the team fines of your teams, marked "Whole team". They are kept out of your personal outstanding total, which stays exactly what you owe yourself.',
           'Fine notifications are translated and now open the fines page. They used to show an internal code instead of a message and took you to the home page when tapped.',
+        ],
+      },
+    ],
+  },
+  {
+    version: '2.2.0',
+    date: '01.09.2026',
+    sections: [
+      {
+        title: "One login for the whole family",
+        items: [
+          "Parents who look after more than one child in the club can now do it from a single login. A bar at the top of every screen shows whose account you are using; tap it and pick another child. No second password, no logging out and back in.",
+          "Each child keeps her own separate member record \u2014 her own team, her own RSVPs, her own fees and licence. Nothing about that changes. What changes is only who is allowed to sign in and act for her.",
+          "Children who are looked after this way have no password at all and cannot sign in. That is deliberate: it means one fewer set of login details in circulation for a twelve-year-old, and a parent's access can be withdrawn completely at any time.",
+          "The child's name appears inside the buttons themselves \u2014 \"Mila is coming\" rather than just \"Yes\" \u2014 so it is under your thumb at the moment you decide, and there is no doubt about who you just answered for.",
+          "A child old enough to have her own login can remove a parent's access herself, from her profile. Private messages stay private either way: a parent managing RSVPs cannot read her child's conversations with teammates and coaches.",
+          "Club admins can set families up under Options \u2192 Households.",
         ],
       },
     ],

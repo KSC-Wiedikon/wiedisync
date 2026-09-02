@@ -3,22 +3,20 @@
 // "Mark as departed" for every member selected in the Data Explorer grid.
 //
 // Its own action rather than a field in the bulk-edit modal, because departing
-// the club is never one column. A status of 'Ehemaliges Mitglied' / 'Kein
-// Mitglied' / 'Verstorben' is the statement that this person is no longer one of
-// ours, and leaving them on rosters, in mailing audiences, in the dues run and
-// able to log in contradicts it — so four columns move together:
-//
-//   register_status  → the departed status the operator picked
-//   austritt         → the exit date (the CHECK members_austritt_needs_departed_status
-//                      refuses one WITHOUT a departed status, which is exactly
-//                      why the pair cannot be composed as two field writes)
-//   kscw_membership_active → false
-//   wiedisync_active       → false
+// the club is never one column. What it writes lives in departMember.ts, shared
+// with the single-member button in the danger zone (MemberDepartModal) so the
+// two surfaces cannot answer differently — four `members` columns plus the
+// member's roster rows on ACTIVE teams.
 //
 // ⚠ The two active flags are danger-zone fields everywhere else in the explorer.
 // Writing them here is the same deliberate exception the single-member save
 // makes (ExplorerMemberFields.handleSave), and for the same reason: they are not
 // a separate decision from the status, they are what the status MEANS.
+//
+// ⚠ `affected` tests the four COLUMNS only. A member whose columns already match
+// is skipped entirely, so a stale roster row on somebody departed long ago is
+// not swept up here — bulk cannot afford a roster read per selected member. The
+// single-member dialog counts rosters and does catch that case.
 //
 // ⚠ `register_status` and `austritt` are pushed into the club's LEGAL member
 // register by the next approved sync-up. This action therefore ends with a
@@ -36,11 +34,11 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
 import type { Member } from '../../../types'
-import { updateRecord } from '../../../lib/api'
-import { logActivity } from '../../../utils/logActivity'
 import { todayLocal } from '../../../utils/dateHelpers'
 import { useConfirm } from '../../../components/ConfirmProvider'
-import { DEPARTED_REGISTER_STATUSES } from './memberFieldOptions'
+import {
+  DEPARTED_ORDERED, alreadyDeparted, buildDepartPatch, departMember, fetchActiveTeamIds,
+} from './departMember'
 import { runBulk, type BulkRunSummary } from './bulkEdit'
 import type { CacheShape } from './explorerHelpers'
 
@@ -51,18 +49,6 @@ interface Props {
   onMutate: (fn: (prev: CacheShape) => CacheShape) => void
   onApplied: () => void
 }
-
-/**
- * The departed statuses, in the club register's own order.
- *
- * ⚠ Values are ClubDesk's picklist verbatim and are NOT translated — the column
- * is pushed straight into the register's Status cell, where a re-spelling is a
- * brand-new picklist entry rather than a synonym. Same rule as the single-member
- * editor. `Zwischenjahr` is deliberately absent: a gap year is a member taking a
- * season off, and the register keeps billing them.
- */
-const DEPARTED_ORDERED = ['Ehemaliges Mitglied', 'Kein Mitglied', 'Verstorben']
-  .filter((v) => DEPARTED_REGISTER_STATUSES.has(v))
 
 function memberName(m: Member): string {
   return `${m.first_name ?? ''} ${m.last_name ?? ''}`.trim() || String(m.id)
@@ -87,16 +73,10 @@ export default function ExplorerBulkDepartModal({ open, onClose, members, onMuta
    * active flags are fetched for every row the grid shows. `austritt` is too,
    * which is what makes the "already departed on this date" skip honest.
    */
-  const affected = useMemo(
-    () => members.filter((m) => {
-      const rec = m as unknown as Record<string, unknown>
-      return rec.register_status !== status
-        || String(rec.austritt ?? '').slice(0, 10) !== exitDate
-        || rec.kscw_membership_active === true
-        || rec.wiedisync_active === true
-    }),
-    [members, status, exitDate],
-  )
+  const affected = useMemo(() => {
+    const patch = buildDepartPatch(status, exitDate)
+    return members.filter((m) => !alreadyDeparted(m as unknown as Record<string, unknown>, patch))
+  }, [members, status, exitDate])
 
   const handleApply = useCallback(async () => {
     const targets = affected
@@ -118,23 +98,31 @@ export default function ExplorerBulkDepartModal({ open, onClose, members, onMuta
     setProgress({ done: 0, total: targets.length })
     setSummary(null)
 
+    // The active-team list is read ONCE for the whole run — a departure over 120
+    // people must not re-read it 120 times. A failure here aborts before
+    // anything is written: the roster drop is half of what "departed" means, and
+    // silently skipping it across a bulk run is not inspectable afterwards.
+    let activeTeamIds: string[]
+    try {
+      activeTeamIds = await fetchActiveTeamIds()
+    } catch {
+      setRunning(false)
+      setProgress(null)
+      toast.error(t('explorerDepartRostersUnavailable'))
+      return
+    }
+
     // One payload for everybody: unlike a field edit, every column here is the
     // same decision applied to the whole selection, and the two active flags are
     // written unconditionally rather than "only if still on" — a member already
     // switched off takes the same value and the write is idempotent.
-    const patch = {
-      register_status: status,
-      austritt: exitDate,
-      kscw_membership_active: false,
-      wiedisync_active: false,
-    }
+    const patch = buildDepartPatch(status, exitDate)
 
     const result = await runBulk(
       targets,
       async (member): Promise<'changed'> => {
         const id = String(member.id)
-        await updateRecord('members', id, patch)
-        logActivity('update', 'members', id, patch)
+        await departMember(id, patch, activeTeamIds)
         onMutate((prev) => ({
           ...prev,
           members: prev.members.map((m) => (String(m.id) === id ? { ...m, ...patch } : m)),

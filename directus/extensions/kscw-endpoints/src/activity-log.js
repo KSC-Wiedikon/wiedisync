@@ -22,6 +22,10 @@ export async function writeUserLog(database, log, { accountability, action, coll
       record_id: recordId != null ? String(recordId) : null,
       data: data == null ? null : JSON.stringify(data),
       user: m?.id ?? null,
+      // Household guardians (migration 348/349) — the custom-endpoint half of the
+      // same stamp applied in kscw-hooks/src/audit.js. BOTH writers must carry it
+      // or half of every household's actions land unattributed.
+      acting_guardian: accountability.kscwGuardian?.memberId ?? null,
       date_created: new Date(),
     })
   } catch (err) {

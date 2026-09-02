@@ -10,7 +10,7 @@
  */
 
 import { QueryClient, QueryCache, useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
-import { fetchItems, fetchAllItems, fetchItem, countItems, aggregateItems, createRecord, updateRecord, deleteRecord, kscwApi, stringifyIds } from './api'
+import { fetchItems, fetchAllItems, fetchItem, countItems, aggregateItems, createRecord, updateRecord, deleteRecord, kscwApi, stringifyIds, getActingMemberId } from './api'
 import { isSessionExpired } from './sessionError'
 import { toast } from 'sonner'
 import i18n from '../i18n'
@@ -94,13 +94,36 @@ export const queryClient = new QueryClient({
 
 // ── Query key factory ───────────────────────────────────────────────
 
+/**
+ * Identity namespace for every cache key.
+ *
+ * A household guardian (migration 348) can change WHO the app is without a
+ * reload. `switchTo()` calls `queryClient.clear()` on both directions, which is
+ * the actual correctness guarantee — this prefix is the belt to that braces: it
+ * stops a request already in flight for the previous child from resolving into
+ * the cache under a key the new child would read.
+ *
+ * `null` for everyone who is not acting, so ordinary members' keys are
+ * unchanged and nothing else in the app has to know this exists.
+ *
+ * ⚠ KNOWN SPLIT: ~60 call sites build their own `queryKey: ['finance', …]`
+ * literals instead of using this factory, and those are NOT namespaced. They are
+ * safe today because (a) `switchTo()` clears the whole cache, and (b) every one
+ * of them is an admin, finance or scheduling surface that a managed member — a
+ * plain Member by construction — cannot reach. If a member-scoped hook is ever
+ * added with a hand-built key, namespace it here too rather than relying on
+ * clear() alone. Prefix invalidation still works: `keys.collection(c)` remains a
+ * prefix of `keys.list(c)` within one identity.
+ */
+const identityScope = () => getActingMemberId()
+
 export const keys = {
-  collection: (name: string) => [name] as const,
+  collection: (name: string) => [identityScope(), name] as const,
   list: (name: string, query?: Record<string, unknown>) =>
-    query ? [name, 'list', query] as const : [name, 'list'] as const,
-  detail: (name: string, id: string | number) => [name, 'detail', id] as const,
+    query ? [identityScope(), name, 'list', query] as const : [identityScope(), name, 'list'] as const,
+  detail: (name: string, id: string | number) => [identityScope(), name, 'detail', id] as const,
   count: (name: string, filter?: Record<string, unknown>) =>
-    filter ? [name, 'count', filter] as const : [name, 'count'] as const,
+    filter ? [identityScope(), name, 'count', filter] as const : [identityScope(), name, 'count'] as const,
 }
 
 // ── Collection query hook ───────────────────────────────────────────

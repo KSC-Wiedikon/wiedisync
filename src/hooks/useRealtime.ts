@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef } from 'react'
-import { client as directus, isAuthenticated } from '../lib/api'
+import { client as directus, isAuthenticated, getActingMemberId } from '../lib/api'
 
 type RealtimeAction = 'create' | 'update' | 'delete'
 
@@ -63,7 +63,15 @@ export function useRealtime<T = Record<string, unknown>>(
 
   useEffect(() => {
     // Skip if not authenticated or explicitly disabled (auth still loading)
-    if (disabled || !isAuthenticated()) return
+    //
+    // ⚠ Also skipped while a household guardian is acting as one of her members
+    // (migration 348). The WebSocket handshake authenticates from the session
+    // COOKIE and cannot be told about the acting header, so the socket would
+    // silently hold the guardian's own accountability and Directus would filter
+    // out every frame belonging to the child. That looks identical to "nothing
+    // is happening", which is worse than being honestly off: the query client
+    // compensates with refetch-on-focus while acting.
+    if (disabled || getActingMemberId() != null || !isAuthenticated()) return
 
     const wanted = actionKey.split(',') as RealtimeAction[]
     const cleanups: Array<() => void> = []
