@@ -44,6 +44,8 @@ export default {
   blockDate: 'Datum sperren',
   unblockDate: 'Sperre aufheben',
   reason_away_game: 'Spielt auswärts bei {{opponent}}',
+  restGapBadge: 'Ruhetag',
+  restGapHint: 'Kein Vorschlag — dieses Team spielt am {{date}}. Ein Spiel kann hier trotzdem von Hand gesetzt werden.',
   reason_team_blocked: 'Von der Planung gesperrt',
   nearbyGames: 'Andere Spiele um dieses Datum',
   note: 'Notiz',
@@ -242,6 +244,8 @@ export default {
   reject_hall_not_allowed: 'Halle nicht erlaubt',
   reject_volleyball: 'Volleyball belegt die Halle',
   reject_team_unavailable: 'Team als nicht verfügbar markiert',
+  reject_away_game: 'Spielt an diesem Tag auswärts',
+  reject_adjacent_game: 'Tag vor oder nach einem anderen Spiel',
   reject_pitch_taken: 'Ein anderes Spiel belegt dieses Feld',
   reject_partner_same_time: 'Ein verknüpftes Team spielt zu dieser Zeit',
 

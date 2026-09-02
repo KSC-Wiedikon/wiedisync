@@ -399,6 +399,8 @@ export const REJECT_CODES = {
   TEAM_UNAVAILABLE: 'team_unavailable',
   /** The team plays AWAY that day (a `games` row), so it cannot host at KWI. */
   AWAY_GAME: 'away_game',
+  /** The day before / after one of this team's own games — not offered, still placeable. */
+  ADJACENT_GAME: 'adjacent_game',
   PITCH_TAKEN: 'pitch_taken',
   PARTNER_SAME_TIME: 'partner_same_time',
   NOT_A_SPIELSAMSTAG: 'not_a_spielsamstag',
@@ -432,6 +434,34 @@ export const SCORE = {
   BUSY_DATE: -4,
   /** ≥ this many basketball placements already on a date makes it "busy". */
   BUSY_DATE_THRESHOLD: 3,
+}
+
+/**
+ * REST GAP — the day before and the day after one of a team's own games is not OFFERED.
+ *
+ * Club rule 2026-09-02: "soft block one day before and one day after … so that a game can
+ * be placed manually but the date gets not suggested". Removing the candidate from
+ * `basketball_slots` is exactly that: the inventory is the SUGGESTION list, while the prep
+ * grid's pitches come from the fixed weekday grid, so a rest-gap date still opens, still
+ * shows "＋ Put game here", and still takes a hand-placed game. It sits in `hardReject`
+ * only because that is where "what gets written" is decided — it is not a block.
+ *
+ * ⚠ Mirrored in src/modules/gameScheduling/utils/basketballRules.ts (REST_GAP_DAYS +
+ * restGapApplies + adjacentGameDate). The prep grid suppresses the same suggestions LIVE,
+ * before the next generation run, so the grid and the inventory cannot tell different
+ * stories — the same invariant `teamBlockedOn` keeps for the two per-team hard rejects.
+ *
+ * ⚠ JUNIORS ARE EXEMPT (same rule): their 1.-Phase window is short and their fixture
+ * count fixed, so back-to-back days are at times unavoidable. Only `seniors` carry the
+ * gap, and an `open` team (no rules row) carries no team preference at all — "open"
+ * removes the team's own preferences, never the club-wide hall facts.
+ */
+export const REST_GAP_DAYS = 1
+export const REST_GAP_CATEGORIES = ['seniors']
+
+/** Does the rest gap bind a team of this `basketball_team_rules.category`? */
+export function restGapApplies(category) {
+  return REST_GAP_CATEGORIES.includes(String(category || ''))
 }
 
 /**
@@ -528,6 +558,20 @@ export function hardReject(cand, team, ctx) {
   //    blocking its own date would fight the own-slot exemption below) or a post-
   //    Spielplansitzung fixture ProBasket owns — neither is this rule's business.
   if (ctx.awayGameTeamDates.has(`${team.team}|${date}`)) return REJECT_CODES.AWAY_GAME
+
+  // ── Rest gap. The day either side of one of this team's own games (a placed home game
+  //    or an away fixture) is not SUGGESTED — see REST_GAP_DAYS for why this is not a block:
+  //    the pitch stays in the grid and still takes a hand-placed game.
+  //
+  //    ⚠ `date` itself is never judged here. A team's own game on the day is already
+  //    settled: away → AWAY_GAME above, home → its own placed pitch, which is deliberately
+  //    exempted below so the placement stays visible and removable.
+  if (team.rest_gap && ctx.teamGameDates) {
+    for (let gap = 1; gap <= REST_GAP_DAYS; gap++) {
+      if (ctx.teamGameDates.has(`${team.team}|${addDays(date, -gap)}`)) return REJECT_CODES.ADJACENT_GAME
+      if (ctx.teamGameDates.has(`${team.team}|${addDays(date, gap)}`)) return REJECT_CODES.ADJACENT_GAME
+    }
+  }
 
   // ── A placed game already holds a colliding court at this pitch (unless it is ours). ──
   const placedHere = ctx.placementsByPitch.get(`${date}|${time}`) || []
@@ -874,6 +918,24 @@ export function registerBasketballSlots(router, { database, logger }) {
       awayGames.map((g) => `${g.kscw_team}|${String(g.date).slice(0, 10)}`),
     )
 
+    // ── Every date a team ALREADY has a game — its placed home games plus those away
+    //    fixtures. Feeds the rest gap in hardReject.
+    //
+    //    ⚠ Deliberately the SAME two sources the prep grid draws from (basketball_slot_plan
+    //    + `games` type='away'), so the live grid and the generated inventory agree about
+    //    which dates sit next to a game. A ProBasket-owned HOME row in `games` is left out
+    //    for the same reason the away block leaves it out: once the Spielplansitzung has
+    //    fixed a home fixture it is not this tool's to re-suggest around.
+    //
+    //    ⚠ Away fixtures fall on ANY weekday (club rule 2026-09-02) — a Thursday away game
+    //    closes Friday's pitches, a Monday one closes Sunday's. Hence dates, not the
+    //    Fri/Sat/Sun candidate grid.
+    const teamGameDates = new Set(awayGameTeamDates)
+    for (const p of placements) {
+      if (p.kscw_team == null) continue
+      teamGameDates.add(`${p.kscw_team}|${String(p.date).slice(0, 10)}`)
+    }
+
     // Club-wide weekend cap. `spielsamstage_hard` makes the Spielsamstag list a HARD
     // filter for every team (see hardReject); `max_weekends` is carried for reporting
     // so a mismatch between the agreed cap and the configured list is visible rather
@@ -886,7 +948,7 @@ export function registerBasketballSlots(router, { database, logger }) {
       closedHallsByDate, holidayRanges, clubBlockedDates, vbBusyByDate,
       placementsByPitch, bbPlacementCountByDate, exclusivePartners, adjacentPartners,
       unavailableTeamDates,
-      awayGameTeamDates,
+      awayGameTeamDates, teamGameDates,
     }
   }
 
@@ -914,6 +976,7 @@ export function registerBasketballSlots(router, { database, logger }) {
       start_hard: false,
       halls: { hard: false, tiers: [] },   // never consulted while open:true
       own_back_to_back: true,
+      rest_gap: false,           // no category ⇒ no team preference to enforce (see REST_GAP_DAYS)
       blockedDates: new Set(),
     }
   }
@@ -921,6 +984,7 @@ export function registerBasketballSlots(router, { database, logger }) {
   /** Normalise a basketball_team_rules row + expand its blocked rules against the ctx. */
   function prepareTeamRule(row, ctx) {
     const league = String(row.league || DEFAULT_LEAGUE)
+    const category = String(row.category || 'seniors')
     const ranges = ctx.gridsByLeague[league] || ctx.gridsByLeague[DEFAULT_LEAGUE] || []
     const dates = []
     for (const r of ranges) for (const d of eachDate(r.start, r.end)) if (PLAY_DOW.includes(dowOf(d))) dates.push(d)
@@ -928,7 +992,11 @@ export function registerBasketballSlots(router, { database, logger }) {
       id: row.id,
       team: row.team,
       league,
-      category: String(row.category || 'seniors'),
+      category,
+      // Derived, not stored: the club stated the exemption as "not for junior teams", and
+      // `category` is the club's own junior/senior axis. One column if it ever needs a
+      // per-team override.
+      rest_gap: restGapApplies(category),
       ferien_hard: row.ferien_hard === true,
       allowed_dows: (parseJsonColumn(row.allowed_dows, [5, 6, 0]) || []).map(Number),
       preferred_dows: (parseJsonColumn(row.preferred_dows, []) || []).map(Number),

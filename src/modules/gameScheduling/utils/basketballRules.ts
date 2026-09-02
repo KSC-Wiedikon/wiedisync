@@ -8,7 +8,10 @@
  * silently rewrite the club's real hall rules.
  */
 
-import { HALL_A, HALL_B, HALL_C, HALL_AB, probasketLeagueForTeam, type ProbasketLeagueCode } from './probasketSeason'
+import {
+  HALL_A, HALL_B, HALL_C, HALL_AB, parseYmd, toYmd,
+  probasketLeagueForTeam, type ProbasketLeagueCode,
+} from './probasketSeason'
 import type { Team } from '../../../types'
 
 export type BasketballRuleCategory = 'seniors' | 'youth' | 'u18'
@@ -160,6 +163,56 @@ export function normalizeRule(row: Record<string, unknown>): BasketballTeamRule 
     blocked: parseJson<BasketballBlockedRule[]>(row.blocked, []),
     note: (row.note as string) || null,
   }
+}
+
+/**
+ * REST GAP — how far either side of one of a team's own games stays un-suggested.
+ *
+ * Club rule 2026-09-02: "soft block one day before and one day after … so that a game can
+ * be placed manually but the date gets not suggested". The generator drops those candidates
+ * from `basketball_slots`; the prep grid applies the same window LIVE to suggestions that
+ * were generated before the neighbouring game was placed, so the two never disagree.
+ *
+ * ⚠ Mirrored from kscw-endpoints/src/basketball-slots.js (REST_GAP_DAYS,
+ * REST_GAP_CATEGORIES, restGapApplies). Change one, change the other in the SAME commit —
+ * the same deliberate mirror as the pitch grid and the hall arithmetic.
+ */
+export const REST_GAP_DAYS = 1
+
+/**
+ * Junior teams are exempt: a short 1.-Phase window and a fixed fixture count make
+ * back-to-back days at times unavoidable, and a rule that cannot be met is a rule that
+ * gets worked around by hand. A team with no rules row ("open") is exempt too — open
+ * drops the team's own preferences, never the club-wide hall facts.
+ */
+export const REST_GAP_CATEGORIES: ReadonlySet<BasketballRuleCategory> = new Set(['seniors'])
+
+export function restGapApplies(category: BasketballRuleCategory | null | undefined): boolean {
+  return !!category && REST_GAP_CATEGORIES.has(category)
+}
+
+/**
+ * The team's own game sitting within REST_GAP_DAYS of `date`, or null. `gameDates` holds
+ * every date that team already plays (placed home game or away fixture).
+ *
+ * ⚠ `date` itself is never a hit — a game ON the day is a different fact with a different
+ * fix (an away fixture closes the date outright; a home placement holds its own pitch).
+ * The nearer neighbour wins, so the message names the game the planner will actually see.
+ */
+export function adjacentGameDate(
+  gameDates: ReadonlySet<string>,
+  date: string,
+  gap: number = REST_GAP_DAYS,
+): string | null {
+  for (let d = 1; d <= gap; d++) {
+    for (const delta of [-d, d]) {
+      const at = new Date(parseYmd(date))
+      at.setDate(at.getDate() + delta)
+      const ymd = toYmd(at)
+      if (gameDates.has(ymd)) return ymd
+    }
+  }
+  return null
 }
 
 /**

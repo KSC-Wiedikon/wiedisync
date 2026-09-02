@@ -61,7 +61,7 @@ export default function BasketballPrepPage() {
   const {
     config, candidateDates, teams, dateInfoByDate, blockers, blockedDayReasons,
     placements, availability, availKey, slotView, highlightFor, vbGames, closureEntries,
-    awayGames, teamBlockedOn, setDateUnavailable,
+    awayGames, teamBlockedOn, teamRestBlockedOn, setDateUnavailable,
     isLoading, error, placeGame, removeGame,
   } = useBasketballPlan(season, { bbSourceId })
 
@@ -146,13 +146,16 @@ export default function BasketballPrepPage() {
       const dow = dowByDate.get(s.date)
       if (dow == null) continue
       if (teamId && teamBlockedOn(teamId, s.date)) { n++; continue }
+      // The rest gap does not close the date — but the generator would no longer offer it,
+      // so a suggestion sitting on one is stale in exactly the same sense.
+      if (teamId && teamRestBlockedOn(teamId, s.date)) { n++; continue }
       const { cells } = slotView(s.date, dow, s.time)
       const needed = s.hall === HALL_AB ? [HALL_A, HALL_B] : [s.hall]
       const free = needed.every((h) => cells.find((c) => c.hall === h)?.status === 'free')
       if (!free) n++
     }
     return n
-  }, [mySlots, dowByDate, slotView, teamId, teamBlockedOn])
+  }, [mySlots, dowByDate, slotView, teamId, teamBlockedOn, teamRestBlockedOn])
 
   /** "Why this score": every soft term that produced it, translated, as a tooltip. */
   const scoreTitle = (slot: BasketballSlot): string => {
@@ -369,6 +372,10 @@ export default function BasketballPrepPage() {
             // The selected team's OWN blockers (away fixture / hand-set block). These close
             // the date even when the halls are wide open, because the team is elsewhere.
             const ownBlock = teamId ? teamBlockedOn(teamId, cd.date) : null
+            // SOFT: the day either side of one of this team's own games. The card renders
+            // and every free pitch stays clickable — only the machine suggestions go
+            // (club rule 2026-09-02). Juniors never reach this, the rule exempts them.
+            const restGap = !ownBlock && teamId ? teamRestBlockedOn(teamId, cd.date) : null
             /** Toggle the hand-set block. Only offered where it means something. */
             const blockToggle = teamId && !ownBlock?.reason.startsWith('away') ? (
               <Button
@@ -406,6 +413,14 @@ export default function BasketballPrepPage() {
               <div key={cd.date} className="rounded-lg border border-border">
                 <div className="flex flex-wrap items-center gap-3 border-b border-border px-3 py-2 text-sm font-semibold">
                   <span>{weekday(cd.date, i18n.language)} {formatDateZurich(cd.date)}</span>
+                  {restGap && (
+                    <span
+                      title={t('restGapHint', { date: formatDateZurich(restGap.date) })}
+                      className="rounded bg-amber-100 px-2 py-0.5 text-xs font-normal text-amber-900 dark:bg-amber-900/40 dark:text-amber-200"
+                    >
+                      {t('restGapBadge')}
+                    </span>
+                  )}
                   {blockToggle}
                 </div>
                 <div className="divide-y divide-border">
@@ -479,7 +494,7 @@ export default function BasketballPrepPage() {
                             // the selected team, the cell carries its rank and the soft
                             // terms behind it — a hand-placed game (brand colour above)
                             // stays visually distinct from a machine suggestion.
-                            const sug = suggestionAt(cd.date, time, cell.hall)
+                            const sug = restGap ? null : suggestionAt(cd.date, time, cell.hall)
                             return (
                               <button
                                 key={cell.hall}
