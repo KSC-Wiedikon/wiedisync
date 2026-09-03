@@ -732,13 +732,18 @@ export function registerGameScheduling(router, { database, logger, services, get
     return set
   }
 
-  // ── Cross-sport: basketball holds a KWI floor (migration 346) ─────────
-  // `basketball_slot_plan` places a basketball game on a KWI court; migration 295
-  // projects each placement onto the physical floors it occupies
-  // (`basketball_floor_claims`, A+B claiming both halves). That court is then gone
-  // for volleyball too, so a home slot standing on it must stop being offered and
-  // must not be bookable — until this, the coordination ran one way only and the
-  // basketball chip on the planner's calendar was the sole warning.
+  // ── Cross-sport: basketball holds a KWI floor (migrations 346 + 351) ──
+  // A basketball home game reaches the database by two roads: a `basketball_slot_plan`
+  // placement (migration 295 projects it onto the physical floors it occupies) and a
+  // `games` row — the Spielplanung editor's manual home game, and everything bp-sync
+  // scrapes out of Basketplan (migration 351 projects those the same way). That court
+  // is then gone for volleyball too, so a home slot standing on it must stop being
+  // offered and must not be bookable — until this, the coordination ran one way only
+  // and the basketball chip on the planner's calendar was the sole warning.
+  //
+  // ⚠ Read `bb_floor_claims_all` (migration 351's union), NEVER either claims table
+  // directly: a slot must disappear whichever road took the court, and a query against
+  // `basketball_floor_claims` alone silently ignores every Basketplan fixture.
   //
   // Both helpers below express the SAME predicate, in SQL, via the two functions
   // migration 346 adds — which in turn mirror `vbBlocksSlot()` in
@@ -754,7 +759,7 @@ export function registerGameScheduling(router, { database, logger, services, get
   /** knex modifier: drop every slot a basketball placement has taken the floor from. */
   const excludeBbFloorClaims = (q) => q.whereNotExists(function () {
     this.select(database.raw('1'))
-      .from('basketball_floor_claims as fc')
+      .from('bb_floor_claims_all as fc')
       .whereRaw('fc.date = game_scheduling_slots.date')
       .whereRaw('fc.floor = ANY (vb_slot_floors(game_scheduling_slots.hall, game_scheduling_slots.additional_halls::jsonb))')
       .whereRaw('bb_vb_time_overlap(game_scheduling_slots.start_time, game_scheduling_slots.end_time, fc."time")')
@@ -776,14 +781,13 @@ export function registerGameScheduling(router, { database, logger, services, get
     const extra = additionalHalls == null
       ? null
       : (typeof additionalHalls === 'string' ? additionalHalls : JSON.stringify(additionalHalls))
-    return db('basketball_floor_claims as fc')
-      .join('basketball_slot_plan as p', 'p.id', 'fc.plan')
-      .leftJoin('teams as t', 't.id', 'p.kscw_team')
+    // The view already resolves hall / team / opponent for both roads, so there is
+    // nothing left to join — and nothing left that could quietly drop one source.
+    return db('bb_floor_claims_all as fc')
       .where('fc.date', dateYmd)
       .whereRaw('fc.floor = ANY (vb_slot_floors(?::int, ?::jsonb))', [hallId, extra])
       .whereRaw('bb_vb_time_overlap(?::time, ?::time, fc."time")', [startTime ?? null, endTime ?? null])
-      .first('p.hall as bb_hall', 'p.time as bb_time', 'p.opponent as bb_opponent',
-             db.raw('COALESCE(t.name, p.kscw_team_label) as bb_team'))
+      .first('fc.bb_hall', 'fc.time as bb_time', 'fc.bb_opponent', 'fc.bb_team')
   }
 
   /** Human-readable refusal for a slot a basketball game already holds. */

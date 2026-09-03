@@ -1,28 +1,34 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { House, Plane, Plus } from 'lucide-react'
+import { House, Pencil, Plane, Plus, Trash2 } from 'lucide-react'
+import { toast } from 'sonner'
 import CalendarGrid from '../../../components/CalendarGrid'
 import Modal from '../../../components/Modal'
 import { Button } from '../../../components/ui/button'
+import { useConfirm } from '../../../components/ConfirmProvider'
+import { useMutation } from '../../../hooks/useMutation'
 import ManualGameModal from '../../spielplanung/ManualGameModal'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../components/ui/table'
 import { toDateKey, getSeasonYear } from '../../../utils/dateUtils'
 import { formatDateZurich } from '../../../utils/dateHelpers'
 import { useGameSchedulingSeason } from '../hooks/useGameSchedulingSeason'
-import { useBasketballPlan } from '../hooks/useBasketballPlan'
+import { useBasketballPlan, type BbFixture } from '../hooks/useBasketballPlan'
 import { parseYmd } from '../utils/probasketSeason'
-import type { BasketballSlotPlan, Team } from '../../../types'
+import type { BasketballSlotPlan, Game, Team } from '../../../types'
 
-// One thing shown on a calendar day: a basketball game (home/guest), a basketball
-// AWAY fixture, or a cross-sport volleyball home game (venue coordination). Hall
-// closures render as the grid's red day background, not as items.
+// One thing shown on a calendar day: a basketball PLACEMENT (home/guest, from
+// basketball_slot_plan), a basketball FIXTURE of either side (from `games`), or a
+// cross-sport volleyball home game (venue coordination). Hall closures render as the
+// grid's red day background, not as items.
 //
-// ⚠ 'away' comes from `games`, not from `basketball_slot_plan` — see useBasketballPlan.
-// It holds no KWI court, so its `hall` is the opponent's venue (often blank) and it must
-// never be styled or counted as an occupied pitch.
+// ⚠ The two basketball kinds are two different tables on purpose — see the fixturesQ
+// comment in useBasketballPlan. A placement is the planner's own draft on a KWI court
+// and is edited in the prep grid; a fixture is the real game, editable right here.
+// An AWAY fixture holds no KWI court, so its `hall` is the opponent's venue (often
+// blank) and it must never be styled or counted as an occupied pitch.
 type CalItem =
   | { id: string; kind: 'bb'; time: string; hall: string; label: string; guest: boolean }
-  | { id: string; kind: 'away'; time: string; hall: string; label: string }
+  | { id: string; kind: 'fixture'; time: string; hall: string; label: string; fixture: BbFixture }
   | { id: string; kind: 'vb'; time: string; hall: string }
 
 export interface BasketballCalendarPanelProps {
@@ -32,8 +38,12 @@ export interface BasketballCalendarPanelProps {
   placements: Map<string, BasketballSlotPlan>
   /** Booked volleyball slots — cross-sport hall coordination. */
   vbGames: { date: string; time: string; hall: string }[]
-  /** Basketball AWAY fixtures from `games` — they hold no court but do hold the date. */
-  awayGames?: { id: string; date: string; time: string; team: string | null; opponent: string; venue: string }[]
+  /**
+   * Basketball fixtures from `games`, both sides. An away one holds no court but does
+   * hold the date; a home one holds a KWI floor (migration 351) and, until 03.09.2026,
+   * was not rendered here at all.
+   */
+  fixtures?: BbFixture[]
   closureEntries: { start: string; end: string; hall: string | null; reason: string }[]
   /** date → "no game may be played" reason (ProBasket blackout / club-wide block). */
   blockedDayReasons?: Map<string, string>
@@ -48,9 +58,11 @@ export interface BasketballCalendarPanelProps {
  * needs the whole month, not just the KWI home pitches.
  */
 export function BasketballCalendarPanel({
-  seasonName, teams, placements, vbGames, awayGames = [], closureEntries, blockedDayReasons,
+  seasonName, teams, placements, vbGames, fixtures = [], closureEntries, blockedDayReasons,
 }: BasketballCalendarPanelProps) {
   const { t } = useTranslation('basketballScheduling')
+  const confirm = useConfirm()
+  const { remove: removeGame } = useMutation('games')
 
   const teamName = useCallback(
     (id: string | number | null | undefined, label?: string | null) =>
@@ -88,20 +100,24 @@ export function BasketballCalendarPanel({
         guest: p.game_type === 'guest',
       })
     }
-    for (const g of awayGames) {
+    for (const g of fixtures) {
       push(g.date, {
-        id: `away-${g.id}`, kind: 'away', time: g.time,
-        // The opponent's gym, when the fixture carries one. Blank is normal and honest —
-        // a bilaterally agreed away game often has no venue typed in yet.
+        id: `fx-${g.id}`, kind: 'fixture', time: g.time,
+        // Our hall for a home game; the opponent's gym for an away one, when the fixture
+        // carries one. Blank is normal and honest — a bilaterally agreed away game often
+        // has no venue typed in yet.
         hall: g.venue,
-        label: `${teamName(g.team, null)} @ ${g.opponent || '?'}`,
+        label: g.type === 'home'
+          ? `${teamName(g.team, null)} vs ${g.opponent || '?'}`
+          : `${teamName(g.team, null)} @ ${g.opponent || '?'}`,
+        fixture: g,
       })
     }
     for (const g of vbGames) push(g.date, { id: `vb-${g.date}-${g.time}-${g.hall}`, kind: 'vb', time: g.time, hall: g.hall })
     // Sort each day's items by time.
     for (const arr of m.values()) arr.sort((a, b) => a.time.localeCompare(b.time))
     return m
-  }, [placements, vbGames, awayGames, teamName])
+  }, [placements, vbGames, fixtures, teamName])
 
   // Hall closures → red day background + a per-day reason, expanding each range.
   const { closedDates, closureReasons } = useMemo(() => {
@@ -124,6 +140,30 @@ export function BasketballCalendarPanel({
   const [dayDetail, setDayDetail] = useState<{ date: Date; items: CalItem[] } | null>(null)
   /** The date an away game is being added for — drives ManualGameModal. */
   const [addAwayOn, setAddAwayOn] = useState<Date | null>(null)
+  /** The fixture being corrected — the same modal, in edit mode. */
+  const [editingGame, setEditingGame] = useState<Game | null>(null)
+  /** id of the fixture whose delete is in flight, so the button cannot be double-fired. */
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+
+  /**
+   * Delete a fixture, after asking.
+   *
+   * Closes the day panel afterwards: its `items` were captured when the day was opened,
+   * so leaving it up would show the row that no longer exists.
+   */
+  async function handleDelete(fx: BbFixture) {
+    if (!(await confirm({ message: t('deleteFixtureConfirm', { opponent: fx.opponent || '—' }), danger: true }))) return
+    setDeletingId(fx.id)
+    try {
+      await removeGame(fx.id)
+      setDayDetail(null)
+      toast.success(t('deleteFixtureDone'))
+    } catch {
+      toast.error(t('saveError'))
+    } finally {
+      setDeletingId(null)
+    }
+  }
 
   /**
    * Every active basketball team. Reaching this page already means `canManageBb`
@@ -189,12 +229,14 @@ export function BasketballCalendarPanel({
                       key={it.id}
                       title={it.kind === 'vb'
                         ? `${it.time} · ${it.hall} · ${t('homeGameVb')}`
-                        : `${it.time} · ${it.hall || t('type_away')} · ${it.label}`}
+                        : `${it.time} · ${it.hall || (it.kind === 'fixture' && it.fixture.type === 'away' ? t('type_away') : '—')} · ${it.label}`}
                       className={`flex items-center gap-0.5 rounded px-1 py-0.5 text-[10px] leading-tight ${
                         it.kind === 'vb'
                           ? 'bg-amber-200 text-amber-900 dark:bg-amber-900/50 dark:text-amber-200'
-                          : it.kind === 'away'
-                            ? 'bg-blue-500 text-white'
+                          : it.kind === 'fixture'
+                            ? it.fixture.type === 'away'
+                              ? 'bg-blue-500 text-white'
+                              : 'bg-brand-500 text-white'
                             : it.guest
                               ? 'bg-purple-500 text-white'
                               : 'bg-brand-500 text-white'
@@ -202,7 +244,11 @@ export function BasketballCalendarPanel({
                     >
                       {it.time && <span className="shrink-0 tabular-nums">{it.time}</span>}
                       {it.kind === 'bb' && !it.guest && <House className="h-2.5 w-2.5 shrink-0" aria-hidden />}
-                      {it.kind === 'away' && <Plane className="h-2.5 w-2.5 shrink-0" aria-hidden />}
+                      {it.kind === 'fixture' && (
+                        it.fixture.type === 'away'
+                          ? <Plane className="h-2.5 w-2.5 shrink-0" aria-hidden />
+                          : <House className="h-2.5 w-2.5 shrink-0" aria-hidden />
+                      )}
                       <span className="truncate">{it.kind === 'vb' ? t('homeGameVb') : it.label}</span>
                     </span>
                   ))}
@@ -235,6 +281,7 @@ export function BasketballCalendarPanel({
                   <TableHead>{t('colTime')}</TableHead>
                   <TableHead>{t('colHall')}</TableHead>
                   <TableHead>{t('colMatch')}</TableHead>
+                  <TableHead className="text-right">{t('colActions')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -243,10 +290,16 @@ export function BasketballCalendarPanel({
                     <TableCell className="whitespace-nowrap tabular-nums">{it.time || '—'}</TableCell>
                     <TableCell className="whitespace-normal break-words">{it.hall || '—'}</TableCell>
                     <TableCell className="whitespace-normal break-words">
-                      {it.kind === 'away' ? (
+                      {it.kind === 'fixture' ? (
                         <span className="inline-flex flex-wrap items-center gap-2">
-                          <span className="rounded bg-blue-100 px-2 py-0.5 text-xs text-blue-800 dark:bg-blue-900/40 dark:text-blue-200">
-                            {t('type_away')}
+                          <span
+                            className={`rounded px-2 py-0.5 text-xs ${
+                              it.fixture.type === 'away'
+                                ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200'
+                                : 'bg-brand-100 text-brand-800 dark:bg-brand-900/40 dark:text-brand-200'
+                            }`}
+                          >
+                            {it.fixture.type === 'away' ? t('type_away') : t('type_home')}
                           </span>
                           {it.label}
                         </span>
@@ -266,6 +319,39 @@ export function BasketballCalendarPanel({
                       ) : (
                         <span className="rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
                           {t('homeGameVb')}
+                        </span>
+                      )}
+                    </TableCell>
+                    {/* Only a `games` fixture is editable from here. A placement belongs
+                        to the prep grid (its date/time/hall ARE its identity) and a
+                        volleyball booking to the volleyball side — saying so beats an
+                        edit button that opens the wrong editor. */}
+                    <TableCell className="whitespace-normal break-words text-right">
+                      {it.kind === 'fixture' ? (
+                        <span className="flex flex-col items-stretch justify-end gap-1 sm:flex-row sm:items-center">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="min-h-11 sm:min-h-9"
+                            onClick={() => { setEditingGame(it.fixture.game); setDayDetail(null) }}
+                          >
+                            <Pencil className="h-4 w-4" aria-hidden /> {t('editFixture')}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={deletingId === it.fixture.id}
+                            className="min-h-11 text-red-600 hover:text-red-700 sm:min-h-9 dark:text-red-400"
+                            onClick={() => void handleDelete(it.fixture)}
+                          >
+                            <Trash2 className="h-4 w-4" aria-hidden /> {t('deleteFixture')}
+                          </Button>
+                        </span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">
+                          {it.kind === 'bb' ? t('editInPrepGrid') : '—'}
                         </span>
                       )}
                     </TableCell>
@@ -289,11 +375,14 @@ export function BasketballCalendarPanel({
         )}
       </Modal>
 
+      {/* One modal, two jobs: add (a date, seeded away) and correct (a whole fixture —
+          side, date, time, hall and opponent all editable). */}
       <ManualGameModal
-        open={!!addAwayOn}
-        onClose={() => setAddAwayOn(null)}
+        open={!!addAwayOn || !!editingGame}
+        onClose={() => { setAddAwayOn(null); setEditingGame(null) }}
         editableTeamIds={editableTeamIds}
         initialDate={addAwayOn}
+        editingGame={editingGame}
         initialSport="basketball"
         initialGameType="away"
       />
@@ -312,7 +401,7 @@ export function BasketballCalendarPanel({
 export default function BasketballCalendarPage() {
   const { t } = useTranslation('basketballScheduling')
   const { season, allSeasons, setSeason } = useGameSchedulingSeason()
-  const { teams, placements, vbGames, awayGames, closureEntries, blockedDayReasons } = useBasketballPlan(season)
+  const { teams, placements, vbGames, fixtures, closureEntries, blockedDayReasons } = useBasketballPlan(season)
 
   const selectClass = 'rounded-md border border-border bg-transparent px-3 py-2 text-sm dark:bg-gray-800'
 
@@ -339,7 +428,7 @@ export default function BasketballCalendarPage() {
         teams={teams}
         placements={placements}
         vbGames={vbGames}
-        awayGames={awayGames}
+        fixtures={fixtures}
         closureEntries={closureEntries}
         blockedDayReasons={blockedDayReasons}
       />

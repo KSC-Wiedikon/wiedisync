@@ -6,6 +6,7 @@ import {
   vbBusyWindow,
   vbBlocksSlot,
   bbBlocksVbSlot,
+  bbGameBlocksPitch,
   hallFloors,
   hallStatusAt,
   dayHallAvailability,
@@ -18,6 +19,7 @@ import {
   EMPTY_HALL_BLOCKERS,
   type HallBlockers,
   type VbBooking,
+  type BbGame,
 } from '../hallOccupancy'
 import { HALL_A, HALL_B, HALL_C, HALL_AB, SATURDAY_SLOTS, slotEndTime } from '../probasketSeason'
 
@@ -29,7 +31,12 @@ function blockers(partial: Partial<HallBlockers> = {}): HallBlockers {
     closedHallsByDate: partial.closedHallsByDate ?? new Map(),
     clubBlockedDates: partial.clubBlockedDates ?? new Set(),
     vbBusyByDate: partial.vbBusyByDate ?? new Map(),
+    bbGameBusyByDate: partial.bbGameBusyByDate ?? new Map(),
   }
+}
+
+function bbOn(date: string, games: BbGame[]): HallBlockers {
+  return blockers({ bbGameBusyByDate: new Map([[date, games]]) })
 }
 
 function vbOn(date: string, bookings: VbBooking[]): HallBlockers {
@@ -382,5 +389,82 @@ describe('bbBlocksVbSlot', () => {
         }
       }
     }
+  })
+})
+
+describe('bbGameBlocksPitch — our own fixtures hold the court too', () => {
+  const D = '2026-11-14'
+
+  it('takes its own pitch and leaves the next one', () => {
+    const games: BbGame[] = [{ hall: HALL_A, time: '16:00' }]
+    expect(bbGameBlocksPitch(games, HALL_A, '16:00')).not.toBeNull()
+    // 16:00 + 2h ends at 18:00; the 18:30 pitch is untouched (no changeover between
+    // two basketball games — same floor markings, same sport).
+    expect(bbGameBlocksPitch(games, HALL_A, '18:30')).toBeNull()
+    expect(bbGameBlocksPitch(games, HALL_A, '13:30')).toBeNull()
+  })
+
+  it('an A+B fixture blocks either half, and a half blocks A+B', () => {
+    expect(bbGameBlocksPitch([{ hall: HALL_AB, time: '16:00' }], HALL_B, '16:00')).not.toBeNull()
+    expect(bbGameBlocksPitch([{ hall: HALL_B, time: '16:00' }], HALL_AB, '16:00')).not.toBeNull()
+    // KWI C is a different hall and never collides with either.
+    expect(bbGameBlocksPitch([{ hall: HALL_AB, time: '16:00' }], HALL_C, '16:00')).toBeNull()
+  })
+
+  it('an unknown tip-off holds the court all day — never silently free', () => {
+    expect(bbGameBlocksPitch([{ hall: HALL_A, time: null }], HALL_A, '11:00')).not.toBeNull()
+    expect(bbGameBlocksPitch([{ hall: HALL_A, time: '' }], HALL_A, '18:30')).not.toBeNull()
+  })
+
+  it('a game somewhere that is not KWI claims nothing', () => {
+    expect(bbGameBlocksPitch([{ hall: 'Rebhügel', time: '16:00' }], 'Rebhügel', '16:00')).toBeNull()
+  })
+
+  it('returns the game, so a blocked cell can name what holds it', () => {
+    const g: BbGame = { hall: HALL_A, time: '16:00', label: 'Herren 1 vs BC Winterthur 2' }
+    expect(bbGameBlocksPitch([g], HALL_A, '16:00')).toBe(g)
+  })
+
+  it('hallStatusAt reports it as bbgame — the regression `games` 585 shipped', () => {
+    // Lions D1 vs RJ Lakers held KWI A+B at 20:00 while the grid called both halves free.
+    const b = bbOn(D, [{ hall: HALL_AB, time: '20:00' }])
+    expect(hallStatusAt(D, '20:00', HALL_A, b, false)).toBe('bbgame')
+    expect(hallStatusAt(D, '20:00', HALL_B, b, false)).toBe('bbgame')
+    expect(hallStatusAt(D, '20:00', HALL_C, b, false)).toBe('free')
+    expect(hallStatusAt(D, '11:00', HALL_A, b, false)).toBe('free')
+  })
+
+  it('a closed hall still wins — the planner cannot negotiate that one away', () => {
+    const b: HallBlockers = {
+      ...bbOn(D, [{ hall: HALL_A, time: '16:00' }]),
+      closedHallsByDate: new Map([[D, new Set([HALL_A])]]),
+    }
+    expect(hallStatusAt(D, '16:00', HALL_A, b, false)).toBe('unavailable')
+  })
+
+  it('blanks a Saturday and says basketball did it, not volleyball', () => {
+    const games: BbGame[] = SATURDAY_SLOTS.flatMap((time) =>
+      [HALL_A, HALL_B, HALL_C].map((hall) => ({ hall, time })),
+    )
+    const day = dayHallAvailability(D, SAT, bbOn(D, games), false)
+    expect(day.noneFree).toBe(true)
+    expect(day.reason).toBe('basketball')
+  })
+
+  it('keeps naming volleyball when both sports hold the day', () => {
+    const b: HallBlockers = {
+      ...bbOn(D, SATURDAY_SLOTS.map((time) => ({ hall: HALL_A, time }))),
+      vbBusyByDate: new Map([[D, [
+        { hall: HALL_B, start: '09:00', end: '21:00' },
+        { hall: HALL_C, start: '09:00', end: '21:00' },
+      ]]]),
+    }
+    const day = dayHallAvailability(D, SAT, b, false)
+    expect(day.noneFree).toBe(true)
+    expect(day.reason).toBe('volleyball')
+  })
+
+  it('EMPTY_HALL_BLOCKERS keeps every pitch free', () => {
+    expect(hallStatusAt(D, '16:00', HALL_A, EMPTY_HALL_BLOCKERS, false)).toBe('free')
   })
 })

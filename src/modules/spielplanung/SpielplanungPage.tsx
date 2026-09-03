@@ -87,13 +87,18 @@ export default function SpielplanungPage() {
     },
     [setSearchParams],
   )
-  const [filters, setFilters] = useState<SpielplanungFilterState>({
-    sport: 'all',
+  // `?sport=` seeds the sport filter once, on first render only: the scheduling shell's
+  // basketball tab links here with `?sport=basketball` (the page is shared by both
+  // sports), and a planner who arrives from there wants his own sport, not all of them.
+  // Not kept in sync afterwards — the filter bar owns it from that point on.
+  const sportParam = searchParams.get('sport')
+  const [filters, setFilters] = useState<SpielplanungFilterState>(() => ({
+    sport: sportParam === 'basketball' || sportParam === 'volleyball' ? sportParam : 'all',
     selectedTeamIds: [],
     gameType: 'all',
     showAbsences: false,
     showCrossTeam: false,
-  })
+  }))
   const [month, setMonth] = useState<Date>(getInitialMonth)
   const [weekAnchor, setWeekAnchor] = useState<Date>(() => new Date())
   const [selectedGame, setSelectedGame] = useState<Game | null>(null)
