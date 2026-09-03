@@ -61,7 +61,7 @@ export default function BasketballPrepPage() {
   const {
     config, candidateDates, teams, dateInfoByDate, blockers, blockedDayReasons,
     placements, availability, availKey, slotView, highlightFor, vbGames, closureEntries,
-    awayGames, teamBlockedOn, teamRestBlockedOn, setDateUnavailable,
+    fixtures, teamBlockedOn, teamRestBlockedOn, setDateUnavailable,
     isLoading, error, placeGame, removeGame,
   } = useBasketballPlan(season, { bbSourceId })
 
@@ -214,6 +214,8 @@ export default function BasketballPrepPage() {
         return `${t('reason_hall_closed')}${info.reasonDetail ? ` — ${info.reasonDetail}` : ''}`
       case 'volleyball':
         return t('reason_volleyball')
+      case 'basketball':
+        return t('reason_basketball')
       default:
         return t('statusUnavailable')
     }
@@ -346,7 +348,7 @@ export default function BasketballPrepPage() {
             teams={teams}
             placements={placements}
             vbGames={vbGames}
-            awayGames={awayGames}
+            fixtures={fixtures}
             closureEntries={closureEntries}
             blockedDayReasons={blockedDayReasons}
           />
@@ -367,8 +369,12 @@ export default function BasketballPrepPage() {
             const { times } = slotsForDate(cd.dow)
             const rows: TimeRow[] = times.map((time) => ({ time, ...slotView(cd.date, cd.dow, time) }))
             // A date is dead only when NOTHING can be placed AND nothing is placed —
-            // an existing game always keeps its card so it stays removable.
-            const anyPlaceable = rows.some((r) => r.cells.some((c) => c.status === 'free' || c.status === 'game'))
+            // an existing game always keeps its card so it stays removable, and a
+            // fixture already on that court keeps its card so the planner can SEE what
+            // took the day rather than finding it collapsed into "unavailable".
+            const anyPlaceable = rows.some((r) =>
+              r.cells.some((c) => c.status === 'free' || c.status === 'game' || c.status === 'bbgame'),
+            )
             // The selected team's OWN blockers (away fixture / hand-set block). These close
             // the date even when the halls are wide open, because the team is elsewhere.
             const ownBlock = teamId ? teamBlockedOn(teamId, cd.date) : null
@@ -459,6 +465,25 @@ export default function BasketballPrepPage() {
                                   </div>
                                   <div className="truncate">{placementLabel(p)}</div>
                                 </button>
+                              )
+                            }
+                            // A real game (a `games` fixture, ours) already holds this
+                            // court — from the game calendar or from Basketplan, not from
+                            // this grid, so it is shown but not clickable. Before
+                            // 03.09.2026 the cell said "free" and the ProBasket workbook
+                            // offered the court away underneath a game we had already
+                            // agreed to play on it.
+                            if (cell.status === 'bbgame') {
+                              return (
+                                <div
+                                  key={cell.hall}
+                                  title={t('statusBbGameHint', { hall: cell.hall, time })}
+                                  aria-disabled="true"
+                                  className={`${base} cursor-not-allowed border-brand-300 bg-brand-50 text-brand-900 opacity-80 dark:border-brand-800 dark:bg-brand-900/30 dark:text-brand-100`}
+                                >
+                                  <div className="font-medium">{cell.hall}</div>
+                                  <div className="truncate">{cell.fixture?.label || t('statusBbGame')}</div>
+                                </div>
                               )
                             }
                             // Volleyball holds this court around this pitch — shown, not

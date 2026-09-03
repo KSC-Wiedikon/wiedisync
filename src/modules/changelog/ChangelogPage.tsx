@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.3.0'
+const APP_VERSION = '2.4.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,21 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.4.0',
+    date: '03.09.2026',
+    sections: [
+      {
+        title: 'Basketball games can be corrected',
+        items: [
+          'A game on the basketball calendar can now be edited and deleted from the day it sits on. Tap the date, then "Edit" on the game: home or away, the date, the kick-off time, the hall and the opponent are all changeable. Until now a game could only be created \u2014 a fixture entered on the wrong side, or with a time that later moved, stayed wrong.',
+          'Home games now appear on the basketball calendar. A home game recorded on the game calendar used to be invisible in the whole basketball section, even while it occupied the club\u2019s biggest court.',
+          'A basketball home game in KWI now blocks that court for volleyball, the same way a game placed in the Spielplansitzung planner already did. Both sports read one list, so a court can no longer be offered to a volleyball opponent while a basketball game is standing on it. The planner grid and the ProBasket availability form stop offering it too.',
+          'The manual game calendar is now reachable from the basketball section, in the tab bar next to the calendar, opening with the basketball games already filtered.',
+        ],
+      },
+    ],
+  },
   {
     version: '2.3.0',
     date: '02.09.2026',

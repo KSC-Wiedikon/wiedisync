@@ -33,7 +33,7 @@ export default function SchedulingLayout() {
   const { t } = useTranslation('nav')
   const { t: tb } = useTranslation('basketballScheduling')
   const navigate = useNavigate()
-  const { pathname } = useLocation()
+  const { pathname, search } = useLocation()
 
   // Don't render the shell with incomplete role context; the app-level
   // <BootOverlay/> (in SchedulingApp) shows the single boot spinner meanwhile.
@@ -60,8 +60,15 @@ export default function SchedulingLayout() {
 
   // Sport split: the URL carries the sport — /admin/terminplanung/volleyball* vs
   // /admin/terminplanung/basketball*. Each sport has its own tab set.
+  //
+  // ⚠ /admin/spielplanung is SHARED by both sports, so it carries `?sport=` instead:
+  // without it, a basketball planner who opens the game calendar is thrown back into
+  // the volleyball tab set and has to find his way home again.
   const activeSport: 'volleyball' | 'basketball' =
-    pathname.startsWith('/admin/terminplanung/basketball') ? 'basketball' : 'volleyball'
+    pathname.startsWith('/admin/terminplanung/basketball') ||
+    new URLSearchParams(search).get('sport') === 'basketball'
+      ? 'basketball'
+      : 'volleyball'
 
   type NavItem = { to: string; label: string; Icon: typeof CalendarClock; end?: boolean }
   const volleyballNav: NavItem[] = [
@@ -76,6 +83,11 @@ export default function SchedulingLayout() {
     ...(canBasketball ? [{ to: '/admin/terminplanung/basketball', label: tb('tab'), Icon: CalendarCheck, end: true }] : []),
     ...(canBasketball ? [{ to: '/admin/terminplanung/basketball/calendar', label: tb('tabCalendar'), Icon: CalendarClock }] : []),
     ...(canBasketball ? [{ to: '/admin/terminplanung/basketball/settings', label: tb('tabSettings'), Icon: Settings }] : []),
+    // The manual game calendar — the ONLY place a fixture can be corrected (side,
+    // date, time, hall). It was volleyball-only until 03.09.2026, which is why a
+    // basketball planner who put a game on the wrong side could not find any way to
+    // fix it. `?sport=basketball` both seeds the page's filter and keeps this tab set.
+    ...(canPlanner ? [{ to: '/admin/spielplanung?sport=basketball', label: t('gameplan'), Icon: ClipboardList }] : []),
     // Sport-admin-only (see canBasketballMailbox) — a Spielplaner planning
     // basketball still has no basketball mailbox.
     ...(canBasketballMailbox ? [{ to: '/admin/terminplanung/basketball/mailbox', label: t('mailbox'), Icon: Mail }] : []),
@@ -87,10 +99,12 @@ export default function SchedulingLayout() {
   const basketballHome = '/admin/terminplanung/basketball'
 
   // Most-specific match wins so /settings doesn't light up the exact-match dashboard tab.
+  // Compared on the path alone — a tab may carry a `?sport=` hint (see activeSport).
+  const itemPath = (to: string) => to.split('?')[0]!
   const activeItem =
     navItems
-      .filter((item) => (item.end ? pathname === item.to : pathname.startsWith(item.to)))
-      .sort((a, b) => b.to.length - a.to.length)[0] ?? navItems[0]
+      .filter((item) => (item.end ? pathname === itemPath(item.to) : pathname.startsWith(itemPath(item.to))))
+      .sort((a, b) => itemPath(b.to).length - itemPath(a.to).length)[0] ?? navItems[0]
 
   const linkClass = ({ isActive }: { isActive: boolean }) =>
     `flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${

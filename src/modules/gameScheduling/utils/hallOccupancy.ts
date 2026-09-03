@@ -184,6 +184,50 @@ export function bbBlocksVbSlot(placements: readonly BbPlacement[], slot: VbBooki
   return false
 }
 
+/**
+ * A basketball game that already exists as a `games` row, resolved to a KWI hall name.
+ *
+ * ⚠ NOT a `basketball_slot_plan` placement. Home basketball games reach the database by
+ * two roads — the planner's grid writes a placement, the Spielplanung editor and
+ * bp-sync write a `games` row — and until 03.09.2026 only the first road took the court
+ * away from anybody. The backend mirror of this is migration 351 (`bb_floor_claims_all`).
+ */
+export interface BbGame extends BbPlacement {
+  /** "Herren 1 vs BC Winterthur 2" — so the blocked cell can name what holds it. */
+  label?: string
+}
+
+/**
+ * The basketball game holding `hall` over the pitch starting at `bbStart`, or null.
+ *
+ * Two basketball games need no changeover between them (same sport, same floor
+ * markings), so this is a plain BB_GAME_MINUTES-vs-BB_GAME_MINUTES overlap: an 11:00
+ * game takes the 11:00 pitch and leaves 13:30 alone, exactly as the fixed ProBasket
+ * grid assumes.
+ *
+ * Returns the game rather than a boolean so the grid can say WHICH one — "taken" with
+ * no name reads as a bug in the tool.
+ */
+export function bbGameBlocksPitch(
+  games: readonly BbGame[],
+  hall: string,
+  bbStart: string,
+): BbGame | null {
+  const floors = hallFloors(hall)
+  if (floors.length === 0) return null // not a KWI court — no basketball game claims it
+  const pitch = minutesOfDay(bbStart)
+  if (pitch == null) return null
+  for (const g of games) {
+    if (!hallFloors(g.hall).some((f) => floors.includes(f))) continue
+    const tip = minutesOfDay(g.time)
+    // An unknown tip-off must fail SAFE (holds the court all day) — the same contract
+    // vbBusyWindow() and migration 346's bb_vb_time_overlap() keep on the other side.
+    if (tip == null) return g
+    if (intervalsOverlap(tip, tip + BB_GAME_MINUTES, pitch, pitch + BB_GAME_MINUTES)) return g
+  }
+  return null
+}
+
 // ── Per-date blockers ────────────────────────────────────────────────────────
 
 /**
@@ -199,25 +243,39 @@ export interface HallBlockers {
   clubBlockedDates: Set<string>
   /** date → booked volleyball slots. */
   vbBusyByDate: Map<string, VbBooking[]>
+  /**
+   * date → basketball games that already exist as `games` rows (the Spielplanung
+   * editor's manual home games + everything bp-sync scrapes out of Basketplan).
+   *
+   * Optional so every existing caller keeps compiling, but leaving it out means the
+   * grid and the ProBasket export will offer a court a real fixture is standing on —
+   * which is the bug this field was added for (03.09.2026).
+   */
+  bbGameBusyByDate?: Map<string, BbGame[]>
 }
 
 export const EMPTY_HALL_BLOCKERS: HallBlockers = {
   closedHallsByDate: new Map(),
   clubBlockedDates: new Set(),
   vbBusyByDate: new Map(),
+  bbGameBusyByDate: new Map(),
 }
 
 /** Why a date (or a single hall on it) cannot host a basketball game. */
-export type DateBlockReason = 'blackout' | 'club_block' | 'hall_closed' | 'volleyball'
+export type DateBlockReason = 'blackout' | 'club_block' | 'hall_closed' | 'volleyball' | 'basketball'
 
-export type HallSlotStatus = 'unavailable' | 'vb' | 'free'
+export type HallSlotStatus = 'unavailable' | 'vb' | 'bbgame' | 'free'
 
 /**
- * Status of one (date, time, hall) pitch, ignoring basketball placements.
+ * Status of one (date, time, hall) pitch, ignoring basketball PLACEMENTS (the caller
+ * resolves those — they are editable and win over every blocker).
  *
  * 'unavailable' — a ProBasket blackout, a club-wide block or a hall closure. Nothing
  *                 can be planned; the planner cannot change it from here.
  * 'vb'          — volleyball holds that court over the pitch window (changeover included).
+ * 'bbgame'      — a basketball game that already exists in `games` holds it. Not
+ *                 editable from the grid (it lives on the game calendar), but it is a
+ *                 fixture, so the court is genuinely gone.
  * 'free'        — placeable.
  */
 export function hallStatusAt(
@@ -231,6 +289,9 @@ export function hallStatusAt(
   if (blockers.clubBlockedDates.has(date)) return 'unavailable'
   const closed = blockers.closedHallsByDate.get(date)
   if (closed && (closed.has('*') || closed.has(hall))) return 'unavailable'
+  // Basketball's own fixtures before volleyball's: when both hold one floor the plan is
+  // already broken, and the one the planner can act on from here is the basketball one.
+  if (bbGameBlocksPitch(blockers.bbGameBusyByDate?.get(date) ?? [], hall, time)) return 'bbgame'
   if (vbBlocksSlot(blockers.vbBusyByDate.get(date) ?? [], hall, time)) return 'vb'
   return 'free'
 }
@@ -254,9 +315,15 @@ export function dayHallAvailability(
   isBlackout: boolean,
 ): DayHallAvailability {
   const { times, halls } = slotsForDate(dow)
-  const freeByHall = halls.map((hall) => ({
+  // Resolve every pitch once: `reason` below needs to know WHY a hall lost its times,
+  // not merely that it did.
+  const statusByHall = halls.map((hall) => ({
     hall,
-    free: times.filter((time) => hallStatusAt(date, time, hall, blockers, isBlackout) === 'free'),
+    statuses: times.map((time) => hallStatusAt(date, time, hall, blockers, isBlackout)),
+  }))
+  const freeByHall = statusByHall.map(({ hall, statuses }) => ({
+    hall,
+    free: times.filter((_, i) => statuses[i] === 'free'),
   }))
   // A weekday basketball never plays offers no pitches at all — that is "not a
   // candidate date", not "blocked", so it must not claim a blocking reason.
@@ -270,7 +337,12 @@ export function dayHallAvailability(
         ? 'club_block'
         : closed && halls.every((h) => closed.has('*') || closed.has(h))
           ? 'hall_closed'
-          : 'volleyball'
+          // Only when basketball alone did it — a day both sports hold keeps naming
+          // volleyball, which is the side the planner has to negotiate with.
+          : statusByHall.some((h) => h.statuses.includes('bbgame')) &&
+              !statusByHall.some((h) => h.statuses.includes('vb'))
+            ? 'basketball'
+            : 'volleyball'
   }
   return { times, freeByHall, noneFree, reason }
 }

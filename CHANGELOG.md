@@ -2,6 +2,15 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.4.0 — 2026-09-03
+
+### Basketball games can be corrected
+
+- **A game on the basketball calendar can now be edited and deleted from the day it sits on.** Tap the date, then "Edit" on the game: home or away, the date, the kick-off time, the hall and the opponent are all changeable. Until now a game could only be created — a fixture entered on the wrong side, or with a time that later moved, stayed wrong.
+- **Home games now appear on the basketball calendar.** A home game recorded on the game calendar used to be invisible in the whole basketball section, even while it occupied the club's biggest court.
+- **A basketball home game in KWI now blocks that court for volleyball**, the same way a game placed in the Spielplansitzung planner already did. Both sports read one list, so a court can no longer be offered to a volleyball opponent while a basketball game is standing on it. The planner grid and the ProBasket availability form stop offering it too.
+- **The manual game calendar is now reachable from the basketball section**, in the tab bar next to the calendar, opening with the basketball games already filtered.
+
 ## v2.3.0 — 2026-09-02
 
 ### A member who has left is now one button

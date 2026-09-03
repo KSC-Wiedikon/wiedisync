@@ -24,6 +24,7 @@ import {
   slotsForDate,
   HALL_A,
   HALL_B,
+  HALL_C,
   HALL_AB,
   type CandidateDate,
   type ProbasketSeasonConfig,
@@ -31,12 +32,39 @@ import {
 import {
   hallStatusAt,
   dayHallAvailability,
+  hallFloors,
+  bbGameBlocksPitch,
   type HallBlockers,
   type VbBooking,
+  type BbGame,
   type DateBlockReason,
 } from '../utils/hallOccupancy'
 
-export type SlotStatus = 'unavailable' | 'vb' | 'game' | 'free'
+export type SlotStatus = 'unavailable' | 'vb' | 'game' | 'bbgame' | 'free'
+
+/**
+ * A basketball fixture from `games` — home or away — with the raw row kept so the
+ * calendar can hand it straight to the edit modal.
+ *
+ * ⚠ This is the OTHER road a basketball game can take (see the fixturesQ comment below).
+ * `placements` are the planner's own `basketball_slot_plan` rows; these are fixtures.
+ */
+export interface BbFixture {
+  id: string
+  /** 'YYYY-MM-DD' */
+  date: string
+  /** 'HH:MM' — may be empty; a fixture whose time is not agreed yet still holds its date. */
+  time: string
+  type: 'home' | 'away'
+  /** teams.id as a string, or null when the row has no KSCW team. */
+  team: string | null
+  /** The other club, whichever column it sits in. */
+  opponent: string
+  /** Our hall for a home game, the opponent's gym for an away one. Often blank. */
+  venue: string
+  /** The untouched row — `editingGame` for ManualGameModal. */
+  game: Game
+}
 
 export interface HallCell {
   hall: string
@@ -44,6 +72,8 @@ export interface HallCell {
   placement: BasketballSlotPlan | null
   /** This A/B half is covered by a combined 'KWI A+B' placement. */
   viaCombined?: boolean
+  /** Set on status 'bbgame': the `games` fixture standing on this court. */
+  fixture?: BbGame
 }
 
 export interface DateInfo {
@@ -165,13 +195,21 @@ export function useBasketballPlan(season: GameSchedulingSeason | null, opts: Bas
     enabled: hasSeason,
   })
   /**
-   * The teams' AWAY fixtures, straight from `games`.
+   * The teams' fixtures, straight from `games` — BOTH sides.
    *
-   * ⚠ An away game is NOT a `basketball_slot_plan` row and must never become one: that
+   * ⚠ A fixture is NOT a `basketball_slot_plan` row and must never become one: that
    * table is keyed to a KWI pitch (`hall` NOT NULL, unique per season/date/time/hall) and
    * one of its three triggers files a `basketball_floor_claims` row — an away row would
    * claim a KWI floor and take a court off volleyball for a game played in the opponent's
-   * gym. `games` is the fixture table; the planner only reads it.
+   * gym. `games` is the fixture table; the planner reads it and edits it in place.
+   *
+   * ⚠⚠ HOME rows used to be filtered out here (`type = 'away'`), which is why prod's
+   * `games` 585 — Lions D1 vs RJ Lakers, KWI A+B, 19.09.2026 — appeared NOWHERE in the
+   * basketball section while occupying the club's biggest court. Home basketball games
+   * arrive by two roads: a placement the planner makes in the grid, and a `games` row
+   * (the Spielplanung editor, and everything bp-sync scrapes out of Basketplan). Both
+   * must be visible, and both must hold their floor — migration 351 does the same on the
+   * volleyball side of the wall.
    *
    * ⚠ Filtered by an explicit `kscw_team _in` over the basketball teams already loaded
    * above, rather than by walking `kscw_team.sport`. A plain `_in` on an M2O cannot
@@ -179,13 +217,18 @@ export function useBasketballPlan(season: GameSchedulingSeason | null, opts: Bas
    * filter + policy walk = silent empty"), and the ids are free — we have them.
    */
   const bbTeamIds = useMemo(() => (teamsQ.data ?? []).map((t) => t.id), [teamsQ.data])
-  const awayQ = useCollection<Game>('games', {
+  const fixturesQ = useCollection<Game>('games', {
     filter: {
       season: { _eq: season?.season ?? '' },
-      type: { _eq: 'away' },
       kscw_team: { _in: bbTeamIds },
     },
-    fields: ['id', 'date', 'time', 'kscw_team', 'home_team', 'away_team', 'away_hall_json'],
+    // Everything ManualGameModal needs to open in edit mode — a fixture the planner
+    // can see but not correct is the whole complaint this list exists to answer.
+    fields: [
+      'id', 'date', 'time', 'type', 'kscw_team', 'home_team', 'away_team',
+      'away_hall_json', 'hall', 'additional_halls', 'league', 'round', 'season',
+      'source', 'status', 'auto_confirm_rsvp', 'auto_nomination_list',
+    ],
     all: true,
     enabled: hasSeason && !!season?.season && bbTeamIds.length > 0,
   })
@@ -210,6 +253,73 @@ export function useBasketballPlan(season: GameSchedulingSeason | null, opts: Bas
     for (const h of hallsQ.data ?? []) m.set(String(h.id), h.name)
     return m
   }, [hallsQ.data])
+
+  /**
+   * Every basketball fixture in `games` for this season, display-resolved once.
+   *
+   * The raw row rides along (`game`) so the calendar can open the edit modal without a
+   * second fetch — before 03.09.2026 a planner who set a game to the wrong side had no
+   * way to correct it anywhere in the basketball section.
+   */
+  const fixtures = useMemo<BbFixture[]>(
+    () =>
+      (fixturesQ.data ?? [])
+        .filter((g) => !!g.date)
+        .map((g) => {
+          const isHome = g.type === 'home'
+          return {
+            id: String(g.id),
+            date: String(g.date).slice(0, 10),
+            time: String(g.time ?? '').slice(0, 5),
+            type: isHome ? ('home' as const) : ('away' as const),
+            team: g.kscw_team == null ? null : String(g.kscw_team),
+            // On an away row `home_team` is the OPPONENT and `away_team` is us; on a
+            // home row it is the other way round. Resolved here so no view has to know.
+            opponent: (isHome ? g.away_team : g.home_team) ?? '',
+            venue: isHome
+              ? hallNameMap.get(String(g.hall)) ?? ''
+              : (g.away_hall_json as { name?: string } | null)?.name ?? '',
+            game: g,
+          }
+        })
+        .sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time)),
+    [fixturesQ.data, hallNameMap],
+  )
+
+  /**
+   * date → the KWI floors our own HOME fixtures hold, one entry per physical floor.
+   *
+   * One entry per floor rather than per game, so a KWI A+B fixture (stored as hall =
+   * KWI A plus additional_halls [KWI B]) blocks A, B and the combined court alike
+   * without anybody having to re-derive the A+B identity. Mirrors migration 351's
+   * `basketball_game_floor_claims`, which does exactly this for the volleyball side.
+   */
+  const bbGameBusyByDate = useMemo(() => {
+    const floorHall: Record<string, string> = { A: HALL_A, B: HALL_B, C: HALL_C }
+    const m = new Map<string, BbGame[]>()
+    for (const f of fixtures) {
+      if (f.type !== 'home') continue
+      const g = f.game
+      const extra = Array.isArray(g.additional_halls)
+        ? g.additional_halls.map((v) =>
+            hallNameMap.get(String(typeof v === 'object' && v !== null && 'id' in v ? (v as { id: unknown }).id : v)) ?? '',
+          )
+        : []
+      const floors = new Set<string>([
+        ...hallFloors(hallNameMap.get(String(g.hall)) ?? ''),
+        ...extra.flatMap((n) => hallFloors(n)),
+      ])
+      if (floors.size === 0) continue // played somewhere that is not our floor
+      const teamLabel = teamsQ.data?.find((tm) => String(tm.id) === f.team)?.name ?? ''
+      const label = [teamLabel, f.opponent].filter(Boolean).join(' vs ')
+      const arr = m.get(f.date) ?? []
+      for (const floor of floors) {
+        arr.push({ hall: floorHall[floor]!, time: f.time || null, label })
+      }
+      m.set(f.date, arr)
+    }
+    return m
+  }, [fixtures, hallNameMap, teamsQ.data])
 
   /**
    * Season-wide per-date blockers (closures, club blackouts, booked volleyball slots)
@@ -238,8 +348,8 @@ export function useBasketballPlan(season: GameSchedulingSeason | null, opts: Bas
       arr.push({ hall: hn, start: s.start_time ?? null, end: s.end_time ?? null })
       vbBusyByDate.set(s.date, arr)
     }
-    return { closedHallsByDate, clubBlockedDates, vbBusyByDate }
-  }, [closuresQ.data, clubBlocksQ.data, vbSlotsQ.data, hallNameMap])
+    return { closedHallsByDate, clubBlockedDates, vbBusyByDate, bbGameBusyByDate }
+  }, [closuresQ.data, clubBlocksQ.data, vbSlotsQ.data, hallNameMap, bbGameBusyByDate])
 
   // Per-date blackout / closure / club-block / volleyball info for the shown grid.
   const dateInfoByDate = useMemo(() => {
@@ -314,25 +424,10 @@ export function useBasketballPlan(season: GameSchedulingSeason | null, opts: Bas
   }, [availQ.data])
 
   /**
-   * Away fixtures for the calendar: one entry per game, with the opponent and venue
-   * already resolved so the panel does not have to know the home/away column swap
-   * (on an away row `home_team` is the OPPONENT and `away_team` is us).
+   * The away half of `fixtures` — the only side that closes a date for its team
+   * (a home game closes a COURT, which the floor logic above handles instead).
    */
-  const awayGames = useMemo(
-    () =>
-      (awayQ.data ?? [])
-        .filter((g) => !!g.date)
-        .map((g) => ({
-          id: String(g.id),
-          date: String(g.date).slice(0, 10),
-          time: String(g.time ?? '').slice(0, 5),
-          team: g.kscw_team == null ? null : String(g.kscw_team),
-          opponent: g.home_team ?? '',
-          venue: (g.away_hall_json as { name?: string } | null)?.name ?? '',
-        }))
-        .sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time)),
-    [awayQ.data],
-  )
+  const awayGames = useMemo(() => fixtures.filter((f) => f.type === 'away'), [fixtures])
 
   /** `teamId|date` for every away fixture — the same key shape the generator builds. */
   const awayTeamDates = useMemo(() => {
@@ -361,8 +456,8 @@ export function useBasketballPlan(season: GameSchedulingSeason | null, opts: Bas
 
   /**
    * teams.id → every date that team already plays: a placed home game (basketball_slot_plan)
-   * or an away fixture (`games`). The two sources the generator's rest gap reads, so the
-   * grid and the inventory agree about which dates sit next to a game.
+   * or a fixture of either side (`games`). The sources the generator's rest gap reads, so
+   * the grid and the inventory agree about which dates sit next to a game.
    */
   const gameDatesByTeam = useMemo(() => {
     const m = new Map<string, Set<string>>()
@@ -374,9 +469,11 @@ export function useBasketballPlan(season: GameSchedulingSeason | null, opts: Bas
       m.set(k, set)
     }
     for (const p of placements.values()) add(p.kscw_team, p.date)
-    for (const g of awayGames) add(g.team, g.date)
+    // Every fixture, not just the away ones: a home game recorded in `games` is as much
+    // a game for the rest gap as one placed in the grid.
+    for (const g of fixtures) add(g.team, g.date)
     return m
-  }, [placements, awayGames])
+  }, [placements, fixtures])
 
   /**
    * The team's own game one day either side of this date, or null — the club's SOFT block
@@ -420,6 +517,15 @@ export function useBasketballPlan(season: GameSchedulingSeason | null, opts: Bas
         const own = placements.get(slotKey(date, time, hall)) ?? null
         if (own) return { hall, status: 'game', placement: own }
         const status = hallStatusAt(date, time, hall, blockers, isBlackout)
+        // A `games` fixture holds this court: name it, or the cell reads as a bug.
+        if (status === 'bbgame') {
+          return {
+            hall,
+            status,
+            placement: null,
+            fixture: bbGameBlocksPitch(blockers.bbGameBusyByDate?.get(date) ?? [], hall, time) ?? undefined,
+          }
+        }
         return { hall, status, placement: null }
       })
       const aFree = cells.find((c) => c.hall === HALL_A)?.status === 'free'
@@ -556,6 +662,7 @@ export function useBasketballPlan(season: GameSchedulingSeason | null, opts: Bas
     placements,
     availability,
     availKey,
+    fixtures,
     awayGames,
     teamBlockedOn,
     teamRestBlockedOn,
