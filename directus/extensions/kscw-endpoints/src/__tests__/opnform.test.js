@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { badSlug, listSubmissions, getCount, getCloses, setCloses } from '../opnform.js'
+import { badSlug, listSubmissions, getCount, getCloses, setCloses, createSubmission, normalizeAnswer } from '../opnform.js'
 
 describe('opnform exports', () => {
   it('badSlug rejects empty and bad, accepts normal slugs', () => {
@@ -143,6 +143,147 @@ describe('opnform exports', () => {
         return { ok: true, text: async () => JSON.stringify({ data: FORM }) }
       })
       await expect(setCloses('my-form', '2026-08-01T16:00:00.000Z')).rejects.toMatchObject({ status: 422 })
+    })
+  })
+
+  // A signup filed from /admin for someone who never opened the form. It goes through
+  // the PUBLIC answer endpoint because OpnForm has no other way to create a submission —
+  // which is also what makes it a real signup, mail and all.
+  describe('createSubmission', () => {
+    const realFetch = global.fetch
+    const realPat = process.env.OPNFORM_PAT
+    beforeEach(() => { process.env.OPNFORM_PAT = 'test-pat' })
+    afterEach(() => {
+      global.fetch = realFetch
+      if (realPat === undefined) delete process.env.OPNFORM_PAT
+      else process.env.OPNFORM_PAT = realPat
+    })
+
+    const PROPS = [
+      { id: 'f_first', name: 'Vorname', type: 'text' },
+      { id: 'f_plz', name: 'PLZ', type: 'number' },
+      { id: 'f_team', name: 'Team', type: 'multi_select', options: ['D1', 'H1'] },
+    ]
+    const form = (over = {}) => ({
+      id: 3, title: 'Scorer course', visibility: 'public', language: 'de', theme: 'default',
+      presentation_style: 'form', width: 'centered', size: 'md', border_radius: 'small',
+      dark_mode: 'auto', color: '#3B82F6', uppercase_labels: false, no_branding: true,
+      transparent_background: false, properties: PROPS,
+      closes_at: '2026-08-11T22:00:00+00:00', is_closed: false, ...over,
+    })
+
+    // Each test gets its own slug: getFormMeta caches per slug for five minutes, and a
+    // shared one would serve the previous test's field set.
+    let n = 0
+    const slug = () => `create-form-${++n}`
+
+    function stub({ formOver = {}, answer, onPut } = {}) {
+      const calls = []
+      global.fetch = vi.fn(async (url, opts = {}) => {
+        const u = String(url)
+        calls.push({ url: u, method: opts.method || 'GET', body: opts.body ? JSON.parse(opts.body) : null })
+        if (u.includes('/answer')) {
+          return answer || { ok: true, text: async () => JSON.stringify({ submission_id: 'abc123' }) }
+        }
+        if (opts.method === 'PUT') {
+          if (onPut) { const r = onPut(JSON.parse(opts.body)); if (r) return r }
+          return { ok: true, text: async () => JSON.stringify({ data: form(formOver) }) }
+        }
+        return { ok: true, text: async () => JSON.stringify({ data: form(formOver) }) }
+      })
+      return calls
+    }
+
+    it('sends the answers to the public answer endpoint', async () => {
+      const calls = stub()
+      const s = slug()
+      const out = await createSubmission(s, { f_first: ' Anna ', f_plz: '8003', f_team: 'D1' })
+      expect(out).toMatchObject({ ok: true, submission_id: 'abc123', reopened: false })
+      const post = calls.find((c) => c.url.includes('/answer'))
+      expect(post.url).toBe(`https://forms.kscw.ch/api/forms/${s}/answer`)
+      expect(post.method).toBe('POST')
+      // Trimmed, numbers as numbers, a multi_select as the list it is stored as.
+      expect(post.body).toEqual({ f_first: 'Anna', f_plz: 8003, f_team: ['D1'] })
+    })
+
+    it('refuses a key the form does not have', async () => {
+      stub()
+      await expect(createSubmission(slug(), { nope: 'x' })).rejects.toThrow(/unknown_field/)
+    })
+
+    // submission_id in the payload makes `answer` UPDATE an existing submission
+    // (editable_submissions is on), which would overwrite somebody else's signup.
+    it('refuses a submission identifier in the answers', async () => {
+      stub()
+      await expect(createSubmission(slug(), { submission_id: '42' })).rejects.toThrow(/unknown_field/)
+    })
+
+    it('refuses an empty submission', async () => {
+      stub()
+      await expect(createSubmission(slug(), { f_first: '   ' })).rejects.toThrow(/empty_submission/)
+    })
+
+    it('will not post to a closed form unless asked', async () => {
+      const calls = stub({ formOver: { is_closed: true } })
+      await expect(createSubmission(slug(), { f_first: 'Anna' }))
+        .rejects.toMatchObject({ status: 409, message: 'form_closed' })
+      expect(calls.some((c) => c.url.includes('/answer'))).toBe(false)
+    })
+
+    it('opens a closed form for the one write and closes it again', async () => {
+      const calls = stub({ formOver: { is_closed: true } })
+      const out = await createSubmission(slug(), { f_first: 'Anna' }, { reopenIfClosed: true })
+      expect(out.reopened).toBe(true)
+      const puts = calls.filter((c) => c.method === 'PUT')
+      expect(puts).toHaveLength(2)
+      expect(puts[0].body.closes_at).toBeNull()                       // opened
+      expect(puts[1].body.closes_at).toBe('2026-08-11T22:00:00+00:00') // put back exactly
+      // …and the answer went in between, not before the door was opened.
+      const order = calls.filter((c) => c.method === 'PUT' || c.url.includes('/answer')).map((c) => c.method)
+      expect(order).toEqual(['PUT', 'POST', 'PUT'])
+    })
+
+    it('closes the form again even when the submission is rejected', async () => {
+      const calls = stub({
+        formOver: { is_closed: true },
+        answer: { ok: false, status: 422, text: async () => '{"errors":{"f_first":["required"]}}' },
+      })
+      await expect(createSubmission(slug(), { f_first: 'Anna' }, { reopenIfClosed: true }))
+        .rejects.toMatchObject({ status: 422 })
+      const puts = calls.filter((c) => c.method === 'PUT')
+      expect(puts).toHaveLength(2)
+      expect(puts[1].body.closes_at).toBe('2026-08-11T22:00:00+00:00')
+    })
+
+    // The one outcome that needs a human: the deadline could not be put back, so a live
+    // registration form is standing open.
+    it('says so loudly when the form could not be closed again', async () => {
+      let puts = 0
+      stub({
+        formOver: { is_closed: true },
+        onPut: () => { puts++; return puts === 2 ? { ok: false, status: 500, text: async () => 'boom' } : null },
+      })
+      await expect(createSubmission(slug(), { f_first: 'Anna' }, { reopenIfClosed: true }))
+        .rejects.toMatchObject({ message: 'form_left_open', status: 500 })
+    })
+  })
+
+  describe('normalizeAnswer', () => {
+    const num = { id: 'f', type: 'number' }
+    it('keeps a non-numeric answer to a number field as text rather than dropping it', () => {
+      expect(normalizeAnswer(num, '80 03')).toBe('80 03')
+    })
+    it('treats blank as no answer, so the form decides whether it was required', () => {
+      expect(normalizeAnswer({ id: 'f', type: 'text' }, '  ')).toBeNull()
+      expect(normalizeAnswer({ id: 'f', type: 'text' }, null)).toBeNull()
+    })
+    it('refuses a nested object', () => {
+      expect(() => normalizeAnswer({ id: 'f', type: 'text' }, { a: 1 })).toThrow(/invalid_value/)
+    })
+    it('caps a single value and a list', () => {
+      expect(() => normalizeAnswer({ id: 'f', type: 'text' }, 'x'.repeat(2001))).toThrow(/value_too_long/)
+      expect(() => normalizeAnswer({ id: 'f', type: 'multi_select' }, new Array(51).fill('x')))
+        .toThrow(/too_many_values/)
     })
   })
 

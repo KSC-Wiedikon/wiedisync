@@ -270,6 +270,125 @@ export async function createFormFromTemplate(templateId, { title, slug, closesAt
   }
 }
 
+/**
+ * File a signup that never went through the form.
+ *
+ * OpnForm has **no admin route that creates a submission** — the only door is the
+ * PUBLIC `POST /api/forms/{slug}/answer`, and that is precisely what makes the result a
+ * real signup rather than a copy of one: the form's own validation runs, and its
+ * notification integrations fire, so the participant gets the same confirmation mail as
+ * everybody who signed up themselves. Two consequences follow, and both belong to the
+ * caller:
+ *
+ *   1. the participant AND scorer@volleyball.kscw.ch are emailed — there is no quiet
+ *      variant of this route;
+ *   2. `FormPolicy::answer` refuses a CLOSED form outright, and a signup added by hand
+ *      is almost always late. `reopenIfClosed` lifts `closes_at` for the length of one
+ *      POST and restores it in a `finally` — the only way to file a late entry through
+ *      a door OpnForm opens from the public side only.
+ *
+ * The reopen window is a live public form standing open for about a second. If the
+ * restore itself fails the error says so in as many words (`form_left_open`) and is
+ * logged at error level: a registration form left open is a thing a human must go and
+ * close, not a warning to scroll past.
+ */
+const ANSWER_MAX_LEN = 2000
+const ANSWER_MAX_ITEMS = 50
+
+function answerError(message, status = 400, extra = {}) {
+  const err = new Error(message)
+  err.status = status
+  Object.assign(err, extra)
+  return err
+}
+
+/**
+ * One answer, in the shape the form's own validator expects.
+ *
+ * Keys are checked against the form's field ids — an id the form does not have is
+ * refused rather than written, so this route cannot be used to stuff arbitrary keys
+ * into a submission document that /admin and the SVRZ export both read back.
+ */
+export function normalizeAnswer(prop, raw) {
+  if (raw == null) return null
+  if (Array.isArray(raw)) {
+    if (raw.length > ANSWER_MAX_ITEMS) throw answerError(`too_many_values:${prop.id}`)
+    const out = raw.map((v) => normalizeAnswer({ ...prop, type: 'text' }, v)).filter((v) => v !== null)
+    return out.length ? out : null
+  }
+  if (typeof raw === 'object') throw answerError(`invalid_value:${prop.id}`)
+  const s = String(raw).trim()
+  if (!s) return null // an empty answer is no answer — let the form decide if it was required
+  if (s.length > ANSWER_MAX_LEN) throw answerError(`value_too_long:${prop.id}`)
+  // A number field validated as numeric but stored as "8003" reads back as a string in
+  // every consumer of the submission; the form's own UI sends a number, so we do too.
+  if (prop.type === 'number' && /^-?\d+(\.\d+)?$/.test(s)) return Number(s)
+  // multi_select holds a list even when only one option is picked — a bare string is
+  // stored, then read back as a string, and the SVRZ export sees a different shape for
+  // this signup than for every other one.
+  if (prop.type === 'multi_select') return [s]
+  return s
+}
+
+export async function createSubmission(slug, answers, { reopenIfClosed = false } = {}) {
+  const meta = await getFormMeta(slug)
+  const byId = new Map((meta.properties || []).map((p) => [String(p.id), p]))
+
+  const payload = {}
+  for (const [id, raw] of Object.entries(answers || {})) {
+    const prop = byId.get(String(id))
+    if (!prop) throw answerError(`unknown_field:${id}`)
+    // submission_id in the payload makes `answer` UPDATE an existing submission
+    // (editable_submissions is on for these forms) instead of creating one — which
+    // would silently overwrite somebody else's signup.
+    if (id === 'submission_id' || id === 'submission_hash') throw answerError(`unknown_field:${id}`)
+    const v = normalizeAnswer(prop, raw)
+    if (v !== null) payload[id] = v
+  }
+  if (!Object.keys(payload).length) throw answerError('empty_submission')
+
+  const form = await getForm(slug)
+  const closesAt = form?.closes_at ?? null
+  const closed = form?.is_closed === true
+  if (closed && !reopenIfClosed) {
+    throw answerError('form_closed', 409, { closes_at: closesAt })
+  }
+
+  let reopened = false
+  try {
+    if (closed) {
+      await setCloses(slug, null)
+      reopened = true
+    }
+    const res = await fetch(`${OPNFORM_BASE}/api/forms/${encodeURIComponent(slug)}/answer`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify(payload),
+    })
+    const text = await res.text().catch(() => '')
+    if (!res.ok) {
+      const err = new Error(`OpnForm ${res.status} on /forms/${slug}/answer`)
+      // 422 carries which answer the form refused, which is the whole difference
+      // between "you left the Natel empty" and "we sent junk".
+      err.status = [403, 404, 422].includes(res.status) ? res.status : 502
+      err.detail = text.slice(0, 1000)
+      throw err
+    }
+    countCache.delete(slug)
+    let body = {}
+    try { body = text ? JSON.parse(text) : {} } catch { body = {} }
+    return { ok: true, submission_id: body?.submission_id ?? null, reopened }
+  } finally {
+    if (reopened) {
+      // Not `await`ed away into a catch: a form left open is worse than a failed
+      // signup, so the failure has to reach the caller.
+      await setCloses(slug, closesAt).catch((e) => {
+        throw answerError('form_left_open', 500, { slug, closes_at: closesAt, cause: e.message })
+      })
+    }
+  }
+}
+
 export async function deleteSubmission(slug, id) {
   await opnformFetch(
     `/forms/${encodeURIComponent(slug)}/submissions/${encodeURIComponent(id)}`,

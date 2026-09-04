@@ -14,7 +14,7 @@
 
 // Wired into the scorer_courses OpnForm routes in Task A5 — imported here to co-locate the dependency.
 import { Transform } from 'node:stream'
-import { badSlug, listSubmissions, deleteSubmission, getCloses, setCloses } from './opnform.js'
+import { badSlug, listSubmissions, deleteSubmission, getCloses, setCloses, createSubmission } from './opnform.js'
 import { streamManagedFile, readManagedFile } from './storage-read.js'
 // Cap and type allowlist are imported, never re-declared: an admin correction must be
 // held to exactly what the participant upload accepts, and two copies would drift.
@@ -575,6 +575,76 @@ export function registerWadmin(router, ctx) {
       // live registration form may have been altered beyond its closes_at.
       log.error({ msg: 'wadmin opnform closes write failed', slug: req.params.slug, status: err.status, error: err.message })
       res.status(err.status || 502).json({ error: err.message || 'Upstream error' })
+    }
+  })
+
+  // ── file a signup that never went through the form ────────────────────────
+  //
+  // /admin can add a latecomer, a phone call, a name handed over at the hall. It lands
+  // as a REAL submission on the form — same validation, same confirmation mail to the
+  // participant and to scorer@volleyball.kscw.ch — because OpnForm has no other way to
+  // create one (see createSubmission). Everything that reads signups then sees it
+  // without knowing it was typed by an admin.
+  //
+  // ⚠ Two things this route can do that no other wadmin route can, both deliberate and
+  // both logged with the user who asked for them:
+  //   - it sends mail to an address the caller supplied. It is a scorer-scoped section
+  //     and the slug is bound to a scorer_courses record (guardScorer), so the reachable
+  //     forms are the club's own course forms — but a signup with a wrong address still
+  //     mails that address once. It is the same power the public form already gives
+  //     anyone who can open it.
+  //   - with reopen_if_closed it lifts the form's deadline for the length of one POST.
+  //     Deliberately opt-IN and never the default: /admin asks first, in as many words.
+  router.post('/wadmin/scorer_courses/opnform/forms/:slug/submissions', async (req, res) => {
+    if (!(await guardScorer(req, res))) return
+    const answers = req.body?.data
+    if (!answers || typeof answers !== 'object' || Array.isArray(answers)) {
+      return res.status(400).json({ error: 'invalid_body' })
+    }
+    const reopenIfClosed = req.body?.reopen_if_closed === true
+    try {
+      const out = await createSubmission(req.params.slug, answers, { reopenIfClosed })
+      log.info({
+        msg: 'opnform submission created from /admin',
+        slug: req.params.slug, user: req.accountability?.user, reopened: out.reopened === true,
+      })
+      res.json(out)
+    } catch (err) {
+      // The form is shut and nobody asked to open it: not an error, a question for the
+      // admin — /admin offers the short reopen and posts again.
+      if (err.status === 409) {
+        return res.status(409).json({ error: 'form_closed', closes_at: err.closes_at ?? null })
+      }
+      if (err.status === 404) return res.status(404).json({ error: 'Form not found' })
+      if (err.status === 422) {
+        // Which answer the form refused, by NAME: an id tells the admin nothing, and
+        // "the form said no" sends them hunting through twelve required fields.
+        let fields = []
+        try {
+          const parsed = JSON.parse(err.detail || '{}')
+          const meta = await listSubmissions(req.params.slug, { perPage: 1 }).catch(() => null)
+          const nameById = new Map((meta?.fields || []).map((f) => [String(f.id), f.name]))
+          fields = Object.entries(parsed.errors || {}).map(([id, messages]) => ({
+            id, name: nameById.get(String(id)) || id, messages: [].concat(messages || []),
+          }))
+        } catch { fields = [] }
+        log.warn({ msg: 'opnform rejected an admin-filed signup', slug: req.params.slug, fields: fields.map((f) => f.id) })
+        return res.status(422).json({ error: 'validation', fields })
+      }
+      // The form was opened for this write and could not be closed again. Loud: a live
+      // registration form is standing open and only a human can shut it.
+      if (err.message === 'form_left_open') {
+        log.error({ msg: 'OPNFORM FORM LEFT OPEN after an admin-filed signup',
+                    slug: req.params.slug, closes_at: err.closes_at, error: err.cause })
+        return res.status(500).json({ error: 'form_left_open', closes_at: err.closes_at ?? null })
+      }
+      if (err.status === 400) return res.status(400).json({ error: err.message })
+      if (err.status === 403) {
+        log.warn({ msg: 'OpnForm refused an admin-filed signup', slug: req.params.slug, detail: err.detail })
+        return res.status(403).json({ error: 'OpnForm refused the submission' })
+      }
+      log.warn({ msg: 'wadmin opnform create failed', slug: req.params.slug, status: err.status, error: err.message })
+      res.status(err.status || 502).json({ error: 'Upstream error' })
     }
   })
 
