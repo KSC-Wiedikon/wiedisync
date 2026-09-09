@@ -688,6 +688,7 @@ export default {
   dhPathStep3Empty: '3. Sync up (nichts zu senden)',
   dhPathStep5Empty: '5. Gruppen korrigieren (nichts zu tun)',
   dhPathStep4: '4. Nochmals Sync down',
+  dhPathStep4Empty: '4. Nochmals Sync down (nicht nötig)',
   dhPathGroupsWritten: 'Fertig — ClubDesk wurde geschrieben. Die Befunde unten aktualisieren sich beim nächsten Sync down.',
   dhPathStep5: '5. Gruppen korrigieren ({{count}})',
 
@@ -869,6 +870,8 @@ export default {
   clubdeskUpUnchanged_one: '1 Zeile war in ClubDesk bereits identisch — gesendet, nichts zu ändern.',
   clubdeskUpUnchanged_other: '{{count}} Zeilen waren in ClubDesk bereits identisch — gesendet, nichts zu ändern.',
   clubdeskUpReadback: 'Führe „Von ClubDesk herunterladen“ aus, um die bestätigten Daten zurückzuholen und zu prüfen.',
+  clubdeskUpContinuing: 'Weiter zu Schritt 4 — der Sync down, der die neuen Kontakte zurückliest und verknüpft.',
+  clubdeskUpRefreshFailed: 'Der Push ist angekommen, die Übersicht konnte aber nicht aktualisiert werden. Neu scannen, um das Ergebnis zu sehen.',
   clubdeskUpDoneToast: 'Zu ClubDesk hochsynchronisiert.',
   clubdeskUpFailed: 'Hochsynchronisieren fehlgeschlagen.',
   clubdeskUpTimeout: 'Dauert länger als erwartet — läuft im Hintergrund weiter.',

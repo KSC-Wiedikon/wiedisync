@@ -24,7 +24,7 @@
 // and the "Fix groups" button. Two fetches would let the button act on a list the
 // operator is not looking at.
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -39,13 +39,14 @@ import { useConfirm } from '../../components/ConfirmProvider'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import ClubdeskSyncPath from './components/ClubdeskSyncPath'
+import type { GateCounts } from './utils/syncPathSteps'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 /** Top-level page section. Functional, unlike the sport axis it replaced. */
 type Section = 'clubdesk' | 'club'
 import ClubdeskGroupCheck from './components/ClubdeskGroupCheck'
 import {
-  EMPTY_GROUP_CHECK, type FixClass, type GroupCheckResp,
+  EMPTY_GROUP_CHECK, countFixAvailable, type FixClass, type GroupCheckResp,
 } from './utils/clubdeskFindings'
 import ClubdeskNeedsSync, { type NeedsSyncRow } from './components/ClubdeskNeedsSync'
 import {
@@ -663,6 +664,16 @@ export default function DataHealthPage() {
     { inSync: number; pendingPush: number | null; lastDown: string | null; lastUp: string | null }
   >({ inSync: 0, pendingPush: null, lastDown: null, lastUp: null })
   const [facets, setFacets] = useState<MemberFacets>(EMPTY_FACETS)
+  /**
+   * The gate counts as the SERVER last answered them, kept out of state on
+   * purpose: `afterSyncJob` hands them to the sync path the moment a step lands,
+   * and state is a render too late for a path that opens the next step itself.
+   *
+   * ⚠ Only overwritten by a fetch that SUCCEEDED. A failed group scan reporting
+   * `fixable: 0` would end the path over findings nobody has looked at — the last
+   * known answer is the safer one to carry.
+   */
+  const gateRef = useRef<GateCounts>({ pendingProposals: 0, pendingPush: 0, fixable: 0 })
 
   const runChecks = useCallback(async () => {
     setLoading(true)
@@ -684,11 +695,20 @@ export default function DataHealthPage() {
     if (checks.status === 'fulfilled') setResults(checks.value)
     else toast.error(String(checks.reason))
 
-    if (group.status === 'fulfilled') setGroupData({ ...EMPTY_GROUP_CHECK, ...group.value })
-    else setGroupErr(group.reason instanceof Error ? group.reason.message : String(group.reason))
+    if (group.status === 'fulfilled') {
+      const g = { ...EMPTY_GROUP_CHECK, ...group.value }
+      setGroupData(g)
+      gateRef.current.fixable = Object.values(countFixAvailable(g)).reduce((a, b) => a + b, 0)
+    } else setGroupErr(group.reason instanceof Error ? group.reason.message : String(group.reason))
 
     if (needs.status === 'fulfilled') {
       setNeedsSync(needs.value.rows || [])
+      // Same fallback as the ClubdeskSyncPath call site — a backend that predates
+      // `pending_push` must not read as "nothing to push".
+      gateRef.current.pendingPush = needs.value.pending_push == null
+        ? (needs.value.rows || []).filter(
+          (r) => r.status === 'pending' || r.status === 'not_linked').length
+        : Number(needs.value.pending_push) || 0
       setSyncMeta({
         inSync: needs.value.in_sync || 0,
         pendingPush: needs.value.pending_push == null ? null : Number(needs.value.pending_push) || 0,
@@ -739,9 +759,21 @@ export default function DataHealthPage() {
   // page's own checks. Deciding a proposal deliberately does not come through
   // here: that table reloads itself, and bumping the key from its own callback
   // would make the two refetch each other.
-  const afterSyncJob = useCallback(async () => {
+  const afterSyncJob = useCallback(async (): Promise<GateCounts> => {
     setProposalsReload((n) => n + 1)
-    await runChecks()
+    // ⚠ The proposals count is fetched HERE rather than waited for from the
+    // table's own reload above. The table reports it through a prop, which the
+    // sync path would read one render after it decides which step comes next —
+    // and deciding "no proposals" over a queue that has just been staged skips
+    // the one step that is a human's.
+    const [, proposals] = await Promise.all([
+      runChecks(),
+      kscwApi<{ total: number }>('/clubdesk-sync/proposals')
+        .then((r) => Number(r.total) || 0)
+        .catch(() => null),
+    ])
+    if (proposals !== null) gateRef.current.pendingProposals = proposals
+    return { ...gateRef.current }
   }, [runChecks])
 
   // Auto-run once on mount — checks are read-only, mirroring InfraHealthPage.
@@ -752,14 +784,8 @@ export default function DataHealthPage() {
 
   // What "Fix groups" could act on right now. Counts only — the server rebuilds
   // the actual worklist at queue time (see ClubdeskFixGroups).
-  const fixAvailable = useMemo<Record<FixClass, number>>(() => ({
-    missing: groupData.missing.length,
-    coach_no_group: groupData.coach_no_group.length,
-    // Only the halves the fix is allowed to touch, so the dialog's number matches
-    // what a run would actually do rather than promising more than it delivers.
-    stale_funktion: groupData.stale_funktion.filter((r) => r.has_correct).length,
-    strays: groupData.strays.filter((r) => r.auto_removable).length,
-  }), [groupData])
+  const fixAvailable = useMemo<Record<FixClass, number>>(
+    () => countFixAvailable(groupData), [groupData])
 
   // These rows already carry the server's verdict, so they bucket directly rather
   // than going through the facets fallback: `sport_source === 'unknown'` IS the

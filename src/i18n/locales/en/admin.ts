@@ -688,6 +688,7 @@ export default {
   dhPathStep3Empty: '3. Sync up (nothing to push)',
   dhPathStep5Empty: '5. Fix groups (nothing to fix)',
   dhPathStep4: '4. Sync down again',
+  dhPathStep4Empty: '4. Sync down again (not needed)',
   dhPathGroupsWritten: 'Done — ClubDesk was written. The findings below refresh on the next sync down.',
   dhPathStep5: '5. Fix groups ({{count}})',
 
@@ -882,6 +883,8 @@ export default {
   clubdeskUpUnchanged_one: '1 row was already identical in ClubDesk — sent, nothing to change.',
   clubdeskUpUnchanged_other: '{{count}} rows were already identical in ClubDesk — sent, nothing to change.',
   clubdeskUpReadback: 'Run "Sync down" to pull the confirmed data back and verify it landed.',
+  clubdeskUpContinuing: 'Continuing to step 4 — the sync down that reads the new contacts back and links them.',
+  clubdeskUpRefreshFailed: 'The push landed, but the board could not be refreshed. Rescan to see the result.',
   clubdeskUpDoneToast: 'Synced up to ClubDesk.',
   clubdeskUpFailed: 'Sync up failed.',
   clubdeskUpTimeout: 'Taking longer than expected — it keeps running in the background.',

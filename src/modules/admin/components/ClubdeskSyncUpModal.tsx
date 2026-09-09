@@ -7,6 +7,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { kscwApi } from '../../../lib/api'
+import type { GateCounts } from '../utils/syncPathSteps'
 import { MEMBER_FIELD_LABELS } from './memberFieldLabels'
 import ClubdeskStepDialog from './ClubdeskStepDialog'
 
@@ -29,6 +30,19 @@ interface UpStatus {
 }
 
 type Phase = 'loading' | 'review' | 'pushing' | 'done' | 'error' | 'blocked'
+
+/**
+ * How long the result panel holds the screen before the path takes over.
+ *
+ * ⚠ Not zero, and not forever. A push is a write into the club's register and
+ * its receipt ("5 created, 1 updated") is worth reading — but step 4 is not
+ * optional after one, and making the operator click for it is what left five
+ * freshly-created contacts sitting unlinked while the path said "Done"
+ * (09.09.2026). So it is read, then handed over. "Next step" skips the wait and
+ * closing the dialog cancels the hand-over — a closed dialog means the operator
+ * has taken the wheel.
+ */
+const RECEIPT_DWELL_MS = 6000
 
 /**
  * One field change, rendered identically in the mobile stack and the desktop
@@ -63,18 +77,33 @@ function ChangeChip({ change }: { change: FieldChange }) {
  * the same log tail as every other step, fed by the push's own dispatcher.
  */
 export default function ClubdeskSyncUpModal({
-  open, onOpenChange, onDone, step, total, title, description, onNext,
+  open, onOpenChange, onDone, step, total, title, description, onNext, onPushed,
 }: {
   open: boolean
   onOpenChange: (v: boolean) => void
-  onDone?: () => void | Promise<void>
+  /**
+   * Refresh the page's checks. ⚠ Resolves to the REFETCHED gate counts, which
+   * ride along to `onNext` so the step after this one is chosen on the numbers
+   * this push just changed rather than the ones the review was drawn from.
+   */
+  onDone?: () => void | Promise<GateCounts | void>
   /** Position in the sync path — the shell's eyebrow reads "Step 3 of 5". */
   step: number
   total: number
   title: string
   description?: string
   /** Advance the path once the push has landed. */
-  onNext?: () => void
+  onNext?: (fresh?: GateCounts) => void
+  /**
+   * The push landed — fired before the refresh, and before the hand-over.
+   *
+   * ⚠ Separate from `onNext` on purpose: the path has to know a push happened
+   * even when the operator closes this dialog instead of continuing, because
+   * that fact is what makes step 4 mandatory. `pending_push` cannot carry it —
+   * a landed push empties that queue, so it reads the same as a run with nothing
+   * to push, which is the run step 4 should be skipped for.
+   */
+  onPushed?: () => void
 }) {
   const { t } = useTranslation('admin')
   const [phase, setPhase] = useState<Phase>('loading')
@@ -89,6 +118,14 @@ export default function ClubdeskSyncUpModal({
     ?? Math.max(0, (result?.total ?? 0) - (result?.neu ?? 0) - (result?.veraendert ?? 0))
   const [error, setError] = useState('')
   const openRef = useRef(false)
+  /**
+   * The counts `onDone` refetched for this push, held for whichever exit is
+   * taken — the automatic hand-over below, or the "Next step" button if the
+   * operator gets there first. Undefined until the refresh lands; `advanceFrom`
+   * then falls back to its props, which is safe because `onPushed` has already
+   * told the path that step 4 is owed.
+   */
+  const freshRef = useRef<GateCounts | undefined>(undefined)
   /** The dispatcher's own progress for this push — read off every status poll. */
   const [job, setJob] = useState<{ progress: number | null; phase: string | null; log: string | null }>(
     { progress: null, phase: null, log: null })
@@ -107,6 +144,7 @@ export default function ClubdeskSyncUpModal({
   const resetState = useCallback(() => {
     setPhase('loading'); setPreview({ changed: [], unlinked: [] }); setSelected(new Set()); setResult(null); setError('')
     setJob({ progress: null, phase: null, log: null }); setPushStartedAt(null)
+    freshRef.current = undefined
   }, [])
 
   // Reset on close (an event handler, not an effect — avoids synchronous setState in
@@ -185,6 +223,8 @@ export default function ClubdeskSyncUpModal({
     const ids = [...selected]
     if (!ids.length) return
     setPhase('pushing'); setError(''); setPushStartedAt(Date.now())
+    /** ClubDesk's own verdict for this push — read out of the poll that ended it. */
+    let landed: UpResult | null | undefined
     try {
       // Surface server-side skips (stale link / blank risk): the push proceeds
       // for the rest, but the operator must know these members were NOT pushed
@@ -204,12 +244,35 @@ export default function ClubdeskSyncUpModal({
         await new Promise((r) => setTimeout(r, 3_000))
         const s = await kscwApi<UpStatus>('/clubdesk-member-sync/up-status')
         setJob({ progress: s.progress ?? null, phase: s.phase ?? null, log: s.log ?? null })
-        if (s.state === 'done') { setResult(s.result); setPhase('done'); setPushStartedAt(null); break }
+        if (s.state === 'done') { setResult(s.result); setPhase('done'); setPushStartedAt(null); landed = s.result; break }
         if (s.state === 'failed') { setPushStartedAt(null); throw new Error(s.message || t('clubdeskUpFailed')) }
         if (Date.now() > deadline) { setPushStartedAt(null); throw new Error(t('clubdeskUpTimeout')) }
       }
-      toast.success(t('clubdeskUpDoneToast'))
-      await onDone?.()
+      // ⚠ The numbers, not "Synced up to ClubDesk". The panel that carries them
+      // is about to hand over to step 4, and a toast that says nothing leaves the
+      // operator with no record of what was written to the register.
+      toast.success(t('clubdeskUpResult', { neu: landed?.neu ?? 0, veraendert: landed?.veraendert ?? 0 }))
+      // Before the refresh: step 4 is owed from this moment, whichever way the
+      // operator leaves this dialog.
+      onPushed?.()
+      // ⚠ Caught here rather than falling into the catch below: the push HAS
+      // landed, and a stale board is not a failed write. Reporting it as one
+      // would send the operator to push again — into ClubDesk, a second time.
+      let fresh: GateCounts | undefined
+      try {
+        fresh = (await onDone?.()) || undefined
+      } catch {
+        toast.warning(t('clubdeskUpRefreshFailed'))
+      }
+      if (!openRef.current) return
+      freshRef.current = fresh
+      // Read the receipt, then carry on by itself. Cancelled if the dialog is
+      // closed in the meantime — by the operator, or by "Next step" beating it.
+      await new Promise((r) => setTimeout(r, RECEIPT_DWELL_MS))
+      if (!openRef.current || !onNext) return
+      resetState()
+      onOpenChange(false)
+      onNext(fresh)
     } catch (e) {
       const body = (e as { body?: { state?: string; code?: string; error?: string } })?.body
       // `code` before `state`: the sync-down block carries the DOWN state
@@ -221,7 +284,7 @@ export default function ClubdeskSyncUpModal({
       setError(body?.error || (e as Error).message || t('clubdeskUpFailed'))
       setPhase('error')
     }
-  }, [selected, t, onDone, onOpenChange, resetState])
+  }, [selected, t, onDone, onNext, onPushed, onOpenChange, resetState])
 
   const selChanged = preview.changed.filter((m) => selected.has(m.id)).length
   const selUnlinked = preview.unlinked.filter((m) => selected.has(m.id)).length
@@ -441,14 +504,24 @@ export default function ClubdeskSyncUpModal({
                 {t('clubdeskUpUnchanged', { count: unchanged })}
               </p>
             )}
-            <p className="max-w-sm text-xs text-gray-500 dark:text-gray-400">{t('clubdeskUpReadback')}</p>
+            {/* ⚠ Two different truths. Inside the path the read-back is the next
+                step and starts by itself, so telling the operator to go and run a
+                sync down would send them to do the thing already happening. */}
+            <p className="max-w-sm text-xs text-gray-500 dark:text-gray-400">
+              {onNext ? t('clubdeskUpContinuing') : t('clubdeskUpReadback')}
+            </p>
             <div className="flex flex-col gap-2 sm:flex-row">
               <Button variant="outline" onClick={() => handleOpenChange(false)}>{t('clubdeskUpClose')}</Button>
               {/* ⚠ Step 4 is not optional after a push — a CREATE only closes its
                   loop there (the new contact's [Id] is read back and linked). The
                   path knows that; this is the button that hands control back to it. */}
               {onNext && (
-                <Button onClick={() => { handleOpenChange(false); onNext() }} className="gap-1.5">
+                <Button
+                  // ⚠ Read BEFORE the close: `handleOpenChange` resets the modal,
+                  // and the reset is what clears this ref.
+                  onClick={() => { const g = freshRef.current; handleOpenChange(false); onNext(g) }}
+                  className="gap-1.5"
+                >
                   <CheckCircle2 className="h-4 w-4" aria-hidden="true" />{t('dhStepNext')}
                 </Button>
               )}
