@@ -6,7 +6,7 @@
 
 import { buildEmailLayout, buildInfoCard, formatDateCH, bucketEmailsByLocale, escHtml } from './email-template.js'
 import { normalizePhone, normalizeIban, normalizeAhv, normalizeEmail, titleCaseName } from './normalize.js'
-import { BB_SITUATIONS, bbRequiredDocs, bbRequiredDocsAfterWaiver, fibaNatCode } from './bb-docs.js'
+import { BB_SITUATIONS, bbAgeAtSeasonStart, bbRequiredDocs, bbRequiredDocsAfterWaiver, fibaNatCode } from './bb-docs.js'
 import { BB_PDF_TEMPLATES, fillBbForm } from './bb-pdf-fill.js'
 import { federationName } from './federations.js'
 import { writeUserLog } from './activity-log.js'
@@ -120,6 +120,28 @@ export function normalizeFederation(raw) {
  *  gate shipped. */
 export function vbFederationMissing(membershipType, isGuest, federationOfOrigin) {
   return membershipType === 'volleyball' && !isGuest && !federationOfOrigin
+}
+
+/** A Swiss-club transfer must SAY whether a licence was held in the last two
+ *  seasons — the answer is what decides whether the Freibrief is required at
+ *  all (bbFreibriefWaived). The client form has blocked on this since migration
+ *  232; this is the server-side twin, for exactly the reason vbFederationMissing
+ *  has one — a stale cached bundle does not run the new gate.
+ *
+ *  Leaving it unanswered is SAFE but unkind: NULL keeps the Freibrief required,
+ *  so the applicant is turned away for a release letter their former club has no
+ *  reason to issue, and nothing on screen says the real problem is a question
+ *  they were never shown. Rejecting on the question gives them the answerable
+ *  error instead.
+ *
+ *  U12 is exempt: the waiver applies on age alone there, so the form never asks
+ *  and neither does this. */
+export function bbRecentLicenceMissing(membershipType, isGuest, situation, dob, recentLicence) {
+  if (membershipType !== 'basketball' || isGuest) return false
+  if (situation !== 'transfer_ch') return false
+  const age = bbAgeAtSeasonStart(dob)
+  if (age !== null && age < 12) return false
+  return !['ja', 'nein'].includes(String(recentLicence || '').toLowerCase())
 }
 
 // ── Confirmation emails ─────────────────────────────────────────
@@ -979,6 +1001,12 @@ export function registerRegistration(router, { database, logger, services, getSc
           ? 'Please select your federation of origin — choose Switzerland if this is your first licence. If you cannot see this field, please reload the page.'
           : 'Bitte wähle deinen Herkunftsverband — wähle die Schweiz, falls dies deine erste Lizenz ist. Falls du dieses Feld nicht siehst, lade die Seite bitte neu.'
         return res.status(400).json({ error: msg, code: 'federation_required' })
+      }
+      if (bbRecentLicenceMissing(body.membership_type, isGuest, bbSituation, body.geburtsdatum, bbRecentLicence)) {
+        const msg = isEn
+          ? 'Please tell us whether you held a Swiss Basketball licence in the last two seasons. If you cannot see this question, please reload the page.'
+          : 'Bitte gib an, ob du in den letzten zwei Saisons eine Swiss-Basketball-Lizenz hattest. Falls du diese Frage nicht siehst, lade die Seite bitte neu.'
+        return res.status(400).json({ error: msg, code: 'recent_licence_required' })
       }
       if (body.membership_type === 'basketball' && !isGuest) {
         // A dual national holding a Swiss passport is Swiss for FIBA, so the
