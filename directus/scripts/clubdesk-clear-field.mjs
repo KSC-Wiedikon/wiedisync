@@ -31,10 +31,8 @@
  * immune to the name drift ClubDesk carries (see CLAUDE.md → ClubDesk contact
  * matching). The clubdesk_id/[Id] is NOT Filtern-searchable.
  */
-import { createRequire } from 'node:module'
+import { launchBrowser } from './clubdesk-browser.mjs'
 import { readFileSync } from 'node:fs'
-const require = createRequire(import.meta.url)
-const { chromium } = require('playwright')
 const USER = process.env.CLUBDESK_USER, PASS = process.env.CLUBDESK_PASS
 const WORKLIST = process.argv[2], MODE = process.argv[3] || 'preview'
 const SHOTS = process.env.CLUBDESK_CLEAR_SHOTS || ''
@@ -189,7 +187,7 @@ async function clearField(page, field, pos) {
 }
 
 async function run() {
-  const browser = await chromium.launch({ headless: true, args: ['--no-sandbox', '--disable-dev-shm-usage'] })
+  const browser = await launchBrowser()
   const results = []
   try {
     const ctx = await browser.newContext({ locale: 'de-CH', timezoneId: 'Europe/Zurich', viewport: { width: 1500, height: 950 } })
