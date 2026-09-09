@@ -30,13 +30,10 @@
  *   never on class names, and assert after every step.
  */
 
-import { createRequire } from 'node:module'
+import { launchBrowser } from './clubdesk-browser.mjs'
 import { readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-
-const require = createRequire(import.meta.url)
-const { chromium } = require('playwright')
 
 const USER = process.env.CLUBDESK_USER
 const PASS = process.env.CLUBDESK_PASS
@@ -89,10 +86,7 @@ const leafRect = (page, text) =>
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function run() {
-  const browser = await chromium.launch({
-    headless: true,
-    args: ['--no-sandbox', '--disable-dev-shm-usage'],
-  })
+  const browser = await launchBrowser()
   try {
     const ctx = await browser.newContext({
       locale: 'de-CH',

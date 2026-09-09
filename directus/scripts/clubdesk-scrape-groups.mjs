@@ -28,10 +28,8 @@
  * ⚠ ONE ClubDesk session per account — run under the shared .sync.lock.
  * ⚠ 'commit' writes to the club's legal member record — gate behind a human OK.
  */
-import { createRequire } from 'node:module'
+import { launchBrowser } from './clubdesk-browser.mjs'
 import { readFileSync } from 'node:fs'
-const require = createRequire(import.meta.url)
-const { chromium } = require('playwright')
 
 const USER = process.env.CLUBDESK_USER
 const PASS = process.env.CLUBDESK_PASS
@@ -341,7 +339,7 @@ async function pickCombo(page, triggerX, triggerY, value) {
 }
 
 async function run() {
-  const browser = await chromium.launch({ headless: true, args: ['--no-sandbox', '--disable-dev-shm-usage'] })
+  const browser = await launchBrowser()
   const results = []
   try {
     const ctx = await browser.newContext({ locale: 'de-CH', timezoneId: 'Europe/Zurich', viewport: { width: 1500, height: 950 } })

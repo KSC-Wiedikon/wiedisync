@@ -25,9 +25,7 @@
  * ⚠ ONE ClubDesk session per account — run on the dedicated service account.
  * ⚠ 'commit' writes to the club's legal member record. Gate it behind a human OK.
  */
-import { createRequire } from 'node:module'
-const require = createRequire(import.meta.url)
-const { chromium } = require('playwright')
+import { launchBrowser } from './clubdesk-browser.mjs'
 
 const USER = process.env.CLUBDESK_USER
 const PASS = process.env.CLUBDESK_PASS
@@ -126,7 +124,7 @@ const readSummary = (page) => page.evaluate(() => {
 })
 
 async function run() {
-  const browser = await chromium.launch({ headless: true, args: ['--no-sandbox', '--disable-dev-shm-usage'] })
+  const browser = await launchBrowser()
   let result = { mode: MODE, total: null, neu: null, veraendert: null, unveraendert: null, committed: false }
   try {
     const ctx = await browser.newContext({ locale: 'de-CH', timezoneId: 'Europe/Zurich', viewport: { width: 1500, height: 950 }, deviceScaleFactor: 1 })
