@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.8.1'
+const APP_VERSION = '2.8.2'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,18 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.8.2',
+    date: '09.09.2026',
+    sections: [
+      {
+        title: "Fixes",
+        items: [
+          "The ClubDesk sync path no longer steps over the push. Superadmin tool \u2014 Admin \u2192 Data health \u2192 ClubDesk sync. When there was nothing to decide at step 2, the \"Next step\" button in a finished step's window jumped from step 1 straight to step 4 \u2014 skipping the sync up, the one step on the path that writes to ClubDesk \u2014 and the run still ended with five green ticks and \"Done\". Two runs today finished that way with six members unsent: five approved registrations that had never been created in ClubDesk, and one changed bank detail. The same arithmetic skipped \"Fix groups\" after step 4. Both steps are now reached from the step you actually finished, so a run that says it is done has done all five.",
+        ],
+      },
+    ],
+  },
   {
     version: '2.8.1',
     date: '09.09.2026',

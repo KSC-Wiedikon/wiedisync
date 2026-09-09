@@ -71,15 +71,14 @@ import { formatDateTimeCompact } from '../../../utils/dateHelpers'
 import { detectClubdeskConflicts } from '../utils/clubdeskConflicts'
 import { classifySyncFailure, SYNC_FAILURE_KEY } from '../utils/syncFailure'
 import type { FixClass } from '../utils/clubdeskFindings'
+import { resolveStep, stepAfter, STEPS, type PathStep } from '../utils/syncPathSteps'
 import ClubdeskStepDialog from './ClubdeskStepDialog'
 import SyncJobProgress, { type JobProgress } from './SyncJobProgress'
 import ClubdeskProposals from './ClubdeskProposals'
 import ClubdeskSyncUpModal from './ClubdeskSyncUpModal'
 import ClubdeskFixGroups from './ClubdeskFixGroups'
 
-export type PathStep = 'down1' | 'decide' | 'up' | 'down2' | 'groups' | 'done'
-
-const STEPS: PathStep[] = ['down1', 'decide', 'up', 'down2', 'groups']
+export type { PathStep }
 
 const ICON: Record<PathStep, typeof Check> = {
   down1: ArrowDownToLine,
@@ -324,14 +323,10 @@ export default function ClubdeskSyncPath({
   // queued falls through to the second down, and no group findings means done.
   const fixableCount = useMemo(
     () => Object.values(fixAvailable).reduce((a, b) => a + b, 0), [fixAvailable])
-  const resolve = useCallback((s: PathStep): PathStep => {
-    let c = s
-    if (c === 'decide' && pendingProposals === 0) c = 'up'
-    if (c === 'up' && pendingPush === 0) c = 'down2'
-    if (c === 'groups' && (fixableCount === 0 || groupsCommitted)) c = 'done'
-    return c
-  }, [pendingProposals, pendingPush, fixableCount, groupsCommitted])
-  const current = resolve(step)
+  const gates = useMemo(
+    () => ({ pendingProposals, pendingPush, fixable: fixableCount, groupsCommitted }),
+    [pendingProposals, pendingPush, fixableCount, groupsCommitted])
+  const current = resolveStep(step, gates)
 
   /**
    * Run the sync-down for a step and, if it worked, move the marker on.
@@ -373,15 +368,23 @@ export default function ClubdeskSyncPath({
     if (s === 'down1' || s === 'down2') void runDownStep(s)
   }, [runDownStep])
 
-  /** Footer "next step": advance the marker and open whatever comes next. */
-  const goNext = useCallback(() => {
-    const i = STEPS.indexOf(current)
-    const nextRaw = i < 0 || i + 1 >= STEPS.length ? 'done' : STEPS[i + 1]
-    const nx = resolve(nextRaw)
+  /**
+   * Footer "next step": the step `from` is finished — move the marker to
+   * whatever comes after IT and open that.
+   *
+   * ⚠⚠ `from` is the calling dialog's own step, never `current`. A finished
+   * sync-down has already moved the marker on by itself, and `resolveStep` then
+   * slides it over an empty decide — so advancing from `current` advanced TWICE
+   * and stepped over the push, silently, on every run with nothing to decide
+   * (09.09.2026: two prod runs finished green with six members unpushed). Same
+   * arithmetic at the far end skipped the group fix after the second down.
+   */
+  const advanceFrom = useCallback((from: PathStep) => {
+    const nx = stepAfter(from, gates)
     setStep(nx)
     if (nx === 'done') { setOpenStep(null); return }
     openAt(nx)
-  }, [current, resolve, openAt])
+  }, [gates, openAt])
 
   const label = useMemo(() => ({
     down1: t('dhPathStep1'),
@@ -591,7 +594,12 @@ export default function ClubdeskSyncPath({
               {t('dhPathRestart')}
             </Button>
           )}
-          <Button type="button" onClick={goNext} disabled={running || !downDone} className="gap-1.5">
+          <Button
+            type="button"
+            onClick={() => { if (openStep === 'down1' || openStep === 'down2') advanceFrom(openStep) }}
+            disabled={running || !downDone}
+            className="gap-1.5"
+          >
             <Check className="h-4 w-4" aria-hidden="true" />
             {t('dhStepNext')}
           </Button>
@@ -619,7 +627,7 @@ export default function ClubdeskSyncPath({
             {t('dhStepClose')}
           </Button>
           <Button
-            type="button" onClick={goNext} disabled={pendingProposals > 0}
+            type="button" onClick={() => advanceFrom('decide')} disabled={pendingProposals > 0}
             title={pendingProposals > 0 ? t('dhStepDecideFirst') : undefined}
             className="gap-1.5"
           >
@@ -637,7 +645,7 @@ export default function ClubdeskSyncPath({
         total={STEPS.length}
         title={label.up}
         description={stepHint.up}
-        onNext={goNext}
+        onNext={() => advanceFrom('up')}
         onDone={onDone}
       />
       <ClubdeskFixGroups

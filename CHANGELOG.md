@@ -2,6 +2,12 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.8.2 — 2026-09-09
+
+### Fixes
+
+- **The ClubDesk sync path no longer steps over the push.** *Superadmin tool — Admin → Data health → ClubDesk sync.* When there was nothing to decide at step 2, the "Next step" button inside a finished step's window advanced twice: from step 1 straight to step 4, skipping the sync up — the one step on the path that writes to ClubDesk. Nothing said so, because step 4 is another sync down, it succeeds, and the run ends with five green ticks and "Done". Two runs today finished that way with six members unsent (five approved registrations never created in ClubDesk, and one changed IBAN), and "Fix groups" then honestly reported nothing to fix, because the group checks only look at contacts that exist in ClubDesk. The same arithmetic skipped step 5 after step 4. Advancing now follows the step you actually finished, so a run that says it is done has done all five.
+
 ## v2.8.1 — 2026-09-09
 
 ### Fixes
