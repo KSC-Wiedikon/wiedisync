@@ -19,6 +19,10 @@ import {
   countryNameDe, countryOptions,
   parseCountryCodes, serializeCountryCodes,
 } from '../../utils/countries'
+import {
+  bbRequiredDocsAfterWaiver, parseWaivedDocs, fibaNatCode,
+  type BbDocField,
+} from '@bb-docs'
 import CountryMultiSelect from '../../components/CountryMultiSelect'
 import SearchableSelect from '../../components/ui/SearchableSelect'
 import DatePicker from '../../components/ui/DatePicker'
@@ -126,102 +130,37 @@ const DOC_LABEL_KEYS: Record<string, string> = {
   id_upload_back: 'anmeldungenDocIdBack',
 }
 
-// Required basketball documents for a licensing situation. Mirrors bbRequiredDocs
-// in the Directus extension (wiedisync bb-docs.js) and the kscw-website client —
-// keep the four in sync. School certificate stays optional (never required).
-const BB_SITUATIONS = ['neu', 'transfer_ch', 'transfer_intl', 'rueckkehr']
-const bbAgeAtSeasonStart = (dob: string | null): number | null => {
-  if (!dob) return null
-  const m = dob.slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/)
-  if (!m) return null
-  const now = new Date()
-  // ⚠ Jul 1 with a Sep 1 age reference, NOT the club's Jun 1 cutover (utils/season.ts)
-  // — deliberate. Licence AGE-BAND rule, matched pair with bbAgeAtSeasonStart() in
-  // directus/extensions/kscw-endpoints/src/bb-docs.js. Change both or neither.
-  const seasonStartYear = now.getUTCMonth() + 1 >= 7 ? now.getUTCFullYear() : now.getUTCFullYear() - 1
-  let age = seasonStartYear - Number(m[1])
-  if (9 < Number(m[2]) || (9 === Number(m[2]) && 1 < Number(m[3]))) age--
-  return age
-}
-const bbIsMinor = (dob: string | null): boolean => {
-  const age = bbAgeAtSeasonStart(dob)
-  return age !== null && age < 18
-}
-// Swiss Basketball waives the Freibrief for a transfer out of another Swiss club
-// when the player held no licence in the last two seasons (the former club has
-// nothing to release) or is U12 — "Verfahren Lizenz SWB" §3. Only an explicit
-// 'nein' waives: null means unanswered, which must stay strict.
-//
-// ⚠ This page went eight weeks without it while the server had it, so the admin
-// blocked approvals the backend would have accepted, with no way out but to
-// chase a document the applicant did not owe. Matched pair with
-// bbFreibriefWaived() in bb-docs.js — change both or neither.
-const bbFreibriefWaived = (dob: string | null, recentLicence: string | null): boolean => {
-  if (String(recentLicence || '').toLowerCase() === 'nein') return true
-  const age = bbAgeAtSeasonStart(dob)
-  return age !== null && age < 12
-}
-const bbRequiredDocs = (
-  situation: string | null,
-  natCode: string,
-  dob: string | null,
-  recentLicence: string | null,
-): (keyof Registration)[] => {
-  const base: (keyof Registration)[] = ['id_upload_front', 'id_upload_back', 'bb_doc_lizenz']
-  const foreign = !!natCode && natCode !== 'CH'
-  const minor = bbIsMinor(dob)
-  if (!BB_SITUATIONS.includes(situation || '')) {
-    if (foreign) base.push('bb_doc_selfdecl', 'bb_doc_natdecl')
-    return base
-  }
-  switch (situation) {
-    case 'transfer_ch':
-      if (!bbFreibriefWaived(dob, recentLicence)) base.push('bb_doc_freibrief')
-      break
-    case 'transfer_intl':
-    case 'rueckkehr':
-      base.push('bb_doc_selfdecl')
-      if (minor) base.push('bb_doc_natdecl', 'bb_doc_u18parents')
-      break
-    default:
-      if (foreign) base.push('bb_doc_selfdecl')
-      if (foreign && minor) base.push('bb_doc_natdecl')
-      break
-  }
-  return base
-}
-// The single code the document gate judges a (possibly multi-) national by.
-// FIBA treats a dual national holding Swiss nationality as Swiss, so a CH code
-// ANYWHERE in the list clears the foreign-player documents — the list order is
-// a UI convention, not a legal one. Mirrors fibaNatCode in bb-docs.js; the
-// singular code covers rows that predate the list (migration 223).
-const fibaNatCode = (reg: Registration): string => {
-  const codes = parseCountryCodes(reg.nationalitaet_codes)
-  if (codes.includes('CH')) return 'CH'
-  return codes[0] || (reg.nationalitaet_code || '').trim().toUpperCase().slice(0, 2)
-}
+// The single code the document gate judges a (possibly multi-) national by —
+// FIBA treats a dual national holding Swiss nationality as Swiss. Hands the raw
+// column straight to the shared rule, exactly as registration.js and the
+// approval hook do; the singular code is the fallback for rows that predate the
+// list (migration 223). Deliberately does NOT pre-parse with the UI's country
+// helpers: two parsers over one column is how they disagree.
+const regNatCode = (reg: Registration): string =>
+  fibaNatCode(reg.nationalitaet_codes, reg.nationalitaet_code)
 
 const countDocs = (reg: Registration): number => DOC_FIELDS.filter((k) => reg[k]).length
 
-// Required docs for a basketball registration, driven by the applicant's
-// licensing situation + nationality + age. Mirrors the server-side approval
-// gate (kscw-hooks) — this check just gives a clear toast instead of a failed
-// request. Module scope on purpose: it is a pure function of the row, and a
+// What this registration still owes: the licensing situation's required set,
+// minus the documents on file and minus anything an approver waived.
+//
+// The RULES are imported, not restated — bb-docs.js is the same module the
+// approval gate, the create route, doc-status and the docs-request email run.
+// This page kept a hand-written copy until 09.09.2026 and it drifted: it never
+// learned the Freibrief waiver the server had applied since migration 232, so
+// REG-2026-1054 was blocked here on a document the backend did not require.
+//
+// Module scope on purpose: it is a pure function of the row, and a
 // component-scope closure here makes the React Compiler bail on the whole page.
-const missingRequiredDocs = (reg: Registration): (keyof Registration)[] => {
+const missingRequiredDocs = (reg: Registration): BbDocField[] => {
   if (reg.membership_type !== 'basketball') return []
-  const waived = waivedDocs(reg)
-  return bbRequiredDocs(reg.bb_situation, fibaNatCode(reg), reg.geburtsdatum, reg.bb_recent_licence)
-    .filter((k) => !reg[k] && !waived.includes(k))
+  return bbRequiredDocsAfterWaiver(
+    reg.bb_situation, regNatCode(reg), reg.geburtsdatum, reg.bb_recent_licence, reg.bb_docs_waived,
+  ).filter((k) => !reg[k])
 }
 
-// Documents an approver waived on this row. Mirrors parseWaivedDocs in
-// bb-docs.js — unknown names are dropped rather than trusted.
-const waivedDocs = (reg: Registration): (keyof Registration)[] =>
-  String(reg.bb_docs_waived || '')
-    .split(',')
-    .map((x) => x.trim())
-    .filter((x) => x in DOC_LABEL_KEYS) as (keyof Registration)[]
+// Documents an approver waived on this row.
+const waivedDocs = (reg: Registration): BbDocField[] => parseWaivedDocs(reg.bb_docs_waived)
 
 
 type StatusFilter = 'all' | 'pending' | 'approved' | 'rejected'

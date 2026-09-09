@@ -7,8 +7,15 @@
 // beyond ID front/back + signed Lizenzantrag. The school-enrolment certificate
 // is always optional and therefore never appears in the required set.
 //
-// Used by both kscw-endpoints (registration create + doc-status) and kscw-hooks
-// (approval gate) so all three enforcement points agree.
+// Used by kscw-endpoints (registration create + doc-status + docs-request email),
+// kscw-hooks (approval gate) AND the wiedisync admin page, which imports it via
+// the `@bb-docs` Vite/tsconfig alias — see bb-docs.d.ts. The admin page kept a
+// hand-written copy until 09.09.2026 and it drifted: it never learned the
+// Freibrief waiver below, and blocked REG-2026-1054 on a document this module
+// had already waived. One copy now, for everything that ships from this repo.
+//
+// ⚠ kscw-website's registration-form.js is a separate repo, vanilla JS, no
+// bundler — it remains a hand-kept mirror and must change alongside this file.
 
 export const BB_SITUATIONS = ['neu', 'transfer_ch', 'transfer_intl', 'rueckkehr']
 
@@ -34,8 +41,9 @@ export function bbAgeAtSeasonStart(dob) {
   const now = new Date()
   // ⚠ Jul 1 with a Sep 1 age reference, NOT the club's Jun 1 cutover (season.js)
   // — deliberate. This is the licence AGE-BAND rule, not a season label, and it
-  // is a matched pair with isMinorForSeason() in src/modules/admin/AnmeldungenPage.tsx.
-  // Change both together or neither.
+  // is a matched pair with the same rule in kscw-website's registration-form.js.
+  // Change both together or neither. (The wiedisync admin page imports this
+  // module now, so it is no longer a third copy that can drift.)
   const seasonStartYear = (now.getUTCMonth() + 1) >= 7 ? now.getUTCFullYear() : now.getUTCFullYear() - 1
   const refMonth = 9, refDay = 1 // Sept 1
   let age = seasonStartYear - by
@@ -81,8 +89,8 @@ export function bbFreibriefWaived(dob, recentLicence) {
 // rows that predate the code LIST (migration 223).
 //
 // Lives here so all three backend enforcement points (registration create,
-// doc-status, approval gate) apply one rule; the admin UI mirrors it in
-// AnmeldungenPage.tsx.
+// doc-status, approval gate) apply one rule, and the wiedisync admin page
+// imports it through the `@bb-docs` alias rather than restating it.
 export function fibaNatCode(codes, fallback) {
   const list = String(codes || '')
     .split(',')

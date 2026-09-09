@@ -33,6 +33,12 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      // The basketball document rules live with the backend that enforces them.
+      // The admin page imports them rather than keeping a copy: three hand-kept
+      // mirrors is how the page ended up demanding a Freibrief the server had
+      // already waived (REG-2026-1054, 09.09.2026). bb-docs.js is dependency-free
+      // ESM, so bundling it costs nothing. Types: bb-docs.d.ts beside it.
+      '@bb-docs': path.resolve(__dirname, './directus/extensions/kscw-endpoints/src/bb-docs.js'),
     },
   },
   server: {

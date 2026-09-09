@@ -9,7 +9,8 @@
     "ignoreDeprecations": "6.0",
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@bb-docs": ["./directus/extensions/kscw-endpoints/src/bb-docs"]
     },
 
     /* Bundler mode */
