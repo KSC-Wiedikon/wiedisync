@@ -119,6 +119,9 @@ See `INFRA.md → Domains & Hosting Overview` for full map.
 - If the same area of code gets multiple commits in a single day chasing the same root cause, **collapse into one entry** before the day ends. Iterative debugging notes belong in git, not the in-app changelog.
 
 ## Recent dev log
+<!-- Last few dev/deploy entries only, for at-a-glance recent context. Full history → docs/DEVLOG.md
+     (append new dev/deploy entries THERE, not here). User-facing release notes → CHANGELOG.md.
+     Keep this list pruned to ~5 entries. -->
 - **2026-09-09** A sync that failed because the browser died before ClubDesk was ever contacted (no migration, dev+prod)
 - **2026-09-09** Three amber badges on the infra board, none of them a fault — a weekly sync judged on a 48h clock (no migration, dev+prod)
 - **2026-09-09** A dialog announcing yesterday's commit beside a step that still had nine things to fix (no migration, dev+prod)
