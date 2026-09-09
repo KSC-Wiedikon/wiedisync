@@ -78,8 +78,12 @@ const OK_STATUSES = new Set(['assigned', 'previewed', 'removed', 'preview_ok'])
 interface Props {
   /** Findings counts per class, so the dialog can say what it is about to touch. */
   available: Record<FixClass, number>
-  /** Re-run the page's checks once a commit settles. */
-  onDone?: () => void | Promise<void>
+  /**
+   * Re-run the page's checks once a commit settles. ⚠ `unknown`, not `void`: the
+   * page's refresh resolves to the sync path's gate counts, and this dialog is
+   * simply not one of the callers that needs them.
+   */
+  onDone?: () => void | Promise<unknown>
   /**
    * A commit finished. ⚠ The sync path needs this as its OWN signal that step 5 is
    * done, because the findings it would otherwise wait on CANNOT change: they are

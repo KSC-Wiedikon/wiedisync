@@ -91,6 +91,28 @@ export const FIX_CLASSES = ['missing', 'coach_no_group', 'stale_funktion', 'stra
 export type FixClass = typeof FIX_CLASSES[number]
 
 /**
+ * What "Fix groups" could act on right now, per class.
+ *
+ * ⚠ ONE definition, deliberately. The number decides two different things — what
+ * the dialog offers, and whether the sync path has a step 5 at all — and the
+ * second reads it the instant a sync-down lands, from the fetch's own response
+ * rather than from state a render later. Two copies of "which rows count" is how
+ * a path finishes green over findings the board is showing.
+ *
+ * Only the halves the fix is ALLOWED to touch: a `stale_funktion` row without the
+ * correct token alongside, and a stray the server will not auto-remove, are
+ * findings to read, not work the fix can do.
+ */
+export function countFixAvailable(g: Required<GroupCheckResp>): Record<FixClass, number> {
+  return {
+    missing: g.missing.length,
+    coach_no_group: g.coach_no_group.length,
+    stale_funktion: g.stale_funktion.filter((r) => r.has_correct).length,
+    strays: g.strays.filter((r) => r.auto_removable).length,
+  }
+}
+
+/**
  * Most recent invoice for a member, from EVERY source. Not filtered to the
  * ClubDesk mirror: dues are mid-migration onto native wiedisync invoices, so a
  * source filter would report a freshly-billed member as "never billed".

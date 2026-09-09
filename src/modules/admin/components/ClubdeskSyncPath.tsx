@@ -33,9 +33,17 @@
  *                   silently, every run.
  *
  * ⚠ Deliberately NOT a single automatic button. Step 2 is a human decision, and
- * step 5 writes group allocations into the club's legal register behind its own
- * preview→commit gate. This component runs what can be run and stops where a
- * person is actually required — it never advances past those two on its own.
+ * steps 3 and 5 write into the club's legal register behind their own review and
+ * preview→commit gates. This component runs what can be run and stops where a
+ * person is actually required — it never advances past those on its own.
+ *
+ * It does, however, CHAIN: a step that finishes opens the next one itself, so
+ * down → up → down → groups runs as one sequence and the operator only answers
+ * the questions that are actually theirs (decide, push, commit). The advance is
+ * taken on counts REFETCHED as the step lands, never on the props left over from
+ * before it ran — see `GateCounts`. Advancing on stale counts is how a run that
+ * had just created five contacts painted five green ticks and "Done" over the
+ * sync-down that had yet to link a single one of them (09.09.2026).
  *
  * ⚠ The three jobs are mutually exclusive server-side (409 down_in_progress /
  * up_in_progress / grp_in_progress) — one ClubDesk login, one lock. The runner
@@ -71,7 +79,9 @@ import { formatDateTimeCompact } from '../../../utils/dateHelpers'
 import { detectClubdeskConflicts } from '../utils/clubdeskConflicts'
 import { classifySyncFailure, SYNC_FAILURE_KEY } from '../utils/syncFailure'
 import type { FixClass } from '../utils/clubdeskFindings'
-import { resolveStep, stepAfter, STEPS, type PathStep } from '../utils/syncPathSteps'
+import {
+  resolveStep, stepAfter, STEPS, type GateCounts, type PathGates, type PathStep,
+} from '../utils/syncPathSteps'
 import ClubdeskStepDialog from './ClubdeskStepDialog'
 import SyncJobProgress, { type JobProgress } from './SyncJobProgress'
 import ClubdeskProposals from './ClubdeskProposals'
@@ -165,8 +175,17 @@ export default function ClubdeskSyncPath({
   proposalsReload: number
   /** The proposals table owns the count; the decision gate reads it. */
   onProposalCountChange: (n: number) => void
-  /** Re-run the page's checks AND the proposal queue after a sync job settles. */
-  onDone?: () => void | Promise<void>
+  /**
+   * Re-run the page's checks AND the proposal queue after a sync job settles.
+   *
+   * ⚠ Resolves to the REFETCHED gate counts, and the chain advances on those
+   * rather than on `pendingProposals` / `pendingPush` / `fixAvailable`. Those are
+   * props: they arrive a render after the refresh, which is one render too late
+   * for a step that hands straight over to the next. A page that cannot supply
+   * them may still resolve void — the runner then falls back to the props, which
+   * is what a human-paced click always read anyway.
+   */
+  onDone?: () => void | Promise<GateCounts | void>
   /**
    * Re-run the page's checks only. ⚠ Deciding a proposal must NOT go through
    * `onDone`: that bumps `proposalsReload`, and the table asking for a reload from
@@ -193,6 +212,16 @@ export default function ClubdeskSyncPath({
    * "5. Fix groups (9)" with no way to finish. The commit itself is the signal.
    */
   const [groupsCommitted, setGroupsCommitted] = useState(false)
+  /**
+   * A sync-up landed in THIS run — what earns step 4 its two minutes.
+   *
+   * ⚠ Not derivable from `pendingPush`: a landed push has already emptied that
+   * queue, so the count says "nothing to push" for both the run that just pushed
+   * five creates (step 4 is mandatory — it reads their [Id] back) and the run
+   * that had nothing to push at all (step 4 would re-scrape the export step 1
+   * already loaded). Same number, opposite answers.
+   */
+  const [pushed, setPushed] = useState(false)
   /** Wall-clock start of the step this runner is polling — drives the elapsed read-out. */
   const [startedAt, setStartedAt] = useState<number | null>(null)
   /** Ticks only while a step is in flight — `elapsed` is derived from it below. */
@@ -255,6 +284,18 @@ export default function ClubdeskSyncPath({
   }, [startedAt])
   // Clamped: `now` is one tick stale at the instant a run starts.
   const elapsed = startedAt === null ? 0 : Math.max(0, Math.round((now - startedAt) / 1000))
+
+  /**
+   * The decide step is re-reading the counts before it hands over.
+   *
+   * ⚠ Its own flag rather than `running`: deciding a proposal REFUSES a ClubDesk
+   * value, and a refusal flags that member for push — so the count that decides
+   * whether step 3 happens at all changes as a side effect of step 2, and the
+   * table's own refresh reports it a round-trip later. Advancing on the props as
+   * they stand at the click can therefore step over a push the operator has just
+   * created, which is the whole failure this path keeps being fixed for.
+   */
+  const [advancing, setAdvancing] = useState(false)
 
   /** A ClubDesk job is running that this runner did not start. */
   const foreignDown = !running && isBusy(lock.down)
@@ -323,9 +364,9 @@ export default function ClubdeskSyncPath({
   // queued falls through to the second down, and no group findings means done.
   const fixableCount = useMemo(
     () => Object.values(fixAvailable).reduce((a, b) => a + b, 0), [fixAvailable])
-  const gates = useMemo(
-    () => ({ pendingProposals, pendingPush, fixable: fixableCount, groupsCommitted }),
-    [pendingProposals, pendingPush, fixableCount, groupsCommitted])
+  const gates = useMemo<PathGates>(
+    () => ({ pendingProposals, pendingPush, fixable: fixableCount, groupsCommitted, pushed }),
+    [pendingProposals, pendingPush, fixableCount, groupsCommitted, pushed])
   const current = resolveStep(step, gates)
 
   /**
@@ -351,10 +392,20 @@ export default function ClubdeskSyncPath({
       toast.warning(e instanceof Error ? e.message : String(e))
     }
     setDownDone(true)
-    await onDone?.()
-    // After the FIRST down the decision gate is next; after the second, groups.
-    // The gate then opens by itself through `resolve` once nothing is pending.
-    setStep(which === 'down1' ? 'decide' : 'groups')
+    // ⚠ The refetch's OWN answer, handed straight to the advance. Reading the
+    // props here would decide the next step on the counts as they stood before
+    // this very down ran — and the second down is the job that creates the group
+    // findings step 5 exists for, so the path would finish green over them.
+    try {
+      const fresh = await onDone?.()
+      advanceRef.current(which, fresh || undefined)
+    } catch (e) {
+      // ⚠ A failed refresh does NOT advance. The next step would then be chosen
+      // on the counts as they stood before this down ran — which is how a path
+      // finishes green over work it has not done. It stops here instead, says so,
+      // and leaves the step's own "Next step" as the way on.
+      toast.error(apiMessage(e))
+    }
   }, [runSyncDown, onDone, t])
 
   /** Open a step, starting its job when the step IS a job. */
@@ -379,21 +430,41 @@ export default function ClubdeskSyncPath({
    * (09.09.2026: two prod runs finished green with six members unpushed). Same
    * arithmetic at the far end skipped the group fix after the second down.
    */
-  const advanceFrom = useCallback((from: PathStep) => {
-    const nx = stepAfter(from, gates)
+  const advanceFrom = useCallback((from: PathStep, fresh?: GateCounts) => {
+    // Finishing step 3 IS the push landing — the flag has to be true for this
+    // decision, not one render later, or step 4 reads as unearned and is skipped.
+    const justPushed = pushed || from === 'up'
+    if (from === 'up') setPushed(true)
+    const nx = stepAfter(from, { ...gates, ...fresh, pushed: justPushed })
     setStep(nx)
     if (nx === 'done') { setOpenStep(null); return }
     openAt(nx)
-  }, [gates, openAt])
+  }, [gates, openAt, pushed])
+
+  /**
+   * ⚠ A ref, and only for `runDownStep` → `advanceFrom`. The two call each other
+   * (a finished down opens the next step; opening a down step runs it), and
+   * naming `advanceFrom` in `runDownStep`'s deps would close that loop through
+   * `useCallback` — every count change would rebuild both mid-run. The ref keeps
+   * the hand-over pointed at the latest closure without the cycle.
+   */
+  const advanceRef = useRef(advanceFrom)
+  // Written in an effect, never in the render body — a ref mutated during render
+  // is the impure write the React lint rules reject.
+  useEffect(() => { advanceRef.current = advanceFrom })
 
   const label = useMemo(() => ({
     down1: t('dhPathStep1'),
     decide: t('dhPathStep2', { count: pendingProposals }),
     up: pendingPush === 0 ? t('dhPathStep3Empty') : t('dhPathStep3'),
-    down2: t('dhPathStep4'),
+    // ⚠ Says WHY it is being stepped over rather than quietly ticking green: the
+    // read-back down is mandatory after a push and pointless without one, and a
+    // step that is skipped for a reason has to give the reason (the same shape
+    // steps 3 and 5 already use).
+    down2: pendingPush === 0 && !pushed ? t('dhPathStep4Empty') : t('dhPathStep4'),
     groups: fixableCount === 0 ? t('dhPathStep5Empty') : t('dhPathStep5', { count: fixableCount }),
     done: t('dhPathDone'),
-  }), [t, pendingProposals, fixableCount, pendingPush])
+  }), [t, pendingProposals, fixableCount, pendingPush, pushed])
 
   /** The step's one-line "what this does", shown under its title in the dialog. */
   const stepHint: Record<PathStep, string> = useMemo(() => ({
@@ -460,7 +531,10 @@ export default function ClubdeskSyncPath({
         {current === 'done' ? (
           <Button
             type="button" size="sm" variant="outline"
-            onClick={() => { setStep('down1'); setActive(false); setDownDone(false); setGroupsCommitted(false) }}
+            onClick={() => {
+              setStep('down1'); setActive(false); setDownDone(false)
+              setGroupsCommitted(false); setPushed(false)
+            }}
             className="gap-1.5"
           >
             <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
@@ -627,11 +701,25 @@ export default function ClubdeskSyncPath({
             {t('dhStepClose')}
           </Button>
           <Button
-            type="button" onClick={() => advanceFrom('decide')} disabled={pendingProposals > 0}
+            type="button"
+            onClick={async () => {
+              setAdvancing(true)
+              try {
+                advanceFrom('decide', (await onDone?.()) || undefined)
+              } catch (e) {
+                toast.error(apiMessage(e))
+              } finally {
+                if (alive.current) setAdvancing(false)
+              }
+            }}
+            disabled={pendingProposals > 0 || advancing}
+            aria-busy={advancing}
             title={pendingProposals > 0 ? t('dhStepDecideFirst') : undefined}
             className="gap-1.5"
           >
-            <Check className="h-4 w-4" aria-hidden="true" />
+            {advancing
+              ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              : <Check className="h-4 w-4" aria-hidden="true" />}
             {t('dhStepNext')}
           </Button>
         </div>
@@ -645,7 +733,13 @@ export default function ClubdeskSyncPath({
         total={STEPS.length}
         title={label.up}
         description={stepHint.up}
-        onNext={() => advanceFrom('up')}
+        // The push has landed; the counts it changed come back with it, so the
+        // second sync-down starts on THIS run's numbers rather than the ones the
+        // review was drawn from.
+        onNext={(fresh) => advanceFrom('up', fresh)}
+        // ⚠ Fires on the push itself, not on the hand-over: closing the receipt
+        // instead of continuing must still leave step 4 owed.
+        onPushed={() => setPushed(true)}
         onDone={onDone}
       />
       <ClubdeskFixGroups
