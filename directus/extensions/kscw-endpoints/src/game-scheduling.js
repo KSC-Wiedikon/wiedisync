@@ -16,6 +16,45 @@ import { seasonStartYear } from './season.js'
 
 const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET || ''
 
+// Columns every hall_slot pool query must carry so slot generation can tell a
+// live block from an expired one. See `slotLiveOn` in the generator.
+//
+// ⚠ The two dates are to_char'd, not selected raw: node-postgres parses a `date`
+// into a JS Date at midnight *local to the container*, so slicing its ISO string
+// shifts the day backwards under any positive UTC offset (Europe/Zurich is +1/+2)
+// — a block valid from 17.08 would read 16.08. Strings from SQL avoid the whole
+// class. Same reason the slot queries below to_char their `date` column.
+const validityCols = (trx, prefix = '') => [
+  trx.raw(`to_char(${prefix}valid_from, 'YYYY-MM-DD') AS valid_from`),
+  trx.raw(`to_char(${prefix}valid_until, 'YYYY-MM-DD') AS valid_until`),
+  trx.raw(`${prefix}indefinite AS indefinite`),
+]
+
+/**
+ * Is `hs` a live hall_slot on `dateStr` ('YYYY-MM-DD')?
+ *
+ * Gated PER DATE, not once per generation run, because a season window can
+ * straddle a hall change: a block that expires in June and its successor that
+ * starts in August both come back from the pool queries, and only one of them is
+ * real on any given evening.
+ *
+ * ⚠ Without this the slot generator was time-blind — it read every hall_slot ever
+ * assigned to a team, so an already-expired block kept minting scheduling slots
+ * forever. That is how D4's entire 2026/27 Thursday inventory was generated in
+ * KWI C (last season's hall, expired 27.06.2026) while their real slot had moved
+ * to KWI A, and how KWI C reached VolleyManager on every D4 home fixture.
+ * Surfaced 10.09.2026 by a D4 player asking why a cup tie was in the wrong hall.
+ *
+ * `indefinite` wins over `valid_until`: an indefinite block carries a nominal end
+ * date that is not meant to terminate it. Dates are 'YYYY-MM-DD' strings (see
+ * validityCols), so a lexical compare IS a chronological one.
+ */
+export const slotLiveOn = (hs, dateStr) => {
+  if (hs.valid_from && dateStr < hs.valid_from) return false
+  if (hs.indefinite) return true
+  return !hs.valid_until || dateStr <= hs.valid_until
+}
+
 // Spielplanung mail identity. volleyball.kscw.ch is SES-verified (Easy DKIM),
 // so SES can send From it with DKIM-aligned DMARC. From + replies both land on
 // the dedicated Migadu mailbox spielplanung@volleyball.kscw.ch. (The kscw.ch
@@ -3709,7 +3748,7 @@ export function registerGameScheduling(router, { database, logger, services, get
         // its own 21:30 Döltschi/KWI slot falls back to these.
         const spielhalleSlots = await trx('hall_slots')
           .whereRaw("LOWER(label) = 'spielhalle'")
-          .select('day_of_week', 'start_time', 'end_time', 'hall')
+          .select('day_of_week', 'start_time', 'end_time', 'hall', ...validityCols(trx))
 
         // Shared VOLLEYBALL Döltschi pool: the Under teams take each other's
         // Tuesday Döltschi slots. Volleyball only — the BB Döltschi slots stay out.
@@ -3717,7 +3756,8 @@ export function registerGameScheduling(router, { database, logger, services, get
           .join('halls', 'hall_slots.hall', 'halls.id')
           .where('hall_slots.sport', 'volleyball')
           .whereRaw("(LOWER(halls.name) LIKE '%döltschi%' OR LOWER(halls.name) LIKE '%doltschi%')")
-          .select('hall_slots.day_of_week', 'hall_slots.start_time', 'hall_slots.end_time', 'hall_slots.hall')
+          .select('hall_slots.day_of_week', 'hall_slots.start_time', 'hall_slots.end_time', 'hall_slots.hall',
+            ...validityCols(trx, 'hall_slots.'))
 
         // KWI game halls — used for junior Sunday slots (rule A2/C1). Juniors may
         // play home games on any Sunday; the times are fixed.
@@ -3778,6 +3818,13 @@ export function registerGameScheduling(router, { database, logger, services, get
               .join('halls', 'hall_slots.hall', 'halls.id')
               .whereRaw("hall_slots.end_time::text LIKE '21:30%'")
               .whereRaw("LOWER(halls.name) LIKE '%kwi%'")
+              // Only slots that are actually live somewhere in the season window —
+              // an expired block must not keep a team off the Friday pool.
+              .where('hall_slots.valid_from', '<=', eveningWindow.end.toISOString().slice(0, 10))
+              .where(function () {
+                this.where('hall_slots.indefinite', true)
+                  .orWhere('hall_slots.valid_until', '>=', eveningWindow.start.toISOString().slice(0, 10))
+              })
               .distinct('hall_slots_teams.teams_id')
               .pluck('hall_slots_teams.teams_id'),
           )
@@ -3899,7 +3946,8 @@ export function registerGameScheduling(router, { database, logger, services, get
               .where('hall_slots_teams.teams_id', team.id)
               .whereRaw("hall_slots.end_time::text LIKE '21:30%'")
               .whereRaw("LOWER(halls.name) LIKE '%kwi%'")
-              .select('hall_slots.day_of_week', 'hall_slots.start_time', 'hall_slots.end_time', 'hall_slots.hall')
+              .select('hall_slots.day_of_week', 'hall_slots.start_time', 'hall_slots.end_time', 'hall_slots.hall',
+                ...validityCols(trx, 'hall_slots.'))
             const usesDoltschi = await trx('hall_slots')
               .join('hall_slots_teams', 'hall_slots.id', 'hall_slots_teams.hall_slots_id')
               .join('halls', 'hall_slots.hall', 'halls.id')
@@ -3927,12 +3975,13 @@ export function registerGameScheduling(router, { database, logger, services, get
               const d = new Date(eveningWindow.start)
               while (d <= eveningWindow.end) {
                 if (d.getUTCDay() === targetJsDay) {
+                  const dateStr = d.toISOString().slice(0, 10)
                   // B1/B2 — the shared Friday Spielhalle pool alternates with
                   // basketball after the October vacation. Skip VB-off Fridays.
                   const isFridaySpielhalle = tag === 'spielhalle' && targetJsDay === 5
-                  if (!isFridaySpielhalle || fridayIsVolleyball(d)) {
+                  if (slotLiveOn(hs, dateStr) && (!isFridaySpielhalle || fridayIsVolleyball(d))) {
                     candidates.push({
-                      date: d.toISOString().slice(0, 10), start_time: hs.start_time,
+                      date: dateStr, start_time: hs.start_time,
                       end_time: hs.end_time, hall: hs.hall, source: tag,
                     })
                   }
