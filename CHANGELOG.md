@@ -2,6 +2,13 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.8.3 — 2026-09-10
+
+### Fixes
+
+- **Handing on a Schreiber/Täfeler duty no longer hides most of your team.** *Duty → your assigned game → Delegieren.* Anyone may take the combined Schreiber/Täfeler duty — no scorer licence is asked for, and the app lets you sign up for it without one — but the delegation picker went on filtering candidates by that licence. So the member who had just taken the duty could only offer it back to the licensed minority: on one HU20 game 6 of 17 team-mates were listed, and searching for any of the other 11 answered "Keine passenden Mitglieder gefunden", which reads as delegation being broken. The picker now asks for a licence only where taking the duty does — the separate Schreiber role and the basketball desks. Täfeler, Schreiber/Täfeler and referee ask for none.
+- **Delegating to someone who is not on a team roster no longer fails.** Coaches and team responsibles never hold a roster row, and about 200 active members are on no active team; picking any of them sent an empty team along with the handover, which the database refused outright. Their team is now taken from the team they run, and where there is none the duty stays with the team that owed it.
+
 ## v2.8.2 — 2026-09-09
 
 ### Fixes

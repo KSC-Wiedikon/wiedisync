@@ -122,9 +122,9 @@ See `INFRA.md → Domains & Hosting Overview` for full map.
 <!-- Last few dev/deploy entries only, for at-a-glance recent context. Full history → docs/DEVLOG.md
      (append new dev/deploy entries THERE, not here). User-facing release notes → CHANGELOG.md.
      Keep this list pruned to ~5 entries. -->
+- **2026-09-10** A Täfeler duty the app hands out and then refuses to let you hand on (no migration, dev+prod)
 - **2026-09-09** A sync path that skipped the only step that writes to ClubDesk, and still finished green (no migration, dev+prod)
 - **2026-09-09** A sync that failed because the browser died before ClubDesk was ever contacted (no migration, dev+prod)
 - **2026-09-09** Three amber badges on the infra board, none of them a fault — a weekly sync judged on a 48h clock (no migration, dev+prod)
 - **2026-09-09** A dialog announcing yesterday's commit beside a step that still had nine things to fix (no migration, dev+prod)
-- **2026-09-08** Fix groups wrote the register, then listed everything it had fixed — plus every junior swept out of the Classics umbrellas (no migration, prod data)
 **Full history → [`docs/DEVLOG.md`](docs/DEVLOG.md)** · **pre-1.0 → [`docs/DEVLOG-archive.md`](docs/DEVLOG-archive.md)** (v1.0.0 baseline consolidated 2026-06-19).

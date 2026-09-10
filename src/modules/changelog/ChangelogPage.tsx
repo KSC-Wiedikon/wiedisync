@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.8.2'
+const APP_VERSION = '2.8.3'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,19 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.8.3',
+    date: '10.09.2026',
+    sections: [
+      {
+        title: "Fixes",
+        items: [
+          "Handing on a Schreiber/T\u00e4feler duty no longer hides most of your team. Duty \u2192 your assigned game \u2192 Delegieren. Anyone may take the combined Schreiber/T\u00e4feler duty \u2014 no scorer licence is asked for, and the app lets you sign up for it without one \u2014 but the delegation picker went on filtering candidates by that licence. So the member who had just taken the duty could only offer it back to the licensed minority: on one HU20 game 6 of 17 team-mates were listed, and searching for any of the other 11 answered \"Keine passenden Mitglieder gefunden\", which reads as delegation being broken. The picker now asks for a licence only where taking the duty does \u2014 the separate Schreiber role and the basketball desks. T\u00e4feler, Schreiber/T\u00e4feler and referee ask for none.",
+          "Delegating to someone who is not on a team roster no longer fails. Coaches and team responsibles never hold a roster row, and about 200 active members are on no active team; picking any of them sent an empty team along with the handover, which the database refused outright. Their team is now taken from the team they run, and where there is none the duty stays with the team that owed it.",
+        ],
+      },
+    ],
+  },
   {
     version: '2.8.2',
     date: '09.09.2026',

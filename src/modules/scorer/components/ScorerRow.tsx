@@ -619,6 +619,7 @@ export default function ScorerRow({
           teams={teams}
           memberTeams={memberTeams}
           dutyTeamPeopleIds={teamMemberIds.get(getDutyTeamForRole(delegateRole))}
+          teamPeopleIds={teamMemberIds}
           currentUserId={userId ?? ''}
           onDelegate={handleDelegateConfirm}
           onClose={() => setDelegateRole(null)}
