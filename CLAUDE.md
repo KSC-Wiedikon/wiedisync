@@ -3,6 +3,24 @@
 ## Infrastructure
 All infra details (IPs, URLs, ports, credentials, deploy commands) live in **INFRA.md**. Consult it before infra-related changes.
 
+## The shared VolleyManager account (cross-repo)
+There is ONE VolleyManager login and the **svrz_rc** project (`~/repos/svrz_rc`, API
+container on lenovoserver) uses the same one. VM keeps the active role per *account*,
+not per session, so two jobs overlapping means the loser reads under the winner's role
+— which for club-scoped resources is a 200 with the **wrong rows**, not a 403.
+`claimVmAccount` only guards jobs inside this Directus process; svrz_rc's own lock
+runs on a different host and neither can see the other.
+
+Before adding, moving or rescheduling anything that talks to VolleyManager:
+1. Read the window table in **INFRA.md** → "The shared VolleyManager account".
+2. Check `~/repos/svrz_rc/infrastructure.md` → the same section, for what runs there.
+3. When you change a window or add a job, update **both** files in the same change. A
+   window written down in only one repo is not a window, and the failure it causes in
+   the other project is silent.
+
+`kscw-website` deliberately holds no VolleyManager credentials — it only links to
+volleyball.ch. Do not give it any.
+
 ## Tech Stack
 - Frontend: React 19 + TypeScript + Vite + TailwindCSS v4 + shadcn/ui
 - UI: shadcn primitives in `src/components/ui/` (lowercase), KSCW wrappers in `src/components/` (PascalCase)
