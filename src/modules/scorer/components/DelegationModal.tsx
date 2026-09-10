@@ -16,22 +16,58 @@ interface DelegationModalProps {
    *  Drives the "same team" split; without it a staff-only coach of the duty
    *  team would be listed under "other teams". */
   dutyTeamPeopleIds?: Set<string>
+  /** The whole team → people map, same source as `dutyTeamPeopleIds`. Used to
+   *  resolve a cross-team recipient's own team when they have no roster row. */
+  teamPeopleIds?: Map<string, Set<string>>
   currentUserId: string
   onDelegate: (toMemberId: string, toTeamId: string) => void
   onClose: () => void
 }
 
+/**
+ * Licence a candidate must hold to be offered this role.
+ *
+ * ⚠ Keep in step with `canSelfAssign` in ScorerRow and with the `requiredLicence`
+ * each `renderVbEditor` call passes — they are the same rule seen from the other
+ * side, and a stricter map here means the app hands out a duty it then refuses
+ * to let you hand on. `scorer_scoreboard` (the combined Schreiber/Täfeler) sat
+ * here on `scorer_vb` until 2026-09-10 while both of those required none: an
+ * unlicensed member could take the duty but could only delegate it to the
+ * licensed minority of their own team (11 of one HU20 member's 17 team-mates
+ * were missing from the picker, which reads as "delegation is broken").
+ * The pure Täfeler and the referee need no licence either, hence no entry.
+ */
 const ROLE_LICENCE_MAP: Record<string, LicenceType | LicenceType[]> = {
   scorer: 'scorer_vb',
-  scorer_scoreboard: 'scorer_vb',
   bb_scorer: 'otr1_bb',
   bb_timekeeper: 'otr1_bb',
   // The 24s desk needs OTR2 or either OTN level.
   bb_24s_official: ['otr2_bb', 'otn1_bb', 'otn2_bb'],
 }
 
-function getMemberTeamId(memberId: string, memberTeams: MemberTeam[]): string | undefined {
-  return memberTeams.find((mt) => mt.member === memberId)?.team
+/**
+ * The team to record as the recipient's on a cross-team delegation.
+ *
+ * `to_team` is an integer FK, so "" is not a miss — it is a 500 on the insert
+ * (`invalid input syntax for type integer`), the same trap `handleAdminUpdate`
+ * coerces away in ScorerRow. Two ways a bare `member_teams` lookup comes up
+ * empty: coaches and team responsibles never get a roster row at all (see
+ * useTeamPeopleIds), and ~200 active members sit on no active team. So fall
+ * through roster → staffed team → the delegating team, which leaves the duty
+ * attached to the team that owed it rather than blanking it.
+ */
+function resolveToTeamId(
+  memberId: string,
+  memberTeams: MemberTeam[],
+  teamPeopleIds: Map<string, Set<string>> | undefined,
+  fallbackTeamId: string,
+): string {
+  const rostered = memberTeams.find((mt) => mt.member === memberId)?.team
+  if (rostered) return rostered
+  for (const [teamId, people] of teamPeopleIds ?? []) {
+    if (people.has(memberId)) return teamId
+  }
+  return fallbackTeamId
 }
 
 export default function DelegationModal({
@@ -43,6 +79,7 @@ export default function DelegationModal({
   teams,
   memberTeams,
   dutyTeamPeopleIds,
+  teamPeopleIds,
   currentUserId,
   onDelegate,
   onClose,
@@ -117,7 +154,9 @@ export default function DelegationModal({
   }, [teams])
 
   function handleSelect(member: Member, sameTeam: boolean) {
-    const teamId = sameTeam ? dutyTeamId : (getMemberTeamId(member.id, memberTeams) ?? '')
+    const teamId = sameTeam
+      ? dutyTeamId
+      : resolveToTeamId(member.id, memberTeams, teamPeopleIds, dutyTeamId)
     setSelected({ memberId: member.id, teamId, sameTeam })
   }
 
