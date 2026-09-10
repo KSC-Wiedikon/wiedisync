@@ -55,19 +55,27 @@ const ROLE_LICENCE_MAP: Record<string, LicenceType | LicenceType[]> = {
  * useTeamPeopleIds), and ~200 active members sit on no active team. So fall
  * through roster → staffed team → the delegating team, which leaves the duty
  * attached to the team that owed it rather than blanking it.
+ *
+ * ⚠ The staffed-team step is scoped to `activeTeamIds` and taken in id order,
+ * the same rule as the `member_teams` fallback in kscw-hooks' delegation
+ * transfer: the two staff junctions are fetched unfiltered, so an unscoped scan
+ * can stamp the duty with a team that was archived seasons ago, and an
+ * unordered one picks a different team run to run for anyone staffing two.
  */
 function resolveToTeamId(
   memberId: string,
   memberTeams: MemberTeam[],
   teamPeopleIds: Map<string, Set<string>> | undefined,
+  activeTeamIds: Set<string>,
   fallbackTeamId: string,
 ): string {
   const rostered = memberTeams.find((mt) => mt.member === memberId)?.team
   if (rostered) return rostered
-  for (const [teamId, people] of teamPeopleIds ?? []) {
-    if (people.has(memberId)) return teamId
-  }
-  return fallbackTeamId
+  const staffed = [...(teamPeopleIds ?? [])]
+    .filter(([teamId, people]) => activeTeamIds.has(teamId) && people.has(memberId))
+    .map(([teamId]) => teamId)
+    .sort((a, b) => Number(a) - Number(b))
+  return staffed[0] ?? fallbackTeamId
 }
 
 export default function DelegationModal({
@@ -153,10 +161,14 @@ export default function DelegationModal({
     return map
   }, [teams])
 
+  // `teams` is the active-teams read (ScorerPage filters on it), which is what
+  // bounds the staffed-team fallback in resolveToTeamId.
+  const activeTeamIds = useMemo(() => new Set(teams.map((tm) => tm.id)), [teams])
+
   function handleSelect(member: Member, sameTeam: boolean) {
     const teamId = sameTeam
       ? dutyTeamId
-      : resolveToTeamId(member.id, memberTeams, teamPeopleIds, dutyTeamId)
+      : resolveToTeamId(member.id, memberTeams, teamPeopleIds, activeTeamIds, dutyTeamId)
     setSelected({ memberId: member.id, teamId, sameTeam })
   }
 
