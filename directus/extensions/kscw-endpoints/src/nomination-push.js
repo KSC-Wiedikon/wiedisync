@@ -21,6 +21,7 @@
  * worker per fixture can be in flight. See the claim below.
  */
 import { writeUserLog } from './activity-log.js'
+import { claimVmAccount, vmAccountHeldBy } from './vm-account-lock.js'
 
 export function registerNominationPush(router, { database, logger }) {
   const log = logger || console
@@ -60,6 +61,31 @@ export function registerNominationPush(router, { database, logger }) {
     }
     if (!allowed) return res.status(403).json({ error: 'Not a coach of this team', code: 'forbidden' })
 
+    // ── Claim the SHARED Volleymanager account, BEFORE the row ────────────────
+    //
+    // Two different shared things, two different claims. The row claim below
+    // stops a second worker on this fixture; this one stops a worker of any kind
+    // running while vm_sync, the SVRZ sync or an admin's "Sync now" holds the
+    // account — VM keeps the active role per ACCOUNT and the worker's vmLogin()
+    // switches it, so an overlap reads under somebody else's role, where VM
+    // answers 200 with the WRONG ROWS as readily as 403.
+    //
+    // Order matters: the row claim writes 'pending', and a row left at 'pending'
+    // with no worker behind it hides the coach's button (which renders only for
+    // 'failed') until the 10-minute lease runs out. Refusing BEFORE that write
+    // leaves the game exactly as it was, so the coach can press again in a
+    // moment rather than being locked out of their own fixture.
+    const releaseVmAccount = claimVmAccount('nomination-push:manual')
+    if (!releaseVmAccount) {
+      const holder = vmAccountHeldBy()
+      log.info?.({ msg: `[nomination-push] rejected: the shared VM account is busy (${holder})`, game: gameId })
+      return res.status(409).json({
+        error: 'Volleymanager is busy with another sync — try again in a few minutes',
+        code: 'vm_account_busy',
+        holder,
+      })
+    }
+
     // ── Claim the game, then spawn ────────────────────────────────────────────
     // The T-60 cron (kscw-hooks/src/index.js) retries exactly the states this
     // button is offered for, so cron-vs-coach — and coach-vs-team-responsible on
@@ -97,6 +123,9 @@ export function registerNominationPush(router, { database, logger }) {
         vm_nomination_claimed_at: database.fn.now(),
       })
     if (!claimed) {
+      // Nothing was spawned, so the account goes straight back — otherwise a
+      // rejected button press would lock every VM job out for the lease.
+      releaseVmAccount()
       log.info?.({ msg: '[nomination-push] rejected: a push is already in flight', game: gameId })
       return res.status(409).json({
         error: 'A push for this game is already running — give it a minute',
@@ -130,6 +159,10 @@ export function registerNominationPush(router, { database, logger }) {
           VM_NOMINATION_ALLOW_DEV_WRITE: process.env.VM_NOMINATION_ALLOW_DEV_WRITE || '',
         },
       })
+      // Detached, so the request returns long before the worker does — but the
+      // account stays claimed until it actually exits. Leased and process-local,
+      // so a hung worker loses it after VM_LEASE_MS and a restart clears it.
+      child.once('exit', () => releaseVmAccount())
       child.unref()
       // ⚠ Past this point a worker IS running against the real Swiss Volley system.
       // The catch below must not release the claim, or the row returns to 'failed' —
@@ -156,8 +189,13 @@ export function registerNominationPush(router, { database, logger }) {
       // Release ONLY when no worker got away — see the flag above. If one did, the
       // lease is what ends the claim, not this handler.
       if (spawned) return res.status(500).json({ error: 'Could not start the push' })
-      // Nothing is running, so give the claim back now rather than making the game
-      // wait out the lease — 'pending' hides the Push now button. Restores the
+      // Nothing is running, so give BOTH claims back now rather than making the
+      // game wait out a lease. The account one has no child to release it — the
+      // throw happened before there was a child — and holding it would keep
+      // vm_sync and the SVRZ sync out for twenty minutes over a spawn that never
+      // touched Volleymanager at all.
+      releaseVmAccount()
+      // The row claim next: 'pending' hides the Push now button. Restores the
       // journal exactly as this request found it, so a failed spawn changes nothing.
       try {
         await database('games').where('id', gameId).update({

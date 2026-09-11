@@ -9,7 +9,11 @@ container on lenovoserver) uses the same one. VM keeps the active role per *acco
 not per session, so two jobs overlapping means the loser reads under the winner's role
 — which for club-scoped resources is a 200 with the **wrong rows**, not a 403.
 `claimVmAccount` only guards jobs inside this Directus process; svrz_rc's own lock
-runs on a different host and neither can see the other.
+runs on a different host and neither can see the other. **Every** VM-touching job
+here takes it — `vm_sync`, `svrz_sync`, both admin "Sync now" buttons, and (since
+2026-09-12) both Einsatzliste push entry points. A new one must too; for a worker
+spawned `detached`, release on the child's `exit`, never in a `finally` that runs
+while it is still logged in.
 
 Before adding, moving or rescheduling anything that talks to VolleyManager:
 1. Read the window table in **INFRA.md** → "The shared VolleyManager account".
