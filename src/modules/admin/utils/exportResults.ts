@@ -3,10 +3,17 @@
  * in various formats (TSV, CSV, JSON, text, Excel).
  */
 
+import { parseSqlTemporal, formatSqlTemporal, sqlTemporalToExcelDate } from './sqlCellDates'
+
+/** Text form of a cell. Temporal strings come out Swiss (`dd.mm.yyyy`,
+ *  `dd.mm.yyyy HH:MM:SS`, instants in Europe/Zurich) so the file says what
+ *  the grid says — a `date` used to export as `…T00:00:00.000Z`. */
 function serializeCell(value: unknown): string {
   if (value === null || value === undefined) return ''
   if (typeof value === 'boolean') return String(value)
   if (typeof value === 'object') return JSON.stringify(value)
+  const temporal = parseSqlTemporal(value)
+  if (temporal) return formatSqlTemporal(temporal, { seconds: true })
   return String(value)
 }
 
@@ -64,15 +71,15 @@ export function toAlignedText(columns: string[], rows: unknown[][]): string {
   return `${header}\n${separator}\n${body}`
 }
 
-// A full ISO date or timestamp Postgres serialises into JSON (date, timestamp,
-// timestamptz). Anchored so partial matches like "2026 budget" don't qualify.
-const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}([T ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?)?$/
 // A plain integer/decimal. Used together with an exact round-trip check below.
 const SAFE_NUMERIC_RE = /^-?\d+(\.\d+)?$/
 
 /**
  * Map a raw SQL cell to a NATIVE Excel value so numbers sort/sum and dates
  * format as dates, instead of everything landing as text (`serializeCell`).
+ * Temporal strings become a Date carrying the wall-clock the grid shows — a
+ * `date` stays a date, an instant is converted to Europe/Zurich (exceljs
+ * writes UTC fields, so a raw instant would show the UTC time in the sheet).
  * Conservative on string→number: only values that round-trip exactly become
  * numbers, so ids like "007", IBANs, phone numbers and >15-digit bigints
  * (which lose precision as JS numbers) keep their text form.
@@ -83,10 +90,8 @@ function xlsxCell(value: unknown): string | number | boolean | Date | null {
   if (value instanceof Date) return value
   if (typeof value === 'object') return JSON.stringify(value)
   const s = String(value)
-  if (ISO_DATE_RE.test(s)) {
-    const d = new Date(s)
-    if (!Number.isNaN(d.getTime())) return d
-  }
+  const temporal = parseSqlTemporal(s)
+  if (temporal) return sqlTemporalToExcelDate(temporal)
   if (SAFE_NUMERIC_RE.test(s) && String(Number(s)) === s) return Number(s)
   return s
 }
@@ -103,13 +108,12 @@ export async function toXlsx(
   ws.getRow(1).font = { bold: true }
   for (const row of rows) {
     const added = ws.addRow(row.map(xlsxCell))
-    // Date cells: give them a Swiss number format (date-only vs datetime by
-    // whether the source string carried a time component).
+    // Date cells: give them a Swiss number format — date-only for a `date`,
+    // datetime for a wall-clock timestamp or an instant.
     row.forEach((raw, i) => {
       const cell = added.getCell(i + 1)
-      if (cell.value instanceof Date) {
-        cell.numFmt = /[T ]\d{2}:\d{2}/.test(String(raw)) ? 'dd.mm.yyyy hh:mm' : 'dd.mm.yyyy'
-      }
+      if (!(cell.value instanceof Date)) return
+      cell.numFmt = parseSqlTemporal(raw)?.kind === 'date' ? 'dd.mm.yyyy' : 'dd.mm.yyyy hh:mm'
     })
   }
   const buffer = await wb.xlsx.writeBuffer()

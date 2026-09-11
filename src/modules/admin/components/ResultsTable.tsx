@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { formatDateTimeCompactZurich } from '@/utils/dateHelpers'
+import { parseSqlTemporal, formatSqlTemporal } from '../utils/sqlCellDates'
 
 interface ResultsTableProps {
   columns: string[]
@@ -19,16 +19,16 @@ function formatCell(value: unknown, labelMap?: Record<string, string>): React.Re
         {String(value)}
       </span>
     )
-  // Format ISO datetime strings
-  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/.test(value)) {
-    const d = new Date(value)
-    if (!isNaN(d.getTime())) {
-      return (
-        <span className="text-muted-foreground" title={value}>
-          {formatDateTimeCompactZurich(d)}
-        </span>
-      )
-    }
+  // Dates and timestamps in Swiss format. A `date` and a zone-less
+  // `timestamp` are rendered as the wall-clock they are; only an instant
+  // (`…Z` / `+02:00`) is converted to Europe/Zurich. Raw value on hover.
+  const temporal = parseSqlTemporal(value)
+  if (temporal) {
+    return (
+      <span className="text-muted-foreground" title={String(value)}>
+        {formatSqlTemporal(temporal)}
+      </span>
+    )
   }
   // Resolve relation IDs to display labels
   if (labelMap) {

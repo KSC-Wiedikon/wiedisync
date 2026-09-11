@@ -3,6 +3,24 @@
 ## Infrastructure
 All infra details (IPs, URLs, ports, credentials, deploy commands) live in **INFRA.md**. Consult it before infra-related changes.
 
+## The shared VolleyManager account (cross-repo)
+There is ONE VolleyManager login and the **svrz_rc** project (`~/repos/svrz_rc`, API
+container on lenovoserver) uses the same one. VM keeps the active role per *account*,
+not per session, so two jobs overlapping means the loser reads under the winner's role
+— which for club-scoped resources is a 200 with the **wrong rows**, not a 403.
+`claimVmAccount` only guards jobs inside this Directus process; svrz_rc's own lock
+runs on a different host and neither can see the other.
+
+Before adding, moving or rescheduling anything that talks to VolleyManager:
+1. Read the window table in **INFRA.md** → "The shared VolleyManager account".
+2. Check `~/repos/svrz_rc/infrastructure.md` → the same section, for what runs there.
+3. When you change a window or add a job, update **both** files in the same change. A
+   window written down in only one repo is not a window, and the failure it causes in
+   the other project is silent.
+
+`kscw-website` deliberately holds no VolleyManager credentials — it only links to
+volleyball.ch. Do not give it any.
+
 ## Tech Stack
 - Frontend: React 19 + TypeScript + Vite + TailwindCSS v4 + shadcn/ui
 - UI: shadcn primitives in `src/components/ui/` (lowercase), KSCW wrappers in `src/components/` (PascalCase)
@@ -122,9 +140,9 @@ See `INFRA.md → Domains & Hosting Overview` for full map.
 <!-- Last few dev/deploy entries only, for at-a-glance recent context. Full history → docs/DEVLOG.md
      (append new dev/deploy entries THERE, not here). User-facing release notes → CHANGELOG.md.
      Keep this list pruned to ~5 entries. -->
+- **2026-09-11** A calendar day the SQL console showed as 02:00 (no migration, dev)
 - **2026-09-10** A Täfeler duty the app hands out and then refuses to let you hand on (no migration, dev+prod)
 - **2026-09-09** A sync path that skipped the only step that writes to ClubDesk, and still finished green (no migration, dev+prod)
 - **2026-09-09** A sync that failed because the browser died before ClubDesk was ever contacted (no migration, dev+prod)
 - **2026-09-09** Three amber badges on the infra board, none of them a fault — a weekly sync judged on a 48h clock (no migration, dev+prod)
-- **2026-09-09** A dialog announcing yesterday's commit beside a step that still had nine things to fix (no migration, dev+prod)
 **Full history → [`docs/DEVLOG.md`](docs/DEVLOG.md)** · **pre-1.0 → [`docs/DEVLOG-archive.md`](docs/DEVLOG-archive.md)** (v1.0.0 baseline consolidated 2026-06-19).

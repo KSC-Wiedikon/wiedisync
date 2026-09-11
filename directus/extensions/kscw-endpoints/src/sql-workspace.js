@@ -24,6 +24,58 @@ const STATEMENT_TIMEOUT_MS = 15000
 const DEFAULT_ROW_CAP = 1000
 const SQL_PREVIEW_MAX = 1500
 
+// pg type OIDs of the two zone-less temporal types, plus their array forms.
+const PG_DATE = 1082
+const PG_DATE_ARRAY = 1182
+const PG_TIMESTAMP = 1114
+const PG_TIMESTAMP_ARRAY = 1115
+
+const pad2 = (n) => String(n).padStart(2, '0')
+
+/** `date` → `YYYY-MM-DD`. Local getters on purpose: postgres-date built the
+ *  Date with `new Date(y, m, d)` in the container's zone, so only the local
+ *  fields round-trip — the ISO string shifts a day under any positive offset. */
+function localDateText(d) {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
+}
+
+/** `timestamp` (no zone) → `YYYY-MM-DD HH:MM:SS[.mmm]`, Postgres's own text form. */
+function localTimestampText(d) {
+  const ms = d.getMilliseconds()
+  return `${localDateText(d)} ${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`
+    + (ms ? `.${String(ms).padStart(3, '0')}` : '')
+}
+
+/**
+ * Put the wall-clock text back on zone-less temporal cells.
+ *
+ * node-postgres hands a `date` or a `timestamp without time zone` back as a
+ * JS Date built with local constructors in the *container's* zone, and
+ * `res.json()` then serialises it with `toISOString()` — so `2026-09-15` left
+ * here as `2026-09-15T00:00:00.000Z`, which the browser rendered as
+ * "15.09.2026 02:00" (Zurich) and Excel as a midnight datetime. Neither type
+ * carries a zone, so the only faithful representation is the text Postgres
+ * itself prints. `timestamptz` is left alone: its Date IS the instant, and
+ * the ISO form is exact — the client renders it in Europe/Zurich.
+ *
+ * Pure; exported for the unit test.
+ */
+export function pgTemporalToText(dataTypeID, value) {
+  if (value == null) return value
+  switch (dataTypeID) {
+    case PG_DATE:
+      return value instanceof Date ? localDateText(value) : value
+    case PG_TIMESTAMP:
+      return value instanceof Date ? localTimestampText(value) : value
+    case PG_DATE_ARRAY:
+      return Array.isArray(value) ? value.map((v) => pgTemporalToText(PG_DATE, v)) : value
+    case PG_TIMESTAMP_ARRAY:
+      return Array.isArray(value) ? value.map((v) => pgTemporalToText(PG_TIMESTAMP, v)) : value
+    default:
+      return value
+  }
+}
+
 // Top-level DDL/DML keywords we consider "writes". Anything matching one of these
 // at the start of a statement is rejected when write_mode is false.
 const WRITE_KEYWORDS = new Set([
@@ -272,12 +324,14 @@ export function registerSqlWorkspace(router, ctx) {
             const fields = result?.fields ?? []
             if (fields.length > 0) {
               finalColumns = fields.map((f) => f.name)
+              const typeIds = fields.map((f) => f.dataTypeID)
+              const project = (r) => finalColumns.map((c, k) => pgTemporalToText(typeIds[k], r[c]))
               const raw = result.rows ?? []
               if (raw.length > DEFAULT_ROW_CAP) {
                 truncated = true
-                finalRows = raw.slice(0, DEFAULT_ROW_CAP).map((r) => finalColumns.map((c) => r[c]))
+                finalRows = raw.slice(0, DEFAULT_ROW_CAP).map(project)
               } else {
-                finalRows = raw.map((r) => finalColumns.map((c) => r[c]))
+                finalRows = raw.map(project)
               }
               totalRowCount = raw.length
             } else {
