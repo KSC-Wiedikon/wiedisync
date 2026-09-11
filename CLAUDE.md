@@ -140,7 +140,7 @@ See `INFRA.md → Domains & Hosting Overview` for full map.
 <!-- Last few dev/deploy entries only, for at-a-glance recent context. Full history → docs/DEVLOG.md
      (append new dev/deploy entries THERE, not here). User-facing release notes → CHANGELOG.md.
      Keep this list pruned to ~5 entries. -->
-- **2026-09-11** A calendar day the SQL console showed as 02:00 (no migration, dev)
+- **2026-09-11** A calendar day the SQL console showed as 02:00 (no migration, dev+prod)
 - **2026-09-10** A Täfeler duty the app hands out and then refuses to let you hand on (no migration, dev+prod)
 - **2026-09-09** A sync path that skipped the only step that writes to ClubDesk, and still finished green (no migration, dev+prod)
 - **2026-09-09** A sync that failed because the browser died before ClubDesk was ever contacted (no migration, dev+prod)
