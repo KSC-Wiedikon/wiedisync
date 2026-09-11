@@ -7140,7 +7140,10 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     const child = spawn('node', ['/directus/scripts/vm-push-nomination.mjs'], {
       detached: true, stdio: ['ignore', logOut, logOut], env,
     })
+    // unref'd so a shutdown is not held up by a push, but NOT forgotten: the
+    // caller still gets 'exit', which is what releases the shared VM account.
     child.unref()
+    return child
   }
 
   schedule('*/5 * * * *', async () => {
@@ -7149,8 +7152,32 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       log.info({ msg: '[vm-nomination] tick skipped: a run is already in progress', event: 'vm_nomination_cron_busy' })
       return
     }
+    // ── Claim the SHARED Volleymanager account ────────────────────────────────
+    //
+    // The per-game claim below stops two workers filing the same fixture twice.
+    // It says nothing about the account, and the account is the other shared
+    // thing: VM keeps the active role per ACCOUNT, and vmLogin() inside the
+    // worker switches it. So a push running while vm_sync or an admin's "Sync
+    // now" is mid-scrape moves the role out from under it — and under the wrong
+    // role VM answers 200 with the WRONG ROWS as readily as 403, which is how
+    // this class of bug stays invisible. Every other VM-touching job here has
+    // taken this claim since 2026-08-13; the nomination push was the last one
+    // that did not.
+    const releaseVmAccount = claimVmAccount('vm_nomination')
+    if (!releaseVmAccount) {
+      // A deliberate skip, not a failure — do NOT log a cron error, which would
+      // paint the status card red for a healthy system. The window is 30 minutes
+      // wide and the tick is every 5, so the next one still files the list.
+      log.warn({
+        msg: `[vm-nomination] tick skipped: the shared Volleymanager account is busy (${vmAccountHeldBy()})`,
+        event: 'vm_nomination_account_busy', holder: vmAccountHeldBy(),
+      })
+      return
+    }
     nominationRunning = true
     const startedAt = Date.now()
+    // Filled in the loop below; drained in the finally.
+    const children = []
     try {
       // Candidate games are filtered in SQL on everything that is cheap, then on
       // kickoff in JS — `games.date` + `games.time` are separate DST-naive columns,
@@ -7261,7 +7288,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
           })
           continue
         }
-        await spawnNominationPush(g.id)
+        children.push(await spawnNominationPush(g.id))
         spawned += 1
       }
       log.info({ msg: `[vm-nomination] spawned ${spawned} push(es) of ${due.length} due`, event: 'vm_nomination_cron_done', count: spawned })
@@ -7272,6 +7299,25 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       await logCronRun(database, 'vm_nomination', { status: 'error', durationMs: Date.now() - startedAt, errorMessage: err.message })
     } finally {
       nominationRunning = false
+      // ⚠ The workers are DETACHED — this tick returns in milliseconds and they
+      // run for minutes. Releasing here would hand the account back while a
+      // worker is still logged in, which is the guard being cosmetic rather than
+      // real. So the claim outlives the tick and is dropped when the LAST child
+      // exits.
+      //
+      // That is safe in both directions only because the claim is leased and
+      // process-local: a worker that hangs loses the account after VM_LEASE_MS,
+      // and a container restart takes globalThis with it. An earlier attempt at
+      // this guard was reverted for holding the account for ever — it predated
+      // the lease.
+      const pending = children.filter(Boolean)
+      if (pending.length === 0) releaseVmAccount()
+      else {
+        let outstanding = pending.length
+        for (const child of pending) {
+          child.once('exit', () => { if (--outstanding === 0) releaseVmAccount() })
+        }
+      }
     }
   })
 

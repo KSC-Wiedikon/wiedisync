@@ -9,7 +9,11 @@ container on lenovoserver) uses the same one. VM keeps the active role per *acco
 not per session, so two jobs overlapping means the loser reads under the winner's role
 — which for club-scoped resources is a 200 with the **wrong rows**, not a 403.
 `claimVmAccount` only guards jobs inside this Directus process; svrz_rc's own lock
-runs on a different host and neither can see the other.
+runs on a different host and neither can see the other. **Every** VM-touching job
+here takes it — `vm_sync`, `svrz_sync`, both admin "Sync now" buttons, and (since
+2026-09-12) both Einsatzliste push entry points. A new one must too; for a worker
+spawned `detached`, release on the child's `exit`, never in a `finally` that runs
+while it is still logged in.
 
 Before adding, moving or rescheduling anything that talks to VolleyManager:
 1. Read the window table in **INFRA.md** → "The shared VolleyManager account".
@@ -140,7 +144,7 @@ See `INFRA.md → Domains & Hosting Overview` for full map.
 <!-- Last few dev/deploy entries only, for at-a-glance recent context. Full history → docs/DEVLOG.md
      (append new dev/deploy entries THERE, not here). User-facing release notes → CHANGELOG.md.
      Keep this list pruned to ~5 entries. -->
-- **2026-09-11** A calendar day the SQL console showed as 02:00 (no migration, dev)
+- **2026-09-11** A calendar day the SQL console showed as 02:00 (no migration, dev+prod)
 - **2026-09-10** A Täfeler duty the app hands out and then refuses to let you hand on (no migration, dev+prod)
 - **2026-09-09** A sync path that skipped the only step that writes to ClubDesk, and still finished green (no migration, dev+prod)
 - **2026-09-09** A sync that failed because the browser died before ClubDesk was ever contacted (no migration, dev+prod)
