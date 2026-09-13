@@ -18,7 +18,7 @@
  * Hermetic — pure functions, no DB or network.
  */
 import { describe, it, expect } from 'vitest'
-import { buildPushCsv, registerCell, changedPushFields, CD_PUSH_CREATE_HEADERS, CD_KATEGORIE_MAP, CD_BEITRAG_MAP, feeBreakdown, mapKategorie, deriveGruppen, deriveStatus, deriveMitgliederbeitrag, deriveOffiziellenLizenz, deriveSektion, deriveSchiedsrichter, federationCell, nationalityCell, gastCell, trainerLicenceCell, trainerLicenceDisplay, parseTrainerLicenceCell, parseTrainerLicenceCodes, PROPOSAL_COLUMNS, coerceProposalValue } from '../clubdesk-update.js'
+import { buildPushCsv, registerCell, changedPushFields, CD_PUSH_CREATE_HEADERS, CD_LAND_DEFAULT, kantonsschuleCell, CD_KATEGORIE_MAP, CD_BEITRAG_MAP, feeBreakdown, mapKategorie, deriveGruppen, deriveStatus, deriveMitgliederbeitrag, deriveOffiziellenLizenz, deriveSektion, deriveSchiedsrichter, federationCell, nationalityCell, gastCell, trainerLicenceCell, trainerLicenceDisplay, parseTrainerLicenceCell, parseTrainerLicenceCodes, PROPOSAL_COLUMNS, coerceProposalValue } from '../clubdesk-update.js'
 
 const kacper = {
   first_name: 'Kacper', last_name: 'Krawczyński', email: 'k@example.com',
@@ -29,7 +29,7 @@ const kacper = {
 }
 
 describe('buildPushCsv (update set)', () => {
-  it('is [Id]-keyed and name-less — 15 contact columns, 6 fill-only cells, the register triple, no groups', () => {
+  it('is [Id]-keyed and name-less — 15 contact columns, 9 fill-only cells, the register triple, no groups', () => {
     const csv = buildPushCsv([kacper])
     const [header, row] = csv.trim().split('\n')
     // Beitragskategorie/Eintritt/Mitgliederbeitrag joined the UPDATE set
@@ -40,8 +40,10 @@ describe('buildPushCsv (update set)', () => {
     // unlike everything before them they genuinely overwrite ClubDesk's own
     // cells — but only for a member whose pending change names that field, so
     // this fixture (no clubdesk_push_changes) must still echo, never overwrite.
-    // Offiziellen Lizenz joined LAST on 2026-08-14, fill-only and ungated.
-    expect(header).toBe('[Id];E-Mail;Telefon Privat;Adresse;PLZ;Ort;Geburtsdatum;Geschlecht;IBAN;Anrede;Nationalität;Federation of Origin;Trainer Lizenz;AHV Nummer;Wiedisync ID;Gast;Beitragskategorie;Eintritt;Mitgliederbeitrag;Lizenznummer;Lizenzart;Status;Austritt;Offiziellen Lizenz')
+    // Offiziellen Lizenz joined on 2026-08-14, fill-only and ungated; Telefon
+    // Mobil / Land / Mittelschule ZH closed the list on 2026-09-13 under the
+    // same rule.
+    expect(header).toBe('[Id];E-Mail;Telefon Privat;Adresse;PLZ;Ort;Geburtsdatum;Geschlecht;IBAN;Anrede;Nationalität;Federation of Origin;Trainer Lizenz;AHV Nummer;Wiedisync ID;Gast;Beitragskategorie;Eintritt;Mitgliederbeitrag;Lizenznummer;Lizenzart;Status;Austritt;Offiziellen Lizenz;Telefon Mobil;Land;Mittelschule ZH')
     // Names must NEVER ride on an update row: [Id] is the upsert key (spike-proven
     // 2026-07-08) and a name column would overwrite the register's legal name.
     expect(header).not.toContain('Vorname')
@@ -50,7 +52,7 @@ describe('buildPushCsv (update set)', () => {
     // (proven 2026-07-06), so the column would be pure noise on an update row.
     expect(header).not.toContain('Gruppen')
     const cells = row.split(';')
-    expect(cells).toHaveLength(24)
+    expect(cells).toHaveLength(27)
     expect(cells[0]).toBe('1001283')  // ClubDesk's own [Id] = members.clubdesk_id
     expect(row).not.toContain('Kacper')
     expect(row).not.toContain('Krawczyński')
@@ -538,6 +540,67 @@ describe('buildPushCsv (update set — Offiziellen Lizenz, fill-only, 2026-08-14
   })
 })
 
+describe('buildPushCsv (update set — Telefon Mobil / Land / Mittelschule ZH, fill-only, 2026-09-13)', () => {
+  // Header indices 24..26; /up stashes the register's own cells in *_cd.
+  const cellsOf = (m) => buildPushCsv([{ ...kacper, ...m }]).trim().split('\n')[1].split(';')
+  const header = buildPushCsv([kacper]).trim().split('\n')[0].split(';')
+
+  it('sits under the right headers — column order matches the header row', () => {
+    expect(header[24]).toBe('Telefon Mobil')
+    expect(header[25]).toBe('Land')
+    expect(header[26]).toBe('Mittelschule ZH')
+  })
+
+  it('Telefon Mobil fills an empty register cell with the SAME canonical number Privat gets', () => {
+    const cells = cellsOf({ phone: '079 000 00 00', telefon_mobil_cd: '' })
+    expect(cells[2]).toBe('+41 79 000 00 00')
+    expect(cells[24]).toBe('+41 79 000 00 00')
+  })
+
+  it("Telefon Mobil echoes the register's own distinct Mobil VERBATIM", () => {
+    const cells = cellsOf({ telefon_mobil_cd: '+41 76 111 22 33' })
+    expect(cells[2]).toBe('+41 79 000 00 00')   // Privat: wiedisync's number
+    expect(cells[24]).toBe('+41 76 111 22 33')  // Mobil: untouched
+  })
+
+  it('Telefon Mobil never copies the Privat ECHO across — no wiedisync number → empty cell', () => {
+    // The H2-trio shape: register Privat set by hand, wiedisync phone empty,
+    // Mobil empty. Privat echoes one hop (phone_cd); Mobil must stay a no-op.
+    const cells = cellsOf({ phone: '', phone_cd: '+41 44 555 66 77', telefon_mobil_cd: '' })
+    expect(cells[2]).toBe('+41 44 555 66 77')
+    expect(cells[24]).toBe('')
+  })
+
+  it("Land fills an empty register cell with 'Schweiz' and echoes a set one verbatim", () => {
+    expect(cellsOf({ land_cd: '' })[25]).toBe(CD_LAND_DEFAULT)
+    expect(cellsOf({})[25]).toBe('Schweiz')
+    expect(cellsOf({ land_cd: 'Deutschland' })[25]).toBe('Deutschland')
+  })
+
+  it("Mittelschule ZH fills from members.kantonsschule when the register is empty", () => {
+    expect(cellsOf({ kantonsschule: 'KS Wiedikon', mittelschule_zh_cd: '' })[26]).toBe('KS Wiedikon')
+  })
+
+  it("Mittelschule ZH echoes the register's own value VERBATIM — wiedisync never overwrites a school", () => {
+    expect(cellsOf({ kantonsschule: 'Andere Kantonsschule', mittelschule_zh_cd: 'KS Enge' })[26]).toBe('KS Enge')
+    // Legacy register spellings survive too — this is exactly what fill-only protects.
+    expect(cellsOf({ kantonsschule: 'KS Rämibühl (MN-Gymnasium)', mittelschule_zh_cd: 'MNG Rämibühl' })[26]).toBe('MNG Rämibühl')
+  })
+
+  it("Mittelschule ZH: 'Nein' and never-asked both leave an empty register cell empty", () => {
+    expect(cellsOf({ kantonsschule: 'Nein', mittelschule_zh_cd: '' })[26]).toBe('')
+    expect(cellsOf({ kantonsschule: null, mittelschule_zh_cd: '' })[26]).toBe('')
+  })
+
+  it('all three are NOT gated on clubdesk_push_changes — naming a field changes nothing', () => {
+    const named = cellsOf({ kantonsschule: 'KS Wiedikon', mittelschule_zh_cd: 'KS Enge', land_cd: 'Schweiz', telefon_mobil_cd: '+41 76 111 22 33',
+      clubdesk_push_changes: [{ field: 'kantonsschule', old_value: null, new_value: 'KS Wiedikon' }] })
+    expect(named[24]).toBe('+41 76 111 22 33')
+    expect(named[25]).toBe('Schweiz')
+    expect(named[26]).toBe('KS Enge')
+  })
+})
+
 describe('buildPushCsv (create set)', () => {
   it('appends the create-set columns (Telefon Mobil … Schiedsrichter) in order', () => {
     const csv = buildPushCsv([{ ...kacper, scorer_vb: true, referee_vb: true, iban: 'CH9300762011623852957', cd_sektion: 'Volleyball', license_nr: '183931', licence_category: 'RLL' }], { create: true })
@@ -547,13 +610,13 @@ describe('buildPushCsv (create set)', () => {
     // the cells shift against ClubDesk's mapper). CREATE rows carry the real
     // wiedisync name (a new contact needs one) and never an [Id] (an unknown
     // [Id] hard-aborts ClubDesk's whole import).
-    expect(header).toBe('Vorname;Nachname;E-Mail;Telefon Privat;Adresse;PLZ;Ort;Geburtsdatum;Geschlecht;IBAN;Anrede;Nationalität;Federation of Origin;Trainer Lizenz;AHV Nummer;Wiedisync ID;Gast;Telefon Mobil;Beitragskategorie;Eintritt;Gruppen;Status;Offiziellen Lizenz;Mitgliederbeitrag;Sektion;Schiedsrichter;Lizenznummer;Lizenzart;Austritt')
+    expect(header).toBe('Vorname;Nachname;E-Mail;Telefon Privat;Adresse;PLZ;Ort;Geburtsdatum;Geschlecht;IBAN;Anrede;Nationalität;Federation of Origin;Trainer Lizenz;AHV Nummer;Wiedisync ID;Gast;Telefon Mobil;Beitragskategorie;Eintritt;Gruppen;Status;Offiziellen Lizenz;Mitgliederbeitrag;Sektion;Schiedsrichter;Lizenznummer;Lizenzart;Austritt;Land;Mittelschule ZH')
     expect(header).toBe(CD_PUSH_CREATE_HEADERS.join(';'))
     expect(header).not.toContain('[Id]')
     // header/cell count equality — catches a header/cells drift in either direction
     expect(row.split(';')).toHaveLength(header.split(';').length)
     const cells = row.split(';')
-    expect(cells).toHaveLength(29)
+    expect(cells).toHaveLength(31)
     expect(cells[9]).toBe('CH9300762011623852957') // IBAN
     // [10..14] = Anrede/Nationalität/Federation of Origin/Trainer Lizenz/AHV Nummer (empty on this fixture); [15] = Wiedisync ID; [16] = Gast; create extras start at [17]
     expect(cells[17]).toBe('+41 79 000 00 00')      // Telefon Mobil = Privat
@@ -568,6 +631,20 @@ describe('buildPushCsv (create set)', () => {
     expect(cells[26]).toBe('183931')                 // Lizenznummer (issuing authority)
     expect(cells[27]).toBe('RLL')                    // Lizenzart
     expect(cells[28]).toBe('')                       // Austritt — a new contact is joining
+    expect(cells[29]).toBe('Schweiz')                // Land — the club's default (CD_LAND_DEFAULT)
+    expect(cells[30]).toBe('')                       // Mittelschule ZH — fixture never asked
+  })
+
+  it('carries the Kantonsschule into Mittelschule ZH verbatim, and maps "Nein" to an empty cell', () => {
+    const cell = (kantonsschule) => buildPushCsv([{ ...kacper, kantonsschule }], { create: true }).trim().split('\n')[1].split(';')[30]
+    expect(cell('KS Wiedikon')).toBe('KS Wiedikon')
+    expect(cell('KS Rämibühl (Realgymnasium)')).toBe('KS Rämibühl (Realgymnasium)')
+    expect(cell('Andere Kantonsschule')).toBe('Andere Kantonsschule')
+    // 'Nein' = asked and not at a Kantonsschule — a real stored answer on the
+    // member, but not a school, so it must never land in ClubDesk's text column.
+    expect(cell('Nein')).toBe('')
+    expect(cell(null)).toBe('')
+    expect(kantonsschuleCell(' nein ')).toBe('')
   })
 
   it('Telefon Mobil mirrors Telefon Privat (one number → both)', () => {
@@ -597,7 +674,7 @@ describe('buildPushCsv (create set)', () => {
     const row = buildPushCsv([{ ...kacper, gruppen: 'VB H1 (Spieler*in), VB H2 (Spieler*in)' }], { create: true })
       .trim().split('\n')[1]
     const cells = row.split(';')
-    expect(cells).toHaveLength(29)
+    expect(cells).toHaveLength(31)
     expect(cells[20]).toBe('VB H1 (Spieler*in), VB H2 (Spieler*in)')
   })
 })

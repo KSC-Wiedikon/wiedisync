@@ -5400,7 +5400,45 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       // confirmed: the member typed it themselves. Registration values arrive
       // already mod-97-validated + normalized (registration.js).
       if (!existingMember.iban && reg.iban) { updates.iban = reg.iban; updates.iban_confirmed = true }
-      if (!existingMember.beitragskategorie && reg.beitragskategorie) updates.beitragskategorie = reg.beitragskategorie
+      // Kantonsschule (migration 315) — fill-only like the rest of this block.
+      // 315 backfilled the members that existed on 2026-08-13 but nothing kept
+      // copying the answer afterwards, so every later registration's school
+      // stopped at the registrations row (Kappeler/Krasser/Dietrich, Sep 2026).
+      const regKantonsschule = String(reg.kantonsschule || '').trim() || null
+      if (!existingMember.kantonsschule && regKantonsschule) updates.kantonsschule = regKantonsschule
+      // Beitragskategorie. Fill-only was the rule here until 2026-09-13, and it
+      // silently threw away the one thing a RE-registration changes: a member
+      // who joined as 'VB Schüler*in 1. Jahr' and signs up again for the next
+      // season as 'VB Schüler*in Meisterschaft' kept the first-year category —
+      // in wiedisync AND in ClubDesk, because the push only carries a category
+      // the pending change NAMES (registerCell / CD_REGISTER_FIELDS) and the
+      // sync-down is ClubDesk-authoritative on the column (Fassbind 195 and
+      // Buchheister 153, both still billed CHF 110 for 2026/27).
+      // An approved registration is the club's answer to "which category now":
+      // the applicant picked it and an admin vetted it on /admin/anmeldungen
+      // before approving. So a DIFFERENT category replaces the stored one, and
+      // for a linked member the change is recorded in clubdesk_push_changes
+      // exactly as the members.items.update hook would have — that entry is
+      // the licence for the push to overwrite the register cell (and drag the
+      // Mitgliederbeitrag along), and it is what stops the next sync-down from
+      // reverting the edit (push-pending members are skipped). The superadmin
+      // still sees old → new in the sync modal before anything is pushed.
+      const regKategorie = String(reg.beitragskategorie || '').trim()
+      const curKategorie = String(existingMember.beitragskategorie || '').trim()
+      if (regKategorie && regKategorie !== curKategorie) {
+        updates.beitragskategorie = regKategorie
+        if (curKategorie && existingMember.clubdesk_id) {
+          let changes = []
+          try {
+            changes = Array.isArray(existingMember.clubdesk_push_changes) ? existingMember.clubdesk_push_changes
+              : (existingMember.clubdesk_push_changes ? JSON.parse(existingMember.clubdesk_push_changes) : [])
+          } catch { changes = [] }
+          changes = changes.filter((c) => c?.field !== 'beitragskategorie')
+          changes.push({ field: 'beitragskategorie', old_value: curKategorie, new_value: regKategorie })
+          updates.clubdesk_push_changes = JSON.stringify(changes)
+          log.info({ msg: 'Re-registration changes the fee category — recorded for the ClubDesk push', memberId, from: curKategorie, to: regKategorie })
+        }
+      }
       // Licences are per-flag booleans (migration 067; legacy `licences` json
       // dropped in migration 119). Additive: only ever set a flag true here.
       const newLicences = mapLicences(reg.lizenz, reg.membership_type)
@@ -5447,6 +5485,9 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         iban: reg.iban || null,
         iban_confirmed: !!reg.iban,
         beitragskategorie: reg.beitragskategorie || null,
+        // Kantonsschule (migration 315) — verbatim, 'Nein' included: on the
+        // member it means "asked, and not at one", distinct from NULL.
+        kantonsschule: String(reg.kantonsschule || '').trim() || null,
         // Per-flag licence booleans (migration 067; legacy `licences` json dropped in 119).
         scorer_vb: licences.includes('scorer_vb'),
         referee_vb: licences.includes('referee_vb'),
