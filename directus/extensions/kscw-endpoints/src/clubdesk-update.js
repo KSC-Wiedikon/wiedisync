@@ -3456,7 +3456,38 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
             patch.register_status = sibling.proposed_value
           }
         }
-        await database('members').where('id', p.member_id).update(patch)
+        // ⚠ A `fill` proposal fills an EMPTY wiedisync cell — that is the whole
+        // rule, and it has to hold at ACCEPT time, not only at detection time.
+        // Proposals are detected by a sync-down and decided by a human hours or
+        // days later; in between, the cell can be set by hand, by a migration or
+        // by the very correction the proposal was about. 2026-09-13: a sync-down
+        // at 17:58 proposed Eintritt = 13.09.2026 (the date a hand-edit had
+        // stamped into the register) for two members; twenty minutes later the
+        // register was corrected to 10.09.2026 and members.eintritt set to match
+        // — and the stale proposal sat in the modal, one click away from writing
+        // the wrong date back into wiedisync and, via the items.update hook,
+        // pushing it to the register again. Guard the update on the cell still
+        // being empty; when it is not, the proposal is superseded — recorded as
+        // accepted (nothing to decide any more), not applied.
+        let updateQ = database('members').where('id', p.member_id)
+        if (p.rule === 'fill') {
+          // ::text so the same predicate serves date, boolean and varchar
+          // columns — `= ''` against a date column is a Postgres error, not
+          // a false. p.field is whitelisted by coerceProposalValue above.
+          updateQ = updateQ.whereRaw("NULLIF(??::text, '') IS NULL", [p.field])
+        }
+        const written = await updateQ.update(patch)
+        if (p.rule === 'fill' && written === 0) {
+          await database('clubdesk_sync_proposals').where('id', p.id)
+            .update({ status: 'accepted', ...stamp })
+          await writeUserLog(database, log, {
+            accountability: req.accountability, action: 'update',
+            collection: 'members', recordId: p.member_id,
+            data: { kind: 'clubdesk_proposal_superseded', field: p.field, rule: p.rule, proposed: coerced.value },
+          })
+          skipped++
+          continue
+        }
         await database('clubdesk_sync_proposals').where('id', p.id)
           .update({ status: 'accepted', ...stamp })
         await writeUserLog(database, log, {
