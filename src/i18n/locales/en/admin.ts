@@ -896,6 +896,7 @@ export default {
   cdRegZoneTitle: 'ClubDesk sync',
   cdRegChecking: 'Checking ClubDesk…',
   cdRegLinked: 'In ClubDesk',
+  cdRegLinkedPending: 'In ClubDesk, but the member data has not been synced yet — run "Sync up"',
   cdRegMatchUnlinked: 'Found in ClubDesk but not linked yet',
   cdRegDuplicate: 'ClubDesk contact is already linked to {{name}} — possible duplicate',
   cdRegLink: 'Link',

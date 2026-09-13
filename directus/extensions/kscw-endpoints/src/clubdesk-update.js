@@ -340,7 +340,52 @@ export const CD_REGISTER_FIELDS = ['register_status', 'eintritt', 'austritt', 'b
  */
 export const DEPARTED_STATUSES = ['Kein Mitglied', 'Ehemaliges Mitglied', 'Verstorben']
 
-const CD_PUSH_HEADERS = ['[Id]', ...CD_PUSH_CONTACT_HEADERS, 'Beitragskategorie', 'Eintritt', 'Mitgliederbeitrag', 'Lizenznummer', 'Lizenzart', 'Status', 'Austritt', 'Offiziellen Lizenz']
+// ── Telefon Mobil / Land / Mittelschule ZH (2026-09-13) ──────────────────────
+// Three more fill-only cells, all three found the same way: the VB
+// registrations of August/September landed in the register with these empty
+// while every hand-maintained contact had them. Same regime as Offiziellen
+// Lizenz — ClubDesk's own cell echoes verbatim whenever it is non-empty, no
+// registerCell gate, so an UPDATE can only ever fill a blank.
+//   • Telefon Mobil: CREATE rows have mirrored Privat into Mobil since
+//     2026-07-06 ("one number → both"), UPDATE rows never sent the column at
+//     all — so a contact created ClubDesk-side and linked afterwards (the H2
+//     trio of 12.09.2026) kept an empty Mobil forever. Fill = the same
+//     canonical number the row writes to Telefon Privat; when wiedisync has no
+//     number the cell stays empty (never move Privat into Mobil — the /up echo
+//     comment explains why that would be a mutation, not an echo).
+//   • Land: wiedisync has no country column and the signup form asks for none,
+//     so the CREATE push left it blank — 18 of the 19 empty Land cells in the
+//     register were ours (1154 of 1173 contacts say 'Schweiz'). The legacy
+//     per-registration CSV hard-coded 'Schweiz' and so does this
+//     (CD_LAND_DEFAULT); the register's own value wins on an UPDATE.
+//   • Mittelschule ZH: members.kantonsschule (migration 315) — the register HAS
+//     a column for it after all (288 'KS Wiedikon' cells on prod), contrary to
+//     315's "not a ClubDesk column" note. Free text in ClubDesk ('Enge',
+//     'MNG Rämibühl' and 'Liceo artistico' coexist), so the wiedisync value
+//     travels verbatim; 'Nein' ("asked, not at one") becomes an empty cell —
+//     see kantonsschuleCell.
+// Appended at the END of both header lists so the historical cell positions
+// the tests pin (and the dispatcher never reads) stay put.
+const CD_PUSH_HEADERS = ['[Id]', ...CD_PUSH_CONTACT_HEADERS, 'Beitragskategorie', 'Eintritt', 'Mitgliederbeitrag', 'Lizenznummer', 'Lizenzart', 'Status', 'Austritt', 'Offiziellen Lizenz', 'Telefon Mobil', 'Land', 'Mittelschule ZH']
+
+/** The Land cell a CREATE row writes, and the fill for an empty register cell. */
+export const CD_LAND_DEFAULT = 'Schweiz'
+
+/**
+ * members.kantonsschule → ClubDesk's `Mittelschule ZH` cell.
+ *
+ * 'Nein' is wiedisync's "asked, and not at a Kantonsschule" (KANTONSSCHULE_NONE
+ * in src/utils/kantonsschulen.ts) — a real stored answer, but not a school, so
+ * it must not land in a free-text school column. NULL ("never asked") and
+ * 'Nein' both emit an empty cell; on an UPDATE that is a no-op, on a CREATE
+ * there is nothing to protect. Every other value travels verbatim: the list
+ * mirrors the public signup form and ClubDesk's column is unconstrained text.
+ */
+export function kantonsschuleCell(v) {
+  const s = String(v ?? '').trim()
+  if (!s || s.toLowerCase() === 'nein') return ''
+  return s
+}
 
 // ── CREATE-set extras (new ClubDesk contacts only) ───────────────────────────
 // A brand-new contact has no ClubDesk-owned category, entry date, groups or
@@ -353,7 +398,7 @@ const CD_PUSH_HEADERS = ['[Id]', ...CD_PUSH_CONTACT_HEADERS, 'Beitragskategorie'
 // `BB HU14 (Trainer*in)` — ClubDesk's group naming, verified against the export
 // snapshot 2026-07-05), Status (Aktiv-/Passivmitglied — see deriveStatus) and
 // Offiziellen Lizenz (scorer/officials licence — see deriveOffiziellenLizenz).
-// UPDATE pushes NEVER send Gruppen/Sektion/Schiedsrichter/Telefon Mobil —
+// UPDATE pushes NEVER send Gruppen/Sektion/Schiedsrichter —
 // ClubDesk stays authoritative on existing contacts. (Spike 2026-07-08: an
 // empty mapped cell is provably a no-op on import, but keeping these columns
 // out of the update set remains the structural guarantee — one probe on one
@@ -383,8 +428,10 @@ const CD_PUSH_HEADERS = ['[Id]', ...CD_PUSH_CONTACT_HEADERS, 'Beitragskategorie'
 // ClubDesk.
 // CREATE rows also duplicate the single member phone into Telefon Mobil (user
 // 2026-07-06: "unless present, Privat and Mobil the same"), and carry Sektion
-// (Volleyball/Basketball/KSCW). These are CREATE-only — an UPDATE never
-// overwrites a distinct Mobil / ClubDesk-owned Sektion on an existing contact.
+// (Volleyball/Basketball/KSCW). Sektion is CREATE-only — an UPDATE never
+// overwrites a ClubDesk-owned Sektion on an existing contact. Telefon Mobil
+// rides on UPDATE rows too since 2026-09-13, but fill-only (see CD_PUSH_HEADERS):
+// a distinct Mobil in the register is echoed, never overwritten.
 // ⚠ The Passivmitglied Ja/Nein checkbox was dropped from this set on
 // 2026-07-30: the field was DELETED in ClubDesk (a club-side custom checkbox
 // predating the sync, redundant with Status + Beitragskategorie, and drifted
@@ -392,8 +439,9 @@ const CD_PUSH_HEADERS = ['[Id]', ...CD_PUSH_CONTACT_HEADERS, 'Beitragskategorie'
 // travels on Status alone now (deriveStatus → 'Passivmitglied'). Last values
 // archived to .planning/clubdesk-backups/passivmitglied-snapshot-20260730.csv.
 // CREATE set: real wiedisync name (a brand-new contact has no [Id] to key on),
-// the shared contact columns, then the create-only extras.
-export const CD_PUSH_CREATE_HEADERS = ['Vorname', 'Nachname', ...CD_PUSH_CONTACT_HEADERS, 'Telefon Mobil', 'Beitragskategorie', 'Eintritt', 'Gruppen', 'Status', 'Offiziellen Lizenz', 'Mitgliederbeitrag', 'Sektion', 'Schiedsrichter', 'Lizenznummer', 'Lizenzart', 'Austritt']
+// the shared contact columns, then the create-only extras. Land + Mittelschule
+// ZH (2026-09-13) close the list — see the CD_PUSH_HEADERS note.
+export const CD_PUSH_CREATE_HEADERS = ['Vorname', 'Nachname', ...CD_PUSH_CONTACT_HEADERS, 'Telefon Mobil', 'Beitragskategorie', 'Eintritt', 'Gruppen', 'Status', 'Offiziellen Lizenz', 'Mitgliederbeitrag', 'Sektion', 'Schiedsrichter', 'Lizenznummer', 'Lizenzart', 'Austritt', 'Land', 'Mittelschule ZH']
 
 // Sport prefix for ClubDesk group names (`VB H1 (Spieler*in)`), keyed by
 // registrations.membership_type. Passive registrations have no team → no group.
@@ -1348,6 +1396,11 @@ export function buildPushCsv(members, { create = false, countryNames = null } = 
         // is carried anyway so that creating an already-departed person (a
         // historical record being filed) does not silently lose the date.
         fmtBirthdateDDMMYYYY(m.austritt),
+        // Land + Mittelschule ZH (2026-09-13, see CD_PUSH_HEADERS). A new
+        // contact has no register value to protect: the country is the
+        // club's default, the school is the member's own answer.
+        CD_LAND_DEFAULT,
+        kantonsschuleCell(m.kantonsschule),
       )
     } else {
       // Fill-only billing cells (2026-07-27, see CD_PUSH_HEADERS): ClubDesk's
@@ -1457,6 +1510,14 @@ export function buildPushCsv(members, { create = false, countryNames = null } = 
         // same derivation the CREATE path uses, so a member's scorer/officials
         // standing reaches the register by exactly one route.
         String(m.offiziellen_lizenz_cd || '').trim() || deriveOffiziellenLizenz(m),
+        // Telefon Mobil / Land / Mittelschule ZH (2026-09-13) — the same
+        // fill-only regime, mirrors stashed by /up. Mobil fills with the SAME
+        // canonical number this row writes to Telefon Privat (phoneOut), never
+        // with the Privat echo: when wiedisync holds no number the cell stays
+        // empty rather than copying the register's Privat across.
+        String(m.telefon_mobil_cd || '').trim() || phoneOut,
+        String(m.land_cd || '').trim() || CD_LAND_DEFAULT,
+        String(m.mittelschule_zh_cd || '').trim() || kantonsschuleCell(m.kantonsschule),
       )
     }
     return cells.map(cdCell).join(';')
@@ -1482,6 +1543,9 @@ const PUSH_FIELDS = [
   // sends these ONLY when the member's pending change actually names one of
   // them — see CD_REGISTER_FIELDS and registerCell() below.
   'register_status', 'eintritt', 'austritt',
+  // Mittelschule ZH (2026-09-13) — fill-only on updates, verbatim on creates;
+  // 'Nein' is mapped to an empty cell by kantonsschuleCell.
+  'kantonsschule',
   'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn1_bb', 'otn2_bb', 'referee_bb',
   'license_nr', 'licence_category',
   // Per-member fee overrides (migration 299). deriveMitgliederbeitrag reads
@@ -1965,7 +2029,8 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
                  iban, anrede, nationalitaet, ahv_nummer, federation_of_origin,
                  trainer_lizenz, telefon_privat, adresse, plz, ort,
                  beitragskategorie, eintritt, mitgliederbeitrag, lizenznummer, lizenzart,
-                 status, austritt, offiziellen_lizenz
+                 status, austritt, offiziellen_lizenz,
+                 telefon_mobil, land, mittelschule_zh
           FROM clubdesk_export WHERE BTRIM(clubdesk_id) = ANY(?) ORDER BY BTRIM(clubdesk_id), row_id
         `, [cdids]) : { rows: [] }
         const cdEcho = new Map(echoRows.rows.map((r) => [r.cdid, r]))
@@ -2031,6 +2096,12 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
           // fallback. An unstashed mirror here would silently promote the
           // column to "wiedisync always wins".
           m.offiziellen_lizenz_cd = String(cd.offiziellen_lizenz || '').trim()
+          // Telefon Mobil / Land / Mittelschule ZH (2026-09-13) — same
+          // unconditional stash, same reason: fill-only cells where the
+          // register's own value is the first choice, not the fallback.
+          m.telefon_mobil_cd = String(cd.telefon_mobil || '').trim()
+          m.land_cd = String(cd.land || '').trim()
+          m.mittelschule_zh_cd = String(cd.mittelschule_zh || '').trim()
         }
       }
       const pushMembers = [...updates, ...creates]
@@ -2274,7 +2345,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       if (!reg || !reg.email) return { status: 'no_member' }
 
       const email = reg.email.toLowerCase().trim()
-      const MEMBER_COLS = ['id', 'uuid', 'first_name', 'last_name', 'clubdesk_id', 'clubdesk_pushed_at']
+      const MEMBER_COLS = ['id', 'uuid', 'first_name', 'last_name', 'clubdesk_id', 'clubdesk_pushed_at', 'clubdesk_push_pending']
       // ID-FIRST (user rule 2026-07-08: "lookup should be by ID"). The approval
       // hook stamps registrations.member (migration 194 backfilled legacy rows),
       // so the FK is the authoritative link — the heuristics below only cover
@@ -2310,6 +2381,17 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
 
       const base = { member_id: member.id }
       if (member.clubdesk_id) {
+        // A link alone is not "in ClubDesk" (2026-09-13). The sync-down linker
+        // attaches a member to ANY contact carrying their e-mail + first name —
+        // including a shell somebody created by hand before the push ran (the
+        // three H2 registrations of 10.09.2026: name, address and a guessed
+        // gender, nothing else). Those members are linked AND still
+        // push-pending, and the badge read a green "In ClubDesk" for two days
+        // while the register held none of their data. Surface the pending push
+        // as its own state so the zone can offer the one-click sync-up.
+        if (member.clubdesk_push_pending) {
+          return { ...base, status: 'linked_pending', clubdesk_id: member.clubdesk_id }
+        }
         return { ...base, status: 'linked', clubdesk_id: member.clubdesk_id }
       }
 
