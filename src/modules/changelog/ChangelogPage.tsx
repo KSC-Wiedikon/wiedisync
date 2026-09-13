@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.8.3'
+const APP_VERSION = '2.9.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,25 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.9.0',
+    date: '13.09.2026',
+    sections: [
+      {
+        title: "New",
+        items: [
+          "Whether a member has paid this season's fee is now a fact on the member, not a hunt through invoices. Admin → Database → Members. The club's invoices have been mirrored from ClubDesk nightly for months, but \"who has paid for 2026/27\" could only be answered one member at a time on the Finance page — the member list had no idea. Every member now carries Dues paid (this season), with the season it covers and the date it was settled, kept current automatically whenever an invoice changes: the nightly ClubDesk sync and a bill confirmed in Wiedisync both update it within the same second. It counts an invoice by what it says it bills — Mitgliederbeitrag … 2026/2027 — rather than by its date, because ClubDesk's July batch was issued with 2025 dates; a partially paid or cancelled invoice never counts. The filter panel has the matching Dues paid yes/no, so \"volleyball players who have paid\" is two clicks, and the three fields show read-only in the member's Finance & billing section.",
+          "The member list can be filtered by guest status. Admin → Database → Members → Filters → Roster guest status. Regular player, guest at any level, or a specific guest level 1–3 — read from this season's rosters only, so a guest spot on a closed season's team no longer counts. A player on one team and a guest on another matches both.",
+        ],
+      },
+      {
+        title: "Fixes",
+        items: [
+          "The SQL workspace no longer hides the last rows of a result. Admin → SQL workspace. Once the editor and the result together were taller than the pane, the result card was squeezed and clipped its own bottom: scrolled all the way down, the last two rows were simply gone — a 34-row answer ended at row 32. The card keeps its height now and the pane scrolls instead.",
+        ],
+      },
+    ],
+  },
   {
     version: '2.8.3',
     date: '10.09.2026',
