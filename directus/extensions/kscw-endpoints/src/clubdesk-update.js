@@ -376,15 +376,42 @@ export const CD_LAND_DEFAULT = 'Schweiz'
  *
  * 'Nein' is wiedisync's "asked, and not at a Kantonsschule" (KANTONSSCHULE_NONE
  * in src/utils/kantonsschulen.ts) — a real stored answer, but not a school, so
- * it must not land in a free-text school column. NULL ("never asked") and
- * 'Nein' both emit an empty cell; on an UPDATE that is a no-op, on a CREATE
- * there is nothing to protect. Every other value travels verbatim: the list
- * mirrors the public signup form and ClubDesk's column is unconstrained text.
+ * it must not land in the school column. NULL ("never asked") and 'Nein' both
+ * emit an empty cell; on an UPDATE that is a no-op, on a CREATE there is
+ * nothing to protect.
+ *
+ * ⚠⚠ ClubDesk's `Mittelschule ZH` is a PICKLIST, not free text — proven on the
+ * first live push (2026-09-13, 32 rows): 'KS Wiedikon' landed on every contact,
+ * 'KS Rämibühl (Realgymnasium)', 'KS Hohe Promenade' and 'Andere Kantonsschule'
+ * were silently DROPPED — the import still counted the row as "verändert" and
+ * the cell stayed empty. (The stray singletons in the export — 'Enge',
+ * 'Kantonsschule Wiedikon', 'MNG Rämibühl' — are legacy free-text values from
+ * before the field was a picklist, not evidence that it accepts anything.) So
+ * the website's spellings are mapped onto the register's here, and a value the
+ * register has no entry for is better sent than swallowed by a guess: it lands
+ * the day someone adds it to the picklist, and costs nothing until then.
+ *   • The three Rämibühl gymnasia collapse to the register's single
+ *     'KS Rämibühl' (34 contacts). wiedisync keeps the distinction.
+ *   • 'Liceo Artistico' → 'Liceo artistico' (the register's casing; picklists
+ *     match exactly).
+ *   • 'Andere Kantonsschule' → '' — a category, not a school; the picklist has
+ *     no such entry and an unmatched value is a no-op anyway.
+ * Values the website lists but the register does not (2026-09-13: KS Hohe
+ * Promenade, KS Im Lee, KS Rychenberg, KS Uetikon am See, KS Uster, KS
+ * Zimmerberg) travel verbatim and will land once the picklist carries them —
+ * the picklist is the club's to extend, in ClubDesk → Einstellungen → Felder.
  */
+const CD_MITTELSCHULE_MAP = {
+  'KS Rämibühl (Literargymnasium)': 'KS Rämibühl',
+  'KS Rämibühl (MN-Gymnasium)': 'KS Rämibühl',
+  'KS Rämibühl (Realgymnasium)': 'KS Rämibühl',
+  'Liceo Artistico': 'Liceo artistico',
+  'Andere Kantonsschule': '',
+}
 export function kantonsschuleCell(v) {
   const s = String(v ?? '').trim()
   if (!s || s.toLowerCase() === 'nein') return ''
-  return s
+  return Object.prototype.hasOwnProperty.call(CD_MITTELSCHULE_MAP, s) ? CD_MITTELSCHULE_MAP[s] : s
 }
 
 // ── CREATE-set extras (new ClubDesk contacts only) ───────────────────────────

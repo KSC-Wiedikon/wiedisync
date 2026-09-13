@@ -582,7 +582,7 @@ describe('buildPushCsv (update set — Telefon Mobil / Land / Mittelschule ZH, f
   })
 
   it("Mittelschule ZH echoes the register's own value VERBATIM — wiedisync never overwrites a school", () => {
-    expect(cellsOf({ kantonsschule: 'Andere Kantonsschule', mittelschule_zh_cd: 'KS Enge' })[26]).toBe('KS Enge')
+    expect(cellsOf({ kantonsschule: 'KS Wiedikon', mittelschule_zh_cd: 'KS Enge' })[26]).toBe('KS Enge')
     // Legacy register spellings survive too — this is exactly what fill-only protects.
     expect(cellsOf({ kantonsschule: 'KS Rämibühl (MN-Gymnasium)', mittelschule_zh_cd: 'MNG Rämibühl' })[26]).toBe('MNG Rämibühl')
   })
@@ -635,13 +635,23 @@ describe('buildPushCsv (create set)', () => {
     expect(cells[30]).toBe('')                       // Mittelschule ZH — fixture never asked
   })
 
-  it('carries the Kantonsschule into Mittelschule ZH verbatim, and maps "Nein" to an empty cell', () => {
+  it('carries the Kantonsschule into Mittelschule ZH in the REGISTER\'S picklist spelling, and maps "Nein" to an empty cell', () => {
     const cell = (kantonsschule) => buildPushCsv([{ ...kacper, kantonsschule }], { create: true }).trim().split('\n')[1].split(';')[30]
     expect(cell('KS Wiedikon')).toBe('KS Wiedikon')
-    expect(cell('KS Rämibühl (Realgymnasium)')).toBe('KS Rämibühl (Realgymnasium)')
-    expect(cell('Andere Kantonsschule')).toBe('Andere Kantonsschule')
+    // ⚠ Picklist, not free text (live 2026-09-13): an unmatched value is
+    // silently dropped by the import. The three Rämibühl gymnasia collapse to
+    // the register's single entry; the Liceo takes the register's casing.
+    expect(cell('KS Rämibühl (Realgymnasium)')).toBe('KS Rämibühl')
+    expect(cell('KS Rämibühl (Literargymnasium)')).toBe('KS Rämibühl')
+    expect(cell('KS Rämibühl (MN-Gymnasium)')).toBe('KS Rämibühl')
+    expect(cell('Liceo Artistico')).toBe('Liceo artistico')
+    // A category, not a school — the picklist has no entry for it.
+    expect(cell('Andere Kantonsschule')).toBe('')
+    // A school the register does not list yet travels verbatim: it lands the
+    // day the picklist carries it and is a no-op until then.
+    expect(cell('KS Hohe Promenade')).toBe('KS Hohe Promenade')
     // 'Nein' = asked and not at a Kantonsschule — a real stored answer on the
-    // member, but not a school, so it must never land in ClubDesk's text column.
+    // member, but not a school, so it must never land in ClubDesk's column.
     expect(cell('Nein')).toBe('')
     expect(cell(null)).toBe('')
     expect(kantonsschuleCell(' nein ')).toBe('')
