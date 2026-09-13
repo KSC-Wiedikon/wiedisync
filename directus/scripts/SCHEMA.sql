@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-09-08T07:46:51.068Z
+-- Generated:   2026-09-13T20:45:48.595Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -29,7 +29,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict Edf78WCThBko4yHiY6V5e4WkmksepwdOqhW24uxz6ru15xjqmEVlG8iPH8ND7W7
+\restrict rgxKNY9UsDYMgnm36o75LeoQeE9IH55fPTYAT4qFY9jgXTk9gFOCTTUwmVbTxxj
 
 -- Dumped from database version 16.15 (Debian 16.15-1.pgdg13+2)
 -- Dumped by pg_dump version 16.15 (Debian 16.15-1.pgdg13+2)
@@ -1211,6 +1211,67 @@ COMMENT ON FUNCTION public.rebuild_member_guardians(p_household integer) IS 'Rec
 
 
 --
+-- Name: refresh_members_dues_paid(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.refresh_members_dues_paid() RETURNS integer
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $_$
+DECLARE
+  y       integer := EXTRACT(YEAR FROM public.kscw_current_season_start())::int;
+  season_label text := public.kscw_current_season_label();
+  pat     text;
+  changed integer := 0;
+BEGIN
+  pat := '(^|[^0-9])' || y::text || '/(' || (y + 1)::text || '|' || lpad(((y + 1) % 100)::text, 2, '0') || ')([^0-9]|$)';
+
+  -- The paid dues invoice per member, if any — newest settlement wins when a
+  -- member somehow holds two (a re-issue paid twice is a treasurer's problem,
+  -- not a reason to show them unpaid). Only rows whose answer moves are
+  -- written, so the members row (and its own statement trigger) is left alone
+  -- on the nightly no-op.
+  WITH paid AS (
+    SELECT DISTINCT ON (fi.member)
+           fi.member                                        AS member_id,
+           coalesce(fi.closed_on, fi.confirmed_at::date)    AS paid_at
+    FROM finance_invoices fi
+    WHERE fi.member IS NOT NULL
+      AND fi.subject ILIKE '%mitgliederbeitrag%'
+      AND fi.subject ~ pat
+      AND (fi.status ILIKE 'bezahlt%' OR fi.status = 'paid')
+    ORDER BY fi.member, coalesce(fi.closed_on, fi.confirmed_at::date) DESC NULLS LAST, fi.id DESC
+  ),
+  target AS (
+    SELECT m.id,
+           (p.member_id IS NOT NULL)                              AS dues_paid,
+           CASE WHEN p.member_id IS NOT NULL THEN season_label END AS dues_paid_season,
+           p.paid_at                                              AS dues_paid_at
+    FROM members m
+    LEFT JOIN paid p ON p.member_id = m.id
+  )
+  UPDATE members m
+  SET dues_paid        = t.dues_paid,
+      dues_paid_season = t.dues_paid_season,
+      dues_paid_at     = t.dues_paid_at
+  FROM target t
+  WHERE t.id = m.id
+    AND (   m.dues_paid        IS DISTINCT FROM t.dues_paid
+         OR m.dues_paid_season IS DISTINCT FROM t.dues_paid_season
+         OR m.dues_paid_at     IS DISTINCT FROM t.dues_paid_at);
+  GET DIAGNOSTICS changed = ROW_COUNT;
+  RETURN changed;
+END $_$;
+
+
+--
+-- Name: FUNCTION refresh_members_dues_paid(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.refresh_members_dues_paid() IS 'Recomputes members.dues_paid / dues_paid_season / dues_paid_at from finance_invoices for the current season (subject-matched, see migration 360). Returns the number of member rows changed. Fired by trg_members_dues_paid on every finance_invoices statement; safe to call by hand.';
+
+
+--
 -- Name: refresh_participation_visibility(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1318,20 +1379,24 @@ BEGIN
     v_location := NEW.location;
   END IF;
 
+  -- `events.start_date` is timestamptz and the server runs on UTC, so a bare
+  -- to_char rendered a 19:00 Zurich event as "17:00" — and bucketed a 00:30
+  -- Zurich event onto the previous day. Localize, exactly like the cron
+  -- reminder in kscw-hooks already does for the same field.
   IF TG_OP = 'INSERT' THEN
     v_type := 'activity_change'; v_title_key := 'event_created';
     v_body := json_build_object(
       'title', COALESCE(NEW.title, ''),
-      'date', COALESCE(to_char(NEW.start_date, 'DD.MM.YY'), ''),
-      'time', COALESCE(to_char(NEW.start_date, 'HH24:MI'), ''),
+      'date', COALESCE(to_char(NEW.start_date AT TIME ZONE 'Europe/Zurich', 'DD.MM.YYYY'), ''),
+      'time', COALESCE(to_char(NEW.start_date AT TIME ZONE 'Europe/Zurich', 'HH24:MI'), ''),
       'location', v_location
     )::text;
   ELSIF TG_OP = 'UPDATE' THEN
     v_type := 'activity_change'; v_title_key := 'event_updated';
     v_body := json_build_object(
       'title', COALESCE(NEW.title, ''),
-      'date', COALESCE(to_char(NEW.start_date, 'DD.MM.YY'), ''),
-      'time', COALESCE(to_char(NEW.start_date, 'HH24:MI'), ''),
+      'date', COALESCE(to_char(NEW.start_date AT TIME ZONE 'Europe/Zurich', 'DD.MM.YYYY'), ''),
+      'time', COALESCE(to_char(NEW.start_date AT TIME ZONE 'Europe/Zurich', 'HH24:MI'), ''),
       'location', v_location
     )::text;
   ELSIF TG_OP = 'DELETE' THEN
@@ -1493,7 +1558,7 @@ BEGIN
     v_type := 'activity_change'; v_title := 'game_created';
     v_body := json_build_object(
       'home_team', COALESCE(NEW.home_team, ''), 'away_team', COALESCE(NEW.away_team, ''),
-      'date', COALESCE(to_char(NEW.date, 'DD.MM.YY'), ''),
+      'date', COALESCE(to_char(NEW.date, 'DD.MM.YYYY'), ''),
       'time', COALESCE(to_char(NEW.time, 'HH24:MI'), ''), 'hall', v_hall
     )::text;
   ELSIF TG_OP = 'UPDATE' THEN
@@ -1507,7 +1572,7 @@ BEGIN
       v_type := 'activity_change'; v_title := 'game_deleted';
       v_body := json_build_object(
         'home_team', COALESCE(NEW.home_team, ''), 'away_team', COALESCE(NEW.away_team, ''),
-        'date', COALESCE(to_char(NEW.date, 'DD.MM.YY'), '')
+        'date', COALESCE(to_char(NEW.date, 'DD.MM.YYYY'), '')
       )::text;
     ELSIF OLD.status = 'cancelled' AND NEW.status = 'scheduled' THEN
       -- Un-cancel: the team was told "game cancelled" — a silent reappearance
@@ -1517,7 +1582,7 @@ BEGIN
       v_type := 'activity_change'; v_title := 'game_reinstated';
       v_body := json_build_object(
         'home_team', COALESCE(NEW.home_team, ''), 'away_team', COALESCE(NEW.away_team, ''),
-        'date', COALESCE(to_char(NEW.date, 'DD.MM.YY'), ''),
+        'date', COALESCE(to_char(NEW.date, 'DD.MM.YYYY'), ''),
         'time', COALESCE(to_char(NEW.time, 'HH24:MI'), ''), 'hall', v_hall
       )::text;
     ELSE
@@ -1530,7 +1595,7 @@ BEGIN
       v_type := 'activity_change'; v_title := 'game_updated';
       v_body := json_build_object(
         'home_team', COALESCE(NEW.home_team, ''), 'away_team', COALESCE(NEW.away_team, ''),
-        'date', COALESCE(to_char(NEW.date, 'DD.MM.YY'), ''),
+        'date', COALESCE(to_char(NEW.date, 'DD.MM.YYYY'), ''),
         'time', COALESCE(to_char(NEW.time, 'HH24:MI'), ''), 'hall', v_hall
       )::text;
     END IF;
@@ -1538,7 +1603,7 @@ BEGIN
     v_type := 'activity_change'; v_title := 'game_deleted';
     v_body := json_build_object(
       'home_team', COALESCE(OLD.home_team, ''), 'away_team', COALESCE(OLD.away_team, ''),
-      'date', COALESCE(to_char(OLD.date, 'DD.MM.YY'), '')
+      'date', COALESCE(to_char(OLD.date, 'DD.MM.YYYY'), '')
     )::text;
   END IF;
 
@@ -1630,6 +1695,20 @@ BEGIN
   RETURN NEW;
 END;
 $$;
+
+
+--
+-- Name: trg_members_dues_paid_fn(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.trg_members_dues_paid_fn() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+  PERFORM public.refresh_members_dues_paid();
+  RETURN NULL; -- AFTER STATEMENT
+END $$;
 
 
 --
@@ -2010,7 +2089,7 @@ BEGIN
     v_type := 'activity_change';
     v_title := 'training_created';
     v_body := json_build_object(
-      'date', COALESCE(to_char(NEW.date, 'DD.MM.YY'), ''),
+      'date', COALESCE(to_char(NEW.date, 'DD.MM.YYYY'), ''),
       'time', COALESCE(to_char(NEW.start_time, 'HH24:MI'), ''),
       'hall', v_hall
     )::text;
@@ -2025,7 +2104,7 @@ BEGIN
       v_type := 'activity_change'; v_title := 'training_updated';
     END IF;
     v_body := json_build_object(
-      'date', COALESCE(to_char(NEW.date, 'DD.MM.YY'), ''),
+      'date', COALESCE(to_char(NEW.date, 'DD.MM.YYYY'), ''),
       'hall', v_hall
     )::text;
   ELSIF TG_OP = 'DELETE' THEN
@@ -2033,7 +2112,7 @@ BEGIN
     IF v_team_id IS NULL THEN RETURN OLD; END IF;
     v_type := 'activity_change'; v_title := 'training_deleted';
     v_body := json_build_object(
-      'date', COALESCE(to_char(OLD.date, 'DD.MM.YY'), '')
+      'date', COALESCE(to_char(OLD.date, 'DD.MM.YYYY'), '')
     )::text;
   END IF;
 
@@ -3922,6 +4001,15 @@ CREATE TABLE public.clubdesk_member_sync (
     grp_requested_by_email character varying(255),
     down_last_success_at timestamp with time zone,
     conflicts_staged_at timestamp with time zone,
+    down_phase character varying(120),
+    down_progress smallint,
+    down_log text,
+    up_phase character varying(120),
+    up_progress smallint,
+    up_log text,
+    grp_phase character varying(120),
+    grp_progress smallint,
+    grp_log text,
     CONSTRAINT clubdesk_member_sync_grp_mode_check CHECK (((grp_mode IS NULL) OR ((grp_mode)::text = ANY ((ARRAY['preview'::character varying, 'commit'::character varying])::text[])))),
     CONSTRAINT clubdesk_member_sync_grp_state_check CHECK (((grp_state)::text = ANY ((ARRAY['idle'::character varying, 'queued'::character varying, 'running'::character varying, 'done'::character varying, 'failed'::character varying])::text[]))),
     CONSTRAINT clubdesk_member_sync_singleton CHECK ((id = 1))
@@ -3968,6 +4056,69 @@ COMMENT ON COLUMN public.clubdesk_member_sync.grp_requested_by_name IS 'Actor wh
 --
 
 COMMENT ON COLUMN public.clubdesk_member_sync.down_last_success_at IS 'When the sync-down last COMPLETED SUCCESSFULLY. down_finished_at is stamped on failure too and must never be shown as "last sync".';
+
+
+--
+-- Name: COLUMN clubdesk_member_sync.down_phase; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.clubdesk_member_sync.down_phase IS 'What the sync-down is doing right now (one short sentence, written by clubdesk-member-dispatch.sh).';
+
+
+--
+-- Name: COLUMN clubdesk_member_sync.down_progress; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.clubdesk_member_sync.down_progress IS '0-100 progress of the sync-down itself. Advisory: best-effort writes, never a correctness input.';
+
+
+--
+-- Name: COLUMN clubdesk_member_sync.down_log; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.clubdesk_member_sync.down_log IS 'Tail (~25 lines) of the sync-down run output. The full log lives on the host.';
+
+
+--
+-- Name: COLUMN clubdesk_member_sync.up_phase; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.clubdesk_member_sync.up_phase IS 'What the sync-up is doing right now (written by clubdesk-member-up-dispatch.sh).';
+
+
+--
+-- Name: COLUMN clubdesk_member_sync.up_progress; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.clubdesk_member_sync.up_progress IS '0-100 progress of the sync-up itself. Advisory.';
+
+
+--
+-- Name: COLUMN clubdesk_member_sync.up_log; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.clubdesk_member_sync.up_log IS 'Tail (~25 lines) of the sync-up run output.';
+
+
+--
+-- Name: COLUMN clubdesk_member_sync.grp_phase; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.clubdesk_member_sync.grp_phase IS 'What the group fix is doing right now (written by clubdesk-group-fix-dispatch.sh).';
+
+
+--
+-- Name: COLUMN clubdesk_member_sync.grp_progress; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.clubdesk_member_sync.grp_progress IS '0-100 progress of the group fix itself. Advisory.';
+
+
+--
+-- Name: COLUMN clubdesk_member_sync.grp_log; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.clubdesk_member_sync.grp_log IS 'Tail (~25 lines) of the group-fix run output.';
 
 
 --
@@ -7745,6 +7896,9 @@ CREATE TABLE public.members (
     vis_manual_vis_name text,
     kantonsschule character varying(64),
     deactivated_at timestamp with time zone,
+    dues_paid boolean DEFAULT false NOT NULL,
+    dues_paid_season character varying(9),
+    dues_paid_at date,
     CONSTRAINT members_austritt_needs_departed_status CHECK (((austritt IS NULL) OR (register_status IS NULL) OR ((register_status)::text = ANY ((ARRAY['Kein Mitglied'::character varying, 'Ehemaliges Mitglied'::character varying, 'Verstorben'::character varying])::text[])))),
     CONSTRAINT members_federation_of_origin_fmt CHECK (((federation_of_origin IS NULL) OR ((federation_of_origin)::text ~ '^[A-Z]{2}$'::text))),
     CONSTRAINT members_fee_discount_one_unit CHECK (((fee_discount IS NULL) OR (fee_discount_pct IS NULL))),
@@ -8270,6 +8424,27 @@ COMMENT ON COLUMN public.members.kantonsschule IS 'Which Zurich Kantonsschule th
 --
 
 COMMENT ON COLUMN public.members.deactivated_at IS 'When kscw_membership_active last went true→false. Trigger-owned (trg_members_deactivated_at); cleared on reactivation. The start of any retention period for an ex-member.';
+
+
+--
+-- Name: COLUMN members.dues_paid; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.dues_paid IS 'DERIVED — true iff a paid membership-dues invoice (subject "Mitgliederbeitrag … <current season>") is linked to this member. Recomputed by refresh_members_dues_paid() from finance_invoices; never write it.';
+
+
+--
+-- Name: COLUMN members.dues_paid_season; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.dues_paid_season IS 'DERIVED — the season ("2026/27") the paid dues invoice bills. Set with dues_paid; NULL when it is false.';
+
+
+--
+-- Name: COLUMN members.dues_paid_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.members.dues_paid_at IS 'DERIVED — when the dues invoice was settled (ClubDesk "Abgeschlossen am"; native: confirmed_at). NULL when dues_paid is false.';
 
 
 --
@@ -8937,6 +9112,12 @@ CREATE TABLE public.registrations (
     nationalitaet_codes character varying(200),
     federation_of_origin character varying(8),
     bb_recent_licence character varying(4),
+    bb_docs_waived text,
+    bb_docs_waived_reason text,
+    bb_docs_waived_by_name character varying(255),
+    bb_docs_waived_by_email character varying(255),
+    bb_docs_waived_at timestamp with time zone,
+    CONSTRAINT registrations_bb_docs_waived_reason_check CHECK (((bb_docs_waived IS NULL) OR (btrim(bb_docs_waived) = ''::text) OR ((bb_docs_waived_reason IS NOT NULL) AND (btrim(bb_docs_waived_reason) <> ''::text)))),
     CONSTRAINT registrations_bb_recent_licence_check CHECK (((bb_recent_licence IS NULL) OR ((bb_recent_licence)::text = ANY ((ARRAY['ja'::character varying, 'nein'::character varying])::text[])))),
     CONSTRAINT registrations_federation_of_origin_fmt CHECK (((federation_of_origin IS NULL) OR ((federation_of_origin)::text ~ '^[A-Z]{2}$'::text))),
     CONSTRAINT registrations_nationalitaet_codes_fmt CHECK (((nationalitaet_codes IS NULL) OR ((nationalitaet_codes)::text ~ '^[A-Z]{2}(,[A-Z]{2})*$'::text)))
@@ -8962,6 +9143,20 @@ COMMENT ON COLUMN public.registrations.federation_of_origin IS 'Federation of or
 --
 
 COMMENT ON COLUMN public.registrations.bb_recent_licence IS 'Basketball transfer_ch only: did the applicant hold a Swiss Basketball licence in the last two seasons? ja/nein, NULL = not asked. Only ''nein'' waives the Freibrief (see bb-docs.js bbFreibriefWaived).';
+
+
+--
+-- Name: COLUMN registrations.bb_docs_waived; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.registrations.bb_docs_waived IS 'Comma-separated required-document columns an approver waived for THIS registration (e.g. ''bb_doc_freibrief''). Subtracted from bbRequiredDocs() everywhere the required set is read. NULL/empty = no waiver.';
+
+
+--
+-- Name: COLUMN registrations.bb_docs_waived_reason; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.registrations.bb_docs_waived_reason IS 'Why the documents above were waived. Mandatory whenever bb_docs_waived is non-empty (CHECK + kscw-hooks).';
 
 
 --
@@ -14276,6 +14471,13 @@ CREATE INDEX members_clubdesk_push_pending_idx ON public.members USING btree (cl
 
 
 --
+-- Name: members_dues_paid_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX members_dues_paid_idx ON public.members USING btree (dues_paid) WHERE dues_paid;
+
+
+--
 -- Name: members_ical_token_key; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -15099,6 +15301,13 @@ CREATE TRIGGER trg_members_coach_approval_guard BEFORE UPDATE ON public.members 
 --
 
 CREATE TRIGGER trg_members_deactivated_at BEFORE UPDATE ON public.members FOR EACH ROW EXECUTE FUNCTION public.members_stamp_deactivated_at();
+
+
+--
+-- Name: finance_invoices trg_members_dues_paid; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_members_dues_paid AFTER INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.finance_invoices FOR EACH STATEMENT EXECUTE FUNCTION public.trg_members_dues_paid_fn();
 
 
 --
@@ -17433,12 +17642,12 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict Edf78WCThBko4yHiY6V5e4WkmksepwdOqhW24uxz6ru15xjqmEVlG8iPH8ND7W7
+\unrestrict rgxKNY9UsDYMgnm36o75LeoQeE9IH55fPTYAT4qFY9jgXTk9gFOCTTUwmVbTxxj
 
 
 
 -- ============================================================================
--- Migration tracker seed — 361 migration(s) already in the schema above.
+-- Migration tracker seed — 367 migration(s) already in the schema above.
 -- GENERATED with the snapshot; do not hand-edit.
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS kscw_migrations (
@@ -17811,6 +18020,12 @@ FROM (VALUES
   ('351-bb-home-games-hold-the-floor.sql'),
   ('352-late-signin-no-response-sweep.sql'),
   ('353-hall-delete-cascades.sql'),
-  ('354-concurrency-guards.sql')
+  ('354-concurrency-guards.sql'),
+  ('355-clubdesk-job-progress.sql'),
+  ('356-clubdesk-empty-side-is-a-fill.sql'),
+  ('357-notification-dates-four-digit-year.sql'),
+  ('358-registrations-doc-waiver.sql'),
+  ('359-slot-hall-drift-and-derby-hall-sets.sql'),
+  ('360-member-dues-paid.sql')
 ) AS v(fname)
 ON CONFLICT (filename) DO NOTHING;
