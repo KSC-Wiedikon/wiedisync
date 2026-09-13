@@ -26,6 +26,12 @@ export function isChunkLoadError(error: unknown): boolean {
 // `vite:preloadError`, the bootstrap catch, or App's global listeners all
 // rate-limit each other (no double reload).
 const RELOAD_COOLDOWN_KEY = 'wiedisync-chunk-reload-ts'
+// Set right before a recovery reload, consumed once by the next page load
+// (see consumeChunkReloadNotice) so the user is TOLD why the page just
+// reloaded and that their click did not go through. Without it the reload
+// was silent: "I clicked Excel and the whole page reloaded, had to click
+// again" (13.09.2026) — correct recovery, read as a broken button.
+const RELOAD_NOTICE_KEY = 'wiedisync-chunk-reloaded'
 const COOLDOWN_MS = 10_000
 
 // Query param appended by hardReload() to force a genuine cache-miss on the
@@ -75,6 +81,7 @@ function reloadOnce(): boolean {
   const last = Number(sessionStorage.getItem(RELOAD_COOLDOWN_KEY) || 0)
   if (now - last < COOLDOWN_MS) return false // reload-loop guard
   sessionStorage.setItem(RELOAD_COOLDOWN_KEY, String(now))
+  try { sessionStorage.setItem(RELOAD_NOTICE_KEY, '1') } catch { /* private mode */ }
   hardReload()
   return true
 }
@@ -99,5 +106,18 @@ export function forceReloadOnStaleChunk(): boolean {
 export function reloadNow(): void {
   if (typeof window === 'undefined') return
   sessionStorage.removeItem(RELOAD_COOLDOWN_KEY)
+  try { sessionStorage.removeItem(RELOAD_NOTICE_KEY) } catch { /* private mode */ }
   hardReload()
+}
+
+// True exactly once after a recovery reload — the caller shows the "app was
+// updated, please repeat your last action" notice. Never fires after a manual
+// reloadNow() (the user asked for that one) or an ordinary navigation.
+export function consumeChunkReloadNotice(): boolean {
+  if (typeof window === 'undefined') return false
+  try {
+    if (sessionStorage.getItem(RELOAD_NOTICE_KEY) !== '1') return false
+    sessionStorage.removeItem(RELOAD_NOTICE_KEY)
+    return true
+  } catch { return false }
 }

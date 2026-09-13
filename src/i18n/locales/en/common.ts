@@ -237,4 +237,5 @@ export default {
   sessionExpiredTitle: 'Session expired',
   sessionExpiredText: 'You have been signed out. Sign in again to continue.',
   sessionExpiredAction: 'Sign in again',
+  appUpdatedRepeatAction: 'Wiedisync was updated to the latest version — please repeat your last action.',
 }

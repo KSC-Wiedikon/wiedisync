@@ -235,4 +235,5 @@ export default {
   sessionExpiredTitle: 'Sitzig abglaufe',
   sessionExpiredText: 'Du bisch abgmäldet worde. Mäld di nöi aa, zum wiiterschaffe.',
   sessionExpiredAction: 'Nöi aamälde',
+  appUpdatedRepeatAction: 'Wiedisync isch uf di nöischti Version aktualisiert worde — bitte d letschti Aktion nomal mache.',
 }

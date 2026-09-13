@@ -235,4 +235,5 @@ export default {
   sessionExpiredTitle: 'Sitzung abgelaufen',
   sessionExpiredText: 'Du wurdest abgemeldet. Melde dich neu an, um weiterzuarbeiten.',
   sessionExpiredAction: 'Neu anmelden',
+  appUpdatedRepeatAction: 'Wiedisync wurde auf die neueste Version aktualisiert — bitte die letzte Aktion wiederholen.',
 }
