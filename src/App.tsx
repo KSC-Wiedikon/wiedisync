@@ -1,7 +1,8 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { SCHEDULING_ORIGIN } from './lib/api'
-import { Toaster } from 'sonner'
+import { Toaster, toast } from 'sonner'
 import { QueryProvider } from './lib/QueryProvider'
 import { AuthProvider } from './hooks/AuthProvider'
 import { ThemeProvider } from './hooks/ThemeProvider'
@@ -78,7 +79,7 @@ import FeedbackPage from './modules/feedback/FeedbackPage'
 import ChangelogPage from './modules/changelog/ChangelogPage'
 import SupportPage from './modules/support/SupportPage'
 import { SentryErrorBoundary } from './lib/sentry'
-import { maybeReloadOnStaleChunk, reloadNow } from './lib/chunkReload'
+import { consumeChunkReloadNotice, maybeReloadOnStaleChunk, reloadNow } from './lib/chunkReload'
 import NotFoundPage from '@/modules/common/NotFoundPage'
 
 const GuidePage = lazy(() => import('./modules/guide/GuidePage'))
@@ -102,6 +103,18 @@ if (typeof window !== 'undefined') {
   window.addEventListener('error', (event) => {
     if (maybeReloadOnStaleChunk(event.error || event.message)) event.preventDefault()
   })
+}
+
+// After a stale-chunk recovery reload (chunkReload.ts), say so — the user's
+// click (typically an Excel/PDF export, which lazy-loads its library) did not
+// happen, and a silent full-page reload reads as a broken button. Rendered
+// inside the providers so sonner's Toaster and i18n are mounted.
+function ChunkReloadNotice() {
+  const { t } = useTranslation('common')
+  useEffect(() => {
+    if (consumeChunkReloadNotice()) toast.info(t('appUpdatedRepeatAction'), { duration: 8000 })
+  }, [t])
+  return null
 }
 
 function SentryFallback({ error }: { error?: unknown } = {}) {
@@ -158,6 +171,7 @@ export default function App() {
       <TourProvider>
       <PageReadyProvider>
         <BootOverlay />
+        <ChunkReloadNotice />
         <Routes>
           {/* Standalone routes — no layout wrapper */}
           <Route path="embed/games" element={<EmbedGamesPage />} />

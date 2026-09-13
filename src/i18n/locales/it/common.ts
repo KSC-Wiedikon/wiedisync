@@ -237,4 +237,5 @@ export default {
   sessionExpiredTitle: 'Sessione scaduta',
   sessionExpiredText: 'Sei stato disconnesso. Accedi di nuovo per continuare.',
   sessionExpiredAction: 'Accedi di nuovo',
+  appUpdatedRepeatAction: 'Wiedisync è stato aggiornato all\'ultima versione — ripeti l\'ultima azione.',
 }

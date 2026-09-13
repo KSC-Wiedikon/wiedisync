@@ -237,4 +237,5 @@ export default {
   sessionExpiredTitle: 'Session expirée',
   sessionExpiredText: 'Vous avez été déconnecté. Reconnectez-vous pour continuer.',
   sessionExpiredAction: 'Se reconnecter',
+  appUpdatedRepeatAction: 'Wiedisync a été mis à jour vers la dernière version — merci de répéter votre dernière action.',
 }
