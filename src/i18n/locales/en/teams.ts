@@ -132,10 +132,10 @@ export default {
   // Guest levels
   guestBadge: 'G',
   guestLevel0: 'Not a guest',
-  guestLevel1: 'Guest Level 1',
-  guestLevel2: 'Guest Level 2',
-  guestLevel3: 'Guest Level 3',
-  guestLevelTooltip: 'Guest Level {{level}} — lower priority when trainings are full',
+  guestLevel1: 'Guest level 1',
+  guestLevel2: 'Guest level 2',
+  guestLevel3: 'Guest level 3',
+  guestLevelTooltip: 'Guest level {{level}} — lower priority when trainings are full',
   guestExplanation: 'Guest levels 1-3 determine priority when trainings are full. Level 1 has highest guest priority, level 3 lowest.',
 
   // Pending requests

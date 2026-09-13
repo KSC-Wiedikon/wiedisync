@@ -28,7 +28,8 @@
 // the four licence-status columns from migration 301 (109), + register_status /
 // eintritt / austritt from migration 302 (112), − the legacy `otn_bb` flag
 // dropped by migration 303 (111), + kantonsschule from
-// migration 315 (112).
+// migration 315 (112), + three later additions the fixture tracks (115),
+// + the three derived dues-paid columns from migration 360 (118).
 // When a migration adds one, add it here in the same commit — the fallback in
 // getFieldDef() keeps the page alive but flags the column as unmapped and
 // refuses to let anybody edit it.
@@ -258,6 +259,8 @@ const P_DIRECTUS_STAMP =
   'Stamped by Directus on every write. Any value written here is overwritten in the same request.'
 const O_CLUBDESK_WINS =
   'ClubDesk wins: the Saturday 22:00 sync-down overwrites this. Change it in ClubDesk to make it stick.'
+const P_DUES_DERIVED =
+  'Derived by refresh_members_dues_paid() (migration 360) from finance_invoices whenever that table changes — the nightly ClubDesk finance sync (04:00) or a native invoice confirm. Not stored by hand; a partially paid or cancelled invoice never counts.'
 const O_CLUBDESK_OFFICIALS =
   'Set to Yes (never back to No) by the ClubDesk officials-licence sync.'
 const O_LICENCE_FLAG =
@@ -641,6 +644,28 @@ const FINANCE = block('finance', undefined, [
   {
     key: 'never_dun', label: 'Never send reminders', kind: 'bool',
     help: 'Excludes this member from dunning runs.',
+  },
+  // Season dues paid (migration 360). Three derived columns, all read-only: a
+  // Postgres statement trigger recomputes them from finance_invoices on every
+  // write to that table, so the nightly ClubDesk mirror and a native confirm
+  // both keep them current. The boolean is what the "Dues paid" filter reads.
+  {
+    key: 'dues_paid', label: 'Dues paid (this season)', kind: 'bool',
+    readOnly: true,
+    help: 'A paid "Mitgliederbeitrag … <season>" invoice is linked to this member. Matched on the invoice wording, not its date — ClubDesk\'s July batch carried 2025 dates.',
+    provenance: P_DUES_DERIVED,
+  },
+  {
+    key: 'dues_paid_season', label: 'Dues paid for season', kind: 'text',
+    readOnly: true,
+    help: 'Which season the paid invoice bills. Empty while unpaid.',
+    provenance: P_DUES_DERIVED,
+  },
+  {
+    key: 'dues_paid_at', label: 'Dues paid on', kind: 'date',
+    readOnly: true,
+    help: 'ClubDesk\'s "Abgeschlossen am"; for a native invoice, the confirmation date.',
+    provenance: P_DUES_DERIVED,
   },
   {
     key: 'billing_different', label: 'Separate billing address', kind: 'bool',

@@ -1165,6 +1165,10 @@ export default {
   memberFilterSectionLicenceStatus: 'Lizänzstatus',
   memberFilterSectionRegisterStatus: 'Mitgliedschaftsstatus',
   memberFilterRegisterStatusUnset: 'Nöd gsetzt',
+  memberFilterDuesPaid: 'Biitrag zahlt (die Saison)',
+  memberFilterSectionGuest: 'Gaschtstatus im Kader',
+  memberFilterGuestPlayer: 'Reguläri Spieler*in (kei Gascht)',
+  memberFilterGuestAny: 'Gascht (jedi Stufe)',
 
   // ── Emails Garage (Migration 326) ──
   egNav: 'E-Mail-Garage',
