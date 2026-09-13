@@ -10,6 +10,7 @@ import {
   BOOL_FIELDS,
   CONSENT_KEYS,
   EMPTY_FILTERS,
+  GUEST_KEYS,
   LANGUAGES,
   LICENCE_STATUSES,
   LICENCE_TYPES,
@@ -72,6 +73,7 @@ export default function ExplorerMemberFilters({ value, onChange }: Props) {
       communications_dm_enabled: t('memberFilterCommsDm'),
       communications_banned: t('memberFilterCommsBanned'),
       push_preview_content: t('memberFilterPushPreview'),
+      dues_paid: t('memberFilterDuesPaid'),
     }),
     [t],
   )
@@ -300,6 +302,28 @@ export default function ExplorerMemberFilters({ value, onChange }: Props) {
                 active={value.registerStatus.includes(s)}
                 onClick={() => onChange({ ...value, registerStatus: toggleIn(value.registerStatus, s) })}
                 label={s === 'unset' ? t('memberFilterRegisterStatusUnset') : s}
+              />
+            ))}
+          </PillRow>
+        </Section>
+
+        {/* Roster guest status (member_teams.guest_level on active teams).
+            Level labels come from the teams namespace, where the roster editor
+            already names them. */}
+        <Section title={t('memberFilterSectionGuest')}>
+          <PillRow>
+            {GUEST_KEYS.map((g) => (
+              <Pill
+                key={g}
+                active={value.guest.includes(g)}
+                onClick={() => onChange({ ...value, guest: toggleIn(value.guest, g) })}
+                label={
+                  g === 'player'
+                    ? t('memberFilterGuestPlayer')
+                    : g === 'guest'
+                      ? t('memberFilterGuestAny')
+                      : t(`teams:guestLevel${g}` as const)
+                }
               />
             ))}
           </PillRow>

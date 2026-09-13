@@ -227,6 +227,14 @@ export interface Member extends BaseRecord {
   federation_of_origin: string | null
   /** Zurich Kantonsschule (migration 315). 'Nein' = asked and not at one; null = never asked. */
   kantonsschule?: string | null
+  // Season dues, DERIVED (migration 360): recomputed from finance_invoices by
+  // a statement trigger — true iff a paid "Mitgliederbeitrag … <current
+  // season>" invoice is linked to this member. Never written by the app.
+  dues_paid?: boolean
+  /** Season the paid dues invoice bills ("2026/27"); null while dues_paid is false. */
+  dues_paid_season?: string | null
+  /** yyyy-mm-dd the dues invoice was settled; null while dues_paid is false. */
+  dues_paid_at?: string | null
   // International-transfer workflow (migrations 234/235), driven by
   // /admin/transfers. STAFF-ONLY columns: deliberately absent from
   // MEMBER_VISIBLE_FIELDS *and* MEMBER_EDITABLE_FIELDS, so a member neither

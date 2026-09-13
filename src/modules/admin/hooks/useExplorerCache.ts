@@ -130,6 +130,10 @@ export function useExplorerCache(scope: ExplorerScope) {
             // Which Kantonsschule (migration 315). Same read audience as
             // sektion above — admin / sport admin fields='*'.
             'kantonsschule', 'sektion',
+            // Season dues paid (migration 360) — trigger-derived from
+            // finance_invoices; the "Dues paid" filter reads the boolean, the
+            // detail view shows all three. Same read audience as sektion above.
+            'dues_paid', 'dues_paid_season', 'dues_paid_at',
             'clubdesk_id',
           ],
           sort: ['last_name', 'first_name'],

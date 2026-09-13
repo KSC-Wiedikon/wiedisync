@@ -1817,6 +1817,11 @@ export default {
   memberFilterSectionLicenceStatus: 'Licence status',
   memberFilterSectionRegisterStatus: 'Membership status',
   memberFilterRegisterStatusUnset: 'Not set',
+  // Season dues paid (migration 360) + roster guest status.
+  memberFilterDuesPaid: 'Dues paid (this season)',
+  memberFilterSectionGuest: 'Roster guest status',
+  memberFilterGuestPlayer: 'Regular player (not a guest)',
+  memberFilterGuestAny: 'Guest (any level)',
 
   // ── Emails Garage (migration 326) ──
   // The club's mailbox credential store. Read by every admin tier (sport admins

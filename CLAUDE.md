@@ -144,9 +144,9 @@ See `INFRA.md → Domains & Hosting Overview` for full map.
 <!-- Last few dev/deploy entries only, for at-a-glance recent context. Full history → docs/DEVLOG.md
      (append new dev/deploy entries THERE, not here). User-facing release notes → CHANGELOG.md.
      Keep this list pruned to ~5 entries. -->
+- **2026-09-13** `members.dues_paid` (trigger-derived from finance_invoices) + Data Explorer dues-paid / guest filters (migration 360, dev; prod pending)
 - **2026-09-13** SQL workspace Excel export typed a column half numbers, half text (no migration, dev+prod)
 - **2026-09-13** Three data-health console errors + a validated licence reading "No licence" (no migration, dev+prod)
 - **2026-09-13** Three registrations that reached ClubDesk half-empty, and four cells the push never carried (no migration, dev+prod)
 - **2026-09-11** A calendar day the SQL console showed as 02:00 (no migration, dev+prod)
-- **2026-09-10** A Täfeler duty the app hands out and then refuses to let you hand on (no migration, dev+prod)
 **Full history → [`docs/DEVLOG.md`](docs/DEVLOG.md)** · **pre-1.0 → [`docs/DEVLOG-archive.md`](docs/DEVLOG-archive.md)** (v1.0.0 baseline consolidated 2026-06-19).

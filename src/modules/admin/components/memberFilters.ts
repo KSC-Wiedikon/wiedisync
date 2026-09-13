@@ -34,8 +34,24 @@ export const BOOL_FIELDS = [
   'communications_dm_enabled',
   'communications_banned',
   'push_preview_content',
+  // Season dues paid (migration 360) — trigger-derived from finance_invoices.
+  // "Which volleyball players have paid?" was a hand-written SQL question until
+  // this row; now it is Sport = Volleyball + Dues paid = yes.
+  'dues_paid',
 ] as const
 export type BoolField = (typeof BOOL_FIELDS)[number]
+
+/**
+ * Roster guest status — a property of the member_teams row, not the member:
+ * `guest_level` 0 is a regular player, 1–3 a guest with falling priority when
+ * trainings are full (see [[member-teams-role-model]]). Only rows on ACTIVE
+ * teams count, so a guest row from a closed season cannot label somebody a
+ * guest today. A player-guest (player on one team, guest on another) matches
+ * both 'player' and 'guest' — OR semantics, like every other chip row here.
+ * Members with no roster row at all (staff-only, passive) match neither.
+ */
+export const GUEST_KEYS = ['player', 'guest', '1', '2', '3'] as const
+export type GuestKey = (typeof GUEST_KEYS)[number]
 
 export const PRESENCE_FIELDS = [
   'email', 'phone', 'license_nr', 'number', 'photo', 'birthdate',
@@ -111,6 +127,8 @@ export interface MemberFilterState {
    * (every one of them is a member with no linked ClubDesk contact).
    */
   registerStatus: RegisterStatusKey[]
+  /** Roster guest status — see GUEST_KEYS. */
+  guest: GuestKey[]
 }
 
 export type RegisterStatusKey = RegisterStatus | 'unset'
@@ -131,6 +149,7 @@ export const EMPTY_FILTERS: MemberFilterState = {
   consent: [],
   licenceStatus: [],
   registerStatus: [],
+  guest: [],
 }
 
 /**
@@ -163,7 +182,20 @@ export function countActiveFilters(f: MemberFilterState): number {
   n += f.consent.length
   n += f.licenceStatus.length
   n += f.registerStatus.length
+  n += f.guest.length
   return n
+}
+
+/** Guest levels this member holds on ACTIVE team rosters (0 = regular player). */
+function memberGuestLevels(memberId: string, cache: CacheShape): Set<number> {
+  const levels = new Set<number>()
+  for (const row of cache.memberTeamRows) {
+    if (row.member !== memberId) continue
+    const team = cache.teamLookup.get(row.team)
+    if (!team || !(team as unknown as { active?: boolean }).active) continue
+    levels.add(row.guest_level > 0 ? row.guest_level : 0)
+  }
+  return levels
 }
 
 /** Sport associated with this member via any team association. */
@@ -275,6 +307,16 @@ export function applyMemberFilters(
       // people who need a licence ordered this season.
       const { status } = effectiveLicenceStatus(m)
       if (!filters.licenceStatus.includes(status)) return false
+    }
+
+    if (filters.guest.length > 0) {
+      const levels = memberGuestLevels(String(m.id), cache)
+      const hit = filters.guest.some((g) =>
+        g === 'player' ? levels.has(0)
+          : g === 'guest' ? [...levels].some((l) => l > 0)
+            : levels.has(Number(g)),
+      )
+      if (!hit) return false
     }
 
     if (filters.registerStatus.length > 0) {
