@@ -62,7 +62,7 @@ import { registerActivitiesWithParticipations } from './activities.js'
 import { writeUserLog } from './activity-log.js'
 import { clientIp } from './client-ip.js'
 import { registerSvLicence } from './sv-licence.js'
-import { registerLicenceStatus } from './licence-status.js'
+import { registerLicenceStatus, runLicenceStatusSweep } from './licence-status.js'
 import { registerMigrationsStatus } from './migrations-status.js'
 import { registerSyncStatus } from './sync-status.js'
 import { registerAudit } from './audit.js'
@@ -1228,8 +1228,28 @@ export default {
         log.error({ msg: `${source} manual sync spawn error: ${err.message}`, endpoint: `admin/${source}` })
         finish('error', err.message)
       })
-      child.on('close', (code) => {
-        if (code === 0) { log.info(`${source} manual sync ok`); finish('ok') }
+      child.on('close', async (code) => {
+        if (code === 0) {
+          log.info(`${source} manual sync ok`)
+          await finish('ok')
+          // A manual VM sync lands fresh licence_activated/validated flags, but
+          // the sweep that turns those into members.licence_status = 'licenced'
+          // is a daily cron (05:45 UTC, chained after the MONDAY 04:00 VM sync by
+          // schedule only). 2026-09-13: a licence validated in Volleymanager that
+          // morning was pulled in by a 16:40 manual sync and the profile then
+          // showed "Activated: Yes · Validated: Yes · Licence status: No licence"
+          // until the next morning. Chain the sweep here so the two can never
+          // disagree for a day after a manual run. Best-effort: the sync itself
+          // is already recorded as ok; the sweep is promote-only and idempotent.
+          if (source === 'vm_sync') {
+            try {
+              const r = await runLicenceStatusSweep(database, log, { actorName: 'VM sync (manual)' })
+              log.info(`licence-status sweep after manual vm_sync: reset ${r.reset}, promoted ${r.promoted.length}`)
+            } catch (e) {
+              log.error({ msg: `licence-status sweep after manual vm_sync failed: ${e.message}`, endpoint: 'admin/vm-sync' })
+            }
+          }
+        }
         else if (code === 75) { log.info(`${source} manual sync deferred — VM temporarily unavailable`); finish('ok', 'deferred (attempt 1): VM temporarily unavailable') }
         else { log.error({ msg: `${source} manual sync exited ${code}: ${stderr.slice(-300)}`, endpoint: `admin/${source}` }); finish('error', stderr.slice(-300) || `exited ${code}`) }
       })
@@ -1240,7 +1260,7 @@ export default {
       try {
         requireAdmin(req, log)
         const r = await triggerChildSync('vm_sync', '/directus/scripts/vm-sync-check.mjs')
-        if (!r.started) return res.status(409).json({ status: 'skipped', reason: r.reason })
+        if (!r.started) return res.status(409).json({ status: 'skipped', reason: r.reason, holder: r.holder ?? null })
         log.info('Manual VM sync triggered')
         res.status(202).json({ status: 'started' })
       } catch (err) {
@@ -1260,7 +1280,9 @@ export default {
         const r = await triggerChildSync('svrz_sync', '/directus/scripts/svrz-scheduling-sync.mjs', {
           SVRZ_SEASON_UUID: seasonUuid, SVRZ_SEASON_NAME: seasonName,
         })
-        if (!r.started) return res.status(409).json({ status: 'skipped', reason: r.reason })
+        // `holder` names the job holding the shared Volleymanager account (the
+        // usual reason: a VM sync started seconds earlier from the same page).
+        if (!r.started) return res.status(409).json({ status: 'skipped', reason: r.reason, holder: r.holder ?? null })
         log.info('Manual SVRZ sync triggered')
         res.status(202).json({ status: 'started' })
       } catch (err) {
@@ -2374,11 +2396,31 @@ export default {
       }
       try {
         const limit = Math.min(parseInt(req.query.limit) || 20, 50)
+        // pg_stat_statements lived in the `extensions` schema on the Supabase-era
+        // database; since the move to vanilla postgres:16 (kscw-postgres) it is
+        // not installed at all — the library ships with the image but is not in
+        // shared_preload_libraries, so CREATE EXTENSION would fail too. Resolve
+        // the schema from pg_extension instead of hard-coding one, and when the
+        // extension is absent answer 200 { available: false } with the enable
+        // steps rather than the 500 the data-health page logged every load
+        // (2026-09-13). Enabling it is a Postgres RESTART (both envs share the
+        // container), so it is an operator decision, not something to fix here.
+        const ext = await database.raw(
+          "SELECT n.nspname AS schema FROM pg_extension e JOIN pg_namespace n ON n.oid = e.extnamespace WHERE e.extname = 'pg_stat_statements'"
+        )
+        const schema = ext.rows?.[0]?.schema
+        if (!schema) {
+          return res.json({
+            data: [], available: false,
+            reason: 'pg_stat_statements is not installed',
+            enable: "ALTER SYSTEM SET shared_preload_libraries = 'pg_stat_statements'; restart kscw-postgres; CREATE EXTENSION pg_stat_statements; in each database",
+          })
+        }
         const result = await database.raw(
-          'SELECT round(s.total_exec_time::numeric, 1) AS total_ms, s.calls, round(s.mean_exec_time::numeric, 1) AS avg_ms, round(s.max_exec_time::numeric, 1) AS max_ms, s.rows, left(s.query, 200) AS query FROM extensions.pg_stat_statements s WHERE s.dbid = (SELECT oid FROM pg_database WHERE datname = current_database()) AND s.calls > 0 ORDER BY s.mean_exec_time DESC LIMIT ?',
+          `SELECT round(s.total_exec_time::numeric, 1) AS total_ms, s.calls, round(s.mean_exec_time::numeric, 1) AS avg_ms, round(s.max_exec_time::numeric, 1) AS max_ms, s.rows, left(s.query, 200) AS query FROM ${schema === 'public' ? '' : `"${schema.replace(/"/g, '""')}".`}pg_stat_statements s WHERE s.dbid = (SELECT oid FROM pg_database WHERE datname = current_database()) AND s.calls > 0 ORDER BY s.mean_exec_time DESC LIMIT ?`,
           [limit]
         )
-        return res.json({ data: result.rows ?? result })
+        return res.json({ data: result.rows ?? result, available: true })
       } catch (err) {
         log.error({ msg: 'slow-queries error', error: err.message })
         return res.status(500).json({ error: err.message })

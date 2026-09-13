@@ -4,6 +4,7 @@ import { useInfraHealth } from '../../hooks/useInfraHealth'
 import { API_URL, fetchItems, countItems } from '../../lib/api'
 import { currentLocale } from '../../utils/dateHelpers'
 import { useReportPageLoading } from '../../hooks/usePageReady'
+import { toast } from 'sonner'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 
 const PROD_URL = API_URL
@@ -174,6 +175,19 @@ export default function InfraHealthPage() {
     try {
       const res = await fetch(`${PROD_URL}/kscw/admin/${endpoint}`, { method: 'POST', credentials: 'include' })
       async202 = res.status === 202 // VM / SVRZ run as background children
+      // A refusal used to be swallowed here — spinner off, nothing said — so
+      // "Run now" on the SVRZ sync one second after "Run now" on the VM sync
+      // (which holds the ONE shared Volleymanager account) looked like a dead
+      // button and got clicked three times (13.09.2026). Say why.
+      if (res.status === 409) {
+        const body = await res.json().catch(() => ({})) as { reason?: string; holder?: string | null }
+        toast.info(body.reason === 'already-running'
+          ? t('infraSyncBusy', { holder: body.holder || t('infraSyncBusyOther') })
+          : t('infraSyncSkipped', { reason: body.reason || '' }))
+      } else if (!res.ok && res.status !== 202) {
+        const body = await res.json().catch(() => ({})) as { error?: string }
+        toast.error(body.error || `${res.status}`)
+      }
     } catch { /* poll / refresh reflects the outcome */ }
 
     // Synchronous syncs (SV / BP / GCal) have already finished when the POST
@@ -205,7 +219,7 @@ export default function InfraHealthPage() {
       }
     }
     setTimeout(poll, 8000)
-  }, [])
+  }, [t])
 
   // Map sync_runs heartbeats → one triggerable card per scraper. Pure derivation
   // from the hook's runs + the trigger flags, so it's computed during render
