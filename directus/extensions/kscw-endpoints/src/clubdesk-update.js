@@ -2345,7 +2345,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       if (!reg || !reg.email) return { status: 'no_member' }
 
       const email = reg.email.toLowerCase().trim()
-      const MEMBER_COLS = ['id', 'uuid', 'first_name', 'last_name', 'clubdesk_id', 'clubdesk_pushed_at']
+      const MEMBER_COLS = ['id', 'uuid', 'first_name', 'last_name', 'clubdesk_id', 'clubdesk_pushed_at', 'clubdesk_push_pending']
       // ID-FIRST (user rule 2026-07-08: "lookup should be by ID"). The approval
       // hook stamps registrations.member (migration 194 backfilled legacy rows),
       // so the FK is the authoritative link — the heuristics below only cover
@@ -2381,6 +2381,17 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
 
       const base = { member_id: member.id }
       if (member.clubdesk_id) {
+        // A link alone is not "in ClubDesk" (2026-09-13). The sync-down linker
+        // attaches a member to ANY contact carrying their e-mail + first name —
+        // including a shell somebody created by hand before the push ran (the
+        // three H2 registrations of 10.09.2026: name, address and a guessed
+        // gender, nothing else). Those members are linked AND still
+        // push-pending, and the badge read a green "In ClubDesk" for two days
+        // while the register held none of their data. Surface the pending push
+        // as its own state so the zone can offer the one-click sync-up.
+        if (member.clubdesk_push_pending) {
+          return { ...base, status: 'linked_pending', clubdesk_id: member.clubdesk_id }
+        }
         return { ...base, status: 'linked', clubdesk_id: member.clubdesk_id }
       }
 

@@ -7,7 +7,7 @@ import { kscwApi } from '../../../lib/api'
 import { useAuth } from '../../../hooks/useAuth'
 
 interface RegStatus {
-  status: 'linked' | 'match_unlinked' | 'pushed_pending' | 'not_in_clubdesk' | 'no_member'
+  status: 'linked' | 'linked_pending' | 'match_unlinked' | 'pushed_pending' | 'not_in_clubdesk' | 'no_member'
   member_id?: number
   clubdesk_id?: string
   clubdesk_name?: string | null
@@ -76,7 +76,10 @@ export default function ClubdeskRegistrationZone({ registrationId }: { registrat
       const fresh = await kscwApi<RegStatus>(
         `/clubdesk-registration-status?registration_id=${encodeURIComponent(registrationId)}`,
       )
-      if (fresh.status !== 'not_in_clubdesk') {
+      // Two pushable states: no contact yet (CREATE row) and a linked contact
+      // whose wiedisync data has not been pushed (UPDATE row) — see the
+      // linked_pending note in cdStatusForRegistration.
+      if (fresh.status !== 'not_in_clubdesk' && fresh.status !== 'linked_pending') {
         setStatus(fresh)
         toast.info(t('cdRegStatusChanged'))
         return
@@ -162,6 +165,26 @@ export default function ClubdeskRegistrationZone({ registrationId }: { registrat
         {status.clubdesk_id && (
           <span className="text-xs text-gray-500 dark:text-gray-400">({status.clubdesk_id})</span>
         )}
+      </div>
+    )
+  } else if (status.status === 'linked_pending') {
+    // Linked to a contact, but the member's data is still waiting for a sync-up
+    // — typically a shell somebody created in ClubDesk by hand before the push
+    // ran. Offer the same one-member push as not_in_clubdesk; /up turns it into
+    // an [Id]-keyed UPDATE row that fills what the shell lacks.
+    content = (
+      <div className="flex flex-wrap items-center gap-2 text-sm text-amber-700 dark:text-amber-400">
+        <Clock className="h-4 w-4 shrink-0" />
+        <span>
+          {busy === 'push' ? t('clubdeskUpPushing') : t('cdRegLinkedPending')}
+          {status.clubdesk_id && (
+            <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">({status.clubdesk_id})</span>
+          )}
+        </span>
+        <Button type="button" variant="outline" size="sm" onClick={push} disabled={!!busy} className="ml-auto min-h-[44px] gap-1.5 sm:min-h-0">
+          {busy === 'push' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ArrowUpFromLine className="h-3.5 w-3.5" />}
+          {t('cdRegSync')}
+        </Button>
       </div>
     )
   } else if (status.status === 'match_unlinked') {

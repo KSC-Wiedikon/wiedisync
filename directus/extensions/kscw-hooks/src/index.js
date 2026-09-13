@@ -5068,113 +5068,16 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     }
   }
 
-  function csvEscapeHook(val) {
-    let s = String(val ?? '')
-    // Neutralize spreadsheet formula injection (HOOK-3): a cell beginning with
-    // = + - @ (or tab/CR) can execute when an admin opens the emailed CSV in
-    // Excel/LibreOffice/ClubDesk. Prefix with a single quote so it stays text.
-    if (/^[=+\-@\t\r]/.test(s)) s = "'" + s
-    if (s.includes(';') || s.includes('"') || s.includes('\n')) return '"' + s.replace(/"/g, '""') + '"'
-    return s
-  }
+  // The per-registration ClubDesk CSV that used to be built here (Nachname;
+  // Vorname;…;Mittelschule ZH — 54 columns, CP1252-transcoded, attached to the
+  // approval e-mail "für den ClubDesk-Import") was REMOVED on 2026-09-13. It was
+  // the second road to the same contact: the sync-up push creates the contact
+  // fully populated ([Id]-keyed, Wiedisync ID, groups via the group tool), and
+  // the attachment was an invitation to import — or hand-create — the person
+  // first, which is exactly how three H2 registrations of 10.09.2026 ended up in
+  // the register as half-empty shells with a guessed gender. The admin
+  // notification e-mail below stays; only the attachment is gone.
 
-  // ClubDesk's CSV interface is Windows-1252, not UTF-8 (its export is CP1252 and
-  // the scripted sync-up push iconv-transcodes before upload — see
-  // clubdesk-member-up-dispatch.sh). This attachment gets imported into ClubDesk
-  // by hand, so a UTF-8 file mangles every accented name (ü → Ã¼). Encode CP1252
-  // and transliterate the few letters CP1252 can't hold (ć → c, ń → n) instead of
-  // shipping mojibake into the legal member register.
-  const CP1252_EXTRA = {
-    '€': 0x80, '‚': 0x82, 'ƒ': 0x83, '„': 0x84, '…': 0x85,
-    '†': 0x86, '‡': 0x87, 'ˆ': 0x88, '‰': 0x89, 'Š': 0x8A,
-    '‹': 0x8B, 'Œ': 0x8C, 'Ž': 0x8E, '‘': 0x91, '’': 0x92,
-    '“': 0x93, '”': 0x94, '•': 0x95, '–': 0x96, '—': 0x97,
-    '˜': 0x98, '™': 0x99, 'š': 0x9A, '›': 0x9B, 'œ': 0x9C,
-    'ž': 0x9E, 'Ÿ': 0x9F,
-  }
-  // Letters with no CP1252 slot and no combining-mark decomposition.
-  const CP1252_TRANSLIT = { 'đ': 'd', 'Đ': 'D', 'ł': 'l', 'Ł': 'L' }
-  function toCp1252Buffer(str) {
-    const bytes = []
-    const pushChar = (ch) => {
-      const cp = ch.codePointAt(0)
-      if (cp <= 0x7F || (cp >= 0xA0 && cp <= 0xFF)) { bytes.push(cp); return true }
-      if (CP1252_EXTRA[ch] !== undefined) { bytes.push(CP1252_EXTRA[ch]); return true }
-      return false
-    }
-    for (const ch of str) {
-      if (pushChar(ch)) continue
-      const base = CP1252_TRANSLIT[ch] || ch.normalize('NFKD').replace(/[̀-ͯ]/g, '')
-      let ok = base.length > 0
-      const mark = bytes.length
-      for (const b of base) if (!pushChar(b)) { ok = false; break }
-      if (!ok) { bytes.length = mark; bytes.push(0x3F) } // '?'
-    }
-    return Buffer.from(bytes)
-  }
-
-  function buildRegistrationCSV(item) {
-    const headers = [
-      'Nachname', 'Vorname', 'Firma', 'Adresse', 'PLZ', 'Ort',
-      'Telefon Privat', 'Telefon Mobil', '[Gruppen]', 'Sektion', 'Gruppe', 'Gruppen',
-      'Anrede', 'Titel', 'Briefanrede', 'Benutzer-Id', 'Adress-Zusatz', 'Land',
-      'Nationalität', 'Telefon Geschäft', 'Fax', 'E-Mail', 'E-Mail Alternativ',
-      'Status', '[Rolle]', 'Eintritt', 'Mitgliedsjahre', 'Austritt', 'Zivilstand',
-      'Geschlecht', 'Geburtsdatum', 'Jahrgang', 'Alter', 'Bemerkungen',
-      'Firmen-Webseite', 'Rechnungsversand', 'Nie mahnen', 'IBAN', 'BIC', 'Kontoinhaber',
-      'Lizenznummer', 'Lizenzart', 'Lizenz bestellt', 'Beitragskategorie',
-      'Betrag Bezahlt', 'Clubnummer', 'Mittelschule ZH', 'Offiziellen Lizenz',
-      'Mitgliederbeitrag', 'AHV Nummer', 'Passivmitglied', 'Offiziellen 100er',
-      'Funktion', 'Rolle'
-    ]
-
-    let dob = ''
-    let jahrgang = ''
-    if (item.geburtsdatum) {
-      const parts = String(item.geburtsdatum).substring(0, 10).split('-')
-      dob = parts[2] + '.' + parts[1] + '.' + parts[0]
-      jahrgang = parts[0]
-    }
-
-    const now = new Date()
-    const todayStr = String(now.getDate()).padStart(2, '0') + '.' +
-      String(now.getMonth() + 1).padStart(2, '0') + '.' + now.getFullYear()
-
-    const sektion = item.membership_type === 'volleyball' ? 'Volleyball'
-      : item.membership_type === 'basketball' ? 'Basketball' : 'KSCW'
-    const status = item.membership_type === 'passive' ? 'Passivmitglied' : 'Aktivmitglied'
-    const isPassive = item.membership_type === 'passive' ? 'ja' : ''
-
-    const row = [
-      item.nachname || '', item.vorname || '', '',
-      item.adresse || '', item.plz || '', item.ort || '',
-      '', item.telefon_mobil || '',
-      item.team || '', sektion, '', '',
-      item.anrede || '', '', '', '', '', 'Schweiz',
-      // ClubDesk's Nationalität is a single-value German picklist and wants the
-      // PRIMARY nationality, so it stays on the free-text name the form submits.
-      // The FIBA "a Swiss passport among several makes you Swiss" rule is a
-      // document-gate rule only — applying it here would file a CH/IT dual
-      // national who listed IT first as Swiss in the members register.
-      item.nationalitaet || '', '', '',
-      item.email || '', '',
-      status, '', todayStr, '', '', '',
-      item.geschlecht || '', dob, jahrgang, '',
-      item.bemerkungen || '',
-      '', 'E-Mail', 'Nein', '', '', '',
-      '', '', '',
-      item.beitragskategorie || '',
-      '', '',
-      item.kantonsschule || '',
-      item.lizenz || '',
-      '',
-      item.ahv_nummer || '',
-      isPassive, '',
-      item.rolle || '', '',
-    ].map(csvEscapeHook)
-
-    return '\uFEFF' + headers.join(';') + '\n' + row.join(';')
-  }
 
   // ── i18n for registration status emails ───────────────────────
   const REG_T = {
@@ -5988,10 +5891,10 @@ export default ({ action, filter, init, schedule }, { services, database, logger
             }
           }
 
-          // ── 5. CSV email to sport-specific admins (per-recipient locale) ──
-          const csv = buildRegistrationCSV(reg)
-          const csvBuffer = toCp1252Buffer(csv)
-          const filename = `anmeldung_${reg.nachname}_${reg.vorname}_${reg.reference_number}.csv`
+          // ── 5. Approval notice to sport-specific admins (per-recipient locale) ──
+          // No attachment since 2026-09-13 (see the note where buildRegistrationCSV
+          // used to live): the ClubDesk contact comes from the sync-up push, and
+          // the e-mail now says so instead of handing over a file to import.
           const recipients = await getApprovalRecipients(reg.membership_type)
           // Sport type is stored lowercase ("volleyball"); show it capitalized in
           // the subject, TYPE field, and subtitle (matches the member email above).
@@ -6001,13 +5904,13 @@ export default ({ action, filter, init, schedule }, { services, database, logger
           const adminCsvCopy = {
             de: {
               name: 'Name', type: 'Typ', team: 'Team', email: 'E-Mail', ref: 'Referenz',
-              intro: 'Die Anmeldung wurde bestätigt. Die CSV-Datei für den ClubDesk-Import ist im Anhang.',
+              intro: 'Die Anmeldung wurde bestätigt. Der ClubDesk-Kontakt wird von Wiedisync beim nächsten „Sync up“ angelegt — bitte nicht von Hand in ClubDesk erfassen.',
               title: 'Anmeldung bestätigt', cta: 'Im Admin öffnen',
               subject: `[KSCW] Anmeldung bestätigt: ${reg.vorname} ${reg.nachname} (${sportLabel})`,
             },
             en: {
               name: 'Name', type: 'Type', team: 'Team', email: 'Email', ref: 'Reference',
-              intro: 'The registration has been approved. The CSV file for the ClubDesk import is attached.',
+              intro: 'The registration has been approved. The ClubDesk contact is created by Wiedisync at the next "Sync up" — please do not create it by hand in ClubDesk.',
               title: 'Registration approved', cta: 'Open in admin',
               subject: `[KSCW] Registration approved: ${reg.vorname} ${reg.nachname} (${sportLabel})`,
             },
@@ -6047,10 +5950,9 @@ export default ({ action, filter, init, schedule }, { services, database, logger
               ...(ccBuckets[loc].length ? { cc: ccBuckets[loc] } : {}),
               subject: c.subject,
               html: adminCsvHtml,
-              attachments: [{ filename, content: csvBuffer, contentType: 'application/vnd.ms-excel' }],
             })
           }
-          log.info({ msg: 'Approval CSV sent', id, ref: reg.reference_number })
+          log.info({ msg: 'Approval notice sent to sport admins', id, ref: reg.reference_number })
 
         } else if (payload.status === 'rejected') {
           // ── Rejection email to user ──

@@ -883,6 +883,7 @@ export default {
   cdRegZoneTitle: 'ClubDesk-Sync',
   cdRegChecking: 'ClubDesk wird geprüft…',
   cdRegLinked: 'In ClubDesk',
+  cdRegLinkedPending: 'In ClubDesk, aber die Mitgliederdaten sind noch nicht übertragen — „Sync up“ ausführen',
   cdRegMatchUnlinked: 'In ClubDesk gefunden, aber noch nicht verknüpft',
   cdRegDuplicate: 'ClubDesk-Kontakt ist bereits mit {{name}} verknüpft — mögliches Duplikat',
   cdRegLink: 'Verknüpfen',

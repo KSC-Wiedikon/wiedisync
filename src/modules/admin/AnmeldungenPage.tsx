@@ -384,6 +384,9 @@ export default function AnmeldungenPage() {
     if (!st) return null
     const map: Record<string, { icon: typeof CheckCircle2; cls: string; label: string }> = {
       linked: { icon: CheckCircle2, cls: 'text-green-600 dark:text-green-400', label: t('cdRegLinked') },
+      // Linked but push-pending: the register has a contact, not the data.
+      // Green here was the 2026-09-13 false "CD ✓" on three hand-created shells.
+      linked_pending: { icon: Clock, cls: 'text-amber-600 dark:text-amber-400', label: t('cdRegLinkedPending') },
       match_unlinked: { icon: Link2, cls: 'text-amber-600 dark:text-amber-400', label: t('cdRegMatchUnlinked') },
       pushed_pending: { icon: Clock, cls: 'text-blue-600 dark:text-blue-400', label: t('cdRegPushedPending') },
       not_in_clubdesk: { icon: CircleAlert, cls: 'text-amber-600 dark:text-amber-400', label: t('cdRegNotIn') },
