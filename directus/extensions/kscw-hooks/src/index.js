@@ -4896,6 +4896,18 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     // Administrator / Superuser — admin_access bypasses policies entirely.
     if (context.accountability?.admin) return payload
 
+    // ⚠ Query on the knex Directus hands us, NEVER the module-level `database`.
+    // ItemsService.updateMany opens a transaction and, for the revision
+    // snapshot, re-reads the row through a trx-bound ItemsService — which emits
+    // THIS filter. A query on the global pool here is a SECOND connection
+    // taken while the transaction still holds the first; with the default pool
+    // of 10, ten concurrent members PATCHes each hold one and each wait for an
+    // eleventh, and the whole API stalls for the 60 s acquire timeout (the
+    // 2026-09-14 DU20 roster-open outage: the position auto-heal fired 25
+    // parallel PATCHes and prod answered nothing for a minute, three times).
+    // `context.database` is the trx inside a write and the pool otherwise.
+    const db = context.database ?? database
+
     const currentUser = context.accountability?.user || null
 
     // The caller's own roles: ONE indexed lookup per REQUEST, not per item —
@@ -4907,7 +4919,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     //   'volleyball'|'basketball' → per-item, decided against the member's section
     let scope = null
     if (currentUser) {
-      const me = await database('members').where('user', currentUser).select('role').first()
+      const me = await db('members').where('user', currentUser).select('role').first()
       const myRoles = Array.isArray(me?.role) ? me.role : []
       if (myRoles.some((r) => PRIVACY_FULL_ROLES.includes(r))) return payload
       if (myRoles.some((r) => PRIVACY_SPORT_ROLES.includes(r))) {
@@ -4935,7 +4947,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     const gateById = new Map()
     let gateRows = []
     if (ids.length > 0) {
-      gateRows = await database('members')
+      gateRows = await db('members')
         .whereIn('id', ids)
         .select('id', 'user', 'hide_phone', 'hide_email', 'birthdate_visibility', 'website_name_private',
           // Only for the sport resolver below — passing these in is what keeps it
@@ -4948,7 +4960,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     // four queries for the WHOLE page (three junctions + teams — the `members`
     // rows are already in hand above), and none at all for everybody else.
     const sportById = scope && ids.length > 0
-      ? await resolveMemberSports(database, ids, { memberRows: gateRows })
+      ? await resolveMemberSports(db, ids, { memberRows: gateRows })
       : new Map()
 
     for (const item of items) {
