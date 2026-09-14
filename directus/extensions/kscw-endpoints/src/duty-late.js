@@ -247,14 +247,15 @@ export function registerDutyLate(router, ctx) {
       .first('id')
     if (dup) return
 
-    // Amount: engine tier when a no_show rule exists for the team, else flat CHF 50.
+    // Amount: engine tier when a no_show rule exists for the team (the Games
+    // override if there is one, else the general rule), else flat CHF 50.
     let amount = NO_SHOW_FALLBACK_CHF
     let tierOffense = null
     let resetWindow = null
     try {
       const res = await database.raw(
-        'SELECT amount, tier_offense, reset_window_at_issue FROM kscw_compute_fine_amount(?::int, ?::int, ?::text)',
-        [Number(official.id), teamId, 'no_show'],
+        'SELECT amount, tier_offense, reset_window_at_issue FROM kscw_compute_fine_amount(?::int, ?::int, ?::text, ?::text)',
+        [Number(official.id), teamId, 'no_show', 'game'],
       )
       const row = res?.rows?.[0]
       if (row && row.amount != null) {

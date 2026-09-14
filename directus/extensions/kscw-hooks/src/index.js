@@ -3745,8 +3745,10 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // auto-issues the late_signin fine for it.
   //
   // ⚠ Opt-in is ONE switch: the team must hold an ENABLED `fine_rules` row for
-  // `late_signin`. No rule → not swept, not declined, not fined. A team that
-  // has never opened the Fines panel is untouched by all of this.
+  // `late_signin` that covers this activity type — the general rule, or the
+  // per-type override (migration 361). No rule → not swept, not declined, not
+  // fined. A team that has never opened the Fines panel is untouched by all of
+  // this; a team with only a Games override is swept for games alone.
   //
   // ⚠ Bounded at BOTH ends. Upper: the deadline has actually passed. Lower:
   // no longer ago than DEADLINE_SWEEP_LOOKBACK_DAYS. Without a lower bound the
@@ -3871,12 +3873,15 @@ export default ({ action, filter, init, schedule }, { services, database, logger
                mt.member                            AS member
         FROM ${table} a
         JOIN LATERAL ${teamPeopleSql(teamCol)} mt ON true
-        JOIN fine_rules fr
-          ON fr.team = ${teamCol}
-         AND fr.category = 'late_signin'
-         AND fr.enabled = true
         LEFT JOIN teams tm ON tm.id = ${teamCol}
         WHERE ${teamCol} IS NOT NULL
+          AND EXISTS (
+            SELECT 1 FROM fine_rules fr
+            WHERE fr.team = ${teamCol}
+              AND fr.category = 'late_signin'
+              AND fr.enabled = true
+              AND (fr.activity_type IS NULL OR fr.activity_type = '${kind}')
+          )
           AND ${liveClause}
           AND a.respond_by IS NOT NULL
           AND a.date IS NOT NULL
@@ -7289,7 +7294,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   //   the team itself. It skips the escalation engine (which counts offenses
   //   per member×team×category) and therefore needs an explicit amount.
   //   If the leader leaves `amount` null, compute it via the SQL helper
-  //   kscw_compute_fine_amount(member,team,category) and snapshot
+  //   kscw_compute_fine_amount(member,team,category,activity_type) and snapshot
   //   tier_offense + reset_window_at_issue onto the row. If amount is
   //   non-null (leader override), still snapshot the tier metadata for
   //   audit but DON'T overwrite their amount. Auto-fill `issued_by` from
@@ -7368,9 +7373,11 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       let computed = null
       try {
         if (!isTeamFine) {
+          // The activity type picks the ladder (migration 361): a per-type
+          // override when the team has one enabled, else the general rule.
           const res = await db.raw(
-            'SELECT amount, tier_offense, reset_window_at_issue FROM kscw_compute_fine_amount(?::int, ?::int, ?::text)',
-            [Number(payload.member), Number(payload.team), String(payload.category)],
+            'SELECT amount, tier_offense, reset_window_at_issue FROM kscw_compute_fine_amount(?::int, ?::int, ?::text, ?::text)',
+            [Number(payload.member), Number(payload.team), String(payload.category), payload.activity_type ?? null],
           )
           computed = res?.rows?.[0] || null
         }

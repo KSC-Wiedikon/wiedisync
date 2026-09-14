@@ -102,7 +102,7 @@ export default {
 
   // Settings
   settingsTitle: 'Fines',
-  settingsDescription: 'Escalation tiers and reset windows per category.',
+  settingsDescription: 'Escalation tiers and reset windows per category — with their own ladder for trainings, games or events where you want one.',
   settingsEnabled: 'Enabled',
   settingsLateSigninSweep: 'While this is on, anyone who has not answered by the deadline is marked as not coming and fined automatically the next morning.',
   settingsResetWindow: 'Reset window',
@@ -117,6 +117,19 @@ export default {
   settingsNoTiers: 'No tiers yet.',
   settingsSaved: 'Saved',
   settingsSaveError: 'Could not save: {{error}}',
+  settingsTierOffenseHeader: 'Offense #',
+  settingsTierAmountHeader: 'Amount',
+  settingsTierAndAbove: 'And all higher',
+  settingsTierAndAboveShort: 'And up',
+  settingsPerType: 'Per activity type',
+  settingsPerTypeHint: 'Give trainings, games or events their own tiers and reset window. Each override counts its own offenses; everything else follows the general rule above.',
+  settingsTypeTraining: 'Trainings',
+  settingsTypeGame: 'Games',
+  settingsTypeEvent: 'Events',
+  settingsUsesGeneral: 'Uses the general rule',
+  settingsCustomise: 'Customise',
+  settingsRemoveOverride: 'Remove override',
+  settingsOverrideOff: 'Off — falls back to the general rule.',
 
   // Dashboard widget
   dashboardTitle: 'Fines this month',

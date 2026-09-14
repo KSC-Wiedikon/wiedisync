@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { useCollection } from '../lib/query'
 import { seasonRolloverDate } from '../utils/season'
-import type { Fine, FineCategory, FineResetWindow, FineRule, FineRuleTier } from '../types'
+import type { Fine, FineActivityType, FineCategory, FineResetWindow, FineRule, FineRuleTier } from '../types'
 
 // ── Reads ────────────────────────────────────────────────────────────
 
@@ -35,7 +35,7 @@ export function useFines(options: UseFinesOptions = {}) {
   })
 }
 
-const FINE_RULE_FIELDS = ['id', 'team', 'category', 'enabled', 'reset_window', 'tiers', 'currency'] as const
+const FINE_RULE_FIELDS = ['id', 'team', 'category', 'activity_type', 'enabled', 'reset_window', 'tiers', 'currency'] as const
 
 /** Fine rules for a team (or all teams the user can see, if teamId omitted). */
 export function useFineRules(teamId?: string | number, options: { enabled?: boolean } = {}) {
@@ -43,7 +43,7 @@ export function useFineRules(teamId?: string | number, options: { enabled?: bool
   const filter = teamId != null ? { team: { _eq: teamId } } : undefined
   return useCollection<FineRule>('fine_rules', {
     filter,
-    sort: 'category',
+    sort: ['category', 'activity_type'],
     fields: Array.from(FINE_RULE_FIELDS),
     enabled,
     all: true,
@@ -105,13 +105,37 @@ function pickTierAmount(tiers: FineRuleTier[], offenseNo: number): number | null
 }
 
 /**
+ * The rule the engine applies to a fine of this category and activity type:
+ * the team's ENABLED override for that type when there is one, else the
+ * enabled general rule (`activity_type` null). A disabled override is no
+ * override. Mirrors step 1 of `kscw_compute_fine_amount` (migration 361).
+ */
+export function pickFineRule(
+  rules: FineRule[],
+  teamId: string | number,
+  category: FineCategory,
+  activityType: FineActivityType | null | undefined,
+): FineRule | null {
+  const mine = rules.filter((r) => String(r.team) === String(teamId) && r.category === category && r.enabled)
+  return (activityType && mine.find((r) => r.activity_type === activityType))
+    || mine.find((r) => r.activity_type == null)
+    || null
+}
+
+/**
  * Compute what amount + tier_offense the engine would assign for a hypothetical
- * fine NOW. Mirrors `kscw_compute_fine_amount` in migration 069 so the leader
- * sees the same number the backend will snapshot.
+ * fine NOW. Mirrors `kscw_compute_fine_amount` in migration 069 (+ the
+ * per-activity-type rules of 361) so the leader sees the same number the
+ * backend will snapshot.
  *
  * Inputs are arrays the caller already has (fine rules of the team, prior
  * non-waived fines for this member+team+category) — keeps the engine pure and
  * easy to memoize from a single useFines() + useFineRules() pair.
+ *
+ * Counters are per RULE: an override counts only fines of its own activity
+ * type; the general rule counts only fines no enabled override claims. So the
+ * first late game is "offense #1" on the Games ladder whatever the member's
+ * training history.
  */
 export function computeFineAmount(
   rules: FineRule[],
@@ -120,11 +144,19 @@ export function computeFineAmount(
   teamId: string | number,
   category: FineCategory,
   now: Date = new Date(),
+  activityType: FineActivityType | null = null,
 ): ComputeFineAmountResult | null {
-  const rule = rules.find((r) =>
-    String(r.team) === String(teamId) && r.category === category && r.enabled,
-  )
+  const rule = pickFineRule(rules, teamId, category, activityType)
   if (!rule || !rule.tiers?.length) return null
+
+  const overriddenTypes = new Set(
+    rules
+      .filter((r) => String(r.team) === String(teamId) && r.category === category && r.enabled && r.activity_type != null)
+      .map((r) => r.activity_type),
+  )
+  const inScope = (f: Fine) => rule.activity_type != null
+    ? f.activity_type === rule.activity_type
+    : (f.activity_type == null || !overriddenTypes.has(f.activity_type))
 
   const windowStart = fineWindowStart(rule.reset_window, now)
   const priorCount = priorFines.filter((f) =>
@@ -132,7 +164,8 @@ export function computeFineAmount(
     && String(f.team) === String(teamId)
     && f.category === category
     && f.status !== 'waived'
-    && new Date(f.issued_at) >= windowStart,
+    && new Date(f.issued_at) >= windowStart
+    && inScope(f),
   ).length
 
   const offenseNo = priorCount + 1
@@ -148,6 +181,8 @@ export function computeFineAmount(
 
 interface UseFineQuoteOptions {
   enabled?: boolean
+  /** Activity the fine is for — selects the per-type override, if any. */
+  activityType?: FineActivityType | null
 }
 
 /**
@@ -162,7 +197,7 @@ export function useFineQuote(
   category: FineCategory | null | undefined,
   options: UseFineQuoteOptions = {},
 ) {
-  const { enabled = true } = options
+  const { enabled = true, activityType = null } = options
   const ready = enabled && memberId != null && teamId != null && category != null
   const rules = useFineRules(teamId ?? undefined, { enabled: ready })
   const priors = useFines({
@@ -175,14 +210,14 @@ export function useFineQuote(
   const result = useMemo<ComputeFineAmountResult | null>(() => {
     if (!ready) return null
     if (!rules.data || !priors.data) return null
-    return computeFineAmount(rules.data, priors.data, memberId!, teamId!, category!)
-  }, [ready, rules.data, priors.data, memberId, teamId, category])
+    return computeFineAmount(rules.data, priors.data, memberId!, teamId!, category!, new Date(), activityType)
+  }, [ready, rules.data, priors.data, memberId, teamId, category, activityType])
 
   return {
     data: result,
     isLoading: ready && (rules.isLoading || priors.isLoading),
     error: rules.error ?? priors.error ?? null,
-    rule: rules.data?.find((r) => String(r.team) === String(teamId) && r.category === category) ?? null,
+    rule: ready && rules.data ? pickFineRule(rules.data, teamId!, category!, activityType) : null,
   }
 }
 
