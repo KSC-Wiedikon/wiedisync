@@ -46,20 +46,9 @@ const PAST_PAGE_SIZE = 5
 // person already is) — but no member has taken it yet. Mirrors the "any
 // unassigned" filter branch. Used to keep the Playing-team dropdown to teams
 // whose games still need someone.
-function hasOpenDuty(g: Game, sport: SportTab): boolean {
-  if (sport === 'volleyball') {
-    return (
-      ((!!g.scorer_duty_team || !!g.scorer_member) && !g.scorer_member) ||
-      ((!!g.scoreboard_duty_team || !!g.scoreboard_member) && !g.scoreboard_member) ||
-      ((!!g.scorer_scoreboard_duty_team || !!g.scorer_scoreboard_member) && !g.scorer_scoreboard_member) ||
-      ((!!g.referee_duty_team || !!g.referee_member) && !g.referee_member)
-    )
-  }
-  return (
-    ((!!(g.bb_scorer_duty_team || g.bb_duty_team) || !!g.bb_scorer_member) && !g.bb_scorer_member) ||
-    ((!!(g.bb_timekeeper_duty_team || g.bb_duty_team) || !!g.bb_timekeeper_member) && !g.bb_timekeeper_member) ||
-    ((!!(g.bb_24s_duty_team || g.bb_duty_team) || !!g.bb_24s_official) && !g.bb_24s_official)
-  )
+function getGameSport(g: Game): 'volleyball' | 'basketball' {
+  const teamObj = g.kscw_team != null && typeof g.kscw_team === 'object' ? g.kscw_team as unknown as Team : null
+  return teamObj?.sport ?? (g.source === 'basketplan' ? 'basketball' : 'volleyball')
 }
 
 export default function ScorerPage() {
@@ -285,11 +274,6 @@ export default function ScorerPage() {
     getDelegationTargetName,
   } = useScorerDelegations()
 
-  const getGameSport = (g: Game): 'volleyball' | 'basketball' => {
-    const teamObj = g.kscw_team != null && typeof g.kscw_team === 'object' ? g.kscw_team as unknown as Team : null
-    return teamObj?.sport ?? (g.source === 'basketplan' ? 'basketball' : 'volleyball')
-  }
-
   // ⚠ Debounced: `ScorerAssignPage` saves a whole season as ~200 chunked PATCHes, and
   // Directus emits one frame per changed row. Undebounced, every client sitting on
   // /scorer re-issued this deliberately unbounded season query per frame — and
@@ -306,21 +290,40 @@ export default function ScorerPage() {
   // sport (a VB view listing BB teams like 1xDU18 is just noise).
   const sportTeams = useMemo(() => teams.filter((tm) => tm.sport === sportTab), [teams, sportTab])
 
-  // Playing-team options: only teams that play in an upcoming game of this sport
-  // that still has an open (signable) duty — no point offering a team whose
-  // games are already fully staffed.
+  // Which upcoming games this user can see at all: admins/Vorstand every game
+  // of the sport; a regular member only games where one of their teams holds a
+  // duty or they are personally assigned. Shared by the list filter below and
+  // the playing-team options, so the dropdown never offers a team whose games
+  // the member could not see anyway.
+  const canSeeGame = useCallback((g: Game): boolean => {
+    if (getGameSport(g) !== sportTab) return false
+    if (effectiveIsAdmin || effectiveIsVorstand || !user) return true
+    const isPersonallyAssigned = sportTab === 'volleyball'
+      ? [g.scorer_member, g.scoreboard_member, g.scorer_scoreboard_member, g.referee_member].includes(String(user.id))
+      : [g.bb_scorer_member, g.bb_timekeeper_member, g.bb_24s_official].includes(String(user.id))
+    const teamHasDuty = sportTab === 'volleyball'
+      ? myDutyTeamIds.some((tid) => tid === g.scorer_duty_team || tid === g.scoreboard_duty_team || tid === g.scorer_scoreboard_duty_team || tid === g.referee_duty_team)
+      : myDutyTeamIds.some((tid) => tid === (g.bb_scorer_duty_team || g.bb_duty_team) || tid === (g.bb_timekeeper_duty_team || g.bb_duty_team) || tid === (g.bb_24s_duty_team || g.bb_duty_team))
+    return isPersonallyAssigned || teamHasDuty
+  }, [sportTab, effectiveIsAdmin, effectiveIsVorstand, user, myDutyTeamIds])
+
+  // Playing-team options: every team of this sport with an upcoming home game
+  // the user can see. Until 2026-09 this was narrowed to games that still had
+  // an OPEN duty — once a season is fully staffed (which is the normal state
+  // after /admin/scorer-assign runs) the dropdown offered nothing but "All
+  // teams", and the filter's other use, "who is on duty when D1 plays", was
+  // unreachable exactly when it mattered.
   const playingTeamOptions = useMemo(() => {
-    const open = new Set<string>()
+    const playing = new Set<string>()
     for (const g of upcomingGames) {
-      if (getGameSport(g) !== sportTab) continue
-      if (!hasOpenDuty(g, sportTab)) continue
+      if (!canSeeGame(g)) continue
       const pid = g.kscw_team != null && typeof g.kscw_team === 'object'
         ? String((g.kscw_team as unknown as Team).id)
         : String(g.kscw_team ?? '')
-      if (pid) open.add(pid)
+      if (pid) playing.add(pid)
     }
-    return sportTeams.filter((tm) => open.has(tm.id))
-  }, [upcomingGames, sportTab, sportTeams])
+    return sportTeams.filter((tm) => playing.has(tm.id))
+  }, [upcomingGames, canSeeGame, sportTeams])
 
   // Duty-team filter options: club-wide for admins/Vorstand (who see every
   // game); for a regular member, only their own team(s) — they can only cover
@@ -334,7 +337,8 @@ export default function ScorerPage() {
 
   const filteredGames = useMemo(() => {
     return upcomingGames.filter((g) => {
-      if (getGameSport(g) !== sportTab) return false
+      // Sport + non-admin visibility scope (own team's duties / personally assigned)
+      if (!canSeeGame(g)) return false
 
       // "Selected" scope: only games I'm personally assigned to (signed up for)
       if (dutyScope === 'mine' && user) {
@@ -342,17 +346,6 @@ export default function ScorerPage() {
           ? [g.scorer_member, g.scoreboard_member, g.scorer_scoreboard_member, g.referee_member].includes(String(user.id))
           : [g.bb_scorer_member, g.bb_timekeeper_member, g.bb_24s_official].includes(String(user.id))
         if (!isPersonallyAssigned) return false
-      }
-
-      // Non-admins: only show games where their team has duty or they are personally assigned
-      if (!effectiveIsAdmin && !effectiveIsVorstand && user) {
-        const isPersonallyAssigned = sportTab === 'volleyball'
-          ? [g.scorer_member, g.scoreboard_member, g.scorer_scoreboard_member, g.referee_member].includes(String(user.id))
-          : [g.bb_scorer_member, g.bb_timekeeper_member, g.bb_24s_official].includes(String(user.id))
-        const teamHasDuty = sportTab === 'volleyball'
-          ? myDutyTeamIds.some((tid) => tid === g.scorer_duty_team || tid === g.scoreboard_duty_team || tid === g.scorer_scoreboard_duty_team || tid === g.referee_duty_team)
-          : myDutyTeamIds.some((tid) => tid === (g.bb_scorer_duty_team || g.bb_duty_team) || tid === (g.bb_timekeeper_duty_team || g.bb_duty_team) || tid === (g.bb_24s_duty_team || g.bb_duty_team))
-        if (!isPersonallyAssigned && !teamHasDuty) return false
       }
 
       if (dateFilter && g.date !== dateFilter) return false
@@ -467,7 +460,7 @@ export default function ScorerPage() {
       if (a.time !== b.time) return (a.time || '') < (b.time || '') ? -1 : 1
       return 0
     })
-  }, [upcomingGames, sportTab, dutyScope, effectiveIsAdmin, effectiveIsVorstand, user, myDutyTeamIds, dateFilter, dutyTeamFilter, playingTeamFilter, dutyTypeFilter, unassignedFilter, searchAssignee, memberMap])
+  }, [upcomingGames, canSeeGame, sportTab, dutyScope, user, dateFilter, dutyTeamFilter, playingTeamFilter, dutyTypeFilter, unassignedFilter, searchAssignee, memberMap])
 
   const filteredPastGames = useMemo(() => allPastGames.filter((g) => {
     if (getGameSport(g) !== sportTab) return false
