@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { fetchItem, fetchAllItems, updateRecord } from '../lib/api'
 import { coercePositions, normalizePositionsForSport } from '../utils/memberPositions'
-import type { Member, MemberTeam, Team } from '../types'
+import type { Member, MemberPosition, MemberTeam, Team } from '../types'
 import { asObj, relId } from '../utils/relations'
 
 export type ExpandedMemberTeam = Omit<MemberTeam, 'member'> & { member: (Member & { id: string }) | string }
@@ -88,7 +88,7 @@ export function useTeamMembers(
 
     if (outcome.ok) {
       const { team, result } = outcome
-      const updates: Promise<unknown>[] = []
+      const heals: Array<{ id: string; position: MemberPosition[] }> = []
       const normalized = result.map((mt) => {
         const member = asObj<Member>(mt.member)
         if (!member) return mt
@@ -96,7 +96,7 @@ export function useTeamMembers(
         const safePositions = normalizePositionsForSport(member.position, team.sport)
         if (originalPositions.join('|') !== safePositions.join('|')) {
           if (persistNormalization) {
-            updates.push(updateRecord('members', member.id, { position: safePositions }))
+            heals.push({ id: member.id, position: safePositions })
           }
           return {
             ...mt,
@@ -107,8 +107,23 @@ export function useTeamMembers(
       })
       if (latestKeyRef.current !== key) return
       setMembers(normalized)
-      if (updates.length > 0) {
-        void Promise.allSettled(updates)
+      if (heals.length > 0) {
+        // ONE PATCH at a time, never a parallel fan-out. A fresh roster can
+        // carry 25+ members with no position, and 25 concurrent members
+        // PATCHes exhaust Directus's 10-connection pool (each update's
+        // transaction re-reads the row through the members privacy hook) —
+        // prod stalled for 60 s, three times, when DU20 was first opened on
+        // 2026-09-14. Sequential is ~100 ms per row in the background and
+        // needs nothing from the UI, which already renders the healed values.
+        void (async () => {
+          for (const heal of heals) {
+            try {
+              await updateRecord('members', heal.id, { position: heal.position })
+            } catch {
+              // Best-effort persistence; the next roster open retries it.
+            }
+          }
+        })()
       }
     } else if (latestKeyRef.current === key) {
       setError(outcome.err instanceof Error ? outcome.err : new Error(String(outcome.err)))
