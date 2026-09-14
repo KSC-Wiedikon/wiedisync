@@ -1334,6 +1334,12 @@ export interface FineRuleTier {
 export interface FineRule extends BaseRecord {
   team: string
   category: FineCategory
+  /**
+   * `null` = the category's general rule. A type = an override for that
+   * activity type only (migration 361); the engine prefers an enabled override
+   * over the general rule, and a disabled override falls back to it.
+   */
+  activity_type: FineActivityType | null
   enabled: boolean
   reset_window: FineResetWindow
   tiers: FineRuleTier[]

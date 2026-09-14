@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { useMultiTeamMembers } from '../hooks/useTeamMembers'
 import { useTeamParticipations, useAllEventParticipations } from '../hooks/useParticipation'
-import { useFineRules } from '../hooks/useFines'
+import { pickFineRule, useFineRules } from '../hooks/useFines'
 import IssueFineModal from '../modules/fines/IssueFineModal'
 import { useAuth } from '../hooks/useAuth'
 import { useTeamPermissions } from '../hooks/useTeamPermissions'
@@ -393,9 +393,10 @@ export default function ParticipationRosterModal({
   const { data: lateSigninRules } = useFineRules(singleTeamId ?? undefined, {
     enabled: open && canEditRoster && singleTeamId != null,
   })
-  const lateSigninRuleEnabled = (lateSigninRules ?? []).some(
-    (r) => r.category === 'late_signin' && r.enabled,
-  )
+  // The rule that would price THIS activity: the per-type override when the
+  // team has one enabled, else the general rule (migration 361).
+  const lateSigninRuleEnabled = singleTeamId != null
+    && pickFineRule(lateSigninRules ?? [], singleTeamId, 'late_signin', activityType) != null
 
   // For club-wide events (no team), fetch all participations and resolve members from them
   const [clubWideMembers, setClubWideMembers] = useState<Member[]>([])

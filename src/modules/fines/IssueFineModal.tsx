@@ -68,7 +68,7 @@ export default function IssueFineModal({
   // Engine quote — re-runs when category changes. useFineQuote reports
   // not-ready (data null, isLoading false) for a null memberId, so a team fine
   // never fires the rules/priors queries.
-  const quote = useFineQuote(memberId, teamId, category, { enabled: open && !isTeamFine })
+  const quote = useFineQuote(memberId, teamId, category, { enabled: open && !isTeamFine, activityType })
 
   // Whenever a fresh quote arrives, populate the amount field — unless the
   // leader has typed something themselves. Adjust-state-during-render (React's
