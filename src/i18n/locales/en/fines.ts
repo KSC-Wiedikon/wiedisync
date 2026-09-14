@@ -120,6 +120,7 @@ export default {
   settingsTierOffenseHeader: 'Offense #',
   settingsTierAmountHeader: 'Amount',
   settingsTierAndAbove: 'And all higher',
+  settingsTierAndAboveShort: 'And up',
   settingsPerType: 'Per activity type',
   settingsPerTypeHint: 'Give trainings, games or events their own tiers and reset window. Each override counts its own offenses; everything else follows the general rule above.',
   settingsTypeTraining: 'Trainings',

@@ -109,6 +109,7 @@ export default {
   settingsTierOffenseHeader: 'Infrazione n.',
   settingsTierAmountHeader: 'Importo',
   settingsTierAndAbove: 'E tutte le successive',
+  settingsTierAndAboveShort: 'E oltre',
   settingsPerType: 'Per tipo di attività',
   settingsPerTypeHint: 'Assegna ad allenamenti, partite o eventi scaglioni e finestra di reset propri. Ogni eccezione conta le proprie infrazioni; tutto il resto segue la regola generale qui sopra.',
   settingsTypeTraining: 'Allenamenti',

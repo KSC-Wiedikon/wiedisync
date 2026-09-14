@@ -109,6 +109,7 @@ export default {
   settingsTierOffenseHeader: 'Infraction n°',
   settingsTierAmountHeader: 'Montant',
   settingsTierAndAbove: 'Et toutes les suivantes',
+  settingsTierAndAboveShort: 'Et plus',
   settingsPerType: 'Par type d’activité',
   settingsPerTypeHint: 'Donne aux entraînements, matchs ou événements leurs propres paliers et fenêtre de réinitialisation. Chaque exception compte ses propres infractions ; tout le reste suit la règle générale ci-dessus.',
   settingsTypeTraining: 'Entraînements',

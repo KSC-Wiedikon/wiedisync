@@ -391,9 +391,17 @@ function RuleEditor({ teamId, category, activityType, rule, onChange }: RuleEdit
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-24 text-xs">{t('fines:settingsTierOffenseHeader')}</TableHead>
-                      <TableHead className="w-32 text-xs">{t('fines:settingsTierAmountHeader')}</TableHead>
-                      <TableHead className="text-xs">{t('fines:settingsTierAndAbove')}</TableHead>
+                      <TableHead className="whitespace-nowrap text-xs">{t('fines:settingsTierOffenseHeader')}</TableHead>
+                      {/* Phone width has no room for "CHF" next to every input AND an
+                          "Amount" header — the header carries the currency there. */}
+                      <TableHead className="whitespace-nowrap text-xs">
+                        <span className="sm:hidden">{t('fines:settingsTierAmount')}</span>
+                        <span className="hidden sm:inline">{t('fines:settingsTierAmountHeader')}</span>
+                      </TableHead>
+                      <TableHead className="w-full whitespace-nowrap text-xs">
+                        <span className="sm:hidden">{t('fines:settingsTierAndAboveShort')}</span>
+                        <span className="hidden sm:inline">{t('fines:settingsTierAndAbove')}</span>
+                      </TableHead>
                       <TableHead className="w-11" />
                     </TableRow>
                   </TableHeader>
@@ -415,14 +423,14 @@ function RuleEditor({ teamId, category, activityType, rule, onChange }: RuleEdit
                                   ? { offense_min: parseInt(e.target.value, 10) || 1 }
                                   : { offense: parseInt(e.target.value, 10) || 1 })}
                                 onBlur={() => save({ tiers })}
-                                className={`${inputClass} w-16 text-right`}
+                                className={`${inputClass} w-14 text-right sm:w-16`}
                               />
                               <span className={`w-3 text-sm text-gray-500 dark:text-gray-400 ${isMin ? '' : 'invisible'}`} aria-hidden>+</span>
                             </div>
                           </TableCell>
                           <TableCell className="py-1.5">
                             <div className="flex items-center gap-1.5">
-                              <span className="text-xs text-gray-500 dark:text-gray-400">{t('fines:settingsTierAmount')}</span>
+                              <span className="hidden text-xs text-gray-500 sm:inline dark:text-gray-400">{t('fines:settingsTierAmount')}</span>
                               <input
                                 type="number"
                                 min="0"

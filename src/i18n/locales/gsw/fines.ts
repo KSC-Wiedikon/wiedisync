@@ -109,6 +109,7 @@ export default {
   settingsTierOffenseHeader: 'Vergehen Nr.',
   settingsTierAmountHeader: 'Betrag',
   settingsTierAndAbove: 'Und alli wiitere',
+  settingsTierAndAboveShort: 'Ab da',
   settingsPerType: 'Pro Aktivitätstyp',
   settingsPerTypeHint: 'Gib Trainings, Spiel oder Events eigeni Stufe und es eigets Reset-Fenster. Jedi Usnahm zellt ihri eigene Vergehen; alles andere folgt de allgemeine Regle obe.',
   settingsTypeTraining: 'Trainings',

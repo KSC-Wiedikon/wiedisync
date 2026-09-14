@@ -109,6 +109,7 @@ export default {
   settingsTierOffenseHeader: 'Vergehen Nr.',
   settingsTierAmountHeader: 'Betrag',
   settingsTierAndAbove: 'Und alle weiteren',
+  settingsTierAndAboveShort: 'Ab hier',
   settingsPerType: 'Pro Aktivitätstyp',
   settingsPerTypeHint: 'Gib Trainings, Spielen oder Events eigene Stufen und ein eigenes Reset-Fenster. Jede Ausnahme zählt ihre eigenen Vergehen; alles andere folgt der allgemeinen Regel oben.',
   settingsTypeTraining: 'Trainings',
