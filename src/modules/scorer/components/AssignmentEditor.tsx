@@ -216,7 +216,7 @@ export default function AssignmentEditor({
                 <button
                   data-tour="delegation"
                   onClick={onDelegate}
-                  className="flex min-h-[44px] items-center justify-center rounded-lg px-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
+                  className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg border border-brand-300 bg-brand-50 px-2 text-brand-700 transition-colors hover:bg-brand-100 dark:border-brand-500 dark:bg-brand-900/40 dark:text-brand-200 dark:hover:bg-brand-800"
                   title={t('delegate')}
                   aria-label={t('delegate')}
                 >
@@ -246,7 +246,7 @@ export default function AssignmentEditor({
                 <button
                   data-tour="delegate-duty"
                   onClick={onDelegate}
-                  className="flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-lg bg-brand-50 px-3 py-3 text-sm font-medium text-brand-700 transition-colors hover:bg-brand-100 dark:bg-brand-900/20 dark:text-brand-400 dark:hover:bg-brand-900/40"
+                  className="flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-lg bg-brand-500 px-3 py-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-brand-600 dark:bg-brand-500 dark:hover:bg-brand-400"
                 >
                   <ArrowRightLeft className="h-4 w-4" />
                   {t('delegate')}
