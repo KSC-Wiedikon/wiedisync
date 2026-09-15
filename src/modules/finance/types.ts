@@ -167,9 +167,24 @@ export interface TeamFinanceResponse {
   entries: TeamFinanceEntry[]
   invoices: FinanceInvoice[]
   referee_expenses: RefereeExpenseLine[]
+  /** The season's volleyball home games (empty for other sports) — one referee fee can be recorded per game. */
+  home_games: TeamHomeGame[]
   totals: TeamFinanceTotals
   /** Caller may use the pay / "I've paid" flow on the team bills (lead or finance). */
   can_pay: boolean
+  /** Caller may record/edit referee fees for this team's games (coach/TR, sport admin, admin). */
+  can_record_referee: boolean
+}
+
+/** A home game as listed on the Team finance page. */
+export interface TeamHomeGame {
+  id: number
+  date: string | null
+  time: string | null
+  home_team: string | null
+  away_team: string | null
+  league: string | null
+  status: string | null
 }
 
 /** One planned / created payout of the season-end referee reimbursement run. */

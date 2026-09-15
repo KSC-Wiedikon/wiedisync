@@ -400,6 +400,10 @@ export default {
   teamFinanceNoFiscalYear: 'No fiscal year exists for this season yet — entries and bills appear once finance opens it.',
   teamFinanceFinesLink: 'Show team fines',
   teamFinanceRecordHint: 'Referee fees are recorded in the game details after each home game.',
+  teamFinanceRefereeTitle: 'Referee fees per home game',
+  refereeRecord: 'Record',
+  refereeEdit: 'Edit',
+  refereeNotRecorded: 'Not recorded yet',
   teamKindReferee: 'Referee fee',
   refereePaidBy: 'Paid by {{name}}',
 

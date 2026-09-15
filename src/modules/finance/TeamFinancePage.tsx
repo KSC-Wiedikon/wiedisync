@@ -1,9 +1,11 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useSearchParams } from 'react-router-dom'
-import { Users, Gavel, HandCoins, Receipt } from 'lucide-react'
+import { Users, Gavel, HandCoins, Receipt, Pencil, Plus } from 'lucide-react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import EmptyState from '../../components/EmptyState'
+import Modal from '../../components/Modal'
+import RefereeExpenseSection from '../games/components/RefereeExpenseSection'
 import { useAuth } from '../../hooks/useAuth'
 import { useAdminMode } from '../../hooks/useAdminMode'
 import { useTeams } from '../../hooks/useTeams'
@@ -12,7 +14,7 @@ import { useReportPageLoading } from '../../hooks/usePageReady'
 import { formatDateCompactZurich } from '../../utils/dateHelpers'
 import { currentSeasonShort, seasonStartYear } from '../../utils/season'
 import type { Team } from '../../types'
-import type { RefereeExpenseLine, TeamFinanceEntry } from './types'
+import type { RefereeExpenseLine, TeamFinanceEntry, TeamHomeGame } from './types'
 import InvoiceTable from './InvoiceTable'
 import { RefereeStatusPill } from './MyRefereeExpensesCard'
 
@@ -47,13 +49,15 @@ type LedgerRow =
 export default function TeamFinancePage() {
   const { t } = useTranslation('finance')
   const [params, setParams] = useSearchParams()
-  const { memberTeamIds, coachTeamIds, captainTeamIds, canAccessFinance, teamsLoading } = useAuth()
-  const { effectiveIsAdmin } = useAdminMode()
+  const { memberTeamIds, coachTeamIds, captainTeamIds, teamsLoading } = useAuth()
+  const { effectiveIsAdmin, effectiveIsVorstand } = useAdminMode()
   const { data: teamsRaw, isLoading: teamsQueryLoading } = useTeams('all')
 
-  // Finance / admin (in admin mode) may open any active team; everyone else
-  // only the teams they are on or lead. The endpoint re-checks server-side.
-  const seesAll = canAccessFinance || effectiveIsAdmin
+  // Every active team ONLY in admin mode (admin / Vorstand with the toggle on —
+  // CLAUDE.md: admin power applies only in admin mode). Off, or for the finance
+  // role and everyone else: the teams you are on or lead. The endpoint
+  // re-checks server-side; the treasurer's club-wide view is /admin/finance.
+  const seesAll = effectiveIsAdmin || effectiveIsVorstand
   const myTeamIds = useMemo(
     () => new Set([...memberTeamIds, ...coachTeamIds, ...captainTeamIds].map(String)),
     [memberTeamIds, coachTeamIds, captainTeamIds],
@@ -78,9 +82,20 @@ export default function TeamFinancePage() {
   }
 
   const { data, isLoading, isError, isPlaceholderData, refetch } = useTeamFinance(teamId, season)
+  // Referee-fee recorder: the game whose editor is open in the modal. The
+  // section is the game modal's own editor (single writer); closing refetches
+  // so the fee shows up in the table + tiles without a reload.
+  const [recordGame, setRecordGame] = useState<TeamHomeGame | null>(null)
 
   // Report to the app boot gate — see usePageReady.tsx
   useReportPageLoading(teamsLoading || teamsQueryLoading || isLoading)
+
+  // Fee per game id — the recorder table looks its row up by game.
+  const refByGame = useMemo(() => {
+    const map = new Map<string, RefereeExpenseLine>()
+    for (const r of data?.referee_expenses ?? []) if (r.game) map.set(String(r.game.id), r)
+    return map
+  }, [data])
 
   const rows = useMemo<LedgerRow[]>(() => {
     if (!data) return []
@@ -190,6 +205,68 @@ export default function TeamFinancePage() {
                 )}
               </section>
 
+              {/* Referee fees per home game — one row per game, record/edit in place */}
+              {data.home_games.length > 0 && (
+                <section className="space-y-2">
+                  <h2 className={sectionTitleCls}>{t('teamFinanceRefereeTitle')}</h2>
+                  <div className={tableWrapCls}>
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/40">
+                          <TableHead className={thCls}>{t('colDate')}</TableHead>
+                          <TableHead className={thCls}>{t('colGame')}</TableHead>
+                          <TableHead className={`text-right ${thCls}`}>{t('colAmount')}</TableHead>
+                          {data.can_record_referee && <TableHead className={thCls}><span className="sr-only">{t('refereeRecord')}</span></TableHead>}
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {data.home_games.map((g) => {
+                          const fee = refByGame.get(String(g.id))
+                          const editable = data.can_record_referee && !(fee?.payout && fee.payout_status !== 'cancelled')
+                          return (
+                            <TableRow key={g.id} className="min-h-[44px] border-gray-200 dark:border-gray-700">
+                              <TableCell className="whitespace-nowrap align-top text-xs text-gray-500 dark:text-gray-400">
+                                {g.date ? formatDateCompactZurich(g.date) : '–'}
+                              </TableCell>
+                              <TableCell className="whitespace-normal break-words text-gray-900 dark:text-gray-100">
+                                {g.home_team ?? '?'} – {g.away_team ?? '?'}
+                                <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+                                  {fee ? (
+                                    <>
+                                      {fee.paid_by && <span>{t('refereePaidBy', { name: fee.paid_by })}</span>}
+                                      <RefereeStatusPill row={fee} />
+                                    </>
+                                  ) : (
+                                    <span className="text-amber-700 dark:text-amber-300">{t('refereeNotRecorded')}</span>
+                                  )}
+                                </span>
+                              </TableCell>
+                              <TableCell className="text-right align-top tabular-nums text-gray-700 dark:text-gray-300">
+                                {fee ? formatChf(toNum(fee.amount)) : '–'}
+                              </TableCell>
+                              {data.can_record_referee && (
+                                <TableCell className="text-right align-top">
+                                  {editable && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setRecordGame(g)}
+                                      className={`inline-flex min-h-[36px] items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-medium ${fee ? 'text-brand-700 hover:bg-brand-50 dark:text-brand-300 dark:hover:bg-brand-900/30' : 'bg-brand-600 text-white hover:bg-brand-700'}`}
+                                    >
+                                      {fee ? <Pencil className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
+                                      {fee ? t('refereeEdit') : t('refereeRecord')}
+                                    </button>
+                                  )}
+                                </TableCell>
+                              )}
+                            </TableRow>
+                          )
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </section>
+              )}
+
               {/* Entries + referee fees */}
               <section className="space-y-2">
                 <h2 className={sectionTitleCls}>{t('teamFinanceEntriesTitle')}</h2>
@@ -244,15 +321,35 @@ export default function TeamFinancePage() {
                     </Table>
                   </div>
                 )}
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {t('teamFinanceRecordHint')}{' '}
-                  <Link to="/games" className="font-medium text-brand-700 hover:underline dark:text-brand-300">{t('nav:games')} →</Link>
-                </p>
+                {data.home_games.length === 0 && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    {t('teamFinanceRecordHint')}{' '}
+                    <Link to="/games" className="font-medium text-brand-700 hover:underline dark:text-brand-300">{t('nav:games')} →</Link>
+                  </p>
+                )}
               </section>
             </div>
           )}
         </>
       )}
+
+      {/* The game modal's own editor, hosted here so a coach records the fee
+          without leaving the finance page. */}
+      <Modal
+        open={recordGame != null}
+        onClose={() => { setRecordGame(null); void refetch() }}
+        title={recordGame ? `${recordGame.home_team ?? '?'} – ${recordGame.away_team ?? '?'}` : ''}
+        size="sm"
+      >
+        {recordGame && teamId && (
+          <div className="space-y-2">
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {recordGame.date ? formatDateCompactZurich(recordGame.date) : ''}{recordGame.time ? ` · ${recordGame.time.slice(0, 5)}` : ''}{recordGame.league ? ` · ${recordGame.league}` : ''}
+            </p>
+            <RefereeExpenseSection gameId={String(recordGame.id)} teamId={String(teamId)} canEdit defaultOpen />
+          </div>
+        )}
+      </Modal>
     </div>
   )
 }
