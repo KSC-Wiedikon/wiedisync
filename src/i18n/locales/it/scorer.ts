@@ -6,7 +6,7 @@ export default {
   tabGames: 'Partite',
   tabOverview: 'Panoramica',
   dutyScopeAll: 'Tutte',
-  dutyScopeMine: 'Selezionate',
+  dutyScopeMine: 'I miei servizi',
 
   // Labels — Volleyball
   scorer: 'Segnapunti',
