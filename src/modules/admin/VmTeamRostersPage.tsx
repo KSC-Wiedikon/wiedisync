@@ -289,10 +289,13 @@ export default function VmTeamRostersPage() {
                         {run.result.teams.map((rt) => (
                           <TableRow key={rt.teamDbId} className={rt.error ? 'bg-red-50 dark:bg-red-900/10' : ''}>
                             <TableCell className="align-top">
-                              <TeamChip team={rt.teamName} size="sm" />
-                              <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">
-                                {rt.vmPlayersAfter != null ? `${rt.vmPlayersBefore} → ${rt.vmPlayersAfter}` : rt.vmPlayersBefore}
-                              </span>
+                              <div className="flex flex-col items-start gap-0.5">
+                                <TeamChip team={rt.teamName} size="sm" />
+                                {/* VM player count before → after the write (before only on a preview). */}
+                                <span className="whitespace-nowrap text-xs tabular-nums text-gray-500 dark:text-gray-400">
+                                  {rt.vmPlayersAfter != null ? `${rt.vmPlayersBefore} → ${rt.vmPlayersAfter}` : rt.vmPlayersBefore}
+                                </span>
+                              </div>
                               {rt.error && <p className="mt-1 whitespace-normal text-xs text-red-600 dark:text-red-400">{rt.error}</p>}
                             </TableCell>
                             <TableCell className="whitespace-normal align-top text-sm">
@@ -370,8 +373,12 @@ export default function VmTeamRostersPage() {
                       </TableCell>
                       <TableCell className="hidden align-top tabular-nums sm:table-cell">{player.licenseNr ?? <span className="text-gray-400">—</span>}</TableCell>
                       <TableCell className="align-top">
-                        <Badge variant={STATUS_BADGE[player.status]} title={player.licenceActivated != null ? `${t('vmtActivated')}: ${player.licenceActivated ? '✓' : '✗'} · ${t('vmtValidated')}: ${player.licenceValidated ? '✓' : '✗'}` : undefined}>
-                          {t(`vmtStatus_${player.status}`)}
+                        <Badge
+                          variant={STATUS_BADGE[player.status]}
+                          className="whitespace-nowrap"
+                          title={`${t(`vmtStatus_${player.status}`)}${player.licenceActivated != null ? ` · ${t('vmtActivated')}: ${player.licenceActivated ? '✓' : '✗'} · ${t('vmtValidated')}: ${player.licenceValidated ? '✓' : '✗'}` : ''}`}
+                        >
+                          {t(`vmtShort_${player.status}`)}
                         </Badge>
                       </TableCell>
                     </TableRow>

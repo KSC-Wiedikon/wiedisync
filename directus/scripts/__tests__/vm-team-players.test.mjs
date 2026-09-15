@@ -5,7 +5,7 @@ import { buildWanted, planTeam, staticIdFromTeamId } from '../vm-team-players.mj
 test('staticIdFromTeamId: vb_<n> → n, placeholders and basketball → null', () => {
   assert.equal(staticIdFromTeamId('vb_1393'), 1393)
   assert.equal(staticIdFromTeamId('vb_541'), 541)
-  assert.equal(staticIdFromTeamId('vb_00001'), 1, 'leading zeros are still a number')
+  assert.equal(staticIdFromTeamId('vb_00001'), null, 'zero-padded = our placeholder, not VM team #1')
   assert.equal(staticIdFromTeamId('vb_00000'), null)
   assert.equal(staticIdFromTeamId('bb_166'), null)
   assert.equal(staticIdFromTeamId(null), null)

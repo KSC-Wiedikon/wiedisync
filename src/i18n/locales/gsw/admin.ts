@@ -1296,6 +1296,13 @@ export default {
   vmtStatus_no_licence_nr: 'Kei Lizänznummere',
   vmtStatus_unknown_to_vm: 'VolleyManager unbekannt',
   vmtStatus_no_vm_team: 'Kei VolleyManager-Team',
+  // Short badge labels for the per-player table (the chips above carry the long form)
+  vmtShort_assignable: 'Bereit',
+  vmtShort_licence_pending: 'Lizänz usstehend',
+  vmtShort_on_vm_team: 'Im VM-Team',
+  vmtShort_no_licence_nr: 'Kei Lizänz-Nr.',
+  vmtShort_unknown_to_vm: 'VM unbekannt',
+  vmtShort_no_vm_team: 'Kei VM-Team',
   vmtActivated: 'Aktiviert',
   vmtValidated: 'Validiert',
   vmtFilterOpen: 'Nur offeni',
