@@ -11,7 +11,7 @@
 
 import { Fragment, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ChevronDown, ChevronRight, Download, Loader2, RefreshCw, UserMinus } from 'lucide-react'
+import { ChevronDown, ChevronRight, Download, Loader2, RefreshCw, Upload, UserMinus } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -71,6 +71,17 @@ export interface NeedsSyncRow {
    * about a decision already waiting in the other table.
    */
   blank_risk?: string[]
+  /**
+   * `awaiting_link` rows only, and only once a sync down has run since the
+   * push. `push_lost` = that sync down found no contact that could be this
+   * person, so the create never landed (the row is stuck: the CREATE set skips
+   * a stamped member for ever) — the row offers "Push again". `push_match` =
+   * the snapshot contact that may already be them; the fix there is a link,
+   * never a second push.
+   */
+  push_lost?: boolean
+  push_match?: { clubdesk_id: string; name: string; email: string | null } | null
+  pushed_at?: string | null
 }
 
 
@@ -114,7 +125,7 @@ const TONE: Record<SyncStatus, string> = {
 // Presentational — the page owns the fetch and the single Rescan button in the
 // header, so this card deliberately has no refresh of its own.
 export default function ClubdeskNeedsSync({
-  rows, inSync, lastDown, lastUp, loading, onDeactivateDeparted, deactivating,
+  rows, inSync, lastDown, lastUp, loading, onDeactivateDeparted, deactivating, onReoffer, reoffering,
 }: {
   rows: NeedsSyncRow[]
   inSync: number
@@ -133,6 +144,13 @@ export default function ClubdeskNeedsSync({
    */
   onDeactivateDeparted?: (rows: NeedsSyncRow[]) => void | Promise<void>
   deactivating?: boolean
+  /**
+   * Offer a lost create to the next sync up again (clears the "pushed" stamp).
+   * Per row, never in bulk: each one is a claim that a contact is MISSING from
+   * the legal register, and a wrong claim duplicates it. The server re-checks.
+   */
+  onReoffer?: (row: NeedsSyncRow) => void | Promise<void>
+  reoffering?: number | null
   // ⓘ No onFlag. "Keep ours" moved to the proposals queue as Refuse, which does
   // the same thing (flags the member for the next push) AND leaves a tombstone,
   // so the question is never asked again. A board row is no longer something you
@@ -335,6 +353,45 @@ export default function ClubdeskNeedsSync({
                               </span>
                             </TableCell>
                           )}
+                          {/* An awaiting-link row that a later sync down did NOT
+                              resolve has no field diff to show — its three value
+                              columns carry the verdict instead: the create never
+                              landed (offer it again) or a contact that may be
+                              them exists (link it). Without this the row sat
+                              blue for ever with "do not push again" as its only
+                              advice, and no way out. */}
+                          {r.status === 'awaiting_link' && r.push_lost != null ? (
+                            <TableCell colSpan={3} className="whitespace-normal break-words align-top text-xs">
+                              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                                <span className="text-muted-foreground">
+                                  {r.push_lost
+                                    ? t('cdSyncPushLost', {
+                                      pushed: r.pushed_at ? formatDateZurich(r.pushed_at) : '—',
+                                      down: lastDown ? formatDateZurich(lastDown) : '—',
+                                    })
+                                    : t('cdSyncPushLostMatch', {
+                                      pushed: r.pushed_at ? formatDateZurich(r.pushed_at) : '—',
+                                      name: r.push_match?.name || '—',
+                                      id: r.push_match?.clubdesk_id || '—',
+                                    })}
+                                </span>
+                                {r.push_lost && onReoffer && (
+                                  <Button
+                                    type="button" variant="outline" size="sm"
+                                    onClick={() => { void onReoffer(r) }}
+                                    disabled={loading || reoffering != null}
+                                    aria-busy={reoffering === r.member_id}
+                                    className="min-h-11 gap-1.5 sm:min-h-0"
+                                  >
+                                    {reoffering === r.member_id
+                                      ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                                      : <Upload className="h-3.5 w-3.5" aria-hidden="true" />}
+                                    {t('cdSyncReofferBtn')}
+                                  </Button>
+                                )}
+                              </div>
+                            </TableCell>
+                          ) : (<>
                           {/* ⚠ Three cells rather than one "ours → theirs" string:
                               an arrow does not say which end is which, and knowing
                               which side to trust is the whole point of the row. */}
@@ -373,6 +430,7 @@ export default function ClubdeskNeedsSync({
                               </div>
                             ))}
                           </TableCell>
+                          </>)}
                         </TableRow>
                         {open && (
                           <TableRow className="hover:bg-transparent">
