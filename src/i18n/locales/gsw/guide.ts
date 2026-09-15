@@ -296,8 +296,8 @@ export default {
       },
     },
     financeDues: {
-      title: 'Mini Finanze',
-      description: 'Beiträg und Rechnige i de App zahle',
+      title: 'Rächnige & Rückerstattige',
+      description: 'Rechnige zahle und gseh, was de Verein dir schuldet',
       steps: {
         iban: {
           title: 'Uszahligs-IBAN',
@@ -305,7 +305,7 @@ export default {
         },
         list: {
           title: 'Dini Rechnige',
-          body: 'Mitgliiderbeiträg und Vereinsrechnige mit Beträg und Zahligsstatus.',
+          body: 'Dini eigene Mitgliiderbeiträg und Vereinsrechnige mit Beträg und Zahligsstatus. Rechnige vomene Team, wo du leitisch, findsch under Team-Finanze.',
         },
         pay: {
           title: 'E Rechnig zahle',
@@ -355,7 +355,7 @@ export default {
       steps: {
         list: {
           title: 'Dini Buesse',
-          body: 'Jedi Buess, wo du überchoo hesch, mit Kategorie, Betrag und Status. Trainer und Vorstand gseend da au d Buesse vo ihne Teams.',
+          body: 'Jedi Buess, wo du überchoo hesch, mit Kategorie, Betrag und Status. Wächsle uf Team, zum d Buesse vo dim Team gseh – d Teamkasse-Buesse für alli, sämtlichi für Trainer und Vorstand.',
         },
         outstanding: {
           title: 'Was du schuldig bisch',

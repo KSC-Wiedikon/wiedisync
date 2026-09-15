@@ -51,6 +51,7 @@ import UpcomingTicker from './components/UpcomingTicker'
 import { eventTypeLabelKey } from '../calendar/eventTypeLabel'
 import HomeDelegationCard from './components/HomeDelegationCard'
 import MyDutyBanner from './components/MyDutyBanner'
+import RefereeExpenseNudge from './components/RefereeExpenseNudge'
 import { useMyDuties, DUTY_ROLE_LABEL_KEYS, type MyDuty } from '../../hooks/useMyDuties'
 
 type ExpandedGame = Game & {
@@ -107,6 +108,9 @@ export default function HomePage() {
   // Hide sport toggle for users who play only one sport
   const showSportToggle = primarySport === 'both'
   const [selectedGame, setSelectedGame] = useState<ExpandedGame | null>(null)
+  // Which section GameDetailModal opens expanded. Set by the referee-expense
+  // nudge's "Record now", cleared on close so a plain row click opens collapsed.
+  const [gameFocus, setGameFocus] = useState<'refereeExpense' | undefined>(undefined)
   const [selectedTraining, setSelectedTraining] = useState<TrainingExpanded | null>(null)
   const [selectedEvent, setSelectedEvent] = useState<EventExpanded | null>(null)
   const [showAllGames, setShowAllGames] = useState(false)
@@ -555,6 +559,12 @@ export default function HomePage() {
           Renders null when the member has no upcoming duties. */}
       {user && isApproved && <MyDutyBanner />}
 
+      {/* Referee expenses not recorded — coaches/TRs, volleyball home games that
+          ended in the last two weeks. Renders null when there is nothing missing. */}
+      {user && isApproved && (
+        <RefereeExpenseNudge onOpenGame={(g) => { setGameFocus('refereeExpense'); setSelectedGame(g) }} />
+      )}
+
       {/* Spielplanung absences reminder — volleyball players, until 2026-06-01 */}
       {user && isApproved && (primarySport === 'volleyball' || primarySport === 'both') && beforeAbsencesDeadline && (
         <div className="mb-6 lg:flex lg:flex-col lg:items-center">
@@ -858,7 +868,8 @@ export default function HomePage() {
 
       <GameDetailModal
         game={selectedGame}
-        onClose={() => setSelectedGame(null)}
+        focus={gameFocus}
+        onClose={() => { setSelectedGame(null); setGameFocus(undefined) }}
         participations={selectedGame ? getParticipations('game', selectedGame.id) : undefined}
       />
       {/* The page does not reveal until `bulkRsvpLoading` clears (see

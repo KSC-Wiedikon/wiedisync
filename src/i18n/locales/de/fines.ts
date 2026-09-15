@@ -3,6 +3,7 @@ export default {
   subtitle: 'Offene, bezahlte und erlassene Bussen',
   empty: 'Noch keine Bussen',
   emptyMember: 'Keine Bussen für dich',
+  emptyTeam: 'Keine Teambussen.',
 
   colMember: 'Mitglied',
   colCategory: 'Kategorie',

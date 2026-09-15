@@ -72,8 +72,8 @@ export default {
   colCredit: 'Crédit',
   colAmount: 'Montant',
 
-  myDuesTitle: 'Mes finances',
-  myDuesSubtitle: 'Tes factures et coordonnées de remboursement',
+  myDuesTitle: 'Factures et remboursements',
+  myDuesSubtitle: 'Tes factures, remboursements et coordonnées de versement',
   ibanCardTitle: 'IBAN pour remboursements',
   ibanCardSubtitle: 'Ton compte pour les remboursements du club.',
   ibanCardEmpty: 'Aucun IBAN enregistré – ajoute-le pour qu’on puisse te rembourser.',
@@ -92,12 +92,14 @@ export default {
   colStatus: 'Statut',
   colDue: 'Échéance',
   colOpen: 'Ouvert',
+  colGame: 'Match',
   colPaid: 'Payé',
 
   cardTitle: 'Vos factures',
   cardViewAll: 'Tout voir',
   cardOpenCount_one: '{{count}} facture ouverte',
   cardOpenCount_other: '{{count}} factures ouvertes',
+  cardTeamOpen: 'Factures d’équipe ouvertes : {{amount}}',
 
   // Téléversement de frais
   expenseTitle: 'Téléverser une facture',
@@ -355,6 +357,40 @@ export default {
   payoutDelete: 'Supprimer',
   myPayoutsTitle: 'Remboursements pour toi',
   myPayoutsSubtitle: "Versements que le club t'envoie. Télécharge le QR-facture si besoin.",
+
+  // Statut du versement (finance_payouts.status)
+  payoutStatusOpen: 'Annoncé',
+  payoutStatusPaid: 'Payé',
+
+  // Frais d’arbitrage avancés par le membre (referee_expenses, migration 363)
+  myRefereeTitle: 'Frais d’arbitrage que tu as payés',
+  myRefereeSubtitle: 'Le club te les rembourse à la fin de la saison.',
+  myRefereeTotal: 'À rembourser',
+  refereeStatusSeasonEnd: 'Fin de saison',
+  refereeStatusRecorded: 'Enregistré',
+  refereeStatusReimbursed: 'Remboursé {{date}}',
+
+  // Finances d’équipe (page membre /finance/team)
+  teamFinanceTitle: 'Finances de l’équipe',
+  teamFinanceSubtitle: 'Factures, écritures et frais d’arbitrage de ton équipe pour la saison.',
+  teamFinanceNoTeams: 'Tu ne fais encore partie d’aucune équipe.',
+  teamFinanceTeam: 'Équipe',
+  teamFinanceSeason: 'Saison',
+  teamFinanceIncome: 'Recettes',
+  teamFinanceExpense: 'Dépenses',
+  teamFinanceNet: 'Solde',
+  teamFinanceOpenBills: 'Factures d’équipe ouvertes',
+  teamFinanceOpenFines: 'Amendes de caisse d’équipe ouvertes',
+  teamFinanceRefereeTotal: 'Frais d’arbitrage cette saison',
+  teamFinanceBillsTitle: 'Factures d’équipe',
+  teamFinanceNoBills: 'Aucune facture pour cette équipe.',
+  teamFinanceEntriesTitle: 'Écritures',
+  teamFinanceNoEntries: 'Aucune écriture pour cette saison.',
+  teamFinanceNoFiscalYear: 'Aucun exercice n’existe encore pour cette saison — les écritures et factures apparaîtront dès que les finances l’ouvriront.',
+  teamFinanceFinesLink: 'Voir les amendes de l’équipe',
+  teamFinanceRecordHint: 'Les frais d’arbitrage sont saisis dans les détails du match après chaque match à domicile.',
+  teamKindReferee: 'Frais d’arbitrage',
+  refereePaidBy: 'Payé par {{name}}',
   duesIssueConfirmTitle: 'Lancer la campagne de cotisations ?',
 
   // ── Backfilled 2026-07-27 — fr/it catch-up (was rendering in English) ──
@@ -518,6 +554,19 @@ export default {
   teamEntryDelete: 'Supprimer l’entrée',
   teamEntryDeleteSure: 'Supprimer cette entrée ?',
   teamEntrySaveError: 'Impossible d’enregistrer l’entrée.',
+
+  // Remboursement des frais d’arbitrage en fin de saison (trésorier, onglet Équipes)
+  teamColReferee: 'Frais d’arbitrage',
+  refereeReimbTitle: 'Remboursement arbitrage {{season}}',
+  refereeReimbPreview: 'Aperçu',
+  refereeReimbCreate: 'Créer les versements ({{count}})',
+  refereeReimbConfirm: 'Créer un versement par membre pour {{season}} ? Les frais d’arbitrage seront marqués comme remboursés.',
+  refereeReimbDone: '{{count}} versements créés',
+  refereeReimbEmpty: 'Rien à rembourser pour {{season}}.',
+  refereeReimbColGames: 'Matchs',
+  refereeReimbSkipNoIban: 'Pas d’IBAN',
+  refereeReimbSkipAddress: 'Adresse incomplète',
+  refereeReimbSkipCurrency: 'Pas en CHF',
   tabBudget: 'Budget',
   budgetHint: 'Budget et réel par compte pour {{year}}. Modifie un budget — il s’enregistre automatiquement.',
   budgetColName: 'Nom',

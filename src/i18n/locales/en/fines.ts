@@ -3,6 +3,7 @@ export default {
   subtitle: 'Open, paid and waived fines',
   empty: 'No fines yet',
   emptyMember: 'No fines for you',
+  emptyTeam: 'No team fines.',
 
   // Table
   colMember: 'Member',

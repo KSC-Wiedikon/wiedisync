@@ -77,8 +77,8 @@ export default {
   colCredit: 'Haben',
   colAmount: 'Betrag',
 
-  myDuesTitle: 'Meine Finanzen',
-  myDuesSubtitle: 'Deine Rechnungen und Auszahlungsangaben',
+  myDuesTitle: 'Rechnungen & Rückerstattungen',
+  myDuesSubtitle: 'Deine Rechnungen, Rückerstattungen und Auszahlungsangaben',
   ibanCardTitle: 'IBAN für Rückzahlungen',
   ibanCardSubtitle: 'Dein Konto für Rückerstattungen vom Verein.',
   ibanCardEmpty: 'Noch keine IBAN gespeichert – füge sie hinzu, damit wir dir Auslagen zurückzahlen können.',
@@ -97,12 +97,14 @@ export default {
   colStatus: 'Status',
   colDue: 'Fällig',
   colOpen: 'Offen',
+  colGame: 'Spiel',
   colPaid: 'Bezahlt',
 
   cardTitle: 'Deine Rechnungen',
   cardViewAll: 'Alle ansehen',
   cardOpenCount_one: '{{count}} offene Rechnung',
   cardOpenCount_other: '{{count}} offene Rechnungen',
+  cardTeamOpen: 'Offene Teamrechnungen: {{amount}}',
 
   // Spesen-Upload
   expenseTitle: 'Rechnung hochladen',
@@ -361,6 +363,40 @@ export default {
   myPayoutsTitle: 'Rückerstattungen an dich',
   myPayoutsSubtitle: 'Auszahlungen, die der Verein dir schickt. Bei Bedarf den QR-Einzahlschein herunterladen.',
 
+  // Auszahlungsstatus (finance_payouts.status)
+  payoutStatusOpen: 'Angekündigt',
+  payoutStatusPaid: 'Bezahlt',
+
+  // Vom Mitglied bezahlte Schiedsrichterspesen (referee_expenses, Migration 363)
+  myRefereeTitle: 'Von dir bezahlte Schiedsrichterspesen',
+  myRefereeSubtitle: 'Der Verein erstattet sie dir am Saisonende.',
+  myRefereeTotal: 'Zu erstatten',
+  refereeStatusSeasonEnd: 'Saisonende',
+  refereeStatusRecorded: 'Erfasst',
+  refereeStatusReimbursed: 'Erstattet {{date}}',
+
+  // Team-Finanzen (Mitgliederseite /finance/team)
+  teamFinanceTitle: 'Team-Finanzen',
+  teamFinanceSubtitle: 'Rechnungen, Buchungen und Schiedsrichterspesen deines Teams für die Saison.',
+  teamFinanceNoTeams: 'Du bist noch in keinem Team.',
+  teamFinanceTeam: 'Team',
+  teamFinanceSeason: 'Saison',
+  teamFinanceIncome: 'Einnahmen',
+  teamFinanceExpense: 'Ausgaben',
+  teamFinanceNet: 'Saldo',
+  teamFinanceOpenBills: 'Offene Teamrechnungen',
+  teamFinanceOpenFines: 'Offene Teamkasse-Bussen',
+  teamFinanceRefereeTotal: 'Schiedsrichterspesen diese Saison',
+  teamFinanceBillsTitle: 'Teamrechnungen',
+  teamFinanceNoBills: 'Keine Rechnungen für dieses Team.',
+  teamFinanceEntriesTitle: 'Buchungen',
+  teamFinanceNoEntries: 'Keine Buchungen in dieser Saison.',
+  teamFinanceNoFiscalYear: 'Für diese Saison gibt es noch kein Geschäftsjahr – Buchungen und Rechnungen erscheinen, sobald die Finanzen es eröffnen.',
+  teamFinanceFinesLink: 'Teambussen anzeigen',
+  teamFinanceRecordHint: 'Schiedsrichterspesen werden nach jedem Heimspiel in den Spieldetails erfasst.',
+  teamKindReferee: 'Schiedsrichterspesen',
+  refereePaidBy: 'Bezahlt von {{name}}',
+
   // ── Beitragslauf (wiederkehrende/Batch-Mitgliederbeiträge, Migration 138) ──
   tabDues: 'Beitragslauf',
   duesBookNote: 'Diese Rechnungen werden in wiedisync eingezogen. Stelle sicher, dass dieselben Beiträge nicht auch in ClubDesk verrechnet werden, sonst erhalten Mitglieder zwei Rechnungen.',
@@ -526,6 +562,19 @@ export default {
   teamEntryDelete: 'Eintrag entfernen',
   teamEntryDeleteSure: 'Diesen Eintrag entfernen?',
   teamEntrySaveError: 'Eintrag konnte nicht gespeichert werden.',
+
+  // Schiedsrichter-Rückerstattung am Saisonende (Kassier, Tab Teams)
+  teamColReferee: 'Schiedsrichterspesen',
+  refereeReimbTitle: 'Schiedsrichter-Rückerstattung {{season}}',
+  refereeReimbPreview: 'Vorschau',
+  refereeReimbCreate: 'Auszahlungen erstellen ({{count}})',
+  refereeReimbConfirm: 'Für {{season}} eine Auszahlung pro Mitglied erstellen? Damit gelten die Schiedsrichterspesen als erstattet.',
+  refereeReimbDone: '{{count}} Auszahlungen erstellt',
+  refereeReimbEmpty: 'Nichts zu erstatten für {{season}}.',
+  refereeReimbColGames: 'Spiele',
+  refereeReimbSkipNoIban: 'Keine IBAN',
+  refereeReimbSkipAddress: 'Adresse unvollständig',
+  refereeReimbSkipCurrency: 'Nicht CHF',
 
   // Budget gegen Ist
   tabBudget: 'Budget',

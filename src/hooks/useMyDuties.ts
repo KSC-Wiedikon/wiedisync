@@ -46,7 +46,12 @@ export const DUTY_BANNER_LEAD_MS = 7 * 24 * 60 * 60 * 1000
 export const DUTY_EMERGENCY_LEAD_MS = 60 * 60 * 1000
 export const DUTY_EMERGENCY_GRACE_MS = 30 * 60 * 1000
 
-function startMsOf(g: Game): number | null {
+/**
+ * Kickoff instant of a game (Europe/Zurich wall clock → epoch ms), or null when
+ * the row has no date/time. Shared with the referee-expense nudge, which needs
+ * the same "has this game ended" arithmetic (`startMsOf + DUTY_EVENT_DURATION_MS`).
+ */
+export function startMsOf(g: Pick<Game, 'date' | 'time'>): number | null {
   if (!g.date || !g.time) return null
   try {
     const ms = new Date(toUtcIsoFromDatetimeLocal(`${String(g.date).slice(0, 10)}T${String(g.time).slice(0, 5)}`)).getTime()

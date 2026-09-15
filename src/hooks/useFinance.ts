@@ -8,6 +8,7 @@ import { useAuth } from './useAuth'
 import { kscwApi, fetchAllItems, API_URL, isImpersonating } from '../lib/api'
 import type {
   FinanceInvoice, FinanceTransaction, FinanceAccount, FinanceFiscalYear, FinanceImport,
+  RefereeExpenseLine, TeamFinanceResponse, RefereePayoutRunResponse,
 } from '../modules/finance/types'
 
 /** Coerce a Directus numeric (often a string) to a finite number, else 0. */
@@ -37,15 +38,42 @@ function myInvoicesPath(memberId: string | number | undefined): string {
     : '/finance/my-invoices'
 }
 
+/** The member's PERSONAL invoices only (`team == null`). Team bills the member
+ *  leads ride the same envelope but belong to Team finance — see
+ *  useMyTeamInvoices. Splitting here (one cache entry) is what keeps the
+ *  personal open-balance tile, YourDuesCard and useDuesNews all personal. */
 export function useMyInvoices() {
   const { user } = useAuth()
   const q = useQuery({
     queryKey: ['finance', 'my-invoices', user?.id ?? null],
     queryFn: () => kscwApi<MyInvoicesResponse>(myInvoicesPath(user?.id)),
     enabled: !!user,
-    select: (r) => r.invoices,
+    select: (r) => r.invoices.filter((i) => i.team == null),
   })
   return q
+}
+
+/** Native invoices billed to a team the member leads (same request as useMyInvoices). */
+export function useMyTeamInvoices() {
+  const { user } = useAuth()
+  return useQuery({
+    queryKey: ['finance', 'my-invoices', user?.id ?? null],
+    queryFn: () => kscwApi<MyInvoicesResponse>(myInvoicesPath(user?.id)),
+    enabled: !!user,
+    select: (r) => r.invoices.filter((i) => i.team != null),
+  })
+}
+
+/** Referee fees the member paid out of pocket (referee_expenses.paid_by_member = me),
+ *  newest game first. Same request as useMyInvoices — zero extra requests. */
+export function useMyRefereeExpenses() {
+  const { user } = useAuth()
+  return useQuery({
+    queryKey: ['finance', 'my-invoices', user?.id ?? null],
+    queryFn: () => kscwApi<MyInvoicesResponse>(myInvoicesPath(user?.id)),
+    enabled: !!user,
+    select: (r) => r.referee_expenses ?? [],
+  })
 }
 
 export interface MyInvoicesResponse {
@@ -54,7 +82,33 @@ export interface MyInvoicesResponse {
   fee_category: string | null
   /** The member's category prices at CHF 0 — they are never invoiced. */
   no_fee: boolean
+  /** Referee fees this member paid (derived from referee_expenses at read time). */
+  referee_expenses: RefereeExpenseLine[]
 }
+
+// ── Team finance (member-facing, read-only) ──────────────────────────────
+
+/** One team's season finances for a roster member / lead / finance:
+ *  entries + team bills + referee fees + totals. Served by GET /finance/team/:id,
+ *  which does the roster/lead check server-side (no M2M policy walk). */
+export function useTeamFinance(teamId: string | number | null | undefined, season: string | null | undefined) {
+  const { user } = useAuth()
+  const tid = teamId != null && teamId !== '' ? String(teamId) : null
+  return useQuery({
+    queryKey: ['finance', 'team', user?.id ?? null, tid, season ?? ''],
+    queryFn: () => kscwApi<TeamFinanceResponse>(`/finance/team/${tid}${season ? `?season=${encodeURIComponent(season)}` : ''}`),
+    enabled: !!user && !!tid,
+  })
+}
+
+/** Season-end referee reimbursement run (finance). `dry_run: true` = preview only. */
+export interface RefereePayoutRunInput {
+  season: string
+  dry_run: boolean
+  member_ids?: number[]
+}
+export const runRefereePayout = (input: RefereePayoutRunInput) =>
+  kscwApi<RefereePayoutRunResponse>('/finance/referee-payout-run', { method: 'POST', body: input })
 
 /** Same request as useMyInvoices (one cache entry), but keeps the envelope so
  *  the page can explain WHY the list is empty instead of just that it is. */
@@ -750,6 +804,8 @@ export interface TeamSummaryRow {
   net: number
   invoice_total: number
   invoice_open: number
+  /** Referee fees paid for the team's home games this year — club-reimbursed, NOT in `net`. */
+  referee_total: number
 }
 /** Per-team income/expense/net + open bills for a fiscal year (finance/board). */
 export function useTeamsSummary(fiscalYearId: string | number | null | undefined, enabled = true) {

@@ -168,6 +168,7 @@ export default {
   refereeExpensesSaved: 'Salvato',
   refereeExpensesEdit: 'Modifica',
   refereeExpensesNotRecorded: 'Non ancora registrato',
+  refereeExpensesReimbursed: 'Rimborsato dal club — non più modificabile.',
 
   // Auto Einsatzliste — solo pallavolo, riservato agli allenatori
   autoNomination: 'Einsatzliste automatica',

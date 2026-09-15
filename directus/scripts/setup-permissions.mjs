@@ -2069,7 +2069,10 @@ async function main() {
   // these are referenced by grants further down and a definition placed beside
   // its *last* use would throw a ReferenceError from the temporal dead zone on
   // the first one. Keep new shapes in this block.
-  const COACH_OF_TEAM_FK = { team: { coach: { members_id: { user: { _eq: '$CURRENT_USER' } } } } }
+  // (COACH_OF_TEAM_FK — `team.coach.members_id.user = $CURRENT_USER`, coach-only —
+  // was the referee_expenses update/delete scope until 2026-09-15; its last user
+  // moved to REFEREE_EXPENSE_I_LEAD_UNPAID below. Use TEAM_FK_I_LEAD for new
+  // team-FK grants: coach ∪ TR is what the app's canManageTeam means.)
   const COACH_OF_SLOT_CLAIM = { claimed_by_team: { coach: { members_id: { user: { _eq: '$CURRENT_USER' } } } } }
   /** A team FK (not a junction) pointing at a team I coach or am TR for. */
   const TEAM_FK_I_LEAD = {
@@ -2081,6 +2084,10 @@ async function main() {
     },
   }
   const INVITE_OF_TEAM_I_LEAD = TEAM_FK_I_LEAD
+  /** A referee fee of a team I lead that the season-end run has NOT yet
+   *  reimbursed (migration 363). Once `payout` is set the row is the basis of
+   *  a finance_payouts record and is frozen for leaders; finance corrects it. */
+  const REFEREE_EXPENSE_I_LEAD_UNPAID = { _and: [TEAM_FK_I_LEAD, { payout: { _null: true } }] }
   /** `_nnull` keeps a null-team poll from matching the relational branch. */
   const POLL_OF_TEAM_I_LEAD = { _and: [{ team: { _nnull: true } }, TEAM_FK_I_LEAD] }
   /** `hall_slots` has no team column; teams hang off the `teams` M2M alias. */
@@ -2538,12 +2545,16 @@ async function main() {
   // Scorer delegations — read all
   await setPermRead(LEADER_POLICY, 'scorer_delegations')
 
-  // Referee expenses — CRU
+  // Referee expenses — CRU. The UI gate on the game modal's fee editor is
+  // coach ∪ team responsible, and the Home nudge sends TRs into that editor,
+  // so update/delete are scoped by TEAM_FK_I_LEAD (coach OR TR of the row's
+  // team) rather than the coach-only COACH_OF_TEAM_FK the row carried until
+  // 2026-09-15 — a TR could open the editor and then 403 on save.
+  // Paid-out rows are frozen (`payout IS NULL`, migration 363): once the
+  // season-end run has reimbursed a fee it backs a finance_payouts record,
+  // and only finance may touch it.
   await setPerm(LEADER_POLICY, 'referee_expenses', 'create')
-  // update was unfiltered while delete was already scoped — an internal
-  // inconsistency, and the weaker of the two is the one that mattered (amount
-  // and notes are editable).
-  await setPerm(LEADER_POLICY, 'referee_expenses', 'update', COACH_OF_TEAM_FK)
+  await setPerm(LEADER_POLICY, 'referee_expenses', 'update', REFEREE_EXPENSE_I_LEAD_UNPAID)
 
   // Polls — CRUD
   // polls — create unfiltered (no row yet); update/delete scoped to polls
@@ -2721,7 +2732,8 @@ async function main() {
   await setPerm(LEADER_POLICY, 'events_members', 'update', EVENTS_MEMBERS_LEADER_SCOPE)
   await setPerm(LEADER_POLICY, 'events_members', 'delete', EVENTS_MEMBERS_LEADER_SCOPE)
   await setPerm(LEADER_POLICY, 'participations', 'delete', COACH_OR_TR_OF_PARTICIPATION)
-  await setPerm(LEADER_POLICY, 'referee_expenses', 'delete', COACH_OF_TEAM_FK)
+  // Same scope as update: coach OR TR of the team, and only while unpaid.
+  await setPerm(LEADER_POLICY, 'referee_expenses', 'delete', REFEREE_EXPENSE_I_LEAD_UNPAID)
   await setPerm(LEADER_POLICY, 'scorer_delegations', 'delete', OWN_DELEGATION_FROM)
   await setPerm(LEADER_POLICY, 'slot_claims', 'create', COACH_OF_SLOT_CLAIM)
   await setPerm(LEADER_POLICY, 'slot_claims', 'delete', COACH_OF_SLOT_CLAIM)
@@ -2859,7 +2871,9 @@ async function main() {
     'game_guests', 'game_guest_teams',
     'rankings', 'sponsors', 'teams_sponsors',
     'hall_slots', 'hall_closures', 'hall_events', 'halls', 'hall_slots_teams',
-    'slot_claims', 'notifications', 'feedback', 'scorer_delegations', 'referee_expenses',
+    'slot_claims', 'notifications', 'feedback', 'scorer_delegations',
+    // ⚠ `referee_expenses` is NOT here — see the explicit grants below the loop
+    // (update/delete only while unpaid, migration 363). Do not re-add it.
     'team_invites', 'news', 'app_settings',
     'push_subscriptions',
     // ⚠ `email_verifications` and `user_logs` are NOT here — see the two
@@ -2921,6 +2935,16 @@ async function main() {
   for (const col of SPORT_ADMIN_FULL_CRUD) {
     await setPermCRUD(SPORT_ADMIN_POLICY, col)
   }
+  // `referee_expenses` — club-wide read + create, but update/delete ONLY while
+  // the row is unpaid (`payout IS NULL`, migration 363). A reimbursed fee is
+  // the basis of a finance_payouts record; editing its amount after the
+  // transfer would make the payout snapshot and the fee disagree with no trace.
+  // Corrections to a settled fee go through finance (cancel the payout first).
+  const REFEREE_EXPENSE_UNPAID = { payout: { _null: true } }
+  await setPermRead(SPORT_ADMIN_POLICY, 'referee_expenses')
+  await setPerm(SPORT_ADMIN_POLICY, 'referee_expenses', 'create')
+  await setPerm(SPORT_ADMIN_POLICY, 'referee_expenses', 'update', REFEREE_EXPENSE_UNPAID)
+  await setPerm(SPORT_ADMIN_POLICY, 'referee_expenses', 'delete', REFEREE_EXPENSE_UNPAID)
   // `email_verifications` — NO grant at all (audit 2026-08-08, finding 1).
   // This is not operational data: it is the credential store backing the
   // unauthenticated `POST /kscw/set-password` Mode 3, which treats any row with

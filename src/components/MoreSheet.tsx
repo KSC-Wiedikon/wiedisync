@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef, type ReactNode } from 'react'
-import { NavLink } from 'react-router-dom'
+import { NavLink, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../hooks/useAuth'
 import { useTheme } from '../hooks/useTheme'
@@ -8,11 +8,12 @@ import SwitchToggle from '@/components/SwitchToggle'
 import LanguageDropdown from '@/components/LanguageDropdown'
 import { getFileUrl } from '../utils/fileUrl'
 import AdminToggle from './AdminToggle'
-import { Bell, LayoutGrid, UserX, PenSquare, PartyPopper, CalendarClock, LogIn, User, Users, Settings, ChevronDown, ScrollText, MessageSquare, Activity, GraduationCap, Newspaper, Gavel, Wallet, Landmark, ReceiptText, Coffee } from 'lucide-react'
+import { Bell, LayoutGrid, UserX, PenSquare, PartyPopper, CalendarClock, LogIn, User, Users, Settings, ChevronDown, ScrollText, MessageSquare, Activity, GraduationCap, Newspaper, Coffee } from 'lucide-react'
 import type { MemberTeam, Team } from '../types'
 import { asObj, memberDisplayName } from '../utils/relations'
 import { SCHEDULING_ORIGIN } from '../lib/api'
 import { buildAdminGroups, buildSuperadminItems, type AdminNavEntry } from '../lib/adminNav'
+import { buildFinanceGroups, navItemActive, type FinanceNavEntry } from '../lib/financeNav'
 import { handlePWAExternalClick } from '../utils/pwa'
 import { APP_VERSION } from '../modules/changelog/ChangelogPage'
 import { useDonateVisible } from '../modules/support/donateConfig'
@@ -34,10 +35,26 @@ function useAnimatedClose(onClose: () => void) {
 const iconClass = 'h-5 w-5'
 
 interface SheetItem { to: string; labelKey: string; icon: ReactNode; external?: boolean; href?: string }
+interface SheetGroup { labelKey: string; items: SheetItem[] }
+interface NavItem { to: string; labelKey: string; icon: ReactNode }
+
+// Admin + finance nav come from `../lib/adminNav` / `../lib/financeNav` — ONE
+// definition each, shared with the desktop mega-menu (`TopNav` via `useNavItems`)
+// and, for admin, the /admin hub table. Adding a page there lights it up on every
+// surface; this file only maps the shared entry (i18n key + icon component) onto
+// the sheet's NavItem shape.
+const toSheetItem = (e: AdminNavEntry | FinanceNavEntry): NavItem => ({
+  to: e.to,
+  labelKey: e.labelKey,
+  icon: <e.icon className={iconClass} />,
+})
 
 function buildSecondaryItems(
-  sched: { isAdmin: boolean; isVorstand: boolean; canAccessFinance: boolean; is_spielplaner: boolean; spielplanerTeamIds: string[]; coachTeamIds: string[]; teamResponsibleIds: string[]; canManageForms: boolean },
-): { primary: SheetItem[]; memberTools: SheetItem[]; finance: SheetItem[]; spielplaner: SheetItem[] } {
+  sched: {
+    isAdmin: boolean; isVorstand: boolean; canAccessFinance: boolean; isVbAdmin: boolean; isBbAdmin: boolean; hasTeam: boolean
+    is_spielplaner: boolean; spielplanerTeamIds: string[]; coachTeamIds: string[]; teamResponsibleIds: string[]; canManageForms: boolean
+  },
+): { primary: SheetItem[]; memberTools: SheetItem[]; finance: SheetGroup[]; spielplaner: SheetItem[] } {
   // Primary = items NOT already on the bottom tab bar (Home/Calendar/Games/
   // Trainings live there); shown ungrouped at the top of the sheet.
   const primary: SheetItem[] = [
@@ -54,14 +71,13 @@ function buildSecondaryItems(
     ...(sched.canManageForms ? [{ to: '/js-export', labelKey: 'jsExport', icon: <GraduationCap className={iconClass} /> }] : []),
     { to: '/news', labelKey: 'news', icon: <Newspaper className={iconClass} /> },
   ]
-  // Finance — own section (mirrors useNavItems): personal dues, fines, expense
-  // upload (all members), board club-finances dashboard (Vorstand only).
-  const finance: SheetItem[] = [
-    { to: '/finance/dues', labelKey: 'finance:myDuesTitle', icon: <Wallet className={iconClass} /> },
-    { to: '/fines', labelKey: 'fines', icon: <Gavel className={iconClass} /> },
-    { to: '/finance/expense', labelKey: 'uploadInvoice', icon: <ReceiptText className={iconClass} /> },
-    ...(sched.canAccessFinance ? [{ to: '/admin/finance', labelKey: 'finance:title', icon: <Landmark className={iconClass} /> }] : []),
-  ]
+  // Finance — three labelled groups (member / team / club) from
+  // `../lib/financeNav`, the SAME builder the desktop dropdown reads, so the two
+  // surfaces cannot drift again. isTk mirrors useNavItems: section TK or anyone
+  // with finance access gets the expense confirmation queue.
+  const isTk = sched.isVbAdmin || sched.isBbAdmin || sched.canAccessFinance
+  const finance: SheetGroup[] = buildFinanceGroups({ hasTeam: sched.hasTeam, isTk, canAccessFinance: sched.canAccessFinance })
+    .map((g) => ({ labelKey: g.labelKey, items: g.items.map(toSheetItem) }))
   // Spielplaner tools — the whole game-scheduling feature opens as ONE "Planning"
   // entry (mirrors `useNavItems` / the desktop top nav); it has its own in-app
   // nav once you're in it. Game scheduling lives on its own subdomain, so link
@@ -79,18 +95,6 @@ function buildSecondaryItems(
     : []
   return { primary, memberTools, finance, spielplaner }
 }
-
-interface NavItem { to: string; labelKey: string; icon: ReactNode }
-
-// Admin nav comes from `../lib/adminNav` — ONE definition shared with the desktop
-// mega-menu (`TopNav` via `useNavItems`) and the /admin hub table. Adding an admin
-// page there lights it up on all three surfaces; this file only maps the shared
-// entry (i18n key + icon component) onto the sheet's NavItem shape.
-const toSheetItem = (e: AdminNavEntry): NavItem => ({
-  to: e.to,
-  labelKey: e.labelKey,
-  icon: <e.icon className={iconClass} />,
-})
 
 // Superadmin block — rendered under its own top-level header, so it stays out of
 // the sections above. `true` because the caller already gates on isSuperAdmin.
@@ -214,8 +218,14 @@ interface MoreSheetProps {
 }
 
 export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNotifications, memberTeams = [] }: MoreSheetProps) {
-  const { user, isApproved, isAdmin, isGlobalAdmin, isSuperAdmin, isVorstand, canAccessFinance, is_spielplaner, spielplanerTeamIds, coachTeamIds, teamResponsibleIds, logout } = useAuth()
+  const { user, isApproved, isAdmin, isGlobalAdmin, isSuperAdmin, isVorstand, canAccessFinance, isVbAdmin, isBbAdmin, is_spielplaner, spielplanerTeamIds, coachTeamIds, teamResponsibleIds, memberTeamIds, captainTeamIds, logout } = useAuth()
   const canManageForms = isAdmin || isVorstand || coachTeamIds.length > 0 || teamResponsibleIds.length > 0
+  // Same derivation as useNavItems: roster member, coach/TR or captain of an
+  // active team unlocks the Team finance group.
+  const hasTeam = memberTeamIds.length > 0 || coachTeamIds.length > 0 || captainTeamIds.length > 0
+  // For the scope-aware active state of `/fines?scope=…` entries — NavLink's own
+  // isActive ignores the query and would light both at once.
+  const location = useLocation()
   // scheduling: null — on mobile the Spielplanung entry keeps its own section
   // below (see buildSecondaryItems), it does not lead the Planning group.
   // isSuperAdmin: false — the superadmin block renders separately, below.
@@ -346,7 +356,7 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
             </>
           )}
           {(!user || !isApproved) ? null : (() => {
-            const groups = buildSecondaryItems({ isAdmin, isVorstand, canAccessFinance, is_spielplaner, spielplanerTeamIds, coachTeamIds, teamResponsibleIds, canManageForms })
+            const groups = buildSecondaryItems({ isAdmin, isVorstand, canAccessFinance, isVbAdmin, isBbAdmin, hasTeam, is_spielplaner, spielplanerTeamIds, coachTeamIds, teamResponsibleIds, canManageForms })
             const renderItem = (item: SheetItem) => (
               item.external ? (
                 <a
@@ -365,7 +375,7 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
                   onClick={startClose}
                   className={({ isActive }) =>
                     `flex min-h-[48px] items-center gap-4 rounded-lg px-4 py-3 text-base font-medium transition-colors ${
-                      isActive
+                      (item.to.includes('?') ? navItemActive(location, item.to) : isActive)
                         ? 'bg-brand-50 text-brand-700 dark:bg-brand-900/50 dark:text-gold-400'
                         : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
                     }`
@@ -394,7 +404,15 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
                     <p className="mb-1 px-4 text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
                       {t('finance')}
                     </p>
-                    {groups.finance.map(renderItem)}
+                    {/* Sub-headers use the same markup as the admin groups below. */}
+                    {groups.finance.map((g) => (
+                      <div key={g.labelKey}>
+                        <p className="mb-0.5 mt-2 px-4 text-[10px] font-semibold uppercase tracking-wider text-gray-400/80 dark:text-gray-500/80">
+                          {t(g.labelKey)}
+                        </p>
+                        {g.items.map(renderItem)}
+                      </div>
+                    ))}
                   </>
                 )}
                 {groups.spielplaner.length > 0 && (

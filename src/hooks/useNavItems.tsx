@@ -3,10 +3,10 @@ import { useAuth } from './useAuth'
 import { useAdminMode } from './useAdminMode'
 import { SCHEDULING_ORIGIN } from '../lib/api'
 import { buildAdminGroups, buildSuperadminItems, type AdminNavEntry } from '../lib/adminNav'
+import { buildFinanceGroups, type FinanceNavEntry } from '../lib/financeNav'
 import {
   Home, Calendar, UserX, PenSquare, PartyPopper, Users, Radio,
-  CalendarClock, ClipboardCheck, Newspaper, ScrollText, Gavel,
-  Wallet, Landmark, ReceiptText, GraduationCap,
+  CalendarClock, Newspaper, ScrollText, GraduationCap,
 } from 'lucide-react'
 import WhistleIcon from '../components/WhistleIcon'
 
@@ -26,7 +26,7 @@ export interface NavItem {
  */
 export function useNavItems(isLoggedIn: boolean, isApproved: boolean) {
   const { t } = useTranslation('nav')
-  const { memberTeamIds, is_spielplaner, spielplanerTeamIds, isAdmin, isGlobalAdmin, isSuperAdmin, isVorstand, canAccessFinance, isVbAdmin, isBbAdmin, coachTeamIds, teamResponsibleIds } = useAuth()
+  const { memberTeamIds, is_spielplaner, spielplanerTeamIds, isAdmin, isGlobalAdmin, isSuperAdmin, isVorstand, canAccessFinance, isVbAdmin, isBbAdmin, coachTeamIds, teamResponsibleIds, captainTeamIds } = useAuth()
   const { effectiveIsAdmin, effectiveIsVorstand } = useAdminMode()
   // Forms authoring is a leadership tool — gated on ROLE (not the admin-mode
   // toggle), like the Spielplaner items below. Members reach forms-to-fill via
@@ -71,19 +71,18 @@ export function useNavItems(isLoggedIn: boolean, isApproved: boolean) {
     ...(canManageForms ? [{ to: '/js-export', label: t('jsExport'), icon: <GraduationCap className={iconClass} /> }] : []),
     { to: '/news', label: t('news'), icon: <Newspaper className={iconClass} /> },
   ]
-  // Finance — own section: personal dues, fines, expense-reimbursement upload (all
-  // members), and the board club-finances dashboard (Vorstand only).
+  // Finance — own section, three labelled groups (member / team / club) built
+  // by `../lib/financeNav`, which the mobile sheet reads too.
   // The section TK (vb_admin / bb_admin) — and finance/board/superadmins
   // (canAccessFinance) — get the expense confirmation queue. Matches TkRoute and
   // the endpoint's canManageFinance, which give finance/board every section.
   const isTk = isVbAdmin || isBbAdmin || canAccessFinance
-  const financeItems: NavItem[] = [
-    { to: '/finance/dues', label: t('finance:myDuesTitle'), icon: <Wallet className={iconClass} /> },
-    { to: '/fines', label: t('fines'), icon: <Gavel className={iconClass} /> },
-    { to: '/finance/expense', label: t('uploadInvoice'), icon: <ReceiptText className={iconClass} /> },
-    ...(isTk ? [{ to: '/finance/tk-expenses', label: t('finance:tkExpensesNav'), icon: <ClipboardCheck className={iconClass} /> }] : []),
-    ...(canAccessFinance ? [{ to: '/admin/finance', label: t('finance:title'), icon: <Landmark className={iconClass} /> }] : []),
-  ]
+  // Team finance is for anyone attached to a team — on the roster, leading it
+  // or captaining it. coachTeamIds is already coaches ∪ TRs (AuthProvider folds
+  // teams_responsibles in), captain is M2O on teams so a captain need not be on
+  // the roster, and memberTeamIds keeps guest rows. All three are intersected
+  // with the ACTIVE team map, so an archived team never unlocks the group.
+  const hasTeam = memberTeamIds.length > 0 || coachTeamIds.length > 0 || captainTeamIds.length > 0
   // Spielplaner tools — their own role-gated section (NOT the Admin section).
   // Gated on ROLE, not the admin-mode toggle (matches the route guards: an admin
   // can open these in either mode). Game scheduling now lives on its own
@@ -110,13 +109,14 @@ export function useNavItems(isLoggedIn: boolean, isApproved: boolean) {
         access: 'admin',
       }
     : null
-  // Admin nav lives in `../lib/adminNav` — ONE definition shared by the desktop
-  // mega-menu, the mobile sheet and the /admin hub table. Entries carry i18n keys
-  // and icon components; this hook resolves both for the navbar's NavItem shape.
-  const toNavItem = (e: AdminNavEntry): NavItem => ({
+  // Admin + finance nav live in `../lib/adminNav` / `../lib/financeNav` — ONE
+  // definition each, shared by the desktop mega-menu, the mobile sheet (and, for
+  // admin, the /admin hub table). Entries carry i18n keys and icon components;
+  // this hook resolves both for the navbar's NavItem shape.
+  const toNavItem = (e: AdminNavEntry | FinanceNavEntry): NavItem => ({
     to: e.to,
-    href: e.href,
-    external: e.external,
+    href: 'href' in e ? e.href : undefined,
+    external: 'external' in e ? e.external : undefined,
     label: t(e.labelKey),
     icon: <e.icon className={iconClass} />,
   })
@@ -124,7 +124,12 @@ export function useNavItems(isLoggedIn: boolean, isApproved: boolean) {
   return {
     navItems: isLoggedIn && isApproved ? [...publicItems, ...primaryAuthItems] : publicItems,
     memberToolsItems: isLoggedIn && isApproved ? memberToolsItems : [],
-    financeItems: isLoggedIn && isApproved ? financeItems : [],
+    // Finances — see `../lib/financeNav`. Empty groups are already dropped there;
+    // the whole section is hidden until the member is approved.
+    financeGroups: isLoggedIn && isApproved
+      ? buildFinanceGroups({ hasTeam, isTk, canAccessFinance })
+          .map((g) => ({ label: t(g.labelKey), items: g.items.map(toNavItem) }))
+      : [],
     schedulingItem,
     // Admin sections + superadmin tools — see `../lib/adminNav`, which is the
     // single source (the desktop mega-menu, MoreSheet and the /admin hub all read

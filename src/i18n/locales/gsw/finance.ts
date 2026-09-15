@@ -66,8 +66,8 @@ export default {
   colCredit: 'Haben',
   colAmount: 'Betrag',
 
-  myDuesTitle: 'Mini Finanze',
-  myDuesSubtitle: 'Dini Rächnige und Auszahligs-Date',
+  myDuesTitle: 'Rächnige & Rückerstattige',
+  myDuesSubtitle: 'Dini Rächnige, Rückerstattige und Uszahligs-Date',
   ibanCardTitle: 'IBAN für Rückzahlige',
   ibanCardSubtitle: 'Dis Konto für Rückerstattige vom Verein.',
   ibanCardEmpty: 'No kei IBAN gspeicheret – gib si i, dass mer der chönd zrugzahle.',
@@ -86,12 +86,14 @@ export default {
   colStatus: 'Status',
   colDue: 'Fällig',
   colOpen: 'Offe',
+  colGame: 'Spiel',
   colPaid: 'Zahlt',
 
   cardTitle: 'Dini Rächnige',
   cardViewAll: 'Alli aaluege',
   cardOpenCount_one: '{{count}} offeni Rächnig',
   cardOpenCount_other: '{{count}} offeni Rächnige',
+  cardTeamOpen: 'Offeni Teamrächnige: {{amount}}',
 
   // Spese-Upload
   expenseTitle: 'Rächnig hochlade',
@@ -349,5 +351,39 @@ export default {
   payoutDelete: 'Lösche',
   myPayoutsTitle: 'Rückerstattige a di',
   myPayoutsSubtitle: 'Uszahlige, wo dr Verein dir schickt. Bi Bedarf de QR-Iizahligsschii abelade.',
+
+  // Uszahligsstatus (finance_payouts.status)
+  payoutStatusOpen: 'Aakündigt',
+  payoutStatusPaid: 'Zahlt',
+
+  // Vom Mitglid zahlti Schiedsrichterspese (referee_expenses, Migration 363)
+  myRefereeTitle: 'Vo dir zahlti Schiedsrichterspese',
+  myRefereeSubtitle: 'De Verein zahlt sie dir am Saisonänd zrugg.',
+  myRefereeTotal: 'Zum zruggzahle',
+  refereeStatusSeasonEnd: 'Saisonänd',
+  refereeStatusRecorded: 'Erfasst',
+  refereeStatusReimbursed: 'Zruggzahlt {{date}}',
+
+  // Team-Finanze (Mitglider-Siite /finance/team)
+  teamFinanceTitle: 'Team-Finanze',
+  teamFinanceSubtitle: 'Rächnige, Buechige und Schiedsrichterspese vo dim Team für d Saison.',
+  teamFinanceNoTeams: 'Du bisch no i keim Team.',
+  teamFinanceTeam: 'Team',
+  teamFinanceSeason: 'Saison',
+  teamFinanceIncome: 'Iinahme',
+  teamFinanceExpense: 'Usgabe',
+  teamFinanceNet: 'Saldo',
+  teamFinanceOpenBills: 'Offeni Teamrächnige',
+  teamFinanceOpenFines: 'Offeni Teamkasse-Buesse',
+  teamFinanceRefereeTotal: 'Schiedsrichterspese die Saison',
+  teamFinanceBillsTitle: 'Teamrächnige',
+  teamFinanceNoBills: 'Kei Rächnige für das Team.',
+  teamFinanceEntriesTitle: 'Buechige',
+  teamFinanceNoEntries: 'Kei Buechige i dere Saison.',
+  teamFinanceNoFiscalYear: 'Für die Saison git s no keis Gschäftsjahr – Buechige und Rächnige erschiined, sobald d Finanze s eröffned.',
+  teamFinanceFinesLink: 'Teambuesse aazeige',
+  teamFinanceRecordHint: 'Schiedsrichterspese wärded nach jedem Heimspiel i de Spieldetails erfasst.',
+  teamKindReferee: 'Schiedsrichterspese',
+  refereePaidBy: 'Zahlt vo {{name}}',
   duesIssueConfirmTitle: 'Beitragslauf uslöse?',
 }

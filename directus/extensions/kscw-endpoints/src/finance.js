@@ -22,9 +22,26 @@
  *   POST   /finance/invoices/:id/link-member Vorstand — link an orphaned ClubDesk invoice to a member
  *   DELETE /finance/invoices/:id/link-member Vorstand — remove that link
  *
+ * Referee fees + team finance (read-time views over referee_expenses, migration 363):
+ *   GET    /finance/team/:teamId?season=   roster / lead / sport admin / finance —
+ *                                          one team's season: entries, bills,
+ *                                          referee fees, totals
+ *   GET    /finance/teams-summary          finance — per-team totals (+ referee_total)
+ *   POST   /finance/referee-payout-run     finance — season-end reimbursement run,
+ *                                          one finance_payouts row per paying member
+ *
  * Raw-knex writes → every mutation calls writeUserLog (CLAUDE.md actor-capture).
  */
 import { writeUserLog } from './activity-log.js'
+// Team totals (ONE definition for teams-summary and the team page) and the
+// payout plumbing shared with the expense auto-payout.
+import { teamTotals } from './finance-team-summary.js'
+import { insertPayout, planRefereePayouts } from './finance-payout.js'
+import { seasonForYmd } from './season.js'
+// Roster + staff membership (coach / TR without a member_teams row) — the one
+// definition of "on the team" (see the memory note: a bare member_teams join
+// is silently players-only).
+import { teamPeopleSql } from './activity-roster-sql.js'
 import { buildEmailLayout, buildInfoCard, buildAlertBox, FRONTEND_URL } from './email-template.js'
 import { renderInvoiceQrBillPdf } from './finance-qrbill.js'
 // A proper Swiss Rechnung (addressee, positions, total) rather than a bare
@@ -226,6 +243,91 @@ export function registerFinance(router, { database, logger, services, getSchema 
   }
   const FY_CLOSED_MSG = 'fiscal year is closed — post a correction in an open year'
 
+  // ── Referee fees + team finance helpers (migration 363) ──────────────────
+
+  /** Short season label — the only form games.season / fiscal_years.label carry. */
+  const SEASON_LABEL_RE = /^\d{4}\/\d{2}$/
+  /** Calendar window of a season label when no fiscal-year row exists (Jun 1 → May 31). */
+  const seasonWindow = (label) => {
+    const y = Number(label.slice(0, 4))
+    return [`${y}-06-01`, `${y + 1}-05-31`]
+  }
+  /** vb_admin ↔ volleyball, bb_admin ↔ basketball (teams.sport values). A team
+   *  with no sport matches nobody — same rule as kscw-hooks' actorIsSportAdminForTeam. */
+  const isSportAdminFor = (mem, sport) => {
+    const s = String(sport || '').trim().toLowerCase()
+    if (s === 'volleyball') return !!mem?.roles?.includes('vb_admin')
+    if (s === 'basketball') return !!mem?.roles?.includes('bb_admin')
+    return false
+  }
+
+  /** The invoice columns a member-facing page gets — shared by /finance/my-invoices
+   *  and /finance/team/:id so the two never expose different sets. No recipient
+   *  email / address, no import plumbing. */
+  const MEMBER_FACING_INVOICE_COLS = [
+    'fi.id', 'fi.clubdesk_id', 'fi.number', 'fi.invoice_date', 'fi.subject', 'fi.amount',
+    'fi.status', 'fi.dunning_status', 'fi.due_date', 'fi.amount_paid', 'fi.open_amount',
+    'fi.overpaid_amount', 'fi.written_off_amount', 'fi.payment_method', 'fi.reference', 'fi.reference_type',
+    // The positions ride along because a CHF 0 invoice's total says nothing
+    // on its own: a free member's document is the entitlement plus the
+    // Erlass line that cancels it, and those lines are the whole message
+    // (they are never emailed — the page is the only place they land).
+    'fi.lines',
+    'fi.fee_category', 'fi.closed_on', 'fi.recipient_name', 'fi.member', 'fi.team',
+    'fi.source', 'fi.reported_paid_at', 'fi.reported_paid_method', 'fi.reported_paid_by',
+    'fi.confirmed_at', 'fi.confirmed_via', 'fi.cancelled_at', 't.name as team_name',
+  ]
+
+  /** referee_expenses joined to its game, team, payer and payout — the base of
+   *  every referee-fee read. Callers add the WHERE + ORDER BY. `::text` on the
+   *  game date/time so the frontend gets 'YYYY-MM-DD' / 'HH:MM:SS' strings, the
+   *  same shape the items API returns for a game, instead of driver-hydrated
+   *  Date objects. */
+  const refereeLinesQuery = () => database('referee_expenses as re')
+    .join('games as g', 'g.id', 're.game')
+    .leftJoin('teams as t', 't.id', 're.team')
+    .leftJoin('finance_payouts as fp', 'fp.id', 're.payout')
+    .leftJoin('members as m', 'm.id', 're.paid_by_member')
+    .select(
+      're.id', 're.amount', 're.currency', 're.notes', 're.date_created',
+      're.paid_by_member', 're.paid_by_other', 're.team', 're.payout',
+      't.name as team_name',
+      'g.id as game_id', database.raw('g.date::text as game_date'), database.raw('g.time::text as game_time'),
+      'g.home_team', 'g.away_team', 'g.league', 'g.season as game_season',
+      'fp.status as payout_status', 'fp.date_created as payout_date',
+      'm.first_name as payer_first_name', 'm.last_name as payer_last_name', 'm.nickname as payer_nickname',
+    )
+  /** Row → RefereeExpenseLine (src/modules/finance/types.ts). `paid_by` is the
+   *  UI display name (nickname over first name, the app-wide convention), else
+   *  the free-text paid_by_other. */
+  const toRefereeLine = (r) => {
+    const first = (r.payer_nickname || '').trim() || r.payer_first_name
+    const payerName = [first, r.payer_last_name].filter(Boolean).join(' ').trim()
+    return {
+      id: r.id,
+      amount: r.amount,
+      currency: r.currency ?? null,
+      notes: r.notes ?? null,
+      date_created: r.date_created ?? null,
+      paid_by_member: r.paid_by_member ?? null,
+      paid_by: payerName || r.paid_by_other || null,
+      team: r.team ?? null,
+      team_name: r.team_name ?? null,
+      game: r.game_id != null ? {
+        id: r.game_id,
+        date: r.game_date ?? null,
+        time: r.game_time ?? null,
+        home_team: r.home_team ?? null,
+        away_team: r.away_team ?? null,
+        league: r.league ?? null,
+        season: r.game_season ?? null,
+      } : null,
+      payout: r.payout ?? null,
+      payout_status: r.payout_status ?? null,
+      payout_date: r.payout_date ?? null,
+    }
+  }
+
   // ── POST /finance/invoices — create a native invoice ────────────────────
   router.post('/finance/invoices', async (req, res) => {
     try {
@@ -365,19 +467,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
           qb.where('fi.member', mem.id)
           if (teamIds.length) qb.orWhereIn('fi.team', teamIds)
         })
-        .select(
-          'fi.id', 'fi.clubdesk_id', 'fi.number', 'fi.invoice_date', 'fi.subject', 'fi.amount',
-          'fi.status', 'fi.dunning_status', 'fi.due_date', 'fi.amount_paid', 'fi.open_amount',
-          'fi.overpaid_amount', 'fi.written_off_amount', 'fi.payment_method', 'fi.reference', 'fi.reference_type',
-          // The positions ride along because a CHF 0 invoice's total says nothing
-          // on its own: a free member's document is the entitlement plus the
-          // Erlass line that cancels it, and those lines are the whole message
-          // (they are never emailed — the page is the only place they land).
-          'fi.lines',
-          'fi.fee_category', 'fi.closed_on', 'fi.recipient_name', 'fi.member', 'fi.team',
-          'fi.source', 'fi.reported_paid_at', 'fi.reported_paid_method', 'fi.reported_paid_by',
-          'fi.confirmed_at', 'fi.confirmed_via', 'fi.cancelled_at', 't.name as team_name',
-        )
+        .select(MEMBER_FACING_INVOICE_COLS)
         .orderBy([{ column: 'fi.invoice_date', order: 'desc' }, { column: 'fi.id', order: 'desc' }])
       // The member's fee category rides along so the page can tell "you owe
       // nothing" apart from "nothing has been billed yet". A Gratis member shown
@@ -385,14 +475,112 @@ export function registerFinance(router, { database, logger, services, getSchema 
       // treasurer — which is exactly what happened.
       const cat = await database('members').where('id', mem.id).first('beitragskategorie')
       const feeCategory = (cat?.beitragskategorie || '').trim() || null
+      // Referee fees this member paid out of pocket (referee_expenses, written
+      // from the game modal) — derived here, never mirrored into an invoice or
+      // expense row. The payout link (migration 363) tells them whether the
+      // season-end run has reimbursed it yet.
+      const referee = (await refereeLinesQuery()
+        .where('re.paid_by_member', mem.id)
+        .orderBy([{ column: 'g.date', order: 'desc' }, { column: 're.id', order: 'desc' }]))
+        .map(toRefereeLine)
       return res.json({
         invoices: rows,
         member_id: mem.id,
         fee_category: feeCategory,
         // Categories that price at CHF 0 — the club never invoices these people.
         no_fee: ['gratis', 'kein beitrag'].includes((feeCategory || '').toLowerCase()),
+        referee_expenses: referee,
       })
     } catch (e) { return err(res, req, 'my-invoices', e) }
+  })
+
+  // ── GET /finance/team/:teamId?season=YYYY/YY — one team's season finances ──
+  // Member-facing and read-only: the team's sponsoring/income/expense entries,
+  // its native bills, the referee fees paid at its home games, and the totals
+  // — served to the roster (players AND staff), the team's leads, the sport's
+  // admins and finance. Server-side membership check (teamPeopleSql), NOT a
+  // Directus policy walk — see CLAUDE.md "M2M deep filter + policy walk".
+  //
+  // `season` is the short label ("2026/27") and doubles as the fiscal-year key
+  // (finance_fiscal_years.label == season). Without a fiscal year row the
+  // window is derived from the label; entries need a fiscal_year FK, so they
+  // are empty then.
+  router.get('/finance/team/:teamId', async (req, res) => {
+    try {
+      const mem = await actingMember(req)
+      if (!mem?.id) return res.status(401).json({ error: 'Unauthenticated' })
+      const teamId = Number(req.params.teamId)
+      if (!Number.isInteger(teamId) || teamId <= 0) return res.status(400).json({ error: 'invalid team id' })
+      const seasonParam = String(req.query.season || '').trim()
+      if (seasonParam && !SEASON_LABEL_RE.test(seasonParam)) return res.status(400).json({ error: 'season must look like 2026/27' })
+      const season = seasonParam || seasonForYmd(todayISO())
+
+      const team = await database('teams').where('id', teamId).first('id', 'name', 'sport')
+      if (!team) return res.status(404).json({ error: 'team not found' })
+
+      // Gate: finance ∪ sport admin of the team's sport ∪ lead ∪ on the roster.
+      const led = await ledTeamIds(mem.id)
+      let allowed = canManageFinance(req, mem) || isSportAdminFor(mem, team.sport) || led.includes(teamId)
+      if (!allowed) {
+        // ⚠ teamPeopleSql interpolates its team expression TWICE (roster branch +
+        // staff branch) — hence the duplicated binding (same as scorer-claim.js).
+        const { rows: inTeam } = await database.raw(
+          `SELECT 1 FROM ${teamPeopleSql('?')} p WHERE p.member = ? LIMIT 1`,
+          [teamId, teamId, mem.id],
+        )
+        allowed = inTeam.length > 0
+      }
+      if (!allowed) return res.status(403).json({ error: 'Forbidden' })
+
+      const fy = await database('finance_fiscal_years').where('label', season).orderBy('id').first('id', 'label', 'status')
+      // No fiscal-year row → bills are picked by invoice_date inside the
+      // season's calendar window instead of by FK.
+      const window = fy ? null : seasonWindow(season)
+
+      const entries = fy
+        ? await database('finance_team_entries')
+          .where({ team: teamId, fiscal_year: fy.id })
+          .orderBy([{ column: 'entry_date', order: 'desc' }, { column: 'id', order: 'desc' }])
+          .select('id', 'team', 'fiscal_year', 'kind', 'amount', 'label', 'sponsor', 'entry_date', 'note', 'created_by_name')
+        : []
+
+      // The season's bills — plus any older bill that is still open, so an
+      // unpaid invoice never vanishes from the team's page at the rollover.
+      const invoices = await database('finance_invoices as fi')
+        .leftJoin('teams as t', 't.id', 'fi.team')
+        .where('fi.team', teamId).andWhere('fi.source', 'native')
+        .andWhere((qb) => {
+          qb.where((inSeason) => {
+            if (fy) inSeason.where('fi.fiscal_year', fy.id)
+            else inSeason.whereBetween('fi.invoice_date', window)
+          })
+          qb.orWhere((stillOpen) => stillOpen.where('fi.open_amount', '>', 0).whereNotIn('fi.status', ['paid', 'cancelled']))
+        })
+        .select(MEMBER_FACING_INVOICE_COLS)
+        .orderBy([{ column: 'fi.invoice_date', order: 'desc' }, { column: 'fi.id', order: 'desc' }])
+
+      const refereeExpenses = (await refereeLinesQuery()
+        .where('re.team', teamId).andWhere('g.season', season)
+        .orderBy([{ column: 'g.date', order: 'desc' }, { column: 're.id', order: 'desc' }]))
+        .map(toRefereeLine)
+
+      // Team-level fines (migration 350: member IS NULL) still owed to the
+      // Teamkasse — shown, not netted.
+      const finesRow = await database('fines')
+        .where({ team: teamId, status: 'open' }).whereNull('member')
+        .sum({ total: 'amount' }).first()
+
+      return res.json({
+        team: { id: team.id, name: team.name, sport: team.sport ?? null },
+        season,
+        fiscal_year: fy ? { id: fy.id, label: fy.label, status: fy.status } : null,
+        entries,
+        invoices,
+        referee_expenses: refereeExpenses,
+        totals: teamTotals({ entries, invoices, refereeExpenses, teamFinesOpen: finesRow?.total }),
+        can_pay: canManageFinance(req, mem) || led.includes(teamId),
+      })
+    } catch (e) { return err(res, req, 'team', e) }
   })
 
   /** Load an invoice the caller is the recipient of (member or team lead).
@@ -1642,21 +1830,151 @@ export function registerFinance(router, { database, logger, services, getSchema 
         .modify((qb) => { if (hasFy) qb.where('fiscal_year', fyId) }).select('team', 'kind', 'amount')
       const invs = await database('finance_invoices')
         .where('source', 'native').whereNotNull('team').whereNot('status', 'cancelled')
-        .modify((qb) => { if (hasFy) qb.where('fiscal_year', fyId) }).select('team', 'amount', 'open_amount')
+        .modify((qb) => { if (hasFy) qb.where('fiscal_year', fyId) }).select('team', 'amount', 'open_amount', 'status')
+      // Referee fees are keyed by the GAME's season, not a fiscal-year FK: the
+      // fiscal year's label IS the season ("2026/27"), so filter on that. An
+      // unknown fiscal_year id yields no entries/invoices above and no fees here.
+      let refs = []
+      const fyRow = hasFy ? await database('finance_fiscal_years').where('id', fyId).first('label') : null
+      if (!hasFy || fyRow) {
+        refs = await database('referee_expenses as re')
+          .join('games as g', 'g.id', 're.game')
+          .whereNotNull('re.team')
+          .modify((qb) => { if (fyRow) qb.where('g.season', fyRow.label) })
+          .select('re.team', 're.amount')
+      }
       const map = new Map()
-      const bump = (tid) => { const k = Number(tid); if (!map.has(k)) map.set(k, { team: k, income: 0, expense: 0, invoice_total: 0, invoice_open: 0 }); return map.get(k) }
-      for (const e of entries) { const m = bump(e.team); const a = Number(e.amount) || 0; if (e.kind === 'expense') m.expense += a; else m.income += a }
-      for (const i of invs) { const m = bump(i.team); m.invoice_total += Number(i.amount) || 0; m.invoice_open += Number(i.open_amount) || 0 }
+      const bucket = (tid) => { const k = Number(tid); if (!map.has(k)) map.set(k, { team: k, entries: [], invoices: [], referee: [] }); return map.get(k) }
+      for (const e of entries) bucket(e.team).entries.push(e)
+      for (const i of invs) bucket(i.team).invoices.push(i)
+      for (const r of refs) bucket(r.team).referee.push(r)
       const ids = [...map.keys()]
       const teams = ids.length ? await database('teams').whereIn('id', ids).select('id', 'name') : []
       const nameById = new Map(teams.map((t) => [Number(t.id), t.name]))
-      const rows = [...map.values()].map((m) => ({
-        team: m.team, team_name: nameById.get(m.team) || `#${m.team}`,
-        income: round2(m.income), expense: round2(m.expense), net: round2(m.income - m.expense),
-        invoice_total: round2(m.invoice_total), invoice_open: round2(m.invoice_open),
-      })).sort((a, b) => a.team_name.localeCompare(b.team_name))
+      // ONE totals definition (finance-team-summary.js) — the team page derives
+      // the same figures, so the treasurer's grid and the team's view agree.
+      // `net` never includes referee_total.
+      const rows = [...map.values()].map((b) => {
+        const t = teamTotals({ entries: b.entries, invoices: b.invoices, refereeExpenses: b.referee })
+        return {
+          team: b.team, team_name: nameById.get(b.team) || `#${b.team}`,
+          income: t.income, expense: t.expense, net: t.net,
+          invoice_total: t.invoice_total, invoice_open: t.invoice_open,
+          referee_total: t.referee_total,
+        }
+      }).sort((a, b) => a.team_name.localeCompare(b.team_name))
       return res.json({ teams: rows })
     } catch (e) { return err(res, req, 'teams-summary', e) }
+  })
+
+  // ── POST /finance/referee-payout-run — season-end referee reimbursement ──
+  // Body { season: '2026/27', dry_run: bool, member_ids?: number[] }.
+  //
+  // Referee fees are club money a member laid out at a home game. At season
+  // end the treasurer transfers each member their season's sum and records it
+  // here: ONE finance_payouts row per paying member (the QR-bill snapshot, same
+  // shape and same 'paid' trust model as the expense auto-payout) and every
+  // settled referee_expenses row stamped with that payout's id.
+  //
+  // Idempotent by construction: candidates are `payout IS NULL`, locked FOR
+  // UPDATE inside one transaction under the fiscal-year advisory lock, and the
+  // stamp asserts it hit exactly the locked rows — a second run (or a
+  // concurrent one) finds nothing left to pay. `dry_run` returns the same plan
+  // without writing. Skips (NON_CHF, NO_IBAN, ADDRESS_INCOMPLETE) leave the
+  // member's rows untouched for a later run once their profile is fixed.
+  router.post('/finance/referee-payout-run', async (req, res) => {
+    try {
+      const mem = await actingMember(req)
+      if (!canManageFinance(req, mem)) return res.status(403).json({ error: 'Forbidden' })
+      const b = req.body || {}
+      const season = String(b.season || '').trim()
+      if (!SEASON_LABEL_RE.test(season)) return res.status(400).json({ error: 'season must look like 2026/27' })
+      const dryRun = b.dry_run !== false && b.dry_run !== 'false' // default: preview
+      const memberIds = Array.isArray(b.member_ids)
+        ? [...new Set(b.member_ids.map(Number).filter((n) => Number.isInteger(n) && n > 0))]
+        : null
+      if (Array.isArray(b.member_ids) && !memberIds.length) return res.status(400).json({ error: 'member_ids is empty' })
+
+      // The run books into a fiscal year — no row for the season, no run.
+      const fy = await database('finance_fiscal_years').where('label', season).orderBy('id').first('id', 'label', 'status')
+      if (!fy) return res.status(404).json({ error: `no fiscal year labelled ${season}` })
+      if (fy.status === 'closed') return res.status(409).json({ error: FY_CLOSED_MSG })
+
+      const createdBy = { name: mem?.name || null, email: mem?.email || null, user: req.accountability?.user || null }
+      const result = await database.transaction(async (trx) => {
+        await trx.raw('SELECT pg_advisory_xact_lock(?::int, ?::int)', [FISCAL_YEAR_LOCK_NS, fy.id])
+        if (await fiscalYearClosed(trx, fy.id)) throw Object.assign(new Error(FY_CLOSED_MSG), { fyClosed: true })
+        // FOR UPDATE OF re — lock the fee rows only (games/members are read).
+        const candidates = await trx('referee_expenses as re')
+          .join('games as g', 'g.id', 're.game')
+          .join('members as m', 'm.id', 're.paid_by_member')
+          .whereNull('re.payout')
+          .whereNotNull('re.paid_by_member')
+          .where('re.amount', '>', 0)
+          .where('g.season', season)
+          .modify((qb) => { if (memberIds) qb.whereIn('re.paid_by_member', memberIds) })
+          .forUpdate('re')
+          .orderBy('re.id')
+          .select(
+            're.id as expense_id', 're.amount', 're.currency', 're.paid_by_member as member',
+            'm.first_name', 'm.last_name', 'm.iban', 'm.adresse', 'm.plz', 'm.ort',
+            'm.billing_different', 'm.billing_iban', 'm.billing_name', 'm.billing_address', 'm.billing_plz', 'm.billing_ort',
+          )
+        const plan = planRefereePayouts(candidates)
+        const rows = []
+        const payoutIds = []
+        let created = 0
+        let skipped = 0
+        let total = 0
+        for (const p of plan) {
+          const { payee, ...row } = p
+          if (row.skip) { skipped++; rows.push({ ...row, payout_id: null }); continue }
+          if (dryRun) { total = round2(total + row.total); rows.push({ ...row, payout_id: null }); continue }
+          const payoutId = await insertPayout(trx, {
+            member: row.member,
+            amount: row.total,
+            message: `Schiedsrichterspesen ${season} (${row.games} ${row.games === 1 ? 'Spiel' : 'Spiele'})`.slice(0, 140),
+            payee,
+            createdBy,
+            status: 'paid',
+          })
+          const stamped = await trx('referee_expenses')
+            .whereIn('id', row.expense_ids).whereNull('payout')
+            .update({ payout: payoutId })
+          // The rows are locked, so anything but an exact hit means the plan
+          // and the table disagree — roll the whole run back rather than leave
+          // a payout that covers fees it did not stamp.
+          if (stamped !== row.expense_ids.length) {
+            throw new Error(`referee payout run: stamped ${stamped}/${row.expense_ids.length} rows for member ${row.member}`)
+          }
+          created++
+          total = round2(total + row.total)
+          payoutIds.push(payoutId)
+          rows.push({ ...row, payout_id: payoutId })
+        }
+        return { rows, created, skipped, total, payoutIds }
+      }).catch((e) => {
+        if (e?.fyClosed) return { fyClosed: true }
+        throw e
+      })
+      if (result.fyClosed) return res.status(409).json({ error: FY_CLOSED_MSG })
+
+      if (!dryRun && result.created > 0) {
+        await writeUserLog(database, log, {
+          accountability: req.accountability, action: 'create', collection: 'finance_payouts',
+          recordId: result.payoutIds[0] ?? season,
+          data: { kind: 'referee_payout_run', season, created: result.created, skipped: result.skipped, total: result.total, payout_ids: result.payoutIds },
+        })
+      }
+      return res.json({
+        season,
+        dry_run: dryRun,
+        rows: result.rows,
+        created: result.created,
+        skipped: result.skipped,
+        total: result.total,
+      })
+    } catch (e) { return err(res, req, 'referee-payout-run', e) }
   })
 
   // ── Budget lines — fills the dormant finance_budget_lines (budget vs actual) ──

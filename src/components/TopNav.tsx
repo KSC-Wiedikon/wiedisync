@@ -8,6 +8,7 @@ import { useAuth } from '../hooks/useAuth'
 import { useDonateVisible } from '../modules/support/donateConfig'
 import { useTheme } from '../hooks/useTheme'
 import { useNavItems, type NavItem } from '../hooks/useNavItems'
+import { navItemActive, navPathMatches } from '../lib/financeNav'
 import { getFileUrl } from '../utils/fileUrl'
 import { asObj, memberDisplayName, memberFirstName } from '../utils/relations'
 import { openExternalApp, handlePWAExternalClick } from '../utils/pwa'
@@ -35,11 +36,6 @@ const TRIGGER_ACTIVE = 'bg-brand-50 text-brand-700 dark:bg-brand-800 dark:text-g
 const SECTION_LABEL = 'text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500'
 const TRIGGER_IDLE = 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-brand-800 dark:hover:text-white'
 
-function pathMatches(pathname: string, to: string) {
-  if (to === '/') return pathname === '/'
-  return pathname === to || pathname.startsWith(to + '/')
-}
-
 /** A grouped top-nav category that opens a dropdown of its items. */
 function NavCategory({
   label, items, groups, extra, extraLabel, footerItem, wide,
@@ -64,7 +60,9 @@ function NavCategory({
   const navigate = useNavigate()
   const flat = groups ? groups.flatMap((g) => g.items) : (items ?? [])
   const all = [...flat, ...(extra ?? []), ...(footerItem ? [footerItem] : [])]
-  const isActive = all.some((i) => i.to && pathMatches(location.pathname, i.to))
+  // Trigger: pathname only, so `/fines` opens the section whichever `?scope`
+  // is (or isn't) set. Items below use the stricter navItemActive.
+  const isActive = all.some((i) => i.to && navPathMatches(location.pathname, i.to))
 
   const go = (item: NavItem) => {
     // External hops (e.g. the Spielplanung subdomain) break out of an installed
@@ -75,7 +73,9 @@ function NavCategory({
   }
 
   const renderItem = (item: NavItem) => {
-    const active = pathMatches(location.pathname, item.to)
+    // Query-carrying entries (`/fines?scope=mine` vs `?scope=team`) light up
+    // only when the scope agrees — never both at once.
+    const active = navItemActive(location, item.to)
     return (
       <DropdownMenuItem
         key={item.to}
@@ -168,7 +168,7 @@ export default function TopNav({ unreadCount, onOpenNotifications, memberTeams }
   const { theme, toggleTheme } = useTheme()
   const navigate = useNavigate()
   const [optionsOpen, setOptionsOpen] = useState(false)
-  const { navItems, memberToolsItems, financeItems, schedulingItem, adminGroups, superadminItems } =
+  const { navItems, memberToolsItems, financeGroups, schedulingItem, adminGroups, superadminItems } =
     useNavItems(!!user, isApproved)
 
   // navItems[0] is always Home — it stays a direct link; the rest (Calendar,
@@ -229,8 +229,10 @@ export default function TopNav({ unreadCount, onOpenNotifications, memberTeams }
         {memberToolsItems.length > 0 && (
           <NavCategory label={t('memberTools')} items={memberToolsItems} />
         )}
-        {financeItems.length > 0 && (
-          <NavCategory label={t('finance')} items={financeItems} />
+        {/* Three labelled groups (member / team / club) from `../lib/financeNav`;
+            empty groups are already dropped, so gate on the groups themselves. */}
+        {financeGroups.length > 0 && (
+          <NavCategory label={t('finance')} groups={financeGroups} />
         )}
         {/* Game scheduling: non-admin Spielplaner get a direct top-level button;
             admins get it inside the Admin dropdown (leadingItem) instead. */}

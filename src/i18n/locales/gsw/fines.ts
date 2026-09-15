@@ -3,6 +3,7 @@ export default {
   subtitle: 'Offeni, zahlti und erlasseni Bueße',
   empty: 'No käi Bueße',
   emptyMember: 'Käi Bueße für di',
+  emptyTeam: 'Käi Teambueße.',
 
   colMember: 'Mitglied',
   colCategory: 'Kategorii',

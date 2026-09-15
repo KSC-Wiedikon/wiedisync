@@ -296,8 +296,8 @@ export default {
       },
     },
     financeDues: {
-      title: 'Meine Finanzen',
-      description: 'Beiträge und Rechnungen in der App bezahlen',
+      title: 'Rechnungen & Rückerstattungen',
+      description: 'Rechnungen bezahlen und sehen, was der Verein dir schuldet',
       steps: {
         iban: {
           title: 'Auszahlungs-IBAN',
@@ -305,7 +305,7 @@ export default {
         },
         list: {
           title: 'Deine Rechnungen',
-          body: 'Mitgliederbeiträge und Vereinsrechnungen mit Beträgen und Zahlungsstatus.',
+          body: 'Deine eigenen Mitgliederbeiträge und Vereinsrechnungen mit Beträgen und Zahlungsstatus. Rechnungen eines Teams, das du leitest, findest du unter Team-Finanzen.',
         },
         pay: {
           title: 'Eine Rechnung bezahlen',
@@ -355,7 +355,7 @@ export default {
       steps: {
         list: {
           title: 'Deine Bussen',
-          body: 'Jede Busse, die dir auferlegt wurde, mit Kategorie, Betrag und Status. Trainer und Vorstand sehen hier auch die Bussen ihrer Teams.',
+          body: 'Jede Busse, die dir auferlegt wurde, mit Kategorie, Betrag und Status. Wechsle auf Team, um die Bussen deines Teams zu sehen – die Teamkasse-Bussen für alle, sämtliche für Trainer und Vorstand.',
         },
         outstanding: {
           title: 'Was du schuldest',
