@@ -2,6 +2,12 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.14.0 — 2026-09-15
+
+### New
+
+- **VolleyManager rosters — put your players on their VolleyManager team in one go.** *Admin → Game operations → VolleyManager rosters.* Every season the club has to list, per team, the players it may field, and VolleyManager only offers a player once their licence is activated — so the list used to be typed in by hand, in waves. The page shows every volleyball roster player with where they stand (on the VolleyManager team, ready to add, licence not activated, no licence number) and adds everyone who is ready with one tap. Run it again whenever late licences come through; nobody is ever removed from VolleyManager here. *Preview* shows what a run would do without changing anything.
+
 ## v2.13.0 — 2026-09-15
 
 ### New
