@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.13.0'
+const APP_VERSION = '2.14.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,18 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.14.0',
+    date: '15.09.2026',
+    sections: [
+      {
+        title: "New",
+        items: [
+          "VolleyManager rosters — put your players on their VolleyManager team in one go. Admin → Game operations → VolleyManager rosters. Every season the club has to list, per team, the players it may field, and VolleyManager only offers a player once their licence is activated — so the list used to be typed in by hand, in waves. The page shows every volleyball roster player with where they stand (on the VolleyManager team, ready to add, licence not activated, no licence number) and adds everyone who is ready with one tap. Run it again whenever late licences come through; nobody is ever removed from VolleyManager here. Preview shows what a run would do without changing anything.",
+        ],
+      },
+    ],
+  },
   {
     version: '2.13.0',
     date: '15.09.2026',
