@@ -67,6 +67,12 @@ const idOf = (x) => (x && typeof x === 'object' ? (x.__identity || x.persistence
  * zero-padded one (`vb_00001`, DU20) is OUR placeholder for a team that is
  * not registered in VolleyManager at all, so it maps to null, not to team #1.
  */
+/** `members.license_nr` → VM associationId as a decimal string, or null. */
+export function normalizeLicenceNr(value) {
+  const s = String(value ?? '').trim();
+  return /^[0-9]+$/.test(s) ? String(BigInt(s)) : null;
+}
+
 export function staticIdFromTeamId(teamId) {
   const m = /^vb_([1-9]\d*)$/.exec(String(teamId ?? ''));
   return m ? Number(m[1]) : null;
@@ -88,7 +94,11 @@ export function buildWanted(rows) {
       t = { teamDbId: Number(r.team_db_id), staticId, teamName: r.team_name, players: [] };
       byTeam.set(staticId, t);
     }
-    const licenseNr = r.license_nr == null ? null : String(r.license_nr).trim() || null;
+    // VM keys players by the integer associationId; `members.license_nr` is a
+    // varchar that keeps ClubDesk's leading zeros ('038514'). Compare as the
+    // integer's decimal string, and treat a non-numeric placeholder as "no
+    // licence number" (2026-09-15).
+    const licenseNr = normalizeLicenceNr(r.license_nr);
     if (t.players.some((p) => p.memberId === Number(r.member_id))) continue;
     t.players.push({
       memberId: Number(r.member_id),

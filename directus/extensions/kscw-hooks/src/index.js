@@ -3477,6 +3477,9 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         JOIN LATERAL ${teamPeopleSql('t.team')} mt ON true
         JOIN absences a ON a.member = mt.member
         WHERE t.date >= CURRENT_DATE AND t.cancelled = false
+          -- Same guest guard as the absence create hook: a guest level the
+          -- training excludes has no RSVP to overturn (2026-09-15).
+          AND NOT (COALESCE(t.excluded_guest_levels, '[]')::jsonb @> to_jsonb(mt.guest_level))
           AND a.start_date::date <= t.date AND a.end_date::date >= t.date
           AND (a.affects::jsonb @> '"all"' OR a.affects::jsonb @> '"trainings"')
           AND (a.type IS DISTINCT FROM 'weekly' OR (a.days_of_week::jsonb @> to_jsonb(((EXTRACT(DOW FROM t.date)::int + 6) % 7))))
@@ -3497,6 +3500,12 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         JOIN absences a ON a.member = mt.member
         WHERE g.date >= CURRENT_DATE AND g.kscw_team IS NOT NULL
           AND COALESCE(g.status, '') NOT IN ('completed', 'postponed', 'cancelled')
+          -- Roster guests (guest_level > 0) cannot play league games: the
+          -- create hook and the auto-confirm sweep both skip them, and a
+          -- declined row here is one the game roster hides but the tallies
+          -- count (migration 345 drift — 144 such rows on 2026-09-15). Game
+          -- guests and staff arrive at guest_level 0 through GAME_SQUAD_JOIN.
+          AND mt.guest_level = 0
           AND a.start_date::date <= g.date AND a.end_date::date >= g.date
           AND (a.affects::jsonb @> '"all"' OR a.affects::jsonb @> '"games"')
           AND (a.type IS DISTINCT FROM 'weekly' OR (a.days_of_week::jsonb @> to_jsonb(((EXTRACT(DOW FROM g.date)::int + 6) % 7))))

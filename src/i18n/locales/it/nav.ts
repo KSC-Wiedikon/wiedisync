@@ -51,6 +51,7 @@ export default {
   impressum: 'Note legali',
   infraHealth: 'Infrastruttura',
   dataHealth: 'Qualità dei dati',
+  seasonHealth: 'Salute della stagione',
   clubdeskSync: 'Sync ClubDesk',
   auditLog: 'Audit log',
   households: 'Nuclei familiari',

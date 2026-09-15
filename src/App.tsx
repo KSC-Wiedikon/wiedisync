@@ -88,6 +88,7 @@ const HallenfinderPage = lazy(() => import('./modules/hallenfinder/HallenfinderP
 const JsExportPage = lazy(() => import('./modules/jsexport/JsExportPage'))
 const AdminMailboxPage = lazy(() => import('./modules/admin/AdminMailboxPage'))
 const EmailsGaragePage = lazy(() => import('./modules/admin/EmailsGaragePage'))
+const SeasonHealthPage = lazy(() => import('./modules/admin/SeasonHealthPage'))
 
 // Stale lazy-import chunk recovery (deploy rotates hashed chunk names → a tab on
 // an older bundle fails to import a now-missing chunk). Detection + one-time
@@ -284,6 +285,7 @@ export default function App() {
             <Route path="news" element={<AuthRoute><NewsArchivePage /></AuthRoute>} />
             <Route path="admin/infra" element={<SuperAdminRoute><InfraHealthPage /></SuperAdminRoute>} />
             <Route path="admin/data-health" element={<SuperAdminRoute><DataHealthPage /></SuperAdminRoute>} />
+            <Route path="admin/season-health" element={<SuperAdminRoute><Suspense fallback={null}><SeasonHealthPage /></Suspense></SuperAdminRoute>} />
             {/* International transfers. AdminRoute, NOT SuperAdminRoute like its
                 neighbour: this is per-sport casework and the people who do it are
                 the sport TK (vb_admin / bb_admin), whom SuperAdminRoute excludes.

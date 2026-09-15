@@ -33,6 +33,14 @@ test('buildWanted groups by team, trims licences, drops teams without a VM id, d
   assert.equal(wanted[1].players[0].licenseNr, null, 'empty string is no licence')
 })
 
+test('buildWanted: leading zeros are dropped (VM keys by integer), placeholders read as no licence', () => {
+  const wanted = buildWanted([
+    { team_db_id: 80, team_id: 'vb_1393', team_name: 'D1', member_id: 7, license_nr: '038514', first_name: 'Zero', last_name: 'Padded' },
+    { team_db_id: 80, team_id: 'vb_1393', team_name: 'D1', member_id: 8, license_nr: 'TBD', first_name: 'Place', last_name: 'Holder' },
+  ])
+  assert.deepEqual(wanted[0].players.map((p) => p.licenseNr), ['38514', null])
+})
+
 const D1 = {
   teamDbId: 80, staticId: 1393, teamName: 'D1',
   players: [

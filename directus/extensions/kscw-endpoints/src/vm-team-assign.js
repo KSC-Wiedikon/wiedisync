@@ -87,9 +87,31 @@ export function rosterRowsSql(database, teamIds = null) {
  * "on VM" here means "as of that sync", and any function on the team counts
  * (a player-coach reads as on). The live run is what decides.
  */
+/**
+ * `members.license_nr` is a varchar with significant leading zeros ('038514')
+ * and the odd hand-typed placeholder; `sv_vm_check.association_id` is an
+ * integer. Compare as the integer's decimal string, and treat a non-numeric
+ * value as "no licence number" rather than as a lookup that can never hit.
+ */
+export function normalizeLicenceNr(value) {
+  const s = String(value ?? '').trim()
+  return /^[0-9]+$/.test(s) ? String(BigInt(s)) : null
+}
+
+/**
+ * `sv_vm_check.team_ids` is written by vm-sync-check.mjs as `join(', ')` —
+ * comma AND space — so a bare `,${id},` probe only ever matched the first
+ * team (2026-09-15: every multi-team player read as "assignable"). Split and
+ * trim instead; tolerates either spelling.
+ */
+export function isOnVmTeam(teamIds, staticId) {
+  if (!teamIds || !staticId) return false
+  return String(teamIds).split(',').map((s) => s.trim()).filter(Boolean).includes(String(staticId))
+}
+
 export async function buildPlanFromDb(database, staticIdFromTeamId) {
   const rows = await rosterRowsSql(database)
-  const licences = [...new Set(rows.map((r) => String(r.license_nr ?? '').trim()).filter(Boolean))]
+  const licences = [...new Set(rows.map((r) => normalizeLicenceNr(r.license_nr)).filter(Boolean))]
   const checks = licences.length
     ? await database('sv_vm_check').whereIn(database.raw('association_id::text'), licences)
       .select('association_id', 'licence_activated', 'licence_validated', 'team_ids', 'synced_at')
@@ -105,10 +127,9 @@ export async function buildPlanFromDb(database, staticIdFromTeamId) {
       t = { teamDbId: r.team_db_id, teamName: r.team_name, staticId, hasVmTeam: !!staticId, players: [] }
       teams.set(r.team_db_id, t)
     }
-    const licenseNr = String(r.license_nr ?? '').trim() || null
+    const licenseNr = normalizeLicenceNr(r.license_nr)
     const check = licenseNr ? byLicence.get(licenseNr) : null
-    const onTeam = !!(check?.team_ids && staticId
-      && `,${check.team_ids},`.includes(`,${staticId},`))
+    const onTeam = isOnVmTeam(check?.team_ids, staticId)
     let status
     if (!staticId) status = 'no_vm_team'
     else if (!licenseNr) status = 'no_licence_nr'

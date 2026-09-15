@@ -38,6 +38,7 @@ import forms from './locales/en/forms'
 import finance from './locales/en/finance'
 import support from './locales/en/support'
 import live from './locales/en/live'
+import seasonHealth from './locales/en/seasonHealth'
 
 import deCommon from './locales/de/common'
 import deNav from './locales/de/nav'
@@ -76,6 +77,7 @@ import deForms from './locales/de/forms'
 import deFinance from './locales/de/finance'
 import deSupport from './locales/de/support'
 import deLive from './locales/de/live'
+import deSeasonHealth from './locales/de/seasonHealth'
 
 import frCommon from './locales/fr/common'
 import frNav from './locales/fr/nav'
@@ -114,6 +116,7 @@ import frForms from './locales/fr/forms'
 import frHallenfinder from './locales/fr/hallenfinder'
 import frJoin from './locales/fr/join'
 import frJsExport from './locales/fr/jsExport'
+import frSeasonHealth from './locales/fr/seasonHealth'
 
 import itCommon from './locales/it/common'
 import itNav from './locales/it/nav'
@@ -152,6 +155,7 @@ import itForms from './locales/it/forms'
 import itHallenfinder from './locales/it/hallenfinder'
 import itJoin from './locales/it/join'
 import itJsExport from './locales/it/jsExport'
+import itSeasonHealth from './locales/it/seasonHealth'
 
 import gswCommon from './locales/gsw/common'
 import gswNav from './locales/gsw/nav'
@@ -187,6 +191,7 @@ import gswPwa from './locales/gsw/pwa'
 import gswFinance from './locales/gsw/finance'
 import gswSupport from './locales/gsw/support'
 import gswLive from './locales/gsw/live'
+import gswSeasonHealth from './locales/gsw/seasonHealth'
 
 function getInitialLanguage(): string {
   if (typeof window === 'undefined') return 'de'
@@ -245,6 +250,7 @@ i18n.use(initReactI18next).init({
     'support',
     'jsExport',
     'live',
+    'seasonHealth',
   ],
   defaultNS: 'common',
   resources: {
@@ -286,6 +292,7 @@ i18n.use(initReactI18next).init({
       support,
       live,
       jsExport,
+      seasonHealth,
     },
     de: {
       common: deCommon,
@@ -325,6 +332,7 @@ i18n.use(initReactI18next).init({
       finance: deFinance,
       support: deSupport,
       live: deLive,
+      seasonHealth: deSeasonHealth,
     },
     fr: {
       common: frCommon,
@@ -364,6 +372,7 @@ i18n.use(initReactI18next).init({
       hallenfinder: frHallenfinder,
       join: frJoin,
       jsExport: frJsExport,
+      seasonHealth: frSeasonHealth,
     },
     it: {
       common: itCommon,
@@ -403,6 +412,7 @@ i18n.use(initReactI18next).init({
       hallenfinder: itHallenfinder,
       join: itJoin,
       jsExport: itJsExport,
+      seasonHealth: itSeasonHealth,
     },
     gsw: {
       common: gswCommon,
@@ -439,6 +449,7 @@ i18n.use(initReactI18next).init({
       finance: gswFinance,
       support: gswSupport,
       live: gswLive,
+      seasonHealth: gswSeasonHealth,
     },
   },
   interpolation: {

@@ -234,13 +234,16 @@ SELECT DISTINCT ON (mem.id)
        mem.id AS member_id, bp.*
   FROM basketplan_people bp
   JOIN members mem
-    ON  nullif(btrim(mem.license_nr::text),'') = nullif(btrim(bp.licence_nr),'')
+    -- Basketplan prints six zero-padded digits ('038121'), ClubDesk does not
+    -- ('38121'): strip the zeros on both sides, still text (2026-09-15 — 14 of
+    -- 248 matched members only agree this way).
+    ON  nullif(ltrim(btrim(mem.license_nr::text),'0'),'') = nullif(ltrim(btrim(bp.licence_nr),'0'),'')
    OR  (lower(btrim(mem.last_name))  = lower(btrim(bp.last_name))
     AND lower(btrim(mem.first_name)) = lower(btrim(bp.first_name))
     AND mem.birthdate = bp.birthdate)
  ORDER BY mem.id,
           -- licence-number matches win over name+birthdate ones
-          (nullif(btrim(mem.license_nr::text),'') = nullif(btrim(bp.licence_nr),'')) DESC;
+          (nullif(ltrim(btrim(mem.license_nr::text),'0'),'') = nullif(ltrim(btrim(bp.licence_nr),'0'),'')) DESC;
 
 -- ── Nationality: fill only where wiedisync has none ─────────────────────────
 -- nation_1 is primary; nation_2 is appended when it resolves too, giving the
