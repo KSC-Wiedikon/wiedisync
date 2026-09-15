@@ -811,7 +811,9 @@ export default {
   cdSyncHint_awaiting_link: 'Beim letzten Upload bereits in ClubDesk angelegt — der nächste Download verknüpft den Kontakt. Nicht erneut hochladen.',
   cdSyncHint_stale: 'Der verknüpfte ClubDesk-Kontakt existiert nicht mehr.',
   cdSyncHint_departed: 'In ClubDesk ausgetreten, hier aber noch aktiv.',
-  cdSyncHint_pending: 'Für den nächsten Upload vorgemerkt.',
+  cdSyncHint_pending: 'Für den nächsten Upload vorgemerkt. Die Spalten zeigen, was er überträgt — «Bereits in ClubDesk» heisst, das Register hat den Wert schon und der Upload löscht nur die Markierung.',
+  cdSyncPushLanded: 'Bereits in ClubDesk',
+  cdSyncPushNameNotSynced: 'Wird nie gepusht',
   cdSyncHint_drift: 'Beide Seiten haben einen anderen Wert — kein Sync löst das, bis du entscheidest, welcher gilt.',
   cdSyncHint_name_drift: 'Nur der Name weicht ab — kein Sync kann das beheben. In ClubDesk oder hier korrigieren, oder prüfen, ob der Kontakt die richtige Person ist.',
 

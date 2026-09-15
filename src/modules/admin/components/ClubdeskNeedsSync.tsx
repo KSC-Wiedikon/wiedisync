@@ -51,6 +51,18 @@ export interface NeedsSyncRow {
    */
   conflicts?: { field: string; wiedisync: string; clubdesk: string }[]
   /**
+   * What a `pending` row's queued push CARRIES — the recorded change set
+   * (`clubdesk_push_changes`, the same list the sync-up modal shows), resolved
+   * by the server against today's snapshot. Empty for every other status.
+   *
+   * `landed`: ClubDesk already holds this value, so the push carries nothing new
+   * for the field and only clears the flag — the members hook re-flags on any
+   * non-empty IBAN/AHV save, changed or not, so this is common and worth saying.
+   * `unpushable`: a name. An UPDATE row is name-less, so a recorded name change
+   * never reaches the register through a push.
+   */
+  push_changes?: { field: string; wiedisync: string; clubdesk: string; landed?: boolean; unpushable?: boolean }[]
+  /**
    * Fields the push would BLANK — wiedisync's side is empty while ClubDesk still
    * holds a value. Still sent by the server (the sync-up's own guard reads it)
    * and still typed here so the shape stays honest, but no longer rendered: a
@@ -269,6 +281,18 @@ export default function ClubdeskNeedsSync({
                     // +2 for the chevron and action columns, +1 more when the
                     // status column is showing.
                     const span = activeTab === 'all' ? 6 : 5
+                    // A pending row's three value columns show the QUEUED PUSH,
+                    // not a disagreement (2026-09-15) — a member flagged for a
+                    // push is not necessarily in conflict, and the board printed
+                    // an empty diff for every one of them. Every other status
+                    // keeps the drift conflicts (name_drift is the one that has
+                    // any).
+                    const diff: { field: string; wiedisync: string; clubdesk: string; landed?: boolean; unpushable?: boolean }[] =
+                      r.status === 'pending' ? (r.push_changes ?? []) : (r.conflicts ?? [])
+                    // Nothing recorded behind the flag (a re-linked registration,
+                    // say): the push re-sends the contact row as a whole. Same
+                    // wording the sync-up modal uses for that case.
+                    const contactOnly = r.status === 'pending' && diff.length === 0
                     return (
                       <Fragment key={r.member_id}>
                         <TableRow className="min-h-11">
@@ -310,20 +334,38 @@ export default function ClubdeskNeedsSync({
                               an arrow does not say which end is which, and knowing
                               which side to trust is the whole point of the row. */}
                           <TableCell className="whitespace-normal break-words align-top text-xs font-medium text-gray-700 dark:text-gray-300">
-                            {(r.conflicts ?? []).map((d) => (
+                            {contactOnly && (
+                              <div className="py-0.5 font-normal text-muted-foreground">{t('clubdeskUpContactSync')}</div>
+                            )}
+                            {diff.map((d) => (
                               <div key={d.field} className="py-0.5">
                                 {cdFieldLabel(t, d.field)}
+                                {/* One line per field in all three columns, so the
+                                    note rides inline rather than pushing the
+                                    neighbouring cells out of step. */}
+                                {d.unpushable && !d.landed && (
+                                  <span className="font-normal text-muted-foreground"> · {t('cdSyncPushNameNotSynced')}</span>
+                                )}
                               </div>
                             ))}
                           </TableCell>
                           <TableCell className="whitespace-normal break-words align-top text-xs">
-                            {(r.conflicts ?? []).map((d) => (
+                            {contactOnly && <div className="py-0.5">—</div>}
+                            {diff.map((d) => (
                               <div key={d.field} className="py-0.5">{d.wiedisync || '—'}</div>
                             ))}
                           </TableCell>
                           <TableCell className="whitespace-normal break-words align-top text-xs">
-                            {(r.conflicts ?? []).map((d) => (
-                              <div key={d.field} className="py-0.5">{d.clubdesk || '—'}</div>
+                            {contactOnly && <div className="py-0.5">—</div>}
+                            {diff.map((d) => (
+                              <div key={d.field} className="py-0.5">
+                                {/* The register already holds it: say so instead
+                                    of printing the same value twice and leaving
+                                    the reader to spot that nothing differs. */}
+                                {d.landed
+                                  ? <span className="text-muted-foreground">{t('cdSyncPushLanded')}</span>
+                                  : (d.clubdesk || '—')}
+                              </div>
                             ))}
                           </TableCell>
                         </TableRow>

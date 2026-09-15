@@ -1373,7 +1373,9 @@ export default {
   cdSyncHint_awaiting_link: 'Già creato in ClubDesk con l\'ultimo caricamento — il prossimo scaricamento collegherà il contatto. Non ricaricare.',
   cdSyncHint_stale: 'Il contatto ClubDesk collegato non esiste più.',
   cdSyncHint_departed: 'Uscito dal club in ClubDesk ma ancora attivo qui.',
-  cdSyncHint_pending: 'Contrassegnato per il prossimo caricamento.',
+  cdSyncHint_pending: 'Contrassegnato per il prossimo caricamento. Le colonne mostrano cosa trasmette — «Già in ClubDesk» significa che il registro ha già quel valore e il caricamento toglie solo il contrassegno.',
+  cdSyncPushLanded: 'Già in ClubDesk',
+  cdSyncPushNameNotSynced: 'Mai inviato',
   cdSyncHint_drift: 'Un campo differisce da ClubDesk.',
 
   cdBillNever: 'Mai fatturato',
