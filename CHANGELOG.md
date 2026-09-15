@@ -2,6 +2,16 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.13.0 — 2026-09-15
+
+### New
+
+- **A written guide replaces the guided tours.** *Options → Guide, or the ? next to any page title.* Forty sections cover everything in the app — installing it and signing in, games, trainings, events, absences, scorer duties, your profile and family accounts, bills, expenses and fines, the coaching tools, Spielplanung and the admin pages — in all five languages. Search it, jump around from the table of contents, or open it from the page you are on: the ? now lands on that page's section. You only see the sections your role can use, and each section says where things are, what you can do and which rules apply.
+
+### Removed
+
+- **The click-through tours are gone.** They highlighted buttons on the page and went stale whenever a page changed; the guide explains the same things in words and stays readable on any screen.
+
 ## v2.12.0 — 2026-09-15
 
 ### New

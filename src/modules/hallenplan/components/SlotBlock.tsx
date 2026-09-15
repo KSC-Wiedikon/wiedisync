@@ -131,7 +131,6 @@ export default function SlotBlock({ positioned, teamName, teamSport, hasConflict
 
     return (
       <div
-        data-tour="slot-types"
         className={`absolute ${zClass} overflow-hidden rounded-sm border-l-2 ${borderStyle} px-0.5 py-px text-[9px] leading-tight shadow-sm ${gamePulseClass} ${
           clickable ? 'cursor-pointer hover:brightness-95' : ''
         }`}
@@ -207,7 +206,6 @@ export default function SlotBlock({ positioned, teamName, teamSport, hasConflict
         {/* Auto indicator for regular virtual slots */}
         {isVirtual && !isFreed && !isClaimed && (
           <span
-            data-tour="virtual-slots"
             className="absolute -right-0.5 -top-0.5 z-30 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-white/80 dark:bg-gray-800/80"
             title="Auto"
           >

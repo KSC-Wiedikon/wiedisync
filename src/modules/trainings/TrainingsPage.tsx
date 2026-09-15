@@ -34,7 +34,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import type { Training, Team, Hall, Member, Participation } from '../../types'
 import { asObj, relId } from '../../utils/relations'
-import { TourPageButton } from '../guide/TourPageButton'
+import { GuideHelpButton } from '../guide/GuideHelpButton'
 import { useReportPageLoading } from '../../hooks/usePageReady'
 
 type TrainingExpanded = Training & {
@@ -199,14 +199,14 @@ export default function TrainingsPage() {
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-bold text-gray-900 sm:text-2xl dark:text-gray-100">{t('title')}</h1>
-            <TourPageButton />
+            <GuideHelpButton />
           </div>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t('subtitle')}</p>
         </div>
         {(isCoach || effectiveIsAdmin) && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button data-tour="new-training">{t('newTraining')}</Button>
+              <Button>{t('newTraining')}</Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem
@@ -226,13 +226,13 @@ export default function TrainingsPage() {
         )}
       </div>
 
-      <div className="mt-6" data-tour="team-filter">
+      <div className="mt-6">
         <TeamFilter selected={selectedTeam} onChange={setSelectedTeam} limitToTeamIds={(effectiveIsAdmin || effectiveIsVorstand) ? undefined : allUserTeamIds} groupBySport={effectiveIsAdmin || effectiveIsVorstand} />
       </div>
 
       {/* Tabs (coach view) */}
       {(isCoach || effectiveIsAdmin) && selectedTeam && (
-        <div className="mt-4" data-tour="training-tabs">
+        <div className="mt-4">
           <TabBar
             tabs={[
               { key: 'trainings' as const, label: t('tabTrainings') },
@@ -247,7 +247,7 @@ export default function TrainingsPage() {
       {/* Content */}
       <div className="mt-6">
         {activeTab === 'dashboard' && selectedTeam ? (
-          <div data-tour="coach-dashboard"><CoachDashboard teamId={selectedTeam} /></div>
+          <CoachDashboard teamId={selectedTeam} />
         ) : (teamsLoading || isLoading) ? (
           null
         ) : trainings.length === 0 ? (
@@ -260,7 +260,6 @@ export default function TrainingsPage() {
           <div className="space-y-4">
             {!showPast && (
               <button
-                data-tour="older-trainings"
                 onClick={() => setShowPast(true)}
                 className="w-full rounded-md border border-gray-200 bg-gray-50 px-4 py-2 text-sm font-medium text-gray-500 transition-colors hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"
               >
@@ -275,7 +274,7 @@ export default function TrainingsPage() {
                 {t('hidePast')}
               </button>
             )}
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" data-tour="training-card">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {trainings.map((training) => (
               <TrainingCard
                 key={training.id}

@@ -11,8 +11,7 @@
  *
  * A source-level assertion rather than a rendered one: the repo's vitest runs in the `node`
  * environment with no DOM and no testing-library. The property is static, and the failure
- * mode is silent in production, so it is worth pinning cheaply. Same `?raw` approach the
- * data-tour audit in useTour.test.ts uses.
+ * mode is silent in production, so it is worth pinning cheaply.
  */
 import { describe, it, expect } from 'vitest'
 

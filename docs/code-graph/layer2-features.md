@@ -20,7 +20,7 @@ Knowledge graph of the 24 feature modules under `src/modules/` in the KSCW "wied
 | events | Club/team events — form, detail modal, cards, RSVP and invites | `modules/events/EventsPage.tsx`, `modules/events/EventForm.tsx` | components, hooks, types | 2004 |
 | forms | Internal forms — builder, fill modal, responses, public `/f/<slug>` page | `modules/forms/FormsPage.tsx`, `modules/forms/FormBuilderPage.tsx`, `modules/forms/PublicFormPage.tsx` | lib, ui, components | 1605 |
 | home | Home dashboard — next appointments agenda, announcements, RSVP row strip | `modules/home/HomePage.tsx` | components, hooks, lib | 1456 |
-| guide | Onboarding — React Joyride tours, install (PWA) prompt, guide page | `modules/guide/GuidePage.tsx`, `modules/guide/TourProvider.tsx` | ui, hooks | 1412 |
+| guide | Written user guide (searchable, deep-linkable per page), install (PWA) prompt | `modules/guide/GuidePage.tsx`, `modules/guide/sections.ts` | ui, hooks | 1412 |
 | fines | Team fines — issue/waive fine modals, settings, dashboard card | `modules/fines/FinesPage.tsx`, `modules/fines/IssueFineModal.tsx` | hooks, lib, types | 901 |
 | broadcast | Broadcast email/push to an audience — dialog, preview, can-broadcast gate | `modules/broadcast/BroadcastDialog.tsx`, `modules/broadcast/BroadcastButton.tsx` | ui, components, lib | 830 |
 | polls | Team polls — form, card, section, vote hook | `modules/polls/PollsSection.tsx`, `modules/polls/PollForm.tsx` | ui, types, hooks | 620 |

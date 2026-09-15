@@ -4,7 +4,8 @@ import { buildFinanceGroups, navItemActive, navPathMatches } from '../financeNav
 /**
  * The Finances nav, pinned. Both surfaces (TopNav dropdown, MoreSheet) render
  * exactly what this module returns, so the routes below ARE the contract the
- * guided tours and deep links depend on — a renamed `to` here is a broken tour.
+ * guide's help buttons and deep links depend on — a renamed `to` here is a
+ * broken link.
  */
 const routesOf = (groups: ReturnType<typeof buildFinanceGroups>) =>
   Object.fromEntries(groups.map((g) => [g.labelKey, g.items.map((i) => i.to)]))

@@ -45,9 +45,6 @@ export interface InvoiceTableProps {
   canPay?: boolean
   /** Called after a successful "Set as paid" report — the host refetches. */
   onPaid?: () => void | Promise<unknown>
-  /** Render the guided-tour anchors (`dues-pay` / `dues-status`). Only the
-   *  personal page hosts the finance-dues tour, so the team page leaves them off. */
-  tourAnchors?: boolean
 }
 
 /**
@@ -55,13 +52,10 @@ export interface InvoiceTableProps {
  * Team finance page: subject / dates / amount / open / status, with the payable
  * rows expanding into the Swiss QR-bill and the self-report button.
  */
-export default function InvoiceTable({ invoices, canPay = true, onPaid, tourAnchors = false }: InvoiceTableProps) {
+export default function InvoiceTable({ invoices, canPay = true, onPaid }: InvoiceTableProps) {
   const { t } = useTranslation('finance')
   const [payRow, setPayRow] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState<string | null>(null)
-
-  // Guided-tour anchor: the first payable row doubles as the pay/QR affordance.
-  const firstPayableId = invoices.find(isPayableInvoice)?.id
 
   async function handlePaid(id: string) {
     setSubmitting(id)
@@ -92,7 +86,7 @@ export default function InvoiceTable({ invoices, canPay = true, onPaid, tourAnch
         </TableRow>
       </TableHeader>
       <TableBody>
-        {invoices.map((inv, idx) => {
+        {invoices.map((inv) => {
           const open = toNum(inv.open_amount)
           const payable = isPayableInvoice(inv)
           const pending = isReportedPaid(inv)
@@ -102,7 +96,6 @@ export default function InvoiceTable({ invoices, canPay = true, onPaid, tourAnch
           return (
             <Fragment key={inv.id}>
               <TableRow
-                data-tour={tourAnchors && inv.id === firstPayableId ? 'dues-pay' : undefined}
                 className={`border-gray-200 dark:border-gray-700 ${expandable ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/40' : ''}`}
                 onClick={expandable ? () => setPayRow((p) => (p === inv.id ? null : inv.id)) : undefined}
               >
@@ -141,7 +134,7 @@ export default function InvoiceTable({ invoices, canPay = true, onPaid, tourAnch
                 <TableCell className={`text-right tabular-nums ${open > 0 && !pending ? 'text-red-600 dark:text-red-400' : 'text-gray-400'}`}>
                   {open > 0 && payable ? formatChf(open) : '–'}
                 </TableCell>
-                <TableCell data-tour={tourAnchors && idx === 0 ? 'dues-status' : undefined}><StatusBadge inv={inv} /></TableCell>
+                <TableCell><StatusBadge inv={inv} /></TableCell>
               </TableRow>
               {expanded && expandable && (
                 <TableRow className="border-gray-200 dark:border-gray-700">

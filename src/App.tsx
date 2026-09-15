@@ -9,7 +9,6 @@ import { ThemeProvider } from './hooks/ThemeProvider'
 import { AdminModeProvider } from './hooks/AdminModeProvider'
 import { ConfirmProvider } from './components/ConfirmDialogProvider'
 import { PageReadyProvider } from './hooks/PageReadyProvider'
-import { TourProvider } from './modules/guide/TourProvider'
 import Layout from './components/Layout'
 import { NotificationsProvider } from './components/NotificationsStoreProvider'
 import BootOverlay from './components/BootOverlay'
@@ -165,7 +164,6 @@ export default function App() {
       <AdminModeProvider>
       <ConfirmProvider>
       <BrowserRouter>
-      <TourProvider>
       <PageReadyProvider>
         <BootOverlay />
         <ChunkReloadNotice />
@@ -316,7 +314,6 @@ export default function App() {
           </Route>
         </Routes>
       </PageReadyProvider>
-      </TourProvider>
       </BrowserRouter>
       <Toaster richColors position="top-center" />
       </ConfirmProvider>

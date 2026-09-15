@@ -79,14 +79,14 @@ export default {
   licenceStatus: 'Lizänz',
   licence_status_changed: 'Din Lizänzstatus für {{season}} isch jetz: {{status}}',
 
-  // Bueße (Migration 069 / Teambueße Migration 350)
-  fineLabel: 'Bueß',
-  fine_issued: 'Neui Bueß vo {{team}}: {{amount}}',
-  fine_paid: 'Dini Bueß über {{amount}} ({{team}}) isch als zahlt markiert',
-  fine_waived: 'Dini Bueß über {{amount}} ({{team}}) isch erlah worde',
-  team_fine_issued: '{{team}} hät als Team e Bueß über {{amount}} übercho',
-  team_fine_paid: 'D Teambueß über {{amount}} ({{team}}) isch als zahlt markiert',
-  team_fine_waived: 'D Teambueß über {{amount}} ({{team}}) isch erlah worde',
+  // Buesse (Migration 069 / Teambuesse Migration 350)
+  fineLabel: 'Buess',
+  fine_issued: 'Neui Buess vo {{team}}: {{amount}}',
+  fine_paid: 'Dini Buess über {{amount}} ({{team}}) isch als zahlt markiert',
+  fine_waived: 'Dini Buess über {{amount}} ({{team}}) isch erlah worde',
+  team_fine_issued: '{{team}} hät als Team e Buess über {{amount}} übercho',
+  team_fine_paid: 'D Teambuess über {{amount}} ({{team}}) isch als zahlt markiert',
+  team_fine_waived: 'D Teambuess über {{amount}} ({{team}}) isch erlah worde',
 
   // Deadline sweep (migration 352). The daily cron declines a member who never
   // answered before respond_by and — where the team's late_signin rule is on —
@@ -95,5 +95,5 @@ export default {
   // in the READER's language rather than the cron's.
   deadlineMissed: 'Frist verpasst',
   auto_declined_deadline: 'Du hesch d\'Aamäldefrist für {{date}} ({{team}}) verpasst — als nöd debi iiträit',
-  auto_declined_deadline_fined: 'Du hesch d\'Aamäldefrist für {{date}} ({{team}}) verpasst — als nöd debi iiträit, Bueß {{amount}}',
+  auto_declined_deadline_fined: 'Du hesch d\'Aamäldefrist für {{date}} ({{team}}) verpasst — als nöd debi iiträit, Buess {{amount}}',
 } as const

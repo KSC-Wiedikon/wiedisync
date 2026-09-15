@@ -233,7 +233,7 @@ export default function AbsenceForm({ open, absence, onSave, onCancel, forTeam, 
           </p>
         )}
 
-        <div data-tour="affects-teams">
+        <div>
         <AffectsMultiSelect
           label={t('affects')}
           selected={affects}

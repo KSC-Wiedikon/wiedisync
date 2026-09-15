@@ -33,7 +33,7 @@ import ParticipationRosterModal from '../../components/ParticipationRosterModal'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import { getGameWarnings, type Warning } from '../../utils/participationWarnings'
 import { Calendar, Trophy, BarChart3, LayoutGrid } from 'lucide-react'
-import { TourPageButton } from '../guide/TourPageButton'
+import { GuideHelpButton } from '../guide/GuideHelpButton'
 import { useReportPageLoading } from '../../hooks/usePageReady'
 import { useUserVisibleGameIds } from '../../hooks/useUserVisibleGameIds'
 import LiveNowBanner from '../live/components/LiveNowBanner'
@@ -418,7 +418,7 @@ export default function GamesPage() {
           </h2>
         )}
         {variant === 'compact' ? (
-          <div data-tour={section.key === 'league' ? 'game-results' : undefined} className="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700 bg-white md:mx-auto md:w-fit dark:bg-gray-800 md:grid md:grid-cols-[auto_auto_auto_auto_auto_auto_auto_1fr]">
+          <div className="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700 bg-white md:mx-auto md:w-fit dark:bg-gray-800 md:grid md:grid-cols-[auto_auto_auto_auto_auto_auto_auto_1fr]">
             {section.items.map((g) => (
               <GameCard
                 key={g.id}
@@ -435,7 +435,7 @@ export default function GamesPage() {
             ))}
           </div>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" data-tour={section.key === 'league' ? 'game-card' : undefined}>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {section.items.map((g) => (
               <GameCard
                 key={g.id}
@@ -460,7 +460,7 @@ export default function GamesPage() {
     <div className="min-w-0">
       <div className="flex items-center gap-2">
         <h1 className="text-xl font-bold text-gray-900 sm:text-2xl dark:text-gray-100">{t('title')}</h1>
-        <TourPageButton />
+        <GuideHelpButton />
       </div>
 
       {/* Renders nothing unless the hall scoreboard is mid-match. */}
@@ -474,10 +474,10 @@ export default function GamesPage() {
             <SportToggle value={sport} onChange={setSport} />
           </div>
         )}
-        <div data-tour="team-filter">
+        <div>
           <TeamFilterBar selected={selectedTeams} onChange={setSelectedTeams} sport={sport} limitToTeams={effectiveIsAdmin || effectiveIsVorstand || !user ? undefined : allUserTeamNames} singleSelect={activeTab === 'dashboard'} />
         </div>
-        <div data-tour="game-tabs">
+        <div>
           <GameTabs activeTab={activeTab} onChange={(tab) => { setActiveTab(tab); setShowAll(false) }} tabs={visibleTabs} />
         </div>
       </div>
@@ -553,7 +553,7 @@ export default function GamesPage() {
             ) : leagueGroups.size === 0 ? (
               <EmptyState tab="rankings" />
             ) : (
-              <div className="grid gap-6 lg:grid-cols-2" data-tour="game-rankings">
+              <div className="grid gap-6 lg:grid-cols-2">
                 {[...leagueGroups.entries()].map(([league, rows]) => (
                   <RankingsTable key={league} league={league} rankings={rows} />
                 ))}
@@ -564,7 +564,7 @@ export default function GamesPage() {
 
         {/* Scoreboard */}
         {activeTab === 'scoreboard' && !rankingsLoading && (
-          <div data-tour="game-scoreboard"><KscwScoreboard rankings={allRankings} /></div>
+          <KscwScoreboard rankings={allRankings} />
         )}
 
         {/* Coach Dashboard */}

@@ -103,7 +103,7 @@ export default function GameCoachDashboard({ teamId }: Props) {
   if (isLoading || teamLoading) return <LoadingSpinner />
 
   return (
-    <div data-tour="game-coach-dashboard">
+    <div>
       <div className="mb-6 flex flex-wrap items-end gap-4">
         <DatePicker
           label={tTrainings('rangeFromLabel')}
@@ -130,7 +130,7 @@ export default function GameCoachDashboard({ teamId }: Props) {
         {rangeError && <p className="w-full text-xs text-red-500">{rangeError}</p>}
       </div>
 
-      <div data-tour="game-coach-stats">
+      <div>
         {stats.length === 0 ? (
           <EmptyState
             icon={<BarChart3 className="h-10 w-10" />}

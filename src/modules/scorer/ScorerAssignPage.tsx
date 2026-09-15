@@ -25,7 +25,7 @@ import { updateRecord } from '../../lib/api'
 import { maybeReloadOnStaleChunk } from '../../lib/chunkReload'
 import { captureApiError } from '../../lib/sentry'
 import { useReportPageLoading } from '../../hooks/usePageReady'
-import { TourPageButton } from '../guide/TourPageButton'
+import { GuideHelpButton } from '../guide/GuideHelpButton'
 
 type SportTab = 'volleyball' | 'basketball'
 // 'plan' = the auto-assign planner (draft → roll out); 'overview' = the saved
@@ -713,7 +713,7 @@ export default function ScorerAssignPage() {
     <div>
       <div className="flex items-center gap-2">
         <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100 sm:text-2xl">{t('title')}</h1>
-        <TourPageButton />
+        <GuideHelpButton />
       </div>
       <p className="mt-1 text-gray-600 dark:text-gray-400">
         {sportTab === 'volleyball' ? t('subtitle') : t('subtitleBb')}
@@ -729,7 +729,7 @@ export default function ScorerAssignPage() {
           />
         )}
 
-        <div data-tour="season-select" className="rounded-lg bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 dark:bg-gray-700 dark:text-gray-300">
+        <div className="rounded-lg bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 dark:bg-gray-700 dark:text-gray-300">
           {t('season')}: {season}
         </div>
 
@@ -760,7 +760,6 @@ export default function ScorerAssignPage() {
       {/* Actions bar */}
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <Button
-          data-tour="auto-assign"
           size="sm"
           onClick={handleRunAlgorithm}
           loading={running && assignments.length === 0}
@@ -862,7 +861,7 @@ export default function ScorerAssignPage() {
           overview is visible before the per-game detail table. Split by sport
           via sportTab (each engine only fills its own sport's counts). */}
       {sportTab === 'volleyball' && vbTeamCounts.size > 0 && (
-        <div className="mt-6" data-tour="team-summary">
+        <div className="mt-6">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('teamSummary')}</h2>
           <div className="mt-3 overflow-x-auto">
             <Table className="w-fit text-left text-sm">
@@ -923,7 +922,7 @@ export default function ScorerAssignPage() {
       )}
 
       {sportTab === 'basketball' && bbTeamCounts.size > 0 && (
-        <div className="mt-6" data-tour="team-summary">
+        <div className="mt-6">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('teamSummary')}</h2>
           <div className="mt-3 overflow-x-auto">
             <Table className="w-fit text-left text-sm">
@@ -952,7 +951,7 @@ export default function ScorerAssignPage() {
 
       {/* Results table */}
       {assignments.length > 0 && (
-        <div data-tour="manual-assign" className="mt-6 overflow-x-auto">
+        <div className="mt-6 overflow-x-auto">
           <Table className="w-full text-left text-sm">
             <TableHeader>
               <TableRow className="border-b border-gray-200 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:border-gray-700 dark:text-gray-400">

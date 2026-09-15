@@ -11,7 +11,6 @@ export default function NotificationBell({ unreadCount, onClick, className = '' 
   const { t } = useTranslation('notifications')
   return (
     <button
-      data-tour="notification-bell"
       onClick={onClick}
       className={`relative rounded-lg p-1.5 transition-colors hover:bg-gray-100 dark:hover:bg-brand-800 ${className}`}
       aria-label={unreadCount > 0 ? `${t('title')} (${t('unreadShort', { count: unreadCount })})` : t('title')}

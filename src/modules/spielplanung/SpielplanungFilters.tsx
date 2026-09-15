@@ -63,7 +63,7 @@ export default function SpielplanungFilters({ filters, onChange }: SpielplanungF
 
       <ViewToggle options={typeOptions} value={filters.gameType} onChange={handleTypeChange} />
 
-      <div data-tour="absence-overlay" className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+      <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
         <Switch checked={filters.showAbsences} onCheckedChange={(checked) => onChange({ ...filters, showAbsences: checked })} />
         {t('showAbsences')}
       </div>

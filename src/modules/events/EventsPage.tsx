@@ -26,7 +26,7 @@ import { Button } from '@/components/ui/button'
 import { isFeatureEnabled } from '../../utils/featureToggles'
 import { asTeams, teamId, ALL_GUEST_LEVELS } from './eventHelpers'
 import type { Event, EventSession, Participation } from '../../types'
-import { TourPageButton } from '../guide/TourPageButton'
+import { GuideHelpButton } from '../guide/GuideHelpButton'
 
 /**
  * Runtime shape of one `events_members` entry. `Event['invited_members']` is declared
@@ -258,7 +258,7 @@ export default function EventsPage() {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex items-center gap-3">
           <h1 className="text-xl font-bold text-gray-900 sm:text-2xl dark:text-gray-100">{t('title')}</h1>
-          <TourPageButton />
+          <GuideHelpButton />
           <button
             onClick={() => setShowPast((v) => !v)}
             className={`min-h-[36px] rounded-full px-2.5 py-1.5 text-xs font-medium transition-colors ${
@@ -272,7 +272,6 @@ export default function EventsPage() {
         </div>
         {!teamsLoading && isCoach && (
           <Button
-            data-tour="new-event"
             onClick={() => {
               setEditingEvent(null)
               setFormOpen(true)
@@ -284,7 +283,7 @@ export default function EventsPage() {
       </div>
 
       {!teamsLoading && allUserTeamIds.length > 1 && (
-        <div className="mt-6" data-tour="event-team-filter">
+        <div className="mt-6">
           <TeamFilter selected={selectedTeam} onChange={setSelectedTeam} limitToTeamIds={(effectiveIsAdmin || effectiveIsVorstand) ? undefined : allUserTeamIds} groupBySport={effectiveIsAdmin || effectiveIsVorstand} />
         </div>
       )}
@@ -297,7 +296,7 @@ export default function EventsPage() {
             description={t('noEventsDescription')}
           />
         ) : (
-          <div className="space-y-3" data-tour="event-card">
+          <div className="space-y-3">
             {rows.map((row) => {
               if (row.kind === 'duty') {
                 return <DutyEventCard key={`duty-${row.duty.game.id}-${row.duty.role}`} duty={row.duty} />

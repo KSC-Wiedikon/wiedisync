@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.12.0'
+const APP_VERSION = '2.13.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,24 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.13.0',
+    date: '15.09.2026',
+    sections: [
+      {
+        title: "New",
+        items: [
+          "A written guide replaces the guided tours. Options → Guide, or the ? next to any page title. Forty sections cover everything in the app — installing it and signing in, games, trainings, events, absences, scorer duties, your profile and family accounts, bills, expenses and fines, the coaching tools, Spielplanung and the admin pages — in all five languages. Search it, jump around from the table of contents, or open it from the page you are on: the ? now lands on that page's section. You only see the sections your role can use, and each section says where things are, what you can do and which rules apply.",
+        ],
+      },
+      {
+        title: "Removed",
+        items: [
+          "The click-through tours are gone. They highlighted buttons on the page and went stale whenever a page changed; the guide explains the same things in words and stays readable on any screen.",
+        ],
+      },
+    ],
+  },
   {
     version: '2.12.0',
     date: '15.09.2026',

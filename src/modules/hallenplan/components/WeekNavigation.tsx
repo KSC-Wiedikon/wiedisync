@@ -46,7 +46,7 @@ export default function WeekNavigation({
     <div className="mb-4 space-y-3 rounded-xl bg-white p-4 shadow-card dark:bg-gray-800">
       {/* Top row: week nav + actions */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div data-tour="week-nav" className="flex items-center gap-2">
+        <div className="flex items-center gap-2">
           <button
             onClick={onPrev}
             className="rounded-md p-2 text-gray-600 hover:bg-gray-100 dark:text-gray-400 sm:p-1.5 dark:hover:bg-gray-700"
@@ -78,7 +78,7 @@ export default function WeekNavigation({
 
         <div className="flex items-center gap-2">
           {onSetSportFilter && (
-            <div data-tour="sport-filter" className="flex overflow-hidden rounded-md border border-gray-300 dark:border-gray-600">
+            <div className="flex overflow-hidden rounded-md border border-gray-300 dark:border-gray-600">
               {(['vb', 'bb', 'all'] as const).map((f) => (
                 <button
                   key={f}
@@ -98,14 +98,12 @@ export default function WeekNavigation({
           {isAdmin && (
             <>
               <button
-                data-tour="closures"
                 onClick={onOpenClosureManager}
                 className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
               >
                 {t('closures')}
               </button>
               <button
-                data-tour="halls"
                 onClick={onOpenHallManager}
                 className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
               >
@@ -121,7 +119,6 @@ export default function WeekNavigation({
         <>
           <div className="border-t border-gray-200 pt-3 dark:border-gray-700">
             <button
-              data-tour="claim-slot"
               onClick={() => setShowSlotsModal(true)}
               className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800 transition-colors hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:hover:bg-emerald-900/50"
             >

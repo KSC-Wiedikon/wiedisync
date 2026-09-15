@@ -6,7 +6,7 @@ import InvoiceTable from './InvoiceTable'
 import PayoutIbanCard from './PayoutIbanCard'
 import MyPayoutsCard from './MyPayoutsCard'
 import MyRefereeExpensesCard from './MyRefereeExpensesCard'
-import { TourPageButton } from '../guide/TourPageButton'
+import { GuideHelpButton } from '../guide/GuideHelpButton'
 
 /**
  * "Bills & reimbursements" — strictly the member's OWN money: personal bills,
@@ -34,13 +34,13 @@ export default function FinanceDuesPage() {
       <div>
         <div className="flex items-center gap-2">
           <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">{t('myDuesTitle')}</h1>
-          <TourPageButton />
+          <GuideHelpButton />
         </div>
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t('myDuesSubtitle')}</p>
       </div>
 
       {/* Payout IBAN — the canonical add/edit/check place (was in profile editor) */}
-      <div data-tour="payout-iban">
+      <div>
         <PayoutIbanCard />
       </div>
 
@@ -67,7 +67,7 @@ export default function FinanceDuesPage() {
       {isLoading ? (
         <div className="py-12 text-center text-sm text-gray-500 dark:text-gray-400">…</div>
       ) : invoices.length === 0 ? (
-        <div data-tour="dues-list" className="rounded-lg border border-dashed border-gray-300 py-12 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+        <div className="rounded-lg border border-dashed border-gray-300 py-12 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
           {/* "You have no invoices." reads as a fault to someone who simply owes
               nothing — a Gratis member (coach, staff) has never been billed and
               never will be. Say which of the two it is. */}
@@ -79,8 +79,8 @@ export default function FinanceDuesPage() {
           ) : t('noInvoices')}
         </div>
       ) : (
-        <div data-tour="dues-list" className="rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
-          <InvoiceTable invoices={invoices} canPay onPaid={refetch} tourAnchors />
+        <div className="rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+          <InvoiceTable invoices={invoices} canPay onPaid={refetch} />
         </div>
       )}
     </div>

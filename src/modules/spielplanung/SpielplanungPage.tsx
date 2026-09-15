@@ -40,7 +40,7 @@ import { useReportPageLoading } from '../../hooks/usePageReady'
 import LoadingSpinner from '../../components/LoadingSpinner'
 import type { ViewMode, SpielplanungFilterState } from '../../types/calendar'
 import type { Game } from '../../types'
-import { TourPageButton } from '../guide/TourPageButton'
+import { GuideHelpButton } from '../guide/GuideHelpButton'
 
 const VIEW_MODES: ViewMode[] = ['calendar', 'week', 'list-date', 'list-team']
 
@@ -288,7 +288,7 @@ export default function SpielplanungPage() {
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-bold text-gray-900 sm:text-2xl dark:text-gray-100">{t('title')}</h1>
-            <TourPageButton />
+            <GuideHelpButton />
           </div>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
             {t('subtitleSeason', { season: currentSeasonLabel })}
@@ -305,7 +305,7 @@ export default function SpielplanungPage() {
               ))}
             </SelectContent>
           </Select>
-          <div data-tour="view-toggle"><ViewToggle
+          <div><ViewToggle
             options={[
               { value: 'calendar', label: t('viewCalendar') },
               ...(isMobile ? [] : [{ value: 'week', label: t('viewWeek') }]),
@@ -328,7 +328,7 @@ export default function SpielplanungPage() {
       )}
 
       {/* Filters */}
-      <div data-tour="spielplanung-filters">
+      <div>
         <SpielplanungFilters filters={filters} onChange={setFilters} />
       </div>
 

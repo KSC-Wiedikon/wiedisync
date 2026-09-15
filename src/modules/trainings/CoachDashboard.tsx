@@ -91,7 +91,7 @@ export default function CoachDashboard({ teamId }: CoachDashboardProps) {
   }
 
   return (
-    <div data-tour="attendance-stats">
+    <div>
       <div className="mb-6 flex flex-wrap items-end gap-4">
         <DatePicker
           label={t('rangeFromLabel')}

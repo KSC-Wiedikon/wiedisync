@@ -124,7 +124,7 @@ export default function AbsenceCard({ absence, onEdit, onDelete, memberName, can
       </TableCell>
       {canEdit && onEdit && onDelete ? (
         <TableCell className="text-right">
-          <div data-tour="edit-absence" className="flex flex-col items-stretch gap-1 sm:flex-row sm:justify-end sm:gap-2">
+          <div className="flex flex-col items-stretch gap-1 sm:flex-row sm:justify-end sm:gap-2">
             <button
               onClick={() => onEdit(absence)}
               className="min-h-[44px] rounded px-3 py-1.5 text-sm text-brand-600 hover:bg-brand-50 hover:text-brand-700"

@@ -30,7 +30,7 @@ import { useScorerDelegations } from './hooks/useScorerDelegations'
 import { useOfficialContacts } from './hooks/useOfficialContacts'
 import LoadingSpinner from '../../components/LoadingSpinner'
 import { Bell, BellOff, ChevronDown, ChevronUp, Filter, Info, Clock, AlertTriangle, ClipboardList, Lightbulb } from 'lucide-react'
-import { TourPageButton } from '../guide/TourPageButton'
+import { GuideHelpButton } from '../guide/GuideHelpButton'
 import { updateRecord } from '../../lib/api'
 import { useReportPageLoading } from '../../hooks/usePageReady'
 
@@ -603,7 +603,7 @@ export default function ScorerPage() {
     <div>
       <div className="flex items-center gap-2">
         <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100 sm:text-2xl">{t('title')}</h1>
-        <TourPageButton />
+        <GuideHelpButton />
       </div>
       <p className="mt-1 text-gray-600 dark:text-gray-400">{t('subtitle')}</p>
 
@@ -741,7 +741,7 @@ export default function ScorerPage() {
           )}
 
           {/* Filters */}
-          <div data-tour="scorer-filters" className="mt-4 rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800">
+          <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800">
             <button
               onClick={() => setFiltersOpen(!filtersOpen)}
               className="flex w-full items-center justify-between px-4 py-3.5 text-sm font-medium text-gray-700 dark:text-gray-300"
@@ -828,7 +828,7 @@ export default function ScorerPage() {
           </div>
 
           {/* Upcoming games */}
-          <div className="mt-6" data-tour="assignment-list">
+          <div className="mt-6">
             {upcomingLoading && <LoadingSpinner />}
             {!upcomingLoading && filteredGames.length === 0 && !showPast && (
               <div className="py-12 text-center text-gray-500 dark:text-gray-400">
@@ -873,7 +873,7 @@ export default function ScorerPage() {
       )}
 
       {tab === 'overview' && (
-        <div data-tour="open-slots">
+        <div>
           <div className="mt-4">
             <TabBar<'team' | 'game'>
               tabs={[{ key: 'team', label: t('overviewByTeam') }, { key: 'game', label: t('overviewByGame') }]}

@@ -18,7 +18,7 @@ import { stripHtml } from '../../utils/stripHtml'
 import VolleyballIcon from '../../components/VolleyballIcon'
 import BasketballIcon from '../../components/BasketballIcon'
 import NotificationPanel from '../../components/NotificationPanel'
-import { TourPageButton } from '../guide/TourPageButton'
+import { GuideHelpButton } from '../guide/GuideHelpButton'
 import GameDetailModal from '../games/components/GameDetailModal'
 import TrainingDetailModal from '../trainings/TrainingDetailModal'
 import EventDetailModal from '../events/EventDetailModal'
@@ -534,11 +534,7 @@ export default function HomePage() {
           <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl dark:text-gray-100">
             KSC Wiedikon
           </h1>
-          {/* The getting-started tour declares `route: '/'` (guide/tours/getting-started.ts)
-              but this was the one page with no TourPageButton, so the tour a first-time
-              user is meant to be offered could never match a page and never appeared.
-              It has been written and translated the whole time. */}
-          <TourPageButton />
+          <GuideHelpButton />
         </div>
         <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
           {t('subtitle')}
@@ -733,7 +729,7 @@ export default function HomePage() {
       {/* Unified "My next appointments" view (default for logged-in users) */}
       {user && isApproved && !showCategorized && (
         <div className="lg:flex lg:items-start lg:justify-center lg:gap-8">
-          <div data-tour="dashboard-appointments">
+          <div>
             <NextAppointments
               games={nextGames}
               trainings={nextTrainings}

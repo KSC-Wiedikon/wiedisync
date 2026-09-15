@@ -212,7 +212,7 @@ export default function TopNav({ unreadCount, onOpenNotifications, memberTeams }
       </NavLink>
 
       {/* Left: grouped categories */}
-      <nav data-tour="nav-sidebar" className="flex items-center gap-0.5">
+      <nav className="flex items-center gap-0.5">
         <NavLink
           to="/"
           end
@@ -280,7 +280,6 @@ export default function TopNav({ unreadCount, onOpenNotifications, memberTeams }
 
         <NavLink
           to="/guide"
-          data-tour="nav-guide"
           aria-label={t('guide')}
           title={t('guide')}
           className={({ isActive }) => `${iconBtn} ${isActive ? 'bg-brand-50 !text-brand-700 dark:bg-brand-800 dark:!text-gold-400' : ''}`}
@@ -292,7 +291,7 @@ export default function TopNav({ unreadCount, onOpenNotifications, memberTeams }
             dropdown work without auto-closing on interaction. */}
         <Popover open={optionsOpen} onOpenChange={setOptionsOpen}>
           <PopoverTrigger asChild>
-            <button data-tour="nav-settings" aria-label={t('options', 'Options')} title={t('options', 'Options')} className={iconBtn}>
+            <button aria-label={t('options', 'Options')} title={t('options', 'Options')} className={iconBtn}>
               <Settings className="h-5 w-5" />
             </button>
           </PopoverTrigger>
@@ -347,7 +346,6 @@ export default function TopNav({ unreadCount, onOpenNotifications, memberTeams }
           <DropdownMenu modal={false}>
             <DropdownMenuTrigger asChild>
               <button
-                data-tour="nav-profile"
                 className="flex items-center gap-1 rounded-lg p-1 transition-colors hover:bg-gray-100 dark:hover:bg-brand-800"
                 aria-label={t('myProfile')}
               >

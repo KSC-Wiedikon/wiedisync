@@ -292,7 +292,7 @@ export default function WeekSlotView({
 
   return (
     <div className="rounded-lg bg-white shadow-card dark:bg-gray-800">
-      <div data-tour="day-columns" className="min-w-[700px] overflow-x-auto">
+      <div className="min-w-[700px] overflow-x-auto">
         {/* Day headers row */}
         <div
           className="grid border-b border-gray-200 dark:border-gray-700"
@@ -349,7 +349,6 @@ export default function WeekSlotView({
                 return (
                   <div
                     key={`${dayIndex}-allclosed`}
-                    data-tour="all-halls"
                     className="border-r-2 border-gray-300 px-0.5 py-0.5 text-center text-[10px] font-medium text-gray-500 dark:border-gray-600 dark:text-gray-400"
                   >
                     {t('allHalls')}
