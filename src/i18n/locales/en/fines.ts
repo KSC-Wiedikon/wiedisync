@@ -148,6 +148,9 @@ export default {
   pdfActivity: 'Activity',
   pdfRules: 'Rules',
   pdfNoFines: 'No fines recorded yet.',
+  pdfScope: 'Applies to',
+  pdfScopeGeneral: 'General',
+  pdfTierLegend: '+ = this offense and every one after it',
 
   // Dashboard widget
   dashboardTitle: 'Fines this month',
