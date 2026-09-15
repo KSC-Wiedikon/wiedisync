@@ -1186,9 +1186,14 @@ function DutyPersonRow({
     ? new Intl.DateTimeFormat('de-CH', { timeZone: 'Europe/Zurich', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(reported.at))
     : ''
 
+  // "Scorer/Scoreboard" has no break opportunity, so at w-28 it ran into the
+  // name. A zero-width space after the slash lets it wrap to "Scorer/" +
+  // "Scoreboard" exactly when it does not fit, and stays invisible otherwise.
+  const wrappableLabel = label.replace(/\//g, '/\u200B')
+
   return (
     <div className="flex items-start gap-3 text-sm">
-      <span className="w-28 shrink-0 text-gray-500 dark:text-gray-400">{label}</span>
+      <span className="w-28 shrink-0 text-gray-500 dark:text-gray-400">{wrappableLabel}</span>
       <div className="min-w-0 flex-1">
         <span className="flex items-center gap-1.5 text-gray-900 dark:text-gray-100">
           {name}
