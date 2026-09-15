@@ -180,80 +180,90 @@ interface CategorySectionProps {
 
 function CategorySection({ teamId, category, rules, onChange }: CategorySectionProps) {
   const { t } = useTranslation(['fines'])
+  const confirm = useConfirm()
   const general = rules.find((r) => r.activity_type == null) ?? null
   const overrides = rules.filter((r) => r.activity_type != null)
-  const [creating, setCreating] = useState<FineActivityType | null>(null)
+  const [switching, setSwitching] = useState(false)
 
-  // An override starts as a copy of the general rule — the coach is here to
-  // change one number, not to rebuild the ladder from nothing.
-  async function addOverride(type: FineActivityType) {
-    setCreating(type)
+  // A category is priced EITHER by one ladder for every activity OR per activity
+  // type — never a mix, which read as "No tiers yet" next to fully priced
+  // per-type rows on the PDF. Per-type mode is simply "override rows exist":
+  // switching it on creates the three rows (each a copy of the general ladder,
+  // so the coach changes a number rather than rebuilding) and silences the
+  // general rule; switching it off deletes them and wakes the general rule up.
+  // The engine needs nothing new: a disabled general rule prices nothing, so an
+  // activity type whose own row is off is simply not fined.
+  const perType = overrides.length > 0
+
+  async function setPerType(on: boolean) {
+    setSwitching(true)
     try {
-      await createRecord<FineRule>('fine_rules', {
-        team: Number(teamId),
-        category,
-        activity_type: type,
-        enabled: true,
-        reset_window: general?.reset_window ?? 'calendar_month',
-        tiers: general?.tiers ?? [],
-      })
+      if (on) {
+        await Promise.all(ACTIVITY_TYPES.map((type) => createRecord<FineRule>('fine_rules', {
+          team: Number(teamId),
+          category,
+          activity_type: type,
+          enabled: true,
+          reset_window: general?.reset_window ?? 'calendar_month',
+          tiers: general?.tiers ?? [],
+        })))
+        if (general?.enabled) await updateRecord<FineRule>('fine_rules', general.id, { enabled: false })
+      } else {
+        if (!(await confirm({ message: t('fines:settingsPerTypeOffConfirm'), danger: true }))) return
+        await Promise.all(overrides.map((r) => deleteRecord('fine_rules', r.id)))
+        if (general) await updateRecord<FineRule>('fine_rules', general.id, { enabled: true })
+      }
       onChange()
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      toast.error(t('fines:settingsSaveError', { error: msg }))
     } finally {
-      setCreating(null)
+      setSwitching(false)
     }
   }
 
-  const showOverrides = ACTIVITY_SCOPED.has(category) && (general != null || overrides.length > 0)
+  const showModeSwitch = ACTIVITY_SCOPED.has(category) && (general != null || perType)
+  const modeSwitchId = `fine-mode-${category}-${String(teamId)}`
 
   return (
     <div className="space-y-4 px-4 py-3">
-      <RuleEditor
-        teamId={teamId}
-        category={category}
-        activityType={null}
-        rule={general}
-        onChange={onChange}
-      />
+      {perType ? (
+        <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+          {t(`fines:${categoryLabelKey(category)}`)}
+        </div>
+      ) : (
+        <RuleEditor
+          teamId={teamId}
+          category={category}
+          activityType={null}
+          rule={general}
+          onChange={onChange}
+        />
+      )}
 
-      {showOverrides && (
-        <div className="space-y-2 border-t border-dashed border-gray-200 pt-3 dark:border-gray-700">
-          <div>
-            <div className="text-xs font-medium text-gray-700 dark:text-gray-300">{t('fines:settingsPerType')}</div>
+      {showModeSwitch && (
+        <div className={`flex items-center justify-between gap-3 ${perType ? '' : 'border-t border-dashed border-gray-200 pt-3 dark:border-gray-700'}`}>
+          <div className="min-w-0">
+            <label htmlFor={modeSwitchId} className="cursor-pointer text-xs font-medium text-gray-700 dark:text-gray-300">{t('fines:settingsPerType')}</label>
             <div className="text-xs italic text-gray-500 dark:text-gray-400">{t('fines:settingsPerTypeHint')}</div>
           </div>
-          <div className="divide-y divide-gray-100 rounded-lg border border-gray-200 dark:divide-gray-700 dark:border-gray-700">
-            {ACTIVITY_TYPES.map((type) => {
-              const override = overrides.find((r) => r.activity_type === type) ?? null
-              return override ? (
-                <div key={type} className="px-3 py-3">
-                  <RuleEditor
-                    teamId={teamId}
-                    category={category}
-                    activityType={type}
-                    rule={override}
-                    onChange={onChange}
-                  />
-                </div>
-              ) : (
-                <div key={type} className="flex min-h-[52px] items-center justify-between gap-3 px-3 py-2">
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{t(`fines:${typeLabelKey(type)}`)}</div>
-                    <div className="text-xs italic text-gray-500 dark:text-gray-400">{t('fines:settingsUsesGeneral')}</div>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={creating != null}
-                    loading={creating === type}
-                    onClick={() => addOverride(type)}
-                  >
-                    {t('fines:settingsCustomise')}
-                  </Button>
-                </div>
-              )
-            })}
-          </div>
+          <Switch id={modeSwitchId} checked={perType} disabled={switching} onCheckedChange={setPerType} />
+        </div>
+      )}
+
+      {perType && (
+        <div className="divide-y divide-gray-100 rounded-lg border border-gray-200 dark:divide-gray-700 dark:border-gray-700">
+          {ACTIVITY_TYPES.map((type) => (
+            <div key={type} className="px-3 py-3">
+              <RuleEditor
+                teamId={teamId}
+                category={category}
+                activityType={type}
+                rule={overrides.find((r) => r.activity_type === type) ?? null}
+                onChange={onChange}
+              />
+            </div>
+          ))}
         </div>
       )}
     </div>
@@ -394,9 +404,8 @@ function RuleEditor({ teamId, category, activityType, rule, onChange }: RuleEdit
           <div className={isOverride ? 'text-sm font-medium text-gray-900 dark:text-gray-100' : 'text-sm font-semibold text-gray-900 dark:text-gray-100'}>
             {title}
           </div>
-          {/* An override that is off is not an override: the engine falls back to
-              the general ladder. Say so next to the switch, where the coach is
-              looking, rather than let "Enabled: off" read as "no fine for games". */}
+          {/* In per-type mode the general ladder is off, so a type whose own row
+              is off is not fined at all. Say so next to the switch. */}
           {isOverride && rule && !enabled && (
             <div className="text-xs italic text-gray-500 dark:text-gray-400">{t('fines:settingsOverrideOff')}</div>
           )}
@@ -411,7 +420,7 @@ function RuleEditor({ teamId, category, activityType, rule, onChange }: RuleEdit
           the nightly sweep that declines and fines everyone who never answered.
           A coach flipping a switch called "Enabled" deserves to be told that
           here, not to discover it from a member asking why they owe CHF 20. */}
-      {category === 'late_signin' && !isOverride && enabled && (
+      {category === 'late_signin' && activityType !== 'event' && enabled && (
         <p className="text-xs italic text-gray-500 dark:text-gray-400">
           {t('fines:settingsLateSigninSweep')}
         </p>
@@ -540,14 +549,17 @@ function RuleEditor({ teamId, category, activityType, rule, onChange }: RuleEdit
             {previewLine}
           </div>
 
-          {rule && (
+          {rule && (!isOverride || saving || savedAt) && (
             <div className="flex min-h-[36px] items-center justify-between gap-3">
               <span className="text-xs text-gray-500 dark:text-gray-400" aria-live="polite">
                 {saving ? t('common:loading') : savedAt ? t('fines:settingsSaved') : ''}
               </span>
-              <Button type="button" variant="ghost" size="sm" onClick={handleDelete}>
-                {isOverride ? t('fines:settingsRemoveOverride') : t('common:delete')}
-              </Button>
+              {/* Per-type rows live and die with the mode switch — no per-row delete. */}
+              {!isOverride && (
+                <Button type="button" variant="ghost" size="sm" onClick={handleDelete}>
+                  {t('common:delete')}
+                </Button>
+              )}
             </div>
           )}
 
