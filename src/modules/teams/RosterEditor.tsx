@@ -1072,7 +1072,7 @@ function TeamSettingsSection({ team, onUpdate }: { team: Team; onUpdate: (s: Tea
         </SettingsGroup>
 
         {/* Fines */}
-        <FinesSettings teamId={team.id} />
+        <FinesSettings teamId={team.id} teamName={team.name} season={team.season} />
       </div>
 
       {autoConfirmPrompt && (

@@ -119,6 +119,8 @@ export default {
   settingsCustomise: 'Personalizza',
   settingsRemoveOverride: 'Rimuovi eccezione',
   settingsOverrideOff: 'Disattivata – vale di nuovo la regola generale.',
+  settingsDownloadPdf: 'Scarica il riepilogo (PDF)',
+  settingsPdfError: 'Impossibile creare il PDF: {{error}}',
 
   dashboardTitle: 'Multe questo mese',
   dashboardTotalOpen: 'Aperte questo mese',

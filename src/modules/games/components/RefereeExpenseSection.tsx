@@ -7,6 +7,7 @@ import { useMutation } from '../../../hooks/useMutation'
 import { useAuth } from '../../../hooks/useAuth'
 import SearchableSelect from '../../../components/ui/SearchableSelect'
 import { fetchItems, fetchItem } from '../../../lib/api'
+import { toNum, formatChf } from '../../../hooks/useFinance'
 import { asObj, memberDisplayName } from '../../../utils/relations'
 
 interface RefereeExpenseSectionProps {
@@ -70,6 +71,7 @@ export default function RefereeExpenseSection({ gameId, teamId, canEdit }: Refer
     const fetchExpense = fetchItems<ExpandedExpense>('referee_expenses', {
         filter: { game: { _eq: gameId } },
         fields: ['*', 'paid_by_member.*'],
+        sort: ['id'],
         limit: 1,
       })
       .then((records) => records[0])
@@ -80,7 +82,7 @@ export default function RefereeExpenseSection({ gameId, teamId, canEdit }: Refer
         const paidByMemberId = typeof record.paid_by_member === 'string' ? record.paid_by_member : (asObj<Member & BaseRecord>(record.paid_by_member)?.id ?? '')
         setPaidBy(paidByMemberId || (record.paid_by_other ? OTHER_VALUE : ''))
         setOtherName(record.paid_by_other || '')
-        setAmount(record.amount ? String(record.amount) : '')
+        setAmount(toNum(record.amount) ? String(toNum(record.amount)) : '')
         setNotes(record.notes || '')
       })
       .catch(() => {
@@ -266,7 +268,7 @@ export default function RefereeExpenseSection({ gameId, teamId, canEdit }: Refer
                     const memberId = typeof existing.paid_by_member === 'string' ? existing.paid_by_member : (asObj<Member & BaseRecord>(existing.paid_by_member)?.id ?? '')
                     setPaidBy(memberId || (existing.paid_by_other ? OTHER_VALUE : ''))
                     setOtherName(existing.paid_by_other || '')
-                    setAmount(existing.amount ? String(existing.amount) : '')
+                    setAmount(toNum(existing.amount) ? String(toNum(existing.amount)) : '')
                     setNotes(existing.notes || '')
                   }
                 }}
@@ -284,10 +286,10 @@ export default function RefereeExpenseSection({ gameId, teamId, canEdit }: Refer
             <span className="w-28 shrink-0 text-gray-500 dark:text-gray-400">{t('refereeExpensesPaidBy')}</span>
             <span className="text-gray-900 dark:text-gray-100">{paidByName}</span>
           </div>
-          {existing.amount > 0 && (
+          {toNum(existing.amount) > 0 && (
             <div className="flex items-start gap-3 text-sm">
               <span className="w-28 shrink-0 text-gray-500 dark:text-gray-400">{t('refereeExpensesAmount')}</span>
-              <span className="text-gray-900 dark:text-gray-100">CHF {existing.amount.toFixed(2)}</span>
+              <span className="text-gray-900 dark:text-gray-100">{formatChf(existing.amount)}</span>
             </div>
           )}
           {existing.notes && (

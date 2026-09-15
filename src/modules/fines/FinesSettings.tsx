@@ -1,13 +1,14 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Plus, Trash2 } from 'lucide-react'
+import { Download, Plus, Trash2 } from 'lucide-react'
+import { toast } from 'sonner'
 import { useFineRules, formatFineAmount } from '../../hooks/useFines'
-import { createRecord, updateRecord, deleteRecord } from '../../lib/api'
+import { createRecord, updateRecord, deleteRecord, fetchAllItems } from '../../lib/api'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useConfirm } from '../../components/ConfirmProvider'
-import type { FineActivityType, FineCategory, FineResetWindow, FineRule, FineRuleTier } from '../../types'
+import type { Fine, FineActivityType, FineCategory, FineResetWindow, FineRule, FineRuleTier, Member, Team } from '../../types'
 
 const CATEGORIES: FineCategory[] = ['late_signin', 'no_show', 'late_payment', 'custom']
 const WINDOWS: FineResetWindow[] = ['calendar_month', 'rolling_30d', 'rolling_90d', 'season', 'never']
@@ -46,7 +47,12 @@ const inputClass = 'h-9 rounded-md border border-gray-300 bg-white px-2 text-sm 
 
 interface FinesSettingsProps {
   teamId: string | number
+  /** Team name + season for the PDF header; fetched when the caller has neither. */
+  teamName?: string
+  season?: string | null
 }
+
+const PDF_FINE_FIELDS = ['id', 'member', 'team', 'category', 'amount', 'currency', 'status', 'activity_type', 'activity_date', 'reason', 'issued_at']
 
 /**
  * Per-team Fines settings panel. Wraps itself in the existing accordion-style
@@ -54,10 +60,48 @@ interface FinesSettingsProps {
  * sub-section per category: the general rule, plus — for the categories that
  * price an activity — an optional override per activity type.
  */
-export default function FinesSettings({ teamId }: FinesSettingsProps) {
-  const { t } = useTranslation(['fines'])
+export default function FinesSettings({ teamId, teamName, season }: FinesSettingsProps) {
+  const { t, i18n } = useTranslation(['fines'])
   const [open, setOpen] = useState(false)
   const { data: rulesRaw, isLoading, isError, refetch } = useFineRules(teamId, { enabled: open })
+  const [downloading, setDownloading] = useState(false)
+  // Exports are ALWAYS English, whatever the UI language (app-wide convention).
+  const tEn = useMemo(() => i18n.getFixedT('en', 'fines'), [i18n])
+
+  // The summary sheet: fetched on click, not on open — a coach opens this panel
+  // to change a number far more often than to print the ledger.
+  async function handleDownload() {
+    setDownloading(true)
+    try {
+      const [fines, teamRows] = await Promise.all([
+        fetchAllItems<Fine>('fines', { filter: { team: { _eq: teamId } }, fields: PDF_FINE_FIELDS, sort: ['issued_at'] }),
+        teamName
+          ? Promise.resolve<Pick<Team, 'name' | 'season'>[]>([{ name: teamName, season: season ?? '' }])
+          : fetchAllItems<Pick<Team, 'name' | 'season'>>('teams', { filter: { id: { _eq: teamId } }, fields: ['name', 'season'] }),
+      ])
+      const memberIds = [...new Set(fines.filter((f) => f.member != null).map((f) => String(f.member)))]
+      const members = memberIds.length > 0
+        ? await fetchAllItems<Pick<Member, 'id' | 'first_name' | 'last_name' | 'nickname'>>('members', {
+            filter: { id: { _in: memberIds } },
+            fields: ['id', 'first_name', 'last_name', 'nickname'],
+          })
+        : []
+      const { buildFinesSummary, exportFinesSummaryPdf } = await import('./finesSummaryExport')
+      const model = buildFinesSummary({
+        team: { name: teamRows[0]?.name ?? `Team ${teamId}`, season: teamRows[0]?.season ?? null },
+        fines,
+        members,
+        rules: rulesRaw ?? [],
+        exportedAt: new Date(),
+      }, tEn)
+      await exportFinesSummaryPdf(model, tEn)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      toast.error(t('fines:settingsPdfError', { error: msg }))
+    } finally {
+      setDownloading(false)
+    }
+  }
 
   return (
     <div className="rounded-lg border border-gray-200 dark:border-gray-700">
@@ -72,9 +116,22 @@ export default function FinesSettings({ teamId }: FinesSettingsProps) {
       </button>
       {open && (
         <div className="divide-y divide-gray-100 border-t border-gray-200 dark:divide-gray-700 dark:border-gray-700">
-          <p className="px-4 py-3 text-xs italic text-gray-500 dark:text-gray-400">
-            {t('fines:settingsDescription')}
-          </p>
+          <div className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+            <p className="text-xs italic text-gray-500 dark:text-gray-400">
+              {t('fines:settingsDescription')}
+            </p>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="shrink-0 self-start sm:self-auto"
+              onClick={handleDownload}
+              loading={downloading}
+              icon={<Download className="h-4 w-4" />}
+            >
+              {t('fines:settingsDownloadPdf')}
+            </Button>
+          </div>
           {/* The query is deferred until the accordion opens, so the first frame
               after a click never has the rules yet. It used to fall back to an
               empty list, which handed every CategoryEditor rule={null} — four

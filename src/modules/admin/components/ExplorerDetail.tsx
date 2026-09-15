@@ -366,7 +366,8 @@ function renderMember(
     .map((tid) => cache.teams.find((x) => String(x.id) === tid) ?? cache.teamLookup.get(tid) ?? null)
     .filter((x): x is NonNullable<typeof x> => x !== null)
 
-  // Vorstand can read absences/participations but not referee_expenses
+  // referee_expenses is club-wide readable (setup-permissions MEMBER read is
+  // unfiltered) — the section is gated here for layout, not by policy.
   const memberSections: SectionKey[] = showRestrictedSections
     ? ['participations', 'absences', 'refereeExpenses']
     : ['participations', 'absences']
@@ -539,12 +540,12 @@ function renderRefereeExpensesTable(rows: unknown[], t: TFn) {
         { key: 'notes', label: t('explorerColNotes') },
       ]}
       rows={rows.map((row) => {
-        const r = row as { date_created?: string; amount?: number; notes?: string }
+        const r = row as { date_created?: string; amount?: number | string; notes?: string }
         const notesRaw = r.notes ?? ''
         const notes = notesRaw.length > 60 ? notesRaw.slice(0, 60) + '…' : notesRaw || '—'
         return [
           formatShortDate(r.date_created) || '—',
-          r.amount != null ? `CHF ${r.amount.toFixed(2)}` : '—',
+          r.amount != null ? `CHF ${Number(r.amount).toFixed(2)}` : '—',
           notes,
         ]
       })}

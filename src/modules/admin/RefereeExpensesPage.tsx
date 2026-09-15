@@ -10,6 +10,7 @@ import { toCSV } from './utils/exportResults'
 import { asObj } from '../../utils/relations'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import { useReportPageLoading } from '../../hooks/usePageReady'
+import { toNum, formatChf } from '../../hooks/useFinance'
 
 type ExpandedExpense = RefereeExpense & {
   game: (Game & BaseRecord) | string
@@ -79,7 +80,7 @@ export default function RefereeExpensesPage() {
         game?.league || '',
         teamObj?.name || '',
         paidBy,
-        e.amount ? e.amount.toFixed(2) : '',
+        toNum(e.amount) ? toNum(e.amount).toFixed(2) : '',
         e.notes || '',
       ]
     })
@@ -184,7 +185,7 @@ export default function RefereeExpensesPage() {
                     </TableCell>
                     <TableCell className="hidden md:table-cell text-gray-900 dark:text-gray-100">{paidBy}</TableCell>
                     <TableCell className="text-right text-gray-900 dark:text-gray-100">
-                      {expense.amount > 0 ? `CHF ${expense.amount.toFixed(2)}` : '–'}
+                      {toNum(expense.amount) > 0 ? formatChf(expense.amount) : '–'}
                     </TableCell>
                     <TableCell className="hidden lg:table-cell whitespace-normal text-gray-500 dark:text-gray-400">{expense.notes || '–'}</TableCell>
                   </TableRow>
