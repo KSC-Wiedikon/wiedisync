@@ -62,12 +62,14 @@ const idOf = (x) => (x && typeof x === 'object' ? (x.__identity || x.persistence
  * @typedef {{ teamDbId: number, staticId: number, teamName: string, players: WantedPlayer[] }} WantedTeam
  */
 
-/** `teams.team_id` → VM staticTeamIdentifier, or null for placeholders like `vb_00001`. */
+/**
+ * `teams.team_id` → VM staticTeamIdentifier. VM ids are plain integers; a
+ * zero-padded one (`vb_00001`, DU20) is OUR placeholder for a team that is
+ * not registered in VolleyManager at all, so it maps to null, not to team #1.
+ */
 export function staticIdFromTeamId(teamId) {
-  const m = /^vb_0*(\d+)$/.exec(String(teamId ?? ''));
-  if (!m) return null;
-  const n = Number(m[1]);
-  return n > 0 ? n : null;
+  const m = /^vb_([1-9]\d*)$/.exec(String(teamId ?? ''));
+  return m ? Number(m[1]) : null;
 }
 
 /**

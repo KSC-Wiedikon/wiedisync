@@ -1914,6 +1914,13 @@ export default {
   vmtStatus_no_licence_nr: 'Keine Lizenznummer',
   vmtStatus_unknown_to_vm: 'VolleyManager unbekannt',
   vmtStatus_no_vm_team: 'Kein VolleyManager-Team',
+  // Short badge labels for the per-player table (the chips above carry the long form)
+  vmtShort_assignable: 'Bereit',
+  vmtShort_licence_pending: 'Lizenz ausstehend',
+  vmtShort_on_vm_team: 'Im VM-Team',
+  vmtShort_no_licence_nr: 'Keine Lizenz-Nr.',
+  vmtShort_unknown_to_vm: 'VM unbekannt',
+  vmtShort_no_vm_team: 'Kein VM-Team',
   vmtActivated: 'Aktiviert',
   vmtValidated: 'Validiert',
   vmtFilterOpen: 'Nur offene',
