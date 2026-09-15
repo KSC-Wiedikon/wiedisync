@@ -2,7 +2,7 @@ import type { ComponentType } from 'react'
 import {
   Building2, CalendarClock, ClipboardList, Gavel, Banknote, UserPlus, ArrowRightLeft,
   Megaphone, MessageSquare, Mail, MailOpen, KeyRound, Database, BarChart3,
-  Activity, HeartPulse, Bug, ScrollText, FileWarning, Terminal, Users,
+  Activity, HeartPulse, Bug, ScrollText, FileWarning, Terminal, Users, CloudUpload,
 } from 'lucide-react'
 
 /**
@@ -70,6 +70,8 @@ export function buildAdminGroups({ isAdmin, isGlobalAdmin, scheduling }: AdminNa
       items: isAdmin ? [
         { to: '/admin/scorer-assign', labelKey: 'scorerAssign', icon: ClipboardList, access: 'admin' as const },
         { to: '/admin/vb-referees', labelKey: 'vbReferees', icon: Gavel, access: 'admin' as const },
+        // VolleyManager rosters — VB admin gate on the server (vb_admin / admin / superuser).
+        { to: '/admin/vm-teams', labelKey: 'vmTeams', icon: CloudUpload, access: 'admin' as const },
         { to: '/admin/referee-expenses', labelKey: 'refereeExpenses', icon: Banknote, access: 'admin' as const },
       ] : [],
     },

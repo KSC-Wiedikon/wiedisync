@@ -68,6 +68,7 @@ export default {
   refereeExpenses: 'Spese arbitrali',
   scorerAssign: 'Assegnazione refertisti',
   vbReferees: 'Arbitri pallavolo',
+  vmTeams: 'Rose VolleyManager',
   clubStats: 'Statistiche',
   anmeldungen: 'Iscrizioni',
   guide: 'Guida',

@@ -68,6 +68,7 @@ export default {
   refereeExpenses: 'Frais d\'arbitrage',
   scorerAssign: 'Attribution des marqueurs',
   vbReferees: 'Arbitres volley',
+  vmTeams: 'Effectifs VolleyManager',
   clubStats: 'Statistiques',
   anmeldungen: 'Inscriptions',
   guide: 'Guide',

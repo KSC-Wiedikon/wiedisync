@@ -70,6 +70,7 @@ export default {
   refereeExpenses: 'Referee expenses',
   scorerAssign: 'Scorer assignment',
   vbReferees: 'Volley referees',
+  vmTeams: 'VolleyManager rosters',
   clubStats: 'Club stats',
   volleyFeedback: 'Volley feedback',
   anmeldungen: 'Registrations',

@@ -68,6 +68,7 @@ export default {
   refereeExpenses: 'Schiedsrichterchöschte',
   scorerAssign: 'Schriiber-Zuteilig',
   vbReferees: 'Volley-Schiedsrichter',
+  vmTeams: 'VolleyManager-Kader',
   clubStats: 'Vereinsstatistik',
   anmeldungen: 'Amäldigä',
   guide: 'Aleitig',
