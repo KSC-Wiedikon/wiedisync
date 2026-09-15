@@ -32,7 +32,7 @@ import {
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import DatePicker from '@/components/ui/DatePicker'
-import { buildMemberGroups, countMembers, type MemberGroupNode } from './memberGroups'
+import { buildMemberGroups, countMembers, type GroupTeam, type MemberGroupNode } from './memberGroups'
 import { MEMBER_FIELDS, getFieldGroup } from './memberFieldSchema'
 import { rankMemberFields } from './memberFieldSearch'
 import type { Member, Team } from '../../../types'
@@ -77,6 +77,14 @@ interface Props {
    * register-status groups only — see the note on ExplorerTree's same prop.
    */
   allMembers: ReadonlyArray<Member>
+  /**
+   * The teams the rail's Teams groups list — the active ones by default,
+   * widened by the header's roster-season filter to archived squads. Those
+   * archived rows also surface as read-only chips in the Teams column, so a
+   * member listed under "D2 (2025/26)" shows why. ⚠ Never a source for the
+   * editable chips or the picker: those stay on `cache.teams` (active only).
+   */
+  rosterTeams: ReadonlyArray<GroupTeam>
   /** Header quick-search query — filters grid rows client-side. */
   query: string
   /** Whether the viewer may edit (global admin or sport admin). */
@@ -405,7 +413,7 @@ function shortMemberName(m: Member | undefined, fallback: string): string {
 }
 
 export default function ExplorerGrid({
-  cache, allMembers, query, canEdit, isGlobalAdmin, focusFields, onOpenDetail, onMutate, apiRef,
+  cache, allMembers, rosterTeams, query, canEdit, isGlobalAdmin, focusFields, onOpenDetail, onMutate, apiRef,
 }: Props) {
   const { t, i18n } = useTranslation(['admin', 'common'])
   const confirm = useConfirm()
@@ -491,6 +499,32 @@ export default function ExplorerGrid({
     return map
   }, [cache.memberTeamRows, teamById])
 
+  // Archived-season roster rows, display only: the season filter opted these
+  // teams in, but they are not in `teamById`, so nothing below can edit them.
+  const pastTeamById = useMemo(() => {
+    const map = new Map<string, GroupTeam>()
+    for (const tm of rosterTeams) if (!teamById.has(String(tm.id))) map.set(String(tm.id), tm)
+    return map
+  }, [rosterTeams, teamById])
+
+  const pastRowsByMember = useMemo(() => {
+    const map = new Map<string, MemberTeamRow[]>()
+    if (pastTeamById.size === 0) return map
+    for (const r of cache.memberTeamRows) {
+      if (!pastTeamById.has(r.team)) continue
+      const existing = map.get(r.member)
+      if (existing) existing.push(r)
+      else map.set(r.member, [r])
+    }
+    return map
+  }, [cache.memberTeamRows, pastTeamById])
+
+  const pastChipLabel = useCallback((row: MemberTeamRow): string => {
+    const tm = pastTeamById.get(row.team)
+    const name = tm ? String(tm.name ?? tm.id) : row.team
+    return tm?.season ? `${name} (${tm.season})` : name
+  }, [pastTeamById])
+
   const rosterByTeam = useMemo(() => {
     const map = new Map<string, MemberTeamRow[]>()
     for (const r of cache.memberTeamRows) {
@@ -529,8 +563,8 @@ export default function ExplorerGrid({
   // club-level groups. Built from the shared builder so the two views can never
   // disagree about who is in a group.
   const memberGroups = useMemo(
-    () => buildMemberGroups(cache.members, allMembers, cache),
-    [cache, allMembers],
+    () => buildMemberGroups(cache.members, allMembers, cache, { teams: rosterTeams }),
+    [cache, allMembers, rosterTeams],
   )
 
   /** group key → member ids, flattened once for the row filter. */
@@ -705,11 +739,18 @@ export default function ExplorerGrid({
       const memberId = String(m.id)
       switch (key) {
         case 'teams':
-          return (rowsByMember.get(memberId) ?? [])
-            .map((r) => {
+          return [
+            ...(rowsByMember.get(memberId) ?? []).map((r) => {
               const label = teamLabel(teamById.get(r.team) ?? ({ id: r.team } as never))
               return r.guest_level > 0 ? `${label} (G)` : label
-            })
+            }),
+            // Archived seasons the filter opted in — same text as their chips,
+            // so search / sort / export agree with what is on screen.
+            ...(pastRowsByMember.get(memberId) ?? []).map((r) => {
+              const label = pastChipLabel(r)
+              return r.guest_level > 0 ? `${label} (G)` : label
+            }),
+          ]
             .sort()
             .join(', ')
         case 'sport': {
@@ -819,7 +860,7 @@ export default function ExplorerGrid({
         }
       }
     }
-  }, [rowsByMember, teamById, cache.memberCoachTeams, cache.memberTrTeams, cache.clubdeskInfo, cache.clubdeskSync, cache.regFiles, sportLabel, syncLabel, federationLabel, positionLabel])
+  }, [rowsByMember, pastRowsByMember, pastChipLabel, teamById, cache.memberCoachTeams, cache.memberTrTeams, cache.clubdeskInfo, cache.clubdeskSync, cache.regFiles, sportLabel, syncLabel, federationLabel, positionLabel])
 
   // ── Teams view: cell text ────────────────────────────────────────
 
@@ -1394,6 +1435,7 @@ export default function ExplorerGrid({
   const renderMemberRow = (m: Member) => {
     const memberId = String(m.id)
     const memberRows = rowsByMember.get(memberId) ?? []
+    const pastRows = pastRowsByMember.get(memberId) ?? []
     return (
       <TableRow
         key={memberId}
@@ -1453,6 +1495,20 @@ export default function ExplorerGrid({
                       />
                     )
                   })}
+                  {pastRows.map((row) => (
+                    // Read-only whatever the edit mode: an archived season's
+                    // roster is history, not something to fix from here.
+                    <Chip
+                      key={row.id}
+                      label={pastChipLabel(row)}
+                      guest={row.guest_level > 0}
+                      guestTitle={t('admin:explorerGridGuest')}
+                      past
+                      pastTitle={t('admin:explorerPastSeason')}
+                      canEdit={false}
+                      onRemove={() => Promise.resolve()}
+                    />
+                  ))}
                   {canEditNow && (
                     <TeamPicker
                       teamSections={teamSections}
@@ -2287,11 +2343,14 @@ function GroupButton({
 
 /** Removable chip used by the Teams / Members / Coach / TR columns. */
 function Chip({
-  label, guest, guestTitle, canEdit, onRemove,
+  label, guest, guestTitle, past, pastTitle, canEdit, onRemove,
 }: {
   label: string
   guest?: boolean
   guestTitle?: string
+  /** An archived season's roster row — dimmed, and never editable. */
+  past?: boolean
+  pastTitle?: string
   canEdit: boolean
   onRemove: () => Promise<void>
 }) {
@@ -2312,9 +2371,10 @@ function Chip({
         'inline-flex items-center gap-0.5 rounded-full border px-2 py-0.5 text-xs ' +
         (guest
           ? 'border-dashed border-muted-foreground/50 text-muted-foreground'
-          : 'border-border bg-muted/60 text-foreground')
+          : 'border-border bg-muted/60 text-foreground') +
+        (past ? ' opacity-60' : '')
       }
-      title={guest && guestTitle ? `${label} — ${guestTitle}` : label}
+      title={[label, guest && guestTitle, past && pastTitle].filter(Boolean).join(' — ')}
     >
       {label}
       {guest && <span className="font-semibold">G</span>}

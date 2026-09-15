@@ -55,6 +55,19 @@ export interface GroupTeam {
   sport?: string | null
   name?: string | null
   active?: boolean | null
+  /** The one season this row belongs to — labels an archived team in the tree. */
+  season?: string | null
+}
+
+export interface MemberGroupOptions {
+  /**
+   * The teams the per-sport Teams group lists, one node per row. Default: the
+   * ACTIVE teams in `cache.teams` — this season only. The page widens it from
+   * the header's roster-season filter (`teamsForSeasons`), which is how last
+   * season's archived squads get a node of their own, labelled with their
+   * season, instead of being invisible.
+   */
+  teams?: ReadonlyArray<GroupTeam>
 }
 
 export interface MemberGroupCache extends MemberSportCache {
@@ -132,21 +145,33 @@ export function buildMemberGroups(
   members: ReadonlyArray<GroupMember>,
   allMembers: ReadonlyArray<GroupMember>,
   cache: MemberGroupCache,
+  options: MemberGroupOptions = {},
 ): MemberGroupNode[] {
   const ids = (list: ReadonlyArray<GroupMember>) => list.map((m) => String(m.id))
 
   // ── Sport → team ────────────────────────────────────────────────────
-  // Only ACTIVE teams get a subgroup. The basketball side keeps a parallel
-  // inactive team set sharing `bb_source_id`, so listing both would show every
-  // BB squad twice under near-identical names.
+  // By default only ACTIVE teams get a subgroup. The basketball side keeps a
+  // parallel inactive team set sharing `bb_source_id`, so listing both would
+  // show every BB squad twice under near-identical names. When the caller
+  // hands in a wider universe (past seasons opted into via the filter), each
+  // archived row is a node of its own and its label carries the season, so
+  // "D2" and "D2 (2025/26)" sit side by side and neither reads as a duplicate.
+  const universe = options.teams ?? cache.teams.filter((team) => team.active !== false)
   const teamsBySport: Record<Sport, GroupTeam[]> = { volleyball: [], basketball: [] }
-  for (const team of cache.teams) {
-    if (team.active === false) continue
+  for (const team of universe) {
     const sport = String(team.sport ?? '').toLowerCase()
     if (sport === 'volleyball' || sport === 'basketball') teamsBySport[sport].push(team)
   }
+  // Name, then this season's row first, then the archived seasons newest first.
   for (const sport of ['volleyball', 'basketball'] as const) {
-    teamsBySport[sport].sort((a, b) => String(a.name ?? '').localeCompare(String(b.name ?? '')))
+    teamsBySport[sport].sort((a, b) =>
+      String(a.name ?? '').localeCompare(String(b.name ?? ''))
+      || Number(b.active !== false) - Number(a.active !== false)
+      || String(b.season ?? '').localeCompare(String(a.season ?? '')))
+  }
+  const teamNodeLabel = (team: GroupTeam): string => {
+    const name = String(team.name ?? team.id)
+    return team.active === false && team.season ? `${name} (${team.season})` : name
   }
 
   // ── Officials ───────────────────────────────────────────────────────
@@ -233,13 +258,18 @@ export function buildMemberGroups(
     // it permanently empty and imply no volleyball player has ever left.
     const inSportAll = allMembers.filter((m) => sportsForMember(m, cache).includes(sport))
 
+    // ⚠ Team nodes filter the working set directly, not `inSport`: the sport
+    // cascade reads ACTIVE teams only, so somebody whose only roster row is on
+    // an archived squad (and whose section says nothing) resolves to no sport
+    // at all — and an archived team's node would list nobody. Being on a
+    // volleyball team IS the evidence; for an active team the two agree anyway.
     const teamsNode: MemberGroupNode = {
       key: `sport:${sport}:teams`,
       labelKey: 'explorerGroupTeams',
       children: teamsBySport[sport].map((team) => ({
         key: `sport:${sport}:team:${team.id}`,
-        raw: String(team.name ?? team.id),
-        memberIds: inSport
+        raw: teamNodeLabel(team),
+        memberIds: members
           .filter((m) => allTeamIds(String(m.id), cache).has(String(team.id)))
           .map((m) => String(m.id)),
       })),

@@ -17,6 +17,8 @@ import ExplorerMemberFilters from './components/ExplorerMemberFilters'
 import {
   DEFAULT_FILTERS,
   applyMemberFilters,
+  seasonChoices,
+  teamsForSeasons,
   type MemberFilterState,
 } from './components/memberFilters'
 
@@ -110,6 +112,16 @@ export default function ExplorePage() {
     [data, memberFilters],
   )
 
+  // Roster season: the filter's pills come from the teams on record, and the
+  // selection widens the team universe the Teams groups list (tree + grid
+  // rail). Passed alongside the cache, never written into it — `cache.teams`
+  // must stay the active-only list every picker and editable chip works from.
+  const seasons = useMemo(() => seasonChoices(data), [data])
+  const rosterTeams = useMemo(
+    () => teamsForSeasons(memberFilters.seasons, data),
+    [data, memberFilters.seasons],
+  )
+
   // Unsaved-change guard. The member field editor reports its dirty count here,
   // so clicking another member in the tree asks before throwing the edits away
   // instead of discarding them silently. A ref, not state: this must not
@@ -180,7 +192,7 @@ export default function ExplorePage() {
           <ExplorerSearch value={query} onChange={setQuery} onEnter={handleSearchEnter} />
         </div>
         <ExplorerFieldSearch value={focusFields} onChange={setFocusFields} />
-        <ExplorerMemberFilters value={memberFilters} onChange={setMemberFilters} />
+        <ExplorerMemberFilters value={memberFilters} onChange={setMemberFilters} seasons={seasons} />
         {/* Tree / grid view toggle */}
         <div className="flex overflow-hidden rounded-md border border-border" role="group" aria-label={t('explorerViewToggle')}>
           <button
@@ -232,6 +244,7 @@ export default function ExplorePage() {
           <ExplorerGrid
             cache={treeData}
             allMembers={data.members}
+            rosterTeams={rosterTeams}
             query={query}
             canEdit={canEditGrid}
             isGlobalAdmin={auth.isGlobalAdmin}
@@ -261,6 +274,7 @@ export default function ExplorePage() {
             <ExplorerTree
               cache={treeData}
               allMembers={data.members}
+              rosterTeams={rosterTeams}
               selectedType={selectedType}
               selectedId={selectedId}
               query={query}
