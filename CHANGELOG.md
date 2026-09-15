@@ -4,12 +4,6 @@ All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file 
 
 ## v2.12.0 — 2026-09-15
 
-### Removed
-
-- **Messaging is gone.** The in-app inbox — team chats, direct and group messages, the reactions, message requests, blocks and reports that came with them — has been removed, along with the Messaging entry in Options, the chat section on team pages, the Message button on player profiles and the In-app channel in Contact all. It was barely used (six messages in total, none this month) and the club's communication runs on email, push and WhatsApp. What was stored has been deleted. Team polls, notifications and Contact all's email and push channels are unchanged.
-
-## v2.12.0 — 2026-09-15
-
 ### New
 
 - **Finances are split into Member finance and Team finance.** *Finances menu.* One section used to hold everything with no line between what you owe personally and what your team owes. It is now three labelled groups — *Member finance* (Bills & reimbursements, My fines, Upload invoice), *Team finance* (Team finance, Team fines; shown when you are on or lead a team) and, for the treasurer and section admins, *Club finance*. Nothing moved address: every link you had still works.
@@ -24,7 +18,7 @@ All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file 
 
 ### Removed
 
-- **Messaging (team chat, direct messages, group chats, message requests and the in-app broadcast channel) has been removed.** It was used for six messages in total and none in the last month; the club coordinates in its existing chats. Announcements, polls, push notifications and email are unchanged.
+- **Messaging is gone.** The in-app inbox — team chats, direct and group messages, the reactions, message requests, blocks and reports that came with them — has been removed, along with the Messaging entry in Options, the chat section on team pages, the Message button on player profiles and the In-app channel in Contact all. It was barely used (six messages in total, none this month) and the club's communication runs on email, push and WhatsApp. What was stored has been deleted. Team polls, notifications and Contact all's email and push channels are unchanged.
 
 ### Fixes
 

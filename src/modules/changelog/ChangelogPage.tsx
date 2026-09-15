@@ -36,25 +36,13 @@ const CHANGELOG: ChangelogEntry[] = [
       {
         title: "Removed",
         items: [
-          "Messaging (team chat, direct messages, group chats, message requests and the in-app broadcast channel) has been removed. It was used for six messages in total and none in the last month; the club coordinates in its existing chats. Announcements, polls, push notifications and email are unchanged.",
+          "Messaging is gone. The in-app inbox — team chats, direct and group messages, the reactions, message requests, blocks and reports that came with them — has been removed, along with the Messaging entry in Options, the chat section on team pages, the Message button on player profiles and the In-app channel in Contact all. It was barely used (six messages in total, none this month) and the club's communication runs on email, push and WhatsApp. What was stored has been deleted. Team polls, notifications and Contact all's email and push channels are unchanged.",
         ],
       },
       {
         title: "Fixes",
         items: [
           "Recording a referee fee no longer risks a blank game page — an amount saved as a decimal came back in a form the page could not format and would have crashed the first time a real amount was entered.",
-        ],
-      },
-    ],
-  },
-  {
-    version: '2.12.0',
-    date: '15.09.2026',
-    sections: [
-      {
-        title: "Removed",
-        items: [
-          "Messaging is gone. The in-app inbox — team chats, direct and group messages, the reactions, message requests, blocks and reports that came with them — has been removed, along with the Messaging entry in Options, the chat section on team pages, the Message button on player profiles and the In-app channel in Contact all. It was barely used (six messages in total, none this month) and the club's communication runs on email, push and WhatsApp. What was stored has been deleted. Team polls, notifications and Contact all's email and push channels are unchanged.",
         ],
       },
     ],
