@@ -161,6 +161,15 @@ export const MEMBER_SELECT_FIELDS: Record<string, MemberSelectField> = {
       { value: 'italian', label: 'Italian' },
     ],
   },
+  // NOT NULL, DEFAULT 'pending' — clearing it would 400.
+  consent_decision: {
+    nullable: false,
+    options: [
+      { value: 'pending', label: 'Pending' },
+      { value: 'accepted', label: 'Accepted' },
+      { value: 'declined', label: 'Declined' },
+    ],
+  },
   // CHECK members_transfer_status_chk: NULL | 'pending' | 'done' | 'not_needed'
   // (migration 320). Empty is not "no transfer needed" — it is "nobody has
   // looked", and the page then derives the answer from federation_of_origin.

@@ -1,7 +1,7 @@
 import type { ComponentType } from 'react'
 import {
   Building2, CalendarClock, ClipboardList, Gavel, Banknote, UserPlus, ArrowRightLeft,
-  Megaphone, MessageSquare, Mail, MailOpen, KeyRound, Database, BarChart3,
+  Megaphone, Flag, MessageSquare, Mail, MailOpen, KeyRound, Database, BarChart3,
   Activity, HeartPulse, Bug, ScrollText, FileWarning, Terminal, Users,
 } from 'lucide-react'
 
@@ -81,6 +81,7 @@ export function buildAdminGroups({ isAdmin, isGlobalAdmin, scheduling }: AdminNa
         // namespace with the rest of that page's strings, hence the prefix.
         { to: '/admin/transfers', labelKey: 'admin:trNavTransfers', icon: ArrowRightLeft, access: 'admin' as const },
         { to: '/admin/announcements', labelKey: 'announcements', icon: Megaphone, access: 'admin' as const },
+        { to: '/admin/reports', labelKey: 'moderationReports', icon: Flag, access: 'admin' as const },
         { to: '/admin/volley-feedback', labelKey: 'volleyFeedback', icon: MessageSquare, access: 'admin' as const },
       ] : [],
     },

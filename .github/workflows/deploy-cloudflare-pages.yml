@@ -63,7 +63,8 @@ jobs:
           VITE_SCHEDULING_ORIGIN: ${{ github.ref_name == 'prod' && 'https://spielplanung.wiedisync.kscw.ch' || 'https://spielplanung-dev.kscw.ch' }}
           # Member app only — the old wiedisync-spielplanung project set NONE of these,
           # and the scheduling bundle must keep behaving exactly as it does today
-          # (no runtime Sentry, no Maps key).
+          # (no runtime Sentry, no Maps key, no messaging flag).
+          VITE_FEATURE_MESSAGING: ${{ matrix.project == 'kscw-wiedisync' && 'true' || '' }}
           # Both ship inside the client bundle, so they are public either way — but
           # kept out of this public repo so key-scraping bots do not harvest them.
           VITE_GOOGLE_MAPS_API_KEY: ${{ matrix.project == 'kscw-wiedisync' && secrets.VITE_GOOGLE_MAPS_API_KEY || '' }}

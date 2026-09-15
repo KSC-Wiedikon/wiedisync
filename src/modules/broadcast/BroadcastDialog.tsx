@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -17,6 +18,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import Modal from '@/components/Modal'
+import { messagingFeatureEnabled } from '@/utils/messagingFeatureFlag'
 import { useBroadcast } from './useBroadcast'
 import { useBroadcastPreview } from './useBroadcastPreview'
 import type {
@@ -32,6 +34,9 @@ export interface BroadcastDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   activity: BroadcastActivity & { teamId?: number | string }
+  /** Sender's member id — used to gate the inApp checkbox behind the messaging
+   *  allowlist. Leave undefined to suppress inApp entirely. */
+  senderMemberId?: number | string | null
 }
 
 // Must match the backend VALID_AUDIENCE_STATUSES in broadcast-helpers.js.
@@ -62,14 +67,21 @@ export default function BroadcastDialog({
   open,
   onOpenChange,
   activity,
+  senderMemberId,
 }: BroadcastDialogProps) {
   const { t, i18n } = useTranslation('broadcast')
   const locale = i18n.language || 'de'
+  const navigate = useNavigate()
   const { send, sending } = useBroadcast()
 
-  // Channels — Email default ON, Push default OFF.
+  // In-App is event-only (Plan 02 scope) AND gated behind the messaging flag
+  // (allowlist or global VITE_FEATURE_MESSAGING=true).
+  const inAppSupported = activity.type === 'event' && messagingFeatureEnabled(senderMemberId ?? null)
+
+  // Channels — Email default ON, Push default OFF, In-App default OFF.
   const [emailOn, setEmailOn] = useState(true)
   const [pushOn, setPushOn] = useState(false)
+  const [inAppOn, setInAppOn] = useState(false)
 
   // Audience
   const [statuses, setStatuses] = useState<ParticipationStatus[]>(DEFAULT_STATUSES)
@@ -87,8 +99,9 @@ export default function BroadcastDialog({
     const out: BroadcastChannels = {}
     if (emailOn) out.email = true
     if (pushOn) out.push = true
+    if (inAppOn) out.inApp = true
     return out
-  }, [emailOn, pushOn])
+  }, [emailOn, pushOn, inAppOn])
 
   // Audience for preview / send
   const audience: BroadcastAudience = useMemo(
@@ -109,7 +122,7 @@ export default function BroadcastDialog({
   )
 
   // Validation
-  const noChannel = !emailOn && !pushOn
+  const noChannel = !emailOn && !pushOn && !inAppOn
   const messageTooLong = message.length > MESSAGE_MAX
   const messageEmpty = message.trim().length === 0
   const subjectRequired = emailOn
@@ -154,10 +167,21 @@ export default function BroadcastDialog({
     }
     try {
       const res = await send({ type: activity.type, id: activity.id }, payload)
-      toast.success(t('toast.sent', { count: res.recipientCount }))
+      const convId = res.delivery?.in_app?.conversation_id ?? null
+      if (convId) {
+        toast.success(t('toast.sent', { count: res.recipientCount }), {
+          action: {
+            label: t('toast.openConversation'),
+            onClick: () => navigate(`/inbox/${convId}`),
+          },
+        })
+      } else {
+        toast.success(t('toast.sent', { count: res.recipientCount }))
+      }
       // Reset state for next open
       setSubject('')
       setMessage('')
+      setInAppOn(false)
       onOpenChange(false)
     } catch (err: unknown) {
       // useBroadcast surfaces a structured error, but the thrown raw error is what arrives here.
@@ -211,6 +235,32 @@ export default function BroadcastDialog({
                 />
                 <span className="text-sm text-foreground">{t('channels.push')}</span>
               </label>
+              {/* In-App: event-only (Plan 02). Games/trainings: hide entirely.
+                  Events + flag off: show disabled "Bald verfügbar".
+                  Events + flag on: enabled. */}
+              {activity.type === 'event' && (
+                inAppSupported ? (
+                  <label className="flex items-center gap-2 cursor-pointer min-h-11">
+                    <Checkbox
+                      checked={inAppOn}
+                      onCheckedChange={(v) => setInAppOn(v === true)}
+                      aria-label={t('channels.inApp')}
+                    />
+                    <span className="text-sm text-foreground">{t('channels.inApp')}</span>
+                  </label>
+                ) : (
+                  <label
+                    className="flex items-center gap-2 cursor-not-allowed opacity-60 min-h-11"
+                    title={t('channels.inAppComingSoon')}
+                  >
+                    <Checkbox checked={false} disabled aria-label={t('channels.inApp')} />
+                    <span className="text-sm text-muted-foreground">
+                      {t('channels.inApp')}{' '}
+                      <span className="text-xs">({t('channels.inAppComingSoon')})</span>
+                    </span>
+                  </label>
+                )
+              )}
             </div>
             {noChannel && (
               <p className="mt-1 text-xs text-destructive">{t('channels.error_atLeastOne')}</p>

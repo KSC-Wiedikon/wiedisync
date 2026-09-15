@@ -13,6 +13,7 @@ export default {
   teams: 'Teams',
   events: 'Events',
   forms: 'Formulare',
+  inbox: 'Nachrichten',
   gameplan: 'Manueller Spielkalender',
   hallenplan: 'Hallenplan',
   hallenfinder: 'Hallenfinder',
@@ -72,5 +73,7 @@ export default {
   announcements: 'Mitteilungen',
   clubMailbox: 'Vereinspostfach',
   news: 'News',
+  moderationReports: 'Moderationsberichte',
+  messagingSettings: 'Nachrichten',
   allAdminTools: 'Alle Admin-Tools',
 } as const

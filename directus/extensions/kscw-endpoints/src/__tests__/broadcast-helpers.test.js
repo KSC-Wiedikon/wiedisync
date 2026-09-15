@@ -3,8 +3,8 @@
  *
  * Hermetic — no real DB or network. Knex is mocked via a chainable shim.
  *
- * Style mirrors the project's other vitest test files: a single `describe`
- * per helper, one `it` per scenario,
+ * Style mirrors the project's other vitest test files (`src/modules/messaging/
+ * __tests__/*.test.ts`): a single `describe` per helper, one `it` per scenario,
  * `expect(...).toThrow()` / `rejects.toThrow()` patterns.
  */
 import { describe, it, expect } from 'vitest'
@@ -13,6 +13,7 @@ import {
   validateBroadcastPayload,
   checkRateLimit,
   resolveAudience,
+  findOrCreateActivityConversation,
 } from '../broadcast-helpers.js'
 
 // ─── Knex mock helpers ───────────────────────────────────────────────────────
@@ -91,7 +92,7 @@ describe('validateBroadcastPayload', () => {
 
   it('throws 400 with field=channels when all channels are false', () => {
     const body = validBody()
-    body.channels = { email: false, push: false }
+    body.channels = { email: false, push: false, inApp: false }
     try {
       validateBroadcastPayload(body)
       throw new Error('expected to throw')
@@ -193,6 +194,19 @@ describe('validateBroadcastPayload', () => {
     }
   })
 
+  it('accepts channels.inApp=true alone (Plan 02)', () => {
+    const body = validBody()
+    // inApp is now a real channel — subject not required unless email=true.
+    body.channels = { email: false, push: false, inApp: true }
+    delete body.subject
+    expect(() => validateBroadcastPayload(body)).not.toThrow()
+  })
+
+  it('accepts channels.inApp=true combined with email+push', () => {
+    const body = validBody()
+    body.channels = { email: true, push: true, inApp: true }
+    expect(() => validateBroadcastPayload(body)).not.toThrow()
+  })
 })
 
 // ─── 2. checkRateLimit ───────────────────────────────────────────────────────
@@ -306,5 +320,100 @@ describe('resolveAudience', () => {
     })
     expect(result.memberIds).toEqual([21, 22])
     expect(result.externals).toEqual([])
+  })
+})
+
+// ─── 4. findOrCreateActivityConversation ─────────────────────────────────────
+
+/**
+ * Mock ItemsService that records createOne calls. `throwOnce` lets us simulate
+ * a 23505 unique-constraint race on the first createOne call only.
+ */
+function makeItemsServiceMock(opts = {}) {
+  const calls = []
+  const throwOnce = opts.throwOnce ?? null
+  let threw = false
+  class ItemsService {
+    constructor(collection) { this.collection = collection }
+    async createOne(payload) {
+      calls.push({ collection: this.collection, payload })
+      if (throwOnce && !threw) {
+        threw = true
+        throw throwOnce
+      }
+      return payload.id
+    }
+  }
+  return { services: { ItemsService }, calls }
+}
+
+/** Scripted DB: every `.first()` invocation on `conversations` pops from `convFirstQueue`. */
+function makeConvScriptedDb(convFirstQueue) {
+  const queue = [...convFirstQueue]
+  return () => {
+    const chain = {
+      where: () => chain,
+      andWhere: () => chain,
+      first: () => Promise.resolve(queue.shift()),
+      then: (resolve, reject) => Promise.resolve([]).then(resolve, reject),
+    }
+    return chain
+  }
+}
+
+describe('findOrCreateActivityConversation', () => {
+  const activity = { type: 'event', id: 42, title: 'Sommerfest 2026' }
+  const sender = { id: 7 }
+
+  it('rejects non-event activities with 400 broadcast/inapp_events_only', async () => {
+    const db = makeDb({})
+    const { services } = makeItemsServiceMock()
+    await expect(
+      findOrCreateActivityConversation(db, services, {}, { ...activity, type: 'training' }, sender)
+    ).rejects.toThrow(BroadcastError)
+  })
+
+  it('returns the existing row without calling createOne when one exists', async () => {
+    const existing = { id: 'conv-existing', type: 'activity_chat', activity_type: 'event', activity_id: 42 }
+    const db = makeConvScriptedDb([existing])
+    const { services, calls } = makeItemsServiceMock()
+    const row = await findOrCreateActivityConversation(db, services, {}, activity, sender)
+    expect(row).toBe(existing)
+    expect(calls).toHaveLength(0)
+  })
+
+  it('creates a new row via ItemsService when none exists', async () => {
+    // 1st .first() → undefined (no existing). 2nd .first() → the newly inserted row.
+    const newRow = { id: 'conv-new', type: 'activity_chat', activity_type: 'event', activity_id: 42 }
+    const db = makeConvScriptedDb([undefined, newRow])
+    const { services, calls } = makeItemsServiceMock()
+    const row = await findOrCreateActivityConversation(db, services, {}, activity, sender)
+    expect(row).toEqual(newRow)
+    expect(calls).toHaveLength(1)
+    expect(calls[0].collection).toBe('conversations')
+    expect(calls[0].payload.type).toBe('activity_chat')
+    expect(calls[0].payload.activity_type).toBe('event')
+    expect(calls[0].payload.activity_id).toBe(42)
+    expect(calls[0].payload.title).toBe('Sommerfest 2026')
+    expect(calls[0].payload.created_by).toBe(7)
+  })
+
+  it('recovers from 23505 race by re-selecting the winner', async () => {
+    const winner = { id: 'conv-winner', type: 'activity_chat', activity_type: 'event', activity_id: 42 }
+    // 1st .first() → undefined. createOne → throws 23505. 2nd .first() → winner.
+    const db = makeConvScriptedDb([undefined, winner])
+    const raceErr = Object.assign(new Error('duplicate key value violates unique constraint'), { code: '23505' })
+    const { services } = makeItemsServiceMock({ throwOnce: raceErr })
+    const row = await findOrCreateActivityConversation(db, services, {}, activity, sender)
+    expect(row).toBe(winner)
+  })
+
+  it('propagates non-duplicate errors from createOne', async () => {
+    const db = makeConvScriptedDb([undefined])
+    const fatal = Object.assign(new Error('connection refused'), { code: 'ECONNREFUSED' })
+    const { services } = makeItemsServiceMock({ throwOnce: fatal })
+    await expect(
+      findOrCreateActivityConversation(db, services, {}, activity, sender)
+    ).rejects.toThrow('connection refused')
   })
 })

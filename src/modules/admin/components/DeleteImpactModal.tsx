@@ -90,6 +90,7 @@ export default function DeleteImpactModal({
   const [busy, setBusy] = useState(false)
   const [failure, setFailure] = useState<string | null>(null)
 
+  const sentinelBlocked = data?.blockers.some((b) => b.kind === 'sentinel') ?? false
   const blockerRows: DeleteImpactRow[] = (data?.blockers ?? [])
     .filter((b) => b.kind === 'restrict')
     .map((b) => ({ table: b.table, column: b.column ?? null, rule: 'RESTRICT', count: b.count ?? 0 }))
@@ -214,6 +215,12 @@ export default function DeleteImpactModal({
         {data && (
           <>
             {/* Callouts — the things a row count cannot say. */}
+            {sentinelBlocked && (
+              <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>{t('explorerDangerBlockedSentinel')}</span>
+              </div>
+            )}
             {/* ⚠ The register keeps the contact. Loud, and above the linked-login
                 notice, because it is the one thing on this screen that is
                 usually a reason NOT to press the button: for somebody who has

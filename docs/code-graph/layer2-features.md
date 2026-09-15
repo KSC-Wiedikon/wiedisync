@@ -12,6 +12,7 @@ Knowledge graph of the 25 feature modules under `src/modules/` in the KSCW "wied
 | calendar | Unified month/week calendar aggregating games, trainings, absences and hall slots | `modules/calendar/CalendarPage.tsx`, `modules/calendar/hooks/useCalendarData.ts` | types, utils, components | 3835 |
 | games | League games — cards, detail modal, scoreboard, rankings table, referee expenses, RSVP | `modules/games/GamesPage.tsx`, `modules/games/components/GameDetailModal.tsx` | utils, types, components | 3483 |
 | auth | Auth + profile — login, sign-up, OAuth callback, join/set-password, pending, profile edit | `modules/auth/LoginPage.tsx`, `modules/auth/SignUpPage.tsx`, `modules/auth/ProfilePage.tsx` | hooks, ui, components | 3080 |
+| messaging | In-app messaging — inbox, conversations, DMs/group DMs, threads, settings | `modules/messaging/pages/InboxPage.tsx`, `modules/messaging/api/messaging.ts` | ui, hooks, utils | 3061 |
 | teams | Team roster management — team detail, roster editor, player profile, sponsors | `modules/teams/TeamsPage.tsx`, `modules/teams/RosterEditor.tsx`, `modules/teams/TeamDetail.tsx` | components, lib, types | 2992 |
 | scorer | Schreibereinsätze — scorer assignment algorithm, delegation, assignment editor | `modules/scorer/ScorerPage.tsx`, `modules/scorer/ScorerAssignPage.tsx` | types, utils, components | 2914 |
 | trainings | Trainings — form, recurring generator, detail modal, attendance stats, RSVP | `modules/trainings/TrainingsPage.tsx`, `modules/trainings/TrainingForm.tsx` | components, types, utils | 2848 |
@@ -48,6 +49,7 @@ graph TD
   HallClosure["HallClosure"]
   Form["Form"]
   Submission["Submission"]
+  Message["Message"]
   Fine["Fine"]
   ScorerAssign["ScorerAssignment"]
 
@@ -67,6 +69,7 @@ graph TD
   Member -->|issued| Fine
   Form -->|collects| Submission
   Member -->|fills| Submission
+  Member -->|sends| Message
   Team -->|GCal SVRZ sync| Game
 ```
 
@@ -91,6 +94,7 @@ graph LR
     auth["auth"]
   end
   subgraph Comms
+    messaging["messaging"]
     broadcast["broadcast"]
     news["news"]
     polls["polls"]
@@ -138,6 +142,6 @@ graph LR
 
 - **Scheduling** — games, trainings, events, calendar, hallenplan, spielplanung, gameScheduling
 - **People** — teams, absences, auth
-- **Comms** — broadcast, news, polls
+- **Comms** — messaging, broadcast, news, polls
 - **Ops and Admin** — admin, scorer, fines, feedback, tasks, forms, carpool
 - **Meta** — home, guide, changelog, legal

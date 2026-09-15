@@ -16,6 +16,7 @@ export default {
   expenseStatus: 'Spesen',
   announcement: 'Vereinsnews',
   eventInvite: 'Anlass-Einladung',
+  newReport: 'Meldung',
   member_join_request: '{{memberName}} möchte {{teamName}} beitreten',
   expense_paid: 'Deine Spesen über {{amount}} wurden bezahlt.',
   expense_rejected: 'Deine Spesen über {{amount}} wurden abgelehnt.',
@@ -51,6 +52,7 @@ export default {
   deadline_event: 'Anmeldefrist morgen: {{title}}',
   // Neue Feature-Benachrichtigungen
   poll_created: '{{creator}} hat eine Umfrage erstellt: {{question}}',
+  new_report: 'Neue Meldung: {{reason}}',
   absence_created_for_you: '{{editor}} hat eine Absenz für dich eingetragen (ab {{start}})',
   absence_updated_for_you: '{{editor}} hat deine Absenz angepasst (ab {{start}})',
   absence_weekly_created_for_you: '{{editor}} hat eine wöchentliche Verhinderung für dich eingetragen',

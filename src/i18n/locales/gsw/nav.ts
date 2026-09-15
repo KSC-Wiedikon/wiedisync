@@ -13,6 +13,7 @@ export default {
   teams: 'Mannschafte',
   events: 'Aaläss',
   forms: 'Formular',
+  inbox: 'Nachrichte',
   gameplan: 'Manuelle Spielkalender',
   hallenplan: 'Halleplan',
   terminplanung: 'Terminplanig',
@@ -69,5 +70,7 @@ export default {
   announcements: 'Mitteilige',
   clubMailbox: 'Vereinsposchtfach',
   news: 'News',
+  moderationReports: 'Moderationsberichte',
+  messagingSettings: 'Nachrichten',
   allAdminTools: 'Alli Admin-Tools',
 } as const

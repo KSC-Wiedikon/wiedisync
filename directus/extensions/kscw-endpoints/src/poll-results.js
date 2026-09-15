@@ -15,14 +15,16 @@
  * Who may call it (migration 171 widened this beyond managers):
  *   - managers: admin / sport-admin / vorstand / coach / TR of the poll's team
  *     — the audience that can see live results before the deadline;
- *   - the poll's creator;
+ *   - the poll's creator (matters for chat polls, where the creator is usually
+ *     a regular member);
  *   - when the poll was created with `results_visible`: anyone who can see the
- *     poll at all — the team roster.
+ *     poll at all — the team roster (team polls) or the conversation members
+ *     (chat polls).
  * Everyone else gets 403 (they still read their own vote via the OWN_MEMBER
  * poll_votes read). Voter identity never leaves this endpoint regardless.
  */
 
-/** Manager, creator, or — for visible-results polls — team member. */
+/** Manager, creator, or — for visible-results polls — team/conversation member. */
 async function authorizePollViewer(db, req, poll) {
   if (req.accountability?.admin === true) return true
   if (!req.accountability?.user) return false
@@ -42,9 +44,16 @@ async function authorizePollViewer(db, req, poll) {
     if (coach || tr) return true
   }
   if (poll.created_by != null && String(poll.created_by) === String(caller.id)) return true
-  if (poll.results_visible && poll.team) {
-    const roster = await db('member_teams').where('team', poll.team).where('member', caller.id).first()
-    if (roster) return true
+  if (poll.results_visible) {
+    if (poll.team) {
+      const roster = await db('member_teams').where('team', poll.team).where('member', caller.id).first()
+      if (roster) return true
+    }
+    if (poll.conversation) {
+      const participant = await db('conversation_members')
+        .where('conversation', poll.conversation).where('member', caller.id).first()
+      if (participant) return true
+    }
   }
   return false
 }
@@ -57,7 +66,7 @@ export function registerPollResults(router, { database, logger }, helpers) {
     try {
       requireAuth(req, log)
       const poll = await database('polls').where('id', req.params.id)
-        .select('id', 'team', 'anonymous', 'created_by', 'results_visible').first()
+        .select('id', 'team', 'conversation', 'anonymous', 'created_by', 'results_visible').first()
       if (!poll) { res.status(404).json({ error: 'Poll not found' }); return }
       if (!(await authorizePollViewer(database, req, poll))) {
         res.status(403).json({ error: 'Not authorised for this poll' }); return

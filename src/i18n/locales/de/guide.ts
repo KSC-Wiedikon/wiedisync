@@ -335,6 +335,20 @@ export default {
         },
       },
     },
+    inbox: {
+      title: 'Nachrichten',
+      description: 'Chatte mit Mitgliedern und Teams',
+      steps: {
+        new: {
+          title: 'Gespräch starten',
+          body: 'Tippe auf Neue Nachricht, um einem Mitglied zu schreiben oder einen Gruppenchat zu starten. Deine erste Nachricht an jemand Neues kommt als Anfrage an, die die Person annimmt, bevor sich der Chat öffnet.',
+        },
+        conversations: {
+          title: 'Deine Gespräche',
+          body: 'Direktnachrichten, Gruppenchats und offene Anfragen sind hier gruppiert – tippe auf eines, um es zu öffnen. Team-Chats bleiben auf der jeweiligen Team-Seite.',
+        },
+      },
+    },
     news: {
       title: 'News',
       description: 'Vereinsmitteilungen und deine Hinweise',

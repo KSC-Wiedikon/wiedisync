@@ -91,9 +91,11 @@ export interface MemberFieldDef {
    * power feature, it is a way to lock 40 logins in one click. Those are the
    * ones flagged here.
    *
-   * One pair is flagged for a different reason and says so: `register_status` /
-   * `austritt` move as a pair with two active flags and a push into the legal
-   * register — that is the dedicated departure action, not a field write. See __tests__/memberFieldSchema.test.ts, which pins the exact
+   * Two entries are flagged for a different reason and say so: `consent_decision`
+   * is the member's own declaration (asserting it for them fabricates consent),
+   * and `register_status` / `austritt` move as a pair with two active flags and a
+   * push into the legal register — that is the dedicated departure action, not a
+   * field write. See __tests__/memberFieldSchema.test.ts, which pins the exact
    * bulk-editable key set so a new column has to be classified on purpose.
    */
   bulkUnsafe?: string
@@ -193,8 +195,8 @@ export const MEMBER_FIELD_GROUPS: readonly MemberFieldGroup[] = [
   },
   { id: 'roles_access', order: 6, label: 'Roles & access', description: 'What this person may do in the app.' },
   { id: 'finance', order: 7, label: 'Finance & billing', description: 'Payment details and billing address.' },
-  { id: 'privacy', order: 8, label: 'Privacy', description: 'What the member publishes.' },
-  { id: 'notifications', order: 9, label: 'Notifications', description: 'Email and auto-confirm preferences.' },
+  { id: 'privacy', order: 8, label: 'Privacy & consent', description: 'What the member agreed to and what is published.' },
+  { id: 'notifications', order: 9, label: 'Notifications & communications', description: 'Email, chat and auto-confirm preferences.' },
   { id: 'clubdesk', order: 10, label: 'ClubDesk sync', description: "The link to the club's legal member register." },
   { id: 'transfer', order: 11, label: 'International transfer', description: 'Staff record of an incoming transfer.' },
   { id: 'system', order: 12, label: 'System & audit', description: 'Machine-owned. Nothing here is edited by hand.' },
@@ -678,13 +680,25 @@ const FINANCE = block('finance', undefined, [
   { key: 'billing_iban', label: 'Billing IBAN', kind: 'iban' },
 ])
 
-// ── 1.h Privacy (3) ─────────────────────────────────────────────────────────
+// ── 1.h Privacy & consent (6) ───────────────────────────────────────────────
 const PRIVACY = block('privacy', undefined, [
+  {
+    key: 'consent_decision', label: 'Data-protection consent', kind: 'select',
+    help: 'Cannot be emptied — the column is mandatory.',
+    bulkUnsafe:
+      "The member's own declaration. Setting it for a hundred of them at once records a consent none of them gave.",
+  },
+  {
+    key: 'consent_prompted_at', label: 'Consent last asked', kind: 'datetime',
+    readOnly: true, technical: true,
+    provenance: 'Stamped by the app each time the consent prompt is shown or postponed.',
+  },
   { key: 'website_visible', label: 'Visible on the public website', kind: 'bool' },
   {
     key: 'website_name_private', label: 'Hide the name on the website', kind: 'bool',
     help: 'Shown on the website as an initial instead of the full name.',
   },
+  { key: 'push_preview_content', label: 'Show message text in push notifications', kind: 'bool' },
   {
     key: 'profile_verified_at', label: 'Profile confirmed by the member', kind: 'datetime',
     readOnly: true,
@@ -693,8 +707,11 @@ const PRIVACY = block('privacy', undefined, [
   },
 ])
 
-// ── 1.i Notifications (8) ───────────────────────────────────────────────────
+// ── 1.i Notifications & communications (11) ─────────────────────────────────
 const NOTIFICATIONS = block('notifications', undefined, [
+  { key: 'communications_team_chat_enabled', label: 'Team chat enabled', kind: 'bool' },
+  { key: 'communications_dm_enabled', label: 'Direct messages enabled', kind: 'bool' },
+  { key: 'communications_banned', label: 'Banned from all messaging', kind: 'bool' },
   {
     key: 'auto_confirm_trainings', label: 'Auto-confirm trainings', kind: 'bool',
     help: 'Counts the member as attending unless they say otherwise.',
@@ -794,6 +811,11 @@ const SYSTEM = block('system', undefined, [
   {
     key: 'last_online_at', label: 'Last login', kind: 'datetime', readOnly: true,
     provenance: 'Stamped by the login hook on every real login. A refresh-token session does not bump it.',
+  },
+  {
+    key: 'last_export_at', label: 'Last chat export', kind: 'datetime', readOnly: true,
+    provenance:
+      'Stamped by the messaging export. It is the once-a-day rate limit — clearing it hands the member an unlimited export bypass.',
   },
   {
     key: 'ical_token', label: 'Calendar feed token', kind: 'readonlyMasked',

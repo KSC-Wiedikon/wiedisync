@@ -16,6 +16,7 @@ export default {
   expenseStatus: 'Expense',
   announcement: 'Club news',
   eventInvite: 'Event invitation',
+  newReport: 'Report',
   member_join_request: '{{memberName}} wants to join {{teamName}}',
   expense_paid: 'Your expense of {{amount}} has been paid.',
   expense_rejected: 'Your expense of {{amount}} was rejected.',
@@ -51,6 +52,7 @@ export default {
   deadline_event: 'RSVP deadline tomorrow: {{title}}',
   // New feature notifications
   poll_created: '{{creator}} created a poll: {{question}}',
+  new_report: 'New report: {{reason}}',
   absence_created_for_you: '{{editor}} added an absence for you (from {{start}})',
   absence_updated_for_you: '{{editor}} updated your absence (from {{start}})',
   absence_weekly_created_for_you: '{{editor}} added a weekly unavailability for you',

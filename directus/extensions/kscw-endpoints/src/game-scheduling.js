@@ -4733,6 +4733,15 @@ export function registerGameScheduling(router, { database, logger, services, get
 
       await database('game_scheduling_seasons').where('id', seasonId).update({ status: 'closed' })
 
+      // Un-archive the restored teams' chats (inverse of archive-season below).
+      await database.raw(
+        `UPDATE conversation_members cm SET archived = false
+         FROM conversations c
+         WHERE cm.conversation = c.id AND c.type = 'team'
+           AND c.team IN (SELECT id FROM teams WHERE sport = 'volleyball' AND season = ? AND active = true)`,
+        [season.season],
+      )
+
       log.info({
         msg: `restore-season id=${seasonId} (${season.season})`,
         teams_restored: teamsRestored,
@@ -4774,6 +4783,16 @@ export function registerGameScheduling(router, { database, logger, services, get
         .where('season', seasonId)
         .whereIn('status', ['active', 'invited', 'viewed', 'booked'])
         .update({ status: 'expired' })
+
+      // 2b. Archive the archived teams' chats so they drop off members' inboxes
+      // (restore-season un-archives them). Mirrors the rollover archive step.
+      await database.raw(
+        `UPDATE conversation_members cm SET archived = true
+         FROM conversations c
+         WHERE cm.conversation = c.id AND c.type = 'team'
+           AND c.team IN (SELECT id FROM teams WHERE sport = 'volleyball' AND season = ? AND active = false)`,
+        [season.season],
+      )
 
       // 3. Flip season to 'archived'
       await database('game_scheduling_seasons').where('id', seasonId).update({ status: 'archived' })
@@ -5076,6 +5095,19 @@ export function registerGameScheduling(router, { database, logger, services, get
             .whereIn('team', sourceTeamIds)
             .where('status', 'pending')
             .update({ status: 'expired' })
+
+          // Archive the dead season's team chats. The clone INSERT already fired
+          // the messaging trigger to auto-create a fresh team conversation for
+          // each new team (roster auto-joined), so without this every member
+          // would carry both the old (dead) and new team chat in their inbox,
+          // accreting one stale chat per season. restore-season un-archives them.
+          await trx.raw(
+            `UPDATE conversation_members cm SET archived = true
+             FROM conversations c
+             WHERE cm.conversation = c.id AND c.type = 'team'
+               AND c.team IN (SELECT id FROM teams WHERE season = ? AND active = false)`,
+            [fromSeason],
+          )
 
           counts = {
             from_season: fromSeason,

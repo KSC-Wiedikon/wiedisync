@@ -5995,6 +5995,34 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     }
   })
 
+  // Messaging retention (Plan 05 / spec §9)
+  // Runs nightly at 03:00 UTC. Failures isolated via try/catch.
+  schedule('0 3 * * *', async () => {
+    try {
+      const db = database
+      const now = new Date()
+
+      const r1 = await db('messages')
+        .whereRaw(`created_at < NOW() - INTERVAL '12 months'`)
+        .del()
+      const r2 = await db('messages')
+        .whereRaw(`deleted_at IS NOT NULL AND deleted_at < NOW() - INTERVAL '30 days'`)
+        .del()
+      const r3 = await db('message_requests')
+        .where('status', 'declined')
+        .andWhereRaw(`resolved_at < NOW() - INTERVAL '90 days'`)
+        .del()
+
+      logger.info({
+        plan: 'messaging-05-retention',
+        at: now.toISOString(),
+        purged: { old_messages: r1, soft_deleted_messages: r2, declined_requests: r3 },
+      }, 'messaging retention cron complete')
+    } catch (err) {
+      logger.error({ err: err?.message ?? String(err) }, 'messaging retention cron failed')
+    }
+  })
+
   // ── Spielplaner scope guard on games.create ──────────────────────────────
   // Directus permission filters on the CREATE action don't evaluate relational
   // conditions against the incoming payload (only scalar fields work, e.g.
@@ -6648,7 +6676,9 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     return payload
   })
 
-  // polls: a poll must belong to a team the caller leads.
+  // polls: a TEAM poll must belong to a team the caller leads. A chat poll
+  // (team null, conversation set) is created by /kscw/messaging/polls in system
+  // context and is not this guard's business.
   filter('polls.items.create', async (payload, _meta, { database: db, accountability }) => {
     if (!accountability?.user || accountability.admin) return payload
     const teamId = toIdValue(payload?.team)

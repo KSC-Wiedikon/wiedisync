@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useParams, Link } from 'react-router-dom'
-import { Move, Check, X as XIcon, XCircle, User, ZoomIn, ZoomOut } from 'lucide-react'
+import { Move, Check, X as XIcon, XCircle, User, ZoomIn, ZoomOut, MessageSquare, ChevronDown, ChevronUp } from 'lucide-react'
 import { logActivity } from '../../utils/logActivity'
 import { useTeamMembers } from '../../hooks/useTeamMembers'
 import { useTeamIdentityDocs } from '../../hooks/useTeamIdentityDocs'
@@ -34,6 +34,9 @@ import PollsSection from '../polls/PollsSection'
 import TeamScheduleCalendar from '../gameScheduling/components/TeamScheduleCalendar'
 import TeamCalendar from '../calendar/TeamCalendar'
 import { isFeatureEnabled } from '../../utils/featureToggles'
+import { messagingFeatureEnabled } from '../../utils/messagingFeatureFlag'
+import TeamMessagesTab from '../messaging/components/TeamMessagesTab'
+import { useConversationsContext } from '../messaging/ConversationsProvider'
 import { createRecord, fetchAllItems, fetchItems, updateRecord } from '../../lib/api'
 import { useReportPageLoading } from '../../hooks/usePageReady'
 
@@ -57,7 +60,7 @@ function parsePicturePos(pos: string) {
 export default function TeamDetail() {
   const { t } = useTranslation('teams')
   const { teamSlug } = useParams<{ teamSlug: string }>()
-  const { hasAdminAccessToTeam, canViewTeam } = useAuth()
+  const { user, hasAdminAccessToTeam, canViewTeam } = useAuth()
   const { canManageTeam } = useTeamPermissions()
   const { effectiveIsAdmin } = useAdminMode()
   const [team, setTeam] = useState<Team | null>(null)
@@ -786,6 +789,11 @@ export default function TeamDetail() {
         </div>
       )}
 
+      {/* Nachrichten */}
+      {messagingFeatureEnabled(user?.id) && team && (
+        <TeamMessagesSection teamId={String(team.id)} />
+      )}
+
       {/* Sponsors */}
       {teamSponsors.length > 0 && (
         <div className="mt-8">
@@ -922,5 +930,51 @@ function SortHeader({ label, sortKey: key, current, dir, onClick, className = ''
         )}
       </span>
     </TableHead>
+  )
+}
+
+function TeamMessagesSection({ teamId }: { teamId: string }) {
+  const { t } = useTranslation('messaging')
+  const { user } = useAuth()
+  const { conversations, isLoading, markRead, toggleMute } = useConversationsContext()
+  const [open, setOpen] = useState(true)
+  const conv = useMemo(
+    () => conversations.find(c => c.type === 'team' && String(c.team) === String(teamId)) ?? null,
+    [conversations, teamId],
+  )
+  const teamChatEnabled = user?.communications_team_chat_enabled === true
+
+  // Hide the whole section for non-participants: team chat is on but, once the
+  // conversation list has loaded, the caller has no conversation for this team
+  // (i.e. they aren't a member of it). Members who turned team chat off still
+  // see the section so the "enable team chat" banner can prompt them.
+  if (teamChatEnabled && !isLoading && !conv) return null
+
+  return (
+    <section className="mt-6 rounded-lg border border-border bg-card">
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center justify-between px-4 py-3 text-left"
+        aria-expanded={open}
+      >
+        <span className="flex items-center gap-2 font-semibold text-sm">
+          <MessageSquare className="h-4 w-4" />
+          {t('tabLabel')}
+        </span>
+        {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+      </button>
+      {open && (
+        <div className="border-t border-border">
+          <TeamMessagesTab
+            conv={conv}
+            teamChatEnabled={teamChatEnabled}
+            isLoading={isLoading}
+            onMarkRead={markRead}
+            onToggleMute={toggleMute}
+          />
+        </div>
+      )}
+    </section>
   )
 }

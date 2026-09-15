@@ -335,6 +335,20 @@ export default {
         },
       },
     },
+    inbox: {
+      title: 'Messages',
+      description: 'Discutez avec les membres et les équipes',
+      steps: {
+        new: {
+          title: 'Démarrer une conversation',
+          body: 'Touchez Nouveau message pour écrire à un membre ou lancer une discussion de groupe. Votre premier message à une nouvelle personne arrive comme une demande qu\'elle accepte avant que la conversation ne s\'ouvre.',
+        },
+        conversations: {
+          title: 'Vos conversations',
+          body: 'Messages directs, discussions de groupe et demandes en attente sont regroupés ici — touchez-en un pour l\'ouvrir. Les discussions d\'équipe restent sur la page de chaque équipe.',
+        },
+      },
+    },
     news: {
       title: 'Actualités',
       description: 'Annonces du club et vos alertes',

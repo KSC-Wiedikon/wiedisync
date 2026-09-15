@@ -70,12 +70,19 @@ const FK_MAP = {
     // — CASCADE: rows that are meaningless without the member —
     { table: 'absences', column: 'member', rule: 'CASCADE' },
     { table: 'announcement_recipients', column: 'member', rule: 'CASCADE' },
+    { table: 'blocks', column: 'blocked', rule: 'CASCADE' },
+    { table: 'blocks', column: 'blocker', rule: 'CASCADE' },
+    { table: 'conversation_members', column: 'member', rule: 'CASCADE' },
     { table: 'events_members', column: 'members_id', rule: 'CASCADE' },
     { table: 'finance_invoice_member_overrides', column: 'member', rule: 'CASCADE' },
     { table: 'game_guests', column: 'member', rule: 'CASCADE' },
     { table: 'identity_document_keys', column: 'recipient', rule: 'CASCADE' },
     { table: 'identity_documents', column: 'member', rule: 'CASCADE' },
     { table: 'member_teams', column: 'member', rule: 'CASCADE' },
+    { table: 'message_reactions', column: 'member', rule: 'CASCADE' },
+    { table: 'message_requests', column: 'recipient', rule: 'CASCADE' },
+    { table: 'message_requests', column: 'sender', rule: 'CASCADE' },
+    { table: 'messages', column: 'sender', rule: 'CASCADE' },
     { table: 'notifications', column: 'member', rule: 'CASCADE' },
     { table: 'participations', column: 'member', rule: 'CASCADE' },
     { table: 'poll_votes', column: 'member', rule: 'CASCADE' },
@@ -97,6 +104,7 @@ const FK_MAP = {
     { table: 'basketball_slots', column: 'created_by', rule: 'SET NULL' },
     { table: 'basketball_team_rules', column: 'created_by', rule: 'SET NULL' },
     { table: 'broadcasts', column: 'sender', rule: 'SET NULL' },
+    { table: 'conversations', column: 'created_by', rule: 'SET NULL' },
     { table: 'email_suppressions', column: 'released_by', rule: 'SET NULL' },
     { table: 'event_signups', column: 'member', rule: 'SET NULL' },
     { table: 'finance_invoices', column: 'member', rule: 'SET NULL' },
@@ -118,6 +126,9 @@ const FK_MAP = {
     { table: 'identity_documents', column: 'uploaded_by', rule: 'SET NULL' },
     { table: 'referee_expenses', column: 'recorded_by', rule: 'SET NULL' },
     { table: 'registrations', column: 'member', rule: 'SET NULL' },
+    { table: 'reports', column: 'reported_member', rule: 'SET NULL' },
+    { table: 'reports', column: 'reporter', rule: 'SET NULL' },
+    { table: 'reports', column: 'resolved_by', rule: 'SET NULL' },
     { table: 'scheduling_blocks', column: 'created_by', rule: 'SET NULL' },
     { table: 'scheduling_global_blocks', column: 'created_by', rule: 'SET NULL' },
     { table: 'signup_tokens', column: 'minted_by', rule: 'SET NULL' },
@@ -155,6 +166,14 @@ const ACTIVITY_TYPE = Object.freeze({ events: 'event', games: 'game', trainings:
  * self-contained by design, so they survive the activity they describe.
  */
 const NOTIFICATION_KEEP_TITLES = Object.freeze(['training_deleted', 'game_deleted', 'event_deleted'])
+
+/**
+ * The messaging system account (member 470, system@kscw.ch) is protected by the
+ * BEFORE DELETE trigger `trg_messaging_protect_sentinel`. No FK scan can see
+ * that, so it is checked explicitly or the delete would look permitted and then
+ * fail at the database.
+ */
+const SENTINEL_EMAIL = 'system@kscw.ch'
 
 /** Roles that may preview an impact / delete a member. Mirrors stats.js. */
 const ADMIN_ROLES = Object.freeze(['admin', 'superuser', 'vb_admin', 'bb_admin'])
@@ -276,13 +295,15 @@ export function registerDeleteImpact(router, { database, logger, services, getSc
    *
    * `participations` + `notifications` are removed by
    * `trg_{events,games,trainings}_0_purge_polymorphic` (migration 246).
+   * The activity chat is NOT: `fn_activity_chat_event_delete` (migration 017)
+   * only exists on `events`, so a game's or training's chat is left ORPHANED.
    */
   async function countPolymorphic(collection, id) {
     const type = ACTIVITY_TYPE[collection]
     if (!type) return []
     const idText = String(id)
 
-    const [participations, notifications] = await Promise.all([
+    const [participations, notifications, conversations] = await Promise.all([
       database('participations')
         .where({ activity_type: type, activity_id: idText })
         .count({ n: '*' })
@@ -292,11 +313,23 @@ export function registerDeleteImpact(router, { database, logger, services, getSc
         .whereNotIn('title', NOTIFICATION_KEEP_TITLES)
         .count({ n: '*' })
         .first(),
+      // conversations.activity_id is an INTEGER column (participations and
+      // notifications hold it as text) — bind the number, not the string.
+      database('conversations')
+        .where({ type: 'activity_chat', activity_type: type, activity_id: id })
+        .count({ n: '*' })
+        .first(),
     ])
 
     return [
       { table: 'participations', column: null, rule: 'TRIGGER_DELETE', count: Number(participations?.n) || 0 },
       { table: 'notifications', column: null, rule: 'TRIGGER_DELETE', count: Number(notifications?.n) || 0 },
+      {
+        table: 'conversations',
+        column: null,
+        rule: collection === 'events' ? 'TRIGGER_DELETE' : 'ORPHANED',
+        count: Number(conversations?.n) || 0,
+      },
     ]
   }
 
@@ -342,13 +375,17 @@ export function registerDeleteImpact(router, { database, logger, services, getSc
         else setNull.push(row)
       }
 
-      // members-only extras: the linked login and the ClubDesk contact.
+      // members-only extras: the protected sentinel, the linked login, and the
+      // ClubDesk contact.
       let linkedUser = null
       let clubdesk = null
       if (collection === 'members') {
         const member = await database('members')
           .where({ id })
           .first('id', 'user', 'email', 'clubdesk_id')
+        if (String(member?.email || '').trim().toLowerCase() === SENTINEL_EMAIL) {
+          blockers.push({ kind: 'sentinel', table: 'members' })
+        }
         if (member?.user) {
           const u = await database('directus_users').where({ id: member.user }).first('id', 'email', 'status')
           if (u) linkedUser = { id: String(u.id), email: u.email ?? null, status: u.status ?? null }

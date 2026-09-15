@@ -7,7 +7,7 @@ export type NotificationsContextValue = ReturnType<typeof useNotifications>
  * Context for the app-wide notification store. The provider COMPONENT that fills
  * it lives in `src/components/NotificationsStoreProvider.tsx` — a module may
  * export either React components or non-components, not both (react-refresh /
- * Fast Refresh).
+ * Fast Refresh). Same split as `ConversationsProvider` / `ConversationsStoreProvider`.
  */
 export const NotificationsContext = createContext<NotificationsContextValue | null>(null)
 

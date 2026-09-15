@@ -69,6 +69,9 @@ function timeAgo(dateStr: string, t: (key: string, opts?: Record<string, unknown
 function getNavigationPath(n: Notification): string {
   if (n.type === 'duty_delegation_request' || n.activity_type === 'scorer_duty') return '/scorer'
   if (n.type === 'member_join_request' && n.activity_id) return `/teams/${n.activity_id}`
+  // Messaging moderation: admins get `new_report` notifications when a member
+  // submits a report. The report list + resolution UI lives at /admin/reports.
+  if (n.type === 'new_report' || n.activity_type === 'report') return '/admin/reports'
   // Expense status changes (paid / rejected) → the member's submissions list.
   if (n.type === 'expense_status' || n.activity_type === 'expense') return '/finance/expense'
   // Club news (announcement publish) → the news feed.
@@ -100,6 +103,7 @@ export default function NotificationPanel({
   onClose,
 }: NotificationPanelProps) {
   const { t } = useTranslation('notifications')
+  const { t: tMessaging } = useTranslation('messaging')
   const { t: tCommon } = useTranslation('common')
   const navigate = useNavigate()
   const push = usePushNotifications()
@@ -178,10 +182,13 @@ export default function NotificationPanel({
   function renderMessage(n: Notification): string {
     try {
       const data = n.body ? JSON.parse(n.body) : {}
+      if (data.reason) {
+        data.reason = tMessaging(`reportReason_${data.reason}`, { defaultValue: data.reason })
+      }
       // The licence-status row stores the raw code so the label follows the
-      // reader's locale rather than the sender's. Scoped by type: `status` is a
-      // common enough var name that a future notification could carry one
-      // meaning something else entirely.
+      // reader's locale rather than the sender's — same trick as reportReason
+      // above. Scoped by type: `status` is a common enough var name that a
+      // future notification could carry one meaning something else entirely.
       if (n.type === 'licence_status' && data.status) {
         data.status = tCommon(`licenceStatus_${data.status}`, { defaultValue: data.status })
       }
@@ -201,7 +208,7 @@ export default function NotificationPanel({
     for (const n of notifications) map.set(n.id, renderMessage(n))
     return map
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [notifications, t, tCommon])
+  }, [notifications, t, tMessaging, tCommon])
 
   return (
     <div className="fixed inset-0 z-50" onClick={startClose}>

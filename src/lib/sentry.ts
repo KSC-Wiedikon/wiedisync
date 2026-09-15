@@ -301,7 +301,7 @@ export function captureApiError(
   // refetches (realtime, react-query) fired before AuthRoute could redirect.
   // Real permission gaps happen WITH a valid session (the userId resolves
   // server-side — that's exactly how the coach_approved_team and
-  // permission gaps were caught), so gating on an absent token keeps
+  // message_requests gaps were caught), so gating on an absent token keeps
   // those fully visible while killing the anon/expired churn (logged-out
   // hits to gated pages spamming "no permission to access collection X").
   // Same downgrade contract as the network + token-expired carve-outs.
