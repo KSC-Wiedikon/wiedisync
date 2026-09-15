@@ -2,6 +2,12 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.12.0 — 2026-09-15
+
+### Removed
+
+- **Messaging is gone.** The in-app inbox — team chats, direct and group messages, the reactions, message requests, blocks and reports that came with them — has been removed, along with the Messaging entry in Options, the chat section on team pages, the Message button on player profiles and the In-app channel in Contact all. It was barely used (six messages in total, none this month) and the club's communication runs on email, push and WhatsApp. What was stored has been deleted. Team polls, notifications and Contact all's email and push channels are unchanged.
+
 ## v2.11.0 — 2026-09-15
 
 ### New

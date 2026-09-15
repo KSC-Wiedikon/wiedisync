@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.11.0'
+const APP_VERSION = '2.12.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,18 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.12.0',
+    date: '15.09.2026',
+    sections: [
+      {
+        title: "Removed",
+        items: [
+          "Messaging is gone. The in-app inbox — team chats, direct and group messages, the reactions, message requests, blocks and reports that came with them — has been removed, along with the Messaging entry in Options, the chat section on team pages, the Message button on player profiles and the In-app channel in Contact all. It was barely used (six messages in total, none this month) and the club's communication runs on email, push and WhatsApp. What was stored has been deleted. Team polls, notifications and Contact all's email and push channels are unchanged.",
+        ],
+      },
+    ],
+  },
   {
     version: '2.11.0',
     date: '15.09.2026',
