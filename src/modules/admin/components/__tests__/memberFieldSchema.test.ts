@@ -77,9 +77,9 @@ describe('memberFieldSchema — completeness', () => {
     expect([...keys].sort()).toEqual(expected)
   })
 
-  it('has 118 real columns and 4 virtual fields', () => {
-    expect(MEMBERS_COLUMNS).toHaveLength(118)
-    expect(MEMBER_FIELDS.filter((f) => !f.virtual)).toHaveLength(118)
+  it('has 111 real columns and 4 virtual fields', () => {
+    expect(MEMBERS_COLUMNS).toHaveLength(111)
+    expect(MEMBER_FIELDS.filter((f) => !f.virtual)).toHaveLength(111)
     // The three team multiselects each write their own junction collection; the
     // Beitrag card is computed by the server's fee engine. None is a `members`
     // column, and none may ever reach a PATCH body.
@@ -107,11 +107,11 @@ describe('memberFieldSchema — completeness', () => {
     expect(count('association')).toBe(23)
     expect(count('roles_access')).toBe(3)
     expect(count('finance')).toBe(22) // 21 columns + __fee_amount
-    expect(count('privacy')).toBe(6)
-    expect(count('notifications')).toBe(11)
+    expect(count('privacy')).toBe(3)
+    expect(count('notifications')).toBe(8)
     expect(count('clubdesk')).toBe(5)
     expect(count('transfer')).toBe(4)
-    expect(count('system')).toBe(11)
+    expect(count('system')).toBe(10)
 
     const sub = (id: string) => MEMBER_FIELDS.filter((f) => f.subsection === id).length
     expect(sub('assoc_common')).toBe(7)
@@ -309,9 +309,8 @@ describe('isBulkEditable', () => {
     'billing_email', 'billing_address', 'billing_plz', 'billing_ort',
     'billing_phone', 'billing_iban',
     // privacy
-    'website_visible', 'website_name_private', 'push_preview_content',
+    'website_visible', 'website_name_private',
     // notifications
-    'communications_team_chat_enabled', 'communications_dm_enabled', 'communications_banned',
     'auto_confirm_trainings', 'auto_confirm_games', 'auto_confirm_events',
     'email_notify_events', 'email_notify_announcements', 'email_notify_registrations',
     'email_notify_join_requests', 'email_notify_form_submissions',
@@ -349,10 +348,6 @@ describe('isBulkEditable', () => {
     // writes fails on the database rather than on screen.
     expect(isBulkEditable(MEMBER_FIELD_BY_KEY.register_status, asAdmin)).toBe(false)
     expect(isBulkEditable(MEMBER_FIELD_BY_KEY.austritt, asAdmin)).toBe(false)
-  })
-
-  it('refuses to assert consent on somebody’s behalf', () => {
-    expect(isBulkEditable(MEMBER_FIELD_BY_KEY.consent_decision, asAdmin)).toBe(false)
   })
 
   it('is never wider than the single-member gate', () => {

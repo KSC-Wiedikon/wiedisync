@@ -23,7 +23,7 @@ export interface DeleteImpactRow {
 }
 
 export interface DeleteImpactBlocker {
-  kind: 'restrict' | 'sentinel'
+  kind: 'restrict'
   table: string
   column?: string
   count?: number

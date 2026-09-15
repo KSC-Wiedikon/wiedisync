@@ -16,7 +16,6 @@ export default {
   expenseStatus: 'Spesa',
   announcement: 'Notizie del club',
   eventInvite: 'Invito a evento',
-  newReport: 'Segnalazione',
   member_join_request: '{{memberName}} vuole unirsi a {{teamName}}',
   expense_paid: 'La tua spesa di {{amount}} è stata pagata.',
   expense_rejected: 'La tua spesa di {{amount}} è stata respinta.',
@@ -52,7 +51,6 @@ export default {
   deadline_event: 'Scadenza RSVP domani: {{title}}',
   // Notifiche nuove funzionalità
   poll_created: '{{creator}} ha creato un sondaggio: {{question}}',
-  new_report: 'Nuova segnalazione: {{reason}}',
   absence_created_for_you: '{{editor}} ha aggiunto un\'assenza per te (dal {{start}})',
   absence_updated_for_you: '{{editor}} ha modificato la tua assenza (dal {{start}})',
   absence_weekly_created_for_you: '{{editor}} ha aggiunto un\'indisponibilità settimanale per te',

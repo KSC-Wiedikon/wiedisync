@@ -21,8 +21,6 @@ export interface BroadcastActivity {
 export interface BroadcastChannels {
   email?: boolean
   push?: boolean
-  /** Event-only. Creates/reuses an activity_chat conversation and posts the message there. */
-  inApp?: boolean
 }
 
 // Broadcast audience keys — must match the backend VALID_AUDIENCE_STATUSES in
@@ -54,12 +52,6 @@ export interface BroadcastResponse {
   delivery: {
     email: { sent: number; failed: number; errors?: Array<{ recipient: string; error: string }> }
     push: { sent: number; failed: number; expired: number }
-    in_app?: {
-      sent: number
-      failed: number
-      conversation_id: string | null
-      message_id: string | null
-    }
   }
   auditFailed?: boolean
 }

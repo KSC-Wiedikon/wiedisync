@@ -30,10 +30,6 @@ export const BOOL_FIELDS = [
   'hide_phone',
   'hide_email',
   'website_visible',
-  'communications_team_chat_enabled',
-  'communications_dm_enabled',
-  'communications_banned',
-  'push_preview_content',
   // Season dues paid (migration 360) — trigger-derived from finance_invoices.
   // "Which volleyball players have paid?" was a hand-written SQL question until
   // this row; now it is Sport = Volleyball + Dues paid = yes.
@@ -66,7 +62,7 @@ export const PRESENCE_FIELDS = [
   'shell_expires',
   // licence_activation_date / licence_validation_date intentionally omitted —
   // restricted field perms 403 the explorer cache fetch (see useExplorerCache).
-  'last_online_at', 'consent_prompted_at',
+  'last_online_at',
 ] as const
 export type PresenceField = (typeof PRESENCE_FIELDS)[number]
 
@@ -95,8 +91,6 @@ export type LanguageKey = (typeof LANGUAGES)[number] | 'unset'
 export const BIRTHDATE_VIS = ['full', 'year_only', 'hidden'] as const
 export type BirthdateVisKey = (typeof BIRTHDATE_VIS)[number]
 
-export const CONSENT_KEYS = ['accepted', 'declined', 'pending'] as const
-export type ConsentKey = (typeof CONSENT_KEYS)[number]
 
 // Licence-ordering workflow (migration 301). Its own chip row rather than a
 // PRESENCE_FIELDS entry: the column is NOT NULL, so "has a value" is true for
@@ -119,7 +113,6 @@ export interface MemberFilterState {
   positions: MemberPosition[]
   languages: LanguageKey[]
   birthdateVis: BirthdateVisKey[]
-  consent: ConsentKey[]
   licenceStatus: LicenceStatus[]
   /**
    * Club register status (migration 302). Includes 'unset' — the members whose
@@ -146,7 +139,6 @@ export const EMPTY_FILTERS: MemberFilterState = {
   positions: [],
   languages: [],
   birthdateVis: [],
-  consent: [],
   licenceStatus: [],
   registerStatus: [],
   guest: [],
@@ -179,7 +171,6 @@ export function countActiveFilters(f: MemberFilterState): number {
   n += f.positions.length
   n += f.languages.length
   n += f.birthdateVis.length
-  n += f.consent.length
   n += f.licenceStatus.length
   n += f.registerStatus.length
   n += f.guest.length
@@ -292,12 +283,6 @@ export function applyMemberFilters(
       const raw = String(mr.birthdate_visibility ?? 'full')
       if (!(BIRTHDATE_VIS as readonly string[]).includes(raw)) return false
       if (!filters.birthdateVis.includes(raw as BirthdateVisKey)) return false
-    }
-
-    if (filters.consent.length > 0) {
-      const raw = String(mr.consent_decision ?? 'pending')
-      if (!(CONSENT_KEYS as readonly string[]).includes(raw)) return false
-      if (!filters.consent.includes(raw as ConsentKey)) return false
     }
 
     if (filters.licenceStatus.length > 0) {

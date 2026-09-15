@@ -40,8 +40,6 @@ const SKIP_COLLECTIONS = new Set([
   //   nightly sync genuinely untracked.
   'svrz_games',
   'svrz_spielplaner_contacts',
-  // Realtime / ephemeral:
-  'messages_read_state', 'message_reactions',
 ])
 
 const MAX_DATA_BYTES = 4096
@@ -62,7 +60,6 @@ const REDACTED_FIELDS = {
     // coded columns. All three are the same PII fact — redact all three.
     'nationalitaet', 'nationalitaet_codes', 'federation_of_origin',
     'photo', 'requested_team', 'vm_email',
-    'consent_decision', 'consent_prompted_at',
     // Financial PII (migrations 117 / 133 / 136) — member IBAN + the alternate
     // billing contact. Editable via items API (self-edit / finance policy), so
     // members.update payloads land in user_logs unless redacted here.
@@ -75,11 +72,6 @@ const REDACTED_FIELDS = {
     'first_name', 'last_name', 'language',
   ]),
   push_subscriptions: new Set(['endpoint', 'keys_p256dh', 'keys_auth']),
-  // Whole row carries reporter-supplied free text + the message snapshot.
-  reports_filed: '*',
-  // Free-text member messages — never log payload values.
-  messages: '*',
-  message_requests: '*',
 }
 
 function redactValues(collection, payload) {

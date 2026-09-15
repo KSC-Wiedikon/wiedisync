@@ -2,14 +2,12 @@ import { useState } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
-  ChevronDown, Settings, MessageSquare, MessageCircle, Activity, ScrollText, GraduationCap, LogOut, User as UserIcon, Coffee, ArrowRight, LayoutGrid,
+  ChevronDown, Settings, MessageSquare, Activity, ScrollText, GraduationCap, LogOut, User as UserIcon, Coffee, ArrowRight, LayoutGrid,
 } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { useDonateVisible } from '../modules/support/donateConfig'
 import { useTheme } from '../hooks/useTheme'
 import { useNavItems, type NavItem } from '../hooks/useNavItems'
-import { useUnreadTotal } from '../modules/messaging/hooks/useUnreadTotal'
-import { messagingFeatureEnabled } from '../utils/messagingFeatureFlag'
 import { getFileUrl } from '../utils/fileUrl'
 import { asObj, memberDisplayName, memberFirstName } from '../utils/relations'
 import { openExternalApp, handlePWAExternalClick } from '../utils/pwa'
@@ -44,7 +42,7 @@ function pathMatches(pathname: string, to: string) {
 
 /** A grouped top-nav category that opens a dropdown of its items. */
 function NavCategory({
-  label, items, groups, extra, extraLabel, footerItem, wide, messagingOn, unreadMessages,
+  label, items, groups, extra, extraLabel, footerItem, wide,
 }: {
   label: string
   /** Flat item list — mutually exclusive with `groups`. */
@@ -61,15 +59,12 @@ function NavCategory({
    * across 6 sections needed a scrollbar on a 1080p screen).
    */
   wide?: boolean
-  messagingOn: boolean
-  unreadMessages: number
 }) {
   const location = useLocation()
   const navigate = useNavigate()
   const flat = groups ? groups.flatMap((g) => g.items) : (items ?? [])
   const all = [...flat, ...(extra ?? []), ...(footerItem ? [footerItem] : [])]
   const isActive = all.some((i) => i.to && pathMatches(location.pathname, i.to))
-  const hasInboxBadge = messagingOn && unreadMessages > 0 && flat.some((i) => i.to === '/inbox')
 
   const go = (item: NavItem) => {
     // External hops (e.g. the Spielplanung subdomain) break out of an installed
@@ -81,7 +76,6 @@ function NavCategory({
 
   const renderItem = (item: NavItem) => {
     const active = pathMatches(location.pathname, item.to)
-    const showBadge = messagingOn && item.to === '/inbox' && unreadMessages > 0
     return (
       <DropdownMenuItem
         key={item.to}
@@ -90,11 +84,6 @@ function NavCategory({
       >
         {item.icon}
         <span className="flex-1">{item.label}</span>
-        {showBadge && (
-          <span className="ml-auto rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-bold leading-none text-primary-foreground">
-            {unreadMessages > 99 ? '99+' : unreadMessages}
-          </span>
-        )}
       </DropdownMenuItem>
     )
   }
@@ -107,7 +96,6 @@ function NavCategory({
         >
           {label}
           <ChevronDown className="h-3.5 w-3.5 opacity-60" />
-          {hasInboxBadge && <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-primary" />}
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
@@ -179,11 +167,9 @@ export default function TopNav({ unreadCount, onOpenNotifications, memberTeams }
   const { user, isAdmin, isApproved, isSuperAdmin, logout } = useAuth()
   const { theme, toggleTheme } = useTheme()
   const navigate = useNavigate()
-  const messagingOn = messagingFeatureEnabled(user?.id)
-  const unreadMessages = useUnreadTotal()
   const [optionsOpen, setOptionsOpen] = useState(false)
   const { navItems, memberToolsItems, financeItems, schedulingItem, adminGroups, superadminItems } =
-    useNavItems(!!user, isApproved, user?.id)
+    useNavItems(!!user, isApproved)
 
   // navItems[0] is always Home — it stays a direct link; the rest (Calendar,
   // Games, Trainings, Events) live under the "Activities" dropdown.
@@ -238,13 +224,13 @@ export default function TopNav({ unreadCount, onOpenNotifications, memberTeams }
         </NavLink>
 
         {activityItems.length > 0 && (
-          <NavCategory label={t('activities')} items={activityItems} messagingOn={messagingOn} unreadMessages={unreadMessages} />
+          <NavCategory label={t('activities')} items={activityItems} />
         )}
         {memberToolsItems.length > 0 && (
-          <NavCategory label={t('memberTools')} items={memberToolsItems} messagingOn={messagingOn} unreadMessages={unreadMessages} />
+          <NavCategory label={t('memberTools')} items={memberToolsItems} />
         )}
         {financeItems.length > 0 && (
-          <NavCategory label={t('finance')} items={financeItems} messagingOn={messagingOn} unreadMessages={unreadMessages} />
+          <NavCategory label={t('finance')} items={financeItems} />
         )}
         {/* Game scheduling: non-admin Spielplaner get a direct top-level button;
             admins get it inside the Admin dropdown (leadingItem) instead. */}
@@ -279,8 +265,6 @@ export default function TopNav({ unreadCount, onOpenNotifications, memberTeams }
             extraLabel={t('superadmin')}
             footerItem={{ to: '/admin', label: t('allAdminTools'), icon: <LayoutGrid className="h-4 w-4" /> }}
             wide
-            messagingOn={messagingOn}
-            unreadMessages={unreadMessages}
           />
         )}
       </nav>
@@ -341,7 +325,6 @@ export default function TopNav({ unreadCount, onOpenNotifications, memberTeams }
             )}
             <div className="my-1 h-px bg-gray-200 dark:bg-brand-800" />
             {optLink('/feedback', <MessageSquare className="h-4 w-4" />, t('feedback'))}
-            {messagingOn && optLink('/options/messaging', <MessageCircle className="h-4 w-4" />, t('messagingSettings'))}
             {optLink('/status', <Activity className="h-4 w-4" />, t('status', 'Status'))}
             <NavLink
               to="/changelog"

@@ -16,7 +16,6 @@ export default {
   expenseStatus: 'Note de frais',
   announcement: 'Actualités du club',
   eventInvite: 'Invitation à un événement',
-  newReport: 'Signalement',
   member_join_request: '{{memberName}} souhaite rejoindre {{teamName}}',
   expense_paid: 'Ta note de frais de {{amount}} a été payée.',
   expense_rejected: 'Ta note de frais de {{amount}} a été refusée.',
@@ -52,7 +51,6 @@ export default {
   deadline_event: 'Delai de reponse demain : {{title}}',
   // Nouvelles notifications de fonctionnalités
   poll_created: '{{creator}} a créé un sondage : {{question}}',
-  new_report: 'Nouveau signalement : {{reason}}',
   absence_created_for_you: '{{editor}} a ajouté une absence pour toi (à partir du {{start}})',
   absence_updated_for_you: '{{editor}} a modifié ton absence (à partir du {{start}})',
   absence_weekly_created_for_you: '{{editor}} a ajouté une indisponibilité hebdomadaire pour toi',

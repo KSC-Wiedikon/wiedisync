@@ -59,21 +59,11 @@ const MANAGED_EMAIL_DOMAIN = 'managed.wiedisync.kscw.ch'
 // session owner), the admin app, static assets, and server health.
 const SKIP_PREFIXES = ['/auth', '/admin', '/assets', '/server', '/graphql']
 
-// ⚠ Messaging is blocked while acting — a club decision, 01.09.2026: a parent
-// administering a 12-year-old's RSVPs must not thereby read that child's private
-// conversations with teammates and coaches.
-// This prefix list is a coarse net and is only RELIABLE for /items/*, where
-// Directus matches collection names exactly. Express routes `/kscw/*`
-// case-insensitively, so `/kscw/Messaging/...` would slip past a naive match —
-// hence lowercasing here AND an authoritative guard inside messaging.js.
+// Never reachable while acting — the login account itself is the guardian's,
+// never the child's. Lowercased below because Express matches routes
+// case-insensitively; /items/* is matched exactly by Directus.
 const DENY_PREFIXES = [
-  '/items/messages',
-  '/items/message_reactions',
-  '/items/message_requests',
-  '/items/conversations',
-  '/items/conversation_members',
   '/items/directus_users',
-  '/kscw/messaging',
 ]
 
 const GRANT_TTL_MS = 30_000

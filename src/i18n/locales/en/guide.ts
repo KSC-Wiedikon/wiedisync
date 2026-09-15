@@ -335,20 +335,6 @@ export default {
         },
       },
     },
-    inbox: {
-      title: 'Messages',
-      description: 'Chat with members and teams',
-      steps: {
-        new: {
-          title: 'Start a conversation',
-          body: 'Tap New message to write to another member or start a group chat. Your first message to someone new arrives as a request they accept before the chat opens.',
-        },
-        conversations: {
-          title: 'Your conversations',
-          body: 'Direct messages, group chats, and pending requests are grouped here — tap one to open it. Team-wide chats stay on each team page.',
-        },
-      },
-    },
     news: {
       title: 'News',
       description: 'Club announcements and your alerts',

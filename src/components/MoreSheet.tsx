@@ -8,10 +8,9 @@ import SwitchToggle from '@/components/SwitchToggle'
 import LanguageDropdown from '@/components/LanguageDropdown'
 import { getFileUrl } from '../utils/fileUrl'
 import AdminToggle from './AdminToggle'
-import { Bell, LayoutGrid, UserX, PenSquare, PartyPopper, CalendarClock, LogIn, User, Users, Settings, ChevronDown, ScrollText, MessageSquare, MessageCircle, Inbox, Activity, GraduationCap, Newspaper, Gavel, Wallet, Landmark, ReceiptText, Coffee } from 'lucide-react'
+import { Bell, LayoutGrid, UserX, PenSquare, PartyPopper, CalendarClock, LogIn, User, Users, Settings, ChevronDown, ScrollText, MessageSquare, Activity, GraduationCap, Newspaper, Gavel, Wallet, Landmark, ReceiptText, Coffee } from 'lucide-react'
 import type { MemberTeam, Team } from '../types'
 import { asObj, memberDisplayName } from '../utils/relations'
-import { messagingFeatureEnabled } from '../utils/messagingFeatureFlag'
 import { SCHEDULING_ORIGIN } from '../lib/api'
 import { buildAdminGroups, buildSuperadminItems, type AdminNavEntry } from '../lib/adminNav'
 import { handlePWAExternalClick } from '../utils/pwa'
@@ -37,7 +36,6 @@ const iconClass = 'h-5 w-5'
 interface SheetItem { to: string; labelKey: string; icon: ReactNode; external?: boolean; href?: string }
 
 function buildSecondaryItems(
-  memberId: number | string | undefined | null,
   sched: { isAdmin: boolean; isVorstand: boolean; canAccessFinance: boolean; is_spielplaner: boolean; spielplanerTeamIds: string[]; coachTeamIds: string[]; teamResponsibleIds: string[]; canManageForms: boolean },
 ): { primary: SheetItem[]; memberTools: SheetItem[]; finance: SheetItem[]; spielplaner: SheetItem[] } {
   // Primary = items NOT already on the bottom tab bar (Home/Calendar/Games/
@@ -51,9 +49,6 @@ function buildSecondaryItems(
     { to: '/teams', labelKey: 'teams', icon: <Users className={iconClass} /> },
     { to: '/absences', labelKey: 'absences', icon: <UserX className={iconClass} /> },
     { to: '/scorer', labelKey: 'scorer', icon: <PenSquare className={iconClass} /> },
-    ...(messagingFeatureEnabled(memberId)
-      ? [{ to: '/inbox', labelKey: 'inbox', icon: <Inbox className={iconClass} /> }]
-      : []),
     ...(sched.canManageForms ? [{ to: '/forms', labelKey: 'forms', icon: <ScrollText className={iconClass} /> }] : []),
     // J+S export — coaches and above (same audience as Forms authoring).
     ...(sched.canManageForms ? [{ to: '/js-export', labelKey: 'jsExport', icon: <GraduationCap className={iconClass} /> }] : []),
@@ -101,7 +96,7 @@ const toSheetItem = (e: AdminNavEntry): NavItem => ({
 // the sections above. `true` because the caller already gates on isSuperAdmin.
 const superAdminItems: NavItem[] = buildSuperadminItems(true).map(toSheetItem)
 
-function OptionsAccordion({ theme, toggleTheme, onClose, memberId }: { theme: string; toggleTheme: () => void; onClose?: () => void; memberId?: number | string | null }) {
+function OptionsAccordion({ theme, toggleTheme, onClose }: { theme: string; toggleTheme: () => void; onClose?: () => void }) {
   const [open, setOpen] = useState(false)
   const { t } = useTranslation('nav')
 
@@ -192,23 +187,6 @@ function OptionsAccordion({ theme, toggleTheme, onClose, memberId }: { theme: st
               </span>
               <span className="text-xs font-mono text-gray-400 dark:text-gray-500">v{APP_VERSION}</span>
             </NavLink>
-            {/* Messaging settings row */}
-            {messagingFeatureEnabled(memberId) && (
-              <NavLink
-                to="/options/messaging"
-                onClick={onClose}
-                className={({ isActive }) =>
-                  `flex min-h-[48px] items-center gap-3 rounded-lg px-4 py-3 transition-colors ${
-                    isActive
-                      ? 'bg-brand-50 text-brand-700 dark:bg-brand-900/50 dark:text-gold-400'
-                      : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
-                  }`
-                }
-              >
-                <MessageCircle className="h-4 w-4" />
-                <span className="text-base font-medium">{t('messagingSettings')}</span>
-              </NavLink>
-            )}
             {/* Guide row */}
             <NavLink
               to="/guide"
@@ -368,7 +346,7 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
             </>
           )}
           {(!user || !isApproved) ? null : (() => {
-            const groups = buildSecondaryItems(user.id, { isAdmin, isVorstand, canAccessFinance, is_spielplaner, spielplanerTeamIds, coachTeamIds, teamResponsibleIds, canManageForms })
+            const groups = buildSecondaryItems({ isAdmin, isVorstand, canAccessFinance, is_spielplaner, spielplanerTeamIds, coachTeamIds, teamResponsibleIds, canManageForms })
             const renderItem = (item: SheetItem) => (
               item.external ? (
                 <a
@@ -543,7 +521,7 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
 
             {/* Options section — expandable */}
             <div className="mx-4 border-t border-gray-200 dark:border-gray-700" />
-            <OptionsAccordion theme={theme} toggleTheme={toggleTheme} onClose={startClose} memberId={user?.id} />
+            <OptionsAccordion theme={theme} toggleTheme={toggleTheme} onClose={startClose} />
           </>
         ) : (
           <>
@@ -559,7 +537,7 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
               </NavLink>
 
               {/* Toggles — expandable */}
-              <OptionsAccordion theme={theme} toggleTheme={toggleTheme} onClose={startClose} memberId={null} />
+              <OptionsAccordion theme={theme} toggleTheme={toggleTheme} onClose={startClose} />
             </div>
           </>
         )}

@@ -54,7 +54,6 @@ export default function BroadcastButton({
           open={open}
           onOpenChange={setOpen}
           activity={activity}
-          senderMemberId={member?.id ?? null}
         />
       )}
     </>

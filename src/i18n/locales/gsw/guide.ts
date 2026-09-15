@@ -335,20 +335,6 @@ export default {
         },
       },
     },
-    inbox: {
-      title: 'Nachrichte',
-      description: 'Chatte mit Mitglider und Teams',
-      steps: {
-        new: {
-          title: 'Es Gspröch aafange',
-          body: 'Tipp uf Neui Nachricht, zum eme Mitglid schriibe oder en Gruppechat aafange. Dini erschti Nachricht an öpper Neus chunnt als Aafrog aa, wo die Person aanimmt, bevor de Chat ufgaht.',
-        },
-        conversations: {
-          title: 'Dini Gspröch',
-          body: 'Direktnachrichte, Gruppechats und offni Aafroge sind da gruppiert – tipp uf eis zum es ufmache. Team-Chats blibed uf de jewilige Team-Siite.',
-        },
-      },
-    },
     news: {
       title: 'News',
       description: 'Vereinsmitteilige und dini Hiiwiis',

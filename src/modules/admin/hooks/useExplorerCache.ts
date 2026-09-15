@@ -102,7 +102,7 @@ export function useExplorerCache(scope: ExplorerScope) {
             'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn1_bb', 'otn2_bb', 'referee_bb',
             // Coaching education (migration 274) — comma-separated JS/C/B/A.
             'trainer_licences',
-            'birthdate_visibility', 'consent_decision', 'consent_prompted_at',
+            'birthdate_visibility',
             'requested_team', 'coach_approved_team', 'is_spielplaner', 'wiedisync_active',
             'shell', 'shell_expires', 'shell_reminder_sent',
             'licence_activated', 'licence_validated', 'licence_category',
@@ -114,9 +114,7 @@ export function useExplorerCache(scope: ExplorerScope) {
             // licence_activation_date / licence_validation_date intentionally
             // omitted — admin-only field perms; including them 403s the whole
             // Promise.all batch for Vorstand/Coach/etc. on /admin/explore.
-            'hide_phone', 'hide_email', 'website_visible',
-            'communications_team_chat_enabled', 'communications_dm_enabled', 'communications_banned',
-            'push_preview_content', 'last_online_at',
+            'hide_phone', 'hide_email', 'website_visible', 'last_online_at',
             'adresse', 'plz', 'ort', 'vm_email', 'ahv_nummer', 'beitragskategorie',
             // Club register status + the dates that bracket it (migration 302).
             // In the same read lists as beitragskategorie above, so batching
