@@ -29,7 +29,7 @@ const WIZARD = `<!doctype html><html><body style="margin:0;font:14px sans-serif"
   <p>Wollen Sie diese Änderungen übernehmen?</p>
   <button id="ja" style="position:absolute;top:290px;left:430px"
     onclick="window.__clicked='ja';document.getElementById('confirm').remove();document.getElementById('glass').remove()">Ja</button>
-  <button id="nein" style="position:absolute;top:290px;left:500px" onclick="window.__clicked='nein'">Nein</button>
+  <button id="nein" style="position:absolute;top:290px;left:500px" onclick="window.__clicked='nein'"><span style="pointer-events:none">Nein</span></button>
 </div>
 </body></html>`;
 
@@ -77,7 +77,7 @@ test('"Ja" is the confirmation button, not the clipped Gast cell or the grid beh
   assert.equal(r.stillOpen, 0, 'the confirmation closed after Ja');
 });
 
-test('"Nein" is the confirmation button, not the Gast = Nein cell', async (t) => {
+test('"Nein" is the confirmation button (label span with pointer-events:none), not the Gast = Nein cell', async (t) => {
   const r = await withWizard(async (page) => {
     const pos = await page.evaluate(pickExact, { exact: 'Nein' });
     await page.mouse.click(pos.x, pos.y);

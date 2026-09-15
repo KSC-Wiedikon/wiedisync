@@ -38,9 +38,13 @@ export function pickExact({ exact, lowest = true }) {
     .filter(({ r }) => r.left >= 0 && r.top >= 0 && r.right <= vw && r.bottom <= vh)
     // Hit-test: whatever is painted on top at the centre must belong to the
     // candidate, or the click goes to a glass pane / another dialog instead.
+    // The direct parent is accepted too (a label span with pointer-events:
+    // none inside its button); anything further up is not — for a row clipped
+    // out of a scroll box the element painted at that point is the dialog
+    // panel several levels above it, which is exactly the false positive.
     .filter(({ e, r }) => {
       const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)
-      return !!hit && e.contains(hit)
+      return !!hit && (e.contains(hit) || hit === e.parentElement)
     })
     .map(({ r }) => r)
   if (!c.length) return null

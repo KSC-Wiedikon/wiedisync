@@ -255,8 +255,9 @@ async function run() {
       }
     } else {
       // preview — back out without writing
-      if (!(await clickExact(page, 'Nein'))) { for (let i = 0; i < 3; i++) { await page.keyboard.press('Escape'); await sleep(300) } }
-      log('Preview only — backed out, nothing committed.')
+      const viaNein = await clickExact(page, 'Nein')
+      if (!viaNein) { for (let i = 0; i < 3; i++) { await page.keyboard.press('Escape'); await sleep(300) } }
+      log(`Preview only — backed out via ${viaNein ? 'Nein' : 'Escape'}, nothing committed.`)
     }
   } catch (e) {
     log('✗', e.message)
