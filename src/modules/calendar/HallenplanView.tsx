@@ -1,7 +1,6 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
-import { useAuth } from '../../hooks/useAuth'
 import { useAdminMode } from '../../hooks/useAdminMode'
 import { useRealtime } from '../../hooks/useRealtime'
 import { useIsMobile } from '../../hooks/useMediaQuery'
@@ -30,8 +29,9 @@ function getTodayDayIndex(): number {
 export default function HallenplanView() {
   const { t } = useTranslation('hallenplan')
   const navigate = useNavigate()
-  const { isCoach } = useAuth()
-  const { effectiveIsAdmin: isAdmin } = useAdminMode()
+  // Both mode-aware (see HallenplanPage): useAuth().isCoach folds the global
+  // admin in regardless of the toggle.
+  const { effectiveIsAdmin: isAdmin, effectiveIsCoach: isCoach } = useAdminMode()
   const isMobile = useIsMobile()
   const { weekDays, goNext, goPrev, goToday, weekLabel, mondayStr, sundayStr } = useWeekNavigation()
 
