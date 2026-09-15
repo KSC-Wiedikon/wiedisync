@@ -26,7 +26,6 @@ Internal platform for **KSC Wiedikon** — managing teams, games, trainings, and
 - **Schreibereinsaetze** — Scorer duty assignments with delegation and iCal export
 - **Spielplanung** — Season scheduling with opponent invites and game booking (Terminplanung), conflict detection, VolleyManager push, and an embedded scheduling mailbox
 - **Teams & Rosters** — Multi-sport roster management, player profiles, photos, and sponsor display
-- **Messaging** — Team chat and direct messages with reactions, polls, and reports
 - **News** — Club news (Vereinsnews) and broadcasts via email and push
 - **Forms** — Internal form builder with team-scoped submissions
 - **Fines** — Team fine rules and tracking (Bussenkasse)

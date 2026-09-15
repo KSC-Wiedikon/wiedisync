@@ -289,16 +289,9 @@ export interface Member extends BaseRecord {
   billing_phone?: string | null
   billing_iban?: string | null
 
-  // Messaging
-  communications_team_chat_enabled?: boolean
-  communications_dm_enabled?: boolean
-  communications_banned?: boolean
-  push_preview_content?: boolean
   last_online_at?: string | null
   /** Annual pre-licence data check (migration 270) — when the member last confirmed their profile. */
   profile_verified_at?: string | null
-  consent_decision?: ConsentDecision
-  consent_prompted_at?: string | null
 
 }
 
@@ -1151,7 +1144,7 @@ export interface ScorerDelegation extends BaseRecord {
 
 export interface Notification extends BaseRecord {
   member: string
-  type: 'activity_change' | 'upcoming_activity' | 'deadline_reminder' | 'result_available' | 'duty_delegation_request' | 'member_join_request' | 'poll_created' | 'event_invite' | 'new_report' | 'form_published' | 'form_submission' | 'form_reminder' | 'expense_status' | 'announcement' | 'licence_status' | 'auto_declined_deadline'
+  type: 'activity_change' | 'upcoming_activity' | 'deadline_reminder' | 'result_available' | 'duty_delegation_request' | 'member_join_request' | 'poll_created' | 'event_invite' | 'form_published' | 'form_submission' | 'form_reminder' | 'expense_status' | 'announcement' | 'licence_status' | 'auto_declined_deadline'
   title: string
   body: string
   activity_type: 'game' | 'training' | 'event' | 'scorer_duty' | 'team' | 'poll' | 'report' | 'form' | 'expense' | 'announcement' | 'fine' | ''
@@ -1210,7 +1203,6 @@ export interface Announcement extends BaseRecord {
 
 export interface Poll extends BaseRecord {
   team: string | null
-  conversation?: string | null
   question: string
   options: string[]
   mode: 'single' | 'multi'
@@ -1227,95 +1219,6 @@ export interface PollVote extends BaseRecord {
   member: string
   selected_options: number[]
 }
-
-// ─── Messaging ───────────────────────────────────────────────
-
-export type ConversationType = 'team' | 'dm' | 'dm_request' | 'activity_chat' | 'group_dm'
-
-export type ConversationActivityType = 'event'
-
-export interface Conversation extends BaseRecord {
-  type: ConversationType
-  team: string | null
-  title: string | null
-  created_by: string
-  created_at: string
-  last_message_at: string | null
-  last_message_preview: string | null
-  /** activity_chat only — 'event' in Plan 02. */
-  activity_type?: ConversationActivityType | null
-  /** activity_chat only — integer FK at DB level (string in client-side JSON). */
-  activity_id?: number | string | null
-}
-
-export type ConversationMemberRole = 'member' | 'moderator'
-
-export interface ConversationMember extends BaseRecord {
-  conversation: string
-  member: string
-  role: ConversationMemberRole
-  joined_at: string
-  last_read_at: string | null
-  muted: boolean
-  archived: boolean
-}
-
-export type MessageType = 'text' | 'poll'
-
-export interface Message extends BaseRecord {
-  conversation: string
-  sender: string
-  type: MessageType
-  body: string | null
-  poll: string | null
-  created_at: string
-  edited_at: string | null
-  deleted_at: string | null
-}
-
-export interface MessageReaction extends BaseRecord {
-  message: string
-  member: string
-  emoji: string
-  created_at: string
-}
-
-export interface Block extends BaseRecord {
-  blocker: string
-  blocked: string
-  created_at: string
-}
-
-export type MessageRequestStatus = 'pending' | 'accepted' | 'declined'
-
-export interface MessageRequest extends BaseRecord {
-  conversation: string
-  sender: string
-  recipient: string
-  status: MessageRequestStatus
-  created_at: string
-  resolved_at: string | null
-}
-
-export type ReportReason =
-  | 'harassment' | 'spam' | 'inappropriate' | 'other' | 'moderator_delete'
-export type ReportStatus = 'open' | 'resolved' | 'dismissed'
-
-export interface Report extends BaseRecord {
-  reporter: string | null
-  reported_member: string | null
-  message: string | null
-  conversation: string | null
-  reason: ReportReason
-  note: string | null
-  message_snapshot: string | null
-  status: ReportStatus
-  resolved_by: string | null
-  resolved_at: string | null
-  created_at: string
-}
-
-export type ConsentDecision = 'pending' | 'declined' | 'accepted'
 
 // ── Fines (migration 069) ───────────────────────────────────────────────
 

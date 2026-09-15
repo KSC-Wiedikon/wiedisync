@@ -2,6 +2,17 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.11.0 — 2026-09-15
+
+### New
+
+- **The fines ledger as a PDF.** *Team → Roster editor → Fines → Download summary (PDF).* One sheet for the team chat or the locker-room wall: who owes what (fines, open, paid and waived per person, with fines the team owes as a whole on their own line and a total), every fine in order with its date, activity, reason and status, and the tiers that priced them at the bottom so the numbers explain themselves. Covers the current season; in English like every export.
+
+### Fixes
+
+- **The coach's match sheet lists players in ascending jersey order** — 1 at the top, unnumbered players last — the way the scorer reads them off the paper. It also opens edge to edge and can be pinch-zoomed on a phone, so the scorer can read it in the hall.
+- **In a game's details, the combined Scorer/Scoreboard duty no longer runs into the person's name** — the label wraps onto two lines where it does not fit.
+
 ## v2.10.0 — 2026-09-15
 
 ### New

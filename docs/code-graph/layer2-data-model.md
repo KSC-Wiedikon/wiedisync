@@ -2,7 +2,7 @@
 
 Backend is Directus on Postgres (Supabase). Tables live in the `public` schema; primary keys are mostly serial `integer`, with messaging tables and a few others on `uuid`. Relationships are a mix of DB-level foreign keys (listed in `SCHEMA.sql`) and Directus-metadata-only relations inferred from `<entity>` column naming (`team`, `member`, `kscw_team`, `hall`, `hall_slot`, `game`, `activity_id`); only the former are marked as enforced FKs below. `members.user` and several `*_by`/`user_*` columns point at `directus_users.id` (a `uuid`) outside the app schema.
 
-Domain groups: **people**, **scheduling**, **participation**, **messaging**, **forms**, **admin/infra**.
+Domain groups: **people**, **scheduling**, **participation**, **forms**, **admin/infra**.
 
 Schema coverage: numbered migrations run through **111** (`directus/scripts/0NN-*.sql`); regenerate `SCHEMA.sql` via `npm run db:baseline:prod` after schema changes. Major scheduling additions since the first draft of this doc: per-fixture multi-game bookings (`game_scheduling_bookings.svrz_game_id`, migration 105), the per-season offer window (`game_scheduling_seasons.season_opens`/`season_closes`, migration 108), per-team scheduling-contact keying (`svrz_spielplaner_contacts.team_identifier`, migration 106), the booking proposer fields (`game_scheduling_bookings.proposed_by_name`/`proposed_by_email`, migration 111), and the embedded Spielplanung mailbox (`scheduling_emails`, migration 100). `svrz_number` on `svrz_games` (already listed below) threads each fixture's SVRZ number into the dashboard/opponent UI.
 
@@ -110,41 +110,8 @@ erDiagram
 | `carpool_passengers` | `id`, `carpool`, `passenger`, `status` | `carpool`→carpools (FK CASCADE), `passenger`→members (FK CASCADE) | Passenger sign-up on a carpool. |
 | `tasks` | `id`, `activity_type`, `activity_id`, `label`, `category`, `assigned_to`, `claimed_by`, `completed`, `created_by` | members refs (inferred); polymorphic activity | Per-activity to-do items. |
 | `task_templates` | `id`, `name`, `team`, `tasks_json` (json), `created_by` | `team`→teams, `created_by`→members (inferred) | Reusable task checklist per team. |
-| `polls` | `id`, `team`, `conversation` (uuid), `question`, `options` (json), `mode`, `deadline`, `status`, `anonymous` | `conversation`→conversations (FK CASCADE); `team`→teams (inferred); CHECK(team OR conversation) | Team or in-chat poll. |
+| `polls` | `id`, `team` (NOT NULL), `question`, `options` (json), `mode`, `deadline`, `status`, `anonymous` | `team`→teams | Team poll. (Chat polls + `conversation` column dropped with messaging, migration 364.) |
 | `poll_votes` | `id`, `poll`, `member`, `selected_options` (json) | `poll`→polls (FK CASCADE), `member`→members (FK CASCADE) | One vote row per member×poll. |
-
----
-
-## Messaging (conversations, messages, requests, blocks, reports)
-
-```mermaid
-erDiagram
-    CONVERSATIONS ||--o{ CONVERSATION_MEMBERS : "has"
-    MEMBERS ||--o{ CONVERSATION_MEMBERS : "in"
-    CONVERSATIONS ||--o{ MESSAGES : "contains"
-    MEMBERS ||--o{ MESSAGES : "sends"
-    MESSAGES ||--o{ MESSAGE_REACTIONS : "reacted"
-    MEMBERS ||--o{ MESSAGE_REACTIONS : "reacts"
-    CONVERSATIONS ||--o{ MESSAGE_REQUESTS : "gates"
-    MEMBERS ||--o{ MESSAGE_REQUESTS : "sender recipient"
-    MEMBERS ||--o{ BLOCKS : "blocker blocked"
-    CONVERSATIONS ||--o{ REPORTS : "about"
-    MESSAGES ||--o{ REPORTS : "about"
-    MEMBERS ||--o{ REPORTS : "reporter reported"
-    TEAMS ||--o| CONVERSATIONS : "team chat"
-```
-
-> Messaging tables use `uuid` PKs. `conversations.type` ∈ team/dm/dm_request/activity_chat/group_dm (CHECK-shaped); `activity_chat` carries `(activity_type='event', activity_id)`.
-
-| Collection | Key columns | Relationships | Purpose |
-|---|---|---|---|
-| `conversations` | `id` (uuid), `type`, `title`, `team`, `created_by`, `last_message_at`, `activity_type`/`activity_id` | `team`→teams (FK CASCADE), `created_by`→members (FK SET NULL) | Chat thread: team, DM, group DM, or event activity chat. |
-| `conversation_members` | `id` (uuid), `conversation`, `member`, `role`, `last_read_at`, `muted`, `archived` | `conversation`→conversations (FK CASCADE), `member`→members (FK CASCADE); UNIQUE(conversation,member) | Membership + read-state per conversation. |
-| `messages` | `id` (uuid), `conversation`, `sender`, `type`, `body`, `poll`, `edited_at`, `deleted_at` | `conversation`→conversations (FK CASCADE), `sender`→members (FK CASCADE), `poll`→polls (FK SET NULL) | A single chat message (text or poll). |
-| `message_reactions` | `id` (uuid), `message`, `member`, `emoji` | `message`/`member` (FK CASCADE); UNIQUE(message,member,emoji) | Emoji reaction on a message. |
-| `message_requests` | `id` (uuid), `conversation`, `sender`, `recipient`, `status` | `conversation`/`sender`/`recipient` (FK CASCADE) | DM-request gating (accept before chatting). |
-| `blocks` | `id` (uuid), `blocker`, `blocked` | both →members (FK CASCADE); CHECK(blocker≠blocked) | Member-to-member block. |
-| `reports` | `id` (uuid), `reporter`, `reported_member`, `message`, `conversation`, `reason`, `status`, `message_snapshot`, `resolved_by` | all member/message/conversation refs FK SET NULL | Abuse report on a message/member. |
 
 ---
 

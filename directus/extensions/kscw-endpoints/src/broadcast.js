@@ -30,7 +30,6 @@ import {
   resolveAudience,
   checkRateLimit,
   validateBroadcastPayload,
-  findOrCreateActivityConversation,
 } from './broadcast-helpers.js'
 import { buildBroadcastEmail, FRONTEND_URL } from './email-template.js'
 import { sendPushToMembers } from './web-push.js'
@@ -138,7 +137,7 @@ export function registerBroadcastRoutes(router, ctx) {
       // 1. auth → sender member row
       sender = await resolveSenderMember(database, req.accountability)
 
-      // 2. payload shape (also gates inApp 501 + subject-when-emailing)
+      // 2. payload shape (subject-when-emailing)
       validateBroadcastPayload(req.body)
 
       // 3. activity lookup
@@ -152,13 +151,6 @@ export function registerBroadcastRoutes(router, ctx) {
 
       // 4. RBAC + scope
       await checkBroadcastPermission(database, sender, type, activity)
-
-      // 4.5 Event-only gate for inApp channel
-      if (channels.inApp === true && activity.type !== 'event') {
-        throw new BroadcastError(400, 'broadcast/inapp_events_only',
-          'In-app channel is only available for events',
-          { activityType: activity.type })
-      }
 
       // 4.6 in-flight claim — see `broadcastsInFlight` above. Taken BEFORE the
       //     rate-limit read (this check-and-add is synchronous, so it cannot
@@ -312,94 +304,6 @@ export function registerBroadcastRoutes(router, ctx) {
         }
       }
 
-      // 9.5 IN-APP channel ────────────────────────────────────────────
-      let inAppResult = { sent: 0, failed: 0, conversation_id: null, message_id: null }
-      if (channels.inApp === true) {
-        try {
-          const schema = await getSchema()
-          const { ItemsService } = services
-          const messagesService = new ItemsService('messages', { schema, knex: database })
-          const conversationsService = new ItemsService('conversations', { schema, knex: database })
-
-          // Find or create the event's activity_chat conversation.
-          const conv = await findOrCreateActivityConversation(
-            database, services, schema, activity, sender,
-          )
-          inAppResult.conversation_id = conv.id
-
-          // Build target membership: audience (wiedisync_active already filtered
-          // via memberRecords at step 7) + sender (force-unarchived so the coach
-          // always sees the thread they just sent, regardless of their own
-          // team_chat_enabled preference).
-          const activeAudienceIds = memberRecords.map(m => m.id)
-          const toJoin = Array.from(new Set([...activeAudienceIds, sender.id]))
-
-          if (toJoin.length > 0) {
-            // One query for all relevant flags.
-            const flagRows = await database('members').whereIn('id', toJoin)
-              .select('id', 'communications_banned', 'communications_team_chat_enabled')
-            const bannedIds = new Set()
-            const archivedByMember = new Map()
-            for (const f of flagRows) {
-              if (f.communications_banned === true) {
-                bannedIds.add(String(f.id))
-                continue
-              }
-              const forceUnarchive = String(f.id) === String(sender.id)
-              const archived = forceUnarchive
-                ? false
-                : !(f.communications_team_chat_enabled === true)
-              archivedByMember.set(String(f.id), archived)
-            }
-
-            const joinable = toJoin.filter(id => !bannedIds.has(String(id)))
-            for (const mid of joinable) {
-              const archived = archivedByMember.get(String(mid)) ?? false
-              await database.raw(
-                `INSERT INTO conversation_members (id, conversation, member, archived, role, joined_at)
-                 VALUES (?, ?, ?, ?, 'member', NOW())
-                 ON CONFLICT (conversation, member)
-                 DO UPDATE SET archived = EXCLUDED.archived`,
-                [crypto.randomUUID(), conv.id, mid, archived],
-              )
-            }
-          }
-
-          // Insert the broadcast as a text message via ItemsService so Directus
-          // realtime emits. We deliberately do NOT go through
-          // POST /messaging/messages — that route's firePushForMessage hook
-          // would double-push on top of our channels.push fan-out.
-          const nowIso = new Date().toISOString()
-          const bodyText = subject ? `**${subject}**\n\n${message}` : message
-          const messageId = crypto.randomUUID()
-          await messagesService.createOne({
-            id: messageId,
-            conversation: conv.id,
-            sender: sender.id,
-            type: 'text',
-            body: bodyText,
-            created_at: nowIso,
-          })
-
-          // Denorm last-message fields for inbox list rendering.
-          const preview = bodyText.length > 120 ? bodyText.slice(0, 117) + '...' : bodyText
-          await conversationsService.updateOne(conv.id, {
-            last_message_at: nowIso,
-            last_message_preview: preview,
-          })
-
-          inAppResult.sent = 1
-          inAppResult.message_id = messageId
-        } catch (inAppErr) {
-          inAppResult.failed = 1
-          log.error({
-            msg: `[broadcast] inApp channel failed: ${inAppErr?.message}`,
-            stack: inAppErr?.stack,
-            code: inAppErr?.code,
-          })
-        }
-      }
-
       // 10. audit row ──────────────────────────────────────────────────
       let broadcastId = null
       let auditFailed = false
@@ -411,7 +315,6 @@ export function registerBroadcastRoutes(router, ctx) {
           channels_sent: JSON.stringify({
             email: channels.email === true,
             push: channels.push === true,
-            in_app: channels.inApp === true,
           }),
           audience_filter: JSON.stringify(audience || {}),
           recipient_count: memberIds.length + externalsForSend.length,
@@ -424,7 +327,6 @@ export function registerBroadcastRoutes(router, ctx) {
           delivery_results: JSON.stringify({
             email: emailResult,
             push: pushResult,
-            in_app: inAppResult,
           }),
         }).returning('id')
         // knex returns either [id] or [{id}] depending on dialect/version
@@ -443,7 +345,7 @@ export function registerBroadcastRoutes(router, ctx) {
 
       // 11. response ───────────────────────────────────────────────────
       const recipientCount = memberIds.length + externalsForSend.length
-      log.info(`[broadcast] ${activity.type}#${activity.id} by member ${sender.id} → ${recipientCount} recipients (email sent=${emailResult.sent} failed=${emailResult.failed}, push sent=${pushResult.sent} failed=${pushResult.failed}, inApp sent=${inAppResult.sent} failed=${inAppResult.failed})`)
+      log.info(`[broadcast] ${activity.type}#${activity.id} by member ${sender.id} → ${recipientCount} recipients (email sent=${emailResult.sent} failed=${emailResult.failed}, push sent=${pushResult.sent} failed=${pushResult.failed})`)
 
       return res.json({
         broadcastId,
@@ -455,12 +357,6 @@ export function registerBroadcastRoutes(router, ctx) {
         delivery: {
           email: { sent: emailResult.sent, failed: emailResult.failed },
           push: { sent: pushResult.sent, failed: pushResult.failed, expired: pushResult.expired },
-          in_app: {
-            sent: inAppResult.sent,
-            failed: inAppResult.failed,
-            conversation_id: inAppResult.conversation_id,
-            message_id: inAppResult.message_id,
-          },
         },
         ...(auditFailed ? { auditFailed: true } : {}),
       })

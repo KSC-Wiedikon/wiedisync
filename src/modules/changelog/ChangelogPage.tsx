@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.10.0'
+const APP_VERSION = '2.11.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,25 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.11.0',
+    date: '15.09.2026',
+    sections: [
+      {
+        title: "New",
+        items: [
+          "The fines ledger as a PDF. Team → Roster editor → Fines → Download summary (PDF). One sheet for the team chat or the locker-room wall: who owes what (fines, open, paid and waived per person, with fines the team owes as a whole on their own line and a total), every fine in order with its date, activity, reason and status, and the tiers that priced them at the bottom so the numbers explain themselves. Covers the current season; in English like every export.",
+        ],
+      },
+      {
+        title: "Fixes",
+        items: [
+          "The coach's match sheet lists players in ascending jersey order — 1 at the top, unnumbered players last — the way the scorer reads them off the paper. It also opens edge to edge and can be pinch-zoomed on a phone, so the scorer can read it in the hall.",
+          "In a game's details, the combined Scorer/Scoreboard duty no longer runs into the person's name — the label wraps onto two lines where it does not fit.",
+        ],
+      },
+    ],
+  },
   {
     version: '2.10.0',
     date: '15.09.2026',

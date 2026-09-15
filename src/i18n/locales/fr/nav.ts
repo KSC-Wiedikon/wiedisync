@@ -13,7 +13,6 @@ export default {
   teams: 'Equipes',
   events: 'Evenements',
   forms: 'Formulaires',
-  inbox: 'Messages',
   gameplan: 'Calendrier manuel des matchs',
   hallenplan: 'Plan de salle',
   terminplanung: 'Planification des matchs',
@@ -70,8 +69,6 @@ export default {
   announcements: 'Annonces',
   clubMailbox: 'Messagerie du club',
   news: 'Actualités',
-  moderationReports: 'Signalements',
-  messagingSettings: 'Messagerie',
 
   // ── Backfilled 2026-07-27 — fr/it catch-up (was rendering in English) ──
   hallenfinder: 'Recherche de salles',

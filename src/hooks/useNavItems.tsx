@@ -1,12 +1,11 @@
 import { useTranslation } from 'react-i18next'
 import { useAuth } from './useAuth'
 import { useAdminMode } from './useAdminMode'
-import { messagingFeatureEnabled } from '../utils/messagingFeatureFlag'
 import { SCHEDULING_ORIGIN } from '../lib/api'
 import { buildAdminGroups, buildSuperadminItems, type AdminNavEntry } from '../lib/adminNav'
 import {
   Home, Calendar, UserX, PenSquare, PartyPopper, Users, Radio,
-  CalendarClock, ClipboardCheck, Inbox, Newspaper, ScrollText, Gavel,
+  CalendarClock, ClipboardCheck, Newspaper, ScrollText, Gavel,
   Wallet, Landmark, ReceiptText, GraduationCap,
 } from 'lucide-react'
 import WhistleIcon from '../components/WhistleIcon'
@@ -25,7 +24,7 @@ export interface NavItem {
  * guards, so the navbar is always complete for privileged users (the admin-mode
  * toggle only changes data scope, never which pages are listed).
  */
-export function useNavItems(isLoggedIn: boolean, isApproved: boolean, memberId?: number | string | null) {
+export function useNavItems(isLoggedIn: boolean, isApproved: boolean) {
   const { t } = useTranslation('nav')
   const { memberTeamIds, is_spielplaner, spielplanerTeamIds, isAdmin, isGlobalAdmin, isSuperAdmin, isVorstand, canAccessFinance, isVbAdmin, isBbAdmin, coachTeamIds, teamResponsibleIds } = useAuth()
   const { effectiveIsAdmin, effectiveIsVorstand } = useAdminMode()
@@ -67,9 +66,6 @@ export function useNavItems(isLoggedIn: boolean, isApproved: boolean, memberId?:
     { to: '/teams', label: t(showTeamsPlural ? 'teams' : 'team'), icon: <Users className={iconClass} /> },
     { to: '/absences', label: t('absences'), icon: <UserX className={iconClass} /> },
     { to: '/scorer', label: t('scorer'), icon: <PenSquare className={iconClass} /> },
-    ...(messagingFeatureEnabled(memberId)
-      ? [{ to: '/inbox', label: t('inbox'), icon: <Inbox className={iconClass} /> }]
-      : []),
     ...(canManageForms ? [{ to: '/forms', label: t('forms'), icon: <ScrollText className={iconClass} /> }] : []),
     // J+S export — coaches and above (same audience as Forms authoring).
     ...(canManageForms ? [{ to: '/js-export', label: t('jsExport'), icon: <GraduationCap className={iconClass} /> }] : []),

@@ -42,7 +42,6 @@ graph LR
     EP32["POST /kscw/web-push/subscribe"]
     EP33["GET /kscw/sv-licence/me"]
     EP34["POST /kscw/clubdesk-update"]
-    EP35["GET|POST /kscw/messaging/*"]
     EP36["POST /kscw/activities/:type/with-participations"]
     EP37["POST /kscw/activities/:type/:id/broadcast"]
     EP38["POST /kscw/events/:id/notify"]
@@ -72,9 +71,8 @@ graph LR
   EP32 --> push_subscriptions
   EP33 --> sv_vm_check
   EP34 --> members & registrations
-  EP35 --> conversations & messages & message_requests & blocks
   EP36 --> participations & trainings & games & events
-  EP37 --> conversations & messages & notifications
+  EP37 --> broadcasts & notifications
   EP38 --> events & participations & notifications
   EP40 --> team_invites
   EP41 --> form_submissions & member_teams
@@ -174,9 +172,8 @@ graph LR
 | `/kscw/web-push/vapid-public-key` | GET | — | Public |
 | `/kscw/web-push/subscribe` `/unsubscribe` `/test` | POST | W: push_subscriptions; sends push | Auth |
 | `/kscw/activities/:type/with-participations` | POST | R: trainings/games/events + participations (single round-trip) | Auth |
-| `/kscw/activities/:type/:id/broadcast` `/broadcast/preview` | POST | W: conversations, messages, notifications + push/email | Scoped (sender member resolved) |
+| `/kscw/activities/:type/:id/broadcast` `/broadcast/preview` | POST | W: broadcasts, notifications + push/email | Scoped (sender member resolved) |
 | `/kscw/events/:id/notify` | POST | R: events, participations; W: notifications + push/email | Scoped (admin or event creator; email = admin/creator only) |
-| `/kscw/messaging/*` (~30 routes) | GET/POST/PATCH/DELETE | conversations, conversation_members, messages, message_reactions, message_requests, blocks, polls, poll_votes, message_reports | Auth (+ membership/moderator/owner checks) |
 | `/kscw/sync-status` | GET | R: sync_runs | Auth |
 | `/kscw/admin/sv-sync` | POST | scrape SwissVolley → games, rankings; W: sync_runs | Admin |
 | `/kscw/admin/bp-sync` | POST | scrape Basketplan → games, rankings; W: sync_runs | Admin |
@@ -313,14 +310,6 @@ All trigger functions pin `SET search_path = public` (migration 071 restored reg
 | `trg_participations_clear_auto_marker` | participations | BEFORE UPDATE | On user-driven status change (marker unchanged), null `auto_declined_by` to detach from absence origin (reshaped by 028/038) |
 | `trg_trainings_clear_auto_cancel_marker` | trainings | BEFORE UPDATE | On manual `cancelled` toggle, null `auto_cancelled_by_closure` / `auto_cancelled_by_trial` (extended by 055) |
 | `trg_trainings_trial_transform` | trainings | AFTER INSERT | A new trial transforms any active same-date training in place (merge RSVPs, delete dup); at most one active training per (team,date) (056, generalized by 061) |
-| `trg_messaging_protect_sentinel` | members | BEFORE DELETE | Prevent deletion of the `system@kscw.ch` sentinel member |
-| `trg_messaging_teams_members_insert` | member_teams | AFTER INSERT | Insert `conversation_members` row for team conversation (archived = NOT chat_enabled) |
-| `trg_messaging_teams_members_delete` | member_teams | AFTER DELETE | Archive (not delete) the member's team `conversation_members` row |
-| `trg_messaging_member_team_chat_enabled` | members | AFTER UPD OF communications_team_chat_enabled | Toggle `archived` on the member's team conversation rows |
-| `trg_messaging_teams_insert` | teams | AFTER INSERT | Create the team's group conversation + seed members |
-| `trg_messaging_dm_autoaccept` | member_teams | AFTER INSERT | Promote pending `message_requests` between new teammate + current teammates to accepted DM (unless blocked) |
-| `trg_participations_activity_chat_sync` | participations | AFTER INS/UPD/DEL | Keep `conversation_members` in sync with event activity_chat participations (event-only; banned → delete) |
-| `trg_activity_chat_event_delete` | events | AFTER DELETE | Delete the event's `activity_chat` conversation (FK cascade handles children) |
 | `trg_members_prevent_email_blanking` | members | BEFORE UPD OF email | Refuse setting an existing non-blank email to blank |
 | `form_submissions_guard` | form_submissions | BEFORE INSERT | Allow only when form open, before `closes_at`, no duplicate (per-member dedup) |
 | `form_submissions_update_guard` | form_submissions | BEFORE UPDATE | Allow self-edit of `answers` only while form open + before deadline (088) |
@@ -352,6 +341,5 @@ All crons are registered via `schedule(cron, fn)` in `kscw-hooks/src/index.js` (
 | `30 4 1 * *` | Schulferien sync (monthly) | Sync school-holiday dates (calls `/admin/schulferien-sync`) | halls/holiday data, sync_runs |
 | `0 3 1 5 *` | season refresh (May 1) | Refresh `teams.season` choice list (`refreshSeasonChoices`) | directus_fields (teams.season choices) |
 | `30 3 * * *` | error-log cleanup | `cleanOldLogs()` — delete JSONL logs older than retention | JSONL log files |
-| `0 3 * * *` | messaging retention | Hard-delete messages older than 12 months (Plan 05 retention) | messages |
 | `0 2 * * *` | slot-cascade top-up | `topUpIndefiniteSlots` — roll forward trainings for indefinite slots + auto-RSVP | trainings, participations |
 | `0 9 * * *` | fines reminder | Email members with open fines older than 14 days | fines reminder email |
