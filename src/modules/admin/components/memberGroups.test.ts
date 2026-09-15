@@ -117,6 +117,41 @@ describe('buildMemberGroups', () => {
     expect(Object.keys(g).some((k) => k.includes('team:4'))).toBe(false)
   })
 
+  /**
+   * The roster-season filter. A `teams` row belongs to exactly one season (the
+   * rollover clones squads into NEW ids), so last season's D2 is a different,
+   * archived row — opted in, it gets a node of its own, labelled with its
+   * season, next to this season's bare "D2".
+   */
+  it('lists an archived team the caller opts in, labelled with its season, after the active one', () => {
+    const lastD2 = { id: 5, sport: 'volleyball', name: 'D2', active: false, season: '2025/26' }
+    const thisD2 = { ...TEAMS[1], season: '2026/27' }
+    const stayed = { id: 1 }
+    const left = { id: 2, sektion: 'KSCW' }
+    const cache = cacheOf({ players: { '1': ['2', '5'], '2': ['5'] } })
+    const nodes = buildMemberGroups([stayed, left], [stayed, left], cache, { teams: [lastD2, thisD2] })
+    const teams = nodes.find((n) => n.key === 'sport:volleyball')!
+      .children!.find((n) => n.key === 'sport:volleyball:teams')!
+    expect(teams.children!.map((n) => [n.key, n.raw])).toEqual([
+      ['sport:volleyball:team:2', 'D2'],
+      ['sport:volleyball:team:5', 'D2 (2025/26)'],
+    ])
+    const g = flatten(nodes)
+    expect(g['sport:volleyball/sport:volleyball:teams/sport:volleyball:team:2']).toEqual(['1'])
+    // ⚠ The archived node lists whoever holds a row on it — including someone
+    // the sport cascade can no longer place, because it reads ACTIVE teams only.
+    expect(g['sport:volleyball/sport:volleyball:teams/sport:volleyball:team:5']).toEqual(['1', '2'])
+  })
+
+  it('narrows the Teams groups to exactly the universe it is given', () => {
+    const lastD2 = { id: 5, sport: 'volleyball', name: 'D2', active: false, season: '2025/26' }
+    const m = { id: 1 }
+    const cache = cacheOf({ players: { '1': ['2', '5'] } })
+    const g = flatten(buildMemberGroups([m], [m], cache, { teams: [lastD2] }))
+    expect(Object.keys(g).some((k) => k.includes('team:2'))).toBe(false)
+    expect(g['sport:volleyball/sport:volleyball:teams/sport:volleyball:team:5']).toEqual(['1'])
+  })
+
   it('drops empty groups but keeps whoever it genuinely cannot place', () => {
     const m = { id: 9 }
     const nodes = buildMemberGroups([m], [m], cacheOf())

@@ -8,6 +8,7 @@ import { TRAINER_LICENCE_CODES, TRAINER_LICENCE_I18N_KEYS } from '../../../utils
 import {
   BIRTHDATE_VIS,
   BOOL_FIELDS,
+  CURRENT_SEASON_KEY,
   EMPTY_FILTERS,
   GUEST_KEYS,
   LANGUAGES,
@@ -21,6 +22,7 @@ import {
   type BoolField,
   type MemberFilterState,
   type PresenceField,
+  type SeasonChoices,
   type SportKey,
   type Tri,
 } from './memberFilters'
@@ -30,9 +32,11 @@ import {
 interface Props {
   value: MemberFilterState
   onChange: (next: MemberFilterState) => void
+  /** Season pills to offer — read off the teams on record (`seasonChoices`). */
+  seasons: SeasonChoices
 }
 
-export default function ExplorerMemberFilters({ value, onChange }: Props) {
+export default function ExplorerMemberFilters({ value, onChange, seasons }: Props) {
   const { t } = useTranslation(['admin', 'common', 'invitations', 'teams', 'auth'])
   // The five licence-status labels live in `common` (three surfaces share
   // them), and `t` above is bound to `admin` first — so they need their own
@@ -151,6 +155,31 @@ export default function ExplorerMemberFilters({ value, onChange }: Props) {
                       ? t('common:basketball')
                       : t('explorerSportOther')
                 }
+              />
+            ))}
+          </PillRow>
+        </Section>
+
+        {/* Roster season — which seasons' teams the Teams groups list. On by
+            default for the current season: a `teams` row belongs to exactly one
+            season, so without this the tree could only ever show this season's
+            squads, silently. The current pill is a sentinel, not a label — see
+            CURRENT_SEASON_KEY. */}
+        <Section title={t('memberFilterSectionSeason')}>
+          <PillRow>
+            <Pill
+              active={value.seasons.includes(CURRENT_SEASON_KEY)}
+              onClick={() => onChange({ ...value, seasons: toggleIn(value.seasons, CURRENT_SEASON_KEY) })}
+              label={seasons.current
+                ? `${t('memberFilterSeasonCurrent')} (${seasons.current})`
+                : t('memberFilterSeasonCurrent')}
+            />
+            {seasons.others.map((season) => (
+              <Pill
+                key={season}
+                active={value.seasons.includes(season)}
+                onClick={() => onChange({ ...value, seasons: toggleIn(value.seasons, season) })}
+                label={season}
               />
             ))}
           </PillRow>

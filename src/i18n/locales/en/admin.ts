@@ -1811,6 +1811,9 @@ export default {
   memberFilterRegisterStatusUnset: 'Not set',
   // Season dues paid (migration 360) + roster guest status.
   memberFilterDuesPaid: 'Dues paid (this season)',
+  memberFilterSectionSeason: 'Roster season',
+  memberFilterSeasonCurrent: 'Current season',
+  explorerPastSeason: 'Past season',
   memberFilterSectionGuest: 'Roster guest status',
   memberFilterGuestPlayer: 'Regular player (not a guest)',
   memberFilterGuestAny: 'Guest (any level)',

@@ -8,8 +8,9 @@
  * module to export either components or non-components, not both.
  */
 
-import type { Member, MemberPosition } from '../../../types'
+import type { Member, MemberPosition, Team } from '../../../types'
 import type { CacheShape } from './explorerHelpers'
+import type { GroupTeam } from './memberGroups'
 import { parseTrainerLicences, type TrainerLicence } from '../../../utils/trainerLicences'
 import { LICENCE_STATUSES, effectiveLicenceStatus, type LicenceStatus } from '../../../utils/licenceStatus'
 import { REGISTER_STATUS_VALUES, type RegisterStatus } from './memberFieldOptions'
@@ -122,11 +123,38 @@ export interface MemberFilterState {
   registerStatus: RegisterStatusKey[]
   /** Roster guest status — see GUEST_KEYS. */
   guest: GuestKey[]
+  /**
+   * Roster season (2026-09-15). Which seasons' teams the Teams groups of the
+   * tree and the grid rail list: `CURRENT_SEASON_KEY` = the active teams, a
+   * season label (`2025/26`) = that season's archived team rows. Empty = every
+   * season. Not a member predicate — `applyMemberFilters` ignores it; it picks
+   * the team universe via `teamsForSeasons`.
+   *
+   * Why it is a filter at all: a `teams` row belongs to exactly one season by
+   * construction (the rollover clones squads into NEW ids), so "D2" in the
+   * tree is only ever this season's D2 and last season's roster points at a
+   * different, archived id. That was invisible — an operator had no way to see
+   * that the list was season-scoped, or to look at last season's squad at all.
+   */
+  seasons: string[]
 }
 
 export type RegisterStatusKey = RegisterStatus | 'unset'
 export const REGISTER_STATUS_KEYS: readonly RegisterStatusKey[] =
   [...REGISTER_STATUS_VALUES, 'unset']
+
+/**
+ * The "whatever season the club is in" key of the roster-season filter.
+ *
+ * ⚠ A sentinel, not a season label, on purpose: the current season is decided
+ * by `teams.active`, which the rollover flips in the same transaction that
+ * clones the rosters — NOT by the calendar. `getCurrentSeason()` moves on
+ * 1 June, the rollover is a button an admin presses, and every reader that
+ * compared the two has had an annual window matching nothing (see
+ * [[member-teams-season-derivation]]). Keeping the default symbolic means the
+ * page never has to know the label to be right.
+ */
+export const CURRENT_SEASON_KEY = 'current'
 
 export const EMPTY_FILTERS: MemberFilterState = {
   bools: {},
@@ -142,6 +170,7 @@ export const EMPTY_FILTERS: MemberFilterState = {
   licenceStatus: [],
   registerStatus: [],
   guest: [],
+  seasons: [],
 }
 
 /**
@@ -157,6 +186,9 @@ export const EMPTY_FILTERS: MemberFilterState = {
 export const DEFAULT_FILTERS: MemberFilterState = {
   ...EMPTY_FILTERS,
   bools: { kscw_membership_active: 'yes' },
+  // Current-season rosters only — what the team groups have always shown, now
+  // as a filter the operator can see the count of, and widen.
+  seasons: [CURRENT_SEASON_KEY],
 }
 
 export function countActiveFilters(f: MemberFilterState): number {
@@ -174,7 +206,77 @@ export function countActiveFilters(f: MemberFilterState): number {
   n += f.licenceStatus.length
   n += f.registerStatus.length
   n += f.guest.length
+  n += f.seasons.length
   return n
+}
+
+/** What the roster-season pills offer: the active teams' season, then every other season on record. */
+export interface SeasonChoices {
+  /** Season label the ACTIVE teams carry (null before any team exists). */
+  current: string | null
+  /** Every other season any team row carries, newest first. */
+  others: string[]
+}
+
+/**
+ * Season labels the page can offer, read off the teams themselves.
+ *
+ * "Current" is the season the active teams carry — the most recent one if a
+ * stale active row from last season survived a rollover. Every other label on
+ * ANY team row (`teamLookup` holds the archived ones) is an "other" season,
+ * including a pre-created next season, so the list is whatever the data has,
+ * not a calendar guess.
+ */
+export function seasonChoices(cache: Pick<CacheShape, 'teams' | 'teamLookup'>): SeasonChoices {
+  const scopeSports = new Set(cache.teams.map((tm) => String(tm.sport ?? '')))
+  let current: string | null = null
+  for (const tm of cache.teams) {
+    if (!tm.active || !tm.season) continue
+    if (current === null || tm.season > current) current = tm.season
+  }
+  const others = new Set<string>()
+  for (const tm of cache.teamLookup.values()) {
+    if (!tm.season || tm.season === current) continue
+    // Stay inside the viewer's sport scope: a VB admin's cache holds no BB
+    // teams, so a BB-only season must not surface a pill that lists nothing.
+    if (!scopeSports.has(String(tm.sport ?? ''))) continue
+    others.add(tm.season)
+  }
+  return { current, others: [...others].sort().reverse() }
+}
+
+/**
+ * The team universe the Teams groups list for a roster-season selection.
+ *
+ * `cache.teams` is the scoped, ACTIVE list every picker and the grid's editable
+ * chips work from — it must stay that way, so the widened set is returned
+ * separately rather than written back into the cache. Archived rows come from
+ * `teamLookup` (label resolution, every season, both sports) and are kept to
+ * the sports the scoped list covers, so a VB admin never sees a BB squad.
+ *
+ * Empty selection = no restriction = every season, like every other chip row.
+ */
+export function teamsForSeasons(
+  seasons: readonly string[],
+  cache: Pick<CacheShape, 'teams' | 'teamLookup'>,
+): GroupTeam[] {
+  const scopeSports = new Set(cache.teams.map((tm) => String(tm.sport ?? '')))
+  const wantCurrent = seasons.includes(CURRENT_SEASON_KEY)
+  // The active teams answer "current"; a season label matches the row's own
+  // stamp whether or not it is still active (a stale active row from last
+  // season is still last season's squad).
+  const wanted = (tm: Team) =>
+    seasons.length === 0 || (wantCurrent && tm.active) || (!!tm.season && seasons.includes(tm.season))
+
+  const out = new Map<string, GroupTeam>()
+  // Scoped rows first — they carry the richer field set (captain / league).
+  for (const tm of cache.teams) if (wanted(tm)) out.set(String(tm.id), tm)
+  for (const tm of cache.teamLookup.values()) {
+    const id = String(tm.id)
+    if (out.has(id) || !scopeSports.has(String(tm.sport ?? ''))) continue
+    if (wanted(tm)) out.set(id, tm)
+  }
+  return [...out.values()]
 }
 
 /** Guest levels this member holds on ACTIVE team rosters (0 = regular player). */

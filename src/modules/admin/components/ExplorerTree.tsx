@@ -8,7 +8,7 @@ import {
   highlightMatch,
 } from './explorerHelpers'
 import { rankEntities } from '../hooks/useExplorerSearch'
-import { buildMemberGroups, countMembers, type MemberGroupNode } from './memberGroups'
+import { buildMemberGroups, countMembers, type GroupTeam, type MemberGroupNode } from './memberGroups'
 import type { Member } from '../../../types'
 
 interface Props {
@@ -21,6 +21,11 @@ interface Props {
    * permanently empty and make the club look like nobody has ever left.
    */
   allMembers: ReadonlyArray<Member>
+  /**
+   * The teams the Teams groups list — the active ones by default, widened by
+   * the header's roster-season filter to last season's archived squads.
+   */
+  rosterTeams: ReadonlyArray<GroupTeam>
   selectedType: BucketKey | null
   selectedId: string | null
   query: string
@@ -98,7 +103,7 @@ function sportForEntity(type: EntityBucket, id: string, cache: CacheShape): Spor
 const ITEM_LIMIT = 200
 
 export default function ExplorerTree({
-  cache, allMembers, selectedType, selectedId, query, onSelect,
+  cache, allMembers, rosterTeams, selectedType, selectedId, query, onSelect,
 }: Props) {
   const { t } = useTranslation(['admin', 'common'])
   // Expanded keys: 'members' = bucket open, 'members:sport:volleyball' = group
@@ -185,8 +190,9 @@ export default function ExplorerTree({
       inSearch.filter((m) => filteredIds.has(String(m.id))),
       inSearch,
       cache,
+      { teams: rosterTeams },
     )
-  }, [allMembers, cache, matchedMembers])
+  }, [allMembers, cache, matchedMembers, rosterTeams])
 
   const entityGroups = useMemo(() => {
     const g: Record<EntityBucket, Record<Sport, ExplorerEntity[]>> = {
