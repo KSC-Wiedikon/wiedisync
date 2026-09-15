@@ -8,6 +8,28 @@ All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file 
 
 - **Messaging is gone.** The in-app inbox — team chats, direct and group messages, the reactions, message requests, blocks and reports that came with them — has been removed, along with the Messaging entry in Options, the chat section on team pages, the Message button on player profiles and the In-app channel in Contact all. It was barely used (six messages in total, none this month) and the club's communication runs on email, push and WhatsApp. What was stored has been deleted. Team polls, notifications and Contact all's email and push channels are unchanged.
 
+## v2.12.0 — 2026-09-15
+
+### New
+
+- **Finances are split into Member finance and Team finance.** *Finances menu.* One section used to hold everything with no line between what you owe personally and what your team owes. It is now three labelled groups — *Member finance* (Bills & reimbursements, My fines, Upload invoice), *Team finance* (Team finance, Team fines; shown when you are on or lead a team) and, for the treasurer and section admins, *Club finance*. Nothing moved address: every link you had still works.
+- **Team finance — a page every player can read.** *Finances → Team finance.* Your team's bills, its bookings (sponsoring, income, expenses) and the referee fees paid at its home games, per season, with the open Teamkasse fines one tap away. Coaches, team responsibles and captains can settle a team bill from here; everyone else sees the same numbers read-only. Team bills have left the personal Bills page, so a coach's personal open balance is now really personal.
+- **Referee fees you paid are listed, and reimbursed.** *Finances → Bills & reimbursements → Referee fees you paid.* When a coach or team responsible records who paid the referees at a home game, that amount now appears on the payer's own page marked *Season end*, on the team's page as a referee line (a club cost — it never counts against the team's balance), and on the treasurer's Teams tab. At the end of the season the treasurer creates one payout per person from the Teams tab; your line then reads *Reimbursed* with the date, and the record is frozen.
+- **A reminder to record the referee fees after a home game.** *Home.* Coaches and team responsibles of a volleyball team see an amber note for each home game of the last two weeks that has ended without a referee-fee record — *Record now* opens the game with the section already expanded; *Not now* hides that game. The note goes away by itself once someone on the staff records it.
+
+### Improved
+
+- **Fines has a proper Team / My fines switch for everyone,** and the choice is in the address, so a link to your team's fines opens your team's fines. *My fines* now lists only fines addressed to you; fines the whole team owes live under *Team*.
+- **Pay-outs on the Bills page are a table** with a status (Announced / Paid); cancelled pay-outs no longer show as if they had been paid.
+
+### Removed
+
+- **Messaging (team chat, direct messages, group chats, message requests and the in-app broadcast channel) has been removed.** It was used for six messages in total and none in the last month; the club coordinates in its existing chats. Announcements, polls, push notifications and email are unchanged.
+
+### Fixes
+
+- **Recording a referee fee no longer risks a blank game page** — an amount saved as a decimal came back in a form the page could not format and would have crashed the first time a real amount was entered.
+
 ## v2.11.0 — 2026-09-15
 
 ### New

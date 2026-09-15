@@ -30,6 +30,10 @@ import { writeUserLog } from './activity-log.js'
 import { buildEmailLayout, buildInfoCard, escHtml, FRONTEND_URL } from './email-template.js'
 import { sendPushToMembers } from './web-push.js'
 import { sendLocalizedPush, memberLangToCode } from './push-i18n.js'
+// IBAN checks, the skip vocabulary and the payee/payout plumbing live in
+// finance-payout.js so the referee reimbursement run and this auto-payout
+// resolve the same IBAN precedence and mint the same finance_payouts shape.
+import { isValidIban, cleanIban, isChLiIban, PAYOUT_SKIP, resolvePayee, insertPayout } from './finance-payout.js'
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || ''
 const OCR_MODEL = process.env.EXPENSE_OCR_MODEL || 'claude-haiku-4-5'
@@ -142,21 +146,7 @@ function requireMember(req) {
   }
 }
 
-/** ISO 13616 mod-97 IBAN check (server-side mirror of src/utils/iban.ts). */
-function isValidIban(raw) {
-  const iban = String(raw || '').replace(/\s+/g, '').toUpperCase()
-  if (!/^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$/.test(iban)) return false
-  const rearranged = iban.slice(4) + iban.slice(0, 4)
-  let remainder = 0
-  for (const ch of rearranged) {
-    const val = ch >= 'A' ? String(ch.charCodeAt(0) - 55) : ch
-    for (const d of val) remainder = (remainder * 10 + Number(d)) % 97
-  }
-  return remainder === 1
-}
-
-const cleanIban = (s) => String(s || '').replace(/\s+/g, '').toUpperCase()
-const isChLiIban = (i) => /^(CH|LI)/.test(i) && isValidIban(i)
+// isValidIban / cleanIban / isChLiIban — imported from finance-payout.js.
 
 /** ClubDesk Sektion → finance section code (matches finance_accounts.division).
  *  Routes an expense to the right section's TK (vb_admin / bb_admin). */
@@ -203,14 +193,8 @@ const CARD_LABELS = {
   it: { amount: 'Importo', date: 'Data', vendor: 'Fornitore', description: 'Descrizione' },
 }
 
-// Per-locale mapping of a machine payout-skip reason to member-facing prose is
-// on the FRONTEND (expensePayoutSkipped_*). The endpoint returns only the CODE.
-const PAYOUT_SKIP = {
-  NON_CHF: 'NON_CHF',
-  NO_IBAN: 'NO_IBAN',
-  ADDRESS_INCOMPLETE: 'ADDRESS_INCOMPLETE',
-  FAILED: 'FAILED',
-}
+// PAYOUT_SKIP (the machine skip codes; the frontend maps them to prose per
+// locale via expensePayoutSkipped_*) — imported from finance-payout.js.
 
 // Per-locale member email strings for the status-change notification.
 const STATUS_MAIL = {
@@ -719,44 +703,22 @@ export function registerExpenseUpload(router, { database, logger, services, getS
           if (String(updated.currency || 'CHF') !== 'CHF') {
             payoutSkipped = PAYOUT_SKIP.NON_CHF
           } else {
-            const memberName = [payee.first_name, payee.last_name].filter(Boolean).join(' ').trim()
-            const useBilling = !!payee.billing_different && isChLiIban(cleanIban(payee.billing_iban))
-            // The IBAN the member asked to be paid on wins; then billing; then profile.
-            let iban = null; let name = memberName; let street = payee.adresse; let zip = payee.plz; let city = payee.ort
-            if (isChLiIban(cleanIban(updated.pay_to_iban))) {
-              iban = cleanIban(updated.pay_to_iban)
-            } else if (useBilling) {
-              iban = cleanIban(payee.billing_iban)
-              name = (payee.billing_name || '').trim() || memberName
-              street = payee.billing_address; zip = payee.billing_plz; city = payee.billing_ort
-            } else if (isChLiIban(cleanIban(payee.iban))) {
-              iban = cleanIban(payee.iban)
-            }
-            if (!iban) {
-              payoutSkipped = PAYOUT_SKIP.NO_IBAN
-            } else if (!name || !zip || !city) {
-              payoutSkipped = PAYOUT_SKIP.ADDRESS_INCOMPLETE
+            // The IBAN the member asked to be paid on wins; then billing; then
+            // profile — resolvePayee (finance-payout.js) is that precedence.
+            const resolved = resolvePayee(payee, updated.pay_to_iban)
+            if (resolved.skip) {
+              payoutSkipped = resolved.skip
             } else {
               try {
                 const message = `Spesen — ${[updated.vendor, updated.description].filter(Boolean).join(', ')}`.slice(0, 140)
-                const [payoutIns] = await trx('finance_payouts')
-                  .insert({
-                    member: expense.member,
-                    amount: Number(updated.amount),
-                    currency: 'CHF',
-                    message,
-                    iban,
-                    payee_name: name,
-                    payee_address: street || null,
-                    payee_zip: zip || null,
-                    payee_ort: city || null,
-                    status: 'paid',
-                    created_by_name: mem?.name || null,
-                    created_by_email: mem?.email || null,
-                    user_created: req.accountability.user,
-                  })
-                  .returning('id')
-                const payoutId = typeof payoutIns === 'object' ? payoutIns.id : payoutIns
+                const payoutId = await insertPayout(trx, {
+                  member: expense.member,
+                  amount: updated.amount,
+                  message,
+                  payee: resolved,
+                  createdBy: { name: mem?.name || null, email: mem?.email || null, user: req.accountability.user },
+                  status: 'paid',
+                })
                 await trx('finance_expenses').where({ id: expenseId }).update({ payout: payoutId })
                 updated.payout = payoutId
                 payoutCreated = true

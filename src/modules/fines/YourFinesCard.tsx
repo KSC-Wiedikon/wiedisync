@@ -81,7 +81,7 @@ export default function YourFinesCard() {
   return (
     <div className="mb-6 lg:flex lg:flex-col lg:items-center">
       <Link
-        to="/fines"
+        to={stats.mineCount > 0 ? '/fines?scope=mine' : '/fines?scope=team'}
         className="block w-full rounded-xl border border-amber-200 bg-amber-50/60 p-4 transition-colors hover:border-amber-300 lg:max-w-2xl dark:border-amber-800/50 dark:bg-amber-900/20 dark:hover:border-amber-700"
       >
         <div className="flex items-center justify-between">

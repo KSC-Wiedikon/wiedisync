@@ -171,6 +171,7 @@ export default {
   refereeExpensesSaved: 'Saved',
   refereeExpensesEdit: 'Edit',
   refereeExpensesNotRecorded: 'Not recorded yet',
+  refereeExpensesReimbursed: 'Reimbursed by the club — no longer editable.',
 
   // Auto Einsatzliste — volleyball only, coach-gated.
   // "Einsatzliste" is the official Swiss Volley term and stays untranslated.

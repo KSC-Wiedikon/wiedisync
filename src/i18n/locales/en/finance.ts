@@ -80,8 +80,8 @@ export default {
   colAmount: 'Amount',
 
   // Member finance page (label "My finances" — hosts payout IBAN + invoices)
-  myDuesTitle: 'My finances',
-  myDuesSubtitle: 'Your invoices and payout details',
+  myDuesTitle: 'Bills & reimbursements',
+  myDuesSubtitle: 'Your bills, reimbursements and payout details',
   // Payout IBAN editor (moved here from the profile editor)
   ibanCardTitle: 'Payout IBAN',
   ibanCardSubtitle: 'Your bank account for reimbursements from the club.',
@@ -101,6 +101,7 @@ export default {
   colStatus: 'Status',
   colDue: 'Due',
   colOpen: 'Open',
+  colGame: 'Game',
   colPaid: 'Paid',
 
   // Home card
@@ -108,6 +109,7 @@ export default {
   cardViewAll: 'View all',
   cardOpenCount_one: '{{count}} open invoice',
   cardOpenCount_other: '{{count}} open invoices',
+  cardTeamOpen: 'Team bills open: {{amount}}',
 
   // Expense reimbursement upload
   expenseTitle: 'Upload invoice',
@@ -367,6 +369,40 @@ export default {
   myPayoutsTitle: 'Reimbursements to you',
   myPayoutsSubtitle: 'Pay-outs the club is sending you. Download the QR-bill if you need it.',
 
+  // Pay-out status (finance_payouts.status)
+  payoutStatusOpen: 'Announced',
+  payoutStatusPaid: 'Paid',
+
+  // Referee fees the member paid out of pocket (referee_expenses, migration 363)
+  myRefereeTitle: 'Referee fees you paid',
+  myRefereeSubtitle: 'The club reimburses these at the end of the season.',
+  myRefereeTotal: 'To be reimbursed',
+  refereeStatusSeasonEnd: 'Season end',
+  refereeStatusRecorded: 'Recorded',
+  refereeStatusReimbursed: 'Reimbursed {{date}}',
+
+  // Team finance (member-facing /finance/team)
+  teamFinanceTitle: 'Team finance',
+  teamFinanceSubtitle: "Your team's bills, entries and referee fees for the season.",
+  teamFinanceNoTeams: 'You are not on a team yet.',
+  teamFinanceTeam: 'Team',
+  teamFinanceSeason: 'Season',
+  teamFinanceIncome: 'Income',
+  teamFinanceExpense: 'Expenses',
+  teamFinanceNet: 'Net',
+  teamFinanceOpenBills: 'Open team bills',
+  teamFinanceOpenFines: 'Open Teamkasse fines',
+  teamFinanceRefereeTotal: 'Referee fees this season',
+  teamFinanceBillsTitle: 'Team bills',
+  teamFinanceNoBills: 'No bills for this team.',
+  teamFinanceEntriesTitle: 'Entries',
+  teamFinanceNoEntries: 'No entries for this season.',
+  teamFinanceNoFiscalYear: 'No fiscal year exists for this season yet — entries and bills appear once finance opens it.',
+  teamFinanceFinesLink: 'Show team fines',
+  teamFinanceRecordHint: 'Referee fees are recorded in the game details after each home game.',
+  teamKindReferee: 'Referee fee',
+  refereePaidBy: 'Paid by {{name}}',
+
   // ── Dues run (recurring/batch membership-dues billing, migration 138) ──
   tabDues: 'Dues run',
   duesBookNote: 'These invoices are collected in wiedisync. Make sure the same dues are not also billed in ClubDesk, or members get two invoices.',
@@ -532,6 +568,19 @@ export default {
   teamEntryDelete: 'Remove entry',
   teamEntryDeleteSure: 'Remove this entry?',
   teamEntrySaveError: 'Could not save the entry.',
+
+  // Season-end referee reimbursement run (treasurer, Teams tab)
+  teamColReferee: 'Referee fees',
+  refereeReimbTitle: 'Referee reimbursement {{season}}',
+  refereeReimbPreview: 'Preview',
+  refereeReimbCreate: 'Create payouts ({{count}})',
+  refereeReimbConfirm: 'Create one payout per member for {{season}}? This marks the referee fees as reimbursed.',
+  refereeReimbDone: '{{count}} payouts created',
+  refereeReimbEmpty: 'Nothing to reimburse for {{season}}.',
+  refereeReimbColGames: 'Games',
+  refereeReimbSkipNoIban: 'No IBAN',
+  refereeReimbSkipAddress: 'Address incomplete',
+  refereeReimbSkipCurrency: 'Not CHF',
 
   // Budget vs actual
   tabBudget: 'Budget',

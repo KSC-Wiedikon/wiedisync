@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useSearchParams } from 'react-router-dom'
 import { Gavel } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { useAdminMode } from '../../hooks/useAdminMode'
@@ -49,8 +50,20 @@ export default function FinesPage() {
   const { user, isCoach, coachTeamIds, memberTeamIds } = useAuth()
   const { effectiveIsAdmin, effectiveIsVorstand } = useAdminMode()
   const isLeader = isCoach || effectiveIsAdmin || effectiveIsVorstand
+  const isBoard = effectiveIsAdmin || effectiveIsVorstand
 
-  const [scope, setScope] = useState<Scope>(isLeader ? 'team' : 'mine')
+  // The scope lives in the URL (`?scope=mine|team`) so the home card and the
+  // Team finance page can deep-link straight into one view; the toggle itself
+  // is visible to everyone since migration 350 gave every roster member team
+  // fines to look at. Fallback: leaders open on their teams, members on their own.
+  const [params, setParams] = useSearchParams()
+  const scopeParam = params.get('scope')
+  const scope: Scope = scopeParam === 'mine' || scopeParam === 'team' ? scopeParam : (isLeader ? 'team' : 'mine')
+  const setScope = (next: Scope) => {
+    const p = new URLSearchParams(params)
+    p.set('scope', next)
+    setParams(p, { replace: true })
+  }
   const [statusFilter, setStatusFilter] = useState<FineStatus | 'all'>('open')
   const [teamFilter, setTeamFilter] = useState<string | 'all'>('all')
 
@@ -58,26 +71,24 @@ export default function FinesPage() {
   const [pickerOpen, setPickerOpen] = useState(false)
   const [issuing, setIssuing] = useState<FinePickSelection | null>(null)
 
-  // Fine query — leaders see their teams (server-side scoped), members see own.
+  // Fine query — "My fines" is strictly the member's own rows; "Team" is every
+  // fine of a coached/TR team plus the TEAM-level fines (member IS NULL,
+  // migration 350) of the teams the member is on; board/admin see all.
   // `userId` is read out of `user` before the memo so the compiler-inferred
   // dependency matches the declared one (a `user?.id` dep infers as `user`).
   const userId = user?.id
-  // Roster teams + coached/TR teams — the scope of TEAM-level fines (member IS
-  // NULL, migration 350) the user is entitled to see. A staff-only coach has no
-  // member_teams row but is exactly who settles a Teamkasse fine.
-  const myTeamIds = useMemo(
-    () => [...new Set([...memberTeamIds, ...coachTeamIds])],
-    [memberTeamIds, coachTeamIds],
-  )
   const finesFilter = useMemo<Record<string, unknown> | undefined>(() => {
     const filters: Record<string, unknown>[] = []
-    if (scope === 'mine' || !isLeader) {
+    if (scope === 'mine') {
       if (!userId) return { id: { _eq: -1 } }
-      // Own fines PLUS the team fines of teams the user is on: those are owed
-      // by the Teamkasse, so the whole team — not just its leaders — has to be
-      // able to see them. They stay out of the personal total below.
-      const branches: Record<string, unknown>[] = [{ member: { _eq: userId } }]
-      if (myTeamIds.length) branches.push({ _and: [{ member: { _null: true } }, { team: { _in: myTeamIds } }] })
+      filters.push({ member: { _eq: userId } })
+    } else if (!isBoard) {
+      // Single-level `_in` filters only — a deep M2M walk here would collide
+      // with the policy's own walk and silently return [] (CLAUDE.md).
+      const branches: Record<string, unknown>[] = []
+      if (coachTeamIds.length) branches.push({ team: { _in: coachTeamIds } })
+      if (memberTeamIds.length) branches.push({ _and: [{ member: { _null: true } }, { team: { _in: memberTeamIds } }] })
+      if (branches.length === 0) return { id: { _eq: -1 } }
       filters.push(branches.length === 1 ? branches[0] : { _or: branches })
     }
     if (statusFilter !== 'all') filters.push({ status: { _eq: statusFilter } })
@@ -85,7 +96,7 @@ export default function FinesPage() {
     if (filters.length === 0) return undefined
     if (filters.length === 1) return filters[0]
     return { _and: filters }
-  }, [scope, isLeader, userId, myTeamIds, statusFilter, teamFilter])
+  }, [scope, isBoard, userId, coachTeamIds, memberTeamIds, statusFilter, teamFilter])
 
   const { data: finesRaw, refetch, isLoading } = useFines({ filter: finesFilter })
   const fines = finesRaw ?? []
@@ -200,14 +211,12 @@ export default function FinesPage() {
         </div>
       )}
 
-      {/* Scope toggle (only for leaders) */}
-      {isLeader && (
-        <TabBar<Scope>
-          tabs={[{ key: 'team', label: t('fines:filterTeam') }, { key: 'mine', label: t('fines:filterMine') }]}
-          active={scope}
-          onChange={setScope}
-        />
-      )}
+      {/* Scope toggle — everyone: a plain member's "Team" view is the Teamkasse's fines */}
+      <TabBar<Scope>
+        tabs={[{ key: 'team', label: t('fines:filterTeam') }, { key: 'mine', label: t('fines:filterMine') }]}
+        active={scope}
+        onChange={setScope}
+      />
 
       {/* Status + team filters */}
       <div className="flex flex-wrap items-center gap-2">
@@ -245,7 +254,7 @@ export default function FinesPage() {
       {pageLoading ? null : fines.length === 0 ? (
         <EmptyState
           icon={<Gavel className="h-10 w-10" />}
-          title={scope === 'mine' ? t('fines:emptyMember') : t('fines:empty')}
+          title={scope === 'mine' ? t('fines:emptyMember') : isBoard ? t('fines:empty') : t('fines:emptyTeam')}
         />
       ) : (
         <Table>
@@ -274,6 +283,8 @@ export default function FinesPage() {
                   {scope === 'team' && (
                     <TableCell className={`font-medium whitespace-normal break-words ${f.member == null ? 'italic text-amber-700 dark:text-amber-400' : ''}`}>
                       {memberName}
+                      {/* The team column is hidden on phones — a Teamkasse row still has to say WHICH team. */}
+                      <span className="block text-xs font-normal not-italic text-gray-500 sm:hidden dark:text-gray-400">{teamName}</span>
                     </TableCell>
                   )}
                   <TableCell className={`text-xs text-gray-600 dark:text-gray-400 ${scope === 'team' ? 'hidden sm:table-cell' : ''}`}>

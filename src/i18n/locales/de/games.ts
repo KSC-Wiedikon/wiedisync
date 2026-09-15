@@ -171,6 +171,7 @@ export default {
   refereeExpensesSaved: 'Gespeichert',
   refereeExpensesEdit: 'Bearbeiten',
   refereeExpensesNotRecorded: 'Noch nicht erfasst',
+  refereeExpensesReimbursed: 'Vom Verein erstattet — nicht mehr bearbeitbar.',
 
   // Auto Einsatzliste — nur Volleyball, nur Trainer:innen
   autoNomination: 'Auto-Einsatzliste',

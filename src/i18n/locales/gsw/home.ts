@@ -24,6 +24,9 @@ export default {
   ibanConfirmNudgeTitle: 'IBAN bestätige',
   ibanConfirmNudgeBody: 'Mir hend e IBAN für di hinterleit — bitte bestätig under Finanze, dass si stimmt (oder änder si), damit Rückerstattige aachömed.',
   ibanConfirmNudgeCta: 'In Finanze bestätige',
+  refExpenseNudgeTitle: 'Schiedsrichterspese nöd erfasst',
+  refExpenseNudgeBody: 'Wer hät d Schiedsrichter a dem Heimspiel zahlt, und wie viel? Erfass es, damit de Verein de Person am Saisonändi cha zruggzahle.',
+  refExpenseNudgeCta: 'Jetzt erfasse',
   // Nächschti Termin (Ticker)
   next7Days: 'Nächschti 7 Täg',
   today: 'Hüt',

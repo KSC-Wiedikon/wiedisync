@@ -296,8 +296,8 @@ export default {
       },
     },
     financeDues: {
-      title: 'Le mie finanze',
-      description: 'Paga quote e fatture nell\'app',
+      title: 'Fatture e rimborsi',
+      description: 'Paga le tue fatture e segui quanto il club ti deve',
       steps: {
         iban: {
           title: 'IBAN per i rimborsi',
@@ -305,7 +305,7 @@ export default {
         },
         list: {
           title: 'Le tue fatture',
-          body: 'Quote sociali e fatture del club con importi e stato di pagamento.',
+          body: 'Le tue quote sociali e fatture del club con importi e stato di pagamento. Le fatture di una squadra che guidi si trovano sotto Finanze della squadra.',
         },
         pay: {
           title: 'Paga una fattura',
@@ -355,7 +355,7 @@ export default {
       steps: {
         list: {
           title: 'Le tue multe',
-          body: 'Ogni multa che ti è stata assegnata, con categoria, importo e stato. Allenatori e comitato vedono qui anche le multe delle loro squadre.',
+          body: 'Ogni multa che ti è stata assegnata, con categoria, importo e stato. Passa su Squadra per vedere le multe della tua squadra — quelle della cassa di squadra per tutti, tutte per allenatori e comitato.',
         },
         outstanding: {
           title: 'Quanto devi',

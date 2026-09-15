@@ -3,6 +3,7 @@ export default {
   subtitle: 'Amendes ouvertes, payées et annulées',
   empty: 'Aucune amende pour le moment',
   emptyMember: 'Aucune amende pour toi',
+  emptyTeam: 'Aucune amende d’équipe.',
 
   colMember: 'Membre',
   colCategory: 'Catégorie',

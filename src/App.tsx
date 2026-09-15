@@ -62,6 +62,7 @@ import AuthRoute from './components/AuthRoute'
 import FinanceRoute from './components/FinanceRoute'
 import TkRoute from './components/TkRoute'
 const TkExpensesPage = lazy(() => import('./modules/finance/TkExpensesPage'))
+const TeamFinancePage = lazy(() => import('./modules/finance/TeamFinancePage'))
 import ScorerAssignPage from './modules/scorer/ScorerAssignPage'
 import VolleyRefereesPage from './modules/admin/VolleyRefereesPage'
 import BugfixDashboardPage from './modules/admin/BugfixDashboardPage'
@@ -236,6 +237,7 @@ export default function App() {
             <Route path="forms/:formId/edit" element={<AuthRoute><FormBuilderPage /></AuthRoute>} />
             <Route path="fines" element={<AuthRoute><FinesPage /></AuthRoute>} />
             <Route path="finance/dues" element={<AuthRoute><FinanceDuesPage /></AuthRoute>} />
+            <Route path="finance/team" element={<AuthRoute><Suspense fallback={null}><TeamFinancePage /></Suspense></AuthRoute>} />
             <Route path="finance/expense" element={<AuthRoute><ExpenseUploadPage /></AuthRoute>} />
             <Route path="finance/tk-expenses" element={<TkRoute><Suspense fallback={null}><TkExpensesPage /></Suspense></TkRoute>} />
             <Route path="datenschutz" element={<DatenschutzPage />} />

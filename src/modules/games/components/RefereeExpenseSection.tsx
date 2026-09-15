@@ -14,6 +14,8 @@ interface RefereeExpenseSectionProps {
   gameId: string
   teamId: string
   canEdit: boolean
+  /** Start expanded (the Home nudge's "Record now" deep-link). Read once, on mount. */
+  defaultOpen?: boolean
 }
 
 type ExpandedExpense = RefereeExpense & {
@@ -22,7 +24,7 @@ type ExpandedExpense = RefereeExpense & {
 
 const OTHER_VALUE = '__other__'
 
-export default function RefereeExpenseSection({ gameId, teamId, canEdit }: RefereeExpenseSectionProps) {
+export default function RefereeExpenseSection({ gameId, teamId, canEdit, defaultOpen }: RefereeExpenseSectionProps) {
   const { t, i18n } = useTranslation('games')
   const { user, isApproved } = useAuth()
   const { members } = useTeamMembers(teamId)
@@ -33,7 +35,7 @@ export default function RefereeExpenseSection({ gameId, teamId, canEdit }: Refer
   const [editing, setEditing] = useState(false)
   const [saved, setSaved] = useState(false)
   const [coaches, setCoaches] = useState<(Member & BaseRecord)[]>([])
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(defaultOpen ?? false)
 
   // Form state
   const [paidBy, setPaidBy] = useState('')
@@ -175,6 +177,11 @@ export default function RefereeExpenseSection({ gameId, teamId, canEdit }: Refer
   if (loading) return null
 
   const isFormMode = (!existing && canEdit) || editing
+  // Once finance has settled this row in a season-end payout run (migration
+  // 363: `payout` = finance_payouts FK) the amount is what was reimbursed —
+  // editing it would desync the books. Frozen for everyone, admins included.
+  // toNum: the FK arrives as a numeric string through fetchItems.
+  const reimbursed = !!existing && toNum(existing.payout) > 0
   const paidByMemberObj = existing ? asObj<Member & BaseRecord>(existing.paid_by_member) : null
   const paidByName = paidByMemberObj
     ? memberDisplayName(paidByMemberObj)
@@ -298,7 +305,9 @@ export default function RefereeExpenseSection({ gameId, teamId, canEdit }: Refer
               <span className="text-gray-900 dark:text-gray-100">{existing.notes}</span>
             </div>
           )}
-          {canEdit && (
+          {reimbursed ? (
+            <p className="text-xs text-gray-500 dark:text-gray-400">{t('refereeExpensesReimbursed')}</p>
+          ) : canEdit && (
             <button
               onClick={() => setEditing(true)}
               className="flex items-center gap-1 text-xs text-brand-600 hover:underline dark:text-brand-400"

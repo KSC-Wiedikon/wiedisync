@@ -125,7 +125,8 @@ async function main() {
   // 3. The reads that loadTeamContext + Layout fire on every page load.
   // If any of these returns 4xx for a Member role, the silent Promise.all
   // failure pattern is back.
-  await check('member_teams (own)', () => api('GET', `/items/member_teams?filter[member][_eq]=${memberId}&fields=team.id,team.name,guest_level`))
+  const ownTeams = await check('member_teams (own)', () => api('GET', `/items/member_teams?filter[member][_eq]=${memberId}&fields=team.id,team.name,guest_level`))
+  const firstOwnTeamId = ownTeams?.json?.data?.find((mt) => mt?.team?.id != null)?.team?.id
   // loadTeamContext fans these two junctions out in the SAME Promise.all as
   // member_teams — a lost read row on either silently empties the entire team
   // context (coach/TR scoping) without any loud surface error (4.4.4 class).
@@ -165,6 +166,25 @@ async function main() {
 
   // 4. Custom endpoint sanity
   await check('kscw/web-push/vapid-public-key', () => api('GET', '/kscw/web-push/vapid-public-key'))
+  // My finances (migration 363): the member page reads invoices AND the
+  // member's referee fees in ONE request; `referee_expenses` must be an array
+  // (an older container without the join returns the envelope without it and
+  // the referee card silently renders empty).
+  await check('kscw/finance/my-invoices (+referee_expenses[])', async () => {
+    const r = await api('GET', '/kscw/finance/my-invoices')
+    if (r.status >= 400) return r
+    return Array.isArray(r.json?.referee_expenses)
+      ? r
+      : { ...r, status: 500, ok: false, text: 'my-invoices envelope has no referee_expenses[]' }
+  })
+  // Team finance page — a rostered member may read their own team's season.
+  // Skipped (not failed) when the token has no roster row: dev's /items reads
+  // are licence-restricted, so `firstOwnTeamId` can be undefined there.
+  if (firstOwnTeamId != null) {
+    await check(`kscw/finance/team/${firstOwnTeamId} (own team)`, () => api('GET', `/kscw/finance/team/${firstOwnTeamId}`))
+  } else {
+    console.log('  kscw/finance/team/<own> … (skipped — no own team resolved)')
+  }
 
   // 4b. Negative LEADER assertions — runs only if a coach token is present
   // in .env.local. Catches the v4.8.1 LEADER-per-user regression class where
@@ -184,8 +204,9 @@ async function main() {
     token = COACH_TOKEN
     // Identify the coach's teams so we can construct cross-team probes.
     const cme = await api('GET', '/users/me?fields=id')
-    const coachMemberRow = await api('GET', `/items/members?filter[user][_eq]=${cme.json?.data?.id}&fields=id`)
+    const coachMemberRow = await api('GET', `/items/members?filter[user][_eq]=${cme.json?.data?.id}&fields=id,role`)
     const coachMemberId = coachMemberRow.json?.data?.[0]?.id
+    const coachRoles = (() => { const r = coachMemberRow.json?.data?.[0]?.role; if (Array.isArray(r)) return r; try { return JSON.parse(r || '[]') } catch { return [] } })()
     // The coach's FULL read scope = teams they COACH ∪ are TR for ∪ PLAY on. A
     // Team Responsible/coach is frequently ALSO a rostered player, and the MEMBER
     // policy legitimately lets them see their PLAYER-teammates' participations
@@ -249,6 +270,39 @@ async function main() {
         ? { status: 500, ok: false, json: null, text: `user_logs leaked ${foreign.length} foreign-member rows` }
         : { ...r, status: 200, ok: true }
     })
+
+    // 4b.3 — Team finance (migration 363). The endpoint gates server-side on
+    // finance ∪ sport admin of the team's sport ∪ lead ∪ roster; a coach must
+    // read their OWN team (200) and be refused on a team outside their scope
+    // (403). The scope check is skipped when the coach token also holds a
+    // sport-admin / board / finance role, because those legitimately see all.
+    const coachIsWider = ['vb_admin', 'bb_admin', 'vorstand', 'admin', 'superuser', 'finance'].some((r) => coachRoles.includes(r))
+    if (coachTeamIds.length) {
+      await check(`kscw/finance/team/${coachTeamIds[0]} (coach, own team)`, () => api('GET', `/kscw/finance/team/${coachTeamIds[0]}`))
+    } else {
+      console.log('  kscw/finance/team/<own> (coach) … (skipped — no coach team resolved)')
+    }
+    if (!coachIsWider && coachTeamIds.length) {
+      await check('kscw/finance/team/<foreign> (coach, must 403)', async () => {
+        const all = await api('GET', '/items/teams?fields=id&limit=-1')
+        const foreign = (all.json?.data || []).map((t) => t.id).find((id) => id != null && !coachTeamIds.includes(id))
+        if (foreign == null) return { status: 200, ok: true } // every team is theirs — nothing to probe
+        const r = await api('GET', `/kscw/finance/team/${foreign}`)
+        return r.status === 403
+          ? { ...r, status: 200, ok: true }
+          : { ...r, status: 500, ok: false, text: `expected 403 on team ${foreign}, got ${r.status}` }
+      })
+    }
+    // The season-end referee reimbursement run is finance-only; a coach must 403
+    // even on a dry run (a plan lists every payer's IBAN).
+    if (!coachIsWider) {
+      await check('kscw/finance/referee-payout-run (coach, must 403)', async () => {
+        const r = await api('POST', '/kscw/finance/referee-payout-run', { season: '2026/27', dry_run: true })
+        return r.status === 403
+          ? { ...r, status: 200, ok: true }
+          : { ...r, status: 500, ok: false, text: `expected 403, got ${r.status}` }
+      })
+    }
 
     // Restore Member token for any subsequent checks.
     token = PRESET_TOKEN

@@ -24,6 +24,9 @@ export default {
   ibanConfirmNudgeTitle: 'Conferma il tuo IBAN',
   ibanConfirmNudgeBody: 'Abbiamo un IBAN registrato per te — conferma sotto Finanze che è corretto (o modificalo) affinché i rimborsi arrivino al conto giusto.',
   ibanConfirmNudgeCta: 'Conferma in Finanze',
+  refExpenseNudgeTitle: 'Spese arbitrali non registrate',
+  refExpenseNudgeBody: 'Chi ha pagato gli arbitri in questa partita casalinga, e quanto? Registralo così il club potrà rimborsare la persona a fine stagione.',
+  refExpenseNudgeCta: 'Registra ora',
   // Barra dei prossimi appuntamenti
   next7Days: 'Prossimi 7 giorni',
   today: 'Oggi',

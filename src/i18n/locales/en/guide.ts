@@ -296,8 +296,8 @@ export default {
       },
     },
     financeDues: {
-      title: 'My finances',
-      description: 'Pay dues and invoices in the app',
+      title: 'Bills & reimbursements',
+      description: 'Pay your bills and track what the club owes you',
       steps: {
         iban: {
           title: 'Payout IBAN',
@@ -305,7 +305,7 @@ export default {
         },
         list: {
           title: 'Your invoices',
-          body: 'Membership dues and club invoices with their amounts and payment status.',
+          body: 'Your own membership dues and club invoices with their amounts and payment status. Bills of a team you lead live under Team finance.',
         },
         pay: {
           title: 'Pay an invoice',
@@ -355,7 +355,7 @@ export default {
       steps: {
         list: {
           title: 'Your fines',
-          body: 'Every fine issued to you with its category, amount, and status. Coaches and the board also see the fines of their teams here.',
+          body: 'Every fine issued to you with its category, amount, and status. Switch to Team to see your team\'s fines — the Teamkasse ones for everyone, all of them for coaches and the board.',
         },
         outstanding: {
           title: 'What you owe',

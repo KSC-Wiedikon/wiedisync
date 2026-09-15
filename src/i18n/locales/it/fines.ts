@@ -3,6 +3,7 @@ export default {
   subtitle: 'Multe aperte, pagate e annullate',
   empty: 'Ancora nessuna multa',
   emptyMember: 'Nessuna multa per te',
+  emptyTeam: 'Nessuna multa di squadra.',
 
   colMember: 'Membro',
   colCategory: 'Categoria',

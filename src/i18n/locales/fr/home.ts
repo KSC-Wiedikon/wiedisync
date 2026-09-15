@@ -24,6 +24,9 @@ export default {
   ibanConfirmNudgeTitle: 'Confirme ton IBAN',
   ibanConfirmNudgeBody: "Nous avons un IBAN enregistré pour toi — confirme sous Finances qu'il est correct (ou modifie-le) pour que les remboursements arrivent au bon compte.",
   ibanConfirmNudgeCta: 'Confirmer dans Finances',
+  refExpenseNudgeTitle: 'Frais d\'arbitrage non enregistrés',
+  refExpenseNudgeBody: 'Qui a payé les arbitres lors de ce match à domicile, et combien ? Enregistre-le pour que le club puisse rembourser cette personne en fin de saison.',
+  refExpenseNudgeCta: 'Enregistrer maintenant',
   // Bandeau des prochains rendez-vous
   next7Days: 'Les 7 prochains jours',
   today: "Aujourd'hui",

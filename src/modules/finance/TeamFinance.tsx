@@ -12,6 +12,7 @@ import {
   type TeamEntryKind,
 } from '../../hooks/useFinance'
 import type { Team } from '../../types'
+import RefereeReimbursementCard from './RefereeReimbursementCard'
 
 const labelCls = 'block text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400'
 const inputCls = 'mt-1 w-full rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm outline-none focus:border-brand-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100'
@@ -196,6 +197,8 @@ function TeamsHead() {
         <TableHead className={`hidden sm:table-cell text-right ${thCls}`}>{t('teamColExpense')}</TableHead>
         <TableHead className={`text-right ${thCls}`}>{t('teamColNet')}</TableHead>
         <TableHead className={`hidden sm:table-cell text-right ${thCls}`}>{t('teamColOpenBills')}</TableHead>
+        {/* Club-reimbursed referee fees — informational, never part of net. */}
+        <TableHead className={`hidden sm:table-cell text-right ${thCls}`}>{t('teamColReferee')}</TableHead>
       </TableRow>
     </TableHeader>
   )
@@ -214,6 +217,7 @@ function TeamsSkeleton() {
               <TableCell><span className={`${barCls} ml-auto w-16`} aria-hidden="true" /></TableCell>
               <TableCell className="hidden sm:table-cell"><span className={`${barCls} ml-auto w-16`} aria-hidden="true" /></TableCell>
               <TableCell><span className={`${barCls} ml-auto w-16`} aria-hidden="true" /></TableCell>
+              <TableCell className="hidden sm:table-cell"><span className={`${barCls} ml-auto w-16`} aria-hidden="true" /></TableCell>
               <TableCell className="hidden sm:table-cell"><span className={`${barCls} ml-auto w-16`} aria-hidden="true" /></TableCell>
             </TableRow>
           ))}
@@ -238,10 +242,16 @@ export default function TeamFinance({ fiscalYearId, fiscalYearLabel }: { fiscalY
   // Same year-keyed staleness as above; and gate on having a fiscal year at all,
   // since a disabled query never leaves 'pending'.
   const pending = !!fiscalYearId && !isError && (isLoading || rowsStale || rows === undefined)
-  const totals = teams.reduce((a, r) => ({ income: a.income + r.income, expense: a.expense + r.expense, net: a.net + r.net, open: a.open + r.invoice_open }), { income: 0, expense: 0, net: 0, open: 0 })
+  const totals = teams.reduce(
+    (a, r) => ({ income: a.income + r.income, expense: a.expense + r.expense, net: a.net + r.net, open: a.open + r.invoice_open, referee: a.referee + toNum(r.referee_total) }),
+    { income: 0, expense: 0, net: 0, open: 0, referee: 0 },
+  )
 
   return (
     <div className="space-y-4">
+      {/* Season-end referee reimbursement — the fiscal-year label IS the season label ("2026/27"). */}
+      {fiscalYearLabel && <RefereeReimbursementCard season={fiscalYearLabel} />}
+
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-gray-500 dark:text-gray-400">{t('teamFinanceHint', { year: fiscalYearLabel })}</p>
         <button type="button" onClick={() => setShowAdd(true)}
@@ -274,10 +284,11 @@ export default function TeamFinance({ fiscalYearId, fiscalYearLabel }: { fiscalY
                     <TableCell className="hidden sm:table-cell text-right tabular-nums text-red-600 dark:text-red-400">{formatChf(r.expense)}</TableCell>
                     <TableCell className={`text-right tabular-nums font-semibold ${netCls(r.net)}`}>{formatChf(r.net)}</TableCell>
                     <TableCell className="hidden sm:table-cell text-right tabular-nums text-gray-600 dark:text-gray-300">{formatChf(r.invoice_open)}</TableCell>
+                    <TableCell className="hidden sm:table-cell text-right tabular-nums text-gray-400 dark:text-gray-500">{formatChf(toNum(r.referee_total))}</TableCell>
                   </TableRow>
                   {expanded === r.team && (
                     <TableRow className="border-gray-200 dark:border-gray-700">
-                      <TableCell colSpan={5} className="bg-gray-50/60 p-2 dark:bg-gray-900/20">
+                      <TableCell colSpan={6} className="bg-gray-50/60 p-2 dark:bg-gray-900/20">
                         <TeamEntries teamId={r.team} fiscalYearId={fiscalYearId} onChanged={refetch} />
                       </TableCell>
                     </TableRow>
@@ -290,6 +301,7 @@ export default function TeamFinance({ fiscalYearId, fiscalYearLabel }: { fiscalY
                 <TableCell className="hidden sm:table-cell text-right tabular-nums text-red-600 dark:text-red-400">{formatChf(totals.expense)}</TableCell>
                 <TableCell className={`text-right tabular-nums ${netCls(totals.net)}`}>{formatChf(totals.net)}</TableCell>
                 <TableCell className="hidden sm:table-cell text-right tabular-nums text-gray-600 dark:text-gray-300">{formatChf(totals.open)}</TableCell>
+                <TableCell className="hidden sm:table-cell text-right tabular-nums text-gray-400 dark:text-gray-500">{formatChf(totals.referee)}</TableCell>
               </TableRow>
             </TableBody>
           </Table>

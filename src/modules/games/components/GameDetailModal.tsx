@@ -52,6 +52,12 @@ interface GameDetailModalProps {
    * summary opens its own request and the rectangles arrive a round-trip late.
    */
   participations?: Participation[]
+  /**
+   * Section to open expanded on mount. `'refereeExpense'` is what the Home
+   * nudge's "Record now" passes so the coach lands on the form, not on a
+   * collapsed header they have to find first.
+   */
+  focus?: 'refereeExpense'
 }
 
 type ExpandedGame = Game & {
@@ -156,7 +162,7 @@ function DutyRowSkeleton() {
   )
 }
 
-export default function GameDetailModal({ game, onClose, readOnly, participations }: GameDetailModalProps) {
+export default function GameDetailModal({ game, onClose, readOnly, participations, focus }: GameDetailModalProps) {
   const { t } = useTranslation('games')
   const { t: tc } = useTranslation('common')
   const { user, isStaffOnly, canParticipateIn, isGuestIn, coachTeamIds, teamResponsibleIds, hasAdminAccessToTeam, teamsLoading } = useAuth()
@@ -845,6 +851,7 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
               gameId={game.id}
               teamId={kscwTeamId}
               canEdit={!readOnly && canEditAsCoach}
+              defaultOpen={focus === 'refereeExpense'}
             />
           </div>
         )}

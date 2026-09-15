@@ -296,8 +296,8 @@ export default {
       },
     },
     financeDues: {
-      title: 'Mes finances',
-      description: 'Payez cotisations et factures dans l\'application',
+      title: 'Factures et remboursements',
+      description: 'Payez vos factures et suivez ce que le club vous doit',
       steps: {
         iban: {
           title: 'IBAN de remboursement',
@@ -305,7 +305,7 @@ export default {
         },
         list: {
           title: 'Vos factures',
-          body: 'Cotisations de membre et factures du club avec leurs montants et leur statut de paiement.',
+          body: 'Vos propres cotisations et factures du club avec leurs montants et leur statut de paiement. Les factures d\'une équipe que vous dirigez se trouvent sous Finances de l\'équipe.',
         },
         pay: {
           title: 'Payer une facture',
@@ -355,7 +355,7 @@ export default {
       steps: {
         list: {
           title: 'Vos amendes',
-          body: 'Chaque amende qui vous est infligée, avec sa catégorie, son montant et son statut. Les entraîneurs et le comité voient aussi ici les amendes de leurs équipes.',
+          body: 'Chaque amende qui vous est infligée, avec sa catégorie, son montant et son statut. Passez sur Équipe pour voir les amendes de votre équipe — celles de la caisse d\'équipe pour tous, toutes pour les entraîneurs et le comité.',
         },
         outstanding: {
           title: 'Ce que vous devez',
