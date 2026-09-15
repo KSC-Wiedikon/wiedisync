@@ -21,7 +21,14 @@ interface ModalProps {
   onClose: () => void
   title: string
   children: ReactNode
-  size?: 'sm' | 'md' | 'lg'
+  /**
+   * `full` is edge to edge on every screen, and it is always the Dialog — never the
+   * mobile drawer. vaul pins `touch-action: none` on the drawer and preventDefaults
+   * two-finger touchmove on iOS, so nothing inside a drawer can be pinch-zoomed;
+   * Radix's Dialog lets pinch-zoom through (react-remove-scroll `allowPinchZoom`).
+   * Use it for things people READ up close — a match sheet in the hall.
+   */
+  size?: 'sm' | 'md' | 'lg' | 'full'
   hideClose?: boolean
   /** Optional node rendered in the upper-right of the header (e.g. action button). */
   headerAction?: ReactNode
@@ -38,6 +45,7 @@ const sizeClasses = {
   sm: 'sm:max-w-sm',
   md: 'sm:max-w-lg',
   lg: 'sm:max-w-2xl',
+  full: 'max-w-[calc(100vw-1rem)] max-h-[calc(100dvh-1rem)] rounded-lg p-4 sm:max-w-[calc(100vw-2rem)] sm:max-h-[calc(100vh-2rem)] sm:p-6',
 }
 
 export default function Modal({ open, onClose, title, children, size = 'md', hideClose, headerAction, disableAutoFocus }: ModalProps) {
@@ -64,11 +72,11 @@ export default function Modal({ open, onClose, title, children, size = 'md', hid
         },
       }
 
-  if (isDesktop) {
+  if (isDesktop || size === 'full') {
     return (
       <Dialog open={open} onOpenChange={(o) => !o && !hideClose && onClose()}>
         <DialogContent
-          className={cn(sizeClasses[size], 'max-h-[calc(100vh-4rem)] overflow-y-auto')}
+          className={cn('max-h-[calc(100vh-4rem)] overflow-y-auto', sizeClasses[size])}
           onInteractOutside={(e) => {
             // Don't close modal when clicking on portalled dropdowns (SearchableSelect, etc.)
             if ((e.target as HTMLElement).closest?.('[data-searchable-select]')) {
