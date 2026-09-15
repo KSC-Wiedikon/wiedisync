@@ -147,8 +147,8 @@ export default function TeamFinancePage() {
                   <div className={tileLabelCls}>{t('teamFinanceNet')}</div>
                   <div className={`mt-1.5 text-2xl font-bold tabular-nums ${netCls(toNum(data.totals.net))}`}>{formatChf(data.totals.net)}</div>
                   <div className="mt-1 space-y-0.5 text-xs text-gray-500 dark:text-gray-400">
-                    <div className="flex justify-between gap-2 tabular-nums"><span>{t('teamFinanceIncome')}</span><span className="text-green-600 dark:text-green-400">{formatChf(data.totals.income)}</span></div>
-                    <div className="flex justify-between gap-2 tabular-nums"><span>{t('teamFinanceExpense')}</span><span className="text-red-600 dark:text-red-400">{formatChf(data.totals.expense)}</span></div>
+                    <div className="flex flex-wrap justify-between gap-x-2 tabular-nums"><span>{t('teamFinanceIncome')}</span><span className="whitespace-nowrap text-green-600 dark:text-green-400">{formatChf(data.totals.income)}</span></div>
+                    <div className="flex flex-wrap justify-between gap-x-2 tabular-nums"><span>{t('teamFinanceExpense')}</span><span className="whitespace-nowrap text-red-600 dark:text-red-400">{formatChf(data.totals.expense)}</span></div>
                   </div>
                 </div>
                 <div className={tileCls}>
