@@ -1,7 +1,7 @@
 export default {
   // Dateschutz page
   privacyTitle: 'Dateschutzerkläärig',
-  lastUpdated: 'Stand: 4. April 2026',
+  lastUpdated: 'Stand: 15. September 2026',
 
   controllerTitle: '1. Verantwortlichi Stell',
   controllerText:
@@ -94,29 +94,7 @@ export default {
   photosText:
     'Spielerfotis werded vo de Mitglieder selber über ihres Profil ufeglade und chönd jederziit gänderet oder entfernt werde. Ufegladeni Fotis sind uf de öffentliche Teamsitte sichtbar.',
 
-  messagingTitle: '9. Nachrichte (Messaging)',
-  messagingIntro:
-    'Sit April 2026 biitet d Plattform es iitegriiertes Messaging-Systeem für Team-Chats, Direktnachrichte, Umfrage und Moderation. D Nutzig isch freiwillig und bruucht e ussdrucklichi Iiwilligung.',
-  messagingDataTitle: 'Was mir speicheret',
-  messagingDataText:
-    'Im Zämehang mit em Messaging-Systeem erhebed und speicheret mir: gsendeti Nachrichte (Text), Reaktione (Emoji), Mäldige (inkl. emene Snapshot vo de gmäldete Nachricht zum Ziitpunkt vo de Mäldig), Konversations-Mitgliedschafte, Blockier-Lischte, Iiwilligungs-Entscheide sowie Push-Abonnemänt, sofern du Benachrichtigunge aktiviert häsch.',
-  messagingRetentionTitle: 'Wie lang mir speicheret',
-  messagingRetentionText:
-    'Nachrichte werded automatisch nach 12 Monet endgültig glöscht. Vo Nutzer:inne selber glöschti Nachrichte werded nach witere 30 Täg endgültig entfernt (i dere Ziit sind si scho nümme sichtbar, blibed aber für Moderations-Mäldige abrüefbar). Abgläntigi Nachrichte-Aafrage werded nach 90 Täg automatisch entfernt. Mäldige werded für d Duur vom Konto ufbewahrt, zum Nachvollziehbarkeit bi Moderations-Entscheide gwährleischte.',
-  messagingAccessTitle: 'Wär het Zuegriff',
-  messagingAccessText:
-    'Nachrichte chönd usschliesslich vo dir und de andere Mitglieder vo de gliiche Konversation gläse werde. Vereins-Administrator:inne händ Zuegriff uf gmäldeti Nachrichte (inkl. Snapshot) zur Prüefig und Moderation. D Datebank-Administration (aktuell: Luca Canepa) het als Betriiber vo de Infrastruktur technische Zuegriff uf di ganz Datebank. Nachrichte sind nöd Änd-zu-Änd-verschlüsslet; si werded unverschlüsslet uf emne Hetzner-Server i Dütschland gspeicheret, abgsicheret dur TLS i de Übertragig, SSH-Key-Authentifizierig und e Firewall uf Datebank-Ebeni.',
-  messagingRightsTitle: 'Dini Rächt und Iistellige',
-  messagingRightsText:
-    'Du chasch s Messaging jederziit under Optione → Nachrichte aktiviere oder deaktiviere (Team-Chat und Direktnachrichte separat). Uf de gliiche Sitte chasch dini Messaging-Date als JSON-Datei exportiere (maximal 1× pro 24 Stund). Bim Lösche vo dim Konto werded dini Nachrichte, Reaktione, Blockierige, Konversations-Mitgliedschafte und Aafrage kaskadierend mitglöscht. Mäldige, wo du als mäldendi oder gmäldeti Person uftauchsch, werded anonymisiert (Refärenze werded uf NULL gsetzt), de Inhalt vom Snapshot blibt aber zur Dokumentation erhalte.',
-  messagingReportsTitle: 'Mäldige und Moderation',
-  messagingReportsText:
-    'Mitglieder chönd unaagmässeni Nachrichte mälde. E Mäldig speicheret en Snapshot vo de gmäldete Nachricht (damit spöteri Bearbeitige oder Löschige d Moderation nöd beiiflussed) und wird de Administrator:inne zur Prüefig vorgleit. Administrator:inne chönd Nachrichte lösche, Mäldige als erledigt markiere oder i schwere Fäll s Messaging für einzelni Mitglieder speere.',
-  messagingPushTitle: 'Push-Benachrichtigunge',
-  messagingPushText:
-    'Push-Benachrichtigunge für neui Nachrichte sind optional und standardmässig deaktiviert. Du chasch under Optione → Nachrichte wähle, ob Benachrichtigunge generisch ("Neui Nachricht") oder mit Absänder-Name und churzem Textusschnitt azeigt werded. D technischi Zuestellig erfolgt über Cloudflare Workers (lueg Abschnitt 4).',
-
-  changesTitle: '10. Änderige',
+  changesTitle: '9. Änderige',
   changesText:
     'Mir bhalted eus vor, die Dateschutzerkläärig bi Bedarf aazpasse. Di aktuelli Version isch uf dere Sitte verfüegbar.',
 

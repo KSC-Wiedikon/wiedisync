@@ -6648,11 +6648,12 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     return payload
   })
 
-  // polls: a poll must belong to a team the caller leads.
+  // polls: a poll must belong to a team the caller leads (`polls.team` is NOT
+  // NULL since migration 364, so a missing team is refused here, not by the DB).
   filter('polls.items.create', async (payload, _meta, { database: db, accountability }) => {
     if (!accountability?.user || accountability.admin) return payload
     const teamId = toIdValue(payload?.team)
-    if (teamId == null) return payload
+    if (teamId == null) throw kscwScopeError('A poll needs a team', 400, 'POLL_TEAM_REQUIRED')
     await assertLeadsTeamForCreate(db, accountability, teamId,
       'You can only create polls for teams you coach or are responsible for')
     return payload

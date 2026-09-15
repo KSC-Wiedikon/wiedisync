@@ -672,7 +672,7 @@ export interface Absence extends BaseRecord {
  * Migration 085: team-level game-scheduling blackout ("Team blocking").
  * A row hard-blocks game scheduling for `team` on every date in
  * [start_date, end_date] — home-slot offering AND all three away proposals —
- * like a team event but coach/TR-managed with no RSVP/chat. Created in the
+ * like a team event but coach/TR-managed with no RSVP. Created in the
  * Team Absences view; scoped to coach/TR teams (admins/Spielplaner: any team).
  */
 export interface SchedulingBlock extends BaseRecord {
@@ -1147,7 +1147,7 @@ export interface Notification extends BaseRecord {
   type: 'activity_change' | 'upcoming_activity' | 'deadline_reminder' | 'result_available' | 'duty_delegation_request' | 'member_join_request' | 'poll_created' | 'event_invite' | 'form_published' | 'form_submission' | 'form_reminder' | 'expense_status' | 'announcement' | 'licence_status' | 'auto_declined_deadline'
   title: string
   body: string
-  activity_type: 'game' | 'training' | 'event' | 'scorer_duty' | 'team' | 'poll' | 'report' | 'form' | 'expense' | 'announcement' | 'fine' | ''
+  activity_type: 'game' | 'training' | 'event' | 'scorer_duty' | 'team' | 'poll' | 'form' | 'expense' | 'announcement' | 'fine' | ''
   activity_id: string
   team: string
   read: boolean
@@ -1202,7 +1202,7 @@ export interface Announcement extends BaseRecord {
 // ── Polls ───────────────────────────────────────────────────────────────
 
 export interface Poll extends BaseRecord {
-  team: string | null
+  team: string
   question: string
   options: string[]
   mode: 'single' | 'multi'

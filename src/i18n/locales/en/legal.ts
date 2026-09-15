@@ -1,7 +1,7 @@
 export default {
   // Privacy Policy page
   privacyTitle: 'Privacy policy',
-  lastUpdated: 'Last updated: April 4, 2026',
+  lastUpdated: 'Last updated: September 15, 2026',
 
   controllerTitle: '1. Data controller',
   controllerText:
@@ -94,29 +94,7 @@ export default {
   photosText:
     'Player photos are uploaded by members themselves via their profile and can be changed or removed at any time. Uploaded photos are visible on the public team pages.',
 
-  messagingTitle: '9. Messaging',
-  messagingIntro:
-    'Since April 2026 the platform offers an integrated messaging system for team chats, direct messages, polls, and moderation. Usage is optional and requires explicit consent.',
-  messagingDataTitle: 'What we store',
-  messagingDataText:
-    'In connection with the messaging system we collect and store: sent messages (text), reactions (emoji), reports (including a snapshot of the reported message at the time of reporting), conversation memberships, block lists, consent decisions, and push subscriptions if you have enabled notifications.',
-  messagingRetentionTitle: 'How long we keep it',
-  messagingRetentionText:
-    'Messages are automatically and permanently deleted after 12 months. Messages deleted by a user are permanently removed after a further 30 days (they are already hidden during that window but remain retrievable for moderation reports). Declined message requests are removed after 90 days. Reports are retained for the lifetime of the account to preserve accountability for moderation decisions.',
-  messagingAccessTitle: 'Who has access',
-  messagingAccessText:
-    'Messages can be read only by you and the other members of the same conversation. Club administrators have access to reported messages (including the snapshot) for review and moderation. The database administrator (currently: Luca Canepa) has technical access to the entire database as operator of the infrastructure. Messages are not end-to-end encrypted; they are stored unencrypted on a Hetzner server in Germany, protected by TLS in transit, SSH-key authentication, and a database-level firewall.',
-  messagingRightsTitle: 'Your rights and settings',
-  messagingRightsText:
-    'You can enable or disable messaging at any time under Options → Messaging (team chat and direct messages separately). From the same page you can export your messaging data as a JSON file (at most once every 24 hours). Deleting your account cascades the deletion of your messages, reactions, blocks, conversation memberships, and requests. Reports in which you appear as reporter or reported party are anonymised (references set to NULL), while the snapshot content is retained for documentation.',
-  messagingReportsTitle: 'Reports and moderation',
-  messagingReportsText:
-    'Members can report inappropriate messages. A report stores a snapshot of the reported message (so subsequent edits or deletions do not impair moderation) and is surfaced to administrators for review. Administrators can delete messages, mark reports resolved, or — in severe cases — ban individual members from messaging.',
-  messagingPushTitle: 'Push notifications',
-  messagingPushText:
-    'Push notifications for new messages are optional and off by default. Under Options → Messaging you can choose whether notifications appear generic ("New message") or include the sender name and a short text preview. Delivery is handled by Cloudflare Workers (see section 4).',
-
-  changesTitle: '10. Changes',
+  changesTitle: '9. Changes',
   changesText:
     'We reserve the right to update this privacy policy as needed. The current version is available on this page.',
 

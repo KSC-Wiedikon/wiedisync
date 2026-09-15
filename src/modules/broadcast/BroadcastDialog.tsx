@@ -176,8 +176,6 @@ export default function BroadcastDialog({
         } else {
           toast.error(e?.message ?? t('toast.error'))
         }
-      } else if (code === 'broadcast/not_implemented' || code === 'not_implemented') {
-        toast.error(t('toast.notImplemented'))
       } else {
         toast.error(e?.message ?? t('toast.error'))
       }

@@ -1,6 +1,6 @@
 # Layer 2 — Features & Domain Flows
 
-Knowledge graph of the 25 feature modules under `src/modules/` in the KSCW "wiedisync" React app (React 19 + Vite + TS). Each module is a vertical slice (page + components + local hooks); they share a thin foundation of cross-cutting areas — `lib` (Directus client + query layer), `hooks` (M2M-safe fetch + auth + realtime), `utils`, `types`, `ui` (shadcn primitives) and `components` (KSCW wrappers). Data flows are derived from `docs/code-graph/import-graph.json` (the exact import graph) plus the participation/absence/roster connective tissue.
+Knowledge graph of the 24 feature modules under `src/modules/` in the KSCW "wiedisync" React app (React 19 + Vite + TS). Each module is a vertical slice (page + components + local hooks); they share a thin foundation of cross-cutting areas — `lib` (Directus client + query layer), `hooks` (M2M-safe fetch + auth + realtime), `utils`, `types`, `ui` (shadcn primitives) and `components` (KSCW wrappers). Data flows are derived from `docs/code-graph/import-graph.json` (the exact import graph) plus the participation/absence/roster connective tissue.
 
 ## Module map
 
@@ -72,7 +72,7 @@ graph TD
 
 ## Feature clusters
 
-The 25 modules grouped by domain, with each cluster's dominant shared-area dependencies. `app-root` (`App.tsx`) lazy-routes every page; `lib`/`hooks`/`utils`/`types`/`ui`/`components` are the shared foundation every cluster leans on.
+The 24 modules grouped by domain, with each cluster's dominant shared-area dependencies. `app-root` (`App.tsx`) lazy-routes every page; `lib`/`hooks`/`utils`/`types`/`ui`/`components` are the shared foundation every cluster leans on.
 
 ```mermaid
 graph LR

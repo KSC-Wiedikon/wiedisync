@@ -43,7 +43,7 @@ export function initSentry() {
     integrations: [
       Sentry.browserTracingIntegration(),
       // Mask all text + inputs in replays — the app renders member names,
-      // chat messages, RSVP notes, etc. Without masking, every error replay
+      // RSVP notes, e-mails, etc. Without masking, every error replay
       // captures full PII (nFADP issue). Network bodies for our API are also
       // denied since they may carry tokens or member data.
       Sentry.replayIntegration({
@@ -78,7 +78,7 @@ export function initSentry() {
           errMsg.includes("insertBefore' on 'Node'")) return null
       // Suppress Directus's generic "public role" rejection — raised when a fetch
       // fires before the SDK finishes (re)hydrating its auth token. Callers that
-      // care (e.g. useBlocks) already catch and treat as empty; a real permission
+      // care already catch and treat as empty; a real permission
       // misconfig would surface via the admin UI, not here.
       if (/permission to access collection .* or it does not exist/i.test(errMsg)) return null
       // WIEDISYNC-36: Promise.reject(undefined) / reject() with no value. Sentry

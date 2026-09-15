@@ -110,7 +110,7 @@ export function useActivePolls(teamIds: string[]) {
   const { closePoll, deletePoll } = usePollActions(refetch)
 
   useRealtime<Poll>('polls', (e) => {
-    if (e.record.team != null && teamIds.includes(String(e.record.team))) refetch()
+    if (teamIds.includes(String(e.record.team))) refetch()
   })
 
   return { polls, isLoading, closePoll, deletePoll, refetch }
@@ -121,8 +121,7 @@ export function usePollVotes(poll: Poll, canManage = false) {
   const anonymous = !!poll.anonymous
   const resultsVisible = !!poll.results_visible
   const { user } = useAuth()
-  // The creator always sees the totals (matters for chat polls, where the
-  // creator is usually a regular member rendered with canManage=false).
+  // The creator always sees the totals, whatever canManage says.
   const isCreator = user != null && poll.created_by != null && String(poll.created_by) === String(user.id)
   // Whether this viewer may see the real aggregate at all. WHEN they see it is
   // PollCard's timing gate (managers live, everyone else after voting/close).

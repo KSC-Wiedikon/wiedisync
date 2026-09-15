@@ -48,6 +48,5 @@ export default {
     rateLimited: 'Patiente quelques minutes et réessaie.',
     rateLimitedTimed: 'Patiente {{minutes}} minute(s) et réessaie.',
     invalidField: 'Valeur invalide pour « {{field}} ».',
-    notImplemented: 'Le canal In-App n’est pas encore disponible.',
   },
 }

@@ -549,80 +549,9 @@
         "foreign_key_table": null,
         "foreign_key_column": null
       }
-    },
-    {
-      "collection": "polls",
-      "field": "conversation",
-      "type": "uuid",
-      "meta": {
-        "collection": "polls",
-        "conditions": null,
-        "display": null,
-        "display_options": null,
-        "field": "conversation",
-        "group": null,
-        "hidden": false,
-        "interface": "select-dropdown-m2o",
-        "note": "If set, poll is scoped to a conversation instead of a team",
-        "options": null,
-        "readonly": false,
-        "required": false,
-        "searchable": true,
-        "sort": 12,
-        "special": [
-          "m2o"
-        ],
-        "translations": null,
-        "validation": null,
-        "validation_message": null,
-        "width": "full"
-      },
-      "schema": {
-        "name": "conversation",
-        "table": "polls",
-        "data_type": "uuid",
-        "default_value": null,
-        "max_length": null,
-        "numeric_precision": null,
-        "numeric_scale": null,
-        "is_nullable": true,
-        "is_unique": false,
-        "is_indexed": false,
-        "is_primary_key": false,
-        "is_generated": false,
-        "generation_expression": null,
-        "has_auto_increment": false,
-        "foreign_key_table": "conversations",
-        "foreign_key_column": "id"
-      }
     }
   ],
   "relations": [
-    {
-      "collection": "messages",
-      "field": "poll",
-      "related_collection": "polls",
-      "meta": {
-        "junction_field": null,
-        "many_collection": "messages",
-        "many_field": "poll",
-        "one_allowed_collections": null,
-        "one_collection": "polls",
-        "one_collection_field": null,
-        "one_deselect_action": "nullify",
-        "one_field": null,
-        "sort_field": null
-      },
-      "schema": {
-        "table": "messages",
-        "column": "poll",
-        "foreign_key_table": "polls",
-        "foreign_key_column": "id",
-        "constraint_name": "messages_poll_foreign",
-        "on_update": "NO ACTION",
-        "on_delete": "SET NULL"
-      }
-    },
     {
       "collection": "poll_votes",
       "field": "poll",
@@ -678,31 +607,6 @@
         "one_deselect_action": "nullify",
         "one_field": null,
         "sort_field": null
-      }
-    },
-    {
-      "collection": "polls",
-      "field": "conversation",
-      "related_collection": "conversations",
-      "meta": {
-        "junction_field": null,
-        "many_collection": "polls",
-        "many_field": "conversation",
-        "one_allowed_collections": null,
-        "one_collection": "conversations",
-        "one_collection_field": null,
-        "one_deselect_action": "nullify",
-        "one_field": null,
-        "sort_field": null
-      },
-      "schema": {
-        "table": "polls",
-        "column": "conversation",
-        "foreign_key_table": "conversations",
-        "foreign_key_column": "id",
-        "constraint_name": "polls_conversation_foreign",
-        "on_update": "NO ACTION",
-        "on_delete": "CASCADE"
       }
     }
   ]

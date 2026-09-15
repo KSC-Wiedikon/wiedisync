@@ -1,7 +1,7 @@
 export default {
   // Privacy Policy page
   privacyTitle: 'Informativa sulla privacy',
-  lastUpdated: 'Ultimo aggiornamento: 4 aprile 2026',
+  lastUpdated: 'Ultimo aggiornamento: 15 settembre 2026',
 
   controllerTitle: '1. Titolare del trattamento',
   controllerText:
@@ -94,29 +94,7 @@ export default {
   photosText:
     'Le foto dei giocatori vengono caricate dai membri stessi tramite il proprio profilo e possono essere modificate o rimosse in qualsiasi momento. Le foto caricate sono visibili nelle pagine pubbliche delle squadre.',
 
-  messagingTitle: '9. Messaggistica',
-  messagingIntro:
-    'Da aprile 2026 la piattaforma offre un sistema di messaggistica integrato per chat di squadra, messaggi diretti, sondaggi e moderazione. L\'utilizzo è facoltativo e richiede un consenso esplicito.',
-  messagingDataTitle: 'Cosa conserviamo',
-  messagingDataText:
-    'Nel contesto del sistema di messaggistica raccogliamo e conserviamo: messaggi inviati (testo), reazioni (emoji), segnalazioni (inclusa un\'istantanea del messaggio segnalato al momento della segnalazione), appartenenze alle conversazioni, liste di blocco, decisioni sul consenso e abbonamenti push se hai attivato le notifiche.',
-  messagingRetentionTitle: 'Per quanto tempo conserviamo i dati',
-  messagingRetentionText:
-    'I messaggi vengono eliminati automaticamente e definitivamente dopo 12 mesi. I messaggi eliminati dall\'utente vengono rimossi definitivamente dopo ulteriori 30 giorni (durante questo periodo sono già nascosti ma restano consultabili per le segnalazioni di moderazione). Le richieste di messaggio rifiutate vengono rimosse dopo 90 giorni. Le segnalazioni vengono conservate per tutta la durata dell\'account per garantire la tracciabilità delle decisioni di moderazione.',
-  messagingAccessTitle: 'Chi ha accesso',
-  messagingAccessText:
-    'I messaggi possono essere letti esclusivamente da te e dagli altri membri della stessa conversazione. Gli amministratori del club hanno accesso ai messaggi segnalati (inclusa l\'istantanea) per l\'esame e la moderazione. L\'amministrazione del database (attualmente: Luca Canepa) dispone, in qualità di gestore dell\'infrastruttura, di accesso tecnico all\'intero database. I messaggi non sono crittografati end-to-end; vengono archiviati non crittografati su un server Hetzner in Germania, protetti da TLS in transito, autenticazione tramite chiave SSH e un firewall a livello di database.',
-  messagingRightsTitle: 'I tuoi diritti e impostazioni',
-  messagingRightsText:
-    'Puoi abilitare o disabilitare la messaggistica in qualsiasi momento sotto Opzioni → Messaggi (chat di squadra e messaggi diretti separatamente). Dalla stessa pagina puoi esportare i tuoi dati di messaggistica come file JSON (al massimo 1× ogni 24 ore). L\'eliminazione del tuo account comporta la cancellazione a cascata dei tuoi messaggi, reazioni, blocchi, appartenenze alle conversazioni e richieste. Le segnalazioni in cui compari come segnalatore o persona segnalata vengono anonimizzate (riferimenti impostati a NULL), mentre il contenuto dell\'istantanea viene conservato a fini di documentazione.',
-  messagingReportsTitle: 'Segnalazioni e moderazione',
-  messagingReportsText:
-    'I membri possono segnalare messaggi inappropriati. Una segnalazione memorizza un\'istantanea del messaggio segnalato (in modo che modifiche o eliminazioni successive non compromettano la moderazione) e viene sottoposta agli amministratori per l\'esame. Gli amministratori possono eliminare messaggi, contrassegnare le segnalazioni come risolte o — nei casi gravi — bloccare singoli membri dalla messaggistica.',
-  messagingPushTitle: 'Notifiche push',
-  messagingPushText:
-    'Le notifiche push per i nuovi messaggi sono facoltative e disattivate per impostazione predefinita. Sotto Opzioni → Messaggi puoi scegliere se le notifiche appaiono generiche ("Nuovo messaggio") o includono il nome del mittente e una breve anteprima del testo. La consegna è gestita tramite Cloudflare Workers (vedi sezione 4).',
-
-  changesTitle: '10. Modifiche',
+  changesTitle: '9. Modifiche',
   changesText:
     'Ci riserviamo il diritto di aggiornare questa informativa sulla privacy secondo necessità. La versione attuale è disponibile su questa pagina.',
 

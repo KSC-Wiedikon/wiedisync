@@ -8,7 +8,7 @@
  *
  *   • kscw_current_season_start() sat on a Sep 1 cutover for a year while every
  *     JS caller used Jun 1 — fixed by migration 268 (2026-07-29).
- *   • messaging-helpers.js shareTeam() sat on an Aug 1 cutover, so from Jun 1 to
+ *   • the since-removed messaging-helpers.js shareTeam() sat on an Aug 1 cutover, so from Jun 1 to
  *     Jul 31 it read the PREVIOUS season's rosters and downgraded teammates'
  *     DMs to approval-gated requests — 82 members were affected when it was
  *     found (2026-07-29).
