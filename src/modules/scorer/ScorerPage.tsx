@@ -335,6 +335,15 @@ export default function ScorerPage() {
     return sportTeams.filter((tm) => myDutyTeamIds.includes(tm.id))
   }, [effectiveIsAdmin, effectiveIsVorstand, sportTeams, myDutyTeamIds])
 
+  // How many upcoming games of this sport carry MY name — shown on the tab so
+  // the member sees at a glance whether there is anything to look at.
+  const myUpcomingCount = useMemo(() => {
+    if (!user) return 0
+    return upcomingGames.filter((g) => getGameSport(g) === sportTab && (sportTab === 'volleyball'
+      ? [g.scorer_member, g.scoreboard_member, g.scorer_scoreboard_member, g.referee_member].includes(String(user.id))
+      : [g.bb_scorer_member, g.bb_timekeeper_member, g.bb_24s_official].includes(String(user.id)))).length
+  }, [upcomingGames, sportTab, user])
+
   const filteredGames = useMemo(() => {
     return upcomingGames.filter((g) => {
       // Sport + non-admin visibility scope (own team's duties / personally assigned)
@@ -706,10 +715,13 @@ export default function ScorerPage() {
             </p>
           )}
 
-          {/* All vs Selected (games I'm personally assigned to) */}
+          {/* All vs My duties (games I'm personally assigned to, with the count) */}
           <div className="mt-4">
             <TabBar<'all' | 'mine'>
-              tabs={[{ key: 'all', label: t('dutyScopeAll') }, { key: 'mine', label: t('dutyScopeMine') }]}
+              tabs={[
+                { key: 'all', label: t('dutyScopeAll') },
+                { key: 'mine', label: myUpcomingCount > 0 ? `${t('dutyScopeMine')} (${myUpcomingCount})` : t('dutyScopeMine') },
+              ]}
               active={dutyScope}
               onChange={setDutyScope}
             />

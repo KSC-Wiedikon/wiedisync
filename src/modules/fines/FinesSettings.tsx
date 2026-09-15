@@ -45,6 +45,51 @@ function typeLabelKey(t: FineActivityType): string {
 
 const inputClass = 'h-9 rounded-md border border-gray-300 bg-white px-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100'
 
+/**
+ * Numeric tier field that can be emptied and retyped. A controlled
+ * `<input type="number" value={n}>` with a `|| 0` fallback can never be
+ * cleared (empty → 0 → "0" is written back), and React compares number
+ * inputs loosely ("002" == 2), so whatever leading zeros were typed stayed
+ * on screen. The draft is a string while focused; the parsed value is
+ * committed on every keystroke and the text is normalised on blur.
+ */
+function TierNumberInput({
+  value, onCommit, onBlur, parse, min, step, inputMode, ariaLabel, className,
+}: {
+  value: number
+  onCommit: (n: number) => void
+  onBlur: () => void
+  parse: (raw: string) => number | null
+  min: string
+  step: string
+  inputMode: 'numeric' | 'decimal'
+  ariaLabel: string
+  className: string
+}) {
+  const [draft, setDraft] = useState<string>(String(value))
+  const [focused, setFocused] = useState(false)
+  // Follow external changes (a reset, a saved reload) while not typing.
+  const shown = focused ? draft : String(value)
+  return (
+    <input
+      type="number"
+      min={min}
+      step={step}
+      inputMode={inputMode}
+      aria-label={ariaLabel}
+      value={shown}
+      onFocus={() => { setDraft(String(value)); setFocused(true) }}
+      onChange={(e) => {
+        setDraft(e.target.value)
+        const n = parse(e.target.value)
+        if (n != null) onCommit(n)
+      }}
+      onBlur={() => { setFocused(false); setDraft(String(value)); onBlur() }}
+      className={className}
+    />
+  )
+}
+
 interface FinesSettingsProps {
   teamId: string | number
   /** Team name + season for the PDF header; fetched when the caller has neither. */
@@ -481,16 +526,14 @@ function RuleEditor({ teamId, category, activityType, rule, seed, onChange }: Ru
                         <TableRow key={idx} className="min-h-[44px]">
                           <TableCell className="py-1.5">
                             <div className="flex items-center gap-1">
-                              <input
-                                type="number"
+                              <TierNumberInput
                                 min="1"
                                 step="1"
                                 inputMode="numeric"
-                                aria-label={isMin ? t('fines:settingsTierOffenseMin') : t('fines:settingsTierOffense')}
-                                value={isMin ? (tier.offense_min ?? '') : (tier.offense ?? '')}
-                                onChange={(e) => updateTier(idx, isMin
-                                  ? { offense_min: parseInt(e.target.value, 10) || 1 }
-                                  : { offense: parseInt(e.target.value, 10) || 1 })}
+                                ariaLabel={isMin ? t('fines:settingsTierOffenseMin') : t('fines:settingsTierOffense')}
+                                value={(isMin ? tier.offense_min : tier.offense) ?? 1}
+                                parse={(raw) => { const n = parseInt(raw, 10); return Number.isInteger(n) && n >= 1 ? n : null }}
+                                onCommit={(n) => updateTier(idx, isMin ? { offense_min: n } : { offense: n })}
                                 onBlur={() => save({ tiers })}
                                 className={`${inputClass} w-14 text-right sm:w-16`}
                               />
@@ -500,14 +543,14 @@ function RuleEditor({ teamId, category, activityType, rule, seed, onChange }: Ru
                           <TableCell className="py-1.5">
                             <div className="flex items-center gap-1.5">
                               <span className="hidden text-xs text-gray-500 sm:inline dark:text-gray-400">{t('fines:settingsTierAmount')}</span>
-                              <input
-                                type="number"
+                              <TierNumberInput
                                 min="0"
                                 step="0.05"
                                 inputMode="decimal"
-                                aria-label={t('fines:settingsTierAmountHeader')}
+                                ariaLabel={t('fines:settingsTierAmountHeader')}
                                 value={tier.amount}
-                                onChange={(e) => updateTier(idx, { amount: parseFloat(e.target.value) || 0 })}
+                                parse={(raw) => { const n = parseFloat(raw); return Number.isFinite(n) && n >= 0 ? n : null }}
+                                onCommit={(n) => updateTier(idx, { amount: n })}
                                 onBlur={() => save({ tiers })}
                                 className={`${inputClass} w-20 text-right`}
                               />

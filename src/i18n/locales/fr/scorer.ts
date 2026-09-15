@@ -6,7 +6,7 @@ export default {
   tabGames: 'Matchs',
   tabOverview: 'Vue d\'ensemble',
   dutyScopeAll: 'Tous',
-  dutyScopeMine: 'Sélectionnés',
+  dutyScopeMine: 'Mes services',
 
   // Labels — Volleyball
   scorer: 'Marqueur',
