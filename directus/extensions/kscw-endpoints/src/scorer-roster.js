@@ -123,8 +123,9 @@ const firstInitial = (name) => {
 // so render it as blank rather than a column of zeros on the sheet.
 const jersey = (n) => (n == null || Number(n) === 0 ? null : Number(n))
 
-// Jersey number descending; unnumbered players (staff, late entries) last.
-const byJersey = (a, b) => (b.number == null ? -Infinity : b.number) - (a.number == null ? -Infinity : a.number)
+// Jersey number ascending, as the scorer reads them off the sheet; unnumbered
+// players (staff, late entries) last.
+const byJersey = (a, b) => (a.number == null ? Infinity : a.number) - (b.number == null ? Infinity : b.number)
 
 /**
  * Libero is a per-MATCH designation in the rules, not a property of a person — but the

@@ -123,7 +123,13 @@ export default function PreGameRosterModal({ gameId, onClose }: PreGameRosterMod
     }
   }, [gameId, apply])
 
-  const live = useMemo(() => rows.filter((r) => !r.dropped), [rows])
+  // The read view is always in jersey order (unnumbered last), whatever the coach
+  // did to the numbers while editing — the server sorts too, but a bench add or a
+  // renumber lands in the edit order until the sheet is re-read.
+  const live = useMemo(
+    () => rows.filter((r) => !r.dropped).sort((a, b) => (a.number ?? Infinity) - (b.number ?? Infinity)),
+    [rows],
+  )
   const liberos = useMemo(() => live.filter((r) => r.is_libero), [live])
   const addedCount = useMemo(() => rows.filter((r) => r.added).length, [rows])
   const droppedCount = useMemo(() => rows.filter((r) => r.dropped).length, [rows])
@@ -365,7 +371,7 @@ export default function PreGameRosterModal({ gameId, onClose }: PreGameRosterMod
   )
 
   return (
-    <Modal open onClose={onClose} title={t('pregameTitle')} size="lg" disableAutoFocus>
+    <Modal open onClose={onClose} title={t('pregameTitle')} size="full" disableAutoFocus>
       {data && (
         <>
           <p className="mb-1 text-sm font-medium text-foreground">
