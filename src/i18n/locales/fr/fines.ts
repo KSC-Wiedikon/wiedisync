@@ -119,6 +119,8 @@ export default {
   settingsCustomise: 'Personnaliser',
   settingsRemoveOverride: 'Supprimer l’exception',
   settingsOverrideOff: 'Désactivée – la règle générale s’applique à nouveau.',
+  settingsDownloadPdf: 'Télécharger le récapitulatif (PDF)',
+  settingsPdfError: 'Impossible de créer le PDF : {{error}}',
 
   dashboardTitle: 'Amendes ce mois-ci',
   dashboardTotalOpen: 'Ouvertes ce mois-ci',

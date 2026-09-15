@@ -119,6 +119,8 @@ export default {
   settingsCustomise: 'Anpassen',
   settingsRemoveOverride: 'Ausnahme entfernen',
   settingsOverrideOff: 'Aus – es gilt wieder die allgemeine Regel.',
+  settingsDownloadPdf: 'Zusammenfassung herunterladen (PDF)',
+  settingsPdfError: 'PDF konnte nicht erstellt werden: {{error}}',
 
   dashboardTitle: 'Bussen diesen Monat',
   dashboardTotalOpen: 'Offen diesen Monat',

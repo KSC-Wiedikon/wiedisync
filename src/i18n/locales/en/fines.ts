@@ -130,6 +130,23 @@ export default {
   settingsCustomise: 'Customise',
   settingsRemoveOverride: 'Remove override',
   settingsOverrideOff: 'Off — falls back to the general rule.',
+  settingsDownloadPdf: 'Download summary (PDF)',
+  settingsPdfError: 'Could not create the PDF: {{error}}',
+  // PDF summary labels — exports are always English (i18n.getFixedT('en')), so
+  // these exist in this locale only.
+  pdfTitle: 'Fines',
+  pdfExported: 'Exported',
+  pdfFineCount_one: '{{count}} fine',
+  pdfFineCount_other: '{{count}} fines',
+  pdfPerMember: 'Per member',
+  pdfMember: 'Member',
+  pdfCount: 'Fines',
+  pdfTotal: 'Total',
+  pdfAllFines: 'All fines',
+  pdfDate: 'Date',
+  pdfActivity: 'Activity',
+  pdfRules: 'Rules',
+  pdfNoFines: 'No fines recorded yet.',
 
   // Dashboard widget
   dashboardTitle: 'Fines this month',

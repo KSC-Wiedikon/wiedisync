@@ -119,6 +119,8 @@ export default {
   settingsCustomise: 'Aapasse',
   settingsRemoveOverride: 'Usnahm entfärne',
   settingsOverrideOff: 'Us – es gilt wieder d allgemeini Regle.',
+  settingsDownloadPdf: 'Zämefassig abelade (PDF)',
+  settingsPdfError: 'PDF het nöd chönne erstellt werde: {{error}}',
 
   dashboardTitle: 'Bueße die Monet',
   dashboardTotalOpen: 'Offe die Monet',
