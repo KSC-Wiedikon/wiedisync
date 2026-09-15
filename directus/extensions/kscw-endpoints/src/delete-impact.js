@@ -138,8 +138,8 @@ const FK_MAP = {
     { table: 'referee_expenses', column: 'game', rule: 'SET NULL' },
   ],
   // No inbound FKs at all. That is correct, not an omission — everything that
-  // depends on a training is polymorphic (participations / notifications /
-  // activity chat), handled by the block below.
+  // depends on a training is polymorphic (participations / notifications),
+  // handled by the block below.
   trainings: [],
 }
 

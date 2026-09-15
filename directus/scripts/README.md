@@ -2,7 +2,7 @@
 
 This directory holds the Directus database tooling for KSCW: the migration journal, the deploy chain (migrations, permissions, smoke test, baseline), schema sync helpers, the ClubDesk and VolleyManager / SVRZ integrations, and a set of historical one-off scripts kept for reference. This README maps every non-migration script to what it does and how it is invoked, so the old one-offs are no longer mysterious.
 
-> **Numbered migrations are not listed here.** `NNN-*.sql` and `NNN-*.mjs` (e.g. `001-postgres-triggers.sql`, `005-add-announcements.mjs`, `009-messaging-permissions.mjs`) are the migration journal. `apply-migrations.mjs` discovers both `.sql` and `.mjs` via `/^\d{3}-.+\.(sql|mjs)$/`, and applies `_migrations-tracker.sql` first as the idempotent bootstrap that creates the `kscw_migrations` tracking table. **Never run a numbered migration (or the tracker) by hand** — use `npm run db:migrate:dev` / `npm run db:migrate:prod`. See `CLAUDE.md → Migration & Permission Policy`.
+> **Numbered migrations are not listed here.** `NNN-*.sql` and `NNN-*.mjs` (e.g. `001-postgres-triggers.sql`, `005-add-announcements.mjs`) are the migration journal. `apply-migrations.mjs` discovers both `.sql` and `.mjs` via `/^\d{3}-.+\.(sql|mjs)$/`, and applies `_migrations-tracker.sql` first as the idempotent bootstrap that creates the `kscw_migrations` tracking table. **Never run a numbered migration (or the tracker) by hand** — use `npm run db:migrate:dev` / `npm run db:migrate:prod`. See `CLAUDE.md → Migration & Permission Policy`.
 
 ## Active tooling
 
@@ -40,8 +40,6 @@ npm run test:scripts      # node --test directus/scripts/__tests__/*.test.mjs
 - `__tests__/svrz-scheduling-sync.test.mjs` — tests `svrz-scheduling-sync.mjs` (`filterSchedulableGames`, `gameToSvrzRow`, `buildSearchBody`, contact / team-responsible keying) against JSON fixtures.
 - `__tests__/vm-client.test.mjs` — tests the `vm-client.mjs` CookieJar (store / serialize, update from `Set-Cookie`).
 - `__tests__/fixtures/games-sample.json`, `__tests__/fixtures/contacts-sample.json` — fixtures loaded by the SVRZ test.
-
-The `messaging-harness/` subdirectory (`messaging-int.mjs`, `broadcast-int.mjs`, `seed-broadcast.mjs`, `seed-plan02.mjs`, `seed-plan03.mjs`) is the **manual-run, env-gated integration harness** for the messaging system (Plans 01-06; messaging shipped in v4.0.0). It is not wired into any automated runner — see `messaging-harness/README.md` for how to run it against `directus-dev` with `DIRECTUS_DEV_TOKEN` / DB URL env vars.
 
 ## Historical / one-off (kept for reference, not run in normal operation)
 

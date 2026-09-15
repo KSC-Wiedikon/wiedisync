@@ -48,6 +48,5 @@ export default {
     rateLimited: 'Attendi qualche minuto e riprova.',
     rateLimitedTimed: 'Attendi {{minutes}} minuto/i e riprova.',
     invalidField: 'Valore non valido per «{{field}}».',
-    notImplemented: 'Il canale In-App non è ancora disponibile.',
   },
 }

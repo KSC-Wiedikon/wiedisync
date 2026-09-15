@@ -1,6 +1,6 @@
 # Layer 2 — Data Model
 
-Backend is Directus on Postgres (Supabase). Tables live in the `public` schema; primary keys are mostly serial `integer`, with messaging tables and a few others on `uuid`. Relationships are a mix of DB-level foreign keys (listed in `SCHEMA.sql`) and Directus-metadata-only relations inferred from `<entity>` column naming (`team`, `member`, `kscw_team`, `hall`, `hall_slot`, `game`, `activity_id`); only the former are marked as enforced FKs below. `members.user` and several `*_by`/`user_*` columns point at `directus_users.id` (a `uuid`) outside the app schema.
+Backend is Directus on Postgres (Supabase). Tables live in the `public` schema; primary keys are mostly serial `integer`, with a few tables on `uuid`. Relationships are a mix of DB-level foreign keys (listed in `SCHEMA.sql`) and Directus-metadata-only relations inferred from `<entity>` column naming (`team`, `member`, `kscw_team`, `hall`, `hall_slot`, `game`, `activity_id`); only the former are marked as enforced FKs below. `members.user` and several `*_by`/`user_*` columns point at `directus_users.id` (a `uuid`) outside the app schema.
 
 Domain groups: **people**, **scheduling**, **participation**, **forms**, **admin/infra**.
 
@@ -30,7 +30,7 @@ erDiagram
 
 | Collection | Key columns | Relationships | Purpose |
 |---|---|---|---|
-| `members` | `id`, `email`, `first_name`, `last_name`, `role` (json), `position` (json), `user` (uuid→directus_users), `scorer_vb`/`referee_vb`/`otr1_bb`/`otr2_bb`/`otn_bb`/`referee_bb`, `kscw_membership_active`, `wiedisync_active`, `shell`, `hide_email`/`hide_phone`, `consent_decision`, `requested_team` | `requested_team`→teams (inferred); referenced by almost every collection | People — players, coaches, staff. Per-flag licence booleans (migration 067); messaging/consent + ClubDesk-sync fields. |
+| `members` | `id`, `email`, `first_name`, `last_name`, `role` (json), `position` (json), `user` (uuid→directus_users), `scorer_vb`/`referee_vb`/`otr1_bb`/`otr2_bb`/`otn_bb`/`referee_bb`, `kscw_membership_active`, `wiedisync_active`, `shell`, `hide_email`/`hide_phone`, `requested_team` | `requested_team`→teams (inferred); referenced by almost every collection | People — players, coaches, staff. Per-flag licence booleans (migration 067); ClubDesk-sync fields. |
 | `teams` | `id`, `name`, `full_name`, `team_id`, `sport`, `league`, `season`, `color`, `captain`, `features_enabled` (json), `recruiting_positions` (jsonb), `dashboard_range_from/_to/_league_only` | `captain`→members (FK, SET NULL); M2M coaches/TR/sponsors; o2m member_teams | Team entity. `captain` is M2O FK; coaches/TR/sponsors are M2M junctions. |
 | `member_teams` | `id`, `member`, `team`, `season`, `guest_level` | `member`→members (FK CASCADE); `team`→teams (inferred); UNIQUE(member,team) | Roster junction. `guest_level` 0=member, 1-3=guest tiers. |
 | `sponsors` | `id`, `name`, `logo` (uuid), `website_url`, `sort_order`, `active`, `team_page_only` | M2M teams via teams_sponsors | Club/team sponsors. `sponsors_with_logo` view joins storage for logo URL. |

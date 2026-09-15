@@ -27,12 +27,13 @@ interface RealtimeEvent<T = Record<string, unknown>> {
  *
  * The tempting one-line fix — just omit `event` — is WRONG. With no event, Directus
  * sends an initial payload, which means it runs a full readByQuery() on the
- * collection as the subscriber. That works for `trainings`/`games`, but Members have
- * no direct read grant on `messages` (message reads go through /kscw/messaging/*), so
- * the init read is denied and the whole subscription is rejected. Probing dev:
+ * collection as the subscriber. That works for `trainings`/`games`, but for a
+ * collection the subscriber cannot read directly (one served only through a custom
+ * /kscw/* endpoint) the init read is denied and the whole subscription is rejected.
+ * Probed on dev 2026-07-13 with the since-removed `messages` collection:
  *
  *              event:'changes'   no event    create/update/delete
- *   messages      rejected       rejected           OK
+ *   (no grant)    rejected       rejected           OK
  *   trainings     rejected          OK              OK
  *   games         rejected          OK              OK
  *

@@ -116,40 +116,6 @@ export default function DatenschutzPage() {
         <p>{t('photosText')}</p>
       </Section>
 
-      <Section title={t('messagingTitle')} id="nachrichten">
-        <p className="mb-4">{t('messagingIntro')}</p>
-
-        <h3 className="mb-1 font-semibold text-gray-800 dark:text-gray-200">
-          {t('messagingDataTitle')}
-        </h3>
-        <p className="mb-4">{t('messagingDataText')}</p>
-
-        <h3 className="mb-1 font-semibold text-gray-800 dark:text-gray-200">
-          {t('messagingRetentionTitle')}
-        </h3>
-        <p className="mb-4">{t('messagingRetentionText')}</p>
-
-        <h3 className="mb-1 font-semibold text-gray-800 dark:text-gray-200">
-          {t('messagingAccessTitle')}
-        </h3>
-        <p className="mb-4">{t('messagingAccessText')}</p>
-
-        <h3 className="mb-1 font-semibold text-gray-800 dark:text-gray-200">
-          {t('messagingRightsTitle')}
-        </h3>
-        <p className="mb-4">{t('messagingRightsText')}</p>
-
-        <h3 className="mb-1 font-semibold text-gray-800 dark:text-gray-200">
-          {t('messagingReportsTitle')}
-        </h3>
-        <p className="mb-4">{t('messagingReportsText')}</p>
-
-        <h3 className="mb-1 font-semibold text-gray-800 dark:text-gray-200">
-          {t('messagingPushTitle')}
-        </h3>
-        <p>{t('messagingPushText')}</p>
-      </Section>
-
       <Section title={t('changesTitle')}>
         <p>{t('changesText')}</p>
       </Section>
@@ -157,9 +123,9 @@ export default function DatenschutzPage() {
   )
 }
 
-function Section({ title, children, id }: { title: string; children: React.ReactNode; id?: string }) {
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="mb-8 scroll-mt-20" id={id}>
+    <section className="mb-8 scroll-mt-20">
       <h2 className="mb-3 text-lg font-semibold text-gray-900 dark:text-white">
         {title}
       </h2>

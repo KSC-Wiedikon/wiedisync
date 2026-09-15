@@ -9,7 +9,7 @@
  *
  *   • kscw_current_season_start() sat on a Sep 1 cutover for a year while every
  *     JS caller used Jun 1 (fixed by migration 268).
- *   • messaging-helpers.js shareTeam() sat on an Aug 1 cutover, so from Jun 1 to
+ *   • the since-removed messaging-helpers.js shareTeam() sat on an Aug 1 cutover, so from Jun 1 to
  *     Jul 31 it read the previous season's rosters and downgraded teammates' DMs
  *     to approval-gated requests. 82 members were affected when it was found.
  *
@@ -94,7 +94,7 @@ describe('season boundaries (the Jun 1 cutover itself)', () => {
     expect(fe.currentSeasonShort(at('2026-05-31'))).toBe('2025/26')
     expect(fe.currentSeasonShort(at('2026-06-01'))).toBe('2026/27')
     // The two cutovers that had actually drifted in this repo:
-    expect(fe.currentSeasonShort(at('2026-07-15'))).toBe('2026/27') // was Aug 1 in messaging-helpers
+    expect(fe.currentSeasonShort(at('2026-07-15'))).toBe('2026/27') // was Aug 1 in the since-removed messaging-helpers
     expect(fe.currentSeasonShort(at('2026-08-15'))).toBe('2026/27') // was Sep 1 in the PG function
   })
 

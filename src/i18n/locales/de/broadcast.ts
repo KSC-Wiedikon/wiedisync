@@ -48,6 +48,5 @@ export default {
     rateLimited: 'Bitte warte ein paar Minuten und versuche es erneut.',
     rateLimitedTimed: 'Bitte warte {{minutes}} Minute(n) und versuche es erneut.',
     invalidField: 'Ungültiger Wert für „{{field}}".',
-    notImplemented: 'In-App-Kanal ist noch nicht verfügbar.',
   },
 }

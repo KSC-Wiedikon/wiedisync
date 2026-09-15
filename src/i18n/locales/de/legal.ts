@@ -1,7 +1,7 @@
 export default {
   // Datenschutz page
   privacyTitle: 'Datenschutzerklärung',
-  lastUpdated: 'Stand: 4. April 2026',
+  lastUpdated: 'Stand: 15. September 2026',
 
   controllerTitle: '1. Verantwortliche Stelle',
   controllerText:
@@ -94,29 +94,7 @@ export default {
   photosText:
     'Spielerfotos werden von den Mitgliedern selbst über ihr Profil hochgeladen und können jederzeit geändert oder entfernt werden. Hochgeladene Fotos sind auf den öffentlichen Teamseiten sichtbar.',
 
-  messagingTitle: '9. Nachrichten (Messaging)',
-  messagingIntro:
-    'Seit April 2026 bietet die Plattform ein integriertes Messaging-System für Team-Chats, Direktnachrichten, Umfragen und Moderation. Die Nutzung ist freiwillig und erfordert eine ausdrückliche Einwilligung.',
-  messagingDataTitle: 'Was wir speichern',
-  messagingDataText:
-    'Im Zusammenhang mit dem Messaging-System erheben und speichern wir: gesendete Nachrichten (Text), Reaktionen (Emoji), Meldungen (inklusive eines Snapshots der gemeldeten Nachricht zum Zeitpunkt der Meldung), Konversations-Mitgliedschaften, Blockier-Listen, Einwilligungs-Entscheidungen sowie Push-Abonnements, sofern du Benachrichtigungen aktiviert hast.',
-  messagingRetentionTitle: 'Wie lange wir speichern',
-  messagingRetentionText:
-    'Nachrichten werden automatisch nach 12 Monaten endgültig gelöscht. Von Nutzer:innen selbst gelöschte Nachrichten werden nach weiteren 30 Tagen endgültig entfernt (in dieser Zeit sind sie bereits nicht mehr sichtbar, bleiben jedoch für Moderations-Meldungen abrufbar). Abgelehnte Nachrichten-Anfragen werden nach 90 Tagen automatisch entfernt. Meldungen werden für die Dauer des Kontos aufbewahrt, um Nachvollziehbarkeit bei Moderations-Entscheidungen zu gewährleisten.',
-  messagingAccessTitle: 'Wer hat Zugriff',
-  messagingAccessText:
-    'Nachrichten können ausschliesslich von dir und den anderen Mitgliedern derselben Konversation gelesen werden. Vereins-Administrator:innen haben Zugriff auf gemeldete Nachrichten (inklusive Snapshot) zur Prüfung und Moderation. Die Datenbank-Administration (aktuell: Luca Canepa) hat als Betreiber der Infrastruktur technischen Zugriff auf die gesamte Datenbank. Nachrichten sind nicht Ende-zu-Ende-verschlüsselt; sie werden unverschlüsselt auf einem Hetzner-Server in Deutschland gespeichert, abgesichert durch TLS in der Übertragung, SSH-Key-Authentifizierung und eine Firewall auf Datenbank-Ebene.',
-  messagingRightsTitle: 'Deine Rechte und Einstellungen',
-  messagingRightsText:
-    'Du kannst das Messaging jederzeit unter Optionen → Nachrichten aktivieren oder deaktivieren (Team-Chat und Direktnachrichten separat). Auf derselben Seite kannst du deine Messaging-Daten als JSON-Datei exportieren (maximal 1× pro 24 Stunden). Beim Löschen deines Kontos werden deine Nachrichten, Reaktionen, Blockierungen, Konversations-Mitgliedschaften und Anfragen kaskadierend mitgelöscht. Meldungen, in denen du als meldende oder gemeldete Person auftauchst, werden anonymisiert (Referenzen werden auf NULL gesetzt), der Inhalt des Snapshots bleibt jedoch zur Dokumentation erhalten.',
-  messagingReportsTitle: 'Meldungen und Moderation',
-  messagingReportsText:
-    'Mitglieder können unangemessene Nachrichten melden. Eine Meldung speichert einen Snapshot der gemeldeten Nachricht (damit spätere Bearbeitungen oder Löschungen die Moderation nicht beeinträchtigen) und wird den Administrator:innen zur Prüfung vorgelegt. Administrator:innen können Nachrichten löschen, Meldungen als erledigt markieren oder in schweren Fällen das Messaging für einzelne Mitglieder sperren.',
-  messagingPushTitle: 'Push-Benachrichtigungen',
-  messagingPushText:
-    'Push-Benachrichtigungen für neue Nachrichten sind optional und standardmässig deaktiviert. Du kannst unter Optionen → Nachrichten wählen, ob Benachrichtigungen generisch ("Neue Nachricht") oder mit Absender-Name und kurzem Textauszug angezeigt werden. Die technische Zustellung erfolgt über Cloudflare Workers (siehe Abschnitt 4).',
-
-  changesTitle: '10. Änderungen',
+  changesTitle: '9. Änderungen',
   changesText:
     'Wir behalten uns vor, diese Datenschutzerklärung bei Bedarf anzupassen. Die aktuelle Version ist auf dieser Seite verfügbar.',
 

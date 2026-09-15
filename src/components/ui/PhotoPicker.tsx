@@ -8,11 +8,6 @@
 // sanctioned path. It carries `assertWritable()` (which blocks writes while
 // impersonating) and `captureApiError`, both of which a hand-rolled
 // `fetch(POST /files)` would skip.
-//
-// The 64px preview is rendered here rather than through the messaging `Avatar`:
-// that component's largest size is 56px and is applied as its own utility
-// class, so a `className` override would be a Tailwind ordering gamble on a
-// control whose whole job is showing the image at a known size.
 
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
