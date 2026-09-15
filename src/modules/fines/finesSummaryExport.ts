@@ -173,9 +173,10 @@ export function buildFinesSummary(input: FinesSummaryInput, t: TFunction): Fines
   // (migration 361). Tiers spread across offense columns so the ladders line
   // up; a general rule left without tiers shows an empty ladder rather than
   // vanishing — it is still the rule that prices whatever no override covers.
+  const typeOrder = (r: FineRule) => (r.activity_type ? ['training', 'game', 'event'].indexOf(r.activity_type) + 1 : 0)
   const enabledRules = rules
     .filter((r) => r.enabled)
-    .sort((a, b) => a.category.localeCompare(b.category) || (a.activity_type ?? '').localeCompare(b.activity_type ?? ''))
+    .sort((a, b) => a.category.localeCompare(b.category) || typeOrder(a) - typeOrder(b))
   const ruleColumns = Math.min(
     RULE_COLUMNS_MAX,
     Math.max(1, ...enabledRules.flatMap((r) => r.tiers.map((tier) => tier.offense ?? tier.offense_min ?? 1))),

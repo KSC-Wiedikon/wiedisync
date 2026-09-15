@@ -13,8 +13,8 @@ const EN: Record<string, string> = {
   teamFineRow: 'Whole team', pdfTitle: 'Fines', pdfExported: 'Exported',
   statusOpen: 'Open', statusPaid: 'Paid', statusWaived: 'Waived',
   categoryLateSignin: 'Late sign-in', categoryNoShow: 'No-show', categoryCustom: 'Custom',
-  settingsTypeGame: 'Games', settingsNoTiers: 'No tiers yet.', window30d: 'Rolling 30 days', windowSeason: 'Season (Sep–Aug)',
-  windowMonth: 'Calendar month', pdfScopeGeneral: 'General',
+  settingsTypeGame: 'Games', settingsTypeTraining: 'Trainings', settingsNoTiers: 'No tiers yet.', window30d: 'Rolling 30 days', windowSeason: 'Season (Sep–Aug)',
+  windowMonth: 'Calendar month', pdfScopeGeneral: 'All activities',
 }
 const t = ((key: string, opts?: { count?: number }) =>
   key === 'pdfFineCount' ? `${opts?.count} fines` : EN[key] ?? key) as unknown as TFunction
@@ -77,15 +77,16 @@ describe('buildFinesSummary — rules table', () => {
     team: { name: 'H3' }, fines: [], members: [], exportedAt: new Date(),
     rules: [
       rule({ id: 'o', activity_type: 'game', reset_window: 'season', tiers: [{ offense: 1, amount: 20 }, { offense: 2, amount: 30 }, { offense_min: 3, amount: 45 }] }),
-      rule({ id: 'g' }),
+      rule({ id: 'tr', activity_type: 'training' }),
+      rule({ id: 'g', enabled: false }),
       rule({ id: 'x', category: 'no_show', enabled: false }),
       rule({ id: 'n', category: 'no_show', reset_window: 'calendar_month', tiers: [] }),
     ],
   }, t)
 
-  it('one row per enabled rule, general before its overrides, disabled ones skipped', () => {
+  it('one row per enabled rule, per-type rows in trainings → games → events order, disabled ones (incl. a silenced general rule) skipped', () => {
     expect(m.rules.map((r) => [r.category, r.scope])).toEqual([
-      ['Late sign-in', 'General'], ['Late sign-in', 'Games'], ['No-show', 'General'],
+      ['Late sign-in', 'Trainings'], ['Late sign-in', 'Games'], ['No-show', 'All activities'],
     ])
   })
   it('spreads tiers over offense columns, "+" marking "and every one after it"', () => {
@@ -93,8 +94,8 @@ describe('buildFinesSummary — rules table', () => {
     expect(m.rules[0].tiers).toEqual(['5.00', '10.00+', ''])
     expect(m.rules[1].tiers).toEqual(['20.00', '30.00', '45.00+'])
   })
-  it('an enabled rule without tiers keeps its row with an empty ladder — it still prices what no override covers', () => {
-    expect(m.rules[2]).toEqual({ category: 'No-show', scope: 'General', tiers: ['', '', ''], window: 'Calendar month' })
+  it('an enabled rule without tiers keeps its row with an empty ladder', () => {
+    expect(m.rules[2]).toEqual({ category: 'No-show', scope: 'All activities', tiers: ['', '', ''], window: 'Calendar month' })
   })
   it('window labels keep their capitalisation', () => {
     expect(m.rules.map((r) => r.window)).toEqual(['Rolling 30 days', 'Season (Sep–Aug)', 'Calendar month'])

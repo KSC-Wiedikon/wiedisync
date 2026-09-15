@@ -123,14 +123,12 @@ export default {
   settingsTierAndAbove: 'And all higher',
   settingsTierAndAboveShort: 'And up',
   settingsPerType: 'Per activity type',
-  settingsPerTypeHint: 'Give trainings, games or events their own tiers and reset window. Each override counts its own offenses; everything else follows the general rule above.',
+  settingsPerTypeHint: 'Off: one ladder for every activity. On: trainings, games and events each get their own tiers and reset window, and each counts its own offenses.',
   settingsTypeTraining: 'Trainings',
   settingsTypeGame: 'Games',
   settingsTypeEvent: 'Events',
-  settingsUsesGeneral: 'Uses the general rule',
-  settingsCustomise: 'Customise',
-  settingsRemoveOverride: 'Remove override',
-  settingsOverrideOff: 'Off — falls back to the general rule.',
+  settingsOverrideOff: 'Off — no fines for this activity type.',
+  settingsPerTypeOffConfirm: 'Switch back to one ladder for every activity? The per-type tiers are deleted.',
   settingsDownloadPdf: 'Download summary (PDF)',
   settingsPdfError: 'Could not create the PDF: {{error}}',
   // PDF summary labels — exports are always English (i18n.getFixedT('en')), so
@@ -149,7 +147,7 @@ export default {
   pdfRules: 'Rules',
   pdfNoFines: 'No fines recorded yet.',
   pdfScope: 'Applies to',
-  pdfScopeGeneral: 'General',
+  pdfScopeGeneral: 'All activities',
   pdfTierLegend: '+ = this offense and every one after it',
 
   // Dashboard widget
