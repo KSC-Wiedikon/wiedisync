@@ -6,7 +6,8 @@
 // from migration 301 (109), + later single-column migrations, + the two
 // hand-linked VIS columns from migration 312, which shipped unclassified and
 // were only given a schema entry on 2026-08-14, + migration 335's
-// `deactivated_at` (115 today):
+// `deactivated_at`, minus the seven messaging columns dropped with the feature
+// on 2026-09-15 (111 today):
 //
 //   ssh hetzner "sudo docker exec kscw-postgres psql -U supabase_admin -d postgres \
 //     -At -c \"select column_name from information_schema.columns \
@@ -63,14 +64,7 @@ export const MEMBERS_COLUMNS: string[] = [
   'licence_validated',
   'vm_email',
   'sex',
-  'communications_team_chat_enabled',
-  'communications_dm_enabled',
-  'communications_banned',
-  'push_preview_content',
   'last_online_at',
-  'consent_prompted_at',
-  'consent_decision',
-  'last_export_at',
   'hide_email',
   'scorer_vb',
   'referee_vb',

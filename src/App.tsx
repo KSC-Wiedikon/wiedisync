@@ -85,10 +85,6 @@ import NotFoundPage from '@/modules/common/NotFoundPage'
 const GuidePage = lazy(() => import('./modules/guide/GuidePage'))
 const HallenfinderPage = lazy(() => import('./modules/hallenfinder/HallenfinderPage'))
 const JsExportPage = lazy(() => import('./modules/jsexport/JsExportPage'))
-const InboxPage = lazy(() => import('./modules/messaging/pages/InboxPage'))
-const ConversationPage = lazy(() => import('./modules/messaging/pages/ConversationPage'))
-const MessagingSettingsPage = lazy(() => import('./modules/messaging/pages/MessagingSettingsPage'))
-const AdminReportsPage = lazy(() => import('./modules/admin/AdminReportsPage'))
 const AdminMailboxPage = lazy(() => import('./modules/admin/AdminMailboxPage'))
 const EmailsGaragePage = lazy(() => import('./modules/admin/EmailsGaragePage'))
 
@@ -250,9 +246,6 @@ export default function App() {
             <Route path="guide" element={<AuthRoute><Suspense fallback={null}><GuidePage /></Suspense></AuthRoute>} />
             <Route path="profile" element={<AuthRoute><ProfilePage /></AuthRoute>} />
             <Route path="profile/edit" element={<AuthRoute><ProfileEditPage /></AuthRoute>} />
-            <Route path="inbox" element={<AuthRoute><Suspense fallback={null}><InboxPage /></Suspense></AuthRoute>} />
-            <Route path="inbox/:conversationId" element={<AuthRoute><Suspense fallback={null}><ConversationPage /></Suspense></AuthRoute>} />
-            <Route path="options/messaging" element={<AuthRoute><Suspense fallback={null}><MessagingSettingsPage /></Suspense></AuthRoute>} />
             {/* Admin hub — every admin destination in one searchable table. AdminRoute
                 (isAdmin) is the right gate: isGlobalAdmin ⊆ isAdmin, so anyone with
                 a single admin entry passes it. */}
@@ -281,7 +274,6 @@ export default function App() {
             <Route path="admin/emails-garage" element={<AdminRoute><Suspense fallback={null}><EmailsGaragePage /></Suspense></AdminRoute>} />
             <Route path="admin/explore" element={<AdminRoute><ExplorePage /></AdminRoute>} />
             <Route path="admin/announcements" element={<AdminRoute><AnnouncementsPage /></AdminRoute>} />
-            <Route path="admin/reports" element={<AdminRoute><Suspense fallback={null}><AdminReportsPage /></Suspense></AdminRoute>} />
             {/* Club mailbox. GlobalAdminRoute (admin || superuser) mirrors the
                 server's authForAccount('admin') exactly — notably NOT vorstand,
                 is_spielplaner, vb_admin or bb_admin, so neither AdminRoute nor

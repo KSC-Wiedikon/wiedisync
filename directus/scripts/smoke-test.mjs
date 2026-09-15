@@ -138,7 +138,6 @@ async function main() {
   await check('participations (own)', () => api('GET', `/items/participations?filter[member][_eq]=${memberId}&limit=10`))
   await check('absences (own)', () => api('GET', `/items/absences?filter[member][_eq]=${memberId}&limit=10`))
   await check('notifications (own)', () => api('GET', `/items/notifications?filter[member][_eq]=${memberId}&limit=10`))
-  await check('blocks (own)', () => api('GET', `/items/blocks?filter[blocker][user][_eq]=${me.json.data.id}&limit=10`))
   await check('spielplaner_assignments (own)', () => api('GET', `/items/spielplaner_assignments?filter[member][_eq]=${memberId}&limit=10`))
   // HomePage / Layout reads. A lost read row on any of these silently empties a
   // home surface (the same class as the 2026-06-07 fine_rules incident, where a
@@ -147,11 +146,6 @@ async function main() {
   await check('rankings', () => api('GET', '/items/rankings?limit=10'))
   await check('fine_rules (visible)', () => api('GET', '/items/fine_rules?limit=10'))
   await check('forms (open)', () => api('GET', `/items/forms?filter[status][_eq]=open&limit=10&fields=id,title,status`))
-  // Conversations back the inbox unread badge (Layout) + the inbox list, but the
-  // app reads them via the /kscw/messaging/conversations custom endpoint — there
-  // is deliberately NO Member direct /items/conversations read grant — so probe
-  // the real path (mirrors the sv_vm_check endpoint check above).
-  await check('kscw/messaging/conversations', () => api('GET', '/kscw/messaging/conversations'))
   // Direct sv_vm_check.read REVOKED for KSCW Member; access goes through
   // the /kscw/sv-licence/me custom endpoint instead. Confirm direct read
   // 403s AND the endpoint responds.

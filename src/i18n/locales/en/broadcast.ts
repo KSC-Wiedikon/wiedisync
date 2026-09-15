@@ -15,8 +15,6 @@ export default {
     label: 'Channel',
     email: 'Email',
     push: 'Push',
-    inApp: 'In-app',
-    inAppComingSoon: 'Coming soon',
     error_atLeastOne: 'At least one channel must be enabled.',
   },
   audience: {
@@ -51,6 +49,5 @@ export default {
     rateLimitedTimed: 'Please wait {{minutes}} minute(s) and try again.',
     invalidField: 'Invalid value for "{{field}}".',
     notImplemented: 'In-app channel is not yet available.',
-    openConversation: 'Open chat',
   },
 }

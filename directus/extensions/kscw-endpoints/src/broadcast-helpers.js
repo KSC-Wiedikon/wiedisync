@@ -6,7 +6,7 @@
  *   these to resolve sender, load activities, gate permissions, resolve
  *   audience, enforce rate limits, and validate payloads.
  *
- * Style mirrors `messaging-helpers.js` — a `BroadcastError` wrapper carries
+ * A `BroadcastError` wrapper carries
  * `{ status, code, message, details }` and the endpoint converts it to JSON
  * via `sendBroadcastError` (or any local equivalent).
  */
@@ -59,8 +59,7 @@ const REAL_PARTICIPATION_STATUSES = new Set([
  * Resolve a request's accountability into the corresponding members row.
  *
  * `accountability.user` is a directus_users.id; the FK on `members` pointing
- * at `directus_users` is `members.user` (NOT `members.directus_user`) — see
- * the same convention in messaging-helpers.js#requireMember.
+ * at `directus_users` is `members.user` (NOT `members.directus_user`).
  *
  * Throws:
  *   401 broadcast/unauthenticated  — if no accountability.user
@@ -545,7 +544,7 @@ export async function checkRateLimit(database, activityType, activityId, senderM
  * Validate the POST body shape of a broadcast request.
  *
  * Required:
- *   channels: { email?: bool, push?: bool, inApp?: bool } — at least one true
+ *   channels: { email?: bool, push?: bool } — at least one true
  *   message:  string, 1-2000 chars
  *   audience: {
  *     statuses: string[]   — non-empty subset of:
@@ -556,15 +555,12 @@ export async function checkRateLimit(database, activityType, activityId, senderM
  *
  * Conditional:
  *   channels.email === true  → subject required, 3-200 chars
- *   channels.inApp === true  → 501 broadcast/not_implemented
- *                              (Phase B blocked on the messaging flag flip)
  *
  * The `includeExternals` flag is only meaningful for events; the semantic
  * check happens in `resolveAudience` — here we just shape-check the boolean.
  *
  * Throws:
  *   400 broadcast/invalid_payload — { field, message } in details
- *   501 broadcast/not_implemented — for inApp before messaging flag-flip
  */
 export function validateBroadcastPayload(body) {
   if (!body || typeof body !== 'object') {
@@ -580,13 +576,10 @@ export function validateBroadcastPayload(body) {
   }
   const email = channels.email === true
   const push = channels.push === true
-  const inApp = channels.inApp === true
-  if (!email && !push && !inApp) {
+  if (!email && !push) {
     throw new BroadcastError(400, 'broadcast/invalid_payload',
       'At least one channel must be true', { field: 'channels' })
   }
-  // Note: inApp is allowed at the payload layer. Event-only enforcement
-  // happens in broadcast.js after loadActivity() resolves the activity type.
 
   // — message —
   if (typeof body.message !== 'string') {
@@ -633,68 +626,5 @@ export function validateBroadcastPayload(body) {
     throw new BroadcastError(400, 'broadcast/invalid_payload',
       'audience.includeExternals must be boolean if present',
       { field: 'audience.includeExternals' })
-  }
-}
-
-// ─── 7. Activity-chat conversation helper ────────────────────────────────────
-
-/**
- * Find the existing activity_chat conversation for an activity, or create one.
- *
- * Event-only (Plan 02 scope — games/trainings rejected by schema CHECK in
- * migration 015). Race-safe via the partial unique index
- * `uq_conversations_one_per_activity`: concurrent creators hit Postgres error
- * 23505 → we re-select and return the winner's row.
- *
- * `services` is the Directus services object (carries ItemsService).
- * `schema` is from `await getSchema()`.
- * `sender` is the member row (for created_by).
- *
- * Returns the conversations row as stored in the DB.
- */
-export async function findOrCreateActivityConversation(database, services, schema, activity, sender) {
-  const { ItemsService } = services || {}
-  if (!ItemsService) {
-    throw new BroadcastError(500, 'broadcast/services_missing',
-      'ItemsService not available')
-  }
-  if (activity?.type !== 'event') {
-    throw new BroadcastError(400, 'broadcast/inapp_events_only',
-      'activity_chat conversations are event-only',
-      { activityType: activity?.type })
-  }
-
-  // 1. Try existing
-  let row = await database('conversations')
-    .where({ type: 'activity_chat', activity_type: 'event', activity_id: activity.id })
-    .first()
-  if (row) return row
-
-  // 2. Create — via ItemsService so Directus realtime + hooks fire.
-  const conversationsService = new ItemsService('conversations', { schema, knex: database })
-  const newId = crypto.randomUUID()
-  try {
-    await conversationsService.createOne({
-      id: newId,
-      type: 'activity_chat',
-      team: null,
-      activity_type: 'event',
-      activity_id: activity.id,
-      title: activity.title ?? null,
-      created_by: sender?.id ?? null,
-      created_at: new Date().toISOString(),
-    })
-    row = await database('conversations').where('id', newId).first()
-    return row
-  } catch (e) {
-    const msg = e?.message ?? String(e)
-    const isDupe = e?.code === '23505' || /duplicate key|unique|already exists/i.test(msg)
-    if (isDupe) {
-      row = await database('conversations')
-        .where({ type: 'activity_chat', activity_type: 'event', activity_id: activity.id })
-        .first()
-      if (row) return row
-    }
-    throw e
   }
 }

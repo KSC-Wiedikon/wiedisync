@@ -366,7 +366,7 @@ const psqlInput =
   // Skipped contacts are reported below (clubdesk_contact_suspected_duplicate)
   // for a human to merge in ClubDesk or add manually. Everything else rides on
   // DB defaults (kscw_membership_active true, website_visible false,
-  // wiedisync_active false, consent_decision 'pending'); no Directus hook/flow
+  // wiedisync_active false); no Directus hook/flow
   // fires on this raw-SQL channel. email falls back to '' when ClubDesk has none
   // (a handful of passive contacts): NOT NULL allows it and
   // trg_members_prevent_email_blanking only guards UPDATEs.

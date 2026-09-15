@@ -335,20 +335,6 @@ export default {
         },
       },
     },
-    inbox: {
-      title: 'Messaggi',
-      description: 'Chatta con membri e squadre',
-      steps: {
-        new: {
-          title: 'Avvia una conversazione',
-          body: 'Tocca Nuovo messaggio per scrivere a un membro o avviare una chat di gruppo. Il tuo primo messaggio a una persona nuova arriva come richiesta che deve accettare prima che la conversazione si apra.',
-        },
-        conversations: {
-          title: 'Le tue conversazioni',
-          body: 'Messaggi diretti, chat di gruppo e richieste in sospeso sono raggruppati qui — toccane uno per aprirlo. Le chat di squadra restano sulla pagina di ciascuna squadra.',
-        },
-      },
-    },
     news: {
       title: 'Notizie',
       description: 'Annunci del club e i tuoi avvisi',

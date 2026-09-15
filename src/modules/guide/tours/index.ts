@@ -14,7 +14,6 @@ import { formsTour } from './forms'
 import { financeDuesTour } from './finance-dues'
 import { expensesTour } from './expenses'
 import { calendarTour } from './calendar'
-import { inboxTour } from './inbox'
 import { newsTour } from './news'
 import { finesTour } from './fines'
 import type { TourDefinition } from '../types'
@@ -30,7 +29,6 @@ export const tourRegistry: TourDefinition[] = [
   scorerPlayerTour,
   teamsTour,
   formsTour,
-  inboxTour,
   newsTour,
   financeDuesTour,
   expensesTour,

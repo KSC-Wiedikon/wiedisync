@@ -31,7 +31,6 @@ import bugfixes from './locales/en/bugfixes'
 import guide from './locales/en/guide'
 import invitations from './locales/en/invitations'
 import announcements from './locales/en/announcements'
-import messaging from './locales/en/messaging'
 import broadcast from './locales/en/broadcast'
 import fines from './locales/en/fines'
 import pwa from './locales/en/pwa'
@@ -70,7 +69,6 @@ import deBugfixes from './locales/de/bugfixes'
 import deGuide from './locales/de/guide'
 import deInvitations from './locales/de/invitations'
 import deAnnouncements from './locales/de/announcements'
-import deMessaging from './locales/de/messaging'
 import deBroadcast from './locales/de/broadcast'
 import deFines from './locales/de/fines'
 import dePwa from './locales/de/pwa'
@@ -106,7 +104,6 @@ import frBugfixes from './locales/fr/bugfixes'
 import frGuide from './locales/fr/guide'
 import frInvitations from './locales/fr/invitations'
 import frAnnouncements from './locales/fr/announcements'
-import frMessaging from './locales/fr/messaging'
 import frBroadcast from './locales/fr/broadcast'
 import frFines from './locales/fr/fines'
 import frPwa from './locales/fr/pwa'
@@ -145,7 +142,6 @@ import itBugfixes from './locales/it/bugfixes'
 import itGuide from './locales/it/guide'
 import itInvitations from './locales/it/invitations'
 import itAnnouncements from './locales/it/announcements'
-import itMessaging from './locales/it/messaging'
 import itBroadcast from './locales/it/broadcast'
 import itFines from './locales/it/fines'
 import itPwa from './locales/it/pwa'
@@ -185,7 +181,6 @@ import gswBugfixes from './locales/gsw/bugfixes'
 import gswGuide from './locales/gsw/guide'
 import gswInvitations from './locales/gsw/invitations'
 import gswAnnouncements from './locales/gsw/announcements'
-import gswMessaging from './locales/gsw/messaging'
 import gswBroadcast from './locales/gsw/broadcast'
 import gswFines from './locales/gsw/fines'
 import gswPwa from './locales/gsw/pwa'
@@ -242,7 +237,6 @@ i18n.use(initReactI18next).init({
     'guide',
     'invitations',
     'announcements',
-    'messaging',
     'broadcast',
     'fines',
     'pwa',
@@ -284,7 +278,6 @@ i18n.use(initReactI18next).init({
       guide,
       invitations,
       announcements,
-      messaging,
       broadcast,
       fines,
       pwa,
@@ -325,7 +318,6 @@ i18n.use(initReactI18next).init({
       guide: deGuide,
       invitations: deInvitations,
       announcements: deAnnouncements,
-      messaging: deMessaging,
       broadcast: deBroadcast,
       fines: deFines,
       pwa: dePwa,
@@ -362,7 +354,6 @@ i18n.use(initReactI18next).init({
       guide: frGuide,
       invitations: frInvitations,
       announcements: frAnnouncements,
-      messaging: frMessaging,
       broadcast: frBroadcast,
       fines: frFines,
       pwa: frPwa,
@@ -402,7 +393,6 @@ i18n.use(initReactI18next).init({
       guide: itGuide,
       invitations: itInvitations,
       announcements: itAnnouncements,
-      messaging: itMessaging,
       broadcast: itBroadcast,
       fines: itFines,
       pwa: itPwa,
@@ -443,7 +433,6 @@ i18n.use(initReactI18next).init({
       guide: gswGuide,
       invitations: gswInvitations,
       announcements: gswAnnouncements,
-      messaging: gswMessaging,
       broadcast: gswBroadcast,
       fines: gswFines,
       pwa: gswPwa,

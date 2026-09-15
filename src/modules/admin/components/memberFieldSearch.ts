@@ -76,7 +76,6 @@ const ALIASES: Readonly<Record<string, string>> = {
   user: 'login account konto',
   wiedisync_active: 'app access zugang aktiv',
   kscw_membership_active: 'mitgliedschaft membership aktiv',
-  consent_decision: 'datenschutz privacy einwilligung dsg',
   clubdesk_id: 'clubdesk register',
 }
 

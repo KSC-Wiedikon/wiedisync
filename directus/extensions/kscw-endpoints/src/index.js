@@ -56,7 +56,6 @@ import { registerVisPlayerCheck } from './vis-player-check.js'
 import { registerBugfixes } from './bugfixes.js'
 import { registerEventNotify } from './event-notify.js'
 import { registerEventSignupForm } from './event-signup-form.js'
-import { registerMessaging } from './messaging.js'
 import { registerBroadcastRoutes } from './broadcast.js'
 import { registerActivitiesWithParticipations } from './activities.js'
 import { writeUserLog } from './activity-log.js'
@@ -2838,7 +2837,6 @@ export default {
     registerPollResults(router, ctx, { logEndpointError, requireAuth })
     registerPublicForms(router, ctx, { ipRateLimit })
     registerPublicEventSignup(router, ctx, { ipRateLimit, requireAuth, logEndpointError })
-    registerMessaging(router, ctx)
     registerBroadcastRoutes(router, ctx)
     registerActivitiesWithParticipations(router, ctx)
     registerSvLicence(router, ctx)

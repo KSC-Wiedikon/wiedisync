@@ -25,10 +25,10 @@
  * (audit 2026-08-08, finding 31). A reader following it would have written a
  * permission migration that the next deploy reverted — a gotcha SECURITY.md
  * records as having actually bitten. Audit history:
- *   023 messaging RBAC scoping        024 PII fields off cross-member read
+ *   023 (messaging, removed 2026-09-15) 024 PII fields off cross-member read
  *   025 feedback status lock          026 coach team-scoped writes
  *   027 sport admin delete lock       028 auto-action markers
- *   029 messaging self-read fields    030 members.read field gaps
+ *   029 (messaging, removed 2026-09-15) 030 members.read field gaps
  *   031 spielplaner_assignments       032 trainings team-scoping
  *   033 member-read team-scoping      034 spielplaner_assignments.read
  *   035 second-pass audit             036 third-pass audit
@@ -1513,8 +1513,8 @@ async function main() {
     'event_sessions',
     'hall_slots', 'hall_closures', 'hall_events', 'halls', 'hall_slots_teams',
     'news', 'app_settings',
-    // ⚠ `polls` was here until 2026-08-10 — see the scoped grant beside `messages`
-    // below. `referee_expenses` stays: amount + notes, no PII.
+    // ⚠ `polls` was here until 2026-08-10 — see the team-scoped grant further
+    // down. `referee_expenses` stays: amount + notes, no PII.
     'referee_expenses',
     // Junctions
     'teams_coaches', 'teams_responsibles', 'teams_sponsors', 'events_teams', 'events_members',
@@ -1542,10 +1542,8 @@ async function main() {
   // participations + absences: own + same-team. `referee_expenses` stays
   // cross-club above — amount + notes, no PII.
   // ⚠ The old wording here also covered `polls` with "team-scoped by app
-  // navigation". That justification predated chat polls and was never true of
-  // them: `POST /kscw/messaging/polls` creates rows with `team: null,
-  // conversation: <uuid>`, so "app navigation" scoped nothing and the realtime
-  // subscription pushed every poll in the club to every connected member.
+  // navigation" — never true: the realtime subscription pushed every poll in
+  // the club to every connected member. Polls have their own grant below.
   // `active: true` — the roster row on an archived team is never deleted, so
   // without it an ex-player keeps read of that team's trainings for good. Same
   // rule as the LEADER scopes below; the season string is never the guard.
@@ -1820,20 +1818,8 @@ async function main() {
   // `is_spielplaner` is read-only here (NOT in MEMBER_EDITABLE_FIELDS) so members
   // can see their own scheduling flag — the frontend nav gates the Spielplanung /
   // Terminplanung links on it (useAuth) — but cannot self-grant it.
-  // Messaging consent + enablement state: own-row READ only. Written solely by
-  // the /messaging/settings/* endpoints (admin ItemsService), so NOT member-
-  // editable; and private, so NOT in MEMBER_VISIBLE_FIELDS (other members must
-  // not see them). Without these on own-read, useAuth's `*` fetch got them
-  // stripped → the ConsentModal ("Enable messaging?") read undefined and never
-  // dismissed, and MessagingSettings / team-chat + DM gates read as disabled
-  // even after opt-in (prod hotfix 2026-07-09).
-  const MEMBER_OWN_MESSAGING_FIELDS = [
-    'consent_decision', 'consent_prompted_at',
-    'communications_team_chat_enabled', 'communications_dm_enabled', 'communications_banned',
-  ]
   const MEMBER_OWN_READABLE = [...new Set([
     ...MEMBER_VISIBLE_FIELDS, ...MEMBER_EDITABLE_FIELDS, 'is_spielplaner',
-    ...MEMBER_OWN_MESSAGING_FIELDS,
     // Trigger-derived, not member-writable (see MEMBER_DERIVED_READ_FIELDS).
     ...MEMBER_DERIVED_READ_FIELDS,
     // Licence workflow (migration 301) — the member reads where their own
@@ -1930,92 +1916,12 @@ async function main() {
   // self-service. Same op coaches already perform via RosterEditor.
   await setPerm(MEMBER_POLICY, 'member_teams', 'delete', OWN_MEMBER)
 
-  // Blocks — see only my own outgoing blocks (incoming blocks stay opaque)
-  // (migration 042).
-  await setPermRead(MEMBER_POLICY, 'blocks', { blocker: { user: { _eq: '$CURRENT_USER' } } })
-
-  // Message requests — read own (recipient or sender). Added 2026-05-19:
-  // never granted when messaging went GA (v4.0.0), so every member's inbox
-  // useMessageRequests() fetchAllItems + realtime sub 403'd silently
-  // ("no permission to access collection message_requests"). Like `blocks`
-  // this is the rare messaging collection read DIRECTLY by the FE (the rest
-  // route through server-side /messaging/* endpoints). sender/recipient are
-  // members FKs → walk `.user` to $CURRENT_USER, same shape as blocks.
-  // accept/decline go via kscw endpoints, so read-only is sufficient.
-  await setPermRead(MEMBER_POLICY, 'message_requests', {
-    _or: [
-      { recipient: { user: { _eq: '$CURRENT_USER' } } },
-      { sender: { user: { _eq: '$CURRENT_USER' } } },
-    ],
-  }, ['id', 'conversation', 'sender', 'recipient', 'status', 'created_at', 'resolved_at'])
-
-  // Messages + reactions — READ ONLY, and ONLY to make realtime deliver.
-  //
-  // This is the same bug as `message_requests` above, one collection over. Directus
-  // does not push the raw mutation row to a subscriber: on a change it RE-READS the row
-  // through ItemsService with the SUBSCRIBER's accountability (websocket/utils/items.ts
-  // → getItemsPayload → service.readMany). With no read grant, that read returns nothing
-  // and the socket delivers nothing — the subscription is established and permanently
-  // silent. So live chat cannot work without a read row here, no matter what the
-  // frontend does. Confirmed against the live dev socket 2026-07-13.
-  //
-  // Filters are migration 023's, unchanged: walk the parent conversation's members
-  // junction to $CURRENT_USER. A member sees exactly the messages in conversations they
-  // belong to — the same rows /kscw/messaging/* already returns them, so this grants no
-  // new data, only a new delivery path.
-  //
-  // ⚠ Do NOT add a frontend items-API filter that also walks `conversation.members`.
-  // Directus cannot AND two filter expressions through the same M2M junction and will
-  // silently return [] for non-admins (CLAUDE.md → "M2M deep filter + policy walk").
-  // Today nothing does: every messaging read goes through the /kscw endpoints (raw knex),
-  // and realtime sends no filter of its own. Keep it that way.
-  //
-  // Writes stay endpoint-only (send/edit/delete/report all run through /kscw/messaging/*,
-  // which enforce membership, blocks, and rate limits). Read-only here is sufficient and
-  // is the smallest grant that restores live chat.
-  //
-  // NB: this does NOT grant /items/conversations — SECURITY.md:143 keeps that off
-  // deliberately, and the smoke test probes /kscw/messaging/conversations instead.
-  // Conversation-list updates piggyback on the `messages` subscription.
-  // `archived: false` is NOT cosmetic — it mirrors the endpoint. loadConversationMembership()
-  // (messaging-helpers.js:78) throws 403 messaging/not_a_member when the caller's
-  // conversation_members row is archived, so an archived conversation is fully inaccessible
-  // through /kscw/messaging/*. Without this clause the items API would be MORE permissive
-  // than the endpoint it mirrors, which is how read grants quietly become leaks. And it is
-  // not an edge case: 1336 of 1439 membership rows on prod are archived.
-  const MY_ACTIVE_MEMBERSHIP = {
-    member: { user: { _eq: '$CURRENT_USER' } },
-    archived: { _eq: false },
-  }
-  await setPermRead(MEMBER_POLICY, 'messages', {
-    conversation: { members: MY_ACTIVE_MEMBERSHIP },
-  }, ['id', 'conversation', 'sender', 'type', 'body', 'poll', 'created_at', 'edited_at', 'deleted_at'])
-
-  // original_body is deliberately NOT in the field list above: it is the pre-edit text,
-  // kept for moderation, and no member-facing view renders it.
-  await setPermRead(MEMBER_POLICY, 'message_reactions', {
-    message: { conversation: { members: MY_ACTIVE_MEMBERSHIP } },
-  }, ['id', 'message', 'member', 'emoji', 'created_at'])
-
-  // Polls have TWO parents — the DB codifies both in `chk_polls_team_or_conversation`
-  // — so a single-parent filter would silently hide one half. Until 2026-08-10
-  // this was an UNFILTERED read (audit 2026-08-08, finding 8): any member could
-  // `GET /items/polls?filter[conversation][_nnull]=true` and read the question,
-  // options, deadline and author of every DM and group-chat poll in the club.
-  //
-  // That defeated the boundary built 300 lines above: `messages` and
-  // `message_reactions` are scoped to `conversation.members` with a field
-  // allow-list, so the poll MESSAGE was unreadable while the poll CONTENT it
-  // points at was not. Voter identity was never exposed (`poll_votes` is
-  // OWN_MEMBER-scoped and /poll-results checks membership) — only the question.
-  //
-  // Reuses MY_ACTIVE_MEMBERSHIP so a chat poll follows exactly the same
-  // archived-aware rule as the message carrying it.
+  // Polls — team-scoped read (audit 2026-08-08, finding 8: this was an
+  // UNFILTERED read until 2026-08-10, so any member could read every poll in
+  // the club). Voter identity is never exposed here — `poll_votes` is
+  // OWN_MEMBER-scoped and /poll-results checks membership — only the question.
   await setPermRead(MEMBER_POLICY, 'polls', {
-    _or: [
-      { team: { members: { member: { user: { _eq: '$CURRENT_USER' } } } } },
-      { conversation: { members: MY_ACTIVE_MEMBERSHIP } },
-    ],
+    team: { members: { member: { user: { _eq: '$CURRENT_USER' } } } },
   })
 
   // Spielplaner assignments — self-scoped (migrations 034, 042).
@@ -2175,7 +2081,7 @@ async function main() {
     },
   }
   const INVITE_OF_TEAM_I_LEAD = TEAM_FK_I_LEAD
-  /** Team polls only — `_nnull` keeps chat polls (team null) out entirely. */
+  /** `_nnull` keeps a null-team poll from matching the relational branch. */
   const POLL_OF_TEAM_I_LEAD = { _and: [{ team: { _nnull: true } }, TEAM_FK_I_LEAD] }
   /** `hall_slots` has no team column; teams hang off the `teams` M2M alias. */
   const SLOT_OF_TEAM_I_LEAD = {
@@ -2642,8 +2548,7 @@ async function main() {
   // Polls — CRUD
   // polls — create unfiltered (no row yet); update/delete scoped to polls
   // belonging to a team the caller leads. `team: { _nnull: true }` is
-  // load-bearing: a chat poll has `team: null` and a `conversation`, and without
-  // it the relational branch on a null FK is not a reliable refusal.
+  // load-bearing: the relational branch on a null FK is not a reliable refusal.
   await setPerm(LEADER_POLICY, 'polls', 'create')
   await setPerm(LEADER_POLICY, 'polls', 'update', POLL_OF_TEAM_I_LEAD)
   await setPerm(LEADER_POLICY, 'polls', 'delete', POLL_OF_TEAM_I_LEAD)

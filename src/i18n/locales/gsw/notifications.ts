@@ -16,7 +16,6 @@ export default {
   expenseStatus: 'Spese',
   announcement: 'Vereinsnews',
   eventInvite: 'Aalass-Iiladig',
-  newReport: 'Meldig',
   member_join_request: '{{memberName}} möcht {{teamName}} biträte',
   expense_paid: 'Dini Spese über {{amount}} sind zahlt worde.',
   expense_rejected: 'Dini Spese über {{amount}} sind abglehnt worde.',
@@ -52,7 +51,6 @@ export default {
   deadline_event: 'Aamäldefrischt morn: {{title}}',
   // Nöii Feature-Benachrichtigunge
   poll_created: '{{creator}} het e Umfrag erstellt: {{question}}',
-  new_report: 'Nöii Meldig: {{reason}}',
   absence_created_for_you: '{{editor}} het e Absenz für di iigtreit (ab {{start}})',
   absence_updated_for_you: '{{editor}} het dini Absenz aapasst (ab {{start}})',
   absence_weekly_created_for_you: '{{editor}} het e wuchetlichi Verhinderig für di iigtreit',

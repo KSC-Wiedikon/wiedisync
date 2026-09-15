@@ -17,7 +17,6 @@ import { formatDate, toISODate } from '../../utils/dateHelpers'
 import DeleteAccountModal from './DeleteAccountModal'
 import TeamRequestModal from './TeamRequestModal'
 import Modal from '@/components/Modal'
-import MessagingSettingsCard from '../messaging/pages/MessagingSettingsCard'
 import MyRegistrationDocs from './MyRegistrationDocs'
 import { useReportPageLoading } from '../../hooks/usePageReady'
 import type { MemberTeam, Team, Absence, LicenceType, Fine } from '../../types'
@@ -642,8 +641,6 @@ export default function ProfilePage() {
           </div>
         </div>
       )}
-
-      <MessagingSettingsCard />
 
       {/* Registration documents the member uploaded (renders nothing if none) */}
       <MyRegistrationDocs />

@@ -144,9 +144,9 @@ See `INFRA.md → Domains & Hosting Overview` for full map.
 <!-- Last few dev/deploy entries only, for at-a-glance recent context. Full history → docs/DEVLOG.md
      (append new dev/deploy entries THERE, not here). User-facing release notes → CHANGELOG.md.
      Keep this list pruned to ~5 entries. -->
+- **2026-09-15** Messaging feature removed wholesale — frontend module, `/kscw/messaging/*`, retention cron, broadcast in-app channel, 7 tables + 8 triggers + 7 `members` columns (migration 364; dev applied by hand, prod pending)
 - **2026-09-15** Fine ladders per activity type (general rule + training/game/event overrides, per-rule counters) + aligned tier table (migration 361, dev+prod)
 - **2026-09-14** Roster-editor position auto-heal + members privacy hook deadlocked the Directus pool → prod API froze 60 s ×3; hook now uses `context.database`, heals run sequentially (no migration, dev+prod)
 - **2026-09-14** /scorer playing-team filter lists every team with an upcoming home game (was: open-duty only) + solid Delegate button (no migration, dev+prod)
 - **2026-09-13** `members.dues_paid` (trigger-derived from finance_invoices) + Data Explorer dues-paid / guest filters (migration 360, dev+prod, v2.9.0)
-- **2026-09-13** SQL workspace Excel export typed a column half numbers, half text (no migration, dev+prod)
 **Full history → [`docs/DEVLOG.md`](docs/DEVLOG.md)** · **pre-1.0 → [`docs/DEVLOG-archive.md`](docs/DEVLOG-archive.md)** (v1.0.0 baseline consolidated 2026-06-19).

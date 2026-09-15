@@ -8,7 +8,6 @@ import { TRAINER_LICENCE_CODES, TRAINER_LICENCE_I18N_KEYS } from '../../../utils
 import {
   BIRTHDATE_VIS,
   BOOL_FIELDS,
-  CONSENT_KEYS,
   EMPTY_FILTERS,
   GUEST_KEYS,
   LANGUAGES,
@@ -69,10 +68,6 @@ export default function ExplorerMemberFilters({ value, onChange }: Props) {
       hide_phone: t('memberFilterHidePhone'),
       hide_email: t('memberFilterHideEmail'),
       website_visible: t('memberFilterWebsiteVisible'),
-      communications_team_chat_enabled: t('memberFilterCommsTeamChat'),
-      communications_dm_enabled: t('memberFilterCommsDm'),
-      communications_banned: t('memberFilterCommsBanned'),
-      push_preview_content: t('memberFilterPushPreview'),
       dues_paid: t('memberFilterDuesPaid'),
     }),
     [t],
@@ -98,7 +93,6 @@ export default function ExplorerMemberFilters({ value, onChange }: Props) {
       beitragskategorie: t('memberFilterHasFeeCategory'),
       shell_expires: t('memberFilterHasShellExpiry'),
       last_online_at: t('memberFilterHasLastOnline'),
-      consent_prompted_at: t('memberFilterHasConsentPromptedAt'),
     }),
     [t],
   )
@@ -260,19 +254,6 @@ export default function ExplorerMemberFilters({ value, onChange }: Props) {
                 active={value.birthdateVis.includes(v)}
                 onClick={() => onChange({ ...value, birthdateVis: toggleIn(value.birthdateVis, v) })}
                 label={t(`memberFilterBdayVis_${v}` as const)}
-              />
-            ))}
-          </PillRow>
-        </Section>
-
-        <Section title={t('memberFilterSectionConsent')}>
-          <PillRow>
-            {CONSENT_KEYS.map((c) => (
-              <Pill
-                key={c}
-                active={value.consent.includes(c)}
-                onClick={() => onChange({ ...value, consent: toggleIn(value.consent, c) })}
-                label={t(`memberFilterConsent_${c}` as const)}
               />
             ))}
           </PillRow>
