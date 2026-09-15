@@ -47,6 +47,19 @@ export interface FinesSummaryDetailRow {
   status: string
 }
 
+export interface FinesSummaryRuleRow {
+  category: string
+  /** "General", or the activity type an override is for ("Games", …). */
+  scope: string
+  /**
+   * Amount per offense column (index 0 = 1st offense), formatted; '' where
+   * the ladder has no tier. A trailing '+' marks "this offense and every one
+   * after it" (an `offense_min` tier).
+   */
+  tiers: string[]
+  window: string
+}
+
 export interface FinesSummaryModel {
   org: string
   title: string
@@ -54,12 +67,29 @@ export interface FinesSummaryModel {
   totals: { count: number; open: number; paid: number; waived: number }
   perMember: FinesSummaryMemberRow[]
   detail: FinesSummaryDetailRow[]
-  /** One line per enabled rule, general first, e.g. "Late sign-in — Games: 1: CHF 20.00 · 2+: CHF 40.00 · season". */
-  rules: string[]
+  /** One row per enabled rule, general first within its category. */
+  rules: FinesSummaryRuleRow[]
+  /** Offense columns the rules table needs (the highest offense any ladder prices, ≥ 1). */
+  ruleColumns: number
   filename: string
 }
 
 const money = (n: number) => new Intl.NumberFormat('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n)
+
+/** Offense columns in the rules table are capped so a stray "offense 40" tier cannot blow the page up. */
+const RULE_COLUMNS_MAX = 8
+
+/** English ordinal for the rules table head — exports are English only. */
+export function ordinal(n: number): string {
+  const mod100 = n % 100
+  if (mod100 >= 11 && mod100 <= 13) return `${n}th`
+  switch (n % 10) {
+    case 1: return `${n}st`
+    case 2: return `${n}nd`
+    case 3: return `${n}rd`
+    default: return `${n}th`
+  }
+}
 
 function categoryKey(c: string): string {
   return `category${c.charAt(0).toUpperCase()}${c.slice(1).replace(/_(.)/g, (_, ch) => ch.toUpperCase())}`
@@ -138,18 +168,31 @@ export function buildFinesSummary(input: FinesSummaryInput, t: TFunction): Fines
       status: t(`status${f.status.charAt(0).toUpperCase()}${f.status.slice(1)}`),
     }))
 
-  // The ladders, so the sheet explains its own numbers: general rule first,
-  // then each per-type override (migration 361), enabled ones only.
-  const ruleLines = rules
+  // The ladders, so the sheet explains its own numbers: one row per enabled
+  // rule, general first within its category, then the per-type overrides
+  // (migration 361). Tiers spread across offense columns so the ladders line
+  // up; a general rule left without tiers shows an empty ladder rather than
+  // vanishing — it is still the rule that prices whatever no override covers.
+  const enabledRules = rules
     .filter((r) => r.enabled)
     .sort((a, b) => a.category.localeCompare(b.category) || (a.activity_type ?? '').localeCompare(b.activity_type ?? ''))
-    .map((r) => {
-      const scope = r.activity_type ? ` — ${t(typeKey(r.activity_type))}` : ''
-      const tiers = r.tiers.length === 0
-        ? t('settingsNoTiers')
-        : r.tiers.map((tier) => `${tier.offense_min != null ? `${tier.offense_min}+` : tier.offense ?? '?'}: CHF ${money(Number(tier.amount) || 0)}`).join(' · ')
-      return `${t(categoryKey(r.category))}${scope}: ${tiers} · ${String(t(windowKey(r.reset_window))).toLowerCase()}`
-    })
+  const ruleColumns = Math.min(
+    RULE_COLUMNS_MAX,
+    Math.max(1, ...enabledRules.flatMap((r) => r.tiers.map((tier) => tier.offense ?? tier.offense_min ?? 1))),
+  )
+  const ruleRows = enabledRules.map((r): FinesSummaryRuleRow => {
+    const cells = Array.from({ length: ruleColumns }, () => '')
+    for (const tier of r.tiers) {
+      const n = tier.offense ?? tier.offense_min ?? 1
+      if (n >= 1 && n <= ruleColumns) cells[n - 1] = `${money(Number(tier.amount) || 0)}${tier.offense_min != null ? '+' : ''}`
+    }
+    return {
+      category: t(categoryKey(r.category)),
+      scope: r.activity_type ? t(typeKey(r.activity_type)) : t('pdfScopeGeneral'),
+      tiers: cells,
+      window: t(windowKey(r.reset_window)),
+    }
+  })
 
   const season = team.season ? ` · ${team.season}` : ''
   const stamp = formatDateTimeCompactZurich(exportedAt)
@@ -160,7 +203,8 @@ export function buildFinesSummary(input: FinesSummaryInput, t: TFunction): Fines
     totals,
     perMember,
     detail,
-    rules: ruleLines,
+    rules: ruleRows,
+    ruleColumns,
     filename: `fines-${team.name}${team.season ? `-${team.season}` : ''}-${exportedAt.toISOString().slice(0, 10)}`.replace(/[/\\:*?"<>|\s]+/g, '-'),
   }
 }
@@ -228,14 +272,18 @@ export async function exportFinesSummaryPdf(model: FinesSummaryModel, t: TFuncti
 
   if (model.rules.length > 0) {
     heading(t('pdfRules'))
-    y += 10  // heading() leaves y at the table start; text needs a baseline below it
-    doc.setFontSize(9); doc.setTextColor(60)
-    for (const line of model.rules) {
-      const wrapped = doc.splitTextToSize(line, pw - 2 * M) as string[]
-      if (y + wrapped.length * 12 > ph - 40) { doc.addPage(); y = 50 }
-      doc.text(wrapped, M, y); y += wrapped.length * 12 + 2
+    const tierCols = Array.from({ length: model.ruleColumns }, (_, i) => i + 2)
+    table(
+      [t('colCategory'), t('pdfScope'), ...tierCols.map((c) => `${ordinal(c - 1)} (CHF)`), t('settingsResetWindow')],
+      model.rules.map((r) => [r.category, r.scope, ...r.tiers.map((c) => c || '—'), r.window]),
+      tierCols,
+      { 0: 80, 1: 64 },
+    )
+    if (model.rules.some((r) => r.tiers.some((c) => c.endsWith('+')))) {
+      doc.setFontSize(8); doc.setTextColor(120)
+      doc.text(t('pdfTierLegend'), M, y - 8); doc.setTextColor(0)
+      y += 6
     }
-    doc.setTextColor(0)
   }
 
   // Footer on every page — the sheet gets photographed and forwarded, so each
