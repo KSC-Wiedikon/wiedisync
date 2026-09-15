@@ -260,6 +260,7 @@ function CategorySection({ teamId, category, rules, onChange }: CategorySectionP
                 category={category}
                 activityType={type}
                 rule={overrides.find((r) => r.activity_type === type) ?? null}
+                seed={general}
                 onChange={onChange}
               />
             </div>
@@ -278,10 +279,12 @@ interface RuleEditorProps {
   /** `null` = the category's general rule; a type = that type's override. */
   activityType: FineActivityType | null
   rule: FineRule | null
+  /** Ladder to copy when this editor has to CREATE its row — the general rule, so a per-type row switched on later starts like the ones the mode switch made. */
+  seed?: FineRule | null
   onChange: () => void
 }
 
-function RuleEditor({ teamId, category, activityType, rule, onChange }: RuleEditorProps) {
+function RuleEditor({ teamId, category, activityType, rule, seed, onChange }: RuleEditorProps) {
   const { t } = useTranslation(['fines', 'common'])
   const confirm = useConfirm()
   const isOverride = activityType != null
@@ -323,8 +326,8 @@ function RuleEditor({ teamId, category, activityType, rule, onChange }: RuleEdit
           category,
           activity_type: activityType,
           enabled: true,
-          reset_window: 'calendar_month',
-          tiers: [],
+          reset_window: seed?.reset_window ?? 'calendar_month',
+          tiers: seed?.tiers ?? [],
           ...next,
         })
       }
