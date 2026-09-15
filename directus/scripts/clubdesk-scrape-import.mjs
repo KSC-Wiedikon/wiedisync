@@ -53,6 +53,39 @@ if (!['preview', 'commit'].includes(MODE)) { log(`Bad mode "${MODE}" (preview|co
 
 const shot = async (page, name) => { if (SHOTS) await page.screenshot({ path: `${SHOTS}/import-${name}.png` }).catch(() => {}) }
 
+// Everything ClubDesk has on screen as a popup right now — the import dialog,
+// a result dialog, an ERROR dialog — as text, outermost popups only. GWT
+// renders every dialog as an absolutely-positioned panel, so "sizeable
+// absolute/fixed box that is not inside another one" is the dialog set without
+// knowing ClubDesk's class names. Used after the commit click (see run()):
+// until 15.09.2026 nothing looked at the screen after "Ja", so an import that
+// ClubDesk refused at the write step reported `committed:true` all the same.
+const readPopups = (page) => page.evaluate(() => {
+  const boxes = []
+  for (const e of document.querySelectorAll('div')) {
+    const cs = getComputedStyle(e)
+    if (cs.position !== 'absolute' && cs.position !== 'fixed') continue
+    if (cs.visibility === 'hidden' || cs.display === 'none') continue
+    const r = e.getBoundingClientRect()
+    if (r.width < 250 || r.height < 60 || r.width > 1300) continue
+    boxes.push(e)
+  }
+  const outer = boxes.filter((e) => !boxes.some((o) => o !== e && o.contains(e)))
+  return [...new Set(outer.map((e) => (e.innerText || '').replace(/\s+/g, ' ').trim()).filter(Boolean))]
+    .map((t) => t.slice(0, 500))
+})
+// The "(N Einträge)" count of the contact grid — the default view the Kontakte
+// tab opens on. Read before the import and after the commit: a create set that
+// commits must grow it by `neu`.
+const readGridCount = (page) => page.evaluate(() => {
+  for (const e of document.querySelectorAll('*')) {
+    let t = ''; for (const n of e.childNodes) if (n.nodeType === 3) t += n.textContent
+    const m = t.match(/\((\d+)\s*Eintr/)
+    if (m) return Number(m[1])
+  }
+  return null
+})
+
 // Click the element whose OWN text === exact; lowest-on-screen wins (dialog buttons sit low).
 const clickExact = async (page, exact, lowest = true) => {
   const pos = await page.evaluate(({ exact, lowest }) => {
@@ -148,7 +181,8 @@ async function run() {
     if (!navBtn) throw new Error('Could not locate the Kontakte toolbar button.')
     await page.mouse.click(navBtn.x, navBtn.y)
     await page.getByText(/\(\d+\s*Eintr/).first().waitFor({ timeout: 20000 }); await sleep(1500)
-    log('Kontakte open. Opening Import…')
+    result.count_before = await readGridCount(page)
+    log(`Kontakte open (${result.count_before ?? '?'} Einträge). Opening Import…`)
 
     await page.getByText('Import', { exact: true }).first().click(); await sleep(2500)
     const fileInput = await page.locator('input[type=file]').count()
@@ -163,15 +197,42 @@ async function run() {
     const s = await readSummary(page)
     result.total = s.total; result.neu = s.neu; result.veraendert = s.veraendert; result.unveraendert = s.unveraendert
     log(`Summary: total=${s.total} neu=${s.neu} veraendert=${s.veraendert} unveraendert=${s.unveraendert} hasSummary=${s.hasSummary}`)
+    // The wizard's own wording (incl. its "keine Zuordnung definiert" note), so
+    // the log says what the operator would have read on screen.
+    for (const t of await readPopups(page)) if (/übernehmen\?/i.test(t)) log(`  wizard: ${t}`)
     if (!s.hasSummary) throw new Error('Did not reach the confirmation summary (mapping may have failed).')
 
     if (MODE === 'commit') {
       if (!(await clickExact(page, 'Ja'))) throw new Error('No "Ja" button to commit.')
-      await sleep(4500)
-      await shot(page, '3-committed')
+      // What ClubDesk says AFTER the write, sampled over ~12 s. `committed` is
+      // still "we clicked Ja" — it is deliberately NOT gated on what is read
+      // here, because a false "nothing happened" would leave the creates
+      // unstamped and the next push would duplicate them. It is surfaced in the
+      // log and in the JSON result so a refused write is visible instead of
+      // silent: on 15.09.2026 a two-row create set went "Committed (clicked Ja)"
+      // and the register never gained the contacts.
+      const seen = []
+      for (const [ms, name] of [[1500, '3a-after-ja'], [3000, '3b-after-ja'], [7500, '3c-after-ja']]) {
+        await sleep(ms)
+        await shot(page, name)
+        for (const t of await readPopups(page)) if (!seen.includes(t)) seen.push(t)
+      }
       result.committed = true
+      result.post_commit_dialogs = seen
       log('Committed (clicked Ja).')
+      for (const t of seen) log(`  after Ja: ${t}`)
+      if (!seen.length) log('  after Ja: (no dialog on screen)')
       await clickExact(page, 'OK').catch(() => {}) // dismiss any result dialog
+      await sleep(2500)
+      await shot(page, '4-after-ok')
+      result.count_after = await readGridCount(page)
+      const neu = Number(s.neu) || 0
+      const delta = (result.count_before != null && result.count_after != null) ? result.count_after - result.count_before : null
+      log(`Grid: ${result.count_before ?? '?'} → ${result.count_after ?? '?'} Einträge${delta != null ? ` (${delta >= 0 ? '+' : ''}${delta})` : ''}`)
+      if (neu > 0 && delta != null && delta < neu) {
+        result.warning = `create set previewed ${neu} new contact(s) but the grid grew by ${delta} — ClubDesk may have refused the write; check the dialogs above / the screenshots`
+        log(`⚠ ${result.warning}`)
+      }
     } else {
       // preview — back out without writing
       if (!(await clickExact(page, 'Nein'))) { for (let i = 0; i < 3; i++) { await page.keyboard.press('Escape'); await sleep(300) } }
