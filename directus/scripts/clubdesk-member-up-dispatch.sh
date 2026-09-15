@@ -94,6 +94,15 @@ CSVUTF_U="$DIR/up-import-update.utf8.csv"; CSV_U="$DIR/up-import-update.csv"
 CSVUTF_C="$DIR/up-import-create.utf8.csv"; CSV_C="$DIR/up-import-create.csv"
 cleanup() { rm -f "$CSVUTF_U" "$CSV_U" "$CSVUTF_C" "$CSV_C"; cdp_cleanup; }   # member PII — never linger
 trap cleanup EXIT
+# Screenshots of every wizard step of THIS run, one subdir per scrape
+# (update-preview / create-preview / create-commit / update-commit), incl. the
+# moments after "Ja" — see clubdesk-scrape-import.mjs. Kept until the next run
+# replaces them (they show member PII like the CSVs, so never more than one
+# run's worth): they are the only record of what ClubDesk answered at the
+# write step. Added 15.09.2026 after a create set was reported committed and
+# the register never gained the contacts — with nothing to look at afterwards.
+SHOTS="$DIR/up-shots-${CLUBDESK_ENV}"   # per env: a dev dry-run must not wipe prod's record
+rm -rf "$SHOTS"; mkdir -p "$SHOTS"
 
 # 1. Pull the stashed CSVs → files (UTF-8 from psql), transcode to CP1252 for ClubDesk.
 #    COALESCE(…,'') so a NULL column yields an empty file (= set not present), and
@@ -130,13 +139,16 @@ if [ "$COMMIT_ENABLED" = "1" ] && [ "$CLUBDESK_ENV" != "prod" ]; then
   COMMIT_ENABLED=0
 fi
 
-scrape() { # scrape <csv-file> <preview|commit> → JSON line on stdout
+scrape() { # scrape <csv-file> <preview|commit> <label> → JSON line on stdout
   # ⚠ stdout stays JSON-ONLY — `| tail -1` downstream is the result, and a progress
   # line printed there would be parsed as one. The scraper's human output is on
   # stderr, so that is what gets mirrored into the live log (and, as before,
   # appended to up-run.log). The phase and the bar are owned by this dispatcher,
   # which is the only thing that knows which of the four scrapes is running.
-  flock "$DIR/.sync.lock" docker run --rm -w /work -v "$DIR":/work --env-file "$DIR/.env" "$PW_IMG" \
+  # <label> names the screenshot subdir (see SHOTS above).
+  mkdir -p "$SHOTS/$3"
+  flock "$DIR/.sync.lock" docker run --rm -w /work -v "$DIR":/work --env-file "$DIR/.env" \
+    -e "CLUBDESK_IMPORT_SHOTS=/work/up-shots-${CLUBDESK_ENV}/$3" "$PW_IMG" \
     node /work/clubdesk-scrape-import.mjs "/work/$(basename "$1")" "$2" \
     2> >(cdp_stream >> "$DIR/up-run.log") | tail -1
 }
@@ -168,7 +180,7 @@ fail_run() { # fail_run <message> <result-json|''>
 PREVIEW_U=''; PREVIEW_C=''
 if [ -s "$CSVUTF_U" ]; then
   cdp 18 "Dry-run of the changed members…"
-  PREVIEW_U=$(scrape "$CSV_U" preview)
+  PREVIEW_U=$(scrape "$CSV_U" preview update-preview)
   echo "preview (update set): $PREVIEW_U"
   if ! scrape_ok "$PREVIEW_U"; then
     # Most likely cause since the [Id]-keyed switch (2026-07-08): a contact was
@@ -204,7 +216,7 @@ if [ -s "$CSVUTF_U" ]; then
 fi
 if [ -s "$CSVUTF_C" ]; then
   cdp 38 "Dry-run of the new contacts…"
-  PREVIEW_C=$(scrape "$CSV_C" preview)
+  PREVIEW_C=$(scrape "$CSV_C" preview create-preview)
   echo "preview (create set): $PREVIEW_C"
   if ! scrape_ok "$PREVIEW_C"; then
     fail_run 'Dry-run preview failed (create set) — see up-run.log' "$PREVIEW_C"
@@ -233,7 +245,7 @@ fi
 RES_C=''
 if [ -s "$CSVUTF_C" ]; then
   cdp 58 "Writing the new contacts to ClubDesk…"
-  RES_C=$(scrape "$CSV_C" commit)
+  RES_C=$(scrape "$CSV_C" commit create-commit)
   echo "commit (create set): $RES_C"
   if ! printf '%s' "$RES_C" | grep -q '"committed":true'; then
     fail_run 'Push failed (create set) — see up-run.log' "$RES_C"
@@ -259,7 +271,7 @@ fi
 RES_U=''
 if [ -s "$CSVUTF_U" ]; then
   cdp 78 "Writing the changed members to ClubDesk…"
-  RES_U=$(scrape "$CSV_U" commit)
+  RES_U=$(scrape "$CSV_U" commit update-commit)
   echo "commit (update set): $RES_U"
   if ! printf '%s' "$RES_U" | grep -q '"committed":true'; then
     # Creates (if any) are committed + stamped above; the update members keep
@@ -291,6 +303,19 @@ psqlc "UPDATE members SET clubdesk_pushed_at=now() WHERE id IN (SELECT jsonb_arr
 #     has a newer date_updated, so we KEEP clubdesk_push_pending=true and their newer
 #     edit is picked up on the next run instead of being silently dropped.
 psqlc "UPDATE members m SET clubdesk_push_pending=false, clubdesk_push_changes=NULL FROM clubdesk_member_sync s WHERE s.id=1 AND m.id IN (SELECT jsonb_array_elements_text(s.up_member_ids)::int) AND (m.date_updated IS NULL OR m.date_updated <= s.up_requested_at)" >/dev/null 2>&1 || true
-cdp 100 "Pushed to ClubDesk"
-psqlc "UPDATE clubdesk_member_sync SET up_state='done', up_requested_at=NULL, up_finished_at=now(), up_message='Pushed to ClubDesk', up_result='${RES_ESC}'::jsonb, ${CLEAR_COLS} WHERE id=1"
-echo "=== up-dispatch: done ==="
+# The scraper's post-commit read (clubdesk-scrape-import.mjs): a create set whose
+# contacts did not show up in the grid after "Ja" carries a `warning`. The run
+# still counts as done and the creates stay stamped (a false alarm must not
+# re-offer them — that duplicates), but the message says so instead of "Pushed
+# to ClubDesk", and the operator can re-offer the members deliberately via
+# Unlink on the Data health page.
+WARN=$(printf '%s\n%s' "$RES_C" "$RES_U" | grep -o '"warning":"[^"]*"' | head -1 | sed 's/^"warning":"//; s/"$//')
+if [ -n "$WARN" ]; then
+  DONE_MSG="Pushed to ClubDesk — ⚠ ${WARN}"
+else
+  DONE_MSG='Pushed to ClubDesk'
+fi
+DONE_MSG_ESC=${DONE_MSG//\'/\'\'}
+cdp 100 "$DONE_MSG"
+psqlc "UPDATE clubdesk_member_sync SET up_state='done', up_requested_at=NULL, up_finished_at=now(), up_message='${DONE_MSG_ESC}', up_result='${RES_ESC}'::jsonb, ${CLEAR_COLS} WHERE id=1"
+echo "=== up-dispatch: done${WARN:+ (with warning: $WARN)} ==="
