@@ -1,10 +1,10 @@
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useSearchParams } from 'react-router-dom'
-import { Users, Gavel, HandCoins, Receipt, Pencil, Plus } from 'lucide-react'
+import { Users, Gavel, HandCoins, Receipt, Pencil, Plus, ChevronDown } from 'lucide-react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import EmptyState from '../../components/EmptyState'
-import Modal from '../../components/Modal'
+import { TeamPickerSingle, type TeamPickerOption } from '../../components/ui/TeamPicker'
 import RefereeExpenseSection from '../games/components/RefereeExpenseSection'
 import { useAuth } from '../../hooks/useAuth'
 import { useAdminMode } from '../../hooks/useAdminMode'
@@ -67,6 +67,16 @@ export default function TeamFinancePage() {
     [teamsRaw, seesAll, myTeamIds],
   )
 
+  const teamOptions = useMemo<TeamPickerOption[]>(
+    () => teams.map((tm) => ({
+      id: String(tm.id),
+      label: tm.name,
+      sport: tm.sport === 'volleyball' || tm.sport === 'basketball' ? tm.sport : null,
+      active: tm.active !== false,
+    })),
+    [teams],
+  )
+
   const seasons = useMemo(() => seasonOptions(), [])
   const seasonParam = params.get('season')
   const season = seasonParam && seasons.includes(seasonParam) ? seasonParam : seasons[0]
@@ -82,10 +92,11 @@ export default function TeamFinancePage() {
   }
 
   const { data, isLoading, isError, isPlaceholderData, refetch } = useTeamFinance(teamId, season)
-  // Referee-fee recorder: the game whose editor is open in the modal. The
-  // section is the game modal's own editor (single writer); closing refetches
+  // Referee-fee recorder: the game whose row is expanded. The expanded row
+  // hosts the game modal's own editor (single writer); its onSaved refetches
   // so the fee shows up in the table + tiles without a reload.
-  const [recordGame, setRecordGame] = useState<TeamHomeGame | null>(null)
+  const [openGameId, setOpenGameId] = useState<number | null>(null)
+  const toggleGame = (g: TeamHomeGame) => setOpenGameId((cur) => (cur === g.id ? null : g.id))
 
   // Report to the app boot gate — see usePageReady.tsx
   useReportPageLoading(teamsLoading || teamsQueryLoading || isLoading)
@@ -129,10 +140,17 @@ export default function TeamFinancePage() {
           {/* Team + season pickers */}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
-              <label htmlFor="tf-team" className={labelCls}>{t('teamFinanceTeam')}</label>
-              <select id="tf-team" value={teamId ?? ''} onChange={(e) => setParam('team', e.target.value)} className={`mt-1 ${selectCls}`}>
-                {teams.map((tm) => <option key={tm.id} value={String(tm.id)}>{tm.name}</option>)}
-              </select>
+              <span className={labelCls}>{t('teamFinanceTeam')}</span>
+              {/* Sport-grouped (Volleyball / Basketball + VB/BB badge) — the club-wide
+                  list in admin mode holds both sports and team names alone don't say
+                  which ('Herren 2 H3' is basketball). CLAUDE.md → team pickers. */}
+              <TeamPickerSingle
+                value={teamId}
+                onChange={(id) => { if (id) setParam('team', id) }}
+                teams={teamOptions}
+                allowEmpty={false}
+                className="mt-1 bg-white dark:bg-gray-800"
+              />
             </div>
             <div>
               <label htmlFor="tf-season" className={labelCls}>{t('teamFinanceSeason')}</label>
@@ -223,8 +241,13 @@ export default function TeamFinancePage() {
                         {data.home_games.map((g) => {
                           const fee = refByGame.get(String(g.id))
                           const editable = data.can_record_referee && !(fee?.payout && fee.payout_status !== 'cancelled')
+                          const expanded = openGameId === g.id
                           return (
-                            <TableRow key={g.id} className="min-h-[44px] border-gray-200 dark:border-gray-700">
+                            <Fragment key={g.id}>
+                            <TableRow
+                              className={`min-h-[44px] border-gray-200 dark:border-gray-700 ${editable ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/40' : ''}`}
+                              onClick={editable ? () => toggleGame(g) : undefined}
+                            >
                               <TableCell className="whitespace-nowrap align-top text-xs text-gray-500 dark:text-gray-400">
                                 {g.date ? formatDateCompactZurich(g.date) : '–'}
                               </TableCell>
@@ -249,16 +272,32 @@ export default function TeamFinancePage() {
                                   {editable && (
                                     <button
                                       type="button"
-                                      onClick={() => setRecordGame(g)}
-                                      className={`inline-flex min-h-[36px] items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-medium ${fee ? 'text-brand-700 hover:bg-brand-50 dark:text-brand-300 dark:hover:bg-brand-900/30' : 'bg-brand-600 text-white hover:bg-brand-700'}`}
+                                      onClick={(e) => { e.stopPropagation(); toggleGame(g) }}
+                                      aria-expanded={expanded}
+                                      className={`inline-flex min-h-[36px] items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-medium ${expanded ? 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700' : fee ? 'text-brand-700 hover:bg-brand-50 dark:text-brand-300 dark:hover:bg-brand-900/30' : 'bg-brand-600 text-white hover:bg-brand-700'}`}
                                     >
-                                      {fee ? <Pencil className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
-                                      {fee ? t('refereeEdit') : t('refereeRecord')}
+                                      {expanded ? <ChevronDown className="h-3.5 w-3.5 rotate-180" /> : fee ? <Pencil className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
+                                      {expanded ? t('common:close') : fee ? t('refereeEdit') : t('refereeRecord')}
                                     </button>
                                   )}
                                 </TableCell>
                               )}
                             </TableRow>
+                            {expanded && teamId && (
+                              <TableRow className="border-gray-200 dark:border-gray-700">
+                                {/* The game modal's own editor, inline under the game's row. */}
+                                <TableCell colSpan={data.can_record_referee ? 4 : 3} className="bg-gray-50/60 px-4 py-3 dark:bg-gray-900/30">
+                                  <RefereeExpenseSection
+                                    gameId={String(g.id)}
+                                    teamId={String(teamId)}
+                                    canEdit
+                                    defaultOpen
+                                    onSaved={() => void refetch()}
+                                  />
+                                </TableCell>
+                              </TableRow>
+                            )}
+                            </Fragment>
                           )
                         })}
                       </TableBody>
@@ -333,23 +372,6 @@ export default function TeamFinancePage() {
         </>
       )}
 
-      {/* The game modal's own editor, hosted here so a coach records the fee
-          without leaving the finance page. */}
-      <Modal
-        open={recordGame != null}
-        onClose={() => { setRecordGame(null); void refetch() }}
-        title={recordGame ? `${recordGame.home_team ?? '?'} – ${recordGame.away_team ?? '?'}` : ''}
-        size="sm"
-      >
-        {recordGame && teamId && (
-          <div className="space-y-2">
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              {recordGame.date ? formatDateCompactZurich(recordGame.date) : ''}{recordGame.time ? ` · ${recordGame.time.slice(0, 5)}` : ''}{recordGame.league ? ` · ${recordGame.league}` : ''}
-            </p>
-            <RefereeExpenseSection gameId={String(recordGame.id)} teamId={String(teamId)} canEdit defaultOpen />
-          </div>
-        )}
-      </Modal>
     </div>
   )
 }
