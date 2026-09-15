@@ -14,6 +14,9 @@ interface RefereeExpenseSectionProps {
   gameId: string
   teamId: string
   canEdit: boolean
+  /** Fires after a successful create/update — a host that shows the fee
+   *  elsewhere on the page (Team finance table + tiles) refetches on it. */
+  onSaved?: () => void
   /** Start expanded (the Home nudge's "Record now" deep-link). Read once, on mount. */
   defaultOpen?: boolean
 }
@@ -24,7 +27,7 @@ type ExpandedExpense = RefereeExpense & {
 
 const OTHER_VALUE = '__other__'
 
-export default function RefereeExpenseSection({ gameId, teamId, canEdit, defaultOpen }: RefereeExpenseSectionProps) {
+export default function RefereeExpenseSection({ gameId, teamId, canEdit, defaultOpen, onSaved }: RefereeExpenseSectionProps) {
   const { t, i18n } = useTranslation('games')
   const { user, isApproved } = useAuth()
   const { members } = useTeamMembers(teamId)
@@ -169,6 +172,7 @@ export default function RefereeExpenseSection({ gameId, teamId, canEdit, default
       setEditing(false)
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
+      onSaved?.()
     } catch {
       // Error is handled by useMutation
     }

@@ -127,6 +127,9 @@ export interface TeamPickerSingleProps {
   placeholder?: string
   /** Label of the "no team" item. Default '—'. */
   emptyLabel?: string
+  /** Offer the "no team" item. Default true; pass false where a team is mandatory
+   *  (a page keyed by team), so the list has no row that clears the selection. */
+  allowEmpty?: boolean
   className?: string
 }
 
@@ -137,6 +140,7 @@ export function TeamPickerSingle({
   disabled,
   placeholder,
   emptyLabel = '—',
+  allowEmpty = true,
   className,
 }: TeamPickerSingleProps) {
   const { t } = useTranslation(['admin', 'common'])
@@ -178,6 +182,7 @@ export function TeamPickerSingle({
           <CommandInput placeholder={t('admin:explorerGridSearchTeams')} />
           <CommandList>
             <CommandEmpty>{t('admin:explorerGridNoTeams')}</CommandEmpty>
+            {allowEmpty && (
             <CommandGroup>
               <CommandItem
                 value={emptyLabel}
@@ -193,6 +198,7 @@ export function TeamPickerSingle({
                 <span className="flex-1 truncate text-muted-foreground">{emptyLabel}</span>
               </CommandItem>
             </CommandGroup>
+            )}
             {groups.map((group) => (
               <CommandGroup key={group.sport ?? 'other'} heading={group.heading}>
                 {group.teams.map((tm) => (
