@@ -70,6 +70,7 @@ export default {
   refereeExpenses: 'Schiedsrichterkosten',
   scorerAssign: 'Schreiber-Zuteilung',
   vbReferees: 'Volley-Schiedsrichter',
+  vmTeams: 'VolleyManager-Kader',
   clubStats: 'Vereinsstatistik',
   volleyFeedback: 'Volley Feedback',
   anmeldungen: 'Anmeldungen',

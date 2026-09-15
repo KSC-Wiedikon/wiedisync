@@ -62,6 +62,7 @@ import { writeUserLog } from './activity-log.js'
 import { clientIp } from './client-ip.js'
 import { registerSvLicence } from './sv-licence.js'
 import { registerLicenceStatus, runLicenceStatusSweep } from './licence-status.js'
+import { registerVmTeamAssign } from './vm-team-assign.js'
 import { registerMigrationsStatus } from './migrations-status.js'
 import { registerSyncStatus } from './sync-status.js'
 import { registerAudit } from './audit.js'
@@ -2841,6 +2842,7 @@ export default {
     registerActivitiesWithParticipations(router, ctx)
     registerSvLicence(router, ctx)
     registerLicenceStatus(router, ctx)
+    registerVmTeamAssign(router, ctx)
     registerMigrationsStatus(router, ctx)
     registerSyncStatus(router, ctx)
     registerHallenfinder(router, ctx)
