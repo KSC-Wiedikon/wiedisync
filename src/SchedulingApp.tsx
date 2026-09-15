@@ -8,7 +8,6 @@ import { AdminModeProvider } from './hooks/AdminModeProvider'
 import { ConfirmProvider } from './components/ConfirmDialogProvider'
 import { PageReadyProvider } from './hooks/PageReadyProvider'
 import BootOverlay from './components/BootOverlay'
-import { TourProvider } from './modules/guide/TourProvider'
 import { SentryErrorBoundary } from './lib/sentry'
 import { reloadNow } from './lib/chunkReload'
 import SchedulingLayout from './components/SchedulingLayout'
@@ -73,7 +72,6 @@ export default function SchedulingApp() {
             <AdminModeProvider>
               <ConfirmProvider>
                 <BrowserRouter>
-                  <TourProvider>
                   <PageReadyProvider>
                     <BootOverlay />
                     <Routes>
@@ -172,7 +170,6 @@ export default function SchedulingApp() {
                       <Route path="*" element={<Navigate to="/" replace />} />
                     </Routes>
                   </PageReadyProvider>
-                  </TourProvider>
                 </BrowserRouter>
                 <Toaster richColors position="top-center" />
               </ConfirmProvider>

@@ -450,7 +450,7 @@ export default function RecurringTrainingModal({ open, onClose, onGenerated, sel
 
   return (
     <Modal open={open} onClose={handleClose} title={t('recurringTitle')} size="md">
-      <div data-tour="recurring-setup" className="space-y-4">
+      <div className="space-y-4">
         {needsTeamPicker && (() => {
           const vb = managedTeams.filter(t => t.sport === 'volleyball')
           const bb = managedTeams.filter(t => t.sport === 'basketball')

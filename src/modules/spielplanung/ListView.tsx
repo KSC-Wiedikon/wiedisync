@@ -61,7 +61,7 @@ function GameTableRow({ game, teams, showTeam, showDate }: { game: Game; teams: 
   const dateStr = game.date.split(' ')[0] ?? game.date
 
   return (
-    <TableRow data-tour="spielplanung-game-card" className="align-top">
+    <TableRow className="align-top">
       {showDate && (
         <TableCell className="whitespace-nowrap text-xs text-gray-500 dark:text-gray-400">
           {formatDate(parseDate(dateStr), 'dd.MM.yyyy')}

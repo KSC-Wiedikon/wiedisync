@@ -382,7 +382,6 @@ export default function ScorerRow({
           <span className="text-xs text-gray-400 dark:text-gray-500">#{gameNumber}</span>
         )}
         <button
-          data-tour="ical-export"
           onClick={() => handleExportICal(expanded, t('scorerDutyIcal', { home: game.home_team, away: game.away_team }))}
           title={t('exportICal')}
           aria-label={t('exportICal')}

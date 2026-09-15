@@ -277,7 +277,6 @@ export default function GameCard({ game, onClick, variant = 'card', participatio
 
   return (
     <div
-      data-tour="game-card"
       onClick={() => onClick?.(game)}
       className={`flex items-stretch overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-card transition-shadow ${onClick ? 'cursor-pointer hover:shadow-card-hover' : ''}${game.status === 'cancelled' ? ' opacity-60' : ''}`}
     >

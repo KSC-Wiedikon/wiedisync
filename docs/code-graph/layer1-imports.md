@@ -1,6 +1,6 @@
 # Layer 1 — Import Dependency Graph (mechanical)
 
-Derived by parsing every static + dynamic import in `src/` (`extract-graph.mjs`). **1077 files**, **230,008 LOC**, **37 areas**, **261 cross-area edges**. Edges are exact (resolved `@/` alias + relative paths); counts = number of import statements crossing the boundary.
+Derived by parsing every static + dynamic import in `src/` (`extract-graph.mjs`). **1063 files**, **240,492 LOC**, **37 areas**, **261 cross-area edges**. Edges are exact (resolved `@/` alias + relative paths); counts = number of import statements crossing the boundary.
 
 ## Areas (by size & coupling)
 
@@ -8,42 +8,42 @@ Derived by parsing every static + dynamic import in `src/` (`extract-graph.mjs`)
 
 | Area | LOC | Files | In | Out |
 |---|--:|--:|--:|--:|
-| `components` | 42,312 | 262 | 424 | 338 |
-| `i18n` | 38,941 | 184 | 15 | 0 |
+| `i18n` | 49,886 | 189 | 15 | 0 |
+| `components` | 42,305 | 262 | 424 | 338 |
 | `modules/admin` | 38,406 | 116 | 26 | 414 |
 | `modules/gameScheduling` | 24,400 | 82 | 18 | 272 |
-| `modules/finance` | 6,949 | 32 | 7 | 132 |
-| `modules/hallenplan` | 6,229 | 22 | 18 | 93 |
-| `hooks` | 6,184 | 52 | 414 | 89 |
-| `modules/games` | 5,405 | 15 | 5 | 140 |
-| `modules/scorer` | 5,390 | 16 | 5 | 95 |
+| `modules/finance` | 6,940 | 32 | 7 | 132 |
+| `modules/hallenplan` | 6,221 | 22 | 18 | 93 |
+| `hooks` | 6,184 | 52 | 417 | 89 |
+| `modules/games` | 5,403 | 15 | 5 | 140 |
+| `modules/scorer` | 5,386 | 16 | 5 | 95 |
 | `modules/auth` | 5,030 | 15 | 12 | 121 |
 | `utils` | 4,379 | 44 | 478 | 16 |
 | `ui` | 4,342 | 37 | 480 | 40 |
 | `modules/teams` | 4,314 | 12 | 4 | 124 |
-| `modules/calendar` | 4,231 | 20 | 9 | 103 |
+| `modules/calendar` | 4,229 | 20 | 9 | 103 |
 | `modules/spielplanung` | 3,568 | 24 | 6 | 101 |
-| `modules/events` | 3,469 | 8 | 6 | 99 |
-| `modules/trainings` | 3,141 | 8 | 5 | 101 |
-| `lib` | 3,093 | 14 | 513 | 3 |
+| `modules/events` | 3,467 | 8 | 6 | 99 |
+| `modules/trainings` | 3,138 | 8 | 5 | 101 |
+| `lib` | 3,094 | 14 | 515 | 3 |
 | `modules/absences` | 2,709 | 12 | 2 | 96 |
-| `modules/changelog` | 2,636 | 1 | 3 | 2 |
-| `modules/home` | 2,362 | 8 | 2 | 78 |
-| `modules/fines` | 1,925 | 8 | 5 | 42 |
-| `modules/guide` | 1,738 | 34 | 17 | 14 |
+| `modules/changelog` | 2,654 | 1 | 3 | 2 |
+| `modules/home` | 2,358 | 8 | 2 | 78 |
+| `modules/fines` | 1,924 | 8 | 5 | 42 |
 | `modules/forms` | 1,704 | 9 | 5 | 47 |
 | `types` | 1,380 | 3 | 253 | 1 |
+| `modules/guide` | 1,307 | 15 | 15 | 19 |
 | `modules/live` | 1,079 | 12 | 2 | 11 |
 | `modules/polls` | 1,048 | 5 | 2 | 17 |
 | `modules/broadcast` | 789 | 7 | 3 | 9 |
 | `modules/hallenfinder` | 615 | 3 | 1 | 9 |
 | `modules/feedback` | 532 | 1 | 1 | 9 |
-| `app-root` | 405 | 2 | 0 | 90 |
+| `app-root` | 402 | 2 | 0 | 89 |
 | `modules/jsexport` | 370 | 2 | 1 | 9 |
 | `modules/legal` | 256 | 2 | 3 | 0 |
-| `modules/news` | 249 | 1 | 1 | 11 |
+| `modules/news` | 248 | 1 | 1 | 11 |
 | `modules/support` | 201 | 2 | 4 | 5 |
-| `SchedulingApp.tsx` | 186 | 1 | 0 | 33 |
+| `SchedulingApp.tsx` | 183 | 1 | 0 | 32 |
 | `modules/common` | 41 | 1 | 1 | 1 |
 
 ## Foundation layer (shared internals)
@@ -52,9 +52,9 @@ These areas are imported by everything; the diagram shows how they depend on *ea
 
 ```mermaid
 graph LR
-  lib["lib<br/>in:513 out:3"]
+  lib["lib<br/>in:515 out:3"]
   utils["utils<br/>in:478 out:16"]
-  hooks["hooks<br/>in:414 out:89"]
+  hooks["hooks<br/>in:417 out:89"]
   components["components<br/>in:424 out:338"]
   ui["ui<br/>in:480 out:40"]
   types["types<br/>in:253 out:1"]
@@ -245,8 +245,8 @@ How heavily each feature module leans on each shared area (import-statement coun
 | `home` | 6 | 21 | 13 | 1 | 12 | 6 |  |
 | `forms` | 10 | 9 | 4 | 12 | 9 | 1 |  |
 | `fines` | 6 | 12 | 3 | 8 | 6 | 7 |  |
+| `guide` | 2 | 8 |  | 9 |  |  |  |
 | `polls` | 2 | 3 | 3 | 5 | 2 | 2 |  |
-| `guide` |  | 5 |  | 9 |  |  |  |
 | `live` | 7 | 1 | 2 | 1 |  |  |  |
 | `news` | 1 | 5 | 2 | 1 |  | 1 |  |
 | `broadcast` | 1 |  |  | 7 | 1 |  |  |

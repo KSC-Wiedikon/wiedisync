@@ -10,7 +10,8 @@ import { Wallet, Gavel, ReceiptText, HandCoins, ClipboardCheck, Landmark } from 
  *
  * Three labelled groups. Empty groups are dropped, so a member with no team
  * never sees a "Team finance" header, and a plain member never sees "Club
- * finance". NO route is renamed here — guided tours match exact pathnames.
+ * finance". NO route is renamed here — the guide's help buttons and bookmarks
+ * match exact pathnames.
  *
  * Entries keep `to` as a plain string that may carry a query (`/fines?scope=…`);
  * `navPathMatches` / `navItemActive` below know how to highlight those.

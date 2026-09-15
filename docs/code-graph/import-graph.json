@@ -1,21 +1,21 @@
 {
   "generatedFrom": "src/",
-  "totalFiles": 1077,
-  "totalLoc": 230008,
+  "totalFiles": 1063,
+  "totalLoc": 240492,
   "areas": [
+    {
+      "area": "i18n",
+      "files": 189,
+      "loc": 49886,
+      "inDeg": 15,
+      "outDeg": 0
+    },
     {
       "area": "components",
       "files": 262,
-      "loc": 42312,
+      "loc": 42305,
       "inDeg": 424,
       "outDeg": 338
-    },
-    {
-      "area": "i18n",
-      "files": 184,
-      "loc": 38941,
-      "inDeg": 15,
-      "outDeg": 0
     },
     {
       "area": "modules/admin",
@@ -34,14 +34,14 @@
     {
       "area": "modules/finance",
       "files": 32,
-      "loc": 6949,
+      "loc": 6940,
       "inDeg": 7,
       "outDeg": 132
     },
     {
       "area": "modules/hallenplan",
       "files": 22,
-      "loc": 6229,
+      "loc": 6221,
       "inDeg": 18,
       "outDeg": 93
     },
@@ -49,20 +49,20 @@
       "area": "hooks",
       "files": 52,
       "loc": 6184,
-      "inDeg": 414,
+      "inDeg": 417,
       "outDeg": 89
     },
     {
       "area": "modules/games",
       "files": 15,
-      "loc": 5405,
+      "loc": 5403,
       "inDeg": 5,
       "outDeg": 140
     },
     {
       "area": "modules/scorer",
       "files": 16,
-      "loc": 5390,
+      "loc": 5386,
       "inDeg": 5,
       "outDeg": 95
     },
@@ -97,7 +97,7 @@
     {
       "area": "modules/calendar",
       "files": 20,
-      "loc": 4231,
+      "loc": 4229,
       "inDeg": 9,
       "outDeg": 103
     },
@@ -111,22 +111,22 @@
     {
       "area": "modules/events",
       "files": 8,
-      "loc": 3469,
+      "loc": 3467,
       "inDeg": 6,
       "outDeg": 99
     },
     {
       "area": "modules/trainings",
       "files": 8,
-      "loc": 3141,
+      "loc": 3138,
       "inDeg": 5,
       "outDeg": 101
     },
     {
       "area": "lib",
       "files": 14,
-      "loc": 3093,
-      "inDeg": 513,
+      "loc": 3094,
+      "inDeg": 515,
       "outDeg": 3
     },
     {
@@ -139,30 +139,23 @@
     {
       "area": "modules/changelog",
       "files": 1,
-      "loc": 2636,
+      "loc": 2654,
       "inDeg": 3,
       "outDeg": 2
     },
     {
       "area": "modules/home",
       "files": 8,
-      "loc": 2362,
+      "loc": 2358,
       "inDeg": 2,
       "outDeg": 78
     },
     {
       "area": "modules/fines",
       "files": 8,
-      "loc": 1925,
+      "loc": 1924,
       "inDeg": 5,
       "outDeg": 42
-    },
-    {
-      "area": "modules/guide",
-      "files": 34,
-      "loc": 1738,
-      "inDeg": 17,
-      "outDeg": 14
     },
     {
       "area": "modules/forms",
@@ -177,6 +170,13 @@
       "loc": 1380,
       "inDeg": 253,
       "outDeg": 1
+    },
+    {
+      "area": "modules/guide",
+      "files": 15,
+      "loc": 1307,
+      "inDeg": 15,
+      "outDeg": 19
     },
     {
       "area": "modules/live",
@@ -216,9 +216,9 @@
     {
       "area": "app-root",
       "files": 2,
-      "loc": 405,
+      "loc": 402,
       "inDeg": 0,
-      "outDeg": 90
+      "outDeg": 89
     },
     {
       "area": "modules/jsexport",
@@ -237,7 +237,7 @@
     {
       "area": "modules/news",
       "files": 1,
-      "loc": 249,
+      "loc": 248,
       "inDeg": 1,
       "outDeg": 11
     },
@@ -251,9 +251,9 @@
     {
       "area": "SchedulingApp.tsx",
       "files": 1,
-      "loc": 186,
+      "loc": 183,
       "inDeg": 0,
-      "outDeg": 33
+      "outDeg": 32
     },
     {
       "area": "modules/common",
@@ -745,6 +745,11 @@
       "count": 8
     },
     {
+      "from": "modules/guide",
+      "to": "hooks",
+      "count": 8
+    },
+    {
       "from": "app-root",
       "to": "modules/auth",
       "count": 7
@@ -822,11 +827,6 @@
     {
       "from": "modules/finance",
       "to": "lib",
-      "count": 5
-    },
-    {
-      "from": "modules/guide",
-      "to": "hooks",
       "count": 5
     },
     {
@@ -951,11 +951,6 @@
     },
     {
       "from": "app-root",
-      "to": "modules/guide",
-      "count": 2
-    },
-    {
-      "from": "app-root",
       "to": "modules/games",
       "count": 2
     },
@@ -1022,6 +1017,11 @@
     {
       "from": "modules/finance",
       "to": "modules/guide",
+      "count": 2
+    },
+    {
+      "from": "modules/guide",
+      "to": "lib",
       "count": 2
     },
     {
@@ -1146,17 +1146,17 @@
     },
     {
       "from": "app-root",
+      "to": "modules/guide",
+      "count": 1
+    },
+    {
+      "from": "app-root",
       "to": "modules/hallenfinder",
       "count": 1
     },
     {
       "from": "app-root",
       "to": "modules/jsexport",
-      "count": 1
-    },
-    {
-      "from": "SchedulingApp.tsx",
-      "to": "modules/guide",
       "count": 1
     },
     {
@@ -1573,7 +1573,7 @@
   "fileInfo": {
     "App.tsx": {
       "area": "app-root",
-      "loc": 330,
+      "loc": 327,
       "deps": [
         "lib/api",
         "lib/QueryProvider",
@@ -1582,7 +1582,6 @@
         "hooks/AdminModeProvider",
         "components/ConfirmDialogProvider",
         "hooks/PageReadyProvider",
-        "modules/guide/TourProvider",
         "components/Layout",
         "components/NotificationsStoreProvider",
         "components/BootOverlay",
@@ -1664,7 +1663,6 @@
         "lib",
         "hooks",
         "components",
-        "modules/guide",
         "modules/games",
         "modules/live",
         "modules/trainings",
@@ -1686,13 +1684,14 @@
         "modules/changelog",
         "modules/support",
         "modules/common",
+        "modules/guide",
         "modules/hallenfinder",
         "modules/jsexport"
       ]
     },
     "SchedulingApp.tsx": {
       "area": "SchedulingApp.tsx",
-      "loc": 186,
+      "loc": 183,
       "deps": [
         "lib/QueryProvider",
         "hooks/AuthProvider",
@@ -1701,7 +1700,6 @@
         "components/ConfirmDialogProvider",
         "hooks/PageReadyProvider",
         "components/BootOverlay",
-        "modules/guide/TourProvider",
         "lib/sentry",
         "lib/chunkReload",
         "components/SchedulingLayout",
@@ -1732,7 +1730,6 @@
         "lib",
         "hooks",
         "components",
-        "modules/guide",
         "modules/auth",
         "modules/gameScheduling",
         "modules/spielplanung",
@@ -1756,7 +1753,7 @@
     },
     "components/ActivityParticipation.tsx": {
       "area": "components",
-      "loc": 285,
+      "loc": 282,
       "deps": [
         "utils/dateHelpers",
         "utils/participationColors",
@@ -2200,7 +2197,7 @@
     },
     "components/MoreSheet.tsx": {
       "area": "components",
-      "loc": 579,
+      "loc": 578,
       "deps": [
         "hooks/useAuth",
         "hooks/useTheme",
@@ -2229,7 +2226,7 @@
     },
     "components/NotificationBell.tsx": {
       "area": "components",
-      "loc": 28,
+      "loc": 27,
       "deps": [],
       "areaDeps": []
     },
@@ -2564,7 +2561,7 @@
     },
     "components/TopNav.tsx": {
       "area": "components",
-      "loc": 408,
+      "loc": 406,
       "deps": [
         "hooks/useAuth",
         "modules/support/donateConfig",
@@ -5666,9 +5663,15 @@
       "deps": [],
       "areaDeps": []
     },
+    "i18n/locales/de/guide-content.ts": {
+      "area": "i18n",
+      "loc": 2510,
+      "deps": [],
+      "areaDeps": []
+    },
     "i18n/locales/de/guide.ts": {
       "area": "i18n",
-      "loc": 394,
+      "loc": 73,
       "deps": [],
       "areaDeps": []
     },
@@ -5888,9 +5891,15 @@
       "deps": [],
       "areaDeps": []
     },
+    "i18n/locales/en/guide-content.ts": {
+      "area": "i18n",
+      "loc": 2510,
+      "deps": [],
+      "areaDeps": []
+    },
     "i18n/locales/en/guide.ts": {
       "area": "i18n",
-      "loc": 394,
+      "loc": 73,
       "deps": [],
       "areaDeps": []
     },
@@ -6110,9 +6119,15 @@
       "deps": [],
       "areaDeps": []
     },
+    "i18n/locales/fr/guide-content.ts": {
+      "area": "i18n",
+      "loc": 2510,
+      "deps": [],
+      "areaDeps": []
+    },
     "i18n/locales/fr/guide.ts": {
       "area": "i18n",
-      "loc": 394,
+      "loc": 73,
       "deps": [],
       "areaDeps": []
     },
@@ -6326,9 +6341,15 @@
       "deps": [],
       "areaDeps": []
     },
+    "i18n/locales/gsw/guide-content.ts": {
+      "area": "i18n",
+      "loc": 2510,
+      "deps": [],
+      "areaDeps": []
+    },
     "i18n/locales/gsw/guide.ts": {
       "area": "i18n",
-      "loc": 394,
+      "loc": 73,
       "deps": [],
       "areaDeps": []
     },
@@ -6536,9 +6557,15 @@
       "deps": [],
       "areaDeps": []
     },
+    "i18n/locales/it/guide-content.ts": {
+      "area": "i18n",
+      "loc": 2510,
+      "deps": [],
+      "areaDeps": []
+    },
     "i18n/locales/it/guide.ts": {
       "area": "i18n",
-      "loc": 394,
+      "loc": 73,
       "deps": [],
       "areaDeps": []
     },
@@ -6708,7 +6735,7 @@
     },
     "lib/financeNav.ts": {
       "area": "lib",
-      "loc": 104,
+      "loc": 105,
       "deps": [],
       "areaDeps": []
     },
@@ -6891,7 +6918,7 @@
         "modules/absences/WeeklyDayHeaderCells",
         "components/TabBar",
         "types",
-        "modules/guide/TourPageButton",
+        "modules/guide/GuideHelpButton",
         "hooks/usePageReady"
       ],
       "areaDeps": [
@@ -9202,7 +9229,7 @@
     },
     "modules/calendar/CalendarPage.tsx": {
       "area": "modules/calendar",
-      "loc": 303,
+      "loc": 301,
       "deps": [
         "components/ViewToggle",
         "modules/calendar/CalendarFilters",
@@ -9504,7 +9531,7 @@
     },
     "modules/changelog/ChangelogPage.tsx": {
       "area": "modules/changelog",
-      "loc": 2636,
+      "loc": 2654,
       "deps": [
         "components/ui/badge",
         "modules/support/donateConfig"
@@ -9541,7 +9568,7 @@
     },
     "modules/events/EventCard.tsx": {
       "area": "modules/events",
-      "loc": 610,
+      "loc": 609,
       "deps": [
         "components/StatusBadge",
         "components/TeamChip",
@@ -9666,7 +9693,7 @@
     },
     "modules/events/EventsPage.tsx": {
       "area": "modules/events",
-      "loc": 384,
+      "loc": 383,
       "deps": [
         "hooks/useAuth",
         "hooks/useTeamPermissions",
@@ -9691,7 +9718,7 @@
         "utils/featureToggles",
         "modules/events/eventHelpers",
         "types",
-        "modules/guide/TourPageButton"
+        "modules/guide/GuideHelpButton"
       ],
       "areaDeps": [
         "hooks",
@@ -9848,7 +9875,7 @@
     },
     "modules/finance/ExpenseUploadPage.tsx": {
       "area": "modules/finance",
-      "loc": 394,
+      "loc": 392,
       "deps": [
         "components/ui/button",
         "components/ui/checkbox",
@@ -9865,7 +9892,7 @@
         "modules/finance/ReceiptButton",
         "modules/finance/expenseShared",
         "utils/dateHelpers",
-        "modules/guide/TourPageButton"
+        "modules/guide/GuideHelpButton"
       ],
       "areaDeps": [
         "ui",
@@ -9907,7 +9934,7 @@
         "modules/finance/PayoutIbanCard",
         "modules/finance/MyPayoutsCard",
         "modules/finance/MyRefereeExpensesCard",
-        "modules/guide/TourPageButton"
+        "modules/guide/GuideHelpButton"
       ],
       "areaDeps": [
         "hooks",
@@ -10007,7 +10034,7 @@
     },
     "modules/finance/InvoiceTable.tsx": {
       "area": "modules/finance",
-      "loc": 184,
+      "loc": 177,
       "deps": [
         "components/ui/table",
         "utils/dateHelpers",
@@ -10281,7 +10308,7 @@
     },
     "modules/fines/FinesPage.tsx": {
       "area": "modules/fines",
-      "loc": 361,
+      "loc": 360,
       "deps": [
         "hooks/useAuth",
         "hooks/useAdminMode",
@@ -10532,7 +10559,7 @@
         "hooks/usePageReady",
         "modules/forms/FormFillModal",
         "modules/forms/FormResponsesModal",
-        "modules/guide/TourPageButton",
+        "modules/guide/GuideHelpButton",
         "modules/forms/types"
       ],
       "areaDeps": [
@@ -11887,7 +11914,7 @@
         "components/ParticipationRosterModal",
         "components/ConfirmDialog",
         "utils/participationWarnings",
-        "modules/guide/TourPageButton",
+        "modules/guide/GuideHelpButton",
         "hooks/usePageReady",
         "hooks/useUserVisibleGameIds",
         "modules/live/components/LiveNowBanner"
@@ -11920,7 +11947,7 @@
     },
     "modules/games/components/GameCard.tsx": {
       "area": "modules/games",
-      "loc": 398,
+      "loc": 397,
       "deps": [
         "types",
         "utils/dateHelpers",
@@ -12042,7 +12069,7 @@
     },
     "modules/games/components/GameTabs.tsx": {
       "area": "modules/games",
-      "loc": 44,
+      "loc": 43,
       "deps": [],
       "areaDeps": []
     },
@@ -12177,68 +12204,75 @@
         "modules/trainings"
       ]
     },
-    "modules/guide/GuidePage.tsx": {
+    "modules/guide/GuideBlocks.tsx": {
       "area": "modules/guide",
-      "loc": 127,
+      "loc": 49,
       "deps": [
-        "modules/guide/useTour",
         "modules/guide/types",
-        "components/ui/dialog",
-        "modules/guide/install/InstallInstructions"
+        "modules/guide/guideText"
       ],
-      "areaDeps": [
-        "ui"
-      ]
+      "areaDeps": []
     },
-    "modules/guide/TourPageButton.tsx": {
+    "modules/guide/GuideHelpButton.tsx": {
       "area": "modules/guide",
-      "loc": 74,
+      "loc": 145,
       "deps": [
-        "components/ui/button",
-        "components/ui/popover",
-        "modules/guide/useTour"
-      ],
-      "areaDeps": [
-        "ui"
-      ]
-    },
-    "modules/guide/TourProvider.tsx": {
-      "area": "modules/guide",
-      "loc": 249,
-      "deps": [
-        "hooks/useAuth",
         "hooks/useMediaQuery",
-        "modules/guide/TourTooltip",
-        "modules/guide/tourContext",
-        "modules/guide/tours",
+        "components/ui/badge",
+        "components/ui/sheet",
+        "modules/guide/GuideBlocks",
+        "modules/guide/sections",
+        "modules/guide/useGuideContent",
         "modules/guide/types"
       ],
       "areaDeps": [
-        "hooks"
-      ]
-    },
-    "modules/guide/TourTooltip.tsx": {
-      "area": "modules/guide",
-      "loc": 119,
-      "deps": [
-        "components/ui/button",
-        "hooks/useMediaQuery"
-      ],
-      "areaDeps": [
-        "ui",
-        "hooks"
-      ]
-    },
-    "modules/guide/WelcomeModal.tsx": {
-      "area": "modules/guide",
-      "loc": 40,
-      "deps": [
-        "components/ui/dialog",
-        "components/ui/button"
-      ],
-      "areaDeps": [
+        "hooks",
         "ui"
       ]
+    },
+    "modules/guide/GuidePage.tsx": {
+      "area": "modules/guide",
+      "loc": 339,
+      "deps": [
+        "hooks/useAuth",
+        "hooks/usePageReady",
+        "modules/guide/useGuideContent",
+        "components/ui/badge",
+        "components/ui/input",
+        "components/ui/dialog",
+        "modules/guide/install/InstallInstructions",
+        "modules/guide/GuideStart",
+        "modules/guide/GuideBlocks",
+        "modules/guide/guideText",
+        "modules/guide/sections",
+        "modules/guide/types"
+      ],
+      "areaDeps": [
+        "hooks",
+        "ui"
+      ]
+    },
+    "modules/guide/GuideStart.tsx": {
+      "area": "modules/guide",
+      "loc": 125,
+      "deps": [
+        "hooks/useAuth",
+        "hooks/usePushNotifications",
+        "components/ui/badge",
+        "modules/guide/install/usePlatform"
+      ],
+      "areaDeps": [
+        "hooks",
+        "ui"
+      ]
+    },
+    "modules/guide/guideText.tsx": {
+      "area": "modules/guide",
+      "loc": 56,
+      "deps": [
+        "modules/guide/types"
+      ],
+      "areaDeps": []
     },
     "modules/guide/install/InstallBanner.tsx": {
       "area": "modules/guide",
@@ -12305,187 +12339,20 @@
       ],
       "areaDeps": []
     },
-    "modules/guide/tourContext.ts": {
+    "modules/guide/sections.ts": {
       "area": "modules/guide",
-      "loc": 26,
+      "loc": 105,
       "deps": [
+        "hooks/useAuth",
         "modules/guide/types"
       ],
-      "areaDeps": []
-    },
-    "modules/guide/tours/absences.ts": {
-      "area": "modules/guide",
-      "loc": 33,
-      "deps": [
-        "modules/guide/types"
-      ],
-      "areaDeps": []
-    },
-    "modules/guide/tours/calendar.ts": {
-      "area": "modules/guide",
-      "loc": 39,
-      "deps": [
-        "modules/guide/types"
-      ],
-      "areaDeps": []
-    },
-    "modules/guide/tours/events.ts": {
-      "area": "modules/guide",
-      "loc": 33,
-      "deps": [
-        "modules/guide/types"
-      ],
-      "areaDeps": []
-    },
-    "modules/guide/tours/expenses.ts": {
-      "area": "modules/guide",
-      "loc": 33,
-      "deps": [
-        "modules/guide/types"
-      ],
-      "areaDeps": []
-    },
-    "modules/guide/tours/finance-dues.ts": {
-      "area": "modules/guide",
-      "loc": 39,
-      "deps": [
-        "modules/guide/types"
-      ],
-      "areaDeps": []
-    },
-    "modules/guide/tours/fines.ts": {
-      "area": "modules/guide",
-      "loc": 33,
-      "deps": [
-        "modules/guide/types"
-      ],
-      "areaDeps": []
-    },
-    "modules/guide/tours/forms.ts": {
-      "area": "modules/guide",
-      "loc": 33,
-      "deps": [
-        "modules/guide/types"
-      ],
-      "areaDeps": []
-    },
-    "modules/guide/tours/games-coach.ts": {
-      "area": "modules/guide",
-      "loc": 34,
-      "deps": [
-        "modules/guide/types"
-      ],
-      "areaDeps": []
-    },
-    "modules/guide/tours/games-player.ts": {
-      "area": "modules/guide",
-      "loc": 39,
-      "deps": [
-        "modules/guide/types"
-      ],
-      "areaDeps": []
-    },
-    "modules/guide/tours/getting-started.ts": {
-      "area": "modules/guide",
-      "loc": 45,
-      "deps": [
-        "modules/guide/types"
-      ],
-      "areaDeps": []
-    },
-    "modules/guide/tours/hallenplan-coach.ts": {
-      "area": "modules/guide",
-      "loc": 39,
-      "deps": [
-        "modules/guide/types"
-      ],
-      "areaDeps": []
-    },
-    "modules/guide/tours/index.ts": {
-      "area": "modules/guide",
-      "loc": 41,
-      "deps": [
-        "modules/guide/tours/getting-started",
-        "modules/guide/tours/profile",
-        "modules/guide/tours/training-player",
-        "modules/guide/tours/training-coach",
-        "modules/guide/tours/games-player",
-        "modules/guide/tours/games-coach",
-        "modules/guide/tours/events",
-        "modules/guide/tours/absences",
-        "modules/guide/tours/scorer-player",
-        "modules/guide/tours/scorer-admin",
-        "modules/guide/tours/hallenplan-coach",
-        "modules/guide/tours/teams",
-        "modules/guide/tours/forms",
-        "modules/guide/tours/finance-dues",
-        "modules/guide/tours/expenses",
-        "modules/guide/tours/calendar",
-        "modules/guide/tours/news",
-        "modules/guide/tours/fines",
-        "modules/guide/types"
-      ],
-      "areaDeps": []
-    },
-    "modules/guide/tours/news.ts": {
-      "area": "modules/guide",
-      "loc": 27,
-      "deps": [
-        "modules/guide/types"
-      ],
-      "areaDeps": []
-    },
-    "modules/guide/tours/profile.ts": {
-      "area": "modules/guide",
-      "loc": 39,
-      "deps": [
-        "modules/guide/types"
-      ],
-      "areaDeps": []
-    },
-    "modules/guide/tours/scorer-admin.ts": {
-      "area": "modules/guide",
-      "loc": 39,
-      "deps": [
-        "modules/guide/types"
-      ],
-      "areaDeps": []
-    },
-    "modules/guide/tours/scorer-player.ts": {
-      "area": "modules/guide",
-      "loc": 33,
-      "deps": [
-        "modules/guide/types"
-      ],
-      "areaDeps": []
-    },
-    "modules/guide/tours/teams.ts": {
-      "area": "modules/guide",
-      "loc": 27,
-      "deps": [
-        "modules/guide/types"
-      ],
-      "areaDeps": []
-    },
-    "modules/guide/tours/training-coach.ts": {
-      "area": "modules/guide",
-      "loc": 39,
-      "deps": [
-        "modules/guide/types"
-      ],
-      "areaDeps": []
-    },
-    "modules/guide/tours/training-player.ts": {
-      "area": "modules/guide",
-      "loc": 39,
-      "deps": [
-        "modules/guide/types"
-      ],
-      "areaDeps": []
+      "areaDeps": [
+        "hooks"
+      ]
     },
     "modules/guide/types.ts": {
       "area": "modules/guide",
-      "loc": 38,
+      "loc": 57,
       "deps": [
         "hooks/useAuth"
       ],
@@ -12493,13 +12360,17 @@
         "hooks"
       ]
     },
-    "modules/guide/useTour.ts": {
+    "modules/guide/useGuideContent.ts": {
       "area": "modules/guide",
-      "loc": 9,
+      "loc": 59,
       "deps": [
-        "modules/guide/tourContext"
+        "lib/chunkReload",
+        "lib/sentry",
+        "modules/guide/types"
       ],
-      "areaDeps": []
+      "areaDeps": [
+        "lib"
+      ]
     },
     "modules/hallenfinder/HallenfinderPage.tsx": {
       "area": "modules/hallenfinder",
@@ -12591,7 +12462,7 @@
         "types",
         "lib/api",
         "hooks/usePageReady",
-        "modules/guide/TourPageButton"
+        "modules/guide/GuideHelpButton"
       ],
       "areaDeps": [
         "hooks",
@@ -12681,7 +12552,7 @@
     },
     "modules/hallenplan/components/DayNavigation.tsx": {
       "area": "modules/hallenplan",
-      "loc": 218,
+      "loc": 216,
       "deps": [
         "types",
         "components/Modal",
@@ -12714,7 +12585,7 @@
     },
     "modules/hallenplan/components/SlotBlock.tsx": {
       "area": "modules/hallenplan",
-      "loc": 275,
+      "loc": 273,
       "deps": [
         "modules/hallenplan/components/ConflictBadge",
         "modules/hallenplan/utils/timeGrid"
@@ -12779,7 +12650,7 @@
     },
     "modules/hallenplan/components/WeekNavigation.tsx": {
       "area": "modules/hallenplan",
-      "loc": 155,
+      "loc": 152,
       "deps": [
         "types",
         "components/Modal",
@@ -12792,7 +12663,7 @@
     },
     "modules/hallenplan/components/WeekSlotView.tsx": {
       "area": "modules/hallenplan",
-      "loc": 621,
+      "loc": 620,
       "deps": [
         "types",
         "utils/dateHelpers",
@@ -12897,7 +12768,7 @@
     },
     "modules/home/HomePage.tsx": {
       "area": "modules/home",
-      "loc": 1619,
+      "loc": 1615,
       "deps": [
         "hooks/useAuth",
         "hooks/useTeamPermissions",
@@ -12915,7 +12786,7 @@
         "components/VolleyballIcon",
         "components/BasketballIcon",
         "components/NotificationPanel",
-        "modules/guide/TourPageButton",
+        "modules/guide/GuideHelpButton",
         "modules/games/components/GameDetailModal",
         "modules/trainings/TrainingDetailModal",
         "modules/events/EventDetailModal",
@@ -13267,7 +13138,7 @@
     },
     "modules/news/NewsArchivePage.tsx": {
       "area": "modules/news",
-      "loc": 249,
+      "loc": 248,
       "deps": [
         "hooks/useAuth",
         "hooks/NotificationsContext",
@@ -13365,7 +13236,7 @@
     },
     "modules/scorer/ScorerAssignPage.tsx": {
       "area": "modules/scorer",
-      "loc": 1101,
+      "loc": 1100,
       "deps": [
         "types",
         "utils/relations",
@@ -13391,7 +13262,7 @@
         "lib/chunkReload",
         "lib/sentry",
         "hooks/usePageReady",
-        "modules/guide/TourPageButton"
+        "modules/guide/GuideHelpButton"
       ],
       "areaDeps": [
         "types",
@@ -13433,7 +13304,7 @@
         "modules/scorer/hooks/useScorerDelegations",
         "modules/scorer/hooks/useOfficialContacts",
         "components/LoadingSpinner",
-        "modules/guide/TourPageButton",
+        "modules/guide/GuideHelpButton",
         "lib/api",
         "hooks/usePageReady"
       ],
@@ -13470,7 +13341,7 @@
     },
     "modules/scorer/components/AssignmentEditor.tsx": {
       "area": "modules/scorer",
-      "loc": 340,
+      "loc": 338,
       "deps": [
         "types",
         "utils/relations",
@@ -13553,7 +13424,7 @@
     },
     "modules/scorer/components/ScorerRow.tsx": {
       "area": "modules/scorer",
-      "loc": 636,
+      "loc": 635,
       "deps": [
         "lib/api",
         "types",
@@ -13873,7 +13744,7 @@
         "components/LoadingSpinner",
         "types/calendar",
         "types",
-        "modules/guide/TourPageButton"
+        "modules/guide/GuideHelpButton"
       ],
       "areaDeps": [
         "components",
@@ -14341,7 +14212,7 @@
         "types",
         "utils/dateHelpers",
         "hooks/usePageReady",
-        "modules/guide/TourPageButton"
+        "modules/guide/GuideHelpButton"
       ],
       "areaDeps": [
         "lib",
@@ -14433,7 +14304,7 @@
     },
     "modules/trainings/TrainingCard.tsx": {
       "area": "modules/trainings",
-      "loc": 195,
+      "loc": 193,
       "deps": [
         "components/TeamChip",
         "components/ParticipationSummary",
@@ -14520,7 +14391,7 @@
     },
     "modules/trainings/TrainingsPage.tsx": {
       "area": "modules/trainings",
-      "loc": 371,
+      "loc": 370,
       "deps": [
         "hooks/useAuth",
         "hooks/useTeamPermissions",
@@ -14548,7 +14419,7 @@
         "components/ui/dropdown-menu",
         "types",
         "utils/relations",
-        "modules/guide/TourPageButton",
+        "modules/guide/GuideHelpButton",
         "hooks/usePageReady"
       ],
       "areaDeps": [

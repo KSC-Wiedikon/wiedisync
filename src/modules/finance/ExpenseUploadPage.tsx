@@ -19,7 +19,7 @@ import { useMyExpenses, formatExpenseAmount } from '../../hooks/useFinance'
 import ReceiptButton from './ReceiptButton'
 import { ExpenseStatusBadge } from './expenseShared'
 import { formatDateCompactZurich } from '../../utils/dateHelpers'
-import { TourPageButton } from '../guide/TourPageButton'
+import { GuideHelpButton } from '../guide/GuideHelpButton'
 
 // Public Cloudflare Turnstile site key (same widget the sign-up + scheduling pages use).
 const TURNSTILE_SITE_KEY = '0x4AAAAAACoYmx3xiDfRbmv9'
@@ -45,7 +45,7 @@ function MyExpensesTable() {
   const rows = data ?? []
   if (rows.length === 0) return null
   return (
-    <div data-tour="expense-submissions" className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+    <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
       <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t('expenseMineTitle')}</h2>
       <div className="mt-2 overflow-x-auto">
         <Table>
@@ -236,7 +236,7 @@ export default function ExpenseUploadPage() {
       <div>
         <div className="flex items-center gap-2">
           <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">{t('expenseTitle')}</h1>
-          <TourPageButton />
+          <GuideHelpButton />
         </div>
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t('expenseSubtitle')}</p>
       </div>
@@ -254,7 +254,6 @@ export default function ExpenseUploadPage() {
           />
           <button
             type="button"
-            data-tour="expense-upload"
             onClick={() => fileInputRef.current?.click()}
             disabled={busy || !turnstileToken}
             className="flex min-h-[140px] w-full flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 px-4 py-8 text-center transition-colors hover:border-brand-400 hover:bg-brand-50/40 disabled:cursor-not-allowed disabled:opacity-70 dark:border-gray-600 dark:hover:border-brand-500 dark:hover:bg-brand-900/20"
@@ -352,7 +351,6 @@ export default function ExpenseUploadPage() {
               <FormInput label={t('expenseDescription')} value={description} onChange={(e) => setDescription(e.target.value)} />
               <FormInput label={t('expenseReference')} value={reference} onChange={(e) => setReference(e.target.value)} />
               <FormInput
-                data-tour="expense-iban"
                 label={t('expenseReimburseIban')}
                 value={payToIban}
                 onChange={(e) => setPayToIban(e.target.value)}

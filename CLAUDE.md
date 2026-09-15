@@ -146,6 +146,7 @@ See `INFRA.md → Domains & Hosting Overview` for full map.
      (append new dev/deploy entries THERE, not here). User-facing release notes → CHANGELOG.md.
      Keep this list pruned to ~5 entries. -->
 - **2026-09-15** Member finance / Team finance nav split, `/finance/team`, referee fees derived into member + team views, Home nudge for coaches/TRs, season-end referee payout run (migrations 362 + 363, dev+prod, v2.12.0)
+- **2026-09-15** Guided tours deleted → written, searchable, role-aware in-app guide (40 sections × 5 locales, lazy per-locale chunks, `?` opens a slide-over) (frontend only, v2.13.0)
 - **2026-09-15** Messaging feature removed wholesale — frontend module, `/kscw/messaging/*`, retention cron, broadcast in-app channel, 7 tables + 8 triggers + 7 `members` columns (migration 364; dev+prod with v2.12.0)
 - **2026-09-15** Fines summary PDF from the roster editor + match-sheet order/zoom + duty-label wrap (no migration, dev+prod, v2.11.0)
 - **2026-09-15** Fine ladders per activity type (general rule + training/game/event overrides, per-rule counters) + aligned tier table (migration 361, dev+prod, v2.10.0)

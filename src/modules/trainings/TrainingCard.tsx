@@ -137,7 +137,7 @@ export default function TrainingCard({ training, participations, myParticipation
             )}
           </div>
           {participations && participations.length > 0 && (
-            <div data-tour="participation-dots">
+            <div>
               <ParticipationSummary activityType="training" activityId={training.id} bars participations={participations} coachMemberIds={teamCoachIds(team)} />
             </div>
           )}
@@ -165,7 +165,6 @@ export default function TrainingCard({ training, participations, myParticipation
             )}
             {onEdit && (
               <button
-                data-tour="edit-training"
                 onClick={() => onEdit(training)}
                 className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-600 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-300"
                 title={t('editTraining')}
@@ -176,7 +175,6 @@ export default function TrainingCard({ training, participations, myParticipation
             )}
             {onDelete && (
               <button
-                data-tour="delete-training"
                 onClick={() => onDelete(training.id)}
                 className="rounded-lg p-2 text-gray-500 hover:bg-red-50 hover:text-red-600 dark:text-gray-400 dark:hover:bg-red-900/20 dark:hover:text-red-400"
                 title={t('deleteTraining')}

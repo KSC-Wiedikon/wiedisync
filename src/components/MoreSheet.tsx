@@ -198,7 +198,6 @@ function OptionsAccordion({ theme, toggleTheme, onClose }: { theme: string; togg
               className={({ isActive }) => `flex min-h-[48px] items-center gap-2 rounded-lg px-4 py-3 transition-colors ${
                 isActive ? 'bg-brand-50 text-brand-700 dark:bg-brand-900/50 dark:text-gold-400' : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
               }`}
-              data-tour="nav-guide"
             >
               <GraduationCap className="h-4 w-4" />
               <span className="text-base font-medium">{t('guide')}</span>

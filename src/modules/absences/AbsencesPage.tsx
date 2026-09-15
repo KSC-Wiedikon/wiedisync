@@ -27,7 +27,7 @@ import { Table, TableBody, TableHead, TableHeader, TableRow } from '@/components
 import WeeklyDayHeaderCells from './WeeklyDayHeaderCells'
 import TabBar from '../../components/TabBar'
 import type { Absence, Member, Team } from '../../types'
-import { TourPageButton } from '../guide/TourPageButton'
+import { GuideHelpButton } from '../guide/GuideHelpButton'
 import { useReportPageLoading } from '../../hooks/usePageReady'
 
 type ViewType = 'absences' | 'weekly'
@@ -185,12 +185,12 @@ export default function AbsencesPage() {
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-bold text-gray-900 sm:text-2xl dark:text-gray-100">{t('title')}</h1>
-            <TourPageButton />
+            <GuideHelpButton />
           </div>
         </div>
         <div className="flex gap-2">
           {viewType === 'absences' && scope === 'mine' && (
-            <Button data-tour="import-absences" variant="outline" onClick={() => setImportOpen(true)}>
+            <Button variant="outline" onClick={() => setImportOpen(true)}>
               <Upload className="mr-2 h-4 w-4" />
               {t('importAbsences')}
             </Button>
@@ -201,7 +201,7 @@ export default function AbsencesPage() {
                 {isTeamScope ? t('newWeeklyForMember') : t('newWeekly')}
               </Button>
             ) : (
-              <Button data-tour="new-absence" onClick={() => { setEditingAbsence(null); setFormOpen(true) }}>
+              <Button onClick={() => { setEditingAbsence(null); setFormOpen(true) }}>
                 {isTeamScope ? t('newAbsenceForMember') : t('newAbsence')}
               </Button>
             )
@@ -233,7 +233,7 @@ export default function AbsencesPage() {
 
       {/* ─── Content quadrant ─── */}
       {!isTeamScope && viewType === 'absences' && (
-        <div className="mt-6" data-tour="my-absences">
+        <div className="mt-6">
           {myAbsences.length === 0 ? (
             <EmptyState
               icon={<ClipboardList className="h-10 w-10" />}
@@ -301,7 +301,7 @@ export default function AbsencesPage() {
       )}
 
       {!isTeamScope && viewType === 'weekly' && (
-        <div className="mt-6" data-tour="weekly-unavailability">
+        <div className="mt-6">
           {myWeekly.length === 0 ? (
             <EmptyState
               icon={<CalendarClock className="h-10 w-10" />}
@@ -337,7 +337,7 @@ export default function AbsencesPage() {
       )}
 
       {isTeamScope && viewType === 'absences' && (
-        <div className="mt-6" data-tour="team-absences">
+        <div className="mt-6">
           {teamFilterOptions.length > 0 && (
             <TeamMultiSelect
               options={teamFilterOptions}
@@ -360,7 +360,7 @@ export default function AbsencesPage() {
       )}
 
       {isTeamScope && viewType === 'weekly' && (
-        <div className="mt-6" data-tour="team-weekly">
+        <div className="mt-6">
           {teamFilterOptions.length > 0 && (
             <TeamMultiSelect
               options={teamFilterOptions}

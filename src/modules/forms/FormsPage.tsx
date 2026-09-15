@@ -14,7 +14,7 @@ import { useConfirm } from '../../components/ConfirmProvider'
 import { useReportPageLoading } from '../../hooks/usePageReady'
 import FormFillModal from './FormFillModal'
 import FormResponsesModal from './FormResponsesModal'
-import { TourPageButton } from '../guide/TourPageButton'
+import { GuideHelpButton } from '../guide/GuideHelpButton'
 import type { FormDef, FormStatus } from './types'
 
 function teamRefs(form: FormDef): { id: string; name: string; sport?: string }[] {
@@ -124,17 +124,17 @@ export default function FormsPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <h1 className="text-2xl font-bold">{t('title')}</h1>
-          <TourPageButton />
+          <GuideHelpButton />
         </div>
         {canManageForms && (
-          <Button data-tour="forms-create" onClick={() => navigate('/forms/new')}>
+          <Button onClick={() => navigate('/forms/new')}>
             <Plus size={16} className="mr-1" /> {t('newForm')}
           </Button>
         )}
       </div>
 
       {/* Open for you */}
-      <section data-tour="forms-list" className="space-y-3">
+      <section className="space-y-3">
         <h2 className="text-lg font-semibold">{t('openForYou')}</h2>
         {fillable.length === 0 ? (
           <p className="text-sm text-muted-foreground">{t('noOpenForms')}</p>
@@ -155,7 +155,7 @@ export default function FormsPage() {
                     {item.form.closes_at ? formatDateTimeCompactZurich(item.form.closes_at) : '—'}
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button data-tour="forms-fill" size="sm" variant={item.submission ? 'outline' : 'default'} onClick={() => setFillItem(item)}>
+                    <Button size="sm" variant={item.submission ? 'outline' : 'default'} onClick={() => setFillItem(item)}>
                       {item.submission ? t('edit') : t('fill')}
                     </Button>
                   </TableCell>

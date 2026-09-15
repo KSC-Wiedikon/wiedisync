@@ -2,7 +2,7 @@
 
 > **▶ Open [`graph.html`](./graph.html) in a browser** — a single self-contained, offline-capable page with an interactive force-directed dependency graph (area + file level, click-to-highlight, search, isolate-by-area) plus all five docs below with their Mermaid diagrams rendered. No server, no internet needed. Regenerate with `node docs/code-graph/gen-html.mjs`.
 
-A layered map of the whole codebase, generated 2026-06-07. **Last reviewed: 16.06.2026.** Two layers:
+A layered map of the whole codebase, generated 2026-06-07. **Last reviewed: 15.09.2026.** Two layers:
 
 - **Layer 1 — mechanical** (`layer1-imports.md`): exact import edges parsed from every `src/` file. Nodes = areas/modules, edges = `import` statements. Ground truth, no interpretation. **Machine-generated** — refreshed by `npm run docs:graph`.
 - **Layer 2 — conceptual** (`layer2-*.md`): what the code *means* — data model, backend surface, and feature/domain flows — cross-linked back to the files. **Hand-authored** — edit by hand; see the regenerate note below.

@@ -12,7 +12,7 @@ import type { Participation } from '../types'
 interface ActivityParticipationProps {
   /** Which activity this RSVP control drives. Determines the i18n namespace,
    *  the covering-absence lookup, the created participation's `activity_type`,
-   *  and the tour-anchor / click-propagation behaviour (games render inside a
+   *  and the click-propagation behaviour (games render inside a
    *  clickable card, trainings do not). */
   kind: 'game' | 'training'
   activityId: string
@@ -40,7 +40,7 @@ interface ActivityParticipationProps {
  * `TrainingParticipation` blocks. Both use the same optimistic-write flow
  * (`useMutation('participations')` + pre-fetched `existingParticipation`),
  * sizing and layout — they differed only in: the i18n namespace, the
- * activity-type/date/time fields, the tour anchors, and (games only)
+ * activity-type/date/time fields, and (games only)
  * click-propagation stopping + save-on-blur because a game card is itself
  * clickable. Those variations are keyed off `kind`.
  *
@@ -173,12 +173,11 @@ export default function ActivityParticipation({
   }
 
   return (
-    <div data-tour={kind === 'game' ? 'game-rsvp' : undefined} className="space-y-1.5">
+    <div className="space-y-1.5">
       {hasAbsence && (
         <p className="text-xs italic text-gray-500 dark:text-gray-400">{t(absenceLabel)}</p>
       )}
       <div
-        data-tour={kind === 'training' ? 'rsvp-buttons' : undefined}
         className="relative flex flex-wrap items-center gap-1.5"
       >
         {(['confirmed', 'tentative', 'declined'] as const)
@@ -242,7 +241,6 @@ export default function ActivityParticipation({
           </p>
         ) : (
           <p
-            data-tour={kind === 'training' ? 'rsvp-deadline' : undefined}
             className="text-[10px] leading-tight text-gray-400 dark:text-gray-500"
           >
             {tKind('respondBy')}: {formatDate(respondBy)}, {formatTime(respondBy) || formatTime(activityTime)}
@@ -253,7 +251,6 @@ export default function ActivityParticipation({
       {/* Note input */}
       {displayStatus && (
         <div
-          data-tour={kind === 'training' ? 'training-note' : undefined}
           className="relative flex items-center gap-1.5"
           onClick={stopProp ? (e) => e.stopPropagation() : undefined}
         >

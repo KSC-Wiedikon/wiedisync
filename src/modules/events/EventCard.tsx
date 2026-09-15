@@ -126,7 +126,6 @@ export default function EventCard({ event, onClick, onEdit, onDelete, onOpenRost
 
   return (
     <div
-      data-tour="event-card"
       className={`flex items-stretch overflow-hidden rounded-xl border border-gray-200 bg-white shadow-card dark:border-gray-700 dark:bg-gray-800${onClick ? ' cursor-pointer transition-shadow hover:shadow-card-hover' : ''}${event.cancelled ? ' opacity-60' : ''}`}
       onClick={onClick}
       role={onClick ? 'button' : undefined}
@@ -210,7 +209,7 @@ export default function EventCard({ event, onClick, onEdit, onDelete, onOpenRost
 
       {/* Bottom row: RSVP + participation bars */}
       {canRSVP && !event.cancelled && (
-        <div data-tour="event-rsvp" className="mt-2.5 space-y-1.5" onClick={(e) => e.stopPropagation()}>
+        <div className="mt-2.5 space-y-1.5" onClick={(e) => e.stopPropagation()}>
           <div className="flex flex-wrap items-end justify-between gap-2">
             {event.participation_mode && event.participation_mode !== 'whole' ? (
               <EventCardSessionParticipation
@@ -387,14 +386,14 @@ function EventCardParticipation({ event, existingParticipation, onSaved, onStatu
         </p>
       )}
       {event.respond_by && !deadlinePassed && (
-        <p data-tour="event-respond-by" className="text-[10px] leading-tight text-gray-400 dark:text-gray-500">
+        <p className="text-[10px] leading-tight text-gray-400 dark:text-gray-500">
           {t('respondBy', { ns: 'events' })}: {formatDate(event.respond_by)}, {formatTime(event.respond_by) || (event.start_date ? formatTime(event.start_date) : '')}
         </p>
       )}
 
       {/* Note input — always visible once a status is set; required for declined/tentative when event.require_note_if_absent is on */}
       {displayStatus && (
-        <div data-tour="event-note" className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5">
           <MessageSquare className="h-3.5 w-3.5 shrink-0 text-gray-400" />
           <input
             ref={noteInputRef}

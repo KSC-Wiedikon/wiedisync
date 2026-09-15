@@ -235,10 +235,10 @@ export default {
   leaveTeamError: 'S Team het nöd chöne verla werde. Bitte probiers nomal.',
   teamRequestSent: 'Aafrag gschickt',
 
-  // Bueße
-  outstandingFines: 'Offeni Bueße: {{amount}}',
-  outstandingFinesCount_one: '{{count}} offeni Bueß',
-  outstandingFinesCount_other: '{{count}} offeni Bueße',
+  // Buesse
+  outstandingFines: 'Offeni Buesse: {{amount}}',
+  outstandingFinesCount_one: '{{count}} offeni Buess',
+  outstandingFinesCount_other: '{{count}} offeni Buesse',
 
   // Danger Zone
   dangerZone: 'Gfahrezone',

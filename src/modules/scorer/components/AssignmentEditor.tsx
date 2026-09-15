@@ -214,7 +214,6 @@ export default function AssignmentEditor({
               </div>
               {personValue && onDelegate && !disabled && (
                 <button
-                  data-tour="delegation"
                   onClick={onDelegate}
                   className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg border border-brand-300 bg-brand-50 px-2 text-brand-700 transition-colors hover:bg-brand-100 dark:border-brand-500 dark:bg-brand-900/40 dark:text-brand-200 dark:hover:bg-brand-800"
                   title={t('delegate')}
@@ -244,7 +243,6 @@ export default function AssignmentEditor({
               </span>
               {isCurrentUserAssigned && onDelegate && (
                 <button
-                  data-tour="delegate-duty"
                   onClick={onDelegate}
                   className="flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-lg bg-brand-500 px-3 py-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-brand-600 dark:bg-brand-500 dark:hover:bg-brand-400"
                 >
