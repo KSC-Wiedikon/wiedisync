@@ -57,6 +57,12 @@ allowlists = [
 
 # Lockfiles, vendored deps and build output are noise, not history worth purging.
 [allowlist]
+# Season-health check registry: every entry is `key: 'tr_expected_missing_28d'`,
+# which the stock generic-api-key rule reads as a credential (2026-09-15).
+regexTarget = "line"
+regexes = [
+  '''^\s*key: '[a-z][a-z0-9_]+',\s*$''',
+]
 paths = [
   '''(^|/)node_modules/''',
   '''(^|/)vendor/''',

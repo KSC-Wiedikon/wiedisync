@@ -79,6 +79,7 @@ import { registerFinanceLedger } from './finance-ledger.js'
 import { registerDeleteImpact } from './delete-impact.js'
 import { registerRetention } from './retention.js'
 import { registerEmailAccounts } from './email-accounts.js'
+import { registerSeasonHealth } from './season-health.js'
 
 // ── Helpers ──────────────────────────────────────────────────────
 
@@ -2845,6 +2846,7 @@ export default {
     registerVmTeamAssign(router, ctx)
     registerMigrationsStatus(router, ctx)
     registerSyncStatus(router, ctx)
+    registerSeasonHealth(router, ctx)
     registerHallenfinder(router, ctx)
     registerAudit(router, ctx)
     registerOpnform(router, ctx)

@@ -51,6 +51,7 @@ export default {
   impressum: 'Impressum',
   infraHealth: 'Infrastruktur',
   dataHealth: 'Datequalität',
+  seasonHealth: 'Saisongsundheit',
   clubdeskSync: 'ClubDesk-Sync',
   auditLog: 'Audit Log',
   households: 'Haushalt',

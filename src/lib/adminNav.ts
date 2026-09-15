@@ -2,7 +2,7 @@ import type { ComponentType } from 'react'
 import {
   Building2, CalendarClock, ClipboardList, Gavel, Banknote, UserPlus, ArrowRightLeft,
   Megaphone, MessageSquare, Mail, MailOpen, KeyRound, Database, BarChart3,
-  Activity, HeartPulse, Bug, ScrollText, FileWarning, Terminal, Users, CloudUpload,
+  Activity, HeartPulse, Bug, ScrollText, FileWarning, Terminal, Users, CloudUpload, Stethoscope,
 } from 'lucide-react'
 
 /**
@@ -129,6 +129,9 @@ export function buildSuperadminItems(isSuperAdmin: boolean): AdminNavEntry[] {
     { to: '/admin/infra', labelKey: 'infraHealth', icon: Activity, access: 'superadmin' },
     // ClubDesk sync merged into Data health (2026-08-13) — one destination.
     { to: '/admin/data-health', labelKey: 'dataHealth', icon: HeartPulse, access: 'superadmin' },
+    // Season health (2026-09-15) — whole-season diagnostic: players, licences,
+    // staff, dues, games, duties, RSVPs, trainings, events as row lists.
+    { to: '/admin/season-health', labelKey: 'seasonHealth', icon: Stethoscope, access: 'superadmin' },
     // Households (migration 348) — superadmin only. A household link is
     // privilege-bearing (it lets one login write another member's record), so
     // it sits with the superadmin tools, not the sport-admin ones.
