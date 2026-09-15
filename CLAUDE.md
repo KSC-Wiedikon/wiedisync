@@ -142,7 +142,7 @@ See `INFRA.md → Domains & Hosting Overview` for full map.
 - If the same area of code gets multiple commits in a single day chasing the same root cause, **collapse into one entry** before the day ends. Iterative debugging notes belong in git, not the in-app changelog.
 
 ## Recent dev log
-- **2026-09-15** VolleyManager team rosters — 57 players assigned from `member_teams` via the browser's `assignPlayersToTeam` flow; `/admin/vm-teams` + `POST /kscw/admin/vm-team-assign` for the late licences (no migration, dev; prod pending)
+- **2026-09-15** VolleyManager team rosters — 57 players assigned from `member_teams` via the browser's `assignPlayersToTeam` flow; `/admin/vm-teams` + `POST /kscw/admin/vm-team-assign` for the late licences (no migration, dev+prod, v2.14.0)
 - **2026-09-15** Database roster-season filter — team groups list the current season by default, past seasons toggleable in Filters; archived squads labelled `D2 (2025/26)` (frontend only, dev+prod via cherry-pick)
 - **2026-09-15** Member finance / Team finance nav split, `/finance/team`, referee fees derived into member + team views, Home nudge for coaches/TRs, season-end referee payout run (migrations 362 + 363, dev+prod, v2.12.0)
 - **2026-09-15** Guided tours deleted → written, searchable, role-aware in-app guide (40 sections × 5 locales, lazy per-locale chunks, `?` opens a slide-over) (frontend only, v2.13.0)
