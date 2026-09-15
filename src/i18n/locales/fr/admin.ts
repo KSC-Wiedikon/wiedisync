@@ -1310,7 +1310,7 @@ export default {
   clubdeskCoachTitle: 'Entraîneur·e sans groupe d\'entraîneurs',
   clubdeskCoachHint: 'Ces membres entraînent une équipe mais ne figurent pas dans le groupe ClubDesk « (Trainer*in) » de cette équipe. (ClubDesk ne connaît aucun rôle pour les responsables d\'équipe, les TR ne sont donc pas vérifiés.)',
   clubdeskFeeTitle: 'Facturé comme joueur, mais dans aucun effectif',
-  clubdeskFeeHint: 'Ces membres paient une cotisation de joueur mais ne figurent dans aucun effectif cette saison — ils sont donc facturés pour jouer, sans équipe. Vérifie la catégorie de cotisation ou ajoute-les à un effectif.',
+  clubdeskFeeHint: 'Ces membres paient une cotisation de joueur mais ne figurent dans aucun effectif cette saison — ils sont donc facturés pour jouer, sans équipe. Vérifie la catégorie de cotisation ou ajoute-les à un effectif. Les invités ne figurent pas ici : ils paient le tarif invité pour l\'équipe avec laquelle ils s\'entraînent.',
   clubdeskFeeNeverCount: '{{count}} jamais dans un effectif',
   clubdeskFeeSevNever: 'Jamais dans un effectif',
   clubdeskFeeSevLapsed: 'A joué la saison passée',
