@@ -195,9 +195,14 @@ export default function ClubdeskNeedsSync({
             <CardDescription>
               {t('cdNeedsSyncDescription')}
               {' '}
+              {/* One nowrap span per timestamp, not one around both: a date must
+                  never split across lines, but the pair together is wider than a
+                  phone and clipped the description at the card edge. */}
               <span className="whitespace-nowrap">
                 {t('cdNeedsSyncLastDown', { time: lastDown ? formatDateZurich(lastDown) : '—' })}
-                {' · '}
+              </span>
+              {' · '}
+              <span className="whitespace-nowrap">
                 {t('cdNeedsSyncLastUp', { time: lastUp ? formatDateZurich(lastUp) : '—' })}
               </span>
             </CardDescription>
@@ -246,7 +251,7 @@ export default function ClubdeskNeedsSync({
                 like, states the explanation once, and gives the table its width
                 back. */}
             <Tabs value={activeTab} onValueChange={setStatusTab}>
-              <TabsList className="mb-2 flex-wrap">
+              <TabsList className="mb-2 w-full flex-wrap justify-start group-data-[orientation=horizontal]/tabs:h-auto">
                 <TabsTrigger value="all" className="min-h-11 sm:min-h-0">
                   {t('cdSyncTabAll', { count: rows.length })}
                 </TabsTrigger>
