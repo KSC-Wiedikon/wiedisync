@@ -234,7 +234,7 @@ export default function TeamFinancePage() {
                           <TableHead className={thCls}>{t('colDate')}</TableHead>
                           <TableHead className={thCls}>{t('colGame')}</TableHead>
                           <TableHead className={`text-right ${thCls}`}>{t('colAmount')}</TableHead>
-                          {data.can_record_referee && <TableHead className={thCls}><span className="sr-only">{t('refereeRecord')}</span></TableHead>}
+                          {data.can_record_referee && <TableHead className={`w-px ${thCls}`}><span className="sr-only">{t('refereeRecord')}</span></TableHead>}
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -248,7 +248,7 @@ export default function TeamFinancePage() {
                               className={`min-h-[44px] border-gray-200 dark:border-gray-700 ${editable ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/40' : ''}`}
                               onClick={editable ? () => toggleGame(g) : undefined}
                             >
-                              <TableCell className="whitespace-nowrap align-top text-xs text-gray-500 dark:text-gray-400">
+                              <TableCell className="whitespace-nowrap align-middle text-xs text-gray-500 dark:text-gray-400">
                                 {g.date ? formatDateCompactZurich(g.date) : '–'}
                               </TableCell>
                               <TableCell className="whitespace-normal break-words text-gray-900 dark:text-gray-100">
@@ -264,11 +264,11 @@ export default function TeamFinancePage() {
                                   )}
                                 </span>
                               </TableCell>
-                              <TableCell className="text-right align-top tabular-nums text-gray-700 dark:text-gray-300">
-                                {fee ? formatChf(toNum(fee.amount)) : '–'}
+                              <TableCell className="whitespace-nowrap text-right align-middle tabular-nums text-gray-700 dark:text-gray-300">
+                                {fee ? formatChf(toNum(fee.amount)) : <span className="text-gray-400 dark:text-gray-500">–</span>}
                               </TableCell>
                               {data.can_record_referee && (
-                                <TableCell className="text-right align-top">
+                                <TableCell className="w-px whitespace-nowrap pl-2 text-right align-middle">
                                   {editable && (
                                     <button
                                       type="button"
