@@ -394,6 +394,10 @@ export default {
   teamFinanceNoFiscalYear: 'Für diese Saison gibt es noch kein Geschäftsjahr – Buchungen und Rechnungen erscheinen, sobald die Finanzen es eröffnen.',
   teamFinanceFinesLink: 'Teambussen anzeigen',
   teamFinanceRecordHint: 'Schiedsrichterspesen werden nach jedem Heimspiel in den Spieldetails erfasst.',
+  teamFinanceRefereeTitle: 'Schiedsrichterspesen pro Heimspiel',
+  refereeRecord: 'Erfassen',
+  refereeEdit: 'Bearbeiten',
+  refereeNotRecorded: 'Noch nicht erfasst',
   teamKindReferee: 'Schiedsrichterspesen',
   refereePaidBy: 'Bezahlt von {{name}}',
 

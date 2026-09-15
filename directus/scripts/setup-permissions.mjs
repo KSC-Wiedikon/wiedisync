@@ -1514,8 +1514,9 @@ async function main() {
     'hall_slots', 'hall_closures', 'hall_events', 'halls', 'hall_slots_teams',
     'news', 'app_settings',
     // ⚠ `polls` was here until 2026-08-10 — see the team-scoped grant further
-    // down. `referee_expenses` stays: amount + notes, no PII.
-    'referee_expenses',
+    // down. ⚠ `referee_expenses` left this list on 2026-09-15: who paid how
+    // much for which game is a member's finances, not directory data — the
+    // scoped grants live beside the other finance reads below.
     // Junctions
     'teams_coaches', 'teams_responsibles', 'teams_sponsors', 'events_teams', 'events_members',
   ]
@@ -2039,6 +2040,11 @@ async function main() {
   await setPermRead(MEMBER_POLICY, 'finance_invoices', { member: { user: { _eq: '$CURRENT_USER' } } }, MEMBER_INVOICE_FIELDS)
   // Pay-outs / reimbursements the club owes this member (migration 137) — own only.
   await setPermRead(MEMBER_POLICY, 'finance_payouts', OWN_MEMBER)
+  // Referee fees a member paid out of pocket — own rows only. The member-facing
+  // lists (Bills page, Team finance page) are served by /kscw/finance/* on the
+  // system connection, so this grant exists for the row's own payer alone;
+  // coaches/TRs get their teams' rows in the LEADER block, oversight roles below.
+  await setPermRead(MEMBER_POLICY, 'referee_expenses', { paid_by_member: { user: { _eq: '$CURRENT_USER' } } })
   // Expense submissions (migration 177) — own only, read-only; the member writes
   // via POST /kscw/expenses/submit, status changes via PATCH /kscw/expenses/:id
   // (finance-gated), never the items API. Field-scoped like finance_invoices so
@@ -2553,6 +2559,12 @@ async function main() {
   // Paid-out rows are frozen (`payout IS NULL`, migration 363): once the
   // season-end run has reimbursed a fee it backs a finance_payouts record,
   // and only finance may touch it.
+  // Read: own rows plus every row of a team I coach / am TR for — the game
+  // modal's section, the Home nudge and the Team finance recorder all read by
+  // game for the leader's own teams.
+  await setPermRead(LEADER_POLICY, 'referee_expenses', {
+    _or: [{ paid_by_member: { user: { _eq: '$CURRENT_USER' } } }, TEAM_FK_I_LEAD],
+  })
   await setPerm(LEADER_POLICY, 'referee_expenses', 'create')
   await setPerm(LEADER_POLICY, 'referee_expenses', 'update', REFEREE_EXPENSE_I_LEAD_UNPAID)
 
@@ -2792,6 +2804,9 @@ async function main() {
     'announcement_recipients',
     // Fines (migration 069) — Vorstand sees club-wide for oversight.
     'fines', 'fine_rules',
+    // Referee fees — club-wide read for oversight (/admin/referee-expenses, the
+    // explorer's member detail); writes stay with coaches/TRs and sport admins.
+    'referee_expenses',
     // Scheduling blocks (migration 085) — club-wide read for oversight.
     'scheduling_blocks',
     // Finance (migration 114) — board gets the full finance dashboard:
@@ -3176,6 +3191,9 @@ async function main() {
   await setPermRead(FINANCE_POLICY, 'directus_files', { folder: { _eq: FINANCE_INVOICE_FOLDER } })
   // Member pay-outs / reimbursements (migration 137) — finance creates/deletes.
   await setPermCRUD(FINANCE_POLICY, 'finance_payouts')
+  // Referee fees — read for the season-end payout preview + explorer; the run
+  // itself writes on the system connection (/kscw/finance/referee-payout-run).
+  await setPermRead(FINANCE_POLICY, 'referee_expenses')
 
   console.log(`  ✓ Finance permissions set`)
 

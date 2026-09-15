@@ -570,6 +570,31 @@ export function registerFinance(router, { database, logger, services, getSchema 
         .where({ team: teamId, status: 'open' }).whereNull('member')
         .sum({ total: 'amount' }).first()
 
+      // The season's volleyball home games — the page lets the team's staff
+      // record a referee fee per game right here (same editor as the game
+      // modal). Same gate as that modal: home, an opponent, not called off.
+      const isVolleyball = String(team.sport || '').trim().toLowerCase() === 'volleyball'
+      const homeGames = isVolleyball
+        ? await database('games')
+          .where({ kscw_team: teamId, type: 'home', season })
+          .whereNotNull('away_team')
+          .where((qb) => qb.whereNull('status').orWhereNotIn('status', ['cancelled', 'postponed']))
+          .orderBy([{ column: 'date', order: 'desc' }, { column: 'time', order: 'desc' }])
+          .select('id', database.raw('date::text as date'), database.raw('time::text as time'), 'home_team', 'away_team', 'league', 'status')
+        : []
+      // Who may write a fee from this page = who the items-API policy lets
+      // write referee_expenses: coach/TR of THIS team (LEADER), the sport's
+      // admin, or a Directus admin. Captains lead a team for bills but hold no
+      // referee_expenses grant, and finance reads only — so neither gets it.
+      let canRecordReferee = !!req.accountability?.admin || isSportAdminFor(mem, team.sport)
+      if (!canRecordReferee) {
+        const [asCoach, asTr] = await Promise.all([
+          database('teams_coaches').where({ teams_id: teamId, members_id: mem.id }).first('id'),
+          database('teams_responsibles').where({ teams_id: teamId, members_id: mem.id }).first('id'),
+        ])
+        canRecordReferee = !!asCoach || !!asTr
+      }
+
       return res.json({
         team: { id: team.id, name: team.name, sport: team.sport ?? null },
         season,
@@ -577,8 +602,10 @@ export function registerFinance(router, { database, logger, services, getSchema 
         entries,
         invoices,
         referee_expenses: refereeExpenses,
+        home_games: homeGames,
         totals: teamTotals({ entries, invoices, refereeExpenses, teamFinesOpen: finesRow?.total }),
         can_pay: canManageFinance(req, mem) || led.includes(teamId),
+        can_record_referee: canRecordReferee,
       })
     } catch (e) { return err(res, req, 'team', e) }
   })
