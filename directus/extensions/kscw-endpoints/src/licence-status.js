@@ -165,7 +165,11 @@ export async function runLicenceStatusSweep(database, log, { dryRun = false, act
               WHERE nullif(btrim(b.licence_nr), '') IS NOT NULL
                 AND b.scraped_at >= make_date(EXTRACT(YEAR FROM public.kscw_current_season_start())::int, 6, 1)::timestamptz
                 AND (
-                  nullif(btrim(b.licence_nr), '') = nullif(btrim(coalesce(m.license_nr, '')), '')
+                  -- Basketplan prints six zero-padded digits ('038121'), ClubDesk
+                  -- does not ('38121'): compare with the zeros stripped on both
+                  -- sides, still as text (2026-09-15 — 5 licensed Seniors were
+                  -- never promoted).
+                  nullif(ltrim(btrim(b.licence_nr), '0'), '') = nullif(ltrim(btrim(coalesce(m.license_nr, '')), '0'), '')
                   OR (lower(btrim(b.last_name))  = lower(btrim(m.last_name))
                   AND lower(btrim(b.first_name)) = lower(btrim(m.first_name))
                   AND b.birthdate = m.birthdate)
