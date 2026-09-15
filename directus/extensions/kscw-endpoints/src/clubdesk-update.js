@@ -4514,8 +4514,16 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
     ORDER BY e.last_name, e.first_name, e.grp`
 
   // fee_no_roster — pays a PLAYING Beitragskategorie but sits on no
-  // current-season roster (guest rows don't count). Severity is derived from
-  // roster history so the admin can triage instead of facing one flat list:
+  // current-season roster. A GUEST row counts as a roster here (2026-09-15):
+  // a guest on an active team is billed the guest rate for exactly that team
+  // (deriveMitgliederbeitrag isGuest — base − CHF 110, Gast = Ja), so the
+  // category label alone does not make them "billed as a player". Until then
+  // guest rows were ignored and every deliberate guest (Nico Fortino, H3, from
+  // a registration with Rolle = Guest) sat here as "never", which reads as a
+  // data fault about a person whose fee is right. `last_season` still looks
+  // at CORE rows only — it is roster history, not the exemption.
+  // Severity is derived from roster history so the admin can triage instead
+  // of facing one flat list:
   //   never   — never on ANY roster (strongest signal)
   //   lapsed  — was on last season's roster, not this one (left / not yet assigned)
   //   older   — only has roster rows from an earlier season
@@ -4537,7 +4545,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       AND BTRIM(COALESCE(m.beitragskategorie, '')) <> ALL (:nonPlaying)
       AND NOT EXISTS (
         SELECT 1 FROM member_teams mt JOIN teams t2 ON t2.id = mt.team
-        WHERE mt.member = m.id AND t2.active AND COALESCE(mt.guest_level, 0) = 0
+        WHERE mt.member = m.id AND t2.active
       )
     ORDER BY m.last_name, m.first_name`
 

@@ -1309,7 +1309,7 @@ export default {
   clubdeskCoachTitle: 'Allenatore senza gruppo allenatori',
   clubdeskCoachHint: 'Questi membri allenano una squadra ma non sono nel gruppo ClubDesk «(Trainer*in)» di quella squadra. (ClubDesk non ha un ruolo per i responsabili di squadra, quindi i TR non vengono controllati.)',
   clubdeskFeeTitle: 'Fatturato come giocatore, ma in nessuna rosa',
-  clubdeskFeeHint: 'Questi membri pagano una quota da giocatore ma questa stagione non sono in nessuna rosa — vengono quindi fatturati per giocare senza avere una squadra. Controlla la categoria di quota oppure aggiungili a una rosa.',
+  clubdeskFeeHint: 'Questi membri pagano una quota da giocatore ma questa stagione non sono in nessuna rosa — vengono quindi fatturati per giocare senza avere una squadra. Controlla la categoria di quota oppure aggiungili a una rosa. Gli ospiti non compaiono qui: pagano la tariffa ospite per la squadra con cui si allenano.',
   clubdeskFeeNeverCount: '{{count}} mai in rosa',
   clubdeskFeeSevNever: 'Mai in rosa',
   clubdeskFeeSevLapsed: 'Ha giocato la scorsa stagione',

@@ -40,8 +40,12 @@ function getTodayDayIndex(): number {
 export default function HallenplanPage() {
   const { t } = useTranslation('hallenplan')
   const navigate = useNavigate()
-  const { isCoach, coachTeamIds, hasAdminAccessToTeam, hasAdminAccessToSport } = useAuth()
-  const { effectiveIsAdmin } = useAdminMode()
+  const { coachTeamIds, hasAdminAccessToTeam, hasAdminAccessToSport } = useAuth()
+  // ⚠ effectiveIsCoach, not useAuth().isCoach — that one is
+  // `coachTeamIds.length > 0 || isGlobalAdmin`, mode-blind, so an admin with
+  // the toggle OFF could still claim freed slots and open the editor from an
+  // empty cell (2026-09-15). Real coaches/TRs are unaffected.
+  const { effectiveIsAdmin, effectiveIsCoach: isCoach } = useAdminMode()
   const isMobile = useIsMobile()
   const { weekDays, goNext, goPrev, goToday, weekLabel, mondayStr, sundayStr } = useWeekNavigation()
 

@@ -612,7 +612,7 @@ export default {
   clubdeskCoachTitle: 'Trainer*in ohne Trainer-Gruppe',
   clubdeskCoachHint: 'Diese Mitglieder trainieren ein Team, sind aber nicht in dessen ClubDesk-Gruppe „(Trainer*in)“. (ClubDesk kennt keine Rolle für Teamverantwortliche, daher werden TR nicht geprüft.)',
   clubdeskFeeTitle: 'Zahlt Spielerbeitrag, steht in keinem Kader',
-  clubdeskFeeHint: 'Diese Mitglieder zahlen einen Spielerbeitrag, stehen diese Saison aber in keinem Kader — sie werden also fürs Spielen verrechnet, ohne Team. Beitragskategorie prüfen oder ins Kader aufnehmen.',
+  clubdeskFeeHint: 'Diese Mitglieder zahlen einen Spielerbeitrag, stehen diese Saison aber in keinem Kader — sie werden also fürs Spielen verrechnet, ohne Team. Beitragskategorie prüfen oder ins Kader aufnehmen. Gäste erscheinen hier nicht: sie zahlen den Gasttarif für das Team, mit dem sie trainieren.',
   clubdeskFeeNeverCount: '{{count}} nie im Kader',
   clubdeskFeeSevNever: 'Nie im Kader',
   clubdeskFeeSevLapsed: 'Letzte Saison gespielt',

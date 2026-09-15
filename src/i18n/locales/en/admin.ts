@@ -612,7 +612,7 @@ export default {
   clubdeskCoachTitle: 'Coach without a coach group',
   clubdeskCoachHint: 'These members coach a team but are not in that team’s ClubDesk “(Trainer*in)” group. (ClubDesk has no role for team responsible, so TRs are not checked.)',
   clubdeskFeeTitle: 'Billed as a player, but on no roster',
-  clubdeskFeeHint: 'These members pay a playing fee but are on no roster this season — so they are billed to play while on no team. Check the fee category, or add them to a roster.',
+  clubdeskFeeHint: 'These members pay a playing fee but are on no roster this season — so they are billed to play while on no team. Check the fee category, or add them to a roster. Guests are not listed: they are billed the guest rate for the team they train with.',
   clubdeskFeeNeverCount: '{{count}} never rostered',
   clubdeskFeeSevNever: 'Never rostered',
   clubdeskFeeSevLapsed: 'Played last season',

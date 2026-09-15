@@ -70,11 +70,11 @@ function buildTeamFilter(teamPbIds: string[], guestGameIds: string[] = []): Reco
 export default function GamesPage() {
   const { t } = useTranslation('games')
   const { t: tc } = useTranslation('common')
-  const { user, memberTeamIds, memberTeamNames, coachTeamIds, coachTeamNames, isCoach, primarySport, teamsLoading } = useAuth()
+  const { user, memberTeamIds, memberTeamNames, coachTeamIds, coachTeamNames, primarySport, teamsLoading } = useAuth()
   // Merge member + coach teams for visibility (coaches see teams they manage)
   const allUserTeamIds = useMemo(() => [...new Set([...memberTeamIds, ...coachTeamIds])], [memberTeamIds, coachTeamIds])
   const allUserTeamNames = useMemo(() => [...new Set([...memberTeamNames, ...coachTeamNames])], [memberTeamNames, coachTeamNames])
-  const { effectiveIsAdmin, effectiveIsVorstand } = useAdminMode()
+  const { effectiveIsAdmin, effectiveIsVorstand, effectiveIsCoach } = useAdminMode()
   const { sport, setSport } = useSportPreference()
   const showSportToggle = !teamsLoading && (effectiveIsAdmin || effectiveIsVorstand || !user || primarySport === 'both')
   const [searchParams] = useSearchParams()
@@ -170,9 +170,12 @@ export default function GamesPage() {
 
   const visibleTabs = useMemo<TabKey[]>(() => {
     const base: TabKey[] = ['upcoming', 'results', 'rankings', 'scoreboard']
-    if (isCoach || effectiveIsAdmin) base.push('dashboard')
+    // ⚠ effectiveIsCoach, not useAuth().isCoach: that one folds isGlobalAdmin
+    // in mode-blind, so an admin with the toggle OFF got the coach Dashboard
+    // tab and the `effectiveIsAdmin` half here was dead code (2026-09-15).
+    if (effectiveIsCoach || effectiveIsAdmin) base.push('dashboard')
     return base
-  }, [isCoach, effectiveIsAdmin])
+  }, [effectiveIsCoach, effectiveIsAdmin])
 
   // Preserve the user's multi-select while they're on the dashboard tab,
   // so switching back to upcoming/results restores it. Snapshot when entering
