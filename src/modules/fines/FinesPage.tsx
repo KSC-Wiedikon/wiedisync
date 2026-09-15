@@ -47,9 +47,13 @@ function categoryLabelKey(c: string): string {
 
 export default function FinesPage() {
   const { t } = useTranslation(['fines', 'common'])
-  const { user, isCoach, coachTeamIds, memberTeamIds } = useAuth()
-  const { effectiveIsAdmin, effectiveIsVorstand } = useAdminMode()
-  const isLeader = isCoach || effectiveIsAdmin || effectiveIsVorstand
+  const { user, coachTeamIds, memberTeamIds } = useAuth()
+  const { effectiveIsAdmin, effectiveIsVorstand, effectiveIsCoach } = useAdminMode()
+  // ⚠ Not `useAuth().isCoach` — that one is `coachTeamIds.length > 0 ||
+  // isGlobalAdmin`, mode-blind, so a global admin with the toggle OFF still got
+  // the "Issue fine" button and the team-first default (2026-09-15).
+  // effectiveIsCoach is the real coach/TR check plus admin ONLY in admin mode.
+  const isLeader = effectiveIsCoach || effectiveIsAdmin || effectiveIsVorstand
   const isBoard = effectiveIsAdmin || effectiveIsVorstand
 
   // The scope lives in the URL (`?scope=mine|team`) so the home card and the
