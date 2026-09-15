@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-09-13T20:45:48.595Z
+-- Generated:   2026-09-14T22:50:46.324Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -29,7 +29,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict rgxKNY9UsDYMgnm36o75LeoQeE9IH55fPTYAT4qFY9jgXTk9gFOCTTUwmVbTxxj
+\restrict tnkBkH8sOc0V3uuLZKYuEIb6BDeQ3JjApEfBy34dvUrvmrKDvFy8IgSRK5daxSq
 
 -- Dumped from database version 16.15 (Debian 16.15-1.pgdg13+2)
 -- Dumped by pg_dump version 16.15 (Debian 16.15-1.pgdg13+2)
@@ -707,10 +707,10 @@ $$;
 
 
 --
--- Name: kscw_compute_fine_amount(integer, integer, text); Type: FUNCTION; Schema: public; Owner: -
+-- Name: kscw_compute_fine_amount(integer, integer, text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.kscw_compute_fine_amount(p_member integer, p_team integer, p_category text) RETURNS TABLE(amount numeric, tier_offense integer, reset_window_at_issue text)
+CREATE FUNCTION public.kscw_compute_fine_amount(p_member integer, p_team integer, p_category text, p_activity_type text DEFAULT NULL::text) RETURNS TABLE(amount numeric, tier_offense integer, reset_window_at_issue text)
     LANGUAGE plpgsql STABLE
     SET search_path TO 'public'
     AS $$
@@ -722,12 +722,15 @@ DECLARE
   v_tier          jsonb;
   v_amount        numeric;
 BEGIN
-  -- 1. Load the rule. No enabled rule → no rows returned.
+  -- 1. Load the most specific enabled rule: the override for this activity
+  --    type first, the general rule otherwise. No enabled rule → no rows.
   SELECT * INTO v_rule
   FROM fine_rules
   WHERE team = p_team
     AND category = p_category
     AND enabled = true
+    AND (activity_type IS NULL OR activity_type = p_activity_type)
+  ORDER BY (activity_type IS NOT NULL) DESC
   LIMIT 1;
   IF NOT FOUND THEN
     RETURN;
@@ -736,14 +739,37 @@ BEGIN
   -- 2. Window start.
   v_window_start := kscw_fine_window_start(v_rule.reset_window, now());
 
-  -- 3. Count prior non-waived fines in window.
-  SELECT COUNT(*)::int INTO v_prior_count
-  FROM fines
-  WHERE member = p_member
-    AND team = p_team
-    AND category = p_category
-    AND status <> 'waived'
-    AND issued_at >= v_window_start;
+  -- 3. Count prior non-waived fines in window — scoped to the rule:
+  --    an override counts only its own activity type; the general rule
+  --    counts everything no enabled override claims.
+  IF v_rule.activity_type IS NOT NULL THEN
+    SELECT COUNT(*)::int INTO v_prior_count
+    FROM fines
+    WHERE member = p_member
+      AND team = p_team
+      AND category = p_category
+      AND status <> 'waived'
+      AND issued_at >= v_window_start
+      AND activity_type = v_rule.activity_type;
+  ELSE
+    SELECT COUNT(*)::int INTO v_prior_count
+    FROM fines f
+    WHERE f.member = p_member
+      AND f.team = p_team
+      AND f.category = p_category
+      AND f.status <> 'waived'
+      AND f.issued_at >= v_window_start
+      AND (
+        f.activity_type IS NULL
+        OR NOT EXISTS (
+          SELECT 1 FROM fine_rules o
+          WHERE o.team = p_team
+            AND o.category = p_category
+            AND o.enabled = true
+            AND o.activity_type = f.activity_type
+        )
+      );
+  END IF;
   v_offense_no := v_prior_count + 1;
 
   -- 4. Tier lookup.
@@ -800,10 +826,10 @@ $$;
 
 
 --
--- Name: FUNCTION kscw_compute_fine_amount(p_member integer, p_team integer, p_category text); Type: COMMENT; Schema: public; Owner: -
+-- Name: FUNCTION kscw_compute_fine_amount(p_member integer, p_team integer, p_category text, p_activity_type text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.kscw_compute_fine_amount(p_member integer, p_team integer, p_category text) IS 'Escalation engine. Counts prior non-waived fines in the rule''s reset window, then picks the matching tier: exact offense first, then highest offense_min ≤ N, then last tier as fallback. Returns no rows if no enabled rule or empty tiers — caller must handle.';
+COMMENT ON FUNCTION public.kscw_compute_fine_amount(p_member integer, p_team integer, p_category text, p_activity_type text) IS 'Escalation engine. Picks the enabled fine_rules row for (team, category) — the activity_type override when one exists and is enabled, else the general (NULL) rule — counts the member''s prior non-waived fines in that rule''s window and scope, and returns the tier amount for the next offense. No rows when no enabled rule or no usable tier. Mirrored by computeFineAmount() in src/hooks/useFines.ts.';
 
 
 --
@@ -6173,6 +6199,8 @@ CREATE TABLE public.fine_rules (
     user_created uuid,
     user_updated uuid,
     updated_by integer,
+    activity_type character varying(16),
+    CONSTRAINT fine_rules_activity_type_check CHECK (((activity_type IS NULL) OR ((activity_type)::text = ANY ((ARRAY['training'::character varying, 'game'::character varying, 'event'::character varying])::text[])))),
     CONSTRAINT fine_rules_category_check CHECK (((category)::text = ANY (ARRAY[('late_signin'::character varying)::text, ('no_show'::character varying)::text, ('late_payment'::character varying)::text, ('custom'::character varying)::text]))),
     CONSTRAINT fine_rules_reset_window_check CHECK (((reset_window)::text = ANY (ARRAY[('calendar_month'::character varying)::text, ('rolling_30d'::character varying)::text, ('rolling_90d'::character varying)::text, ('season'::character varying)::text, ('never'::character varying)::text])))
 );
@@ -6182,7 +6210,7 @@ CREATE TABLE public.fine_rules (
 -- Name: TABLE fine_rules; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.fine_rules IS 'Per-team×category fine config: escalation tiers + reset window. Read by useFineQuote on the frontend and by kscw_compute_fine_amount() in the backend hook. One row per (team,category) — UNIQUE enforced.';
+COMMENT ON TABLE public.fine_rules IS 'Per-team×category fine config: escalation tiers + reset window. activity_type NULL is the general rule; training/game/event rows are per-type overrides (migration 361). Read by useFineQuote on the frontend and by kscw_compute_fine_amount() in the backend hook. One row per (team, category, activity_type) — unique index enforced.';
 
 
 --
@@ -6197,6 +6225,13 @@ COMMENT ON COLUMN public.fine_rules.reset_window IS 'When the offense counter re
 --
 
 COMMENT ON COLUMN public.fine_rules.tiers IS 'jsonb array of escalation tiers. Each entry: {offense:N, amount:X} for an exact match, or {offense_min:N, amount:X} for the last "Nth and beyond" entry. Lookup order in kscw_compute_fine_amount: exact offense match, then highest offense_min ≤ current offense, then last tier as fallback.';
+
+
+--
+-- Name: COLUMN fine_rules.activity_type; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.fine_rules.activity_type IS 'NULL = the category''s general rule (covers every activity type without its own override, and activity-less fines). training/game/event = an override for that type only. The engine prefers an ENABLED override over the general rule; a disabled override falls back to the general one.';
 
 
 --
@@ -12289,14 +12324,6 @@ ALTER TABLE ONLY public.fine_rules
 
 
 --
--- Name: fine_rules fine_rules_team_category_unique; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.fine_rules
-    ADD CONSTRAINT fine_rules_team_category_unique UNIQUE (team, category);
-
-
---
 -- Name: fines fines_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -13684,6 +13711,13 @@ CREATE UNIQUE INDEX finance_transactions_reversal_of_uq ON public.finance_transa
 --
 
 CREATE UNIQUE INDEX finance_tx_autopost_uidx ON public.finance_transactions USING btree (ref_kind, ref_id) WHERE ((auto = true) AND ((source)::text = 'native'::text));
+
+
+--
+-- Name: fine_rules_team_category_type_uidx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX fine_rules_team_category_type_uidx ON public.fine_rules USING btree (team, category, COALESCE(activity_type, ''::character varying));
 
 
 --
@@ -17642,12 +17676,12 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict rgxKNY9UsDYMgnm36o75LeoQeE9IH55fPTYAT4qFY9jgXTk9gFOCTTUwmVbTxxj
+\unrestrict tnkBkH8sOc0V3uuLZKYuEIb6BDeQ3JjApEfBy34dvUrvmrKDvFy8IgSRK5daxSq
 
 
 
 -- ============================================================================
--- Migration tracker seed — 367 migration(s) already in the schema above.
+-- Migration tracker seed — 368 migration(s) already in the schema above.
 -- GENERATED with the snapshot; do not hand-edit.
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS kscw_migrations (
@@ -18026,6 +18060,7 @@ FROM (VALUES
   ('357-notification-dates-four-digit-year.sql'),
   ('358-registrations-doc-waiver.sql'),
   ('359-slot-hall-drift-and-derby-hall-sets.sql'),
-  ('360-member-dues-paid.sql')
+  ('360-member-dues-paid.sql'),
+  ('361-fine-rules-per-activity-type.sql')
 ) AS v(fname)
 ON CONFLICT (filename) DO NOTHING;

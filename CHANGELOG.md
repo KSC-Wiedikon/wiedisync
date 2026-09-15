@@ -2,6 +2,16 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.10.0 — 2026-09-15
+
+### New
+
+- **Fines can now be priced differently for trainings, games and events.** *Team → Roster editor → Fines.* A team's late sign-in or no-show rule was one ladder for everything, so a missed training deadline cost the same as a missed game deadline. Each of those categories now has a general rule plus, where you want one, an override per activity type — tap Customise next to Trainings, Games or Events and it starts as a copy of the general ladder for you to change. An override counts its own offenses: the first late game is offense #1 on the Games ladder whatever the training history, and it keeps its own reset window. Switch an override off and that type quietly follows the general rule again; remove it and it is gone. The automatic deadline sweep follows the same rules, so a team with only a Games override is swept for games alone.
+
+### Improved
+
+- **The tier editor lines up.** The tier rows are a proper table now — Offense #, Amount, And all higher, remove — instead of rows whose inputs shifted with the width of their label, and the whole thing fits a phone screen, nested overrides included.
+
 ## v2.9.0 — 2026-09-13
 
 ### New
