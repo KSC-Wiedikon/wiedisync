@@ -581,9 +581,12 @@ export interface RefereeExpense extends BaseRecord {
   team: string
   paid_by_member: string
   paid_by_other: string
-  amount: number
+  /** Postgres numeric → Directus returns a string; coerce with toNum(). */
+  amount: number | string | null
   notes: string
   recorded_by: string
+  /** finance_payouts FK once the season-end reimbursement run has settled this row (migration 363). */
+  payout?: number | string | null
 }
 
 
