@@ -824,7 +824,9 @@ export default {
   cdSyncHint_awaiting_link: 'Already created in ClubDesk by the last sync up — the next sync down links the contact back. Do not push again.',
   cdSyncHint_stale: 'The linked ClubDesk contact no longer exists.',
   cdSyncHint_departed: 'Left the club in ClubDesk but still active here.',
-  cdSyncHint_pending: 'Marked for the next sync up.',
+  cdSyncHint_pending: 'Marked for the next sync up. The columns list what it carries — "Already in ClubDesk" means the register already holds that value and the push only clears the flag.',
+  cdSyncPushLanded: 'Already in ClubDesk',
+  cdSyncPushNameNotSynced: 'Never pushed',
   cdSyncHint_drift: 'Both sides hold a different value — no sync resolves this until you decide which wins.',
   cdSyncHint_name_drift: 'Only the name differs — no sync can fix this. Correct it in ClubDesk or here, or check the contact is the right person.',
 

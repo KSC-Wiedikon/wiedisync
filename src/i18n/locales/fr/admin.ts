@@ -1374,7 +1374,9 @@ export default {
   cdSyncHint_awaiting_link: 'Déjà créé dans ClubDesk lors du dernier envoi — la prochaine récupération liera le contact. Ne pas renvoyer.',
   cdSyncHint_stale: 'Le contact ClubDesk lié n\'existe plus.',
   cdSyncHint_departed: 'A quitté le club dans ClubDesk mais reste actif ici.',
-  cdSyncHint_pending: 'Marqué pour le prochain envoi.',
+  cdSyncHint_pending: 'Marqué pour le prochain envoi. Les colonnes montrent ce qu\'il transmet — « Déjà dans ClubDesk » signifie que le registre a déjà cette valeur et que l\'envoi ne fait que lever le marquage.',
+  cdSyncPushLanded: 'Déjà dans ClubDesk',
+  cdSyncPushNameNotSynced: 'Jamais envoyé',
   cdSyncHint_drift: 'Un champ diffère de ClubDesk.',
 
   cdBillNever: 'Jamais facturé',

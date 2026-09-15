@@ -550,23 +550,25 @@ export function registerCell(field, { changed, wiedi, clubdesk, fallback = '' })
 }
 
 /**
- * The fields a member's pending push explicitly names, as a Set.
+ * A member's recorded push change set, as the `[{ field, old_value, new_value }]`
+ * list it is stored as.
  *
  * `clubdesk_push_changes` is jsonb, so knex hands it back already parsed on
  * some paths and as a string on others (raw queries) — both shapes are handled,
- * and anything unparseable degrades to an EMPTY set. Empty is the safe default:
+ * and anything unparseable degrades to an EMPTY list. Empty is the safe default:
  * it means "echo ClubDesk", never "overwrite the register".
  */
-export function changedPushFields(raw) {
+export function pushChangeList(raw) {
   let list = []
   try {
     list = Array.isArray(raw) ? raw : (raw ? JSON.parse(raw) : [])
   } catch { list = [] }
-  return new Set(
-    (Array.isArray(list) ? list : [])
-      .map((c) => (c && typeof c === 'object' ? c.field : null))
-      .filter(Boolean),
-  )
+  return (Array.isArray(list) ? list : []).filter((c) => c && typeof c === 'object')
+}
+
+/** The fields a member's pending push explicitly names, as a Set. */
+export function changedPushFields(raw) {
+  return new Set(pushChangeList(raw).map((c) => c.field).filter(Boolean))
 }
 
 // ⚠⚠ THE WHITELIST IS A SECURITY BOUNDARY, not a convenience. `field` reaches
@@ -2591,7 +2593,12 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
     return /^\d{4}-\d{2}-\d{2}$/.test(iso) ? iso : ''
   }
 
-  async function computeClubdeskDrift(memberIds = null) {
+  // `includeClean`: also return members with NOTHING to report (empty conflicts
+  // and fills), each still carrying `agreed` — the fields both sides hold and
+  // hold equal. The needs-sync board asks this for a `pending` member: a
+  // recorded push change whose field is in `agreed` has already landed in the
+  // register, and the push it is waiting for carries nothing new for it.
+  async function computeClubdeskDrift(memberIds = null, { includeClean = false } = {}) {
     // alias → ISO code, both vocabularies in one map: it is what lets the
     // nationality comparison below ask "same country?" instead of "same
     // spelling?". Loaded once per call; the table is ~small and static.
@@ -2658,9 +2665,14 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       const conflicts = []
       const fills = []
       const blankRisk = []
+      // agreed = both sides non-empty and equal (after the same normalisation
+      // the conflict check uses). Field names only — the caller that wants it
+      // already holds wiedisync's value.
+      const agreed = []
       const cmp = (field, wiediRaw, cdRaw, wiediNorm, cdNorm) => {
         if (wiediNorm && cdNorm) {
           if (wiediNorm !== cdNorm) conflicts.push({ field, wiedisync: driftNorm(wiediRaw), clubdesk: driftNorm(cdRaw) })
+          else agreed.push(field)
         } else if (wiediNorm) {
           fills.push({ field, wiedisync: driftNorm(wiediRaw) })
         } else if (cdNorm) {
@@ -2677,6 +2689,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       const cmpEcho = (field, wRaw, cRaw, wNorm, cNorm) => {
         if (wNorm && cNorm) {
           if (wNorm !== cNorm) conflicts.push({ field, wiedisync: driftNorm(wRaw), clubdesk: driftNorm(cRaw) })
+          else agreed.push(field)
         } else if (wNorm) {
           fills.push({ field, wiedisync: driftNorm(wRaw) })
         }
@@ -2706,12 +2719,10 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
         const rx = new RegExp(`^${b.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\\\?/g, '.')}$`)
         return rx.test(a)
       }
-      if (!nameAgrees(r.first_name, r.cd_vorname)) {
-        cmp('first_name', r.first_name, r.cd_vorname, driftLower(r.first_name), driftLower(r.cd_vorname))
-      }
-      if (!nameAgrees(r.last_name, r.cd_nachname)) {
-        cmp('last_name', r.last_name, r.cd_nachname, driftLower(r.last_name), driftLower(r.cd_nachname))
-      }
+      if (nameAgrees(r.first_name, r.cd_vorname)) agreed.push('first_name')
+      else cmp('first_name', r.first_name, r.cd_vorname, driftLower(r.first_name), driftLower(r.cd_vorname))
+      if (nameAgrees(r.last_name, r.cd_nachname)) agreed.push('last_name')
+      else cmp('last_name', r.last_name, r.cd_nachname, driftLower(r.last_name), driftLower(r.cd_nachname))
       // ⚠⚠ Email and phone are the two fields ClubDesk keeps in TWO columns and
       // the push writes only ONE of (`E-Mail` and `Telefon Privat`, per
       // CD_PUSH_CONTACT_HEADERS). Agreement is rightly checked against both —
@@ -2733,7 +2744,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       if (em && cdEm) {
         if (em !== driftLower(r.cd_email) && em !== driftLower(r.cd_email_alt)) {
           conflicts.push({ field: 'email', wiedisync: driftNorm(r.email), clubdesk: driftNorm(r.cd_email) || driftNorm(r.cd_email_alt) })
-        }
+        } else agreed.push('email')
       } else if (em) {
         fills.push({ field: 'email', wiedisync: driftNorm(r.email) })
       } else if (driftLower(r.cd_email)) {
@@ -2745,7 +2756,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       if (ph && cdPhones.length) {
         if (!cdPhones.includes(ph)) {
           conflicts.push({ field: 'phone', wiedisync: driftNorm(r.phone), clubdesk: driftNorm(r.cd_tel_priv) || driftNorm(r.cd_tel_mob) })
-        }
+        } else agreed.push('phone')
       } else if (ph) {
         fills.push({ field: 'phone', wiedisync: driftNorm(r.phone) })
       }
@@ -2767,6 +2778,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       const cIban = ibanNorm(r.cd_iban)
       if (wIban && cIban) {
         if (wIban !== cIban) conflicts.push({ field: 'iban', wiedisync: driftNorm(r.iban), clubdesk: driftNorm(r.cd_iban) })
+        else agreed.push('iban')
       } else if (wIban) {
         fills.push({ field: 'iban', wiedisync: driftNorm(r.iban) })
       }
@@ -2848,7 +2860,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       // a one-off snapshot that silently rots at the next roster turnover.
       const gastW = gastCell(guestIds.has(Number(r.id)))
       cmp('gast', gastW, r.cd_gast, driftLower(gastW), driftLower(r.cd_gast))
-      if (!conflicts.length && !fills.length) continue
+      if (!conflicts.length && !fills.length && !includeClean) continue
       candidates.push({
         member_id: r.id,
         member_name: `${r.first_name || ''} ${r.last_name || ''}`.trim(),
@@ -2857,6 +2869,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
         conflicts,
         fills,
         blank_risk: blankRisk,
+        agreed,
       })
     }
     return candidates
@@ -3772,7 +3785,10 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
     const members = await database('members')
       .where('kscw_membership_active', true)
       .select('id', 'first_name', 'last_name', 'sektion', 'beitragskategorie',
-        'clubdesk_id', 'clubdesk_push_pending', 'clubdesk_sync_exclude', 'clubdesk_pushed_at')
+        'clubdesk_id', 'clubdesk_push_pending', 'clubdesk_sync_exclude', 'clubdesk_pushed_at',
+        // The recorded change set behind a `pending` verdict — resolved into a
+        // per-field diff below so the worklist can print WHAT the push carries.
+        'clubdesk_push_changes')
     // ClubDesk ids that actually exist in the register mirror → stale-link check.
     const exportIds = await database('clubdesk_export')
       .whereRaw("NULLIF(BTRIM(clubdesk_id), '') IS NOT NULL")
@@ -3788,7 +3804,11 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       .whereRaw("NULLIF(BTRIM(cd.austritt), '') IS NOT NULL")
     const departed = new Set(departedRows.map((r) => String(r.member_id)))
     // Real field conflicts (drift). Fill-only members are treated as in_sync.
-    const drift = await computeClubdeskDrift()
+    // `includeClean` so every linked member comes back with `agreed` — the
+    // pending-push diff below needs to know which recorded changes have ALREADY
+    // landed, and a member with nothing left to report is exactly that case.
+    // Every filter below keys on conflicts/blank_risk, so clean rows are inert.
+    const drift = await computeClubdeskDrift(null, { includeClean: true })
     // ⚠ A name-only conflict is NOT the same finding and must not wear the same
     // badge (2026-08-15). Names can never be reconciled by syncing in either
     // direction: the push CSV is deliberately name-less (CD_PUSH_CONTACT_HEADERS
@@ -3831,6 +3851,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
     const blankRiskById = new Map(
       drift.filter((c) => c.blank_risk.length).map((c) => [String(c.member_id), c.blank_risk]),
     )
+    const driftById = new Map(drift.map((c) => [String(c.member_id), c]))
 
     const statuses = {}
     for (const m of members) {
@@ -3855,7 +3876,52 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       else status = 'in_sync'
       statuses[id] = status
     }
-    return { statuses, members, conflictsById, blankRiskById }
+
+    // What a `pending` member's queued push CARRIES, field by field (2026-09-15).
+    // The board printed an empty diff for every "Push pending" row — the three
+    // value columns only ever showed drift conflicts, and a member flagged for a
+    // push is not (necessarily) a disagreement. The recorded change set
+    // (clubdesk_push_changes — the same list the sync-up modal shows) is the
+    // answer, resolved against TODAY's snapshot rather than printed as stored:
+    //   · wiedisync/clubdesk — the drift's current values when the field still
+    //     differs (a value edited twice shows the value the push will send, not
+    //     the one recorded first); the recorded old/new otherwise.
+    //   · landed — the field is in `agreed`: ClubDesk already holds the value,
+    //     so the push carries nothing new for it and only clears the flag. On
+    //     prod the day this shipped that was ALL THREE pending rows — the
+    //     members.items.update hook re-flags on any non-empty IBAN/AHV save,
+    //     changed or not, so a re-saved profile queues a push that is a no-op.
+    //     Without the marker the board would have shown "IBAN: CH36… → CH36…"
+    //     and left the operator wondering what was pending.
+    //   · unpushable — a name. An UPDATE row is [Id]-keyed and name-less, so a
+    //     recorded name change (the profile path records it for the admin
+    //     e-mail) will never reach the register through a push.
+    // Only built for `pending` rows: every other status is either not a push at
+    // all or (not_linked) a CREATE, whose row carries the whole member.
+    const pushChangesById = new Map()
+    for (const m of members) {
+      if (statuses[String(m.id)] !== 'pending') continue
+      const d = driftById.get(String(m.id))
+      const current = new Map()
+      for (const c of d?.conflicts ?? []) current.set(c.field, { wiedisync: c.wiedisync, clubdesk: c.clubdesk })
+      for (const f of d?.fills ?? []) current.set(f.field, { wiedisync: f.wiedisync, clubdesk: '' })
+      const agreed = new Set(d?.agreed ?? [])
+      // Last entry per field wins — the writers replace-by-field, but the newest
+      // is appended, so a stray duplicate resolves to the latest edit.
+      const recorded = new Map()
+      for (const c of pushChangeList(m.clubdesk_push_changes)) if (c.field) recorded.set(c.field, c)
+      pushChangesById.set(String(m.id), [...recorded.values()].map((c) => {
+        const cur = current.get(c.field)
+        return {
+          field: c.field,
+          wiedisync: cur ? cur.wiedisync : String(c.new_value ?? ''),
+          clubdesk: cur ? cur.clubdesk : String(c.old_value ?? ''),
+          ...(agreed.has(c.field) ? { landed: true } : {}),
+          ...(NAME_FIELDS.has(c.field) ? { unpushable: true } : {}),
+        }
+      }))
+    }
+    return { statuses, members, conflictsById, blankRiskById, pushChangesById }
   }
 
   router.get('/clubdesk-sync-status', async (req, res) => {
@@ -3897,7 +3963,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
   router.get('/clubdesk-needs-sync', async (req, res) => {
     try {
       if (!(await superGate(req))) return res.status(403).json({ error: 'Forbidden' })
-      const { statuses, members, conflictsById, blankRiskById } = await computeMemberSyncStatuses()
+      const { statuses, members, conflictsById, blankRiskById, pushChangesById } = await computeMemberSyncStatuses()
       const rows = members.filter((m) => NEEDS_SYNC_STATUSES.includes(statuses[String(m.id)]))
 
       // Section per member, from the ONE server-side resolver. The detailed form
@@ -3939,6 +4005,9 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
             // Field names the push would blank → /clubdesk-drift/flag will refuse
             // this member. Non-empty means the row's fix is "sync down", not "flag".
             blank_risk: blankRiskById.get(String(m.id)) || [],
+            // [{ field, wiedisync, clubdesk, landed?, unpushable? }] — what the
+            // queued push carries. `pending` rows only; [] for every other status.
+            push_changes: pushChangesById.get(String(m.id)) || [],
           }
         }),
         // ⚠ The sync-path runner gates step 3 on this. It counts what the push
