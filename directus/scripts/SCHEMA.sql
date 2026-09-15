@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-09-14T22:50:46.324Z
+-- Generated:   2026-09-15T12:18:33.966Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -29,7 +29,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict tnkBkH8sOc0V3uuLZKYuEIb6BDeQ3JjApEfBy34dvUrvmrKDvFy8IgSRK5daxSq
+\restrict EAkp2T5elL2ElpQsLBEfnA1fSIwXICGueSjFT4bctdfOJFIWqfmIpAwANBuiqG2
 
 -- Dumped from database version 16.15 (Debian 16.15-1.pgdg13+2)
 -- Dumped by pg_dump version 16.15 (Debian 16.15-1.pgdg13+2)
@@ -295,24 +295,6 @@ $$;
 
 
 --
--- Name: fn_activity_chat_event_delete(); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.fn_activity_chat_event_delete() RETURNS trigger
-    LANGUAGE plpgsql
-    SET search_path TO 'public'
-    AS $$
-BEGIN
-  DELETE FROM conversations
-   WHERE type          = 'activity_chat'
-     AND activity_type = 'event'
-     AND activity_id   = OLD.id;
-  RETURN OLD;
-END;
-$$;
-
-
---
 -- Name: fn_event_open_roster(integer, json); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -323,309 +305,6 @@ CREATE FUNCTION public.fn_event_open_roster(p_event integer, p_roles json) RETUR
       OR (p_roles IS NOT NULL
           AND json_typeof(p_roles) = 'array'
           AND json_array_length(p_roles) > 0);
-$$;
-
-
---
--- Name: fn_messaging_dm_autoaccept(); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.fn_messaging_dm_autoaccept() RETURNS trigger
-    LANGUAGE plpgsql
-    SET search_path TO 'public'
-    AS $$
-DECLARE
-  r record;
-BEGIN
-  FOR r IN
-    SELECT mr.id AS request_id, mr.conversation AS conv_id,
-           mr.sender AS sender_id, mr.recipient AS recipient_id
-      FROM message_requests mr
-      JOIN member_teams other_mt
-        ON other_mt.team = NEW.team
-       AND other_mt.member <> NEW.member
-     WHERE mr.status = 'pending'
-       AND (
-         (mr.sender = NEW.member    AND mr.recipient = other_mt.member) OR
-         (mr.recipient = NEW.member AND mr.sender    = other_mt.member)
-       )
-       AND NOT EXISTS (
-         SELECT 1 FROM blocks b
-          WHERE (b.blocker = mr.sender    AND b.blocked = mr.recipient)
-             OR (b.blocker = mr.recipient AND b.blocked = mr.sender)
-       )
-  LOOP
-    UPDATE message_requests
-       SET status = 'accepted',
-           resolved_at = CURRENT_TIMESTAMP
-     WHERE id = r.request_id;
-    UPDATE conversations
-       SET type = 'dm'
-     WHERE id = r.conv_id;
-  END LOOP;
-  RETURN NEW;
-END;
-$$;
-
-
---
--- Name: fn_messaging_member_team_chat_enabled(); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.fn_messaging_member_team_chat_enabled() RETURNS trigger
-    LANGUAGE plpgsql
-    SET search_path TO 'public'
-    AS $$
-BEGIN
-  IF NEW.communications_team_chat_enabled = OLD.communications_team_chat_enabled THEN
-    RETURN NEW;  -- no change (e.g. UPDATE of another column caused this fire)
-  END IF;
-
-  IF NEW.communications_team_chat_enabled = true THEN
-    -- Opt in: un-archive conversation_members rows for all teams this member belongs to
-    UPDATE conversation_members cm
-       SET archived = false
-      FROM conversations c
-      JOIN member_teams mt ON mt.team = c.team
-     WHERE cm.conversation = c.id
-       AND cm.member = NEW.id
-       AND c.type = 'team'
-       AND mt.member = NEW.id;
-  ELSE
-    -- Opt out: archive all team conversation_members rows
-    UPDATE conversation_members cm
-       SET archived = true
-      FROM conversations c
-     WHERE cm.conversation = c.id
-       AND cm.member = NEW.id
-       AND c.type = 'team';
-  END IF;
-
-  RETURN NEW;
-END;
-$$;
-
-
---
--- Name: fn_messaging_teams_insert(); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.fn_messaging_teams_insert() RETURNS trigger
-    LANGUAGE plpgsql
-    SET search_path TO 'public'
-    AS $$
-DECLARE
-  v_conv    uuid;
-  v_creator integer;
-BEGIN
-  v_conv := gen_random_uuid();
-
-  -- Creator fallback 1: first coach of the team
-  SELECT tc.members_id INTO v_creator
-    FROM teams_coaches tc
-   WHERE tc.teams_id = NEW.id
-   ORDER BY tc.id
-   LIMIT 1;
-
-  -- Creator fallback 2: first admin or superuser (members.role is JSON)
-  IF v_creator IS NULL THEN
-    SELECT id INTO v_creator
-      FROM members
-     WHERE role::jsonb ?| ARRAY['admin','superuser']
-     ORDER BY id
-     LIMIT 1;
-  END IF;
-
-  -- Creator fallback 3: sentinel system user
-  IF v_creator IS NULL THEN
-    SELECT id INTO v_creator
-      FROM members
-     WHERE LOWER(email) = 'system@kscw.ch'
-     LIMIT 1;
-  END IF;
-
-  -- Create the team conversation with resolved creator
-  INSERT INTO conversations (id, type, team, created_by, created_at)
-  VALUES (v_conv, 'team', NEW.id, v_creator, CURRENT_TIMESTAMP);
-
-  -- Add ALL existing team members; archived reflects each member's chat preference
-  INSERT INTO conversation_members (id, conversation, member, archived)
-  SELECT gen_random_uuid(), v_conv, mt.member,
-         NOT COALESCE(m.communications_team_chat_enabled, false)
-    FROM member_teams mt
-    JOIN members m ON m.id = mt.member
-   WHERE mt.team = NEW.id
-  ON CONFLICT (conversation, member) DO NOTHING;
-
-  RETURN NEW;
-END;
-$$;
-
-
---
--- Name: fn_messaging_teams_members_delete(); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.fn_messaging_teams_members_delete() RETURNS trigger
-    LANGUAGE plpgsql
-    SET search_path TO 'public'
-    AS $$
-DECLARE
-  v_conv uuid;
-BEGIN
-  -- Find the team conversation
-  SELECT id INTO v_conv
-    FROM conversations
-   WHERE type = 'team'
-     AND team = OLD.team
-   LIMIT 1;
-
-  IF v_conv IS NULL THEN
-    RETURN OLD;
-  END IF;
-
-  -- Archive (soft-remove) rather than hard-delete to preserve history
-  UPDATE conversation_members
-     SET archived = true
-   WHERE conversation = v_conv
-     AND member = OLD.member;
-
-  RETURN OLD;
-END;
-$$;
-
-
---
--- Name: fn_messaging_teams_members_insert(); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.fn_messaging_teams_members_insert() RETURNS trigger
-    LANGUAGE plpgsql
-    SET search_path TO 'public'
-    AS $$
-DECLARE
-  v_conv uuid;
-  v_enabled boolean;
-BEGIN
-  -- Find the team conversation (if any)
-  SELECT id INTO v_conv
-    FROM conversations
-   WHERE type = 'team'
-     AND team = NEW.team
-   LIMIT 1;
-
-  IF v_conv IS NULL THEN
-    RETURN NEW;  -- no conversation yet; teams INSERT trigger will handle it
-  END IF;
-
-  -- Look up member's chat preference; default false if NULL
-  SELECT communications_team_chat_enabled INTO v_enabled
-    FROM members WHERE id = NEW.member;
-
-  -- ALWAYS insert — archived = NOT enabled (false = visible, true = hidden)
-  -- Upsert: if somehow a row exists, update archived to reflect current preference
-  INSERT INTO conversation_members (id, conversation, member, archived)
-  VALUES (gen_random_uuid(), v_conv, NEW.member, NOT COALESCE(v_enabled, false))
-  ON CONFLICT (conversation, member)
-    DO UPDATE SET archived = EXCLUDED.archived;
-
-  RETURN NEW;
-END;
-$$;
-
-
---
--- Name: fn_participations_activity_chat_sync(); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.fn_participations_activity_chat_sync() RETURNS trigger
-    LANGUAGE plpgsql
-    SET search_path TO 'public'
-    AS $$
-DECLARE
-  v_row            participations%ROWTYPE;
-  v_is_insert_upd  boolean;
-  v_activity_id    integer;
-  v_conv           uuid;
-  v_banned         boolean;
-  v_team_enabled   boolean;
-  v_in_audience    boolean;
-BEGIN
-  -- Resolve which row to inspect for NEW vs. OLD (DELETE uses OLD).
-  IF TG_OP = 'DELETE' THEN
-    v_row := OLD;
-    v_is_insert_upd := false;
-  ELSE
-    v_row := NEW;
-    v_is_insert_upd := true;
-  END IF;
-
-  -- Event-only early exit
-  IF v_row.activity_type IS DISTINCT FROM 'event' THEN
-    RETURN v_row;
-  END IF;
-
-  -- activity_id cast: text → int; silently skip if non-numeric
-  BEGIN
-    v_activity_id := v_row.activity_id::integer;
-  EXCEPTION WHEN invalid_text_representation THEN
-    RETURN v_row;
-  END;
-
-  -- Resolve conversation (must already exist; broadcast endpoint is sole creator)
-  SELECT id INTO v_conv
-    FROM conversations
-   WHERE type = 'activity_chat'
-     AND activity_type = 'event'
-     AND activity_id = v_activity_id
-   LIMIT 1;
-
-  IF v_conv IS NULL THEN
-    RETURN v_row;  -- no conversation → nothing to sync
-  END IF;
-
-  -- Load member flags
-  SELECT communications_banned, communications_team_chat_enabled
-    INTO v_banned, v_team_enabled
-    FROM members
-   WHERE id = v_row.member;
-
-  IF NOT FOUND THEN
-    RETURN v_row;  -- orphan member reference; shouldn't happen but be safe
-  END IF;
-
-  -- Banned: always remove
-  IF v_banned = true THEN
-    DELETE FROM conversation_members
-     WHERE conversation = v_conv
-       AND member       = v_row.member;
-    RETURN v_row;
-  END IF;
-
-  -- Determine if this status+op keeps the member in the audience
-  v_in_audience := v_is_insert_upd
-                   AND v_row.status IN ('confirmed', 'tentative');
-
-  IF v_in_audience THEN
-    -- Upsert with archived reflecting team_chat preference
-    INSERT INTO conversation_members
-      (id, conversation, member, archived, role, joined_at)
-    VALUES
-      (gen_random_uuid(), v_conv, v_row.member,
-       NOT COALESCE(v_team_enabled, false),
-       'member', NOW())
-    ON CONFLICT (conversation, member)
-      DO UPDATE SET archived = EXCLUDED.archived;
-  ELSE
-    -- Not in audience (declined/waitlist/invited, or DELETE): archive (soft)
-    UPDATE conversation_members
-       SET archived = true
-     WHERE conversation = v_conv
-       AND member       = v_row.member;
-  END IF;
-
-  RETURN v_row;
-END;
 $$;
 
 
@@ -1148,23 +827,6 @@ BEGIN
 
   RETURN NEW;
 END $$;
-
-
---
--- Name: messaging_protect_sentinel(); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.messaging_protect_sentinel() RETURNS trigger
-    LANGUAGE plpgsql
-    SET search_path TO 'public'
-    AS $$
-BEGIN
-  IF LOWER(OLD.email) = 'system@kscw.ch' THEN
-    RAISE EXCEPTION 'Cannot delete messaging sentinel member (%)', OLD.id;
-  END IF;
-  RETURN OLD;
-END;
-$$;
 
 
 --
@@ -3590,19 +3252,6 @@ COMMENT ON VIEW public.bb_floor_claims_all IS 'Every physical KWI floor basketba
 
 
 --
--- Name: blocks; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.blocks (
-    id uuid NOT NULL,
-    blocker integer NOT NULL,
-    blocked integer NOT NULL,
-    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    CONSTRAINT chk_blocks_not_self CHECK ((blocker <> blocked))
-);
-
-
---
 -- Name: broadcasts; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -4216,42 +3865,6 @@ CREATE VIEW public.clubdesk_volleyball AS
     imported_at
    FROM public.clubdesk_people
   WHERE (sektion = 'Volleyball'::text);
-
-
---
--- Name: conversation_members; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.conversation_members (
-    id uuid NOT NULL,
-    conversation uuid NOT NULL,
-    member integer NOT NULL,
-    role character varying(255) DEFAULT 'member'::character varying NOT NULL,
-    joined_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    last_read_at timestamp with time zone,
-    muted boolean DEFAULT false NOT NULL,
-    archived boolean DEFAULT false NOT NULL
-);
-
-
---
--- Name: conversations; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.conversations (
-    id uuid NOT NULL,
-    type character varying(255) DEFAULT NULL::character varying NOT NULL,
-    title character varying(120) DEFAULT NULL::character varying,
-    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    last_message_at timestamp with time zone,
-    last_message_preview character varying(120) DEFAULT NULL::character varying,
-    team integer,
-    created_by integer,
-    activity_type character varying(16),
-    activity_id integer,
-    CONSTRAINT conversations_activity_type_check CHECK (((activity_type IS NULL) OR ((activity_type)::text = 'event'::text))),
-    CONSTRAINT conversations_shape_check CHECK (((((type)::text = 'team'::text) AND (team IS NOT NULL) AND (activity_type IS NULL) AND (activity_id IS NULL)) OR (((type)::text = ANY (ARRAY[('dm'::character varying)::text, ('dm_request'::character varying)::text, ('group_dm'::character varying)::text])) AND (team IS NULL) AND (activity_type IS NULL) AND (activity_id IS NULL)) OR (((type)::text = 'activity_chat'::text) AND (team IS NULL) AND (activity_type IS NOT NULL) AND (activity_id IS NOT NULL))))
-);
 
 
 --
@@ -7854,14 +7467,7 @@ CREATE TABLE public.members (
     licence_validated boolean,
     vm_email character varying(255),
     sex character varying(10),
-    communications_team_chat_enabled boolean DEFAULT false NOT NULL,
-    communications_dm_enabled boolean DEFAULT false NOT NULL,
-    communications_banned boolean DEFAULT false NOT NULL,
-    push_preview_content boolean DEFAULT false NOT NULL,
     last_online_at timestamp with time zone,
-    consent_prompted_at timestamp with time zone,
-    consent_decision character varying(255) DEFAULT 'pending'::character varying NOT NULL,
-    last_export_at timestamp with time zone,
     hide_email boolean DEFAULT false NOT NULL,
     scorer_vb boolean DEFAULT false NOT NULL,
     referee_vb boolean DEFAULT false NOT NULL,
@@ -8039,20 +7645,6 @@ COMMENT ON COLUMN public.members.vm_email IS 'Volleymanager account email — fa
 --
 
 COMMENT ON COLUMN public.members.last_online_at IS 'Presence timestamp for the admin Explorer ("Last online"). Written by the auth.login hook on every login; coarse by design — refresh-token sessions only touch it at real logins.';
-
-
---
--- Name: COLUMN members.consent_decision; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.consent_decision IS 'Messaging consent state (pending/accepted/declined) — gates chat features, prompted at first login.';
-
-
---
--- Name: COLUMN members.last_export_at; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.members.last_export_at IS 'Messaging export rate-limit marker (1/day) — messaging-helpers, not a sync column.';
 
 
 --
@@ -8503,52 +8095,6 @@ ALTER SEQUENCE public.members_id_seq OWNED BY public.members.id;
 
 
 --
--- Name: message_reactions; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.message_reactions (
-    id uuid NOT NULL,
-    message uuid NOT NULL,
-    member integer NOT NULL,
-    emoji character varying(8) DEFAULT NULL::character varying NOT NULL,
-    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
-);
-
-
---
--- Name: message_requests; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.message_requests (
-    id uuid NOT NULL,
-    conversation uuid NOT NULL,
-    sender integer NOT NULL,
-    recipient integer NOT NULL,
-    status character varying(255) DEFAULT 'pending'::character varying NOT NULL,
-    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    resolved_at timestamp with time zone
-);
-
-
---
--- Name: messages; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.messages (
-    id uuid NOT NULL,
-    conversation uuid NOT NULL,
-    sender integer NOT NULL,
-    type character varying(255) DEFAULT 'text'::character varying NOT NULL,
-    body text,
-    poll integer,
-    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    edited_at timestamp with time zone,
-    deleted_at timestamp with time zone,
-    original_body text
-);
-
-
---
 -- Name: news; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -8933,13 +8479,11 @@ CREATE TABLE public.polls (
     deadline timestamp with time zone,
     status character varying(255) DEFAULT NULL::character varying,
     anonymous boolean DEFAULT false NOT NULL,
-    team integer,
+    team integer NOT NULL,
     created_by integer,
     date_created timestamp with time zone,
     date_updated timestamp with time zone,
-    conversation uuid,
-    results_visible boolean DEFAULT false NOT NULL,
-    CONSTRAINT chk_polls_team_or_conversation CHECK (((team IS NOT NULL) OR (conversation IS NOT NULL)))
+    results_visible boolean DEFAULT false NOT NULL
 );
 
 
@@ -9074,8 +8618,16 @@ CREATE TABLE public.referee_expenses (
     recorded_by integer,
     date_created timestamp with time zone,
     date_updated timestamp with time zone,
-    currency character varying(3) DEFAULT 'CHF'::character varying NOT NULL
+    currency character varying(3) DEFAULT 'CHF'::character varying NOT NULL,
+    payout integer
 );
+
+
+--
+-- Name: COLUMN referee_expenses.payout; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.referee_expenses.payout IS 'finance_payouts row that reimbursed this fee — set by the season-end run (POST /kscw/finance/referee-payout-run), one payout per member per season. NULL = not yet reimbursed; only unpaid rows are editable by coaches / sport admins.';
 
 
 --
@@ -9215,26 +8767,6 @@ ALTER SEQUENCE public.registrations_id_seq OWNED BY public.registrations.id;
 
 
 --
--- Name: reports; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.reports (
-    id uuid NOT NULL,
-    reporter integer,
-    reported_member integer,
-    message uuid,
-    conversation uuid,
-    reason character varying(255) DEFAULT NULL::character varying NOT NULL,
-    note text,
-    message_snapshot text,
-    status character varying(255) DEFAULT 'open'::character varying NOT NULL,
-    resolved_by integer,
-    resolved_at timestamp with time zone,
-    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
-);
-
-
---
 -- Name: scheduling_blocks; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -9257,7 +8789,7 @@ CREATE TABLE public.scheduling_blocks (
 -- Name: TABLE scheduling_blocks; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.scheduling_blocks IS 'Team-level game-scheduling blackouts (Team blocking). A row hard-blocks game scheduling for `team` on every date in [start_date, end_date] — home-slot offering AND all three away proposals — exactly like a team event, but coach/TR-managed with no RSVP/chat. Created via the app by coaches/TRs (scoped in setup-permissions.mjs + enforced in the kscw-hooks create filter).';
+COMMENT ON TABLE public.scheduling_blocks IS 'Team-level game-scheduling blackouts (Team blocking). A row hard-blocks game scheduling for `team` on every date in [start_date, end_date] — home-slot offering AND all three away proposals — exactly like a team event, but coach/TR-managed with no RSVP. Created via the app by coaches/TRs (scoped in setup-permissions.mjs + enforced in the kscw-hooks create filter).';
 
 
 --
@@ -11876,14 +11408,6 @@ ALTER TABLE ONLY public.basketball_club_date_prefs
 
 
 --
--- Name: blocks blocks_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.blocks
-    ADD CONSTRAINT blocks_pkey PRIMARY KEY (id);
-
-
---
 -- Name: broadcasts broadcasts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -11945,22 +11469,6 @@ ALTER TABLE ONLY public.clubdesk_member_sync
 
 ALTER TABLE ONLY public.clubdesk_sync_proposals
     ADD CONSTRAINT clubdesk_sync_proposals_pkey PRIMARY KEY (id);
-
-
---
--- Name: conversation_members conversation_members_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.conversation_members
-    ADD CONSTRAINT conversation_members_pkey PRIMARY KEY (id);
-
-
---
--- Name: conversations conversations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.conversations
-    ADD CONSTRAINT conversations_pkey PRIMARY KEY (id);
 
 
 --
@@ -12620,30 +12128,6 @@ ALTER TABLE ONLY public.members
 
 
 --
--- Name: message_reactions message_reactions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.message_reactions
-    ADD CONSTRAINT message_reactions_pkey PRIMARY KEY (id);
-
-
---
--- Name: message_requests message_requests_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.message_requests
-    ADD CONSTRAINT message_requests_pkey PRIMARY KEY (id);
-
-
---
--- Name: messages messages_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.messages
-    ADD CONSTRAINT messages_pkey PRIMARY KEY (id);
-
-
---
 -- Name: news news_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -12777,14 +12261,6 @@ ALTER TABLE ONLY public.referee_expenses
 
 ALTER TABLE ONLY public.registrations
     ADD CONSTRAINT registrations_pkey PRIMARY KEY (id);
-
-
---
--- Name: reports reports_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.reports
-    ADD CONSTRAINT reports_pkey PRIMARY KEY (id);
 
 
 --
@@ -13270,13 +12746,6 @@ CREATE INDEX bb_club_date_prefs_club_idx ON public.basketball_club_date_prefs US
 --
 
 CREATE INDEX bb_club_date_prefs_team_date_idx ON public.basketball_club_date_prefs USING btree (season, kscw_team, date);
-
-
---
--- Name: blocks_blocker_index; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX blocks_blocker_index ON public.blocks USING btree (blocker);
 
 
 --
@@ -14106,13 +13575,6 @@ CREATE INDEX idx_absences_last_edited_by ON public.absences USING btree (last_ed
 
 
 --
--- Name: idx_blocks_blocked; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_blocks_blocked ON public.blocks USING btree (blocked);
-
-
---
 -- Name: idx_broadcasts_activity; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -14173,34 +13635,6 @@ CREATE INDEX idx_clubdesk_export_lic ON public.clubdesk_export USING btree (lize
 --
 
 CREATE INDEX idx_clubdesk_export_sektion ON public.clubdesk_export USING btree (sektion);
-
-
---
--- Name: idx_conv_members_conv; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_conv_members_conv ON public.conversation_members USING btree (conversation) WHERE (archived = false);
-
-
---
--- Name: idx_conv_members_member; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_conv_members_member ON public.conversation_members USING btree (member);
-
-
---
--- Name: idx_conversations_last_msg; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_conversations_last_msg ON public.conversations USING btree (last_message_at DESC NULLS LAST);
-
-
---
--- Name: idx_conversations_team; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_conversations_team ON public.conversations USING btree (team) WHERE (team IS NOT NULL);
 
 
 --
@@ -14337,34 +13771,6 @@ CREATE INDEX idx_members_register_status ON public.members USING btree (register
 
 
 --
--- Name: idx_messages_conv_created; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_messages_conv_created ON public.messages USING btree (conversation, created_at DESC);
-
-
---
--- Name: idx_messages_deleted; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_messages_deleted ON public.messages USING btree (deleted_at) WHERE (deleted_at IS NOT NULL);
-
-
---
--- Name: idx_messages_sender; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_messages_sender ON public.messages USING btree (sender);
-
-
---
--- Name: idx_msg_requests_recipient_status; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_msg_requests_recipient_status ON public.message_requests USING btree (recipient, status);
-
-
---
 -- Name: idx_participations_auto_declined_by; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -14404,20 +13810,6 @@ CREATE INDEX idx_password_reset_tokens_expires ON public.password_reset_tokens U
 --
 
 CREATE INDEX idx_password_reset_tokens_hash ON public.password_reset_tokens USING btree (token_hash);
-
-
---
--- Name: idx_reports_reported_member; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_reports_reported_member ON public.reports USING btree (reported_member);
-
-
---
--- Name: idx_reports_status_created; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_reports_status_created ON public.reports USING btree (status, created_at DESC);
 
 
 --
@@ -14582,41 +13974,6 @@ CREATE UNIQUE INDEX members_vm_email_uq ON public.members USING btree (vm_email)
 
 
 --
--- Name: message_reactions_member_index; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX message_reactions_member_index ON public.message_reactions USING btree (member);
-
-
---
--- Name: message_reactions_message_index; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX message_reactions_message_index ON public.message_reactions USING btree (message);
-
-
---
--- Name: message_requests_conversation_index; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX message_requests_conversation_index ON public.message_requests USING btree (conversation);
-
-
---
--- Name: message_requests_recipient_index; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX message_requests_recipient_index ON public.message_requests USING btree (recipient);
-
-
---
--- Name: message_requests_sender_index; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX message_requests_sender_index ON public.message_requests USING btree (sender);
-
-
---
 -- Name: notifications_member_index; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -14722,10 +14079,24 @@ CREATE INDEX referee_expenses_game_index ON public.referee_expenses USING btree 
 
 
 --
+-- Name: referee_expenses_game_uidx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX referee_expenses_game_uidx ON public.referee_expenses USING btree (game) WHERE (game IS NOT NULL);
+
+
+--
 -- Name: referee_expenses_paid_by_member_index; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX referee_expenses_paid_by_member_index ON public.referee_expenses USING btree (paid_by_member);
+
+
+--
+-- Name: referee_expenses_payout_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX referee_expenses_payout_idx ON public.referee_expenses USING btree (payout);
 
 
 --
@@ -14747,34 +14118,6 @@ CREATE INDEX referee_expenses_team_index ON public.referee_expenses USING btree 
 --
 
 CREATE INDEX registrations_member_idx ON public.registrations USING btree (member);
-
-
---
--- Name: reports_conversation_index; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX reports_conversation_index ON public.reports USING btree (conversation);
-
-
---
--- Name: reports_message_index; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX reports_message_index ON public.reports USING btree (message);
-
-
---
--- Name: reports_reporter_index; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX reports_reporter_index ON public.reports USING btree (reporter);
-
-
---
--- Name: reports_resolved_by_index; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX reports_resolved_by_index ON public.reports USING btree (resolved_by);
 
 
 --
@@ -14988,52 +14331,10 @@ CREATE INDEX trainings_team_index ON public.trainings USING btree (team);
 
 
 --
--- Name: uq_blocks_blocker_blocked; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX uq_blocks_blocker_blocked ON public.blocks USING btree (blocker, blocked);
-
-
---
--- Name: uq_conv_members_conv_member; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX uq_conv_members_conv_member ON public.conversation_members USING btree (conversation, member);
-
-
---
--- Name: uq_conversations_one_per_activity; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX uq_conversations_one_per_activity ON public.conversations USING btree (activity_type, activity_id) WHERE ((type)::text = 'activity_chat'::text);
-
-
---
--- Name: uq_conversations_one_per_team; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX uq_conversations_one_per_team ON public.conversations USING btree (team) WHERE (((type)::text = 'team'::text) AND (team IS NOT NULL));
-
-
---
 -- Name: uq_event_public_signups_event_email; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE UNIQUE INDEX uq_event_public_signups_event_email ON public.event_public_signups USING btree (event, lower((email)::text)) WHERE (email IS NOT NULL);
-
-
---
--- Name: uq_msg_requests_conv; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX uq_msg_requests_conv ON public.message_requests USING btree (conversation);
-
-
---
--- Name: uq_reactions_msg_member_emoji; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX uq_reactions_msg_member_emoji ON public.message_reactions USING btree (message, member, emoji);
 
 
 --
@@ -15181,13 +14482,6 @@ CREATE TRIGGER members_sync_nationality_trg BEFORE INSERT OR UPDATE OF nationali
 --
 
 CREATE TRIGGER trg_absences_normalize_indefinite BEFORE INSERT OR UPDATE ON public.absences FOR EACH ROW EXECUTE FUNCTION public.trg_absences_normalize_indefinite();
-
-
---
--- Name: events trg_activity_chat_event_delete; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER trg_activity_chat_event_delete AFTER DELETE ON public.events FOR EACH ROW EXECUTE FUNCTION public.fn_activity_chat_event_delete();
 
 
 --
@@ -15363,55 +14657,6 @@ CREATE TRIGGER trg_members_shell_convert BEFORE UPDATE ON public.members FOR EAC
 --
 
 CREATE TRIGGER trg_members_user_rebuild_guardians AFTER UPDATE OF "user" ON public.members FOR EACH ROW WHEN ((old."user" IS DISTINCT FROM new."user")) EXECUTE FUNCTION public.trg_members_user_rebuild_guardians();
-
-
---
--- Name: member_teams trg_messaging_dm_autoaccept; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER trg_messaging_dm_autoaccept AFTER INSERT ON public.member_teams FOR EACH ROW EXECUTE FUNCTION public.fn_messaging_dm_autoaccept();
-
-
---
--- Name: members trg_messaging_member_team_chat_enabled; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER trg_messaging_member_team_chat_enabled AFTER UPDATE OF communications_team_chat_enabled ON public.members FOR EACH ROW EXECUTE FUNCTION public.fn_messaging_member_team_chat_enabled();
-
-
---
--- Name: members trg_messaging_protect_sentinel; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER trg_messaging_protect_sentinel BEFORE DELETE ON public.members FOR EACH ROW EXECUTE FUNCTION public.messaging_protect_sentinel();
-
-
---
--- Name: teams trg_messaging_teams_insert; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER trg_messaging_teams_insert AFTER INSERT ON public.teams FOR EACH ROW EXECUTE FUNCTION public.fn_messaging_teams_insert();
-
-
---
--- Name: member_teams trg_messaging_teams_members_delete; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER trg_messaging_teams_members_delete AFTER DELETE ON public.member_teams FOR EACH ROW EXECUTE FUNCTION public.fn_messaging_teams_members_delete();
-
-
---
--- Name: member_teams trg_messaging_teams_members_insert; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER trg_messaging_teams_members_insert AFTER INSERT ON public.member_teams FOR EACH ROW EXECUTE FUNCTION public.fn_messaging_teams_members_insert();
-
-
---
--- Name: participations trg_participations_activity_chat_sync; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER trg_participations_activity_chat_sync AFTER INSERT OR DELETE OR UPDATE ON public.participations FOR EACH ROW EXECUTE FUNCTION public.fn_participations_activity_chat_sync();
 
 
 --
@@ -15861,22 +15106,6 @@ ALTER TABLE ONLY public.basketball_team_rules
 
 
 --
--- Name: blocks blocks_blocked_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.blocks
-    ADD CONSTRAINT blocks_blocked_foreign FOREIGN KEY (blocked) REFERENCES public.members(id) ON DELETE CASCADE;
-
-
---
--- Name: blocks blocks_blocker_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.blocks
-    ADD CONSTRAINT blocks_blocker_foreign FOREIGN KEY (blocker) REFERENCES public.members(id) ON DELETE CASCADE;
-
-
---
 -- Name: broadcasts broadcasts_sender_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -15898,38 +15127,6 @@ ALTER TABLE ONLY public.city_hall_availability
 
 ALTER TABLE ONLY public.clubdesk_sync_proposals
     ADD CONSTRAINT clubdesk_sync_proposals_member_id_fkey FOREIGN KEY (member_id) REFERENCES public.members(id) ON DELETE CASCADE;
-
-
---
--- Name: conversation_members conversation_members_conversation_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.conversation_members
-    ADD CONSTRAINT conversation_members_conversation_foreign FOREIGN KEY (conversation) REFERENCES public.conversations(id) ON DELETE CASCADE;
-
-
---
--- Name: conversation_members conversation_members_member_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.conversation_members
-    ADD CONSTRAINT conversation_members_member_foreign FOREIGN KEY (member) REFERENCES public.members(id) ON DELETE CASCADE;
-
-
---
--- Name: conversations conversations_created_by_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.conversations
-    ADD CONSTRAINT conversations_created_by_foreign FOREIGN KEY (created_by) REFERENCES public.members(id) ON DELETE SET NULL;
-
-
---
--- Name: conversations conversations_team_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.conversations
-    ADD CONSTRAINT conversations_team_foreign FOREIGN KEY (team) REFERENCES public.teams(id) ON DELETE CASCADE;
 
 
 --
@@ -16893,70 +16090,6 @@ ALTER TABLE ONLY public.members
 
 
 --
--- Name: message_reactions message_reactions_member_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.message_reactions
-    ADD CONSTRAINT message_reactions_member_foreign FOREIGN KEY (member) REFERENCES public.members(id) ON DELETE CASCADE;
-
-
---
--- Name: message_reactions message_reactions_message_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.message_reactions
-    ADD CONSTRAINT message_reactions_message_foreign FOREIGN KEY (message) REFERENCES public.messages(id) ON DELETE CASCADE;
-
-
---
--- Name: message_requests message_requests_conversation_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.message_requests
-    ADD CONSTRAINT message_requests_conversation_foreign FOREIGN KEY (conversation) REFERENCES public.conversations(id) ON DELETE CASCADE;
-
-
---
--- Name: message_requests message_requests_recipient_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.message_requests
-    ADD CONSTRAINT message_requests_recipient_foreign FOREIGN KEY (recipient) REFERENCES public.members(id) ON DELETE CASCADE;
-
-
---
--- Name: message_requests message_requests_sender_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.message_requests
-    ADD CONSTRAINT message_requests_sender_foreign FOREIGN KEY (sender) REFERENCES public.members(id) ON DELETE CASCADE;
-
-
---
--- Name: messages messages_conversation_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.messages
-    ADD CONSTRAINT messages_conversation_foreign FOREIGN KEY (conversation) REFERENCES public.conversations(id) ON DELETE CASCADE;
-
-
---
--- Name: messages messages_poll_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.messages
-    ADD CONSTRAINT messages_poll_foreign FOREIGN KEY (poll) REFERENCES public.polls(id) ON DELETE SET NULL;
-
-
---
--- Name: messages messages_sender_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.messages
-    ADD CONSTRAINT messages_sender_foreign FOREIGN KEY (sender) REFERENCES public.members(id) ON DELETE CASCADE;
-
-
---
 -- Name: notifications notifications_member_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -17037,14 +16170,6 @@ ALTER TABLE ONLY public.poll_votes
 
 
 --
--- Name: polls polls_conversation_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.polls
-    ADD CONSTRAINT polls_conversation_foreign FOREIGN KEY (conversation) REFERENCES public.conversations(id) ON DELETE CASCADE;
-
-
---
 -- Name: push_subscriptions push_subscriptions_member_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -17077,6 +16202,14 @@ ALTER TABLE ONLY public.referee_expenses
 
 
 --
+-- Name: referee_expenses referee_expenses_payout_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.referee_expenses
+    ADD CONSTRAINT referee_expenses_payout_fk FOREIGN KEY (payout) REFERENCES public.finance_payouts(id) ON DELETE SET NULL;
+
+
+--
 -- Name: referee_expenses referee_expenses_recorded_by_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -17098,46 +16231,6 @@ ALTER TABLE ONLY public.referee_expenses
 
 ALTER TABLE ONLY public.registrations
     ADD CONSTRAINT registrations_member_fkey FOREIGN KEY (member) REFERENCES public.members(id) ON DELETE SET NULL;
-
-
---
--- Name: reports reports_conversation_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.reports
-    ADD CONSTRAINT reports_conversation_foreign FOREIGN KEY (conversation) REFERENCES public.conversations(id) ON DELETE SET NULL;
-
-
---
--- Name: reports reports_message_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.reports
-    ADD CONSTRAINT reports_message_foreign FOREIGN KEY (message) REFERENCES public.messages(id) ON DELETE SET NULL;
-
-
---
--- Name: reports reports_reported_member_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.reports
-    ADD CONSTRAINT reports_reported_member_foreign FOREIGN KEY (reported_member) REFERENCES public.members(id) ON DELETE SET NULL;
-
-
---
--- Name: reports reports_reporter_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.reports
-    ADD CONSTRAINT reports_reporter_foreign FOREIGN KEY (reporter) REFERENCES public.members(id) ON DELETE SET NULL;
-
-
---
--- Name: reports reports_resolved_by_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.reports
-    ADD CONSTRAINT reports_resolved_by_foreign FOREIGN KEY (resolved_by) REFERENCES public.members(id) ON DELETE SET NULL;
 
 
 --
@@ -17676,12 +16769,12 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict tnkBkH8sOc0V3uuLZKYuEIb6BDeQ3JjApEfBy34dvUrvmrKDvFy8IgSRK5daxSq
+\unrestrict EAkp2T5elL2ElpQsLBEfnA1fSIwXICGueSjFT4bctdfOJFIWqfmIpAwANBuiqG2
 
 
 
 -- ============================================================================
--- Migration tracker seed — 368 migration(s) already in the schema above.
+-- Migration tracker seed — 372 migration(s) already in the schema above.
 -- GENERATED with the snapshot; do not hand-edit.
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS kscw_migrations (
@@ -18061,6 +17154,10 @@ FROM (VALUES
   ('358-registrations-doc-waiver.sql'),
   ('359-slot-hall-drift-and-derby-hall-sets.sql'),
   ('360-member-dues-paid.sql'),
-  ('361-fine-rules-per-activity-type.sql')
+  ('361-fine-rules-per-activity-type.sql'),
+  ('362-referee-expenses-game-unique.sql'),
+  ('363-referee-expenses-payout-link.sql'),
+  ('364-drop-messaging.sql'),
+  ('365-scheduling-blocks-comment.sql')
 ) AS v(fname)
 ON CONFLICT (filename) DO NOTHING;
