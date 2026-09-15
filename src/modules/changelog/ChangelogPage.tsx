@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.9.0'
+const APP_VERSION = '2.10.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,24 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.10.0',
+    date: '15.09.2026',
+    sections: [
+      {
+        title: "New",
+        items: [
+          "Fines can now be priced differently for trainings, games and events. Team → Roster editor → Fines. A team's late sign-in or no-show rule was one ladder for everything, so a missed training deadline cost the same as a missed game deadline. Each of those categories now has a general rule plus, where you want one, an override per activity type — tap Customise next to Trainings, Games or Events and it starts as a copy of the general ladder for you to change. An override counts its own offenses: the first late game is offense #1 on the Games ladder whatever the training history, and it keeps its own reset window. Switch an override off and that type quietly follows the general rule again; remove it and it is gone. The automatic deadline sweep follows the same rules, so a team with only a Games override is swept for games alone.",
+        ],
+      },
+      {
+        title: "Improved",
+        items: [
+          "The tier editor lines up. The tier rows are a proper table now — Offense #, Amount, And all higher, remove — instead of rows whose inputs shifted with the width of their label, and the whole thing fits a phone screen, nested overrides included.",
+        ],
+      },
+    ],
+  },
   {
     version: '2.9.0',
     date: '13.09.2026',
