@@ -651,6 +651,8 @@ export default function DataHealthPage() {
   // owns its own fetch.
   const [proposalsReload, setProposalsReload] = useState(0)
   const [deactivating, setDeactivating] = useState(false)
+  // member_id of the awaiting-link row being re-offered, null when none.
+  const [reoffering, setReoffering] = useState<number | null>(null)
 
   // ── ClubDesk findings, owned here ──────────────────────────────────────────
   // One fetch feeds the group-check table AND the "Fix groups" button, so the
@@ -751,6 +753,24 @@ export default function DataHealthPage() {
       toast.error((e as { body?: { error?: string } })?.body?.error || (e as Error).message)
     } finally {
       setDeactivating(false)
+    }
+  }, [confirm, t, runChecks])
+
+  // Offer a lost create again: the server re-derives "lost" (a sync down since
+  // the push, no contact that could be them) and refuses otherwise — the confirm
+  // is the operator asserting the contact really is missing from the register,
+  // because a second push of an existing contact duplicates it there.
+  const handleReoffer = useCallback(async (row: NeedsSyncRow) => {
+    if (!(await confirm({ message: t('cdSyncReofferConfirm', { name: row.member_name }), danger: true }))) return
+    setReoffering(row.member_id)
+    try {
+      await kscwApi('/clubdesk-awaiting/reoffer', { method: 'POST', body: { member_id: row.member_id } })
+      toast.success(t('cdSyncReofferDone', { name: row.member_name }))
+      await runChecks()
+    } catch (e) {
+      toast.error((e as { body?: { error?: string } })?.body?.error || (e as Error).message)
+    } finally {
+      setReoffering(null)
     }
   }, [confirm, t, runChecks])
 
@@ -965,6 +985,8 @@ export default function DataHealthPage() {
                   loading={loading}
                   onDeactivateDeparted={handleDeactivateDeparted}
                   deactivating={deactivating}
+                  onReoffer={handleReoffer}
+                  reoffering={reoffering}
                 />
                 <ClubdeskGroupCheck
                   data={groupData}

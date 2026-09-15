@@ -26,6 +26,7 @@
  * ⚠ 'commit' writes to the club's legal member record. Gate it behind a human OK.
  */
 import { launchBrowser } from './clubdesk-browser.mjs'
+import { pickExact } from './clubdesk-dom.mjs'
 
 const USER = process.env.CLUBDESK_USER
 const PASS = process.env.CLUBDESK_PASS
@@ -86,20 +87,20 @@ const readGridCount = (page) => page.evaluate(() => {
   return null
 })
 
-// Click the element whose OWN text === exact; lowest-on-screen wins (dialog buttons sit low).
+// Click the element whose OWN text === exact; lowest-on-screen wins (dialog
+// buttons sit low). The rule itself — incl. the hit test that keeps a click
+// off a cell hidden behind the modal, the 15.09.2026 "Ja" that never took —
+// lives in clubdesk-dom.mjs (pickExact) so it is testable against a real DOM.
 const clickExact = async (page, exact, lowest = true) => {
-  const pos = await page.evaluate(({ exact, lowest }) => {
-    const c = [...document.querySelectorAll('*')].filter((e) => {
-      let t = ''; for (const n of e.childNodes) if (n.nodeType === 3) t += n.textContent
-      return t.trim() === exact
-    }).map((e) => e.getBoundingClientRect()).filter((r) => r.width > 0 && r.height > 0)
-    if (!c.length) return null
-    const r = (lowest ? c.sort((a, b) => b.top - a.top) : c.sort((a, b) => a.top - b.top))[0]
-    return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) }
-  }, { exact, lowest })
+  const pos = await page.evaluate(pickExact, { exact, lowest })
   if (!pos) return false
   await page.mouse.click(pos.x, pos.y); return true
 }
+
+// Is the wizard's confirmation ("Wollen Sie diese Änderungen übernehmen?")
+// still on screen? After a "Ja" that took, ClubDesk closes it (and may show a
+// result dialog); a "Ja" that did NOT take leaves it exactly as it was.
+const confirmDialogOpen = async (page) => (await readPopups(page)).some((t) => /übernehmen\?/i.test(t))
 
 // Read the pre-commit summary counts. SCOPED to the summary dialog subtree (the
 // modal asking "…übernehmen?") so a stray number from the background contact
@@ -204,15 +205,34 @@ async function run() {
 
     if (MODE === 'commit') {
       if (!(await clickExact(page, 'Ja'))) throw new Error('No "Ja" button to commit.')
+      // The write is only a write once the confirmation dialog has GONE. Wait
+      // for that (an import of a few hundred rows takes ClubDesk a few seconds)
+      // and refuse to call the run committed while the question is still on
+      // screen: a click that did not take leaves the wizard untouched, and the
+      // grid count / dialog sampling below could not tell that from a refused
+      // write. This is not the "false 'nothing happened'" the sampling
+      // deliberately does not gate on — a confirmation that is still open is
+      // proof that nothing was submitted, so failing here cannot strand a
+      // created contact unstamped. It is what turned the 15.09.2026 create set
+      // (see clickExact) into `committed:true` with an unchanged screen.
+      const deadline = Date.now() + 60000
+      let stillOpen = true
+      while (Date.now() < deadline) {
+        await sleep(1000)
+        if (!(await confirmDialogOpen(page))) { stillOpen = false; break }
+      }
+      if (stillOpen) {
+        await shot(page, '3-confirm-still-open')
+        throw new Error('Ja did not take — the confirmation dialog is still open after 60 s; nothing was written.')
+      }
       // What ClubDesk says AFTER the write, sampled over ~12 s. `committed` is
-      // still "we clicked Ja" — it is deliberately NOT gated on what is read
-      // here, because a false "nothing happened" would leave the creates
-      // unstamped and the next push would duplicate them. It is surfaced in the
-      // log and in the JSON result so a refused write is visible instead of
-      // silent: on 15.09.2026 a two-row create set went "Committed (clicked Ja)"
-      // and the register never gained the contacts.
+      // still "we clicked Ja and the wizard accepted it" — it is deliberately
+      // NOT gated on what is read here, because a false "nothing happened"
+      // would leave the creates unstamped and the next push would duplicate
+      // them. It is surfaced in the log and in the JSON result so a refused
+      // write is visible instead of silent.
       const seen = []
-      for (const [ms, name] of [[1500, '3a-after-ja'], [3000, '3b-after-ja'], [7500, '3c-after-ja']]) {
+      for (const [ms, name] of [[500, '3a-after-ja'], [3000, '3b-after-ja'], [7500, '3c-after-ja']]) {
         await sleep(ms)
         await shot(page, name)
         for (const t of await readPopups(page)) if (!seen.includes(t)) seen.push(t)

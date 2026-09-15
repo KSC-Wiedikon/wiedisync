@@ -3924,6 +3924,127 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
     return { statuses, members, conflictsById, blankRiskById, pushChangesById }
   }
 
+  /**
+   * "Awaiting link" rows whose CREATE demonstrably never landed (2026-09-15).
+   *
+   * `awaiting_link` = pushed as new (clubdesk_pushed_at) and not yet linked
+   * back. The stamp is the duplicate guard: the CREATE set skips the member
+   * until a sync-down reads the new contact's [Id]. That guard has no way out
+   * when the push did not write anything — twice on 15.09.2026 the import
+   * scraper's "Ja" landed on the modal glass (a Gast = Ja cell of the mapping
+   * grid behind it), the run still said committed, the two members were
+   * stamped, and the register never gained them: "Awaiting link" forever, and
+   * "nothing to push" on every sync path run. The scraper now refuses to report
+   * a commit while the wizard is still open, but a refused write after a real
+   * "Ja" (an error dialog) leaves the same state, so the board needs an honest
+   * verdict and a deliberate way back.
+   *
+   * A row is `lost` when ALL of these hold — each one is evidence, together they
+   * are proof enough for a human to decide, never for the server to act alone:
+   *   · a sync-down SUCCEEDED after the push (down_last_success_at > pushed_at):
+   *     the snapshot is newer than the write, so a created contact would be in
+   *     it and the linker would have had its chance;
+   *   · the member is still unlinked (clubdesk_id IS NULL);
+   *   · NO contact in the snapshot could be this person — neither cell holds
+   *     the member's e-mail, and no contact carries the same first + last name
+   *     (accent-insensitive, the linker's own normalisation). A contact that
+   *     matches but did not link (an ambiguity, a name the linker's first-name
+   *     rule rejects) is reported as `match` instead: the answer there is to
+   *     LINK it, and re-offering the member would duplicate it.
+   * Muted members (clubdesk_sync_exclude) and inactive ones are out of scope —
+   * neither is ever offered as a create.
+   *
+   * Returns Map<memberId(string), { lost, pushed_at, down_at, match }>.
+   */
+  async function computeLostCreates() {
+    const out = new Map()
+    const sync = await database('clubdesk_member_sync').where('id', 1).first('down_last_success_at')
+    if (!sync?.down_last_success_at) return out
+    const downAt = new Date(sync.down_last_success_at)
+    const rows = await database('members')
+      .whereNull('clubdesk_id').whereNotNull('clubdesk_pushed_at')
+      .where('clubdesk_sync_exclude', false)
+      .where('kscw_membership_active', true)
+      .where('clubdesk_pushed_at', '<', downAt)
+      .select('id', 'first_name', 'last_name', 'email', 'clubdesk_pushed_at')
+    for (const m of rows) {
+      const email = String(m.email || '').trim().toLowerCase()
+      const first = String(m.first_name || '').trim()
+      const last = String(m.last_name || '').trim()
+      const hit = await database('clubdesk_export')
+        .whereRaw("NULLIF(BTRIM(clubdesk_id), '') IS NOT NULL")
+        .where(function () {
+          if (email) {
+            this.orWhereRaw('LOWER(BTRIM(email)) = ?', [email])
+              .orWhereRaw('LOWER(BTRIM(email_alternativ)) = ?', [email])
+          }
+          if (first && last) {
+            this.orWhereRaw(
+              'unaccent(LOWER(BTRIM(nachname))) = unaccent(LOWER(?)) AND unaccent(LOWER(BTRIM(vorname))) = unaccent(LOWER(?))',
+              [last, first])
+          }
+        })
+        .first(database.raw('BTRIM(clubdesk_id) AS cdid'), 'vorname', 'nachname', 'email')
+      out.set(String(m.id), {
+        lost: !hit,
+        pushed_at: m.clubdesk_pushed_at,
+        down_at: sync.down_last_success_at,
+        match: hit
+          ? { clubdesk_id: hit.cdid, name: `${hit.vorname || ''} ${hit.nachname || ''}`.trim(), email: hit.email || null }
+          : null,
+      })
+    }
+    return out
+  }
+
+  // Offer a lost create to the next sync-up again: clear the stamp so the
+  // CREATE set lists the member once more. Re-derives the verdict server-side
+  // (the board can be minutes old and a sync-down in between is exactly the
+  // case where the contact has just appeared) and refuses anything that is not
+  // provably lost — pushing an existing contact duplicates it in the register.
+  router.post('/clubdesk-awaiting/reoffer', async (req, res) => {
+    try {
+      if (!(await superGate(req))) return res.status(403).json({ error: 'Forbidden' })
+      const memberId = Number(req.body?.member_id)
+      if (!Number.isInteger(memberId)) return res.status(400).json({ error: 'member_id required' })
+      const member = await database('members').where('id', memberId).first('id', 'clubdesk_id', 'clubdesk_pushed_at')
+      if (!member) return res.status(404).json({ error: 'Member not found' })
+      if (String(member.clubdesk_id || '').trim()) {
+        return res.status(409).json({ error: 'Member is already linked to a ClubDesk contact', code: 'linked' })
+      }
+      if (!member.clubdesk_pushed_at) {
+        return res.status(409).json({ error: 'Member was never pushed — it is already offered as a create', code: 'not_pushed' })
+      }
+      const busy = await database('clubdesk_member_sync').where('id', 1).first('down_state')
+      if (isBusy(busy?.down_state)) {
+        return res.status(409).json({ error: 'A sync down is running — wait for it, it may link the contact', code: 'down_busy' })
+      }
+      const verdict = (await computeLostCreates()).get(String(memberId))
+      if (!verdict) {
+        return res.status(409).json({
+          error: 'No sync down has run since this member was pushed — run "Sync down" first; it links the contact if it exists',
+          code: 'no_down_since_push',
+        })
+      }
+      if (!verdict.lost) {
+        return res.status(409).json({
+          error: `ClubDesk holds a contact that may be this person (${verdict.match.name}, ${verdict.match.clubdesk_id}) — link it instead of pushing again`,
+          code: 'contact_exists', match: verdict.match,
+        })
+      }
+      await database('members').where('id', memberId).update({ clubdesk_pushed_at: null })
+      await writeUserLog(database, log, {
+        accountability: req.accountability, action: 'update',
+        collection: 'members', recordId: memberId,
+        data: { kind: 'clubdesk_reoffer_create', pushed_at: verdict.pushed_at, down_at: verdict.down_at },
+      })
+      return res.json({ success: true, member_id: memberId })
+    } catch (err) {
+      log.error({ msg: `clubdesk-awaiting/reoffer: ${err.message}`, endpoint: 'clubdesk-awaiting/reoffer', stack: err.stack })
+      return res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
   router.get('/clubdesk-sync-status', async (req, res) => {
     try {
       if (!(await syncStatusGate(req))) return res.status(403).json({ error: 'Forbidden' })
@@ -3965,6 +4086,11 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       if (!(await superGate(req))) return res.status(403).json({ error: 'Forbidden' })
       const { statuses, members, conflictsById, blankRiskById, pushChangesById } = await computeMemberSyncStatuses()
       const rows = members.filter((m) => NEEDS_SYNC_STATUSES.includes(statuses[String(m.id)]))
+      // Only when the board has an `awaiting_link` row to say it about: the
+      // verdict costs one snapshot query per pushed-and-unlinked member.
+      const lost = rows.some((m) => statuses[String(m.id)] === 'awaiting_link')
+        ? await computeLostCreates()
+        : new Map()
 
       // Section per member, from the ONE server-side resolver. The detailed form
       // is what lets the UI separate a genuinely dual-sport member from one whose
@@ -4008,6 +4134,16 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
             // [{ field, wiedisync, clubdesk, landed?, unpushable? }] — what the
             // queued push carries. `pending` rows only; [] for every other status.
             push_changes: pushChangesById.get(String(m.id)) || [],
+            // `awaiting_link` rows only (see computeLostCreates): did the create
+            // provably not land? `push_lost` true ⇒ the board offers "Push
+            // again"; a `push_match` names the snapshot contact that may already
+            // be this person, so the fix is a link, not a second push. Absent
+            // while no sync-down has run since the push.
+            ...(lost.has(String(m.id)) ? {
+              push_lost: lost.get(String(m.id)).lost,
+              push_match: lost.get(String(m.id)).match,
+              pushed_at: lost.get(String(m.id)).pushed_at,
+            } : {}),
           }
         }),
         // ⚠ The sync-path runner gates step 3 on this. It counts what the push

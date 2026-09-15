@@ -159,6 +159,15 @@ num_field() { # num_field <json> <field> → integer (0 when null/absent)
   local v; v=$(printf '%s' "$1" | grep -o "\"$2\":[0-9]*" | head -1 | grep -o '[0-9]*$')
   echo "${v:-0}"
 }
+# The scraper's own reason for a failed scrape (its `error` field), as a
+# " — <reason>" suffix for up_message; empty when there is none. Since
+# 15.09.2026 the commit scrape refuses to report `committed` while the wizard's
+# confirmation is still on screen, and THAT reason must reach the operator
+# rather than "see up-run.log" alone.
+err_suffix() { # err_suffix <json>
+  local e; e=$(printf '%s' "$1" | grep -o '"error":"[^"]*"' | head -1 | sed 's/^"error":"//; s/"$//')
+  [ -n "$e" ] && printf ' — %s' "$e"
+}
 # Merged result for up_result: sums keep the modal's neu/veraendert display working
 # unchanged; the per-set raw results ride along under "sets" for debugging.
 merge_results() { # merge_results <committed:true|false> <json-update|''> <json-create|''>
@@ -248,7 +257,10 @@ if [ -s "$CSVUTF_C" ]; then
   RES_C=$(scrape "$CSV_C" commit create-commit)
   echo "commit (create set): $RES_C"
   if ! printf '%s' "$RES_C" | grep -q '"committed":true'; then
-    fail_run 'Push failed (create set) — see up-run.log' "$RES_C"
+    # Nothing is stamped here: the creates stay offered on the next push. That
+    # is right ONLY because the scraper reports `committed` for a "Ja" the
+    # wizard accepted — see clubdesk-scrape-import.mjs (confirmDialogOpen).
+    fail_run "Push failed (create set) — nothing was written to ClubDesk$(err_suffix "$RES_C"). See up-run.log" "$RES_C"
     echo "=== up-dispatch: FAILED (create set) ==="; exit 0
   fi
   # Stamp the creates NOW (duplicate protection): even if the update-set commit
@@ -284,9 +296,9 @@ if [ -s "$CSVUTF_U" ]; then
     # duplicates. 2026-08-30: exactly that, on a one-row update push.
     RES=$(merge_results false "$RES_U" "$RES_C")
     if [ -n "$RES_C" ]; then
-      fail_run 'Push failed (update set) — the CREATE set WAS committed and stamped; do not re-create those contacts. See up-run.log' "$RES"
+      fail_run "Push failed (update set) — the CREATE set WAS committed and stamped; do not re-create those contacts$(err_suffix "$RES_U"). See up-run.log" "$RES"
     else
-      fail_run 'Push failed (update set) — nothing was written to ClubDesk. The members stay flagged and go again on the next push. See up-run.log' "$RES"
+      fail_run "Push failed (update set) — nothing was written to ClubDesk$(err_suffix "$RES_U"). The members stay flagged and go again on the next push. See up-run.log" "$RES"
     fi
     echo "=== up-dispatch: FAILED (update set) ==="; exit 0
   fi
