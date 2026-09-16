@@ -664,10 +664,11 @@ SELECT ${MEMBER_COLS},
     grain: 'player',
     memberIdColumn: 'member_id',
     title: 'Login state inconsistent with the Directus user',
-    description: "The member either cannot log in although wiedisync_active says they can (no user link, suspended/invited Directus user, a password-less local user that never logged in), still carries the shell flag after activating, or has an activated, used Directus login that the member flag does not reflect. These are the 'I cannot log in' tickets.",
+    description: "The member either cannot log in although wiedisync_active says they can (no user link, suspended/invited Directus user, a password-less local user that never logged in), has a Directus user without a role (logs in fine, then every query 403s and the app bounces back to /login — looks like a wrong password, member 547 on 2026-09-16), still carries the shell flag after activating, or has an activated, used Directus login that the member flag does not reflect. These are the 'I cannot log in' tickets.",
     sql: `
 SELECT ${MEMBER_COLS},
        CASE WHEN m.wiedisync_active AND m."user" IS NULL THEN 'active_without_user'
+            WHEN u.id IS NOT NULL AND u.role IS NULL THEN 'user_without_role'
             WHEN m.wiedisync_active AND u.status IS NOT NULL AND u.status <> 'active' THEN 'directus_user_' || u.status
             WHEN m.wiedisync_active AND u.id IS NOT NULL AND u.password IS NULL AND u.last_access IS NULL
                  AND COALESCE(u.provider, 'default') = 'default' AND u.external_identifier IS NULL THEN 'user_without_password'
@@ -683,6 +684,7 @@ SELECT ${MEMBER_COLS},
  WHERE ${REAL_PERSON}
    AND (
         (m.wiedisync_active AND m."user" IS NULL)
+     OR (u.id IS NOT NULL AND u.role IS NULL)
      OR (m.wiedisync_active AND u.status IS NOT NULL AND u.status <> 'active')
      OR (m.wiedisync_active AND u.id IS NOT NULL AND u.password IS NULL AND u.last_access IS NULL
          AND COALESCE(u.provider, 'default') = 'default' AND u.external_identifier IS NULL)
