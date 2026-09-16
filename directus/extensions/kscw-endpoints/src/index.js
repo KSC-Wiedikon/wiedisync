@@ -475,7 +475,11 @@ export default {
           responseBody: typeof body.responseBody === 'string' ? body.responseBody.slice(0, 1000) : null,
           // Cap payload size — uncapped attacker-controlled payloads can fill
           // the JSONL log over time (30 req/min × big payload × 30 days).
-          payload: capPayload(body.payload),
+          // The pre-boot watchdog (public/boot-watchdog.js) is the one caller
+          // whose payload IS the finding — up to 20 resource timings that say
+          // which asset stalled — so its `boot_*` events get 4 KB, still well
+          // under writeErrorLog's 16 KB line ceiling.
+          payload: capPayload(body.payload, /^boot_[a-z]+$/.test(String(body.event)) ? 4000 : 500),
           error: typeof body.error === 'string' ? body.error.slice(0, 1000) : null,
           type: typeof body.type === 'string' ? body.type.slice(0, 200) : null,
           stack: typeof body.stack === 'string' ? body.stack.slice(0, 2000) : null,

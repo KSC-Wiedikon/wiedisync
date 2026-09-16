@@ -2,6 +2,8 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { initSentry } from './lib/sentry'
 import { forceReloadOnStaleChunk, isChunkLoadError, maybeReloadOnStaleChunk, reloadNow, stripCacheBustParam } from './lib/chunkReload'
+// Pre-boot watchdog handshake — see public/boot-watchdog.js.
+import { BootSignal } from './lib/BootSignal'
 import './i18n'
 import './index.css'
 
@@ -31,6 +33,7 @@ async function bootstrap() {
     const { default: SchedulingApp } = await import('./SchedulingApp')
     root.render(
       <StrictMode>
+        <BootSignal />
         <SchedulingApp />
       </StrictMode>,
     )
@@ -38,6 +41,7 @@ async function bootstrap() {
     const { default: App } = await import('./App')
     root.render(
       <StrictMode>
+        <BootSignal />
         <App />
       </StrictMode>,
     )
