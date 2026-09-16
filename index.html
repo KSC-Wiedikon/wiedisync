@@ -23,6 +23,11 @@
     <meta name="apple-mobile-web-app-title" content="Wiedisync" />
     <link rel="apple-touch-icon" href="/wiedisync_blau.png" />
     <script src="/sw-register.js"></script>
+    <!-- Pre-boot reporter: if the app bundle never mounts, this is the only code
+         that can say so (which asset stalled, for how long). Plain script, not a
+         module, so it runs before the bundle is even requested; external because
+         script-src has no 'unsafe-inline'. See public/boot-watchdog.js. -->
+    <script src="/boot-watchdog.js"></script>
   </head>
   <body>
     <div id="root"></div>

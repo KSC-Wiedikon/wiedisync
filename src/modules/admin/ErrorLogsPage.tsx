@@ -82,6 +82,9 @@ const LEVELS = ['error', 'warn', 'info']
 const EVENTS = [
   'api_error', 'auth_denied', 'auth_error', 'cron_error', 'client_error', 'unhandled_error',
   'unhandled_rejection', 'network_error', 'console_error', 'captcha_failed', 'push_send_failed',
+  // Pre-boot watchdog (public/boot-watchdog.js): the page loaded but the app
+  // never mounted / mounted late / was abandoned before mounting.
+  'boot_stall', 'boot_recovered', 'boot_slow', 'boot_abandoned',
 ]
 
 function todayIso() {
