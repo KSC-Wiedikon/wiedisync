@@ -47,8 +47,23 @@ function parseGames(teamXml, teamIdSet) {
     if (!id) continue
 
     const gameNumber = getAttr(fullBlock, 'gameNumber')
-    const yearMonthDay = getAttr(fullBlock, 'yearMonthDay')
-    const timeOfDay = getAttr(fullBlock, 'timeOfDay')
+    // Legacy Basketplan XML carried the date/time in dedicated `yearMonthDay`
+    // (YYYY-MM-DD) + `timeOfDay` (HH:MM) attributes. Since 2026-09-18 Basketplan
+    // dropped both from GameVO — the 26/27 season feed instead has `date`
+    // ("2026-10-24 00:00", time always zeroed — only the calendar day is real)
+    // and `time` ("2026-09-18 11:00", the DATE part is a meaningless stamp —
+    // only the HH:MM clock is the actual kickoff). Support both shapes so a
+    // future revert on their end needs no code change here.
+    let yearMonthDay = getAttr(fullBlock, 'yearMonthDay')
+    let timeOfDay = getAttr(fullBlock, 'timeOfDay')
+    if (!yearMonthDay) {
+      const dateAttr = getAttr(fullBlock, ' date')
+      yearMonthDay = dateAttr ? dateAttr.slice(0, 10) : ''
+    }
+    if (!timeOfDay) {
+      const timeAttr = getAttr(fullBlock, ' time')
+      timeOfDay = timeAttr.includes(' ') ? timeAttr.slice(11, 16) : ''
+    }
     const withdrawn = getAttr(fullBlock, 'withdrawn') === 'true'
 
     const homeBlock = fullBlock.match(/<homeTeam\s[^>]*\/>|<homeTeam\s[\s\S]*?<\/homeTeam>/)?.[0] || ''
