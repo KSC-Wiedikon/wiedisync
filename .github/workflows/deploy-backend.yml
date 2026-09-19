@@ -1,0 +1,75 @@
+name: Deploy backend
+
+# Runs the same `npm run deploy:<target>` chain a maintainer would run locally
+# (db:snapshot -> db:migrate -> db:setup-perms -> db:smoke -> ext:deploy), on a
+# runner that holds the Hetzner SSH key instead of putting it on a workstation
+# or in an agent container.
+#
+# Secrets are read from the GitHub Environment named by `target`, so `dev` and
+# `prod` use the same secret names with different values. Add a required
+# reviewer on the `prod` environment to gate production behind an approval.
+#
+# Required per environment:
+#   HETZNER_SSH_KEY         private key for the deploy user
+#   HETZNER_HOST            VPS hostname or IP
+#   HETZNER_USER            SSH user (needs the sudo rights the scripts use)
+#   DIRECTUS_TOKEN          static admin token, for db:setup-perms
+#   SMOKE_TEST_TOKEN        non-admin Member token, for db:smoke
+#   SMOKE_TEST_COACH_TOKEN  Coach token, for db:smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Environment to deploy
+        type: choice
+        options: [dev, prod]
+        default: dev
+
+concurrency:
+  group: deploy-backend-${{ inputs.target }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.target }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # deploy-extensions.sh resolves origin/dev|origin/prod, so it needs
+          # real history and remote refs, not a single-commit shallow clone.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Configure SSH
+        env:
+          SSH_KEY: ${{ secrets.HETZNER_SSH_KEY }}
+          SSH_HOST: ${{ secrets.HETZNER_HOST }}
+          SSH_USER: ${{ secrets.HETZNER_USER }}
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_hetzner
+          chmod 600 ~/.ssh/id_hetzner
+          {
+            echo "Host hetzner"
+            echo "  HostName $SSH_HOST"
+            echo "  User $SSH_USER"
+            echo "  IdentityFile ~/.ssh/id_hetzner"
+            echo "  IdentitiesOnly yes"
+            echo "  StrictHostKeyChecking accept-new"
+          } > ~/.ssh/config
+          chmod 600 ~/.ssh/config
+
+      - run: npm ci
+
+      - name: Deploy
+        env:
+          DIRECTUS_TOKEN: ${{ secrets.DIRECTUS_TOKEN }}
+          SMOKE_TEST_TOKEN: ${{ secrets.SMOKE_TEST_TOKEN }}
+          SMOKE_TEST_COACH_TOKEN: ${{ secrets.SMOKE_TEST_COACH_TOKEN }}
+        run: npm run deploy:${{ inputs.target }}
