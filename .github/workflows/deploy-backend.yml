@@ -13,9 +13,17 @@ name: Deploy backend
 #   HETZNER_SSH_KEY         private key for the deploy user
 #   HETZNER_HOST            VPS hostname or IP
 #   HETZNER_USER            SSH user (needs the sudo rights the scripts use)
-#   DIRECTUS_TOKEN          static admin token, for db:setup-perms
+#   ADMIN_EMAIL             Directus admin login, for db:setup-perms
+#   ADMIN_PASSWORD          its password
 #   SMOKE_TEST_TOKEN        non-admin Member token, for db:smoke
-#   SMOKE_TEST_COACH_TOKEN  Coach token, for db:smoke
+#
+# Optional:
+#   SMOKE_TEST_COACH_TOKEN  Coach token; db:smoke skips its coach checks without it
+#
+# setup-permissions.mjs authenticates by password, NOT by static token — the
+# prod static token has no directus_roles access, so a token here fails at
+# permission reconciliation. Same reasoning as directus/scripts/deploy-auth.sh,
+# which sources these from Vaultwarden for local runs.
 
 on:
   workflow_dispatch:
@@ -69,7 +77,8 @@ jobs:
 
       - name: Deploy
         env:
-          DIRECTUS_TOKEN: ${{ secrets.DIRECTUS_TOKEN }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
           SMOKE_TEST_TOKEN: ${{ secrets.SMOKE_TEST_TOKEN }}
           SMOKE_TEST_COACH_TOKEN: ${{ secrets.SMOKE_TEST_COACH_TOKEN }}
         run: npm run deploy:${{ inputs.target }}
