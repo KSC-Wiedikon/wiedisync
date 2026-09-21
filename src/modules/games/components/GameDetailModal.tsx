@@ -22,7 +22,7 @@ import { useMyCoveringAbsence } from '../../../hooks/useMyCoveringAbsence'
 import { useAbsenceNoteText } from '../../../hooks/useAbsenceNoteText'
 import { useMutation } from '../../../hooks/useMutation'
 import { fetchItem, kscwApi } from '../../../lib/api'
-import { invalidateForCollection } from '../../../lib/query'
+import { invalidateForCollection, useCollection } from '../../../lib/query'
 import { useConfirm } from '../../../components/ConfirmProvider'
 import { sanitizeUrl } from '../../../utils/sanitizeUrl'
 import DatePicker from '@/components/ui/DatePicker'
@@ -195,6 +195,17 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
   const [pushingNomination, setPushingNomination] = useState(false)
   const dialogRef = useRef<HTMLDivElement>(null)
   const { update: updateGame } = useMutation<Game>('games')
+  // Teams this game is opened to (migration 271). A shared game puts both staffs
+  // at the same check-in, so the guest team's coach/TR needs "Show IDs" too — see
+  // canShowIds below, and the matching server-side grant in identity-document.js
+  // (mayRead / recipientsFor / sharedGameTeamIds).
+  const { data: guestOpeningsRaw } = useCollection<{ id: string, team: Team | string }>('game_guest_teams', {
+    filter: { game: { _eq: game?.id } },
+    fields: ['id', 'team.id'],
+    all: true,
+    enabled: !!game?.id,
+  })
+  const guestTeamIds = (guestOpeningsRaw ?? []).map((o) => relId(o.team)).filter(Boolean)
   // Called-up players (migration 271) are not on this team's roster, so the
   // team-scoped canParticipateIn misses them — see useIsCalledUpToGame.
   const isCalledUp = useIsCalledUpToGame(user?.id, game?.id)
@@ -397,8 +408,11 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
   // in identity-document.js has no admin branch and refuses an admin outright —
   // they hold no envelope, so they could not decrypt a thing. Offering them the
   // button is a dead end that reports "0 documents downloaded", i.e. the message
-  // that means "nobody has uploaded one". Real coach/TR membership only.
+  // that means "nobody has uploaded one". Real coach/TR membership only — either
+  // of the game's own team, or of a team it's opened to as a guest (both sides
+  // of a shared game verify the same lineup; server grant is symmetric too).
   const canShowIds = coachTeamIds.includes(kscwTeamId) || teamResponsibleIds.includes(kscwTeamId)
+    || guestTeamIds.some((id) => coachTeamIds.includes(id) || teamResponsibleIds.includes(id))
   // The assigned Schreiber (scorer roles only — pure Täfeler excluded, mirroring
   // the roster endpoint). For them "View roster" opens the confirmed match sheet
   // (jersey #, DoB, coaches, ±window) instead of the RSVP roster. `user.id` is a

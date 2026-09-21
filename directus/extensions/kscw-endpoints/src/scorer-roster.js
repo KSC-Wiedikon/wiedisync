@@ -24,6 +24,12 @@
  *            scoped to the active party, so it hands us OUR list on either side.
  *            MAY EDIT (see POST below).
  *
+ *   guest_coach — a coach or TR of a team this game was opened to (migration 271). Same
+ *            window as `coach` — they travel too, and need to verify the SAME sheet at the
+ *            SAME table. READ ONLY: `bench` (the add-from-squad pool) and `can_edit` stay
+ *            keyed to `coach`/`admin` only, so being lent players for one fixture never
+ *            becomes a standing power to edit the host team's sheet.
+ *
  * Directus admins bypass both. Every read is audit-logged (writeUserLog) precisely
  * because it surfaces minor PII — a deliberate exception to the "reads need no actor
  * capture" rule.
@@ -359,6 +365,20 @@ async function isTeamLeader(database, memberId, teamId) {
   return !!coach || !!tr
 }
 
+/**
+ * Is this member a coach or TR of a team this specific game was opened to as a guest
+ * (migration 271)? Deliberately checks EVERY opening on the game, not just one — a game
+ * opened to two teams at once puts three staffs at the same check-in.
+ */
+async function isGuestTeamLeader(database, memberId, gameId) {
+  if (memberId == null || gameId == null) return false
+  const openings = await database('game_guest_teams').where('game', gameId).select('team')
+  for (const o of openings) {
+    if (await isTeamLeader(database, memberId, o.team)) return true
+  }
+  return false
+}
+
 export function registerScorerRoster(router, { database, logger }) {
   const log = logger.child({ endpoint: 'scorer-roster' })
 
@@ -387,8 +407,10 @@ export function registerScorerRoster(router, { database, logger }) {
       (col) => game[col] != null && Number(game[col]) === Number(member.id),
     )
     const isCoach = !!member && await isTeamLeader(database, Number(member.id), game.kscw_team)
+    const isGuestCoach = !isCoach && !!member && await isGuestTeamLeader(database, Number(member.id), game.id)
 
-    const access = isAdmin ? 'admin' : (isCoach ? 'coach' : (isScorer ? 'scorer' : null))
+    const access = isAdmin ? 'admin'
+      : (isCoach ? 'coach' : (isGuestCoach ? 'guest_coach' : (isScorer ? 'scorer' : null)))
     if (!access) {
       res.status(403).json({
         error: 'Not the assigned scorer, coach or team responsible for this game',
@@ -404,8 +426,8 @@ export function registerScorerRoster(router, { database, logger }) {
         res.status(403).json({ error: 'Game has no scheduled time', code: 'no_time' })
         return null
       }
-      const before = access === 'coach' ? COACH_WINDOW_BEFORE_MS : SCORER_WINDOW_BEFORE_MS
-      const after = access === 'coach' ? COACH_WINDOW_AFTER_MS : SCORER_WINDOW_AFTER_MS
+      const before = (access === 'coach' || access === 'guest_coach') ? COACH_WINDOW_BEFORE_MS : SCORER_WINDOW_BEFORE_MS
+      const after = (access === 'coach' || access === 'guest_coach') ? COACH_WINDOW_AFTER_MS : SCORER_WINDOW_AFTER_MS
       const nowMs = Date.now()
       if (nowMs < startMs - before || nowMs > startMs + after) {
         res.status(403).json({ error: 'Roster is not available at this time', code: 'outside_window' })
@@ -558,8 +580,11 @@ export function registerScorerRoster(router, { database, logger }) {
       if (!auth) return
       const { access, member, game, gameId } = auth
 
-      if (access === 'scorer') {
-        return res.status(403).json({ error: 'A scorer may not edit the sheet', code: 'read_only' })
+      // Fail-closed allow-list, not a deny-list: a `guest_coach` reads the same sheet as the
+      // host coach (see file header) but must never edit it — being lent players for one
+      // fixture is not a standing power over the host team's roster.
+      if (access !== 'admin' && access !== 'coach') {
+        return res.status(403).json({ error: 'Not authorized to edit the sheet', code: 'read_only' })
       }
 
       const body = req.body ?? {}
@@ -719,8 +744,9 @@ export function registerScorerRoster(router, { database, logger }) {
       if (!auth) return
       const { access, game, gameId } = auth
 
-      if (access === 'scorer') {
-        return res.status(403).json({ error: 'A scorer may not edit the sheet', code: 'read_only' })
+      // Same fail-closed allow-list as POST — see its comment.
+      if (access !== 'admin' && access !== 'coach') {
+        return res.status(403).json({ error: 'Not authorized to edit the sheet', code: 'read_only' })
       }
 
       const removed = await database('game_rosters').where('game', gameId).del()
