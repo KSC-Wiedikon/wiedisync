@@ -208,13 +208,19 @@ function buildClubDeskCSV(items: Registration[]): string {
     // Passive membership travels on Status alone — ClubDesk's redundant
     // Passivmitglied Ja/Nein checkbox was deleted 2026-07-30.
     const status = item.membership_type === 'passive' ? 'Passivmitglied' : 'Aktivmitglied'
+    // Salutation, derived from Geschlecht — nothing on the signup form asks
+    // for it directly, so leaving it blank meant every registration exported
+    // this way needed a human to fill Anrede by hand in ClubDesk afterwards.
+    const g = (item.geschlecht || '').trim().toLowerCase()
+    const anrede = ['männlich', 'male', 'm', 'mann', 'man'].includes(g) ? 'Herr'
+      : ['weiblich', 'female', 'f', 'frau', 'woman'].includes(g) ? 'Frau' : ''
 
     return [
       item.nachname || '', item.vorname || '', '',
       item.adresse || '', item.plz || '', item.ort || '',
       '', item.telefon_mobil || '',
       item.team || '', sektion, '', '',
-      '', '', '', '', '', 'Schweiz',
+      anrede, '', '', '', '', 'Schweiz',
       item.nationalitaet || '', '', '',
       item.email || '', '',
       status, '', todayStr, '', '', '',
