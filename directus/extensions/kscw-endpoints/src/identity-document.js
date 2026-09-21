@@ -22,9 +22,11 @@
  *
  * WHO MAY RECEIVE AN ENVELOPE is decided HERE, not by the client. The uploader tells us who
  * they wrapped to; we refuse to store an envelope for anyone who is not the member or a
- * coach/TR of a team the member actually plays in. The crypto would not care — a stranger's
- * envelope is only openable by that stranger — but the grant list is the access-control
- * record, and it has to mean something.
+ * coach/TR of a team the member actually plays in — OR, for a game shared via the guest
+ * mechanism (migration 271), a coach/TR of the other team(s) on that game's sheet, scoped to
+ * that specific game (`sharedGameTeamIds`). The crypto would not care — a stranger's envelope
+ * is only openable by that stranger — but the grant list is the access-control record, and it
+ * has to mean something.
  *
  * THE TIME WINDOW IS NOT A CRYPTOGRAPHIC BOUNDARY. A hall has no signal, so the coach must
  * be able to pre-load before they travel; that means the key reaches their device early, and
@@ -105,8 +107,88 @@ async function memberTeamIds(database, memberId) {
 }
 
 /**
+ * Teams tied to `memberId` only through the guest mechanism (migration 271): a host team
+ * whose game `memberId` was called up to, or — the flip side — a team invited as a guest
+ * into one of `memberId`'s own games. A shared game puts both staffs at the same hall
+ * checking the same lineup, so BOTH coaches/TRs need to verify EVERY player on that sheet,
+ * not just their own roster's.
+ *
+ * Deliberately grants every team on the game's sheet (host + all guest openings), not just
+ * a 1:1 host↔guest pair — if a game is opened to two teams at once, all three staffs are
+ * standing at the same check-in.
+ *
+ * Bounded to `scheduled` games, mirroring `memberTeamIds`' bound to `teams.active` — a
+ * guest slot for a game that already happened is a historical fact, not a standing grant.
+ */
+async function sharedGameTeamIds(database, memberId, ownTeamIds) {
+  const hostTeamOf = new Map() // gameId -> kscw_team, for every game worth considering
+
+  if (ownTeamIds.length) {
+    const hosted = await database('games as g')
+      .whereIn('g.kscw_team', ownTeamIds)
+      .where('g.status', 'scheduled')
+      .whereExists(function () {
+        this.select(database.raw('1')).from('game_guest_teams as ggt').whereRaw('ggt.game = g.id')
+      })
+      .select('g.id', 'g.kscw_team')
+    for (const g of hosted) hostTeamOf.set(Number(g.id), Number(g.kscw_team))
+  }
+
+  const guestOf = await database('games as g')
+    .join('game_guests as gg', 'gg.game', 'g.id')
+    .where('gg.member', memberId)
+    .where('g.status', 'scheduled')
+    .select('g.id', 'g.kscw_team')
+  for (const g of guestOf) hostTeamOf.set(Number(g.id), Number(g.kscw_team))
+
+  if (!hostTeamOf.size) return []
+
+  const gameIds = [...hostTeamOf.keys()]
+  const openings = await database('game_guest_teams').whereIn('game', gameIds).select('game', 'team')
+
+  const teamIds = new Set(hostTeamOf.values())
+  for (const o of openings) teamIds.add(Number(o.team))
+  for (const t of ownTeamIds) teamIds.delete(Number(t))
+
+  return [...teamIds]
+}
+
+/**
+ * The specific game(s) that put `otherTeamId` and `memberId` on the same sheet through the
+ * guest mechanism — either `otherTeamId` was opened as a guest team on one of memberId's
+ * own games, or `otherTeamId` hosts a game memberId was invited into. Unlike the fixture
+ * list used for a player's own team, this must NOT widen to every game `otherTeamId`
+ * plays — only the game(s) that actually connect these two.
+ */
+async function gamesLinkingTeams(database, memberId, ownTeamIds, otherTeamId) {
+  const rows = []
+
+  if (ownTeamIds.length) {
+    const hosted = await database('games as g')
+      .join('game_guest_teams as ggt', function () {
+        this.on('ggt.game', 'g.id').andOn('ggt.team', database.raw('?', [otherTeamId]))
+      })
+      .whereIn('g.kscw_team', ownTeamIds)
+      .where('g.status', 'scheduled')
+      .select('g.id', 'g.date', 'g.time')
+    rows.push(...hosted)
+  }
+
+  const guestOf = await database('games as g')
+    .join('game_guests as gg', 'gg.game', 'g.id')
+    .where('gg.member', memberId)
+    .where('g.kscw_team', otherTeamId)
+    .where('g.status', 'scheduled')
+    .select('g.id', 'g.date', 'g.time')
+  rows.push(...guestOf)
+
+  return rows
+}
+
+/**
  * The people allowed to read this member's ID: the member, plus the coaches and team
- * responsibles of every team they play in.
+ * responsibles of every team they play in — and, for a shared game, the coaches/TRs of
+ * the other team(s) on that game's sheet too (`sharedGameTeamIds`).
  *
  * Read via the junction tables directly. Expanding the M2M alias off `teams` returns
  * JUNCTION row ids, not member ids, unless you ask for `.members_id` — and a wrong id here
@@ -115,12 +197,14 @@ async function memberTeamIds(database, memberId) {
  */
 async function recipientsFor(database, memberId) {
   const teamIds = await memberTeamIds(database, memberId)
+  const sharedTeamIds = await sharedGameTeamIds(database, memberId, teamIds)
+  const allTeamIds = [...new Set([...teamIds, ...sharedTeamIds])]
 
   let staff = []
-  if (teamIds.length) {
+  if (allTeamIds.length) {
     const [coaches, responsibles] = await Promise.all([
-      database('teams_coaches').whereIn('teams_id', teamIds).select('members_id'),
-      database('teams_responsibles').whereIn('teams_id', teamIds).select('members_id'),
+      database('teams_coaches').whereIn('teams_id', allTeamIds).select('members_id'),
+      database('teams_responsibles').whereIn('teams_id', allTeamIds).select('members_id'),
     ])
     staff = [...coaches, ...responsibles].map((r) => Number(r.members_id))
   }
@@ -189,32 +273,44 @@ async function isTeamStaffOrAdmin(database, caller, teamId) {
 
 /**
  * May `caller` read `member`'s document right now?
- * Owner: always. Coach/TR: only inside the pre-load window of one of that member's games.
+ * Owner: always. Coach/TR of the member's own team: inside the pre-load window of one of
+ * that team's games. Coach/TR of a team sharing a game with the member via the guest
+ * mechanism (`sharedGameTeamIds`): inside the pre-load window of THAT specific game only —
+ * not every game their own team plays, since nothing else connects the two of them.
  * Admin: NO. An admin has no envelope, so they could not decrypt it anyway — but say no
  * explicitly rather than let them pull ciphertext they have no business holding.
  */
 async function mayRead(database, callerId, memberId) {
   if (Number(callerId) === Number(memberId)) return { ok: true, as: 'self' }
 
-  const teamIds = await memberTeamIds(database, memberId)
-  if (!teamIds.length) return { ok: false }
+  const ownTeamIds = await memberTeamIds(database, memberId)
+  const sharedTeamIds = await sharedGameTeamIds(database, memberId, ownTeamIds)
+  const allTeamIds = [...new Set([...ownTeamIds, ...sharedTeamIds])]
+  if (!allTeamIds.length) return { ok: false }
 
-  const [coach, tr] = await Promise.all([
-    database('teams_coaches').whereIn('teams_id', teamIds).where('members_id', callerId).first('id'),
-    database('teams_responsibles').whereIn('teams_id', teamIds).where('members_id', callerId).first('id'),
+  const [coachRows, trRows] = await Promise.all([
+    database('teams_coaches').whereIn('teams_id', allTeamIds).where('members_id', callerId).select('teams_id'),
+    database('teams_responsibles').whereIn('teams_id', allTeamIds).where('members_id', callerId).select('teams_id'),
   ])
-  if (!coach && !tr) return { ok: false }
+  const staffTeamIds = [...new Set([...coachRows, ...trRows].map((r) => Number(r.teams_id)))]
+  if (!staffTeamIds.length) return { ok: false }
 
-  // Is one of those teams playing soon? Cheap: only scheduled games around today.
+  // Cheap: only scheduled games around today. Prefer the own-team fixture list when the
+  // caller matches it (the fuller, more common signal) — fall back to the specific
+  // game(s) the guest mechanism connects them through otherwise.
   const now = Date.now()
-  const games = await database('games')
-    .whereIn('kscw_team', teamIds)
-    .where('status', 'scheduled')
-    .whereBetween('date', [
-      dateYMD(new Date(now - 24 * 3600 * 1000)),
-      dateYMD(new Date(now + 24 * 3600 * 1000)),
-    ])
-    .select('id', 'date', 'time')
+  const games = staffTeamIds.some((t) => ownTeamIds.includes(t))
+    ? await database('games')
+      .whereIn('kscw_team', ownTeamIds)
+      .where('status', 'scheduled')
+      .whereBetween('date', [
+        dateYMD(new Date(now - 24 * 3600 * 1000)),
+        dateYMD(new Date(now + 24 * 3600 * 1000)),
+      ])
+      .select('id', 'date', 'time')
+    : (await Promise.all(
+      staffTeamIds.map((t) => gamesLinkingTeams(database, memberId, ownTeamIds, t)),
+    )).flat()
 
   for (const g of games) {
     const start = gameStartMs(g)
