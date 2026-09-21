@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.14.0'
+const APP_VERSION = '2.14.1'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,18 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.14.1',
+    date: '21.09.2026',
+    sections: [
+      {
+        title: "Fixes",
+        items: [
+          "A coach who has been lent players for one game can now check their IDs — and so can the team lending them. Game → Show IDs. When a team opens a cup game to another team's players, both squads share the check-in table before kickoff, but only the hosting team's coach could open a player's ID document at all, and the visiting coach could not even see the sheet. Both a team's own coach/team responsible and the coach/team responsible of a team it has borrowed players from (or lent players to) can now view Show IDs for that game; a team's roster and edit rights stay exactly where they were. Anyone whose document was uploaded before today may need a coach who already holds a key to it to tap the fix ID access banner on the team page once.",
+        ],
+      },
+    ],
+  },
   {
     version: '2.14.0',
     date: '15.09.2026',

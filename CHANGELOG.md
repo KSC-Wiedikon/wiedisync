@@ -2,6 +2,12 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.14.1 — 2026-09-21
+
+### Fixes
+
+- **A coach who has been lent players for one game can now check their IDs — and so can the team lending them.** *Game → Show IDs.* When a team opens a cup game to another team's players, both squads share the check-in table before kickoff, but only the hosting team's coach could open a player's ID document at all, and the visiting coach could not even see the sheet. Both a team's own coach/team responsible and the coach/team responsible of a team it has borrowed players from (or lent players to) can now view "Show IDs" for that game; a team's roster and edit rights stay exactly where they were. Anyone whose document was uploaded before today may need a coach who already holds a key to it to tap the "fix ID access" banner on the team page once.
+
 ## v2.14.0 — 2026-09-15
 
 ### New
