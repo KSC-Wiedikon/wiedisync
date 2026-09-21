@@ -145,9 +145,9 @@ See `INFRA.md → Domains & Hosting Overview` for full map.
 <!-- Last few dev/deploy entries only, for at-a-glance recent context. Full history → docs/DEVLOG.md
      (append new dev/deploy entries THERE, not here). User-facing release notes → CHANGELOG.md.
      Keep this list pruned to ~5 entries. -->
+- **2026-09-21** ClubDesk register triple (Status/Sektion/Eintritt) + Anrede now seeded at registration time instead of only at push time; migration 366 backfilled both for existing members (fill-only, no version bump, dev+prod)
 - **2026-09-15** Season health `/admin/season-health` — superadmin whole-season diagnostic: 191 static-SQL checks in 8 sections + roster/team tables, VB/BB/club tabs, `npm run health:sql:dev` proves the registry on psql (no migration, dev+prod)
 - **2026-09-15** VolleyManager team rosters — 57 players assigned from `member_teams` via the browser's `assignPlayersToTeam` flow; `/admin/vm-teams` + `POST /kscw/admin/vm-team-assign` for the late licences (no migration, dev+prod, v2.14.0)
 - **2026-09-15** Database roster-season filter — team groups list the current season by default, past seasons toggleable in Filters; archived squads labelled `D2 (2025/26)` (frontend only, dev+prod via cherry-pick)
 - **2026-09-15** Member finance / Team finance nav split, `/finance/team`, referee fees derived into member + team views, Home nudge for coaches/TRs, season-end referee payout run (migrations 362 + 363, dev+prod, v2.12.0)
-- **2026-09-15** Guided tours deleted → written, searchable, role-aware in-app guide (40 sections × 5 locales, lazy per-locale chunks, `?` opens a slide-over) (frontend only, v2.13.0)
 **Full history → [`docs/DEVLOG.md`](docs/DEVLOG.md)** · **pre-1.0 → [`docs/DEVLOG-archive.md`](docs/DEVLOG-archive.md)** (v1.0.0 baseline consolidated 2026-06-19).
