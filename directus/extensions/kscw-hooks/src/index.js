@@ -35,6 +35,7 @@ import { createActingMemberMiddleware } from './acting-member.js'
 import { isLicenceStatus, notifyLicenceStatusChange, runLicenceStatusSweep } from '../../kscw-endpoints/src/licence-status.js'
 import { parseJsonArray, resolveMemberAudience } from '../../kscw-endpoints/src/audience.js'
 import { loadSuppressed } from '../../kscw-endpoints/src/email-suppression.js'
+import { deriveStatus, deriveSektion } from '../../kscw-endpoints/src/clubdesk-update.js'
 import { registerAuditHook } from './audit.js'
 import { sanitizeAnnouncementHtml } from './sanitize-html.js'
 import { snapshotSlot, cascadeSlotUpdate, generateInitialTrainings, topUpIndefiniteSlots, addTrainingSkip, clearTrainingSkip } from './slot-cascade.js'
@@ -5321,9 +5322,24 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       if (!existingMember.nationalitaet_codes && existingNatCodes) updates.nationalitaet_codes = existingNatCodes
       const existingFederation = normalizeFederation(reg.federation_of_origin)
       if (!existingMember.federation_of_origin && existingFederation) updates.federation_of_origin = existingFederation
-      if (!existingMember.sex && reg.geschlecht) updates.sex = normalizeSex(reg.geschlecht)
-      // Salutation ('Herr'/'Frau') — the ClubDesk sync-up reads its Anrede column off the member.
-      if (!existingMember.anrede && ['Herr', 'Frau'].includes(reg.anrede)) updates.anrede = reg.anrede
+      const regSex = normalizeSex(reg.geschlecht)
+      if (!existingMember.sex && regSex) updates.sex = regSex
+      // Salutation ('Herr'/'Frau') — the ClubDesk sync-up reads its Anrede
+      // column off the member. The signup form never asks for it directly
+      // (no Anrede field exists on the public registration flow, so
+      // reg.anrede is realistically always empty); Geschlecht IS asked and
+      // normalized, and a salutation follows deterministically from it, so
+      // derive rather than leave it for a human to answer later. Falls back
+      // to whichever sex is already known (existing member or this
+      // registration) when reg.anrede itself carries no usable value.
+      if (!existingMember.anrede) {
+        if (['Herr', 'Frau'].includes(reg.anrede)) updates.anrede = reg.anrede
+        else {
+          const sexKnown = existingMember.sex || regSex
+          if (sexKnown === 'm') updates.anrede = 'Herr'
+          else if (sexKnown === 'f') updates.anrede = 'Frau'
+        }
+      }
       if (!existingMember.ahv_nummer && reg.ahv_nummer) updates.ahv_nummer = reg.ahv_nummer
       // Payout IBAN from the signup form (migration 185) — fill-only, and
       // confirmed: the member typed it themselves. Registration values arrive
@@ -5335,6 +5351,18 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       // stopped at the registrations row (Kappeler/Krasser/Dietrich, Sep 2026).
       const regKantonsschule = String(reg.kantonsschule || '').trim() || null
       if (!existingMember.kantonsschule && regKantonsschule) updates.kantonsschule = regKantonsschule
+      // Register triple (migration 302) — fill-only, same as the rest of this
+      // block. Before this, a linked-but-unset member's register_status/
+      // sektion/eintritt stayed NULL through approval and only got filled a
+      // week later by the sync-down `fill` proposal (the "Ours is empty" row
+      // reported 2026-09-21 for a member accepted-then-pushed same day). This
+      // does not touch a linked contact's push behaviour: CD_PUSH_HEADERS still
+      // keeps Status/Sektion off UPDATE rows (ClubDesk stays authoritative once
+      // a clubdesk_id exists) — filling our own column early only means the
+      // next sync-down finds agreement instead of two empty-cell fills.
+      if (!existingMember.register_status) updates.register_status = deriveStatus(reg, existingMember)
+      if (!existingMember.sektion) updates.sektion = deriveSektion(reg)
+      if (!existingMember.eintritt && reg.submitted_at) updates.eintritt = reg.submitted_at
       // Beitragskategorie. Fill-only was the rule here until 2026-09-13, and it
       // silently threw away the one thing a RE-registration changes: a member
       // who joined as 'VB Schüler*in 1. Jahr' and signs up again for the next
@@ -5389,6 +5417,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       // migration 161 but was NEVER propagated, so approval silently threw the
       // ISO code away and left the member with free text only.
       const natCodes = await registrationNatCodes(db, reg)
+      const sex = normalizeSex(reg.geschlecht)
 
       const [member] = await db('members').insert({
         first_name: reg.vorname,
@@ -5405,8 +5434,12 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         // so approval never silently drops what the applicant typed.
         nationalitaet: natCodes ? null : (reg.nationalitaet || null),
         federation_of_origin: normalizeFederation(reg.federation_of_origin),
-        sex: normalizeSex(reg.geschlecht),
-        anrede: ['Herr', 'Frau'].includes(reg.anrede) ? reg.anrede : null,
+        sex,
+        // Salutation — see the fill-only branch above for why this derives
+        // from Geschlecht rather than waiting on a field the signup form
+        // never asks.
+        anrede: ['Herr', 'Frau'].includes(reg.anrede) ? reg.anrede
+          : sex === 'm' ? 'Herr' : sex === 'f' ? 'Frau' : null,
         ahv_nummer: reg.ahv_nummer || null,
         // Payout IBAN from the signup form (migration 185) — pre-validated
         // (mod-97) + normalized by registration.js; confirmed since the member
@@ -5417,6 +5450,19 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         // Kantonsschule (migration 315) — verbatim, 'Nein' included: on the
         // member it means "asked, and not at one", distinct from NULL.
         kantonsschule: String(reg.kantonsschule || '').trim() || null,
+        // Register triple (migration 302) — seeded from the SAME registration
+        // that clubdesk-update.js's create-push derives Status/Sektion/Eintritt
+        // from (deriveStatus/deriveSektion, and the registration's own
+        // submission date). Until now these three stayed NULL on the shell row
+        // through approval AND the push — the push only builds them into the
+        // outgoing CSV cell, never writes them back — so the very next
+        // sync-down saw ClubDesk's freshly-created contact answer with a value
+        // against our NULL and staged three "Ours is empty" fills for a member
+        // who had just been accepted and pushed (reported 2026-09-21, Lisa
+        // Prader). Seeding here means the round-trip agrees on day one.
+        register_status: deriveStatus(reg, null),
+        sektion: deriveSektion(reg),
+        eintritt: reg.submitted_at || null,
         // Per-flag licence booleans (migration 067; legacy `licences` json dropped in 119).
         scorer_vb: licences.includes('scorer_vb'),
         referee_vb: licences.includes('referee_vb'),
