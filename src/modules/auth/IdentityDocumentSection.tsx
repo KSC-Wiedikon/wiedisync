@@ -160,6 +160,7 @@ export default function IdentityDocumentSection() {
     if (file.size > MAX_BYTES) { toast.error(t('idTooLarge')); return }
 
     setBusy(true)
+    let uploadStatus: number | undefined
     try {
       // 1. Encrypt here. The plaintext never leaves this function.
       const enc = await encryptDocument(file)
@@ -173,6 +174,7 @@ export default function IdentityDocumentSection() {
         headers: { 'Content-Type': 'application/octet-stream' },
         body: enc.ciphertext as BodyInit,
       })
+      uploadStatus = up.status
       if (!up.ok) throw new Error(String(up.status))
       const { data: { id: fileId } } = await up.json() as { data: { id: string } }
 
@@ -214,6 +216,7 @@ export default function IdentityDocumentSection() {
         operation: 'identityUpload',
         endpoint: '/identity/upload',
         method: 'POST',
+        status: uploadStatus,
         payload: { mime: file.type, size: file.size },
       })
       toast.error(t('idUploadFailed'))
