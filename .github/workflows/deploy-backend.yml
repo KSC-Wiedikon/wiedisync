@@ -1,19 +1,22 @@
-name: Deploy backend
+name: Deploy backend (dev)
 
-# Runs the same `npm run deploy:<target>` chain a maintainer would run locally
+# Runs the same `npm run deploy:dev` chain a maintainer would run locally
 # (db:snapshot -> db:migrate -> db:setup-perms -> db:smoke -> ext:deploy), on a
-# runner that holds the Hetzner SSH key instead of putting it on a workstation
-# or in an agent container.
+# runner that holds the Hetzner SSH key — so a dev deploy no longer needs a
+# workstation with an unlocked vault.
 #
-# Secrets are read from the GitHub Environment named by `target`, so `dev` and
-# `prod` use the same secret names with different values. Add a required
-# reviewer on the `prod` environment to gate production behind an approval.
+# Prod is deliberately NOT here. directus/scripts/deploy-auth.sh sources the
+# prod admin credentials from Vaultwarden via `rbw`, which needs a master
+# password on a TTY. That human gate is the point: a runner would need its own
+# copy of the prod admin password and the VPS key, doubling where the strongest
+# credentials live. Dev is cheap to duplicate; prod is not. Deploy prod with
+# deploy-auth.sh.
 #
-# Required per environment:
+# Secrets live on the `dev` GitHub Environment:
 #   HETZNER_SSH_KEY         private key for the deploy user
 #   HETZNER_HOST            VPS hostname or IP
 #   HETZNER_USER            SSH user (needs the sudo rights the scripts use)
-#   ADMIN_EMAIL             Directus admin login, for db:setup-perms
+#   ADMIN_EMAIL             Directus dev admin login, for db:setup-perms
 #   ADMIN_PASSWORD          its password
 #   SMOKE_TEST_TOKEN        non-admin Member token, for db:smoke
 #
@@ -21,32 +24,25 @@ name: Deploy backend
 #   SMOKE_TEST_COACH_TOKEN  Coach token; db:smoke skips its coach checks without it
 #
 # setup-permissions.mjs authenticates by password, NOT by static token — the
-# prod static token has no directus_roles access, so a token here fails at
-# permission reconciliation. Same reasoning as directus/scripts/deploy-auth.sh,
-# which sources these from Vaultwarden for local runs.
+# static token has no directus_roles access, so a token here fails at
+# permission reconciliation. Same reasoning as deploy-auth.sh.
 
 on:
   workflow_dispatch:
-    inputs:
-      target:
-        description: Environment to deploy
-        type: choice
-        options: [dev, prod]
-        default: dev
 
 concurrency:
-  group: deploy-backend-${{ inputs.target }}
+  group: deploy-backend-dev
   cancel-in-progress: false
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment: ${{ inputs.target }}
+    environment: dev
     steps:
       - uses: actions/checkout@v4
         with:
-          # deploy-extensions.sh resolves origin/dev|origin/prod, so it needs
-          # real history and remote refs, not a single-commit shallow clone.
+          # deploy-extensions.sh resolves origin/dev, so it needs real history
+          # and remote refs, not a single-commit shallow clone.
           fetch-depth: 0
 
       - uses: actions/setup-node@v4
@@ -81,4 +77,4 @@ jobs:
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
           SMOKE_TEST_TOKEN: ${{ secrets.SMOKE_TEST_TOKEN }}
           SMOKE_TEST_COACH_TOKEN: ${{ secrets.SMOKE_TEST_COACH_TOKEN }}
-        run: npm run deploy:${{ inputs.target }}
+        run: npm run deploy:dev
