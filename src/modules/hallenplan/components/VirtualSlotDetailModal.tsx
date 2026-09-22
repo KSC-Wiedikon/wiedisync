@@ -4,6 +4,7 @@ import Modal from '@/components/Modal'
 import TeamChip from '../../../components/TeamChip'
 import type { HallSlot, Hall, Team, Game, Training, HallEvent } from '../../../types'
 import { formatTime } from '../../../utils/dateHelpers'
+import { describeExtraHalls } from '../../../utils/extraHalls'
 
 interface Props {
   slot: HallSlot
@@ -29,7 +30,10 @@ export default function VirtualSlotDetailModal({ slot, halls, teams, isAdmin, on
   const navigate = useNavigate()
   const meta = slot._virtual!
 
-  const hallName = halls.find((h) => h.id === slot.hall)?.name ?? ''
+  const hallName = [
+    halls.find((h) => h.id === slot.hall)?.name ?? '',
+    ...(meta.source === 'training' ? describeExtraHalls((meta.sourceRecord as Training).extra_halls, halls, t) : []),
+  ].filter(Boolean).join(' + ')
   const teamObjs = teams.filter((tm) => slot.team?.includes(tm.id))
   const teamName = teamObjs.map((tm) => tm.name).join(', ')
 

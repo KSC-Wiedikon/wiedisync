@@ -73,6 +73,9 @@ export default {
   required: 'Requis',
   invalidDate: 'Date invalide',
   endAfterStart: 'La fin doit etre posterieure au debut',
+  extraHallFrom: '{{hall}} (dès {{time}})',
+  extraHallUntil: "{{hall}} (jusqu'à {{time}})",
+  extraHallWindow: '{{hall}} ({{start}}–{{end}})',
   startDateRequired: 'La date de debut est requise',
   endDateRequired: 'La date de fin est requise',
 

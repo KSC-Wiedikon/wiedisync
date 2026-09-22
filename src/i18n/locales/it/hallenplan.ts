@@ -42,6 +42,13 @@ export default {
   editSlotTitle: 'Modifica fascia',
   newSlotTitle: 'Nuova fascia',
   deleteSlotConfirm: 'Sei sicuro di voler eliminare questa fascia?',
+  extraHalls: 'Palestre aggiuntive',
+  addExtraHall: 'Aggiungi palestra',
+  removeExtraHall: 'Rimuovi palestra',
+  extraHallFrom: 'Dalle',
+  extraHallUntil: 'Fino alle',
+  extraHallsHint: 'Una fascia, un allenamento. Lascia vuoti gli orari per usare la palestra per tutta la fascia.',
+  extraHallWindowInvalid: "L'orario di una palestra aggiuntiva deve rientrare in quello della fascia",
   selectPlaceholder: '-- Seleziona --',
 
   // Validation

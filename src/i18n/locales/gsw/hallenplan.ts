@@ -42,6 +42,13 @@ export default {
   editSlotTitle: 'Slot bearbeite',
   newSlotTitle: 'Neue Slot',
   deleteSlotConfirm: 'Bisch sicher, dass du de Slot lösche wotsch?',
+  extraHalls: 'Zuesätzlichi Halle',
+  addExtraHall: 'Halle dezuefüege',
+  removeExtraHall: 'Halle entferne',
+  extraHallFrom: 'Ab',
+  extraHallUntil: 'Bis',
+  extraHallsHint: 'Ein Slot, eis Training. Ziite leer lah, zum d Halle für de ganz Slot z bruuche.',
+  extraHallWindowInvalid: 'D Ziit vonere zuesätzliche Halle muess innerhalb vo de Slot-Ziit sii',
   selectPlaceholder: '-- Uswähle --',
 
   // Validation

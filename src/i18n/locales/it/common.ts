@@ -73,6 +73,9 @@ export default {
   required: 'Obbligatorio',
   invalidDate: 'Data non valida',
   endAfterStart: 'La fine deve essere successiva all\'inizio',
+  extraHallFrom: '{{hall}} (dalle {{time}})',
+  extraHallUntil: '{{hall}} (fino alle {{time}})',
+  extraHallWindow: '{{hall}} ({{start}}–{{end}})',
   startDateRequired: 'La data di inizio è obbligatoria',
   endDateRequired: 'La data di fine è obbligatoria',
 

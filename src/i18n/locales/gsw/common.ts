@@ -73,6 +73,9 @@ export default {
   required: 'Muäsch usfülle',
   invalidDate: 'Datum stimmt nöd',
   endAfterStart: 'S Ändi muäss nochem Start sii',
+  extraHallFrom: '{{hall}} (ab {{time}})',
+  extraHallUntil: '{{hall}} (bis {{time}})',
+  extraHallWindow: '{{hall}} ({{start}}–{{end}})',
   startDateRequired: 'Startdatum bruuchts',
   endDateRequired: 'Änddatum bruuchts',
 

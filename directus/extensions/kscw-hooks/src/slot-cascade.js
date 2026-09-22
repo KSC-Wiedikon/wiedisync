@@ -39,6 +39,14 @@ function todayStr() {
   return new Date().toISOString().slice(0, 10)
 }
 
+/** `hall_slots.extra_halls` (migration 370) as written to a training row.
+ *  pg hands a `json` column back parsed; knex needs it re-serialised on write.
+ *  The snapshot stores the serialised form, so null/[]/unchanged compare equal. */
+function extraHallsValue(v) {
+  const arr = typeof v === 'string' ? JSON.parse(v) : v
+  return Array.isArray(arr) && arr.length > 0 ? JSON.stringify(arr) : null
+}
+
 /** Format a JS Date as YYYY-MM-DD (UTC components — we anchor everything to
  *  UTC midnight to dodge DST surprises in date arithmetic). */
 function toISODate(d) {
@@ -248,6 +256,7 @@ export async function snapshotSlot(database, slotId) {
     start_time: slot.start_time,
     end_time: slot.end_time,
     hall: slot.hall,
+    extra_halls: extraHallsValue(slot.extra_halls),
     slot_type: slot.slot_type,
     valid_from: slot.valid_from ? toISODate(parseDate(slot.valid_from)) : null,
     valid_until: slot.valid_until ? toISODate(parseDate(slot.valid_until)) : null,
@@ -348,6 +357,7 @@ export async function generateInitialTrainings(database, slotId, log) {
         team: teamId,
         hall_slot: slotId,
         hall: slot.hall,
+        extra_halls: extraHallsValue(slot.extra_halls),
         date: d,
         start_time: slot.start_time,
         end_time: slot.end_time,
@@ -440,6 +450,7 @@ export async function cascadeSlotUpdate(database, slotId, pre, log) {
     //    committed sessions for the previous team no longer apply.
     const timeChanged = pre.start_time !== post.start_time || pre.end_time !== post.end_time
     const hallChanged = pre.hall !== post.hall
+    const extraHallsChanged = pre.extra_halls !== post.extra_halls
     const preTeam = pre.teams[0] ?? null
     const postTeam = post.teams[0] ?? null
     const teamChanged = preTeam !== postTeam
@@ -450,10 +461,11 @@ export async function cascadeSlotUpdate(database, slotId, pre, log) {
         .andWhere('date', '>=', today)
         .del()
       log?.info?.({ msg: '[slot-cascade] cleared future trainings for now-teamless slot', slot: slotId, count: deleted, event: 'slot_free' })
-    } else if (timeChanged || hallChanged || teamChanged || dateShiftApplied) {
+    } else if (timeChanged || hallChanged || extraHallsChanged || teamChanged || dateShiftApplied) {
       const patch = {}
       if (timeChanged) { patch.start_time = post.start_time; patch.end_time = post.end_time }
       if (hallChanged) patch.hall = post.hall
+      if (extraHallsChanged) patch.extra_halls = extraHallsValue(post.extra_halls)
       if (teamChanged && postTeam != null) patch.team = postTeam
       if (Object.keys(patch).length > 0) {
         await trx('trainings')
@@ -502,6 +514,7 @@ export async function cascadeSlotUpdate(database, slotId, pre, log) {
           team: postTeam,
           hall_slot: slotId,
           hall: post.hall,
+          extra_halls: extraHallsValue(post.extra_halls),
           date: d,
           start_time: post.start_time,
           end_time: post.end_time,
@@ -566,6 +579,7 @@ export async function topUpIndefiniteSlots(database, log, onCreated) {
           team: teamId,
           hall_slot: slotRow.id,
           hall: slotRow.hall,
+          extra_halls: extraHallsValue(slotRow.extra_halls),
           date: d,
           start_time: slotRow.start_time,
           end_time: slotRow.end_time,

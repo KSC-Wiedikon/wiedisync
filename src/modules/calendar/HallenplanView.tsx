@@ -153,7 +153,9 @@ export default function HallenplanView() {
   useRealtime<Training>('trainings', debouncedRefetch)
   useRealtime<HallEvent>('hall_events', debouncedRefetch)
 
-  function handleSlotClick(slot: HallSlot) {
+  function handleSlotClick(clicked: HallSlot) {
+    // An extra-hall copy (migration 370) acts on the slot it was expanded from.
+    const slot = clicked._extraOf ?? clicked
     const meta = slot._virtual
     const isManuallyFree = !meta && !slot.team
 

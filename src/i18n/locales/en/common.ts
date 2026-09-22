@@ -73,6 +73,9 @@ export default {
   required: 'Required',
   invalidDate: 'Invalid date',
   endAfterStart: 'End must be after start',
+  extraHallFrom: '{{hall}} (from {{time}})',
+  extraHallUntil: '{{hall}} (until {{time}})',
+  extraHallWindow: '{{hall}} ({{start}}–{{end}})',
   startDateRequired: 'Start date is required',
   endDateRequired: 'End date is required',
 

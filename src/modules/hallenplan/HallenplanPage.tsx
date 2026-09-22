@@ -147,7 +147,9 @@ export default function HallenplanPage() {
   useRealtime<SlotClaim>('slot_claims', debouncedRefetch)
   useRealtime<Training>('trainings', debouncedRefetch)
 
-  function handleSlotClick(slot: HallSlot) {
+  function handleSlotClick(clicked: HallSlot) {
+    // An extra-hall copy (migration 370) acts on the slot it was expanded from.
+    const slot = clicked._extraOf ?? clicked
     const meta = slot._virtual
     const canAdminTeam = !!slot.team?.length && slot.team.some(t => hasAdminAccessToTeam(t))
     const canAdminCurrentSport = sportFilter === 'all'

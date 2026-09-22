@@ -53,6 +53,7 @@ import HomeDelegationCard from './components/HomeDelegationCard'
 import MyDutyBanner from './components/MyDutyBanner'
 import RefereeExpenseNudge from './components/RefereeExpenseNudge'
 import { useMyDuties, DUTY_ROLE_LABEL_KEYS, type MyDuty } from '../../hooks/useMyDuties'
+import ExtraHallsSuffix from '../../components/ExtraHallsSuffix'
 
 type ExpandedGame = Game & {
   kscw_team?: Team & BaseRecord | string
@@ -1122,7 +1123,7 @@ function CompactTrainingRow({ training, onClick, participationStatus, participat
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               {team && <TeamChip team={team.name} size="sm" />}
-              {hall && <span className="text-sm text-gray-700 dark:text-gray-300">{hall.name}</span>}
+              {hall && <span className="text-sm text-gray-700 dark:text-gray-300">{hall.name}<ExtraHallsSuffix extraHalls={training.extra_halls} /></span>}
             </div>
           </div>
         </div>
