@@ -411,6 +411,13 @@ export default function GamesPage() {
     const sections: Array<{ key: 'league' | 'cup'; label: string; items: typeof games }> = []
     if (leagueGames.length > 0) sections.push({ key: 'league', label: t('sectionLeague'), items: leagueGames })
     if (cupGames.length > 0) sections.push({ key: 'cup', label: t('sectionCup'), items: cupGames })
+    // Upcoming: the section holding the next game comes first. A fixed league-then-Cup
+    // order buried tonight's cup game under weeks of league fixtures (2026-09-22, D1
+    // coach could not find the game to show IDs; Home, which is date-sorted, had it).
+    if (variant === 'card') {
+      const firstKickoff = (items: typeof games) => `${items[0].date ?? ''} ${items[0].time ?? ''}`
+      sections.sort((a, b) => firstKickoff(a.items).localeCompare(firstKickoff(b.items)))
+    }
     return sections.map((section) => (
       <div key={section.key} className="mb-6 last:mb-0">
         {showHeadings && (
