@@ -27,6 +27,12 @@ export interface XlsxGameRow {
   weekday: string
   date: string; time: string; hall: string; home: string; away: string; league: string
   scorer: string; scoreboard: string; combined: string; referee: string; dutyTeam: string
+  // Basketball only: what ProBasket Tabelle I demands for this league, and the
+  // three table seats by person. One duty team supplies the whole crew, so a
+  // per-seat TEAM column would just repeat itself — the seats differ by who
+  // sits in them, and the requirement is what makes the row checkable.
+  crewRequired: string
+  anschreiber: string; zeitnehmer: string; official24s: string
   conflicts: string
   status: 'ok' | 'unassigned' | 'existing' | 'cup'
 }
@@ -34,6 +40,8 @@ export interface XlsxGameRow {
 export interface XlsxSummaryRow {
   team: string; games: number; scorer: number; scoreboard: number
   combined: number; referee: number; duties: number; total: number
+  /** Basketball only: how many of this team's duties were OTR2-requiring games. */
+  otr2Duties: number
 }
 
 export interface XlsxLabels {
@@ -41,6 +49,7 @@ export interface XlsxLabels {
   gameNo: string; weekday: string
   date: string; time: string; hall: string; home: string; away: string; league: string
   scorer: string; scoreboard: string; combined: string; referee: string; dutyTeam: string; conflicts: string
+  crewRequired: string; anschreiber: string; zeitnehmer: string; official24s: string; otr2Duties: string
   team: string; games: string; total: string
 }
 
@@ -68,7 +77,7 @@ export async function buildAssignmentXlsx(
   const ws = wb.addWorksheet(L.sheetGames.slice(0, 31))
   const gameCols = isVb
     ? [['gameNo', L.gameNo, 12], ['weekday', L.weekday, 6], ['date', L.date, 12], ['time', L.time, 8], ['hall', L.hall, 12], ['home', L.home, 26], ['away', L.away, 26], ['league', L.league, 22], ['scorer', L.scorer, 12], ['scoreboard', L.scoreboard, 12], ['combined', L.combined, 14], ['referee', L.referee, 14], ['conflicts', L.conflicts, 44]] as const
-    : [['gameNo', L.gameNo, 12], ['weekday', L.weekday, 6], ['date', L.date, 12], ['time', L.time, 8], ['hall', L.hall, 12], ['home', L.home, 26], ['away', L.away, 26], ['league', L.league, 22], ['dutyTeam', L.dutyTeam, 14], ['conflicts', L.conflicts, 44]] as const
+    : [['gameNo', L.gameNo, 12], ['weekday', L.weekday, 6], ['date', L.date, 12], ['time', L.time, 8], ['hall', L.hall, 12], ['home', L.home, 26], ['away', L.away, 26], ['league', L.league, 22], ['dutyTeam', L.dutyTeam, 16], ['crewRequired', L.crewRequired, 20], ['anschreiber', L.anschreiber, 18], ['zeitnehmer', L.zeitnehmer, 18], ['official24s', L.official24s, 18], ['conflicts', L.conflicts, 44]] as const
   ws.columns = gameCols.map(([key, header, width]) => ({ key, header, width }))
   headerRow(ws.getRow(1))
   ws.views = [{ state: 'frozen', ySplit: 1 }]
@@ -93,7 +102,7 @@ export async function buildAssignmentXlsx(
   const ws2 = wb.addWorksheet(L.sheetSummary.slice(0, 31))
   const sumCols = isVb
     ? [['team', L.team, 14], ['games', L.games, 10], ['scorer', L.scorer, 10], ['scoreboard', L.scoreboard, 12], ['combined', L.combined, 14], ['referee', L.referee, 14], ['total', L.total, 10]] as const
-    : [['team', L.team, 14], ['games', L.games, 10], ['duties', L.dutyTeam, 10]] as const
+    : [['team', L.team, 14], ['games', L.games, 10], ['duties', L.dutyTeam, 10], ['otr2Duties', L.otr2Duties, 14]] as const
   ws2.columns = sumCols.map(([key, header, width]) => ({ key, header, width }))
   headerRow(ws2.getRow(1))
   ws2.views = [{ state: 'frozen', ySplit: 1 }]

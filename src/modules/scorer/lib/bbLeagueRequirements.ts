@@ -180,3 +180,27 @@ export function resolveBbRequirement(gameLeague: string | null | undefined): BbL
 export function seatCount(gameLeague: string | null | undefined): number {
   return resolveBbRequirement(gameLeague).seats.length
 }
+
+// ── Human-readable crew label ────────────────────────────────────────────────
+
+const SEAT_NAME: Record<SeatLicence, string> = { otr2: 'OTR2', otr1: 'OTR1', none: 'free' }
+
+/**
+ * Render a league's crew as one cell, e.g. `3 — 1 OTR2, 2 OTR1`.
+ *
+ * Used in the assignment export so a checker can see what the game demanded
+ * next to the team that got it, without cross-referencing Tabelle I by hand.
+ * Always English: exports are English regardless of UI locale.
+ */
+export function crewLabel(req: BbLeagueRequirement): string {
+  if (req.refereeOnly) return 'Referee only'
+  if (req.seats.length === 0) return '—'
+  const counts = new Map<SeatLicence, number>()
+  for (const seat of req.seats) counts.set(seat, (counts.get(seat) ?? 0) + 1)
+  // Highest licence first, matching how Tabelle I reads.
+  const order: SeatLicence[] = ['otr2', 'otr1', 'none']
+  const parts = order
+    .filter((s) => counts.has(s))
+    .map((s) => `${counts.get(s)} ${SEAT_NAME[s]}`)
+  return `${req.seats.length} — ${parts.join(', ')}`
+}

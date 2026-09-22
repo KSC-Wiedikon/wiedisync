@@ -124,6 +124,8 @@ export default {
   bbScorer: 'Marqueur (OTR1)',
   bbTimekeeper: 'Chronometreur (OTR1)',
   bb24sOfficial: 'Officiel 24" (OTR2)',
+  crewRequired: 'Officiels requis',
+  otr2Duties: 'Dont OTR2',
   dutyTeamTag: 'Service',
   dutyCount: 'Services',
   reason_gameOverlap: 'Chevauchement avec son propre match',
