@@ -73,6 +73,9 @@ export default {
   required: 'Pflichtfeld',
   invalidDate: 'Ungültiges Datum',
   endAfterStart: 'Ende muss nach dem Start sein',
+  extraHallFrom: '{{hall}} (ab {{time}})',
+  extraHallUntil: '{{hall}} (bis {{time}})',
+  extraHallWindow: '{{hall}} ({{start}}–{{end}})',
   startDateRequired: 'Startdatum ist erforderlich',
   endDateRequired: 'Enddatum ist erforderlich',
 

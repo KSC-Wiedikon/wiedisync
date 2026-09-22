@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.15.0'
+const APP_VERSION = '2.16.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,24 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.16.0',
+    date: '23.09.2026',
+    sections: [
+      {
+        title: 'New',
+        items: [
+          "One training can now use several halls. *Hallenplan → edit slot → Additional halls.* A team that trains in one hall and takes a second one for part of the session (e.g. KWI B from 18:00, KWI A as well from 18:30) used to need two slots, so every week showed two trainings and asked for two RSVPs. A slot can now list additional halls, each with an optional start and end time. It shows in every hall it uses on the Hallenplan and appears as a single training. Existing split sessions have been merged.",
+        ],
+      },
+      {
+        title: 'Fixes',
+        items: [
+          "Changing your email now changes the address you log in with. Updating the email on a profile only changed the contact address, so the member still had to log in, and received password reset links, at the old one.",
+        ],
+      },
+    ],
+  },
   {
     version: '2.15.0',
     date: '22.09.2026',

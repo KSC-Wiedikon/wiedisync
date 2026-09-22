@@ -19,6 +19,7 @@ import type { Training, Team, Hall, Member, Participation } from '../../types'
 import { asObj, relId, teamCoachIds, memberDisplayName } from '../../utils/relations'
 import CancelActivityButton from '../../components/CancelActivityButton'
 import { MapPin, Clock, MessageSquare, User, Users, Calendar, Check, UserPlus, AlarmClock } from 'lucide-react'
+import ExtraHallsSuffix from '../../components/ExtraHallsSuffix'
 
 type TrainingExpanded = Training & {
   team: Team | string
@@ -163,6 +164,7 @@ export default function TrainingDetailModal({ training, onClose, participations 
                 ) : (
                   <span>{hall?.name || training.hall_name}</span>
                 )}
+                <ExtraHallsSuffix extraHalls={training.extra_halls} />
               </div>
             )}
             {coach && (

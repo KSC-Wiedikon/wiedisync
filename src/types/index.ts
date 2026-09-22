@@ -403,8 +403,21 @@ export interface HallSlot extends BaseRecord {
   label: string
   notes: string
   sport?: 'volleyball' | 'basketball' | ''
+  /** Additional halls this slot also occupies (migration 370). `hall` stays the primary. */
+  extra_halls?: ExtraHall[] | null
 
   _virtual?: VirtualSlotMeta
+  /** Display-only copy of a slot placed in one of its `extra_halls` columns;
+   *  points at the slot it was expanded from (see `expandExtraHalls`). */
+  _extraOf?: HallSlot
+}
+
+/** One entry of `hall_slots.extra_halls` / `trainings.extra_halls`. Times narrow
+ *  the window inside the slot's own range; null = the slot's own time. */
+export interface ExtraHall {
+  hall: number | string
+  start_time?: string | null
+  end_time?: string | null
 }
 
 export interface HallClosure extends BaseRecord {
@@ -620,6 +633,8 @@ export interface Training extends BaseRecord {
   end_time: string
   hall: string
   hall_name: string
+  /** Copied from the slot by the cascade (migration 370). */
+  extra_halls?: ExtraHall[] | null
   coach: string
   notes: string
   cancelled: boolean

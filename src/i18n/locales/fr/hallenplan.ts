@@ -42,6 +42,13 @@ export default {
   editSlotTitle: 'Modifier le creneau',
   newSlotTitle: 'Nouveau creneau',
   deleteSlotConfirm: 'Voulez-vous vraiment supprimer ce creneau ?',
+  extraHalls: 'Salles supplémentaires',
+  addExtraHall: 'Ajouter une salle',
+  removeExtraHall: 'Retirer la salle',
+  extraHallFrom: 'Dès',
+  extraHallUntil: "Jusqu'à",
+  extraHallsHint: 'Un créneau, un entraînement. Laissez les heures vides pour utiliser la salle pendant tout le créneau.',
+  extraHallWindowInvalid: "L'horaire d'une salle supplémentaire doit être compris dans celui du créneau",
   selectPlaceholder: '-- Selectionner --',
 
   // Validation

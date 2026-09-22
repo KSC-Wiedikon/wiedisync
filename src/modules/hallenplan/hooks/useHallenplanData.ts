@@ -9,6 +9,7 @@ import { flattenM2MTeams } from '../../../lib/api'
 // never settle ("Too many re-renders", fixed 2026-07-09).
 const EMPTY: never[] = []
 import { toISODate } from '../../../utils/dateHelpers'
+import { expandExtraHalls } from '../../../utils/extraHalls'
 import type { Hall, HallSlot, HallClosure, Team, Game, Training, HallEvent, SlotClaim } from '../../../types'
 import {
   gameToVirtualSlots,
@@ -235,7 +236,12 @@ export function useHallenplanData(
       ? virtualSlots.filter((vs) => hallSet.has(vs.hall))
       : virtualSlots
 
-    return mergeVirtualSlots(rawSlots, filteredVirtual, slotClaims, mergedClosures, games, weekDays, halls, teams, freedHorizonDate)
+    // Extra halls (migration 370) are expanded AFTER the merge so each copy
+    // inherits its primary's suppression / freed / cancelled state.
+    return expandExtraHalls(
+      mergeVirtualSlots(rawSlots, filteredVirtual, slotClaims, mergedClosures, games, weekDays, halls, teams, freedHorizonDate),
+      selectedHallIds,
+    )
   }, [rawSlots, games, trainings, hallEvents, weekDays, halls, teams, selectedHallIds, slotClaims, mergedClosures, freedHorizonDate])
 
   // Hold the last fully-consistent merge so a week switch swaps atomically

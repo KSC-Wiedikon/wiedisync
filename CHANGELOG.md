@@ -2,6 +2,16 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.16.0 — 2026-09-23
+
+### New
+
+- **One training can now use several halls.** *Hallenplan → edit slot → Additional halls.* A team that trains in one hall and takes a second one for part of the session (e.g. KWI B from 18:00, KWI A as well from 18:30) used to need two slots, so every week showed two trainings and asked for two RSVPs. A slot can now list additional halls, each with an optional start and end time. It shows in every hall it uses on the Hallenplan and appears as a single training ("KWI B + KWI A (from 18:30)"). Existing split sessions have been merged.
+
+### Fixes
+
+- **Changing your email now changes the address you log in with.** Updating the email on a profile only changed the contact address, so the member still had to log in, and received password reset links, at the old one.
+
 ## v2.15.0 — 2026-09-22
 
 ### New

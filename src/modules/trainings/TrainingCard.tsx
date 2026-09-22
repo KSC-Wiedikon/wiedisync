@@ -12,6 +12,7 @@ import { asObj, relId, memberDisplayName, teamCoachIds } from '../../utils/relat
 import CancelActivityButton from '../../components/CancelActivityButton'
 import ShareActivityButton from '../../components/ShareActivityButton'
 import ActivityParticipation from '../../components/ActivityParticipation'
+import ExtraHallsSuffix from '../../components/ExtraHallsSuffix'
 
 type TrainingExpanded = Training & {
   team: Team | string
@@ -104,7 +105,7 @@ export default function TrainingCard({ training, participations, myParticipation
       {/* Details */}
       <p className="mt-1.5 text-sm text-gray-600 dark:text-gray-400">
         {formatTime(training.start_time)} – {formatTime(training.end_time)}
-        {(hall || training.hall_name) && <span> · {hall?.name || training.hall_name}</span>}
+        {(hall || training.hall_name) && <span> · {hall?.name || training.hall_name}<ExtraHallsSuffix extraHalls={training.extra_halls} /></span>}
         {coach && <span> · {memberDisplayName(coach)}</span>}
       </p>
 

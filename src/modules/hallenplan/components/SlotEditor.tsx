@@ -6,13 +6,15 @@ import { FormInput, FormTextarea, FormField } from '@/components/FormField'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
-import { ChevronsUpDown, Check } from 'lucide-react'
+import { ChevronsUpDown, Check, Plus, X } from 'lucide-react'
 import DatePicker from '@/components/ui/DatePicker'
 import { Switch } from '@/components/ui/switch'
 import { logActivity } from '../../../utils/logActivity'
 import { useConfirm } from '../../../components/ConfirmProvider'
 import { useConflictChecker } from '../hooks/useConflictChecker'
 import { minutesToTime, timeToMinutes } from '../../../utils/dateHelpers'
+import { extraHallWindow, parseExtraHalls } from '../../../utils/extraHalls'
+import { relId } from '../../../utils/relations'
 import type { Hall, HallSlot, Team } from '../../../types'
 import { createRecord, deleteRecord, updateRecord, teamToM2M } from '../../../lib/api'
 
@@ -87,11 +89,6 @@ export default function SlotEditor({
     ? (slot?.team?.length ? adminTeamIds.length === 0 || slot.team.some(t => adminTeamIds.includes(t)) : true)
     : (slot?.team?.length ? slot.team.some(t => coachTeamIds.includes(t)) : false)
 
-  // Build a synthetic "KWI A+B" option
-  const kwiA = halls.find((h) => h.name === 'KWI A')
-  const kwiB = halls.find((h) => h.name === 'KWI B')
-  const COMBO_VALUE = kwiA && kwiB ? `${kwiA.id}+${kwiB.id}` : ''
-
   const [form, setForm] = useState({
     hall: slot?.hall ?? prefill?.hall ?? (halls[0]?.id ?? ''),
     team: defaultTeam,
@@ -104,6 +101,13 @@ export default function SlotEditor({
     valid_until: (slot?.valid_until?.slice(0, 10)) || '',
     label: slot?.label ?? '',
     notes: slot?.notes ?? '',
+    // Additional halls this one slot also occupies (migration 370) — e.g.
+    // KWI B 18:00–20:00 plus KWI A from 18:30. One slot → one training.
+    extra_halls: parseExtraHalls(slot?.extra_halls).map((e) => ({
+      hall: relId(e.hall),
+      start_time: e.start_time?.slice(0, 5) ?? '',
+      end_time: e.end_time?.slice(0, 5) ?? '',
+    })),
   })
 
   const [indefinitely, setIndefinitely] = useState(slot ? !!slot.indefinite : true)
@@ -137,7 +141,12 @@ export default function SlotEditor({
     }))
   }
 
-  const isCombo = COMBO_VALUE && form.hall === COMBO_VALUE
+  function updateExtraHall(i: number, patch: Partial<(typeof form.extra_halls)[number]>) {
+    setForm((prev) => ({
+      ...prev,
+      extra_halls: prev.extra_halls.map((e, j) => (j === i ? { ...e, ...patch } : e)),
+    }))
+  }
 
   // Cascade + initial generation moved to the backend (`kscw-hooks`
   // `hall_slots.items.create` + `.update`) — see `slot-cascade.js`. Keeps
@@ -156,38 +165,36 @@ export default function SlotEditor({
       setError(t('common:endAfterStart'))
       return
     }
+    const extraHalls = form.extra_halls.filter((e) => e.hall && e.hall !== form.hall)
+    for (const e of extraHalls) {
+      if (!extraHallWindow(e, form.start_time, form.end_time)
+        || (e.start_time && timeToMinutes(e.start_time) < timeToMinutes(form.start_time))
+        || (e.end_time && timeToMinutes(e.end_time) > timeToMinutes(form.end_time))) {
+        setError(t('extraHallWindowInvalid'))
+        return
+      }
+    }
 
     setIsSaving(true)
     setError(null)
     try {
       const payload = {
         ...form,
+        extra_halls: extraHalls.length > 0
+          ? extraHalls.map((e) => ({ hall: Number(e.hall), start_time: e.start_time || null, end_time: e.end_time || null }))
+          : null,
         indefinite: indefinitely,
       }
-      let savedSlotId = slot?.id ?? ''
 
       const m2mPayload = teamToM2M(payload, slot?.teams)
       // Postgres rejects empty string for date fields — send null instead
       m2mPayload.valid_until = (indefinitely || !form.valid_until) ? null : form.valid_until
-      if (isCombo && kwiA && kwiB) {
-        const hallIds = [kwiA.id, kwiB.id]
-        if (slot) {
-          await updateRecord('hall_slots', slot.id, { ...m2mPayload, hall: hallIds[0] })
-          logActivity('update', 'hall_slots', slot.id, payload)
-        } else {
-          for (const hid of hallIds) {
-            const rec = await createRecord<{ id: string }>('hall_slots', { ...m2mPayload, hall: hid })
-            logActivity('create', 'hall_slots', rec.id, { ...payload, hall: hid })
-            if (!savedSlotId) savedSlotId = rec.id
-          }
-        }
-      } else if (slot) {
+      if (slot) {
         await updateRecord('hall_slots', slot.id, m2mPayload)
         logActivity('update', 'hall_slots', slot.id, payload)
       } else {
         const rec = await createRecord<{ id: string }>('hall_slots', m2mPayload)
         logActivity('create', 'hall_slots', rec.id, payload)
-        savedSlotId = rec.id
       }
 
       // Cascade + generation now run as Directus action hooks
@@ -232,13 +239,9 @@ export default function SlotEditor({
                 <SelectValue placeholder={t('selectPlaceholder')} />
               </SelectTrigger>
               <SelectContent>
-                {halls.flatMap((h) => {
-                  const items = [<SelectItem key={h.id} value={h.id}>{h.name}</SelectItem>]
-                  if (COMBO_VALUE && h.name === 'KWI A') {
-                    items.push(<SelectItem key="kwi-ab" value={COMBO_VALUE}>KWI A+B</SelectItem>)
-                  }
-                  return items
-                })}
+                {halls.map((h) => (
+                  <SelectItem key={h.id} value={h.id}>{h.name}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </FormField>
@@ -347,6 +350,67 @@ export default function SlotEditor({
             value={form.end_time}
             onChange={(e) => update('end_time', e.target.value)}
           />
+        </div>
+
+        {/* Row 3b: Additional halls (migration 370) */}
+        <div className="space-y-2">
+          <div className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('extraHalls')}</div>
+          {form.extra_halls.map((e, i) => (
+            <div key={i} className="space-y-2 rounded-md border border-gray-200 p-2 dark:border-gray-700">
+              <div className="flex items-center gap-2">
+                <div className="min-w-0 flex-1">
+                  <Select value={e.hall} onValueChange={(v) => updateExtraHall(i, { hall: v })}>
+                    <SelectTrigger className="min-h-[44px]" aria-label={t('hall')}>
+                      <SelectValue placeholder={t('selectPlaceholder')} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {halls.filter((h) => h.id !== form.hall).map((h) => (
+                        <SelectItem key={h.id} value={h.id}>{h.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="min-h-[44px] min-w-[44px]"
+                  aria-label={t('removeExtraHall')}
+                  onClick={() => setForm((prev) => ({ ...prev, extra_halls: prev.extra_halls.filter((_, j) => j !== i) }))}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <FormInput
+                  type="time"
+                  id={`extra-hall-${i}-from`}
+                  label={t('extraHallFrom')}
+                  value={e.start_time}
+                  onChange={(ev) => updateExtraHall(i, { start_time: ev.target.value })}
+                />
+                <FormInput
+                  type="time"
+                  id={`extra-hall-${i}-until`}
+                  label={t('extraHallUntil')}
+                  value={e.end_time}
+                  onChange={(ev) => updateExtraHall(i, { end_time: ev.target.value })}
+                />
+              </div>
+            </div>
+          ))}
+          <Button
+            type="button"
+            variant="outline"
+            className="min-h-[44px]"
+            onClick={() => setForm((prev) => ({ ...prev, extra_halls: [...prev.extra_halls, { hall: '', start_time: '', end_time: '' }] }))}
+          >
+            <Plus className="mr-1 h-4 w-4" />
+            {t('addExtraHall')}
+          </Button>
+          {form.extra_halls.length > 0 && (
+            <p className="text-xs text-muted-foreground">{t('extraHallsHint')}</p>
+          )}
         </div>
 
         {/* Row 4: Recurring */}

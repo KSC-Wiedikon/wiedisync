@@ -42,6 +42,13 @@ export default {
   editSlotTitle: 'Slot bearbeiten',
   newSlotTitle: 'Neuer Slot',
   deleteSlotConfirm: 'Bist du sicher, dass du diesen Slot löschen willst?',
+  extraHalls: 'Zusätzliche Hallen',
+  addExtraHall: 'Halle hinzufügen',
+  removeExtraHall: 'Halle entfernen',
+  extraHallFrom: 'Ab',
+  extraHallUntil: 'Bis',
+  extraHallsHint: 'Ein Slot, ein Training. Zeiten leer lassen, um die Halle für den ganzen Slot zu nutzen.',
+  extraHallWindowInvalid: 'Die Zeit einer zusätzlichen Halle muss innerhalb der Slot-Zeit liegen',
   selectPlaceholder: '-- Auswählen --',
 
   // Validation

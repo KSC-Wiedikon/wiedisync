@@ -42,6 +42,13 @@ export default {
   editSlotTitle: 'Edit slot',
   newSlotTitle: 'New slot',
   deleteSlotConfirm: 'Are you sure you want to delete this slot?',
+  extraHalls: 'Additional halls',
+  addExtraHall: 'Add hall',
+  removeExtraHall: 'Remove hall',
+  extraHallFrom: 'From',
+  extraHallUntil: 'Until',
+  extraHallsHint: 'One slot, one training. Leave the times empty to use the hall for the whole slot.',
+  extraHallWindowInvalid: 'The time of an additional hall must lie inside the slot time',
   selectPlaceholder: '-- Select --',
 
   // Validation
