@@ -38,6 +38,8 @@ import {
 } from '../../components/ui/dialog'
 import type { BaseRecord, Team } from '../../types'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
+import { MEMBER_SELECT_FIELDS } from './components/memberFieldOptions'
+import RegistrationFeePanel from './components/RegistrationFeePanel'
 
 interface Registration extends BaseRecord {
   status: 'pending' | 'approved' | 'rejected'
@@ -95,6 +97,12 @@ interface Registration extends BaseRecord {
   bb_docs_waived_reason: string | null
   bb_docs_waived_by_name: string | null
   bb_docs_waived_at: string | null
+  /** Discount + note on the Mitgliederbeitrag, granted at review time
+   *  (migration 367) — CHF or %, mutually exclusive. Copied onto the member
+   *  row on approval ONLY when that approval creates a brand-new member. */
+  fee_discount: number | null
+  fee_discount_pct: number | null
+  fee_discount_reason: string | null
 }
 
 // All document fields a registration can carry (BB docs + ID front/back)
@@ -138,6 +146,22 @@ const DOC_LABEL_KEYS: Record<string, string> = {
 // helpers: two parsers over one column is how they disagree.
 const regNatCode = (reg: Registration): string =>
   fibaNatCode(reg.nationalitaet_codes, reg.nationalitaet_code)
+
+// Beitragskategorie choices for the review screen's select, filtered to the
+// registration's own sport plus the three sport-agnostic buckets. Reuses
+// MEMBER_SELECT_FIELDS.beitragskategorie (memberFieldOptions.ts) — the same
+// list the Data Explorer already maintains as a mirror of CD_BEITRAG_MAP —
+// rather than a second copy that could drift from it.
+const SPORT_CATEGORY_PREFIX: Partial<Record<Registration['membership_type'], string>> = {
+  volleyball: 'VB ', basketball: 'BB ',
+}
+const SPORT_AGNOSTIC_CATEGORIES = new Set(['Passivmitglied', 'Gratis', 'Kein Beitrag'])
+function categoryChoicesForSport(membershipType: Registration['membership_type']): string[] {
+  const prefix = SPORT_CATEGORY_PREFIX[membershipType]
+  return MEMBER_SELECT_FIELDS.beitragskategorie.options
+    .map((o) => o.value)
+    .filter((v) => (prefix && v.startsWith(prefix)) || SPORT_AGNOSTIC_CATEGORIES.has(v))
+}
 
 const countDocs = (reg: Registration): number => DOC_FIELDS.filter((k) => reg[k]).length
 
@@ -434,13 +458,25 @@ export default function AnmeldungenPage() {
     onError: () => toast.error(t('anmeldungenUpdateError')),
   })
 
-  const handleApprove = (reg: Registration) => {
+  const handleApprove = async (reg: Registration) => {
     const missing = missingRequiredDocs(reg)
     if (missing.length) {
       const docs = missing.map((k) => t(DOC_LABEL_KEYS[k] ?? String(k))).join(', ')
       toast.error(t('anmeldungenDocsMissingBlock', { count: missing.length, docs }))
       return
     }
+    // Approval now fires the ClubDesk push automatically (kscw-hooks,
+    // autoSyncRegistrationToClubdesk) — an immediate write to the legal member
+    // register, not just a status flip. Say so plainly before it happens; the
+    // fields shown in the expanded row (including the fee/discount panel) are
+    // the last chance to catch a mistake before it lands in ClubDesk.
+    const ok = await confirm({
+      title: t('anmeldungenConfirmApproveTitle'),
+      message: t('anmeldungenConfirmApproveMessage', { name: `${reg.vorname} ${reg.nachname}` }),
+      confirmLabel: t('anmeldungenConfirmApproveCta'),
+      danger: true,
+    })
+    if (!ok) return
     updateReg({ id: reg.id, data: { status: 'approved' } }, {
       onSuccess: () => toast.success(t('anmeldungenApprovedToast')),
     })
@@ -1114,6 +1150,17 @@ function ExpandedDetails({
     setEdits(edited)
   }
 
+  // Generic version of setCoded for RegistrationFeePanel, which edits three
+  // plain (numeric/text) columns rather than one coded picker — same
+  // "back to the stored value clears the edit" rule as field() above.
+  const setDraftField = (key: string, value: string) => {
+    const original = String((reg[key as keyof Registration] as string | number | null) ?? '')
+    const next = { ...edits }
+    if (value === original) delete next[key]
+    else next[key] = value
+    setEdits(next)
+  }
+
   // Nationality and federation of origin are CODED (ISO alpha-2 + a CHECK
   // constraint), so they get pickers rather than field()'s text box — typing
   // "Schwiiz" would write something the CHECK rejects. Same components the
@@ -1191,11 +1238,23 @@ function ExpandedDetails({
 
   const handleSave = () => {
     if (!hasChanges) return
+
+    // Same rule as ExplorerMemberFields: a discount without a reason is an
+    // unexplained deduction nobody can answer for later. Client-side guard —
+    // the DB CHECK (registrations_fee_discount_reason_nonblank) is the backstop.
+    const effDiscount = edits.fee_discount ?? String(reg.fee_discount ?? '')
+    const effDiscountPct = edits.fee_discount_pct ?? String(reg.fee_discount_pct ?? '')
+    const effReason = edits.fee_discount_reason ?? reg.fee_discount_reason ?? ''
+    if ((Number(effDiscount) > 0 || Number(effDiscountPct) > 0) && !effReason.trim()) {
+      toast.error(t('explorerFeeDiscountNeedsReason'))
+      return
+    }
+
     const data: Record<string, string | null> = { ...edits }
 
     // The coded columns carry CHECK constraints that accept NULL but not '' —
     // a cleared picker must send null or the PATCH fails.
-    for (const key of ['nationalitaet_codes', 'federation_of_origin', 'bb_recent_licence']) {
+    for (const key of ['nationalitaet_codes', 'federation_of_origin', 'bb_recent_licence', 'fee_discount', 'fee_discount_pct', 'fee_discount_reason']) {
       if (data[key] === '') data[key] = null
     }
 
@@ -1344,7 +1403,7 @@ function ExpandedDetails({
         {field('geschlecht', t('anmeldungenGender'), { display: localizeGender })}
         {field('rolle', t('anmeldungenFunction'))}
         {field('team', t('anmeldungenTeam'))}
-        {field('beitragskategorie', t('anmeldungenFeeCategory'))}
+        {selectField('beitragskategorie', t('anmeldungenFeeCategory'), categoryChoicesForSport(reg.membership_type))}
         {field('lizenz', t('anmeldungenLicence'))}
         {field('schiedsrichter_stufe', t('anmeldungenRefLevel'))}
         {field('kantonsschule', t('anmeldungenSchool'))}
@@ -1353,6 +1412,7 @@ function ExpandedDetails({
         {field('iban', 'IBAN')}
         {/* Passive members have no sport → the approver picks the ClubDesk Sektion */}
         {reg.membership_type === 'passive' && selectField('sektion_choice', t('anmeldungenSektion'), ['Volleyball', 'Basketball', 'KSCW'])}
+        <RegistrationFeePanel reg={reg} edits={edits} onEdit={setDraftField} />
         {field('bemerkungen', t('anmeldungenNotes'), { full: true })}
         {reg.membership_type === 'basketball' && (
           <div>

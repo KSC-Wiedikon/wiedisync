@@ -2,6 +2,12 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.15.0 — 2026-09-22
+
+### New
+
+- **Approving a registration now syncs it to ClubDesk immediately.** *Admin → Registrations.* A newly confirmed member used to wait for the next scheduled sync to appear in ClubDesk; approving now pushes them right away (an existing ClubDesk match is linked automatically too). The registration review screen also gained a proper fee category picker and a discount field — amount or percentage, with a required note — so the membership fee shown before approving is exactly what gets billed.
+
 ## v2.14.2 — 2026-09-22
 
 ### Security and privacy hardening

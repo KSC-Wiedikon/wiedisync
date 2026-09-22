@@ -1403,3 +1403,45 @@ describe('buildPushCsv — the register triple end to end', () => {
     expect(cells[22]).toBe('10.08.2026')  // dd.mm.yyyy, like every other date cell
   })
 })
+
+describe('registration fee preview (GET /registration/:id/fee) — same engine as the CREATE push', () => {
+  // Mirrors the syntheticMember built in registration.js's /registration/:id/fee:
+  // birthdate + licence flags derived from the registration, fee_discount(_pct)
+  // from the registration's own columns (migration 367), isGuest always false
+  // (a brand-new registrant cannot already be a roster guest), no baseOverride
+  // (the push never consults finance_dues_rates either).
+  it('derives the base + surcharge from category and licence flags, no discount', () => {
+    const reg = { beitragskategorie: 'VB Erwerbstätige', birthdate: '1990-01-01', scorer_vb: false }
+    const derived = feeBreakdown(reg.beitragskategorie, { ...reg, fee_discount: null, fee_discount_pct: null }, { isGuest: false })
+    expect(derived.base).toBe(440)
+    expect(derived.surcharge).toBe(100) // adult category, no scorer licence → owed
+    expect(derived.amount).toBe(540)
+  })
+
+  it('a scorer licence on the registration waives the surcharge', () => {
+    const reg = { beitragskategorie: 'VB Erwerbstätige', birthdate: '1990-01-01', scorer_vb: true }
+    const derived = feeBreakdown(reg.beitragskategorie, reg, { isGuest: false })
+    expect(derived.surcharge).toBe(0)
+    expect(derived.amount).toBe(440)
+  })
+
+  it('applies the registration-level CHF discount, capped at what is owed', () => {
+    const reg = { beitragskategorie: 'Passivmitglied', fee_discount: 9999, fee_discount_pct: null }
+    const effective = feeBreakdown(reg.beitragskategorie, reg, { isGuest: false })
+    expect(effective.base).toBe(40)
+    expect(effective.discount).toBe(40) // never below zero
+    expect(effective.amount).toBe(0)
+  })
+
+  it('applies the registration-level percentage discount', () => {
+    const reg = { beitragskategorie: 'VB Turnier KWI', fee_discount: null, fee_discount_pct: 50 }
+    const effective = feeBreakdown(reg.beitragskategorie, reg, { isGuest: false })
+    expect(effective.base).toBe(110)
+    expect(effective.discount).toBe(55)
+    expect(effective.amount).toBe(55)
+  })
+
+  it('an unknown category yields null — never a guessed amount', () => {
+    expect(feeBreakdown('Some Typo Category', {}, { isGuest: false })).toBeNull()
+  })
+})

@@ -1620,6 +1620,919 @@ function buildChangesTable(changes, locale = 'de') {
 </table>`
 }
 
+// ── ClubDesk drift (Data Health) ────────────────────────────────────────────
+// Linked members whose wiedisync PUSH-SCOPE contact data no longer matches the
+// ClubDesk snapshot. Catches every edit path that does NOT set the dirty flag
+// (Data Explorer, finance/billing edits, approval backfills, raw items-API) —
+// the /clubdesk-update profile path already flags itself. Compared fields =
+// the sync-up contact scope plus names (names are compared for VISIBILITY
+// only — since 2026-07-08 update rows are [Id]-keyed and name-less, so a name
+// conflict shown here is informational and reconciles only via a manual edit
+// or the sync-down, never via a push). A field counts as drift only when the
+// WIEDISYNC side is non-empty (wiedisync is authoritative once filled — the
+// sync-down fill-only COALESCE in import-clubdesk-csv.mjs encodes the same
+// rule); wiedisync-empty + ClubDesk-non-empty is reported as blank_risk
+// instead, because pushing that member would send an empty cell. (Spike
+// 2026-07-08: ClubDesk provably IGNORES empty cells on import — blank_risk
+// stays as defense-in-depth on the legal register.)
+// Snapshot-based: "ClubDesk says" = as of the last sync-down.
+const driftNorm = (v) => String(v ?? '').trim()
+const driftLower = (v) => driftNorm(v).toLowerCase()
+const driftPhone = (v) => {
+  const d = String(v ?? '').replace(/\D/g, '')
+  // Equate +41 79…, 0041 79…, 079… — compare the last 9 digits (CH format).
+  return d.length > 9 ? d.slice(-9) : d
+}
+const driftDateCd = (v) => {
+  const m = String(v ?? '').trim().match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/)
+  return m ? `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}` : ''
+}
+const driftDateMember = (v) => {
+  if (!v) return ''
+  const iso = v instanceof Date ? v.toISOString().slice(0, 10) : String(v).slice(0, 10)
+  return /^\d{4}-\d{2}-\d{2}$/.test(iso) ? iso : ''
+}
+
+// `includeClean`: also return members with NOTHING to report (empty conflicts
+// and fills), each still carrying `agreed` — the fields both sides hold and
+// hold equal. The needs-sync board asks this for a `pending` member: a
+// recorded push change whose field is in `agreed` has already landed in the
+// register, and the push it is waiting for carries nothing new for it.
+export async function computeClubdeskDrift(database, memberIds = null, { includeClean = false } = {}) {
+  // alias → ISO code, both vocabularies in one map: it is what lets the
+  // nationality comparison below ask "same country?" instead of "same
+  // spelling?". Loaded once per call; the table is ~small and static.
+  const countryAlias = new Map()
+  try {
+    for (const a of await database('country_name_aliases').select('alias', 'code')) {
+      countryAlias.set(String(a.alias || '').trim().toLowerCase(), String(a.code || '').trim().toUpperCase())
+    }
+  } catch { /* no alias table → fall back to string compare, as before */ }
+  // clubdesk_people lacks adresse/plz/ort/telefon_privat → dedupe the raw
+  // per-group staging table ourselves (contact fields are identical across a
+  // contact's group rows, so any row per clubdesk_id works).
+  const params = []
+  let memberFilter = ''
+  if (Array.isArray(memberIds) && memberIds.length) {
+    memberFilter = `AND m.id = ANY(?)`
+    params.push(memberIds)
+  }
+  const res = await database.raw(`
+    SELECT m.id, m.first_name, m.last_name, m.email, m.phone, m.adresse, m.plz, m.ort,
+           m.birthdate, m.sex, m.iban, m.anrede, m.nationalitaet, m.ahv_nummer,
+           m.federation_of_origin, m.trainer_licences,
+           m.register_status, m.eintritt, m.austritt, m.beitragskategorie,
+           m.clubdesk_id, m.clubdesk_push_pending,
+           cd.vorname AS cd_vorname, cd.nachname AS cd_nachname, cd.email AS cd_email,
+           cd.email_alternativ AS cd_email_alt, cd.telefon_privat AS cd_tel_priv,
+           cd.telefon_mobil AS cd_tel_mob, cd.adresse AS cd_adresse, cd.plz AS cd_plz,
+           cd.ort AS cd_ort, cd.geburtsdatum AS cd_geburtsdatum, cd.geschlecht AS cd_geschlecht,
+           cd.iban AS cd_iban, cd.anrede AS cd_anrede, cd.nationalitaet AS cd_nationalitaet,
+           cd.ahv_nummer AS cd_ahv_nummer, cd.federation_of_origin AS cd_federation_of_origin,
+           cd.trainer_lizenz AS cd_trainer_lizenz,
+           cd.status AS cd_status, cd.eintritt AS cd_eintritt, cd.austritt AS cd_austritt,
+           cd.beitragskategorie AS cd_kategorie,
+           cd.gast AS cd_gast
+    FROM members m
+    JOIN (
+      SELECT DISTINCT ON (BTRIM(clubdesk_id)) BTRIM(clubdesk_id) AS cdid, vorname, nachname,
+             email, email_alternativ, telefon_privat, telefon_mobil, adresse, plz, ort,
+             geburtsdatum, geschlecht, iban, anrede, nationalitaet, ahv_nummer,
+             federation_of_origin, trainer_lizenz, status, eintritt, austritt, gast,
+             beitragskategorie
+      FROM clubdesk_export
+      WHERE NULLIF(BTRIM(clubdesk_id), '') IS NOT NULL
+      ORDER BY BTRIM(clubdesk_id), row_id
+    ) cd ON cd.cdid = m.clubdesk_id
+    WHERE m.clubdesk_id IS NOT NULL ${memberFilter}
+    ORDER BY m.last_name, m.first_name
+  `, params)
+  // Same code → ClubDesk-German map the push uses, loaded ONCE for the whole
+  // run: the Federation of Origin comparison has to happen on the MAPPED
+  // value, since that is the string ClubDesk actually holds.
+  const countryNames = await loadCountryPushNames(database)
+  // Gast is DERIVED from the roster (member_teams), not a members column, so it
+  // is resolved with the very SAME helper the push uses — a drift verdict that
+  // could disagree with the cell buildPushCsv writes would re-flag the member
+  // on every refresh and never converge.
+  const guestIds = await guestMemberIdSet(database, res.rows.map((r) => r.id), getCurrentSeason())
+  const candidates = []
+  for (const r of res.rows) {
+    // conflicts = both sides non-empty and different (per-member row in Data
+    // Health); fills = wiedisync set, ClubDesk empty (aggregated per field —
+    // 100+ legitimate mass-fills like `sex` would otherwise flood the page);
+    // blankRisk = wiedisync empty, ClubDesk set (push would blank it — warn).
+    const conflicts = []
+    const fills = []
+    const blankRisk = []
+    // agreed = both sides non-empty and equal (after the same normalisation
+    // the conflict check uses). Field names only — the caller that wants it
+    // already holds wiedisync's value.
+    const agreed = []
+    const cmp = (field, wiediRaw, cdRaw, wiediNorm, cdNorm) => {
+      if (wiediNorm && cdNorm) {
+        if (wiediNorm !== cdNorm) conflicts.push({ field, wiedisync: driftNorm(wiediRaw), clubdesk: driftNorm(cdRaw) })
+        else agreed.push(field)
+      } else if (wiediNorm) {
+        fills.push({ field, wiedisync: driftNorm(wiediRaw) })
+      } else if (cdNorm) {
+        blankRisk.push(field)
+      }
+    }
+    // The echo-protected variant: identical, minus the blank_risk branch.
+    // /up resolves these cells to ClubDesk's OWN value when wiedisync's is
+    // empty, so the push provably cannot blank them and calling the member
+    // "at risk" would only drop them from every push for no reason (the IBAN
+    // note below is the original statement of this rule). Declared beside
+    // `cmp` because a `const` arrow cannot be called above its own line —
+    // adresse/plz/ort sit between here and where it used to live.
+    const cmpEcho = (field, wRaw, cRaw, wNorm, cNorm) => {
+      if (wNorm && cNorm) {
+        if (wNorm !== cNorm) conflicts.push({ field, wiedisync: driftNorm(wRaw), clubdesk: driftNorm(cRaw) })
+        else agreed.push(field)
+      } else if (wNorm) {
+        fills.push({ field, wiedisync: driftNorm(wRaw) })
+      }
+    }
+    // ⚠ A `?` in a ClubDesk name is NOT a difference — it is a character the
+    // export could not encode (2026-08-15). ClubDesk exports CP1252, and any
+    // codepoint outside it (ć, ń, ł, š, ž…) is written as a literal question
+    // mark by ClubDesk's own encoder. So `Curavić` in the register arrives here
+    // as `Curavi?` and compared naively reads as drift forever — unfixably,
+    // since names are never pushed and the register is already correct.
+    //
+    // Treat `?` as a single-character wildcard: if our name matches the export
+    // with each `?` standing for one character, the two agree as far as this
+    // lossy channel can tell, and asserting a difference would be a false
+    // positive about the club's legal register. Everything else still compares
+    // exactly. Verified on prod: exactly ONE contact of 1154 carries a `?`, and
+    // it is the only member whose register name holds a non-CP1252 letter —
+    // the others (Krawczyński, Kalaga) were created BY our push, which
+    // transliterates, so they really are stored ASCII.
+    const nameAgrees = (mine, cd) => {
+      const a = driftLower(mine)
+      const b = driftLower(cd)
+      if (!a || !b) return false
+      if (a === b) return true
+      if (!b.includes('?')) return false
+      // Escape the whole thing, then let each escaped `?` match one character.
+      const rx = new RegExp(`^${b.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\\\?/g, '.')}$`)
+      return rx.test(a)
+    }
+    if (nameAgrees(r.first_name, r.cd_vorname)) agreed.push('first_name')
+    else cmp('first_name', r.first_name, r.cd_vorname, driftLower(r.first_name), driftLower(r.cd_vorname))
+    if (nameAgrees(r.last_name, r.cd_nachname)) agreed.push('last_name')
+    else cmp('last_name', r.last_name, r.cd_nachname, driftLower(r.last_name), driftLower(r.cd_nachname))
+    // ⚠⚠ Email and phone are the two fields ClubDesk keeps in TWO columns and
+    // the push writes only ONE of (`E-Mail` and `Telefon Privat`, per
+    // CD_PUSH_CONTACT_HEADERS). Agreement is rightly checked against both —
+    // holding the number under "Mobil" still means we agree with the register
+    // — but blank_risk may never look past the column an UPDATE row writes.
+    // Widening it there asserts that an empty cell would blank a value the
+    // push does not touch, and that verdict DROPS THE MEMBER FROM EVERY PUSH.
+    // Measured on prod 2026-08-30: both of the club's phone blank_risks were
+    // exactly that (Privat empty, a number only under Mobil), and one of them
+    // 409'd the entire club's sync-up.
+    //
+    // Phone then left blank_risk altogether, because /up now echoes ClubDesk's
+    // own `Telefon Privat` back (m.phone_cd) — same guarantee as IBAN. Email
+    // stays: it is the LOGIN identity, wiedisync owns it, and a member with no
+    // address here is a data-quality question a human should answer, not a
+    // cell to paper over.
+    const em = driftLower(r.email)
+    const cdEm = driftLower(r.cd_email) || driftLower(r.cd_email_alt)
+    if (em && cdEm) {
+      if (em !== driftLower(r.cd_email) && em !== driftLower(r.cd_email_alt)) {
+        conflicts.push({ field: 'email', wiedisync: driftNorm(r.email), clubdesk: driftNorm(r.cd_email) || driftNorm(r.cd_email_alt) })
+      } else agreed.push('email')
+    } else if (em) {
+      fills.push({ field: 'email', wiedisync: driftNorm(r.email) })
+    } else if (driftLower(r.cd_email)) {
+      blankRisk.push('email')
+    }
+    // Phone matches when it equals EITHER ClubDesk number (privat or mobil).
+    const ph = driftPhone(r.phone)
+    const cdPhones = [driftPhone(r.cd_tel_priv), driftPhone(r.cd_tel_mob)].filter(Boolean)
+    if (ph && cdPhones.length) {
+      if (!cdPhones.includes(ph)) {
+        conflicts.push({ field: 'phone', wiedisync: driftNorm(r.phone), clubdesk: driftNorm(r.cd_tel_priv) || driftNorm(r.cd_tel_mob) })
+      } else agreed.push('phone')
+    } else if (ph) {
+      fills.push({ field: 'phone', wiedisync: driftNorm(r.phone) })
+    }
+    cmpEcho('adresse', r.adresse, r.cd_adresse, driftLower(r.adresse), driftLower(r.cd_adresse))
+    cmpEcho('plz', r.plz, r.cd_plz, driftNorm(r.plz), driftNorm(r.cd_plz))
+    cmpEcho('ort', r.ort, r.cd_ort, driftLower(r.ort), driftLower(r.cd_ort))
+    // Display both sides Swiss-style (dd.mm.yyyy); compare on ISO.
+    const bdIso = driftDateMember(r.birthdate)
+    const bdDisp = bdIso ? `${bdIso.slice(8, 10)}.${bdIso.slice(5, 7)}.${bdIso.slice(0, 4)}` : ''
+    cmp('birthdate', bdDisp, r.cd_geburtsdatum, bdIso, driftDateCd(r.cd_geburtsdatum))
+    const sexCd = r.sex === 'm' ? 'männlich' : r.sex === 'f' ? 'weiblich' : ''
+    cmp('sex', sexCd, r.cd_geschlecht, sexCd, driftLower(r.cd_geschlecht))
+    // IBAN: conflict/fill detection only — deliberately NEVER blank_risk.
+    // The /up echo-back sends ClubDesk's own IBAN when wiedisync's is empty,
+    // so an empty wiedisync IBAN cannot blank the register; flagging it as
+    // blank_risk would only drop the member from pushes for no reason.
+    const ibanNorm = (v) => String(v ?? '').replace(/\s/g, '').toUpperCase()
+    const wIban = ibanNorm(r.iban)
+    const cIban = ibanNorm(r.cd_iban)
+    if (wIban && cIban) {
+      if (wIban !== cIban) conflicts.push({ field: 'iban', wiedisync: driftNorm(r.iban), clubdesk: driftNorm(r.cd_iban) })
+      else agreed.push('iban')
+    } else if (wIban) {
+      fills.push({ field: 'iban', wiedisync: driftNorm(r.iban) })
+    }
+    // Anrede / Nationalität / AHV are echo-protected — see cmpEcho above.
+    // AHV compares digits-only (dot formatting differs between the systems).
+    cmpEcho('anrede', r.anrede, r.cd_anrede, driftLower(r.anrede), driftLower(r.cd_anrede))
+    // ⚠ Nationality compares by CODE, not by display string (2026-08-15).
+    // `members.nationalitaet` is trigger-derived from `nationalitaet_codes`
+    // into OUR display name, while ClubDesk holds its own picklist spelling —
+    // so "Vereinigte Staaten" and "USA" are the same country reported as a
+    // conflict forever, with no sync able to resolve it (the column is
+    // fill-only downward and the push echoes the register's own wording back).
+    // Measured on prod: 3 of the 8 non-name conflicts were exactly this pair.
+    // country_name_aliases is the table that already knows both vocabularies.
+    const natMine = countryAlias.get(driftLower(r.nationalitaet)) || driftLower(r.nationalitaet)
+    const natCd = countryAlias.get(driftLower(r.cd_nationalitaet)) || driftLower(r.cd_nationalitaet)
+    cmpEcho('nationalitaet', r.nationalitaet, r.cd_nationalitaet, natMine, natCd)
+    // Federation of Origin: wiedisync stores a code, ClubDesk a German
+    // picklist string, so compare (and DISPLAY) the mapped value — same
+    // computed-then-compared shape as sexCd above. Echo-protected like the
+    // three fields around it → conflict-or-fill, never blank_risk. An
+    // unmappable code yields '' and simply drops out of the comparison rather
+    // than being reported as a conflict against ClubDesk's good value.
+    const fedCd = federationCell(r.federation_of_origin, countryNames)
+    cmpEcho('federation_of_origin', fedCd, r.cd_federation_of_origin, driftLower(fedCd), driftLower(r.cd_federation_of_origin))
+    const ahvDigits = (v) => String(v ?? '').replace(/\D/g, '')
+    cmpEcho('ahv_nummer', r.ahv_nummer, r.cd_ahv_nummer, ahvDigits(r.ahv_nummer), ahvDigits(r.cd_ahv_nummer))
+    // ── The register triple (migration 302) ──────────────────────────────
+    // Echo-protected like the fields above → conflict-or-fill, never
+    // blank_risk: registerCell sends ClubDesk's own cell back whenever
+    // wiedisync's is empty or unchanged, so an empty wiedisync value cannot
+    // blank the register and must not drop the member from every push.
+    //
+    // This comparison is what makes "the register wins once the push has
+    // landed" observable rather than merely intended: a status changed IN
+    // ClubDesk shows up here as a CONFLICT the moment the two disagree,
+    // instead of being quietly overwritten on some later push.
+    cmpEcho('register_status', r.register_status, r.cd_status,
+      driftLower(r.register_status), driftLower(r.cd_status))
+    // Beitragskategorie became a gated register cell on 2026-08-14, so its
+    // divergence has to be VISIBLE for the same reason the status's is: the
+    // push only carries it when the member's change names it, and until then
+    // the two sides can sit apart indefinitely. Compared on the MAPPED name —
+    // that is what the register holds. Echo-protected → conflict-or-fill,
+    // never blank_risk. Measured on prod the day this shipped: 0 conflicts
+    // across all 672 linked active members, so this adds no noise.
+    const katW = mapKategorie(r.beitragskategorie)
+    cmpEcho('beitragskategorie', katW, r.cd_kategorie,
+      driftLower(katW), driftLower(r.cd_kategorie))
+    // Dates display Swiss-style and compare on ISO — the same split birthdate
+    // uses above, because ClubDesk's cell is dd.mm.yyyy text and wiedisync's
+    // is a real date column.
+    for (const [field, memberVal, cdVal] of [
+      ['eintritt', r.eintritt, r.cd_eintritt],
+      ['austritt', r.austritt, r.cd_austritt],
+    ]) {
+      const iso = driftDateMember(memberVal)
+      const disp = iso ? `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}` : ''
+      cmpEcho(field, disp, cdVal, iso, driftDateCd(cdVal))
+    }
+    // Trainer Lizenz: compare CODE SETS, not the rendered strings. ClubDesk's
+    // cell is hand-editable free text, so "J+S, B", "B, J+S" and "j+s / b" all
+    // mean the same thing and must not report as a conflict — parsing both
+    // sides through parseTrainerLicenceCell normalizes order, case and
+    // separators in one step. DISPLAY still shows the rendered wording so the
+    // admin sees what would actually land in the cell. Echo-protected like the
+    // fields above → conflict-or-fill, never blank_risk.
+    const trainerW = trainerLicenceCell(r.trainer_licences)
+    cmpEcho(
+      'trainer_licences', trainerW, r.cd_trainer_lizenz,
+      parseTrainerLicenceCodes(r.trainer_licences).join(','),
+      parseTrainerLicenceCell(r.cd_trainer_lizenz),
+    )
+    // Gast: wiedisync-owned and TOTAL (gastCell always yields Ja or Nein), so
+    // plain cmp is safe — the blank_risk branch is unreachable by construction,
+    // and a member who stops (or starts) being a guest surfaces as a normal
+    // CONFLICT the admin can flag + push. This is the whole reason the column
+    // is in the drift set: without it the 2026-07-27 backfill would have been
+    // a one-off snapshot that silently rots at the next roster turnover.
+    const gastW = gastCell(guestIds.has(Number(r.id)))
+    cmp('gast', gastW, r.cd_gast, driftLower(gastW), driftLower(r.cd_gast))
+    if (!conflicts.length && !fills.length && !includeClean) continue
+    candidates.push({
+      member_id: r.id,
+      member_name: `${r.first_name || ''} ${r.last_name || ''}`.trim(),
+      clubdesk_id: r.clubdesk_id,
+      pending: r.clubdesk_push_pending === true,
+      conflicts,
+      fills,
+      blank_risk: blankRisk,
+      agreed,
+    })
+  }
+  return candidates
+}
+
+// ── Per-registration ClubDesk status (Anmeldungen "ClubDesk sync" zone) ─────
+// Resolves an approved registration to its member row (same email +
+// symmetric first-name-prefix rule as createMemberFromRegistration in
+// kscw-hooks) and reports where that person stands relative to ClubDesk:
+//   linked          — member.clubdesk_id set → contact exists in ClubDesk
+//   match_unlinked  — a clubdesk_export contact matches by email or exact name
+//                     but the member isn't linked yet (offer /clubdesk-link);
+//                     `duplicate_of` is set when that contact is already linked
+//                     to a DIFFERENT member (needs a merge, no one-click action)
+//   pushed_pending  — pushed to ClubDesk (clubdesk_pushed_at) awaiting link-back
+//   not_in_clubdesk — nowhere to be found → offer the single-member sync-up push
+//   no_member       — no member row yet (not approved, or the approval hook failed)
+// clubdesk_export is the last sync-down snapshot, so "in ClubDesk" is as of the
+// last sync down. Read-only. Superadmin only (same gate as the sync surface).
+function firstNamesMatchCd(a, b) {
+  const x = String(a || '').toLowerCase().trim()
+  const y = String(b || '').toLowerCase().trim()
+  if (!x || !y) return true
+  return x === y || x.startsWith(y) || y.startsWith(x)
+}
+
+export async function cdStatusForRegistration(database, reg) {
+    if (!reg || !reg.email) return { status: 'no_member' }
+
+    const email = reg.email.toLowerCase().trim()
+    const MEMBER_COLS = ['id', 'uuid', 'first_name', 'last_name', 'clubdesk_id', 'clubdesk_pushed_at', 'clubdesk_push_pending']
+    // ID-FIRST (user rule 2026-07-08: "lookup should be by ID"). The approval
+    // hook stamps registrations.member (migration 194 backfilled legacy rows),
+    // so the FK is the authoritative link — the heuristics below only cover
+    // unstamped legacy rows the backfill couldn't uniquely resolve.
+    let member = null
+    if (reg.member) {
+      member = await database('members').where('id', reg.member).first(...MEMBER_COLS) || null
+    }
+    if (!member) {
+      const emailRows = await database('members').whereRaw('LOWER(email) = ?', [email])
+        .select(...MEMBER_COLS)
+      member = emailRows.find((r) => firstNamesMatchCd(r.first_name, reg.vorname)) || null
+    }
+    if (!member) {
+      // Divergent-email fallback (2026-07-08, Neo Paladino case): a child often
+      // registers under a PARENT's email while the member row (materialized
+      // from ClubDesk, or later edited) carries the person's own address — the
+      // email-only lookup then shows a false "no member record" for someone who
+      // exists and is even linked. Fall back to exact last-name equality + the
+      // symmetric first-name-prefix rule, and accept ONLY a unique candidate
+      // (ambiguity keeps no_member — this result also feeds the one-click link
+      // zone, so we never guess between two same-named people).
+      const nachname = String(reg.nachname || '').toLowerCase().trim()
+      if (nachname) {
+        const nameRows = await database('members')
+          .whereRaw('LOWER(BTRIM(last_name)) = ?', [nachname])
+          .select(...MEMBER_COLS)
+        const hits = nameRows.filter((r) => firstNamesMatchCd(r.first_name, reg.vorname))
+        if (hits.length === 1) member = hits[0]
+      }
+    }
+    if (!member) return { status: 'no_member' }
+
+    const base = { member_id: member.id }
+    if (member.clubdesk_id) {
+      // A link alone is not "in ClubDesk" (2026-09-13). The sync-down linker
+      // attaches a member to ANY contact carrying their e-mail + first name —
+      // including a shell somebody created by hand before the push ran (the
+      // three H2 registrations of 10.09.2026: name, address and a guessed
+      // gender, nothing else). Those members are linked AND still
+      // push-pending, and the badge read a green "In ClubDesk" for two days
+      // while the register held none of their data. Surface the pending push
+      // as its own state so the zone can offer the one-click sync-up.
+      if (member.clubdesk_push_pending) {
+        return { ...base, status: 'linked_pending', clubdesk_id: member.clubdesk_id }
+      }
+      return { ...base, status: 'linked', clubdesk_id: member.clubdesk_id }
+    }
+
+    // Unlinked → AUTHORITATIVE KEY FIRST (2026-07-08, "lookup should be by
+    // ID"): the contact may already carry this member's Wiedisync ID (pushed
+    // on every create + update; the down-sync linker reads it back). A
+    // snapshot row holding it IS this member's contact — no name/email
+    // guessing, no ambiguity. Pre-184 stamps carried the numeric members.id,
+    // so accept both formats (same rule as the down-sync linker).
+    const widKeys = [
+      member.uuid ? String(member.uuid).toLowerCase().trim() : null,
+      String(member.id),
+    ].filter(Boolean)
+    const widRow = await database('clubdesk_export')
+      .whereRaw('LOWER(BTRIM(wiedisync_id)) = ANY(?)', [widKeys])
+      .whereRaw("NULLIF(BTRIM(clubdesk_id), '') IS NOT NULL")
+      .orderBy('row_id')
+      .first('clubdesk_id', 'vorname', 'nachname', 'email', 'email_alternativ')
+    if (widRow) {
+      const widCdid = String(widRow.clubdesk_id).trim()
+      const widLinked = await database('members').where('clubdesk_id', widCdid)
+        .first('id', 'first_name', 'last_name')
+      return {
+        ...base,
+        status: 'match_unlinked',
+        clubdesk_id: widCdid,
+        clubdesk_name: `${(widRow.vorname || '').trim()} ${(widRow.nachname || '').trim()}`.trim() || null,
+        clubdesk_email: widRow.email || widRow.email_alternativ || null,
+        ambiguous: false,
+        matched_by: 'wiedisync_id',
+        duplicate_of: widLinked && widLinked.id !== member.id
+          ? { id: widLinked.id, name: `${widLinked.first_name || ''} ${widLinked.last_name || ''}`.trim() }
+          : null,
+      }
+    }
+
+    // Heuristic candidates (legacy contacts without a Wiedisync ID). Candidates
+    // come from an email or exact-name SQL match, but an email hit only COUNTS when
+    // the contact's name also matches the member — same family-shared-email rule
+    // as createMemberFromRegistration and the sync-down auto-linker: a child
+    // registering with the parent's address must never be offered a one-click
+    // link to the parent's contact. clubdesk_export holds one row per contact
+    // PER GROUP, so dedupe by clubdesk_id; email+name beats name-only; two
+    // DIFFERENT contacts at the same precedence → ambiguous, no one-click link.
+    // Checked BEFORE pushed_pending so a contact that appeared via sync-down
+    // without linking offers the link action instead of waiting forever.
+    const lastNamesEqual = (a, b) => {
+      const x = String(a || '').toLowerCase().trim()
+      const y = String(b || '').toLowerCase().trim()
+      return !!x && !!y && x === y
+    }
+    const cdRows = await database('clubdesk_export as cd')
+      .whereRaw("NULLIF(BTRIM(cd.clubdesk_id), '') IS NOT NULL")
+      .andWhere(function () {
+        this.whereRaw('LOWER(BTRIM(cd.email)) = ?', [email])
+          .orWhereRaw("LOWER(BTRIM(COALESCE(cd.email_alternativ, ''))) = ?", [email])
+          .orWhere(function () {
+            this.whereRaw('LOWER(BTRIM(cd.vorname)) = LOWER(BTRIM(?))', [member.first_name || ''])
+              .andWhereRaw('LOWER(BTRIM(cd.nachname)) = LOWER(BTRIM(?))', [member.last_name || ''])
+          })
+      })
+      .select('cd.clubdesk_id', 'cd.vorname', 'cd.nachname', 'cd.email', 'cd.email_alternativ')
+    const seen = new Set()
+    const candidates = []
+    for (const r of cdRows) {
+      const cdid = String(r.clubdesk_id).trim()
+      if (seen.has(cdid)) continue
+      const nameHit = lastNamesEqual(r.nachname, member.last_name)
+        && firstNamesMatchCd(r.vorname, member.first_name)
+      if (!nameHit) continue // email-only hit = different person on a shared address
+      seen.add(cdid)
+      const emailHit = [r.email, r.email_alternativ]
+        .some((e) => String(e || '').toLowerCase().trim() === email)
+      candidates.push({ cdid, emailHit, vorname: r.vorname, nachname: r.nachname, email: r.email || r.email_alternativ || null })
+    }
+    candidates.sort((a, b) => Number(b.emailHit) - Number(a.emailHit))
+    const cd = candidates[0] || null
+    const ambiguous = candidates.length > 1 && candidates[1].emailHit === candidates[0].emailHit
+
+    if (cd) {
+      const linked = await database('members').where('clubdesk_id', cd.cdid)
+        .first('id', 'first_name', 'last_name')
+      return {
+        ...base,
+        status: 'match_unlinked',
+        clubdesk_id: cd.cdid,
+        clubdesk_name: `${(cd.vorname || '').trim()} ${(cd.nachname || '').trim()}`.trim() || null,
+        clubdesk_email: cd.email,
+        ambiguous,
+        duplicate_of: linked && linked.id !== member.id
+          ? { id: linked.id, name: `${linked.first_name || ''} ${linked.last_name || ''}`.trim() }
+          : null,
+      }
+    }
+
+    if (member.clubdesk_pushed_at) {
+      return { ...base, status: 'pushed_pending', pushed_at: member.clubdesk_pushed_at }
+    }
+    return { ...base, status: 'not_in_clubdesk' }
+}
+
+// Core of POST /clubdesk-member-sync/up, extracted so the ClubDesk auto-sync
+// orchestrator (kscw-hooks, on registration approval) can enqueue a push the
+// exact same way the manual button does — same guards (blank-risk, stale-link,
+// would-duplicate), same CSV building, same writeUserLog trail. `ids` must
+// already be a non-empty array of integer member ids (the route validates the
+// request shape before calling this; a caller with no request, like the
+// approval hook, is responsible for passing valid ids itself).
+// Returns { status, body } — never writes to a response directly, so it works
+// identically from an HTTP route or from a hook with no req/res at all.
+export async function enqueueClubdeskUp(database, ids, { accountability = null, log } = {}) {
+  const s = await database('clubdesk_member_sync').where('id', 1).first('up_state', 'down_state')
+  if (['queued', 'running'].includes(s?.up_state)) {
+    return { status: 409, body: { error: 'A sync-up is already in progress', state: s.up_state, code: 'up_in_progress' } }
+  }
+  // Everything below (stale-link guard, blank-risk drift, would-duplicate
+  // match, echo-back) reads clubdesk_export — the LAST COMPLETED sync-down.
+  // Pushing against a snapshot a running down-sync is about to replace is
+  // hazard (a) above: the payload is frozen here, so the refresh cannot help
+  // it. Refuse and let the operator re-open the modal once the down settles.
+  if (['queued', 'running'].includes(s?.down_state)) {
+    return { status: 409, body: { error: 'A sync-down is in progress — wait for it to finish, then review the push again', state: s.down_state, code: 'down_in_progress' } }
+  }
+  const fetched = await database('members').whereIn('id', ids)
+    .select([...PUSH_FIELDS, 'clubdesk_push_pending', 'clubdesk_pushed_at', 'clubdesk_sync_exclude'])
+  // Server-side eligibility re-check — mirrors up-preview: an UPDATE push needs
+  // a linked contact with pending changes; a CREATE push must be neither linked
+  // nor already pushed (a pushed-awaiting-link member would DUPLICATE the
+  // contact in ClubDesk). Muted members (clubdesk_sync_exclude) are refused
+  // outright. The preview enforced this only client-side, but /up callers can
+  // act on stale state (per-registration zone, second admin), so refuse
+  // ineligible ids here.
+  const members = fetched.filter((m) =>
+    !m.clubdesk_sync_exclude &&
+    ((m.clubdesk_push_pending && m.clubdesk_id) || (!m.clubdesk_id && !m.clubdesk_pushed_at)))
+  if (!members.length) {
+    return { status: 409, body: { error: 'No eligible members — already in ClubDesk or awaiting link-back', code: 'not_eligible' } }
+  }
+  // Split into the two push sets: linked members get a contact-fields-only
+  // UPDATE row; unlinked members get a CREATE row that additionally carries
+  // Beitragskategorie + Eintritt + Gruppen (see CD_PUSH_CREATE_HEADERS for
+  // why the sets must never share a CSV).
+  const updates0 = members.filter((m) => m.clubdesk_id)
+  const creates0 = members.filter((m) => !m.clubdesk_id)
+  // Duplicate-CREATE guard. up-preview flags `would_duplicate` (a ClubDesk
+  // contact already exists under this exact first+last name, divergent email)
+  // so the modal can warn — but nothing re-checked it here, so an approved
+  // CREATE could still duplicate the contact in the legal register (the
+  // 2026-07-05 audit #11 gap: the flag was computed, surfaced, then ignored
+  // on commit). Re-run the SAME name match server-side and skip collisions —
+  // the operator relinks the member to the existing contact instead. Mirrors
+  // the stale-link / blank-risk guards: refuse rather than write a dup.
+  let wouldDuplicateSkipped = []
+  let creates = creates0
+  if (creates0.length) {
+    const cdKey = (f, l) => `${(f || '').trim().toLowerCase()} ${(l || '').trim().toLowerCase()}`.trim()
+    const wantNames = [...new Set(creates0.map((m) => cdKey(m.first_name, m.last_name)).filter(Boolean))]
+    if (wantNames.length) {
+      const rows = await database('clubdesk_export')
+        .whereRaw("LOWER(BTRIM(vorname)) || ' ' || LOWER(BTRIM(nachname)) = ANY(?)", [wantNames])
+        .distinct(database.raw("LOWER(BTRIM(vorname)) || ' ' || LOWER(BTRIM(nachname)) AS nm"))
+      const cdNames = new Set(rows.map((r) => r.nm))
+      wouldDuplicateSkipped = creates0.filter((m) => cdNames.has(cdKey(m.first_name, m.last_name))).map((m) => m.id)
+      if (wouldDuplicateSkipped.length) {
+        const skip = new Set(wouldDuplicateSkipped)
+        creates = creates0.filter((m) => !skip.has(m.id))
+      }
+    }
+  }
+  // Blank-risk guard (2026-07-05 audit #5). An UPDATE row carries the FULL
+  // contact scope, so a linked member whose wiedisync side is EMPTY where
+  // ClubDesk still holds a value would blank the authoritative register on
+  // import. /clubdesk-drift/flag already refuses these, but the member-facing
+  // POST /clubdesk-update sets clubdesk_push_pending with no such check, so a
+  // profile edit that clears a field can reach here. Re-run the SAME drift
+  // computation over the UPDATE set and drop blank-risk members — they
+  // self-heal after a "Sync down" fills the empty field.
+  let blankRiskSkipped = []
+  let updates = updates0
+  if (updates0.length) {
+    const drift = await computeClubdeskDrift(database, updates0.map((m) => m.id))
+    const riskyIds = new Set(drift.filter((d) => d.blank_risk.length).map((d) => d.member_id))
+    if (riskyIds.size) {
+      blankRiskSkipped = updates0.filter((m) => riskyIds.has(m.id)).map((m) => m.id)
+      updates = updates0.filter((m) => !riskyIds.has(m.id))
+    }
+  }
+  // Stale-link guard + echo-back — both need the member's clubdesk_export
+  // row, so they share one query. MUST run before pushMembers is fixed:
+  // a skipped member must not land in up_member_ids (the dispatcher clears
+  // clubdesk_push_pending for every id in there after a commit).
+  //
+  // Stale-link guard (2026-07-08, spike-proven): UPDATE rows are [Id]-keyed,
+  // and an [Id] that no longer exists in ClubDesk (contact deleted CD-side —
+  // the Grie Chaisena case) makes the import wizard hard-abort the ENTIRE
+  // upload: the dialog closes silently, no summary, NOTHING of the batch is
+  // written. One stale link would brick the whole push, so skip those
+  // members here and report them; the operator mutes (clubdesk_sync_exclude)
+  // or relinks. clubdesk_export mirrors "Alle Kontakte" (every contact incl.
+  // exited), so a missing row genuinely means the contact is gone — the only
+  // false positive is a hand-typed clubdesk_id newer than the last sync-down,
+  // which self-heals after the next "Sync down".
+  //
+  // Echo-back: an UPDATE row whose wiedisync value is empty gets ClubDesk's
+  // own current value so the import can never blank the register. Covers
+  // iban + anrede + nationalitaet + ahv_nummer + federation_of_origin — the
+  // fields wiedisync does not exclusively own. Member-set values pass
+  // unchanged. The drift blank-risk guard deliberately skips these five —
+  // this makes them structurally safe instead of dropping the member from
+  // the push.
+  // (Spike 2026-07-08 additionally proved ClubDesk IGNORES empty cells on
+  // import — the echo + blank-risk guards stay as defense-in-depth on the
+  // legal register; one probe on one field type is no licence to relax.)
+  let staleLinkSkipped = []
+  if (updates.length) {
+    // .trim() to match the BTRIM'd export side + the trimmed lookups below —
+    // an untrimmed param here turns a hand-linked padded clubdesk_id into a
+    // permanent false "stale link" skip (review finding 2026-07-08).
+    const cdids = updates.map((m) => String(m.clubdesk_id).trim()).filter(Boolean)
+    const echoRows = cdids.length ? await database.raw(`
+      SELECT DISTINCT ON (BTRIM(clubdesk_id)) BTRIM(clubdesk_id) AS cdid,
+             iban, anrede, nationalitaet, ahv_nummer, federation_of_origin,
+             trainer_lizenz, telefon_privat, adresse, plz, ort,
+             beitragskategorie, eintritt, mitgliederbeitrag, lizenznummer, lizenzart,
+             status, austritt, offiziellen_lizenz,
+             telefon_mobil, land, mittelschule_zh
+      FROM clubdesk_export WHERE BTRIM(clubdesk_id) = ANY(?) ORDER BY BTRIM(clubdesk_id), row_id
+    `, [cdids]) : { rows: [] }
+    const cdEcho = new Map(echoRows.rows.map((r) => [r.cdid, r]))
+    staleLinkSkipped = updates.filter((m) => !cdEcho.has(String(m.clubdesk_id).trim())).map((m) => m.id)
+    if (staleLinkSkipped.length) updates = updates.filter((m) => cdEcho.has(String(m.clubdesk_id).trim()))
+    for (const m of updates) {
+      const cd = cdEcho.get(String(m.clubdesk_id).trim()) || {}
+      if (!String(m.iban || '').trim()) m.iban = String(cd.iban || '').trim()
+      if (!String(m.anrede || '').trim()) m.anrede = String(cd.anrede || '').trim()
+      if (!String(m.nationalitaet || '').trim()) m.nationalitaet = String(cd.nationalitaet || '').trim()
+      if (!String(m.ahv_nummer || '').trim()) m.ahv_nummer = String(cd.ahv_nummer || '').trim()
+      // ⚠⚠ Address + phone joined the echo on 2026-08-30, which is what takes
+      // them OUT of blank_risk (see computeClubdeskDrift). They were in the
+      // push scope from day one and never echoed, so an empty wiedisync cell
+      // made the member blank-risky — dropped from EVERY push, with no way
+      // back: a sync-down cannot heal a member it skips for being
+      // push-pending, and since migration 321 it would only PROPOSE the fill
+      // anyway. Echoing ClubDesk's own value makes the cell a provable
+      // no-op, exactly as it has always done for IBAN and Anrede.
+      if (!String(m.adresse || '').trim()) m.adresse = String(cd.adresse || '').trim()
+      if (!String(m.plz || '').trim()) m.plz = String(cd.plz || '').trim()
+      if (!String(m.ort || '').trim()) m.ort = String(cd.ort || '').trim()
+      // ⚠ Phone echoes ONE HOP (like Federation of Origin), not back onto
+      // m.phone: buildPushCsv runs m.phone through normalizePhone as an
+      // outgoing repair, and canonicalising a number we are only handing
+      // back would REWRITE a register cell wiedisync has no opinion about.
+      // The mirror is sent verbatim. `Telefon Privat` is the only phone
+      // column an UPDATE row writes — echoing Mobil here would MOVE the
+      // number between columns, which is a mutation, not an echo.
+      if (!String(m.phone || '').trim()) m.phone_cd = String(cd.telefon_privat || '').trim()
+      // Federation of Origin echoes into a SEPARATE field, not back onto
+      // federation_of_origin itself: that column holds an ISO code (CHECK
+      // constraint, migration 223) while ClubDesk's cell is a German picklist
+      // string — assigning it here would fail federationCell's code lookup and
+      // emit an empty cell, i.e. exactly the blanking this guard prevents.
+      // buildPushCsv falls back to this raw value when the member has no answer.
+      if (!String(m.federation_of_origin || '').trim()) m.federation_of_origin_cd = String(cd.federation_of_origin || '').trim()
+      // Trainer Lizenz — one-hop echo for the same reason as the line above:
+      // members.trainer_licences holds CODES under a CHECK constraint while
+      // ClubDesk's cell holds the human wording, so assigning it back here
+      // would both fail the constraint and emit the blank it guards against.
+      if (!String(m.trainer_licences || '').trim()) m.trainer_licences_cd = String(cd.trainer_lizenz || '').trim()
+      // Fill-only billing mirrors (2026-07-27, see CD_PUSH_HEADERS): stashed
+      // UNCONDITIONALLY, because here the precedence is reversed — ClubDesk's
+      // own value always wins in buildPushCsv, and wiedisync's derivation is
+      // only the fallback for a register cell that is empty. Eintritt is
+      // ClubDesk's export string (dd.mm.yyyy) and Mitgliederbeitrag can hold
+      // a manual per-person override — both travel verbatim.
+      m.beitragskategorie_cd = String(cd.beitragskategorie || '').trim()
+      m.eintritt_cd = String(cd.eintritt || '').trim()
+      m.mitgliederbeitrag_cd = String(cd.mitgliederbeitrag || '').trim()
+      m.lizenznummer_cd = String(cd.lizenznummer || '').trim()
+      m.lizenzart_cd = String(cd.lizenzart || '').trim()
+      // The register triple's echo (migration 302). Stashed for EVERY update
+      // member, not just the ones whose push names them: registerCell falls
+      // back to these whenever the member did not deliberately change the
+      // field, which is what keeps an unrelated push from rewriting Status.
+      m.register_status_cd = String(cd.status || '').trim()
+      m.austritt_cd = String(cd.austritt || '').trim()
+      // Offiziellen Lizenz (2026-08-14). Same unconditional stash as the
+      // billing mirrors above and for the same reason — this cell is
+      // fill-only, so ClubDesk's own value is the FIRST choice, not a
+      // fallback. An unstashed mirror here would silently promote the
+      // column to "wiedisync always wins".
+      m.offiziellen_lizenz_cd = String(cd.offiziellen_lizenz || '').trim()
+      // Telefon Mobil / Land / Mittelschule ZH (2026-09-13) — same
+      // unconditional stash, same reason: fill-only cells where the
+      // register's own value is the first choice, not the fallback.
+      m.telefon_mobil_cd = String(cd.telefon_mobil || '').trim()
+      m.land_cd = String(cd.land || '').trim()
+      m.mittelschule_zh_cd = String(cd.mittelschule_zh || '').trim()
+    }
+  }
+  const pushMembers = [...updates, ...creates]
+  if (!pushMembers.length) {
+    const staleOnly = staleLinkSkipped.length && !blankRiskSkipped.length && !wouldDuplicateSkipped.length
+    const dupOnly = wouldDuplicateSkipped.length && !blankRiskSkipped.length && !staleLinkSkipped.length
+    return { status: 409, body: {
+      error: dupOnly
+        ? 'Every eligible member already exists in ClubDesk under this name (divergent email) — relink them to the existing contact instead of creating a duplicate'
+        : staleOnly
+          ? 'Every eligible member has a stale ClubDesk link (contact no longer exists in ClubDesk) — mute or relink them'
+          // ⚠ NOT "run Sync down first". Since migration 321 a sync-down
+          // only PROPOSES the fill, and it skips clubdesk_push_pending
+          // members outright — so for the members who see this, the old
+          // advice was unreachable twice over. Name the thing that actually
+          // clears it.
+          : 'Every eligible member would blank ClubDesk data (empty fields ClubDesk still owns) — fill those fields in wiedisync, or accept the pending fill proposals; a sync-down cannot do it for a member already flagged for a push',
+      code: dupOnly ? 'would_duplicate' : staleOnly ? 'stale_link' : 'blank_risk',
+      skipped_blank_risk: blankRiskSkipped, skipped_stale_link: staleLinkSkipped,
+      skipped_would_duplicate: wouldDuplicateSkipped,
+    } }
+  }
+  // Eintritt = the registration SUBMISSION date — user rule 2026-07-06:
+  // "the date the registration is sent" (approved_at was dropped; it is
+  // also not stamped on every approval path). Gruppen = deriveGruppen(reg)
+  // from the same registration (team +
+  // funktion). Registration → member resolution uses the same email +
+  // symmetric first-name-prefix rule as cdStatusForRegistration, so a child
+  // on the parent's shared address never inherits the parent's date or
+  // teams. No match (legacy/manual member) → empty cells; a new contact has
+  // Guest resolution for the WHOLE push (both sets): every row carries a Gast
+  // cell now (CD_PUSH_CONTACT_HEADERS), and the CREATE rows additionally bill
+  // the reduced Mitgliederbeitrag off the same flag. One query over
+  // pushMembers rather than one per set, so an update row and a create row
+  // can never be resolved against different definitions.
+  const guestIds = await guestMemberIdSet(database, pushMembers.map((m) => m.id), getCurrentSeason())
+  for (const m of pushMembers) m.is_guest = guestIds.has(Number(m.id))
+  // no ClubDesk Eintritt/Gruppen to blank, so empty is safe there.
+  // Since 2026-07-27 the UPDATE rows carry a fill-only Eintritt cell too
+  // (see CD_PUSH_HEADERS), so the registration lookup runs over the WHOLE
+  // push, not just the creates — same approved-only filter, same email +
+  // first-name matching, and the create path resolves exactly what it
+  // always did. An update member's m.eintritt only ever reaches the CSV
+  // when ClubDesk's own Eintritt is empty (the eintritt_cd echo wins), so a
+  // contact created ClubDesk-side and linked afterwards finally gets its
+  // entry date without a register-set one ever being touched.
+  if (pushMembers.length) {
+    const emails = [...new Set(pushMembers.map((m) => String(m.email || '').toLowerCase().trim()).filter(Boolean))]
+    const regs = emails.length
+      ? await database('registrations').where('status', 'approved')
+        .whereRaw('LOWER(BTRIM(email)) = ANY(?)', [emails])
+        .select('email', 'vorname', 'submitted_at', 'membership_type', 'team', 'rolle', 'sektion_choice', 'lizenz')
+      : []
+    for (const m of pushMembers) {
+      const em = String(m.email || '').toLowerCase().trim()
+      const reg = regs
+        .filter((r) => String(r.email || '').toLowerCase().trim() === em && firstNamesMatchCd(r.vorname, m.first_name))
+        .sort((a, b) => new Date(a.submitted_at || 0) - new Date(b.submitted_at || 0))[0]
+      // ⚠ NOT `m.eintritt` — that is the real column now (migration 302),
+      // selected by PUSH_FIELDS. Overwriting it here would push the
+      // registration date over an entry date an admin had corrected.
+      m.eintritt_registration = reg ? reg.submitted_at : null
+      // The remaining create-set extras (Gruppen/Status/Sektion)
+      // stay off UPDATE rows — ClubDesk-authoritative there, no fill.
+      if (m.clubdesk_id) continue
+      m.gruppen = deriveGruppen(reg)
+      m.cd_status = deriveStatus(reg, m)
+      m.cd_sektion = deriveSektion(reg)
+      // m.is_guest is already set for every push member above — the CREATE
+      // path only consumes it (Mitgliederbeitrag + the Gast cell).
+    }
+  }
+  // ONE lookup for the whole push: the Federation of Origin cell needs the
+  // code → ClubDesk-German map (see loadCountryPushNames). Threaded into
+  // both CSVs rather than queried per row.
+  const countryNames = await loadCountryPushNames(database)
+  await database('clubdesk_member_sync').where('id', 1).update({
+    up_requested_at: new Date(), up_state: 'queued', up_message: null, up_finished_at: null,
+    // ⚠ The progress trio is cleared HERE, not only by the dispatcher's
+    // cdp_reset. The dispatchers run on a one-minute cron, so between the
+    // click and the claim a queued job rendered the PREVIOUS run's phase, its
+    // 100% bar and its whole log — a dialog that opens on "Synced from
+    // ClubDesk · 100%" two seconds after you asked for a fresh sync
+    // (08.09.2026). cdp_reset stays as the belt-and-braces for a run the
+    // dispatcher picks up some other way.
+    up_phase: null, up_progress: 0, up_log: null,
+    up_csv: updates.length ? buildPushCsv(updates, { countryNames }) : null,
+    up_csv_create: creates.length ? buildPushCsv(creates, { create: true, countryNames }) : null,
+    up_member_ids: JSON.stringify(pushMembers.map((m) => m.id)),
+    up_member_ids_create: JSON.stringify(creates.map((m) => m.id)),
+    up_result: null,
+  })
+  await writeUserLog(database, log, {
+    accountability, action: 'update',
+    collection: 'clubdesk_member_sync', recordId: 1,
+    data: { kind: 'clubdesk_member_sync_request', direction: 'up', member_count: pushMembers.length, create_count: creates.length, skipped_blank_risk: blankRiskSkipped.length, skipped_stale_link: staleLinkSkipped.length, skipped_would_duplicate: wouldDuplicateSkipped.length },
+  })
+  return { status: 200, body: { state: 'queued', count: pushMembers.length, skipped_blank_risk: blankRiskSkipped, skipped_stale_link: staleLinkSkipped, skipped_would_duplicate: wouldDuplicateSkipped } }
+}
+
+// Core of POST /clubdesk-link, extracted for the same reason as
+// enqueueClubdeskUp above — the auto-sync orchestrator needs to resolve an
+// unambiguous match_unlinked registration straight to a link, with no HTTP
+// request in play. Returns { status, body }.
+export async function linkClubdeskContact(database, log, { memberId, clubdeskId, accountability = null } = {}) {
+  const member = await database('members').where('id', memberId).first('id', 'clubdesk_id', 'vm_email', 'email')
+  if (!member) return { status: 404, body: { error: 'Member not found' } }
+  if (member.clubdesk_id) return { status: 409, body: { error: 'Member already linked' } }
+  const taken = await database('members').where('clubdesk_id', clubdeskId).whereNot('id', memberId).first('id')
+  if (taken) return { status: 409, body: { error: 'ClubDesk contact already linked to another member', code: 'duplicate' } }
+  const cd = await database('clubdesk_export').whereRaw('BTRIM(clubdesk_id) = ?', [clubdeskId])
+    .first('email', 'email_alternativ')
+  const cdEmail = (cd?.email || cd?.email_alternativ || '').trim() || null
+  const patch = { clubdesk_id: clubdeskId }
+  // Keep the ClubDesk email as secondary unless the member already has a
+  // distinct one. Never overwrite their primary.
+  if (cdEmail && (!member.vm_email || member.vm_email.toLowerCase() === (member.email || '').toLowerCase())) {
+    patch.vm_email = cdEmail
+  }
+  await database('members').where('id', memberId).update(patch)
+  await writeUserLog(database, log, {
+    accountability, action: 'update',
+    collection: 'members', recordId: memberId,
+    data: { kind: 'clubdesk_link', clubdesk_id: clubdeskId, vm_email: patch.vm_email || null },
+  })
+  return { status: 200, body: { success: true, member_id: memberId, clubdesk_id: clubdeskId, vm_email: patch.vm_email || null } }
+}
+
+// ── Auto-sync on registration confirmation ──────────────────────────────────
+// Called from kscw-hooks right after a registration's approval stamps
+// registrations.member — fires the single-member push (up) → link-back chain
+// automatically, so a newly confirmed member doesn't wait for the next manual
+// "Sync now". Deliberately narrow: this is NOT the full down → decide → up →
+// down → group cycle (ClubdeskSyncPath.tsx) — group assignment stays manual,
+// since computeGroupChecks() is club-wide and /clubdesk-group-fix hard-requires
+// a human-reviewed preview before commit. Ambiguous ClubDesk matches are left
+// for the manual zone too — auto-linking there risks mislinking two same-named
+// people, which is exactly the case that classification exists to catch.
+//
+// No accountability/actor: this runs off a hook, not a request. writeUserLog
+// already treats a null accountability as "system — traceable via container
+// logs" (see activity-log.js) rather than inventing a synthetic actor, so the
+// calls below follow that same convention.
+export async function autoSyncRegistrationToClubdesk(database, log, registrationId) {
+  try {
+    const reg = await database('registrations').where('id', registrationId)
+      .first('id', 'email', 'vorname', 'nachname', 'status', 'member')
+    if (!reg || !reg.member) return
+    const cdStatus = await cdStatusForRegistration(database, reg)
+    if (cdStatus.status === 'linked' || cdStatus.status === 'pushed_pending' || cdStatus.status === 'no_member') return
+    if (cdStatus.status === 'match_unlinked') {
+      if (cdStatus.ambiguous || cdStatus.duplicate_of) {
+        log.info({ msg: `auto-sync: registration ${registrationId} has an ambiguous ClubDesk match, leaving for manual review`, registrationId, memberId: cdStatus.member_id })
+        return
+      }
+      const result = await linkClubdeskContact(database, log, { memberId: cdStatus.member_id, clubdeskId: cdStatus.clubdesk_id })
+      if (result.status !== 200) {
+        log.warn({ msg: `auto-sync: link failed for registration ${registrationId}: ${result.body?.error}`, registrationId, memberId: cdStatus.member_id, status: result.status })
+      }
+      return
+    }
+    if (cdStatus.status === 'not_in_clubdesk' || cdStatus.status === 'linked_pending') {
+      const result = await enqueueClubdeskUp(database, [cdStatus.member_id], { log })
+      if (result.status === 200) return
+      if (result.body?.code === 'up_in_progress' || result.body?.code === 'down_in_progress') {
+        // Busy, not refused — queue it. The partial unique index makes this
+        // idempotent if the hook somehow fires twice for the same member.
+        await database.raw(
+          `INSERT INTO clubdesk_auto_sync_queue (member_id, registration_id, status)
+           VALUES (?, ?, 'pending')
+           ON CONFLICT (member_id) WHERE status = 'pending' DO NOTHING`,
+          [cdStatus.member_id, registrationId],
+        )
+        return
+      }
+      // Terminal refusal (not_eligible / blank_risk / stale_link / would_duplicate)
+      // — not something waiting fixes. Leave it for the manual ClubDesk zone,
+      // which surfaces exactly these states already.
+      log.warn({ msg: `auto-sync: push refused for registration ${registrationId}: ${result.body?.error}`, registrationId, memberId: cdStatus.member_id, code: result.body?.code })
+    }
+  } catch (err) {
+    log.error({ msg: `autoSyncRegistrationToClubdesk failed: ${err.message}`, registrationId, stack: err.stack })
+  }
+}
+
+// Drains clubdesk_auto_sync_queue — the queued half of autoSyncRegistrationToClubdesk,
+// for when a push was requested while another down/up/group job held the
+// global ClubDesk lock. Run on a short cron (kscw-hooks) rather than retried
+// inline, since the lock can be held for minutes (a real Playwright scrape).
+// Batches every pending row into ONE enqueueClubdeskUp call — several
+// registrations confirmed close together become a single CSV/dispatcher run
+// once the lock frees, which is also what "queue, don't drop" means here.
+export async function drainClubdeskAutoSyncQueue(database, log) {
+  const pending = await database('clubdesk_auto_sync_queue').where('status', 'pending')
+    .select('id', 'member_id', 'attempts')
+  if (!pending.length) return
+  const ids = pending.map((r) => r.id)
+  const memberIds = [...new Set(pending.map((r) => r.member_id))]
+  const result = await enqueueClubdeskUp(database, memberIds, { log })
+  if (result.status === 200) {
+    // "Dispatched" means the up-push was queued in clubdesk_member_sync, not
+    // that every member's push necessarily landed — a member enqueueClubdeskUp
+    // itself skipped (blank_risk / stale_link / would_duplicate) stays visible
+    // via the existing Data Health / ClubdeskRegistrationZone surfaces exactly
+    // as a manual push would leave it; this table only tracks queue-vs-busy.
+    await database('clubdesk_auto_sync_queue').whereIn('id', ids)
+      .update({ status: 'dispatched', dispatched_at: new Date() })
+    return
+  }
+  if (result.body?.code === 'up_in_progress' || result.body?.code === 'down_in_progress') {
+    // Still busy — leave pending for the next tick. A stuck lock (crashed
+    // dispatcher, never a normal run) would otherwise grow this forever, so
+    // give up after 20 ticks (~40 min at the 2-minute cadence) and surface it
+    // rather than queue silently for days.
+    const giveUp = pending.filter((r) => r.attempts + 1 >= 20).map((r) => r.id)
+    const keep = pending.filter((r) => r.attempts + 1 < 20).map((r) => r.id)
+    if (keep.length) await database('clubdesk_auto_sync_queue').whereIn('id', keep).increment('attempts', 1)
+    if (giveUp.length) {
+      await database('clubdesk_auto_sync_queue').whereIn('id', giveUp)
+        .update({ status: 'failed', last_error: `still ${result.body.code} after 20 attempts`, finished_at: new Date() })
+      log.warn({ msg: `drainClubdeskAutoSyncQueue: gave up on ${giveUp.length} job(s), lock held too long`, code: result.body.code })
+    }
+    return
+  }
+  await database('clubdesk_auto_sync_queue').whereIn('id', ids)
+    .update({ status: 'failed', last_error: String(result.body?.error || 'unknown').slice(0, 500), finished_at: new Date() })
+  log.warn({ msg: `drainClubdeskAutoSyncQueue: batch push refused, ${ids.length} queued job(s) marked failed`, code: result.body?.code })
+}
+
 export function registerClubdeskUpdate(router, { database, logger, services, getSchema }) {
   const log = logger.child({ endpoint: 'clubdesk-update' })
 
@@ -1945,290 +2858,8 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       if (!(await superGate(req))) return res.status(403).json({ error: 'Forbidden' })
       const ids = Array.isArray(req.body?.member_ids) ? req.body.member_ids.map(Number).filter((n) => Number.isInteger(n)) : []
       if (!ids.length) return res.status(400).json({ error: 'member_ids required' })
-      const s = await database('clubdesk_member_sync').where('id', 1).first('up_state', 'down_state')
-      if (isBusy(s?.up_state)) {
-        return res.status(409).json({ error: 'A sync-up is already in progress', state: s.up_state })
-      }
-      // Everything below (stale-link guard, blank-risk drift, would-duplicate
-      // match, echo-back) reads clubdesk_export — the LAST COMPLETED sync-down.
-      // Pushing against a snapshot a running down-sync is about to replace is
-      // hazard (a) above: the payload is frozen here, so the refresh cannot help
-      // it. Refuse and let the operator re-open the modal once the down settles.
-      if (isBusy(s?.down_state)) {
-        return res.status(409).json({ error: 'A sync-down is in progress — wait for it to finish, then review the push again', state: s.down_state, code: 'down_in_progress' })
-      }
-      const fetched = await database('members').whereIn('id', ids)
-        .select([...PUSH_FIELDS, 'clubdesk_push_pending', 'clubdesk_pushed_at', 'clubdesk_sync_exclude'])
-      // Server-side eligibility re-check — mirrors up-preview: an UPDATE push needs
-      // a linked contact with pending changes; a CREATE push must be neither linked
-      // nor already pushed (a pushed-awaiting-link member would DUPLICATE the
-      // contact in ClubDesk). Muted members (clubdesk_sync_exclude) are refused
-      // outright. The preview enforced this only client-side, but /up callers can
-      // act on stale state (per-registration zone, second admin), so refuse
-      // ineligible ids here.
-      const members = fetched.filter((m) =>
-        !m.clubdesk_sync_exclude &&
-        ((m.clubdesk_push_pending && m.clubdesk_id) || (!m.clubdesk_id && !m.clubdesk_pushed_at)))
-      if (!members.length) {
-        return res.status(409).json({ error: 'No eligible members — already in ClubDesk or awaiting link-back', code: 'not_eligible' })
-      }
-      // Split into the two push sets: linked members get a contact-fields-only
-      // UPDATE row; unlinked members get a CREATE row that additionally carries
-      // Beitragskategorie + Eintritt + Gruppen (see CD_PUSH_CREATE_HEADERS for
-      // why the sets must never share a CSV).
-      const updates0 = members.filter((m) => m.clubdesk_id)
-      const creates0 = members.filter((m) => !m.clubdesk_id)
-      // Duplicate-CREATE guard. up-preview flags `would_duplicate` (a ClubDesk
-      // contact already exists under this exact first+last name, divergent email)
-      // so the modal can warn — but nothing re-checked it here, so an approved
-      // CREATE could still duplicate the contact in the legal register (the
-      // 2026-07-05 audit #11 gap: the flag was computed, surfaced, then ignored
-      // on commit). Re-run the SAME name match server-side and skip collisions —
-      // the operator relinks the member to the existing contact instead. Mirrors
-      // the stale-link / blank-risk guards: refuse rather than write a dup.
-      let wouldDuplicateSkipped = []
-      let creates = creates0
-      if (creates0.length) {
-        const cdKey = (f, l) => `${(f || '').trim().toLowerCase()} ${(l || '').trim().toLowerCase()}`.trim()
-        const wantNames = [...new Set(creates0.map((m) => cdKey(m.first_name, m.last_name)).filter(Boolean))]
-        if (wantNames.length) {
-          const rows = await database('clubdesk_export')
-            .whereRaw("LOWER(BTRIM(vorname)) || ' ' || LOWER(BTRIM(nachname)) = ANY(?)", [wantNames])
-            .distinct(database.raw("LOWER(BTRIM(vorname)) || ' ' || LOWER(BTRIM(nachname)) AS nm"))
-          const cdNames = new Set(rows.map((r) => r.nm))
-          wouldDuplicateSkipped = creates0.filter((m) => cdNames.has(cdKey(m.first_name, m.last_name))).map((m) => m.id)
-          if (wouldDuplicateSkipped.length) {
-            const skip = new Set(wouldDuplicateSkipped)
-            creates = creates0.filter((m) => !skip.has(m.id))
-          }
-        }
-      }
-      // Blank-risk guard (2026-07-05 audit #5). An UPDATE row carries the FULL
-      // contact scope, so a linked member whose wiedisync side is EMPTY where
-      // ClubDesk still holds a value would blank the authoritative register on
-      // import. /clubdesk-drift/flag already refuses these, but the member-facing
-      // POST /clubdesk-update sets clubdesk_push_pending with no such check, so a
-      // profile edit that clears a field can reach here. Re-run the SAME drift
-      // computation over the UPDATE set and drop blank-risk members — they
-      // self-heal after a "Sync down" fills the empty field.
-      let blankRiskSkipped = []
-      let updates = updates0
-      if (updates0.length) {
-        const drift = await computeClubdeskDrift(updates0.map((m) => m.id))
-        const riskyIds = new Set(drift.filter((d) => d.blank_risk.length).map((d) => d.member_id))
-        if (riskyIds.size) {
-          blankRiskSkipped = updates0.filter((m) => riskyIds.has(m.id)).map((m) => m.id)
-          updates = updates0.filter((m) => !riskyIds.has(m.id))
-        }
-      }
-      // Stale-link guard + echo-back — both need the member's clubdesk_export
-      // row, so they share one query. MUST run before pushMembers is fixed:
-      // a skipped member must not land in up_member_ids (the dispatcher clears
-      // clubdesk_push_pending for every id in there after a commit).
-      //
-      // Stale-link guard (2026-07-08, spike-proven): UPDATE rows are [Id]-keyed,
-      // and an [Id] that no longer exists in ClubDesk (contact deleted CD-side —
-      // the Grie Chaisena case) makes the import wizard hard-abort the ENTIRE
-      // upload: the dialog closes silently, no summary, NOTHING of the batch is
-      // written. One stale link would brick the whole push, so skip those
-      // members here and report them; the operator mutes (clubdesk_sync_exclude)
-      // or relinks. clubdesk_export mirrors "Alle Kontakte" (every contact incl.
-      // exited), so a missing row genuinely means the contact is gone — the only
-      // false positive is a hand-typed clubdesk_id newer than the last sync-down,
-      // which self-heals after the next "Sync down".
-      //
-      // Echo-back: an UPDATE row whose wiedisync value is empty gets ClubDesk's
-      // own current value so the import can never blank the register. Covers
-      // iban + anrede + nationalitaet + ahv_nummer + federation_of_origin — the
-      // fields wiedisync does not exclusively own. Member-set values pass
-      // unchanged. The drift blank-risk guard deliberately skips these five —
-      // this makes them structurally safe instead of dropping the member from
-      // the push.
-      // (Spike 2026-07-08 additionally proved ClubDesk IGNORES empty cells on
-      // import — the echo + blank-risk guards stay as defense-in-depth on the
-      // legal register; one probe on one field type is no licence to relax.)
-      let staleLinkSkipped = []
-      if (updates.length) {
-        // .trim() to match the BTRIM'd export side + the trimmed lookups below —
-        // an untrimmed param here turns a hand-linked padded clubdesk_id into a
-        // permanent false "stale link" skip (review finding 2026-07-08).
-        const cdids = updates.map((m) => String(m.clubdesk_id).trim()).filter(Boolean)
-        const echoRows = cdids.length ? await database.raw(`
-          SELECT DISTINCT ON (BTRIM(clubdesk_id)) BTRIM(clubdesk_id) AS cdid,
-                 iban, anrede, nationalitaet, ahv_nummer, federation_of_origin,
-                 trainer_lizenz, telefon_privat, adresse, plz, ort,
-                 beitragskategorie, eintritt, mitgliederbeitrag, lizenznummer, lizenzart,
-                 status, austritt, offiziellen_lizenz,
-                 telefon_mobil, land, mittelschule_zh
-          FROM clubdesk_export WHERE BTRIM(clubdesk_id) = ANY(?) ORDER BY BTRIM(clubdesk_id), row_id
-        `, [cdids]) : { rows: [] }
-        const cdEcho = new Map(echoRows.rows.map((r) => [r.cdid, r]))
-        staleLinkSkipped = updates.filter((m) => !cdEcho.has(String(m.clubdesk_id).trim())).map((m) => m.id)
-        if (staleLinkSkipped.length) updates = updates.filter((m) => cdEcho.has(String(m.clubdesk_id).trim()))
-        for (const m of updates) {
-          const cd = cdEcho.get(String(m.clubdesk_id).trim()) || {}
-          if (!String(m.iban || '').trim()) m.iban = String(cd.iban || '').trim()
-          if (!String(m.anrede || '').trim()) m.anrede = String(cd.anrede || '').trim()
-          if (!String(m.nationalitaet || '').trim()) m.nationalitaet = String(cd.nationalitaet || '').trim()
-          if (!String(m.ahv_nummer || '').trim()) m.ahv_nummer = String(cd.ahv_nummer || '').trim()
-          // ⚠⚠ Address + phone joined the echo on 2026-08-30, which is what takes
-          // them OUT of blank_risk (see computeClubdeskDrift). They were in the
-          // push scope from day one and never echoed, so an empty wiedisync cell
-          // made the member blank-risky — dropped from EVERY push, with no way
-          // back: a sync-down cannot heal a member it skips for being
-          // push-pending, and since migration 321 it would only PROPOSE the fill
-          // anyway. Echoing ClubDesk's own value makes the cell a provable
-          // no-op, exactly as it has always done for IBAN and Anrede.
-          if (!String(m.adresse || '').trim()) m.adresse = String(cd.adresse || '').trim()
-          if (!String(m.plz || '').trim()) m.plz = String(cd.plz || '').trim()
-          if (!String(m.ort || '').trim()) m.ort = String(cd.ort || '').trim()
-          // ⚠ Phone echoes ONE HOP (like Federation of Origin), not back onto
-          // m.phone: buildPushCsv runs m.phone through normalizePhone as an
-          // outgoing repair, and canonicalising a number we are only handing
-          // back would REWRITE a register cell wiedisync has no opinion about.
-          // The mirror is sent verbatim. `Telefon Privat` is the only phone
-          // column an UPDATE row writes — echoing Mobil here would MOVE the
-          // number between columns, which is a mutation, not an echo.
-          if (!String(m.phone || '').trim()) m.phone_cd = String(cd.telefon_privat || '').trim()
-          // Federation of Origin echoes into a SEPARATE field, not back onto
-          // federation_of_origin itself: that column holds an ISO code (CHECK
-          // constraint, migration 223) while ClubDesk's cell is a German picklist
-          // string — assigning it here would fail federationCell's code lookup and
-          // emit an empty cell, i.e. exactly the blanking this guard prevents.
-          // buildPushCsv falls back to this raw value when the member has no answer.
-          if (!String(m.federation_of_origin || '').trim()) m.federation_of_origin_cd = String(cd.federation_of_origin || '').trim()
-          // Trainer Lizenz — one-hop echo for the same reason as the line above:
-          // members.trainer_licences holds CODES under a CHECK constraint while
-          // ClubDesk's cell holds the human wording, so assigning it back here
-          // would both fail the constraint and emit the blank it guards against.
-          if (!String(m.trainer_licences || '').trim()) m.trainer_licences_cd = String(cd.trainer_lizenz || '').trim()
-          // Fill-only billing mirrors (2026-07-27, see CD_PUSH_HEADERS): stashed
-          // UNCONDITIONALLY, because here the precedence is reversed — ClubDesk's
-          // own value always wins in buildPushCsv, and wiedisync's derivation is
-          // only the fallback for a register cell that is empty. Eintritt is
-          // ClubDesk's export string (dd.mm.yyyy) and Mitgliederbeitrag can hold
-          // a manual per-person override — both travel verbatim.
-          m.beitragskategorie_cd = String(cd.beitragskategorie || '').trim()
-          m.eintritt_cd = String(cd.eintritt || '').trim()
-          m.mitgliederbeitrag_cd = String(cd.mitgliederbeitrag || '').trim()
-          m.lizenznummer_cd = String(cd.lizenznummer || '').trim()
-          m.lizenzart_cd = String(cd.lizenzart || '').trim()
-          // The register triple's echo (migration 302). Stashed for EVERY update
-          // member, not just the ones whose push names them: registerCell falls
-          // back to these whenever the member did not deliberately change the
-          // field, which is what keeps an unrelated push from rewriting Status.
-          m.register_status_cd = String(cd.status || '').trim()
-          m.austritt_cd = String(cd.austritt || '').trim()
-          // Offiziellen Lizenz (2026-08-14). Same unconditional stash as the
-          // billing mirrors above and for the same reason — this cell is
-          // fill-only, so ClubDesk's own value is the FIRST choice, not a
-          // fallback. An unstashed mirror here would silently promote the
-          // column to "wiedisync always wins".
-          m.offiziellen_lizenz_cd = String(cd.offiziellen_lizenz || '').trim()
-          // Telefon Mobil / Land / Mittelschule ZH (2026-09-13) — same
-          // unconditional stash, same reason: fill-only cells where the
-          // register's own value is the first choice, not the fallback.
-          m.telefon_mobil_cd = String(cd.telefon_mobil || '').trim()
-          m.land_cd = String(cd.land || '').trim()
-          m.mittelschule_zh_cd = String(cd.mittelschule_zh || '').trim()
-        }
-      }
-      const pushMembers = [...updates, ...creates]
-      if (!pushMembers.length) {
-        const staleOnly = staleLinkSkipped.length && !blankRiskSkipped.length && !wouldDuplicateSkipped.length
-        const dupOnly = wouldDuplicateSkipped.length && !blankRiskSkipped.length && !staleLinkSkipped.length
-        return res.status(409).json({
-          error: dupOnly
-            ? 'Every eligible member already exists in ClubDesk under this name (divergent email) — relink them to the existing contact instead of creating a duplicate'
-            : staleOnly
-              ? 'Every eligible member has a stale ClubDesk link (contact no longer exists in ClubDesk) — mute or relink them'
-              // ⚠ NOT "run Sync down first". Since migration 321 a sync-down
-              // only PROPOSES the fill, and it skips clubdesk_push_pending
-              // members outright — so for the members who see this, the old
-              // advice was unreachable twice over. Name the thing that actually
-              // clears it.
-              : 'Every eligible member would blank ClubDesk data (empty fields ClubDesk still owns) — fill those fields in wiedisync, or accept the pending fill proposals; a sync-down cannot do it for a member already flagged for a push',
-          code: dupOnly ? 'would_duplicate' : staleOnly ? 'stale_link' : 'blank_risk',
-          skipped_blank_risk: blankRiskSkipped, skipped_stale_link: staleLinkSkipped,
-          skipped_would_duplicate: wouldDuplicateSkipped,
-        })
-      }
-      // Eintritt = the registration SUBMISSION date — user rule 2026-07-06:
-      // "the date the registration is sent" (approved_at was dropped; it is
-      // also not stamped on every approval path). Gruppen = deriveGruppen(reg)
-      // from the same registration (team +
-      // funktion). Registration → member resolution uses the same email +
-      // symmetric first-name-prefix rule as cdStatusForRegistration, so a child
-      // on the parent's shared address never inherits the parent's date or
-      // teams. No match (legacy/manual member) → empty cells; a new contact has
-      // Guest resolution for the WHOLE push (both sets): every row carries a Gast
-      // cell now (CD_PUSH_CONTACT_HEADERS), and the CREATE rows additionally bill
-      // the reduced Mitgliederbeitrag off the same flag. One query over
-      // pushMembers rather than one per set, so an update row and a create row
-      // can never be resolved against different definitions.
-      const guestIds = await guestMemberIdSet(database, pushMembers.map((m) => m.id), getCurrentSeason())
-      for (const m of pushMembers) m.is_guest = guestIds.has(Number(m.id))
-      // no ClubDesk Eintritt/Gruppen to blank, so empty is safe there.
-      // Since 2026-07-27 the UPDATE rows carry a fill-only Eintritt cell too
-      // (see CD_PUSH_HEADERS), so the registration lookup runs over the WHOLE
-      // push, not just the creates — same approved-only filter, same email +
-      // first-name matching, and the create path resolves exactly what it
-      // always did. An update member's m.eintritt only ever reaches the CSV
-      // when ClubDesk's own Eintritt is empty (the eintritt_cd echo wins), so a
-      // contact created ClubDesk-side and linked afterwards finally gets its
-      // entry date without a register-set one ever being touched.
-      if (pushMembers.length) {
-        const emails = [...new Set(pushMembers.map((m) => String(m.email || '').toLowerCase().trim()).filter(Boolean))]
-        const regs = emails.length
-          ? await database('registrations').where('status', 'approved')
-            .whereRaw('LOWER(BTRIM(email)) = ANY(?)', [emails])
-            .select('email', 'vorname', 'submitted_at', 'membership_type', 'team', 'rolle', 'sektion_choice', 'lizenz')
-          : []
-        for (const m of pushMembers) {
-          const em = String(m.email || '').toLowerCase().trim()
-          const reg = regs
-            .filter((r) => String(r.email || '').toLowerCase().trim() === em && firstNamesMatchCd(r.vorname, m.first_name))
-            .sort((a, b) => new Date(a.submitted_at || 0) - new Date(b.submitted_at || 0))[0]
-          // ⚠ NOT `m.eintritt` — that is the real column now (migration 302),
-          // selected by PUSH_FIELDS. Overwriting it here would push the
-          // registration date over an entry date an admin had corrected.
-          m.eintritt_registration = reg ? reg.submitted_at : null
-          // The remaining create-set extras (Gruppen/Status/Sektion)
-          // stay off UPDATE rows — ClubDesk-authoritative there, no fill.
-          if (m.clubdesk_id) continue
-          m.gruppen = deriveGruppen(reg)
-          m.cd_status = deriveStatus(reg, m)
-          m.cd_sektion = deriveSektion(reg)
-          // m.is_guest is already set for every push member above — the CREATE
-          // path only consumes it (Mitgliederbeitrag + the Gast cell).
-        }
-      }
-      // ONE lookup for the whole push: the Federation of Origin cell needs the
-      // code → ClubDesk-German map (see loadCountryPushNames). Threaded into
-      // both CSVs rather than queried per row.
-      const countryNames = await loadCountryPushNames(database)
-      await database('clubdesk_member_sync').where('id', 1).update({
-        up_requested_at: new Date(), up_state: 'queued', up_message: null, up_finished_at: null,
-        // ⚠ The progress trio is cleared HERE, not only by the dispatcher's
-        // cdp_reset. The dispatchers run on a one-minute cron, so between the
-        // click and the claim a queued job rendered the PREVIOUS run's phase, its
-        // 100% bar and its whole log — a dialog that opens on "Synced from
-        // ClubDesk · 100%" two seconds after you asked for a fresh sync
-        // (08.09.2026). cdp_reset stays as the belt-and-braces for a run the
-        // dispatcher picks up some other way.
-        up_phase: null, up_progress: 0, up_log: null,
-        up_csv: updates.length ? buildPushCsv(updates, { countryNames }) : null,
-        up_csv_create: creates.length ? buildPushCsv(creates, { create: true, countryNames }) : null,
-        up_member_ids: JSON.stringify(pushMembers.map((m) => m.id)),
-        up_member_ids_create: JSON.stringify(creates.map((m) => m.id)),
-        up_result: null,
-      })
-      await writeUserLog(database, log, {
-        accountability: req.accountability, action: 'update',
-        collection: 'clubdesk_member_sync', recordId: 1,
-        data: { kind: 'clubdesk_member_sync_request', direction: 'up', member_count: pushMembers.length, create_count: creates.length, skipped_blank_risk: blankRiskSkipped.length, skipped_stale_link: staleLinkSkipped.length, skipped_would_duplicate: wouldDuplicateSkipped.length },
-      })
-      return res.json({ state: 'queued', count: pushMembers.length, skipped_blank_risk: blankRiskSkipped, skipped_stale_link: staleLinkSkipped, skipped_would_duplicate: wouldDuplicateSkipped })
+      const result = await enqueueClubdeskUp(database, ids, { accountability: req.accountability, log })
+      return res.status(result.status).json(result.body)
     } catch (err) {
       log.error({ msg: `up-commit: ${err.message}`, endpoint: 'clubdesk-member-sync/up', stack: err.stack })
       return res.status(500).json({ error: 'Internal error' })
@@ -2322,205 +2953,14 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       if (!Number.isInteger(memberId) || !clubdeskId) {
         return res.status(400).json({ error: 'member_id and clubdesk_id required' })
       }
-      const member = await database('members').where('id', memberId).first('id', 'clubdesk_id', 'vm_email', 'email')
-      if (!member) return res.status(404).json({ error: 'Member not found' })
-      if (member.clubdesk_id) return res.status(409).json({ error: 'Member already linked' })
-      const taken = await database('members').where('clubdesk_id', clubdeskId).whereNot('id', memberId).first('id')
-      if (taken) return res.status(409).json({ error: 'ClubDesk contact already linked to another member', code: 'duplicate' })
-      const cd = await database('clubdesk_export').whereRaw('BTRIM(clubdesk_id) = ?', [clubdeskId])
-        .first('email', 'email_alternativ')
-      const cdEmail = (cd?.email || cd?.email_alternativ || '').trim() || null
-      const patch = { clubdesk_id: clubdeskId }
-      // Keep the ClubDesk email as secondary unless the member already has a
-      // distinct one. Never overwrite their primary.
-      if (cdEmail && (!member.vm_email || member.vm_email.toLowerCase() === (member.email || '').toLowerCase())) {
-        patch.vm_email = cdEmail
-      }
-      await database('members').where('id', memberId).update(patch)
-      await writeUserLog(database, log, {
-        accountability: req.accountability, action: 'update',
-        collection: 'members', recordId: memberId,
-        data: { kind: 'clubdesk_link', clubdesk_id: clubdeskId, vm_email: patch.vm_email || null },
-      })
-      return res.json({ success: true, member_id: memberId, clubdesk_id: clubdeskId, vm_email: patch.vm_email || null })
+      const result = await linkClubdeskContact(database, log, { memberId, clubdeskId, accountability: req.accountability })
+      return res.status(result.status).json(result.body)
     } catch (err) {
       log.error({ msg: `clubdesk-link: ${err.message}`, endpoint: 'clubdesk-link', stack: err.stack })
       return res.status(500).json({ error: 'Internal error' })
     }
   })
 
-  // ── Per-registration ClubDesk status (Anmeldungen "ClubDesk sync" zone) ─────
-  // Resolves an approved registration to its member row (same email +
-  // symmetric first-name-prefix rule as createMemberFromRegistration in
-  // kscw-hooks) and reports where that person stands relative to ClubDesk:
-  //   linked          — member.clubdesk_id set → contact exists in ClubDesk
-  //   match_unlinked  — a clubdesk_export contact matches by email or exact name
-  //                     but the member isn't linked yet (offer /clubdesk-link);
-  //                     `duplicate_of` is set when that contact is already linked
-  //                     to a DIFFERENT member (needs a merge, no one-click action)
-  //   pushed_pending  — pushed to ClubDesk (clubdesk_pushed_at) awaiting link-back
-  //   not_in_clubdesk — nowhere to be found → offer the single-member sync-up push
-  //   no_member       — no member row yet (not approved, or the approval hook failed)
-  // clubdesk_export is the last sync-down snapshot, so "in ClubDesk" is as of the
-  // last sync down. Read-only. Superadmin only (same gate as the sync surface).
-  function firstNamesMatchCd(a, b) {
-    const x = String(a || '').toLowerCase().trim()
-    const y = String(b || '').toLowerCase().trim()
-    if (!x || !y) return true
-    return x === y || x.startsWith(y) || y.startsWith(x)
-  }
-
-  async function cdStatusForRegistration(reg) {
-      if (!reg || !reg.email) return { status: 'no_member' }
-
-      const email = reg.email.toLowerCase().trim()
-      const MEMBER_COLS = ['id', 'uuid', 'first_name', 'last_name', 'clubdesk_id', 'clubdesk_pushed_at', 'clubdesk_push_pending']
-      // ID-FIRST (user rule 2026-07-08: "lookup should be by ID"). The approval
-      // hook stamps registrations.member (migration 194 backfilled legacy rows),
-      // so the FK is the authoritative link — the heuristics below only cover
-      // unstamped legacy rows the backfill couldn't uniquely resolve.
-      let member = null
-      if (reg.member) {
-        member = await database('members').where('id', reg.member).first(...MEMBER_COLS) || null
-      }
-      if (!member) {
-        const emailRows = await database('members').whereRaw('LOWER(email) = ?', [email])
-          .select(...MEMBER_COLS)
-        member = emailRows.find((r) => firstNamesMatchCd(r.first_name, reg.vorname)) || null
-      }
-      if (!member) {
-        // Divergent-email fallback (2026-07-08, Neo Paladino case): a child often
-        // registers under a PARENT's email while the member row (materialized
-        // from ClubDesk, or later edited) carries the person's own address — the
-        // email-only lookup then shows a false "no member record" for someone who
-        // exists and is even linked. Fall back to exact last-name equality + the
-        // symmetric first-name-prefix rule, and accept ONLY a unique candidate
-        // (ambiguity keeps no_member — this result also feeds the one-click link
-        // zone, so we never guess between two same-named people).
-        const nachname = String(reg.nachname || '').toLowerCase().trim()
-        if (nachname) {
-          const nameRows = await database('members')
-            .whereRaw('LOWER(BTRIM(last_name)) = ?', [nachname])
-            .select(...MEMBER_COLS)
-          const hits = nameRows.filter((r) => firstNamesMatchCd(r.first_name, reg.vorname))
-          if (hits.length === 1) member = hits[0]
-        }
-      }
-      if (!member) return { status: 'no_member' }
-
-      const base = { member_id: member.id }
-      if (member.clubdesk_id) {
-        // A link alone is not "in ClubDesk" (2026-09-13). The sync-down linker
-        // attaches a member to ANY contact carrying their e-mail + first name —
-        // including a shell somebody created by hand before the push ran (the
-        // three H2 registrations of 10.09.2026: name, address and a guessed
-        // gender, nothing else). Those members are linked AND still
-        // push-pending, and the badge read a green "In ClubDesk" for two days
-        // while the register held none of their data. Surface the pending push
-        // as its own state so the zone can offer the one-click sync-up.
-        if (member.clubdesk_push_pending) {
-          return { ...base, status: 'linked_pending', clubdesk_id: member.clubdesk_id }
-        }
-        return { ...base, status: 'linked', clubdesk_id: member.clubdesk_id }
-      }
-
-      // Unlinked → AUTHORITATIVE KEY FIRST (2026-07-08, "lookup should be by
-      // ID"): the contact may already carry this member's Wiedisync ID (pushed
-      // on every create + update; the down-sync linker reads it back). A
-      // snapshot row holding it IS this member's contact — no name/email
-      // guessing, no ambiguity. Pre-184 stamps carried the numeric members.id,
-      // so accept both formats (same rule as the down-sync linker).
-      const widKeys = [
-        member.uuid ? String(member.uuid).toLowerCase().trim() : null,
-        String(member.id),
-      ].filter(Boolean)
-      const widRow = await database('clubdesk_export')
-        .whereRaw('LOWER(BTRIM(wiedisync_id)) = ANY(?)', [widKeys])
-        .whereRaw("NULLIF(BTRIM(clubdesk_id), '') IS NOT NULL")
-        .orderBy('row_id')
-        .first('clubdesk_id', 'vorname', 'nachname', 'email', 'email_alternativ')
-      if (widRow) {
-        const widCdid = String(widRow.clubdesk_id).trim()
-        const widLinked = await database('members').where('clubdesk_id', widCdid)
-          .first('id', 'first_name', 'last_name')
-        return {
-          ...base,
-          status: 'match_unlinked',
-          clubdesk_id: widCdid,
-          clubdesk_name: `${(widRow.vorname || '').trim()} ${(widRow.nachname || '').trim()}`.trim() || null,
-          clubdesk_email: widRow.email || widRow.email_alternativ || null,
-          ambiguous: false,
-          matched_by: 'wiedisync_id',
-          duplicate_of: widLinked && widLinked.id !== member.id
-            ? { id: widLinked.id, name: `${widLinked.first_name || ''} ${widLinked.last_name || ''}`.trim() }
-            : null,
-        }
-      }
-
-      // Heuristic candidates (legacy contacts without a Wiedisync ID). Candidates
-      // come from an email or exact-name SQL match, but an email hit only COUNTS when
-      // the contact's name also matches the member — same family-shared-email rule
-      // as createMemberFromRegistration and the sync-down auto-linker: a child
-      // registering with the parent's address must never be offered a one-click
-      // link to the parent's contact. clubdesk_export holds one row per contact
-      // PER GROUP, so dedupe by clubdesk_id; email+name beats name-only; two
-      // DIFFERENT contacts at the same precedence → ambiguous, no one-click link.
-      // Checked BEFORE pushed_pending so a contact that appeared via sync-down
-      // without linking offers the link action instead of waiting forever.
-      const lastNamesEqual = (a, b) => {
-        const x = String(a || '').toLowerCase().trim()
-        const y = String(b || '').toLowerCase().trim()
-        return !!x && !!y && x === y
-      }
-      const cdRows = await database('clubdesk_export as cd')
-        .whereRaw("NULLIF(BTRIM(cd.clubdesk_id), '') IS NOT NULL")
-        .andWhere(function () {
-          this.whereRaw('LOWER(BTRIM(cd.email)) = ?', [email])
-            .orWhereRaw("LOWER(BTRIM(COALESCE(cd.email_alternativ, ''))) = ?", [email])
-            .orWhere(function () {
-              this.whereRaw('LOWER(BTRIM(cd.vorname)) = LOWER(BTRIM(?))', [member.first_name || ''])
-                .andWhereRaw('LOWER(BTRIM(cd.nachname)) = LOWER(BTRIM(?))', [member.last_name || ''])
-            })
-        })
-        .select('cd.clubdesk_id', 'cd.vorname', 'cd.nachname', 'cd.email', 'cd.email_alternativ')
-      const seen = new Set()
-      const candidates = []
-      for (const r of cdRows) {
-        const cdid = String(r.clubdesk_id).trim()
-        if (seen.has(cdid)) continue
-        const nameHit = lastNamesEqual(r.nachname, member.last_name)
-          && firstNamesMatchCd(r.vorname, member.first_name)
-        if (!nameHit) continue // email-only hit = different person on a shared address
-        seen.add(cdid)
-        const emailHit = [r.email, r.email_alternativ]
-          .some((e) => String(e || '').toLowerCase().trim() === email)
-        candidates.push({ cdid, emailHit, vorname: r.vorname, nachname: r.nachname, email: r.email || r.email_alternativ || null })
-      }
-      candidates.sort((a, b) => Number(b.emailHit) - Number(a.emailHit))
-      const cd = candidates[0] || null
-      const ambiguous = candidates.length > 1 && candidates[1].emailHit === candidates[0].emailHit
-
-      if (cd) {
-        const linked = await database('members').where('clubdesk_id', cd.cdid)
-          .first('id', 'first_name', 'last_name')
-        return {
-          ...base,
-          status: 'match_unlinked',
-          clubdesk_id: cd.cdid,
-          clubdesk_name: `${(cd.vorname || '').trim()} ${(cd.nachname || '').trim()}`.trim() || null,
-          clubdesk_email: cd.email,
-          ambiguous,
-          duplicate_of: linked && linked.id !== member.id
-            ? { id: linked.id, name: `${linked.first_name || ''} ${linked.last_name || ''}`.trim() }
-            : null,
-        }
-      }
-
-      if (member.clubdesk_pushed_at) {
-        return { ...base, status: 'pushed_pending', pushed_at: member.clubdesk_pushed_at }
-      }
-      return { ...base, status: 'not_in_clubdesk' }
-  }
 
   router.get('/clubdesk-registration-status', async (req, res) => {
     try {
@@ -2530,7 +2970,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       const reg = await database('registrations').where('id', regId)
         .first('id', 'email', 'vorname', 'nachname', 'status', 'member')
       if (!reg) return res.status(404).json({ error: 'Registration not found' })
-      return res.json(await cdStatusForRegistration(reg))
+      return res.json(await cdStatusForRegistration(database, reg))
     } catch (err) {
       log.error({ msg: `clubdesk-registration-status: ${err.message}`, endpoint: 'clubdesk-registration-status', stack: err.stack })
       return res.status(500).json({ error: 'Internal error' })
@@ -2551,7 +2991,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
         .select('id', 'email', 'vorname', 'nachname', 'status', 'member')
       const statuses = {}
       for (const reg of regs) {
-        statuses[reg.id] = await cdStatusForRegistration(reg)
+        statuses[reg.id] = await cdStatusForRegistration(database, reg)
       }
       return res.json({ statuses })
     } catch (err) {
@@ -2560,325 +3000,11 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
     }
   })
 
-  // ── ClubDesk drift (Data Health) ────────────────────────────────────────────
-  // Linked members whose wiedisync PUSH-SCOPE contact data no longer matches the
-  // ClubDesk snapshot. Catches every edit path that does NOT set the dirty flag
-  // (Data Explorer, finance/billing edits, approval backfills, raw items-API) —
-  // the /clubdesk-update profile path already flags itself. Compared fields =
-  // the sync-up contact scope plus names (names are compared for VISIBILITY
-  // only — since 2026-07-08 update rows are [Id]-keyed and name-less, so a name
-  // conflict shown here is informational and reconciles only via a manual edit
-  // or the sync-down, never via a push). A field counts as drift only when the
-  // WIEDISYNC side is non-empty (wiedisync is authoritative once filled — the
-  // sync-down fill-only COALESCE in import-clubdesk-csv.mjs encodes the same
-  // rule); wiedisync-empty + ClubDesk-non-empty is reported as blank_risk
-  // instead, because pushing that member would send an empty cell. (Spike
-  // 2026-07-08: ClubDesk provably IGNORES empty cells on import — blank_risk
-  // stays as defense-in-depth on the legal register.)
-  // Snapshot-based: "ClubDesk says" = as of the last sync-down.
-  const driftNorm = (v) => String(v ?? '').trim()
-  const driftLower = (v) => driftNorm(v).toLowerCase()
-  const driftPhone = (v) => {
-    const d = String(v ?? '').replace(/\D/g, '')
-    // Equate +41 79…, 0041 79…, 079… — compare the last 9 digits (CH format).
-    return d.length > 9 ? d.slice(-9) : d
-  }
-  const driftDateCd = (v) => {
-    const m = String(v ?? '').trim().match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/)
-    return m ? `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}` : ''
-  }
-  const driftDateMember = (v) => {
-    if (!v) return ''
-    const iso = v instanceof Date ? v.toISOString().slice(0, 10) : String(v).slice(0, 10)
-    return /^\d{4}-\d{2}-\d{2}$/.test(iso) ? iso : ''
-  }
-
-  // `includeClean`: also return members with NOTHING to report (empty conflicts
-  // and fills), each still carrying `agreed` — the fields both sides hold and
-  // hold equal. The needs-sync board asks this for a `pending` member: a
-  // recorded push change whose field is in `agreed` has already landed in the
-  // register, and the push it is waiting for carries nothing new for it.
-  async function computeClubdeskDrift(memberIds = null, { includeClean = false } = {}) {
-    // alias → ISO code, both vocabularies in one map: it is what lets the
-    // nationality comparison below ask "same country?" instead of "same
-    // spelling?". Loaded once per call; the table is ~small and static.
-    const countryAlias = new Map()
-    try {
-      for (const a of await database('country_name_aliases').select('alias', 'code')) {
-        countryAlias.set(String(a.alias || '').trim().toLowerCase(), String(a.code || '').trim().toUpperCase())
-      }
-    } catch { /* no alias table → fall back to string compare, as before */ }
-    // clubdesk_people lacks adresse/plz/ort/telefon_privat → dedupe the raw
-    // per-group staging table ourselves (contact fields are identical across a
-    // contact's group rows, so any row per clubdesk_id works).
-    const params = []
-    let memberFilter = ''
-    if (Array.isArray(memberIds) && memberIds.length) {
-      memberFilter = `AND m.id = ANY(?)`
-      params.push(memberIds)
-    }
-    const res = await database.raw(`
-      SELECT m.id, m.first_name, m.last_name, m.email, m.phone, m.adresse, m.plz, m.ort,
-             m.birthdate, m.sex, m.iban, m.anrede, m.nationalitaet, m.ahv_nummer,
-             m.federation_of_origin, m.trainer_licences,
-             m.register_status, m.eintritt, m.austritt, m.beitragskategorie,
-             m.clubdesk_id, m.clubdesk_push_pending,
-             cd.vorname AS cd_vorname, cd.nachname AS cd_nachname, cd.email AS cd_email,
-             cd.email_alternativ AS cd_email_alt, cd.telefon_privat AS cd_tel_priv,
-             cd.telefon_mobil AS cd_tel_mob, cd.adresse AS cd_adresse, cd.plz AS cd_plz,
-             cd.ort AS cd_ort, cd.geburtsdatum AS cd_geburtsdatum, cd.geschlecht AS cd_geschlecht,
-             cd.iban AS cd_iban, cd.anrede AS cd_anrede, cd.nationalitaet AS cd_nationalitaet,
-             cd.ahv_nummer AS cd_ahv_nummer, cd.federation_of_origin AS cd_federation_of_origin,
-             cd.trainer_lizenz AS cd_trainer_lizenz,
-             cd.status AS cd_status, cd.eintritt AS cd_eintritt, cd.austritt AS cd_austritt,
-             cd.beitragskategorie AS cd_kategorie,
-             cd.gast AS cd_gast
-      FROM members m
-      JOIN (
-        SELECT DISTINCT ON (BTRIM(clubdesk_id)) BTRIM(clubdesk_id) AS cdid, vorname, nachname,
-               email, email_alternativ, telefon_privat, telefon_mobil, adresse, plz, ort,
-               geburtsdatum, geschlecht, iban, anrede, nationalitaet, ahv_nummer,
-               federation_of_origin, trainer_lizenz, status, eintritt, austritt, gast,
-               beitragskategorie
-        FROM clubdesk_export
-        WHERE NULLIF(BTRIM(clubdesk_id), '') IS NOT NULL
-        ORDER BY BTRIM(clubdesk_id), row_id
-      ) cd ON cd.cdid = m.clubdesk_id
-      WHERE m.clubdesk_id IS NOT NULL ${memberFilter}
-      ORDER BY m.last_name, m.first_name
-    `, params)
-    // Same code → ClubDesk-German map the push uses, loaded ONCE for the whole
-    // run: the Federation of Origin comparison has to happen on the MAPPED
-    // value, since that is the string ClubDesk actually holds.
-    const countryNames = await loadCountryPushNames(database)
-    // Gast is DERIVED from the roster (member_teams), not a members column, so it
-    // is resolved with the very SAME helper the push uses — a drift verdict that
-    // could disagree with the cell buildPushCsv writes would re-flag the member
-    // on every refresh and never converge.
-    const guestIds = await guestMemberIdSet(database, res.rows.map((r) => r.id), getCurrentSeason())
-    const candidates = []
-    for (const r of res.rows) {
-      // conflicts = both sides non-empty and different (per-member row in Data
-      // Health); fills = wiedisync set, ClubDesk empty (aggregated per field —
-      // 100+ legitimate mass-fills like `sex` would otherwise flood the page);
-      // blankRisk = wiedisync empty, ClubDesk set (push would blank it — warn).
-      const conflicts = []
-      const fills = []
-      const blankRisk = []
-      // agreed = both sides non-empty and equal (after the same normalisation
-      // the conflict check uses). Field names only — the caller that wants it
-      // already holds wiedisync's value.
-      const agreed = []
-      const cmp = (field, wiediRaw, cdRaw, wiediNorm, cdNorm) => {
-        if (wiediNorm && cdNorm) {
-          if (wiediNorm !== cdNorm) conflicts.push({ field, wiedisync: driftNorm(wiediRaw), clubdesk: driftNorm(cdRaw) })
-          else agreed.push(field)
-        } else if (wiediNorm) {
-          fills.push({ field, wiedisync: driftNorm(wiediRaw) })
-        } else if (cdNorm) {
-          blankRisk.push(field)
-        }
-      }
-      // The echo-protected variant: identical, minus the blank_risk branch.
-      // /up resolves these cells to ClubDesk's OWN value when wiedisync's is
-      // empty, so the push provably cannot blank them and calling the member
-      // "at risk" would only drop them from every push for no reason (the IBAN
-      // note below is the original statement of this rule). Declared beside
-      // `cmp` because a `const` arrow cannot be called above its own line —
-      // adresse/plz/ort sit between here and where it used to live.
-      const cmpEcho = (field, wRaw, cRaw, wNorm, cNorm) => {
-        if (wNorm && cNorm) {
-          if (wNorm !== cNorm) conflicts.push({ field, wiedisync: driftNorm(wRaw), clubdesk: driftNorm(cRaw) })
-          else agreed.push(field)
-        } else if (wNorm) {
-          fills.push({ field, wiedisync: driftNorm(wRaw) })
-        }
-      }
-      // ⚠ A `?` in a ClubDesk name is NOT a difference — it is a character the
-      // export could not encode (2026-08-15). ClubDesk exports CP1252, and any
-      // codepoint outside it (ć, ń, ł, š, ž…) is written as a literal question
-      // mark by ClubDesk's own encoder. So `Curavić` in the register arrives here
-      // as `Curavi?` and compared naively reads as drift forever — unfixably,
-      // since names are never pushed and the register is already correct.
-      //
-      // Treat `?` as a single-character wildcard: if our name matches the export
-      // with each `?` standing for one character, the two agree as far as this
-      // lossy channel can tell, and asserting a difference would be a false
-      // positive about the club's legal register. Everything else still compares
-      // exactly. Verified on prod: exactly ONE contact of 1154 carries a `?`, and
-      // it is the only member whose register name holds a non-CP1252 letter —
-      // the others (Krawczyński, Kalaga) were created BY our push, which
-      // transliterates, so they really are stored ASCII.
-      const nameAgrees = (mine, cd) => {
-        const a = driftLower(mine)
-        const b = driftLower(cd)
-        if (!a || !b) return false
-        if (a === b) return true
-        if (!b.includes('?')) return false
-        // Escape the whole thing, then let each escaped `?` match one character.
-        const rx = new RegExp(`^${b.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\\\?/g, '.')}$`)
-        return rx.test(a)
-      }
-      if (nameAgrees(r.first_name, r.cd_vorname)) agreed.push('first_name')
-      else cmp('first_name', r.first_name, r.cd_vorname, driftLower(r.first_name), driftLower(r.cd_vorname))
-      if (nameAgrees(r.last_name, r.cd_nachname)) agreed.push('last_name')
-      else cmp('last_name', r.last_name, r.cd_nachname, driftLower(r.last_name), driftLower(r.cd_nachname))
-      // ⚠⚠ Email and phone are the two fields ClubDesk keeps in TWO columns and
-      // the push writes only ONE of (`E-Mail` and `Telefon Privat`, per
-      // CD_PUSH_CONTACT_HEADERS). Agreement is rightly checked against both —
-      // holding the number under "Mobil" still means we agree with the register
-      // — but blank_risk may never look past the column an UPDATE row writes.
-      // Widening it there asserts that an empty cell would blank a value the
-      // push does not touch, and that verdict DROPS THE MEMBER FROM EVERY PUSH.
-      // Measured on prod 2026-08-30: both of the club's phone blank_risks were
-      // exactly that (Privat empty, a number only under Mobil), and one of them
-      // 409'd the entire club's sync-up.
-      //
-      // Phone then left blank_risk altogether, because /up now echoes ClubDesk's
-      // own `Telefon Privat` back (m.phone_cd) — same guarantee as IBAN. Email
-      // stays: it is the LOGIN identity, wiedisync owns it, and a member with no
-      // address here is a data-quality question a human should answer, not a
-      // cell to paper over.
-      const em = driftLower(r.email)
-      const cdEm = driftLower(r.cd_email) || driftLower(r.cd_email_alt)
-      if (em && cdEm) {
-        if (em !== driftLower(r.cd_email) && em !== driftLower(r.cd_email_alt)) {
-          conflicts.push({ field: 'email', wiedisync: driftNorm(r.email), clubdesk: driftNorm(r.cd_email) || driftNorm(r.cd_email_alt) })
-        } else agreed.push('email')
-      } else if (em) {
-        fills.push({ field: 'email', wiedisync: driftNorm(r.email) })
-      } else if (driftLower(r.cd_email)) {
-        blankRisk.push('email')
-      }
-      // Phone matches when it equals EITHER ClubDesk number (privat or mobil).
-      const ph = driftPhone(r.phone)
-      const cdPhones = [driftPhone(r.cd_tel_priv), driftPhone(r.cd_tel_mob)].filter(Boolean)
-      if (ph && cdPhones.length) {
-        if (!cdPhones.includes(ph)) {
-          conflicts.push({ field: 'phone', wiedisync: driftNorm(r.phone), clubdesk: driftNorm(r.cd_tel_priv) || driftNorm(r.cd_tel_mob) })
-        } else agreed.push('phone')
-      } else if (ph) {
-        fills.push({ field: 'phone', wiedisync: driftNorm(r.phone) })
-      }
-      cmpEcho('adresse', r.adresse, r.cd_adresse, driftLower(r.adresse), driftLower(r.cd_adresse))
-      cmpEcho('plz', r.plz, r.cd_plz, driftNorm(r.plz), driftNorm(r.cd_plz))
-      cmpEcho('ort', r.ort, r.cd_ort, driftLower(r.ort), driftLower(r.cd_ort))
-      // Display both sides Swiss-style (dd.mm.yyyy); compare on ISO.
-      const bdIso = driftDateMember(r.birthdate)
-      const bdDisp = bdIso ? `${bdIso.slice(8, 10)}.${bdIso.slice(5, 7)}.${bdIso.slice(0, 4)}` : ''
-      cmp('birthdate', bdDisp, r.cd_geburtsdatum, bdIso, driftDateCd(r.cd_geburtsdatum))
-      const sexCd = r.sex === 'm' ? 'männlich' : r.sex === 'f' ? 'weiblich' : ''
-      cmp('sex', sexCd, r.cd_geschlecht, sexCd, driftLower(r.cd_geschlecht))
-      // IBAN: conflict/fill detection only — deliberately NEVER blank_risk.
-      // The /up echo-back sends ClubDesk's own IBAN when wiedisync's is empty,
-      // so an empty wiedisync IBAN cannot blank the register; flagging it as
-      // blank_risk would only drop the member from pushes for no reason.
-      const ibanNorm = (v) => String(v ?? '').replace(/\s/g, '').toUpperCase()
-      const wIban = ibanNorm(r.iban)
-      const cIban = ibanNorm(r.cd_iban)
-      if (wIban && cIban) {
-        if (wIban !== cIban) conflicts.push({ field: 'iban', wiedisync: driftNorm(r.iban), clubdesk: driftNorm(r.cd_iban) })
-        else agreed.push('iban')
-      } else if (wIban) {
-        fills.push({ field: 'iban', wiedisync: driftNorm(r.iban) })
-      }
-      // Anrede / Nationalität / AHV are echo-protected — see cmpEcho above.
-      // AHV compares digits-only (dot formatting differs between the systems).
-      cmpEcho('anrede', r.anrede, r.cd_anrede, driftLower(r.anrede), driftLower(r.cd_anrede))
-      // ⚠ Nationality compares by CODE, not by display string (2026-08-15).
-      // `members.nationalitaet` is trigger-derived from `nationalitaet_codes`
-      // into OUR display name, while ClubDesk holds its own picklist spelling —
-      // so "Vereinigte Staaten" and "USA" are the same country reported as a
-      // conflict forever, with no sync able to resolve it (the column is
-      // fill-only downward and the push echoes the register's own wording back).
-      // Measured on prod: 3 of the 8 non-name conflicts were exactly this pair.
-      // country_name_aliases is the table that already knows both vocabularies.
-      const natMine = countryAlias.get(driftLower(r.nationalitaet)) || driftLower(r.nationalitaet)
-      const natCd = countryAlias.get(driftLower(r.cd_nationalitaet)) || driftLower(r.cd_nationalitaet)
-      cmpEcho('nationalitaet', r.nationalitaet, r.cd_nationalitaet, natMine, natCd)
-      // Federation of Origin: wiedisync stores a code, ClubDesk a German
-      // picklist string, so compare (and DISPLAY) the mapped value — same
-      // computed-then-compared shape as sexCd above. Echo-protected like the
-      // three fields around it → conflict-or-fill, never blank_risk. An
-      // unmappable code yields '' and simply drops out of the comparison rather
-      // than being reported as a conflict against ClubDesk's good value.
-      const fedCd = federationCell(r.federation_of_origin, countryNames)
-      cmpEcho('federation_of_origin', fedCd, r.cd_federation_of_origin, driftLower(fedCd), driftLower(r.cd_federation_of_origin))
-      const ahvDigits = (v) => String(v ?? '').replace(/\D/g, '')
-      cmpEcho('ahv_nummer', r.ahv_nummer, r.cd_ahv_nummer, ahvDigits(r.ahv_nummer), ahvDigits(r.cd_ahv_nummer))
-      // ── The register triple (migration 302) ──────────────────────────────
-      // Echo-protected like the fields above → conflict-or-fill, never
-      // blank_risk: registerCell sends ClubDesk's own cell back whenever
-      // wiedisync's is empty or unchanged, so an empty wiedisync value cannot
-      // blank the register and must not drop the member from every push.
-      //
-      // This comparison is what makes "the register wins once the push has
-      // landed" observable rather than merely intended: a status changed IN
-      // ClubDesk shows up here as a CONFLICT the moment the two disagree,
-      // instead of being quietly overwritten on some later push.
-      cmpEcho('register_status', r.register_status, r.cd_status,
-        driftLower(r.register_status), driftLower(r.cd_status))
-      // Beitragskategorie became a gated register cell on 2026-08-14, so its
-      // divergence has to be VISIBLE for the same reason the status's is: the
-      // push only carries it when the member's change names it, and until then
-      // the two sides can sit apart indefinitely. Compared on the MAPPED name —
-      // that is what the register holds. Echo-protected → conflict-or-fill,
-      // never blank_risk. Measured on prod the day this shipped: 0 conflicts
-      // across all 672 linked active members, so this adds no noise.
-      const katW = mapKategorie(r.beitragskategorie)
-      cmpEcho('beitragskategorie', katW, r.cd_kategorie,
-        driftLower(katW), driftLower(r.cd_kategorie))
-      // Dates display Swiss-style and compare on ISO — the same split birthdate
-      // uses above, because ClubDesk's cell is dd.mm.yyyy text and wiedisync's
-      // is a real date column.
-      for (const [field, memberVal, cdVal] of [
-        ['eintritt', r.eintritt, r.cd_eintritt],
-        ['austritt', r.austritt, r.cd_austritt],
-      ]) {
-        const iso = driftDateMember(memberVal)
-        const disp = iso ? `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}` : ''
-        cmpEcho(field, disp, cdVal, iso, driftDateCd(cdVal))
-      }
-      // Trainer Lizenz: compare CODE SETS, not the rendered strings. ClubDesk's
-      // cell is hand-editable free text, so "J+S, B", "B, J+S" and "j+s / b" all
-      // mean the same thing and must not report as a conflict — parsing both
-      // sides through parseTrainerLicenceCell normalizes order, case and
-      // separators in one step. DISPLAY still shows the rendered wording so the
-      // admin sees what would actually land in the cell. Echo-protected like the
-      // fields above → conflict-or-fill, never blank_risk.
-      const trainerW = trainerLicenceCell(r.trainer_licences)
-      cmpEcho(
-        'trainer_licences', trainerW, r.cd_trainer_lizenz,
-        parseTrainerLicenceCodes(r.trainer_licences).join(','),
-        parseTrainerLicenceCell(r.cd_trainer_lizenz),
-      )
-      // Gast: wiedisync-owned and TOTAL (gastCell always yields Ja or Nein), so
-      // plain cmp is safe — the blank_risk branch is unreachable by construction,
-      // and a member who stops (or starts) being a guest surfaces as a normal
-      // CONFLICT the admin can flag + push. This is the whole reason the column
-      // is in the drift set: without it the 2026-07-27 backfill would have been
-      // a one-off snapshot that silently rots at the next roster turnover.
-      const gastW = gastCell(guestIds.has(Number(r.id)))
-      cmp('gast', gastW, r.cd_gast, driftLower(gastW), driftLower(r.cd_gast))
-      if (!conflicts.length && !fills.length && !includeClean) continue
-      candidates.push({
-        member_id: r.id,
-        member_name: `${r.first_name || ''} ${r.last_name || ''}`.trim(),
-        clubdesk_id: r.clubdesk_id,
-        pending: r.clubdesk_push_pending === true,
-        conflicts,
-        fills,
-        blank_risk: blankRisk,
-        agreed,
-      })
-    }
-    return candidates
-  }
 
   router.get('/clubdesk-drift', async (req, res) => {
     try {
       if (!(await superGate(req))) return res.status(403).json({ error: 'Forbidden' })
-      const all = await computeClubdeskDrift()
+      const all = await computeClubdeskDrift(database)
       // Per-member rows only for real CONFLICTS; fill-only members (wiedisync
       // has data ClubDesk lacks) are aggregated per field so 100+ legit fills
       // (e.g. sex, set only in wiedisync) don't flood Data Health. Members
@@ -3070,7 +3196,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       if (!(await superGate(req))) return res.status(403).json({ error: 'Forbidden' })
       const ids = Array.isArray(req.body?.member_ids) ? req.body.member_ids.map(Number).filter((n) => Number.isInteger(n)) : []
       if (!ids.length) return res.status(400).json({ error: 'member_ids required' })
-      const computed = await computeClubdeskDrift(ids)
+      const computed = await computeClubdeskDrift(database, ids)
       if (!computed.length) return res.status(409).json({ error: 'No drift found for these members — refresh Data health', code: 'no_drift' })
       // Refuse members whose push would blank ClubDesk-owned data (empty
       // wiedisync field + non-empty ClubDesk value): buildPushCsv always sends
@@ -3193,7 +3319,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
   const CONFLICT_STAGING_CAP = 150
 
   async function stageConflictProposals() {
-    const drift = await computeClubdeskDrift()
+    const drift = await computeClubdeskDrift(database)
     const NAME_FIELDS = new Set(['first_name', 'last_name'])
     let wanted = []
     for (const c of drift) {
@@ -3808,7 +3934,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
     // pending-push diff below needs to know which recorded changes have ALREADY
     // landed, and a member with nothing left to report is exactly that case.
     // Every filter below keys on conflicts/blank_risk, so clean rows are inert.
-    const drift = await computeClubdeskDrift(null, { includeClean: true })
+    const drift = await computeClubdeskDrift(database, null, { includeClean: true })
     // ⚠ A name-only conflict is NOT the same finding and must not wear the same
     // badge (2026-08-15). Names can never be reconciled by syncing in either
     // direction: the push CSV is deliberately name-less (CD_PUSH_CONTACT_HEADERS
