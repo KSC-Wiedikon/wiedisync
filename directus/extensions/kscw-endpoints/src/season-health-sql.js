@@ -90,11 +90,33 @@ export function renderSql(sql, ctx = seasonContext()) {
  */
 export const SQUAD_TEAM = `COALESCE(t.clubdesk_group, 'x') <> ''`
 
-/** Active season teams. `teams.active` is the ONLY season guard for rosters. */
-export const ACTIVE_TEAM = `t.active = true`
-
 /** Sport as the two tab keys, from the one column that is allowed to say. */
 export const TEAM_SPORT = `lower(t.sport)`
+
+/**
+ * A team the club deliberately does NOT register with its federation: a
+ * volleyball squad whose `team_id` is the zero-padded placeholder
+ * (`vb_00001` = DU20 — vm-team-players.mjs reads the same shape, and a real
+ * Swiss Volley id never starts with a 0). It has no Volleymanager team, so
+ * it gets no fixtures, no rankings, no activated licences and no nomination
+ * list, and every federation-shaped check would report it as broken for the
+ * whole season. Alias the teams table as `t`.
+ */
+export const NON_FEDERATION_TEAM = `(${TEAM_SPORT} = 'volleyball' AND t.team_id ~ '^vb_0[0-9]*$')`
+
+/**
+ * Active season teams. `teams.active` is the ONLY season guard for rosters —
+ * plus the federation opt-out above, which season health leaves out of the
+ * report ENTIRELY (team row, its roster players, every finding; asked for
+ * 2026-09-22). Folding it in here is deliberate: one predicate, and nothing
+ * that goes through it can leak the team back in. The squad is untouched
+ * everywhere else in the app — this constant is season-health-only.
+ *
+ * Subqueries that decorate a row with "also on team X" keep a bare
+ * `t2.active` on purpose: they annotate, they do not report, and a player
+ * who is only on the opted-out team never surfaces there to be annotated.
+ */
+export const ACTIVE_TEAM = `(t.active = true AND NOT ${NON_FEDERATION_TEAM})`
 
 /** Core roster row (not a training guest). Alias member_teams as `mt`. */
 export const CORE_PLAYER = `COALESCE(mt.guest_level, 0) = 0`

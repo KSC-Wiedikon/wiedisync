@@ -8,6 +8,10 @@
  * is on its roster and enough core players to field a side.
  *
  * Conventions this module leans on (see season-health-sql.js for the why):
+ *   - A volleyball squad carrying the zero-padded `team_id` placeholder
+ *     (`vb_00001`, DU20) is NOT registered with Swiss Volley: ACTIVE_TEAM
+ *     drops it from every table and check in this report (see
+ *     NON_FEDERATION_TEAM in season-health-sql.js).
  *   - `teams.active` is the ONLY season guard for rosters and staff. The
  *     rollover CLONES staff junctions onto the new team id and leaves the old
  *     rows on the archived team, so "coach of an inactive team" is normal —
@@ -303,7 +307,8 @@ SELECT ${TEAM_COLS}, t.league,
 FROM teams t
 WHERE ${ACTIVE_TEAM}
   AND ((${TEAM_SPORT} = 'volleyball'
-        AND NOT (t.team_id ~ '^vb_0[0-9]*$')
+        -- The zero-padded placeholder (NON_FEDERATION_TEAM) is already out:
+        -- ACTIVE_TEAM drops such a team from the whole report.
         AND (NULLIF(btrim(t.team_id), '') IS NULL
              OR t.team_id !~ '^vb_[1-9][0-9]*$'
              OR NOT (substr(t.team_id, 4) = ANY (${SV_ALLOWLIST}))))
