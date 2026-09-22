@@ -458,25 +458,18 @@ export default function AnmeldungenPage() {
     onError: () => toast.error(t('anmeldungenUpdateError')),
   })
 
-  const handleApprove = async (reg: Registration) => {
+  const handleApprove = (reg: Registration) => {
     const missing = missingRequiredDocs(reg)
     if (missing.length) {
       const docs = missing.map((k) => t(DOC_LABEL_KEYS[k] ?? String(k))).join(', ')
       toast.error(t('anmeldungenDocsMissingBlock', { count: missing.length, docs }))
       return
     }
-    // Approval now fires the ClubDesk push automatically (kscw-hooks,
-    // autoSyncRegistrationToClubdesk) — an immediate write to the legal member
-    // register, not just a status flip. Say so plainly before it happens; the
-    // fields shown in the expanded row (including the fee/discount panel) are
-    // the last chance to catch a mistake before it lands in ClubDesk.
-    const ok = await confirm({
-      title: t('anmeldungenConfirmApproveTitle'),
-      message: t('anmeldungenConfirmApproveMessage', { name: `${reg.vorname} ${reg.nachname}` }),
-      confirmLabel: t('anmeldungenConfirmApproveCta'),
-      danger: true,
-    })
-    if (!ok) return
+    // Approval fires the ClubDesk push automatically in the background
+    // (kscw-hooks, autoSyncRegistrationToClubdesk) — approving does not wait
+    // for it, and the operator is not blocked by a confirm dialog on every
+    // click. The fee/discount panel above is the review step; once this is
+    // clicked, review is over.
     updateReg({ id: reg.id, data: { status: 'approved' } }, {
       onSuccess: () => toast.success(t('anmeldungenApprovedToast')),
     })
