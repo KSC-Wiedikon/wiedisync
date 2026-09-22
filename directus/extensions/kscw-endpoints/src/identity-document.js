@@ -21,12 +21,19 @@
  * reason this endpoint exists instead of a `STORAGE_*_ENCRYPTION_KEY` in .env.
  *
  * WHO MAY RECEIVE AN ENVELOPE is decided HERE, not by the client. The uploader tells us who
- * they wrapped to; we refuse to store an envelope for anyone who is not the member or a
- * coach/TR of a team the member actually plays in — OR, for a game shared via the guest
- * mechanism (migration 271), a coach/TR of the other team(s) on that game's sheet, scoped to
- * that specific game (`sharedGameTeamIds`). The crypto would not care — a stranger's envelope
- * is only openable by that stranger — but the grant list is the access-control record, and it
- * has to mean something.
+ * they wrapped to; we refuse to store an envelope for anyone who is not the member, a
+ * coach/TR of a team the member actually plays in, OR (since 2026-09-22) a superadmin
+ * (`members.role` holds `'superuser'` — NOT sport admins, NOT a bare Directus session flag) —
+ * OR, for a game shared via the guest mechanism (migration 271), a coach/TR of the other
+ * team(s) on that game's sheet, scoped to that specific game (`sharedGameTeamIds`). The crypto
+ * would not care — a stranger's envelope is only openable by that stranger — but the grant
+ * list is the access-control record, and it has to mean something.
+ *
+ * Superadmins are a STANDING recipient going forward, not a one-off view: every document
+ * uploaded from 2026-09-22 on wraps a copy of its key to whoever holds 'superuser' at upload
+ * time, so they can open it for any team in the same pre-kickoff window a coach could. This
+ * does NOT retroactively unlock documents uploaded before this change — their envelope sets
+ * were fixed at upload time and cannot be widened without the owner re-uploading.
  *
  * THE TIME WINDOW IS NOT A CRYPTOGRAPHIC BOUNDARY. A hall has no signal, so the coach must
  * be able to pre-load before they travel; that means the key reaches their device early, and
@@ -209,7 +216,9 @@ async function recipientsFor(database, memberId) {
     staff = [...coaches, ...responsibles].map((r) => Number(r.members_id))
   }
 
-  const ids = [...new Set([Number(memberId), ...staff])].filter(Number.isInteger)
+  const superIds = await superadminIds(database)
+
+  const ids = [...new Set([Number(memberId), ...staff, ...superIds])].filter(Number.isInteger)
 
   // Only people who actually HAVE a keypair can be wrapped to. Someone who has never logged
   // in has no public key, so there is nothing to wrap to — they simply are not a recipient
@@ -238,6 +247,26 @@ function parseRoles(raw) {
   } catch {
     return [String(raw)]
   }
+}
+
+/**
+ * Directus admin session, or a member holding the app-level 'superuser' role. Mirrors
+ * `season-health.js`'s `isSuperadmin()` and the frontend's `isSuperAdmin` (roles.includes
+ * ('superuser')) — deliberately NOT `isAdmin`/`isGlobalAdmin`/`hasAdminAccessToTeam`, which
+ * also grant vb_admin/bb_admin (sport admins). Sport admins get no standing decryption key.
+ */
+async function isSuperadmin(database, accountability) {
+  if (accountability?.admin === true) return true
+  const userId = accountability?.user
+  if (!userId) return false
+  const caller = await database('members').where('user', userId).first('role')
+  return parseRoles(caller?.role).includes('superuser')
+}
+
+/** Every member currently holding the app-level 'superuser' role. */
+async function superadminIds(database) {
+  const rows = await database('members').whereNotNull('role').select('id', 'role')
+  return rows.filter((r) => parseRoles(r.role).includes('superuser')).map((r) => Number(r.id))
 }
 
 /**
@@ -277,10 +306,14 @@ async function isTeamStaffOrAdmin(database, caller, teamId) {
  * that team's games. Coach/TR of a team sharing a game with the member via the guest
  * mechanism (`sharedGameTeamIds`): inside the pre-load window of THAT specific game only —
  * not every game their own team plays, since nothing else connects the two of them.
- * Admin: NO. An admin has no envelope, so they could not decrypt it anyway — but say no
- * explicitly rather than let them pull ciphertext they have no business holding.
+ * Superadmin (since 2026-09-22): treated as staff of EVERY team the member is tied to, so
+ * the same window check applies to any team — but they still need a wrapped envelope (see
+ * `recipientsFor`/`superadminIds`), and a document uploaded before this change has none.
+ * A bare Directus admin session without the 'superuser' role: NO. They have no envelope, so
+ * they could not decrypt it anyway — say no explicitly rather than let them pull ciphertext
+ * they have no business holding.
  */
-async function mayRead(database, callerId, memberId) {
+async function mayRead(database, callerId, memberId, accountability) {
   if (Number(callerId) === Number(memberId)) return { ok: true, as: 'self' }
 
   const ownTeamIds = await memberTeamIds(database, memberId)
@@ -288,12 +321,19 @@ async function mayRead(database, callerId, memberId) {
   const allTeamIds = [...new Set([...ownTeamIds, ...sharedTeamIds])]
   if (!allTeamIds.length) return { ok: false }
 
-  const [coachRows, trRows] = await Promise.all([
-    database('teams_coaches').whereIn('teams_id', allTeamIds).where('members_id', callerId).select('teams_id'),
-    database('teams_responsibles').whereIn('teams_id', allTeamIds).where('members_id', callerId).select('teams_id'),
-  ])
-  const staffTeamIds = [...new Set([...coachRows, ...trRows].map((r) => Number(r.teams_id)))]
-  if (!staffTeamIds.length) return { ok: false }
+  const isSuper = await isSuperadmin(database, accountability)
+
+  let staffTeamIds
+  if (isSuper) {
+    staffTeamIds = allTeamIds
+  } else {
+    const [coachRows, trRows] = await Promise.all([
+      database('teams_coaches').whereIn('teams_id', allTeamIds).where('members_id', callerId).select('teams_id'),
+      database('teams_responsibles').whereIn('teams_id', allTeamIds).where('members_id', callerId).select('teams_id'),
+    ])
+    staffTeamIds = [...new Set([...coachRows, ...trRows].map((r) => Number(r.teams_id)))]
+    if (!staffTeamIds.length) return { ok: false }
+  }
 
   // Cheap: only scheduled games around today. Prefer the own-team fixture list when the
   // caller matches it (the fuller, more common signal) — fall back to the specific
@@ -316,7 +356,7 @@ async function mayRead(database, callerId, memberId) {
     const start = gameStartMs(g)
     if (start == null) continue
     if (now >= start - PRELOAD_BEFORE_MS && now <= start + PRELOAD_AFTER_MS) {
-      return { ok: true, as: 'staff', game: g.id, kickoff: new Date(start).toISOString() }
+      return { ok: true, as: isSuper ? 'superadmin' : 'staff', game: g.id, kickoff: new Date(start).toISOString() }
     }
   }
   return { ok: false, reason: 'outside_window' }
@@ -411,10 +451,10 @@ export function registerIdentityDocument(router, ctx) {
       const target = Number(req.params.member)
       if (!Number.isInteger(target)) return res.status(400).json({ error: 'Bad member' })
 
-      // You may wrap for yourself, or — as an admin — on someone's behalf. Note the admin
-      // is NOT in the returned list, so an admin who uploads for a member cannot read the
-      // result back. That is deliberate: they saw the plaintext in their hands, but they do
-      // not get a standing key to it.
+      // You may wrap for yourself, or — as an admin — on someone's behalf. A bare Directus
+      // admin session is NOT itself in the returned list, so uploading for a member on that
+      // basis alone does not grant a standing key back. A member holding the 'superuser' app
+      // role DOES appear, same as any other permanent reader — see `recipientsFor`.
       if (!isAdmin && Number(me.id) !== target) {
         return res.status(403).json({ error: 'Not your document', code: 'not_owner' })
       }
@@ -584,7 +624,7 @@ export function registerIdentityDocument(router, ctx) {
       if (!me) return res.status(401).json({ error: 'Authentication required' })
 
       const target = Number(req.params.member)
-      const verdict = await mayRead(database, me.id, target)
+      const verdict = await mayRead(database, me.id, target, req.accountability)
       if (!verdict.ok) {
         return res.status(403).json({
           error: 'Not available',
@@ -642,7 +682,7 @@ export function registerIdentityDocument(router, ctx) {
       if (!me) return res.status(401).json({ error: 'Authentication required' })
 
       const target = Number(req.params.member)
-      const verdict = await mayRead(database, me.id, target)
+      const verdict = await mayRead(database, me.id, target, req.accountability)
       if (!verdict.ok) return res.status(403).json({ error: 'Not available', code: 'not_allowed' })
 
       const doc = await database('identity_documents').where('member', target).first('id', 'file')
