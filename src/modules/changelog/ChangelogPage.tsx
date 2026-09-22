@@ -33,6 +33,7 @@ const CHANGELOG: ChangelogEntry[] = [
         title: 'Basketball',
         items: [
           "Basketball duty crews now follow ProBasket's rules for each league. *Scorer.* A basketball home game used to ask for two officials whatever the league, and the automatic assignment treated the 24-second licence as a nice-to-have. ProBasket requires three officials — including one OTR2 on the shot clock — in 1. Liga and the interregional junior leagues, two in the lower ones, and none at all for U8/U6, which is refereed rather than tabled. The scorer page now opens exactly the seats your game needs, a game only counts as fully covered once every one of them is filled, and the automatic assignment will no longer hand a top-league game to a team that cannot field the licences. It also now prefers the team playing immediately before or after you in the same hall — which it previously ruled out altogether.",
+          "The season's basketball duty plan can now be exported for checking. *Admin → Scorer assignment.* The spreadsheet used to list only which team was on duty, which was not enough to check anything against ProBasket's rules. It now spells out what each game needs (\"3 — 1 OTR2, 2 OTR1\") next to the team that got it, followed by the three seats, and the team summary shows how many of a team's duties were games needing an OTR2. A corrected spreadsheet can be uploaded back as before, and now brings the people back too, not just the duty team.",
         ],
       },
       {
