@@ -30,6 +30,12 @@ const CHANGELOG: ChangelogEntry[] = [
     date: '22.09.2026',
     sections: [
       {
+        title: 'Basketball',
+        items: [
+          "Basketball duty crews now follow ProBasket's rules for each league. *Scorer.* A basketball home game used to ask for two officials whatever the league, and the automatic assignment treated the 24-second licence as a nice-to-have. ProBasket requires three officials — including one OTR2 on the shot clock — in 1. Liga and the interregional junior leagues, two in the lower ones, and none at all for U8/U6, which is refereed rather than tabled. The scorer page now opens exactly the seats your game needs, a game only counts as fully covered once every one of them is filled, and the automatic assignment will no longer hand a top-league game to a team that cannot field the licences. It also now prefers the team playing immediately before or after you in the same hall — which it previously ruled out altogether.",
+        ],
+      },
+      {
         title: "Security and privacy hardening",
         items: [
           "Coaches can no longer bring a new person into WiediSync directly — registering yourself is now the only way in. Two ways for a coach to add someone to the club's system outside the normal sign-up form have been removed: sending someone a link that created a temporary roster spot for them, and pushing an account-activation link to a member who hadn't set one up yet. If you're on a roster but have never logged in, ask your coach and they'll point you to the sign-up page, where you enter your email and set your own password.",
