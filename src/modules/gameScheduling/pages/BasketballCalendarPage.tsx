@@ -339,7 +339,12 @@ export function BasketballCalendarPanel({
                         volleyball booking to the volleyball side — saying so beats an
                         edit button that opens the wrong editor. */}
                     <TableCell className="whitespace-normal break-words text-right">
-                      {it.kind === 'fixture' ? (
+                      {it.kind === 'fixture' && it.fixture.game.source !== 'manual' ? (
+                        // A Basketplan-synced fixture: the policy only lets a Spielplaner
+                        // write source='manual' rows, and bp-sync would overwrite the date
+                        // anyway — so it is moved in Basketplan, not here (22.09.2026).
+                        <span className="text-xs text-muted-foreground">{t('syncedFixtureHint')}</span>
+                      ) : it.kind === 'fixture' ? (
                         <span className="flex flex-col items-stretch justify-end gap-1 sm:flex-row sm:items-center">
                           <Button
                             type="button"

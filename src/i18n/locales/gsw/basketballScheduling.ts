@@ -104,6 +104,7 @@ export default {
   deleteFixtureConfirm: 'Das Spiel gäge {{opponent}} lösche? Es verschwindet us allne Kaländer.',
   deleteFixtureDone: 'Spiel glöscht',
   editInPrepGrid: 'Im Planer bearbeite',
+  syncedFixtureHint: 'Us Basketplan synchronisiert — det ändere',
   statusBbGame: 'Basketballspiel',
   statusBbGameHint: 'Es eigets Basketballspiel bruucht {{hall}} am {{time}} — bearbeit s im Kaländer.',
   reason_basketball: 'Eigeni Basketballspiel bruuched i jedem Zitfänschter alli Halle',
