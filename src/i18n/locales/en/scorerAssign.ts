@@ -124,6 +124,8 @@ export default {
   bbScorer: 'Scorer (OTR1)',
   bbTimekeeper: 'Timekeeper (OTR1)',
   bb24sOfficial: '24" official (OTR2)',
+  crewRequired: 'Crew required',
+  otr2Duties: 'Of which OTR2',
   dutyTeamTag: 'Duty',
   dutyCount: 'Duties',
   reason_gameOverlap: 'Own game overlaps',

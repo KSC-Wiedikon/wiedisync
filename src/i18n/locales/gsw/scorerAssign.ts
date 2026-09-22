@@ -124,6 +124,8 @@ export default {
   bbScorer: 'Aaschriiber/in (OTR1)',
   bbTimekeeper: 'Zitnehmer/in (OTR1)',
   bb24sOfficial: '24"-Offizielli/r (OTR2)',
+  crewRequired: 'Bruuchti Bsetzig',
+  otr2Duties: 'Dervo OTR2',
   dutyTeamTag: 'Iisatz',
   dutyCount: 'Iisätz',
   reason_gameOverlap: 'Eigets Spiel überschnidet sich',

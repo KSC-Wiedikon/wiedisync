@@ -37,6 +37,7 @@ import { parseJsonArray, resolveMemberAudience } from '../../kscw-endpoints/src/
 import { loadSuppressed } from '../../kscw-endpoints/src/email-suppression.js'
 import { deriveStatus, deriveSektion, autoSyncRegistrationToClubdesk, drainClubdeskAutoSyncQueue } from '../../kscw-endpoints/src/clubdesk-update.js'
 import { registerAuditHook } from './audit.js'
+import { writeUserLog } from '../../kscw-endpoints/src/activity-log.js'
 import { sanitizeAnnouncementHtml } from './sanitize-html.js'
 import { snapshotSlot, cascadeSlotUpdate, generateInitialTrainings, topUpIndefiniteSlots, addTrainingSkip, clearTrainingSkip } from './slot-cascade.js'
 import { sweepGameTrainingShorten, sweepGameClashDeclines } from './game-training-shorten.js'
@@ -619,6 +620,72 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     // leaves an entry nothing will ever drain. Bound the map rather than let it
     // grow for the life of the container.
     if (pendingLicenceNotifications.size > 500) pendingLicenceNotifications.clear()
+  })
+
+  // ── Member email → login email ──────────────────────────────────────────
+  //
+  // `members.email` (profile / club mail) and `directus_users.email` (what
+  // /auth/login and password-reset match) are separate columns. Nothing kept
+  // them in step, so an admin or self-service email change left the member
+  // logging in with — and receiving reset links at — the OLD address
+  // (member 463, 2026-09-22).
+  //
+  // Only an account that was IN SYNC before the edit follows along: the filter
+  // snapshots each row's old members.email, the action copies the new one to
+  // the login only when the login still held that old value. A login that
+  // already diverged on purpose (household-managed `@managed.wiedisync…`
+  // addresses, a parent's shared address on a child's row) is left alone.
+  // Skipped too: guardian-acting writes (the acting middleware already denies
+  // /items/directus_users to them) and an address another login already owns
+  // (directus_users.email is unique; members.email deliberately is not).
+  const pendingLoginEmailSync = new Map()
+
+  filter('members.items.update', async (payload, meta, context) => {
+    if (!payload || !('email' in payload)) return payload
+    if (context?.accountability?.kscwGuardian) return payload
+    const next = String(payload.email || '').trim().toLowerCase()
+    const keys = Array.isArray(meta?.keys) ? meta.keys : []
+    if (!next || keys.length === 0) return payload
+    const rows = await database('members').whereIn('id', keys).select('id', 'email')
+    for (const r of rows) {
+      const prev = String(r.email || '').trim().toLowerCase()
+      if (prev && prev !== next) {
+        pendingLoginEmailSync.set(String(r.id), { prev, next, accountability: context?.accountability })
+      }
+    }
+    return payload
+  })
+
+  action('members.items.update', async ({ keys }) => {
+    if (pendingLoginEmailSync.size === 0) return
+    for (const id of (Array.isArray(keys) ? keys : [])) {
+      const pending = pendingLoginEmailSync.get(String(id))
+      if (!pending) continue
+      pendingLoginEmailSync.delete(String(id))
+      try {
+        const m = await database('members').where('id', id).first('user')
+        if (!m?.user) continue
+        const du = await database('directus_users').where('id', m.user).first('email')
+        if (String(du?.email || '').trim().toLowerCase() !== pending.prev) continue
+        const taken = await database('directus_users')
+          .whereRaw('LOWER(email) = ?', [pending.next]).whereNot('id', m.user).first('id')
+        if (taken) {
+          logWarning('login_email_sync', 'new member email already belongs to another login — login left unchanged',
+            { memberId: id, userId: m.user })
+          continue
+        }
+        await database('directus_users').where('id', m.user).update({ email: pending.next })
+        await writeUserLog(database, log, {
+          accountability: pending.accountability, action: 'update', collection: 'directus_users',
+          recordId: m.user, data: { email_synced_from_member: Number(id) },
+        })
+      } catch (err) {
+        logWarning('login_email_sync', err.message, { memberId: id, stack: err.stack })
+      }
+    }
+    // Same bound as the licence map: a filter whose write was rolled back
+    // leaves an entry nothing drains.
+    if (pendingLoginEmailSync.size > 500) pendingLoginEmailSync.clear()
   })
 
   // Same guard on CREATE. Directus does NOT enforce field-level permission

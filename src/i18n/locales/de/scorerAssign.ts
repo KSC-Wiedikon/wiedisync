@@ -124,6 +124,8 @@ export default {
   bbScorer: 'Anschreiber/in (OTR1)',
   bbTimekeeper: 'Zeitnehmer/in (OTR1)',
   bb24sOfficial: '24"-Offizielle/r (OTR2)',
+  crewRequired: 'Benötigte Besetzung',
+  otr2Duties: 'Davon OTR2',
   dutyTeamTag: 'Einsatz',
   dutyCount: 'Einsätze',
   reason_gameOverlap: 'Eigenes Spiel überschneidet sich',

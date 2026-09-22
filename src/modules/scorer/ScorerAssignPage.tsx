@@ -20,6 +20,7 @@ import TabBar from '../../components/TabBar'
 import { runAssignment, getTeamCounts, buildTeamGameTimes, buildTrainingDates, buildGamesByDateHall, getAdjacentTeams, timeToMin, classifyVbMode, EXCLUDED_DUTY_TEAM_NAMES, type GameAssignment } from './components/AssignmentAlgorithm'
 import { runBbAssignment, getBbTeamCounts, type BbGameAssignment } from './components/AssignmentAlgorithmBb'
 import { buildAssignmentXlsx, buildTeamColors, downloadBytes, XLSX_MIME, type XlsxGameRow, type XlsxSummaryRow, type XlsxLabels } from './lib/assignmentExport'
+import { crewLabel, resolveBbRequirement } from './lib/bbLeagueRequirements'
 import { weekdayShort } from './lib/dutySpots'
 import { updateRecord } from '../../lib/api'
 import { maybeReloadOnStaleChunk } from '../../lib/chunkReload'
@@ -421,7 +422,8 @@ export default function ScorerAssignPage() {
   async function handleDownloadXlsx() {
     const isVb = sportTab === 'volleyball'
     const teamColors = buildTeamColors((isVb ? vbTeams : bbTeams).map((tm) => tm.name))
-    const blank = { scorer: '', scoreboard: '', combined: '', referee: '', dutyTeam: '' }
+    const blank = { scorer: '', scoreboard: '', combined: '', referee: '', dutyTeam: '',
+      crewRequired: '', anschreiber: '', zeitnehmer: '', official24s: '' }
     const meta = (gameId: string) => {
       const g = homeGames.find((x) => x.id === gameId)
       return {
@@ -446,22 +448,52 @@ export default function ScorerAssignPage() {
             : a.conflicts.some((c) => c.key === 'existingKept') ? 'existing'
             : (!a.scorerTeamId && !a.scoreboardTeamId && !a.combinedTeamId && !a.refereeTeamId) ? 'unassigned' : 'ok',
         }))
-      : bbAssignments.map((a) => ({
-          ...meta(a.gameId), ...blank, dutyTeam: a.dutyTeamName ?? '',
-          conflicts: noteText([[a.dutyTeamId, a.dutyTeamName]], a.gameId, bbStatusNotes(tEn, a)),
-          status: a.conflicts.some((c) => c.key === 'existingKept') ? 'existing' : !a.dutyTeamId ? 'unassigned' : 'ok',
-        }))
+      : bbAssignments.map((a) => {
+          const g = homeGames.find((x) => x.id === a.gameId)
+          const req = resolveBbRequirement(g?.league)
+          // A seat the league doesn't have reads "n/a", an unfilled one "—", so
+          // a blank cell never has to be guessed at.
+          const seat = (index: number, memberVal: unknown) => {
+            if (req.refereeOnly || index >= req.seats.length) return 'n/a'
+            const id = relId(memberVal)
+            return id ? (memberNameById.get(id) ?? '?') : '—'
+          }
+          return {
+            ...meta(a.gameId), ...blank,
+            dutyTeam: req.refereeOnly ? '—' : (a.dutyTeamName ?? ''),
+            crewRequired: crewLabel(req),
+            anschreiber: seat(0, g?.bb_scorer_member),
+            zeitnehmer: seat(1, g?.bb_timekeeper_member),
+            official24s: seat(2, g?.bb_24s_official),
+            conflicts: noteText([[a.dutyTeamId, a.dutyTeamName]], a.gameId, bbStatusNotes(tEn, a)),
+            status: req.refereeOnly ? 'ok'
+              : a.conflicts.some((c) => c.key === 'existingKept') ? 'existing'
+              : !a.dutyTeamId ? 'unassigned' : 'ok',
+          } as XlsxGameRow
+        })
+    // How much of the OTR2 burden each team is carrying — the senior squads hold
+    // nearly all the OTR2 licences, so this is the number worth checking.
+    const otr2DutiesByTeam = new Map<string, number>()
+    for (const a of bbAssignments) {
+      if (!a.dutyTeamName) continue
+      const g = homeGames.find((x) => x.id === a.gameId)
+      if (!resolveBbRequirement(g?.league).seats.some((seat) => seat === 'otr2')) continue
+      otr2DutiesByTeam.set(a.dutyTeamName, (otr2DutiesByTeam.get(a.dutyTeamName) ?? 0) + 1)
+    }
     const summaryRows: XlsxSummaryRow[] = isVb
       ? Array.from(vbTeamCounts.entries()).sort(([x], [y]) => x.localeCompare(y)).map(([team, c]) => ({
-          team, games: c.ownGames, scorer: c.scorer, scoreboard: c.scoreboard, combined: c.combined, referee: c.referee, duties: c.totalDuties, total: c.totalDuties }))
+          team, games: c.ownGames, scorer: c.scorer, scoreboard: c.scoreboard, combined: c.combined, referee: c.referee, duties: c.totalDuties, total: c.totalDuties, otr2Duties: 0 }))
       : Array.from(bbTeamCounts.entries()).sort(([x], [y]) => x.localeCompare(y)).map(([team, c]) => ({
-          team, games: c.ownGames, scorer: 0, scoreboard: 0, combined: 0, referee: 0, duties: c.duties, total: c.duties }))
+          team, games: c.ownGames, scorer: 0, scoreboard: 0, combined: 0, referee: 0, duties: c.duties, total: c.duties,
+          otr2Duties: otr2DutiesByTeam.get(team) ?? 0 }))
     const L: XlsxLabels = {
       sheetGames: tEn('title'), sheetSummary: tEn('teamSummary'),
       gameNo: tEn('gameNo'), weekday: tEn('weekday'),
       date: tEn('date'), time: tEn('time'), hall: tEn('hall'), home: tEn('home'), away: tEn('away'), league: tEn('league'),
       scorer: tEn('autoScorer'), scoreboard: tEn('autoTaefeler'), combined: tEn('combinedCount'),
       referee: tEn('refereeCount'), dutyTeam: tEn('autoDutyTeam'), conflicts: tEn('notes'),
+      crewRequired: tEn('crewRequired'), anschreiber: tEn('bbScorer'),
+      zeitnehmer: tEn('bbTimekeeper'), official24s: tEn('bb24sOfficial'), otr2Duties: tEn('otr2Duties'),
       team: tEn('teamName'), games: tEn('ownGames'), total: tEn('totalCount'),
     }
     const bytes = await buildAssignmentXlsx(sportTab, gameRows, summaryRows, teamColors, L)
@@ -967,7 +999,10 @@ export default function ScorerAssignPage() {
                     <TableHead className="px-2 py-2">{t('refereeCount')}</TableHead>
                   </>
                 ) : (
-                  <TableHead className="px-2 py-2">{t('autoDutyTeam')}</TableHead>
+                  <>
+                    <TableHead className="px-2 py-2">{t('autoDutyTeam')}</TableHead>
+                    <TableHead className="px-2 py-2">{t('crewRequired')}</TableHead>
+                  </>
                 )}
                 <TableHead className="px-2 py-2">{t('notes')}</TableHead>
               </TableRow>
@@ -1070,6 +1105,9 @@ export default function ScorerAssignPage() {
                         </TableCell>
                         <TableCell className="px-2 py-2 align-top">
                           {renderBbDuty(a, game)}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap px-2 py-2 text-xs text-gray-600 dark:text-gray-400">
+                          {crewLabel(resolveBbRequirement(game.league))}
                         </TableCell>
                         <TableCell className="max-w-[240px] px-2 py-2">
                           <div className="space-y-0.5 text-xs">

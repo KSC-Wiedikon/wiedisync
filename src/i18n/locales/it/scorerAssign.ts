@@ -124,6 +124,8 @@ export default {
   bbScorer: 'Segnapunti (OTR1)',
   bbTimekeeper: 'Cronometrista (OTR1)',
   bb24sOfficial: 'Ufficiale 24" (OTR2)',
+  crewRequired: 'Ufficiali richiesti',
+  otr2Duties: 'Di cui OTR2',
   dutyTeamTag: 'Servizio',
   dutyCount: 'Servizi',
   reason_gameOverlap: 'Partita propria sovrapposta',
