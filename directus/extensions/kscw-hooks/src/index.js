@@ -35,7 +35,7 @@ import { createActingMemberMiddleware } from './acting-member.js'
 import { isLicenceStatus, notifyLicenceStatusChange, runLicenceStatusSweep } from '../../kscw-endpoints/src/licence-status.js'
 import { parseJsonArray, resolveMemberAudience } from '../../kscw-endpoints/src/audience.js'
 import { loadSuppressed } from '../../kscw-endpoints/src/email-suppression.js'
-import { deriveStatus, deriveSektion } from '../../kscw-endpoints/src/clubdesk-update.js'
+import { deriveStatus, deriveSektion, autoSyncRegistrationToClubdesk, drainClubdeskAutoSyncQueue } from '../../kscw-endpoints/src/clubdesk-update.js'
 import { registerAuditHook } from './audit.js'
 import { sanitizeAnnouncementHtml } from './sanitize-html.js'
 import { snapshotSlot, cascadeSlotUpdate, generateInitialTrainings, topUpIndefiniteSlots, addTrainingSkip, clearTrainingSkip } from './slot-cascade.js'
@@ -2004,6 +2004,21 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     } catch (err) {
       log.error({ msg: `[announcements/cron] ${err.message}`, stack: err.stack })
       logCronError('announcement_fanout_cron', err)
+    }
+  })
+
+  // ── Cron: drain the ClubDesk auto-sync queue (every 2 min) ──
+  // Registration confirmation fires autoSyncRegistrationToClubdesk() inline
+  // (see the 'items.update' action below), which queues instead of failing
+  // when the global ClubDesk lock is busy. This drains that queue once the
+  // lock frees — faster than the 1-minute host dispatcher it feeds, so it
+  // never becomes the bottleneck.
+  schedule('*/2 * * * *', async () => {
+    try {
+      await drainClubdeskAutoSyncQueue(database, log)
+    } catch (err) {
+      log.error({ msg: `[clubdesk-auto-sync/cron] ${err.message}`, stack: err.stack })
+      logCronError('clubdesk_auto_sync_drain_cron', err)
     }
   })
 
@@ -4327,16 +4342,11 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       for (const m of expiring) {
         if (!m.email || m.email.includes('@placeholder')) continue
         try {
-          // Account-less shells (registration-born or unclaimed invites) get a
-          // fresh member-bound signup link — the reminder used to dead-end
-          // with no link at all.
-          let linkLine = ''
-          if (!m.user) {
-            try {
-              const { token } = await mintSignupToken(database, m.id, { mintedVia: 'reminder' })
-              linkLine = `\n\nDu hast noch kein Konto? Erstelle es hier (Link 30 Tage gültig):\n${signupInviteUrl(token)}`
-            } catch { /* best-effort — reminder still goes out without a link */ }
-          }
+          // Account-less shells point at the self-service claim flow
+          // (/signup → check-email → OTP) instead of a staff-minted token —
+          // minting one here would be an unattended invite outside
+          // registration, removed 2026-09-22.
+          const linkLine = m.user ? '' : `\n\nDu hast noch kein Konto? Erstelle es hier:\n${FRONTEND_URL}/signup`
           await mailService.send({
             to: m.email,
             subject: 'WiediSync — Dein Gastkonto läuft bald ab',
@@ -5447,6 +5457,15 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         iban: reg.iban || null,
         iban_confirmed: !!reg.iban,
         beitragskategorie: reg.beitragskategorie || null,
+        // Discount granted at registration review (migration 367) — copied
+        // onto the member ONLY here, on a brand-new shell. A re-registration
+        // that links to an EXISTING member (the branch above) never touches
+        // these: that member's discount is a standing treasurer decision made
+        // via the Data Explorer, and a signup-time field must not silently
+        // override it.
+        fee_discount: reg.fee_discount ?? null,
+        fee_discount_pct: reg.fee_discount_pct ?? null,
+        fee_discount_reason: reg.fee_discount_reason ?? null,
         // Kantonsschule (migration 315) — verbatim, 'Nein' included: on the
         // member it means "asked, and not at one", distinct from NULL.
         kantonsschule: String(reg.kantonsschule || '').trim() || null,
@@ -5891,6 +5910,17 @@ export default ({ action, filter, init, schedule }, { services, database, logger
             } catch (stampErr) {
               log.warn({ msg: `registrations.member stamp failed: ${stampErr.message}`, id, memberId })
             }
+          }
+
+          // ── 2b. Auto-sync the new/linked member to ClubDesk ──
+          // Fire-and-forget from the caller's point of view: the function
+          // catches its own errors (never lets a ClubDesk hiccup block the
+          // confirmation email below) and queues instead of failing outright
+          // when another down/up/group job holds the lock. See
+          // autoSyncRegistrationToClubdesk in kscw-endpoints/clubdesk-update.js
+          // for the exact scope (single-member push + link-back only).
+          if (memberId) {
+            await autoSyncRegistrationToClubdesk(database, log, id)
           }
 
           // ── 3. Mint a signup token when the member has no account yet ──

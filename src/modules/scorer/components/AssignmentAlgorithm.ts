@@ -111,7 +111,8 @@ export function buildTeamGameTimes(games: Game[]): Map<string, number[]> {
 
 // A team can't do duty for a game overlapping its own (±120 min); a non-overlapping
 // slot the same day is allowed, and the adjacent slot is rewarded below.
-const OVERLAP_MINUTES = 120
+// Exported so the basketball engine applies the same window.
+export const OVERLAP_MINUTES = 120
 
 /** Build lookup: "teamId|date" → true if team has training */
 export function buildTrainingDates(trainings: Training[]): Set<string> {

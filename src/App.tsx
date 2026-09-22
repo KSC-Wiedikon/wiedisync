@@ -74,7 +74,6 @@ const AnimatedUIPage = lazy(() => import('./modules/admin/AnimatedUIPage'))
 import AnnouncementsPage from './modules/admin/AnnouncementsPage'
 import NewsArchivePage from './modules/news/NewsArchivePage'
 
-import JoinPage from './modules/auth/JoinPage'
 import SetPasswordPage from './modules/auth/SetPasswordPage'
 import FeedbackPage from './modules/feedback/FeedbackPage'
 import ChangelogPage from './modules/changelog/ChangelogPage'
@@ -176,7 +175,6 @@ export default function App() {
           <Route path="signup" element={<SignUpPage />} />
           <Route path="pending" element={<PendingPage />} />
 
-          <Route path="join/:token" element={<JoinPage />} />
           <Route path="set-password" element={<SetPasswordPage />} />
           <Route path="terminplanung" element={<SchedulingRedirect />} />
           {/* `terminplanung/:token` matches exactly ONE segment, so the two-segment

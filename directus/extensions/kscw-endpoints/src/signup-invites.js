@@ -1,10 +1,14 @@
 /**
- * One-time signup invite tokens (member-bound) — the ONLY way to create a
- * WiediSync account since open self-registration was closed (migration 167).
+ * One-time signup invite tokens (member-bound) — for an existing account-less
+ * member only. Coaches/TRs cannot call this (removed 2026-09-22): the only
+ * ways a NEW person enters WiediSync are (1) /registration, admin-reviewed,
+ * or (2) self-service claim (/check-email → /verify-email → /set-password).
+ * This endpoint just lets staff push the activation step of an already
+ * existing member along — it never creates the underlying members row.
  *
- * POST /kscw/signup-invites/create   (auth: admin | vorstand | coach/TR of the
- *                                     member's team) — mint + email an invite
- *                                     for an existing account-less member
+ * POST /kscw/signup-invites/create   (auth: admin | vorstand only) — mint +
+ *                                     email an invite for an existing
+ *                                     account-less member
  * GET  /kscw/signup-invites/info/:token  (public) — greeting data for /signup
  * POST /kscw/signup-invites/redeem   (public) — set password, create + link the
  *                                     Directus user, single-use consume
@@ -12,9 +16,7 @@
  * Tokens are bound to a members row, so account creation never depends on the
  * email the person types — closing the divergent-email duplicate window.
  * Storage discipline mirrors password_reset_tokens: SHA-256 hash only, one
- * active token per member, delete-before-use, 30-day TTL. The plaintext
- * travels exclusively inside the emailed link (never in API responses to
- * staff, so a coach can't hijack a member's invite).
+ * active token per member, delete-before-use, 30-day TTL.
  */
 
 import crypto from 'crypto'
@@ -236,8 +238,11 @@ export function registerSignupInvites(router, { database, logger, services, getS
         return res.status(400).json({ error: 'Member has no email address', code: 'no_email' })
       }
 
-      // Permission: Directus admin, app-role admin/superuser/vorstand, or
-      // coach/TR of one of the target's teams.
+      // Permission: Directus admin, or app-role admin/superuser/vorstand only.
+      // Coach/TR authorization was removed 2026-09-22 — a coach pushing an
+      // account-activation link to someone is an invite outside registration,
+      // which is no longer allowed. The two remaining callers are the admin
+      // "resend invite" action (AnmeldungenPage) and staff acting directly.
       const actor = await database('members')
         .where('user', req.accountability.user)
         .first('id', 'role', 'first_name', 'last_name')
@@ -246,18 +251,6 @@ export function registerSignupInvites(router, { database, logger, services, getS
         const roles = Array.isArray(actor.role) ? actor.role
           : (() => { try { return JSON.parse(actor.role || '[]') } catch { return [] } })()
         allowed = roles.includes('admin') || roles.includes('superuser') || roles.includes('vorstand')
-      }
-      if (!allowed && actor) {
-        const targetTeams = (await database('member_teams')
-          .where('member', target.id).pluck('team')).filter(Boolean)
-        if (target.requested_team) targetTeams.push(target.requested_team)
-        if (targetTeams.length) {
-          const isCoach = await database('teams_coaches')
-            .whereIn('teams_id', targetTeams).where('members_id', actor.id).first()
-          const isTR = await database('teams_responsibles')
-            .whereIn('teams_id', targetTeams).where('members_id', actor.id).first()
-          allowed = !!isCoach || !!isTR
-        }
       }
       if (!allowed) return res.status(403).json({ error: 'Not authorized' })
 
@@ -282,10 +275,10 @@ export function registerSignupInvites(router, { database, logger, services, getS
       log.info(`Signup invite minted for member ${target.id} by member ${actor?.id ?? 'admin'}`)
       // Return the invite URL so staff can ALSO show it as a QR code / copy
       // link in person (the member additionally receives it by email). This
-      // exposes the token to the minting staff member — acceptable because the
-      // minter is already an admin / vorstand / the member's own coach or TR
-      // (trusted, and the mint is writeUserLog'd above), mirroring the existing
-      // team-invite QR flow. See SECURITY.md 2026-07-03.
+      // exposes the token to the minting staff member — acceptable now that
+      // the caller is admin/vorstand only (coach/TR access removed
+      // 2026-09-22), and the mint is writeUserLog'd above. See SECURITY.md
+      // 2026-07-03 / 2026-09-22.
       res.json({
         success: true,
         email: target.email,

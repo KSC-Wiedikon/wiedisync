@@ -242,7 +242,7 @@ Inherits everything from Member. Adds:
 | hall_slots | create / update | scoped via teams.coach | 026 |
 | hall_slots_teams | CRUD | scoped via teams.coach | 020 |
 | slot_claims | update | scoped via teams.coach | 026 |
-| team_invites | full CRUD | scoped via teams.coach | |
+| team_invites | none (removed 2026-09-22) | coach/TR previously had full CRUD via `teams.coach`; the `team-invites/create` + `/claim` endpoints let a coach mint a bearer-token invite that an unauthenticated caller redeemed into a brand-new `members` row — account entry outside `/registration`. Both the permission and the endpoints were deleted; only `/team-invites/extend` (no new-member creation) remains | |
 | scorer_delegations | read | none | |
 | referee_expenses | read | own rows OR `TEAM_FK_I_LEAD` (coach **or** TR of the row's team) — the game modal's section, the Home nudge and the Team finance recorder read by game for the leader's own teams | 2026-09-15 |
 | referee_expenses | create | none (a fee has no row to match yet; the game modal's editor is coach ∪ TR-gated in the UI) | 026 |

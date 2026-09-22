@@ -108,10 +108,6 @@ async function verifyTurnstile(token) {
 
 const getCurrentSeason = currentSeasonShort
 
-function randomToken(len = 32) {
-  return crypto.randomBytes(len).toString('hex').slice(0, len)
-}
-
 function addDays(date, days) {
   const d = new Date(date)
   d.setDate(d.getDate() + days)
@@ -1296,178 +1292,15 @@ export default {
       }
     })
 
-    // ── Shell Invite Endpoints ──────────────────────────────────
-
-    router.get('/team-invites/info/:token', async (req, res) => {
-      try {
-        const invite = await database('team_invites')
-          .where('token', req.params.token).where('status', 'pending').first()
-        if (!invite) return res.status(404).json({ error: 'Invite not found or expired' })
-        if (invite.expires_at && new Date() > new Date(invite.expires_at)) {
-          return res.status(400).json({ error: 'Invite expired' })
-        }
-        const team = await database('teams').where('id', invite.team).first()
-        res.json({
-          data: {
-            team_name: team?.name || 'Unknown', team_sport: team?.sport || '',
-            guest_level: invite.guest_level, expires_at: invite.expires_at,
-          },
-        })
-      } catch (err) {
-        logEndpointError(log, 'team-invites/info', err, req)
-        res.status(500).json({ error: 'Internal error' })
-      }
-    })
-
-    router.post('/team-invites/create', async (req, res) => {
-      try {
-        requireAuth(req, log)
-        const { team: teamId, guest_level } = req.body
-        if (!teamId) return res.status(400).json({ error: 'team required' })
-        const gl = parseInt(guest_level)
-        if (isNaN(gl) || gl < 0 || gl > 3) return res.status(400).json({ error: 'guest_level 0-3' })
-
-        const team = await database('teams').where('id', teamId).first()
-        if (!team) return res.status(404).json({ error: 'Team not found' })
-
-        // Permission: admin or coach/TR of this team
-        const userId = req.accountability.user
-        const isAdmin = req.accountability.admin
-        if (!isAdmin) {
-          const isCoach = await database('teams_coaches')
-            .where('teams_id', teamId).where('members_id', function () {
-              this.select('id').from('members').where('user', userId)
-            }).first()
-          const isTR = await database('teams_responsibles')
-            .where('teams_id', teamId).where('members_id', function () {
-              this.select('id').from('members').where('user', userId)
-            }).first()
-          if (!isCoach && !isTR) return res.status(403).json({ error: 'Not authorized' })
-        }
-
-        // Max 20 pending
-        const pendingCount = await database('team_invites')
-          .where('team', teamId).where('status', 'pending').count('id as cnt').first()
-        if ((pendingCount?.cnt || 0) >= 20) {
-          return res.status(400).json({ error: 'Max 20 pending invites per team' })
-        }
-
-        const token = randomToken(32)
-        const expiresAt = addDays(new Date(), 7).toISOString()
-
-        // invited_by is an integer member id (NOT the user UUID) — the old code
-        // wrote a non-existent created_by column with the UUID, which 42703'd
-        // every create since launch (found 2026-07-03, prod had 0 invites).
-        const actingMember = await database('members')
-          .where('user', userId).select('id').first()
-        await database('team_invites').insert({
-          team: teamId, token, guest_level: gl, status: 'pending',
-          expires_at: expiresAt, invited_by: actingMember?.id ?? null,
-          date_created: new Date().toISOString(),
-        })
-
-        await writeUserLog(database, log, {
-          accountability: req.accountability,
-          action: 'create',
-          collection: 'team_invites',
-          recordId: teamId,
-          data: { team: teamId, guest_level: gl, expires_at: expiresAt },
-        })
-
-        res.json({ token, qr_url: `${FRONTEND_URL}/join?token=${token}`, expires_at: expiresAt })
-      } catch (err) {
-        logEndpointError(log, 'team-invites/create', err, req)
-        res.status(err.status || 500).json({ error: err.status ? err.message : 'Internal error' })
-      }
-    })
-
-    const teamInviteClaimIp = new Map() // ip → { count, resetAt }
-    router.post('/team-invites/claim', async (req, res) => {
-      try {
-        // Rate limit: 5 claim attempts per 15 min per IP. The token is
-        // 32 hex / 128-bit so guessing is infeasible — the limit is mostly
-        // to keep brute-DoS against the team_invites table bounded.
-        if (!ipRateLimit(teamInviteClaimIp, req, 5, 15 * 60 * 1000)) {
-          return res.status(429).json({ error: 'Too many requests' })
-        }
-        const { token, first_name, last_name, email: rawEmail } = req.body
-        if (!token || !first_name || !last_name || !rawEmail) {
-          return res.status(400).json({ error: 'token, first_name, last_name, email required' })
-        }
-        const email = rawEmail.toLowerCase().trim()
-
-        const invite = await database('team_invites')
-          .where('token', token).where('status', 'pending').first()
-        if (!invite) return res.status(404).json({ error: 'Invalid or expired invite' })
-        if (invite.expires_at && new Date() > new Date(invite.expires_at)) {
-          return res.status(400).json({ error: 'Invite expired' })
-        }
-
-        // Check email not taken — case-insensitive, and also against
-        // directus_users + members.vm_email (same standard as /register).
-        // The old exact-match members-only check let an existing member with a
-        // differently-cased or secondary email claim an invite and become a
-        // duplicate shell row.
-        const existing = await database('members')
-          .whereRaw('LOWER(email) = ?', [email]).first()
-        if (existing) {
-          return res.status(400).json({ error: 'Email already registered', code: 'email_exists' })
-        }
-        const existingUser = await database('directus_users')
-          .whereRaw('LOWER(email) = ?', [email]).select('id').first()
-        if (existingUser) {
-          return res.status(400).json({ error: 'Email already registered', code: 'email_exists' })
-        }
-        const existingVm = await database('members')
-          .whereRaw('LOWER(vm_email) = ?', [email]).first()
-        if (existingVm) {
-          return res.status(400).json({ error: 'Email already registered', code: 'email_exists' })
-        }
-
-        const team = await database('teams').where('id', invite.team).first()
-        if (!team) return res.status(400).json({ error: 'Team not found' })
-
-        const shellExpires = addDays(new Date(), 30).toISOString()
-
-        // Atomic: create member + member_teams + claim invite
-        const memberId = await database.transaction(async (trx) => {
-          const [member] = await trx('members').insert({
-            first_name, last_name, email,
-            // wiedisync_active MUST be false at birth: trg_members_shell_convert
-            // only clears `shell` on a false→true UPDATE (set-password), so a
-            // member born active would stay "Temporary" forever — and
-            // /check-email would report the address as already claimed.
-            shell: true, coach_approved_team: false, wiedisync_active: false,
-            shell_expires: shellExpires, shell_reminder_sent: false,
-            birthdate_visibility: 'hidden', language: 'german', role: JSON.stringify(['user']),
-          }).returning('id')
-
-          const mId = member.id || member
-
-          await trx('member_teams').insert({
-            member: mId, team: invite.team, season: getCurrentSeason(),
-            guest_level: invite.guest_level,
-          })
-
-          // Now member_teams exists, enable approval
-          await trx('members').where('id', mId).update({ coach_approved_team: true })
-
-          // claimed_at does not exist on team_invites (only claimed_by +
-          // date_updated) — writing it rolled back every claim (found 2026-07-03).
-          await trx('team_invites').where('id', invite.id).update({
-            status: 'claimed', claimed_by: mId, date_updated: new Date().toISOString(),
-          })
-
-          return mId
-        })
-
-        log.info(`Shell invite claimed: member ${memberId} → team ${team.name}`)
-        res.json({ success: true, member_id: memberId, team_name: team.name })
-      } catch (err) {
-        logEndpointError(log, 'team-invites/claim', err, req)
-        res.status(err.status || 500).json({ error: err.status ? err.message : 'Internal error' })
-      }
-    })
+    // ── Shell Extend Endpoint ────────────────────────────────────
+    // team-invites/create + /claim + /info were removed 2026-09-22: they let a
+    // coach/TR conjure a brand-new placeholder `members` row (a "shell") from
+    // just a name+email, entirely outside the canonical /registration review
+    // flow. The only ways a new person may now enter the system are (1)
+    // /registration (admin-reviewed) or (2) the self-service claim of an
+    // existing account-less member (/check-email → /verify-email →
+    // /verify-email/confirm → /set-password). /extend is kept — it only
+    // extends the expiry of an EXISTING shell member, it never creates one.
 
     router.post('/team-invites/extend', async (req, res) => {
       try {

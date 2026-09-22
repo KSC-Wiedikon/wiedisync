@@ -8,6 +8,7 @@
 // row the "only empty spots" filter is supposed to hide.
 
 import type { Game } from '../../../types'
+import { resolveBbRequirement } from './bbLeagueRequirements'
 import { relId } from '../../../utils/relations'
 // Deliberately the ALGORITHM's isCupGame, not the looser one in
 // utils/leagueClassification: a game the planner renders as an on-call slot and
@@ -95,11 +96,15 @@ export function buildDutySpots(
       const shared = relId(game.bb_duty_team)
       add(game, 'bb_scorer', relId(game.bb_scorer_duty_team) || shared, game.bb_scorer_member)
       add(game, 'bb_timekeeper', relId(game.bb_timekeeper_duty_team) || shared, game.bb_timekeeper_member)
-      // The 24s desk is optional — it's opened per game on /scorer. Deriving it
-      // from the shared duty team would invent an open spot on EVERY basketball
-      // game, so it counts only once it has its own duty team or an assignee.
+      // The 24s desk opens automatically where ProBasket Tabelle I demands a
+      // third official (D1/H1/H2, interregional youth) — roll-out writes only
+      // `bb_duty_team`, so without this the seat never appears and the game can
+      // never be completed. For the leagues that don't require it the desk stays
+      // opt-in, opened per game on /scorer: deriving it from the shared duty
+      // team unconditionally would invent an open spot on EVERY basketball game.
       const own24s = relId(game.bb_24s_duty_team)
-      const has24s = !!own24s || !!relId(game.bb_24s_official)
+      const requiresThirdSeat = resolveBbRequirement(game.league).seats.length >= 3
+      const has24s = requiresThirdSeat || !!own24s || !!relId(game.bb_24s_official)
       if (has24s) add(game, 'bb_24s_official', own24s || shared, game.bb_24s_official)
     }
   }

@@ -126,8 +126,10 @@ export default {
   bb24sOfficial: 'Officiel 24" (OTR2)',
   dutyTeamTag: 'Service',
   dutyCount: 'Services',
-  reason_noOtr1: 'Pas d\'officiel OTR1',
-  reason_fullCrew: 'Equipe complete (+{{points}})',
+  reason_gameOverlap: 'Chevauchement avec son propre match',
+  reason_cannotFieldCrew: 'Impossible de fournir {{seats}} officiels ({{row}})',
+  reason_otr2Depth: 'Réserve OTR2 disponible (+{{points}})',
+  noTableRequired: 'Aucune table de marque requise',
 
   // Override
   selectTeam: '— Equipe —',

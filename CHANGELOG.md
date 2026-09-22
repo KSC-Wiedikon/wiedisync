@@ -2,6 +2,12 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.14.2 — 2026-09-22
+
+### Security and privacy hardening
+
+- **Coaches can no longer bring a new person into WiediSync directly — registering yourself is now the only way in.** Two ways for a coach to add someone to the club's system outside the normal sign-up form have been removed: sending someone a link that created a temporary roster spot for them, and pushing an account-activation link to a member who hadn't set one up yet. If you're on a roster but have never logged in, ask your coach and they'll point you to the sign-up page, where you enter your email and set your own password.
+
 ## v2.14.1 — 2026-09-21
 
 ### Fixes

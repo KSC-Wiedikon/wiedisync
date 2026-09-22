@@ -142,3 +142,30 @@ describe('weekdayShort', () => {
     expect(weekdayShort('')).toBe('')
   })
 })
+
+describe('basketball 24s desk', () => {
+  const teamNames = new Map([['2', 'Herren 1']])
+  const memberNames = new Map<string, string>()
+  const bbGame = (league: string, extra: Partial<Game> = {}): Game =>
+    ({
+      id: 'g1', date: '2026-10-21', time: '18:00', type: 'home', league,
+      kscw_team: '1', bb_duty_team: '2', ...extra,
+    } as unknown as Game)
+
+  it('opens the third seat for a league that requires it', () => {
+    // Roll-out writes only bb_duty_team, so without the league lookup this seat
+    // never appears and a D1/H1/H2 game can never be completed.
+    const spots = buildDutySpots([bbGame('1LRAM')], 'basketball', teamNames, memberNames)
+    expect(spots.filter((s) => s.role === 'bb_24s_official')).toHaveLength(1)
+  })
+
+  it('leaves the third seat opt-in for a two-seat league', () => {
+    const spots = buildDutySpots([bbGame('4LZM')], 'basketball', teamNames, memberNames)
+    expect(spots.filter((s) => s.role === 'bb_24s_official')).toHaveLength(0)
+  })
+
+  it('still honours a hand-opened desk in a two-seat league', () => {
+    const spots = buildDutySpots([bbGame('4LZM', { bb_24s_duty_team: '2' })], 'basketball', teamNames, memberNames)
+    expect(spots.filter((s) => s.role === 'bb_24s_official')).toHaveLength(1)
+  })
+})
