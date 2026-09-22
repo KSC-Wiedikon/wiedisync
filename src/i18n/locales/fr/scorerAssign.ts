@@ -36,6 +36,7 @@ export default {
   uploadApplied: '{{count}} attributions mises à jour depuis le fichier.',
   uploadUnmatched: '{{count}} ligne(s) sans numéro de match correspondant.',
   uploadUnknownTeams: 'Équipe(s) inconnue(s) : {{names}}.',
+  uploadUnknownPeople: 'Personnes inconnues : {{names}}.',
   uploadNoIdColumn: 'Aucune colonne « N° match » trouvée — téléchargez d\'abord un nouvel Excel.',
   uploadNoMatches: 'Aucune ligne associée à un match (vérifiez la colonne N° match).',
   uploadError: 'Impossible de lire le fichier.',

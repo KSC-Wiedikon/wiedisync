@@ -36,6 +36,7 @@ export default {
   uploadApplied: '{{count}} assegnazioni aggiornate dal file.',
   uploadUnmatched: '{{count}} riga/righe senza numero partita corrispondente.',
   uploadUnknownTeams: 'Squadra/e sconosciuta/e: {{names}}.',
+  uploadUnknownPeople: 'Persone sconosciute: {{names}}.',
   uploadNoIdColumn: 'Nessuna colonna "N. partita" trovata — scarica prima un nuovo Excel.',
   uploadNoMatches: 'Nessuna riga abbinata a una partita (controlla la colonna N. partita).',
   uploadError: 'Impossibile leggere il file.',

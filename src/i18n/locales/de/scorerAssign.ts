@@ -36,6 +36,7 @@ export default {
   uploadApplied: '{{count}} Zuteilungen aus der Datei übernommen.',
   uploadUnmatched: '{{count}} Zeile(n) ohne passende Spielnummer.',
   uploadUnknownTeams: 'Unbekannte(s) Team(s): {{names}}.',
+  uploadUnknownPeople: 'Unbekannte Personen: {{names}}.',
   uploadNoIdColumn: 'Keine Spalte „Spielnr." gefunden — zuerst eine neue Excel herunterladen.',
   uploadNoMatches: 'Keine Zeile einem Spiel zugeordnet (Spalte Spielnr. prüfen).',
   uploadError: 'Datei konnte nicht gelesen werden.',

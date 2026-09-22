@@ -36,6 +36,7 @@ export default {
   uploadApplied: '{{count}} Zuteilige us de Datei übernoh.',
   uploadUnmatched: '{{count}} Ziile ohni passendi Spielnummere.',
   uploadUnknownTeams: 'Unbekannti Team(s): {{names}}.',
+  uploadUnknownPeople: 'Unbekannti Persone: {{names}}.',
   uploadNoIdColumn: 'Kei Spalte „Spielnr." gfunde — zerscht e nöii Excel abelade.',
   uploadNoMatches: 'Kei Ziile emne Spiel zuegordnet (Spalte Spielnr. prüefe).',
   uploadError: 'Datei het nöd chöne gläse werde.',

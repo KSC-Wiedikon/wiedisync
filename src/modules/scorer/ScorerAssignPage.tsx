@@ -321,6 +321,21 @@ export default function ScorerAssignPage() {
   const vbTeamCounts = useMemo(() => getTeamCounts(vbAssignments, teamsWithCredit, sportGames, members, memberTeams), [vbAssignments, teamsWithCredit, sportGames, members, memberTeams])
   const bbTeamCounts = useMemo(() => getBbTeamCounts(bbAssignments, teams, sportGames), [bbAssignments, teams, sportGames])
 
+  // How many of each team's duties are on OTR2-requiring games (ProBasket
+  // Tabelle I). The senior squads hold nearly all the OTR2 licences, so this is
+  // the number that says whether the burden is spread or concentrated. Shared
+  // by the summary table and the export so the two can't disagree.
+  const bbOtr2DutiesByTeam = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const a of bbAssignments) {
+      if (!a.dutyTeamName) continue
+      const g = sportGames.find((x) => x.id === a.gameId)
+      if (!resolveBbRequirement(g?.league).seats.includes('otr2')) continue
+      m.set(a.dutyTeamName, (m.get(a.dutyTeamName) ?? 0) + 1)
+    }
+    return m
+  }, [bbAssignments, sportGames])
+
   const assignments = sportTab === 'volleyball' ? vbAssignments : bbAssignments
 
   // Actions
@@ -471,21 +486,12 @@ export default function ScorerAssignPage() {
               : !a.dutyTeamId ? 'unassigned' : 'ok',
           } as XlsxGameRow
         })
-    // How much of the OTR2 burden each team is carrying — the senior squads hold
-    // nearly all the OTR2 licences, so this is the number worth checking.
-    const otr2DutiesByTeam = new Map<string, number>()
-    for (const a of bbAssignments) {
-      if (!a.dutyTeamName) continue
-      const g = homeGames.find((x) => x.id === a.gameId)
-      if (!resolveBbRequirement(g?.league).seats.some((seat) => seat === 'otr2')) continue
-      otr2DutiesByTeam.set(a.dutyTeamName, (otr2DutiesByTeam.get(a.dutyTeamName) ?? 0) + 1)
-    }
     const summaryRows: XlsxSummaryRow[] = isVb
       ? Array.from(vbTeamCounts.entries()).sort(([x], [y]) => x.localeCompare(y)).map(([team, c]) => ({
           team, games: c.ownGames, scorer: c.scorer, scoreboard: c.scoreboard, combined: c.combined, referee: c.referee, duties: c.totalDuties, total: c.totalDuties, otr2Duties: 0 }))
       : Array.from(bbTeamCounts.entries()).sort(([x], [y]) => x.localeCompare(y)).map(([team, c]) => ({
           team, games: c.ownGames, scorer: 0, scoreboard: 0, combined: 0, referee: 0, duties: c.duties, total: c.duties,
-          otr2Duties: otr2DutiesByTeam.get(team) ?? 0 }))
+          otr2Duties: bbOtr2DutiesByTeam.get(team) ?? 0 }))
     const L: XlsxLabels = {
       sheetGames: tEn('title'), sheetSummary: tEn('teamSummary'),
       gameNo: tEn('gameNo'), weekday: tEn('weekday'),
@@ -667,6 +673,9 @@ export default function ScorerAssignPage() {
       if (gameNoCol < 0) { setSaveMsg({ text: t('uploadNoIdColumn'), error: true }); return }
       const scorerCol = col(tEn('autoScorer')), scoreboardCol = col(tEn('autoTaefeler')),
         combinedCol = col(tEn('combinedCount')), refereeCol = col(tEn('refereeCount')), dutyCol = col(tEn('autoDutyTeam'))
+      // Basketball seat columns — people, not teams.
+      const anschreiberCol = col(tEn('bbScorer')), zeitnehmerCol = col(tEn('bbTimekeeper')),
+        official24sCol = col(tEn('bb24sOfficial'))
 
       const internalIdByGameNo = new Map<string, string>()
       for (const g of homeGames) if (g.game_id) internalIdByGameNo.set(String(g.game_id).trim(), g.id)
@@ -674,7 +683,20 @@ export default function ScorerAssignPage() {
       for (const tm of teams) teamIdByName.set(tm.name.trim(), tm.id)
 
       const unknownTeams = new Set<string>()
+      const unknownPeople = new Set<string>()
       const cellStr = (row: import('exceljs').Row, c: number) => (c > 0 ? String(row.getCell(c).value ?? '').trim() : '')
+      const memberIdByName = new Map<string, string>()
+      for (const [id, name] of memberNameById) memberIdByName.set(name, id)
+      // A seat cell is one of: a person's name, "—" (deliberately empty), "n/a"
+      // (the league has no such seat), or blank. Only the first two are an
+      // instruction — undefined leaves the draft's value alone.
+      const seatToId = (name: string): string | null | undefined => {
+        if (!name || name === 'n/a') return undefined
+        if (name === '—') return null
+        const id = memberIdByName.get(name)
+        if (!id) { unknownPeople.add(name); return undefined }
+        return id
+      }
       const nameToId = (name: string) => {
         if (!name) return null
         const id = teamIdByName.get(name)
@@ -683,7 +705,10 @@ export default function ScorerAssignPage() {
       }
 
       const vbUpdates = new Map<string, { scorer: string | null; scoreboard: string | null; combined: string | null; referee: string | null }>()
-      const bbUpdates = new Map<string, string | null>()
+      const bbUpdates = new Map<string, {
+        duty: string | null
+        scorer?: string | null; timekeeper?: string | null; official24s?: string | null
+      }>()
       let unmatched = 0
       ws.eachRow((row, rn) => {
         if (rn === 1) return
@@ -692,7 +717,12 @@ export default function ScorerAssignPage() {
         const internalId = internalIdByGameNo.get(gameNo)
         if (!internalId) { unmatched++; return }
         if (isVb) vbUpdates.set(internalId, { scorer: nameToId(cellStr(row, scorerCol)), scoreboard: nameToId(cellStr(row, scoreboardCol)), combined: nameToId(cellStr(row, combinedCol)), referee: nameToId(cellStr(row, refereeCol)) })
-        else bbUpdates.set(internalId, nameToId(cellStr(row, dutyCol)))
+        else bbUpdates.set(internalId, {
+          duty: nameToId(cellStr(row, dutyCol)),
+          scorer: seatToId(cellStr(row, anschreiberCol)),
+          timekeeper: seatToId(cellStr(row, zeitnehmerCol)),
+          official24s: seatToId(cellStr(row, official24sCol)),
+        })
       })
 
       const applied = isVb ? vbUpdates.size : bbUpdates.size
@@ -714,16 +744,22 @@ export default function ScorerAssignPage() {
         }))
       } else {
         setBbAssignments((prev) => prev.map((a) => {
-          if (!bbUpdates.has(a.gameId)) return a
-          const duty = bbUpdates.get(a.gameId) ?? null
-          return { ...stripExisting(a), dutyTeamId: duty, dutyTeamName: nameOf(duty) }
+          const u = bbUpdates.get(a.gameId); if (!u) return a
+          const next = { ...stripExisting(a), dutyTeamId: u.duty, dutyTeamName: nameOf(u.duty) }
+          // Seats are only touched where the sheet actually said something, so a
+          // planner who edited just the duty team doesn't wipe the people.
+          if (u.scorer !== undefined) next.bbScorerMemberId = u.scorer
+          if (u.timekeeper !== undefined) next.bbTimekeeperMemberId = u.timekeeper
+          if (u.official24s !== undefined) next.bb24sMemberId = u.official24s
+          return next
         }))
       }
 
       const parts = [t('uploadApplied', { count: applied })]
       if (unmatched) parts.push(t('uploadUnmatched', { count: unmatched }))
       if (unknownTeams.size) parts.push(t('uploadUnknownTeams', { names: [...unknownTeams].join(', ') }))
-      setSaveMsg({ text: parts.join(' '), error: unmatched > 0 || unknownTeams.size > 0 })
+      if (unknownPeople.size) parts.push(t('uploadUnknownPeople', { names: [...unknownPeople].join(', ') }))
+      setSaveMsg({ text: parts.join(' '), error: unmatched > 0 || unknownTeams.size > 0 || unknownPeople.size > 0 })
     } catch (err) {
       // A genuine parse failure (corrupt/renamed file) — log it so it's ever
       // diagnosable, then show the generic "could not read" message. The old
@@ -963,6 +999,7 @@ export default function ScorerAssignPage() {
                   <TableHead className="px-3 py-2">{t('teamName')}</TableHead>
                   <TableHead className="px-3 py-2 text-center">{t('ownGames')}</TableHead>
                   <TableHead className="px-3 py-2 text-center">{t('dutyCount')}</TableHead>
+                  <TableHead className="px-3 py-2 text-center">{t('otr2Duties')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -973,6 +1010,7 @@ export default function ScorerAssignPage() {
                       <TableCell className="px-3 py-2"><TeamChip team={name} size="sm" /></TableCell>
                       <TableCell className="px-3 py-2 text-center text-gray-500 dark:text-gray-400">{counts.ownGames}</TableCell>
                       <TableCell className="px-3 py-2 text-center font-medium text-gray-900 dark:text-gray-100">{counts.duties || '—'}</TableCell>
+                      <TableCell className="px-3 py-2 text-center text-gray-500 dark:text-gray-400">{bbOtr2DutiesByTeam.get(name) || '—'}</TableCell>
                     </TableRow>
                   ))}
               </TableBody>
