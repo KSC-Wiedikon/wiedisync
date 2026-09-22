@@ -104,6 +104,7 @@ export default {
   deleteFixtureConfirm: 'Delete this game against {{opponent}}? It disappears from every calendar that shows it.',
   deleteFixtureDone: 'Game deleted',
   editInPrepGrid: 'Edit in the planner',
+  syncedFixtureHint: 'Synced from Basketplan — change it there',
   statusBbGame: 'Basketball game',
   statusBbGameHint: 'One of our basketball games already holds {{hall}} around {{time}} — edit it on the calendar.',
   reason_basketball: 'Our own basketball games hold every hall in every slot',

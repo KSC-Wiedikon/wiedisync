@@ -104,6 +104,7 @@ export default {
   deleteFixtureConfirm: 'Supprimer ce match contre {{opponent}} ? Il disparaîtra de tous les calendriers.',
   deleteFixtureDone: 'Match supprimé',
   editInPrepGrid: 'Modifier dans le planificateur',
+  syncedFixtureHint: 'Synchronisé depuis Basketplan — à modifier là-bas',
   statusBbGame: 'Match de basketball',
   statusBbGameHint: 'Un de nos matchs de basketball occupe déjà {{hall}} vers {{time}} — modifiez-le dans le calendrier.',
   reason_basketball: 'Nos propres matchs de basketball occupent toutes les salles sur chaque créneau',

@@ -104,6 +104,7 @@ export default {
   deleteFixtureConfirm: 'Eliminare questa partita contro {{opponent}}? Sparirà da tutti i calendari.',
   deleteFixtureDone: 'Partita eliminata',
   editInPrepGrid: 'Modifica nel pianificatore',
+  syncedFixtureHint: 'Sincronizzato da Basketplan — modificalo lì',
   statusBbGame: 'Partita di basket',
   statusBbGameHint: 'Una nostra partita di basket occupa già {{hall}} verso le {{time}} — modificala nel calendario.',
   reason_basketball: 'Le nostre partite di basket occupano tutte le palestre in ogni fascia oraria',
