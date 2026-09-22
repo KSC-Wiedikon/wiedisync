@@ -165,7 +165,7 @@ function DutyRowSkeleton() {
 export default function GameDetailModal({ game, onClose, readOnly, participations, focus }: GameDetailModalProps) {
   const { t } = useTranslation('games')
   const { t: tc } = useTranslation('common')
-  const { user, isStaffOnly, canParticipateIn, isGuestIn, coachTeamIds, teamResponsibleIds, hasAdminAccessToTeam, teamsLoading } = useAuth()
+  const { user, isStaffOnly, canParticipateIn, isGuestIn, coachTeamIds, teamResponsibleIds, hasAdminAccessToTeam, isSuperAdmin, teamsLoading } = useAuth()
   const { effectiveIsAdmin } = useAdminMode()
   const { canManageTeam } = useTeamPermissions()
   const confirm = useConfirm()
@@ -404,15 +404,18 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
   const canEditAsCoach = canManageTeam(kscwTeamId)
   // Staff of the playing team. Gates the referee-expenses panel.
   const isTeamStaff = canManageTeam(kscwTeamId)
-  // Show IDs is NARROWER than isTeamStaff, and must mirror the server: mayRead()
-  // in identity-document.js has no admin branch and refuses an admin outright —
-  // they hold no envelope, so they could not decrypt a thing. Offering them the
-  // button is a dead end that reports "0 documents downloaded", i.e. the message
-  // that means "nobody has uploaded one". Real coach/TR membership only — either
-  // of the game's own team, or of a team it's opened to as a guest (both sides
-  // of a shared game verify the same lineup; server grant is symmetric too).
+  // Show IDs mirrors the server (mayRead() in identity-document.js): real coach/TR
+  // membership — either of the game's own team, or of a team it's opened to as a
+  // guest (both sides of a shared game verify the same lineup; server grant is
+  // symmetric too) — OR, since 2026-09-22, a superadmin, for ANY team. `isSuperAdmin`
+  // only (not `hasAdminAccessToTeam`, which also covers sport admins) — sport admins
+  // get no standing decryption key server-side, so offering them the button would be
+  // a dead end reporting "0 documents downloaded". Gated by admin-mode like every
+  // other admin power in this modal (see adminSeesContact above) so it doesn't fire
+  // just because the viewer happens to hold the role.
   const canShowIds = coachTeamIds.includes(kscwTeamId) || teamResponsibleIds.includes(kscwTeamId)
     || guestTeamIds.some((id) => coachTeamIds.includes(id) || teamResponsibleIds.includes(id))
+    || (effectiveIsAdmin && isSuperAdmin)
   // The assigned Schreiber (scorer roles only — pure Täfeler excluded, mirroring
   // the roster endpoint). For them "View roster" opens the confirmed match sheet
   // (jersey #, DoB, coaches, ±window) instead of the RSVP roster. `user.id` is a
