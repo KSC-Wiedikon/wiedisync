@@ -126,8 +126,10 @@ export default {
   bb24sOfficial: '24" official (OTR2)',
   dutyTeamTag: 'Duty',
   dutyCount: 'Duties',
-  reason_noOtr1: 'No OTR1 official',
-  reason_fullCrew: 'Full crew (+{{points}})',
+  reason_gameOverlap: 'Own game overlaps',
+  reason_cannotFieldCrew: 'Cannot field {{seats}} officials ({{row}})',
+  reason_otr2Depth: 'Spare OTR2 cover (+{{points}})',
+  noTableRequired: 'No table crew required',
 
   // Override
   selectTeam: '— Team —',

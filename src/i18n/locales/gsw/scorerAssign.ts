@@ -126,8 +126,10 @@ export default {
   bb24sOfficial: '24"-Offizielli/r (OTR2)',
   dutyTeamTag: 'Iisatz',
   dutyCount: 'Iisätz',
-  reason_noOtr1: 'Kä OTR1-Offizielle',
-  reason_fullCrew: 'Komplett-Team (+{{points}})',
+  reason_gameOverlap: 'Eigets Spiel überschnidet sich',
+  reason_cannotFieldCrew: 'Cha {{seats}} Offiziell nöd stelle ({{row}})',
+  reason_otr2Depth: 'OTR2-Reserve verfüegbar (+{{points}})',
+  noTableRequired: 'Kes Tischpersonal nötig',
 
   // Override
   selectTeam: '— Team —',

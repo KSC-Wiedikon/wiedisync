@@ -7,6 +7,7 @@
  */
 
 import type { Game } from '../../../types'
+import { resolveBbRequirement } from '../lib/bbLeagueRequirements'
 
 // ── VB helpers ──
 
@@ -42,8 +43,19 @@ export function hasAnyBbAssignment(game: Game): boolean {
   return !!(game.bb_scorer_member || game.bb_timekeeper_member || game.bb_24s_official)
 }
 
+/**
+ * Complete when every seat the game's league requires is filled.
+ *
+ * Seat count is per-league (ProBasket Tabelle I), not a flat two: D1/H1/H2 and
+ * the interregional youth leagues need a third official on the 24s clock, and
+ * U8/U6 need no table at all. Reading the requirement here is what stops a D1
+ * game reporting "fully assigned" with the 24s seat empty.
+ */
 function isBbFullyAssigned(game: Game): boolean {
-  return !!(game.bb_scorer_member && game.bb_timekeeper_member)
+  const { seats, refereeOnly } = resolveBbRequirement(game.league)
+  if (refereeOnly) return true
+  const filled = [game.bb_scorer_member, game.bb_timekeeper_member, game.bb_24s_official]
+  return seats.every((_, i) => !!filled[i])
 }
 
 // ── Generic helpers ──
