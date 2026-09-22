@@ -36,6 +36,7 @@ export default {
   uploadApplied: '{{count}} assignments updated from the file.',
   uploadUnmatched: '{{count}} row(s) had no matching game number.',
   uploadUnknownTeams: 'Unknown team(s): {{names}}.',
+  uploadUnknownPeople: 'Unknown people: {{names}}.',
   uploadNoIdColumn: 'No "Game no." column found — download a fresh Excel first.',
   uploadNoMatches: 'No rows matched a game (check the Game no. column).',
   uploadError: 'Could not read the file.',

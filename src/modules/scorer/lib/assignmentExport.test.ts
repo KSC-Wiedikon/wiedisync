@@ -91,3 +91,35 @@ describe('volleyball sheet is unchanged', () => {
       'Scorer', 'Täfeler', 'Combined', 'Referee', 'Notes'])
   })
 })
+
+// The "upload corrected" round-trip finds its columns by looking up the SAME
+// English i18n keys the export writes as headers. Rename one on either side and
+// the re-import silently stops seeing that column, so pin the contract here.
+describe('export ↔ upload round-trip contract', () => {
+  it('writes headers the importer looks up by key', async () => {
+    const en = (await import('../../../i18n/locales/en/scorerAssign')).default as Record<string, string>
+    const labels: XlsxLabels = { ...L,
+      gameNo: en.gameNo, dutyTeam: en.autoDutyTeam, crewRequired: en.crewRequired,
+      anschreiber: en.bbScorer, zeitnehmer: en.bbTimekeeper, official24s: en.bb24sOfficial,
+      otr2Duties: en.otr2Duties }
+    const bytes = await buildAssignmentXlsx('basketball', [row({})], [summary({})], new Map(), labels)
+    const { games } = await readBack(bytes)
+    const header = games(1)
+    // Exactly the lookups handleUploadXlsx performs for basketball.
+    for (const key of ['gameNo', 'autoDutyTeam', 'bbScorer', 'bbTimekeeper', 'bb24sOfficial'] as const) {
+      expect(header).toContain(en[key])
+    }
+  })
+
+  it('emits only sentinels the importer understands', async () => {
+    // seatToId treats '' and 'n/a' as "leave alone" and '—' as "clear"; anything
+    // else must be a person's name. No third sentinel may leak in.
+    const bytes = await buildAssignmentXlsx('basketball', [
+      row({ anschreiber: '—', zeitnehmer: 'n/a', official24s: '' }),
+    ], [summary({})], new Map(), L)
+    const { games } = await readBack(bytes)
+    for (const cell of games(2).slice(10, 13)) {
+      expect(['—', 'n/a', '']).toContain(cell)
+    }
+  })
+})
