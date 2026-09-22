@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.14.2'
+const APP_VERSION = '2.15.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,18 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.15.0',
+    date: '22.09.2026',
+    sections: [
+      {
+        title: 'Registrations',
+        items: [
+          "Approving a registration now pushes the new member to ClubDesk right away instead of waiting for the next scheduled sync. The review screen also gained a fee category picker and a discount field (amount or percentage, with a required note) so the membership fee shown before approving is exactly what gets billed.",
+        ],
+      },
+    ],
+  },
   {
     version: '2.14.2',
     date: '22.09.2026',

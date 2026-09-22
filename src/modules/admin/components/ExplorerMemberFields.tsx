@@ -30,6 +30,7 @@ import { Pencil, Save, X, Loader2, Eye, EyeOff, AlertTriangle, Crosshair, Check 
 import { assetUrl, createRecord, deleteRecord, fetchItem, kscwApi, updateRecord } from '../../../lib/api'
 import { logActivity } from '../../../utils/logActivity'
 import { getCurrentSeason, todayLocal } from '../../../utils/dateHelpers'
+import { chf, liveFee, type FeePreview, type LiveFee } from '../../../utils/feeCalc'
 import {
   countryLabel, countryOptions, formatCountryCodes,
   parseCountryCodes, serializeCountryCodes,
@@ -208,89 +209,12 @@ const BOTH_SPORTS_REVEALED: ReadonlySet<'volleyball' | 'basketball'> =
  * field shows); the member's own overrides are what the card adds on top. Both
  * are null when the category has no base at all — an unknown category is never
  * given a guessed amount, here or in the dues run.
- */
-interface MemberFeeParts {
-  base: number
-  surcharge: number
-  guest_discount: number
-  amount: number
-}
-interface MemberFee {
-  category: string | null
-  is_guest: boolean
-  base_source: 'schedule' | 'category_map' | null
-  fiscal_year: { id: number; label: string } | null
-  /** What the surcharge boolean is worth in CHF. Served, never hardcoded here. */
-  surcharge_amount: number
-  /** Federation licence contained IN the base (migration 323) — how the invoice
-   *  itemises it. ⚠ Inside the base, never on top: adding it double-counts. */
-  licence: number
-  sektion: string | null
-  derived: MemberFeeParts | null
-  effective: (MemberFeeParts & { discount: number }) | null
-}
-
-/** A CHF cell: null/'' → null, so a blank override is "derive it", not zero. */
-function chfOrNull(value: unknown): number | null {
-  if (value === null || value === undefined || value === '') return null
-  const n = Number(value)
-  return Number.isFinite(n) ? n : null
-}
-
-const chf = (n: number) =>
-  `CHF ${n.toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-
-/**
- * The live total, recomputed from what is currently in the draft.
  *
- * ⚠ This is arithmetic, NOT a second fee engine. Every decision — which base
- * applies, whether the surcharge is owed, whether the member is a guest — was
- * made server-side by feeBreakdown() and arrives in `fee.derived`. All that
- * happens here is "the operator typed 0 into the surcharge box, so show the sum
- * with 0 in it" instead of waiting for a save + round-trip to find out.
- * The discount cap mirrors withDiscount(): a discount may take a bill to
- * exactly zero, never below.
+ * The parts/interface/arithmetic live in `utils/feeCalc.ts`, shared with the
+ * registration review screen's fee preview (`GET /registration/:id/fee`) —
+ * see that module for the full rationale.
  */
-function liveFee(fee: MemberFee | null, draft: Record<string, unknown>) {
-  if (!fee?.derived) return null
-  const round2 = (n: number) => Math.round(n * 100) / 100
-  const base = chfOrNull(draft.fee_base_override) ?? fee.derived.base
-  // Nullable boolean since migration 300: on/off/derive. `=== true|false` on
-  // purpose — undefined must not read as "waive".
-  const surchargeFlag = draft.fee_surcharge_override
-  const surcharge = surchargeFlag === true ? fee.surcharge_amount
-    : surchargeFlag === false ? 0
-    : fee.derived.surcharge
-  const guestDiscount = fee.derived.guest_discount
-  const owed = Math.max(0, round2(base + surcharge - guestDiscount))
-  // CHF or percent, never both — the DB CHECK enforces it, and CHF wins here so
-  // a row that somehow holds both still renders a number rather than NaN.
-  const pct = chfOrNull(draft.fee_discount_pct)
-  const flat = chfOrNull(draft.fee_discount)
-  const wanted = flat !== null && flat > 0 ? round2(flat)
-    : pct !== null && pct > 0 ? round2(owed * Math.min(pct, 100) / 100)
-    : 0
-  const discount = Math.min(Math.max(0, wanted), owed)
-  // The federation's share of the base, shown beside it rather than added to it.
-  // Zeroed the moment the operator pins a base override — same rule the dues run
-  // applies, because nobody recorded what a hand-typed amount is made of — and
-  // for a guest, who holds no licence at all.
-  const licence = chfOrNull(draft.fee_base_override) !== null || guestDiscount > 0
-    ? 0 : Math.min(fee.licence ?? 0, base)
-  return {
-    base,
-    licence,
-    surcharge,
-    guestDiscount,
-    discount,
-    discountPct: flat !== null && flat > 0 ? null : (pct !== null && pct > 0 ? pct : null),
-    amount: round2(owed - discount),
-    baseOverridden: chfOrNull(draft.fee_base_override) !== null,
-    surchargeOverridden: surchargeFlag === true || surchargeFlag === false,
-  }
-}
-
-type LiveFee = ReturnType<typeof liveFee>
+type MemberFee = FeePreview
 
 const LS_HIDE_EMPTY = 'kscw-explorer-hide-empty'
 const LS_SHOW_TECHNICAL = 'kscw-explorer-show-technical'

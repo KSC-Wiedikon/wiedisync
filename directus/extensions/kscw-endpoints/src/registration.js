@@ -12,8 +12,9 @@ import { federationName } from './federations.js'
 import { writeUserLog } from './activity-log.js'
 import {
   findDuplicateCandidates, findDuplicateCandidatesBatch, findBlockingMember,
-  buildMergeDiff, buildMergePatch,
+  buildMergeDiff, buildMergePatch, mapLicences,
 } from './registration-duplicates.js'
+import { feeBreakdown, NO_LICENCE_SURCHARGE } from './clubdesk-update.js'
 import { loadTemplate, mergeTemplate, renderTemplate, sanitizeTemplateHtml, recordEmailSend, validateTemplate } from './email-templates.js'
 import crypto from 'crypto'
 import { streamManagedFile } from './storage-read.js'
@@ -1990,6 +1991,66 @@ export function registerRegistration(router, { database, logger, services, getSc
       })
     } catch (err) {
       log.error({ msg: `registration/:id/duplicates: ${err.message}`, endpoint: 'registration/duplicates', stack: err.stack })
+      return res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  // GET /kscw/registration/:id/fee — live Mitgliederbeitrag preview for the
+  // registration review screen. Same engine as the actual ClubDesk CREATE
+  // push (deriveMitgliederbeitrag → feeBreakdown), fed from the REGISTRATION
+  // row rather than a members row — no member exists yet at review time. Built
+  // to match the push's own inputs exactly: no finance_dues_rates schedule
+  // lookup (the push never consults it either, only CD_BEITRAG_MAP) and
+  // isGuest is always false (a brand-new registrant cannot already be a guest
+  // on an existing roster). `derived` = the rules alone (category + surcharge,
+  // no discount); `effective` = with the registration's own discount/note
+  // (migration 367) applied — mirrors GET /finance/members/:id/fee's shape so
+  // the frontend's liveFee() needs zero branching between the two callers.
+  router.get('/registration/:id/fee', async (req, res) => {
+    try {
+      const id = Number(req.params.id)
+      if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'Invalid registration id' })
+      const reg = await database('registrations').where('id', id).first(
+        'id', 'membership_type', 'beitragskategorie', 'geburtsdatum', 'lizenz',
+        'fee_discount', 'fee_discount_pct', 'fee_discount_reason')
+      if (!reg) return res.status(404).json({ error: 'Registration not found' })
+
+      const denied = await assertRegistrationAdmin(req, reg.membership_type)
+      if (denied) return res.status(denied.status).json({ error: denied.error })
+
+      const licences = mapLicences(reg.lizenz, reg.membership_type)
+      const syntheticMember = {
+        birthdate: reg.geburtsdatum,
+        scorer_vb: licences.includes('scorer_vb'),
+        otr1_bb: licences.includes('otr1_bb'),
+        otr2_bb: licences.includes('otr2_bb'),
+        otn1_bb: licences.includes('otn1_bb'),
+        otn2_bb: licences.includes('otn2_bb'),
+        fee_discount: reg.fee_discount,
+        fee_discount_pct: reg.fee_discount_pct,
+      }
+      const bare = { ...syntheticMember, fee_discount: null, fee_discount_pct: null }
+      const derived = feeBreakdown(reg.beitragskategorie, bare, { isGuest: false })
+      const effective = feeBreakdown(reg.beitragskategorie, syntheticMember, { isGuest: false })
+
+      return res.json({
+        registration: id,
+        category: reg.beitragskategorie || null,
+        is_guest: false,
+        base_source: derived ? 'category_map' : null,
+        surcharge_amount: NO_LICENCE_SURCHARGE,
+        derived: derived && {
+          base: derived.base, surcharge: derived.surcharge,
+          guest_discount: derived.guest_discount, amount: derived.amount,
+        },
+        effective: effective && {
+          base: effective.base, surcharge: effective.surcharge,
+          guest_discount: effective.guest_discount, discount: effective.discount,
+          amount: effective.amount,
+        },
+      })
+    } catch (err) {
+      log.error({ msg: `registration/:id/fee: ${err.message}`, endpoint: 'registration/fee', stack: err.stack })
       return res.status(500).json({ error: 'Internal error' })
     }
   })
