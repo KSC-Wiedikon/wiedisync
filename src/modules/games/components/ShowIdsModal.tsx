@@ -11,8 +11,15 @@ import { useIdentityKeys } from '../../../hooks/useIdentityKeys'
 import { useAuth } from '../../../hooks/useAuth'
 import { formatDateZurich, formatTimeZurich, idWindowState } from '../../../utils/dateHelpers'
 
-/** The document is only DISPLAYED in this window. See the honesty note below. */
-const SHOW_BEFORE_MS = 45 * 60 * 1000
+/**
+ * The document is only DISPLAYED in this window. See the honesty note below.
+ * Widened to 5h for 2026-09-22 only (self-reverts at midnight Zurich time —
+ * must stay in sync with ID_SHOW_BEFORE_MS in dateHelpers.ts).
+ */
+const WIDE_ID_WINDOW_DATE = '2026-09-22'
+const isWideIdWindowDay = () =>
+  new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Zurich' }) === WIDE_ID_WINDOW_DATE
+const SHOW_BEFORE_MS = isWideIdWindowDay() ? 5 * 60 * 60 * 1000 : 45 * 60 * 1000
 
 interface SheetRow {
   member: number | null

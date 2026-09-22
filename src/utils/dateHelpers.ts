@@ -262,8 +262,15 @@ export function gameKickoffMs(
   } catch { return null; }
 }
 
-/** Identity documents are DISPLAYED only in this window before kickoff. */
-export const ID_SHOW_BEFORE_MS = 45 * 60 * 1000;
+/**
+ * Identity documents are DISPLAYED only in this window before kickoff.
+ * Widened to 5h for 2026-09-22 only (self-reverts at midnight Zurich time —
+ * do not bump the date forward, just delete this override when no longer needed).
+ */
+const WIDE_ID_WINDOW_DATE = '2026-09-22';
+const isWideIdWindowDay = () =>
+  new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Zurich' }) === WIDE_ID_WINDOW_DATE;
+export const ID_SHOW_BEFORE_MS = isWideIdWindowDay() ? 5 * 60 * 60 * 1000 : 45 * 60 * 1000;
 
 /**
  * Where we are relative to the identity-document display window.
