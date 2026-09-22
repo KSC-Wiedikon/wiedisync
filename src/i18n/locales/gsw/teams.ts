@@ -150,7 +150,6 @@ export default {
   generateQR: 'QR-Code generiere',
   inviteLinkExpiry: 'Link lauft in 7 Täg ab · Einmalig verwendbar',
   copyLink: 'Link kopiere',
-  addExternalUser: 'Externe Benutzer dezuetuä',
   shellAccount: 'Temporär',
   expiresIn: 'lauft in {{days}}T ab',
   extend: 'Verlängere',
@@ -158,21 +157,7 @@ export default {
   shellInfoWhat: 'Das Mitglid staht im Kader, het sis WiediSync-Login aber no nöd aktiviert. De Iitrag isch temporär und het es Ablaufdatum.',
   shellInfoExpiry: 'Wird s Konto nöd rächtziitig aktiviert, wird de Iitrag automatisch deaktiviert und verschwindet us em Kader.',
   shellInfoActionTitle: 'Was isch z tue',
-  shellInfoAction: 'Schick em Mitglid d WiediSync-Iiladig (Briefli-Symbol under «Kader bearbeite»), dass es es Passwort cha setze. Sobald es sich s erschte Mal iiloggt, verschwindet de Temporär-Status automatisch. Coaches chönd s Ablaufdatum au verlängere.',
-  // WiediSync account invite (account-less roster members)
-  sendAccountInvite: 'WiediSync-Yladig schicke',
-  accountInviteSent: 'Yladig an {{email}} gschickt',
-  accountInviteAlreadyClaimed: 'Die Person hät scho es Konto',
-  accountInviteNoEmail: 'Das Mitglied hät kei E-Mail-Adrässe',
-  accountInviteError: 'D Yladig hät nöd chönne gschickt werde',
-  // QR- und Aaleitigs-Modal noch em Erstelle vo ere Yladig
-  accountInviteQrTitle: '{{name}} yylade',
-  accountInviteStep1: 'Dää Code scanne oder de Link uufmache',
-  accountInviteStep2: 'Es Passwort wähle',
-  accountInviteStep3: 'Fertig — du bisch dinne',
-  accountInviteEmailedTo: 'Mir händ de Link au a {{email}} gschickt.',
-  accountInviteCopyLink: 'Link kopiere',
-  accountInviteCopied: 'Kopiert!',
+  shellInfoAction: 'Sag em Mitglid, es söll uf wiedisync.kscw.ch/signup gah und sini E-Mail iigäh, zum sälber es Passwort setze. Sobald es sich s erschte Mal iiloggt, verschwindet de Temporär-Status automatisch. Coaches chönd s Ablaufdatum au verlängere.',
 
   // Feature-Toggles
   featureToggles: 'Funktione',

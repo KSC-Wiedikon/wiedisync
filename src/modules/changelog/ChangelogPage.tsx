@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.14.1'
+const APP_VERSION = '2.14.2'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,18 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.14.2',
+    date: '22.09.2026',
+    sections: [
+      {
+        title: "Security and privacy hardening",
+        items: [
+          "Coaches can no longer bring a new person into WiediSync directly — registering yourself is now the only way in. Two ways for a coach to add someone to the club's system outside the normal sign-up form have been removed: sending someone a link that created a temporary roster spot for them, and pushing an account-activation link to a member who hadn't set one up yet. If you're on a roster but have never logged in, ask your coach and they'll point you to the sign-up page, where you enter your email and set your own password.",
+        ],
+      },
+    ],
+  },
   {
     version: '2.14.1',
     date: '21.09.2026',

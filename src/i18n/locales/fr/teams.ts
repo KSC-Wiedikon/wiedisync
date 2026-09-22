@@ -224,20 +224,6 @@ export default {
   staffRemoved: '{{name}} retiré(e)',
   removeStaffTitle: 'Retirer le rôle',
   removeStaffMessage: 'Retirer {{name}} ({{role}}) ?',
-  // WiediSync account invite (account-less roster members)
-  sendAccountInvite: 'Envoyer une invitation WiediSync',
-  accountInviteSent: 'Invitation envoyée à {{email}}',
-  accountInviteAlreadyClaimed: 'Cette personne a déjà un compte',
-  accountInviteNoEmail: 'Ce membre n\'a pas d\'adresse e-mail',
-  accountInviteError: 'Impossible d\'envoyer l\'invitation',
-  // Fenêtre QR + guide affichée après la création d'une invitation
-  accountInviteQrTitle: 'Inviter {{name}}',
-  accountInviteStep1: 'Scannez ce code ou ouvrez le lien',
-  accountInviteStep2: 'Choisissez un mot de passe',
-  accountInviteStep3: 'C\'est fait — vous êtes connecté',
-  accountInviteEmailedTo: 'Nous avons aussi envoyé le lien à {{email}}.',
-  accountInviteCopyLink: 'Copier le lien',
-  accountInviteCopied: 'Copié !',
 
   // ── Backfilled 2026-07-27 — fr/it catch-up (was rendering in English) ──
   inviteExternalUser: 'Ajouter un utilisateur externe',
@@ -248,7 +234,6 @@ export default {
   generateQR: 'Générer le code QR',
   inviteLinkExpiry: 'Le lien expire dans 7 jours · Usage unique',
   copyLink: 'Copier le lien',
-  addExternalUser: 'Ajouter un utilisateur externe',
   shellAccount: 'Temporaire',
   expiresIn: 'expire dans {{days}} j',
   extend: 'Prolonger',
@@ -256,7 +241,7 @@ export default {
   shellInfoWhat: "Ce membre figure dans l'effectif mais n'a pas encore activé son compte WiediSync. Son entrée est temporaire et a une date d'expiration.",
   shellInfoExpiry: "Si le compte n'est pas activé à temps, l'entrée est désactivée automatiquement et disparaît de l'effectif.",
   shellInfoActionTitle: 'Que faire',
-  shellInfoAction: "Envoyez-lui l'invitation WiediSync (icône enveloppe dans « Modifier l'effectif ») pour qu'il puisse définir un mot de passe. Dès sa première connexion, le statut temporaire disparaît automatiquement. Les coachs peuvent aussi prolonger la date d'expiration.",
+  shellInfoAction: "Dites-lui d'aller sur wiedisync.kscw.ch/signup et de saisir son e-mail pour définir lui-même un mot de passe. Dès sa première connexion, le statut temporaire disparaît automatiquement. Les coachs peuvent aussi prolonger la date d'expiration.",
   sponsorSaveError: 'Impossible d\'enregistrer le sponsor',
   sponsorDeleteError: 'Impossible de supprimer le sponsor',
   sponsorUpdateError: 'Impossible de mettre à jour le sponsor',

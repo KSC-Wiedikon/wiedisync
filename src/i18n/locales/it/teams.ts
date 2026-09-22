@@ -224,20 +224,6 @@ export default {
   staffRemoved: '{{name}} rimosso/a',
   removeStaffTitle: 'Rimuovi ruolo',
   removeStaffMessage: 'Rimuovere {{name}} ({{role}})?',
-  // WiediSync account invite (account-less roster members)
-  sendAccountInvite: 'Invia invito WiediSync',
-  accountInviteSent: 'Invito inviato a {{email}}',
-  accountInviteAlreadyClaimed: 'Questa persona ha già un account',
-  accountInviteNoEmail: 'Questo membro non ha un indirizzo e-mail',
-  accountInviteError: 'Impossibile inviare l\'invito',
-  // Finestra QR + guida mostrata dopo aver creato un invito
-  accountInviteQrTitle: 'Invita {{name}}',
-  accountInviteStep1: 'Scansiona questo codice o apri il link',
-  accountInviteStep2: 'Scegli una password',
-  accountInviteStep3: 'Fatto — sei dentro',
-  accountInviteEmailedTo: 'Abbiamo inviato il link anche a {{email}}.',
-  accountInviteCopyLink: 'Copia link',
-  accountInviteCopied: 'Copiato!',
 
   // ── Backfilled 2026-07-27 — fr/it catch-up (was rendering in English) ──
   inviteExternalUser: 'Aggiungi utente esterno',
@@ -248,7 +234,6 @@ export default {
   generateQR: 'Genera codice QR',
   inviteLinkExpiry: 'Il link scade tra 7 giorni · Valido una sola volta',
   copyLink: 'Copia link',
-  addExternalUser: 'Aggiungi utente esterno',
   shellAccount: 'Temporaneo',
   expiresIn: 'scade tra {{days}}g',
   extend: 'Prolunga',
@@ -256,7 +241,7 @@ export default {
   shellInfoWhat: "Questo membro è nel roster ma non ha ancora attivato il suo account WiediSync. La sua voce è temporanea e ha una data di scadenza.",
   shellInfoExpiry: "Se l'account non viene attivato in tempo, la voce viene disattivata automaticamente e scompare dal roster.",
   shellInfoActionTitle: 'Cosa fare',
-  shellInfoAction: "Inviagli l'invito WiediSync (icona busta in «Modifica roster») così può impostare una password. Al primo accesso lo stato temporaneo scompare automaticamente. Gli allenatori possono anche prolungare la data di scadenza.",
+  shellInfoAction: "Digli di andare su wiedisync.kscw.ch/signup e inserire la propria e-mail per impostare da solo una password. Al primo accesso lo stato temporaneo scompare automaticamente. Gli allenatori possono anche prolungare la data di scadenza.",
   sponsorSaveError: 'Impossibile salvare lo sponsor',
   sponsorDeleteError: 'Impossibile rimuovere lo sponsor',
   sponsorUpdateError: 'Impossibile aggiornare lo sponsor',

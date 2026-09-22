@@ -2089,7 +2089,6 @@ async function main() {
       ],
     },
   }
-  const INVITE_OF_TEAM_I_LEAD = TEAM_FK_I_LEAD
   /** A referee fee of a team I lead that the season-end run has NOT yet
    *  reimbursed (migration 363). Once `payout` is set the row is the basis of
    *  a finance_payouts record and is frozen for leaders; finance corrects it. */
@@ -2107,12 +2106,6 @@ async function main() {
       },
     },
   }
-  /** Everything except the bearer token. */
-  const TEAM_INVITE_LEADER_FIELDS = [
-    'id', 'guest_level', 'status', 'expires_at', 'team',
-    'invited_by', 'claimed_by', 'date_created', 'date_updated',
-  ]
-
   const JUNCTION_OF_TEAM_I_LEAD = {
     teams_id: {
       _or: [
@@ -2533,20 +2526,12 @@ async function main() {
   await setPerm(LEADER_POLICY, 'hall_slots', 'update', SLOT_OF_TEAM_I_LEAD)
   await setPerm(LEADER_POLICY, 'slot_claims', 'update', COACH_OF_SLOT_CLAIM)
 
-  // Team invites — read all + CRUD
-  // team_invites — the sharpest of the eight, because an invite is a bearer
-  // credential redeemed by an UNAUTHENTICATED endpoint. `POST /kscw/team-invites/claim`
-  // inserts `members` + `member_teams` in a raw-knex transaction, so it never
-  // reaches the `member_teams.items.create` guard whose own comment reads
-  // "Self-add to an unrelated team IS the escalation". An unfiltered create+read
-  // therefore let any coach mint an invite for ANY team and hand every live
-  // token in the club to themselves. Read is scoped AND field-scoped: `token` is
-  // withheld, because the create endpoint already returns it to its issuer and
-  // nothing else needs to read it back.
-  await setPermRead(LEADER_POLICY, 'team_invites', INVITE_OF_TEAM_I_LEAD, TEAM_INVITE_LEADER_FIELDS)
-  await setPerm(LEADER_POLICY, 'team_invites', 'create')
-  await setPerm(LEADER_POLICY, 'team_invites', 'update', INVITE_OF_TEAM_I_LEAD)
-  await setPerm(LEADER_POLICY, 'team_invites', 'delete', INVITE_OF_TEAM_I_LEAD)
+  // Team invites — REMOVED 2026-09-22. `POST /kscw/team-invites/create` +
+  // `/claim` were deleted (a coach could mint a bearer-token invite that an
+  // UNAUTHENTICATED endpoint redeemed into a brand-new `members` row —
+  // account entry outside /registration). Coach/TR gets zero access to this
+  // collection now; do not re-add create/update/delete here. See
+  // SECURITY.md 2026-09-22 and PERMISSIONS.md.
 
   // Scorer delegations — read all
   await setPermRead(LEADER_POLICY, 'scorer_delegations')

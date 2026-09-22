@@ -34,7 +34,7 @@ export const guideSections: GuideSectionDef[] = [
   // ── Basics ────────────────────────────────────────────────────────────
   { id: 'welcome', group: 'basics', icon: Hand, audience: 'everyone', canAccess: everyone, routes: [] },
   { id: 'install', group: 'basics', icon: Smartphone, audience: 'everyone', canAccess: everyone, routes: [] },
-  { id: 'account', group: 'basics', icon: KeyRound, audience: 'everyone', canAccess: everyone, routes: ['/login', '/signup', '/set-password', '/pending', '/join'] },
+  { id: 'account', group: 'basics', icon: KeyRound, audience: 'everyone', canAccess: everyone, routes: ['/login', '/signup', '/set-password', '/pending'] },
   { id: 'navigation', group: 'basics', icon: Compass, audience: 'everyone', canAccess: everyone, routes: [] },
   { id: 'home', group: 'basics', icon: Home, audience: 'everyone', canAccess: everyone, routes: ['/'], open: '/' },
   { id: 'notifications', group: 'basics', icon: Bell, audience: 'everyone', canAccess: everyone, routes: ['/news'], open: '/news' },
