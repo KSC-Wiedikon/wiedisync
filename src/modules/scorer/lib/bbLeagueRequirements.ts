@@ -11,7 +11,7 @@
 // Source PDF + a render of the table (it is an embedded image, so pdftotext
 // returns nothing) live in `.planning/specs/2026-09-22-*`.
 
-import type { Member } from '../../../types'
+import type { Member, LicenceType } from '../../../types'
 
 /** Minimum licence a single seat at the table requires. */
 export type SeatLicence = 'otr2' | 'otr1' | 'none'
@@ -39,6 +39,13 @@ export function licenceRank(m: Member): number {
   if (m.otr1_bb) return LICENCE_RANK.otr1
   return LICENCE_RANK.none
 }
+
+/** Licence flags that open an OTR1 seat (Anschreiber / Zeitnehmer): OTR1 or
+ *  anything above it. Basketplan records the highest licence only, so 32 active
+ *  OTR2 holders carry no `otr1_bb` flag — an `otr1_bb`-only check shut them out. */
+export const BB_OTR1_OR_HIGHER: LicenceType[] = ['otr1_bb', 'otr2_bb', 'otn1_bb', 'otn2_bb']
+/** Licence flags that open the 24" desk: OTR2 or either OTN level. */
+export const BB_OTR2_OR_HIGHER: LicenceType[] = ['otr2_bb', 'otn1_bb', 'otn2_bb']
 
 /** Rank a seat demands. */
 export function seatRank(seat: SeatLicence): number {

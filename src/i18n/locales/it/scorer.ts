@@ -154,6 +154,10 @@ export default {
   infoRequirementsTitle: 'Requisiti per le partite',
   infoRequirements: 'Le partite dalla 4a lega in giù necessitano solo di un segnapunti, senza licenza. È indicato come unico "Segnapunti/Tabellone" nei dettagli della partita.',
   infoRequirementsArrival: 'In questo caso, il segnapunti/tabellone deve essere in palestra almeno <strong>30 minuti</strong> prima dell\'inizio del gioco.',
+  infoArrivalBb: "Il segnapunti, il cronometrista e l'ufficiale 24\" devono essere in palestra almeno <strong>15 minuti</strong> prima dell'inizio del gioco.",
+  infoLicencesTitleBb: "Licenze",
+  infoLicencesBb: "Segnapunti e cronometrista richiedono OTR1 o superiore (OTR2, OTN). L'ufficiale 24\" richiede OTR2 o OTN. Puoi iscriverti solo a un posto coperto dalla tua licenza.",
+  infoHowToBb: "Apri la partita, scegli il tuo posto e conferma. Ogni membro di una squadra elencata in \"Squadre di servizio\" può prendere un posto coperto dalla sua licenza.",
   infoHowToTitle: 'Come funziona',
   infoHowTo: 'Clicca sulla partita, seleziona il tuo ruolo, selezionati nel menu a tendina e conferma. Se non ti trovi nel menu a tendina, contatta Luca o Thamy.',
 

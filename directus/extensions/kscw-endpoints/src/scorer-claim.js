@@ -25,6 +25,8 @@ import { gameStartMs } from './scorer-roster.js'
 
 // role → assignee column, duty-team column, confirmed-by pair, required licence
 // (any-of), and whether BB roles fall back to the shared bb_duty_team.
+// A higher licence always covers a lower seat (OTN > OTR2 > OTR1): Basketplan
+// records only the highest one, so an OTR2 holder often has no otr1_bb flag.
 // `lic` is evaluated any-of (`.some()`), so the 24s row lists both OTN levels
 // from migration 228: Basketplan distinguishes OTN 1 from OTN 2 and either one
 // opens the desk. (The coarse `otn_bb` flag that used to sit beside them was
@@ -35,8 +37,8 @@ const CLAIM_DEFS = {
   scoreboard:        { member: 'scoreboard_member',        duty: 'scoreboard_duty_team',        name: 'scoreboard_confirmed_by_name',        at: 'scoreboard_confirmed_at',        lic: [],                     bbFallback: false },
   scorer_scoreboard: { member: 'scorer_scoreboard_member', duty: 'scorer_scoreboard_duty_team', name: 'scorer_scoreboard_confirmed_by_name', at: 'scorer_scoreboard_confirmed_at', lic: [],                     bbFallback: false },
   referee:           { member: 'referee_member',           duty: 'referee_duty_team',           name: 'referee_confirmed_by_name',           at: 'referee_confirmed_at',           lic: [],                     bbFallback: false },
-  bb_scorer:         { member: 'bb_scorer_member',         duty: 'bb_scorer_duty_team',         name: 'bb_scorer_confirmed_by_name',         at: 'bb_scorer_confirmed_at',         lic: ['otr1_bb'],            bbFallback: true },
-  bb_timekeeper:     { member: 'bb_timekeeper_member',     duty: 'bb_timekeeper_duty_team',     name: 'bb_timekeeper_confirmed_by_name',     at: 'bb_timekeeper_confirmed_at',     lic: ['otr1_bb'],            bbFallback: true },
+  bb_scorer:         { member: 'bb_scorer_member',         duty: 'bb_scorer_duty_team',         name: 'bb_scorer_confirmed_by_name',         at: 'bb_scorer_confirmed_at',         lic: ['otr1_bb', 'otr2_bb', 'otn1_bb', 'otn2_bb'], bbFallback: true },
+  bb_timekeeper:     { member: 'bb_timekeeper_member',     duty: 'bb_timekeeper_duty_team',     name: 'bb_timekeeper_confirmed_by_name',     at: 'bb_timekeeper_confirmed_at',     lic: ['otr1_bb', 'otr2_bb', 'otn1_bb', 'otn2_bb'], bbFallback: true },
   bb_24s_official:   { member: 'bb_24s_official',          duty: 'bb_24s_duty_team',            name: 'bb_24s_confirmed_by_name',            at: 'bb_24s_confirmed_at',            lic: ['otr2_bb', 'otn1_bb', 'otn2_bb'], bbFallback: true },
 }
 

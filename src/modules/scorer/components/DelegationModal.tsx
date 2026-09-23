@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Search, ArrowRight, X } from 'lucide-react'
 import type { Member, Team, MemberTeam, LicenceType, ScorerDelegation } from '../../../types'
 import { memberDisplayName, memberFirstName } from '../../../utils/relations'
+import { BB_OTR1_OR_HIGHER, BB_OTR2_OR_HIGHER } from '../lib/bbLeagueRequirements'
 
 interface DelegationModalProps {
   role: ScorerDelegation['role']
@@ -39,10 +40,10 @@ interface DelegationModalProps {
  */
 const ROLE_LICENCE_MAP: Record<string, LicenceType | LicenceType[]> = {
   scorer: 'scorer_vb',
-  bb_scorer: 'otr1_bb',
-  bb_timekeeper: 'otr1_bb',
-  // The 24s desk needs OTR2 or either OTN level.
-  bb_24s_official: ['otr2_bb', 'otn1_bb', 'otn2_bb'],
+  // A higher licence always covers a lower seat (OTN > OTR2 > OTR1).
+  bb_scorer: BB_OTR1_OR_HIGHER,
+  bb_timekeeper: BB_OTR1_OR_HIGHER,
+  bb_24s_official: BB_OTR2_OR_HIGHER,
 }
 
 /**

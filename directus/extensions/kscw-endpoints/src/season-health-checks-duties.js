@@ -459,7 +459,7 @@ export const CHECKS = [
     key: 'duty_late_reports',
     section: 'duties', sport: 'both', severity: 'info', grain: 'game',
     title: 'Late / no-show duty reports this season and their auto-fines',
-    description: 'Every duty-late alarm raised this season (games.duty_late_json) with the no_show fine it should have produced. The name is whoever holds the role NOW (the alarm stores no member id), so a missing fine means the official had no active team to book it against or the role was re-assigned after the alarm; the same name with repeat_count 2 or more is a reliability problem. leader_alerts counts the emergency "contact team leaders" presses on that game.',
+    description: 'Every duty-late alarm raised this season (games.duty_late_json) with the no_show fine it should have produced (volleyball only — basketball duties carry no fine). The name is whoever holds the role NOW (the alarm stores no member id), so a missing fine means the official had no active team to book it against or the role was re-assigned after the alarm; the same name with repeat_count 2 or more is a reliability problem. leader_alerts counts the emergency "contact team leaders" presses on that game.',
     sql: `WITH late AS (
     SELECT g.id, g.date, g.time, g.type, g.home_team, g.away_team, g.league, ${TEAM_SPORT} AS sport,
            l.key AS role,
@@ -481,7 +481,7 @@ export const CHECKS = [
   SELECT x.id AS game_id, x.date::text AS date, to_char(x.time, 'HH24:MI') AS time, x.type AS home_away,
          x.home_team, x.away_team, x.sport, x.role, x.reported_at, x.reported_by,
          m.id AS member_id, m.first_name, m.last_name,
-         CASE WHEN f.id IS NULL THEN 'missing' ELSE concat_ws(' ', f.amount::text, f.status) END AS fine, x.leader_alerts,
+         CASE WHEN x.role LIKE 'bb\\_%' THEN 'n/a (basketball)' WHEN f.id IS NULL THEN 'missing' ELSE concat_ws(' ', f.amount::text, f.status) END AS fine, x.leader_alerts,
          (SELECT count(*) FROM late y WHERE y.official = x.official AND x.official IS NOT NULL)::int AS repeat_count
   FROM late x
   LEFT JOIN members m ON m.id = x.official
