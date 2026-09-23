@@ -66,19 +66,29 @@ export function registerScorerClaim(router, ctx) {
         return res.status(403).json({ error: 'Missing licence for this role' })
       }
 
-      const dutyTeam = game[def.duty] != null ? game[def.duty] : (def.bbFallback ? game.bb_duty_team : null)
-      if (dutyTeam == null) return res.status(409).json({ error: 'No duty team assigned for this role' })
+      // Basketball: the seat's own (legacy) team ∪ every game duty team —
+      // bb_duty_team plus bb_extra_duty_teams (migration 371). Twin of
+      // bbSeatDutyTeamIds() in src/modules/scorer/lib/bbDutyTeams.ts.
+      const dutyTeams = def.bbFallback
+        ? [...new Set([game[def.duty], game.bb_duty_team, ...(Array.isArray(game.bb_extra_duty_teams) ? game.bb_extra_duty_teams : [])]
+          .filter((x) => x != null).map(Number))]
+        : (game[def.duty] != null ? [Number(game[def.duty])] : [])
+      if (!dutyTeams.length) return res.status(409).json({ error: 'No duty team assigned for this role' })
       // `teamPeopleSql`, not a bare `member_teams` join — coaches and team
       // responsibles have no roster row, so the bare join denied a staff-only
       // coach their OWN team's duty (the frontend claim button was equally
       // blind; both now union the staff junctions).
       // ⚠ teamPeopleSql interpolates its team expression TWICE (roster branch +
       // staff branch) — hence the duplicated binding.
-      const { rows: inTeam } = await database.raw(
-        `SELECT 1 FROM ${teamPeopleSql('?')} p WHERE p.member = ? LIMIT 1`,
-        [dutyTeam, dutyTeam, member.id],
-      )
-      if (!inTeam.length) return res.status(403).json({ error: 'You are not in the duty team for this role' })
+      let inTeam = false
+      for (const dutyTeam of dutyTeams) {
+        const { rows } = await database.raw(
+          `SELECT 1 FROM ${teamPeopleSql('?')} p WHERE p.member = ? LIMIT 1`,
+          [dutyTeam, dutyTeam, member.id],
+        )
+        if (rows.length) { inTeam = true; break }
+      }
+      if (!inTeam) return res.status(403).json({ error: 'You are not in the duty team for this role' })
 
       const now = new Date().toISOString()
       const fullName = [member.first_name, member.last_name].filter(Boolean).join(' ').trim() || null

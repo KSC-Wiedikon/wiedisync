@@ -10,6 +10,7 @@
 import type { Game } from '../../../types'
 import { resolveBbRequirement } from './bbLeagueRequirements'
 import { relId } from '../../../utils/relations'
+import { bbGameDutyTeamIds } from './bbDutyTeams'
 // Deliberately the ALGORITHM's isCupGame, not the looser one in
 // utils/leagueClassification: a game the planner renders as an on-call slot and
 // a game the overview renders as one must be the same set, always.
@@ -59,15 +60,17 @@ export function buildDutySpots(
   memberNameById: Map<string, string>,
 ): DutySpot[] {
   const out: DutySpot[] = []
-  const add = (game: Game, role: DutyRole, teamVal: unknown, memberVal: unknown) => {
+  const add = (game: Game, role: DutyRole, teamVal: unknown, memberVal: unknown, sharedTeamIds: string[] = []) => {
     const teamId = relId(teamVal)
     const memberId = relId(memberVal)
     if (!teamId && !memberId) return // this game has no such duty
+    // A shared basketball duty (migration 371) names every team on it.
+    const teamIds = [...new Set([teamId, ...sharedTeamIds].filter(Boolean))]
     out.push({
       game,
       role,
       teamId,
-      teamName: teamId ? (teamNameById.get(teamId) ?? '?') : '',
+      teamName: teamIds.map((id) => teamNameById.get(id) ?? '?').join(' / '),
       memberId,
       memberName: memberId ? (memberNameById.get(memberId) ?? null) : null,
       onCall: false,
@@ -94,8 +97,11 @@ export function buildDutySpots(
     } else {
       // One duty team supplies the whole crew unless a per-role team overrides it.
       const shared = relId(game.bb_duty_team)
-      add(game, 'bb_scorer', relId(game.bb_scorer_duty_team) || shared, game.bb_scorer_member)
-      add(game, 'bb_timekeeper', relId(game.bb_timekeeper_duty_team) || shared, game.bb_timekeeper_member)
+      // Teams sharing the game's duty (migration 371); a seat with its own
+      // legacy team keeps naming just that team.
+      const gameTeams = bbGameDutyTeamIds(game)
+      add(game, 'bb_scorer', relId(game.bb_scorer_duty_team) || shared, game.bb_scorer_member, relId(game.bb_scorer_duty_team) ? [] : gameTeams)
+      add(game, 'bb_timekeeper', relId(game.bb_timekeeper_duty_team) || shared, game.bb_timekeeper_member, relId(game.bb_timekeeper_duty_team) ? [] : gameTeams)
       // The 24s desk opens automatically where ProBasket Tabelle I demands a
       // third official (D1/H1/H2, interregional youth) — roll-out writes only
       // `bb_duty_team`, so without this the seat never appears and the game can
@@ -105,7 +111,7 @@ export function buildDutySpots(
       const own24s = relId(game.bb_24s_duty_team)
       const requiresThirdSeat = resolveBbRequirement(game.league).seats.length >= 3
       const has24s = requiresThirdSeat || !!own24s || !!relId(game.bb_24s_official)
-      if (has24s) add(game, 'bb_24s_official', own24s || shared, game.bb_24s_official)
+      if (has24s) add(game, 'bb_24s_official', own24s || shared, game.bb_24s_official, own24s ? [] : gameTeams)
     }
   }
 

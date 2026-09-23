@@ -112,6 +112,11 @@ export function registerScorerContacts(router, { database, logger }) {
         .where('type', 'home')
         .where((qb) => {
           for (const col of ALL_DUTY_COLS) qb.orWhereIn(col, ledTeamIds)
+          // Teams sharing a basketball game's duty (migration 371).
+          qb.orWhereRaw(
+            'EXISTS (SELECT 1 FROM json_array_elements_text(bb_extra_duty_teams) x WHERE x::int = ANY(?::int[]))',
+            [ledTeamIds.map(Number)],
+          )
         })
         .select('*')
 
@@ -130,8 +135,11 @@ export function registerScorerContacts(router, { database, logger }) {
           if (g[r.member] && ledSet.has(Number(g[r.duty]))) officialIds.add(g[r.member])
         }
         for (const r of BB_ROLES) {
-          const duty = g[r.duty] ?? g.bb_duty_team
-          if (g[r.member] && ledSet.has(Number(duty))) officialIds.add(g[r.member])
+          // The seat's own team ∪ every game duty team (migration 371) — twin
+          // of bbSeatDutyTeamIds() in src/modules/scorer/lib/bbDutyTeams.ts.
+          const extra = Array.isArray(g.bb_extra_duty_teams) ? g.bb_extra_duty_teams : []
+          const duties = [g[r.duty], g.bb_duty_team, ...extra]
+          if (g[r.member] && duties.some((d) => d != null && ledSet.has(Number(d)))) officialIds.add(g[r.member])
         }
       }
 

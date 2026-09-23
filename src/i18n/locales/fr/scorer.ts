@@ -19,6 +19,7 @@ export default {
   bbScorer: 'Marqueur (OTR1)',
   bbTimekeeper: 'Chronometreur (OTR1)',
   bb24sOfficial: 'Officiel 24" (OTR2)',
+  bbDutyTeams: 'Équipes de service',
   bbDutyTeam: 'Equipe d\'officiels',
 
   // Sport toggle

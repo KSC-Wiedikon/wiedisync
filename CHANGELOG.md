@@ -2,6 +2,12 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.17.0 — 2026-09-23
+
+### New
+
+- **Basketball: several teams can share one game's table duty.** *Scorer duties → a basketball game → Duty teams.* Basketball staffs the table per game, so each game now has one team picker instead of a team per seat, and it takes more than one team: any licensed member of any listed team can take any seat.
+
 ## v2.16.0 — 2026-09-23
 
 ### New

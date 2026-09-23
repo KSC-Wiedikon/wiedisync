@@ -33,6 +33,7 @@ import { Bell, BellOff, ChevronDown, ChevronUp, Filter, Info, Clock, AlertTriang
 import { GuideHelpButton } from '../guide/GuideHelpButton'
 import { updateRecord } from '../../lib/api'
 import { useReportPageLoading } from '../../hooks/usePageReady'
+import { bbAllDutyTeamIds } from './lib/bbDutyTeams'
 
 type Tab = 'games' | 'overview'
 type SportTab = 'volleyball' | 'basketball'
@@ -303,7 +304,7 @@ export default function ScorerPage() {
       : [g.bb_scorer_member, g.bb_timekeeper_member, g.bb_24s_official].includes(String(user.id))
     const teamHasDuty = sportTab === 'volleyball'
       ? myDutyTeamIds.some((tid) => tid === g.scorer_duty_team || tid === g.scoreboard_duty_team || tid === g.scorer_scoreboard_duty_team || tid === g.referee_duty_team)
-      : myDutyTeamIds.some((tid) => tid === (g.bb_scorer_duty_team || g.bb_duty_team) || tid === (g.bb_timekeeper_duty_team || g.bb_duty_team) || tid === (g.bb_24s_duty_team || g.bb_duty_team))
+      : bbAllDutyTeamIds(g).some((tid) => myDutyTeamIds.includes(tid))
     return isPersonallyAssigned || teamHasDuty
   }, [sportTab, effectiveIsAdmin, effectiveIsVorstand, user, myDutyTeamIds])
 
@@ -377,10 +378,7 @@ export default function ScorerPage() {
             g.referee_duty_team === dutyTeamFilter
           if (!matchesTeam) return false
         } else {
-          const matchesTeam =
-            (g.bb_scorer_duty_team || g.bb_duty_team) === dutyTeamFilter ||
-            (g.bb_timekeeper_duty_team || g.bb_duty_team) === dutyTeamFilter ||
-            (g.bb_24s_duty_team || g.bb_duty_team) === dutyTeamFilter
+          const matchesTeam = bbAllDutyTeamIds(g).includes(dutyTeamFilter)
           if (!matchesTeam) return false
         }
       }
@@ -479,7 +477,7 @@ export default function ScorerPage() {
         : [g.bb_scorer_member, g.bb_timekeeper_member, g.bb_24s_official].includes(String(user.id))
       const teamHasDuty = sportTab === 'volleyball'
         ? myDutyTeamIds.some((tid) => tid === g.scorer_duty_team || tid === g.scoreboard_duty_team || tid === g.scorer_scoreboard_duty_team || tid === g.referee_duty_team)
-        : myDutyTeamIds.some((tid) => tid === (g.bb_scorer_duty_team || g.bb_duty_team) || tid === (g.bb_timekeeper_duty_team || g.bb_duty_team) || tid === (g.bb_24s_duty_team || g.bb_duty_team))
+        : bbAllDutyTeamIds(g).some((tid) => myDutyTeamIds.includes(tid))
       if (!isPersonallyAssigned && !teamHasDuty) return false
     }
     return true

@@ -19,6 +19,7 @@ export default {
   bbScorer: 'Scorer (OTR1)',
   bbTimekeeper: 'Timekeeper (OTR1)',
   bb24sOfficial: '24" official (OTR2)',
+  bbDutyTeams: 'Duty teams',
   bbDutyTeam: 'Officials team',
 
   // Sport toggle
