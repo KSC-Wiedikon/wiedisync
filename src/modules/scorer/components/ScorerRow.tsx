@@ -17,7 +17,7 @@ import { useNow } from '../../../hooks/useNow'
 import RosterModal from './RosterModal'
 import { TeamPickerMulti } from '@/components/ui/TeamPicker'
 import { bbGameDutyTeamIds, bbSeatDutyTeamIds, bbDutyTeamsPayload } from '../lib/bbDutyTeams'
-import { BB_OTR1_OR_HIGHER, BB_OTR2_OR_HIGHER } from '../lib/bbLeagueRequirements'
+import { BB_OTR1_OR_HIGHER, BB_OTR2_OR_HIGHER, resolveBbRequirement } from '../lib/bbLeagueRequirements'
 
 interface ScorerRowProps {
   game: Game
@@ -171,8 +171,13 @@ export default function ScorerRow({
   const [confirmRole, setConfirmRole] = useState<AssignRole | null>(null)
   // Delegation modal state
   const [delegateRole, setDelegateRole] = useState<AssignRole | null>(null)
-  // 24s official toggle — auto-open if already assigned
-  const [show24s, setShow24s] = useState(!!game.bb_24s_official)
+  // 24s official toggle — auto-open if already assigned. Where ProBasket
+  // Tabelle I makes the third seat mandatory (D1/H1/H2, interregional youth) it
+  // is always open: behind a "+ 24s" button nobody opened it and the seat stayed
+  // empty. Mirrors `requiresThirdSeat` in lib/dutySpots.ts.
+  const requires24s = resolveBbRequirement(game.league).seats.length >= 3
+  const [show24sToggle, setShow24s] = useState(!!game.bb_24s_official)
+  const show24s = requires24s || show24sToggle
   // Home-team roster modal (Schreiber only, ±1h around kickoff)
   const [showRoster, setShowRoster] = useState(false)
 
@@ -541,7 +546,7 @@ export default function ScorerRow({
                 confirmedByName={game.bb_24s_confirmed_by_name}
                 confirmedAt={game.bb_24s_confirmed_at}
                 showConfirmedBy={isAdmin}
-                onHide={!game.bb_24s_official ? () => setShow24s(false) : undefined}
+                onHide={!game.bb_24s_official && !requires24s ? () => setShow24s(false) : undefined}
               />
             ) : (
               <button
