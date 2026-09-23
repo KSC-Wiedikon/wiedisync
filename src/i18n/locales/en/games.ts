@@ -224,7 +224,7 @@ export default {
   pregameNotOnList: 'Not on the Einsatzliste',
   pregameNotEligible: 'Volleymanager flags this player as not eligible.',
   pregameEdit: 'Edit',
-  pregameDone: 'Done',
+  pregameCancel: 'Cancel',
   pregameSave: 'Save',
   pregameReset: 'Reset to the Einsatzliste',
   pregameRoleCoach: 'Coach',

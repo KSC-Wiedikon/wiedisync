@@ -223,7 +223,7 @@ export default {
   pregameNotOnList: 'Nicht auf der Einsatzliste',
   pregameNotEligible: 'Volleymanager meldet diese Person als nicht spielberechtigt.',
   pregameEdit: 'Bearbeiten',
-  pregameDone: 'Fertig',
+  pregameCancel: 'Abbrechen',
   pregameSave: 'Speichern',
   pregameReset: 'Auf die Einsatzliste zurücksetzen',
   pregameRoleCoach: 'Trainer/in',

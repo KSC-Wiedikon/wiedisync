@@ -220,7 +220,7 @@ export default {
   pregameNotOnList: 'Non sull\'Einsatzliste',
   pregameNotEligible: 'Volleymanager segnala questo giocatore come non qualificato.',
   pregameEdit: 'Modifica',
-  pregameDone: 'Fatto',
+  pregameCancel: 'Annulla',
   pregameSave: 'Salva',
   pregameReset: 'Ripristina l\'Einsatzliste',
   pregameRoleCoach: 'Allenatore',
