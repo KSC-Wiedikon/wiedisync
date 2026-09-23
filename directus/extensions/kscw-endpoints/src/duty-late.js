@@ -41,9 +41,9 @@ export const ROLE_DEFS = {
   scoreboard:        { member: 'scoreboard_member',        duty: 'scoreboard_duty_team',        arrival: 15, sport: 'volleyball', label: 'Täfeler' },
   scorer_scoreboard: { member: 'scorer_scoreboard_member', duty: 'scorer_scoreboard_duty_team', arrival: 30, sport: 'volleyball', label: 'Schreiber/Täfeler' },
   referee:           { member: 'referee_member',           duty: 'referee_duty_team',           arrival: 30, sport: 'volleyball', label: 'Schiedsrichter' },
-  bb_scorer:         { member: 'bb_scorer_member',         duty: 'bb_scorer_duty_team',         arrival: 15, sport: 'basketball', label: 'Scorer' },
-  bb_timekeeper:     { member: 'bb_timekeeper_member',     duty: 'bb_timekeeper_duty_team',     arrival: 15, sport: 'basketball', label: 'Zeitnehmer' },
-  bb_24s_official:   { member: 'bb_24s_official',          duty: 'bb_24s_duty_team',            arrival: 15, sport: 'basketball', label: '24s-Bediener' },
+  bb_scorer:         { member: 'bb_scorer_member',         duty: 'bb_scorer_duty_team',         arrival: 20, sport: 'basketball', label: 'Anschreiber' },
+  bb_timekeeper:     { member: 'bb_timekeeper_member',     duty: 'bb_timekeeper_duty_team',     arrival: 20, sport: 'basketball', label: 'Zeitnehmer' },
+  bb_24s_official:   { member: 'bb_24s_official',          duty: 'bb_24s_duty_team',            arrival: 20, sport: 'basketball', label: '24s' },
 }
 
 // Alarm + contact stay available for this long AFTER kickoff (a missing official
