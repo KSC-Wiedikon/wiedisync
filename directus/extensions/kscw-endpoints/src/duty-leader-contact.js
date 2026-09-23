@@ -7,7 +7,8 @@
  *   - reveals the PLAYING team's Coach + Team-Responsible phone/email to them
  *     (always — hide_phone/hide_email are IGNORED in this emergency window, a
  *     deliberate reachability override for the narrow assigned-official audience),
- *   - emails the club admin + the sport's TK ONCE (idempotent per official),
+ *   - emails the club admin + the sport's TK ONCE (idempotent per official) —
+ *     basketball: the BB admins only,
  *   - records the press on games.duty_leader_alert_json (migration 203).
  *
  * GET returns the revealed leaders (only once the official has alerted) +
@@ -119,8 +120,12 @@ export function registerDutyLeaderContact(router, ctx) {
       ? await database('teams').where('id', game.kscw_team).first('name', 'sport')
       : null
     const sport = teamRow?.sport === 'basketball' ? 'basketball' : 'volleyball'
-    const tk = await sportTkEmails(database, sport)
-    const cc = [...new Set(tk.filter(Boolean))].filter((e) => e !== DUTY_ADMIN_EMAIL)
+    const tk = [...new Set((await sportTkEmails(database, sport)).filter(Boolean))]
+    // Basketball emergencies go to the BB admins only, not the club-admin inbox
+    // (23.09.2026) — that inbox stays the fallback if no BB admin has a login.
+    const bbOnly = sport === 'basketball' && tk.length > 0
+    const to = bbOnly ? tk : [DUTY_ADMIN_EMAIL]
+    const cc = bbOnly ? [] : tk.filter((e) => e !== DUTY_ADMIN_EMAIL)
 
     const matchup = `${game.home_team || ''} vs ${game.away_team || ''}`.trim()
     const kickoff = `${dateYMD(game.date)} ${String(game.time || '').slice(0, 5)}`.trim()
@@ -150,7 +155,7 @@ export function registerDutyLeaderContact(router, ctx) {
       + `\n\n${FRONTEND_URL}/games`
 
     await mail.send({
-      to: DUTY_ADMIN_EMAIL,
+      to,
       ...(cc.length ? { cc } : {}),
       subject: `🚨 Notfall · Duty emergency: ${matchup || 'Spiel'}`,
       html,

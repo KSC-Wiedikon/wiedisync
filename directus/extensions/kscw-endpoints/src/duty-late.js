@@ -118,7 +118,10 @@ async function sendLateEmails(database, MailService, getSchema, { game, def, off
   const mail = new MailService({ schema, knex: database })
 
   const tk = await sportTkEmails(database, def.sport)
-  const cc = [...new Set([...tk, DUTY_LATE_ADMIN_EMAIL].filter(Boolean))]
+  // Basketball: the BB admins only — the club-admin inbox is cc'd on
+  // volleyball alarms, and on basketball only if no BB admin has a login.
+  const adminCc = def.sport === 'basketball' && tk.length ? [] : [DUTY_LATE_ADMIN_EMAIL]
+  const cc = [...new Set([...tk, ...adminCc].filter(Boolean))]
     // Don't cc the official on their own alarm if they happen to be a TK.
     .filter((e) => e !== String(official.email || '').toLowerCase())
 
