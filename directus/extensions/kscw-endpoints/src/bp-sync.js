@@ -17,9 +17,25 @@ function normalizeSeason(s) {
   return m ? `${m[1]}/${m[2].slice(2)}` : s
 }
 
+// Basketplan venue → our halls. First entry is `games.hall`, the rest go to
+// `additional_halls`: the 2fach venue is the whole double hall (KWI A+B), the
+// 1fach venue one half of it. Basketball never plays in KWI C.
 const HALL_MAP = {
-  'Kantonsschule Wiedikon 2fach': 'KWI A',
-  'Kantonsschule Wiedikon 1fach': 'KWI C',
+  'Kantonsschule Wiedikon 2fach': ['KWI A', 'KWI B'],
+  'Kantonsschule Wiedikon 1fach': ['KWI B'],
+}
+
+/**
+ * Resolve a home venue to `{ hall, additionalHalls }` ids, or null when the
+ * venue is not ours. additionalHalls holds id STRINGS (the json shape the app
+ * writes and allGameHallIds reads). Exported for tests.
+ */
+export function resolveHomeHalls(location, hallByName) {
+  const names = HALL_MAP[location]
+  if (!names) return null
+  const ids = names.map(n => hallByName[n]).filter(id => id != null)
+  if (ids.length !== names.length) return null
+  return { hall: ids[0], additionalHalls: ids.slice(1).map(String) }
 }
 
 const STATUS_MAP = {
@@ -176,7 +192,7 @@ function parseRankings(rankingXml) {
 // Exported for tests.
 export function cmpVal(f, v) {
   if (v == null) return ''
-  if (f === 'sets_json' || f === 'referees_json' || f === 'away_hall_json') {
+  if (f === 'sets_json' || f === 'referees_json' || f === 'away_hall_json' || f === 'additional_halls') {
     return typeof v === 'string' ? v : JSON.stringify(v)
   }
   if (f === 'date') {
@@ -207,6 +223,7 @@ export function applyLocalGuards(data, existing) {
   // run. Same for the away venue json. The feed still wins whenever it
   // resolves a value.
   if (data.hall === undefined) data.hall = existing.hall
+  if (data.additional_halls === undefined) data.additional_halls = existing.additional_halls
   if (data.away_hall_json === undefined) data.away_hall_json = existing.away_hall_json
 }
 
@@ -493,7 +510,7 @@ export async function syncBpGames(db, log, { sweepManual = 'on' } = {}) {
   // Batch-fetch all existing BB games into a Map (1 query instead of N)
   const existingRows = await db('games').where('source', 'basketplan')
     .select('id', 'game_id', 'date', 'time', 'status', 'home_score', 'away_score',
-      'home_team', 'away_team', 'hall', 'away_hall_json', 'league',
+      'home_team', 'away_team', 'hall', 'additional_halls', 'away_hall_json', 'league',
       'referees_json', 'respond_by', 'kscw_team')
   // Keyed by game_id → ALL its rows, not one row per id. A fixture where both
   // sides are ours keeps TWO rows (one per KSCW team), which is what migration
@@ -511,7 +528,7 @@ export async function syncBpGames(db, log, { sweepManual = 'on' } = {}) {
 
   const COMPARE_FIELDS = [
     'date', 'time', 'status', 'home_score', 'away_score',
-    'home_team', 'away_team', 'hall', 'away_hall_json', 'league',
+    'home_team', 'away_team', 'hall', 'additional_halls', 'away_hall_json', 'league',
     // kscw_team: re-point an unchanged fixture to the active team after a season
     // rollover (lookup is active-only) instead of leaving it on the archived team.
     'kscw_team',
@@ -524,10 +541,10 @@ export async function syncBpGames(db, log, { sweepManual = 'on' } = {}) {
     if (!g.date?.trim()) { log.warn(`[BP Sync] Game ${gameId}: missing date, skipping`); errors++; continue }
     const awayTeam = (!g.guestTeam?.trim() || g.guestTeam.trim() === '?') ? 'Opponent TBD' : g.guestTeam
 
-    let hallId = null, awayHallJson = null
+    let hallId = null, awayHallJson = null, additionalHalls = null
     if (g.isHome && g.location) {
-      const mapped = HALL_MAP[g.location]
-      if (mapped) hallId = hallByName[mapped] || null
+      const resolved = resolveHomeHalls(g.location, hallByName)
+      if (resolved) { hallId = resolved.hall; additionalHalls = resolved.additionalHalls }
     }
     if (!g.isHome && g.location) {
       awayHallJson = { name: g.location, address: g.locationAddress, city: g.locationCity }
@@ -562,7 +579,10 @@ export async function syncBpGames(db, log, { sweepManual = 'on' } = {}) {
       league: g.league, season: normalizeSeason(g.season),
       referees_json: '[]',
     }
-    if (hallId) data.hall = hallId
+    if (hallId) {
+      data.hall = hallId
+      data.additional_halls = JSON.stringify(additionalHalls ?? [])
+    }
     if (awayHallJson) data.away_hall_json = JSON.stringify(awayHallJson)
 
     try {

@@ -18,12 +18,12 @@
  * Hermetic — pure functions, no DB or network.
  */
 import { describe, it, expect } from 'vitest'
-import { applyLocalGuards, cmpVal, buildGameIntents, planManualSweep } from '../bp-sync.js'
+import { applyLocalGuards, cmpVal, buildGameIntents, planManualSweep, resolveHomeHalls } from '../bp-sync.js'
 
 // bp-sync's COMPARE_FIELDS (module-internal; mirrored here as the contract).
 const COMPARE_FIELDS = [
   'date', 'time', 'status', 'home_score', 'away_score',
-  'home_team', 'away_team', 'hall', 'away_hall_json', 'league',
+  'home_team', 'away_team', 'hall', 'additional_halls', 'away_hall_json', 'league',
   'kscw_team',
 ]
 
@@ -333,5 +333,30 @@ describe('planManualSweep — retiring superseded placeholders', () => {
     // Today's real state: 59 placeholders, zero Basketplan fixtures.
     const out = planManualSweep([], [man(578, 75, '2026-10-03'), man(628, 72, '2026-09-19')])
     expect(out.deleteIds).toEqual([])
+  })
+})
+
+describe('resolveHomeHalls — Basketplan venue → KWI halls', () => {
+  const hallByName = { 'KWI A': 1, 'KWI B': 2, 'KWI C': 3 }
+
+  it('2fach is the whole double hall: KWI A + additional KWI B', () => {
+    expect(resolveHomeHalls('Kantonsschule Wiedikon 2fach', hallByName))
+      .toEqual({ hall: 1, additionalHalls: ['2'] })
+  })
+
+  it('1fach is KWI B alone — never KWI C', () => {
+    expect(resolveHomeHalls('Kantonsschule Wiedikon 1fach', hallByName))
+      .toEqual({ hall: 2, additionalHalls: [] })
+  })
+
+  it('an unknown venue resolves to null (hand-set hall is kept)', () => {
+    expect(resolveHomeHalls('Sporthalle Looren 3fach', hallByName)).toBeNull()
+  })
+
+  it('an A+B row written by the sync compares unchanged on the next run', () => {
+    const existing = { ...pgHomeRow(), hall: 1, additional_halls: ['2'] }
+    const data = { ...feedHomeData(), hall: 1, additional_halls: JSON.stringify(['2']) }
+    applyLocalGuards(data, existing)
+    expect(isChanged(data, existing)).toBe(false)
   })
 })
