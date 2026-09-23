@@ -587,8 +587,8 @@ export default function PreGameRosterModal({ gameId, onClose }: PreGameRosterMod
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-24">{t('pregameColDob')}</TableHead>
+                    <TableHead className={editing ? 'text-center' : 'w-14 text-center'}>{t('pregameColRole')}</TableHead>
                     <TableHead>{t('pregameColName')}</TableHead>
-                    <TableHead className="text-right">{t('pregameColRole')}</TableHead>
                     {editing && <TableHead className="w-14" />}
                   </TableRow>
                 </TableHeader>
@@ -598,14 +598,15 @@ export default function PreGameRosterModal({ gameId, onClose }: PreGameRosterMod
                       <TableCell className="min-h-[44px] whitespace-normal tabular-nums text-xs text-muted-foreground">
                         {c.birthdate ? formatDateZurich(c.birthdate) : '—'}
                       </TableCell>
-                      <TableCell className="whitespace-normal break-words font-medium">{nameOf(c)}</TableCell>
-                      <TableCell className="text-right text-xs text-muted-foreground">
+                      {/* The scoresheet letters (C / AC1 / AC2 / P / M), in the slot the
+                          jersey number takes for a player. */}
+                      <TableCell className="text-center">
                         {editing ? (
                           <select
                             aria-label={t('pregameColRole')}
                             value={c.role ?? ''}
                             onChange={(e) => setOfficialRole(c.ref, (e.target.value || null) as OfficialRole | null)}
-                            className="h-11 rounded-md border bg-background px-2 text-sm text-foreground dark:bg-gray-800"
+                            className="h-11 rounded-md border bg-background px-2 text-sm font-bold text-foreground dark:bg-gray-800"
                           >
                             <option value="">{t('pregameRoleUnassigned')}</option>
                             {OFFICIAL_ROLES.map((r) => (
@@ -613,11 +614,15 @@ export default function PreGameRosterModal({ gameId, onClose }: PreGameRosterMod
                             ))}
                           </select>
                         ) : (
-                          <span title={officialLabel(c.role)}>
-                            {c.role ? `${roleCode(c.role)} · ${officialLabel(c.role)}` : officialLabel(null)}
+                          <span
+                            title={officialLabel(c.role)}
+                            className="inline-grid h-8 min-w-8 place-items-center text-base font-bold tabular-nums"
+                          >
+                            {c.role ? roleCode(c.role) : '—'}
                           </span>
                         )}
                       </TableCell>
+                      <TableCell className="whitespace-normal break-words font-medium">{nameOf(c)}</TableCell>
                       {editing && (
                         <TableCell className="text-right">
                           <button
