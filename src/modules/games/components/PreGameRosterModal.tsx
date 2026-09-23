@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AlertTriangle } from 'lucide-react'
 import Modal from '@/components/Modal'
@@ -365,6 +365,70 @@ export default function PreGameRosterModal({ gameId, onClose }: PreGameRosterMod
   // RSVPs, so every row would read green and assert a cross-check that never happened.
   const showCheck = data?.source === 'vm'
 
+  const roleSelect = (c: OfficialRow) => (
+    <select
+      aria-label={t('pregameColRole')}
+      value={c.role ?? ''}
+      onChange={(e) => setOfficialRole(c.ref, (e.target.value || null) as OfficialRole | null)}
+      className="h-11 max-w-full rounded-md border bg-background px-2 text-sm font-bold text-foreground dark:bg-gray-800"
+    >
+      <option value="">{t('pregameRoleUnassigned')}</option>
+      {OFFICIAL_ROLES.map((r) => (
+        <option key={r} value={r}>{`${roleCode(r)} · ${officialLabel(r)}`}</option>
+      ))}
+    </select>
+  )
+
+  const removeOfficialButton = (c: OfficialRow) => (
+    <button
+      type="button"
+      title={t('pregameRemoveOfficial')}
+      onClick={() => removeOfficial(c.ref)}
+      className="h-11 w-11 shrink-0 rounded-md border text-sm font-bold text-destructive"
+    >
+      ✕
+    </button>
+  )
+
+  /** K / L / ✕ for one player. Beside the row from sm up; on a phone, a row of its own
+   *  beneath the player, so the sheet never scrolls sideways. */
+  const playerControls = (r: SheetRow) => (
+    <div className="flex items-center justify-end gap-2">
+      <button
+        type="button"
+        aria-pressed={r.is_captain}
+        title={t('pregameCaptain')}
+        onClick={() => toggleCaptain(r.member)}
+        className={[
+          'h-11 w-11 rounded-full border text-sm font-bold',
+          r.is_captain ? 'border-foreground bg-foreground text-background' : 'text-muted-foreground',
+        ].join(' ')}
+      >
+        {t('pregameCaptainShort')}
+      </button>
+      <button
+        type="button"
+        aria-pressed={r.is_libero}
+        title={t('pregameLibero')}
+        onClick={() => setRow(r.member, { is_libero: !r.is_libero })}
+        className={[
+          'h-11 w-11 rounded-full border text-sm font-bold',
+          r.is_libero ? 'border-foreground bg-foreground text-background' : 'text-muted-foreground',
+        ].join(' ')}
+      >
+        {t('pregameLiberoShort')}
+      </button>
+      <button
+        type="button"
+        title={r.dropped ? t('pregamePutBack') : t('pregameRemove')}
+        onClick={() => removeRow(r)}
+        className="h-11 w-11 rounded-md border text-sm font-bold text-destructive"
+      >
+        {r.dropped ? '↺' : '✕'}
+      </button>
+    </div>
+  )
+
   const playerTable = (list: SheetRow[], withControls: boolean) => (
     <Table>
       <TableHeader>
@@ -375,14 +439,18 @@ export default function PreGameRosterModal({ gameId, onClose }: PreGameRosterMod
           <TableHead className="w-24">{t('pregameColDob')}</TableHead>
           <TableHead className="w-14 text-center">{t('pregameColNumber')}</TableHead>
           <TableHead>{t('pregameColName')}</TableHead>
-          {withControls && <TableHead className="w-32 text-right">{t('pregameColEdit')}</TableHead>}
+          {withControls && <TableHead className="hidden w-32 text-right sm:table-cell">{t('pregameColEdit')}</TableHead>}
         </TableRow>
       </TableHeader>
       <TableBody>
         {list.map((r, i) => (
+          <Fragment key={`${r.member ?? 'x'}-${i}`}>
           <TableRow
-            key={`${r.member ?? 'x'}-${i}`}
-            className={r.dropped ? 'opacity-40 line-through' : undefined}
+            className={[
+              r.dropped ? 'opacity-40 line-through' : '',
+              // On a phone the controls row below closes the pair — no rule between them.
+              withControls && r.member != null ? 'max-sm:border-b-0' : '',
+            ].join(' ')}
           >
             {showCheck && (
               <TableCell className="text-center"><RsvpCheck state={r.rsvp ?? null} /></TableCell>
@@ -423,46 +491,19 @@ export default function PreGameRosterModal({ gameId, onClose }: PreGameRosterMod
               )}
             </TableCell>
             {withControls && (
-              <TableCell className="text-right">
-                {r.member != null && (
-                  <div className="flex flex-col items-end gap-1 sm:flex-row sm:justify-end">
-                    <button
-                      type="button"
-                      aria-pressed={r.is_captain}
-                      title={t('pregameCaptain')}
-                      onClick={() => toggleCaptain(r.member)}
-                      className={[
-                        'h-11 w-11 rounded-full border text-sm font-bold',
-                        r.is_captain ? 'border-foreground bg-foreground text-background' : 'text-muted-foreground',
-                      ].join(' ')}
-                    >
-                      {t('pregameCaptainShort')}
-                    </button>
-                    <button
-                      type="button"
-                      aria-pressed={r.is_libero}
-                      title={t('pregameLibero')}
-                      onClick={() => setRow(r.member, { is_libero: !r.is_libero })}
-                      className={[
-                        'h-11 w-11 rounded-full border text-sm font-bold',
-                        r.is_libero ? 'border-foreground bg-foreground text-background' : 'text-muted-foreground',
-                      ].join(' ')}
-                    >
-                      {t('pregameLiberoShort')}
-                    </button>
-                    <button
-                      type="button"
-                      title={r.dropped ? t('pregamePutBack') : t('pregameRemove')}
-                      onClick={() => removeRow(r)}
-                      className="h-11 w-11 rounded-md border text-sm font-bold text-destructive"
-                    >
-                      {r.dropped ? '↺' : '✕'}
-                    </button>
-                  </div>
-                )}
+              <TableCell className="hidden text-right sm:table-cell">
+                {r.member != null && playerControls(r)}
               </TableCell>
             )}
           </TableRow>
+          {withControls && r.member != null && (
+            <TableRow className="sm:hidden">
+              <TableCell colSpan={showCheck ? 4 : 3} className="pt-0">
+                {playerControls(r)}
+              </TableCell>
+            </TableRow>
+          )}
+          </Fragment>
         ))}
       </TableBody>
     </Table>
@@ -476,6 +517,8 @@ export default function PreGameRosterModal({ gameId, onClose }: PreGameRosterMod
 
   return (
     <Modal open onClose={onClose} title={t('pregameTitle')} size="full" disableAutoFocus>
+      {/* A match sheet is a narrow document — centred, not stretched across a desktop. */}
+      <div className="mx-auto w-full max-w-2xl">
       {data && (
         <>
           <p className="mb-1 text-sm font-medium text-foreground">
@@ -587,55 +630,48 @@ export default function PreGameRosterModal({ gameId, onClose }: PreGameRosterMod
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-24">{t('pregameColDob')}</TableHead>
-                    <TableHead className={editing ? 'text-center' : 'w-14 text-center'}>{t('pregameColRole')}</TableHead>
+                    <TableHead className={editing ? 'w-14 text-center sm:w-auto' : 'w-14 text-center'}>{t('pregameColRole')}</TableHead>
                     <TableHead>{t('pregameColName')}</TableHead>
-                    {editing && <TableHead className="w-14" />}
+                    {editing && <TableHead className="hidden w-14 sm:table-cell" />}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {officials.map((c) => (
-                    <TableRow key={`o-${c.ref}`}>
+                    <Fragment key={`o-${c.ref}`}>
+                    <TableRow className={editing ? 'max-sm:border-b-0' : undefined}>
                       <TableCell className="min-h-[44px] whitespace-normal tabular-nums text-xs text-muted-foreground">
                         {c.birthdate ? formatDateZurich(c.birthdate) : '—'}
                       </TableCell>
                       {/* The scoresheet letters (C / AC1 / AC2 / P / M), in the slot the
                           jersey number takes for a player. */}
                       <TableCell className="text-center">
-                        {editing ? (
-                          <select
-                            aria-label={t('pregameColRole')}
-                            value={c.role ?? ''}
-                            onChange={(e) => setOfficialRole(c.ref, (e.target.value || null) as OfficialRole | null)}
-                            className="h-11 rounded-md border bg-background px-2 text-sm font-bold text-foreground dark:bg-gray-800"
-                          >
-                            <option value="">{t('pregameRoleUnassigned')}</option>
-                            {OFFICIAL_ROLES.map((r) => (
-                              <option key={r} value={r}>{`${roleCode(r)} · ${officialLabel(r)}`}</option>
-                            ))}
-                          </select>
-                        ) : (
-                          <span
-                            title={officialLabel(c.role)}
-                            className="inline-grid h-8 min-w-8 place-items-center text-base font-bold tabular-nums"
-                          >
-                            {c.role ? roleCode(c.role) : '—'}
-                          </span>
-                        )}
+                        {editing && <span className="hidden sm:inline">{roleSelect(c)}</span>}
+                        <span
+                          title={officialLabel(c.role)}
+                          className={[
+                            'h-8 min-w-8 place-items-center text-base font-bold tabular-nums',
+                            editing ? 'inline-grid sm:hidden' : 'inline-grid',
+                          ].join(' ')}
+                        >
+                          {c.role ? roleCode(c.role) : '—'}
+                        </span>
                       </TableCell>
                       <TableCell className="whitespace-normal break-words font-medium">{nameOf(c)}</TableCell>
                       {editing && (
-                        <TableCell className="text-right">
-                          <button
-                            type="button"
-                            title={t('pregameRemoveOfficial')}
-                            onClick={() => removeOfficial(c.ref)}
-                            className="h-11 w-11 rounded-md border text-sm font-bold text-destructive"
-                          >
-                            ✕
-                          </button>
-                        </TableCell>
+                        <TableCell className="hidden text-right sm:table-cell">{removeOfficialButton(c)}</TableCell>
                       )}
                     </TableRow>
+                    {editing && (
+                      <TableRow className="sm:hidden">
+                        <TableCell colSpan={3} className="pt-0">
+                          <div className="flex items-center justify-end gap-2">
+                            {roleSelect(c)}
+                            {removeOfficialButton(c)}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    </Fragment>
                   ))}
                 </TableBody>
               </Table>
@@ -686,6 +722,7 @@ export default function PreGameRosterModal({ gameId, onClose }: PreGameRosterMod
           )}
         </div>
       )}
+      </div>
     </Modal>
   )
 }
