@@ -154,6 +154,10 @@ export default {
   infoRequirementsTitle: 'Game requirements',
   infoRequirements: 'Games from 4th league and below only need a Scorer, without licence. It is indicated as the only "Scorer/Scoreboard" in the game details.',
   infoRequirementsArrival: 'In this case, the Scorer/Scoreboard must be in the hall at least <strong>30 minutes</strong> before the start of play.',
+  infoArrivalBb: "The scorer, the timekeeper and the 24\" official must be in the hall at least <strong>15 minutes</strong> before the start of play.",
+  infoLicencesTitleBb: "Licences",
+  infoLicencesBb: "Scorer and timekeeper need OTR1 or higher (OTR2, OTN). The 24\" official needs OTR2 or OTN. You can only sign up for a seat your licence covers.",
+  infoHowToBb: "Open the game, pick your seat and confirm. Any member of a team listed under \"Duty teams\" can take a seat their licence covers.",
   infoHowToTitle: 'How to use',
   infoHowTo: 'Click on the game, select your role, select yourself in the dropdown, and confirm. If you don\'t find yourself in the dropdown, contact Luca or Thamy.',
 

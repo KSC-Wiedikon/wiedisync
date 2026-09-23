@@ -154,6 +154,10 @@ export default {
   infoRequirementsTitle: 'Spielaaforderige',
   infoRequirements: 'Spiel ab 4. Liga und tüüfer bruuched nur en Schriiber, ohni Lizänz. I de Spieldetails isch das als einzige «Schriiber/Täfeler» aagäh.',
   infoRequirementsArrival: 'I dem Fall muäss de Schriiber/Täfeler spötischtens <strong>30 Minute</strong> vor Spielbeginn i de Halle sii.',
+  infoArrivalBb: "Aaschriiber/in, Zitnehmer/in und 24\"-Offizielli/r müend spötischtens <strong>15 Minute</strong> vor Spielbeginn i de Halle sii.",
+  infoLicencesTitleBb: "Lizänze",
+  infoLicencesBb: "Aaschriiber/in und Zitnehmer/in bruuched OTR1 oder höcher (OTR2, OTN). De 24\"-Platz bruucht OTR2 oder OTN. Du chasch di nur für en Platz iitrage, wo dini Lizänz abdeckt.",
+  infoHowToBb: "Mach s Spiel uf, wähl din Platz und bestätig. Alli Mitglieder vo me Team under \"Iisatzteams\" chönd en Platz übernäh, wo iri Lizänz abdeckt.",
   infoHowToTitle: 'So funktionierts',
   infoHowTo: 'Klick uf s Spiel, wähl dini Rolle us, wähl di im Dropdown us und bestätig. Falls du di nöd findsch, kontaktier de Luca oder d Thamy.',
   // Duty banner + emergency (homepage)

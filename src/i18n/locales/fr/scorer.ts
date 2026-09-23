@@ -154,6 +154,10 @@ export default {
   infoRequirementsTitle: 'Exigences pour les matchs',
   infoRequirements: 'Les matchs de 4e ligue et inferieures ne necessitent qu\'un marqueur, sans licence. Il est indique comme seul "Marqueur/Tableau" dans les details du match.',
   infoRequirementsArrival: 'Dans ce cas, le marqueur/tableau doit etre dans la salle au moins <strong>30 minutes</strong> avant le debut du match.',
+  infoArrivalBb: "Le marqueur, le chronométreur et l'officiel 24\" doivent être dans la salle au moins <strong>15 minutes</strong> avant le début du match.",
+  infoLicencesTitleBb: "Licences",
+  infoLicencesBb: "Le marqueur et le chronométreur doivent avoir OTR1 ou plus (OTR2, OTN). L'officiel 24\" doit avoir OTR2 ou OTN. Tu ne peux t'inscrire qu'à une place couverte par ta licence.",
+  infoHowToBb: "Ouvre le match, choisis ta place et confirme. Tout membre d'une équipe listée sous \"Équipes de service\" peut prendre une place couverte par sa licence.",
   infoHowToTitle: 'Mode d\'emploi',
   infoHowTo: 'Cliquez sur le match, selectionnez votre role, selectionnez-vous dans le menu deroulant et confirmez. Si vous ne vous trouvez pas dans le menu deroulant, contactez Luca ou Thamy.',
 

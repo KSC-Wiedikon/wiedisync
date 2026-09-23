@@ -154,6 +154,10 @@ export default {
   infoRequirementsTitle: 'Spielanforderungen',
   infoRequirements: 'Spiele ab 4. Liga und tiefer benötigen nur einen Schreiber, ohne Lizenz. In den Spieldetails ist dies als einziger «Schreiber/Täfeler» angegeben.',
   infoRequirementsArrival: 'In diesem Fall muss der Schreiber/Täfeler spätestens <strong>30 Minuten</strong> vor Spielbeginn in der Halle sein.',
+  infoArrivalBb: "Anschreiber/in, Zeitnehmer/in und 24\"-Offizielle/r müssen spätestens <strong>15 Minuten</strong> vor Spielbeginn in der Halle sein.",
+  infoLicencesTitleBb: "Lizenzen",
+  infoLicencesBb: "Anschreiber/in und Zeitnehmer/in brauchen OTR1 oder höher (OTR2, OTN). Der 24\"-Platz braucht OTR2 oder OTN. Du kannst dich nur für einen Platz eintragen, den deine Lizenz abdeckt.",
+  infoHowToBb: "Öffne das Spiel, wähle deinen Platz und bestätige. Alle Mitglieder eines Teams unter \"Einsatzteams\" können einen Platz übernehmen, den ihre Lizenz abdeckt.",
   infoHowToTitle: 'So funktioniert\'s',
   infoHowTo: 'Klicke auf das Spiel, wähle deine Rolle aus, wähle dich im Dropdown aus und bestätige. Falls du dich nicht findest, kontaktiere Luca oder Thamy.',
 

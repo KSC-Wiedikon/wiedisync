@@ -20,7 +20,7 @@ import TabBar from '../../components/TabBar'
 import { runAssignment, getTeamCounts, buildTeamGameTimes, buildTrainingDates, buildGamesByDateHall, getAdjacentTeams, timeToMin, classifyVbMode, EXCLUDED_DUTY_TEAM_NAMES, type GameAssignment } from './components/AssignmentAlgorithm'
 import { runBbAssignment, getBbTeamCounts, type BbGameAssignment } from './components/AssignmentAlgorithmBb'
 import { buildAssignmentXlsx, buildTeamColors, downloadBytes, XLSX_MIME, type XlsxGameRow, type XlsxSummaryRow, type XlsxLabels } from './lib/assignmentExport'
-import { crewLabel, resolveBbRequirement } from './lib/bbLeagueRequirements'
+import { crewLabel, resolveBbRequirement, BB_OTR1_OR_HIGHER, BB_OTR2_OR_HIGHER } from './lib/bbLeagueRequirements'
 import { weekdayShort } from './lib/dutySpots'
 import { updateRecord } from '../../lib/api'
 import { maybeReloadOnStaleChunk } from '../../lib/chunkReload'
@@ -668,9 +668,9 @@ export default function ScorerAssignPage() {
   )
   const renderBbDuty = (a: BbGameAssignment, game: Game) => (
     <div className="space-y-2 min-w-[220px]">
-      {renderBbPerson(a, 'scorer', t('bbScorer'), a.bbScorerMemberId, game.bb_scorer_member, 'otr1_bb', false)}
-      {renderBbPerson(a, 'timekeeper', t('bbTimekeeper'), a.bbTimekeeperMemberId, game.bb_timekeeper_member, 'otr1_bb', true)}
-      {renderBbPerson(a, '24s', t('bb24sOfficial'), a.bb24sMemberId, game.bb_24s_official, ['otr2_bb', 'otn1_bb', 'otn2_bb'], true)}
+      {renderBbPerson(a, 'scorer', t('bbScorer'), a.bbScorerMemberId, game.bb_scorer_member, BB_OTR1_OR_HIGHER, false)}
+      {renderBbPerson(a, 'timekeeper', t('bbTimekeeper'), a.bbTimekeeperMemberId, game.bb_timekeeper_member, BB_OTR1_OR_HIGHER, true)}
+      {renderBbPerson(a, '24s', t('bb24sOfficial'), a.bb24sMemberId, game.bb_24s_official, BB_OTR2_OR_HIGHER, true)}
     </div>
   )
 

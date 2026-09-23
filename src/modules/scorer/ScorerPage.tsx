@@ -629,6 +629,47 @@ export default function ScorerPage() {
         </details>
       )}
 
+      {/* Expandable info panel — basketball: 15' arrival, licence ladder, no fines */}
+      {sportTab === 'basketball' && (
+        <details className="mt-3 rounded-lg border border-brand-200 bg-brand-50/50 dark:border-brand-800 dark:bg-brand-900/20">
+        <summary
+          className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-medium text-brand-700 dark:text-brand-400 [&::-webkit-details-marker]:hidden"
+        >
+          <span className="flex items-center gap-2">
+            <Info className="h-4 w-4" />
+            {t('infoTitle')}
+          </span>
+          <ChevronDown className="h-4 w-4" />
+        </summary>
+        <div className="space-y-4 border-t border-brand-200 px-4 py-4 text-sm text-gray-700 dark:border-brand-800 dark:text-gray-300">
+          <div className="flex gap-3">
+            <Clock className="mt-0.5 h-4 w-4 shrink-0 text-brand-500 dark:text-brand-400" />
+            <div>
+              <h3 className="font-semibold text-gray-900 dark:text-gray-100">{t('infoArrivalTitle')}</h3>
+              {/* Hardcoded i18n string, DOMPurify-sanitized before injection */}
+              <p className="mt-1 [&_strong]:font-semibold" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(t('infoArrivalBb')) }} />
+            </div>
+          </div>
+          <div className="flex gap-3">
+            <ClipboardList className="mt-0.5 h-4 w-4 shrink-0 text-brand-500 dark:text-brand-400" />
+            <div>
+              <h3 className="font-semibold text-gray-900 dark:text-gray-100">{t('infoLicencesTitleBb')}</h3>
+              <p className="mt-1">{t('infoLicencesBb')}</p>
+            </div>
+          </div>
+          <div className="flex gap-3">
+            <Lightbulb className="mt-0.5 h-4 w-4 shrink-0 text-brand-500 dark:text-brand-400" />
+            <div>
+              <h3 className="font-semibold text-gray-900 dark:text-gray-100">{t('infoHowToTitle')}</h3>
+              <p className="mt-1">{t('infoHowToBb')}</p>
+              {/* Hardcoded i18n string, DOMPurify-sanitized before injection */}
+              <p className="mt-1 [&_strong]:font-semibold" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(t('confirmSelfAssignWarning')) }} />
+            </div>
+          </div>
+        </div>
+        </details>
+      )}
+
       {/* Reminder email toggle (superuser only) */}
       {isSuperAdmin && effectiveIsAdmin && reminderSetting && (
         <button

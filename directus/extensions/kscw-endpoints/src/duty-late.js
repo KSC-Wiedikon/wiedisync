@@ -446,10 +446,14 @@ export function registerDutyLate(router, ctx) {
         })
 
         // Auto-fine the flagged official (best-effort — never break the alarm).
-        try {
-          await issueNoShowFine({ game, role, def, official, reporterMemberId: memberId, accountability: req.accountability })
-        } catch (e) {
-          log.error({ msg: `duty-late: auto-fine failed: ${e.message}`, gameId: game.id, role, stack: e.stack })
+        // Volleyball only: basketball table duty carries no fine (23.09.2026) —
+        // the alarm, email and audit row still go out.
+        if (def.sport !== 'basketball') {
+          try {
+            await issueNoShowFine({ game, role, def, official, reporterMemberId: memberId, accountability: req.accountability })
+          } catch (e) {
+            log.error({ msg: `duty-late: auto-fine failed: ${e.message}`, gameId: game.id, role, stack: e.stack })
+          }
         }
 
         // Email is best-effort — a mail failure must not lose the recorded flag.

@@ -17,6 +17,7 @@ import { useNow } from '../../../hooks/useNow'
 import RosterModal from './RosterModal'
 import { TeamPickerMulti } from '@/components/ui/TeamPicker'
 import { bbGameDutyTeamIds, bbSeatDutyTeamIds, bbDutyTeamsPayload } from '../lib/bbDutyTeams'
+import { BB_OTR1_OR_HIGHER, BB_OTR2_OR_HIGHER } from '../lib/bbLeagueRequirements'
 
 interface ScorerRowProps {
   game: Game
@@ -227,13 +228,9 @@ export default function ScorerRow({
       return userTeamIds.includes(dutyTeamId)
     } else {
       const bbRole = role as BbAssignRole
-      if (bbRole === 'bb_scorer' && !userLicences.includes('otr1_bb')) return false
-      if (bbRole === 'bb_timekeeper' && !userLicences.includes('otr1_bb')) return false
+      if ((bbRole === 'bb_scorer' || bbRole === 'bb_timekeeper') && !BB_OTR1_OR_HIGHER.some((l) => userLicences.includes(l))) return false
       // OTR2 or either OTN level opens the 24s desk.
-      if (bbRole === 'bb_24s_official'
-        && !userLicences.includes('otr2_bb')
-        && !userLicences.includes('otn1_bb')
-        && !userLicences.includes('otn2_bb')) return false
+      if (bbRole === 'bb_24s_official' && !BB_OTR2_OR_HIGHER.some((l) => userLicences.includes(l))) return false
       const currentPerson = game[bbRole]
       if (currentPerson) return false
       // Any team sharing the game's duty may take the seat (migration 371).
@@ -465,7 +462,7 @@ export default function ScorerRow({
             </div>
             <AssignmentEditor
               label={t('bbScorer')}
-              requiredLicence="otr1_bb"
+              requiredLicence={BB_OTR1_OR_HIGHER}
               teamValue=""
               teamPool={bbSeatDutyTeamIds(game, 'bb_scorer')}
               hideTeam
@@ -492,7 +489,7 @@ export default function ScorerRow({
             />
             <AssignmentEditor
               label={t('bbTimekeeper')}
-              requiredLicence="otr1_bb"
+              requiredLicence={BB_OTR1_OR_HIGHER}
               teamValue=""
               teamPool={bbSeatDutyTeamIds(game, 'bb_timekeeper')}
               hideTeam
@@ -520,7 +517,7 @@ export default function ScorerRow({
             {show24s ? (
               <AssignmentEditor
                 label={t('bb24sOfficial')}
-                requiredLicence={['otr2_bb', 'otn1_bb', 'otn2_bb']}
+                requiredLicence={BB_OTR2_OR_HIGHER}
                 teamValue=""
                 teamPool={bbSeatDutyTeamIds(game, 'bb_24s_official')}
                 hideTeam
