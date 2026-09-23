@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.16.0'
+const APP_VERSION = '2.17.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,18 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.17.0',
+    date: '23.09.2026',
+    sections: [
+      {
+        title: 'New',
+        items: [
+          "Basketball: several teams can share one game's table duty. *Scorer duties → a basketball game → Duty teams.* Basketball staffs the table per game, so each game now has one team picker instead of a team per seat, and it takes more than one team: any licensed member of any listed team can take any seat.",
+        ],
+      },
+    ],
+  },
   {
     version: '2.16.0',
     date: '23.09.2026',
