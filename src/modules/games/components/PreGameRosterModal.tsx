@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AlertTriangle } from 'lucide-react'
 import Modal from '@/components/Modal'
@@ -37,12 +37,33 @@ interface BenchRow {
   is_libero: boolean
 }
 
+type OfficialRole = 'coach' | 'assistant_coach_1' | 'assistant_coach_2' | 'physio' | 'doctor'
+
+/** The scoresheet's order — the officials block always reads in it. */
+const OFFICIAL_ROLES: OfficialRole[] = ['coach', 'assistant_coach_1', 'assistant_coach_2', 'physio', 'doctor']
+const roleRank = (role: OfficialRole | null) => {
+  const i = role ? OFFICIAL_ROLES.indexOf(role) : -1
+  return i === -1 ? OFFICIAL_ROLES.length : i
+}
+const sortOfficials = <T extends { role: OfficialRole | null }>(list: T[]) =>
+  [...list].sort((a, b) => roleRank(a.role) - roleRank(b.role))
+
 interface OfficialRow {
+  /** Opaque server identity — sent back on save; name/DoB are never trusted from us. */
+  ref: string
+  member: number | null
   last_name: string
   first_initial: string
   birthdate: string | null
-  /** VM names the slot; our own junction cannot, so it comes back null. */
-  role: 'coach' | 'assistant_coach_1' | 'assistant_coach_2' | null
+  /** VM names the slot; our own junction cannot, so a team-coach fallback is null. */
+  role: OfficialRole | null
+}
+
+interface Candidate {
+  ref: string
+  member: number
+  first_name: string
+  last_name: string
 }
 
 interface SheetResponse {
@@ -54,6 +75,7 @@ interface SheetResponse {
     source: 'vm' | 'rsvp'
     edited: boolean
     edited_by: string | null
+    officials_edited: boolean
     roster: SheetRow[]
     coaches: OfficialRow[]
     bench: BenchRow[]
@@ -92,14 +114,22 @@ export default function PreGameRosterModal({ gameId, onClose }: PreGameRosterMod
   const [data, setData] = useState<SheetResponse['data'] | null>(null)
   const [rows, setRows] = useState<SheetRow[]>([])
   const [bench, setBench] = useState<BenchRow[]>([])
+  const [officials, setOfficials] = useState<OfficialRow[]>([])
   const [editing, setEditing] = useState(false)
+  const [search, setSearch] = useState('')
+  const [candidates, setCandidates] = useState<Candidate[]>([])
+  const [searching, setSearching] = useState(false)
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const apply = useCallback((d: SheetResponse['data']) => {
     setData(d)
     setRows(d.roster)
     setBench(d.bench ?? [])
+    setOfficials(sortOfficials(d.coaches ?? []))
     setErrorCode(null)
   }, [])
+
+  useEffect(() => () => { if (searchTimer.current) clearTimeout(searchTimer.current) }, [])
 
   // Initial load. Every setState sits inside a promise callback, never in the effect
   // body: a synchronous setState in an effect cascades a render (RosterModal documents
@@ -135,6 +165,65 @@ export default function PreGameRosterModal({ gameId, onClose }: PreGameRosterMod
   const droppedCount = useMemo(() => rows.filter((r) => r.dropped).length, [rows])
   // Only a changed player SET diverges from the Einsatzliste. Numbers and K/L are ours.
   const diverges = addedCount > 0 || droppedCount > 0
+
+  // Only what actually changed is written: saving the officials must not freeze the
+  // players into a snapshot (which would stop later Einsatzliste re-reads), and v.v.
+  const playersDirty = useMemo(
+    () => data != null && JSON.stringify(rows) !== JSON.stringify(data.roster),
+    [rows, data],
+  )
+  const officialsDirty = useMemo(
+    () => data != null
+      && JSON.stringify(officials.map((o) => [o.ref, o.role]))
+        !== JSON.stringify(sortOfficials(data.coaches).map((o) => [o.ref, o.role])),
+    [officials, data],
+  )
+
+  /** Give an official a slot. A slot holds one person: whoever had it takes this one's old slot. */
+  const setOfficialRole = (ref: string, role: OfficialRole | null) => {
+    setOfficials((prev) => {
+      const from = prev.find((o) => o.ref === ref)?.role ?? null
+      return sortOfficials(prev.map((o) => {
+        if (o.ref === ref) return { ...o, role }
+        if (role != null && o.role === role) return { ...o, role: from }
+        return o
+      }))
+    })
+  }
+
+  const removeOfficial = (ref: string) => setOfficials((prev) => prev.filter((o) => o.ref !== ref))
+
+  const addOfficial = (c: Candidate) => {
+    setOfficials((prev) => {
+      if (prev.some((o) => o.ref === c.ref)) return prev
+      // First free slot, so a new person lands somewhere sensible; the coach can change it.
+      const taken = new Set(prev.map((o) => o.role))
+      const role = OFFICIAL_ROLES.find((r) => !taken.has(r)) ?? null
+      return sortOfficials([...prev, {
+        ref: c.ref,
+        member: c.member,
+        last_name: c.last_name,
+        first_initial: c.first_name ? `${c.first_name.charAt(0).toUpperCase()}.` : '',
+        birthdate: null, // attached server-side on save
+        role,
+      }])
+    })
+    setSearch('')
+    setCandidates([])
+  }
+
+  const onSearch = (q: string) => {
+    setSearch(q)
+    if (searchTimer.current) clearTimeout(searchTimer.current)
+    if (q.trim().length < 2) { setCandidates([]); setSearching(false); return }
+    setSearching(true)
+    searchTimer.current = setTimeout(() => {
+      kscwApi<{ data: Candidate[] }>(`/scorer/game/${gameId}/official-candidates?q=${encodeURIComponent(q.trim())}`)
+        .then((res) => setCandidates(res.data))
+        .catch(() => setCandidates([]))
+        .finally(() => setSearching(false))
+    }, 250)
+  }
 
   const setRow = (member: number | null, patch: Partial<SheetRow>) => {
     if (member == null) return
@@ -187,21 +276,29 @@ export default function PreGameRosterModal({ gameId, onClose }: PreGameRosterMod
   const save = async () => {
     setSaving(true)
     try {
-      await kscwApi(`/scorer/game/${gameId}/roster`, {
-        method: 'POST',
-        body: {
-          players: rows
-            .filter((r) => r.member != null)
-            .map((r) => ({
-              member: r.member,
-              number: r.number,
-              is_captain: r.is_captain,
-              is_libero: r.is_libero,
-              dropped: r.dropped,
-            })),
-          added: rows.filter((r) => r.added && r.member != null).map((r) => r.member),
-        },
-      })
+      if (officialsDirty) {
+        await kscwApi(`/scorer/game/${gameId}/officials`, {
+          method: 'POST',
+          body: { officials: officials.map((o) => ({ ref: o.ref, role: o.role })) },
+        })
+      }
+      if (playersDirty) {
+        await kscwApi(`/scorer/game/${gameId}/roster`, {
+          method: 'POST',
+          body: {
+            players: rows
+              .filter((r) => r.member != null)
+              .map((r) => ({
+                member: r.member,
+                number: r.number,
+                is_captain: r.is_captain,
+                is_libero: r.is_libero,
+                dropped: r.dropped,
+              })),
+            added: rows.filter((r) => r.added && r.member != null).map((r) => r.member),
+          },
+        })
+      }
       setEditing(false)
       await fetchSheet()
     } catch {
@@ -240,9 +337,16 @@ export default function PreGameRosterModal({ gameId, onClose }: PreGameRosterMod
       case 'coach': return t('pregameRoleCoach')
       case 'assistant_coach_1': return t('pregameRoleAssistant1')
       case 'assistant_coach_2': return t('pregameRoleAssistant2')
+      case 'physio': return t('pregameRolePhysio')
+      case 'doctor': return t('pregameRoleDoctor')
       default: return t('pregameRoleStaff')
     }
   }
+
+  /** The letters printed on the scoresheet: C, AC1, AC2, P, M. */
+  const roleCode = (role: OfficialRole): string => ({
+    coach: 'C', assistant_coach_1: 'AC1', assistant_coach_2: 'AC2', physio: 'P', doctor: 'M',
+  })[role]
 
   /** The number, circled when this player wears the armband — as on the paper sheet. */
   const jerseyCell = (r: SheetRow) => (
@@ -418,7 +522,7 @@ export default function PreGameRosterModal({ gameId, onClose }: PreGameRosterMod
               {editing && (
                 <>
                   <Button onClick={() => void save()} loading={saving}>{t('pregameSave')}</Button>
-                  {data.edited && (
+                  {(data.edited || data.officials_edited) && (
                     <Button variant="outline" onClick={() => void reset()} disabled={saving}>
                       {t('pregameReset')}
                     </Button>
@@ -476,7 +580,7 @@ export default function PreGameRosterModal({ gameId, onClose }: PreGameRosterMod
             </div>
           )}
 
-          {data.coaches.length > 0 && (
+          {(officials.length > 0 || editing) && (
             <div>
               {sectionTitle(t('pregameOfficials'))}
               <Table>
@@ -485,22 +589,94 @@ export default function PreGameRosterModal({ gameId, onClose }: PreGameRosterMod
                     <TableHead className="w-24">{t('pregameColDob')}</TableHead>
                     <TableHead>{t('pregameColName')}</TableHead>
                     <TableHead className="text-right">{t('pregameColRole')}</TableHead>
+                    {editing && <TableHead className="w-14" />}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {data.coaches.map((c, i) => (
-                    <TableRow key={`o-${c.last_name}-${i}`}>
-                      <TableCell className="whitespace-normal tabular-nums text-xs text-muted-foreground">
+                  {officials.map((c) => (
+                    <TableRow key={`o-${c.ref}`}>
+                      <TableCell className="min-h-[44px] whitespace-normal tabular-nums text-xs text-muted-foreground">
                         {c.birthdate ? formatDateZurich(c.birthdate) : '—'}
                       </TableCell>
                       <TableCell className="whitespace-normal break-words font-medium">{nameOf(c)}</TableCell>
                       <TableCell className="text-right text-xs text-muted-foreground">
-                        {officialLabel(c.role)}
+                        {editing ? (
+                          <select
+                            aria-label={t('pregameColRole')}
+                            value={c.role ?? ''}
+                            onChange={(e) => setOfficialRole(c.ref, (e.target.value || null) as OfficialRole | null)}
+                            className="h-11 rounded-md border bg-background px-2 text-sm text-foreground dark:bg-gray-800"
+                          >
+                            <option value="">{t('pregameRoleUnassigned')}</option>
+                            {OFFICIAL_ROLES.map((r) => (
+                              <option key={r} value={r}>{`${roleCode(r)} · ${officialLabel(r)}`}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <span title={officialLabel(c.role)}>
+                            {c.role ? `${roleCode(c.role)} · ${officialLabel(c.role)}` : officialLabel(null)}
+                          </span>
+                        )}
                       </TableCell>
+                      {editing && (
+                        <TableCell className="text-right">
+                          <button
+                            type="button"
+                            title={t('pregameRemoveOfficial')}
+                            onClick={() => removeOfficial(c.ref)}
+                            className="h-11 w-11 rounded-md border text-sm font-bold text-destructive"
+                          >
+                            ✕
+                          </button>
+                        </TableCell>
+                      )}
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
+
+              {/* Anyone active in the club — a physio, a stand-in coach from another team. */}
+              {editing && (
+                <div className="mt-3">
+                  <input
+                    type="search"
+                    value={search}
+                    onChange={(e) => onSearch(e.target.value)}
+                    placeholder={t('pregameOfficialSearch')}
+                    aria-label={t('pregameAddOfficial')}
+                    className="h-11 w-full rounded-md border bg-background px-3 text-sm"
+                  />
+                  {search.trim().length >= 2 && !searching && (
+                    candidates.filter((c) => !officials.some((o) => o.ref === c.ref)).length > 0 ? (
+                      <Table>
+                        <TableBody>
+                          {candidates
+                            .filter((c) => !officials.some((o) => o.ref === c.ref))
+                            .map((c) => (
+                              <TableRow key={`c-${c.ref}`}>
+                                <TableCell className="whitespace-normal break-words font-medium">
+                                  {c.last_name} {c.first_name}
+                                </TableCell>
+                                <TableCell className="w-14 text-right">
+                                  <button
+                                    type="button"
+                                    title={t('pregameAddOfficial')}
+                                    onClick={() => addOfficial(c)}
+                                    className="h-11 w-11 rounded-md border border-emerald-600 text-lg font-bold text-emerald-600"
+                                  >
+                                    +
+                                  </button>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                        </TableBody>
+                      </Table>
+                    ) : (
+                      <p className="mt-2 text-sm text-muted-foreground">{t('pregameOfficialNoResults')}</p>
+                    )
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>

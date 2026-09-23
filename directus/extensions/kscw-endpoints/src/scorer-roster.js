@@ -2,6 +2,9 @@
  * The match sheet for one game.
  *   GET  /kscw/scorer/game/:gameId/roster   — read it
  *   POST /kscw/scorer/game/:gameId/roster   — the coach adjusts it (coach/TR only)
+ *   POST /kscw/scorer/game/:gameId/officials — the coach sets C/AC1/AC2/P/M (migration 372)
+ *   GET  /kscw/scorer/game/:gameId/official-candidates?q= — club members to add as officials
+ *   DELETE /kscw/scorer/game/:gameId/roster — revert players AND officials to the sources
  *
  * Returns the playing team's sheet — jersey number, last name, first initial, and FULL
  * date of birth for every player, plus the team's officials, so the sheet can be filled.
@@ -169,16 +172,22 @@ async function vmGameUuid(database, game) {
   return row?.svrz_persistence_id ?? null
 }
 
-/** Source: the Einsatzliste filed in Volleymanager. null → caller falls back to RSVP. */
+/**
+ * Source: the Einsatzliste filed in Volleymanager. null → VM unusable / no list.
+ * `roster` may be EMPTY while `coaches` is not (officials filed, nominations not yet):
+ * the caller falls back to RSVPs for the players but keeps VM's officials.
+ */
 async function loadVmRoster(database, log, game, captainId) {
   const uuid = await vmGameUuid(database, game)
   if (!uuid) return null
-  const nl = await fetchOwnNominationList(uuid, log)
+  // The side only matters for an intra-club derby, where both lists are ours (see
+  // fetchOwnNominationList). Each derby leg is its own games row with its own `type`.
+  const nl = await fetchOwnNominationList(uuid, log, { side: game.type === 'away' ? 'away' : 'home' })
   if (!nl) return null
 
   // VM has no jersey number, no captain and no libero — merge ours in. VM's
   // person.associationId IS members.license_nr (same Swiss Volley licence), exact join.
-  const licences = nl.players.map((p) => p.license_nr).filter(Boolean)
+  const licences = [...nl.players, ...nl.coaches].map((p) => p.license_nr).filter(Boolean)
   const memberRows = licences.length
     ? await database('members').whereIn('license_nr', licences).select('id', 'number', 'position', 'license_nr')
     : []
@@ -206,7 +215,19 @@ async function loadVmRoster(database, log, game, captainId) {
     })
     .sort(byJersey)
 
-  return { source: 'vm', roster, coaches: nl.coaches, closed_at: nl.closed_at }
+  const coaches = nl.coaches.map((c, i) => {
+    const m = c.license_nr ? byLicence.get(c.license_nr) : null
+    return {
+      ref: m ? `m:${m.id}` : `vm:${i}`,
+      member: m ? Number(m.id) : null,
+      last_name: c.last_name,
+      first_initial: c.first_initial,
+      birthdate: c.birthdate,
+      role: c.role,
+    }
+  })
+
+  return { source: 'vm', roster, coaches, closed_at: nl.closed_at }
 }
 
 /**
@@ -346,12 +367,40 @@ async function dbCoaches(database, teamId) {
   const rows = await database('teams_coaches')
     .join('members', 'members.id', 'teams_coaches.members_id')
     .where('teams_coaches.teams_id', teamId)
-    .select('members.first_name as first_name', 'members.last_name as last_name', 'members.birthdate as birthdate')
+    .select('members.id as id', 'members.first_name as first_name', 'members.last_name as last_name', 'members.birthdate as birthdate')
   return rows.map((r) => ({
+    ref: `m:${r.id}`,
+    member: Number(r.id),
     last_name: r.last_name || '',
     first_initial: firstInitial(r.first_name),
     birthdate: r.birthdate ? dateYMD(r.birthdate) : null,
     role: null,
+  }))
+}
+
+// The scoresheet's order: Coach, Assistant coach 1 & 2, Physiotherapist, Medical doctor.
+// An unassigned official (a teams_coaches fallback row) sorts last.
+const OFFICIAL_ROLES = ['coach', 'assistant_coach_1', 'assistant_coach_2', 'physio', 'doctor']
+const roleRank = (role) => {
+  const i = OFFICIAL_ROLES.indexOf(role)
+  return i === -1 ? OFFICIAL_ROLES.length : i
+}
+const sortOfficials = (list) => [...list].sort((a, b) => roleRank(a.role) - roleRank(b.role))
+
+/**
+ * The coach's saved officials. When rows exist they ARE the officials — same snapshot
+ * rule as the players (loadSavedSheet), in their own table (migration 372).
+ */
+async function loadSavedOfficials(database, gameId) {
+  const rows = await database('game_roster_officials').where('game', gameId).select('*')
+  if (!rows.length) return null
+  return rows.map((r) => ({
+    ref: r.member != null ? `m:${r.member}` : `s:${r.id}`,
+    member: r.member == null ? null : Number(r.member),
+    last_name: r.last_name || '',
+    first_initial: r.first_initial || '',
+    birthdate: r.birthdate ? dateYMD(r.birthdate) : null,
+    role: r.role ?? null,
   }))
 }
 
@@ -450,14 +499,50 @@ export function registerScorerRoster(router, { database, logger }) {
     return { access, member, game, gameId }
   }
 
-  /** The sheet as it stands: saved snapshot if the coach edited it, else VM, else RSVP. */
+  /**
+   * The sheet as it stands. Players: saved snapshot if the coach edited them, else VM,
+   * else RSVP. Officials: saved snapshot, else VM, else the team's teams_coaches.
+   *
+   * VM is read AT MOST ONCE per request. It used to be read a second time just for the
+   * officials whenever the first read came back empty — a cold VM login plus two calls
+   * is what made the sheet take 4 s to open.
+   */
   async function buildSheet(game, gameId, season, captainId) {
-    const saved = await loadSavedSheet(database, gameId)
-    if (saved) return { ...saved, edited: true }
-    const derived =
-      (await loadVmRoster(database, log, game, captainId)) ??
-      (await loadRsvpRoster(database, game, gameId, season, captainId))
-    return { ...derived, edited: false }
+    const [saved, savedOfficials] = await Promise.all([
+      loadSavedSheet(database, gameId),
+      loadSavedOfficials(database, gameId),
+    ])
+    let vm
+    const readVm = async () => {
+      if (vm === undefined) vm = await loadVmRoster(database, log, game, captainId)
+      return vm
+    }
+
+    let sheet
+    if (saved) {
+      sheet = { ...saved, edited: true }
+    } else {
+      const v = await readVm()
+      sheet = v?.roster.length
+        ? { ...v, edited: false }
+        : { ...(await loadRsvpRoster(database, game, gameId, season, captainId)), edited: false }
+    }
+
+    let officials = savedOfficials
+    if (!officials) {
+      const v = await readVm()
+      officials = v?.coaches.length ? v.coaches : await dbCoaches(database, game.kscw_team)
+    }
+
+    return { ...sheet, coaches: sortOfficials(officials), officials_edited: savedOfficials != null }
+  }
+
+  /** The officials a coach's edit is resolved against: VM's, else the team's coaches. */
+  async function baseOfficials(game, captainId) {
+    const v = await loadVmRoster(database, log, game, captainId)
+    return v?.coaches.length
+      ? { source: 'vm', list: v.coaches }
+      : { source: 'team', list: await dbCoaches(database, game.kscw_team) }
   }
 
   // ── GET: read the sheet ───────────────────────────────────────────────────
@@ -474,11 +559,8 @@ export function registerScorerRoster(router, { database, logger }) {
       const sheet = await buildSheet(game, gameId, season, captainId)
 
       // Officials: VM names them WITH their slot (coach / assistant 1 / assistant 2);
-      // our junction cannot, so those come back unlabelled.
-      const vmCoaches = sheet.coaches?.length
-        ? sheet.coaches
-        : (await loadVmRoster(database, log, game, captainId))?.coaches ?? []
-      const coaches = vmCoaches.length ? vmCoaches : await dbCoaches(database, game.kscw_team)
+      // our junction cannot, so those come back unlabelled until the coach assigns one.
+      const coaches = sheet.coaches
 
       // The pool the coach may add from, in an emergency. Scorers never add, so they
       // don't get a squad list they have no business seeing.
@@ -549,6 +631,7 @@ export function registerScorerRoster(router, { database, logger }) {
           source: sheet.source,
           edited: sheet.edited,
           edited_by: sheet.edited_by ?? null,
+          officials_edited: sheet.officials_edited,
           closed_at: sheet.closed_at,
           roster: sheet.roster,
           coaches,
@@ -597,9 +680,10 @@ export function registerScorerRoster(router, { database, logger }) {
 
       // Re-derive the base sheet from the ORIGINAL sources, not from the saved snapshot —
       // otherwise an edit compounds on an edit and the Einsatzliste can never be re-read.
-      const base =
-        (await loadVmRoster(database, log, game, captainId)) ??
-        (await loadRsvpRoster(database, game, gameId, season, captainId))
+      const vm = await loadVmRoster(database, log, game, captainId)
+      const base = vm?.roster.length
+        ? vm
+        : await loadRsvpRoster(database, game, gameId, season, captainId)
 
       // An added player must actually be in the team's squad this season. Without this a
       // coach could put any member of the club onto their sheet.
@@ -737,6 +821,187 @@ export function registerScorerRoster(router, { database, logger }) {
     }
   })
 
+  // ── POST: the coach sets the officials ────────────────────────────────────
+  //
+  // Body: { officials: [{ ref, role }] }
+  //   ref  — `m:<memberId>` (a club member), `vm:<i>` (the i-th official VM named, with
+  //          no member link), `s:<rowId>` (an unlinked official already in this game's
+  //          saved snapshot). Opaque to the client; the GET hands each official its ref.
+  //   role — coach | assistant_coach_1 | assistant_coach_2 | physio | doctor | null.
+  //
+  // Identity (name / DoB) is NEVER taken from the request — re-derived from `members`,
+  // VM or the snapshot, exactly as the players POST does. Anyone active in the CLUB may
+  // be added, not only the team's staff: a physio or a stand-in coach from another team
+  // is precisely who this is for.
+  router.post('/scorer/game/:gameId/officials', async (req, res) => {
+    try {
+      const auth = await authorize(req, res)
+      if (!auth) return
+      const { access, member, game, gameId } = auth
+      if (access !== 'admin' && access !== 'coach') {
+        return res.status(403).json({ error: 'Not authorized to edit the sheet', code: 'read_only' })
+      }
+
+      const input = Array.isArray(req.body?.officials) ? req.body.officials : null
+      if (!input || input.length > 10) {
+        return res.status(400).json({ error: 'officials must be an array of at most 10', code: 'invalid' })
+      }
+
+      const teamRow = await database('teams').where('id', game.kscw_team).first('captain')
+      const captainId = teamRow?.captain != null ? Number(teamRow.captain) : null
+      const [base, saved] = await Promise.all([
+        baseOfficials(game, captainId),
+        loadSavedOfficials(database, gameId),
+      ])
+      // Members already on the bench (VM / team / snapshot) may stay even if they are
+      // not flagged club-active — dropping the team's own coach on a flag would be absurd.
+      const known = new Map()
+      for (const o of [...base.list, ...(saved ?? [])]) known.set(o.ref, o)
+
+      const memberIds = input
+        .map((o) => /^m:(\d+)$/.exec(String(o?.ref ?? ''))?.[1])
+        .filter(Boolean)
+        .map(Number)
+      const memberRows = memberIds.length
+        ? await database('members')
+          .whereIn('id', memberIds)
+          .select('id', 'first_name', 'last_name', 'birthdate', 'kscw_membership_active')
+        : []
+      const memberById = new Map(memberRows.map((m) => [Number(m.id), m]))
+
+      const rows = []
+      const seenRef = new Set()
+      const seenRole = new Set()
+      for (const o of input) {
+        const ref = String(o?.ref ?? '')
+        const role = o?.role == null || o.role === '' ? null : String(o.role)
+        if (role != null && !OFFICIAL_ROLES.includes(role)) {
+          return res.status(400).json({ error: `Unknown role ${role}`, code: 'invalid_role' })
+        }
+        if (role != null && seenRole.has(role)) {
+          return res.status(400).json({ error: `Role ${role} assigned twice`, code: 'duplicate_role' })
+        }
+        if (seenRef.has(ref)) continue
+        const mid = /^m:(\d+)$/.exec(ref)?.[1]
+        let identity = null
+        if (mid) {
+          const m = memberById.get(Number(mid))
+          if (m && (m.kscw_membership_active === true || known.has(ref))) {
+            identity = {
+              member: Number(m.id),
+              last_name: m.last_name || '',
+              first_initial: firstInitial(m.first_name),
+              birthdate: m.birthdate ? dateYMD(m.birthdate) : null,
+            }
+          }
+        } else if (known.has(ref)) {
+          const k = known.get(ref)
+          identity = { member: null, last_name: k.last_name, first_initial: k.first_initial, birthdate: k.birthdate }
+        }
+        if (!identity) {
+          return res.status(400).json({ error: `Unknown official ${ref}`, code: 'invalid_official' })
+        }
+        seenRef.add(ref)
+        if (role != null) seenRole.add(role)
+        rows.push({ ...identity, role })
+      }
+
+      const userRow = req.accountability?.user
+        ? await database('directus_users').where('id', req.accountability.user).first('first_name', 'last_name', 'email')
+        : null
+      const actorName = userRow ? [userRow.first_name, userRow.last_name].filter(Boolean).join(' ') || null : null
+      const actorEmail = userRow?.email ?? null
+
+      const now = new Date()
+      await database.transaction(async (trx) => {
+        await trx('game_roster_officials').where('game', gameId).del()
+        if (rows.length) {
+          await trx('game_roster_officials').insert(rows.map((r) => ({
+            game: Number(gameId),
+            member: r.member,
+            last_name: r.last_name,
+            first_initial: r.first_initial,
+            birthdate: r.birthdate,
+            role: r.role,
+            source: base.source,
+            edited_by_name: actorName,
+            edited_by_email: actorEmail,
+            date_created: now,
+            date_updated: now,
+          })))
+        }
+      })
+
+      await writeUserLog(database, log, {
+        accountability: req.accountability,
+        action: 'update',
+        collection: 'game_roster_officials',
+        recordId: gameId,
+        data: {
+          what: 'match_sheet_officials_edit',
+          team: game.kscw_team,
+          source: base.source,
+          officials: rows.map((r) => ({ member: r.member, role: r.role })),
+          by_member: member ? Number(member.id) : null,
+        },
+      })
+
+      res.json({ data: { saved: true, count: rows.length } })
+    } catch (err) {
+      log.error({
+        msg: `POST scorer/game/:id/officials: ${err.message}`,
+        endpoint: 'scorer/game/:gameId/officials',
+        userId: req.accountability?.user || null,
+        method: req.method,
+        stack: err.stack,
+      })
+      res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
+  // ── GET: club members a coach may add as an official ──────────────────────
+  //
+  // Names only — no DoB, no contact data. The DoB is attached server-side when the
+  // coach saves, and only for the people who actually end up on the sheet.
+  router.get('/scorer/game/:gameId/official-candidates', async (req, res) => {
+    try {
+      const auth = await authorize(req, res)
+      if (!auth) return
+      if (auth.access !== 'admin' && auth.access !== 'coach') {
+        return res.status(403).json({ error: 'Not authorized to edit the sheet', code: 'read_only' })
+      }
+      const q = String(req.query.q ?? '').trim()
+      if (q.length < 2) return res.json({ data: [] })
+      const like = `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`
+      const rows = await database('members')
+        .where('kscw_membership_active', true)
+        .where((qb) => qb
+          .whereILike('first_name', like)
+          .orWhereILike('last_name', like)
+          .orWhereRaw(`(first_name || ' ' || last_name) ILIKE ?`, [like]))
+        .orderBy(['last_name', 'first_name'])
+        .limit(20)
+        .select('id', 'first_name', 'last_name')
+      res.json({
+        data: rows.map((r) => ({
+          ref: `m:${r.id}`,
+          member: Number(r.id),
+          first_name: r.first_name || '',
+          last_name: r.last_name || '',
+        })),
+      })
+    } catch (err) {
+      log.error({
+        msg: `GET scorer/game/:id/official-candidates: ${err.message}`,
+        endpoint: 'scorer/game/:gameId/official-candidates',
+        userId: req.accountability?.user || null,
+        method: req.method,
+        stack: err.stack,
+      })
+      res.status(500).json({ error: 'Internal error' })
+    }
+  })
+
   // ── DELETE: revert to the Einsatzliste ────────────────────────────────────
   router.delete('/scorer/game/:gameId/roster', async (req, res) => {
     try {
@@ -749,17 +1014,21 @@ export function registerScorerRoster(router, { database, logger }) {
         return res.status(403).json({ error: 'Not authorized to edit the sheet', code: 'read_only' })
       }
 
-      const removed = await database('game_rosters').where('game', gameId).del()
+      // "Reset to the Einsatzliste" reverts the whole sheet — players AND officials.
+      const [removed, removedOfficials] = await database.transaction(async (trx) => [
+        await trx('game_rosters').where('game', gameId).del(),
+        await trx('game_roster_officials').where('game', gameId).del(),
+      ])
 
       await writeUserLog(database, log, {
         accountability: req.accountability,
         action: 'delete',
         collection: 'game_rosters',
         recordId: gameId,
-        data: { what: 'match_sheet_reset', team: game.kscw_team, rows: removed },
+        data: { what: 'match_sheet_reset', team: game.kscw_team, rows: removed, officials: removedOfficials },
       })
 
-      res.json({ data: { reset: true, rows: removed } })
+      res.json({ data: { reset: true, rows: removed, officials: removedOfficials } })
     } catch (err) {
       log.error({
         msg: `DELETE scorer/game/:id/roster: ${err.message}`,

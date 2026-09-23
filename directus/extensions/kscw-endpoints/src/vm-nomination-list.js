@@ -43,6 +43,12 @@ const VM_TIMEOUT_MS = 8000
 
 let session = null
 
+// The coach opens the sheet, closes it, opens it again; the Show-IDs pre-load reads it
+// too. A short memo spares VM (and the coach) a round trip each time. Short enough that
+// a list the coach just fixed in Volleymanager shows up on the next open-after-a-minute.
+const LIST_CACHE_TTL_MS = 60 * 1000
+const listCache = new Map() // `${uuid}|${side}` → { at, value }
+
 async function openSession(log, force) {
   if (!force && session && Date.now() - session.at < SESSION_TTL_MS) return session
   if (!process.env.VM_USERNAME || !process.env.VM_PASSWORD) {
@@ -89,24 +95,38 @@ const initial = (name) => {
 const personDob = (p) => p?.formattedAndTimezoneIndependentBirthday || null
 
 const mapPerson = (p) => (p ? {
+  license_nr: p.associationId != null ? String(p.associationId) : null,
   last_name: p.lastName || '',
   first_initial: initial(p.firstName),
   birthdate: personDob(p),
 } : null)
 
 /**
- * Fetch OUR Einsatzliste for a VM game — home or away, no caller hint needed.
+ * Fetch OUR Einsatzliste for a VM game — home or away; `side` matters only for a derby.
  *
  * @param {string} gameUuid  svrz_games.svrz_persistence_id (VM game __identity)
+ * @param {{ side?: 'home'|'away'|null }} [opts]  Only consulted for an intra-club DERBY,
+ *   where both lists are ours and VM hands back both — see below.
  * @returns {Promise<null | {
  *   players: Array<{ license_nr: string|null, last_name: string, first_initial: string,
  *                    birthdate: string|null, licence: string|null, eligible: boolean }>,
- *   coaches: Array<{ last_name: string, first_initial: string, birthdate: string|null,
+ *   coaches: Array<{ license_nr: string|null, last_name: string, first_initial: string, birthdate: string|null,
  *                    role: 'coach'|'assistant_coach_1'|'assistant_coach_2' }>,
  *   closed_at: string|null,
- * }>}  null when VM is unusable or has no list — caller falls back to RSVP.
+ * }>}  null when VM is unusable or has no list. `players` may be EMPTY while `coaches`
+ *        is not (officials filed, nominations not yet) — the caller decides what that means.
  */
-export async function fetchOwnNominationList(gameUuid, log) {
+export async function fetchOwnNominationList(gameUuid, log, { side = null } = {}) {
+  const key = `${gameUuid}|${side ?? ''}`
+  const hit = listCache.get(key)
+  if (hit && Date.now() - hit.at < LIST_CACHE_TTL_MS) return hit.value
+  const value = await readNominationList(gameUuid, log, side)
+  // Only cache a real answer — a VM hiccup must not pin the RSVP fallback for a minute.
+  if (value) listCache.set(key, { at: Date.now(), value })
+  return value
+}
+
+async function readNominationList(gameUuid, log, side) {
   let body
   try {
     const s = await openSession(log, false)
@@ -138,15 +158,21 @@ export async function fetchOwnNominationList(gameUuid, log) {
   const items = body?.items ?? body
   const home = items?.nominationListTeamHome
   const away = items?.nominationListTeamAway
+  let list = home ?? away
   if (home && away) {
-    // Never observed. If it ever happens the "only our side" assumption is broken and
-    // one of these belongs to the opponent — say so loudly rather than pick one.
-    log.warn(`[vm-nomination] ${gameUuid}: BOTH sides populated — refusing to guess which is ours`)
-    return null
+    // An intra-club DERBY (H1 v H3): both teams are the active party, so both lists
+    // are ours and VM returns both. That is the one case where our own home/away flag
+    // must decide — a derby is two `games` rows per game_id, one per team, and the
+    // row's `type` says which side that team plays (derby-games-two-rows-sv-sync).
+    // Without a hint we still refuse to guess: that is a caller bug, not a derby.
+    if (side !== 'home' && side !== 'away') {
+      log.warn(`[vm-nomination] ${gameUuid}: BOTH sides populated and no side hint — refusing to guess`)
+      return null
+    }
+    list = side === 'home' ? home : away
   }
-  const list = home ?? away
-  const noms = Array.isArray(list?.indoorPlayerNominations) ? list.indoorPlayerNominations : []
-  if (!noms.length) return null
+  if (!list) return null
+  const noms = Array.isArray(list.indoorPlayerNominations) ? list.indoorPlayerNominations : []
 
   // Persons nominated without a licence record. Never seen populated in practice;
   // surface it in the logs rather than guess at a shape we have not observed.
