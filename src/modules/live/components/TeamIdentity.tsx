@@ -23,17 +23,19 @@ export default function TeamIdentity({
   const { t } = useTranslation('live')
   const end = align === 'end'
   // Beach publishes the pair in one name field — stack the players instead of
-  // truncating "Müller / Meier" to something unreadable on a phone.
+  // squeezing "Müller / Meier" onto one line on a phone.
   const players = sport === 'beach' ? beachPair(team.name) : []
 
   return (
     <div className={cn('min-w-0', end ? 'text-right' : 'text-left')}>
       <div className={cn('flex items-center gap-2', end && 'flex-row-reverse')}>
         <span
-          className="inline-flex min-w-0 items-center rounded-md px-2 py-1 text-base font-bold uppercase tracking-wide ring-1 ring-black/10 dark:ring-white/15 sm:text-lg"
+          className="inline-flex min-w-0 max-w-full items-center rounded-md px-2 py-1 text-sm font-bold uppercase leading-tight tracking-normal ring-1 ring-black/10 dark:ring-white/15 sm:text-lg sm:tracking-wide"
           style={{ backgroundColor: team.color, color: readableOn(team.color) }}
         >
-          <span className="truncate">{team.short || t('teamFallback')}</span>
+          {/* Never ellipsise the team code — "KSCW…" is useless when both teams are
+              KSCW. A long code breaks onto a second line inside the chip instead. */}
+          <span className="min-w-0 break-words">{team.short || t('teamFallback')}</span>
         </span>
         {indicator}
       </div>
@@ -41,7 +43,7 @@ export default function TeamIdentity({
       {players.length > 1 ? (
         <p className="mt-0.5 text-xs leading-tight text-muted-foreground">
           {players.map((p) => (
-            <span key={p} className="block truncate">
+            <span key={p} className="block break-words">
               {p}
             </span>
           ))}
@@ -49,7 +51,7 @@ export default function TeamIdentity({
       ) : (
         team.name &&
         team.name !== team.short && (
-          <p className="mt-0.5 truncate text-xs text-muted-foreground">{team.name}</p>
+          <p className="mt-0.5 break-words text-xs leading-tight text-muted-foreground">{team.name}</p>
         )
       )}
     </div>
