@@ -27,6 +27,7 @@ import { maybeReloadOnStaleChunk } from '../../lib/chunkReload'
 import { captureApiError } from '../../lib/sentry'
 import { useReportPageLoading } from '../../hooks/usePageReady'
 import { GuideHelpButton } from '../guide/GuideHelpButton'
+import { bbGameDutyTeamIds } from './lib/bbDutyTeams'
 
 type SportTab = 'volleyball' | 'basketball'
 // 'plan' = the auto-assign planner (draft → roll out); 'overview' = the saved
@@ -154,10 +155,10 @@ export default function ScorerAssignPage() {
   }, [])
   const [sportTab, setSportTab] = useState<SportTab>(canVb ? 'volleyball' : 'basketball')
   const [vbAssignments, setVbAssignments] = useState<GameAssignment[]>(() => loadDraft<GameAssignment>('volleyball', season))
-  const [bbAssignments, setBbAssignments] = useState<BbGameAssignment[]>(() => loadDraft<BbGameAssignment>('basketball', season))
+  const [bbDraft, setBbDraft] = useState<BbGameAssignment[]>(() => loadDraft<BbGameAssignment>('basketball', season))
   // Auto-save the draft whenever it changes (external system → effect is correct).
   useEffect(() => { saveDraft('volleyball', season, vbAssignments) }, [vbAssignments, season])
-  useEffect(() => { saveDraft('basketball', season, bbAssignments) }, [bbAssignments, season])
+  useEffect(() => { saveDraft('basketball', season, bbDraft) }, [bbDraft, season])
   const [saving, setSaving] = useState(false)
   const [saveMsg, setSaveMsg] = useState<{ text: string; error: boolean } | null>(null)
   const [running, setRunning] = useState(false)
@@ -192,6 +193,34 @@ export default function ScorerAssignPage() {
     () => allGames.filter((g) => getGameSport(g) === sportTab),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [allGames, sportTab, teamSportById],
+  )
+
+  // The BB draft can predate duty teams saved elsewhere (/scorer, SQL, another
+  // admin) — a draft made before the teams were set kept proposing its own
+  // picks, and Roll out would have overwritten the saved ones (23.09.2026).
+  // Unless the planner row was edited here (`manual`), a game with saved duty
+  // teams always shows them, as a kept row that Roll out skips.
+  const reconcileBb = useCallback((rows: BbGameAssignment[]): BbGameAssignment[] => {
+    if (!rows.length) return rows
+    const gameById = new Map(sportGames.map((g) => [g.id, g]))
+    const nameOf = (id: string) => teams.find((tm) => tm.id === id)?.name ?? null
+    return rows.map((a): BbGameAssignment => {
+      if (a.manual) return a
+      const g = gameById.get(a.gameId)
+      const [primary, ...extra] = g ? bbGameDutyTeamIds(g) : []
+      if (!primary) return a
+      return {
+        gameId: a.gameId, dutyTeamId: primary, dutyTeamName: nameOf(primary),
+        extraTeamIds: extra.length ? extra : undefined, score: 0, conflicts: [{ key: 'existingKept' }],
+      }
+    })
+  }, [sportGames, teams])
+  const bbAssignments = useMemo(() => reconcileBb(bbDraft), [reconcileBb, bbDraft])
+  // Edits start from the reconciled rows, never from a stale draft row.
+  const setBbAssignments = useCallback(
+    (u: BbGameAssignment[] | ((prev: BbGameAssignment[]) => BbGameAssignment[])) =>
+      setBbDraft((prev) => (typeof u === 'function' ? u(reconcileBb(prev)) : u)),
+    [reconcileBb],
   )
 
   const homeGames = useMemo(
@@ -426,6 +455,8 @@ export default function ScorerAssignPage() {
       // snapshot until the page was reloaded. It lied precisely about the
       // operation you would open it to verify.
       if (tasks.length > 0) invalidateForCollection('games')
+      // Rolled out = saved; from now on the game's saved teams are the truth.
+      if (sportTab === 'basketball') setBbDraft((prev) => prev.map((a) => (a.manual ? { ...a, manual: undefined } : a)))
       setSaveMsg({ text: t('saveSuccess', { count: tasks.length }), error: false })
     } catch {
       setSaveMsg({ text: t('saveError'), error: true })
@@ -475,7 +506,7 @@ export default function ScorerAssignPage() {
           }
           return {
             ...meta(a.gameId), ...blank,
-            dutyTeam: req.refereeOnly ? '—' : (a.dutyTeamName ?? ''),
+            dutyTeam: req.refereeOnly ? '—' : [a.dutyTeamName, ...(a.extraTeamIds ?? []).map((id) => teamNameById.get(id) ?? '?')].filter(Boolean).join(' + '),
             crewRequired: crewLabel(req),
             anschreiber: seat(0, g?.bb_scorer_member),
             zeitnehmer: seat(1, g?.bb_timekeeper_member),
@@ -529,7 +560,7 @@ export default function ScorerAssignPage() {
   function handleBbOverride(gameId: string, teamId: string) {
     setBbAssignments((prev) =>
       prev.map((a) =>
-        a.gameId === gameId ? { ...stripExisting(a), dutyTeamId: teamId || null, dutyTeamName: teamNameById.get(teamId) ?? null } : a,
+        a.gameId === gameId ? { ...stripExisting(a), manual: true, extraTeamIds: undefined, dutyTeamId: teamId || null, dutyTeamName: teamNameById.get(teamId) ?? null } : a,
       ),
     )
   }
@@ -549,7 +580,7 @@ export default function ScorerAssignPage() {
   function handleBbPerson(gameId: string, role: 'scorer' | 'timekeeper' | '24s', memberId: string) {
     setBbAssignments((prev) => prev.map((a) => {
       if (a.gameId !== gameId) return a
-      const b = stripExisting(a)
+      const b = { ...stripExisting(a), manual: true }
       const v = memberId || null
       if (role === 'scorer') return { ...b, bbScorerMemberId: v }
       if (role === 'timekeeper') return { ...b, bbTimekeeperMemberId: v }
@@ -612,6 +643,7 @@ export default function ScorerAssignPage() {
       requiredLicence={licence}
       hideTeam={hideTeam}
       teamValue={a.dutyTeamId ?? ''}
+      teamPool={a.extraTeamIds?.length && a.dutyTeamId ? [a.dutyTeamId, ...a.extraTeamIds] : undefined}
       personValue={personValueOf(draftMember, currentMember)}
       members={members}
       teams={bbTeams}
@@ -745,7 +777,7 @@ export default function ScorerAssignPage() {
       } else {
         setBbAssignments((prev) => prev.map((a) => {
           const u = bbUpdates.get(a.gameId); if (!u) return a
-          const next = { ...stripExisting(a), dutyTeamId: u.duty, dutyTeamName: nameOf(u.duty) }
+          const next = { ...stripExisting(a), manual: true, extraTeamIds: undefined, dutyTeamId: u.duty, dutyTeamName: nameOf(u.duty) }
           // Seats are only touched where the sheet actually said something, so a
           // planner who edited just the duty team doesn't wipe the people.
           if (u.scorer !== undefined) next.bbScorerMemberId = u.scorer

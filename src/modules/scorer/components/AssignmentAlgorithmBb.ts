@@ -1,4 +1,5 @@
 import type { Game, Team, Training, Member, MemberTeam } from '../../../types'
+import { bbGameDutyTeamIds } from '../lib/bbDutyTeams'
 import {
   type ConflictEntry,
   OVERLAP_MINUTES,
@@ -51,6 +52,12 @@ export interface BbGameAssignment {
   bbScorerMemberId?: string | null
   bbTimekeeperMemberId?: string | null
   bb24sMemberId?: string | null
+  /** Further teams already sharing this game's duty (migration 371) — kept
+   *  rows only; roll-out never writes them. */
+  extraTeamIds?: string[]
+  /** Edited in the planner — survives a reload as-is instead of being
+   *  re-synced to the game's saved duty teams. */
+  manual?: boolean
   conflicts: ConflictEntry[]
 }
 
@@ -227,11 +234,13 @@ export function runBbAssignment(input: BbAssignmentInput): BbGameAssignment[] {
 
     // Keep an existing duty team (still counts toward fairness)
     if (game.bb_duty_team) {
-      trackAssignment(game.bb_duty_team, game.date, assignmentCounts, dayAssignments)
+      const [primary, ...extraTeamIds] = bbGameDutyTeamIds(game)
+      for (const tid of [primary, ...extraTeamIds]) trackAssignment(tid, game.date, assignmentCounts, dayAssignments)
       results.push({
         gameId: game.id,
-        dutyTeamId: game.bb_duty_team,
-        dutyTeamName: bbTeams.find((t) => t.id === game.bb_duty_team)?.name ?? null,
+        dutyTeamId: primary,
+        dutyTeamName: bbTeams.find((t) => t.id === primary)?.name ?? null,
+        extraTeamIds: extraTeamIds.length ? extraTeamIds : undefined,
         score: 0,
         conflicts: [{ key: 'existingKept' }],
       })
@@ -287,9 +296,12 @@ export function getBbTeamCounts(
     }
   }
 
+  const nameById = new Map(allTeams.map((t) => [t.id, t.name]))
   for (const r of results) {
-    if (r.dutyTeamName && counts.has(r.dutyTeamName)) {
-      counts.get(r.dutyTeamName)!.duties++
+    // A shared duty counts for every team on it.
+    const names = [r.dutyTeamName, ...(r.extraTeamIds ?? []).map((id) => nameById.get(id) ?? null)]
+    for (const name of names) {
+      if (name && counts.has(name)) counts.get(name)!.duties++
     }
   }
 
