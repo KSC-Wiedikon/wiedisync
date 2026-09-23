@@ -21,6 +21,7 @@
 
 import { writeUserLog } from './activity-log.js'
 import { teamPeopleSql } from './activity-roster-sql.js'
+import { gameStartMs } from './scorer-roster.js'
 
 // role → assignee column, duty-team column, confirmed-by pair, required licence
 // (any-of), and whether BB roles fall back to the shared bb_duty_team.
@@ -61,6 +62,10 @@ export function registerScorerClaim(router, ctx) {
       const game = await database('games').where('id', req.params.id).first()
       if (!game) return res.status(404).json({ error: 'Game not found' })
       if (game[def.member] != null) return res.status(409).json({ error: 'Role already taken' })
+      // No signing up for a game that has already started (the UI hides past
+      // games and the button after kickoff; this closes the direct POST).
+      const startMs = gameStartMs(game)
+      if (startMs != null && startMs <= Date.now()) return res.status(409).json({ error: 'Game has already started' })
 
       if (def.lic.length && !def.lic.some((l) => member[l])) {
         return res.status(403).json({ error: 'Missing licence for this role' })

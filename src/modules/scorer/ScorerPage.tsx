@@ -12,7 +12,7 @@ import { useAuth } from '../../hooks/useAuth'
 import { useTeamPeopleIds } from '../../hooks/useTeamPeopleIds'
 import { useAdminMode } from '../../hooks/useAdminMode'
 import { logActivity } from '../../utils/logActivity'
-import { todayLocal, isWithinGameContactWindow, getCurrentSeason, getSeasonDateRange } from '../../utils/dateHelpers'
+import { todayLocal, isWithinGameContactWindow } from '../../utils/dateHelpers'
 import { Button } from '@/components/ui/button'
 import { FormInput } from '@/components/FormField'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -41,7 +41,6 @@ type VbDutyTypeFilter = 'all' | 'scorer' | 'scoreboard' | 'scorer_scoreboard'
 type VbUnassignedFilter = 'all' | 'scorer' | 'scoreboard' | 'scorer_scoreboard' | 'any'
 type BbUnassignedFilter = 'all' | 'bb_scorer' | 'bb_timekeeper' | 'bb_24s_official' | 'any'
 
-const PAST_PAGE_SIZE = 5
 
 // A duty is "open" (signable) when a duty slot exists — a team is assigned (or a
 // person already is) — but no member has taken it yet. Mirrors the "any
@@ -96,9 +95,6 @@ export default function ScorerPage() {
   const [unassignedFilter, setUnassignedFilter] = useState<VbUnassignedFilter | BbUnassignedFilter>('all')
   const [searchAssignee, setSearchAssignee] = useState('')
 
-  // Past games
-  const [showPast, setShowPast] = useState(false)
-  const [pastVisible, setPastVisible] = useState(PAST_PAGE_SIZE)
   const [reminderToggling, setReminderToggling] = useState(false)
   const canEdit = effectiveIsAdmin && hasAdminAccessToSport(sportTab)
   // Admins see the assigned official's contact on any game (items API).
@@ -111,11 +107,9 @@ export default function ScorerPage() {
     isSportAdmin || (isLeader && isWithinGameContactWindow(g.date, g.time))
 
   const today = useMemo(() => todayLocal(), [])
-  // Past duties are scoped to the CURRENT season — last season's assignments stay
-  // in the DB (fines, duty history, the audit trail all still resolve them) but
-  // must not show up in this season's view. Same season floor as
-  // /admin/scorer-assign, so both duty surfaces roll over on the same day.
-  const seasonStart = useMemo(() => getSeasonDateRange(getCurrentSeason()).start, [])
+  // Only today's and upcoming games — past games are not shown at all, so
+  // nobody signs up for (or is reminded of) a duty that is already over
+  // (23.09.2026). The duty history stays in the DB for fines and audits.
 
   const {
     data: upcomingGamesRaw,
@@ -133,13 +127,6 @@ export default function ScorerPage() {
   })
   const upcomingGames = upcomingGamesRaw ?? []
 
-  const { data: allPastGamesRaw, isLoading: pastLoading } = useCollection<Game>('games', {
-    filter: { _and: [{ type: { _eq: 'home' } }, { date: { _gte: seasonStart } }, { date: { _lt: today } }] },
-    sort: ['-date', '-time'],
-    all: true,
-    enabled: showPast,
-  })
-  const allPastGames = allPastGamesRaw ?? []
 
   // Reminder email toggle (superuser only)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -469,20 +456,6 @@ export default function ScorerPage() {
     })
   }, [upcomingGames, canSeeGame, sportTab, dutyScope, user, dateFilter, dutyTeamFilter, playingTeamFilter, dutyTypeFilter, unassignedFilter, searchAssignee, memberMap])
 
-  const filteredPastGames = useMemo(() => allPastGames.filter((g) => {
-    if (getGameSport(g) !== sportTab) return false
-    if (!effectiveIsAdmin && !effectiveIsVorstand && user) {
-      const isPersonallyAssigned = sportTab === 'volleyball'
-        ? [g.scorer_member, g.scoreboard_member, g.scorer_scoreboard_member, g.referee_member].includes(String(user.id))
-        : [g.bb_scorer_member, g.bb_timekeeper_member, g.bb_24s_official].includes(String(user.id))
-      const teamHasDuty = sportTab === 'volleyball'
-        ? myDutyTeamIds.some((tid) => tid === g.scorer_duty_team || tid === g.scoreboard_duty_team || tid === g.scorer_scoreboard_duty_team || tid === g.referee_duty_team)
-        : bbAllDutyTeamIds(g).some((tid) => myDutyTeamIds.includes(tid))
-      if (!isPersonallyAssigned && !teamHasDuty) return false
-    }
-    return true
-  }), [allPastGames, sportTab, effectiveIsAdmin, effectiveIsVorstand, user, myDutyTeamIds])
-  const visiblePastGames = useMemo(() => filteredPastGames.slice(0, pastVisible), [filteredPastGames, pastVisible])
 
   const hasActiveFilters = !!(dateFilter || dutyTeamFilter || playingTeamFilter || dutyTypeFilter !== 'all' || unassignedFilter !== 'all' || searchAssignee)
 
@@ -496,7 +469,7 @@ export default function ScorerPage() {
   }
 
   async function handleUpdate(gameId: string, fields: Partial<Game>) {
-    const oldGame = upcomingGames.find((g) => g.id === gameId) || allPastGames.find((g) => g.id === gameId)
+    const oldGame = upcomingGames.find((g) => g.id === gameId)
     try {
       await updateRecord('games', gameId, fields as Record<string, unknown>)
       if (oldGame) {
@@ -558,12 +531,11 @@ export default function ScorerPage() {
     [declineDelegation, t],
   )
 
-  const allGames = useMemo(() => [...upcomingGames, ...allPastGames], [upcomingGames, allPastGames])
+  const allGames = upcomingGames
 
   // Each games section waits for its games query AND the supporting data its rows
   // render from, so ScorerRow never paints against empty lookup maps.
   const upcomingLoading = gamesLoading || supportingLoading
-  const pastGateLoading = pastLoading || supportingLoading
 
   // Report to the app boot gate — see usePageReady.tsx. Gate on the upcoming
   // games + their supporting lookups (the page's primary content); past games
@@ -572,7 +544,7 @@ export default function ScorerPage() {
 
   const filterLabelClass = 'mb-1 block text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-400'
 
-  const renderScorerRow = (g: Game, isPast = false) => (
+  const renderScorerRow = (g: Game) => (
     <ScorerRow
       key={g.id}
       game={g}
@@ -583,14 +555,14 @@ export default function ScorerPage() {
       guestMemberIds={guestMemberIds}
       onUpdate={handleUpdate}
       onRefetch={refetch}
-      canEdit={isPast ? false : canEdit}
+      canEdit={canEdit}
       isAdmin={isSportAdmin}
       showContact={showContactForGame(g)}
       userId={user?.id}
       userTeamIds={myDutyTeamIds}
       userLicences={user ? licencesOf(user) : []}
       sport={sportTab}
-      onDelegate={isPast ? undefined : handleDelegate}
+      onDelegate={handleDelegate}
       getPendingForRole={getPendingForRole}
       getDelegationTargetName={getDelegationTargetName}
       myAbsences={myAbsences}
@@ -828,7 +800,7 @@ export default function ScorerPage() {
           {/* Upcoming games */}
           <div className="mt-6">
             {upcomingLoading && <LoadingSpinner />}
-            {!upcomingLoading && filteredGames.length === 0 && !showPast && (
+            {!upcomingLoading && filteredGames.length === 0 && (
               <div className="py-12 text-center text-gray-500 dark:text-gray-400">
                 <p>{t('noGames')}</p>
                 <p className="mt-1 text-sm">{t('noGamesDescription')}</p>
@@ -836,35 +808,6 @@ export default function ScorerPage() {
             )}
             {!upcomingLoading && filteredGames.length > 0 && (
               <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">{filteredGames.map((g) => renderScorerRow(g))}</div>
-            )}
-          </div>
-
-          {/* Past games */}
-          <div className="mt-8">
-            {!showPast ? (
-              <Button variant="outline" onClick={() => { setShowPast(true); setPastVisible(PAST_PAGE_SIZE) }} className="mx-auto rounded-full">
-                {t('showOlderGames')}
-              </Button>
-            ) : (
-              <div className="mt-4">
-                {pastGateLoading && <LoadingSpinner />}
-                {!pastGateLoading && filteredPastGames.length === 0 && (
-                  <p className="py-4 text-center text-sm text-gray-400">{t('noPastGamesThisSeason')}</p>
-                )}
-                {!pastGateLoading && visiblePastGames.length > 0 && (
-                  <>
-                    <div className="grid gap-3 opacity-75 lg:grid-cols-2 2xl:grid-cols-3">{visiblePastGames.map((g) => renderScorerRow(g, true))}</div>
-                    {pastVisible < filteredPastGames.length && (
-                      <div className="mt-4 flex justify-center">
-                        <Button variant="outline" onClick={() => setPastVisible((v) => v + PAST_PAGE_SIZE)} className="rounded-full">{t('loadMore')}</Button>
-                      </div>
-                    )}
-                  </>
-                )}
-                <div className="mt-3 flex justify-center">
-                  <Button variant="ghost" size="sm" onClick={() => setShowPast(false)}>{t('hidePast')}</Button>
-                </div>
-              </div>
             )}
           </div>
         </>

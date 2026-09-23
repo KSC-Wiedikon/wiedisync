@@ -199,6 +199,8 @@ export default function ScorerRow({
   // no person — per-role checks below; there is no game-level confirmed lock.)
   function canSelfAssign(role: AssignRole): boolean {
     if (!userId) return false
+    // Nobody signs up for a game that has already started.
+    if (isGamePast) return false
 
     if (sport === 'volleyball') {
       const vbRole = role as VbAssignRole

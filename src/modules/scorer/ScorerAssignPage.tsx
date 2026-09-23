@@ -6,7 +6,7 @@ import { memberDisplayName, relId } from '../../utils/relations'
 import { useCollection, invalidateForCollection } from '../../lib/query'
 import { useAuth } from '../../hooks/useAuth'
 import { useTeamPeopleIds } from '../../hooks/useTeamPeopleIds'
-import { getCurrentSeason, getSeasonDateRange, formatDateCompact, formatTime } from '../../utils/dateHelpers'
+import { getCurrentSeason, getSeasonDateRange, formatDateCompact, formatTime, todayLocal } from '../../utils/dateHelpers'
 import { logActivity } from '../../utils/logActivity'
 import { Button } from '@/components/ui/button'
 import LoadingSpinner from '../../components/LoadingSpinner'
@@ -68,9 +68,14 @@ export default function ScorerAssignPage() {
   const canVb = hasAdminAccessToSport('volleyball')
   const canBb = hasAdminAccessToSport('basketball')
 
+  // Only games from today on — past games are neither planned, exported nor
+  // rolled out (a proposal on a played game would write a duty onto it), and
+  // the team summary counts the duties still ahead (23.09.2026).
+  const [fromDate] = useState(() => { const t = todayLocal(); return t > seasonStart ? t : seasonStart })
+
   // Data loading
   const { data: allGamesRaw, isLoading: gamesLoading } = useCollection<Game>('games', {
-    filter: { _and: [{ date: { _gte: seasonStart } }, { date: { _lte: seasonEnd } }, { status: { _neq: 'cancelled' } }] },
+    filter: { _and: [{ date: { _gte: fromDate } }, { date: { _lte: seasonEnd } }, { status: { _neq: 'cancelled' } }] },
     sort: ['date', 'time'],
     all: true,
   })
@@ -154,10 +159,10 @@ export default function ScorerAssignPage() {
     window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash)
   }, [])
   const [sportTab, setSportTab] = useState<SportTab>(canVb ? 'volleyball' : 'basketball')
-  const [vbAssignments, setVbAssignments] = useState<GameAssignment[]>(() => loadDraft<GameAssignment>('volleyball', season))
+  const [vbDraft, setVbAssignments] = useState<GameAssignment[]>(() => loadDraft<GameAssignment>('volleyball', season))
   const [bbDraft, setBbDraft] = useState<BbGameAssignment[]>(() => loadDraft<BbGameAssignment>('basketball', season))
   // Auto-save the draft whenever it changes (external system → effect is correct).
-  useEffect(() => { saveDraft('volleyball', season, vbAssignments) }, [vbAssignments, season])
+  useEffect(() => { saveDraft('volleyball', season, vbDraft) }, [vbDraft, season])
   useEffect(() => { saveDraft('basketball', season, bbDraft) }, [bbDraft, season])
   const [saving, setSaving] = useState(false)
   const [saveMsg, setSaveMsg] = useState<{ text: string; error: boolean } | null>(null)
@@ -215,7 +220,12 @@ export default function ScorerAssignPage() {
       }
     })
   }, [sportGames, teams])
-  const bbAssignments = useMemo(() => reconcileBb(bbDraft), [reconcileBb, bbDraft])
+  // A draft can hold rows for games that have since been played — they are no
+  // longer loaded, so they are neither shown nor rolled out (read-side filter
+  // only: the stored draft is left alone).
+  const loadedGameIds = useMemo(() => new Set(sportGames.map((g) => g.id)), [sportGames])
+  const vbAssignments = useMemo(() => vbDraft.filter((a) => loadedGameIds.has(a.gameId)), [vbDraft, loadedGameIds])
+  const bbAssignments = useMemo(() => reconcileBb(bbDraft).filter((a) => loadedGameIds.has(a.gameId)), [reconcileBb, bbDraft, loadedGameIds])
   // Edits start from the reconciled rows, never from a stale draft row.
   const setBbAssignments = useCallback(
     (u: BbGameAssignment[] | ((prev: BbGameAssignment[]) => BbGameAssignment[])) =>
