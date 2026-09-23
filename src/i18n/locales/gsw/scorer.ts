@@ -19,6 +19,7 @@ export default {
   bbScorer: 'Aaschriiber/in',
   bbTimekeeper: 'Zitnehmer/in',
   bb24sOfficial: '24"-Offizielli/r',
+  bbDutyTeams: 'Iisatzteams',
   bbDutyTeam: 'Offiziellen-Team',
 
   // Sport toggle

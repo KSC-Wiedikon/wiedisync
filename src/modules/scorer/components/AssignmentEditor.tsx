@@ -46,6 +46,10 @@ interface AssignmentEditorProps {
    *  team already chosen by another role (e.g. BB timekeeper/24s under the same
    *  duty team as the scorer). Person-first still works (derives + sets the team). */
   hideTeam?: boolean
+  /** Several teams share this duty (basketball, migration 371): the person list
+   *  is the union of their members and `teamValue` is ignored. Empty/undefined =
+   *  the single-team behaviour. */
+  teamPool?: string[]
 }
 
 export default function AssignmentEditor({
@@ -74,6 +78,7 @@ export default function AssignmentEditor({
   showConfirmedBy,
   onHide,
   hideTeam,
+  teamPool,
 }: AssignmentEditorProps) {
   const { t, i18n } = useTranslation('scorer')
 
@@ -96,13 +101,26 @@ export default function AssignmentEditor({
     return m
   }, [teamMemberIds, sportTeamIds])
 
+  // Members of any pooled team. Keyed on the joined ids — the caller builds a
+  // fresh array every render.
+  const poolKey = teamPool?.join(',') ?? ''
+  const pooledMembers = useMemo(() => {
+    if (!poolKey) return null
+    const set = new Set<string>()
+    for (const tid of poolKey.split(',')) for (const mid of teamMemberIds.get(tid) ?? []) set.add(mid)
+    return set
+  }, [poolKey, teamMemberIds])
+
   const filteredMembers = useMemo(() => {
     let list = members.filter((m) => m.kscw_membership_active && !guestMemberIds?.has(m.id))
     if (requiredLicence) {
       const licences = Array.isArray(requiredLicence) ? requiredLicence : [requiredLicence]
       list = list.filter((m) => licences.some((l) => m[l]))
     }
-    if (teamValue) {
+    if (pooledMembers) {
+      // Shared duty → members of any of the teams.
+      list = list.filter((m) => pooledMembers.has(m.id))
+    } else if (teamValue) {
       // Team chosen → only that team's members.
       const teamMembers = teamMemberIds.get(teamValue)
       if (teamMembers) {
@@ -121,13 +139,13 @@ export default function AssignmentEditor({
     return list.sort((a, b) =>
       `${a.last_name} ${a.first_name}`.localeCompare(`${b.last_name} ${b.first_name}`, i18n.language),
     )
-  }, [members, requiredLicence, teamValue, teamMemberIds, memberSportTeams, personValue, guestMemberIds, i18n.language])
+  }, [members, requiredLicence, pooledMembers, teamValue, teamMemberIds, memberSportTeams, personValue, guestMemberIds, i18n.language])
 
   // Picking a person with no duty team yet auto-fills their team; if they're in
   // more than one team of this sport, ask which one covers this duty.
   const [teamPrompt, setTeamPrompt] = useState<{ memberId: string; teamIds: string[] } | null>(null)
   function handlePersonPick(memberId: string) {
-    if (teamValue || !memberId) { onPersonChange(memberId); return }
+    if (teamValue || teamPool?.length || !memberId) { onPersonChange(memberId); return }
     const tids = memberSportTeams.get(memberId) ?? []
     if (tids.length === 1) { onTeamChange(tids[0]); onPersonChange(memberId) }
     else if (tids.length > 1) { setTeamPrompt({ memberId, teamIds: tids }) }
@@ -152,7 +170,12 @@ export default function AssignmentEditor({
     ? memberDisplayName(assignedPerson)
     : ''
 
-  const teamName = teamValue ? teams.find((t) => t.id === teamValue)?.name ?? '' : ''
+  const teamNameOf = (id: string) => teams.find((tm) => tm.id === id)?.name ?? ''
+  // A shared duty names the pool team the assignee plays in, else all of them.
+  const personPoolTeam = personValue ? teamPool?.find((tid) => teamMemberIds.get(tid)?.has(personValue)) : undefined
+  const teamName = teamPool?.length
+    ? (personPoolTeam ? teamNameOf(personPoolTeam) : teamPool.map(teamNameOf).filter(Boolean).join(' / '))
+    : teamValue ? teamNameOf(teamValue) : ''
 
   return (
     <div className="space-y-1.5">

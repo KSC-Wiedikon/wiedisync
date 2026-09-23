@@ -15,6 +15,8 @@ import { Calendar, MapPin, Clock, AlertTriangle, Users } from 'lucide-react'
 import { sanitizeUrl } from '../../../utils/sanitizeUrl'
 import { useNow } from '../../../hooks/useNow'
 import RosterModal from './RosterModal'
+import { TeamPickerMulti } from '@/components/ui/TeamPicker'
+import { bbGameDutyTeamIds, bbSeatDutyTeamIds, bbDutyTeamsPayload } from '../lib/bbDutyTeams'
 
 interface ScorerRowProps {
   game: Game
@@ -232,9 +234,8 @@ export default function ScorerRow({
         && !userLicences.includes('otn2_bb')) return false
       const currentPerson = game[bbRole]
       if (currentPerson) return false
-      const dutyTeam = getDutyTeamForRole(bbRole)
-      if (!dutyTeam) return false
-      return userTeamIds.includes(dutyTeam)
+      // Any team sharing the game's duty may take the seat (migration 371).
+      return bbSeatDutyTeamIds(game, bbRole).some((tid) => userTeamIds.includes(tid))
     }
   }
 
@@ -284,11 +285,21 @@ export default function ScorerRow({
       if (role === 'referee') return game.referee_duty_team ?? ''
       return game.scorer_scoreboard_duty_team ?? ''
     }
-    if (role === 'bb_scorer') return game.bb_scorer_duty_team ?? game.bb_duty_team ?? ''
-    if (role === 'bb_timekeeper') return game.bb_timekeeper_duty_team ?? game.bb_duty_team ?? ''
-    if (role === 'bb_24s_official') return game.bb_24s_duty_team ?? game.bb_duty_team ?? ''
-    return game.bb_duty_team ?? ''
+    // Shared duty: the pool team the user is in (the delegation's from-team),
+    // else the primary.
+    const pool = bbSeatDutyTeamIds(game, role as BbAssignRole)
+    return pool.find((tid) => userTeamIds.includes(tid)) ?? pool[0] ?? ''
   }
+
+  // Basketball staffs the table per GAME: one or more teams, any member of any
+  // of them takes any seat they're licensed for.
+  const bbGameTeams = sport === 'basketball' ? bbGameDutyTeamIds(game) : []
+  const bbTeamOptions = teams
+    .filter((tm) => tm.sport === 'basketball')
+    .map((tm) => ({ id: String(tm.id), label: tm.name, sport: 'basketball' as const, active: tm.active }))
+  const bbTeamName = (id: string) => teams.find((tm) => String(tm.id) === id)?.name ?? '?'
+  // Picking a person with no duty team yet: their team becomes the game's.
+  const bbTeamFromPerson = (v: string) => { if (v) handleAdminUpdate(game.id, bbDutyTeamsPayload([v]) as Partial<Game>) }
 
   // Check if current user is the assigned member for a role
   function isUserAssigned(role: AssignRole): boolean {
@@ -429,16 +440,39 @@ export default function ScorerRow({
           )
         ) : (
           <>
+            <div className="space-y-1.5">
+              <span className="text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">{t('bbDutyTeams')}</span>
+              {effectiveCanEdit ? (
+                <TeamPickerMulti
+                  value={bbGameTeams}
+                  onChange={(ids) => handleAdminUpdate(game.id, bbDutyTeamsPayload(ids) as Partial<Game>)}
+                  teams={bbTeamOptions}
+                  placeholder={t('selectTeam')}
+                />
+              ) : bbGameTeams.length ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {bbGameTeams.map((tid) => (
+                    <span key={tid} className="rounded bg-gray-200 px-1.5 py-0.5 text-xs font-semibold text-gray-700 dark:bg-gray-600 dark:text-gray-200">
+                      {bbTeamName(tid)}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-sm text-gray-400 dark:text-gray-500">{t('unassigned')}</div>
+              )}
+            </div>
             <AssignmentEditor
               label={t('bbScorer')}
               requiredLicence="otr1_bb"
-              teamValue={game.bb_scorer_duty_team ?? game.bb_duty_team ?? ''}
+              teamValue=""
+              teamPool={bbSeatDutyTeamIds(game, 'bb_scorer')}
+              hideTeam
               personValue={game.bb_scorer_member ?? ''}
               members={members}
               teams={teams}
               teamMemberIds={teamMemberIds}
               sport={sport}
-              onTeamChange={(v) => handleAdminUpdate(game.id, { bb_scorer_duty_team: v })}
+              onTeamChange={bbTeamFromPerson}
               onPersonChange={(v) => handleAdminUpdate(game.id, { bb_scorer_member: v })}
               disabled={!effectiveCanEdit}
               showContact={showContact}
@@ -457,13 +491,15 @@ export default function ScorerRow({
             <AssignmentEditor
               label={t('bbTimekeeper')}
               requiredLicence="otr1_bb"
-              teamValue={game.bb_timekeeper_duty_team ?? game.bb_duty_team ?? ''}
+              teamValue=""
+              teamPool={bbSeatDutyTeamIds(game, 'bb_timekeeper')}
+              hideTeam
               personValue={game.bb_timekeeper_member ?? ''}
               members={members}
               teams={teams}
               teamMemberIds={teamMemberIds}
               sport={sport}
-              onTeamChange={(v) => handleAdminUpdate(game.id, { bb_timekeeper_duty_team: v })}
+              onTeamChange={bbTeamFromPerson}
               onPersonChange={(v) => handleAdminUpdate(game.id, { bb_timekeeper_member: v })}
               disabled={!effectiveCanEdit}
               showContact={showContact}
@@ -483,13 +519,15 @@ export default function ScorerRow({
               <AssignmentEditor
                 label={t('bb24sOfficial')}
                 requiredLicence={['otr2_bb', 'otn1_bb', 'otn2_bb']}
-                teamValue={game.bb_24s_duty_team ?? game.bb_duty_team ?? ''}
+                teamValue=""
+                teamPool={bbSeatDutyTeamIds(game, 'bb_24s_official')}
+                hideTeam
                 personValue={game.bb_24s_official ?? ''}
                 members={members}
                 teams={teams}
                 teamMemberIds={teamMemberIds}
                 sport={sport}
-                onTeamChange={(v) => handleAdminUpdate(game.id, { bb_24s_duty_team: v })}
+                onTeamChange={bbTeamFromPerson}
                 onPersonChange={(v) => handleAdminUpdate(game.id, { bb_24s_official: v })}
                 disabled={!effectiveCanEdit}
                 showContact={showContact}

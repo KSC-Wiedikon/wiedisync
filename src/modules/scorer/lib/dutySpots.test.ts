@@ -126,6 +126,12 @@ describe('buildDutySpots — basketball', () => {
     expect(withPerson.find((s) => s.role === 'bb_24s_official')).toMatchObject({ teamName: 'H1', memberId: 'm2' })
   })
 
+  it('names every team sharing the game duty (migration 371)', () => {
+    const out = spots([game('g1', { bb_duty_team: 't1', bb_extra_duty_teams: ['t2'] })], 'basketball')
+    expect(out.find((s) => s.role === 'bb_scorer')?.teamName).toBe('H1 / D1')
+    expect(out.find((s) => s.role === 'bb_scorer')?.teamId).toBe('t1')
+  })
+
   it('lets a per-role duty team override the shared one', () => {
     const out = spots([game('g1', { bb_duty_team: 't1', bb_timekeeper_duty_team: 't2' })], 'basketball')
     expect(out.find((s) => s.role === 'bb_timekeeper')?.teamName).toBe('D1')

@@ -476,6 +476,8 @@ export interface Game extends BaseRecord {
   bb_timekeeper_member: string
   bb_24s_official: string
   bb_duty_team: string
+  /** Further teams sharing this game's BB duty (migration 371) — see scorer/lib/bbDutyTeams.ts. */
+  bb_extra_duty_teams?: (string | number)[] | null
   bb_scorer_duty_team: string
   bb_timekeeper_duty_team: string
   bb_24s_duty_team: string

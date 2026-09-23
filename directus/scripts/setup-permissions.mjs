@@ -950,7 +950,7 @@ const GAME_WRITE_FIELDS = [
   'scorer_member', 'scoreboard_member', 'scorer_scoreboard_member',
   'scorer_duty_team', 'scoreboard_duty_team', 'scorer_scoreboard_duty_team',
   'bb_scorer_member', 'bb_timekeeper_member', 'bb_24s_official',
-  'bb_duty_team', 'bb_scorer_duty_team', 'bb_timekeeper_duty_team', 'bb_24s_duty_team',
+  'bb_duty_team', 'bb_extra_duty_teams', 'bb_scorer_duty_team', 'bb_timekeeper_duty_team', 'bb_24s_duty_team',
   'referee_duty_team', 'referee_member',
   'scorer_confirmed_by_name', 'scorer_confirmed_at',
   'scoreboard_confirmed_by_name', 'scoreboard_confirmed_at',

@@ -19,6 +19,7 @@ export default {
   bbScorer: 'Segnapunti (OTR1)',
   bbTimekeeper: 'Cronometrista (OTR1)',
   bb24sOfficial: 'Ufficiale 24" (OTR2)',
+  bbDutyTeams: 'Squadre di servizio',
   bbDutyTeam: 'Squadra ufficiali',
 
   // Sport toggle

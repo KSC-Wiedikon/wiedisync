@@ -8,6 +8,7 @@ import { DutyStatus } from './ScorerRow'
 import TeamChip from '../../../components/TeamChip'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../components/ui/table'
 import { formatTime, formatDateZurich } from '../../../utils/dateHelpers'
+import { bbSeatDutyTeamIds } from '../lib/bbDutyTeams'
 
 interface TeamOverviewProps {
   games: Game[]
@@ -77,12 +78,12 @@ export default function TeamOverview({ games, members, teams, sport, groupBy = '
         if (game.scoreboard_duty_team) push(out, eg, 'scoreboard', game.scoreboard_duty_team, game.scoreboard_member)
         if (game.referee_duty_team) push(out, eg, 'referee', game.referee_duty_team, game.referee_member)
       } else {
-        const scorerTeam = game.bb_scorer_duty_team || game.bb_duty_team
-        const timekeeperTeam = game.bb_timekeeper_duty_team || game.bb_duty_team
-        const _24sTeam = game.bb_24s_duty_team || game.bb_duty_team
-        if (scorerTeam) push(out, eg, 'bb_scorer', scorerTeam, game.bb_scorer_member)
-        if (timekeeperTeam) push(out, eg, 'bb_timekeeper', timekeeperTeam, game.bb_timekeeper_member)
-        if (_24sTeam && game.bb_24s_official) push(out, eg, 'bb_24s_official', _24sTeam, game.bb_24s_official)
+        // A shared duty (migration 371) lists the seat under every team on it.
+        for (const tid of bbSeatDutyTeamIds(game, 'bb_scorer')) push(out, eg, 'bb_scorer', tid, game.bb_scorer_member)
+        for (const tid of bbSeatDutyTeamIds(game, 'bb_timekeeper')) push(out, eg, 'bb_timekeeper', tid, game.bb_timekeeper_member)
+        if (game.bb_24s_official) {
+          for (const tid of bbSeatDutyTeamIds(game, 'bb_24s_official')) push(out, eg, 'bb_24s_official', tid, game.bb_24s_official)
+        }
       }
     }
     return out
