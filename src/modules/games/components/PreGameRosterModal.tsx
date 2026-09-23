@@ -273,6 +273,14 @@ export default function PreGameRosterModal({ gameId, onClose }: PreGameRosterMod
     }])
   }
 
+  /** Leave edit mode WITHOUT saving: back to the sheet as the server holds it. */
+  const cancelEdit = () => {
+    if (data) apply(data)
+    setSearch('')
+    setCandidates([])
+    setEditing(false)
+  }
+
   const save = async () => {
     setSaving(true)
     try {
@@ -555,22 +563,20 @@ export default function PreGameRosterModal({ gameId, onClose }: PreGameRosterMod
 
           {data.can_edit && (
             <div className="flex flex-wrap gap-2">
-              <Button
-                variant={editing ? 'default' : 'outline'}
-                onClick={() => setEditing((v) => !v)}
-                disabled={saving}
-              >
-                {editing ? t('pregameDone') : t('pregameEdit')}
-              </Button>
-              {editing && (
+              {/* No bare "Done": leaving edit mode either saves or throws the edits away.
+                  A toggle that did neither left unsaved changes on screen looking saved. */}
+              {editing ? (
                 <>
                   <Button onClick={() => void save()} loading={saving}>{t('pregameSave')}</Button>
+                  <Button variant="outline" onClick={cancelEdit} disabled={saving}>{t('pregameCancel')}</Button>
                   {(data.edited || data.officials_edited) && (
                     <Button variant="outline" onClick={() => void reset()} disabled={saving}>
                       {t('pregameReset')}
                     </Button>
                   )}
                 </>
+              ) : (
+                <Button variant="outline" onClick={() => setEditing(true)}>{t('pregameEdit')}</Button>
               )}
             </div>
           )}

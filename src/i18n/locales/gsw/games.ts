@@ -223,7 +223,7 @@ export default {
   pregameNotOnList: 'Nöd uf de Einsatzliste',
   pregameNotEligible: 'De Volleymanager meldet die Person als nöd spielberechtigt.',
   pregameEdit: 'Bearbeite',
-  pregameDone: 'Fertig',
+  pregameCancel: 'Abbräche',
   pregameSave: 'Speichere',
   pregameReset: 'Uf d\'Einsatzliste zrugsetze',
   pregameRoleCoach: 'Trainer',
