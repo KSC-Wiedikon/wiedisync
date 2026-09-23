@@ -19,7 +19,7 @@ function normalizeSeason(s) {
 
 const HALL_MAP = {
   'Kantonsschule Wiedikon 2fach': 'KWI A',
-  'Kantonsschule Wiedikon 1fach': 'KWI C',
+  'Kantonsschule Wiedikon 1fach': 'KWI B',
 }
 
 const STATUS_MAP = {
