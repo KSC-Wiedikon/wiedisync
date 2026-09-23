@@ -3152,7 +3152,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   const DELEG_ROLE_LABEL = {
     scorer: 'Schreiber · Scorer', scoreboard: 'Täfeler · Scoreboard',
     scorer_scoreboard: 'Schreiber+Täfeler · Scorer+Scoreboard', referee: 'Schiedsrichter · Referee',
-    bb_scorer: 'Scorer', bb_timekeeper: 'Zeitnehmer · Timekeeper', bb_24s_official: '24s',
+    bb_scorer: 'Anschreiber · Scorer', bb_timekeeper: 'Zeitnehmer · Timekeeper', bb_24s_official: '24s',
   }
   // In-app notification + web push for a delegation lifecycle event. Delegations
   // previously notified NOBODY (bug 2026-07-11): requested → tell the recipient,

@@ -313,9 +313,11 @@ export const DUTY_ARRIVAL_MIN: Record<string, number> = {
   scoreboard: 15,
   scorer_scoreboard: 30,
   referee: 30,
-  bb_scorer: 15,
-  bb_timekeeper: 15,
-  bb_24s_official: 15,
+  // Basketball: the whole table crew 20 min before (ProBasket, confirmed by the
+  // BB lead 23.09.2026).
+  bb_scorer: 20,
+  bb_timekeeper: 20,
+  bb_24s_official: 20,
 };
 
 /** The alarm + contact reveal stay available for this long AFTER kickoff. */

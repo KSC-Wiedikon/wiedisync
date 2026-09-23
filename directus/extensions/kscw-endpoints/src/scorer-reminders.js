@@ -44,7 +44,7 @@ function arrivalMinutes(role, sport) {
 // in the club's German (these are the user-facing email role names).
 const ROLE_LABELS = {
   scorer: 'Scorer', scoreboard: 'Täfeler',
-  bb_scorer: 'Anschreiber', bb_timekeeper: 'Zeitnehmer', bb_24s_official: '24s-Operator',
+  bb_scorer: 'Anschreiber', bb_timekeeper: 'Zeitnehmer', bb_24s_official: '24s',
 }
 
 const ROLE_MEMBER = {
