@@ -36,7 +36,7 @@ export default function FinalSummary({ state }: { state: BoardState }) {
             className="inline-flex max-w-full items-center rounded-md px-2 py-0.5 text-sm font-bold uppercase tracking-wide ring-1 ring-black/10 dark:ring-white/15"
             style={{ backgroundColor: winner.color, color: readableOn(winner.color) }}
           >
-            <span className="truncate">{winner.short || t('teamFallback')}</span>
+            <span className="min-w-0 break-words">{winner.short || t('teamFallback')}</span>
           </span>
           {t('wonMatch')}
         </p>
