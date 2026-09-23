@@ -1,6 +1,7 @@
 export default {
   title: 'Servizio segnapunti',
   subtitle: 'Gestisci le assegnazioni di segnapunti e tabellone per le partite in casa.',
+  subtitleBb: "Ufficiali di tavolo (segnapunti, cronometrista, 24s) per le partite di basket in casa.",
 
   // Tabs
   tabGames: 'Partite',

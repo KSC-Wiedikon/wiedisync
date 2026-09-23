@@ -1,6 +1,7 @@
 export default {
   title: 'Scorer duty',
   subtitle: 'Manage scorer and scoreboard assignments for home games.',
+  subtitleBb: "Table officials (Anschreiber, Zeitnehmer, 24s) for basketball home games.",
 
   // Tabs
   tabGames: 'Games',

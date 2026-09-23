@@ -1,6 +1,7 @@
 export default {
   title: 'Schriiberdienst',
   subtitle: 'Schriiber- und Schiedsrichterzueteilige für Heimspiel.',
+  subtitleBb: "Tischoffizielli (Aaschriiber, Zitnehmer, 24s) für Basketball-Heimspiel.",
 
   // Tabs
   tabGames: 'Spiel',

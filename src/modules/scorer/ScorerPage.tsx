@@ -68,7 +68,15 @@ export default function ScorerPage() {
     else url.searchParams.delete('tab')
     window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash)
   }, [])
-  const [sportTab, setSportTab] = useState<SportTab>('volleyball')
+  // Sport shown: an explicit choice (toggle or ?sport=basketball deep link) wins,
+  // otherwise the user's own sport — derived further down from their teams.
+  // A fixed 'volleyball' default sent every basketball member to an empty VB
+  // list with no way across: the toggle was admin-only (23.09.2026).
+  const [sportChoice, setSportChoice] = useState<SportTab | null>(() => {
+    if (typeof window === 'undefined') return null
+    const v = new URLSearchParams(window.location.search).get('sport')
+    return v === 'basketball' || v === 'bb' ? 'basketball' : v === 'volleyball' || v === 'vb' ? 'volleyball' : null
+  })
   const [overviewGroup, setOverviewGroup] = useState<'team' | 'game'>('team')
 
   // Deep-link from a calendar duty event: /scorer?roster=<gameId> opens the
@@ -96,15 +104,6 @@ export default function ScorerPage() {
   const [searchAssignee, setSearchAssignee] = useState('')
 
   const [reminderToggling, setReminderToggling] = useState(false)
-  const canEdit = effectiveIsAdmin && hasAdminAccessToSport(sportTab)
-  // Admins see the assigned official's contact on any game (items API).
-  // Coaches / team-responsibles see it only for their own duty games AND only
-  // within the contact window (1h before kickoff → 1h after) — the per-game
-  // gate below; the data itself is server-scoped per game via useOfficialContacts.
-  const isSportAdmin = effectiveIsAdmin && hasAdminAccessToSport(sportTab)
-  const isLeader = coachTeamIds.length > 0 || teamResponsibleIds.length > 0
-  const showContactForGame = (g: Game): boolean =>
-    isSportAdmin || (isLeader && isWithinGameContactWindow(g.date, g.time))
 
   const today = useMemo(() => todayLocal(), [])
   // Only today's and upcoming games — past games are not shown at all, so
@@ -245,6 +244,40 @@ export default function ScorerPage() {
     () => [...new Set([...userTeamIds, ...coachTeamIds, ...teamResponsibleIds])],
     [userTeamIds, coachTeamIds, teamResponsibleIds],
   )
+
+  // Sports this user is involved in: their duty teams plus the sports they
+  // administer (in admin mode).
+  const mySports = useMemo(() => {
+    const out = new Set<SportTab>()
+    for (const tm of teams) {
+      if ((tm.sport === 'volleyball' || tm.sport === 'basketball') && myDutyTeamIds.includes(tm.id)) out.add(tm.sport)
+    }
+    if (effectiveIsAdmin) {
+      if (hasAdminAccessToSport('volleyball')) out.add('volleyball')
+      if (hasAdminAccessToSport('basketball')) out.add('basketball')
+    }
+    return out
+  }, [teams, myDutyTeamIds, effectiveIsAdmin, hasAdminAccessToSport])
+  const sportTab: SportTab = sportChoice
+    ?? (mySports.has('basketball') && !mySports.has('volleyball') ? 'basketball' : 'volleyball')
+  // Anyone in both sports (or seeing every game) can switch.
+  const showSportToggle = effectiveIsAdmin || effectiveIsVorstand || mySports.size > 1
+  const setSportTab = useCallback((next: SportTab) => {
+    setSportChoice(next)
+    const url = new URL(window.location.href)
+    url.searchParams.set('sport', next)
+    window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash)
+  }, [])
+
+  const canEdit = effectiveIsAdmin && hasAdminAccessToSport(sportTab)
+  // Admins see the assigned official's contact on any game (items API).
+  // Coaches / team-responsibles see it only for their own duty games AND only
+  // within the contact window (1h before kickoff → 1h after) — the per-game
+  // gate below; the data itself is server-scoped per game via useOfficialContacts.
+  const isSportAdmin = effectiveIsAdmin && hasAdminAccessToSport(sportTab)
+  const isLeader = coachTeamIds.length > 0 || teamResponsibleIds.length > 0
+  const showContactForGame = (g: Game): boolean =>
+    isSportAdmin || (isLeader && isWithinGameContactWindow(g.date, g.time))
 
   const memberMap = useMemo(() => {
     const map = new Map<string, Member>()
@@ -575,7 +608,7 @@ export default function ScorerPage() {
         <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100 sm:text-2xl">{t('title')}</h1>
         <GuideHelpButton />
       </div>
-      <p className="mt-1 text-gray-600 dark:text-gray-400">{t('subtitle')}</p>
+      <p className="mt-1 text-gray-600 dark:text-gray-400">{t(sportTab === 'basketball' ? 'subtitleBb' : 'subtitle')}</p>
 
       {/* Expandable info panel (volleyball only) */}
       {sportTab === 'volleyball' && (
@@ -688,7 +721,7 @@ export default function ScorerPage() {
 
       {/* Sport toggle + Tab bar */}
       <div className="mt-4 flex items-center justify-between gap-4">
-        {effectiveIsAdmin ? (
+        {showSportToggle ? (
           <SportToggle
             value={sportTab === 'volleyball' ? 'vb' : 'bb'}
             onChange={(v: SportView) => {

@@ -1,6 +1,7 @@
 export default {
   title: 'Service de marqueur',
   subtitle: 'Gerer les attributions de marqueur et de tableau d\'affichage pour les matchs a domicile.',
+  subtitleBb: "Officiels de table (marqueur, chronométreur, 24s) pour les matchs de basketball à domicile.",
 
   // Tabs
   tabGames: 'Matchs',
