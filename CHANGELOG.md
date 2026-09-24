@@ -2,6 +2,12 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.18.0 — 2026-09-24
+
+### Improved
+
+- **Live scoreboard: a finished match now shows its result, not the end of its last set.** *Live → a finished match.* The page shows the winner, the set score and a table of every set with its score and how long it took, plus the total match time. The big last-set points, timeouts and substitutions are gone once the match is over, and it no longer says "Set 4" under a 3:0. Set durations come from the hall scoreboard and appear for matches scored from now on.
+
 ## v2.17.0 — 2026-09-23
 
 ### New

@@ -51,4 +51,16 @@ export default {
   eventSwitch: 'Sitewächsel',
 
   updatedAt: 'Aktualisiert {{time}}',
+
+  // Final summary (match over)
+  finalSetCol: 'Satz',
+  finalScoreCol: 'Resultat',
+  finalDurationCol: 'Duur',
+  finalMatchTime: 'Spielziit',
+  finalAfterRegulation: 'Nach vier Viertel',
+  finalAfterOvertime: 'Nach dr Verlängerig ({{label}})',
+  finalAfterQuarter: 'Fertig im {{label}}',
+  recentDuration: 'Spielziit {{time}}',
+  durationMin: '{{m}} Min.',
+  durationHourMin: '{{h}} Std. {{m}} Min.',
 }

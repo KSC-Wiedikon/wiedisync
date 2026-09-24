@@ -54,6 +54,7 @@ export default function LivePage() {
   }, [envelope?.event, t])
 
   const hasMatch = !!envelope?.match
+  const isFinal = envelope?.status === 'final'
 
   return (
     <div className="mx-auto w-full max-w-2xl p-4 sm:p-6">
@@ -75,11 +76,16 @@ export default function LivePage() {
 
       {hasMatch ? (
         <>
-          {envelope!.status === 'final' && <FinalSummary state={envelope!.match!} />}
-          <Scoreboard state={envelope!.match!} />
+          {/* Once the match is over the live board (last-set points, TO/Sub, serve)
+              is stale detail — the final summary replaces it entirely. */}
+          {isFinal ? (
+            <FinalSummary state={envelope!.match!} />
+          ) : (
+            <Scoreboard state={envelope!.match!} />
+          )}
 
           <div className="mt-3 flex min-h-5 flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-            {eventNote ? (
+            {eventNote && !isFinal ? (
               <span className="rounded-md bg-accent px-2 py-1 font-medium text-accent-foreground">
                 {eventNote}
               </span>

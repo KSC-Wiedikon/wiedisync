@@ -51,4 +51,16 @@ export default {
   eventSwitch: 'Teams change sides',
 
   updatedAt: 'Updated {{time}}',
+
+  // Final summary (match over)
+  finalSetCol: 'Set',
+  finalScoreCol: 'Score',
+  finalDurationCol: 'Duration',
+  finalMatchTime: 'Match time',
+  finalAfterRegulation: 'After four quarters',
+  finalAfterOvertime: 'After overtime ({{label}})',
+  finalAfterQuarter: 'Ended in {{label}}',
+  recentDuration: 'Match time {{time}}',
+  durationMin: '{{m}} min',
+  durationHourMin: '{{h}} h {{m}} min',
 }

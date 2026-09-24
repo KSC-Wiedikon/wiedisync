@@ -51,7 +51,7 @@ physical scoreboard → one row it keeps overwriting.
 | `fouls_a` | Integer | `integer` | basketball team fouls **this period**; 5+ puts the opponent in the bonus |
 | `fouls_b` | Integer | `integer` | |
 | `serving_team` | String (nullable) | `varchar` | `left` \| `right`; basketball reuses it as the **possession arrow** |
-| `set_results` | JSON | `jsonb` | `[{ "a": 25, "b": 20 }, …]` completed sets |
+| `set_results` | JSON | `jsonb` | `[{ "a": 25, "b": 20, "dur": 1440 }, …]` completed sets; optional `dur` = set playing time in whole seconds (board monotonic clock), absent when the set start wasn't observed |
 | `date_updated` | Timestamp (system, "Date Updated") | `timestamptz` | auto |
 
 `CHECK` constraints pin `sport`, `status` and `serving_team` to the values above —

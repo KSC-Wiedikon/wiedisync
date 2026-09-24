@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { readItems } from '@directus/sdk'
 import { client } from '@/lib/api'
 import { useRealtime } from '@/hooks/useRealtime'
-import { normaliseSport } from './scoreboard'
+import { normaliseSetResult, normaliseSport } from './scoreboard'
 import type { BoardState, Connection, Envelope, LiveScoreRow, LiveStatus } from './types'
 
 /**
@@ -71,7 +71,7 @@ function rowToEnvelope(row: LiveScoreRow): Envelope {
           over: row.over === true,
           serving_team: row.serving_team ?? null,
           set_results: Array.isArray(row.set_results)
-            ? row.set_results.map((r) => ({ a: num(r.a), b: num(r.b) }))
+            ? row.set_results.map((r) => normaliseSetResult(r))
             : [],
         }
   const seq = num(row.ts)

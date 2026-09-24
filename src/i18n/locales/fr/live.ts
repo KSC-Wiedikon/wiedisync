@@ -51,4 +51,16 @@ export default {
   eventSwitch: 'Changement de côté',
 
   updatedAt: 'Mis à jour {{time}}',
+
+  // Final summary (match over)
+  finalSetCol: 'Set',
+  finalScoreCol: 'Score',
+  finalDurationCol: 'Durée',
+  finalMatchTime: 'Durée du match',
+  finalAfterRegulation: 'Après quatre quart-temps',
+  finalAfterOvertime: 'Après prolongation ({{label}})',
+  finalAfterQuarter: 'Terminé en {{label}}',
+  recentDuration: 'Durée du match {{time}}',
+  durationMin: '{{m}} min',
+  durationHourMin: '{{h}} h {{m}} min',
 }

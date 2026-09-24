@@ -4,8 +4,9 @@ import { readItems } from '@directus/sdk'
 import { client } from '@/lib/api'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { formatDateTimeCompactZurich } from '../../../utils/dateHelpers'
-import { normaliseSport } from '../scoreboard'
-import type { LiveSport } from '../types'
+import { formatDuration, totalSetDuration } from '../final'
+import { normaliseSetResult, normaliseSport } from '../scoreboard'
+import type { LiveSport, SetResult } from '../types'
 
 /**
  * Matches the scoreboard has finished, newest first — so /live is useful on a
@@ -30,7 +31,7 @@ interface HistoryRow {
   points_b: number | null
   sets_won_a: number | null
   sets_won_b: number | null
-  set_results: Array<{ a: number; b: number }> | null
+  set_results: SetResult[] | null
   finished_at: string | null
 }
 
@@ -65,6 +66,8 @@ export default function RecentMatches({ channel }: { channel: string }) {
 
   if (!rows || rows.length === 0) return null
 
+  const dur = (sec: number) => formatDuration(sec, (key, opts) => t(key, opts))
+
   return (
     <section className="mt-6">
       <h2 className="mb-2 text-sm font-semibold text-foreground">{t('recentTitle')}</h2>
@@ -85,7 +88,9 @@ export default function RecentMatches({ channel }: { channel: string }) {
               const bySets = sport !== 'basketball'
               const a = r.team_a_short || r.team_a_name || '—'
               const b = r.team_b_short || r.team_b_name || '—'
-              const results = Array.isArray(r.set_results) ? r.set_results : []
+              const results = Array.isArray(r.set_results) ? r.set_results.map(normaliseSetResult) : []
+              // Match time only when the board timed every set (see types.ts → SetResult).
+              const total = bySets ? totalSetDuration(results) : null
               return (
                 <TableRow key={r.id} className="min-h-11">
                   <TableCell className="whitespace-normal break-words font-medium">
@@ -95,9 +100,23 @@ export default function RecentMatches({ channel }: { channel: string }) {
                     {bySets
                       ? `${n(r.sets_won_a)}:${n(r.sets_won_b)}`
                       : `${n(r.points_a)}:${n(r.points_b)}`}
+                    {/* Phones hide the Sets column, which carries the match time on wider
+                        screens — so on a phone it sits under the result instead. */}
+                    {total !== null && (
+                      <span
+                        className="block text-[11px] font-normal text-muted-foreground sm:hidden"
+                        title={t('recentDuration', { time: dur(total) })}
+                      >
+                        <span className="sr-only">{t('finalMatchTime')} </span>
+                        {dur(total)}
+                      </span>
+                    )}
                   </TableCell>
                   <TableCell className="hidden whitespace-normal break-words text-xs tabular-nums text-muted-foreground sm:table-cell">
-                    {results.map((s) => `${n(s.a)}:${n(s.b)}`).join(', ') || '—'}
+                    {results.map((s) => `${s.a}:${s.b}`).join(', ') || '—'}
+                    {total !== null && (
+                      <span className="block text-[11px]">{t('recentDuration', { time: dur(total) })}</span>
+                    )}
                   </TableCell>
                   <TableCell className="whitespace-normal text-right text-xs tabular-nums text-muted-foreground">
                     {formatDateTimeCompactZurich(r.finished_at) || '—'}

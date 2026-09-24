@@ -51,4 +51,16 @@ export default {
   eventSwitch: 'Cambio campo',
 
   updatedAt: 'Aggiornato {{time}}',
+
+  // Final summary (match over)
+  finalSetCol: 'Set',
+  finalScoreCol: 'Punteggio',
+  finalDurationCol: 'Durata',
+  finalMatchTime: 'Durata della partita',
+  finalAfterRegulation: 'Dopo quattro quarti',
+  finalAfterOvertime: 'Dopo i supplementari ({{label}})',
+  finalAfterQuarter: 'Terminata nel {{label}}',
+  recentDuration: 'Durata della partita {{time}}',
+  durationMin: '{{m}} min',
+  durationHourMin: '{{h}} h {{m}} min',
 }

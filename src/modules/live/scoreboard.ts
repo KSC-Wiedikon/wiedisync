@@ -1,7 +1,7 @@
 // Pure helpers shared by the sport-specific boards. Kept out of the component
 // files so react-refresh sees those as component-only modules.
 
-import type { BoardState, LiveSport, TeamView } from './types'
+import type { BoardState, LiveSport, SetResult, TeamView } from './types'
 
 /** FIBA: the 5th team foul in a period puts the OPPONENT in the bonus. */
 export const TEAM_FOUL_LIMIT = 5
@@ -9,6 +9,24 @@ export const TEAM_FOUL_LIMIT = 5
 /** Coerce an unknown `sport` (null, or a value a newer board publishes) to a known one. */
 export function normaliseSport(v: unknown): LiveSport {
   return v === 'beach' || v === 'basketball' ? v : 'volleyball'
+}
+
+const toNum = (v: unknown): number => {
+  const n = typeof v === 'string' ? Number(v) : (v as number)
+  return Number.isFinite(n) ? n : 0
+}
+
+/**
+ * Coerce one raw `set_results` entry. `dur` (seconds, optional) is kept only when
+ * it is a finite, non-negative number — anything else means "not measured", so a
+ * garbage value can never produce a bogus match time.
+ */
+export function normaliseSetResult(r: unknown): SetResult {
+  const o = (r && typeof r === 'object' ? r : {}) as Record<string, unknown>
+  const out: SetResult = { a: toNum(o.a), b: toNum(o.b) }
+  const d = typeof o.dur === 'string' && o.dur.trim() !== '' ? Number(o.dur) : o.dur
+  if (typeof d === 'number' && Number.isFinite(d) && d >= 0) out.dur = Math.round(d)
+  return out
 }
 
 /** Split a board snapshot into two side-agnostic team views (A=left by getState()). */

@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.17.0'
+const APP_VERSION = '2.18.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,18 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.18.0',
+    date: '24.09.2026',
+    sections: [
+      {
+        title: 'Improved',
+        items: [
+          "Live scoreboard: a finished match now shows its result, not the end of its last set. *Live → a finished match.* The page shows the winner, the set score and a table of every set with its score and how long it took, plus the total match time. The big last-set points, timeouts and substitutions are gone once the match is over, and it no longer says \"Set 4\" under a 3:0.",
+        ],
+      },
+    ],
+  },
   {
     version: '2.17.0',
     date: '23.09.2026',

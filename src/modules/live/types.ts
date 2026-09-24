@@ -42,7 +42,10 @@ export interface BoardState {
   /** Basketball team fouls in the CURRENT period. 5+ puts the opponent in the bonus. */
   fouls_a: number
   fouls_b: number
-  /** Basketball period: 1..4 = Q1..Q4, 5+ = overtime. 0 = not published. */
+  /**
+   * Basketball period: 1..4 = Q1..Q4, 5+ = overtime. 0 = not published.
+   * Volleyball/beach: the set being played; once `final`, the LAST set played.
+   */
   period: number
   /** The firmware's own match-over flag. A hint — `Envelope.status` is authoritative. */
   over: boolean
@@ -51,7 +54,21 @@ export interface BoardState {
    * left/right semantics are identical, so it needs no column of its own.
    */
   serving_team: 'left' | 'right' | null // 'left' => team A, 'right' => team B
-  set_results: Array<{ a: number; b: number }>
+  set_results: SetResult[]
+}
+
+/**
+ * One finished set (volleyball/beach). `dur` is the set's playing time in whole
+ * SECONDS — first scored rally of the set → the set-winning point — measured on
+ * the board's monotonic clock (the board has no RTC, so never wall-clock).
+ * Optional: absent when the board didn't observe the set's start (restored after
+ * a restart, linked OpenVolley match, manual set-score edit). There is no
+ * match-level duration column; the app sums the sets when every one has a `dur`.
+ */
+export interface SetResult {
+  a: number
+  b: number
+  dur?: number
 }
 
 export type MatchEvent = 'set-end' | 'match-end' | 'switch-8' | null
@@ -109,7 +126,7 @@ export interface LiveScoreRow {
   fouls_a: number | null
   fouls_b: number | null
   serving_team: 'left' | 'right' | null
-  set_results: Array<{ a: number; b: number }> | null
+  set_results: SetResult[] | null
   date_updated?: string | null
 }
 
