@@ -285,6 +285,13 @@ input[type="number"] {
 .pb-safe {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
+/* Top inset for the installed iOS app: `apple-mobile-web-app-status-bar-style:
+   black-translucent` draws the page UNDER the status bar / notch. Layout puts
+   this on the shell root only when no banner is on top — a top-most banner
+   (acting / impersonation) takes the inset itself so its colour fills the notch. */
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+}
 
 /* Accessibility: respect reduced motion preference */
 @media (prefers-reduced-motion: reduce) {

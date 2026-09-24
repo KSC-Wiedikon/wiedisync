@@ -1,5 +1,6 @@
-import { useEffect, useLayoutEffect, useRef } from 'react'
+import { useContext, useEffect, useLayoutEffect, useRef } from 'react'
 import { client as directus, isAuthenticated, getActingMemberId } from '../lib/api'
+import { AuthContext } from './useAuth'
 
 type RealtimeAction = 'create' | 'update' | 'delete'
 
@@ -62,6 +63,14 @@ export function useRealtime<T = Record<string, unknown>>(
   // Serialise it into a stable primitive for the dependency array instead.
   const actionKey = (actions ?? ALL_ACTIONS).join(',')
 
+  // Who the app is acting as, as a REACTIVE value. The module-level
+  // getActingMemberId() alone is read once per effect run, so a subscription
+  // skipped while acting was never re-created after switching back (the bell
+  // stayed dead until a reload), and one opened as the guardian survived the
+  // switch to a child. Read through the context directly (not useAuth) so the
+  // hook still works outside the provider.
+  const actingKey = useContext(AuthContext)?.actingMember?.id ?? getActingMemberId() ?? null
+
   useEffect(() => {
     // Skip if not authenticated or explicitly disabled (auth still loading)
     //
@@ -72,7 +81,7 @@ export function useRealtime<T = Record<string, unknown>>(
     // out every frame belonging to the child. That looks identical to "nothing
     // is happening", which is worse than being honestly off: the query client
     // compensates with refetch-on-focus while acting.
-    if (disabled || getActingMemberId() != null || !isAuthenticated()) return
+    if (disabled || actingKey != null || getActingMemberId() != null || !isAuthenticated()) return
 
     const wanted = actionKey.split(',') as RealtimeAction[]
     const cleanups: Array<() => void> = []
@@ -113,5 +122,5 @@ export function useRealtime<T = Record<string, unknown>>(
         try { off() } catch { /* socket already closed */ }
       }
     }
-  }, [collection, disabled, actionKey])
+  }, [collection, disabled, actionKey, actingKey])
 }

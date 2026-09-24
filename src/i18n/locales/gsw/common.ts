@@ -239,4 +239,8 @@ export default {
   sessionExpiredText: 'Du bisch abgmäldet worde. Mäld di nöi aa, zum wiiterschaffe.',
   sessionExpiredAction: 'Nöi aamälde',
   appUpdatedRepeatAction: 'Wiedisync isch uf di nöischti Version aktualisiert worde — bitte d letschti Aktion nomal mache.',
+  householdAnsweringFor: 'Antwort für {{name}}',
+  householdNotSetUp: 'Das Profil isch no nöd igrichtet — du bisch wieder uf dim eigete Konto',
+  householdNotWhileActing: 'Nöd verfüegbar, solang du es anders Konto bruchsch',
+  householdSwitchTo: 'Wächsle zu {{names}}',
 }

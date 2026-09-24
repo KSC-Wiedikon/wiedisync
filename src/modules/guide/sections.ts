@@ -48,7 +48,7 @@ export const guideSections: GuideSectionDef[] = [
   { id: 'scorer', group: 'everyday', icon: PenSquare, audience: 'everyone', canAccess: everyone, routes: ['/scorer'], open: '/scorer' },
   { id: 'teams', group: 'everyday', icon: Users, audience: 'everyone', canAccess: everyone, routes: ['/teams'], open: '/teams' },
   { id: 'profile', group: 'everyday', icon: User, audience: 'everyone', canAccess: everyone, routes: ['/profile'], open: '/profile' },
-  { id: 'household', group: 'everyday', icon: HeartHandshake, audience: 'everyone', canAccess: everyone, routes: [], open: '/profile' },
+  { id: 'household', group: 'everyday', icon: HeartHandshake, audience: 'everyone', canAccess: everyone, routes: [], open: '/' },
   { id: 'forms', group: 'everyday', icon: ScrollText, audience: 'everyone', canAccess: everyone, routes: ['/forms', '/f'], open: '/forms' },
   { id: 'polls', group: 'everyday', icon: BarChart3, audience: 'everyone', canAccess: everyone, routes: [], open: '/' },
   { id: 'feedback', group: 'everyday', icon: MessageSquare, audience: 'everyone', canAccess: everyone, routes: ['/feedback', '/status', '/changelog', '/support', '/datenschutz', '/impressum'], open: '/feedback' },

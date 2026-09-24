@@ -2,9 +2,10 @@ import { useState } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
-  ChevronDown, Settings, MessageSquare, Activity, ScrollText, GraduationCap, LogOut, User as UserIcon, Coffee, ArrowRight, LayoutGrid,
+  ChevronDown, Settings, MessageSquare, Activity, ScrollText, GraduationCap, LogOut, User as UserIcon, Coffee, ArrowRight, LayoutGrid, Users,
 } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
+import { useHouseholdSwitcher } from '../hooks/useHouseholdSwitcher'
 import { useDonateVisible } from '../modules/support/donateConfig'
 import { useTheme } from '../hooks/useTheme'
 import { useNavItems, type NavItem } from '../hooks/useNavItems'
@@ -164,7 +165,9 @@ export default function TopNav({ unreadCount, onOpenNotifications, memberTeams }
   const { t } = useTranslation('nav')
   const { t: tSupport } = useTranslation('support')
   const donateVisible = useDonateVisible()
-  const { user, isAdmin, isApproved, isSuperAdmin, logout } = useAuth()
+  const { user, isAdmin, isApproved, isSuperAdmin, logout, householdMembers } = useAuth()
+  const { openSwitcher } = useHouseholdSwitcher()
+  const { t: tCommon } = useTranslation('common')
   const { theme, toggleTheme } = useTheme()
   const navigate = useNavigate()
   const [optionsOpen, setOptionsOpen] = useState(false)
@@ -377,6 +380,15 @@ export default function TopNav({ unreadCount, onOpenNotifications, memberTeams }
                 <UserIcon className="h-4 w-4" />
                 {t('myProfile')}
               </DropdownMenuItem>
+              {/* Household account chooser — only for a login that administers
+                  other members (the account bar is the primary control; this is
+                  where people look for "switch account" out of habit). */}
+              {householdMembers.length > 0 && (
+                <DropdownMenuItem onSelect={() => openSwitcher()} className="cursor-pointer gap-2.5">
+                  <Users className="h-4 w-4" />
+                  {tCommon('switchAccount')}
+                </DropdownMenuItem>
+              )}
               {/* Personal support link — above Logout, which stays last.
                   Hidden for under-18s and while impersonating (useDonateVisible). */}
               {donateVisible && (

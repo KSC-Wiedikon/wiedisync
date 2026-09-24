@@ -239,4 +239,8 @@ export default {
   sessionExpiredText: 'Du wurdest abgemeldet. Melde dich neu an, um weiterzuarbeiten.',
   sessionExpiredAction: 'Neu anmelden',
   appUpdatedRepeatAction: 'Wiedisync wurde auf die neueste Version aktualisiert — bitte die letzte Aktion wiederholen.',
+  householdAnsweringFor: 'Antwort für {{name}}',
+  householdNotSetUp: 'Dieses Profil ist noch nicht eingerichtet — du bist wieder in deinem eigenen Konto',
+  householdNotWhileActing: 'Nicht verfügbar, während du ein anderes Konto verwendest',
+  householdSwitchTo: 'Wechseln zu {{names}}',
 }

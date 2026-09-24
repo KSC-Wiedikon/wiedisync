@@ -6,10 +6,9 @@
  * values — required by react-refresh/only-export-components (Fast Refresh).
  */
 
-import { useEffect, useState, useCallback, useMemo, type ReactNode } from 'react'
-import { readMe } from '@directus/sdk'
+import { useEffect, useRef, useState, useCallback, useMemo, type ReactNode } from 'react'
 import { toast } from 'sonner'
-import { client, login as apiLogin, logout as apiLogout, refreshAuth, isAuthenticated, setCurrentMemberId, setImpersonating, setActingMemberId, fetchItems, fetchAllItems, kscwApi } from '../lib/api'
+import { login as apiLogin, logout as apiLogout, refreshAuth, isAuthenticated, setCurrentMemberId, setImpersonating, setActingMemberId, getActingMemberId, setActingDeniedHandler, isActingDeniedError, readMeAsOwner, fetchItems, fetchAllItems, kscwApi } from '../lib/api'
 import { clearDeviceKey, clearAllCachedDocuments } from '../lib/e2eeStore'
 import { queryClient } from '../lib/query'
 import { setSentryUser, captureAuthError, captureApiError, addBreadcrumb, clearBreadcrumbs, isTransientNetworkMessage } from '../lib/sentry'
@@ -43,6 +42,25 @@ const IMPERSONATE_KEY = 'wiedisync-impersonate'
 // she last used, with no signal that she had.
 const ACTING_HINT_KEY = (realMemberId: string | number) => `wiedisync-acting-member:${realMemberId}`
 
+// The member offered on the "Continue with <name>" chip. Separate from the
+// cross-tab key above on purpose: switching back to oneself must REMOVE that
+// one (so every other tab follows her back), which would also erase the only
+// record of whom to offer. Same `wiedisync-acting-member:` prefix, so logout's
+// prefix sweep clears it too — a shared family phone never inherits it.
+const LAST_ACTING_KEY = (realMemberId: string | number) => `wiedisync-acting-member:last:${realMemberId}`
+
+function readLastActing(realMemberId: string | number): number | null {
+  try {
+    const raw = localStorage.getItem(LAST_ACTING_KEY(realMemberId))
+    const n = raw == null ? NaN : Number(raw)
+    return Number.isInteger(n) && n > 0 ? n : null
+  } catch { return null }
+}
+
+// A guardian's household list is re-read when the app comes back to the
+// foreground (a link added or revoked by an admin meanwhile), at most this often.
+const HOUSEHOLD_REFRESH_MS = 5 * 60 * 1000
+
 // ── Provider ────────────────────────────────────────────────────────
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -57,7 +75,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // `user` never has to resolve a three-way precedence.
   const [householdMembers, setHouseholdMembers] = useState<HouseholdMember[]>([])
   const [actingMember, setActingMember] = useState<MemberUser | null>(null)
+  // Whom the "Continue with <name>" chip offers — see LAST_ACTING_KEY.
+  const [lastActingId, setLastActingId] = useState<number | null>(null)
   const user = actingMember ?? impersonatedMember ?? realUser
+  // Latest acting member / switchTo for callbacks that must not re-create on
+  // every switch (the refusal handler, the household reload).
+  const actingRef = useRef<MemberUser | null>(null)
+  useEffect(() => { actingRef.current = actingMember }, [actingMember])
+  const switchToRef = useRef<((memberId: number | null) => Promise<void>) | null>(null)
   // True only while a session restore is actually running. With no auth-hint
   // cookie there is nothing to restore (the init effect below bails out), so it
   // starts false rather than flipping to false from inside that effect — every
@@ -83,11 +108,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchMember = useCallback(async (): Promise<MemberUser | null> => {
     try {
-      const me = await client.request(readMe({ fields: ['id'] }))
+      // ⚠ Both reads go out as the SESSION OWNER, even while acting. Without
+      // that, `readMe` resolves to the child's shadow user and this returns the
+      // child — which `refreshUser()` used to write into `realUser`.
+      const me = await readMeAsOwner()
       if (!me?.id) return null
       const members = await fetchItems<MemberUser>('members', {
         filter: { user: { _eq: me.id } },
         limit: 1,
+        asOwner: true,
       })
       return members[0] ?? null
     } catch {
@@ -217,16 +246,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  const loadHousehold = useCallback(async (): Promise<HouseholdMember[]> => {
+  const householdLoadedAt = useRef(0)
+  const loadHousehold = useCallback(async (): Promise<void> => {
+    householdLoadedAt.current = Date.now()
     try {
-      const r = await kscwApi<{ data: { managed: HouseholdMember[] } }>('/household/me')
+      // asOwner: the list is the GUARDIAN's. Sent as the child (a reload while
+      // acting) it would come back empty and drop her out of acting.
+      const r = await kscwApi<{ data: { managed: HouseholdMember[] } }>('/household/me', { asOwner: true })
       const managed = r?.data?.managed ?? []
       setHouseholdMembers(managed)
-      return managed
+      // The member being acted for is no longer listed → the link was revoked.
+      // Return to oneself now instead of waiting for the next refused request.
+      const acting = actingRef.current
+      if (acting && !managed.some((m) => Number(m.id) === Number(acting.id))) {
+        void switchToRef.current?.(null)
+      }
     } catch {
-      // A household is an enhancement; failing to load one must never block boot.
-      setHouseholdMembers([])
-      return []
+      // A household is an enhancement; failing to load one must never block
+      // boot. Keep whatever list we had: emptying it on a transient failure
+      // would read as "every link revoked" and throw a guardian out of acting.
     }
   }, [])
 
@@ -244,6 +282,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setCurrentMemberId(member.id)
           addBreadcrumb('auth.init', { memberId: member.id })
           setSentryUser({ id: member.id, displayName: [member.first_name, member.last_name].filter(Boolean).join(' ').trim() || undefined })
+          setLastActingId(readLastActing(member.id))
           await loadTeamContext(member.id)
           // Household members, if any. ⚠ We load the LIST but deliberately do
           // NOT restore the last acting child: cold start is always the
@@ -331,7 +370,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setCurrentMemberId(member.id)
       addBreadcrumb('auth.login_success', { memberId: member.id })
       setSentryUser({ id: member.id, displayName: [member.first_name, member.last_name].filter(Boolean).join(' ').trim() || undefined })
+      setLastActingId(readLastActing(member.id))
       await loadTeamContext(member.id)
+      // The household bar must appear right after an in-app login too, not only
+      // after a cold start. Loaded, never restored — see the init effect.
+      void loadHousehold()
 
       // Create or unlock the member's encryption key. This is the ONLY moment the app holds
       // the plaintext password — every other render restores the session from an httpOnly
@@ -342,7 +385,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // identity-document feature until they log in again.
       void bootstrapIdentityKey(Number(member.id), password).catch(() => {})
     }
-  }, [fetchMember, loadTeamContext])
+  }, [fetchMember, loadTeamContext, loadHousehold])
 
   const logout = useCallback(async () => {
     // Wipe the E2EE material FIRST, while `realUser` still names whose device
@@ -374,6 +417,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setActingMemberId(null)
     setActingMember(null)
     setHouseholdMembers([])
+    setLastActingId(null)
     setCurrentMemberId(null)
     setSentryUser(null)
     setRealUser(null)
@@ -392,9 +436,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [user, loadTeamContext])
 
   const refreshUser = useCallback(async () => {
+    void loadHousehold()
+    // While acting, the record just edited is the CHILD's — refresh her, and
+    // leave `realUser` (the guardian, the session owner) untouched.
+    if (actingMember) {
+      try {
+        const [fresh] = await fetchItems<MemberUser>('members', { filter: { id: { _eq: String(actingMember.id) } }, limit: 1 })
+        if (fresh && getActingMemberId() === Number(fresh.id)) setActingMember(fresh)
+      } catch { /* keep the current copy */ }
+      return
+    }
     const member = await fetchMember()
     if (member) setRealUser(member)
-  }, [fetchMember])
+  }, [fetchMember, loadHousehold, actingMember])
 
   // ── Household acting ("use my daughter's account") ───────────────
 
@@ -410,16 +464,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    */
   const switchTo = useCallback(async (memberId: number | null) => {
     if (!realUser) return
+    // Choosing the identity that is already active is a no-op. Without this it
+    // cleared the whole query cache and reloaded team context — a visible
+    // reboot for a tap that changed nothing.
+    const prev = actingMember
+    const currentId = prev ? Number(prev.id) : null
+    if ((memberId == null ? null : Number(memberId)) === currentId) return
     // Realtime is off while acting (the WS cannot carry the acting header), so
     // window-focus refetch is what keeps a guardian's screens current. Restored
     // to the default when she switches back to herself.
-    queryClient.setDefaultOptions({
+    const setFocusRefetch = (on: boolean) => queryClient.setDefaultOptions({
       queries: {
         ...(queryClient.getDefaultOptions().queries ?? {}),
-        refetchOnWindowFocus: memberId != null,
+        refetchOnWindowFocus: on,
       },
     })
-    if (memberId == null) {
+    // The ONE way back to the session owner. Every step is required together:
+    // actingMember set while _actingMemberId is null means the bar, the RSVP
+    // labels and realtime say "child" while every request runs as the guardian.
+    const becomeSelf = async () => {
+      setFocusRefetch(false)
       setActingMemberId(null)
       setActingMember(null)
       setCurrentMemberId(realUser.id)
@@ -429,21 +493,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSentryUser({ id: realUser.id, displayName: [realUser.first_name, realUser.last_name].filter(Boolean).join(' ').trim() || undefined })
       setTeamsReady(false)
       await loadTeamContext(realUser.id)
+    }
+    if (memberId == null) {
+      await becomeSelf()
       return
     }
     if (!householdMembers.some((m) => Number(m.id) === Number(memberId))) return
+    setFocusRefetch(true)
 
     // Set the header BEFORE fetching, so the member read resolves as the child.
     setActingMemberId(memberId)
     queryClient.clear()
     let target: MemberUser | null
+    let denied = false
     try {
       const rows = await fetchItems<MemberUser>('members', { filter: { id: { _eq: String(memberId) } }, limit: 1 })
       target = rows[0] ?? null
-    } catch { target = null }
+    } catch (err) {
+      target = null
+      denied = isActingDeniedError(err)
+    }
     if (!target) {
-      setActingMemberId(null)
-      toast.error(i18n.t('common:error'))
+      // Same toast id as the transport-level refusal handler, so a refused
+      // switch shows ONE message, and it says why.
+      if (denied) toast.error(i18n.t('common:householdNotSetUp'), { id: 'kscw-acting-denied' })
+      else toast.error(i18n.t('common:error'))
+      if (prev) {
+        // Child → child failed: the header for A is already gone (we replaced it
+        // with B, and a refusal cleared the hints), and A's cache was cleared.
+        // Staying "as A" would send header-less requests under A's name, so
+        // fall all the way back to the session owner.
+        await becomeSelf()
+      } else {
+        setActingMemberId(null)
+        setFocusRefetch(false)
+      }
       return
     }
     // Acting and impersonation are mutually exclusive.
@@ -453,7 +537,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     setActingMember(target)
     setCurrentMemberId(target.id)
-    try { localStorage.setItem(ACTING_HINT_KEY(realUser.id), String(memberId)) } catch { /* storage unavailable */ }
+    try {
+      localStorage.setItem(ACTING_HINT_KEY(realUser.id), String(memberId))
+      localStorage.setItem(LAST_ACTING_KEY(realUser.id), String(memberId))
+    } catch { /* storage unavailable */ }
+    setLastActingId(Number(memberId))
     addBreadcrumb('auth.household_switch', { target: target.id })
     // Drop the guardian's navigation trail so a crash on the child's screen is
     // not reported with the previous identity's breadcrumbs.
@@ -461,7 +549,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSentryUser({ id: target.id, displayName: [target.first_name, target.last_name].filter(Boolean).join(' ').trim() || undefined })
     setTeamsReady(false)
     await loadTeamContext(target.id)
-  }, [realUser, householdMembers, loadTeamContext])
+  }, [realUser, actingMember, householdMembers, loadTeamContext])
+
+  // A refused acting request (link revoked, member not set up, member got her
+  // own login) — lib/api has already dropped the header, cleared the stored
+  // hints and shown the toast. Bring the React identity back to the session
+  // owner so the screens stop claiming to be the child.
+  useEffect(() => {
+    setActingDeniedHandler((deniedId) => {
+      if (!realUser) return
+      setLastActingId((prev) => (prev === deniedId ? null : prev))
+      // Refused while still SWITCHING (switchTo's own target read) — nothing
+      // was ever shown as the child; switchTo reports it and the guardian's
+      // state is intact.
+      if (!actingRef.current || Number(actingRef.current.id) !== deniedId) return
+      setActingMember(null)
+      setCurrentMemberId(realUser.id)
+      queryClient.setDefaultOptions({
+        queries: { ...(queryClient.getDefaultOptions().queries ?? {}), refetchOnWindowFocus: false },
+      })
+      queryClient.clear()
+      setSentryUser({ id: realUser.id, displayName: [realUser.first_name, realUser.last_name].filter(Boolean).join(' ').trim() || undefined })
+      setTeamsReady(false)
+      void loadTeamContext(realUser.id)
+      void loadHousehold()
+    })
+    return () => setActingDeniedHandler(null)
+  }, [realUser, loadTeamContext, loadHousehold])
+
+  useEffect(() => { switchToRef.current = switchTo }, [switchTo])
+
+  // Re-read the household when the app returns to the foreground (throttled),
+  // so a link an admin added or revoked meanwhile shows up without a reload.
+  useEffect(() => {
+    if (!realUser) return
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return
+      if (Date.now() - householdLoadedAt.current < HOUSEHOLD_REFRESH_MS) return
+      void loadHousehold()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [realUser, loadHousehold])
 
   // One identity per device: a switch in another tab flips this one too, so a
   // parent with two tabs open can never be two children at once.
@@ -522,6 +651,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [impersonatedMember, realUser, loadTeamContext])
 
   // ── Derived ─────────────────────────────────────────────────────
+
+  // "Continue with <name>": the last member used, only while she is still in
+  // the household and only when the guardian is currently herself.
+  const resumeCandidate = useMemo<HouseholdMember | null>(() => {
+    if (actingMember || lastActingId == null) return null
+    return householdMembers.find((m) => Number(m.id) === lastActingId) ?? null
+  }, [actingMember, lastActingId, householdMembers])
 
   const roles = user?.role ?? []
   const isImpersonating = !!impersonatedMember
@@ -623,7 +759,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<AuthContextValue>(() => ({
     user, isImpersonating, canImpersonate, realUser, startImpersonation, stopImpersonation,
-    householdMembers, actingMember, isActingForOther: !!actingMember, switchTo,
+    householdMembers, actingMember, isActingForOther: !!actingMember, switchTo, resumeCandidate,
     identityMemberId: user?.id ?? null,
     isSuperAdmin, isAdmin, isGlobalAdmin, isVbAdmin, isBbAdmin,
     hasAdminAccessToSport, hasAdminAccessToTeam, isApproved, isProfileComplete,
@@ -634,7 +770,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     refreshTeamContext, refreshUser,
   }), [
     user, isImpersonating, canImpersonate, realUser, startImpersonation, stopImpersonation,
-    householdMembers, actingMember, switchTo,
+    householdMembers, actingMember, switchTo, resumeCandidate,
     isSuperAdmin, isAdmin, isGlobalAdmin, isVbAdmin, isBbAdmin,
     hasAdminAccessToSport, hasAdminAccessToTeam, isApproved, isProfileComplete,
     isCoach, isCoachOfOrAdmin, canParticipateIn, isStaffOnly, isStaffOnlyForTeams, coachTeamIds, coachTeamNames,

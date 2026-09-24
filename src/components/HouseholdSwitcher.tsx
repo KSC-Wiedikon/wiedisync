@@ -1,7 +1,9 @@
+import { useCallback, useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Check } from 'lucide-react'
 import Modal from './Modal'
 import { useAuth } from '../hooks/useAuth'
+import { HouseholdSwitcherContext } from '../hooks/useHouseholdSwitcher'
 import { assetUrl } from '../lib/api'
 import { cn } from '@/lib/utils'
 import { accentOf } from './householdAccents'
@@ -33,8 +35,12 @@ export default function HouseholdSwitcher({ open, onClose }: { open: boolean; on
 
   if (!realUser) return null
 
+  const currentId = actingMember ? Number(actingMember.id) : null
   const choose = async (id: number | null) => {
     onClose()
+    // Tapping the identity that is already active just closes the chooser —
+    // switching to it again would clear every cached query for nothing.
+    if (id === currentId) return
     await switchTo(id)
   }
 
@@ -46,6 +52,7 @@ export default function HouseholdSwitcher({ open, onClose }: { open: boolean; on
         <button
           type="button"
           onClick={() => { void choose(null) }}
+          aria-current={!actingMember ? 'true' : undefined}
           className="flex min-h-[56px] items-center gap-3 rounded-md px-2 text-left transition-colors hover:bg-muted"
         >
           {realUser.photo
@@ -60,12 +67,13 @@ export default function HouseholdSwitcher({ open, onClose }: { open: boolean; on
 
         {householdMembers.map((m) => {
           const name = [m.first_name, m.last_name].filter(Boolean).join(' ').trim()
-          const active = actingMember && Number(actingMember.id) === Number(m.id)
+          const active = currentId === Number(m.id)
           return (
             <button
               key={m.id}
               type="button"
-              onClick={() => { void choose(m.id) }}
+              onClick={() => { void choose(Number(m.id)) }}
+              aria-current={active ? 'true' : undefined}
               className="flex min-h-[56px] items-center gap-3 rounded-md px-2 text-left transition-colors hover:bg-muted"
             >
               {m.photo
@@ -83,5 +91,22 @@ export default function HouseholdSwitcher({ open, onClose }: { open: boolean; on
         })}
       </div>
     </Modal>
+  )
+}
+
+/**
+ * Mounts the ONE chooser instance for the app shell and lets the account bar,
+ * the desktop avatar menu and the mobile More sheet open it
+ * (`useHouseholdSwitcher().openSwitcher`).
+ */
+export function HouseholdSwitcherProvider({ children }: { children: ReactNode }) {
+  const [open, setOpen] = useState(false)
+  const openSwitcher = useCallback(() => setOpen(true), [])
+  const value = useMemo(() => ({ openSwitcher }), [openSwitcher])
+  return (
+    <HouseholdSwitcherContext.Provider value={value}>
+      {children}
+      <HouseholdSwitcher open={open} onClose={() => setOpen(false)} />
+    </HouseholdSwitcherContext.Provider>
   )
 }

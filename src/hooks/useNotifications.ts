@@ -59,6 +59,29 @@ export function useNotifications() {
     loadNotifications()
   }, [loadNotifications])
 
+  // Refetch when the app returns to the foreground. This is not a TanStack
+  // query, so refetch-on-focus does not cover it — and realtime is OFF while a
+  // guardian acts for a household member (the socket cannot carry the acting
+  // header), which left the bell frozen for the whole acting session.
+  // Throttled so tab-flicking does not hammer the endpoint.
+  const lastFocusFetch = useRef(0)
+  useEffect(() => {
+    if (authLoading || !userId) return
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return
+      const now = Date.now()
+      if (now - lastFocusFetch.current < 30_000) return
+      lastFocusFetch.current = now
+      void loadNotifications()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', onVisible)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', onVisible)
+    }
+  }, [authLoading, userId, loadNotifications])
+
   // Public refetch — keeps the original semantics (clears when signed out).
   const fetchNotifications = useCallback(async () => {
     if (authLoading || !userId) {

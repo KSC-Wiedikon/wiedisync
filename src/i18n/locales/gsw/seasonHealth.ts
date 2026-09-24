@@ -29,4 +29,5 @@ export default {
   exportFailed: 'Export fehlgschlage',
   checkFailed: 'Check fehlgschlage',
   registers: 'Regischter',
+  checkDesc_minor_without_guardian_login: 'Niemer chan für das minderjährige Mitglied zu-/absäge oder s Profil bestätige — weder s Chind (kei aktivierts Login) no es Hauptkonto über s Hushaltsmodell. E Hushalt-Verchnüpfig zählt erscht, wänn s verchnüpfte Mitglied iigrichtet isch; e Verchnüpfig, wo uf /admin/households no uf «Iirichte» wartet, wird da ufgfüehrt. Spieler iilade, es Hauptkonto verchnüpfe oder «Iirichte» drücke. Es unbekannts Geburtsdatum zählt als minderjährig.',
 } as const

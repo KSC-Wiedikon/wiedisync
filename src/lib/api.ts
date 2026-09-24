@@ -8,7 +8,7 @@
 import {
   createDirectus, rest, authentication, realtime,
   readItems, readItem, createItem, createItems, updateItem, deleteItem,
-  aggregate,
+  aggregate, readMe, withOptions,
 } from '@directus/sdk'
 import { toast } from 'sonner'
 import i18n from '../i18n'
@@ -126,16 +126,26 @@ export const SCHEDULING_ORIGIN: string =
 const SDK_BASE = API_URL.startsWith('/') && typeof window !== 'undefined'
   ? `${window.location.origin}${API_URL}`
   : API_URL
-export const client = createDirectus(SDK_BASE)
+export const client = createDirectus(SDK_BASE, { globals: { fetch: actingAwareFetch } })
   .with(authentication('session', { credentials: 'include', autoRefresh: true }))
   .with(rest({
     credentials: 'include',
     // Stamps the acting-member header on every SDK data request. Applied ONLY
     // by the rest composable — `authentication()` never runs it, so login and
     // refresh are structurally guaranteed to stay the real session owner's.
+    //
+    // A request built with `asOwner()` carries the NO_ACTING_MARKER instead: the
+    // marker is stripped here and the request goes out as the session owner.
+    // The command-level onRequest runs BEFORE this one, so the marker is always
+    // visible by the time we get here.
     onRequest: (options) => {
+      const headers = { ...(options.headers as Record<string, string>) }
+      if (headers[NO_ACTING_MARKER]) {
+        delete headers[NO_ACTING_MARKER]
+        return { ...options, headers }
+      }
       if (_actingMemberId == null) return options
-      return { ...options, headers: { ...(options.headers as Record<string, string>), [ACTING_HEADER]: String(_actingMemberId) } }
+      return { ...options, headers: { ...headers, [ACTING_HEADER]: String(_actingMemberId) } }
     },
   }))
   .with(realtime({
@@ -196,14 +206,7 @@ export async function logout() {
   // owner's id (a fixed removeItem would clear nothing and read as if it had —
   // the exact failure the SQL-workspace comment below records).
   _actingMemberId = null
-  try {
-    const acting: string[] = []
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i)
-      if (key?.startsWith('wiedisync-acting-member:')) acting.push(key)
-    }
-    acting.forEach((key) => localStorage.removeItem(key))
-  } catch { /* storage unavailable */ }
+  clearStoredActingHints()
   // ⚠ The key cleared here used to be 'wiedisync-sql-history', which NOTHING
   // writes — so the SQL workspace's real drafts and history survived logout on
   // a shared machine, while the cleanup read as if they did not (audit
@@ -307,6 +310,127 @@ export function setActingMemberId(id: number | null): void { _actingMemberId = i
 export function getActingMemberId(): number | null { return _actingMemberId }
 
 /**
+ * Request-local "send this as the session owner" marker. A command wrapped in
+ * `asOwner()` carries it; the rest composable's onRequest strips it and skips
+ * the acting header. It is a per-REQUEST flag on purpose — nulling
+ * `_actingMemberId` around an await would race every parallel query in flight.
+ */
+const NO_ACTING_MARKER = 'X-KSCW-No-Acting'
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function asOwner<C extends () => any>(command: C): C {
+  return withOptions(command, (opts: RequestInit) => ({
+    ...opts,
+    headers: { ...(opts.headers as Record<string, string>), [NO_ACTING_MARKER]: '1' },
+  })) as C
+}
+
+/**
+ * `readMe` for the SESSION OWNER, never the member being acted for.
+ *
+ * ⚠ The login belongs to the guardian. While acting, the server swaps the
+ * accountability to the child, so a plain `readMe` would answer "the child" —
+ * and `refreshUser()` would then overwrite `realUser` with her.
+ */
+export function readMeAsOwner(): Promise<{ id?: string } | null> {
+  return client.request(asOwner(readMe({ fields: ['id'] }))) as Promise<{ id?: string } | null>
+}
+
+// ── Acting refusals (KSCW_ACTING_DENIED) ────────────────────────────
+// The server refuses an acting request in two different ways under ONE code:
+//   • grant refusal — this login may not act for that member (link revoked,
+//     member has no usable login yet, member got her own login). The acting
+//     state is dead: drop back to the session owner, say why, and do NOT take
+//     the desync-reload path (a refusal is not a desync).
+//   • path refusal — the member IS actable, but this one route (password,
+//     account deletion, household admin …) is never available while acting.
+//     Nothing is wrong with the acting state, so keep it and just say so.
+
+const ACTING_DENIED_CODE = 'KSCW_ACTING_DENIED'
+const ACTING_PATH_DENIED_MESSAGE = 'Not available while using another account'
+const ACTING_TOAST_ID = 'kscw-acting-denied'
+
+type ActingDeniedHandler = (deniedMemberId: number) => void
+let _actingDeniedHandler: ActingDeniedHandler | null = null
+
+/** AuthProvider registers here so a refusal can reset the React identity state. */
+export function setActingDeniedHandler(fn: ActingDeniedHandler | null): void {
+  _actingDeniedHandler = fn
+}
+
+/** True for an error (kscwApi or SDK) the acting middleware produced. */
+export function isActingDeniedError(err: unknown): boolean {
+  const e = err as { code?: string; errors?: unknown; data?: unknown } | null
+  if (!e) return false
+  if (e.code === ACTING_DENIED_CODE) return true
+  const errors = e.errors as { code?: string } | Array<{ extensions?: { code?: string } }> | undefined
+  if (errors && !Array.isArray(errors) && errors.code === ACTING_DENIED_CODE) return true
+  const data = e.data as { code?: string } | undefined
+  return data?.code === ACTING_DENIED_CODE
+}
+
+function clearStoredActingHints(): void {
+  try {
+    const keys: string[] = []
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i)
+      if (key?.startsWith('wiedisync-acting-member:')) keys.push(key)
+    }
+    keys.forEach((key) => localStorage.removeItem(key))
+  } catch { /* storage unavailable */ }
+}
+
+function handleActingDenied(sentId: number, body: { error?: string; scope?: string } | null): void {
+  const pathOnly = body?.scope === 'path' || body?.error === ACTING_PATH_DENIED_MESSAGE
+  if (pathOnly) {
+    try { toast.error(i18n.t('common:householdNotWhileActing'), { id: `${ACTING_TOAST_ID}-path` }) } catch { /* i18n not ready */ }
+    return
+  }
+  // Only the identity we are CURRENTLY acting as can be torn down. A burst of
+  // parallel refusals all arrive here; the first one resets, the rest see a
+  // different (null) current id and are no-ops.
+  if (_actingMemberId == null || _actingMemberId !== sentId) return
+  _actingMemberId = null
+  clearStoredActingHints()
+  try { toast.error(i18n.t('common:householdNotSetUp'), { id: ACTING_TOAST_ID }) } catch { /* i18n not ready */ }
+  try { _actingDeniedHandler?.(sentId) } catch { /* never break the request path */ }
+}
+
+/**
+ * Inspect a refused response that carried the acting header. Reads a CLONE so
+ * the caller (SDK or kscwApi) still gets the untouched body.
+ */
+async function inspectActingRefusal(res: Response, sentId: number | null): Promise<boolean> {
+  if (sentId == null || res.ok || (res.status !== 403 && res.status !== 400)) return false
+  let body: { error?: string; code?: string; scope?: string } | null
+  try { body = await res.clone().json() } catch { return false }
+  if (body?.code !== ACTING_DENIED_CODE) return false
+  handleActingDenied(sentId, body)
+  return true
+}
+
+function sentActingId(headers: HeadersInit | undefined): number | null {
+  if (!headers) return null
+  let raw: string | null | undefined
+  if (headers instanceof Headers) raw = headers.get(ACTING_HEADER)
+  else if (Array.isArray(headers)) raw = headers.find(([k]) => k.toLowerCase() === ACTING_HEADER.toLowerCase())?.[1]
+  else raw = (headers as Record<string, string>)[ACTING_HEADER]
+  const n = raw == null ? NaN : Number(raw)
+  return Number.isInteger(n) && n > 0 ? n : null
+}
+
+/**
+ * The SDK's fetch. Identical to the global one except that a refused acting
+ * request is recognised on its way back — the SDK error path otherwise
+ * surfaces it as an anonymous RequestError that no caller understands.
+ */
+async function actingAwareFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const res = await globalThis.fetch(input, init)
+  if (!res.ok) await inspectActingRefusal(res, sentActingId(init?.headers))
+  return res
+}
+
+/**
  * The app's idea of who it is acting as, versus the server's.
  *
  * A desync is unreachable in theory — which is exactly why it must be loud if it
@@ -314,10 +438,15 @@ export function getActingMemberId(): number | null { return _actingMemberId }
  * disagrees with ours, every subsequent render is about the wrong child, so we
  * reload rather than paint one daughter's data under another's name.
  *
+ * ⚠ Only meaningful on a 2xx. A refusal (403/400 KSCW_ACTING_DENIED) or any
+ * other error response carries no echo by construction — treating that as a
+ * desync reloaded the app on every "not set up yet" child.
+ *
  * ⚠ Requires CORS_EXPOSED_HEADERS to include the header — without it a
  * cross-origin read returns null and this check silently passes.
  */
 function assertActingEcho(res: Response): void {
+  if (!res.ok) return
   const echoed = res.headers.get(ACTING_HEADER)
   const expected = _actingMemberId == null ? null : String(_actingMemberId)
   if (echoed === expected) return
@@ -504,6 +633,8 @@ export async function fetchItems<T = Record<string, unknown>>(
     deep?: Record<string, unknown>
     search?: string
     optional?: boolean
+    /** Send as the session owner even while acting (see `asOwner`). */
+    asOwner?: boolean
   },
 ): Promise<T[]> {
   const q: Record<string, unknown> = {}
@@ -516,9 +647,12 @@ export async function fetchItems<T = Record<string, unknown>>(
   if (query?.search) q.search = query.search
   try {
     return await withAuthRetry(() =>
-      client.request<T[]>(readItems(collection, q as never)).then(stringifyIds),
+      client.request<T[]>(query?.asOwner ? asOwner(readItems(collection, q as never)) : readItems(collection, q as never)).then(stringifyIds),
     )
   } catch (err) {
+    // A refused acting request was already handled (reset + toast) on its way
+    // back through actingAwareFetch — it is a state, not a bug to file.
+    if (isActingDeniedError(err)) throw err
     if (!(query?.optional && isAccessDenied(err))) {
       captureApiError(err, { operation: 'fetchItems', collection, payload: q as Record<string, unknown> })
     }
@@ -731,12 +865,18 @@ export async function uploadFile(file: File, folder?: string): Promise<{ id: str
   // metadata — `folder` drops the upload straight into a (private) folder.
   if (folder) fd.append('folder', folder)
   fd.append('file', file)
+  // While acting, the upload must be owned by the child like every other write —
+  // a header-less POST ran as the guardian, and the child's next updateRecord
+  // then pointed her row at a file the guardian owns. No Content-Type: the
+  // browser sets the multipart boundary itself.
+  const sentId = _actingMemberId
   let res: Response
   try {
     res = await fetch(`${API_URL}/files`, {
       method: 'POST',
       credentials: 'include', // session cookie carries auth (no Bearer header)
       body: fd,
+      ...(sentId != null ? { headers: { [ACTING_HEADER]: String(sentId) } } : {}),
     })
   } catch (err) {
     // Network error (offline, DNS, CORS) — captureApiError downgrades transient
@@ -745,11 +885,15 @@ export async function uploadFile(file: File, folder?: string): Promise<{ id: str
     throw err
   }
   if (!res.ok) {
+    const actingRefused = await inspectActingRefusal(res, sentId)
     const responseBody = await res.text().catch(() => '')
     const err = new Error(`Upload failed (${res.status})`)
-    captureApiError(err, { operation: 'uploadFile', collection: 'directus_files', status: res.status, responseBody })
+    // A refused acting upload is expected state (link revoked / not set up),
+    // already toasted and torn down by handleActingDenied — not an app error.
+    if (!actingRefused) captureApiError(err, { operation: 'uploadFile', collection: 'directus_files', status: res.status, responseBody })
     throw err
   }
+  assertActingEcho(res)
   const { data } = await res.json()
   return { id: String(data.id), name: data.filename_download || file.name }
 }
@@ -822,10 +966,14 @@ const EXPECTED_ERROR_CODES = new Set([
  */
 export async function kscwApi<T = unknown>(
   path: string,
-  options?: { method?: string; body?: unknown; headers?: Record<string, string>; anonymous?: boolean; actAs?: number },
+  options?: { method?: string; body?: unknown; headers?: Record<string, string>; anonymous?: boolean; actAs?: number; asOwner?: boolean },
 ): Promise<T> {
   const method = options?.method || 'GET'
   const anonymous = options?.anonymous === true
+  // `asOwner`: the session owner's own view even while acting (e.g. her
+  // household list — as the child it would be empty).
+  const asOwnerCall = options?.asOwner === true
+  const actingId = anonymous || asOwnerCall ? null : (options?.actAs ?? _actingMemberId)
 
   // Block state-changing endpoint calls during read-only impersonation.
   if (method !== 'GET' && !anonymous) assertWritable()
@@ -847,9 +995,7 @@ export async function kscwApi<T = unknown>(
         // press time, not whoever is current by the time it fires).
         // Never on anonymous calls — those are token-in-URL public endpoints
         // with no session to narrow.
-        ...(!anonymous && (options?.actAs ?? _actingMemberId) != null
-          ? { [ACTING_HEADER]: String(options?.actAs ?? _actingMemberId) }
-          : {}),
+        ...(actingId != null ? { [ACTING_HEADER]: String(actingId) } : {}),
         ...options?.headers,
       },
       ...(options?.body ? { body: JSON.stringify(options.body) } : {}),
@@ -859,7 +1005,7 @@ export async function kscwApi<T = unknown>(
   let res: Response
   try {
     res = await doFetch()
-    if (!anonymous && options?.actAs == null) assertActingEcho(res)
+    if (!anonymous && !asOwnerCall && options?.actAs == null) assertActingEcho(res)
   } catch (err) {
     // Network error (offline, DNS, CORS)
     captureApiError(err, {
@@ -871,10 +1017,15 @@ export async function kscwApi<T = unknown>(
     throw err
   }
 
+  // A refused acting request (KSCW_ACTING_DENIED) is handled here — reset or
+  // path toast — and never enters the refresh-retry below: refreshing the
+  // session cannot change the answer, and the retry would re-send the header.
+  const actingRefused = await inspectActingRefusal(res, actingId)
+
   // Token refresh race: retry once after refreshing if we got 401/403.
   // Skipped for anonymous calls — there's no auth to refresh, and a public
   // endpoint's own 401 ("Invalid or expired link") must surface unchanged.
-  if (!anonymous && (res.status === 401 || res.status === 403) && isAuthenticated()) {
+  if (!actingRefused && !anonymous && (res.status === 401 || res.status === 403) && isAuthenticated()) {
     try {
       await refreshAuth()
       res = await doFetch()
@@ -899,6 +1050,8 @@ export async function kscwApi<T = unknown>(
     // no-token auth-error suppression in sentry.ts. Real auth bugs (401/403 while
     // authenticated, refresh failed) still fall through to captureApiError below.
     if (res.status === 401 && !isAuthenticated()) throw err
+    // Acting refusal: already handled above (reset + translated toast).
+    if (actingRefused) throw err
     // Expected, caller-handled validation failures on the auth flows (wrong or
     // expired OTP, weak password, unknown email). The UI shows each inline, so
     // reporting the sub-500 to Sentry/JSONL is just noise. `err.code`/`err.body`

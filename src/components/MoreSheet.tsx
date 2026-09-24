@@ -2,13 +2,14 @@ import { useEffect, useState, useCallback, useRef, type ReactNode } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../hooks/useAuth'
+import { useHouseholdSwitcher } from '../hooks/useHouseholdSwitcher'
 import { useTheme } from '../hooks/useTheme'
 import TeamChip from './TeamChip'
 import SwitchToggle from '@/components/SwitchToggle'
 import LanguageDropdown from '@/components/LanguageDropdown'
 import { getFileUrl } from '../utils/fileUrl'
 import AdminToggle from './AdminToggle'
-import { Bell, LayoutGrid, UserX, PenSquare, PartyPopper, CalendarClock, LogIn, User, Users, Settings, ChevronDown, ScrollText, MessageSquare, Activity, GraduationCap, Newspaper, Coffee, Radio } from 'lucide-react'
+import { Bell, LayoutGrid, UserX, PenSquare, PartyPopper, CalendarClock, LogIn, User, Users, Settings, ChevronDown, ScrollText, MessageSquare, Activity, GraduationCap, Newspaper, Coffee, Radio, ArrowLeftRight } from 'lucide-react'
 import type { MemberTeam, Team } from '../types'
 import { asObj, memberDisplayName } from '../utils/relations'
 import { SCHEDULING_ORIGIN } from '../lib/api'
@@ -217,7 +218,9 @@ interface MoreSheetProps {
 }
 
 export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNotifications, memberTeams = [] }: MoreSheetProps) {
-  const { user, isApproved, isAdmin, isGlobalAdmin, isSuperAdmin, isVorstand, canAccessFinance, isVbAdmin, isBbAdmin, is_spielplaner, spielplanerTeamIds, coachTeamIds, teamResponsibleIds, memberTeamIds, captainTeamIds, logout } = useAuth()
+  const { user, isApproved, isAdmin, isGlobalAdmin, isSuperAdmin, isVorstand, canAccessFinance, isVbAdmin, isBbAdmin, is_spielplaner, spielplanerTeamIds, coachTeamIds, teamResponsibleIds, memberTeamIds, captainTeamIds, logout, householdMembers } = useAuth()
+  const { openSwitcher } = useHouseholdSwitcher()
+  const { t: tCommon } = useTranslation('common')
   const canManageForms = isAdmin || isVorstand || coachTeamIds.length > 0 || teamResponsibleIds.length > 0
   // Same derivation as useNavItems: roster member, coach/TR or captain of an
   // active team unlocks the Team finance group.
@@ -515,6 +518,21 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
                   {t('logout')}
                 </button>
               </div>
+              {/* Household account chooser — shown only for a login that
+                  administers other members. Opens the shell's single chooser. */}
+              {householdMembers.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    startClose()
+                    openSwitcher()
+                  }}
+                  className="mt-2 flex min-h-[44px] w-full items-center gap-3 rounded-lg -mx-2 px-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+                >
+                  <ArrowLeftRight className="h-5 w-5 shrink-0" />
+                  {tCommon('switchAccount')}
+                </button>
+              )}
             </div>
 
             {/* Support-the-developer row — personal, not a club channel, so it

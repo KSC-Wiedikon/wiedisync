@@ -816,7 +816,7 @@ SELECT ${MEMBER_COLS}, ${TEAM_COLS},
     severity: 'info',
     grain: 'player',
     title: 'Under-18 player with no login and no household guardian',
-    description: 'Nobody can RSVP or confirm the profile for this minor — neither the child (no activated login) nor a guardian through the households model. Invite the player or link a guardian. An unknown birthdate counts as a minor.',
+    description: 'Nobody can RSVP or confirm the profile for this minor — neither the child (no activated login) nor a main account through the households model. A household link only counts once the linked member is set up; a link still waiting for "Set up" on /admin/households is listed here. Invite the player, link a main account or press Set up. An unknown birthdate counts as a minor.',
     sql: `
 SELECT ${MEMBER_COLS},
        r.sport,
@@ -831,12 +831,20 @@ SELECT ${MEMBER_COLS},
    AND ${EXPECTED_TO_PLAY}
    AND ${IS_MINOR}
    AND m.wiedisync_active = false
+   -- A household grant only counts when the acting middleware would honour it:
+   -- mirrors resolveGrant (kscw-hooks acting-member.js) — a member_guardians row
+   -- AND the child on a draft @managed shadow login, no password, Member role.
+   -- A linked-but-never-provisioned child (members."user" NULL) stays listed.
    AND NOT EXISTS (
      SELECT 1
-       FROM household_members hm
-       JOIN household_members g ON g.household = hm.household AND g.role = 'guardian' AND g.revoked_at IS NULL
-       JOIN members gm ON gm.id = g.member AND gm.wiedisync_active = true
-      WHERE hm.member = m.id AND hm.role = 'managed' AND hm.revoked_at IS NULL
+       FROM member_guardians mg
+       JOIN members gm ON gm."user" = mg.guardian_user AND gm.wiedisync_active = true
+       JOIN directus_users mu ON mu.id = m."user"
+       JOIN directus_roles mr ON mr.id = mu.role AND mr.name = 'Member'
+      WHERE mg.member = m.id
+        AND mu.status = 'draft'
+        AND mu.password IS NULL
+        AND lower(mu.email) LIKE '%@managed.wiedisync.kscw.ch'
    )
  ORDER BY r.sport, r.teams, m.last_name, m.first_name, m.id`,
   },

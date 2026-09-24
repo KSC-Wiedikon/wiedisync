@@ -6,6 +6,7 @@ import ParticipationSummary from '../../components/ParticipationSummary'
 import { rsvpButtonClass } from '../../utils/participationColors'
 import ParticipationRosterModal from '../../components/ParticipationRosterModal'
 import { useAuth } from '../../hooks/useAuth'
+import { useRsvpLabels } from '../../hooks/useRsvpLabels'
 import { useTeamPermissions } from '../../hooks/useTeamPermissions'
 import { useParticipation } from '../../hooks/useParticipation'
 import { useMyCoveringAbsence } from '../../hooks/useMyCoveringAbsence'
@@ -249,6 +250,7 @@ function TrainingParticipation({ training, isStaff, isStaffParticipant, particip
   const { t } = useTranslation('participation')
   const { t: tTrainings } = useTranslation('trainings')
   const { getGuestLevel } = useAuth()
+  const { answer: rsvpLabels, answeringFor } = useRsvpLabels()
   const myGuestLevel = getGuestLevel(relId(training.team))
   const excludedGuestLevels = Array.isArray(training.excluded_guest_levels) ? training.excluded_guest_levels : []
   const guestExcluded = myGuestLevel > 0 && excludedGuestLevels.map((n: number) => Number(n)).includes(myGuestLevel)
@@ -332,10 +334,10 @@ function TrainingParticipation({ training, isStaff, isStaffParticipant, particip
       {hasAbsence && (
         <p className="text-xs italic text-gray-500 dark:text-gray-400">{t(absenceLabel)}</p>
       )}
-      <div className="relative flex items-center gap-2">
-        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('yourStatus')}:</span>
+      <div className="relative flex flex-wrap items-center gap-2">
+        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{answeringFor || `${t('yourStatus')}:`}</span>
         <div
-          className={`flex items-center gap-1.5 ${rsvpLoading ? 'pointer-events-none opacity-50' : ''}`}
+          className={`flex flex-wrap items-center gap-1.5 ${rsvpLoading ? 'pointer-events-none opacity-50' : ''}`}
           aria-busy={rsvpLoading}
         >
           {(['confirmed', 'tentative', 'declined'] as const)
@@ -345,7 +347,6 @@ function TrainingParticipation({ training, isStaff, isStaffParticipant, particip
             .filter((s) => rsvpLoading || !isLocked || effectiveStatus === s)
             // When deadline has passed: only render the user's selected choice (if any) in its color.
             .map((status) => {
-            const labels = { confirmed: t('yes'), tentative: t('maybe'), declined: t('no') }
             const active = effectiveStatus === status
             return (
               <button
@@ -362,7 +363,7 @@ function TrainingParticipation({ training, isStaff, isStaffParticipant, particip
                 }}
                 className={`rounded-full px-3 py-1 text-sm font-medium transition ${isLocked ? 'cursor-not-allowed' : ''} ${rsvpButtonClass(status, active)}`}
               >
-                {labels[status]}
+                {rsvpLabels[status]}
               </button>
             )
           })}

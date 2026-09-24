@@ -6,6 +6,7 @@ import { useCollection } from '../lib/query'
 import { useMutation } from '../hooks/useMutation'
 import { useRealtime } from '../hooks/useRealtime'
 import { useAuth } from '../hooks/useAuth'
+import { useRsvpLabels } from '../hooks/useRsvpLabels'
 import type { EventSession, Participation } from '../types'
 import { currentLocale } from '../utils/dateHelpers'
 
@@ -40,7 +41,9 @@ function SessionRow({
   loading: boolean
   onSetStatus: (session: EventSession, status: Participation['status']) => void
 }) {
-  const { t } = useTranslation('participation')
+  // While acting for a linked household member her name rides in the icon
+  // buttons' title / aria-label ("Léon is coming").
+  const { status: statusLabels } = useRsvpLabels()
   const dateStr = session.date?.split(' ')[0] ?? ''
 
   const buttons: { status: Participation['status']; icon: React.ReactNode; activeClass: string }[] = [
@@ -81,7 +84,8 @@ function SessionRow({
                   ? activeClass
                   : 'bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600'
             }`}
-            title={loading ? undefined : t(btnStatus)}
+            title={loading ? undefined : statusLabels[btnStatus as 'confirmed' | 'declined']}
+            aria-label={statusLabels[btnStatus as 'confirmed' | 'declined']}
           >
             {icon}
           </button>
@@ -94,6 +98,7 @@ function SessionRow({
 export default function SessionParticipationSheet({ activityId, sessions, onClose, isStaff = false }: Props) {
   const { t } = useTranslation('events')
   const { user } = useAuth()
+  const { answeringFor } = useRsvpLabels()
 
   // Batch: fetch ALL of this user's participations for the event in one query
   // (was N queries — one per session row via useParticipation).
@@ -115,7 +120,7 @@ export default function SessionParticipationSheet({ activityId, sessions, onClos
   // EventDetailModal; the EventCard path shares this query key and mounts warm).
   // `isLoading` is TanStack v5's `isPending && isFetching`, i.e. true only on a
   // first load with no cached data — so the warm path still flashes nothing.
-  const rows = rowsRaw ?? []
+  const rows = useMemo(() => rowsRaw ?? [], [rowsRaw])
 
   useRealtime<Participation>('participations', (e) => {
     if (e.record.activity_id === activityId && e.record.member === user?.id) refetch()
@@ -189,6 +194,9 @@ export default function SessionParticipationSheet({ activityId, sessions, onClos
 
   return (
     <Modal open onClose={onClose} title={t('sessionParticipation')} size="sm">
+      {answeringFor && (
+        <p className="px-4 pb-1 pt-2 text-sm font-medium text-gray-600 dark:text-gray-300">{answeringFor}</p>
+      )}
       <div className="divide-y divide-gray-100 dark:divide-gray-700">
         {sessions.map((session) => {
           const sid = String(session.id)

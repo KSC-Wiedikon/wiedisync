@@ -187,6 +187,9 @@ UPDATE members SET phone    = NULL WHERE phone IS NOT NULL;
 UPDATE directus_users
    SET email = 'user_' || id || '@devsink.invalid'
  WHERE email IS NOT NULL
+   -- Household shadow logins (synthetic, no PII): scrubbing them would
+   -- fire migration 377's revoke trigger and unlink every household on dev.
+   AND lower(email) NOT LIKE '%@managed.wiedisync.kscw.ch'
    AND lower(email) NOT IN (
      'admin@kscw.ch','aniish.k@hotmail.com','anja_jimenez@hotmail.com',
      'cron-service@kscw.ch','luca.canepa@gmail.com','thamayanth.kanagalingam@uzh.ch'

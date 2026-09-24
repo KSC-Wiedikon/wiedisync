@@ -51,6 +51,12 @@ export interface AuthContextValue {
    * the request as that member.
    */
   switchTo: (memberId: number | null) => Promise<void>
+  /**
+   * The household member last used on this device, offered as a one-tap
+   * "Continue with <name>" while the guardian is herself. Null while acting, or
+   * when that member is no longer in the household. A HINT, never a restore.
+   */
+  resumeCandidate: HouseholdMember | null
   /** The effective member id — the identity every query key is namespaced by. */
   identityMemberId: string | null
   /** Start a read-only "View as <member>" session (superadmin only). */

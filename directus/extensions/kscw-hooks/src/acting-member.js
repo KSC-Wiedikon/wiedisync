@@ -53,20 +53,40 @@ import { fetchGlobalAccess } from '@directus/api/permissions/modules/fetch-globa
 import { createDefaultAccountability } from '@directus/api/permissions/utils/create-default-accountability'
 
 export const ACTING_HEADER = 'x-kscw-acting-member'
+// Mirrored in kscw-endpoints/src/household.js and migration 377's
+// is_managed_shadow() — change all three together.
 const MANAGED_EMAIL_DOMAIN = 'managed.wiedisync.kscw.ch'
 
 // Never swap on these — auth (login/refresh/logout must always be the real
 // session owner), the admin app, static assets, and server health.
-const SKIP_PREFIXES = ['/auth', '/admin', '/assets', '/server', '/graphql']
+// ⚠ /graphql is NOT here any more: skipping it meant a GraphQL call carrying
+// the header ran as the GUARDIAN while the client believed it was the child —
+// the exact mis-attribution rule 3 exists to prevent. It is denied below.
+const SKIP_PREFIXES = ['/auth', '/admin', '/assets', '/server']
 
-// Never reachable while acting — the login account itself is the guardian's,
-// never the child's. Lowercased below because Express matches routes
-// case-insensitively; /items/* is matched exactly by Directus.
-const DENY_PREFIXES = [
-  '/items/directus_users',
-]
+// Never reachable while acting. Matched on whole path SEGMENTS (so '/users'
+// does not also catch a hypothetical '/users-foo'), on the lowercased path
+// because Express matches routes case-insensitively.
+//   /users   — the login account is the guardian's, never the child's: /users/me
+//              would read or PATCH the child's shadow login (email, password,
+//              status — any of which ends the shadow and, via migration 377,
+//              the grant). The app reads its own identity WITHOUT the header.
+//   /graphql — one endpoint that reaches every collection; there is no reason
+//              for the app to use it while acting, and no way to reason about it.
+// (The former '/items/directus_users' entry protected nothing: Directus already
+// refuses /items for system collections.)
+const DENY_SEGMENTS = ['/users', '/graphql']
 
-const GRANT_TTL_MS = 30_000
+/** Is this (lowercased) path refused while acting? */
+export function isDeniedWhileActing(path) {
+  return DENY_SEGMENTS.some((p) => path === p || path.startsWith(p + '/'))
+}
+
+// Backstop only. Every household mutation busts the cache explicitly (see
+// globalThis.__kscwActingGrantBust below); the TTL bounds how long a change made
+// OUTSIDE those routes — migration 377's revoke triggers, a hand edit — can
+// keep serving a stale decision.
+const GRANT_TTL_MS = 10_000
 const AUDIT_TTL_MS = 60 * 60 * 1000
 
 export function createActingMemberMiddleware(database, logger) {
@@ -83,11 +103,21 @@ export function createActingMemberMiddleware(database, logger) {
     for (const [k, v] of map) if ((v?.expires ?? v) <= now) map.delete(k)
   }
 
-  /** Bust every cached decision for one guardian — called after a revoke. */
+  /** Bust every cached decision for one guardian. */
   function invalidateGuardian(guardianUser) {
     for (const k of grantCache.keys()) {
       if (k.startsWith(`${guardianUser}:`)) grantCache.delete(k)
     }
+  }
+
+  // ⚠ The ONLY handle kscw-endpoints has on this cache: the two extensions are
+  // separate bundles, and index.js does not keep the middleware instance. The
+  // household routes call it after link / provision / revoke (no argument =
+  // clear everything — the cache is tiny). Without it a revoke took up to the
+  // TTL to bite, and a just-provisioned child stayed refused as long.
+  globalThis.__kscwActingGrantBust = (guardianUser) => {
+    if (guardianUser) invalidateGuardian(guardianUser)
+    else grantCache.clear()
   }
 
   async function resolveGrant(guardianUser, targetId) {
@@ -108,20 +138,24 @@ export function createActingMemberMiddleware(database, logger) {
       .first(
         'tm.id as target_member', 'tm.user as target_user',
         'tu.role as target_role', 'tu.status as target_status', 'tu.email as target_email',
+        database.raw('(tu.password IS NOT NULL) AS target_has_password'),
         'gm.id as guardian_member',
       )
 
     // No grant, or the target has no login row to resolve as.
     if (!row || !row.target_user || !row.target_role) return deny()
 
-    // Status: 'active' normally; 'draft' ONLY for a managed shadow user, which
-    // is the entire point of the feature — that account is deliberately
-    // un-loginnable and would otherwise be un-actable too.
+    // ⚠⚠ CONSENT: the target must be a managed SHADOW login — draft, on the
+    // managed domain, no password. Nothing else. The former `'active'` branch
+    // let a grant outlive the moment the child got her own real login (signup,
+    // an admin attaching an account): she could log in herself while her
+    // parent still silently acted as her. Migration 377 also revokes the link
+    // row in that moment; this check is what holds even before it does.
     const isManagedShadow = String(row.target_email || '').toLowerCase()
       .endsWith('@' + MANAGED_EMAIL_DOMAIN)
-    const statusOk = row.target_status === 'active'
-      || (row.target_status === 'draft' && isManagedShadow)
-    if (!statusOk) return deny()
+    if (!(row.target_status === 'draft' && isManagedShadow && row.target_has_password !== true)) {
+      return deny()
+    }
 
     // The target must hold exactly the plain Member role. Acting resolves the
     // caller AS the target, so a target holding coach/TR/planner powers would
@@ -185,15 +219,15 @@ export function createActingMemberMiddleware(database, logger) {
       // admins who are also parents, and making the feature untestable by the
       // people most likely to test it. A grant row is still required.
 
-      const path = String(req.path || req.url || '').toLowerCase()
+      const path = String(req.path || req.url || '').split('?')[0].toLowerCase()
       if (SKIP_PREFIXES.some((p) => path.startsWith(p))) return next()
-      if (DENY_PREFIXES.some((p) => path.startsWith(p))) {
-        return res.status(403).json({ error: 'Not available while using another account', code: 'KSCW_ACTING_DENIED' })
+      if (isDeniedWhileActing(path)) {
+        return res.status(403).json({ error: 'Not available while using another account', code: 'KSCW_ACTING_DENIED', scope: 'path' })
       }
 
       const targetId = Number(Array.isArray(raw) ? raw[0] : raw)
       if (!Number.isInteger(targetId) || targetId <= 0) {
-        return res.status(400).json({ error: 'Invalid acting member', code: 'KSCW_ACTING_DENIED' })
+        return res.status(400).json({ error: 'Invalid acting member', code: 'KSCW_ACTING_DENIED', scope: 'grant' })
       }
 
       const bundle = await resolveGrant(acc.user, targetId)
@@ -201,7 +235,7 @@ export function createActingMemberMiddleware(database, logger) {
       // "target is staff") would be an enumeration oracle letting any member map
       // who in the club holds an elevated role.
       if (!bundle) {
-        return res.status(403).json({ error: 'Not permitted', code: 'KSCW_ACTING_DENIED' })
+        return res.status(403).json({ error: 'Not permitted', code: 'KSCW_ACTING_DENIED', scope: 'grant' })
       }
 
       const next_ = createDefaultAccountability({
@@ -226,7 +260,7 @@ export function createActingMemberMiddleware(database, logger) {
       )
       if (admin !== false || app !== true) {
         log.warn({ msg: 'acting refused: unexpected global access', targetId, admin, app })
-        return res.status(403).json({ error: 'Not permitted', code: 'KSCW_ACTING_DENIED' })
+        return res.status(403).json({ error: 'Not permitted', code: 'KSCW_ACTING_DENIED', scope: 'grant' })
       }
       next_.admin = admin
       next_.app = app

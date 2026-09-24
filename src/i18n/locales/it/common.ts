@@ -241,4 +241,8 @@ export default {
   sessionExpiredText: 'Sei stato disconnesso. Accedi di nuovo per continuare.',
   sessionExpiredAction: 'Accedi di nuovo',
   appUpdatedRepeatAction: 'Wiedisync è stato aggiornato all\'ultima versione — ripeti l\'ultima azione.',
+  householdAnsweringFor: 'Risposta per {{name}}',
+  householdNotSetUp: 'Questo profilo non è ancora configurato — sei tornato al tuo account',
+  householdNotWhileActing: 'Non disponibile mentre usi un altro account',
+  householdSwitchTo: 'Passa a {{names}}',
 }

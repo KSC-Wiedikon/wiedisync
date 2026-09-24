@@ -4,6 +4,7 @@ import { Check, MessageSquare } from 'lucide-react'
 import { formatDate, formatTime, getDeadlineDate } from '../utils/dateHelpers'
 import { rsvpButtonClass } from '../utils/participationColors'
 import { useAuth } from '../hooks/useAuth'
+import { useRsvpLabels } from '../hooks/useRsvpLabels'
 import { useMutation } from '../hooks/useMutation'
 import { useMyCoveringAbsence } from '../hooks/useMyCoveringAbsence'
 import { useAbsenceNoteText } from '../hooks/useAbsenceNoteText'
@@ -64,6 +65,9 @@ export default function ActivityParticipation({
   const { t } = useTranslation('participation')
   const { t: tKind } = useTranslation(kind === 'game' ? 'games' : 'trainings')
   const { user } = useAuth()
+  // Cards are too narrow for name-bearing buttons, so they keep Yes / Maybe /
+  // No and say who is answering in a caption instead.
+  const { answeringFor } = useRsvpLabels()
   const { create, update } = useMutation<Participation>('participations')
   const { absence, hasAbsence } = useMyCoveringAbsence(kind, date)
   const absenceLabel = absence?.type === 'weekly' ? 'declinedUnavailable' : 'absent'
@@ -176,6 +180,9 @@ export default function ActivityParticipation({
     <div className="space-y-1.5">
       {hasAbsence && (
         <p className="text-xs italic text-gray-500 dark:text-gray-400">{t(absenceLabel)}</p>
+      )}
+      {answeringFor && (
+        <p className="text-[11px] font-medium leading-tight text-gray-600 dark:text-gray-300">{answeringFor}</p>
       )}
       <div
         className="relative flex flex-wrap items-center gap-1.5"

@@ -11,7 +11,20 @@
  *
  * Best-effort: resolves the Directus user to a member id and inserts one row;
  * any failure is swallowed (logged) so it never blocks the primary request.
+ *
+ * ⚠ `data` always carries `actor_user` (the Directus user id) + `actor_admin`.
+ * The member id in `user` is NULL whenever the caller has no member row — a
+ * static admin token, a Directus admin who is not a club member — and those
+ * are exactly the callers of the most privileged endpoints. Without the stamp
+ * such a row names nobody.
  */
+export function withActorStamp(data, accountability) {
+  const stamp = { actor_user: accountability?.user ?? null, actor_admin: accountability?.admin === true }
+  if (data == null) return stamp
+  if (typeof data === 'object' && !Array.isArray(data)) return { ...data, ...stamp }
+  return { value: data, ...stamp }
+}
+
 export async function writeUserLog(database, log, { accountability, action, collection, recordId, data }) {
   try {
     if (!accountability?.user) return // system / unauthenticated — traceable via container logs
@@ -20,7 +33,7 @@ export async function writeUserLog(database, log, { accountability, action, coll
       action: action || 'update',
       collection_name: collection || null,
       record_id: recordId != null ? String(recordId) : null,
-      data: data == null ? null : JSON.stringify(data),
+      data: JSON.stringify(withActorStamp(data, accountability)),
       user: m?.id ?? null,
       // Household guardians (migration 348/349) — the custom-endpoint half of the
       // same stamp applied in kscw-hooks/src/audit.js. BOTH writers must carry it

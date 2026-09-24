@@ -29,4 +29,5 @@ export default {
   exportFailed: 'Esportazione fallita',
   checkFailed: 'Controllo fallito',
   registers: 'Registri',
+  checkDesc_minor_without_guardian_login: 'Nessuno può rispondere o confermare il profilo di questo membro minorenne — né il bambino (nessun accesso attivato) né un account principale tramite il modello delle economie domestiche. Un collegamento conta solo quando il membro collegato è configurato; un collegamento che su /admin/households attende ancora «Configura» è elencato qui. Invitare il giocatore, collegare un account principale o premere Configura. Una data di nascita sconosciuta conta come minorenne.',
 } as const

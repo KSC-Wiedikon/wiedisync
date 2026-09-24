@@ -241,4 +241,8 @@ export default {
   sessionExpiredText: 'You have been signed out. Sign in again to continue.',
   sessionExpiredAction: 'Sign in again',
   appUpdatedRepeatAction: 'Wiedisync was updated to the latest version — please repeat your last action.',
+  householdAnsweringFor: 'Answering for {{name}}',
+  householdNotSetUp: 'This profile isn\'t set up yet — you\'re back on your own account',
+  householdNotWhileActing: 'Not available while using another account',
+  householdSwitchTo: 'Switch to {{names}}',
 }

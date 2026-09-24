@@ -9,6 +9,7 @@ import { rsvpButtonClass } from '../../utils/participationColors'
 import ParticipationRosterModal from '../../components/ParticipationRosterModal'
 import SessionParticipationSheet from '../../components/SessionParticipationSheet'
 import { useAuth } from '../../hooks/useAuth'
+import { useRsvpLabels } from '../../hooks/useRsvpLabels'
 import { useAdminMode } from '../../hooks/useAdminMode'
 import { useTeamPermissions } from '../../hooks/useTeamPermissions'
 import { useParticipation } from '../../hooks/useParticipation'
@@ -458,6 +459,7 @@ export default function EventDetailModal({ event, onClose, participations }: Eve
 
 function EventParticipation({ event, isStaff, isStaffParticipant, participations }: { event: Event; isStaff: boolean; isStaffParticipant: boolean; participations?: Participation[] }) {
   const { t } = useTranslation('participation')
+  const { answer: rsvpLabels, answeringFor } = useRsvpLabels()
   const { participation, effectiveStatus, hasAbsence, note: savedNote, setStatus, saveConfirmed, dismissConfirmed, isLoading: rsvpLoading } = useParticipation(
     'event',
     event.id,
@@ -560,13 +562,12 @@ function EventParticipation({ event, isStaff, isStaffParticipant, participations
       {hasAbsence && (
         <p className="text-xs italic text-gray-500 dark:text-gray-400">{t(absenceLabel)}</p>
       )}
-      <div className="relative flex items-center gap-2">
-        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('yourStatus')}:</span>
-        <div className="flex items-center gap-1.5">
+      <div className="relative flex flex-wrap items-center gap-2">
+        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{answeringFor || `${t('yourStatus')}:`}</span>
+        <div className="flex flex-wrap items-center gap-1.5">
           {(['confirmed', 'tentative', 'declined'] as const)
             .filter((s) => s !== 'tentative' || allowMaybe)
             .map((status) => {
-            const labels = { confirmed: t('yes'), tentative: t('maybe'), declined: t('no') }
             return (
               <button
                 key={status}
@@ -586,7 +587,7 @@ function EventParticipation({ event, isStaff, isStaffParticipant, participations
                 disabled={rsvpLoading}
                 className={`rounded-full px-3 py-1 text-sm font-medium transition ${rsvpLoading ? 'opacity-50' : ''} ${rsvpButtonClass(status, effectiveStatus === status)}`}
               >
-                {labels[status]}
+                {rsvpLabels[status]}
               </button>
             )
           })}

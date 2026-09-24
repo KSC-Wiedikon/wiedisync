@@ -14,6 +14,7 @@ import RosterModal from '../../scorer/components/RosterModal'
 import PreGameRosterModal from './PreGameRosterModal'
 import ShowIdsModal from './ShowIdsModal'
 import { useAuth } from '../../../hooks/useAuth'
+import { useRsvpLabels } from '../../../hooks/useRsvpLabels'
 import { useAdminMode } from '../../../hooks/useAdminMode'
 import { useTeamPermissions } from '../../../hooks/useTeamPermissions'
 import { useIsCalledUpToGame } from '../../../hooks/useUserVisibleGameIds'
@@ -212,6 +213,7 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
   const isCalledUp = useIsCalledUpToGame(user?.id, game?.id)
   const canParticipate = !!user && !!game?.kscw_team && (canParticipateIn(relId(game.kscw_team)) || isCalledUp)
   const isStaffParticipant = !!game?.kscw_team && isStaffOnly(relId(game.kscw_team))
+  const { answer: rsvpLabels, answeringFor } = useRsvpLabels()
   const { effectiveStatus, hasAbsence, note: savedNote, setStatus, saveConfirmed, dismissConfirmed, isLoading: rsvpLoading } = useParticipation(
     'game',
     game?.id ?? '',
@@ -679,10 +681,10 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
             {hasAbsence && (
               <span className="w-full text-xs italic text-gray-500 dark:text-gray-400">{t(absenceLabel)}</span>
             )}
-            <div className="flex items-center gap-3">
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('participation:attending')}</span>
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{answeringFor || t('participation:attending')}</span>
                 <div
-                  className={`relative flex gap-2 ${rsvpLoading ? 'pointer-events-none opacity-50' : ''}`}
+                  className={`relative flex flex-wrap gap-2 ${rsvpLoading ? 'pointer-events-none opacity-50' : ''}`}
                   aria-busy={rsvpLoading}
                 >
                   <button
@@ -690,21 +692,21 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
                     disabled={rsvpLoading}
                     className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${rsvpButtonClass('confirmed', effectiveStatus === 'confirmed')}`}
                   >
-                    {t('participation:yes')}
+                    {rsvpLabels.confirmed}
                   </button>
                   <button
                     onClick={() => setStatus('tentative', noteText)}
                     disabled={rsvpLoading}
                     className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${rsvpButtonClass('tentative', effectiveStatus === 'tentative')}`}
                   >
-                    {t('participation:maybe')}
+                    {rsvpLabels.tentative}
                   </button>
                   <button
                     onClick={() => setStatus('declined', noteText)}
                     disabled={rsvpLoading}
                     className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${rsvpButtonClass('declined', effectiveStatus === 'declined')}`}
                   >
-                    {t('participation:no')}
+                    {rsvpLabels.declined}
                   </button>
                   {/* Save confirmation popover — colored by response */}
                   {saveConfirmed && (() => {

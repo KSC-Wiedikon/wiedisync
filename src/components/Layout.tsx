@@ -13,6 +13,7 @@ import NotificationPanel from './NotificationPanel'
 import TopNav from './TopNav'
 import ImpersonationBanner from './ImpersonationBanner'
 import ActingBanner from './ActingBanner'
+import { HouseholdSwitcherProvider } from './HouseholdSwitcher'
 import { useCollection } from '../lib/query'
 import ProfileEditModal from '../modules/auth/ProfileEditModal'
 import type { MemberTeam, Team } from '../types'
@@ -22,7 +23,7 @@ type ExpandedMemberTeam = MemberTeam & { team: Team | string }
 export default function Layout() {
   const [moreOpen, setMoreOpen] = useState(false)
   const [notifPanelOpen, setNotifPanelOpen] = useState(false)
-  const { user, isApproved, isProfileComplete, isImpersonating, isLoading, teamsLoading } = useAuth()
+  const { user, realUser, householdMembers, isApproved, isProfileComplete, isImpersonating, isLoading, teamsLoading } = useAuth()
   // Already excludes impersonation and unapproved accounts — see the hook.
   const profileReviewDue = useProfileReviewDue()
   const { notifications, unreadCount, markAsRead, markAllAsRead, deleteNotification, clearAllRead } = useNotificationsContext()
@@ -57,13 +58,22 @@ export default function Layout() {
   // render the chrome underneath it.
   const authBooting = (isLoading || teamsLoading) && isAuthenticated()
 
+  // Which banner is top-most decides who takes the iOS safe-area padding (an
+  // installed PWA uses `black-translucent`, so the page is drawn under the
+  // status bar). Mirrors each banner's own render condition. With no banner,
+  // the shell root itself clears the notch (`pt-safe`, 0 off iOS).
+  const showImpersonation = !authBooting && isImpersonating && !!user
+  const showActing = !authBooting && !!realUser && householdMembers.length > 0
+  const bannerOnTop = showImpersonation || showActing
+
   return (
-    <div className="flex h-screen flex-col bg-gray-50 dark:bg-gray-900">
+    <HouseholdSwitcherProvider>
+    <div className={`flex h-screen flex-col bg-gray-50 dark:bg-gray-900 ${bannerOnTop ? '' : 'pt-safe'}`}>
       {/* Chrome + page mount only once auth/team context is ready; while the
           page's own data loads they render underneath <BootOverlay/> (masked). */}
       {!authBooting && (<>
-      <ImpersonationBanner />
-      <ActingBanner />
+      <ImpersonationBanner topInset={showImpersonation} />
+      <ActingBanner topInset={showActing && !showImpersonation} />
       {/* Desktop top navbar (replaces the old side rail). Mobile keeps the
           bottom tab bar + More sheet below. */}
       {isDesktop && (
@@ -170,5 +180,6 @@ export default function Layout() {
         />
       )}
     </div>
+    </HouseholdSwitcherProvider>
   )
 }

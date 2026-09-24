@@ -29,4 +29,5 @@ export default {
   exportFailed: 'Échec de l\'export',
   checkFailed: 'Contrôle échoué',
   registers: 'Registres',
+  checkDesc_minor_without_guardian_login: 'Personne ne peut répondre ou confirmer le profil de ce membre mineur — ni l\'enfant (pas d\'identifiant activé), ni un compte principal via le modèle des foyers. Un lien de foyer ne compte qu\'une fois le membre lié configuré ; un lien qui attend encore « Configurer » sur /admin/households figure ici. Inviter le joueur, lier un compte principal ou cliquer sur Configurer. Une date de naissance inconnue compte comme mineur.',
 } as const

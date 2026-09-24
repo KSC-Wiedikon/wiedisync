@@ -15,6 +15,7 @@ import { useMutation } from '../../hooks/useMutation'
 import { useRealtime } from '../../hooks/useRealtime'
 import { useMyCoveringAbsence } from '../../hooks/useMyCoveringAbsence'
 import { useAbsenceNoteText } from '../../hooks/useAbsenceNoteText'
+import { useRsvpLabels } from '../../hooks/useRsvpLabels'
 import { formatDate, formatTime, getDeadlineDate } from '../../utils/dateHelpers'
 import { asTeams, teamId, isHtml, isSameDay, isGuestExcludedFromEvent } from './eventHelpers'
 import type { Event, EventSession, Participation } from '../../types'
@@ -261,6 +262,7 @@ export default function EventCard({ event, onClick, onEdit, onDelete, onOpenRost
 /** Inline Yes/Maybe/No buttons for event cards — matches training/game card pattern, no dropdown overflow */
 function EventCardParticipation({ event, existingParticipation, onSaved, onStatusChange }: { event: Event; existingParticipation?: Participation; onSaved?: () => void; onStatusChange?: (status: Participation['status'] | null) => void }) {
   const { t } = useTranslation('participation')
+  const { answer, answeringFor } = useRsvpLabels()
   const { user, isStaffOnlyForTeams } = useAuth()
   const isStaff = isStaffOnlyForTeams((event.teams ?? []).map((tm) => teamId(tm)))
   const { create, update } = useMutation<Participation>('participations')
@@ -350,6 +352,7 @@ function EventCardParticipation({ event, existingParticipation, onSaved, onStatu
       {hasAbsence && (
         <p className="text-xs italic text-gray-500 dark:text-gray-400">{t(absenceLabel)}</p>
       )}
+      {answeringFor && <p className="text-[11px] font-medium leading-tight text-gray-600 dark:text-gray-300">{answeringFor}</p>}
       <div className="relative flex flex-wrap items-center gap-1.5">
         {(['confirmed', 'tentative', 'declined'] as const)
           .filter((s) => s !== 'tentative' || event.allow_maybe !== false)
@@ -357,7 +360,7 @@ function EventCardParticipation({ event, existingParticipation, onSaved, onStatu
           .filter((s) => !isLocked || displayStatus === s)
           .map((status) => {
           const active = displayStatus === status
-          const label = { confirmed: t('yes'), tentative: t('maybe'), declined: t('no') }
+          const label = answer
           return (
             <button
               key={status}
@@ -428,6 +431,7 @@ function EventCardParticipation({ event, existingParticipation, onSaved, onStatu
 function EventCardSessionParticipation({ event, onSaved, onStatusChange }: { event: Event; onSaved?: () => void; onStatusChange?: (status: Participation['status'] | 'mixed' | null | undefined) => void }) {
   const { t } = useTranslation('participation')
   const { t: te } = useTranslation('events')
+  const { answer, answeringFor } = useRsvpLabels()
   const { user, isStaffOnlyForTeams } = useAuth()
   // Every invited team, not just `teams[0]` — a D1 coach on an H3 + D1 event
   // was classified as a player whenever H3 sorted first in the junction.
@@ -553,13 +557,14 @@ function EventCardSessionParticipation({ event, onSaved, onStatusChange }: { eve
 
   return (
     <div className="space-y-1.5">
+      {answeringFor && <p className="text-[11px] font-medium leading-tight text-gray-600 dark:text-gray-300">{answeringFor}</p>}
       <div className="flex flex-wrap items-center gap-1.5">
         {(['confirmed', 'tentative', 'declined'] as const)
           .filter((s) => s !== 'tentative' || event.allow_maybe !== false)
           .filter((s) => !isLocked || aggregate === s)
           .map((status) => {
             const active = aggregate === status
-            const label = { confirmed: t('yes'), tentative: t('maybe'), declined: t('no') }
+            const label = answer
             return (
               <button
                 key={status}

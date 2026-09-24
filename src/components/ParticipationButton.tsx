@@ -6,6 +6,7 @@ import { useMyCoveringAbsence } from '../hooks/useMyCoveringAbsence'
 import { getDeadlineDate } from '../utils/dateHelpers'
 import { useMutation } from '../hooks/useMutation'
 import { useAuth } from '../hooks/useAuth'
+import { useRsvpLabels } from '../hooks/useRsvpLabels'
 import type { Participation, EventSession } from '../types'
 import SessionParticipationSheet from './SessionParticipationSheet'
 
@@ -104,6 +105,7 @@ function PrefetchedParticipationButton(props: ParticipationButtonProps) {
   const serverStatus = participation?.status ?? null
   const effectiveStatus = optimisticStatus ?? serverStatus
 
+  const { activityType, activityId, sessionId, onSaved } = props
   const setStatus = useCallback(async (status: Participation['status'], note = '', guestCount = 0) => {
     if (!user) return
     setOptimisticStatus(status)
@@ -114,21 +116,21 @@ function PrefetchedParticipationButton(props: ParticipationButtonProps) {
       } else {
         await create({
           member: user.id,
-          activity_type: props.activityType,
-          activity_id: props.activityId,
+          activity_type: activityType,
+          activity_id: activityId,
           status,
           note,
           guest_count: guestCount,
           is_staff: isStaff,
-          ...(props.sessionId ? { session_id: props.sessionId } : {}),
+          ...(sessionId ? { session_id: sessionId } : {}),
         })
       }
       setSaveConfirmed(true)
-      props.onSaved?.()
+      onSaved?.()
     } catch {
       setOptimisticStatus(null)
     }
-  }, [user, participation, props.activityType, props.activityId, props.sessionId, isStaff, create, update, props.onSaved])
+  }, [user, participation, activityType, activityId, sessionId, isStaff, create, update, onSaved])
 
   const dismissConfirmed = useCallback(() => setSaveConfirmed(false), [])
 
@@ -156,7 +158,7 @@ function ParticipationButtonInner({
   data: { participation, isLoading, effectiveStatus, setStatus, saveConfirmed, dismissConfirmed },
 }: ParticipationButtonProps & { data: ParticipationData }) {
   const { t } = useTranslation('participation')
-  const { isGuestIn, isStaffOnly, isActingForOther, user } = useAuth()
+  const { isGuestIn, isStaffOnly } = useAuth()
   // The per-day sheet writes its own rows, so it needs the same staff
   // classification the whole-event path applies (both wrappers derive it from
   // `teamId` before handing the props down).
@@ -213,27 +215,9 @@ function ParticipationButtonInner({
 
   const hasSessionMode = participationMode && participationMode !== 'whole' && eventSessions && eventSessions.length > 0
 
-  // ⚠ The anti-mistake device for household guardians (migration 348).
-  // While a parent is acting for one of her children, the child's NAME goes
-  // inside the RSVP labels themselves — so it is under her thumb at the exact
-  // instant of the decision. This beats a confirmation dialog, because a parent
-  // doing a dozen RSVPs a week taps through dialogs blind by the second day.
-  // Together with the banner colour and the banner name, it is the third of
-  // three simultaneous answers to "which child am I?".
-  const actingName = isActingForOther ? (user?.first_name || '') : ''
-  const statusLabels: Record<string, string> = actingName
-    ? {
-      confirmed: t('rsvpConfirmedFor', { name: actingName }),
-      declined: t('rsvpDeclinedFor', { name: actingName }),
-      tentative: t('rsvpTentativeFor', { name: actingName }),
-      waitlisted: t('waitlisted'),
-    }
-    : {
-      confirmed: t('confirmed'),
-      declined: t('declined'),
-      tentative: t('tentative'),
-      waitlisted: t('waitlisted'),
-    }
+  // ⚠ Household anti-mistake device: while acting for a linked member her
+  // name goes inside the labels (see useRsvpLabels).
+  const { status: statusLabels, answeringFor } = useRsvpLabels()
 
   const deadlinePassed = respondBy
     ? getDeadlineDate(respondBy, activityStartTime) < new Date()
@@ -316,6 +300,7 @@ function ParticipationButtonInner({
         disabled={deadlinePassed || isLoading}
         aria-haspopup="menu"
         aria-expanded={menuOpen}
+        title={answeringFor || undefined}
         className={`inline-flex min-h-[44px] items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors sm:min-h-0 ${
           deadlinePassed
             ? 'cursor-not-allowed bg-gray-100 text-gray-400 ring-1 ring-red-400 dark:bg-gray-700 dark:text-gray-500 dark:ring-red-500'
@@ -365,6 +350,11 @@ function ParticipationButtonInner({
             }}
             className="absolute right-0 top-full z-20 mt-1 w-56 rounded-lg border bg-white py-1 shadow-lg outline-none dark:border-gray-600 dark:bg-gray-800"
           >
+            {answeringFor && (
+              <p className="border-b px-3 pb-1.5 pt-1 text-[11px] font-medium text-gray-500 dark:border-gray-700 dark:text-gray-400">
+                {answeringFor}
+              </p>
+            )}
             {/* Note input view — shown when note is required for decline/tentative */}
             {pendingStatus ? (
               <div className="px-3 py-2">
