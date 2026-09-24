@@ -134,6 +134,7 @@ const FK_MAP = {
   games: [
     { table: 'game_guests', column: 'game', rule: 'CASCADE' },
     { table: 'game_guest_teams', column: 'game', rule: 'CASCADE' },
+    { table: 'game_recordings', column: 'game', rule: 'CASCADE' },
     { table: 'game_rosters', column: 'game', rule: 'CASCADE' },
     { table: 'referee_expenses', column: 'game', rule: 'SET NULL' },
   ],

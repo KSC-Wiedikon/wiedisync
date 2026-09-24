@@ -28,6 +28,7 @@ import { registerScorerClaim } from './scorer-claim.js'
 import { registerDutyLate } from './duty-late.js'
 import { registerDutyLeaderContact } from './duty-leader-contact.js'
 import { registerScorerRoster } from './scorer-roster.js'
+import { registerGameRecordings } from './game-recordings.js'
 import { registerNominationPush } from './nomination-push.js'
 import { registerIdentityDocument } from './identity-document.js'
 import { registerChangePassword } from './change-password.js'
@@ -2648,6 +2649,7 @@ export default {
     registerDutyLate(router, ctx)
     registerDutyLeaderContact(router, ctx)
     registerScorerRoster(router, ctx)
+    registerGameRecordings(router, ctx)
     registerNominationPush(router, ctx)
     registerIdentityDocument(router, ctx)
     registerChangePassword(router, ctx)

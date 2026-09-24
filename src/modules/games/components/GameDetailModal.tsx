@@ -29,6 +29,7 @@ import DatePicker from '@/components/ui/DatePicker'
 import { currentLocale, formatDate, formatTime, formatDateTimeCompactZurich, parseRespondByTime, toUtcIsoFromDatetimeLocal, isWithinDutyLateWindow, gameKickoffMs, meetingTimeFromOffset } from '../../../utils/dateHelpers'
 import RefereeExpenseSection from './RefereeExpenseSection'
 import GameGuestSection from './GameGuestSection'
+import GameRecordingsSection from './GameRecordingsSection'
 import BroadcastButton from '../../broadcast/BroadcastButton'
 import ShareActivityButton from '../../../components/ShareActivityButton'
 import { isFeatureEnabled } from '../../../utils/featureToggles'
@@ -860,6 +861,9 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
             ))}
           </div>
         )}
+
+        {/* Video recordings — every member sees them; coach/TR/admin edit */}
+        <GameRecordingsSection gameId={game.id} canManage={!readOnly && canEditAsCoach} />
 
         {/* Referee expenses — volleyball home games, staff only (coach/TR/admin) */}
         {kscwSport === 'volleyball' && game.type === 'home' && isTeamStaff && (
