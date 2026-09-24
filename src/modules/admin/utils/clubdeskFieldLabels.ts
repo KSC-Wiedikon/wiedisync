@@ -36,6 +36,7 @@ export const CD_FIELD_LABEL: Record<string, string> = {
   license_nr: 'cdFieldLicenceNr',
   licence_category: 'cdFieldLicenceCategory',
   lizenz_bestellt: 'cdFieldLizenzBestellt',
+  kantonsschule: 'cdFieldMittelschule',
   licence_ordered_at: 'cdFieldLizenzBestellt',
   js_id: 'cdFieldJsId',
   scorer_vb: 'clubStatsScorerVB',

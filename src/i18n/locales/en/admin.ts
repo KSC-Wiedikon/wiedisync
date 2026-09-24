@@ -825,6 +825,7 @@ export default {
   cdFieldLicenceNr: 'Licence number',
   cdFieldLicenceCategory: 'Licence type',
   cdFieldLizenzBestellt: 'Licence ordered',
+  cdFieldMittelschule: 'Secondary school',
   cdFieldSektion: 'Section',
   cdFieldJsId: 'J+S number',
   cdFieldOtn1Bb: 'OTN1 BB',

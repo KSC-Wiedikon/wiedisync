@@ -1735,7 +1735,7 @@ export async function computeClubdeskDrift(database, memberIds = null, { include
            m.birthdate, m.sex, m.iban, m.anrede, m.nationalitaet, m.ahv_nummer,
            m.federation_of_origin, m.trainer_licences,
            m.register_status, m.eintritt, m.austritt, m.beitragskategorie,
-           m.license_nr, m.licence_category, m.sektion,
+           m.license_nr, m.licence_category, m.sektion, m.kantonsschule,
            TO_CHAR(${LIZENZ_BESTELLT_SQL}, 'DD.MM.YYYY') AS lizenz_bestellt,
            m.clubdesk_id, m.clubdesk_push_pending,
            cd.vorname AS cd_vorname, cd.nachname AS cd_nachname, cd.email AS cd_email,
@@ -1749,14 +1749,16 @@ export async function computeClubdeskDrift(database, memberIds = null, { include
            cd.beitragskategorie AS cd_kategorie,
            cd.gast AS cd_gast,
            cd.lizenznummer AS cd_lizenznummer, cd.lizenzart AS cd_lizenzart,
-           cd.sektion AS cd_sektion, cd.lizenz_bestellt AS cd_lizenz_bestellt
+           cd.sektion AS cd_sektion, cd.lizenz_bestellt AS cd_lizenz_bestellt,
+           cd.mittelschule_zh AS cd_mittelschule_zh
     FROM members m
     JOIN (
       SELECT DISTINCT ON (BTRIM(clubdesk_id)) BTRIM(clubdesk_id) AS cdid, vorname, nachname,
              email, email_alternativ, telefon_privat, telefon_mobil, adresse, plz, ort,
              geburtsdatum, geschlecht, iban, anrede, nationalitaet, ahv_nummer,
              federation_of_origin, trainer_lizenz, status, eintritt, austritt, gast,
-             beitragskategorie, lizenznummer, lizenzart, sektion, lizenz_bestellt
+             beitragskategorie, lizenznummer, lizenzart, sektion, lizenz_bestellt,
+             mittelschule_zh
       FROM clubdesk_export
       WHERE NULLIF(BTRIM(clubdesk_id), '') IS NOT NULL
       ORDER BY BTRIM(clubdesk_id), row_id
@@ -1987,6 +1989,9 @@ export async function computeClubdeskDrift(database, memberIds = null, { include
       ['licence_category', lizenzartCell(r.licence_category), r.cd_lizenzart],
       ['sektion', r.sektion, r.cd_sektion],
       ['lizenz_bestellt', r.lizenz_bestellt, r.cd_lizenz_bestellt],
+      // Mittelschule ZH — already fill-only on the push since 2026-09-13; in
+      // the drift set so an empty register cell is visible and auto-flagged.
+      ['kantonsschule', kantonsschuleCell(r.kantonsschule), r.cd_mittelschule_zh],
     ]) {
       if (driftNorm(wRaw) && !driftNorm(cRaw)) fills.push({ field, wiedisync: driftNorm(wRaw) })
     }
@@ -2665,7 +2670,8 @@ export async function drainClubdeskAutoSyncQueue(database, log) {
 }
 
 // Fields whose fills flagClubdeskFillOnlyGaps may queue on its own.
-export const CD_AUTO_FILL_FIELDS = ['license_nr', 'licence_category', 'sektion', 'lizenz_bestellt']
+const CD_AUTO_FILL_HARMLESS_CONFLICTS = ['first_name', 'last_name', 'gast']
+export const CD_AUTO_FILL_FIELDS = ['license_nr', 'licence_category', 'sektion', 'lizenz_bestellt', 'kantonsschule']
 
 // Daily (kscw-hooks, after the licence-status sweep): queue a push for linked
 // members whose register is missing a licence cell / Sektion that wiedisync
@@ -2676,7 +2682,8 @@ export const CD_AUTO_FILL_FIELDS = ['license_nr', 'licence_category', 'sektion',
 // through the normal Sync-up modal, preview first.
 //
 // Deliberately narrow: a member is flagged only when their drift is NOTHING
-// BUT fills (no conflicts, no blank_risk). A push carries every wiedisync-owned
+// BUT fills (no blank_risk, and no conflict beyond the harmless name/Gast
+// ones). A push carries every wiedisync-owned
 // contact cell, so flagging a member with a pending email/address conflict to
 // fill a licence number would silently ship that conflict too — those stay on
 // the Data Health surface for a human.
@@ -2684,7 +2691,9 @@ export async function flagClubdeskFillOnlyGaps(database, log) {
   const drift = await computeClubdeskDrift(database)
   let flagged = 0
   for (const c of drift) {
-    if (c.conflicts.length || c.blank_risk.length) continue
+    // Name conflicts never travel (UPDATE rows are name-less) and Gast is
+    // wiedisync-owned, so neither makes the push ship anything unreviewed.
+    if (c.blank_risk.length || c.conflicts.some((x) => !CD_AUTO_FILL_HARMLESS_CONFLICTS.includes(x.field))) continue
     const want = c.fills.filter((f) => CD_AUTO_FILL_FIELDS.includes(f.field))
     if (!want.length) continue
     const row = await database('members').where('id', c.member_id).first('clubdesk_push_changes')

@@ -814,7 +814,7 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     // hook — flagClubdeskFillOnlyGaps sweeps those daily.
     for (const field of ['iban', 'ahv_nummer', 'register_status', 'eintritt', 'austritt', 'beitragskategorie',
       'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn1_bb', 'otn2_bb',
-      'license_nr', 'licence_category', 'sektion', 'licence_ordered_at']) {
+      'license_nr', 'licence_category', 'sektion', 'licence_ordered_at', 'kantonsschule']) {
       if (!payload || !(field in payload) || !String(payload[field] || '').trim()) continue
       for (const id of keys) {
         try {

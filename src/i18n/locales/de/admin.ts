@@ -812,6 +812,7 @@ export default {
   cdFieldLicenceNr: 'Lizenznummer',
   cdFieldLicenceCategory: 'Lizenzart',
   cdFieldLizenzBestellt: 'Lizenz bestellt',
+  cdFieldMittelschule: 'Mittelschule ZH',
   cdFieldSektion: 'Sektion',
   cdFieldJsId: 'J+S-Nummer',
   cdFieldOtn1Bb: 'OTN1 BB',
