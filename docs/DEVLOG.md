@@ -3,6 +3,7 @@
 Operator-facing history of backend, deploy, and migration work on the wiedisync platform.
 Newest first.
 
+- **2026-09-24** Livestreams: a website video link on a not-yet-played game = its livestream. `GET /kscw/public/livestreams` (derbies merged); game modal "Video & livestream" + hint; kscw.ch homepage Livestreams section + red highlighted stream rows (ext+frontend+website, dev+prod, no bump)
 - **2026-09-24** Infra health: manual SV/BP "Run now" writes the `sync_runs` heartbeat + "Sync finished" toast (was silent, card stuck on cron time); H1–H3 derby result simply not yet on the SV feed (ext+frontend, dev+prod, no bump)
 - **2026-09-24** Games: Upcoming tab lists this season's past games greyed out under a "Past games" divider (clickable → recordings etc., no RSVP); Results also includes played-but-unsynced (`scheduled`, date < today) games (frontend only, dev+prod, no bump)
 - **2026-09-24** Live `/live` final view (v2.18.0, frontend only, dev+prod): a `final` row shows only the result — winner, set score, per-set score + duration table, match time (sum when every set has `dur`); live card hidden. `set_results[].dur` (seconds, optional, jsonb — no migration) comes from the LedBox board (point-hub), which also stopped publishing period = sets+1 after a final ("Set 4" under 3:0).
