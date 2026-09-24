@@ -2404,6 +2404,51 @@ export async function enqueueClubdeskUp(database, ids, { accountability = null, 
   return { status: 200, body: { state: 'queued', count: pushMembers.length, skipped_blank_risk: blankRiskSkipped, skipped_stale_link: staleLinkSkipped, skipped_would_duplicate: wouldDuplicateSkipped } }
 }
 
+// Core of POST /clubdesk-member-sync (sync-down), extracted for the same
+// reason as enqueueClubdeskUp — the auto-sync link-back step below needs to
+// queue a down run with no HTTP request in play. Same lock rules as the route
+// always had: a running/queued down or up refuses (hazard (a)/(b) in
+// registerClubdeskUpdate), and so does a group fix, whose worklist is computed
+// against the clubdesk_export snapshot a down run would replace.
+// Returns { status, body }.
+const DOWN_BUSY = ['queued', 'running']
+export async function enqueueClubdeskDown(database, { accountability = null, log } = {}) {
+  const s = await database('clubdesk_member_sync').where('id', 1).first('down_state', 'up_state', 'grp_state')
+  if (DOWN_BUSY.includes(s?.down_state)) {
+    // ⚠ `code` alongside `state`. The other two lock refusals below carry one
+    // and this one did not, so the caller had to INFER the direction from a
+    // bare state — and the sync path's toast, unable to name it, showed
+    // `API /clubdesk-member-sync: 409` instead (07.09.2026). The state stays
+    // for older frontends that read it.
+    return { status: 409, body: { error: 'A sync is already in progress', state: s.down_state, code: 'down_in_progress' } }
+  }
+  // A down run between the up's dry-run preview and its commit (hazard (b))
+  // would refresh clubdesk_export under a push that already passed its
+  // preview — refuse until the push settles.
+  if (DOWN_BUSY.includes(s?.up_state)) {
+    return { status: 409, body: { error: 'A sync-up is in progress — wait for it to finish', state: s.up_state, code: 'up_in_progress' } }
+  }
+  if (DOWN_BUSY.includes(s?.grp_state)) {
+    return { status: 409, body: { error: 'A group fix is in progress — wait for it to finish', state: s.grp_state, code: 'grp_in_progress' } }
+  }
+  await database('clubdesk_member_sync').where('id', 1).update({
+    down_requested_at: new Date(), down_state: 'queued', down_message: null, down_finished_at: null,
+    // ⚠ The progress trio is cleared HERE, not only by the dispatcher's
+    // cdp_reset. The dispatchers run on a one-minute cron, so between the
+    // click and the claim a queued job rendered the PREVIOUS run's phase, its
+    // 100% bar and its whole log — a dialog that opens on "Synced from
+    // ClubDesk · 100%" two seconds after you asked for a fresh sync
+    // (08.09.2026). cdp_reset stays as the belt-and-braces for a run the
+    // dispatcher picks up some other way.
+    down_phase: null, down_progress: 0, down_log: null,
+  })
+  await writeUserLog(database, log, {
+    accountability, action: 'update',
+    collection: 'clubdesk_member_sync', recordId: 1, data: { kind: 'clubdesk_member_sync_request', direction: 'down' },
+  })
+  return { status: 200, body: { state: 'queued' } }
+}
+
 // Core of POST /clubdesk-link, extracted for the same reason as
 // enqueueClubdeskUp above — the auto-sync orchestrator needs to resolve an
 // unambiguous match_unlinked registration straight to a link, with no HTTP
@@ -2467,7 +2512,16 @@ export async function autoSyncRegistrationToClubdesk(database, log, registration
     }
     if (cdStatus.status === 'not_in_clubdesk' || cdStatus.status === 'linked_pending') {
       const result = await enqueueClubdeskUp(database, [cdStatus.member_id], { log })
-      if (result.status === 200) return
+      if (result.status === 200) {
+        // Tracked as `dispatched` so linkBackAutoSyncedMembers can follow it
+        // to the link-back — the push alone leaves the member unlinked until
+        // the next sync-down reads the new contact's [Id] back.
+        await database('clubdesk_auto_sync_queue').insert({
+          member_id: cdStatus.member_id, registration_id: registrationId,
+          status: 'dispatched', dispatched_at: new Date(),
+        })
+        return
+      }
       if (result.body?.code === 'up_in_progress' || result.body?.code === 'down_in_progress') {
         // Busy, not refused — queue it. The partial unique index makes this
         // idempotent if the hook somehow fires twice for the same member.
@@ -2531,6 +2585,76 @@ export async function drainClubdeskAutoSyncQueue(database, log) {
   await database('clubdesk_auto_sync_queue').whereIn('id', ids)
     .update({ status: 'failed', last_error: String(result.body?.error || 'unknown').slice(0, 500), finished_at: new Date() })
   log.warn({ msg: `drainClubdeskAutoSyncQueue: batch push refused, ${ids.length} queued job(s) marked failed`, code: result.body?.code })
+}
+
+// The link-back half of the auto-sync (2026-09-24). A CREATE push leaves the
+// member with clubdesk_pushed_at set but NO clubdesk_id: ClubDesk assigns the
+// contact's [Id] on import and only a sync-down reads it back (by the
+// Wiedisync ID cell). The only scheduled sync-down is weekly, so every
+// auto-synced member showed "awaiting link" for up to a week. This step runs
+// on the same 2-minute cron as the drain and walks the `dispatched` rows:
+//   • member linked                      → done
+//   • push never landed (the up run for it finished without stamping
+//     clubdesk_pushed_at — skipped as blank_risk / would_duplicate, or the
+//     dispatcher failed)                 → failed, with the up run's message
+//   • pushed, unlinked, and no sync-down has STARTED since the push
+//                                        → queue ONE sync-down for all of them
+//   • pushed, unlinked, and a sync-down that started after the push has
+//     finished                           → failed (never re-queue: a contact
+//     the linker cannot match needs a human, not a down run every 2 minutes)
+// A busy lock just means "next tick" — enqueueClubdeskDown refuses, we wait.
+export async function linkBackAutoSyncedMembers(database, log) {
+  const rows = await database('clubdesk_auto_sync_queue as q')
+    .join('members as m', 'm.id', 'q.member_id')
+    .where('q.status', 'dispatched')
+    .select('q.id', 'q.dispatched_at', 'm.clubdesk_id', 'm.clubdesk_pushed_at')
+  if (!rows.length) return
+  const s = await database('clubdesk_member_sync').where('id', 1)
+    .first('up_state', 'up_finished_at', 'up_message', 'down_state', 'down_requested_at', 'down_finished_at')
+  const t = (d) => (d ? new Date(d).getTime() : null)
+  const upSettled = !DOWN_BUSY.includes(s?.up_state)
+  const downStarted = t(s?.down_requested_at)
+  const downDone = !DOWN_BUSY.includes(s?.down_state) && t(s?.down_finished_at) != null
+  const done = []
+  const neverPushed = []
+  const unlinkedAfterDown = []
+  let needDown = false
+  for (const r of rows) {
+    if (String(r.clubdesk_id ?? '').trim()) { done.push(r.id); continue }
+    const pushedAt = t(r.clubdesk_pushed_at)
+    if (pushedAt == null) {
+      // Still waiting for the dispatcher, unless an up run finished after this
+      // row was dispatched without stamping the member.
+      if (upSettled && t(s?.up_finished_at) != null && t(s.up_finished_at) > t(r.dispatched_at)) neverPushed.push(r.id)
+      continue
+    }
+    if (downStarted != null && downStarted > pushedAt) {
+      if (downDone && t(s.down_finished_at) > downStarted) unlinkedAfterDown.push(r.id)
+      continue
+    }
+    needDown = true
+  }
+  const now = new Date()
+  if (done.length) {
+    await database('clubdesk_auto_sync_queue').whereIn('id', done).update({ status: 'done', finished_at: now })
+  }
+  if (neverPushed.length) {
+    await database('clubdesk_auto_sync_queue').whereIn('id', neverPushed).update({
+      status: 'failed', finished_at: now,
+      last_error: `push did not land: ${String(s?.up_message || 'member skipped by the up run').slice(0, 450)}`,
+    })
+    log.warn({ msg: `linkBackAutoSyncedMembers: ${neverPushed.length} auto-synced member(s) were never pushed`, rows: neverPushed })
+  }
+  if (unlinkedAfterDown.length) {
+    await database('clubdesk_auto_sync_queue').whereIn('id', unlinkedAfterDown).update({
+      status: 'failed', finished_at: now, last_error: 'still unlinked after the post-push sync-down',
+    })
+    log.warn({ msg: `linkBackAutoSyncedMembers: ${unlinkedAfterDown.length} pushed member(s) not linked by the sync-down`, rows: unlinkedAfterDown })
+  }
+  if (needDown) {
+    const result = await enqueueClubdeskDown(database, { log })
+    if (result.status === 200) log.info({ msg: 'linkBackAutoSyncedMembers: queued a sync-down to link auto-synced members' })
+  }
 }
 
 export function registerClubdeskUpdate(router, { database, logger, services, getSchema }) {
@@ -2659,37 +2783,8 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
   router.post('/clubdesk-member-sync', async (req, res) => {
     try {
       if (!(await superGate(req))) return res.status(403).json({ error: 'Forbidden' })
-      const s = await database('clubdesk_member_sync').where('id', 1).first('down_state', 'up_state')
-      if (isBusy(s?.down_state)) {
-        // ⚠ `code` alongside `state`. The other two lock refusals below carry one
-        // and this one did not, so the caller had to INFER the direction from a
-        // bare state — and the sync path's toast, unable to name it, showed
-        // `API /clubdesk-member-sync: 409` instead (07.09.2026). The state stays
-        // for older frontends that read it.
-        return res.status(409).json({ error: 'A sync is already in progress', state: s.down_state, code: 'down_in_progress' })
-      }
-      // A down run between the up's dry-run preview and its commit (hazard (b)
-      // above) would refresh clubdesk_export under a push that already passed
-      // its preview — refuse until the push settles.
-      if (isBusy(s?.up_state)) {
-        return res.status(409).json({ error: 'A sync-up is in progress — wait for it to finish', state: s.up_state, code: 'up_in_progress' })
-      }
-      await database('clubdesk_member_sync').where('id', 1).update({
-        down_requested_at: new Date(), down_state: 'queued', down_message: null, down_finished_at: null,
-        // ⚠ The progress trio is cleared HERE, not only by the dispatcher's
-        // cdp_reset. The dispatchers run on a one-minute cron, so between the
-        // click and the claim a queued job rendered the PREVIOUS run's phase, its
-        // 100% bar and its whole log — a dialog that opens on "Synced from
-        // ClubDesk · 100%" two seconds after you asked for a fresh sync
-        // (08.09.2026). cdp_reset stays as the belt-and-braces for a run the
-        // dispatcher picks up some other way.
-        down_phase: null, down_progress: 0, down_log: null,
-      })
-      await writeUserLog(database, log, {
-        accountability: req.accountability, action: 'update',
-        collection: 'clubdesk_member_sync', recordId: 1, data: { kind: 'clubdesk_member_sync_request', direction: 'down' },
-      })
-      return res.json({ state: 'queued' })
+      const result = await enqueueClubdeskDown(database, { accountability: req.accountability, log })
+      return res.status(result.status).json(result.body)
     } catch (err) {
       log.error({ msg: `clubdesk-member-sync trigger: ${err.message}`, endpoint: 'clubdesk-member-sync', stack: err.stack })
       return res.status(500).json({ error: 'Internal error' })

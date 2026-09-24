@@ -35,7 +35,7 @@ import { createActingMemberMiddleware } from './acting-member.js'
 import { isLicenceStatus, notifyLicenceStatusChange, runLicenceStatusSweep } from '../../kscw-endpoints/src/licence-status.js'
 import { parseJsonArray, resolveMemberAudience } from '../../kscw-endpoints/src/audience.js'
 import { loadSuppressed } from '../../kscw-endpoints/src/email-suppression.js'
-import { deriveStatus, deriveSektion, autoSyncRegistrationToClubdesk, drainClubdeskAutoSyncQueue } from '../../kscw-endpoints/src/clubdesk-update.js'
+import { deriveStatus, deriveSektion, autoSyncRegistrationToClubdesk, drainClubdeskAutoSyncQueue, linkBackAutoSyncedMembers } from '../../kscw-endpoints/src/clubdesk-update.js'
 import { registerAuditHook } from './audit.js'
 import { writeUserLog } from '../../kscw-endpoints/src/activity-log.js'
 import { sanitizeAnnouncementHtml } from './sanitize-html.js'
@@ -2083,6 +2083,9 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   schedule('*/2 * * * *', async () => {
     try {
       await drainClubdeskAutoSyncQueue(database, log)
+      // Then follow every dispatched push to its link-back (queues a
+      // sync-down once the push has landed — see the function's header).
+      await linkBackAutoSyncedMembers(database, log)
     } catch (err) {
       log.error({ msg: `[clubdesk-auto-sync/cron] ${err.message}`, stack: err.stack })
       logCronError('clubdesk_auto_sync_drain_cron', err)
