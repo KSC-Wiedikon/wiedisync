@@ -786,6 +786,8 @@ export default {
   cdNeedsSyncDeactivateSkipped_other: '{{count}} were skipped — their ClubDesk contacts no longer read as departed, or their links are shared. Rescan and check them.',
   cdNeedsSyncDeactivateNone: 'Nothing to deactivate.',
   cdNeedsSyncAllGood: 'Everyone is in step — {{count}} members in sync.',
+  cdNeedsSyncManualOnly: 'Nothing here is waiting for a sync — {{count}} name difference(s) can only be fixed by hand, so the Sync path skips them.',
+  cdNeedsSyncManualSome: '{{count}} of these are name differences: no sync step can clear them, so the Sync path skips them. Fix them by hand.',
   cdSyncColStatus: 'Status',
   cdColLastBill: 'Last bill',
   cdSyncStatus_not_linked: 'Not linked',

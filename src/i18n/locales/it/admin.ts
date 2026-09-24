@@ -1372,6 +1372,8 @@ export default {
   cdNeedsSyncLastDown: 'Ultimo download: {{time}}',
   cdNeedsSyncLastUp: 'Ultimo caricamento: {{time}}',
   cdNeedsSyncAllGood: 'Tutto allineato — {{count}} membri sincronizzati.',
+  cdNeedsSyncManualOnly: 'Qui nulla attende una sincronizzazione — {{count}} differenza/e di nome si possono correggere solo a mano, quindi il percorso di sincronizzazione le salta.',
+  cdNeedsSyncManualSome: '{{count}} di queste sono differenze di nome: nessun passo di sincronizzazione può risolverle, quindi il percorso le salta. Correggerle a mano.',
   cdSyncColStatus: 'Stato',
   cdColLastBill: 'Ultima fattura',
   cdSyncStatus_not_linked: 'Non collegato',

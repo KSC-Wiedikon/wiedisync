@@ -1373,6 +1373,8 @@ export default {
   cdNeedsSyncLastDown: 'Dernier téléchargement : {{time}}',
   cdNeedsSyncLastUp: 'Dernier envoi : {{time}}',
   cdNeedsSyncAllGood: 'Tout concorde — {{count}} membres synchronisés.',
+  cdNeedsSyncManualOnly: 'Rien n\'attend de synchronisation — {{count}} différence(s) de nom ne peuvent être corrigées qu\'à la main, le parcours de synchronisation les ignore donc.',
+  cdNeedsSyncManualSome: '{{count}} d\'entre elles sont des différences de nom : aucune étape de synchronisation ne peut les corriger, le parcours les ignore donc. À corriger à la main.',
   cdSyncColStatus: 'Statut',
   cdColLastBill: 'Dernière facture',
   cdSyncStatus_not_linked: 'Non lié',

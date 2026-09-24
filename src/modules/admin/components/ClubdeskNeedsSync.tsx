@@ -176,6 +176,11 @@ export default function ClubdeskNeedsSync({
   // Every departed row in view — the sport filter has already been applied by the
   // page, so the button acts on exactly what the reader can see.
   const departedRows = byStatus.departed ?? []
+  // Name differences are the one class no sync step can clear (UPDATE pushes
+  // are name-less, the sync-down never proposes names), so the Sync path walks
+  // past them to "Done" while they stay here. Said up front, or the board reads
+  // as "the sync is stuck" (24.09.2026).
+  const manualCount = byStatus.name_drift?.length ?? 0
   // A tab can disappear between scans (the last push landed), so fall
   // back rather than render an empty table under a tab that no longer exists.
   const activeTab: string = statusTab !== 'all' && !presentStatuses.includes(statusTab as SyncStatus)
@@ -268,6 +273,13 @@ export default function ClubdeskNeedsSync({
                 one thing the row exists to offer. As tabs it groups like with
                 like, states the explanation once, and gives the table its width
                 back. */}
+            {manualCount > 0 && (
+              <p className="mb-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
+                {manualCount === rows.length
+                  ? t('cdNeedsSyncManualOnly', { count: manualCount })
+                  : t('cdNeedsSyncManualSome', { count: manualCount })}
+              </p>
+            )}
             <Tabs value={activeTab} onValueChange={setStatusTab}>
               <TabsList className="mb-2 w-full flex-wrap justify-start group-data-[orientation=horizontal]/tabs:h-auto">
                 <TabsTrigger value="all" className="min-h-11 sm:min-h-0">

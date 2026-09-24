@@ -773,6 +773,8 @@ export default {
   cdNeedsSyncDeactivateSkipped_other: '{{count}} übersprungen — die ClubDesk-Kontakte gelten nicht mehr als ausgetreten, oder die Verknüpfungen sind mehrfach vergeben. Neu scannen und prüfen.',
   cdNeedsSyncDeactivateNone: 'Nichts zu deaktivieren.',
   cdNeedsSyncAllGood: 'Alles im Einklang — {{count}} Mitglieder synchron.',
+  cdNeedsSyncManualOnly: 'Hier wartet nichts auf einen Sync — {{count}} Namensabweichung(en) lassen sich nur von Hand beheben, deshalb überspringt der Sync-Pfad sie.',
+  cdNeedsSyncManualSome: '{{count}} davon sind Namensabweichungen: Kein Sync-Schritt kann sie beheben, deshalb überspringt der Sync-Pfad sie. Bitte von Hand korrigieren.',
   cdSyncColStatus: 'Status',
   cdColLastBill: 'Letzte Rechnung',
   cdSyncStatus_not_linked: 'Nicht verknüpft',

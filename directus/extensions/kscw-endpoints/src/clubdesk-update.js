@@ -1775,6 +1775,11 @@ export async function computeClubdeskDrift(database, memberIds = null, { include
   // could disagree with the cell buildPushCsv writes would re-flag the member
   // on every refresh and never converge.
   const guestIds = await guestMemberIdSet(database, res.rows.map((r) => r.id), getCurrentSeason())
+  // The Mittelschule ZH values the register demonstrably accepts (see the
+  // kantonsschule fill below).
+  const cdMittelschuleValues = new Set((await database.raw(
+    `SELECT DISTINCT BTRIM(mittelschule_zh) AS v FROM clubdesk_export WHERE NULLIF(BTRIM(mittelschule_zh), '') IS NOT NULL`,
+  )).rows.map((x) => x.v))
   const candidates = []
   for (const r of res.rows) {
     // conflicts = both sides non-empty and different (per-member row in Data
@@ -1991,7 +1996,14 @@ export async function computeClubdeskDrift(database, memberIds = null, { include
       ['lizenz_bestellt', r.lizenz_bestellt, r.cd_lizenz_bestellt],
       // Mittelschule ZH — already fill-only on the push since 2026-09-13; in
       // the drift set so an empty register cell is visible and auto-flagged.
-      ['kantonsschule', kantonsschuleCell(r.kantonsschule), r.cd_mittelschule_zh],
+      // ⚠ Only a school the register's PICKLIST already holds counts: ClubDesk
+      // silently drops any other value (see kantonsschuleCell), so reporting it
+      // would flag a push that can never land — every day, via the 05:45
+      // flagger. "Holds" = some contact carries it; the push still sends the
+      // others verbatim, so they land once the club extends the picklist.
+      ['kantonsschule',
+        cdMittelschuleValues.has(kantonsschuleCell(r.kantonsschule)) ? kantonsschuleCell(r.kantonsschule) : '',
+        r.cd_mittelschule_zh],
     ]) {
       if (driftNorm(wRaw) && !driftNorm(cRaw)) fills.push({ field, wiedisync: driftNorm(wRaw) })
     }
@@ -4678,6 +4690,19 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
   // (unique, accent- and drift-proof — the clubdesk_id is NOT grid-searchable) and
   // picks Gruppe + Funktion as two separate combos, so the bracketed token has to
   // come apart again. See CLAUDE.md → ClubDesk contact matching in the UI.
+  // A member who has LEFT is never "missing" a group or holding the "wrong"
+  // Funktion (2026-09-24). Without this the worklist, built from roster rows
+  // that outlive the departure until deactivation, ADDED player groups to four
+  // members already marked "Kein Mitglied" (10:55) — which the next preview
+  // then proposed removing again. "Left" = the same membership fact the stray
+  // check's auto_removable uses: inactive in wiedisync, or a departed status /
+  // exit date in the register.
+  const departedGuardSql = `AND m.kscw_membership_active
+        AND NOT EXISTS (SELECT 1 FROM clubdesk_export ce_d
+                         WHERE BTRIM(ce_d.clubdesk_id) = m.clubdesk_id
+                           AND (ce_d.status IN (${DEPARTED_STATUSES.map((x) => `'${x}'`).join(', ')})
+                                OR COALESCE(BTRIM(ce_d.austritt), '') <> ''))`
+
   const missingSql = `
     WITH ${teamGroupCte}, expected AS (
       SELECT m.id AS member_id, m.first_name, m.last_name, m.clubdesk_id, m.uuid, tg.sport,
@@ -4692,6 +4717,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       -- No mt.season predicate: tg is active-teams-only, and a teams row
       -- belongs to exactly one season, so the join already pins it.
       WHERE tg.clubdesk_group IS NOT NULL AND m.clubdesk_id IS NOT NULL
+        ${departedGuardSql}
     )
     SELECT e.member_id, e.first_name, e.last_name, e.clubdesk_id, e.uuid, e.grp, e.grp_base,
            e.funktion, e.sport,
@@ -4726,6 +4752,7 @@ export function registerClubdeskUpdate(router, { database, logger, services, get
       -- No mt.season predicate: tg is active-teams-only, and a teams row
       -- belongs to exactly one season, so the join already pins it.
       WHERE tg.clubdesk_group IS NOT NULL AND m.clubdesk_id IS NOT NULL
+        ${departedGuardSql}
     )
     SELECT e.member_id, e.first_name, e.last_name, e.clubdesk_id, e.uuid, e.sport,
            e.is_guest, e.stale_grp, e.want_grp,
