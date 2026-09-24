@@ -366,7 +366,52 @@ export const DEPARTED_STATUSES = ['Kein Mitglied', 'Ehemaliges Mitglied', 'Verst
 //     see kantonsschuleCell.
 // Appended at the END of both header lists so the historical cell positions
 // the tests pin (and the dispatcher never reads) stay put.
-const CD_PUSH_HEADERS = ['[Id]', ...CD_PUSH_CONTACT_HEADERS, 'Beitragskategorie', 'Eintritt', 'Mitgliederbeitrag', 'Lizenznummer', 'Lizenzart', 'Status', 'Austritt', 'Offiziellen Lizenz', 'Telefon Mobil', 'Land', 'Mittelschule ZH']
+//
+// ── Sektion / Lizenz bestellt (2026-09-24) ───────────────────────────────────
+// Two more fill-only cells, appended at the end for the same reason as the
+// three above. Sektion rode on CREATE rows only, so a contact created
+// ClubDesk-side and linked afterwards kept an empty one forever; Lizenz
+// bestellt was never pushed at all (424 empty cells among the linked licence
+// holders). The club's rule for Lizenz bestellt: volleyball = the licence
+// ACTIVATION date in Volleymanager, basketball = the day the licence was set to
+// "ordered" in wiedisync (members.licence_ordered_at, migration 373) — see
+// LIZENZ_BESTELLT_SQL. The register's own cell wins wherever it is set.
+const CD_PUSH_HEADERS = ['[Id]', ...CD_PUSH_CONTACT_HEADERS, 'Beitragskategorie', 'Eintritt', 'Mitgliederbeitrag', 'Lizenznummer', 'Lizenzart', 'Status', 'Austritt', 'Offiziellen Lizenz', 'Telefon Mobil', 'Land', 'Mittelschule ZH', 'Sektion', 'Lizenz bestellt']
+
+/**
+ * SQL expression (over a `members m` alias) for the member's `Lizenz bestellt`
+ * date:
+ *   volleyball  sv_vm_check.licence_activation_date, matched on the licence
+ *               number exactly the way licence-status.js matches it
+ *   basketball  members.licence_ordered_at — only for a member who IS a
+ *               basketball player (active BB team, or a Basketplan licence), so
+ *               a volleyball licence that was ordered but not yet activated
+ *               stays empty until Volleymanager activates it
+ * Yields a date or NULL. Basketplan licence numbers are zero-padded, hence the
+ * ltrim on both sides.
+ */
+export const LIZENZ_BESTELLT_SQL = `COALESCE(
+  (SELECT s.licence_activation_date FROM sv_vm_check s
+    WHERE BTRIM(COALESCE(m.license_nr, '')) ~ '^[0-9]+$'
+      AND s.association_id = BTRIM(m.license_nr)::bigint
+    ORDER BY s.licence_activation_date DESC NULLS LAST LIMIT 1),
+  CASE WHEN EXISTS (SELECT 1 FROM member_teams mt JOIN teams t ON t.id = mt.team
+                     WHERE mt.member = m.id AND t.active IS TRUE AND t.sport = 'basketball')
+         OR EXISTS (SELECT 1 FROM basketplan_people bp
+                     WHERE NULLIF(LTRIM(BTRIM(bp.licence_nr), '0'), '') = NULLIF(LTRIM(BTRIM(m.license_nr), '0'), ''))
+       THEN m.licence_ordered_at END)`
+
+/** member id → `Lizenz bestellt` as ClubDesk's dd.mm.yyyy text ('' when none). */
+export async function loadLizenzBestellt(database, memberIds) {
+  const out = new Map()
+  if (!memberIds.length) return out
+  const res = await database.raw(
+    `SELECT m.id, TO_CHAR(${LIZENZ_BESTELLT_SQL}, 'DD.MM.YYYY') AS lb FROM members m WHERE m.id = ANY(?)`,
+    [memberIds],
+  )
+  for (const r of res.rows) out.set(Number(r.id), r.lb || '')
+  return out
+}
 
 /** The Land cell a CREATE row writes, and the fill for an empty register cell. */
 export const CD_LAND_DEFAULT = 'Schweiz'
@@ -468,7 +513,7 @@ export function kantonsschuleCell(v) {
 // CREATE set: real wiedisync name (a brand-new contact has no [Id] to key on),
 // the shared contact columns, then the create-only extras. Land + Mittelschule
 // ZH (2026-09-13) close the list — see the CD_PUSH_HEADERS note.
-export const CD_PUSH_CREATE_HEADERS = ['Vorname', 'Nachname', ...CD_PUSH_CONTACT_HEADERS, 'Telefon Mobil', 'Beitragskategorie', 'Eintritt', 'Gruppen', 'Status', 'Offiziellen Lizenz', 'Mitgliederbeitrag', 'Sektion', 'Schiedsrichter', 'Lizenznummer', 'Lizenzart', 'Austritt', 'Land', 'Mittelschule ZH']
+export const CD_PUSH_CREATE_HEADERS = ['Vorname', 'Nachname', ...CD_PUSH_CONTACT_HEADERS, 'Telefon Mobil', 'Beitragskategorie', 'Eintritt', 'Gruppen', 'Status', 'Offiziellen Lizenz', 'Mitgliederbeitrag', 'Sektion', 'Schiedsrichter', 'Lizenznummer', 'Lizenzart', 'Austritt', 'Land', 'Mittelschule ZH', 'Lizenz bestellt']
 
 // Sport prefix for ClubDesk group names (`VB H1 (Spieler*in)`), keyed by
 // registrations.membership_type. Passive registrations have no team → no group.
@@ -1416,7 +1461,9 @@ export function buildPushCsv(members, { create = false, countryNames = null } = 
         String(m.register_status || '').trim() || m.cd_status || '',
         deriveOffiziellenLizenz(m),
         deriveMitgliederbeitrag(m.beitragskategorie, m, { isGuest: m.is_guest === true }),
-        m.cd_sektion || '', // resolved by /up from the registration
+        // Resolved by /up from the registration; a member with no approved
+        // registration falls back to their own members.sektion.
+        m.cd_sektion || String(m.sektion || '').trim(),
         deriveSchiedsrichter(m),
         // Licence number + category from the issuing authority (Volleymanager /
         // Basketplan) — a brand-new contact has no register value to protect.
@@ -1430,6 +1477,7 @@ export function buildPushCsv(members, { create = false, countryNames = null } = 
         // club's default, the school is the member's own answer.
         CD_LAND_DEFAULT,
         kantonsschuleCell(m.kantonsschule),
+        m.lizenz_bestellt || '', // resolved by /up (loadLizenzBestellt)
       )
     } else {
       // Fill-only billing cells (2026-07-27, see CD_PUSH_HEADERS): ClubDesk's
@@ -1547,6 +1595,9 @@ export function buildPushCsv(members, { create = false, countryNames = null } = 
         String(m.telefon_mobil_cd || '').trim() || phoneOut,
         String(m.land_cd || '').trim() || CD_LAND_DEFAULT,
         String(m.mittelschule_zh_cd || '').trim() || kantonsschuleCell(m.kantonsschule),
+        // Sektion / Lizenz bestellt (2026-09-24) — same fill-only regime.
+        String(m.sektion_cd || '').trim() || String(m.sektion || '').trim(),
+        String(m.lizenz_bestellt_cd || '').trim() || m.lizenz_bestellt || '',
       )
     }
     return cells.map(cdCell).join(';')
@@ -1577,6 +1628,8 @@ const PUSH_FIELDS = [
   'kantonsschule',
   'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn1_bb', 'otn2_bb', 'referee_bb',
   'license_nr', 'licence_category',
+  // Sektion (2026-09-24) — fill-only on updates, fallback on creates.
+  'sektion',
   // Per-member fee overrides (migration 299). deriveMitgliederbeitrag reads
   // them off the member row, so leaving them out of the SELECT would push the
   // derived amount for a member the treasurer had explicitly re-priced.
@@ -1682,6 +1735,8 @@ export async function computeClubdeskDrift(database, memberIds = null, { include
            m.birthdate, m.sex, m.iban, m.anrede, m.nationalitaet, m.ahv_nummer,
            m.federation_of_origin, m.trainer_licences,
            m.register_status, m.eintritt, m.austritt, m.beitragskategorie,
+           m.license_nr, m.licence_category, m.sektion,
+           TO_CHAR(${LIZENZ_BESTELLT_SQL}, 'DD.MM.YYYY') AS lizenz_bestellt,
            m.clubdesk_id, m.clubdesk_push_pending,
            cd.vorname AS cd_vorname, cd.nachname AS cd_nachname, cd.email AS cd_email,
            cd.email_alternativ AS cd_email_alt, cd.telefon_privat AS cd_tel_priv,
@@ -1692,14 +1747,16 @@ export async function computeClubdeskDrift(database, memberIds = null, { include
            cd.trainer_lizenz AS cd_trainer_lizenz,
            cd.status AS cd_status, cd.eintritt AS cd_eintritt, cd.austritt AS cd_austritt,
            cd.beitragskategorie AS cd_kategorie,
-           cd.gast AS cd_gast
+           cd.gast AS cd_gast,
+           cd.lizenznummer AS cd_lizenznummer, cd.lizenzart AS cd_lizenzart,
+           cd.sektion AS cd_sektion, cd.lizenz_bestellt AS cd_lizenz_bestellt
     FROM members m
     JOIN (
       SELECT DISTINCT ON (BTRIM(clubdesk_id)) BTRIM(clubdesk_id) AS cdid, vorname, nachname,
              email, email_alternativ, telefon_privat, telefon_mobil, adresse, plz, ort,
              geburtsdatum, geschlecht, iban, anrede, nationalitaet, ahv_nummer,
              federation_of_origin, trainer_lizenz, status, eintritt, austritt, gast,
-             beitragskategorie
+             beitragskategorie, lizenznummer, lizenzart, sektion, lizenz_bestellt
       FROM clubdesk_export
       WHERE NULLIF(BTRIM(clubdesk_id), '') IS NOT NULL
       ORDER BY BTRIM(clubdesk_id), row_id
@@ -1920,6 +1977,19 @@ export async function computeClubdeskDrift(database, memberIds = null, { include
     // a one-off snapshot that silently rots at the next roster turnover.
     const gastW = gastCell(guestIds.has(Number(r.id)))
     cmp('gast', gastW, r.cd_gast, driftLower(gastW), driftLower(r.cd_gast))
+    // Licence cells + Sektion (2026-09-24): FILL-ONLY on the push — the
+    // register's own cell always wins (buildPushCsv echoes it) — so only the
+    // "register empty, wiedisync has it" case is drift. A disagreement between
+    // two filled cells is NOT reported: nothing any push could do would change
+    // it, and a conflict row that no flag can resolve is noise.
+    for (const [field, wRaw, cRaw] of [
+      ['license_nr', r.license_nr, r.cd_lizenznummer],
+      ['licence_category', lizenzartCell(r.licence_category), r.cd_lizenzart],
+      ['sektion', r.sektion, r.cd_sektion],
+      ['lizenz_bestellt', r.lizenz_bestellt, r.cd_lizenz_bestellt],
+    ]) {
+      if (driftNorm(wRaw) && !driftNorm(cRaw)) fills.push({ field, wiedisync: driftNorm(wRaw) })
+    }
     if (!conflicts.length && !fills.length && !includeClean) continue
     candidates.push({
       member_id: r.id,
@@ -2232,7 +2302,7 @@ export async function enqueueClubdeskUp(database, ids, { accountability = null, 
              trainer_lizenz, telefon_privat, adresse, plz, ort,
              beitragskategorie, eintritt, mitgliederbeitrag, lizenznummer, lizenzart,
              status, austritt, offiziellen_lizenz,
-             telefon_mobil, land, mittelschule_zh
+             telefon_mobil, land, mittelschule_zh, sektion, lizenz_bestellt
       FROM clubdesk_export WHERE BTRIM(clubdesk_id) = ANY(?) ORDER BY BTRIM(clubdesk_id), row_id
     `, [cdids]) : { rows: [] }
     const cdEcho = new Map(echoRows.rows.map((r) => [r.cdid, r]))
@@ -2304,6 +2374,9 @@ export async function enqueueClubdeskUp(database, ids, { accountability = null, 
       m.telefon_mobil_cd = String(cd.telefon_mobil || '').trim()
       m.land_cd = String(cd.land || '').trim()
       m.mittelschule_zh_cd = String(cd.mittelschule_zh || '').trim()
+      // Sektion / Lizenz bestellt (2026-09-24) — same unconditional stash.
+      m.sektion_cd = String(cd.sektion || '').trim()
+      m.lizenz_bestellt_cd = String(cd.lizenz_bestellt || '').trim()
     }
   }
   const pushMembers = [...updates, ...creates]
@@ -2341,6 +2414,10 @@ export async function enqueueClubdeskUp(database, ids, { accountability = null, 
   // can never be resolved against different definitions.
   const guestIds = await guestMemberIdSet(database, pushMembers.map((m) => m.id), getCurrentSeason())
   for (const m of pushMembers) m.is_guest = guestIds.has(Number(m.id))
+  // Lizenz bestellt (2026-09-24): derived across two registers, so resolved
+  // in one query for the whole push rather than selected off the row.
+  const lizenzBestellt = await loadLizenzBestellt(database, pushMembers.map((m) => Number(m.id)))
+  for (const m of pushMembers) m.lizenz_bestellt = lizenzBestellt.get(Number(m.id)) || ''
   // no ClubDesk Eintritt/Gruppen to blank, so empty is safe there.
   // Since 2026-07-27 the UPDATE rows carry a fill-only Eintritt cell too
   // (see CD_PUSH_HEADERS), so the registration lookup runs over the WHOLE
@@ -2585,6 +2662,52 @@ export async function drainClubdeskAutoSyncQueue(database, log) {
   await database('clubdesk_auto_sync_queue').whereIn('id', ids)
     .update({ status: 'failed', last_error: String(result.body?.error || 'unknown').slice(0, 500), finished_at: new Date() })
   log.warn({ msg: `drainClubdeskAutoSyncQueue: batch push refused, ${ids.length} queued job(s) marked failed`, code: result.body?.code })
+}
+
+// Fields whose fills flagClubdeskFillOnlyGaps may queue on its own.
+export const CD_AUTO_FILL_FIELDS = ['license_nr', 'licence_category', 'sektion', 'lizenz_bestellt']
+
+// Daily (kscw-hooks, after the licence-status sweep): queue a push for linked
+// members whose register is missing a licence cell / Sektion that wiedisync
+// holds. Most of these values arrive via raw-SQL writers (the Volleymanager and
+// Basketplan syncs) that never pass the items-API flag hook, so without this a
+// licence number could sit in wiedisync for a season without the register ever
+// being told (Paula Farina, 24.09.2026). It only FLAGS — the push still goes
+// through the normal Sync-up modal, preview first.
+//
+// Deliberately narrow: a member is flagged only when their drift is NOTHING
+// BUT fills (no conflicts, no blank_risk). A push carries every wiedisync-owned
+// contact cell, so flagging a member with a pending email/address conflict to
+// fill a licence number would silently ship that conflict too — those stay on
+// the Data Health surface for a human.
+export async function flagClubdeskFillOnlyGaps(database, log) {
+  const drift = await computeClubdeskDrift(database)
+  let flagged = 0
+  for (const c of drift) {
+    if (c.conflicts.length || c.blank_risk.length) continue
+    const want = c.fills.filter((f) => CD_AUTO_FILL_FIELDS.includes(f.field))
+    if (!want.length) continue
+    const row = await database('members').where('id', c.member_id).first('clubdesk_push_changes')
+    let changes = []
+    try {
+      changes = Array.isArray(row?.clubdesk_push_changes) ? row.clubdesk_push_changes
+        : (row?.clubdesk_push_changes ? JSON.parse(row.clubdesk_push_changes) : [])
+    } catch { changes = [] }
+    const fields = new Set(want.map((f) => f.field))
+    changes = changes.filter((x) => !fields.has(x?.field))
+    for (const f of want) changes.push({ field: f.field, old_value: null, new_value: f.wiedisync })
+    await database('members').where('id', c.member_id).update({
+      clubdesk_push_pending: true,
+      clubdesk_push_changes: JSON.stringify(changes),
+    })
+    await writeUserLog(database, log, {
+      accountability: null, action: 'update', collection: 'members', recordId: c.member_id,
+      data: { kind: 'clubdesk_fill_flag', fields: [...fields] },
+    })
+    flagged++
+  }
+  if (flagged) log.info({ msg: `flagClubdeskFillOnlyGaps: flagged ${flagged} member(s) for a ClubDesk fill push` })
+  return flagged
 }
 
 // The link-back half of the auto-sync (2026-09-24). A CREATE push leaves the

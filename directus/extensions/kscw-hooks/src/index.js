@@ -35,7 +35,7 @@ import { createActingMemberMiddleware } from './acting-member.js'
 import { isLicenceStatus, notifyLicenceStatusChange, runLicenceStatusSweep } from '../../kscw-endpoints/src/licence-status.js'
 import { parseJsonArray, resolveMemberAudience } from '../../kscw-endpoints/src/audience.js'
 import { loadSuppressed } from '../../kscw-endpoints/src/email-suppression.js'
-import { deriveStatus, deriveSektion, autoSyncRegistrationToClubdesk, drainClubdeskAutoSyncQueue, linkBackAutoSyncedMembers } from '../../kscw-endpoints/src/clubdesk-update.js'
+import { deriveStatus, deriveSektion, autoSyncRegistrationToClubdesk, drainClubdeskAutoSyncQueue, linkBackAutoSyncedMembers, flagClubdeskFillOnlyGaps } from '../../kscw-endpoints/src/clubdesk-update.js'
 import { registerAuditHook } from './audit.js'
 import { writeUserLog } from '../../kscw-endpoints/src/activity-log.js'
 import { sanitizeAnnouncementHtml } from './sanitize-html.js'
@@ -580,6 +580,12 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     const [{ season }] = (await database.raw('SELECT public.kscw_current_season_label() AS season')).rows
     payload.licence_status_season = season
     payload.licence_status_updated_at = new Date()
+    // The order date survives the status moving on (migration 373) — it is
+    // the basketball source of ClubDesk's `Lizenz bestellt`. A Zurich calendar
+    // day, the one the club means.
+    if (next === 'ordered') {
+      payload.licence_ordered_at = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Zurich' }).format(new Date())
+    }
 
     // Actor, best available name. The members row is the one worth having (it
     // is the name every other surface shows), but a write can legitimately come
@@ -801,8 +807,14 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     // all — the AHV problem above, one field over. The non-empty rule reads
     // them exactly right: `true` flags, `false` skips, and a downgrade is
     // unpushable anyway because ClubDesk's import ignores an empty cell.
+    // Licence number/category, Sektion and the licence order date joined on
+    // 2026-09-24 for the flag, exactly like the officials booleans: all four
+    // cells are fill-only (the register's own value wins), so the entry only
+    // queues the push. Raw-SQL writers (VM / Basketplan syncs) bypass this
+    // hook — flagClubdeskFillOnlyGaps sweeps those daily.
     for (const field of ['iban', 'ahv_nummer', 'register_status', 'eintritt', 'austritt', 'beitragskategorie',
-      'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn1_bb', 'otn2_bb']) {
+      'scorer_vb', 'referee_vb', 'otr1_bb', 'otr2_bb', 'otn1_bb', 'otn2_bb',
+      'license_nr', 'licence_category', 'sektion', 'licence_ordered_at']) {
       if (!payload || !(field in payload) || !String(payload[field] || '').trim()) continue
       for (const id of keys) {
         try {
@@ -4716,6 +4728,15 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       await logCronRun(database, 'licence_status', {
         status: 'error', rowsChanged: 0, durationMs: Date.now() - startedAt, errorMessage: err.message,
       }).catch(() => {})
+    }
+    // Then queue ClubDesk fills for licence cells / Sektion the register is
+    // missing — after the sweep, so a licence confirmed this morning is
+    // flagged the same morning. Only flags; the push stays a Sync-up.
+    try {
+      await flagClubdeskFillOnlyGaps(database, log)
+    } catch (err) {
+      log.error({ msg: `[clubdesk-fill-flag] ${err.message}`, stack: err.stack })
+      logCronError('clubdesk_fill_flag', err)
     }
   })
 
