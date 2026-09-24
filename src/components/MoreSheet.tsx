@@ -8,7 +8,7 @@ import SwitchToggle from '@/components/SwitchToggle'
 import LanguageDropdown from '@/components/LanguageDropdown'
 import { getFileUrl } from '../utils/fileUrl'
 import AdminToggle from './AdminToggle'
-import { Bell, LayoutGrid, UserX, PenSquare, PartyPopper, CalendarClock, LogIn, User, Users, Settings, ChevronDown, ScrollText, MessageSquare, Activity, GraduationCap, Newspaper, Coffee } from 'lucide-react'
+import { Bell, LayoutGrid, UserX, PenSquare, PartyPopper, CalendarClock, LogIn, User, Users, Settings, ChevronDown, ScrollText, MessageSquare, Activity, GraduationCap, Newspaper, Coffee, Radio } from 'lucide-react'
 import type { MemberTeam, Team } from '../types'
 import { asObj, memberDisplayName } from '../utils/relations'
 import { SCHEDULING_ORIGIN } from '../lib/api'
@@ -354,6 +354,10 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
               <div className="my-2 border-t border-gray-200 dark:border-gray-700" />
             </>
           )}
+          {/* Live scoreboard — public like on desktop (spectators follow it
+              without an account), so it sits outside the approved-member
+              block below. The bottom tab bar has no room for it. */}
+          {renderNavItem({ to: '/live', labelKey: 'live', icon: <Radio className={iconClass} /> })}
           {(!user || !isApproved) ? null : (() => {
             const groups = buildSecondaryItems({ isAdmin, isVorstand, canAccessFinance, isVbAdmin, isBbAdmin, hasTeam, is_spielplaner, spielplanerTeamIds, coachTeamIds, teamResponsibleIds, canManageForms })
             const renderItem = (item: SheetItem) => (
