@@ -40,6 +40,8 @@ interface GameCardProps {
   onOpenRoster?: (game: Game) => void
   onEdit?: (game: Game) => void
   onDelete?: (id: string) => void
+  /** Already-played fixture shown under the upcoming ones: greyed, no RSVP/cancel. */
+  past?: boolean
 }
 
 type ExpandedGame = Game & {
@@ -81,7 +83,7 @@ function StatusBadge({ status }: { status: Game['status'] }) {
   }
 }
 
-export default function GameCard({ game, onClick, variant = 'card', participations, myParticipation, warnings, onParticipationSaved, onOpenRoster, onEdit, onDelete }: GameCardProps) {
+export default function GameCard({ game, onClick, variant = 'card', participations, myParticipation, warnings, onParticipationSaved, onOpenRoster, onEdit, onDelete, past }: GameCardProps) {
   const { t } = useTranslation('games')
   const { user, canParticipateIn, isStaffOnly, isGuestIn } = useAuth()
   const { canManageTeam } = useTeamPermissions()
@@ -278,7 +280,7 @@ export default function GameCard({ game, onClick, variant = 'card', participatio
   return (
     <div
       onClick={() => onClick?.(game)}
-      className={`flex items-stretch overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-card transition-shadow ${onClick ? 'cursor-pointer hover:shadow-card-hover' : ''}${game.status === 'cancelled' ? ' opacity-60' : ''}`}
+      className={`flex items-stretch overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-card transition-shadow ${onClick ? 'cursor-pointer hover:shadow-card-hover' : ''}${game.status === 'cancelled' || past ? ' opacity-60' : ''}`}
     >
       {/* Participation status vertical banner */}
       {user && myStatus && (
@@ -290,7 +292,7 @@ export default function GameCard({ game, onClick, variant = 'card', participatio
       <div className="min-w-0 flex-1 p-3">
       {/* Top-right action bar: warning + H/A badge + roster/edit/delete */}
       <div className="flex shrink-0 items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-        {game.status === 'scheduled' && warnings && warnings.length > 0 && (
+        {!past && game.status === 'scheduled' && warnings && warnings.length > 0 && (
           <ParticipationWarningBadge warnings={warnings} namespace="participation" />
         )}
         <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold leading-none ${
@@ -300,7 +302,7 @@ export default function GameCard({ game, onClick, variant = 'card', participatio
         }`}>
           {game.type === 'home' ? t('typeHomeShort') : t('typeAwayShort')}
         </span>
-        {(game.status === 'scheduled' || game.status === 'cancelled') && (
+        {!past && (game.status === 'scheduled' || game.status === 'cancelled') && (
           <CancelActivityButton
             kind="game"
             activityId={game.id}
@@ -370,7 +372,7 @@ export default function GameCard({ game, onClick, variant = 'card', participatio
             <StatusBadge status={game.status} />
             {hallInfo && <span className="truncate text-xs text-gray-500 dark:text-gray-400">{hallInfo}</span>}
           </div>
-          {game.status === 'scheduled' && (
+          {!past && game.status === 'scheduled' && (
             <div className="mt-1.5 flex flex-wrap items-end gap-2">
               {canParticipate && (
                 <ActivityParticipation

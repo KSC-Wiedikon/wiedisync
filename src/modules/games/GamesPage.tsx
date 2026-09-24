@@ -87,6 +87,7 @@ export default function GamesPage() {
   const [rosterGame, setRosterGame] = useState<Game | null>(null)
   const [deletingGameId, setDeletingGameId] = useState<string | null>(null)
   const [showAll, setShowAll] = useState(false)
+  const [showAllPast, setShowAllPast] = useState(false)
   const [autoSelected, setAutoSelected] = useState(false)
 
   // ── Share link (`/games/:gameId`) ──────────────────────────────────
@@ -248,7 +249,13 @@ export default function GamesPage() {
         conditions.push({ status: { _eq: 'scheduled' } }, { date: { _gte: today } })
         break
       case 'results':
-        conditions.push({ status: { _in: ['completed', 'live'] } })
+        // Plus played-but-not-yet-synced fixtures (still `scheduled`, date gone): the
+        // score lags the sync, and they fell between both tabs — the only way to open
+        // one (e.g. to add its recording link) was a deep link.
+        conditions.push({ _or: [
+          { status: { _in: ['completed', 'live'] } },
+          { _and: [{ status: { _eq: 'scheduled' } }, { date: { _lt: today } }] },
+        ] })
         break
     }
     if (teamFilter) conditions.push(teamFilter)
@@ -279,6 +286,26 @@ export default function GamesPage() {
   })
   const games = combined?.items ?? []
   const allParticipations = combined?.participations ?? []
+
+  // Upcoming tab: this season's already-played fixtures, greyed out BELOW the future
+  // ones — so a past game stays one click away (recording links, details) even
+  // before its result has synced into the Results tab. No participations: the
+  // cards render without RSVP (`past`).
+  const { data: pastGamesRaw } = useCollection<Game>('games', {
+    filter: { _and: [
+      { date: { _nnull: true } },
+      { date: { _lt: today } },
+      { away_team: { _nnull: true } },
+      { season: { _eq: effGameSeason } },
+      ...(teamFilter ? [teamFilter] : []),
+      ...(sportFilter ? [sportFilter] : []),
+    ] },
+    sort: ['-date', '-time'],
+    limit: showAllPast ? 500 : INITIAL_LIMIT,
+    fields: ['*', 'kscw_team.*', 'kscw_team.coach.members_id', 'kscw_team.team_responsible.members_id', 'hall.*'],
+    enabled: activeTab === 'upcoming' && !teamsLoading,
+  })
+  const pastGames = pastGamesRaw ?? []
 
   // Same two guards as TrainingsPage: debounce the burst, and ignore RSVPs that cannot
   // belong to this page. `perPage` reaches 500 after "show all", so an unguarded
@@ -512,6 +539,27 @@ export default function GamesPage() {
                   </button>
                 )}
               </>
+            )}
+            {pastGames.length > 0 && (
+              <div className="mt-10">
+                <div className="mb-3 flex items-center gap-3">
+                  <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('sectionPast')}</h2>
+                  <div className="h-px flex-1 bg-gray-200 dark:bg-gray-700" />
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {pastGames.map((g) => (
+                    <GameCard key={g.id} game={g} onClick={setSelectedGame} onEdit={handleEdit} past />
+                  ))}
+                </div>
+                {!showAllPast && pastGames.length >= INITIAL_LIMIT && (
+                  <button
+                    onClick={() => setShowAllPast(true)}
+                    className="mt-4 w-full cursor-pointer rounded-lg border border-gray-200 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-800"
+                  >
+                    {t('showMore')}
+                  </button>
+                )}
+              </div>
             )}
           </>
         )}

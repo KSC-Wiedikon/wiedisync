@@ -11,6 +11,7 @@ export default {
   tabDashboard: 'Tableau de bord coach',
 
   // Results sections
+  sectionPast: 'Matchs passés',
   sectionLeague: 'Championnat',
   sectionCup: 'Coupe',
 

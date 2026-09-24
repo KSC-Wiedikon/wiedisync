@@ -11,6 +11,7 @@ export default {
   tabDashboard: 'Coach-Dashboard',
 
   // Results sections
+  sectionPast: 'Vergangene Spiele',
   sectionLeague: 'Meisterschaft',
   sectionCup: 'Cup',
 
