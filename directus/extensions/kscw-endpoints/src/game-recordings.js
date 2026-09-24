@@ -7,6 +7,8 @@
  *   GET  /kscw/public/games/:id/recordings   — anonymous; only show_on_website=true
  *                                              (:id = games.id or games.game_id)
  *   GET  /kscw/public/game-recordings?games=a,b — same, batched for the website's game tables
+ *   GET  /kscw/public/livestreams             — anonymous; not-yet-played games that carry a
+ *                                              website link — kscw.ch highlights them
  *
  * `show_on_website` is the only thing separating a member-only link from a public
  * one, so the public route selects on it server-side and returns nothing else about
@@ -194,6 +196,51 @@ export function registerGameRecordings(router, { database, logger }) {
     }
     return out
   }
+
+  // A website link on a game that has not been played yet IS its livestream — no
+  // separate flag: once the game is completed the same link reads as the recording.
+  // "Not yet played" = scheduled/live and dated today or later (Zurich), so tonight's
+  // stream stays listed through the evening. An intra-club derby is two rows sharing
+  // one game_id → one entry, links merged.
+  //   GET /kscw/public/livestreams → { data: [{ key, date, time, home_team, away_team,
+  //     league, sport, team, type, hall, links: [{ url, title }] }] }  (date,time asc)
+  router.get('/public/livestreams', async (_req, res) => {
+    try {
+      const rows = await database('game_recordings as r')
+        .join('games as g', 'g.id', 'r.game')
+        .leftJoin('teams as t', 't.id', 'g.kscw_team')
+        .leftJoin('halls as h', 'h.id', 'g.hall')
+        .where('r.show_on_website', true)
+        .whereIn('g.status', ['scheduled', 'live'])
+        .whereRaw(`g.date >= (now() AT TIME ZONE 'Europe/Zurich')::date`)
+        .orderBy([{ column: 'g.date' }, { column: 'g.time' }, { column: 'g.id' }, { column: 'r.sort' }, { column: 'r.id' }])
+        .limit(200)
+        .select('g.id', 'g.game_id', database.raw(`to_char(g.date, 'YYYY-MM-DD') as date`), 'g.time', 'g.home_team', 'g.away_team', 'g.league', 'g.type', 'g.status',
+          't.name as team', 't.sport', 'h.name as hall', 'r.url', 'r.title')
+      const byKey = new Map()
+      for (const r of rows) {
+        const key = r.game_id || String(r.id)
+        let e = byKey.get(key)
+        if (!e) {
+          e = {
+            key,
+            date: r.date,
+            time: r.time ? String(r.time).slice(0, 5) : null,
+            home_team: r.home_team, away_team: r.away_team, league: r.league,
+            sport: r.sport ?? null, team: r.team ?? null, type: r.type, status: r.status,
+            hall: r.hall ?? null, links: [],
+          }
+          byKey.set(key, e)
+        } else if (r.type === 'home' && e.type !== 'home') {
+          // Derby: describe it from the home side's row.
+          Object.assign(e, { team: r.team ?? e.team, type: 'home', hall: r.hall ?? e.hall })
+        }
+        if (!e.links.some((l) => l.url === r.url)) e.links.push({ url: r.url, title: r.title })
+      }
+      res.set('Cache-Control', 'public, max-age=120')
+      res.json({ data: [...byKey.values()] })
+    } catch (err) { fail(res, err, 'GET public livestreams') }
+  })
 
   router.get('/public/games/:id/recordings', async (req, res) => {
     try {

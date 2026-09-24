@@ -862,8 +862,8 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
           </div>
         )}
 
-        {/* Video recordings — every member sees them; coach/TR/admin edit */}
-        <GameRecordingsSection gameId={game.id} canManage={!readOnly && canEditAsCoach} />
+        {/* Video recordings / livestream — every member sees them; coach/TR/admin edit */}
+        <GameRecordingsSection gameId={game.id} canManage={!readOnly && canEditAsCoach} upcoming={game.status === 'scheduled' || game.status === 'live'} />
 
         {/* Referee expenses — volleyball home games, staff only (coach/TR/admin) */}
         {kscwSport === 'volleyball' && game.type === 'home' && isTeamStaff && (

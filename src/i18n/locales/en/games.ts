@@ -303,6 +303,8 @@ export default {
 
   // Video recordings (migration 375)
   recordings: "Video",
+  recordingsLivestream: "Video & livestream",
+  recordingsLivestreamHint: "A livestream link with \"Show on website\" is highlighted on kscw.ch until the game is played, then it stays as the recording.",
   recordingsAdd: "Add video",
   recordingsEdit: "Edit",
   recordingsAddAnother: "Add another link",

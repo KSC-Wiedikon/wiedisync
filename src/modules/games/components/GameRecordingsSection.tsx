@@ -34,7 +34,9 @@ function hostLabel(url: string): string {
  * reported back as `can_edit` — `canManage` only additionally hides the editor
  * when the viewer is an admin with admin mode off.
  */
-export default function GameRecordingsSection({ gameId, canManage }: { gameId: string; canManage: boolean }) {
+/** `upcoming`: the game is not played yet, so a link here is its livestream — a
+ *  website-toggled one is highlighted on kscw.ch (GET /kscw/public/livestreams). */
+export default function GameRecordingsSection({ gameId, canManage, upcoming = false }: { gameId: string; canManage: boolean; upcoming?: boolean }) {
   const { t } = useTranslation('games')
   const [recordings, setRecordings] = useState<Recording[]>([])
   const [serverCanEdit, setServerCanEdit] = useState(false)
@@ -96,7 +98,7 @@ export default function GameRecordingsSection({ gameId, canManage }: { gameId: s
     <div className="space-y-3 border-t dark:border-gray-700 px-6 py-4">
       <div className="flex items-center justify-between gap-2">
         <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-          {t('recordings')}
+          {upcoming ? t('recordingsLivestream') : t('recordings')}
         </h4>
         {canEdit && !editing && (
           <Button variant="ghost" size="sm" className="min-h-[44px] sm:min-h-0" onClick={startEdit}>
@@ -190,6 +192,7 @@ export default function GameRecordingsSection({ gameId, canManage }: { gameId: s
             </Button>
           )}
           <p className="text-xs text-muted-foreground">{t('recordingsHint')}</p>
+          {upcoming && <p className="text-xs text-muted-foreground">{t('recordingsLivestreamHint')}</p>}
           <div className="flex justify-end gap-2">
             <Button variant="ghost" size="sm" onClick={() => setEditing(false)} disabled={saving}>
               {t('recordingsCancel')}

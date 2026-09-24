@@ -299,6 +299,8 @@ export default {
 
   // Video recordings (migration 375)
   recordings: "Video",
+  recordingsLivestream: "Video & Livestream",
+  recordingsLivestreamHint: "En Livestream-Link mit «Uf de Website aazeige» wird uf kscw.ch hervorghobe, bis s Spiel gspielt isch – dänn blibt er als Ufzeichnig.",
   recordingsAdd: "Video hinzuefüege",
   recordingsEdit: "Bearbeite",
   recordingsAddAnother: "No en Link hinzuefüege",

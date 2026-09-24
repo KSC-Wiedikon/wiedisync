@@ -301,6 +301,8 @@ export default {
 
   // Video recordings (migration 375)
   recordings: "Vidéo",
+  recordingsLivestream: "Vidéo & livestream",
+  recordingsLivestreamHint: "Un lien de livestream avec « Afficher sur le site web » est mis en avant sur kscw.ch jusqu'au match, puis il reste comme enregistrement.",
   recordingsAdd: "Ajouter une vidéo",
   recordingsEdit: "Modifier",
   recordingsAddAnother: "Ajouter un autre lien",
