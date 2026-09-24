@@ -2,7 +2,8 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { CalendarEntry } from '../../../types/calendar'
 import { relId } from '../../../utils/relations'
-import { barColors, dotColors, colorKey, paintKey, cancelledClasses } from '../entryStyle'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { dotColors, monthTints, colorKey, paintKey, cancelledClasses } from '../entryStyle'
 import CalendarTypeIcon from './CalendarTypeIcon'
 import { trimBBTeamName } from '../../../utils/teamColors'
 import {
@@ -143,6 +144,57 @@ function layoutWeek(
   return { bars, timedByCol, absencesByCol }
 }
 
+/* ── absence row: merged spans that break only when the set changes ── */
+
+interface AbsenceSegment {
+  startCol: number
+  span: number
+  count: number
+  idsKey: string
+  primary: CalendarEntry
+  allAbsences: CalendarEntry[]
+}
+
+function mergeAbsences(absencesByCol: CalendarEntry[][]): AbsenceSegment[] {
+  // A member can have BOTH a one-off absence and a weekly unavailability on
+  // the same day — they should count and render as ONE person. Key by member,
+  // and prefer the one-off absence entry for the single-entry click (absence
+  // overrides unavailability).
+  const memberKey = (e: CalendarEntry): string => {
+    const src = e.source as { member?: unknown } | null | undefined
+    const id = src && typeof src === 'object' && 'member' in src ? relId(src.member) : ''
+    return id || e.id
+  }
+  const isWeekly = (e: CalendarEntry): boolean =>
+    (e.source as { type?: string } | null | undefined)?.type === 'weekly'
+  const pickPrimary = (col: CalendarEntry[]): CalendarEntry =>
+    col.find((a) => !isWeekly(a)) ?? col[0]
+
+  const segments: AbsenceSegment[] = []
+  for (let ci = 0; ci < 7; ci++) {
+    const col = absencesByCol[ci]
+    if (col.length === 0) continue
+    const ids = col.map((a) => a.id).sort().join(',')
+    const prev = segments[segments.length - 1]
+    if (prev && prev.startCol + prev.span === ci && prev.idsKey === ids) {
+      prev.span++
+      for (const a of col) {
+        if (!prev.allAbsences.find((e) => e.id === a.id)) prev.allAbsences.push(a)
+      }
+    } else {
+      segments.push({ startCol: ci, span: 1, count: new Set(col.map(memberKey)).size, idsKey: ids, primary: pickPrimary(col), allAbsences: [...col] })
+    }
+  }
+  return segments
+}
+
+const MAX_VISIBLE_BARS = 2
+const MAX_VISIBLE_TIMED = 4
+/** Height of one spanning-bar lane (absences + all-day events), incl. 2px gap. */
+const LANE_H = 20
+/** Offset of the first lane from the top of a week row: cell padding + date number. */
+const LANES_TOP = 30
+
 /* ── component ───────────────────────────────────────────── */
 
 interface MonthGridProps {
@@ -191,288 +243,228 @@ export default function MonthGrid({
     [weekRows, entries],
   )
 
-  const MAX_VISIBLE_BARS = 2
-  const MAX_VISIBLE_TIMED = 5
+  const navBtn =
+    'inline-flex h-9 w-9 items-center justify-center rounded-md border border-gray-200 text-gray-600 transition-colors hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800'
 
   return (
     <div className="flex flex-1 flex-col">
       {/* Month header */}
-      <div className="mb-3 flex items-center justify-between">
-        <button
-          onClick={() => onMonthChange(addMonths(month, -1))}
-          aria-label={t('prevMonth')}
-          className="rounded-lg p-2 text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
-        >
-          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-        </button>
-        <div className="flex items-center gap-2">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-            {formatDate(month, 'MMMM yyyy')}
-          </h2>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h2 className="text-xl font-semibold tracking-tight text-gray-900 dark:text-gray-100">
+          {formatDate(month, 'MMMM yyyy')}
+        </h2>
+        <div className="flex items-center gap-1.5">
           <button
             onClick={() => onMonthChange(startOfMonth(new Date()))}
-            className="rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+            className="inline-flex h-9 items-center rounded-md border border-gray-200 px-3 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
           >
             {t('today')}
           </button>
+          <button onClick={() => onMonthChange(addMonths(month, -1))} aria-label={t('prevMonth')} className={navBtn}>
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <button onClick={() => onMonthChange(addMonths(month, 1))} aria-label={t('nextMonth')} className={navBtn}>
+            <ChevronRight className="h-4 w-4" />
+          </button>
         </div>
-        <button
-          onClick={() => onMonthChange(addMonths(month, 1))}
-          aria-label={t('nextMonth')}
-          className="rounded-lg p-2 text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
-        >
-          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
-        </button>
       </div>
 
-      {/* Day-of-week headers */}
-      <div className="grid grid-cols-7 border-b border-gray-200 dark:border-gray-700">
-        {dayHeaders().map((d) => (
-          <div key={d} className="py-1.5 text-center text-xs font-medium text-gray-600 dark:text-gray-400">
-            {d}
-          </div>
-        ))}
-      </div>
+      <div className="flex flex-1 flex-col overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
+        {/* Day-of-week headers */}
+        <div className="grid grid-cols-7 border-b border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800/60">
+          {dayHeaders().map((d) => (
+            <div key={d} className="py-2 text-center text-[11px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+              {d}
+            </div>
+          ))}
+        </div>
 
-      {/* Week rows */}
-      <div className="flex flex-1 flex-col border-l border-gray-200 dark:border-gray-700">
-        {weekRows.map((week, wi) => {
-          const { bars, timedByCol, absencesByCol } = weekLayouts[wi]
-          const hasAnyAbsence = absencesByCol.some((a) => a.length > 0)
-          const BAR_H = 18
-          const barAreaHeight = hasAnyAbsence ? BAR_H : 0
+        {/* Week rows */}
+        <div className="flex flex-1 flex-col">
+          {weekRows.map((week, wi) => {
+            const { bars, timedByCol, absencesByCol } = weekLayouts[wi]
+            const absenceSegs = mergeAbsences(absencesByCol)
+            const absenceRows = absenceSegs.length > 0 ? 1 : 0
+            const barLanes = Math.min(MAX_VISIBLE_BARS, bars.reduce((m, b) => Math.max(m, b.lane + 1), 0))
+            const laneAreaHeight = (absenceRows + barLanes) * LANE_H
 
-          return (
-            <div key={wi} className="relative flex flex-1 flex-col">
-              {/* Day cells row */}
-              <div className="grid flex-1 grid-cols-7">
-                {week.map((date, ci) => {
-                  const key = toDateKey(date)
-                  const inMonth = isSameMonth(date, month)
-                  const isToday = isSameDay(date, today)
-                  const isClosed = closedDates.has(key)
-                  const timed = timedByCol[ci]
+            return (
+              <div
+                key={wi}
+                className={`relative flex flex-1 flex-col ${wi < weekRows.length - 1 ? 'border-b border-gray-200 dark:border-gray-700' : ''}`}
+              >
+                {/* Day cells row */}
+                <div className="grid flex-1 grid-cols-7">
+                  {week.map((date, ci) => {
+                    const key = toDateKey(date)
+                    const inMonth = isSameMonth(date, month)
+                    const isToday = isSameDay(date, today)
+                    const isClosed = closedDates.has(key)
+                    const timed = timedByCol[ci]
 
-                  // Non-absence spanning entries covering this day
-                  const cellBars = bars.filter(
-                    (b) => ci >= b.startCol && ci < b.startCol + b.span,
-                  )
-                  const visibleBars = cellBars.filter((b) => b.lane < MAX_VISIBLE_BARS)
-                  const hiddenBars = cellBars.filter((b) => b.lane >= MAX_VISIBLE_BARS).length
+                    const hiddenBars = bars.filter(
+                      (b) => b.lane >= MAX_VISIBLE_BARS && ci >= b.startCol && ci < b.startCol + b.span,
+                    ).length
+                    const visibleTimed = timed.slice(0, MAX_VISIBLE_TIMED)
+                    const hiddenTimed = Math.max(0, timed.length - MAX_VISIBLE_TIMED)
+                    const overflow = hiddenBars + hiddenTimed
 
-                  const visibleTimed = timed.slice(0, MAX_VISIBLE_TIMED)
-                  const hiddenTimed = Math.max(0, timed.length - MAX_VISIBLE_TIMED)
-                  const overflow = hiddenBars + hiddenTimed
-
-                  // Pick the first visible all-day entry for full-cell background
-                  const bgBar = visibleBars[0] ?? null
-                  const bgColor = bgBar ? barColors[paintKey(bgBar.entry)] : null
-
-                  return (
-                    <div
-                      key={key}
-                      className={`relative flex min-h-[3rem] flex-col border-b border-r border-gray-200 p-0.5 sm:min-h-[4rem] lg:min-h-[5rem] lg:p-1 dark:border-gray-700 ${
-                        bgColor
-                          ? `${bgColor.bg} ${bgColor.darkBg}`
-                          : !inMonth
-                            ? 'bg-gray-50 dark:bg-gray-900'
+                    return (
+                      <div
+                        key={key}
+                        className={`relative flex min-h-[5.5rem] min-w-0 flex-col p-1 lg:min-h-[7rem] ${
+                          ci < 6 ? 'border-r border-gray-200 dark:border-gray-700' : ''
+                        } ${
+                          !inMonth
+                            ? 'bg-gray-50/70 dark:bg-gray-900/60'
                             : isClosed
                               ? closedClassName
                               : 'bg-white dark:bg-gray-800'
-                      }`}
-                      title={isClosed ? closedReasons?.get(key) : undefined}
-                      onClick={bgBar ? () => onEntryClick?.(bgBar.entry) : undefined}
-                      role={bgBar ? 'button' : undefined}
-                    >
-                      {/* Date number */}
-                      <div className="relative z-20 flex items-start">
-                        <span
-                          className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-medium ${
-                            isToday
-                              ? 'bg-gold-400 font-bold text-brand-900'
-                              : bgColor
-                                ? `${bgColor.text} ${bgColor.darkText}`
+                        }`}
+                        title={isClosed ? closedReasons?.get(key) : undefined}
+                      >
+                        {/* Date number */}
+                        <div className="flex h-6 shrink-0 items-center">
+                          <span
+                            className={`inline-flex h-6 min-w-6 items-center justify-center rounded-full px-1 text-xs tabular-nums ${
+                              isToday
+                                ? 'bg-primary font-semibold text-primary-foreground'
                                 : !inMonth
-                                  ? 'text-gray-300 dark:text-gray-600'
-                                  : 'text-gray-700 dark:text-gray-300'
-                          }`}
-                        >
-                          {date.getDate()}
-                        </span>
-                      </div>
-
-                      {/* Reserve space for absence bar overlays */}
-                      {barAreaHeight > 0 && <div style={{ height: barAreaHeight }} />}
-
-                      {/* Other all-day event labels (vertically centered) */}
-                      {visibleBars.length > 0 && (
-                        <div className="flex flex-1 flex-col items-center justify-center">
-                          {visibleBars.map((bar) => {
-                            // Only show label on the first column of the span
-                            if (ci !== bar.startCol) return null
-                            const c = barColors[paintKey(bar.entry)]
-                            return (
-                              <div key={bar.entry.id} title={bar.entry.title} className={`break-words text-center text-[10px] font-semibold leading-tight lg:text-xs ${c.text} ${c.darkText} ${cancelledClasses(bar.entry)}`}>
-                                {bar.entry.title}
-                              </div>
-                            )
-                          })}
+                                  ? 'text-gray-400 dark:text-gray-600'
+                                  : 'font-medium text-gray-700 dark:text-gray-300'
+                            }`}
+                          >
+                            {date.getDate()}
+                          </span>
                         </div>
-                      )}
 
-                      {/* Timed events — fill the space beneath the date number / absences.
-                          Each event grows to share the remaining cell height (it's a
-                          calendar — events are the content, so use the room). */}
-                      {inMonth && (visibleTimed.length + overflow > 0) && (
-                        <div className="mt-0.5 flex flex-1 flex-col gap-0.5 overflow-hidden">
-                          {visibleTimed.map((entry) => {
-                            const entryColor = barColors[paintKey(entry)]
-                            const useChip = !bgColor && (entry.type === 'event' || entry.type === 'game')
-                            return (
-                            <button
-                              key={entry.id}
-                              type="button"
-                              // Cancelled entries carry the reason on hover — the
-                              // cell itself has no room for it, and the strike
-                              // alone doesn't say why.
-                              title={entry.cancelled ? [t('calendar:cancelled'), entry.description].filter(Boolean).join(' · ') : undefined}
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                onEntryClick?.(entry)
-                              }}
-                              className={`flex w-full min-h-0 flex-1 items-center gap-1 truncate rounded px-1 py-0.5 text-left text-[11px] font-medium leading-snug transition-opacity hover:opacity-80 lg:text-sm ${
-                                bgColor
-                                  ? `${bgColor.text} ${bgColor.darkText}`
-                                  : useChip
-                                    ? `${entryColor.bg} ${entryColor.darkBg} ${entryColor.text} ${entryColor.darkText}`
-                                    : 'text-gray-800 dark:text-gray-200'
-                              } ${cancelledClasses(entry)}`}
-                            >
-                              <CalendarTypeIcon type={colorKey(entry)} sport={entry.sport} className={(dotColors[paintKey(entry)] ?? '').replace('bg-', 'text-')} />
-                              {entry.startTime && (
-                                <span className="font-semibold">{entry.startTime}</span>
-                              )}
-                              {entry.type === 'game' && entry.gameType ? (
-                                <>
-                                  <span className={`hidden lg:inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-sm text-[9px] font-bold leading-none text-white ${entry.gameType === 'home' ? 'bg-brand-500' : 'bg-amber-500'}`}>
-                                    {entry.gameType === 'home' ? 'H' : 'A'}
-                                  </span>
-                                  {(entry.teamNames[0] || entry.opponent) ? (
-                                    <span className="hidden lg:inline truncate">
-                                      {entry.teamNames[0] ? trimBBTeamName(entry.teamNames[0]) : ''}{entry.opponent ? ` vs ${entry.opponent}` : ''}
+                        {/* Reserve space for the spanning lanes painted by the overlay */}
+                        {laneAreaHeight > 0 && <div className="shrink-0" style={{ height: laneAreaHeight + 2 }} />}
+
+                        {inMonth && (visibleTimed.length + overflow > 0) && (
+                          <div className="mt-0.5 flex min-h-0 flex-col gap-0.5 overflow-hidden">
+                            {visibleTimed.map((entry) => {
+                              const isChip = entry.type === 'event' || entry.type === 'game'
+                              const tint = monthTints[paintKey(entry)] ?? monthTints.event
+                              const iconColor = (dotColors[paintKey(entry)] ?? '').replace('bg-', 'text-')
+                              return (
+                                <button
+                                  key={entry.id}
+                                  type="button"
+                                  // Cancelled entries carry the reason on hover — the
+                                  // cell itself has no room for it, and the strike
+                                  // alone doesn't say why.
+                                  title={entry.cancelled
+                                    ? [t('calendar:cancelled'), entry.description].filter(Boolean).join(' · ')
+                                    : entry.title}
+                                  onClick={() => onEntryClick?.(entry)}
+                                  className={`flex h-5 w-full shrink-0 items-center gap-1.5 overflow-hidden rounded px-1.5 text-left text-[11px] leading-none transition-colors lg:h-[22px] lg:text-xs ${
+                                    isChip
+                                      ? `border-l-2 font-medium hover:brightness-95 dark:hover:brightness-110 ${tint}`
+                                      : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700/60'
+                                  } ${cancelledClasses(entry)}`}
+                                >
+                                  {!isChip && (
+                                    <CalendarTypeIcon type={colorKey(entry)} sport={entry.sport} size="sm" className={iconColor} />
+                                  )}
+                                  {entry.startTime && (
+                                    <span className={`shrink-0 tabular-nums ${isChip ? 'font-semibold' : 'text-gray-500 dark:text-gray-400'}`}>
+                                      {entry.startTime}
                                     </span>
-                                  ) : null}
-                                </>
-                              ) : (
-                                // A birthday has no time to show, so below `lg` the row
-                                // would be a bare cake — keep its name at every width.
-                                <span className={`truncate ${entry.type === 'birthday' ? '' : 'hidden lg:inline'}`}>
-                                  {entry.title}
-                                </span>
-                              )}
-                            </button>
-                            )
-                          })}
-                          {overflow > 0 && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                const allForDay = entries.filter((en) => {
-                                  const enEnd = en.endDate ?? en.date
-                                  return toDateKey(en.date) <= key && toDateKey(enEnd) >= key
-                                })
-                                onOverflowClick?.(allForDay, date)
-                              }}
-                              className={`shrink-0 rounded px-1 text-[11px] font-medium hover:bg-gray-100 lg:text-xs dark:hover:bg-gray-700 ${
-                                bgColor ? `${bgColor.text} ${bgColor.darkText}` : 'text-gray-500 dark:text-gray-400'
-                              }`}
-                            >
-                              {t('calendar:moreCount', { count: overflow })}
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
+                                  )}
+                                  {entry.type === 'game' && entry.gameType ? (
+                                    <>
+                                      <span className="hidden shrink-0 text-[10px] font-bold opacity-60 lg:inline">
+                                        {entry.gameType === 'home' ? 'H' : 'A'}
+                                      </span>
+                                      {(entry.teamNames[0] || entry.opponent) ? (
+                                        <span className="hidden truncate lg:inline">
+                                          {entry.teamNames[0] ? trimBBTeamName(entry.teamNames[0]) : ''}{entry.opponent ? ` vs ${entry.opponent}` : ''}
+                                        </span>
+                                      ) : null}
+                                    </>
+                                  ) : (
+                                    // A birthday has no time to show, so below `lg` the row
+                                    // would be a bare cake — keep its name at every width.
+                                    <span className={`truncate ${entry.type === 'birthday' ? '' : 'hidden lg:inline'}`}>
+                                      {entry.title}
+                                    </span>
+                                  )}
+                                </button>
+                              )
+                            })}
+                            {overflow > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const allForDay = entries.filter((en) => {
+                                    const enEnd = en.endDate ?? en.date
+                                    return toDateKey(en.date) <= key && toDateKey(enEnd) >= key
+                                  })
+                                  onOverflowClick?.(allForDay, date)
+                                }}
+                                className="shrink-0 self-start rounded px-1.5 py-0.5 text-[11px] font-medium text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 lg:text-xs dark:text-gray-400 dark:hover:bg-gray-700/60 dark:hover:text-gray-100"
+                              >
+                                {t('calendar:moreCount', { count: overflow })}
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
 
-              {/* Absence bar overlay — merged spans that break only when count changes */}
-              {hasAnyAbsence && (() => {
-                // A member can have BOTH a one-off absence and a weekly unavailability on
-                // the same day — they should count and render as ONE person. Key by member,
-                // and prefer the one-off absence entry for the single-entry click (absence
-                // overrides unavailability).
-                const memberKey = (e: CalendarEntry): string => {
-                  const src = e.source as { member?: unknown } | null | undefined
-                  const id = src && typeof src === 'object' && 'member' in src ? relId(src.member) : ''
-                  return id || e.id
-                }
-                const isWeekly = (e: CalendarEntry): boolean =>
-                  (e.source as { type?: string } | null | undefined)?.type === 'weekly'
-                const pickPrimary = (col: CalendarEntry[]): CalendarEntry =>
-                  col.find((a) => !isWeekly(a)) ?? col[0]
-                // Build merged segments: adjacent columns with the same set of absence rows → one span
-                const segments: { startCol: number; span: number; count: number; idsKey: string; primary: CalendarEntry; allAbsences: CalendarEntry[] }[] = []
-                for (let ci = 0; ci < 7; ci++) {
-                  const col = absencesByCol[ci]
-                  if (col.length === 0) continue
-                  const ids = col.map((a) => a.id).sort().join(',')
-                  const prev = segments[segments.length - 1]
-                  if (prev && prev.startCol + prev.span === ci && prev.idsKey === ids) {
-                    prev.span++
-                    // Accumulate all unique absences across the span
-                    for (const a of col) {
-                      if (!prev.allAbsences.find((e) => e.id === a.id)) prev.allAbsences.push(a)
-                    }
-                  } else {
-                    segments.push({ startCol: ci, span: 1, count: new Set(col.map(memberKey)).size, idsKey: ids, primary: pickPrimary(col), allAbsences: [...col] })
-                  }
-                }
-                const c = barColors.absence
-                return (
-                  <div className="pointer-events-none absolute inset-x-0 top-[28px] z-10 grid grid-cols-7" style={{ height: BAR_H }}>
-                    {segments.map((seg) => {
+                {/* Spanning lanes: absences first, then all-day / multi-day events */}
+                {laneAreaHeight > 0 && (
+                  <div
+                    className="pointer-events-none absolute inset-x-0 z-10 grid grid-cols-7"
+                    style={{ top: LANES_TOP, gridAutoRows: `${LANE_H}px` }}
+                  >
+                    {absenceSegs.map((seg) => {
                       const label = seg.count === 1
                         ? seg.primary.title.replace(/^Absence · /, '')
                         : t('calendar:absentCount', { count: seg.count })
                       return (
                         <button
-                          key={seg.startCol}
+                          key={`abs-${seg.startCol}`}
                           type="button"
-                          className={`pointer-events-auto flex items-center gap-0.5 truncate rounded px-1 text-[10px] font-medium leading-none transition-opacity hover:opacity-80 lg:text-xs ${c.bg} ${c.text} ${c.darkBg} ${c.darkText}`}
-                          style={{
-                            gridColumn: `${seg.startCol + 1} / span ${seg.span}`,
-                            height: BAR_H - 2,
-                            marginTop: 1,
-                            marginLeft: 2,
-                            marginRight: 2,
-                          }}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            if (seg.count === 1) {
-                              onEntryClick?.(seg.primary)
-                            } else {
-                              onOverflowClick?.(seg.allAbsences, week[seg.startCol])
-                            }
+                          title={label}
+                          className={`pointer-events-auto mx-1 flex items-center gap-1 overflow-hidden rounded border border-dashed px-1.5 text-[11px] font-medium leading-none transition-colors hover:brightness-95 lg:text-xs dark:hover:brightness-110 ${monthTints.absence}`}
+                          style={{ gridColumn: `${seg.startCol + 1} / span ${seg.span}`, gridRow: 1, height: LANE_H - 3 }}
+                          onClick={() => {
+                            if (seg.count === 1) onEntryClick?.(seg.primary)
+                            else onOverflowClick?.(seg.allAbsences, week[seg.startCol])
                           }}
                         >
-                          <CalendarTypeIcon type="absence" className="text-current" />
+                          <CalendarTypeIcon type="absence" size="sm" className="opacity-70" />
                           <span className="truncate">{label}</span>
                         </button>
                       )
                     })}
+                    {bars.filter((b) => b.lane < MAX_VISIBLE_BARS).map((bar) => {
+                      const tint = monthTints[paintKey(bar.entry)] ?? monthTints.event
+                      return (
+                        <button
+                          key={`bar-${bar.entry.id}`}
+                          type="button"
+                          title={bar.entry.title}
+                          className={`pointer-events-auto flex items-center overflow-hidden px-1.5 text-[11px] font-semibold leading-none transition-colors hover:brightness-95 lg:text-xs dark:hover:brightness-110 ${tint} ${
+                            bar.continued ? 'ml-0 rounded-l-none' : 'ml-1 rounded-l border-l-2'
+                          } ${bar.continues ? 'mr-0 rounded-r-none' : 'mr-1 rounded-r'} ${cancelledClasses(bar.entry)}`}
+                          style={{ gridColumn: `${bar.startCol + 1} / span ${bar.span}`, gridRow: absenceRows + bar.lane + 1, height: LANE_H - 3 }}
+                          onClick={() => onEntryClick?.(bar.entry)}
+                        >
+                          <span className="truncate">{bar.entry.title}</span>
+                        </button>
+                      )
+                    })}
                   </div>
-                )
-              })()}
-            </div>
-          )
-        })}
+                )}
+              </div>
+            )
+          })}
+        </div>
       </div>
     </div>
   )

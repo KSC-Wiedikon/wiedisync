@@ -25,6 +25,24 @@ export const barColors: Record<string, { bg: string; text: string; darkBg: strin
   blue:        { bg: 'bg-blue-200', text: 'text-blue-900', darkBg: 'dark:bg-blue-800', darkText: 'dark:text-blue-100' },
 }
 
+/* ── soft tints for the desktop month grid ─────────────────────
+ * Low-alpha fill + saturated left accent + readable text. The month grid is
+ * dense, so full-strength `barColors` fills read as loud blocks there. */
+
+export const monthTints: Record<string, string> = {
+  'game-home': 'bg-brand-500/12 text-brand-800 border-brand-500 dark:bg-brand-400/20 dark:text-brand-100 dark:border-brand-400',
+  'game-away': 'bg-amber-500/12 text-amber-900 border-amber-500 dark:bg-amber-400/15 dark:text-amber-100 dark:border-amber-400',
+  game:        'bg-brand-500/12 text-brand-800 border-brand-500 dark:bg-brand-400/20 dark:text-brand-100 dark:border-brand-400',
+  training:    'bg-green-500/12 text-green-900 border-green-500 dark:bg-green-400/15 dark:text-green-100 dark:border-green-400',
+  closure:     'bg-red-500/12 text-red-800 border-red-500 dark:bg-red-400/15 dark:text-red-100 dark:border-red-400',
+  event:       'bg-purple-500/12 text-purple-900 border-purple-500 dark:bg-purple-400/15 dark:text-purple-100 dark:border-purple-400',
+  hall:        'bg-cyan-500/12 text-cyan-900 border-cyan-500 dark:bg-cyan-400/15 dark:text-cyan-100 dark:border-cyan-400',
+  absence:     'bg-gray-500/10 text-gray-700 border-gray-400 dark:bg-gray-400/10 dark:text-gray-300 dark:border-gray-500',
+  'scorer-duty': 'bg-indigo-500/12 text-indigo-900 border-indigo-500 dark:bg-indigo-400/15 dark:text-indigo-100 dark:border-indigo-400',
+  birthday:    'bg-pink-500/12 text-pink-900 border-pink-500 dark:bg-pink-400/15 dark:text-pink-100 dark:border-pink-400',
+  blue:        'bg-blue-500/12 text-blue-900 border-blue-500 dark:bg-blue-400/15 dark:text-blue-100 dark:border-blue-400',
+}
+
 /* ── solid dot / icon colours per colour-key ───────────────── */
 
 export const dotColors: Record<string, string> = {
