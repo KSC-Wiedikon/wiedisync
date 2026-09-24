@@ -1444,6 +1444,11 @@ async function main() {
     // class as the live board above: scores and team names, nothing personal.
     await setPermRead(PUBLIC_POLICY, 'live_history')
 
+    // Point-by-point match logs (migration 376) — the same scoreboard data at rally
+    // resolution: team names, scores, serve and timing. Nothing personal, and the
+    // stats built from it are spectator-grade, so it is public like the two above.
+    await setPermRead(PUBLIC_POLICY, 'live_match_logs')
+
     console.log(`  ✓ Public permissions set`)
   } else {
     console.log('\n5. ⚠ No public policy found — skipping public permissions')
@@ -1466,6 +1471,10 @@ async function main() {
   // are additive with no deny rule. Harmless: the collection is public anyway.
   // Append-only is enforced by the absence of update/delete, which IS effective.)
   await setPerm(LEDBOX_POLICY, 'live_history', 'create')
+  // The match log (migration 376) is append-only for the same reason. A re-sent
+  // upload is rejected by the (channel, match_key) unique index, which the board
+  // reads as "already uploaded" — so no read or update is needed to be idempotent.
+  await setPerm(LEDBOX_POLICY, 'live_match_logs', 'create')
   console.log('  ✓ LedBox publisher permissions set')
 
   // ── 5c. Website Admin permissions ──────────────────────────────
