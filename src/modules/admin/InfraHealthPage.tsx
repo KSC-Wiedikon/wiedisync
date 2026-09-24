@@ -187,6 +187,10 @@ export default function InfraHealthPage() {
       } else if (!res.ok && res.status !== 202) {
         const body = await res.json().catch(() => ({})) as { error?: string }
         toast.error(body.error || `${res.status}`)
+      } else if (res.ok && !async202) {
+        // Synchronous syncs finish inside the POST — say so, or a run that found
+        // nothing new (e.g. a result not yet on the feed) looks like a dead button.
+        toast.success(t('infraSyncDone'))
       }
     } catch { /* poll / refresh reflects the outcome */ }
 

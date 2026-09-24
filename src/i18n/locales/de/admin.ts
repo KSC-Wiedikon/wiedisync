@@ -92,6 +92,7 @@ export default {
   infraVmSync: 'Volleymanager Sync',
   infraSvrzSync: 'SVRZ Spielplan Sync',
   infraRunNow: 'Jetzt starten',
+  infraSyncDone: 'Synchronisation abgeschlossen',
   infraSyncStarted: 'Sync gestartet',
   infraSyncBusy: 'Nicht gestartet — Volleymanager ist mit einem anderen Sync beschäftigt ({{holder}}). In ein paar Minuten nochmals versuchen.',
   infraSyncBusyOther: 'anderer Job',

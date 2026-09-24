@@ -1102,8 +1102,12 @@ export default {
       try {
         requireAdmin(req, log)
         log.info('Manual SV sync triggered')
+        const startedAt = Date.now()
         const games = await syncSvGames(database, log)
         const rankings = await syncSvRankings(database, log)
+        // Same heartbeat the cron writes — without it a manual run left the
+        // data-health card on the cron's "4h ago" and read as a dead button.
+        await logCronRun(database, 'sv_sync', { status: 'ok', durationMs: Date.now() - startedAt })
         res.json({ status: 'ok', games, rankings })
       } catch (err) {
         logEndpointError(log, 'admin/sv-sync', err, req)
@@ -1135,6 +1139,7 @@ export default {
           ? req.body.manual_sweep
           : 'on'
         log.info(`Manual BP sync triggered (manual_sweep=${sweepManual})`)
+        const startedAt = Date.now()
         const games = await syncBpGames(database, log, { sweepManual })
         const rankings = await syncBpRankings(database, log, games.leagueHoldingIds)
         // The sweep DELETES games — per CLAUDE.md → "Audit logging (actor
@@ -1155,6 +1160,7 @@ export default {
             },
           })
         }
+        await logCronRun(database, 'bp_sync', { status: 'ok', durationMs: Date.now() - startedAt })
         res.json({ status: 'ok', games, rankings })
       } catch (err) {
         logEndpointError(log, 'admin/bp-sync', err, req)
