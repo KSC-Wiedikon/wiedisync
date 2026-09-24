@@ -6,6 +6,7 @@
  *                                              replaces the game's full list
  *   GET  /kscw/public/games/:id/recordings   — anonymous; only show_on_website=true
  *                                              (:id = games.id or games.game_id)
+ *   GET  /kscw/public/game-recordings?games=a,b — same, batched for the website's game tables
  *
  * `show_on_website` is the only thing separating a member-only link from a public
  * one, so the public route selects on it server-side and returns nothing else about
@@ -154,28 +155,67 @@ export function registerGameRecordings(router, { database, logger }) {
     } catch (err) { fail(res, err, 'POST recordings') }
   })
 
-  // `:id` is either our numeric games.id or the federation key games.game_id
+  // A public key is either our numeric games.id or the federation key games.game_id
   // (`vb_…` / `bb_…`) — the website's team pages only carry the latter. An intra-club
   // derby is TWO games rows sharing one game_id, so that form returns the public
-  // links of both sides.
+  // links of both sides (deduplicated by URL).
+  const isPublicKey = (k) => gameIdParam(k) != null || /^(vb|bb)_[A-Za-z0-9_-]{1,60}$/.test(k)
+
+  /** keys → Map(key → [{ url, title }]) holding only website-toggled links. */
+  async function publicRecordingsFor(keys) {
+    const numeric = keys.filter((k) => gameIdParam(k) != null).map(Number)
+    const fed = keys.filter((k) => gameIdParam(k) == null)
+    const games = await database('games')
+      .where((q) => {
+        if (numeric.length) q.orWhereIn('id', numeric)
+        if (fed.length) q.orWhereIn('game_id', fed)
+      })
+      .select('id', 'game_id')
+    const out = new Map()
+    if (!games.length) return out
+    const rows = await database('game_recordings')
+      .whereIn('game', games.map((g) => g.id)).where('show_on_website', true)
+      .orderBy([{ column: 'game' }, { column: 'sort' }, { column: 'id' }])
+      .select('game', 'url', 'title')
+    const byGame = new Map()
+    for (const r of rows) {
+      if (!byGame.has(r.game)) byGame.set(r.game, [])
+      byGame.get(r.game).push({ url: r.url, title: r.title })
+    }
+    const add = (key, list) => {
+      if (!list?.length) return
+      const cur = out.get(key) ?? []
+      for (const r of list) if (!cur.some((c) => c.url === r.url)) cur.push(r)
+      out.set(key, cur)
+    }
+    for (const g of games) {
+      if (numeric.includes(Number(g.id))) add(String(g.id), byGame.get(g.id))
+      if (g.game_id && fed.includes(g.game_id)) add(g.game_id, byGame.get(g.id))
+    }
+    return out
+  }
+
   router.get('/public/games/:id/recordings', async (req, res) => {
     try {
-      const raw = String(req.params.id ?? '')
-      let gameIds
-      if (gameIdParam(raw) != null) gameIds = [gameIdParam(raw)]
-      else if (/^(vb|bb)_[A-Za-z0-9_-]{1,60}$/.test(raw)) gameIds = await database('games').where('game_id', raw).pluck('id')
-      else return res.status(400).json({ error: 'Invalid game id' })
-
-      const rows = gameIds.length
-        ? await database('game_recordings')
-          .whereIn('game', gameIds).where('show_on_website', true)
-          .orderBy([{ column: 'game' }, { column: 'sort' }, { column: 'id' }])
-          .select('url', 'title')
-        : []
-      const seen = new Set()
-      const data = rows.filter((r) => !seen.has(r.url) && seen.add(r.url))
+      const key = String(req.params.id ?? '')
+      if (!isPublicKey(key)) return res.status(400).json({ error: 'Invalid game id' })
+      const map = await publicRecordingsFor([key])
       res.set('Cache-Control', 'public, max-age=300')
-      res.json({ data })
+      res.json({ data: map.get(key) ?? [] })
     } catch (err) { fail(res, err, 'GET public recordings') }
+  })
+
+  // Batch form for the website's game tables (one request per table, not per row):
+  //   GET /kscw/public/game-recordings?games=vb_405723,bb_123,525
+  // → { data: { "<key>": [{ url, title }] } } — keys with no public link are omitted.
+  router.get('/public/game-recordings', async (req, res) => {
+    try {
+      const keys = [...new Set(String(req.query.games ?? '').split(',').map((k) => k.trim()).filter(Boolean))]
+      if (keys.length > 300) return res.status(400).json({ error: 'At most 300 games per request' })
+      if (keys.some((k) => !isPublicKey(k))) return res.status(400).json({ error: 'Invalid game id' })
+      const map = keys.length ? await publicRecordingsFor(keys) : new Map()
+      res.set('Cache-Control', 'public, max-age=300')
+      res.json({ data: Object.fromEntries(map) })
+    } catch (err) { fail(res, err, 'GET public recordings batch') }
   })
 }
