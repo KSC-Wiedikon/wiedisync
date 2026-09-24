@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-09-24T15:30:06.930Z
+-- Generated:   2026-09-24T18:58:41.557Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -29,7 +29,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict 6wMaXNKwag0x5QAPNg8H3M8wCrDKJwHwB6Bm0kvAhCAa2xbYwMpSzQHrJC09FVG
+\restrict v277mv6UPsxis0XZtBZt1KPqQlddPD89gESLghSF4hQC0KMweqbcliAMogE2FkO
 
 -- Dumped from database version 16.15 (Debian 16.15-1.pgdg13+2)
 -- Dumped by pg_dump version 16.15 (Debian 16.15-1.pgdg13+2)
@@ -481,6 +481,48 @@ BEGIN
   NEW.extra_halls := CASE WHEN jsonb_array_length(cleaned) = 0 THEN NULL ELSE cleaned::json END;
   RETURN NEW;
 END $$;
+
+
+--
+-- Name: is_managed_shadow(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.is_managed_shadow(p_user uuid) RETURNS boolean
+    LANGUAGE sql STABLE
+    AS $$
+  SELECT coalesce((
+    SELECT is_managed_shadow_row(u.email, u.status, u.password)
+      FROM directus_users u
+     WHERE u.id = p_user
+  ), false)
+$$;
+
+
+--
+-- Name: FUNCTION is_managed_shadow(p_user uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.is_managed_shadow(p_user uuid) IS 'is_managed_shadow_row() by directus_users id; NULL or unknown id → false (migration 377).';
+
+
+--
+-- Name: is_managed_shadow_row(text, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.is_managed_shadow_row(p_email text, p_status text, p_password text) RETURNS boolean
+    LANGUAGE sql IMMUTABLE
+    AS $$
+  SELECT coalesce(lower(p_email) LIKE '%@managed.wiedisync.kscw.ch', false)
+     AND coalesce(p_status = 'draft', false)
+     AND p_password IS NULL
+$$;
+
+
+--
+-- Name: FUNCTION is_managed_shadow_row(p_email text, p_status text, p_password text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.is_managed_shadow_row(p_email text, p_status text, p_password text) IS 'True for an unloginnable managed shadow login: @managed.wiedisync.kscw.ch, status draft, no password (migration 377). Mirrors isShadowUser() in kscw-endpoints household.js and the resolveGrant check in kscw-hooks acting-member.js.';
 
 
 --
@@ -1159,6 +1201,28 @@ $$;
 
 
 --
+-- Name: trg_directus_users_revoke_managed(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.trg_directus_users_revoke_managed() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  IF is_managed_shadow_row(OLD.email, OLD.status, OLD.password)
+     AND NOT is_managed_shadow_row(NEW.email, NEW.status, NEW.password) THEN
+    UPDATE household_members hm
+       SET revoked_at = now()
+      FROM members m
+     WHERE m."user" = NEW.id
+       AND hm.member = m.id
+       AND hm.role = 'managed'
+       AND hm.revoked_at IS NULL;
+  END IF;
+  RETURN NULL;
+END $$;
+
+
+--
 -- Name: trg_events_notify(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1545,6 +1609,25 @@ BEGIN
   LOOP
     PERFORM rebuild_member_guardians(h);
   END LOOP;
+  RETURN NULL;
+END $$;
+
+
+--
+-- Name: trg_members_user_revoke_managed(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.trg_members_user_revoke_managed() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  IF NEW."user" IS NOT NULL AND NOT is_managed_shadow(NEW."user") THEN
+    UPDATE household_members
+       SET revoked_at = now()
+     WHERE member = NEW.id
+       AND role = 'managed'
+       AND revoked_at IS NULL;
+  END IF;
   RETURN NULL;
 END $$;
 
@@ -15138,6 +15221,13 @@ CREATE TRIGGER trg_members_user_rebuild_guardians AFTER UPDATE OF "user" ON publ
 
 
 --
+-- Name: members trg_members_user_revoke_managed; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_members_user_revoke_managed AFTER UPDATE OF "user" ON public.members FOR EACH ROW WHEN ((old."user" IS DISTINCT FROM new."user")) EXECUTE FUNCTION public.trg_members_user_revoke_managed();
+
+
+--
 -- Name: participations trg_participations_clear_auto_marker; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -17295,12 +17385,12 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 6wMaXNKwag0x5QAPNg8H3M8wCrDKJwHwB6Bm0kvAhCAa2xbYwMpSzQHrJC09FVG
+\unrestrict v277mv6UPsxis0XZtBZt1KPqQlddPD89gESLghSF4hQC0KMweqbcliAMogE2FkO
 
 
 
 -- ============================================================================
--- Migration tracker seed — 383 migration(s) already in the schema above.
+-- Migration tracker seed — 384 migration(s) already in the schema above.
 -- GENERATED with the snapshot; do not hand-edit.
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS kscw_migrations (
@@ -17695,6 +17785,7 @@ FROM (VALUES
   ('373-licence-ordered-at.sql'),
   ('374-members-sektion-fill-blank.sql'),
   ('375-game-recordings.sql'),
-  ('376-live-match-logs.sql')
+  ('376-live-match-logs.sql'),
+  ('377-household-shadow-consent.sql')
 ) AS v(fname)
 ON CONFLICT (filename) DO NOTHING;
