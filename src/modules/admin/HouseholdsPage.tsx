@@ -4,6 +4,10 @@ import { toast } from 'sonner'
 import { Plus, Trash2, UserPlus, KeyRound } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { kscwApi } from '../../lib/api'
+import { useCollection } from '../../lib/query'
+import type { Member } from '../../types'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../components/ui/dialog'
+import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '../../components/ui/command'
 import { useConfirm, usePrompt } from '../../components/ConfirmProvider'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import { Button } from '../../components/ui/button'
@@ -52,11 +56,67 @@ interface Household {
 const fmt = (iso: string | null) =>
   iso ? new Date(iso).toLocaleDateString('de-CH') : '—'
 
+type Adding = { household: number; role: 'guardian' | 'managed'; exclude: Set<number> }
+
+/**
+ * Pick the member to link — by name, like every other member picker, instead of
+ * typing a raw id. Searches ALL active club members, not only those with a
+ * login: a managed child has none by design, so the finance picker's
+ * `wiedisync_active` filter would hide exactly the people this page links.
+ * Email + birth year disambiguate same-named siblings / parents.
+ */
+function MemberSearchDialog({ adding, onClose, onPick }: {
+  adding: Adding | null
+  onClose: () => void
+  onPick: (member: Pick<Member, 'id' | 'first_name' | 'last_name'>) => void
+}) {
+  const { t } = useTranslation(['admin'])
+  const { data } = useCollection<Member>('members', {
+    filter: { kscw_membership_active: { _eq: true } },
+    fields: ['id', 'first_name', 'last_name', 'email', 'birthdate'],
+    sort: ['last_name', 'first_name'],
+    limit: -1,
+    enabled: !!adding,
+  })
+  const members = (data ?? []).filter((m) => !adding?.exclude.has(Number(m.id)))
+  return (
+    <Dialog open={!!adding} onOpenChange={(o) => { if (!o) onClose() }}>
+      <DialogContent className="p-0 sm:max-w-lg">
+        <DialogHeader className="px-4 pt-4">
+          <DialogTitle>
+            {adding?.role === 'guardian' ? t('admin:householdAddGuardian') : t('admin:householdAddManaged')}
+          </DialogTitle>
+          <DialogDescription>{t('admin:householdMemberSearchHint')}</DialogDescription>
+        </DialogHeader>
+        <Command className="border-t">
+          <CommandInput placeholder={t('admin:householdMemberSearch')} autoFocus />
+          <CommandList className="max-h-80">
+            <CommandEmpty>{t('admin:householdMemberNoMatch')}</CommandEmpty>
+            {members.map((m) => (
+              <CommandItem
+                key={m.id}
+                value={`${m.last_name} ${m.first_name} ${m.email ?? ''} ${m.id}`}
+                onSelect={() => onPick(m)}
+                className="min-h-11"
+              >
+                <span className="font-medium">{m.last_name} {m.first_name}</span>
+                {m.birthdate && <span className="text-xs text-muted-foreground">{String(m.birthdate).slice(0, 4)}</span>}
+                <span className="ml-auto truncate text-xs text-muted-foreground">{m.email}</span>
+              </CommandItem>
+            ))}
+          </CommandList>
+        </Command>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export default function HouseholdsPage() {
   const { t } = useTranslation(['admin', 'common'])
   const confirm = useConfirm()
   const prompt = usePrompt()
   const [busy, setBusy] = useState(false)
+  const [adding, setAdding] = useState<Adding | null>(null)
 
   const { data, refetch, isLoading } = useQuery({
     queryKey: ['households', 'list'],
@@ -84,12 +144,17 @@ export default function HouseholdsPage() {
     })
   }
 
-  const addMember = async (household: number, role: 'guardian' | 'managed') => {
-    const raw = await prompt({ message: t('admin:householdMemberIdPrompt') })
-    const member = Number(raw)
-    if (!Number.isInteger(member) || member <= 0) return
+  const addMember = (h: Household, role: 'guardian' | 'managed') => {
+    // Already-linked (not revoked) members are hidden from the search.
+    setAdding({ household: h.id, role, exclude: new Set(h.members.filter((r) => !r.revoked_at).map((r) => r.member)) })
+  }
+
+  const linkPicked = async (m: Pick<Member, 'id' | 'first_name' | 'last_name'>) => {
+    if (!adding) return
+    const { household, role } = adding
+    setAdding(null)
     await run(async () => {
-      await kscwApi(`/household/${household}/members`, { method: 'POST', body: { member, role } })
+      await kscwApi(`/household/${household}/members`, { method: 'POST', body: { member: Number(m.id), role } })
       toast.success(t('admin:householdLinked'))
     })
   }
@@ -135,10 +200,10 @@ export default function HouseholdsPage() {
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-lg font-semibold text-foreground">{h.name}</h2>
             <div className="flex flex-wrap gap-2">
-              <Button size="sm" variant="outline" onClick={() => { void addMember(h.id, 'guardian') }} disabled={busy}>
+              <Button size="sm" variant="outline" onClick={() => addMember(h, 'guardian')} disabled={busy}>
                 <UserPlus className="mr-1.5 h-4 w-4" />{t('admin:householdAddGuardian')}
               </Button>
-              <Button size="sm" variant="outline" onClick={() => { void addMember(h.id, 'managed') }} disabled={busy}>
+              <Button size="sm" variant="outline" onClick={() => addMember(h, 'managed')} disabled={busy}>
                 <UserPlus className="mr-1.5 h-4 w-4" />{t('admin:householdAddManaged')}
               </Button>
             </div>
@@ -205,6 +270,8 @@ export default function HouseholdsPage() {
           </div>
         </section>
       ))}
+
+      <MemberSearchDialog adding={adding} onClose={() => setAdding(null)} onPick={(m) => { void linkPicked(m) }} />
     </div>
   )
 }
