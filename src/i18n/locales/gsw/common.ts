@@ -126,7 +126,9 @@ export default {
   // accounts. Sentence case; no jargon (never 'guardian', 'session', 'acting').
   householdActingFor: 'Du bisch grad i {{name}}s Konto',
   householdSwitchTitle: 'Für wen machsch das?',
-  householdSelf: 'Ich',
+  householdSelf: 'Hauptkonto',
+  householdLinkedAccount: 'Verknüpfts Konto',
+  householdBackTo: 'Zrugg zu {{name}}',
   switchAccount: 'Konto wächsle',
   householdSwitchDesync: 'Öppis isch us em Takt cho — wird sicherheitshalber neu glade',
   householdResume: 'Wiiter mit {{name}}',

@@ -1,6 +1,6 @@
 import { useContext, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ChevronsUpDown, RotateCcw } from 'lucide-react'
+import { ArrowLeft, ChevronsUpDown, RotateCcw } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { HouseholdSwitcherContext } from '../hooks/useHouseholdSwitcher'
 import { assetUrl } from '../lib/api'
@@ -32,7 +32,8 @@ const SAFE_TOP = 'env(safe-area-inset-top, 0px)'
  *
  * On the guardian's OWN account the bar says whom she can switch to ("Switch
  * to Mila, Zoé") — a bare name with a chevron read as a title, not a control —
- * and offers a one-tap "Continue with <last used>" chip.
+ * and offers a one-tap "Continue with <last used>" chip. On a linked account the
+ * same slot holds a one-tap "Back to <main account>" chip.
  *
  * ⚠ Not sticky and not z-[100]: it sits in the shell's flex column above the
  * scroll container, so it never needed to stick, and z-[100] painted it over
@@ -89,7 +90,20 @@ export default function ActingBanner({ topInset = false }: { topInset?: boolean 
           </span>
           <ChevronsUpDown className="ml-auto h-4 w-4 shrink-0 opacity-80" />
         </button>
-        {resumeCandidate && (
+        {/* While on a linked account the way back to the main account is ONE
+            tap — before, it was bar → chooser → pick. Same slot and shape as
+            the resume chip, which only exists on the main account. */}
+        {actingMember && (
+          <button
+            type="button"
+            onClick={() => { void switchTo(null) }}
+            className="flex min-h-[44px] max-w-[45%] shrink-0 items-center gap-1.5 border-l border-white/25 bg-white/15 px-3 text-xs font-semibold transition-colors hover:bg-white/25"
+          >
+            <ArrowLeft className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">{t('householdBackTo', { name: realUser.first_name || '' })}</span>
+          </button>
+        )}
+        {!actingMember && resumeCandidate && (
           <button
             type="button"
             onClick={() => { void switchTo(Number(resumeCandidate.id)) }}

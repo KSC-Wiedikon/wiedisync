@@ -2,6 +2,12 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.19.0 — 2026-09-25
+
+### Improved
+
+- **Family accounts: switch between the main account and linked family members in one tap.** *Avatar menu, the Options menu (gear) or More → Switch account.* A main account logs in with its own email and can act for each linked member (for example siblings), switching straight from one to another and back. While on a linked account, the banner has a one-tap "Back to …" button and the navbar avatar shows that member's colour. Family members who share one email address are now linked this way.
+
 ## v2.18.0 — 2026-09-24
 
 ### Improved

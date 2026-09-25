@@ -2017,6 +2017,8 @@ export default {
   householdErr_not_superadmin: 'Only superadmins can change households.',
   householdErr_notes_too_long: 'Notes are too long (max. 2000 characters)',
   householdErr_shadow_email_taken: 'The login address for this linked member is already in use',
+  householdNotActable: "Can't switch",
+  householdPickerDone: 'Done',
   householdLoginBroken: 'Login broken',
   householdLoginBrokenHint: 'This member has a login that the main account cannot switch to. Remove the link and ask an admin to check the account.',
   householdNoMembers: 'Nobody is linked to this household yet.',

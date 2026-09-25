@@ -1714,6 +1714,8 @@ export default {
   householdErr_not_superadmin: 'Seuls les superadmins peuvent modifier les ménages.',
   householdErr_notes_too_long: 'Notes trop longues (max. 2000 caractères)',
   householdErr_shadow_email_taken: 'L\'adresse de connexion de ce membre lié est déjà utilisée',
+  householdNotActable: 'Changement impossible',
+  householdPickerDone: 'Terminé',
   householdLoginBroken: 'Connexion défectueuse',
   householdLoginBrokenHint: 'Ce membre a une connexion vers laquelle le compte principal ne peut pas basculer. Supprime le lien et demande à un admin de vérifier le compte.',
   householdNoMembers: 'Personne n\'est encore lié à ce ménage.',

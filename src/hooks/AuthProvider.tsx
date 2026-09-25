@@ -126,7 +126,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // ── Load team context (single parallel fetch) ───────────────────
 
+  // Only the LATEST team-context load may write state: two overlapping loads
+  // (a quick main → A → B switch) must not let A's slower result land last and
+  // label B's screens with A's teams.
+  const teamLoadSeq = useRef(0)
   const loadTeamContext = useCallback(async (memberId: string | number) => {
+    const seq = ++teamLoadSeq.current
     try {
       // allSettled (not all): one failing query must NOT zero every role/team.
       // A rejected query degrades only its own dimension to [] and is logged;
@@ -171,6 +176,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           fields: ['kscw_team'],
         }),
       ])
+      if (seq !== teamLoadSeq.current) return
       const pick = <T,>(i: number, collection: string): T[] => {
         const r = settled[i]
         if (r.status === 'fulfilled') return r.value as T[]
@@ -242,10 +248,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setTeamsReady(true)
     } catch (err) {
       captureApiError(err, { operation: 'loadTeamContext', collection: 'member_teams' })
-      setTeamsReady(true)
+      if (seq === teamLoadSeq.current) setTeamsReady(true)
     }
   }, [])
 
+  const switchSeq = useRef(0)
   const householdLoadedAt = useRef(0)
   const loadHousehold = useCallback(async (): Promise<void> => {
     householdLoadedAt.current = Date.now()
@@ -470,6 +477,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const prev = actingMember
     const currentId = prev ? Number(prev.id) : null
     if ((memberId == null ? null : Number(memberId)) === currentId) return
+    // ⚠ Only the LATEST switch may touch state. A second tap (the chooser
+    // reopened, the cross-tab listener, a double-tapped chip) while this one
+    // awaits its member read would otherwise let the older read land last:
+    // the header says B, the UI says A — wrong-member writes under A's banner.
+    const seq = ++switchSeq.current
     // Realtime is off while acting (the WS cannot carry the acting header), so
     // window-focus refetch is what keeps a guardian's screens current. Restored
     // to the default when she switches back to herself.
@@ -483,6 +495,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // actingMember set while _actingMemberId is null means the bar, the RSVP
     // labels and realtime say "child" while every request runs as the guardian.
     const becomeSelf = async () => {
+      ++switchSeq.current
       setFocusRefetch(false)
       setActingMemberId(null)
       setActingMember(null)
@@ -501,6 +514,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!householdMembers.some((m) => Number(m.id) === Number(memberId))) return
     setFocusRefetch(true)
 
+    // ⚠ Unmount the page BEFORE the header flips. Layout/BootOverlay treat
+    // !teamsReady as booting, so nothing renders during the member read below —
+    // otherwise the mounted page refetched as B (fresh keys, empty cache) and
+    // painted B's rows under the previous identity's name, banner and accent.
+    setTeamsReady(false)
     // Set the header BEFORE fetching, so the member read resolves as the child.
     setActingMemberId(memberId)
     queryClient.clear()
@@ -513,6 +531,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       target = null
       denied = isActingDeniedError(err)
     }
+    // A newer switch (or a way back to self) superseded this one while the read
+    // was in flight — it owns the header and the state now.
+    if (seq !== switchSeq.current) return
     if (!target) {
       // Same toast id as the transport-level refusal handler, so a refused
       // switch shows ONE message, and it says why.
@@ -525,8 +546,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // fall all the way back to the session owner.
         await becomeSelf()
       } else {
+        // Main → A failed: the main account's state is intact, only the boot
+        // gate above and the header need undoing.
         setActingMemberId(null)
         setFocusRefetch(false)
+        setTeamsReady(true)
       }
       return
     }

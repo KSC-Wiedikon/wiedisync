@@ -89,6 +89,33 @@ export function isDeniedWhileActing(path) {
 const GRANT_TTL_MS = 10_000
 const AUDIT_TTL_MS = 60 * 60 * 1000
 
+/** members.role as an array, whatever shape the driver hands back. */
+function memberRoles(raw) {
+  if (Array.isArray(raw)) return raw
+  try { const v = JSON.parse(raw || '[]'); return Array.isArray(v) ? v : [] } catch { return [] }
+}
+
+/**
+ * Does the acted-as member hold ANY staff marker? Mirrors the staff half of
+ * household.js manageableReason() + actableReason() — change them together.
+ *   - members.role beyond the baseline 'user' (finance, website_admin, vorstand, …)
+ *   - members.is_spielplaner (club-wide by design)
+ *   - a coach / team-responsible / planner seat
+ *   - ANY user-level directus_access row (a plain Member shadow never has one;
+ *     KSCW Finance / Terminplanung are attached exactly that way)
+ */
+export async function targetIsStaff(database, row) {
+  if (row.target_is_spielplaner === true) return true
+  if (memberRoles(row.target_member_roles).some((r) => r && r !== 'user')) return true
+  const [coach, tr, planner, access] = await Promise.all([
+    database('teams_coaches').where('members_id', row.target_member).first('members_id'),
+    database('teams_responsibles').where('members_id', row.target_member).first('members_id'),
+    database('spielplaner_assignments').where('member', row.target_member).first('member'),
+    database('directus_access').where('user', row.target_user).first('id'),
+  ])
+  return !!(coach || tr || planner || access)
+}
+
 export function createActingMemberMiddleware(database, logger) {
   const log = logger.child({ middleware: 'acting-member' })
 
@@ -137,6 +164,7 @@ export function createActingMemberMiddleware(database, logger) {
       .leftJoin('members as gm', 'gm.user', 'mg.guardian_user')
       .first(
         'tm.id as target_member', 'tm.user as target_user',
+        'tm.role as target_member_roles', 'tm.is_spielplaner as target_is_spielplaner',
         'tu.role as target_role', 'tu.status as target_status', 'tu.email as target_email',
         database.raw('(tu.password IS NOT NULL) AS target_has_password'),
         'gm.id as guardian_member',
@@ -162,6 +190,17 @@ export function createActingMemberMiddleware(database, logger) {
     // hand the guardian those powers over other people's children.
     const memberRole = await database('directus_roles').where('name', 'Member').first('id')
     if (!memberRole || row.target_role !== memberRole.id) return deny()
+
+    // ⚠⚠ ...and the Directus role alone is not enough. Several staff powers never
+    // reach it: resolveDirectusRole does not map 'finance' / 'website_admin' /
+    // is_spielplaner, and syncMemberRole only runs from items-API hooks — while
+    // the custom endpoints read members.role, is_spielplaner and the seat tables
+    // DIRECTLY, and the Finance / Terminplanung policies ride user-level
+    // directus_access rows that the swapped accountability inherits. The link
+    // route checks all of this once, at link time; this re-checks it on every
+    // grant resolution, so a staff marker given to a linked member LATER turns
+    // the switch off instead of silently handing the main account those powers.
+    if (await targetIsStaff(database, row)) return deny()
 
     const roles = await fetchRolesTree(row.target_role, { knex: database })
     const bundle = {

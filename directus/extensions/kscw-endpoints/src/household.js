@@ -142,6 +142,25 @@ export function manageableReason({ member, user, isStaffLinked }) {
 }
 
 /**
+ * Why the middleware would refuse to act as this LINKED member, or null when it
+ * would accept her. The one predicate behind the switcher (GET /household/me)
+ * and the admin list's `actable` flag, so neither ever offers a switch the
+ * request path then refuses. Mirrored in kscw-hooks/src/acting-member.js
+ * (resolveGrant + targetIsStaff) — change both together.
+ *
+ *   'not_provisioned' — no draft, password-less shadow login ("Set up" / broken)
+ *   'member_is_staff' — any staff marker: a Directus role other than Member, a
+ *                       user-level directus_access row (Finance, Terminplanung…),
+ *                       or anything manageableReason() refuses
+ */
+export function actableReason({ member, user, roleName, isStaffLinked, hasUserAccess }) {
+  if (!member) return 'member_not_found'
+  if (!isShadowUser(user)) return 'not_provisioned'
+  if (roleName !== 'Member' || hasUserAccess) return 'member_is_staff'
+  return manageableReason({ member, user, isStaffLinked })
+}
+
+/**
  * Why this member cannot be a household's MAIN account, or null when she can.
  * ⚠ No age rule — see the header. A sibling's own login may be the main account.
  */
@@ -225,6 +244,14 @@ async function loadStaffSet(database, memberIds) {
     database('spielplaner_assignments').whereIn('member', ids).pluck('member'),
   ])
   return new Set([...coach, ...tr, ...planner].map(Number))
+}
+
+/** Login ids that hold ANY user-level directus_access row (see actableReason). */
+async function loadUserAccessSet(database, userIds) {
+  const ids = [...new Set(userIds.filter(Boolean))]
+  if (!ids.length) return new Set()
+  const rows = await database('directus_access').whereIn('user', ids).pluck('user')
+  return new Set(rows)
 }
 
 /** Login rows by id, WITHOUT the password hash. */
@@ -401,9 +428,26 @@ export function registerHousehold(router, { database, logger, services, getSchem
             .andOn('hm.household', '=', 'mg.household')
             .andOnNull('hm.revoked_at')
         })
-        .select('m.id', 'm.first_name', 'm.last_name', 'm.photo', 'hm.accent', 'mg.household')
+        .select('m.id', 'm.first_name', 'm.last_name', 'm.photo', 'hm.accent', 'mg.household',
+          'm.user', 'm.role', 'm.is_spielplaner',
+          'u.email as login_email', 'u.status as login_status', 'r.name as role_name')
         .orderBy('m.first_name')
-      const managed = dedupeManaged(grants)
+      // ⚠ ...and the same staff re-check the middleware runs on every grant
+      // (acting-member.js targetIsStaff). Without it a linked member who later
+      // became a coach / finance / planner stayed in the switcher and every tap
+      // on her ended in a grant refusal.
+      const [staff, withAccess] = await Promise.all([
+        loadStaffSet(database, grants.map((g) => g.id)),
+        loadUserAccessSet(database, grants.map((g) => g.user)),
+      ])
+      const managed = dedupeManaged(grants.filter((g) => !actableReason({
+        member: g,
+        // The query above already required password IS NULL.
+        user: { email: g.login_email, status: g.login_status, has_password: false },
+        roleName: g.role_name,
+        isStaffLinked: staff.has(Number(g.id)),
+        hasUserAccess: withAccess.has(g.user),
+      })))
 
       // Team names for the row subtitle — a parent picks by team as often as
       // by name ("the DU12 one").
@@ -451,29 +495,52 @@ export function registerHousehold(router, { database, logger, services, getSchem
       const rows = await database('household_members as hm')
         .join('members as m', 'm.id', 'hm.member')
         .leftJoin('directus_users as u', 'u.id', 'm.user')
+        .leftJoin('directus_roles as dr', 'dr.id', 'u.role')
         .leftJoin('members as lb', 'lb.id', 'hm.linked_by')
         .select(
           'hm.id', 'hm.household', 'hm.member', 'hm.role', 'hm.accent',
           'hm.linked_at', 'hm.revoked_at',
           'm.first_name', 'm.last_name', 'm.email', 'm.birthdate',
-          'u.status as user_status', 'u.email as login_email',
+          'm.user as member_user', 'm.role as member_roles', 'm.is_spielplaner',
+          'u.status as user_status', 'u.email as login_email', 'dr.name as login_role',
           database.raw('(u.password IS NOT NULL) AS login_has_password'),
           'lb.first_name as linked_by_first', 'lb.last_name as linked_by_last',
         )
         .orderBy(['hm.household', 'hm.role', 'm.first_name'])
 
+      const managedRows = rows.filter((r) => r.role === 'managed' && !r.revoked_at)
+      const [staff, withAccess] = await Promise.all([
+        loadStaffSet(database, managedRows.map((r) => r.member)),
+        loadUserAccessSet(database, managedRows.map((r) => r.member_user)),
+      ])
+
       res.json({
         data: households.map((h) => ({
           ...h,
-          members: rows.filter((r) => r.household === h.id).map(({ login_has_password, ...r }) => {
-            const shadow = isShadowUser({ email: r.login_email, status: r.user_status, has_password: login_has_password === true })
+          members: rows.filter((r) => r.household === h.id).map((raw) => {
+            const {
+              login_has_password, member_user, member_roles, is_spielplaner, login_role, ...r
+            } = raw
+            const user = { email: r.login_email, status: r.user_status, has_password: login_has_password === true }
+            // What the switcher and the middleware will accept — the same
+            // predicate both use. A live managed row with a reason needs "Set
+            // up" ('not_provisioned', no login), had a real login attached
+            // (migration 377 then revokes it), or its member became staff
+            // after the link ('member_is_staff').
+            const reason = r.role === 'managed'
+              ? actableReason({
+                member: { id: r.member, user: member_user, role: member_roles, is_spielplaner },
+                user,
+                roleName: login_role,
+                isStaffLinked: staff.has(Number(r.member)),
+                hasUserAccess: withAccess.has(member_user),
+              })
+              : null
             return {
               ...r,
               managed: String(r.login_email || '').toLowerCase().endsWith('@' + MANAGED_EMAIL_DOMAIN),
-              // What the switcher and the middleware will accept. A live managed
-              // row with actable=false needs "Set up" (or had a real login
-              // attached, in which case migration 377 has already revoked it).
-              actable: r.role === 'managed' && shadow,
+              actable: r.role === 'managed' && !reason,
+              not_actable_reason: reason,
             }
           }),
         })),

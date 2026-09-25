@@ -4,9 +4,9 @@ import { Check } from 'lucide-react'
 import Modal from './Modal'
 import { useAuth } from '../hooks/useAuth'
 import { HouseholdSwitcherContext } from '../hooks/useHouseholdSwitcher'
-import { assetUrl } from '../lib/api'
 import { cn } from '@/lib/utils'
 import { accentOf } from './householdAccents'
+import HouseholdAvatar from './HouseholdAvatar'
 
 /**
  * "Who are you doing this for?" — the household account chooser.
@@ -16,18 +16,10 @@ import { accentOf } from './householdAccents'
  * chooser, the same shape as the existing account dropdown. Rows are 56px so
  * they clear the 44px touch target with room for a photo.
  *
- * The colour dot is load-bearing, not decoration: it is the same stable accent
- * the banner takes, and it is how a parent recognises which daughter she is on
- * before she has read anything.
+ * The colour is load-bearing, not decoration: it is the same stable accent the
+ * banner takes (a ring around a photo, the fill behind an initial), and it is
+ * how a parent recognises which daughter she is on before she has read anything.
  */
-
-function Initial({ name, className }: { name: string; className?: string }) {
-  return (
-    <span className={cn('grid h-9 w-9 shrink-0 place-items-center rounded-full text-sm font-semibold text-white', className)}>
-      {name.slice(0, 1).toUpperCase()}
-    </span>
-  )
-}
 
 export default function HouseholdSwitcher({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { t } = useTranslation('common')
@@ -53,11 +45,9 @@ export default function HouseholdSwitcher({ open, onClose }: { open: boolean; on
           type="button"
           onClick={() => { void choose(null) }}
           aria-current={!actingMember ? 'true' : undefined}
-          className="flex min-h-[56px] items-center gap-3 rounded-md px-2 text-left transition-colors hover:bg-muted"
+          className={cn('flex min-h-[56px] items-center gap-3 rounded-md px-2 text-left transition-colors hover:bg-muted', !actingMember && 'bg-muted')}
         >
-          {realUser.photo
-            ? <img src={assetUrl(realUser.photo)} alt="" className="h-9 w-9 shrink-0 rounded-full object-cover" />
-            : <Initial name={selfName || '?'} className="bg-primary" />}
+          <HouseholdAvatar photo={realUser.photo} name={selfName} />
           <span className="min-w-0 flex-1">
             <span className="block truncate font-semibold text-foreground">{selfName}</span>
             <span className="block truncate text-xs text-muted-foreground">{t('householdSelf')}</span>
@@ -74,16 +64,14 @@ export default function HouseholdSwitcher({ open, onClose }: { open: boolean; on
               type="button"
               onClick={() => { void choose(Number(m.id)) }}
               aria-current={active ? 'true' : undefined}
-              className="flex min-h-[56px] items-center gap-3 rounded-md px-2 text-left transition-colors hover:bg-muted"
+              className={cn('flex min-h-[56px] items-center gap-3 rounded-md px-2 text-left transition-colors hover:bg-muted', active && 'bg-muted')}
             >
-              {m.photo
-                ? <img src={assetUrl(m.photo)} alt="" className="h-9 w-9 shrink-0 rounded-full object-cover" />
-                : <Initial name={m.first_name || '?'} className={accentOf(m.accent).dot} />}
+              <HouseholdAvatar photo={m.photo} name={m.first_name || name} accent={accentOf(m.accent)} />
               <span className="min-w-0 flex-1">
                 <span className="block truncate font-semibold text-foreground">{m.first_name || name}</span>
-                {m.teams.length > 0 && (
-                  <span className="block truncate text-xs text-muted-foreground">{m.teams.join(', ')}</span>
-                )}
+                <span className="block truncate text-xs text-muted-foreground">
+                  {m.teams.length ? m.teams.join(', ') : t('householdLinkedAccount')}
+                </span>
               </span>
               {active && <Check className="h-5 w-5 shrink-0 text-primary" />}
             </button>

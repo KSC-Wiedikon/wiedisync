@@ -1712,6 +1712,8 @@ export default {
   householdErr_not_superadmin: 'Solo i superadmin possono modificare i nuclei familiari.',
   householdErr_notes_too_long: 'Note troppo lunghe (max. 2000 caratteri)',
   householdErr_shadow_email_taken: 'L\'indirizzo di accesso di questo membro collegato è già in uso',
+  householdNotActable: 'Cambio non possibile',
+  householdPickerDone: 'Fatto',
   householdLoginBroken: 'Accesso difettoso',
   householdLoginBrokenHint: 'Questo membro ha un accesso a cui l\'account principale non può passare. Rimuovi il collegamento e chiedi a un admin di verificare l\'account.',
   householdNoMembers: 'Nessuno è ancora collegato a questo nucleo familiare.',

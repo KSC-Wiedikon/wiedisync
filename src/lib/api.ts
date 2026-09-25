@@ -13,6 +13,9 @@ import {
 import { toast } from 'sonner'
 import i18n from '../i18n'
 import { captureApiError, captureAuthError } from './sentry'
+import {
+  ACTING_HEADER, ACTING_DENIED_CODE, actingRefusalScope, sentActingId, isActingDeniedError, isActingEchoMismatch,
+} from './acting'
 // Pure predicate, kept in its own module so it is unit-testable without mocking
 // this one. Re-exported so existing `from './api'` call sites keep working.
 export { isSessionExpired } from './sessionError'
@@ -302,7 +305,7 @@ function assertWritable(): void {
 // is structurally impossible for it to reach /auth/login or /auth/refresh: the
 // SDK applies `onRequest` only inside the `rest` composable, never in
 // `authentication()`. So a switch can never change WHOSE SESSION this is.
-export const ACTING_HEADER = 'X-KSCW-Acting-Member'
+export { ACTING_HEADER, isActingDeniedError }
 
 let _actingMemberId: number | null = null
 
@@ -346,8 +349,6 @@ export function readMeAsOwner(): Promise<{ id?: string } | null> {
 //     account deletion, household admin …) is never available while acting.
 //     Nothing is wrong with the acting state, so keep it and just say so.
 
-const ACTING_DENIED_CODE = 'KSCW_ACTING_DENIED'
-const ACTING_PATH_DENIED_MESSAGE = 'Not available while using another account'
 const ACTING_TOAST_ID = 'kscw-acting-denied'
 
 type ActingDeniedHandler = (deniedMemberId: number) => void
@@ -356,17 +357,6 @@ let _actingDeniedHandler: ActingDeniedHandler | null = null
 /** AuthProvider registers here so a refusal can reset the React identity state. */
 export function setActingDeniedHandler(fn: ActingDeniedHandler | null): void {
   _actingDeniedHandler = fn
-}
-
-/** True for an error (kscwApi or SDK) the acting middleware produced. */
-export function isActingDeniedError(err: unknown): boolean {
-  const e = err as { code?: string; errors?: unknown; data?: unknown } | null
-  if (!e) return false
-  if (e.code === ACTING_DENIED_CODE) return true
-  const errors = e.errors as { code?: string } | Array<{ extensions?: { code?: string } }> | undefined
-  if (errors && !Array.isArray(errors) && errors.code === ACTING_DENIED_CODE) return true
-  const data = e.data as { code?: string } | undefined
-  return data?.code === ACTING_DENIED_CODE
 }
 
 function clearStoredActingHints(): void {
@@ -381,8 +371,7 @@ function clearStoredActingHints(): void {
 }
 
 function handleActingDenied(sentId: number, body: { error?: string; scope?: string } | null): void {
-  const pathOnly = body?.scope === 'path' || body?.error === ACTING_PATH_DENIED_MESSAGE
-  if (pathOnly) {
+  if (actingRefusalScope(body) === 'path') {
     try { toast.error(i18n.t('common:householdNotWhileActing'), { id: `${ACTING_TOAST_ID}-path` }) } catch { /* i18n not ready */ }
     return
   }
@@ -409,16 +398,6 @@ async function inspectActingRefusal(res: Response, sentId: number | null): Promi
   return true
 }
 
-function sentActingId(headers: HeadersInit | undefined): number | null {
-  if (!headers) return null
-  let raw: string | null | undefined
-  if (headers instanceof Headers) raw = headers.get(ACTING_HEADER)
-  else if (Array.isArray(headers)) raw = headers.find(([k]) => k.toLowerCase() === ACTING_HEADER.toLowerCase())?.[1]
-  else raw = (headers as Record<string, string>)[ACTING_HEADER]
-  const n = raw == null ? NaN : Number(raw)
-  return Number.isInteger(n) && n > 0 ? n : null
-}
-
 /**
  * The SDK's fetch. Identical to the global one except that a refused acting
  * request is recognised on its way back — the SDK error path otherwise
@@ -442,16 +421,15 @@ async function actingAwareFetch(input: RequestInfo | URL, init?: RequestInit): P
  * other error response carries no echo by construction — treating that as a
  * desync reloaded the app on every "not set up yet" child.
  *
+ * ⚠ Compared against the id the request was SENT with, not the current one: a
+ * response still in flight across a switch echoes the previous identity, and
+ * reloading on that turned every quick switch after page load into a reload.
+ *
  * ⚠ Requires CORS_EXPOSED_HEADERS to include the header — without it a
  * cross-origin read returns null and this check silently passes.
  */
-function assertActingEcho(res: Response): void {
-  if (!res.ok) return
-  const echoed = res.headers.get(ACTING_HEADER)
-  const expected = _actingMemberId == null ? null : String(_actingMemberId)
-  if (echoed === expected) return
-  // A null echo with no expectation is the normal, header-less case.
-  if (echoed == null && expected == null) return
+function assertActingEcho(res: Response, sentId: number | null): void {
+  if (!isActingEchoMismatch(res.ok, res.headers.get(ACTING_HEADER), sentId)) return
   try { toast.error(i18n.t('common:householdSwitchDesync')) } catch { /* i18n not ready */ }
   setTimeout(() => { try { window.location.reload() } catch { /* ignore */ } }, 1200)
 }
@@ -893,7 +871,7 @@ export async function uploadFile(file: File, folder?: string): Promise<{ id: str
     if (!actingRefused) captureApiError(err, { operation: 'uploadFile', collection: 'directus_files', status: res.status, responseBody })
     throw err
   }
-  assertActingEcho(res)
+  assertActingEcho(res, sentId)
   const { data } = await res.json()
   return { id: String(data.id), name: data.filename_download || file.name }
 }
@@ -1005,7 +983,8 @@ export async function kscwApi<T = unknown>(
   let res: Response
   try {
     res = await doFetch()
-    if (!anonymous && !asOwnerCall && options?.actAs == null) assertActingEcho(res)
+    // Against the id THIS request carried (actAs included) — see assertActingEcho.
+    if (!anonymous) assertActingEcho(res, actingId)
   } catch (err) {
     // Network error (offline, DNS, CORS)
     captureApiError(err, {

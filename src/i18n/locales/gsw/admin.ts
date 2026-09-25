@@ -1337,6 +1337,8 @@ export default {
   householdErr_not_superadmin: 'Nur Superadmins chönd Hushält ändere.',
   householdErr_notes_too_long: 'D Notize sind z lang (max. 2000 Zeiche)',
   householdErr_shadow_email_taken: 'D Login-Adrässe für das verchnüpfte Mitglied isch scho vergä',
+  householdNotActable: 'Wächsle nöd mügli',
+  householdPickerDone: 'Fertig',
   householdLoginBroken: 'Login kaputt',
   householdLoginBrokenHint: 'Da Mitglied hät es Login, uf das s Hauptkonto nöd cha wächsle. Entfern d Verchnüpfig und lass s Konto vomene Admin prüefe.',
   householdNoMembers: 'Mit däm Hushalt isch no niemer verknüpft.',

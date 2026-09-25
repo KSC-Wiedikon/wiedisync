@@ -6581,13 +6581,18 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // ⚠ push_subscriptions and team_requests are deliberately NOT here: writing a
   // child's push row from the parent's device is exactly the intent (Stage 5),
   // and requesting to join a team is a legitimate parent action.
-  const GUARDIAN_FORBIDDEN_CREATE = new Set(['poll_votes', 'scorer_delegations'])
+  //
+  // ⚠ Refused on create, update AND delete: the Member policy grants an existing
+  // row's owner update (scorer_delegations.status, poll_votes) under
+  // $CURRENT_USER, which the swap satisfies just as it does the create check.
+  // The custom /scorer-delegation/accept|decline routes refuse separately.
+  const GUARDIAN_FORBIDDEN_WRITE = new Set(['poll_votes', 'scorer_delegations'])
 
   async function assertCreateOwnership(accountability, db, affectedMemberId, { allowLeader, collection }) {
     if (!accountability?.user) return          // system context
     if (accountability.admin) return           // admins bypass
     if (affectedMemberId == null) return        // owner omitted — NOT NULL / other filters handle it
-    if (accountability.kscwGuardian && collection && GUARDIAN_FORBIDDEN_CREATE.has(collection)) {
+    if (accountability.kscwGuardian && collection && GUARDIAN_FORBIDDEN_WRITE.has(collection)) {
       throw kscwScopeError('Not permitted while using another account', 403, 'NOT_OWNER')
     }
     const editor = await db('members').where('user', accountability.user).select('id').first()
@@ -6628,6 +6633,20 @@ export default ({ action, filter, init, schedule }, { services, database, logger
       await assertCreateOwnership(accountability, db, payload?.[field], { allowLeader: false, collection: coll })
       return payload
     })
+  }
+
+  // Update / delete of an existing vote or delegation while acting — see
+  // GUARDIAN_FORBIDDEN_WRITE. Admins acting are narrowed to admin:false by the
+  // swap, so no admin bypass is needed (or wanted) here.
+  for (const coll of GUARDIAN_FORBIDDEN_WRITE) {
+    for (const ev of ['update', 'delete']) {
+      filter(`${coll}.items.${ev}`, async (payload, _meta, { accountability }) => {
+        if (accountability?.kscwGuardian) {
+          throw kscwScopeError('Not permitted while using another account', 403, 'NOT_OWNER')
+        }
+        return payload
+      })
+    }
   }
 
   // Audit-integrity (PERM-2): user_logs has a Member create grant (the FE

@@ -5,6 +5,8 @@ import { useAuth } from '../hooks/useAuth'
 import { useHouseholdSwitcher } from '../hooks/useHouseholdSwitcher'
 import { useTheme } from '../hooks/useTheme'
 import TeamChip from './TeamChip'
+import { accentOf } from './householdAccents'
+import { cn } from '@/lib/utils'
 import SwitchToggle from '@/components/SwitchToggle'
 import LanguageDropdown from '@/components/LanguageDropdown'
 import { getFileUrl } from '../utils/fileUrl'
@@ -218,7 +220,11 @@ interface MoreSheetProps {
 }
 
 export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNotifications, memberTeams = [] }: MoreSheetProps) {
-  const { user, isApproved, isAdmin, isGlobalAdmin, isSuperAdmin, isVorstand, canAccessFinance, isVbAdmin, isBbAdmin, is_spielplaner, spielplanerTeamIds, coachTeamIds, teamResponsibleIds, memberTeamIds, captainTeamIds, logout, householdMembers } = useAuth()
+  const { user, isApproved, isAdmin, isGlobalAdmin, isSuperAdmin, isVorstand, canAccessFinance, isVbAdmin, isBbAdmin, is_spielplaner, spielplanerTeamIds, coachTeamIds, teamResponsibleIds, memberTeamIds, captainTeamIds, logout, householdMembers, actingMember } = useAuth()
+  // While on a linked account the avatar wears that member's accent ring.
+  const actingAccent = actingMember
+    ? accentOf(householdMembers.find((m) => Number(m.id) === Number(actingMember.id))?.accent)
+    : null
   const { openSwitcher } = useHouseholdSwitcher()
   const { t: tCommon } = useTranslation('common')
   const canManageForms = isAdmin || isVorstand || coachTeamIds.length > 0 || teamResponsibleIds.length > 0
@@ -484,7 +490,7 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
                   className="flex min-w-0 flex-1 items-center gap-3 rounded-lg -mx-2 px-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-700"
                   aria-label={t('myProfile')}
                 >
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-brand-50 text-brand-600 dark:bg-brand-900/30 dark:text-brand-400">
+                  <div className={cn('flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-brand-50 text-brand-600 dark:bg-brand-900/30 dark:text-brand-400', actingAccent && ['ring-2 ring-offset-2 ring-offset-background', actingAccent.ring])}>
                     {user.photo ? (
                       <img
                         src={getFileUrl('members', user.id, user.photo)}

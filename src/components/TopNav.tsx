@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
-  ChevronDown, Settings, MessageSquare, Activity, ScrollText, GraduationCap, LogOut, User as UserIcon, Coffee, ArrowRight, LayoutGrid, Users,
+  ChevronDown, Settings, MessageSquare, Activity, ScrollText, GraduationCap, LogOut, User as UserIcon, Coffee, ArrowRight, LayoutGrid, ArrowLeftRight, Check,
 } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { useHouseholdSwitcher } from '../hooks/useHouseholdSwitcher'
@@ -20,6 +20,9 @@ import AdminToggle from './AdminToggle'
 import SwitchToggle from '@/components/SwitchToggle'
 import LanguageDropdown from '@/components/LanguageDropdown'
 import TeamChip from './TeamChip'
+import HouseholdAvatar from './HouseholdAvatar'
+import { accentOf } from './householdAccents'
+import { cn } from '@/lib/utils'
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu'
@@ -165,7 +168,12 @@ export default function TopNav({ unreadCount, onOpenNotifications, memberTeams }
   const { t } = useTranslation('nav')
   const { t: tSupport } = useTranslation('support')
   const donateVisible = useDonateVisible()
-  const { user, isAdmin, isApproved, isSuperAdmin, logout, householdMembers } = useAuth()
+  const { user, isAdmin, isApproved, isSuperAdmin, logout, householdMembers, realUser, actingMember, switchTo } = useAuth()
+  // While on a linked account the avatar wears that member's accent ring, so the
+  // navbar alone says "this is not you".
+  const actingAccent = actingMember
+    ? accentOf(householdMembers.find((m) => Number(m.id) === Number(actingMember.id))?.accent)
+    : null
   const { openSwitcher } = useHouseholdSwitcher()
   const { t: tCommon } = useTranslation('common')
   const { theme, toggleTheme } = useTheme()
@@ -327,6 +335,16 @@ export default function TopNav({ unreadCount, onOpenNotifications, memberTeams }
                 <AdminToggle />
               </div>
             )}
+            {householdMembers.length > 0 && (
+              <button
+                type="button"
+                onClick={() => { closeOptions(); openSwitcher() }}
+                className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-brand-800"
+              >
+                <ArrowLeftRight className="h-4 w-4" />
+                {tCommon('switchAccount')}
+              </button>
+            )}
             <div className="my-1 h-px bg-gray-200 dark:bg-brand-800" />
             {optLink('/feedback', <MessageSquare className="h-4 w-4" />, t('feedback'))}
             {optLink('/status', <Activity className="h-4 w-4" />, t('status', 'Status'))}
@@ -353,9 +371,10 @@ export default function TopNav({ unreadCount, onOpenNotifications, memberTeams }
                 aria-label={t('myProfile')}
               >
                 {user.photo ? (
-                  <img src={getFileUrl('members', user.id, user.photo)} alt="" className="h-8 w-8 shrink-0 rounded-full object-cover" />
+                  <img src={getFileUrl('members', user.id, user.photo)} alt=""
+                    className={cn('h-8 w-8 shrink-0 rounded-full object-cover', actingAccent && ['ring-2 ring-offset-2 ring-offset-background', actingAccent.ring])} />
                 ) : (
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-200 text-xs font-bold text-gray-500 dark:bg-brand-800 dark:text-gray-300">
+                  <div className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-200 text-xs font-bold text-gray-500 dark:bg-brand-800 dark:text-gray-300', actingAccent && ['ring-2 ring-offset-2 ring-offset-background', actingAccent.ring])}>
                     {`${memberFirstName(user)[0] ?? ''}${user.last_name?.[0] ?? ''}`.toUpperCase()}
                   </div>
                 )}
@@ -380,14 +399,39 @@ export default function TopNav({ unreadCount, onOpenNotifications, memberTeams }
                 <UserIcon className="h-4 w-4" />
                 {t('myProfile')}
               </DropdownMenuItem>
-              {/* Household account chooser — only for a login that administers
-                  other members (the account bar is the primary control; this is
-                  where people look for "switch account" out of habit). */}
-              {householdMembers.length > 0 && (
-                <DropdownMenuItem onSelect={() => openSwitcher()} className="cursor-pointer gap-2.5">
-                  <Users className="h-4 w-4" />
-                  {tCommon('switchAccount')}
-                </DropdownMenuItem>
+              {/* Household identities, inline — one tap from the open menu to
+                  any of them (the account bar is the primary control; this is
+                  where people look for "switch account" out of habit). Only
+                  for a login that administers other members. */}
+              {householdMembers.length > 0 && realUser && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel className={SECTION_LABEL}>{tCommon('switchAccount')}</DropdownMenuLabel>
+                  <DropdownMenuItem onSelect={() => { void switchTo(null) }} className="min-h-11 cursor-pointer gap-2.5">
+                    <HouseholdAvatar photo={realUser.photo} name={memberFirstName(realUser)} size="sm" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate">{memberFirstName(realUser)}</span>
+                      <span className="block truncate text-xs text-muted-foreground">{tCommon('householdSelf')}</span>
+                    </span>
+                    {!actingMember && <Check className="h-4 w-4 shrink-0 text-primary" />}
+                  </DropdownMenuItem>
+                  {householdMembers.map((m) => {
+                    const active = !!actingMember && Number(actingMember.id) === Number(m.id)
+                    return (
+                      <DropdownMenuItem key={m.id} onSelect={() => { void switchTo(Number(m.id)) }} className="min-h-11 cursor-pointer gap-2.5">
+                        <HouseholdAvatar photo={m.photo} name={m.first_name || ''} accent={accentOf(m.accent)} size="sm" />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate">{m.first_name || m.last_name}</span>
+                          <span className="block truncate text-xs text-muted-foreground">
+                            {m.teams.length ? m.teams.join(', ') : tCommon('householdLinkedAccount')}
+                          </span>
+                        </span>
+                        {active && <Check className="h-4 w-4 shrink-0 text-primary" />}
+                      </DropdownMenuItem>
+                    )
+                  })}
+                  <DropdownMenuSeparator />
+                </>
               )}
               {/* Personal support link — above Logout, which stays last.
                   Hidden for under-18s and while impersonating (useDonateVisible). */}

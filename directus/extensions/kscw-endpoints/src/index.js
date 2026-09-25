@@ -2048,6 +2048,12 @@ export default {
     router.post('/scorer-delegation/accept', async (req, res) => {
       try {
         requireAuth(req, log)
+        // Scorer duty is personal: a main account must not take one on (or turn
+        // one down) for a linked member. Creating a delegation is already refused
+        // while acting (kscw-hooks GUARDIAN_FORBIDDEN_WRITE).
+        if (req.accountability?.kscwGuardian) {
+          return res.status(403).json({ error: 'Not available while using another account', code: 'acting_forbidden' })
+        }
         const { delegation_id } = req.body
         if (!delegation_id) return res.status(400).json({ error: 'delegation_id required' })
 
@@ -2132,6 +2138,12 @@ export default {
     router.post('/scorer-delegation/decline', async (req, res) => {
       try {
         requireAuth(req, log)
+        // Scorer duty is personal: a main account must not take one on (or turn
+        // one down) for a linked member. Creating a delegation is already refused
+        // while acting (kscw-hooks GUARDIAN_FORBIDDEN_WRITE).
+        if (req.accountability?.kscwGuardian) {
+          return res.status(403).json({ error: 'Not available while using another account', code: 'acting_forbidden' })
+        }
         const { delegation_id } = req.body
         if (!delegation_id) return res.status(400).json({ error: 'delegation_id required' })
 

@@ -2,8 +2,9 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Plus, Trash2, UserPlus, KeyRound, Pencil, StickyNote } from 'lucide-react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { kscwApi } from '../../lib/api'
+import { useAuth } from '../../hooks/useAuth'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../components/ui/dialog'
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '../../components/ui/command'
 import { useConfirm, usePrompt } from '../../components/ConfirmProvider'
@@ -43,6 +44,10 @@ interface HouseholdRow {
   /** Server verdict: a managed row whose login is a draft, password-less
    *  shadow — the only kind the switcher and the middleware accept. */
   actable: boolean
+  /** Why a managed row is not actable: 'not_provisioned' (no shadow login yet,
+   *  or a broken one) or 'member_is_staff' (became coach / finance / planner…
+   *  after the link — the middleware refuses her). null when actable. */
+  not_actable_reason?: string | null
   linked_by_first: string | null
   linked_by_last: string | null
 }
@@ -110,8 +115,10 @@ function useHouseholdErrorText() {
  * getting a refusal after picking. Email + birth year disambiguate same-named
  * siblings / parents.
  *
- * The dialog stays open while the link is saved and shows a refusal inside it;
- * it only closes on success.
+ * The dialog stays open while the link is saved and shows a refusal inside it.
+ * After a success it moves on instead of closing — main account → linked
+ * members, one after another — so a family is set up in one sitting; "Done"
+ * (or Esc) closes it.
  */
 function MemberSearchDialog({ adding, pending, error, onClose, onPick }: {
   adding: Adding | null
@@ -173,6 +180,11 @@ function MemberSearchDialog({ adding, pending, error, onClose, onPick }: {
             })}
           </CommandList>
         </Command>
+        <div className="flex justify-end border-t px-4 py-3">
+          <Button variant="outline" onClick={onClose} disabled={pending} className="min-h-11 sm:min-h-9">
+            {t('admin:householdPickerDone')}
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   )
@@ -183,6 +195,8 @@ export default function HouseholdsPage() {
   const confirm = useConfirm()
   const prompt = usePrompt()
   const { errorText } = useHouseholdErrorText()
+  const queryClient = useQueryClient()
+  const { refreshUser } = useAuth()
   const [busy, setBusy] = useState(false)
   const [adding, setAdding] = useState<Adding | null>(null)
   const [linkError, setLinkError] = useState<string | null>(null)
@@ -192,10 +206,19 @@ export default function HouseholdsPage() {
     queryFn: () => kscwApi<{ data: Household[] }>('/household').then((r) => r.data ?? []),
   })
 
-  const run = async (fn: () => Promise<unknown>) => {
+  // After anything that changes who is linked: the picker's candidate verdicts
+  // are stale (they are cached per role), and if the admin just linked HERSELF
+  // her own switcher should appear now, not at the next 5-minute refresh.
+  const afterLinkChange = () => {
+    void queryClient.invalidateQueries({ queryKey: ['households', 'candidates'] })
+    void refreshUser()
+  }
+
+  const run = async (fn: () => Promise<unknown>, { linksChanged = false } = {}) => {
     setBusy(true)
     try {
       await fn()
+      if (linksChanged) afterLinkChange()
       await refetch()
     } catch (err) {
       toast.error(errorText(err))
@@ -207,10 +230,17 @@ export default function HouseholdsPage() {
   const createHousehold = async () => {
     const name = await prompt({ message: t('admin:householdNamePrompt') })
     if (!name?.trim()) return
+    const created: { id: number | null } = { id: null }
     await run(async () => {
-      await kscwApi('/household', { method: 'POST', body: { name: name.trim() } })
+      const r = await kscwApi<{ data: { id: number } }>('/household', { method: 'POST', body: { name: name.trim() } })
+      created.id = r?.data?.id ?? null
       toast.success(t('admin:householdCreated'))
     })
+    // Straight on to the main account — no hunting for the new section.
+    if (created.id != null) {
+      setLinkError(null)
+      setAdding({ household: created.id, role: 'guardian', exclude: new Set() })
+    }
   }
 
   const renameHousehold = async (h: Household) => {
@@ -262,7 +292,10 @@ export default function HouseholdsPage() {
     try {
       await kscwApi(`/household/${household}/members`, { method: 'POST', body: { member: Number(m.id), role } })
       toast.success(t('admin:householdLinked'))
-      setAdding(null)
+      // Keep going: after the main account, pick the linked members one by
+      // one without reopening the picker. The just-linked member drops out.
+      setAdding({ household, role: 'managed', exclude: new Set([...adding.exclude, Number(m.id)]) })
+      afterLinkChange()
       await refetch()
     } catch (err) {
       setLinkError(errorText(err))
@@ -276,7 +309,7 @@ export default function HouseholdsPage() {
     await run(async () => {
       await kscwApi(`/household/${household}/members/${member}/provision`, { method: 'POST' })
       toast.success(t('admin:householdProvisioned', { name }))
-    })
+    }, { linksChanged: true })
   }
 
   const revoke = async (household: number, row: HouseholdRow) => {
@@ -285,7 +318,7 @@ export default function HouseholdsPage() {
     await run(async () => {
       await kscwApi(`/household/${household}/members/${row.id}`, { method: 'DELETE' })
       toast.success(t('admin:householdRevoked'))
-    })
+    }, { linksChanged: true })
   }
 
   const households = data ?? []
@@ -379,8 +412,11 @@ export default function HouseholdsPage() {
                   // broken" — provisioning refuses that, so no button). Said in
                   // the NAME cell — the Account column is hidden on mobile.
                   const notActable = !revoked && row.role === 'managed' && !row.actable
-                  const needsSetup = notActable && !row.login_email
-                  const loginBroken = notActable && !!row.login_email
+                  // Became staff after the link: the login is fine, but the
+                  // middleware refuses to act as a coach / finance / planner.
+                  const isStaff = notActable && row.not_actable_reason === 'member_is_staff'
+                  const needsSetup = notActable && !isStaff && !row.login_email
+                  const loginBroken = notActable && !isStaff && !!row.login_email
                   return (
                     <TableRow key={row.id} className={revoked ? 'opacity-50' : undefined}>
                       <TableCell className="whitespace-normal break-words font-medium">
@@ -390,6 +426,15 @@ export default function HouseholdsPage() {
                           <Badge variant="outline" className="mt-1 border-amber-500 text-amber-700 dark:border-amber-400 dark:text-amber-400">
                             {t('admin:householdSetupNeeded')}
                           </Badge>
+                        )}
+                        {isStaff && (
+                          <Badge variant="outline" className="mt-1 border-amber-500 text-amber-700 dark:border-amber-400 dark:text-amber-400"
+                            title={t('admin:householdErr_member_is_staff')}>
+                            {t('admin:householdNotActable')}
+                          </Badge>
+                        )}
+                        {isStaff && (
+                          <span className="block text-xs text-muted-foreground">{t('admin:householdErr_member_is_staff')}</span>
                         )}
                         {loginBroken && (
                           <Badge variant="outline" className="mt-1 border-destructive text-destructive dark:border-red-400 dark:text-red-400"

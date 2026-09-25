@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.18.0'
+const APP_VERSION = '2.19.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,18 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.19.0',
+    date: '25.09.2026',
+    sections: [
+      {
+        title: 'Improved',
+        items: [
+          "Family accounts: switch between the main account and linked family members in one tap. *Avatar menu, the Options menu (gear) or More → Switch account.* A main account logs in with its own email and can act for each linked member (for example siblings), switching straight from one to another and back. While on a linked account, the banner has a one-tap \"Back to …\" button and the navbar avatar shows that member's colour. Family members who share one email address are now linked this way.",
+        ],
+      },
+    ],
+  },
   {
     version: '2.18.0',
     date: '24.09.2026',

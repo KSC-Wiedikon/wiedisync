@@ -1977,6 +1977,8 @@ export default {
   householdErr_not_superadmin: 'Nur Superadmins können Haushalte ändern.',
   householdErr_notes_too_long: 'Notizen sind zu lang (max. 2000 Zeichen)',
   householdErr_shadow_email_taken: 'Die Login-Adresse für dieses verknüpfte Mitglied ist bereits vergeben',
+  householdNotActable: 'Wechsel nicht möglich',
+  householdPickerDone: 'Fertig',
   householdLoginBroken: 'Login defekt',
   householdLoginBrokenHint: 'Dieses Mitglied hat ein Login, zu dem das Hauptkonto nicht wechseln kann. Entferne die Verknüpfung und lass das Konto von einem Admin prüfen.',
   householdNoMembers: 'Mit diesem Haushalt ist noch niemand verknüpft.',
