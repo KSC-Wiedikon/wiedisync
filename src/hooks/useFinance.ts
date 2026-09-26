@@ -451,8 +451,8 @@ export function useTkExpenses(enabled = true) {
   })
 }
 
-/** TK confirmation write. `confirmed` defaults to true (the Confirm button);
- *  pass false to un-confirm. `already_paid` / `note` are always applied. */
+/** TK write. `confirmed: true` = the Confirm button, `false` = un-confirm,
+ *  omitted = save only the fields sent (autosave) and leave the confirmation. */
 export function tkConfirmExpense(
   id: string | number,
   body: { confirmed?: boolean; already_paid?: boolean; note?: string; internal_note?: string },

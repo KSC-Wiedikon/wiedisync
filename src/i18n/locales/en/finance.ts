@@ -201,6 +201,7 @@ export default {
   expenseTkUnconfirm: 'Un-confirm',
   expenseTkConfirmedToast: 'Confirmed.',
   expenseTkUnconfirmedToast: 'Confirmation removed.',
+  expenseTkSavedToast: 'Saved.',
 
   // ── Native invoices (migrations 128/129) ──
   tabInvoices: 'Invoices',

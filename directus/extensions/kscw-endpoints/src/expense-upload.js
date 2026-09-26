@@ -852,32 +852,34 @@ export function registerExpenseUpload(router, { database, logger, services, getS
       }
 
       const b = req.body || {}
-      const confirmed = b.confirmed !== false // the "Confirm" button; false = un-confirm
-      const patch = {
-        tk_already_paid: b.already_paid === true || b.already_paid === 'true',
-        tk_note: String(b.note || '').replace(/\r/g, '').slice(0, 1000) || null,
-      }
+      // true = the "Confirm" button, false = un-confirm, omitted = save the
+      // fields below without touching the confirmation (autosave on the TK page).
+      const confirmed = b.confirmed === undefined ? null : b.confirmed !== false
+      const patch = {}
+      if (b.already_paid !== undefined) patch.tk_already_paid = b.already_paid === true || b.already_paid === 'true'
+      if (b.note !== undefined) patch.tk_note = String(b.note || '').replace(/\r/g, '').slice(0, 1000) || null
       // Shared back-office note (finance / TK / admin). Only touch it when the
       // caller sent it, so a TK confirm without the field never blanks finance's.
       if (b.internal_note !== undefined) {
         patch.internal_note = String(b.internal_note || '').replace(/\r/g, '').slice(0, 1000) || null
       }
-      if (confirmed && !expense.tk_confirmed_at) {
+      if (confirmed === true && !expense.tk_confirmed_at) {
         // Stamp the confirmation once (keep the original actor/time on later edits).
         patch.tk_confirmed_at = new Date()
         patch.tk_confirmed_by_name = mem?.name || (req.accountability?.admin ? 'Admin' : null)
         patch.tk_confirmed_by_email = mem?.email || null
-      } else if (!confirmed) {
+      } else if (confirmed === false) {
         patch.tk_confirmed_at = null
         patch.tk_confirmed_by_name = null
         patch.tk_confirmed_by_email = null
       }
 
+      if (!Object.keys(patch).length) return res.status(400).json({ error: 'Nothing to update' })
       await database('finance_expenses').where({ id: expenseId }).update(patch)
 
       await writeUserLog(database, log, {
         accountability: req.accountability,
-        action: confirmed ? 'expense_tk_confirm' : 'expense_tk_unconfirm',
+        action: confirmed === null ? 'expense_tk_update' : confirmed ? 'expense_tk_confirm' : 'expense_tk_unconfirm',
         collection: 'finance_expenses',
         recordId: expenseId,
         data: patch,

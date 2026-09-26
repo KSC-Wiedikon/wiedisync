@@ -196,6 +196,7 @@ export default {
   expenseTkUnconfirm: 'Bestätigung aufheben',
   expenseTkConfirmedToast: 'Bestätigt.',
   expenseTkUnconfirmedToast: 'Bestätigung entfernt.',
+  expenseTkSavedToast: 'Gespeichert.',
 
   // ── Native Rechnungen (Migrationen 128/129) ──
   tabInvoices: 'Rechnungen',

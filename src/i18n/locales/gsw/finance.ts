@@ -185,6 +185,7 @@ export default {
   expenseTkUnconfirm: 'Bestätigung ufhebe',
   expenseTkConfirmedToast: 'Bestätigt.',
   expenseTkUnconfirmedToast: 'Bestätigung entfernt.',
+  expenseTkSavedToast: 'Gspeicheret.',
 
   // ── Native Rächnige (Migratione 128/129) ──
   tabInvoices: 'Rächnige',

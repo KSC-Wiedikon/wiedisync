@@ -191,6 +191,7 @@ export default {
   expenseTkUnconfirm: 'Annulla conferma',
   expenseTkConfirmedToast: 'Confermato.',
   expenseTkUnconfirmedToast: 'Conferma rimossa.',
+  expenseTkSavedToast: 'Salvato.',
 
   // ── Fatture native (migrazioni 128/129) ──
   tabInvoices: 'Fatture',

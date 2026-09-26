@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useQueryClient } from '@tanstack/react-query'
@@ -18,7 +18,8 @@ import { ExpenseStatusBadge } from './expenseShared'
  * bb_admin — finance/board see every section) confirms that a member's
  * reimbursement is budgeted and OK to pay, and flags whether the section has
  * ALREADY reimbursed the member. Server-scoped via GET /kscw/expenses/tk-queue;
- * writes via POST /kscw/expenses/:id/tk-confirm. Purely informational — it never
+ * writes via POST /kscw/expenses/:id/tk-confirm (checkbox + notes autosave
+ * without confirming; the buttons confirm/un-confirm). Purely informational — it never
  * changes the treasurer's paid/rejected lifecycle.
  */
 // UI display name — prefers the member's chosen nickname (falls back to first_name).
@@ -36,11 +37,29 @@ function TkRow({ e, onDone }: { e: FinanceExpense; onDone: () => void }) {
   const [internal, setInternal] = useState(e.internal_note ?? '')
   const [busy, setBusy] = useState(false)
   const confirmed = !!e.tk_confirmed_at
+  // Last values the server holds — autosave only fires on a real change.
+  const saved = useRef({ note: e.tk_note ?? '', internal: e.internal_note ?? '' })
+
+  /** Saves one field without touching the confirmation (checkbox on change,
+   *  notes on blur) — typing a note and leaving the page must not lose it. */
+  async function autosave(fields: { already_paid?: boolean; note?: string; internal_note?: string }) {
+    try {
+      await tkConfirmExpense(e.id, fields)
+      if (fields.note !== undefined) saved.current.note = fields.note
+      if (fields.internal_note !== undefined) saved.current.internal = fields.internal_note
+      toast.success(t('expenseTkSavedToast'))
+      onDone()
+    } catch (err) {
+      const serverMsg = (err as { body?: { error?: string } })?.body?.error
+      toast.error(serverMsg || t('expenseUpdateError'))
+    }
+  }
 
   async function send(nextConfirmed: boolean) {
     setBusy(true)
     try {
       await tkConfirmExpense(e.id, { confirmed: nextConfirmed, already_paid: alreadyPaid, note, internal_note: internal })
+      saved.current = { note, internal }
       toast.success(nextConfirmed ? t('expenseTkConfirmedToast') : t('expenseTkUnconfirmedToast'))
       onDone()
     } catch (err) {
@@ -89,12 +108,17 @@ function TkRow({ e, onDone }: { e: FinanceExpense; onDone: () => void }) {
             </span>
           )}
           <label className="flex items-center gap-2 text-xs text-gray-700 dark:text-gray-300">
-            <Checkbox checked={alreadyPaid} onCheckedChange={(v) => setAlreadyPaid(v === true)} disabled={busy} />
+            <Checkbox checked={alreadyPaid} onCheckedChange={(v) => {
+              const next = v === true
+              setAlreadyPaid(next)
+              void autosave({ already_paid: next })
+            }} disabled={busy} />
             {t('expenseTkAlreadyPaidLabel')}
           </label>
           <textarea
             value={note}
             onChange={(ev) => setNote(ev.target.value)}
+            onBlur={() => { if (note !== saved.current.note) void autosave({ note }) }}
             rows={2}
             disabled={busy}
             placeholder={t('expenseTkNotePlaceholder')}
@@ -105,6 +129,7 @@ function TkRow({ e, onDone }: { e: FinanceExpense; onDone: () => void }) {
             <textarea
               value={internal}
               onChange={(ev) => setInternal(ev.target.value)}
+              onBlur={() => { if (internal !== saved.current.internal) void autosave({ internal_note: internal }) }}
               rows={2}
               disabled={busy}
               placeholder={t('expenseInternalNotePlaceholder')}
