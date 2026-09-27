@@ -2,6 +2,15 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.22.0 — 2026-09-28
+
+### Improved
+
+- **Answer with one tap and see the totals at the same time.** *Game, training or event → Yes / Maybe / No.* The three answer buttons now show how many people picked each answer, so the separate row of counters is gone. Your own answer is filled in. After the answer deadline all three stay visible with their totals, and a lock shows that answers can no longer be changed.
+- **Cleaner cards and lists.** *Games, Trainings, Events, Home, Scorer, Calendar, Car pooling.* Every activity has the date on the left in the same place, a thin colour line for your answer (red when cancelled), and long team and club names wrap onto a second line instead of being cut off. A card's buttons sit together on one line at the bottom.
+- **Buttons are the same size everywhere.** Buttons and fields are one height throughout the app, large enough to tap comfortably on a phone, and icon-only buttons are easier to hit. Text that is shortened shows the full wording when you hover over it.
+- **Deleting a training, event or game moved into its edit form.** *Edit → Delete.* The card has one line of buttons again; deletion still asks for confirmation.
+
 ## v2.21.1 — 2026-09-27
 
 ### Improved
