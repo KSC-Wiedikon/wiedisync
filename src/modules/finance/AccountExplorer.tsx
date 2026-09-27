@@ -54,7 +54,7 @@ export default function AccountExplorer({ accounts, transactions }: {
     setCollapsed((c) => { const n = new Set(c); if (n.has(digit)) n.delete(digit); else n.add(digit); return n })
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[20rem_1fr]">
+    <div className="grid gap-4 lg:grid-cols-[20rem_minmax(0,1fr)]">
       {/* Tree */}
       <div className="rounded-lg border border-gray-200 bg-white p-2 dark:border-gray-700 dark:bg-gray-800">
         {grouped.map((g) => (
@@ -78,7 +78,7 @@ export default function AccountExplorer({ accounts, transactions }: {
                           : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
                       }`}
                     >
-                      <span className="min-w-0 truncate"><span className="tabular-nums text-gray-400">{a.number}</span> {a.name}</span>
+                      <span className="min-w-0 truncate" title={`${a.number} ${a.name}`}><span className="tabular-nums text-gray-400">{a.number}</span> {a.name}</span>
                       <span className="shrink-0 tabular-nums text-xs text-gray-500 dark:text-gray-400">{formatChf(balByNum.get(a.number) ?? 0)}</span>
                     </button>
                   </li>
@@ -97,11 +97,11 @@ export default function AccountExplorer({ accounts, transactions }: {
           </div>
         ) : (
           <div className="space-y-3">
-            <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+            <div className="flex items-baseline gap-2">
+              <h3 className="min-w-0 flex-1 break-words text-base font-semibold text-gray-900 dark:text-gray-100">
                 <span className="tabular-nums text-gray-400">{selAccount.number}</span> {selAccount.name}
               </h3>
-              <span className="tabular-nums text-sm font-semibold text-gray-900 dark:text-gray-100">{formatChf(balByNum.get(selAccount.number) ?? 0)}</span>
+              <span className="shrink-0 text-right tabular-nums text-sm font-semibold text-gray-900 dark:text-gray-100">{formatChf(balByNum.get(selAccount.number) ?? 0)}</span>
             </div>
             <AccountLedger account={selAccount} transactions={transactions} nameByNum={nameByNum} />
           </div>

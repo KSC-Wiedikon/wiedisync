@@ -2,6 +2,7 @@ import { Fragment, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Users, Gavel, HandCoins, Receipt, Pencil, Plus, ChevronDown } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import EmptyState from '../../components/EmptyState'
 import { TeamPickerSingle, type TeamPickerOption } from '../../components/ui/TeamPicker'
@@ -18,7 +19,9 @@ import type { RefereeExpenseLine, TeamFinanceEntry, TeamHomeGame } from './types
 import InvoiceTable from './InvoiceTable'
 import { RefereeStatusPill } from './MyRefereeExpensesCard'
 
-const selectCls = 'min-h-[44px] w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100'
+// h-11 at every width (not the usual sm:h-9): it shares a row with TeamPickerSingle,
+// whose trigger is a fixed 44px.
+const selectCls = 'h-11 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100'
 const labelCls = 'block text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400'
 const tileCls = 'rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800'
 const tileLabelCls = 'text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400'
@@ -180,8 +183,8 @@ export default function TeamFinancePage() {
                   <div className={tileLabelCls}>{t('teamFinanceNet')}</div>
                   <div className={`mt-1.5 text-2xl font-bold tabular-nums ${netCls(toNum(data.totals.net))}`}>{formatChf(data.totals.net)}</div>
                   <div className="mt-1 space-y-0.5 text-xs text-gray-500 dark:text-gray-400">
-                    <div className="flex flex-wrap justify-between gap-x-2 tabular-nums"><span>{t('teamFinanceIncome')}</span><span className="whitespace-nowrap text-green-600 dark:text-green-400">{formatChf(data.totals.income)}</span></div>
-                    <div className="flex flex-wrap justify-between gap-x-2 tabular-nums"><span>{t('teamFinanceExpense')}</span><span className="whitespace-nowrap text-red-600 dark:text-red-400">{formatChf(data.totals.expense)}</span></div>
+                    <div className="flex justify-between gap-x-2 tabular-nums"><span className="min-w-0">{t('teamFinanceIncome')}</span><span className="whitespace-nowrap text-green-600 dark:text-green-400">{formatChf(data.totals.income)}</span></div>
+                    <div className="flex justify-between gap-x-2 tabular-nums"><span className="min-w-0">{t('teamFinanceExpense')}</span><span className="whitespace-nowrap text-red-600 dark:text-red-400">{formatChf(data.totals.expense)}</span></div>
                   </div>
                 </div>
                 <div className={tileCls}>
@@ -270,15 +273,17 @@ export default function TeamFinancePage() {
                               {data.can_record_referee && (
                                 <TableCell className="w-px whitespace-nowrap pl-2 text-right align-middle">
                                   {editable && (
-                                    <button
+                                    <Button
                                       type="button"
+                                      size="sm"
+                                      variant={expanded || fee ? 'ghost' : 'default'}
                                       onClick={(e) => { e.stopPropagation(); toggleGame(g) }}
                                       aria-expanded={expanded}
-                                      className={`inline-flex min-h-[36px] items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-medium ${expanded ? 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700' : fee ? 'text-brand-700 hover:bg-brand-50 dark:text-brand-300 dark:hover:bg-brand-900/30' : 'bg-brand-600 text-white hover:bg-brand-700'}`}
+                                      className={`gap-1 px-2.5 ${expanded ? 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700' : fee ? 'text-brand-700 hover:bg-brand-50 hover:text-brand-700 dark:text-brand-300 dark:hover:bg-brand-900/30 dark:hover:text-brand-300' : ''}`}
                                     >
-                                      {expanded ? <ChevronDown className="h-3.5 w-3.5 rotate-180" /> : fee ? <Pencil className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
+                                      {expanded ? <ChevronDown className="rotate-180" /> : fee ? <Pencil /> : <Plus />}
                                       {expanded ? t('common:close') : fee ? t('refereeEdit') : t('refereeRecord')}
-                                    </button>
+                                    </Button>
                                   )}
                                 </TableCell>
                               )}

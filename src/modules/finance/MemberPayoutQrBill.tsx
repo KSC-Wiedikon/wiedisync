@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Button } from '@/components/ui/button'
+import IconButton from '@/components/IconButton'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { SwissQRCode } from 'swissqrbill/svg'
@@ -143,25 +145,23 @@ export default function MemberPayoutQrBill({ member }: { member: FinanceMember }
             <label className="block">
               <span className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">{t('payoutAmount')}</span>
               <input inputMode="decimal" value={amountStr} onChange={(e) => setAmountStr(e.target.value)} placeholder={t('payoutAmountPlaceholder')}
-                className="w-full rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />
+                className="h-11 w-full rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm sm:h-9 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />
             </label>
             <label className="block">
               <span className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">{t('payoutMessage')}</span>
               <input value={message} onChange={(e) => setMessage(e.target.value)} maxLength={140}
-                className="w-full rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />
+                className="h-11 w-full rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm sm:h-9 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />
             </label>
           </div>
 
           <div className="mt-3 flex flex-wrap gap-2">
-            <button onClick={() => setOpen((v) => !v)}
-              className="inline-flex items-center gap-1.5 rounded-md border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700">
-              <QrCode className="h-4 w-4" /> {open ? t('payoutQrHide') : t('payoutQrShow')}
-            </button>
-            <button onClick={saveAndDownload} disabled={busy}
-              className="inline-flex items-center gap-1.5 rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50 dark:bg-brand-500 dark:hover:bg-brand-400">
+            <Button onClick={saveAndDownload} disabled={busy}>
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               {busy ? t('payoutGenerating') : t('payoutSaveDownload')}
-            </button>
+            </Button>
+            <Button variant="outline" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+              <QrCode className="h-4 w-4" /> {open ? t('payoutQrHide') : t('payoutQrShow')}
+            </Button>
           </div>
 
           {open && svg && (
@@ -189,12 +189,14 @@ export default function MemberPayoutQrBill({ member }: { member: FinanceMember }
                   {p.message && <span className="ml-2 text-sm text-gray-500 dark:text-gray-400">{p.message}</span>}
                   <span className="mt-0.5 block text-xs text-gray-400">{p.date_created ? formatDateCompactZurich(p.date_created) : ''}{p.created_by_name ? ` · ${p.created_by_name}` : ''}</span>
                 </div>
-                <button onClick={() => downloadSaved(p)} title={t('payoutDownloadPdf')} className="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-brand-600 dark:hover:bg-gray-700">
-                  <Download className="h-4 w-4" />
-                </button>
-                <button onClick={() => removeSaved(p)} title={t('payoutDelete')} className="rounded p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20">
-                  <Trash2 className="h-4 w-4" />
-                </button>
+                <div className="flex shrink-0 items-center gap-1">
+                  <IconButton size="sm" onClick={() => downloadSaved(p)} label={t('payoutDownloadPdf')} className="text-gray-500 hover:text-brand-600 dark:text-gray-400 dark:hover:text-brand-300">
+                    <Download />
+                  </IconButton>
+                  <IconButton size="sm" onClick={() => removeSaved(p)} label={t('payoutDelete')} className="text-gray-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400">
+                    <Trash2 />
+                  </IconButton>
+                </div>
               </div>
             ))}
           </div>

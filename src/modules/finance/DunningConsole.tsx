@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Loader2, BellRing, ShieldOff, ShieldCheck } from 'lucide-react'
 import Modal from '../../components/Modal'
+import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import { formatDateCompactZurich } from '../../utils/dateHelpers'
 import {
@@ -10,7 +11,7 @@ import {
 } from '../../hooks/useFinance'
 
 const labelCls = 'block text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400'
-const inputCls = 'mt-1 w-full rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm outline-none focus:border-brand-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100'
+const inputCls = 'mt-1 h-11 w-full rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm sm:h-9 outline-none focus:border-brand-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100'
 const apiErr = (e: unknown, fb: string) => (e as { body?: { error?: string } })?.body?.error || fb
 const daysOverdue = (due: string | null, today: string) => (due ? Math.max(0, Math.floor((Date.parse(today) - Date.parse(due)) / 86_400_000)) : 0)
 const tableWrapCls = 'rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800'
@@ -100,11 +101,11 @@ function EscalateModal({ row, onClose, onDone }: { row: DunningCandidate | null;
               {sendEmail && <p className="text-xs text-amber-700 dark:text-amber-400">{t('dunTestModeNote')}</p>}
               {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
               <div className="flex justify-end gap-2 pt-1">
-                <button type="button" onClick={onClose} className="rounded-md px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700">{t('cancel')}</button>
-                <button type="button" disabled={busy} onClick={go}
-                  className="inline-flex items-center gap-1.5 rounded-md bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50">
+                <Button type="button" variant="ghost" onClick={onClose}>{t('cancel')}</Button>
+                <Button type="button" disabled={busy} onClick={go}
+                  className="bg-amber-600 text-white hover:bg-amber-700 dark:bg-amber-600 dark:hover:bg-amber-500">
                   {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <BellRing className="h-4 w-4" />}{t('dunEscalateCta', { level: next })}
-                </button>
+                </Button>
               </div>
             </>
           )}
@@ -162,17 +163,16 @@ export default function DunningConsole() {
                   <TableCell className="text-right">
                     <div className="flex flex-col items-end gap-1.5 sm:flex-row sm:justify-end">
                       {c.member ? (
-                        <button type="button" disabled={busyDun === c.member} onClick={() => toggleNeverDun(c)}
-                          className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700">
-                          {c.never_dun ? <ShieldCheck className="h-3.5 w-3.5" /> : <ShieldOff className="h-3.5 w-3.5" />}
+                        <Button type="button" size="sm" variant="outline" disabled={busyDun === c.member} onClick={() => toggleNeverDun(c)}>
+                          {c.never_dun ? <ShieldCheck /> : <ShieldOff />}
                           {c.never_dun ? t('dunUndoNever') : t('dunSetNever')}
-                        </button>
+                        </Button>
                       ) : null}
                       {c.dunning_level < 3 && !c.never_dun && (
-                        <button type="button" onClick={() => setTarget(c)}
-                          className="inline-flex items-center gap-1 rounded-md bg-amber-600 px-2 py-1 text-xs font-medium text-white hover:bg-amber-700">
-                          <BellRing className="h-3.5 w-3.5" />{t('dunEscalateCta', { level: c.dunning_level + 1 })}
-                        </button>
+                        <Button type="button" size="sm" onClick={() => setTarget(c)}
+                          className="bg-amber-600 text-white hover:bg-amber-700 dark:bg-amber-600 dark:hover:bg-amber-500">
+                          <BellRing />{t('dunEscalateCta', { level: c.dunning_level + 1 })}
+                        </Button>
                       )}
                     </div>
                   </TableCell>

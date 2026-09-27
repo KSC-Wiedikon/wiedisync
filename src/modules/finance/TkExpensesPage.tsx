@@ -173,12 +173,7 @@ function TkRow({ e, onSaved }: { e: FinanceExpense; onSaved: (patch: Partial<Fin
       <TableCell>
         <ExpenseStatusBadge status={e.status} />
         {e.file && (
-          <ReceiptButton
-            expenseId={e.id}
-            showLabel
-            iconClassName="h-3.5 w-3.5"
-            className="mt-1 inline-flex min-h-[32px] items-center gap-1 rounded-md px-1.5 text-xs font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
-          />
+          <ReceiptButton expenseId={e.id} showLabel className="mt-1 flex" />
         )}
       </TableCell>
       <TableCell className="min-w-[220px]">

@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Plus, Trash2, Loader2 } from 'lucide-react'
 import Modal from '../../components/Modal'
+import { Button } from '@/components/ui/button'
+import IconButton from '@/components/IconButton'
 import { useConfirm } from '../../components/ConfirmProvider'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import DatePicker from '@/components/ui/DatePicker'
@@ -13,7 +15,7 @@ import {
 import type { FinanceInvoice } from './types'
 
 const labelCls = 'block text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400'
-const inputCls = 'mt-1 w-full rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm outline-none focus:border-brand-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100'
+const inputCls = 'mt-1 h-11 w-full rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm sm:h-9 outline-none focus:border-brand-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100'
 const apiErr = (e: unknown, fb: string) => (e as { body?: { error?: string } })?.body?.error || fb
 
 const ENTRY_TYPES: PaymentEntryType[] = ['payment', 'credit_note', 'refund', 'writeoff']
@@ -113,10 +115,9 @@ export default function PaymentLedgerModal({ invoice, onClose, onChanged }: {
               <input id="pay-note" value={note} onChange={(e) => setNote(e.target.value)} placeholder={t('payNotePlaceholder')} className={inputCls} />
             </div>
             <div className="flex justify-end">
-              <button type="button" disabled={!valid || busy} onClick={add}
-                className="inline-flex items-center gap-1.5 rounded-md bg-brand-600 px-3 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50">
+              <Button type="button" disabled={!valid || busy} onClick={add}>
                 {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}{t('payAddCta')}
-              </button>
+              </Button>
             </div>
           </div>
 
@@ -156,10 +157,10 @@ export default function PaymentLedgerModal({ invoice, onClose, onChanged }: {
                       <TableCell className="text-right tabular-nums text-gray-900 dark:text-gray-100">{formatChf(toNum(p.amount))}</TableCell>
                       <TableCell className="text-right">
                         {p.source === 'native' && p.method !== 'camt' ? (
-                          <button type="button" disabled={busyDel === p.id} onClick={() => remove(p.id)} aria-label={t('payDelete')}
-                            className="inline-flex items-center rounded-md border border-gray-300 p-1.5 text-gray-500 hover:bg-gray-50 hover:text-red-600 disabled:opacity-50 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-700">
-                            {busyDel === p.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                          </button>
+                          <IconButton size="sm" variant="outline" disabled={busyDel === p.id} onClick={() => remove(p.id)} label={t('payDelete')}
+                            className="text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400">
+                            {busyDel === p.id ? <Loader2 className="animate-spin" /> : <Trash2 />}
+                          </IconButton>
                         ) : <span className="text-xs text-gray-400">{p.camt_reference ? t('payViaCamt') : ''}</span>}
                       </TableCell>
                     </TableRow>

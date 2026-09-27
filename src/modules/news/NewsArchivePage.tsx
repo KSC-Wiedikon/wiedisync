@@ -11,6 +11,8 @@ import { formatRelativeTimeZurich } from '../../utils/dateHelpers'
 import AnnouncementDetailModal from '../home/components/AnnouncementDetailModal'
 import { useReportPageLoading } from '../../hooks/usePageReady'
 import { useNow } from '../../hooks/useNow'
+import { Button } from '../../components/ui/button'
+import IconButton from '../../components/IconButton'
 import { Table, TableBody, TableCell, TableRow } from '../../components/ui/table'
 import type { Announcement, Notification } from '../../types'
 
@@ -72,13 +74,13 @@ export default function NewsArchivePage() {
   return (
     <div className="mx-auto max-w-2xl">
       <div className="mb-4 flex items-center gap-3">
-        <button
+        <IconButton
           onClick={() => navigate(-1)}
-          className="inline-flex h-9 w-9 items-center justify-center rounded-md text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
-          aria-label="Back"
+          className="shrink-0 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+          label={t('common:back')}
         >
-          <ArrowLeft className="h-5 w-5" />
-        </button>
+          <ArrowLeft className="!size-5" />
+        </IconButton>
         <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{tn('news')}</h1>
       </div>
 
@@ -113,12 +115,12 @@ export default function NewsArchivePage() {
           </div>
           {hasMore && (
             <div className="mt-4 flex justify-center">
-              <button
+              <Button
+                variant="outline"
                 onClick={() => setPage((p) => p + 1)}
-                className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
               >
                 {t('loadMore')}
-              </button>
+              </Button>
             </div>
           )}
         </>

@@ -4,6 +4,8 @@ import { toast } from 'sonner'
 import { useQueryClient } from '@tanstack/react-query'
 import { Loader2, Plus, Undo2, Trash2, BookOpen, ListTree, Scale, Lock, Settings2, RefreshCw } from 'lucide-react'
 import Modal from '../../components/Modal'
+import { Button } from '@/components/ui/button'
+import IconButton from '@/components/IconButton'
 import { useConfirm } from '../../components/ConfirmProvider'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import DatePicker from '@/components/ui/DatePicker'
@@ -18,11 +20,9 @@ import {
 } from '../../hooks/useFinance'
 
 const labelCls = 'block text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400'
-const inputCls = 'mt-1 w-full rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm outline-none focus:border-brand-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100'
+const inputCls = 'mt-1 h-11 w-full rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm sm:h-9 outline-none focus:border-brand-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100'
 const selectCls = `${inputCls} dark:bg-gray-800`
 const apiErr = (e: unknown, fb: string) => (e as { body?: { error?: string } })?.body?.error || fb
-const btnPrimary = 'inline-flex items-center gap-1.5 rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50'
-const btnGhost = 'inline-flex items-center gap-1.5 rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700'
 // Stand-in for a table that has not been read yet — same shape as ExpensesTab /
 // TkExpensesPage, so "still loading" never looks like "the books are empty".
 const Spinner = () => <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-gray-400" /></div>
@@ -52,10 +52,11 @@ export default function LedgerTab({ fiscalYearId }: { fiscalYearId?: string | nu
       <p className="text-xs text-gray-500 dark:text-gray-400">{t('ledIntro')}</p>
       <div className="flex flex-wrap items-center gap-2">
         {SECTIONS.map((s) => (
-          <button key={s.key} type="button" onClick={() => setSection(s.key)}
-            className={`inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium ${section === s.key ? 'bg-brand-600 text-white' : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'}`}>
+          <Button key={s.key} type="button" onClick={() => setSection(s.key)}
+            variant={section === s.key ? 'default' : 'ghost'} aria-pressed={section === s.key}
+            className={section === s.key ? '' : 'text-gray-600 dark:text-gray-300'}>
             <s.icon className="h-4 w-4" />{s.label}
-          </button>
+          </Button>
         ))}
       </div>
 
@@ -93,7 +94,7 @@ function Journal({ fyId, fyClosed, fyLoading }: { fyId: string; fyClosed?: boole
       <div className="flex justify-end">
         {/* Stays disabled until the year's status is known — posting into a closed year
             is rejected 409, and the button must not flip enabled → disabled under a tap. */}
-        <button type="button" className={btnPrimary} disabled={fyClosed || fyLoading} onClick={() => setOpen(true)}><Plus className="h-4 w-4" />{t('ledPostEntry')}</button>
+        <Button type="button" disabled={fyClosed || fyLoading} onClick={() => setOpen(true)}><Plus className="h-4 w-4" />{t('ledPostEntry')}</Button>
       </div>
       {loading ? (
         <Spinner />
@@ -126,8 +127,8 @@ function Journal({ fyId, fyClosed, fyLoading }: { fyId: string; fyClosed?: boole
                   <TableCell className="text-right">
                     {!fyClosed && e.source === 'native' && (
                       <div className="flex justify-end gap-1">
-                        <button type="button" title={t('ledReverse')} aria-label={t('ledReverse')} disabled={busy === e.id} onClick={() => reverse(e.id)} className="rounded-md border border-gray-300 p-1.5 text-gray-500 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:hover:bg-gray-700">{busy === e.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Undo2 className="h-3.5 w-3.5" />}</button>
-                        {!e.beleg?.startsWith('AP-') && <button type="button" title={t('delete')} aria-label={t('delete')} disabled={busy === e.id} onClick={() => remove(e.id)} className="rounded-md border border-gray-300 p-1.5 text-gray-500 hover:bg-gray-50 hover:text-red-600 disabled:opacity-50 dark:border-gray-600 dark:hover:bg-gray-700"><Trash2 className="h-3.5 w-3.5" /></button>}
+                        <IconButton size="sm" variant="outline" label={t('ledReverse')} disabled={busy === e.id} onClick={() => reverse(e.id)} className="text-gray-500">{busy === e.id ? <Loader2 className="animate-spin" /> : <Undo2 />}</IconButton>
+                        {!e.beleg?.startsWith('AP-') && <IconButton size="sm" variant="outline" label={t('delete')} disabled={busy === e.id} onClick={() => remove(e.id)} className="text-gray-500 hover:text-red-600 dark:hover:text-red-400"><Trash2 /></IconButton>}
                       </div>
                     )}
                   </TableCell>
@@ -174,8 +175,8 @@ function PostEntryModal({ open, onClose, fyId, onDone }: { open: boolean; onClos
         <div><label htmlFor="le-text" className={labelCls}>{t('ledColText')}</label><input id="le-text" value={text} onChange={(e) => setText(e.target.value)} className={inputCls} /></div>
         {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
         <div className="flex justify-end gap-2 pt-1">
-          <button type="button" onClick={onClose} className="rounded-md px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700">{t('cancel')}</button>
-          <button type="button" disabled={!valid || busy} onClick={submit} className={btnPrimary}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}{t('ledPostEntry')}</button>
+          <Button variant="ghost" type="button" onClick={onClose}>{t('cancel')}</Button>
+          <Button type="button" disabled={!valid || busy} onClick={submit}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}{t('ledPostEntry')}</Button>
         </div>
       </div>
     </Modal>
@@ -198,7 +199,7 @@ function Accounts() {
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <p className="text-xs text-gray-500 dark:text-gray-400">{t('ledAccountsHint')}</p>
-        <button type="button" className={btnPrimary} onClick={() => setOpen(true)}><Plus className="h-4 w-4" />{t('ledNewAccount')}</button>
+        <Button type="button" onClick={() => setOpen(true)}><Plus className="h-4 w-4" />{t('ledNewAccount')}</Button>
       </div>
       {isLoading ? (
         <Spinner />
@@ -223,7 +224,7 @@ function Accounts() {
                   <TableCell className="hidden sm:table-cell whitespace-nowrap text-xs text-gray-500 dark:text-gray-400">{a.source === 'native' ? t('ledSourceNative') : t('ledSourceClubdesk')}</TableCell>
                   <TableCell className="text-right">
                     {a.source === 'native'
-                      ? <button type="button" onClick={() => toggle(a)} className={btnGhost}>{a.active ? t('ledDeactivate') : t('ledActivate')}</button>
+                      ? <Button variant="outline" size="sm" type="button" onClick={() => toggle(a)}>{a.active ? t('ledDeactivate') : t('ledActivate')}</Button>
                       : <span className="text-xs text-gray-400">{t('ledFromClubdesk')}</span>}
                   </TableCell>
                 </TableRow>
@@ -258,8 +259,8 @@ function NewAccountModal({ open, onClose, onDone }: { open: boolean; onClose: ()
         <div><label htmlFor="na-name" className={labelCls}>{t('ledColName')}</label><input id="na-name" value={name} onChange={(e) => setName(e.target.value)} className={inputCls} /></div>
         {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
         <div className="flex justify-end gap-2 pt-1">
-          <button type="button" onClick={onClose} className="rounded-md px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700">{t('cancel')}</button>
-          <button type="button" disabled={!number.trim() || !name.trim() || busy} onClick={submit} className={btnPrimary}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}{t('save')}</button>
+          <Button variant="ghost" type="button" onClick={onClose}>{t('cancel')}</Button>
+          <Button type="button" disabled={!number.trim() || !name.trim() || busy} onClick={submit}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}{t('save')}</Button>
         </div>
       </div>
     </Modal>
@@ -282,11 +283,11 @@ function TrialBalance({ fyId, period, fyLoading }: { fyId: string; period: strin
   return (
     <div className="space-y-3">
       {data && (
-        <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <div className={`rounded-md px-3 py-2 text-sm ${data.totals.balanced ? 'bg-green-50 text-green-800 dark:bg-green-900/20 dark:text-green-300' : 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-300'}`}>
             {t('ledColDebit')} {formatChf(data.totals.debit)} · {t('ledColCredit')} {formatChf(data.totals.credit)} · {data.totals.balanced ? t('ledBalanced') : t('ledUnbalanced')}
           </div>
-          {rows.length > 0 && <ReportExportMenu build={report} filename={`trial-balance-${period}`} />}
+          {rows.length > 0 && <div className="ml-auto shrink-0"><ReportExportMenu build={report} filename={`trial-balance-${period}`} /></div>}
         </div>
       )}
       {loading ? (
@@ -367,8 +368,8 @@ function CloseYear({ fy, fyLoading }: { fy?: { id: number; label: string | null;
           )}
           {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
           <div className="flex gap-2">
-            <button type="button" disabled={!valid || busy} onClick={() => run(true)} className={btnGhost}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Scale className="h-4 w-4" />}{t('ledPreviewCta')}</button>
-            <button type="button" disabled={!valid || busy || !preview} onClick={() => run(false)} className={btnPrimary}><Lock className="h-4 w-4" />{t('ledCloseCta')}</button>
+            <Button variant="outline" type="button" disabled={!valid || busy} onClick={() => run(true)}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Scale className="h-4 w-4" />}{t('ledPreviewCta')}</Button>
+            <Button type="button" disabled={!valid || busy || !preview} onClick={() => run(false)}><Lock className="h-4 w-4" />{t('ledCloseCta')}</Button>
           </div>
         </>
       )}
@@ -431,7 +432,7 @@ function IncomeByCategoryForm({ categories, map, accounts, onSaved }: { categori
           <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{t('ledIncomeByCategory')}</p>
           <p className="text-xs text-gray-500 dark:text-gray-400">{t('ledIncomeByCategoryHint')}</p>
         </div>
-        <button type="button" disabled={busy} onClick={auto} className={`${btnGhost} shrink-0`}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}{t('ledAutoMap')}</button>
+        <Button variant="outline" type="button" disabled={busy} onClick={auto} className="shrink-0">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}{t('ledAutoMap')}</Button>
       </div>
       <div className="space-y-2">
         {categories.map((c) => (
@@ -446,7 +447,7 @@ function IncomeByCategoryForm({ categories, map, accounts, onSaved }: { categori
       </div>
       {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
       {msg && <p className="text-sm text-green-700 dark:text-green-400">{msg}</p>}
-      <button type="button" disabled={busy} onClick={save} className={btnPrimary}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Settings2 className="h-4 w-4" />}{t('save')}</button>
+      <Button type="button" disabled={busy} onClick={save}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Settings2 className="h-4 w-4" />}{t('save')}</Button>
     </div>
   )
 }
@@ -473,7 +474,7 @@ function AutopostForm({ settings, accounts, onSaved }: { settings: LedgerSetting
     <div className="max-w-xl space-y-4">
       <p className="text-xs text-gray-500 dark:text-gray-400">{t('ledAutopostHint')}</p>
       <div className="flex flex-wrap gap-2">
-        <button type="button" disabled={!!busy} onClick={reconcile} className={btnGhost}>{busy === 'recon' ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}{t('ledReconcile')}</button>
+        <Button variant="outline" type="button" disabled={!!busy} onClick={reconcile}>{busy === 'recon' ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}{t('ledReconcile')}</Button>
       </div>
       <div className="space-y-3">
         {MAP_FIELDS.map((f) => (
@@ -489,7 +490,7 @@ function AutopostForm({ settings, accounts, onSaved }: { settings: LedgerSetting
       {!ready && <p className="text-xs text-amber-600 dark:text-amber-400">{t('ledAutopostNeedsAccounts')}</p>}
       {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
       {msg && <p className="text-sm text-green-700 dark:text-green-400">{msg}</p>}
-      <button type="button" disabled={busy === 'save'} onClick={save} className={btnPrimary}>{busy === 'save' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Settings2 className="h-4 w-4" />}{t('save')}</button>
+      <Button type="button" disabled={busy === 'save'} onClick={save}>{busy === 'save' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Settings2 className="h-4 w-4" />}{t('save')}</Button>
     </div>
   )
 }

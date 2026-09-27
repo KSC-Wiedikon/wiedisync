@@ -187,16 +187,16 @@ export default function FinesPage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-4 px-4 py-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
+      <div className="flex items-start gap-3">
+        <div className="min-w-0 flex-1">
           <h1 className="flex items-center gap-2 text-2xl font-bold text-gray-900 dark:text-gray-100">
-            <Gavel className="h-6 w-6 text-amber-600 dark:text-amber-500" />
+            <Gavel className="h-6 w-6 shrink-0 text-amber-600 dark:text-amber-500" />
             {t('fines:title')}
           </h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t('fines:subtitle')}</p>
         </div>
         {isLeader && (
-          <Button size="sm" onClick={() => setPickerOpen(true)} className="gap-1.5">
+          <Button onClick={() => setPickerOpen(true)} className="shrink-0 gap-1.5">
             <Gavel className="h-4 w-4" />
             {t('fines:issueFine')}
           </Button>
@@ -227,7 +227,7 @@ export default function FinesPage() {
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value as FineStatus | 'all')}
-          className="rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+          className="h-11 rounded-md border border-gray-300 bg-white px-2 text-sm sm:h-9 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
         >
           {STATUSES.map((s) => (
             <option key={s.key} value={s.key}>{t(`fines:${s.tKey}`)}</option>
@@ -238,16 +238,25 @@ export default function FinesPage() {
           <select
             value={teamFilter}
             onChange={(e) => setTeamFilter(e.target.value)}
-            className="rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+            className="h-11 rounded-md border border-gray-300 bg-white px-2 text-sm sm:h-9 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
           >
             <option value="all">{t('fines:filterAll')}</option>
-            {leaderTeams.map((tm) => (
-              <option key={tm.id} value={String(tm.id)}>{tm.name as string}</option>
-            ))}
+            {/* Grouped by sport (CLAUDE.md → team pickers): someone coaching in both
+                sports can't tell "Herren 2" apart by name alone. */}
+            {(['volleyball', 'basketball', 'other'] as const).map((sport) => {
+              const list = leaderTeams.filter((tm) => (tm.sport === 'volleyball' || tm.sport === 'basketball' ? tm.sport : 'other') === sport)
+              return list.length === 0 ? null : (
+                <optgroup key={sport} label={t(`common:${sport}`)}>
+                  {list.map((tm) => (
+                    <option key={tm.id} value={String(tm.id)}>{tm.name as string}</option>
+                  ))}
+                </optgroup>
+              )
+            })}
           </select>
         )}
 
-        <div className="ml-auto text-xs text-gray-500 dark:text-gray-400">
+        <div className="ml-auto shrink-0 text-xs tabular-nums text-gray-500 dark:text-gray-400">
           {fines.length > 0 ? `${fines.length} · ${formatFineAmount(total)}` : null}
         </div>
       </div>

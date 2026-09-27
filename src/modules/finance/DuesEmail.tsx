@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Loader2, Send, ShieldCheck, ShieldAlert, Mail } from 'lucide-react'
 import Modal from '../../components/Modal'
+import { Button } from '@/components/ui/button'
 import { useConfirm } from '../../components/ConfirmProvider'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import {
@@ -12,7 +13,7 @@ import {
 } from '../../hooks/useFinance'
 
 const labelCls = 'block text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400'
-const inputCls = 'mt-1 w-full rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm outline-none focus:border-brand-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100'
+const inputCls = 'mt-1 h-11 w-full rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm sm:h-9 outline-none focus:border-brand-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100'
 const apiErr = (e: unknown, fallback: string) => (e as { body?: { error?: string } })?.body?.error || fallback
 
 /** The global TEST MODE switch — default on; while on, no member is ever emailed.
@@ -68,20 +69,19 @@ function DuesEmailForm({ initial, onSaved }: { initial: FinanceEmailSettings; on
           <label htmlFor="dues-email-recipient" className={labelCls}>{t('duesEmailRecipient')}</label>
           <input id="dues-email-recipient" value={recipient} onChange={(e) => setRecipient(e.target.value)} type="email" placeholder="treasurer@example.ch" className={inputCls} />
         </div>
-        <button type="button" disabled={busy} onClick={() => save(testMode)}
-          className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">
+        <Button type="button" variant="outline" disabled={busy} onClick={() => save(testMode)}>
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : t('save')}
-        </button>
+        </Button>
         {testMode ? (
-          <button type="button" disabled={busy} onClick={() => save(false)}
-            className="rounded-md border border-red-300 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50 dark:border-red-900/50 dark:text-red-300 dark:hover:bg-red-900/20">
+          <Button type="button" variant="outline" disabled={busy} onClick={() => save(false)}
+            className="border-red-300 text-red-700 hover:bg-red-50 hover:text-red-700 dark:border-red-900/50 dark:text-red-300 dark:hover:bg-red-900/20 dark:hover:text-red-300">
             {t('duesEmailTurnOff')}
-          </button>
+          </Button>
         ) : (
-          <button type="button" disabled={busy} onClick={() => save(true)}
-            className="rounded-md border border-green-300 px-3 py-2 text-sm font-medium text-green-700 hover:bg-green-50 disabled:opacity-50 dark:border-green-900/50 dark:text-green-300 dark:hover:bg-green-900/20">
+          <Button type="button" variant="outline" disabled={busy} onClick={() => save(true)}
+            className="border-green-300 text-green-700 hover:bg-green-50 hover:text-green-700 dark:border-green-900/50 dark:text-green-300 dark:hover:bg-green-900/20 dark:hover:text-green-300">
             {t('duesEmailTurnOn')}
-          </button>
+          </Button>
         )}
       </div>
       {msg && <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{msg}</p>}
@@ -149,7 +149,7 @@ export function SendDuesEmailModal({ run, onClose }: { run: DuesRun | null; onCl
             <p className="text-sm text-red-600 dark:text-red-400">{t('duesEmailSendError')}{job.error ? ` (${job.error})` : ''}</p>
           )}
           <div className="flex justify-end">
-            <button type="button" onClick={onClose} className="rounded-md px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700">{t('cancel')}</button>
+            <Button type="button" variant="ghost" onClick={onClose}>{t('cancel')}</Button>
           </div>
         </div>
       </Modal>
@@ -210,12 +210,11 @@ export function SendDuesEmailModal({ run, onClose }: { run: DuesRun | null; onCl
           {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
           <div className="flex justify-end gap-2 pt-1">
-            <button type="button" onClick={onClose} className="rounded-md px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700">{t('cancel')}</button>
-            <button type="button" disabled={!liveReady || sending || preview.would_send === 0} onClick={send}
-              className="inline-flex items-center gap-1.5 rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50">
+            <Button type="button" variant="ghost" onClick={onClose}>{t('cancel')}</Button>
+            <Button type="button" disabled={!liveReady || sending || preview.would_send === 0} onClick={send}>
               {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               {preview.test_mode ? t('duesEmailSendTestCta') : t('duesEmailSendLiveCta', { count: preview.would_send })}
-            </button>
+            </Button>
           </div>
         </div>
       )}

@@ -10,6 +10,8 @@ import { useTranslation } from 'react-i18next'
 import { Receipt } from 'lucide-react'
 import { expenseReceiptUrl } from '../../hooks/useFinance'
 import { FilePreviewDialog } from '../../components/FilePreview'
+import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 
 export default function ReceiptButton({
   expenseId,
@@ -27,10 +29,20 @@ export default function ReceiptButton({
 
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} className={className} title={t('expenseReceipt')}>
+      {/* Dense-tier control (table cells): 36px on a phone, 32px from sm. With
+          showLabel the text only appears from sm, so on a phone it is icon-sized. */}
+      <Button
+        type="button"
+        variant="ghost"
+        size={showLabel ? 'sm' : 'icon-sm'}
+        onClick={() => setOpen(true)}
+        title={t('expenseReceipt')}
+        aria-label={t('expenseReceipt')}
+        className={cn('text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200', showLabel && 'max-sm:w-9 max-sm:px-0', className)}
+      >
         <Receipt className={iconClassName} />
         {showLabel && <span className="hidden sm:inline">{t('expenseReceipt')}</span>}
-      </button>
+      </Button>
       <FilePreviewDialog
         open={open}
         onOpenChange={setOpen}

@@ -163,7 +163,7 @@ export default function IssueFineModal({
           <select
             value={category}
             onChange={(e) => { setCategory(e.target.value as FineCategory); setAmountOverridden(false) }}
-            className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+            className="mt-1 h-11 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm sm:h-9 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
           >
             {CATEGORIES.map((c) => (
               <option key={c} value={c}>
@@ -184,7 +184,7 @@ export default function IssueFineModal({
             onChange={(e) => { setAmountText(e.target.value); setAmountOverridden(true) }}
             placeholder={isTeamFine ? t('fines:amountPlaceholderTeam') : t('fines:amountPlaceholder')}
             required
-            className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+            className="mt-1 h-11 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm sm:h-9 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
           />
         </label>
 

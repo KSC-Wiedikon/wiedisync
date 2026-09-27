@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { HandCoins, Loader2, Eye, Check } from 'lucide-react'
 import { useConfirm } from '../../components/ConfirmProvider'
+import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import { runRefereePayout, formatChf } from '../../hooks/useFinance'
 import type { RefereePayoutRunResponse, RefereePayoutPlanRow } from './types'
@@ -62,23 +63,22 @@ export default function RefereeReimbursementCard({ season }: { season: string })
 
   return (
     <section className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="flex items-center gap-1.5 text-sm font-semibold text-gray-900 dark:text-gray-100">
-          <HandCoins className="h-4 w-4 text-brand-600 dark:text-brand-400" /> {t('refereeReimbTitle', { season })}
+      <div className="flex flex-wrap items-center gap-2">
+        <h2 className="flex min-w-0 items-center gap-1.5 text-sm font-semibold text-gray-900 dark:text-gray-100">
+          <HandCoins className="h-4 w-4 shrink-0 text-brand-600 dark:text-brand-400" /> {t('refereeReimbTitle', { season })}
         </h2>
-        <div className="flex flex-wrap items-center gap-2">
-          <button type="button" disabled={busy != null} onClick={loadPreview}
-            className="inline-flex min-h-[36px] items-center gap-1.5 rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700">
-            {busy === 'preview' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
-            {t('refereeReimbPreview')}
-          </button>
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          {/* The filled primary leads (/kscw-ui → Action placement); it only appears once a preview exists. */}
           {preview && payable.length > 0 && (
-            <button type="button" disabled={busy != null} onClick={create}
-              className="inline-flex min-h-[36px] items-center gap-1.5 rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50">
+            <Button type="button" disabled={busy != null} onClick={create}>
               {busy === 'create' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
               {t('refereeReimbCreate', { count: payable.length })}
-            </button>
+            </Button>
           )}
+          <Button type="button" variant="outline" disabled={busy != null} onClick={loadPreview}>
+            {busy === 'preview' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
+            {t('refereeReimbPreview')}
+          </Button>
         </div>
       </div>
       <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{t('myRefereeSubtitle')}</p>

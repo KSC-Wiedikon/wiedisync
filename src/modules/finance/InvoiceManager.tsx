@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Plus, Search, Check, X, Link2, Loader2, Upload, Coins } from 'lucide-react'
 import Modal from '../../components/Modal'
+import { Button } from '@/components/ui/button'
+import IconButton from '@/components/IconButton'
 import { useConfirm } from '../../components/ConfirmProvider'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import DatePicker from '@/components/ui/DatePicker'
@@ -38,9 +40,9 @@ function MemberPicker({ value, onChange }: { value: Member | null; onChange: (m:
 
   if (value) {
     return (
-      <div className="flex items-center justify-between rounded-md border border-gray-200 px-3 py-2 dark:border-gray-600">
-        <span className="text-sm dark:text-gray-100">{memberDisplayName(value)}</span>
-        <button type="button" onClick={() => onChange(null)} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+      <div className="flex items-center justify-between gap-2 rounded-md border border-gray-200 py-1 pl-3 pr-1 dark:border-gray-600">
+        <span className="min-w-0 break-words text-sm dark:text-gray-100">{memberDisplayName(value)}</span>
+        <IconButton size="sm" label={t('common:clear')} onClick={() => onChange(null)} className="shrink-0 text-muted-foreground hover:text-foreground"><X /></IconButton>
       </div>
     )
   }
@@ -70,7 +72,7 @@ function MemberPicker({ value, onChange }: { value: Member | null; onChange: (m:
 }
 
 const labelCls = 'block text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400'
-const inputCls = 'mt-1 w-full rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm outline-none focus:border-brand-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100'
+const inputCls = 'mt-1 h-11 w-full rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm sm:h-9 outline-none focus:border-brand-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100'
 
 function CreateInvoiceModal({ open, onClose, onDone }: { open: boolean; onClose: () => void; onDone: () => void }) {
   const { t } = useTranslation('finance')
@@ -142,10 +144,10 @@ function CreateInvoiceModal({ open, onClose, onDone }: { open: boolean; onClose:
           <span id="inv-recipient-type-label" className={labelCls}>{t('recipientType')}</span>
           <div role="group" aria-labelledby="inv-recipient-type-label" className="mt-1 flex gap-2">
             {(['member', 'team', 'contact'] as const).map((rt) => (
-              <button key={rt} type="button" onClick={() => setRecipientType(rt)}
-                className={`flex-1 rounded-md border px-3 py-2 text-sm ${recipientType === rt ? 'border-brand-500 bg-brand-50 font-medium text-brand-700 dark:bg-brand-900/30 dark:text-brand-300' : 'border-gray-200 text-gray-600 dark:border-gray-600 dark:text-gray-300'}`}>
+              <Button key={rt} type="button" variant="outline" onClick={() => setRecipientType(rt)} aria-pressed={recipientType === rt}
+                className={`min-w-0 flex-1 px-2 ${recipientType === rt ? 'border-brand-500 bg-brand-50 font-medium text-brand-700 hover:bg-brand-50 dark:border-brand-400 dark:bg-brand-900/30 dark:text-brand-300 dark:hover:bg-brand-900/30' : 'text-gray-600 dark:text-gray-300'}`}>
                 {rt === 'member' ? t('recipientMember') : rt === 'team' ? t('recipientTeam') : t('recipientContact')}
-              </button>
+              </Button>
             ))}
           </div>
         </div>
@@ -172,7 +174,7 @@ function CreateInvoiceModal({ open, onClose, onDone }: { open: boolean; onClose:
                   <option value="">{t('selectContact')}</option>
                   {(contacts ?? []).map((c) => <option key={c.id} value={c.id}>{c.name}{c.email ? ` · ${c.email}` : ''}</option>)}
                 </select>
-                <button type="button" onClick={() => setNewContact(true)} className="text-xs text-brand-600 hover:underline dark:text-brand-400">{t('contactNew')}</button>
+                <Button type="button" variant="link" size="sm" onClick={() => setNewContact(true)} className="px-0 dark:text-brand-400">{t('contactNew')}</Button>
               </>
             ) : (
               <div className="space-y-2 rounded-md border border-gray-200 p-2 dark:border-gray-700">
@@ -181,7 +183,7 @@ function CreateInvoiceModal({ open, onClose, onDone }: { open: boolean; onClose:
                 <select value={cKind} onChange={(e) => setCKind(e.target.value)} className={`${inputCls} dark:bg-gray-800`}>
                   {['sponsor', 'parent', 'company', 'ex_member', 'other'].map((k) => <option key={k} value={k}>{t(`contactKind_${k}`)}</option>)}
                 </select>
-                <button type="button" onClick={() => setNewContact(false)} className="text-xs text-gray-500 hover:underline dark:text-gray-400">{t('contactPickExisting')}</button>
+                <Button type="button" variant="link" size="sm" onClick={() => setNewContact(false)} className="px-0 text-gray-500 dark:text-gray-400">{t('contactPickExisting')}</Button>
               </div>
             )}
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('contactInvoiceHint')}</p>
@@ -225,11 +227,10 @@ function CreateInvoiceModal({ open, onClose, onDone }: { open: boolean; onClose:
 
         {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
         <div className="flex justify-end gap-2 pt-1">
-          <button type="button" onClick={onClose} className="rounded-md px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700">{t('cancel')}</button>
-          <button type="button" disabled={!valid || busy} onClick={submit}
-            className="inline-flex items-center gap-1.5 rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50">
+          <Button variant="ghost" type="button" onClick={onClose}>{t('cancel')}</Button>
+          <Button type="button" disabled={!valid || busy} onClick={submit}>
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}{t('createInvoiceCta')}
-          </button>
+          </Button>
         </div>
       </div>
     </Modal>
@@ -276,11 +277,10 @@ function LinkMemberModal({ invoice, onClose, onDone }: { invoice: FinanceInvoice
           )}
           {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
           <div className="flex justify-end gap-2 pt-1">
-            <button type="button" onClick={onClose} className="rounded-md px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700">{t('cancel')}</button>
-            <button type="button" disabled={!member || busy} onClick={submit}
-              className="inline-flex items-center gap-1.5 rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50">
+            <Button variant="ghost" type="button" onClick={onClose}>{t('cancel')}</Button>
+            <Button type="button" disabled={!member || busy} onClick={submit}>
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}{t('linkCta')}
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -458,21 +458,20 @@ export default function InvoiceManager({ fiscalYearId, fiscalYearLabel }: { fisc
     <div className="space-y-8">
       {/* ── All invoices in the selected fiscal year (native + ClubDesk mirror) ── */}
       <section>
-        <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+        <div className="mb-1 flex flex-wrap items-center gap-2">
+          <h2 className="min-w-0 text-sm font-semibold text-gray-900 dark:text-gray-100">
             {fiscalYearLabel ? t('allInvoicesYear', { year: fiscalYearLabel }) : t('allInvoices')}
           </h2>
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-gray-400">
+          <div className="ml-auto flex shrink-0 items-center gap-3">
+            <span className="text-xs tabular-nums text-gray-400">
               {filteredAll.length}{filteredAll.length !== inYear.length ? `/${inYear.length}` : ''}
               {/* The key interpolates {{n}}, so it must be passed as `n` — passing
                   `count` printed the literal "{{n}} from Wiedisync" in the header. */}
               {native.length > 0 ? ` · ${t('nativeCount', { n: native.length })}` : ''}
             </span>
-            <button type="button" onClick={() => setShowCreate(true)}
-              className="inline-flex items-center gap-1.5 rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700">
+            <Button type="button" onClick={() => setShowCreate(true)}>
               <Plus className="h-4 w-4" />{t('newInvoice')}
-            </button>
+            </Button>
           </div>
         </div>
         <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">{t('allInvoicesHint')}</p>
@@ -531,28 +530,25 @@ export default function InvoiceManager({ fiscalYearId, fiscalYearLabel }: { fisc
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1.5">
                             {nativeRow && ['pending_confirmation', 'open', 'partial'].includes(inv.status ?? '') && (
-                              <button type="button" disabled={busyId === inv.id} onClick={() => act(inv.id, confirmInvoice)}
-                                className="inline-flex items-center gap-1 rounded-md bg-green-600 px-2 py-1 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-50">
-                                <Check className="h-3.5 w-3.5" />{t('confirmPaymentCta')}
-                              </button>
+                              <Button type="button" size="sm" disabled={busyId === inv.id} onClick={() => act(inv.id, confirmInvoice)}
+                                className="bg-green-600 text-white hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600">
+                                <Check />{t('confirmPaymentCta')}
+                              </Button>
                             )}
                             {nativeRow && inv.status !== 'cancelled' && (
-                              <button type="button" onClick={() => setPaymentTarget(inv)}
-                                className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700">
-                                <Coins className="h-3.5 w-3.5" />{t('payButton')}
-                              </button>
+                              <Button type="button" size="sm" variant="outline" onClick={() => setPaymentTarget(inv)}>
+                                <Coins />{t('payButton')}
+                              </Button>
                             )}
                             {nativeRow && inv.status !== 'paid' && inv.status !== 'cancelled' && (
-                              <button type="button" disabled={busyId === inv.id} onClick={async () => { if (await confirm({ message: t('cancelInvoiceSure'), danger: true })) act(inv.id, cancelInvoice) }}
-                                className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700">
+                              <Button type="button" size="sm" variant="outline" disabled={busyId === inv.id} onClick={async () => { if (await confirm({ message: t('cancelInvoiceSure'), danger: true })) act(inv.id, cancelInvoice) }}>
                                 {t('cancelInvoiceCta')}
-                              </button>
+                              </Button>
                             )}
                             {!nativeRow && !inv.member && (
-                              <button type="button" onClick={() => setLinkTarget(inv)}
-                                className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700">
-                                <Link2 className="h-3.5 w-3.5" />{t('linkToMember')}
-                              </button>
+                              <Button type="button" size="sm" variant="outline" onClick={() => setLinkTarget(inv)}>
+                                <Link2 />{t('linkToMember')}
+                              </Button>
                             )}
                           </div>
                         </TableCell>
@@ -574,12 +570,12 @@ export default function InvoiceManager({ fiscalYearId, fiscalYearLabel }: { fisc
 
       {/* ── Unmatched ClubDesk invoices ──────────────────────────── */}
       <section>
-        <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+        <div className="mb-1 flex flex-wrap items-center gap-2">
+          <h2 className="min-w-0 text-sm font-semibold text-gray-900 dark:text-gray-100">
             {orphansAllYears || !fiscalYearLabel ? t('orphanedInvoices') : t('orphanedInvoicesYear', { year: fiscalYearLabel })}
           </h2>
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-gray-400">{orphans.length}{orphans.length !== orphansAll.length ? `/${orphansAll.length}` : ''}</span>
+          <div className="ml-auto flex shrink-0 items-center gap-3">
+            <span className="text-xs tabular-nums text-gray-400">{orphans.length}{orphans.length !== orphansAll.length ? `/${orphansAll.length}` : ''}</span>
             {fiscalYearLabel && (
               <label className="flex cursor-pointer items-center gap-1.5 text-xs text-gray-600 dark:text-gray-300">
                 <input type="checkbox" checked={orphansAllYears} onChange={(e) => setOrphansAllYears(e.target.checked)} className="h-4 w-4 rounded border-gray-300 dark:border-gray-600" />
@@ -622,10 +618,9 @@ export default function InvoiceManager({ fiscalYearId, fiscalYearLabel }: { fisc
                       <TableCell className="hidden sm:table-cell whitespace-nowrap text-gray-600 dark:text-gray-400">{inv.invoice_date ? formatDateCompactZurich(inv.invoice_date) : '–'}</TableCell>
                       <TableCell className="text-right tabular-nums text-gray-900 dark:text-gray-100">{formatChf(inv.amount)}</TableCell>
                       <TableCell className="text-right">
-                        <button type="button" onClick={() => setLinkTarget(inv)}
-                          className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700">
-                          <Link2 className="h-3.5 w-3.5" />{t('linkToMember')}
-                        </button>
+                        <Button type="button" size="sm" variant="outline" onClick={() => setLinkTarget(inv)}>
+                          <Link2 />{t('linkToMember')}
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))}

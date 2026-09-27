@@ -1,7 +1,10 @@
-import { Fragment, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Plus, Trash2, Loader2, ChevronDown, ChevronRight } from 'lucide-react'
 import Modal from '../../components/Modal'
+import { Button } from '@/components/ui/button'
+import IconButton from '@/components/IconButton'
+import { TeamPickerSingle, type TeamPickerOption } from '@/components/ui/TeamPicker'
 import { useConfirm } from '../../components/ConfirmProvider'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import DatePicker from '@/components/ui/DatePicker'
@@ -15,7 +18,7 @@ import type { Team } from '../../types'
 import RefereeReimbursementCard from './RefereeReimbursementCard'
 
 const labelCls = 'block text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400'
-const inputCls = 'mt-1 w-full rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm outline-none focus:border-brand-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100'
+const inputCls = 'mt-1 h-11 w-full rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm sm:h-9 outline-none focus:border-brand-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100'
 const apiErr = (e: unknown, fb: string) => (e as { body?: { error?: string } })?.body?.error || fb
 const KINDS: TeamEntryKind[] = ['sponsoring', 'income', 'expense']
 const netCls = (n: number) => (n >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400')
@@ -87,10 +90,10 @@ function TeamEntries({ teamId, fiscalYearId, onChanged }: { teamId: number; fisc
                 {e.kind === 'expense' ? '−' : '+'}{formatChf(toNum(e.amount))}
               </TableCell>
               <TableCell className="text-right">
-                <button type="button" disabled={busyDel === e.id} onClick={() => remove(e.id)} aria-label={t('teamEntryDelete')}
-                  className="inline-flex items-center rounded-md border border-gray-300 p-1.5 text-gray-500 hover:bg-gray-50 hover:text-red-600 disabled:opacity-50 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-700">
-                  {busyDel === e.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                </button>
+                <IconButton size="sm" variant="outline" disabled={busyDel === e.id} onClick={() => remove(e.id)} label={t('teamEntryDelete')}
+                  className="text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400">
+                  {busyDel === e.id ? <Loader2 className="animate-spin" /> : <Trash2 />}
+                </IconButton>
               </TableCell>
             </TableRow>
           ))}
@@ -107,7 +110,17 @@ function AddTeamEntryModal({ open, onClose, fiscalYearId, presetTeam, onDone }: 
 }) {
   const { t } = useTranslation('finance')
   const { data: teamsRaw } = useTeams('all')
-  const teams = (teamsRaw ?? []) as Team[]
+  // Sport-grouped picker (CLAUDE.md → team pickers): a finance admin sees both
+  // sports, and a team name alone doesn't say which one it is.
+  const teamOptions = useMemo<TeamPickerOption[]>(
+    () => ((teamsRaw ?? []) as Team[]).map((tm) => ({
+      id: String(tm.id),
+      label: tm.name,
+      sport: tm.sport === 'volleyball' || tm.sport === 'basketball' ? tm.sport : null,
+      active: tm.active !== false,
+    })),
+    [teamsRaw],
+  )
   const [team, setTeam] = useState('')
   const [kind, setKind] = useState<TeamEntryKind>('sponsoring')
   const [amount, setAmount] = useState('')
@@ -139,11 +152,15 @@ function AddTeamEntryModal({ open, onClose, fiscalYearId, presetTeam, onDone }: 
       <div className="space-y-3">
         {presetTeam == null && (
           <div>
-            <label htmlFor="tf-team" className={labelCls}>{t('teamLabel')}</label>
-            <select id="tf-team" value={team} onChange={(e) => setTeam(e.target.value)} className={`${inputCls} dark:bg-gray-800`}>
-              <option value="">{t('selectTeam')}</option>
-              {teams.map((tm) => <option key={tm.id} value={tm.id}>{tm.name}</option>)}
-            </select>
+            <span className={labelCls}>{t('teamLabel')}</span>
+            <TeamPickerSingle
+              value={team || null}
+              onChange={(id) => setTeam(id ?? '')}
+              teams={teamOptions}
+              allowEmpty={false}
+              placeholder={t('selectTeam')}
+              className="mt-1 dark:bg-gray-800"
+            />
           </div>
         )}
         <div className="grid grid-cols-2 gap-3">
@@ -175,11 +192,10 @@ function AddTeamEntryModal({ open, onClose, fiscalYearId, presetTeam, onDone }: 
         )}
         {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
         <div className="flex justify-end gap-2 pt-1">
-          <button type="button" onClick={onClose} className="rounded-md px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700">{t('cancel')}</button>
-          <button type="button" disabled={!valid || busy} onClick={submit}
-            className="inline-flex items-center gap-1.5 rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50">
+          <Button type="button" variant="ghost" onClick={onClose}>{t('cancel')}</Button>
+          <Button type="button" disabled={!valid || busy} onClick={submit}>
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}{t('teamAddCta')}
-          </button>
+          </Button>
         </div>
       </div>
     </Modal>
@@ -252,12 +268,11 @@ export default function TeamFinance({ fiscalYearId, fiscalYearLabel }: { fiscalY
       {/* Season-end referee reimbursement — the fiscal-year label IS the season label ("2026/27"). */}
       {fiscalYearLabel && <RefereeReimbursementCard season={fiscalYearLabel} />}
 
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs text-gray-500 dark:text-gray-400">{t('teamFinanceHint', { year: fiscalYearLabel })}</p>
-        <button type="button" onClick={() => setShowAdd(true)}
-          className="inline-flex items-center gap-1.5 rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700">
+      <div className="flex items-center gap-3">
+        <p className="min-w-0 flex-1 text-xs text-gray-500 dark:text-gray-400">{t('teamFinanceHint', { year: fiscalYearLabel })}</p>
+        <Button type="button" className="shrink-0" onClick={() => setShowAdd(true)}>
           <Plus className="h-4 w-4" />{t('teamAddEntry')}
-        </button>
+        </Button>
       </div>
 
       {pending ? (

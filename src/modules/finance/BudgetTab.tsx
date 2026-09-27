@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Download, Loader2 } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import { useFinanceBudget, saveBudgetLine, formatChf, toNum } from '../../hooks/useFinance'
 import { downloadCsv } from './financeExport'
@@ -111,7 +112,7 @@ export default function BudgetTab({ rows, fiscalYearId, fiscalYearLabel }: {
                         // Not rendering the input is the point: an element that does not
                         // exist cannot be focused, typed into, or blur-commit a figure the
                         // treasurer only typed because the cell looked empty.
-                        <div aria-hidden className="h-7 w-24 animate-pulse rounded-md bg-gray-200 dark:bg-gray-700" />
+                        <div aria-hidden className="h-9 w-24 animate-pulse rounded-md bg-gray-200 sm:h-8 dark:bg-gray-700" />
                       ) : (
                         <input
                           inputMode="decimal"
@@ -119,7 +120,7 @@ export default function BudgetTab({ rows, fiscalYearId, fiscalYearLabel }: {
                           onChange={(e) => setEdit((p) => ({ ...p, [editKey(r.id)]: e.target.value }))}
                           onBlur={(e) => save(r, e.target.value)}
                           placeholder="0.00"
-                          className="w-24 rounded-md border border-gray-200 bg-transparent px-2 py-1 text-right text-sm tabular-nums outline-none focus:border-brand-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                          className="h-9 w-24 rounded-md border border-gray-200 bg-transparent px-2 text-right text-sm tabular-nums sm:h-8 outline-none focus:border-brand-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
                         />
                       )}
                     </div>
@@ -141,20 +142,18 @@ export default function BudgetTab({ rows, fiscalYearId, fiscalYearLabel }: {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs text-gray-500 dark:text-gray-400">{t('budgetHint', { year: fiscalYearLabel })}</p>
-        <div className="flex items-center gap-2">
-          <button type="button" onClick={exportCsv} disabled={budgetPending}
-            className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:hover:bg-transparent dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700 dark:disabled:hover:bg-transparent">
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="min-w-0 text-xs text-gray-500 dark:text-gray-400">{t('budgetHint', { year: fiscalYearLabel })}</p>
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+          <Button type="button" variant="outline" onClick={exportCsv} disabled={budgetPending}>
             <Download className="h-4 w-4" />{t('exportCsv')}
-          </button>
+          </Button>
           {/* A PDF/XLSX built in the zero-budget frame outlives the frame — same button,
               disabled, rather than a menu that would export the wrong figures. */}
           {budgetPending ? (
-            <button type="button" disabled
-              className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 opacity-50 dark:border-gray-600 dark:text-gray-200">
+            <Button type="button" variant="outline" disabled>
               <Download className="h-4 w-4" />{t('export')}
-            </button>
+            </Button>
           ) : (
             <ReportExportMenu build={budgetReport} filename={`budget-${fiscalYearLabel || fiscalYearId}`} />
           )}

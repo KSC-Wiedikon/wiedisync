@@ -7,6 +7,7 @@ import { useAuth } from '../../hooks/useAuth'
 import { useCollection } from '../../lib/query'
 import { formatRelativeTime, formatDateZurich } from '../../utils/dateHelpers'
 import { Button } from '../../components/ui/button'
+import IconButton from '../../components/IconButton'
 import { Input } from '../../components/ui/input'
 import { Textarea } from '../../components/ui/textarea'
 import { Badge } from '../../components/ui/badge'
@@ -232,13 +233,13 @@ export default function FeedbackPage() {
 
   return (
     <div className="mx-auto max-w-2xl">
-      <div className="mb-6 flex items-center justify-between">
-        <div>
+      <div className="mb-6 flex items-center justify-between gap-3">
+        <div className="min-w-0">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('title')}</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">{t('subtitle')}</p>
         </div>
         {!showForm && (
-          <Button onClick={() => setShowForm(true)}>
+          <Button className="shrink-0" onClick={() => setShowForm(true)}>
             + {t('newFeedback')}
           </Button>
         )}
@@ -250,23 +251,25 @@ export default function FeedbackPage() {
           <h2 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">{t('newFeedback')}</h2>
 
           {/* Type pills */}
-          <div className="mb-4 flex gap-2">
+          <div className="mb-4 flex flex-wrap gap-2">
             {(['bug', 'feature', 'feedback'] as const).map((type) => {
               const config = TYPE_CONFIG[type]
               const Icon = config.icon
               const isActive = selectedType === type
               return (
-                <button
+                <Button
                   key={type}
                   type="button"
+                  variant="ghost"
+                  aria-pressed={isActive}
                   onClick={() => setSelectedType(type)}
-                  className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
+                  className={`gap-1.5 rounded-full px-3 ${
                     isActive ? config.color : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
                   }`}
                 >
                   <Icon className="h-4 w-4" />
                   {t(`type${type.charAt(0).toUpperCase() + type.slice(1)}`)}
-                </button>
+                </Button>
               )
             })}
           </div>
@@ -325,11 +328,11 @@ export default function FeedbackPage() {
             {files.length > 0 && (
               <div className="mt-2 space-y-1">
                 {files.map((f, i) => (
-                  <div key={`${f.name}-${i}`} className="flex items-center gap-2 rounded-lg bg-gray-50 px-3 py-1.5 text-sm dark:bg-gray-700">
-                    <span className="flex-1 truncate">{f.name}</span>
-                    <button type="button" onClick={() => setFiles((prev) => prev.filter((_, j) => j !== i))} className="text-gray-400 hover:text-red-500">
-                      <X className="h-4 w-4" />
-                    </button>
+                  <div key={`${f.name}-${i}`} className="flex items-center gap-2 rounded-lg bg-gray-50 py-0.5 pl-3 pr-0.5 text-sm dark:bg-gray-700">
+                    <span className="min-w-0 flex-1 truncate" title={f.name}>{f.name}</span>
+                    <IconButton size="sm" label={t('common:remove')} onClick={() => setFiles((prev) => prev.filter((_, j) => j !== i))} className="shrink-0 text-gray-400 hover:text-red-500 dark:hover:text-red-400">
+                      <X />
+                    </IconButton>
                   </div>
                 ))}
               </div>
@@ -382,14 +385,17 @@ export default function FeedbackPage() {
             {/* Closed issues — collapsible */}
             {closedIssues.length > 0 && (
               <div>
-                <button
+                <Button
+                  type="button"
+                  variant="ghost"
+                  aria-expanded={showClosed}
                   onClick={() => setShowClosed((v) => !v)}
-                  className="mb-2 flex items-center gap-2 text-sm font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+                  className="-ml-2 mb-2 px-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
                 >
                   {showClosed ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                   <CheckCircle2 className="h-4 w-4 text-purple-500 dark:text-purple-400" />
                   <span>{t('closedIssues')} ({closedIssues.length})</span>
-                </button>
+                </Button>
                 {showClosed && (
                   <div className="space-y-1.5">
                     {closedIssues.map((issue) => (
@@ -439,10 +445,10 @@ export default function FeedbackPage() {
                       {item.type}
                     </Badge>
                     <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-medium text-gray-900 dark:text-white">{item.title}</div>
+                      <div className="break-words text-sm font-medium leading-snug text-gray-900 dark:text-white">{item.title}</div>
                       <div className="text-xs text-gray-500 dark:text-gray-400">{formatDate(item.date_created)}</div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex shrink-0 items-center gap-2">
                       <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[item.status] || ''}`}>
                         {t(`status${item.status.charAt(0).toUpperCase() + item.status.slice(1)}`)}
                       </span>
@@ -488,7 +494,7 @@ function IssueRow({ issue, formatDate, closed }: { issue: GitHubIssue; formatDat
           : <AlertCircle className="h-4 w-4 shrink-0 text-green-600 dark:text-green-400" />
         }
         <span className="text-xs font-medium text-gray-400 dark:text-gray-500">#{issue.number}</span>
-        <span className={`min-w-0 flex-1 truncate text-sm font-medium ${closed ? 'text-gray-500 line-through dark:text-gray-400' : 'text-gray-900 dark:text-gray-100'}`}>
+        <span title={issue.title} className={`min-w-0 flex-1 truncate text-sm font-medium ${closed ? 'text-gray-500 line-through dark:text-gray-400' : 'text-gray-900 dark:text-gray-100'}`}>
           {issue.title}
         </span>
         <div className="flex shrink-0 items-center gap-2">

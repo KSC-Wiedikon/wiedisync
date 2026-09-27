@@ -8,6 +8,7 @@ import DatePicker from '@/components/ui/DatePicker'
 import { FormInput, FormTextarea } from '../../components/FormField'
 import { useConfirm } from '../../components/ConfirmProvider'
 import { Button } from '../../components/ui/button'
+import IconButton from '../../components/IconButton'
 import { useAllExpenses, patchExpense, formatExpenseAmount, type FinanceExpense } from '../../hooks/useFinance'
 import ReceiptButton from './ReceiptButton'
 import { formatDateCompactZurich } from '../../utils/dateHelpers'
@@ -248,19 +249,18 @@ export default function ExpensesTab() {
                     <TableCell className="text-right">
                       <div className="flex flex-col items-end gap-1 sm:flex-row sm:items-center sm:justify-end">
                         {e.file && (
-                          <ReceiptButton
-                            expenseId={e.id}
-                            className="inline-flex min-h-[44px] items-center gap-1 rounded-md px-2 text-xs font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
-                          />
+                          <ReceiptButton expenseId={e.id} />
                         )}
-                        <button
+                        <IconButton
+                          size="sm"
                           type="button"
                           onClick={() => (editingId === e.id ? (setEditingId(null), setEdit(null)) : startEdit(e))}
-                          className="inline-flex min-h-[44px] items-center gap-1 rounded-md px-2 text-xs font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
-                          title={t('expenseEdit')}
+                          className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                          label={t('expenseEdit')}
+                          aria-expanded={editingId === e.id}
                         >
-                          {editingId === e.id ? <X className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}
-                        </button>
+                          {editingId === e.id ? <X /> : <Pencil />}
+                        </IconButton>
                       </div>
                     </TableCell>
                   </TableRow>

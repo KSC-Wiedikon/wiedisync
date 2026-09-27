@@ -13,6 +13,7 @@ import { ArrowLeft, Search, Save, Loader2, Mail, Phone, MapPin, CreditCard, Chev
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import { Switch } from '@/components/ui/switch'
 import { Button } from '@/components/ui/button'
+import IconButton from '@/components/IconButton'
 import { formatDateCompactZurich } from '../../utils/dateHelpers'
 import { useAuth } from '../../hooks/useAuth'
 import { useAdminMode } from '../../hooks/useAdminMode'
@@ -232,9 +233,9 @@ function MemberDetail({ member, invoices, documents, canEdit, onBack, onSaved, o
       {canEdit && (
         <input ref={fileRef} type="file" accept=".pdf,image/*,application/pdf" className="hidden" onChange={onFilePicked} />
       )}
-      <button onClick={onBack} className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200">
+      <Button type="button" variant="ghost" onClick={onBack} className="-ml-2 px-2 text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200">
         <ArrowLeft className="h-4 w-4" /> {t('back')}
-      </button>
+      </Button>
 
       {/* Header */}
       <div className="flex flex-wrap items-center gap-2">
@@ -358,27 +359,29 @@ function MemberDetail({ member, invoices, documents, canEdit, onBack, onSaved, o
                         <span className="mt-0.5 block text-xs text-gray-500 sm:hidden">{inv.subject}</span>
                         <span className="mt-1 flex flex-wrap items-center gap-1.5">
                           {docsFor(inv).map((d) => (
-                            <span key={d.id} className="inline-flex items-center gap-1 rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-700">
-                              <button type="button" onClick={() => setPreviewDoc(d)} title={d.label ?? t('viewPdf')} className="inline-flex items-center gap-1 text-xs text-brand-600 hover:underline dark:text-brand-300">
-                                <FileText className="h-3 w-3" />{t('viewPdf')}
-                              </button>
+                            <span key={d.id} className="inline-flex items-center rounded-md bg-gray-100 dark:bg-gray-700">
+                              <Button type="button" variant="link" size="sm" onClick={() => setPreviewDoc(d)} title={d.label ?? t('viewPdf')} className="px-2 dark:text-brand-300">
+                                <FileText />{t('viewPdf')}
+                              </Button>
                               {canEdit && (
-                                <button type="button" onClick={() => removeDoc(d)} aria-label={t('docDelete')} className="text-gray-400 hover:text-red-600">
-                                  <X className="h-3 w-3" />
-                                </button>
+                                <IconButton size="sm" onClick={() => removeDoc(d)} label={t('docDelete')} className="text-gray-400 hover:text-red-600 dark:hover:text-red-400">
+                                  <X />
+                                </IconButton>
                               )}
                             </span>
                           ))}
                           {canEdit && (
-                            <button
+                            <Button
                               type="button"
+                              variant="outline"
+                              size="sm"
                               onClick={() => pickFile(inv)}
                               disabled={busyInvoice === String(inv.id)}
-                              className="inline-flex items-center gap-1 rounded border border-dashed border-gray-300 px-1.5 py-0.5 text-xs text-gray-500 hover:border-brand-400 hover:text-brand-600 disabled:opacity-50 dark:border-gray-600 dark:text-gray-400"
+                              className="border-dashed px-2 text-gray-500 hover:border-brand-400 hover:text-brand-600 dark:text-gray-400 dark:hover:text-brand-300"
                             >
-                              {busyInvoice === String(inv.id) ? <Loader2 className="h-3 w-3 animate-spin" /> : <Paperclip className="h-3 w-3" />}
+                              {busyInvoice === String(inv.id) ? <Loader2 className="animate-spin" /> : <Paperclip />}
                               {t('attachPdf')}
-                            </button>
+                            </Button>
                           )}
                         </span>
                       </TableCell>
@@ -491,23 +494,32 @@ export default function FinanceMemberExplorer() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={t('memberExplorerSearch')}
-            className="w-full rounded-md border border-gray-200 bg-transparent py-2 pl-8 pr-3 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+            className="h-11 w-full rounded-md border border-gray-200 bg-transparent py-2 pl-8 pr-3 text-sm sm:h-9 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
           />
         </div>
-        <button
+        <Button
+          type="button"
+          variant="ghost"
+          aria-pressed={onlyActive}
           onClick={() => setOnlyActive((v) => !v)}
-          className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${onlyActive ? 'bg-brand-100 text-brand-700 dark:bg-brand-900/40 dark:text-brand-300' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300'}`}
-        >{t('filterActive')}</button>
-        <button
+          className={`rounded-full px-3 ${onlyActive ? 'bg-brand-100 text-brand-700 hover:bg-brand-100 dark:bg-brand-900/40 dark:text-brand-300 dark:hover:bg-brand-900/40' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300'}`}
+        >{t('filterActive')}</Button>
+        <Button
+          type="button"
+          variant="ghost"
+          aria-pressed={onlyOpen}
           onClick={() => setOnlyOpen((v) => !v)}
-          className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${onlyOpen ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300'}`}
-        >{t('filterWithOpen')}</button>
+          className={`rounded-full px-3 ${onlyOpen ? 'bg-amber-100 text-amber-800 hover:bg-amber-100 dark:bg-amber-900/40 dark:text-amber-300 dark:hover:bg-amber-900/40' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300'}`}
+        >{t('filterWithOpen')}</Button>
         {(['volleyball', 'basketball'] as const).map((s) => (
-          <button
+          <Button
             key={s}
+            type="button"
+            variant="ghost"
+            aria-pressed={sport === s}
             onClick={() => setSport((v) => (v === s ? 'all' : s))}
-            className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${sport === s ? 'bg-brand-100 text-brand-700 dark:bg-brand-900/40 dark:text-brand-300' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300'}`}
-          >{s === 'volleyball' ? t('divVb') : t('divBb')}</button>
+            className={`rounded-full px-3 ${sport === s ? 'bg-brand-100 text-brand-700 hover:bg-brand-100 dark:bg-brand-900/40 dark:text-brand-300 dark:hover:bg-brand-900/40' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300'}`}
+          >{s === 'volleyball' ? t('divVb') : t('divBb')}</Button>
         ))}
       </div>
 

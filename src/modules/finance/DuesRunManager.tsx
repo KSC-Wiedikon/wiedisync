@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Plus, Trash2, Loader2, PlayCircle, ListChecks, Download, Mail } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import IconButton from '@/components/IconButton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import DatePicker from '@/components/ui/DatePicker'
 import { formatDateCompactZurich } from '../../utils/dateHelpers'
@@ -14,7 +16,7 @@ import { DuesEmailSettings, SendDuesEmailModal } from './DuesEmail'
 import { useConfirm } from '../../components/ConfirmProvider'
 
 const labelCls = 'block text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400'
-const inputCls = 'mt-1 w-full rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm outline-none focus:border-brand-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100'
+const inputCls = 'mt-1 h-11 w-full rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm sm:h-9 outline-none focus:border-brand-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100'
 const skelBar = 'animate-pulse bg-gray-200 dark:bg-gray-700'
 const apiErr = (e: unknown, fallback: string) => (e as { body?: { error?: string } })?.body?.error || fallback
 
@@ -285,10 +287,10 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
                   </TableCell>
                   <TableCell className="hidden sm:table-cell whitespace-normal break-words text-xs text-gray-500 dark:text-gray-400">{r.subject_template || '–'}</TableCell>
                   <TableCell className="text-right">
-                    <button type="button" onClick={() => removeRate(r.id)} aria-label={t('duesRateDelete')}
-                      className="inline-flex items-center rounded-md border border-gray-300 p-1.5 text-gray-500 hover:bg-gray-50 hover:text-red-600 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-700">
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
+                    <IconButton size="sm" variant="outline" onClick={() => removeRate(r.id)} label={t('duesRateDelete')}
+                      className="text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400">
+                      <Trash2 />
+                    </IconButton>
                   </TableCell>
                 </TableRow>
               ))}
@@ -316,10 +318,9 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
                   <input value={rSubj} onChange={(e) => setRSubj(e.target.value)} placeholder={t('duesSubjectPlaceholder')} className={`${inputCls} mt-0`} aria-label={t('duesColSubject')} />
                 </TableCell>
                 <TableCell className="text-right">
-                  <button type="button" disabled={!rValid || rBusy} onClick={addRate}
-                    className="inline-flex items-center gap-1 rounded-md bg-brand-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-brand-700 disabled:opacity-50">
-                    {rBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}{t('duesAddRateCta')}
-                  </button>
+                  <Button type="button" size="sm" disabled={!rValid || rBusy} onClick={addRate}>
+                    {rBusy ? <Loader2 className="animate-spin" /> : <Plus />}{t('duesAddRateCta')}
+                  </Button>
                 </TableCell>
               </TableRow>
             </TableBody>
@@ -339,7 +340,7 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
             {ratesPending ? (
               <div className="mt-1.5 flex flex-wrap gap-1.5" aria-hidden="true">
                 {[0, 1, 2, 3, 4, 5].map((i) => (
-                  <div key={`cat-skeleton-${i}`} className={`${skelBar} h-[26px] w-20 rounded-full`} />
+                  <div key={`cat-skeleton-${i}`} className={`${skelBar} h-9 w-20 rounded-full sm:h-8`} />
                 ))}
               </div>
             ) : categories.length === 0 ? (
@@ -347,12 +348,12 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
             ) : (
               <div role="group" aria-labelledby="dues-pick-categories-label" className="mt-1.5 flex flex-wrap gap-1.5">
                 {categories.map((c) => (
-                  <button key={c} type="button" onClick={() => toggleCat(c)}
-                    className={`rounded-full border px-3 py-1 text-xs font-medium ${selected.includes(c)
-                      ? 'border-brand-500 bg-brand-50 text-brand-700 dark:bg-brand-900/30 dark:text-brand-300'
-                      : 'border-gray-200 text-gray-600 dark:border-gray-600 dark:text-gray-300'}`}>
+                  <Button key={c} type="button" size="sm" variant="outline" onClick={() => toggleCat(c)} aria-pressed={selected.includes(c)}
+                    className={`rounded-full ${selected.includes(c)
+                      ? 'border-brand-500 bg-brand-50 text-brand-700 hover:bg-brand-50 dark:border-brand-400 dark:bg-brand-900/30 dark:text-brand-300 dark:hover:bg-brand-900/30'
+                      : 'text-gray-600 dark:text-gray-300'}`}>
                     {c}
-                  </button>
+                  </Button>
                 ))}
               </div>
             )}
@@ -365,10 +366,9 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
             <div>
               <DatePicker id="dues-run-due-date" label={t('duesRunDueDate')} value={dueDate} onChange={setDueDate} />
             </div>
-            <button type="button" disabled={!selected.length || pvBusy || ratesPending} onClick={runPreview}
-              className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">
+            <Button type="button" variant="outline" disabled={!selected.length || pvBusy || ratesPending} onClick={runPreview}>
               {pvBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ListChecks className="h-4 w-4" />}{t('duesPreviewCta')}
-            </button>
+            </Button>
           </div>
 
           {runErr && <p className="text-sm text-red-600 dark:text-red-400">{runErr}</p>}
@@ -510,11 +510,10 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
                     <button type="button" onClick={() => setPicked(new Set())} className="ml-2 underline">{t('duesTrialClear')}</button>
                   </p>
                 )}
-                <button type="button" disabled={!preview.totals.issuable || issuing} onClick={issue}
-                  className="inline-flex items-center justify-center gap-1.5 rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50">
+                <Button type="button" disabled={!preview.totals.issuable || issuing} onClick={issue}>
                   {issuing ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
                   {t('duesIssueCta', { count: picked.size || preview.totals.issuable })}
-                </button>
+                </Button>
               </div>
             </div>
           )}
@@ -560,22 +559,19 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
                     <TableCell className="text-right">
                       <div className="flex flex-col items-end gap-1.5 sm:flex-row sm:justify-end">
                         {run.status !== 'cancelled' && run.total_count > 0 && (
-                          <button type="button" disabled={billBusy === run.id} onClick={() => downloadBills(run)}
-                            className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700">
-                            {billBusy === run.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}{t('duesDownloadBills')}
-                          </button>
+                          <Button type="button" size="sm" variant="outline" disabled={billBusy === run.id} onClick={() => downloadBills(run)}>
+                            {billBusy === run.id ? <Loader2 className="animate-spin" /> : <Download />}{t('duesDownloadBills')}
+                          </Button>
                         )}
                         {run.status !== 'cancelled' && run.total_count > 0 && (
-                          <button type="button" onClick={() => setEmailTarget(run)}
-                            className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700">
-                            <Mail className="h-3.5 w-3.5" />{t('duesEmailSendShort')}
-                          </button>
+                          <Button type="button" size="sm" variant="outline" onClick={() => setEmailTarget(run)}>
+                            <Mail />{t('duesEmailSendShort')}
+                          </Button>
                         )}
                         {run.status !== 'cancelled' && (
-                          <button type="button" onClick={() => cancelRun(run.id)}
-                            className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700">
+                          <Button type="button" size="sm" variant="outline" onClick={() => cancelRun(run.id)}>
                             {t('duesRunCancel')}
-                          </button>
+                          </Button>
                         )}
                       </div>
                     </TableCell>

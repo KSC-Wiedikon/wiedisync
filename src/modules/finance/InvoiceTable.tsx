@@ -2,6 +2,7 @@ import { Fragment, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ChevronDown, ChevronRight, Check, Clock } from 'lucide-react'
 import { toast } from 'sonner'
+import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import { formatDateCompactZurich } from '../../utils/dateHelpers'
 import { toNum, formatChf, isPayableInvoice, isReportedPaid, isNativeInvoice, reportInvoicePaid } from '../../hooks/useFinance'
@@ -144,15 +145,14 @@ export default function InvoiceTable({ invoices, canPay = true, onPaid }: Invoic
                         in finance_invoice_self_reports so it outlives the nightly
                         mirror rebuild (migration 297). */}
                     <div className="flex flex-col items-center gap-1.5 pb-3">
-                      <button
+                      <Button
                         type="button"
                         disabled={submitting === inv.id}
                         onClick={() => handlePaid(inv.id)}
-                        className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
                       >
                         <Check className="h-4 w-4" />
                         {t('setAsPaid')}
-                      </button>
+                      </Button>
                       <p className="max-w-sm text-center text-xs text-gray-500 dark:text-gray-400">{t('iPaidHint')}</p>
                     </div>
                   </TableCell>

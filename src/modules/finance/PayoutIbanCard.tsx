@@ -81,10 +81,10 @@ export default function PayoutIbanCard() {
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-2">
-            <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t('ibanCardTitle')}</h2>
+            <h2 className="min-w-0 text-sm font-semibold text-gray-900 dark:text-gray-100">{t('ibanCardTitle')}</h2>
             {!editing && (
-              <Button type="button" variant="ghost" size="sm" onClick={startEdit} className="h-8 px-2">
-                <Pencil className="mr-1.5 h-3.5 w-3.5" />
+              <Button type="button" variant="ghost" size="sm" onClick={startEdit} className="shrink-0 gap-1.5 px-2">
+                <Pencil />
                 {current ? tc('edit') : t('ibanCardAdd')}
               </Button>
             )}

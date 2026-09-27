@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { ChevronDown, ChevronRight, Loader2, RefreshCw } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
+import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import { formatDateCompactZurich, formatDateTimeCompactZurich } from '../../utils/dateHelpers'
 import {
@@ -76,10 +77,9 @@ function SyncNowButton() {
   }
   return (
     <div className="mt-3">
-      <button type="button" disabled={syncing} onClick={go}
-        className="inline-flex items-center gap-1.5 rounded-md bg-brand-600 px-3 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-60">
+      <Button type="button" disabled={syncing} onClick={go}>
         {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}{syncing ? t('syncing') : t('syncNow')}
-      </button>
+      </Button>
       {syncing && <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{t('syncingNote')}</p>}
       {error && <p className="mt-1.5 text-sm text-red-600 dark:text-red-400">{error}</p>}
     </div>
@@ -121,14 +121,17 @@ function Kpi({ label, value, tone = 'default' }: { label: string; value: string;
 /** Dashboard view-switch button. */
 function TabBtn({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
   return (
-    <button
+    <Button
+      type="button"
+      variant="ghost"
+      aria-pressed={active}
       onClick={onClick}
-      className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+      className={`px-3 ${
         active
-          ? 'bg-brand-100 text-brand-700 dark:bg-brand-900/40 dark:text-brand-300'
+          ? 'bg-brand-100 text-brand-700 hover:bg-brand-100 hover:text-brand-700 dark:bg-brand-900/40 dark:text-brand-300 dark:hover:bg-brand-900/40 dark:hover:text-brand-300'
           : 'text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700'
       }`}
-    >{label}</button>
+    >{label}</Button>
   )
 }
 
@@ -304,8 +307,8 @@ export default function FinancePage() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-6 p-4 sm:p-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="min-w-0">
           <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">{t('title')}</h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t('boardSubtitle')}</p>
         </div>
@@ -313,7 +316,7 @@ export default function FinancePage() {
           <select
             value={activeFyId}
             onChange={(e) => setFyId(e.target.value)}
-            className="rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+            className="ml-auto h-11 shrink-0 rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm sm:h-9 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
             aria-label={t('fiscalYear')}
           >
             {fiscalYears.map((fy) => <option key={fy.id} value={fy.id}>{fy.label}</option>)}

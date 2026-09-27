@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Download, Banknote } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import { useMyPayouts, formatChf, type FinancePayout } from '../../hooks/useFinance'
 import { formatDateCompactZurich } from '../../utils/dateHelpers'
@@ -79,16 +80,18 @@ export default function MyPayoutsCard() {
                 </TableCell>
                 <TableCell><PayoutStatusBadge status={p.status} /></TableCell>
                 <TableCell className="text-right">
-                  <button
+                  <Button
                     type="button"
+                    variant="outline"
+                    size="sm"
                     onClick={() => download(p)}
                     aria-label={t('payoutDownloadPdf')}
                     title={t('payoutDownloadPdf')}
-                    className="inline-flex min-h-[36px] shrink-0 items-center gap-1.5 rounded-md border border-gray-200 px-2.5 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+                    className="shrink-0 max-sm:w-9 max-sm:px-0"
                   >
-                    <Download className="h-4 w-4" />
+                    <Download />
                     <span className="hidden sm:inline">{t('payoutDownloadPdf')}</span>
-                  </button>
+                  </Button>
                 </TableCell>
               </TableRow>
             ))}

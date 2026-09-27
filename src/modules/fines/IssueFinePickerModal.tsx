@@ -129,7 +129,7 @@ export default function IssueFinePickerModal({ open, onClose, teams, onPicked }:
           <select
             value={teamId}
             onChange={(e) => { setTeamId(e.target.value); setMemberId('') }}
-            className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+            className="mt-1 h-11 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm sm:h-9 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
           >
             <option value="">{t('fines:pickTeamPlaceholder')}</option>
             {teamGroups.map((g) => (
@@ -149,7 +149,7 @@ export default function IssueFinePickerModal({ open, onClose, teams, onPicked }:
               value={memberId}
               onChange={(e) => setMemberId(e.target.value)}
               disabled={!teamId || isLoading}
-              className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm disabled:opacity-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+              className="mt-1 h-11 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm disabled:opacity-50 sm:h-9 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
             >
               <option value="">
                 {!teamId ? t('fines:pickTeamFirst') : isLoading ? t('common:loading') : t('fines:pickMemberPlaceholder')}

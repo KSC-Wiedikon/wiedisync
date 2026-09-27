@@ -24,7 +24,7 @@ const DISTRICTS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'
 const HALL_TYPES = ['sporthalle', 'gymnastikraum', 'dreifachhalle', 'doppelhalle']
 
 const selectClass =
-  'h-9 rounded-md border border-input bg-transparent px-2 text-sm dark:bg-gray-800'
+  'h-11 rounded-md border border-input bg-transparent px-2 text-sm sm:h-9 dark:bg-gray-800'
 
 // The size column prints the city's own string verbatim (L x B x H, Swiss
 // decimal comma) — no reformatting and no derived "fits a court" verdict.
@@ -194,16 +194,15 @@ export default function HallenfinderPage() {
 
       {!isLoading && !isError && results.length > 0 && (
         <>
-          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-            <p className="text-sm text-muted-foreground">{t('resultCount', { count: results.length })}</p>
+          <div className="mb-2 flex items-center gap-2">
+            <p className="min-w-0 flex-1 text-sm text-muted-foreground">{t('resultCount', { count: results.length })}</p>
             <Button
               type="button"
-              size="sm"
               variant="outline"
               onClick={() => { void exportXlsx() }}
               disabled={exporting}
               aria-busy={exporting}
-              className="min-h-[44px] sm:min-h-0"
+              className="shrink-0"
             >
               <Download className={`mr-1.5 h-4 w-4 ${exporting ? 'animate-pulse' : ''}`} aria-hidden="true" />
               {exporting ? t('exporting') : t('exportXlsx')}
