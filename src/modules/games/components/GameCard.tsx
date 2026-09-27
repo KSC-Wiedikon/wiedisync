@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
-import { Users, Pencil, Trash2 } from 'lucide-react'
+import { Users, Pencil, Trash2, MapPin } from 'lucide-react'
 import type { Game, Team, Hall, BaseRecord } from '../../../types'
-import { formatDateCompact, formatTime } from '../../../utils/dateHelpers'
+import { formatDayMonthZurich, formatTime, formatWeekday } from '../../../utils/dateHelpers'
 import { leagueShort } from '../../../utils/leagueShort'
 import TeamChip from '../../../components/TeamChip'
 import { teamNameToColorKey } from '../../../utils/teamColors'
@@ -18,6 +18,11 @@ import { asObj, relId, teamCoachIds } from '../../../utils/relations'
 import CancelActivityButton from '../../../components/CancelActivityButton'
 import ActivityParticipation from '../../../components/ActivityParticipation'
 import CarpoolChip from '../../carpool/CarpoolChip'
+import { ActivityRow, DateRail, RowChip, TeamPair } from '../../../components/ActivityRow'
+import type { RowTone } from '../../../components/activityRowTokens'
+import TruncatedText from '../../../components/TruncatedText'
+import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 
 function parseSets(json: unknown): Array<{ home: number; away: number }> {
   if (!Array.isArray(json)) return []
@@ -56,26 +61,26 @@ function StatusBadge({ status }: { status: Game['status'] }) {
   switch (status) {
     case 'live':
       return (
-        <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700 dark:bg-red-900/30 dark:text-red-400">
+        <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700 dark:bg-red-900/30 dark:text-red-400">
           <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-500" />
           {t('statusLive')}
         </span>
       )
     case 'postponed':
       return (
-        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+        <span className="whitespace-nowrap rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
           {t('statusPostponed')}
         </span>
       )
     case 'completed':
       return (
-        <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700 dark:bg-green-900/30 dark:text-green-400">
+        <span className="whitespace-nowrap rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700 dark:bg-green-900/30 dark:text-green-400">
           {t('statusCompleted')}
         </span>
       )
     case 'cancelled':
       return (
-        <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700 dark:bg-red-900/30 dark:text-red-400">
+        <span className="whitespace-nowrap rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700 dark:bg-red-900/30 dark:text-red-400">
           {t('statusCancelled')}
         </span>
       )
@@ -84,8 +89,51 @@ function StatusBadge({ status }: { status: Game['status'] }) {
   }
 }
 
+/**
+ * One side's result: per-set points then the total, right-aligned so that
+ * totals line up down a list regardless of how many sets were played. Set
+ * chips are coloured from KSCW's point of view (green = a set we won).
+ */
+function ScoreAside({ side, game, sets, kscwWon, kscwLost }: {
+  side: 'home' | 'away'
+  game: Game
+  sets: Array<{ home: number; away: number }>
+  kscwWon: boolean
+  kscwLost: boolean
+}) {
+  const ours = game.type === side
+  const total = side === 'home' ? game.home_score : game.away_score
+  return (
+    <div className="flex items-center justify-end gap-1 leading-5">
+      {sets.map((s, i) => {
+        const homeSetWon = s.home > s.away
+        const kscwSetWon = side === 'home' ? homeSetWon === (game.type === 'home') : homeSetWon !== (game.type === 'home')
+        return (
+          <span
+            key={i}
+            className={`inline-flex h-5 w-7 items-center justify-center rounded font-mono text-xs tabular-nums ${
+              kscwSetWon
+                ? 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                : 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+            }`}
+          >
+            {side === 'home' ? s.home : s.away}
+          </span>
+        )
+      })}
+      <span className={cn(
+        'w-6 text-right font-mono text-sm font-bold tabular-nums',
+        ours ? (kscwWon ? 'text-green-500' : kscwLost ? 'text-red-500' : 'text-gray-400') : 'text-gray-400',
+      )}>
+        {total}
+      </span>
+    </div>
+  )
+}
+
 export default function GameCard({ game, onClick, variant = 'card', participations, myParticipation, warnings, onParticipationSaved, onOpenRoster, onEdit, onDelete, past }: GameCardProps) {
   const { t } = useTranslation('games')
+  const { t: tc } = useTranslation('common')
   const { user, canParticipateIn, isStaffOnly, isGuestIn } = useAuth()
   const { canManageTeam } = useTeamPermissions()
   // A called-up player (migration 271) has no member_teams row on the team whose
@@ -119,285 +167,188 @@ export default function GameCard({ game, onClick, variant = 'card', participatio
   const homeLabel = game.type === 'home' && kscwFullLabel ? kscwFullLabel : game.home_team
   const awayLabel = game.type === 'away' && kscwFullLabel ? kscwFullLabel : game.away_team
 
+  const hasScore = game.status === 'completed' || game.status === 'live'
+  const homeWon = Number(game.home_score) > Number(game.away_score)
+  const awayWon = Number(game.away_score) > Number(game.home_score)
+  const kscwWon = game.type === 'home' ? homeWon : awayWon
+  const kscwLost = game.type === 'home' ? awayWon : homeWon
+  const sets = parseSets(game.sets_json)
+
+  // One tone for stripe + rail date: the game's state first, then (for a
+  // played game) our result, else home vs away.
+  const tone: RowTone =
+    game.status === 'cancelled' || game.status === 'live' ? 'red'
+      : game.status === 'postponed' ? 'amber'
+        : game.status === 'completed' ? (kscwWon ? 'green' : kscwLost ? 'red' : 'gray')
+          : game.type === 'home' ? 'brand' : 'sky'
+
+  const rail = (
+    <DateRail
+      eyebrow={game.date ? formatWeekday(game.date) : undefined}
+      main={game.date ? `${formatDayMonthZurich(game.date)}.` : '–'}
+      sub={game.time ? formatTime(game.time) : undefined}
+      // leagueShort can hold a newline (league + group) — keep it.
+      extra={game.league ? <span className="whitespace-pre-line">{leagueShort(game.league)}</span> : undefined}
+      tone={tone}
+    />
+  )
+
+  const title = (
+    <TeamPair
+      home={homeLabel}
+      away={awayLabel}
+      emphasis={game.type === 'away' ? 'away' : 'home'}
+      homeAside={hasScore ? <ScoreAside side="home" game={game} sets={sets} kscwWon={kscwWon} kscwLost={kscwLost} /> : undefined}
+      awayAside={hasScore ? <ScoreAside side="away" game={game} sets={sets} kscwWon={kscwWon} kscwLost={kscwLost} /> : undefined}
+    />
+  )
+
+  const teamChip = kscwTeamName ? (
+    <span className="inline-flex min-w-0 max-w-full items-center gap-1">
+      {isBB
+        ? <BasketballIcon className="h-4 w-4 shrink-0" filled />
+        : <VolleyballIcon className="h-4 w-4 shrink-0" filled />}
+      <TeamChip team={kscwTeamName} size="xs" />
+    </span>
+  ) : null
+
+  // Hall is secondary text: a chip that truncates (with title) rather than
+  // pushing the card wider on a long "Sporthalle …, Zürich".
+  const hallChip = hallInfo ? (
+    <RowChip className="min-w-0 max-w-full">
+      <MapPin aria-hidden />
+      <TruncatedText text={hallInfo} />
+    </RowChip>
+  ) : null
+
   if (variant === 'compact') {
-    const short = game.date ? formatDateCompact(game.date) : ''
-    const hasScore = game.status === 'completed' || game.status === 'live'
-    const homeWon = Number(game.home_score) > Number(game.away_score)
-    const awayWon = Number(game.away_score) > Number(game.home_score)
-    const kscwWon = game.type === 'home' ? homeWon : awayWon
-    const kscwLost = game.type === 'home' ? awayWon : homeWon
-    const sets = parseSets(game.sets_json)
-
     return (
-      <>
-        {/* Mobile: flex row */}
-        <div
-          onClick={() => onClick?.(game)}
-          className={`border-b border-gray-100 dark:border-gray-700 md:hidden ${onClick ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700' : ''}`}
-        >
-          <div className="flex items-center gap-2 px-4 py-2.5">
-            <div className="w-16 shrink-0 text-xs text-gray-500 dark:text-gray-400">
-              <div>{short}</div>
-              {game.time && <div>{formatTime(game.time)}</div>}
-            </div>
-            <div className="flex shrink-0 items-center gap-1">
-              {isBB
-                ? <BasketballIcon className="h-5 w-5" filled />
-                : <VolleyballIcon className="h-5 w-5" filled />}
-              {kscwTeamName && <TeamChip team={kscwTeamName} size="xs" />}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className={`truncate text-sm text-gray-900 dark:text-gray-100 ${game.type === 'home' ? 'font-bold' : ''}`}>
-                {homeLabel}
-              </p>
-              <p className={`truncate text-sm text-gray-900 dark:text-gray-100 ${game.type === 'away' ? 'font-bold' : ''}`}>
-                {awayLabel}
-              </p>
-            </div>
-            {hasScore && (
-              <div className="shrink-0 text-right font-mono text-sm font-bold leading-snug">
-                <div className={game.type === 'home' ? (kscwWon ? 'text-green-500' : kscwLost ? 'text-red-500' : 'text-gray-400') : 'text-gray-400'}>{game.home_score}</div>
-                <div className={game.type === 'away' ? (kscwWon ? 'text-green-500' : kscwLost ? 'text-red-500' : 'text-gray-400') : 'text-gray-400'}>{game.away_score}</div>
-              </div>
-            )}
-            {game.status !== 'completed' && <StatusBadge status={game.status} />}
-          </div>
-        </div>
-
-        {/* Desktop: uses display:contents so cells participate in parent grid */}
-        <div
-          onClick={() => onClick?.(game)}
-          className={`col-span-full hidden md:grid md:grid-cols-subgrid items-center gap-x-3 border-b border-gray-100 px-5 py-3 dark:border-gray-700 ${onClick ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700' : ''}`}
-        >
-          {/* Col 1: Date + time */}
-          <div className="text-xs text-gray-500 dark:text-gray-400">
-            <div>{short}</div>
-            {game.time && <div>{formatTime(game.time)}</div>}
-          </div>
-
-          {/* Col 2: Sport icon */}
-          <div>
-            {isBB
-              ? <BasketballIcon className="h-5 w-5" filled />
-              : <VolleyballIcon className="h-5 w-5" filled />}
-          </div>
-
-          {/* Col 3: Team chip */}
-          <div>
-            {kscwTeamName ? <TeamChip team={kscwTeamName} size="xs" /> : null}
-          </div>
-
-          {/* Col 4: Total score (left of team names) */}
-          <div className="text-right font-mono text-sm font-bold">
-            {hasScore ? (
-              <>
-                <p className={`leading-5 ${game.type === 'home' ? (kscwWon ? 'text-green-500' : kscwLost ? 'text-red-500' : 'text-gray-400') : 'text-gray-400'}`}>{game.home_score}</p>
-                <p className={`leading-5 ${game.type === 'away' ? (kscwWon ? 'text-green-500' : kscwLost ? 'text-red-500' : 'text-gray-400') : 'text-gray-400'}`}>{game.away_score}</p>
-              </>
-            ) : (
-              game.status !== 'completed' && <StatusBadge status={game.status} />
-            )}
-          </div>
-
-          {/* Col 5: Team names */}
-          <div className="min-w-0">
-            <p className={`truncate text-sm leading-5 text-gray-900 dark:text-gray-100 ${game.type === 'home' ? 'font-bold' : ''}`}>
-              {homeLabel}
-            </p>
-            <p className={`truncate text-sm leading-5 text-gray-900 dark:text-gray-100 ${game.type === 'away' ? 'font-bold' : ''}`}>
-              {awayLabel}
-            </p>
-          </div>
-
-          {/* Col 6: Set scores — two rows aligned with teams */}
-          <div>
-            {hasScore && sets.length > 0 && (
-              <>
-                <div className="flex items-center gap-1 leading-5">
-                  {sets.map((s, i) => {
-                    const homeSetWon = s.home > s.away
-                    return (
-                      <span
-                        key={i}
-                        className={`inline-flex h-5 w-7 items-center justify-center rounded text-xs font-mono tabular-nums ${
-                          homeSetWon === (game.type === 'home')
-                            ? 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                            : 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                        }`}
-                      >
-                        {s.home}
-                      </span>
-                    )
-                  })}
-                </div>
-                <div className="flex items-center gap-1 leading-5">
-                  {sets.map((s, i) => {
-                    const homeSetWon = s.home > s.away
-                    return (
-                      <span
-                        key={i}
-                        className={`inline-flex h-5 w-7 items-center justify-center rounded text-xs font-mono tabular-nums ${
-                          homeSetWon !== (game.type === 'home')
-                            ? 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                            : 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                        }`}
-                      >
-                        {s.away}
-                      </span>
-                    )
-                  })}
-                </div>
-              </>
-            )}
-          </div>
-
-          {/* Col 7: League */}
-          <div>
-            {game.league && (
-              <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-500 dark:bg-gray-700 dark:text-gray-400">
-                {leagueShort(game.league)}
-              </span>
-            )}
-          </div>
-
-          {/* Col 8: Hall */}
-          <div className="truncate text-xs text-gray-500 dark:text-gray-400">
-            {hallInfo}
-          </div>
-        </div>
-      </>
+      <ActivityRow
+        rail={rail}
+        tone={tone}
+        title={title}
+        status={game.status !== 'completed' ? <StatusBadge status={game.status} /> : undefined}
+        chips={<>{teamChip}{hallChip}</>}
+        onClick={onClick ? () => onClick(game) : undefined}
+      />
     )
   }
 
-  const statusBorderColor: Record<string, string> = {
-    confirmed: 'bg-green-500 dark:bg-green-400',
-    tentative: 'bg-yellow-500 dark:bg-yellow-400',
-    declined: 'bg-red-500 dark:bg-red-400',
-    waitlisted: 'bg-orange-500 dark:bg-orange-400',
-    absent: 'bg-gray-400 dark:bg-gray-500',
-  }
-  const myStatus = myParticipation?.status ?? null
+  const showCancel = !past && (game.status === 'scheduled' || game.status === 'cancelled')
+  const showRoster = !!onOpenRoster
+  const showEdit = !!onEdit && canManage
+  const showDelete = !!onDelete && canDelete
+  const hasTools = showCancel || showRoster || showEdit || showDelete
 
   return (
-    <div
-      onClick={() => onClick?.(game)}
-      className={`flex items-stretch overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-card transition-shadow ${onClick ? 'cursor-pointer hover:shadow-card-hover' : ''}${game.status === 'cancelled' || past ? ' opacity-60' : ''}`}
-    >
-      {/* Participation status vertical banner */}
-      {user && myStatus && (
-        <div className={`w-1 shrink-0 ${statusBorderColor[myStatus] ?? ''}`} />
-      )}
-      {/* min-w-0: a flex item defaults to min-width:auto and so refuses to shrink
-          below its min-content, which the card's overflow-hidden then clips
-          instead of wrapping. */}
-      <div className="min-w-0 flex-1 p-3">
-      {/* Top-right action bar: warning + H/A badge + roster/edit/delete */}
-      <div className="flex shrink-0 items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-        {!past && game.status === 'scheduled' && warnings && warnings.length > 0 && (
-          <ParticipationWarningBadge warnings={warnings} namespace="participation" />
-        )}
-        <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold leading-none ${
-          game.type === 'home'
-            ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'
-            : 'bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300'
-        }`}>
-          {game.type === 'home' ? t('typeHomeShort') : t('typeAwayShort')}
-        </span>
-        {/* Car pooling (migration 378) — straight to the rides board. */}
-        {!past && game.status === 'scheduled' && game.carpool_enabled && user && (
-          <CarpoolChip type="game" id={game.id} scope={game.carpool_teams} />
-        )}
-        {!past && (game.status === 'scheduled' || game.status === 'cancelled') && (
-          <CancelActivityButton
-            kind="game"
-            activityId={game.id}
-            isCancelled={game.status === 'cancelled'}
-            teamIds={teamIdForPerms ? [teamIdForPerms] : []}
-            variant="icon"
-            onDone={onParticipationSaved}
-          />
-        )}
-        {onOpenRoster && (
-          <button
-            onClick={() => onOpenRoster(game)}
-            className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-600 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-300"
-            title={t('viewRoster')}
-            aria-label={t('viewRoster')}
-          >
-            <Users className="h-4 w-4" />
-          </button>
-        )}
-        {onEdit && canManage && (
-          <button
-            onClick={() => onEdit(game)}
-            className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-600 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-300"
-            title={t('editGame')}
-            aria-label={t('editGame')}
-          >
-            <Pencil className="h-4 w-4" />
-          </button>
-        )}
-        {onDelete && canDelete && (
-          <button
-            onClick={() => onDelete(game.id)}
-            className="rounded-lg p-2 text-gray-500 hover:bg-red-50 hover:text-red-600 dark:text-gray-400 dark:hover:bg-red-900/20 dark:hover:text-red-400"
-            title={t('deleteGame')}
-            aria-label={t('deleteGame')}
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
-        )}
-      </div>
-
-      <div className="flex gap-3">
-        {/* Left: date, time, league, chip */}
-        <div className="w-20 shrink-0 space-y-0.5 text-xs text-gray-500 dark:text-gray-400">
-          <div className="font-medium text-gray-700 dark:text-gray-300">{game.date ? formatDateCompact(game.date) : ''}</div>
-          {game.time && <div>{formatTime(game.time)}</div>}
-          <div className="whitespace-pre-line">{leagueShort(game.league)}</div>
-          {kscwTeamName && (
-            <div className="flex items-center gap-1 pt-0.5">
-              {isBB
-                ? <BasketballIcon className="h-3.5 w-3.5" filled />
-                : <VolleyballIcon className="h-3.5 w-3.5" filled />}
-              <TeamChip team={kscwTeamName} size="xs" />
-            </div>
-          )}
-        </div>
-
-        {/* Right: teams stacked + hall */}
-        <div className="min-w-0 flex-1">
-          <p className={`truncate text-sm text-gray-900 dark:text-gray-100 ${game.type === 'home' ? 'font-bold' : ''}`}>
-            {homeLabel}
-          </p>
-          <p className={`truncate text-sm text-gray-900 dark:text-gray-100 ${game.type === 'away' ? 'font-bold' : ''}`}>
-            {awayLabel}
-          </p>
-          <div className="mt-1 flex items-center gap-2">
-            <StatusBadge status={game.status} />
-            {hallInfo && <span className="truncate text-xs text-gray-500 dark:text-gray-400">{hallInfo}</span>}
+    <div className={cn(
+      'rounded-xl border border-gray-200 bg-white px-1 shadow-card transition-shadow dark:border-gray-700 dark:bg-gray-800',
+      onClick && 'hover:shadow-card-hover',
+    )}>
+      <ActivityRow
+        rail={rail}
+        tone={tone}
+        title={title}
+        muted={game.status === 'cancelled' || past}
+        onClick={onClick ? () => onClick(game) : undefined}
+        status={
+          // The warning badge is a popover trigger — keep its click from also
+          // opening the game detail behind it.
+          <span className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+            {!past && game.status === 'scheduled' && warnings && warnings.length > 0 && (
+              <ParticipationWarningBadge warnings={warnings} namespace="participation" />
+            )}
+            <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold leading-none ${
+              game.type === 'home'
+                ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'
+                : 'bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300'
+            }`}>
+              {game.type === 'home' ? t('typeHomeShort') : t('typeAwayShort')}
+            </span>
+            {game.status !== 'scheduled' && <StatusBadge status={game.status} />}
+          </span>
+        }
+        chips={
+          <>
+            {teamChip}
+            {hallChip}
+            {/* Car pooling (migration 378) — straight to the rides board. */}
+            {!past && game.status === 'scheduled' && game.carpool_enabled && user && (
+              <CarpoolChip type="game" id={game.id} scope={game.carpool_teams} />
+            )}
+          </>
+        }
+        tools={hasTools ? (
+          <>
+            {showRoster && (
+              <Button
+                type="button"
+                size="tool"
+                variant="outline"
+                onClick={() => onOpenRoster(game)}
+                title={t('viewRoster')}
+                aria-label={t('viewRoster')}
+              >
+                <Users aria-hidden />{t('viewRoster', { ns: 'scorer' })}
+              </Button>
+            )}
+            {showEdit && (
+              <Button
+                type="button"
+                size="tool"
+                variant="outline"
+                onClick={() => onEdit(game)}
+                title={t('editGame')}
+                aria-label={t('editGame')}
+              >
+                <Pencil aria-hidden />{tc('edit')}
+              </Button>
+            )}
+            {showDelete && (
+              <Button
+                type="button"
+                size="tool"
+                variant="outline"
+                onClick={() => onDelete(game.id)}
+                title={t('deleteGame')}
+                aria-label={t('deleteGame')}
+                className="border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/20"
+              >
+                <Trash2 aria-hidden />{tc('delete')}
+              </Button>
+            )}
+            {showCancel && (
+              <CancelActivityButton
+                kind="game"
+                activityId={game.id}
+                isCancelled={game.status === 'cancelled'}
+                teamIds={teamIdForPerms ? [teamIdForPerms] : []}
+                variant="icon"
+                onDone={onParticipationSaved}
+              />
+            )}
+          </>
+        ) : undefined}
+      >
+        {!past && game.status === 'scheduled' && (
+          <div className="mt-2 flex flex-wrap items-end gap-2">
+            {canParticipate && (
+              <ActivityParticipation
+                kind="game"
+                activityId={game.id}
+                date={game.date}
+                respondBy={game.respond_by}
+                activityTime={game.time}
+                existingParticipation={myParticipation}
+                isStaff={!!teamIdForPerms && isStaffOnly(teamIdForPerms)}
+                guestExcluded={!!teamIdForPerms && isGuestIn(teamIdForPerms)}
+                onSaved={onParticipationSaved}
+              />
+            )}
+            <ParticipationSummary activityType="game" activityId={game.id} bars alwaysShow participations={participations ?? []} coachMemberIds={teamCoachIds(kscwTeamObj)} />
           </div>
-          {!past && game.status === 'scheduled' && (
-            <div className="mt-1.5 flex flex-wrap items-end gap-2">
-              {canParticipate && (
-                <ActivityParticipation
-                  kind="game"
-                  activityId={game.id}
-                  date={game.date}
-                  respondBy={game.respond_by}
-                  activityTime={game.time}
-                  existingParticipation={myParticipation}
-                  isStaff={!!teamIdForPerms && isStaffOnly(teamIdForPerms)}
-                  guestExcluded={!!teamIdForPerms && isGuestIn(teamIdForPerms)}
-                  onSaved={onParticipationSaved}
-                />
-              )}
-              <ParticipationSummary activityType="game" activityId={game.id} bars alwaysShow participations={participations ?? []} coachMemberIds={teamCoachIds(kscwTeamObj)} />
-            </div>
-          )}
-        </div>
-      </div>
-      </div>
+        )}
+      </ActivityRow>
     </div>
   )
 }

@@ -9,6 +9,7 @@ import { useEffectiveSeason } from '../../hooks/useEffectiveSeason'
 import GameTabs from './components/GameTabs'
 import type { TabKey } from './components/GameTabs'
 import GameCard from './components/GameCard'
+import { RowList } from '../../components/ActivityRow'
 import RankingsTable from './components/RankingsTable'
 import LoadingSpinner from '../../components/LoadingSpinner'
 
@@ -111,11 +112,11 @@ export default function EmbedGamesPage() {
             {games.length === 0 ? (
               <p className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">{t('embedNoGames')}</p>
             ) : (
-              <div className="space-y-3">
+              <RowList>
                 {games.map((g) => (
                   <GameCard key={g.id} game={g} variant="compact" />
                 ))}
-              </div>
+              </RowList>
             )}
           </>
         )}

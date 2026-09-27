@@ -24,6 +24,8 @@ import TeamFilterBar from './components/TeamFilterBar'
 import GameTabs from './components/GameTabs'
 import type { TabKey } from './components/GameTabs'
 import GameCard from './components/GameCard'
+import { RowList } from '../../components/ActivityRow'
+import { Button } from '@/components/ui/button'
 import RankingsTable from './components/RankingsTable'
 import KscwScoreboard from './components/KscwScoreboard'
 import GameDetailModal from './components/GameDetailModal'
@@ -455,7 +457,11 @@ export default function GamesPage() {
           </h2>
         )}
         {variant === 'compact' ? (
-          <div className="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700 bg-white md:mx-auto md:w-fit dark:bg-gray-800 md:grid md:grid-cols-[auto_auto_auto_auto_auto_auto_auto_1fr]">
+          // A RowList of ActivityRows, not the old md:w-fit subgrid: its `auto`
+          // names column sized to the longest team name, so names never
+          // truncated/wrapped and the list outgrew the page. Rows now align on
+          // the fixed rail and a minmax(0,1fr) names track (TeamPair).
+          <RowList className="rounded-lg border border-gray-200 bg-white px-1 md:mx-auto md:max-w-3xl dark:border-gray-700 dark:bg-gray-800">
             {section.items.map((g) => (
               <GameCard
                 key={g.id}
@@ -470,7 +476,7 @@ export default function GamesPage() {
                 warnings={warningsByGame.get(g.id)}
               />
             ))}
-          </div>
+          </RowList>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {section.items.map((g) => (
@@ -531,12 +537,9 @@ export default function GamesPage() {
               <>
                 {renderGameSections('card')}
                 {!showAll && games.length >= INITIAL_LIMIT && (
-                  <button
-                    onClick={() => setShowAll(true)}
-                    className="mt-4 w-full cursor-pointer rounded-lg border border-gray-200 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-800"
-                  >
+                  <Button type="button" variant="outline" onClick={() => setShowAll(true)} className="mt-4 w-full">
                     {t('showMore')}
-                  </button>
+                  </Button>
                 )}
               </>
             )}
@@ -552,12 +555,9 @@ export default function GamesPage() {
                   ))}
                 </div>
                 {!showAllPast && pastGames.length >= INITIAL_LIMIT && (
-                  <button
-                    onClick={() => setShowAllPast(true)}
-                    className="mt-4 w-full cursor-pointer rounded-lg border border-gray-200 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-800"
-                  >
+                  <Button type="button" variant="outline" onClick={() => setShowAllPast(true)} className="mt-4 w-full">
                     {t('showMore')}
-                  </button>
+                  </Button>
                 )}
               </div>
             )}
@@ -573,12 +573,9 @@ export default function GamesPage() {
               <>
                 {renderGameSections('compact')}
                 {!showAll && games.length >= INITIAL_LIMIT && (
-                  <button
-                    onClick={() => setShowAll(true)}
-                    className="mt-4 w-full cursor-pointer rounded-lg border border-gray-200 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-800"
-                  >
+                  <Button type="button" variant="outline" onClick={() => setShowAll(true)} className="mt-4 w-full">
                     {t('showMore')}
-                  </button>
+                  </Button>
                 )}
               </>
             )}
