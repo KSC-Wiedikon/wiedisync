@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { MessageSquare, X, Check, AlertTriangle } from 'lucide-react'
+import { MessageSquare, X, Check, AlertTriangle, Users } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Game, Team, Hall, Member, BaseRecord, Participation } from '../../../types'
 import { Button } from '@/components/ui/button'
 import { MeetingTimeSelect } from '@/components/MeetingTimeSelect'
 import TeamChip from '../../../components/TeamChip'
 import { teamNameToColorKey } from '../../../utils/teamColors'
-import ParticipationSummary from '../../../components/ParticipationSummary'
-import { rsvpButtonClass } from '../../../utils/participationColors'
+import RsvpAnswerButtons from '../../../components/RsvpAnswerButtons'
+import IconButton from '../../../components/IconButton'
 import ParticipationRosterModal from '../../../components/ParticipationRosterModal'
 import RosterModal from '../../scorer/components/RosterModal'
 import PreGameRosterModal from './PreGameRosterModal'
@@ -225,7 +225,7 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
   const isCalledUp = useIsCalledUpToGame(user?.id, game?.id)
   const canParticipate = !!user && !!game?.kscw_team && (canParticipateIn(relId(game.kscw_team)) || isCalledUp)
   const isStaffParticipant = !!game?.kscw_team && isStaffOnly(relId(game.kscw_team))
-  const { answer: rsvpLabels, answeringFor } = useRsvpLabels()
+  const { answeringFor } = useRsvpLabels()
   const { effectiveStatus, hasAbsence, note: savedNote, setStatus, saveConfirmed, dismissConfirmed, isLoading: rsvpLoading } = useParticipation(
     'game',
     game?.id ?? '',
@@ -560,19 +560,22 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
             <div className="flex flex-wrap items-center gap-2">
               {kscwTeam && <TeamChip team={kscwTeam} size="sm" />}
             </div>
-            <button
+            <IconButton
+              label={t('common:close', 'Close')}
               onClick={onClose}
-              aria-label={t('common:close', 'Close')}
-              className="-mr-2 flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 sm:-mr-1 sm:min-h-0 sm:min-w-0 sm:p-1 dark:hover:bg-gray-700"
+              className="-mr-2 shrink-0 text-gray-400 sm:-mr-1"
             >
-            <X className="h-5 w-5" />
-            </button>
+              <X className="!size-5" />
+            </IconButton>
           </div>
 
           {/* Actions row. Share sits outside the status check because a link to a
               played fixture is just as shareable as one to an upcoming game; the
               broadcast/cancel pair keeps its original scheduled-or-cancelled
-              gate, and `empty:hidden` no longer fires since share always renders. */}
+              gate, and `empty:hidden` no longer fires since share always renders.
+              All three take their height from the Button scale (Share is an
+              IconButton, Contact/Cancel default-size Buttons) — 44px on a phone,
+              36px from sm — so the row never steps. */}
           <div className="mt-3 flex flex-wrap items-center gap-2 empty:hidden">
             <ShareActivityButton
               kind="game"
@@ -619,8 +622,8 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
         {/* Teams & Score */}
         <div className="px-6 py-6">
           <div className="flex items-center justify-between gap-4">
-            <div className="flex-1 text-right">
-              <p className={`text-base text-gray-900 dark:text-gray-100 ${game.type === 'home' ? 'font-semibold' : ''}`}>
+            <div className="min-w-0 flex-1 text-right">
+              <p className={`break-words leading-snug text-base text-gray-900 dark:text-gray-100 ${game.type === 'home' ? 'font-semibold' : ''}`}>
                 {homeLabel}
               </p>
             </div>
@@ -637,8 +640,8 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
               )}
             </div>
 
-            <div className="flex-1">
-              <p className={`text-base text-gray-900 dark:text-gray-100 ${game.type === 'away' ? 'font-semibold' : ''}`}>
+            <div className="min-w-0 flex-1">
+              <p className={`break-words leading-snug text-base text-gray-900 dark:text-gray-100 ${game.type === 'away' ? 'font-semibold' : ''}`}>
                 {awayLabel}
               </p>
             </div>
@@ -702,60 +705,36 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
               </p>
             </div>
           ) : (
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t dark:border-gray-700 px-6 py-3">
+          <div className="space-y-2 border-t dark:border-gray-700 px-6 py-3">
             {hasAbsence && (
-              <span className="w-full text-xs italic text-gray-500 dark:text-gray-400">{t(absenceLabel)}</span>
+              <p className="text-xs italic text-gray-500 dark:text-gray-400">{t(absenceLabel)}</p>
             )}
-            <div className="flex flex-wrap items-center gap-3">
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{answeringFor || t('participation:attending')}</span>
-                <div
-                  className={`relative flex flex-wrap gap-2 ${rsvpLoading ? 'pointer-events-none opacity-50' : ''}`}
-                  aria-busy={rsvpLoading}
+            {/* Answer buttons carry the team totals (RsvpAnswerButtons) — no
+                separate counters row. No `locked`: this modal has never gated
+                the game RSVP on respond_by, and a layout pass must not add it. */}
+            <RsvpAnswerButtons
+              activityType="game"
+              activityId={game.id}
+              participations={participations}
+              coachMemberIds={teamCoachIds(kscwTeamObj)}
+              value={effectiveStatus}
+              loading={rsvpLoading}
+              saved={saveConfirmed}
+              label={answeringFor || t('participation:attending')}
+              trailing={(
+                <IconButton
+                  label={t('participationRoster')}
+                  onClick={() => setParticipationListOpen(true)}
+                  className="text-brand-600 hover:bg-brand-50 dark:text-brand-400 dark:hover:bg-brand-900/20"
                 >
-                  <button
-                    onClick={() => setStatus('confirmed', noteText)}
-                    disabled={rsvpLoading}
-                    className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${rsvpButtonClass('confirmed', effectiveStatus === 'confirmed')}`}
-                  >
-                    {rsvpLabels.confirmed}
-                  </button>
-                  <button
-                    onClick={() => setStatus('tentative', noteText)}
-                    disabled={rsvpLoading}
-                    className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${rsvpButtonClass('tentative', effectiveStatus === 'tentative')}`}
-                  >
-                    {rsvpLabels.tentative}
-                  </button>
-                  <button
-                    onClick={() => setStatus('declined', noteText)}
-                    disabled={rsvpLoading}
-                    className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${rsvpButtonClass('declined', effectiveStatus === 'declined')}`}
-                  >
-                    {rsvpLabels.declined}
-                  </button>
-                  {/* Save confirmation popover — colored by response */}
-                  {saveConfirmed && (() => {
-                    const popoverColor = effectiveStatus === 'declined'
-                      ? 'bg-red-600 text-white'
-                      : effectiveStatus === 'tentative'
-                        ? 'bg-yellow-500 text-black'
-                        : 'bg-green-600 text-white'
-                    return (
-                      <span className={`absolute -top-7 left-1/2 -translate-x-1/2 flex items-center gap-1 whitespace-nowrap rounded-md px-2 py-0.5 text-[11px] font-medium shadow-lg animate-fade-in ${popoverColor}`}>
-                        <Check className="h-3 w-3" />
-                        {t('participation:saved')}
-                      </span>
-                    )
-                  })()}
-                </div>
-            </div>
-            {/* RSVP tallies on their own full-width row, centred under the buttons */}
-            <div className="flex w-full justify-center pt-1">
-              <ParticipationSummary activityType="game" activityId={game.id} bars alwaysShow participations={participations} coachMemberIds={teamCoachIds(kscwTeamObj)} />
-            </div>
+                  <Users className="!size-5" />
+                </IconButton>
+              )}
+              onSelect={(status) => setStatus(status, noteText)}
+            />
             {/* Participation note */}
             {effectiveStatus && (
-              <div className="relative flex w-full items-center gap-2 pt-1">
+              <div className="flex w-full items-center gap-2 pt-1">
                 <MessageSquare className="h-4 w-4 shrink-0 text-gray-400" />
                 <input
                   type="text"
@@ -767,13 +746,14 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
                   placeholder={t('participation:notePlaceholder')}
                   className="min-w-0 flex-1 rounded-md border border-gray-200 bg-transparent px-2.5 py-1 text-sm text-gray-700 placeholder:text-gray-400 focus:border-brand-400 focus:outline-none dark:border-gray-600 dark:text-gray-300 dark:placeholder:text-gray-500 dark:focus:border-brand-500"
                 />
-                <button
+                <IconButton
+                  label={tc('save')}
                   onClick={saveNote}
                   disabled={noteText === savedNote}
-                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-green-600 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-green-400"
+                  className="shrink-0 text-gray-400 hover:text-green-600 disabled:opacity-30 dark:hover:text-green-400"
                 >
-                  <Check className="h-4 w-4" />
-                </button>
+                  <Check />
+                </IconButton>
               </div>
             )}
           </div>
@@ -877,7 +857,7 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
                     href={mapsUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-brand-600 hover:underline dark:text-brand-400"
+                    className="min-w-0 flex-1 break-words text-brand-600 hover:underline dark:text-brand-400"
                   >
                     {[hall.address, hall.city].filter(Boolean).join(', ')} ↗
                   </a>
@@ -1026,18 +1006,21 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
                   ] as { value: boolean | null; label: string }[]).map((opt) => {
                     const active = autoNomination === opt.value
                     return (
-                      <button
+                      <Button
                         key={String(opt.value)}
                         type="button"
+                        size="sm"
+                        variant="outline"
+                        aria-pressed={active}
                         onClick={() => saveNominationOverride(opt.value)}
-                        className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                        className={`rounded-full ${
                           active
-                            ? 'border-brand-500 bg-brand-100 text-brand-700 dark:border-brand-600 dark:bg-brand-900/30 dark:text-brand-300'
-                            : 'border-gray-300 bg-transparent text-gray-600 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-800'
+                            ? 'border-brand-500 bg-brand-100 text-brand-700 hover:bg-brand-100 hover:text-brand-700 dark:border-brand-600 dark:bg-brand-900/30 dark:text-brand-300 dark:hover:bg-brand-900/30'
+                            : 'text-gray-600 dark:text-gray-400'
                         }`}
                       >
                         {opt.label}
-                      </button>
+                      </Button>
                     )
                   })}
                 </div>
@@ -1142,7 +1125,7 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
             )}
             {!readOnly && canEditAsCoach && (
               editingDeadline ? (
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <DatePicker
                     value={deadlineValue}
                     onChange={setDeadlineValue}
@@ -1152,10 +1135,9 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
                     type="time"
                     value={deadlineTime || game?.time?.slice(0, 5) || ''}
                     onChange={(e) => setDeadlineTime(e.target.value)}
-                    className="w-24 rounded-lg border px-2 py-1.5 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+                    className="h-11 w-24 rounded-lg border px-2 text-sm sm:h-9 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
                   />
                   <Button
-                    size="sm"
                     onClick={async () => {
                       await updateGame(game.id, { respond_by: deadlineValue ? toUtcIsoFromDatetimeLocal(`${deadlineValue}T${deadlineTime || game?.time?.slice(0, 5) || '23:59'}`) : null })
                       setEditingDeadline(false)
@@ -1163,25 +1145,29 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
                   >
                     OK
                   </Button>
-                  <button
+                  <IconButton
+                    label={tc('cancel')}
                     onClick={() => setEditingDeadline(false)}
-                    className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400"
+                    className="text-gray-500 dark:text-gray-400"
                   >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
+                    <X />
+                  </IconButton>
                 </div>
               ) : (
-                <button
+                <Button
+                  type="button"
+                  variant="link"
+                  size="sm"
                   onClick={() => {
                     const parsed = parseRespondByTime(game.respond_by, game.time)
                     setDeadlineValue(parsed?.date ?? '')
                     setDeadlineTime(parsed?.time ?? '')
                     setEditingDeadline(true)
                   }}
-                  className="text-xs text-brand-600 hover:underline dark:text-brand-400"
+                  className="px-0 text-brand-600 dark:text-brand-400"
                 >
                   {t('setDeadline')}
-                </button>
+                </Button>
               )
             )}
           </div>
@@ -1240,7 +1226,7 @@ function DetailRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-start gap-3 text-sm">
       <span className="w-28 shrink-0 text-gray-500 dark:text-gray-400">{label}</span>
-      <span className="text-gray-900 dark:text-gray-100">{value}</span>
+      <span className="min-w-0 flex-1 break-words text-gray-900 dark:text-gray-100">{value}</span>
     </div>
   )
 }
@@ -1297,8 +1283,9 @@ function DutyPersonRow({
     <div className="flex items-start gap-3 text-sm">
       <span className="w-28 shrink-0 text-gray-500 dark:text-gray-400">{wrappableLabel}</span>
       <div className="min-w-0 flex-1">
-        <span className="flex items-center gap-1.5 text-gray-900 dark:text-gray-100">
-          {name}
+        {/* Name wraps; the chip follows it and drops to its own line when both don't fit. */}
+        <span className="flex flex-wrap items-center gap-1.5 text-gray-900 dark:text-gray-100">
+          <span className="break-words leading-snug">{name}</span>
           {teamName && <TeamChip team={teamName} size="xs" />}
         </span>
 
@@ -1306,18 +1293,18 @@ function DutyPersonRow({
           // Same height/rounding as the button below, so nothing jumps when the
           // real answer (alarm, or banner + contacts) replaces it. Neutral on
           // purpose — a red placeholder would still read as "not reported".
-          <div className="mt-1.5 h-10 w-full animate-pulse rounded-lg bg-gray-200 dark:bg-gray-700" aria-hidden="true" />
+          <div className="mt-1.5 h-11 w-full animate-pulse rounded-md bg-gray-200 sm:h-9 dark:bg-gray-700" aria-hidden="true" />
         )}
 
         {showAlarm && (
-          <button
+          <Button
             type="button"
             onClick={() => onReport(role, label, name)}
-            className="mt-1.5 flex w-full items-center justify-center gap-2 rounded-lg bg-red-600 px-3 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400 dark:bg-red-600 dark:hover:bg-red-500"
+            className="mt-1.5 h-auto min-h-11 w-full whitespace-normal bg-red-600 py-2 sm:min-h-9 font-semibold text-white hover:bg-red-700 focus-visible:ring-2 focus-visible:ring-red-400 dark:bg-red-600 dark:hover:bg-red-500"
           >
-            <AlertTriangle className="h-4 w-4 shrink-0" />
+            <AlertTriangle aria-hidden />
             {t('dutyLateButton', { role: label })}
-          </button>
+          </Button>
         )}
 
         {!adminSeesContact && reported && (

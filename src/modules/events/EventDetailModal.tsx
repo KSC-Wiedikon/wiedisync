@@ -1,15 +1,16 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import Modal from '@/components/Modal'
 import StatusBadge from '../../components/StatusBadge'
 import { trimBBTeamName } from '../../utils/teamColors'
 import RichText from '../../components/RichText'
 import ParticipationSummary from '../../components/ParticipationSummary'
-import { rsvpButtonClass } from '../../utils/participationColors'
+import RsvpAnswerButtons from '../../components/RsvpAnswerButtons'
+import IconButton from '../../components/IconButton'
+import { Button } from '@/components/ui/button'
 import ParticipationRosterModal from '../../components/ParticipationRosterModal'
 import SessionParticipationSheet from '../../components/SessionParticipationSheet'
 import { useAuth } from '../../hooks/useAuth'
-import { useRsvpLabels } from '../../hooks/useRsvpLabels'
 import { useAdminMode } from '../../hooks/useAdminMode'
 import { useTeamPermissions } from '../../hooks/useTeamPermissions'
 import { useParticipation } from '../../hooks/useParticipation'
@@ -23,7 +24,7 @@ import { formatDate, formatTime } from '../../utils/dateHelpers'
 import BroadcastButton from '../broadcast/BroadcastButton'
 import ShareActivityButton from '../../components/ShareActivityButton'
 import { isFeatureEnabled } from '../../utils/featureToggles'
-import { Calendar, Clock, MapPin, Users, Check, MessageSquare, UserPlus, Share2, ClipboardList, Link2, AlarmClock } from 'lucide-react'
+import { Calendar, Clock, MapPin, Users, Check, MessageSquare, UserPlus, Share2, ClipboardList, Link2, AlarmClock, Minus, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import EventSignupsModal from './EventSignupsModal'
 import { teamCoachIds } from '../../utils/relations'
@@ -133,9 +134,40 @@ export default function EventDetailModal({ event, onClose, participations }: Eve
   if (!event) return null
 
   const teams = asTeams(event.teams)
+  const coachIds = teams.flatMap((tm) => teamCoachIds(tm))
 
-  const headerBroadcast = (
+  const rosterTools = (
+    <>
+      <IconButton label={tP('participation')} onClick={() => setRosterOpen(true)} className="text-brand-600 hover:bg-brand-50 dark:text-brand-400 dark:hover:bg-brand-900/20">
+        <Users className="!size-5" />
+      </IconButton>
+      {/* Admin-only: the merged view, which is the only place the guest
+          (OpnForm) half of the signups is visible at all. */}
+      {effectiveIsAdmin && (
+        <IconButton label={t('signupsTitle')} onClick={() => setSignupsOpen(true)} className="text-brand-600 hover:bg-brand-50 dark:text-brand-400 dark:hover:bg-brand-900/20">
+          <ClipboardList className="!size-5" />
+        </IconButton>
+      )}
+    </>
+  )
+
+  // Counters + roster for viewers who don't answer here (not invited, guest-excluded,
+  // or answering per session in the sheet).
+  const countsRow = (
     <div className="flex items-center gap-2">
+      <div className="min-w-0 flex-1">
+        <ParticipationSummary activityType="event" activityId={event.id} bars coachMemberIds={coachIds} participations={participations} />
+      </div>
+      <div className="flex shrink-0 items-center gap-1">{rosterTools}</div>
+    </div>
+  )
+
+  // A fragment, not a wrapper: Modal lays headerAction out in its own
+  // `flex flex-wrap items-center gap-2`, and a nested non-wrapping flex would
+  // defeat the wrap. Heights all come from the Button scale (Share = IconButton,
+  // Cancel/Contact = default Buttons), so the three never step.
+  const headerBroadcast = (
+    <>
       {/* Members' door. Distinct from the `signup_url` block further down, which
           is the guests' door — see ShareActivityButton for why they must not be
           collapsed into one link. */}
@@ -166,7 +198,7 @@ export default function EventDetailModal({ event, onClose, participations }: Eve
           }}
         />
       ) : null}
-    </div>
+    </>
   )
 
   return (
@@ -262,17 +294,17 @@ export default function EventDetailModal({ event, onClose, participations }: Eve
               the event's own count and roster would silently under-report. */}
           {event.signup_url && (
             <div className="mt-3 flex flex-col gap-2 rounded-lg border border-border p-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-start gap-2 text-sm">
+              <div className="flex min-w-0 items-start gap-2 text-sm">
                 <Share2 className="mt-0.5 h-4 w-4 shrink-0 text-gray-500 dark:text-gray-400" />
-                <div>
+                <div className="min-w-0">
                   <span className="font-medium">{t('signupLinkTitle')}</span>
                   <p className="text-xs text-muted-foreground">{t('signupLinkHint')}</p>
                 </div>
               </div>
               <div className="flex shrink-0 gap-2">
-                <button
+                <Button
                   type="button"
-                  className="min-h-[44px] rounded-md border border-border px-3 text-sm hover:bg-accent"
+                  variant="outline"
                   onClick={(e) => {
                     e.stopPropagation()
                     navigator.clipboard.writeText(event.signup_url!)
@@ -280,16 +312,17 @@ export default function EventDetailModal({ event, onClose, participations }: Eve
                   }}
                 >
                   {t('signupLinkCopy')}
-                </button>
-                <a
-                  href={event.signup_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={(e) => e.stopPropagation()}
-                  className="flex min-h-[44px] items-center rounded-md border border-border px-3 text-sm hover:bg-accent"
-                >
-                  {t('signupLinkOpen')} ↗
-                </a>
+                </Button>
+                <Button asChild variant="outline">
+                  <a
+                    href={event.signup_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {t('signupLinkOpen')} ↗
+                  </a>
+                </Button>
               </div>
             </div>
           )}
@@ -314,40 +347,42 @@ export default function EventDetailModal({ event, onClose, participations }: Eve
                     {publicSignupUrl}
                   </p>
                   <div className="mt-2 flex flex-wrap gap-2">
-                    <button
+                    <Button
                       type="button"
-                      className="min-h-[44px] rounded-md border border-border px-3 text-sm hover:bg-accent"
+                      variant="outline"
                       onClick={() => { navigator.clipboard.writeText(publicSignupUrl); toast.success(tc('copied')) }}
                     >
                       {t('signupLinkCopy')}
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       type="button"
-                      className="min-h-[44px] rounded-md border border-border px-3 text-sm hover:bg-accent disabled:opacity-50"
+                      variant="outline"
                       disabled={shareBusy}
                       onClick={() => void mintShareToken(true)}
                     >
                       {t('shareTokenRotate')}
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       type="button"
-                      className="min-h-[44px] rounded-md border border-border px-3 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-900/20"
+                      variant="outline"
+                      className="text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-900/20"
                       disabled={shareBusy}
                       onClick={() => void revokeShareToken()}
                     >
                       {t('shareTokenRevoke')}
-                    </button>
+                    </Button>
                   </div>
                 </>
               ) : (
-                <button
+                <Button
                   type="button"
-                  className="mt-2 min-h-[44px] rounded-md border border-border px-3 text-sm hover:bg-accent disabled:opacity-50"
+                  variant="outline"
+                  className="mt-2"
                   disabled={shareBusy}
                   onClick={() => void mintShareToken(false)}
                 >
                   {t('shareTokenCreate')}
-                </button>
+                </Button>
               )}
             </div>
           )}
@@ -373,17 +408,24 @@ export default function EventDetailModal({ event, onClose, participations }: Eve
           {/* Participation section */}
           {!event.cancelled && (
           <div className="space-y-3 border-t border-gray-200 pt-3 dark:border-gray-700">
-            {/* Multi-session button + note */}
             {guestExcluded ? (
-              <p className="text-sm italic text-gray-500 dark:text-gray-400">{t('guestNotInvited')}</p>
-            ) : hasSessionMode && sessions.length > 0 ? (
               <>
-                <button
+                <p className="text-sm italic text-gray-500 dark:text-gray-400">{t('guestNotInvited')}</p>
+                {countsRow}
+              </>
+            ) : hasSessionMode && sessions.length > 0 ? (
+              // Per-day / per-session RSVP (participations.session_id) lives in
+              // SessionParticipationSheet — untouched; this is only its entry
+              // point, plus the event-wide counters + roster.
+              <>
+                <Button
+                  type="button"
+                  variant="secondary"
                   onClick={() => setSessionSheetOpen(true)}
-                  className="inline-flex min-h-[44px] items-center gap-1 rounded-full bg-brand-100 px-2.5 py-1 text-xs font-medium text-brand-700 hover:bg-brand-200 dark:bg-brand-900/30 dark:text-brand-400 dark:hover:bg-brand-900/50 sm:min-h-0"
+                  className="bg-brand-100 text-brand-700 hover:bg-brand-200 dark:bg-brand-900/30 dark:text-brand-400 dark:hover:bg-brand-900/50"
                 >
                   {t('sessionParticipation')}
-                </button>
+                </Button>
                 {sessionSheetOpen && (
                   <SessionParticipationSheet
                     activityId={event.id}
@@ -395,37 +437,19 @@ export default function EventDetailModal({ event, onClose, participations }: Eve
                 {canParticipate && (
                   <EventSessionNote eventId={event.id} sessions={sessions} />
                 )}
+                {countsRow}
               </>
             ) : canParticipate ? (
-              <EventParticipation event={event} isStaff={isStaff} isStaffParticipant={isStaffParticipant} participations={participations} />
-            ) : null}
-
-            {/* Summary + roster button */}
-            <div className="flex items-center justify-between gap-2">
-              <div className="min-w-0 flex-1">
-                <ParticipationSummary activityType="event" activityId={event.id} bars coachMemberIds={teams.flatMap(t => teamCoachIds(t))} participations={participations} />
-              </div>
-              <button
-                onClick={() => setRosterOpen(true)}
-                aria-label={tP('participation')}
-                title={tP('participation')}
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-brand-600 hover:bg-brand-50 dark:text-brand-400 dark:hover:bg-brand-900/20"
-              >
-                <Users className="h-5 w-5" />
-              </button>
-              {/* Admin-only: the merged view, which is the only place the guest
-                  (OpnForm) half of the signups is visible at all. */}
-              {effectiveIsAdmin && (
-                <button
-                  onClick={() => setSignupsOpen(true)}
-                  aria-label={t('signupsTitle')}
-                  title={t('signupsTitle')}
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-brand-600 hover:bg-brand-50 dark:text-brand-400 dark:hover:bg-brand-900/20"
-                >
-                  <ClipboardList className="h-5 w-5" />
-                </button>
-              )}
-            </div>
+              // Answer buttons carry the totals (RsvpAnswerButtons) — no separate counters row.
+              <EventParticipation
+                event={event}
+                isStaff={isStaff}
+                isStaffParticipant={isStaffParticipant}
+                participations={participations}
+                coachMemberIds={coachIds}
+                rosterTools={rosterTools}
+              />
+            ) : countsRow}
           </div>
           )}
 
@@ -461,9 +485,9 @@ export default function EventDetailModal({ event, onClose, participations }: Eve
   )
 }
 
-function EventParticipation({ event, isStaff, isStaffParticipant, participations }: { event: Event; isStaff: boolean; isStaffParticipant: boolean; participations?: Participation[] }) {
+function EventParticipation({ event, isStaff, isStaffParticipant, participations, coachMemberIds, rosterTools }: { event: Event; isStaff: boolean; isStaffParticipant: boolean; participations?: Participation[]; coachMemberIds: string[]; rosterTools: ReactNode }) {
   const { t } = useTranslation('participation')
-  const { answer: rsvpLabels, answeringFor } = useRsvpLabels()
+  const { t: tc } = useTranslation('common')
   const { participation, effectiveStatus, hasAbsence, note: savedNote, setStatus, saveConfirmed, dismissConfirmed, isLoading: rsvpLoading } = useParticipation(
     'event',
     event.id,
@@ -566,43 +590,33 @@ function EventParticipation({ event, isStaff, isStaffParticipant, participations
       {hasAbsence && (
         <p className="text-xs italic text-gray-500 dark:text-gray-400">{t(absenceLabel)}</p>
       )}
-      <div className="relative flex flex-wrap items-center gap-2">
-        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{answeringFor || `${t('yourStatus')}:`}</span>
-        <div className="flex flex-wrap items-center gap-1.5">
-          {(['confirmed', 'tentative', 'declined'] as const)
-            .filter((s) => s !== 'tentative' || allowMaybe)
-            .map((status) => {
-            return (
-              <button
-                key={status}
-                onClick={() => {
-                  if (requireNote && (status === 'declined' || status === 'tentative') && !noteText.trim()) {
-                    setNoteRequiredError(true)
-                    return
-                  }
-                  if (showPositions && status === 'confirmed' && (!pos1 || !pos2 || !pos3)) {
-                    setPositionsRequiredError(true)
-                    return
-                  }
-                  setNoteRequiredError(false)
-                  setPositionsRequiredError(false)
-                  setStatus(status, noteText, guestCount, showPositions ? { position_1: pos1 || null, position_2: pos2 || null, position_3: pos3 || null } : undefined)
-                }}
-                disabled={rsvpLoading}
-                className={`rounded-full px-3 py-1 text-sm font-medium transition ${rsvpLoading ? 'opacity-50' : ''} ${rsvpButtonClass(status, effectiveStatus === status)}`}
-              >
-                {rsvpLabels[status]}
-              </button>
-            )
-          })}
-        </div>
-        {saveConfirmed && (
-          <span className="absolute -top-7 left-1/2 -translate-x-1/2 flex items-center gap-1 whitespace-nowrap rounded-md bg-green-600 px-2 py-0.5 text-[11px] font-medium text-white shadow-lg animate-fade-in">
-            <Check className="h-3 w-3" />
-            {t('saved')}
-          </span>
-        )}
-      </div>
+      {/* Waitlist / max_players is decided server side: a full event answers a
+          Yes with `waitlisted`, which selects no button here and shows up as the
+          orange count next to the label. */}
+      <RsvpAnswerButtons
+        activityType="event"
+        activityId={event.id}
+        participations={participations}
+        coachMemberIds={coachMemberIds}
+        value={effectiveStatus}
+        loading={rsvpLoading}
+        saved={saveConfirmed}
+        options={allowMaybe ? ['confirmed', 'tentative', 'declined'] : ['confirmed', 'declined']}
+        trailing={rosterTools}
+        onSelect={(status) => {
+          if (requireNote && (status === 'declined' || status === 'tentative') && !noteText.trim()) {
+            setNoteRequiredError(true)
+            return
+          }
+          if (showPositions && status === 'confirmed' && (!pos1 || !pos2 || !pos3)) {
+            setPositionsRequiredError(true)
+            return
+          }
+          setNoteRequiredError(false)
+          setPositionsRequiredError(false)
+          setStatus(status, noteText, guestCount, showPositions ? { position_1: pos1 || null, position_2: pos2 || null, position_3: pos3 || null } : undefined)
+        }}
+      />
 
       {/* Note field */}
       {(effectiveStatus || requireNote) && (
@@ -619,13 +633,14 @@ function EventParticipation({ event, isStaff, isStaffParticipant, participations
                 noteRequiredError ? 'border-red-400 dark:border-red-500' : 'border-gray-200 dark:border-gray-600'
               }`}
             />
-            <button
+            <IconButton
+              label={tc('save')}
               onClick={saveNote}
               disabled={noteText === savedNote}
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-green-600 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-green-400"
+              className="shrink-0 text-gray-400 hover:text-green-600 disabled:opacity-30 dark:hover:text-green-400"
             >
-              <Check className="h-4 w-4" />
-            </button>
+              <Check />
+            </IconButton>
           </div>
           {noteRequiredError && (
             <p className="mt-0.5 ml-6 text-[11px] text-red-500 dark:text-red-400">{t('noteRequiredError')}</p>
@@ -677,22 +692,24 @@ function EventParticipation({ event, isStaff, isStaffParticipant, participations
           <UserPlus className="h-4 w-4 shrink-0 text-gray-400" />
           <span className="text-sm text-gray-500 dark:text-gray-400">{t('guests')}</span>
           <div className="flex items-center gap-1.5">
-            <button
+            <IconButton
+              label={t('decreaseGuests', { defaultValue: 'Remove guest' })}
+              variant="secondary"
               onClick={() => handleGuestChange(-1)}
               disabled={guestCount <= 0}
-              className="flex h-7 w-7 items-center justify-center rounded-md bg-gray-100 text-sm font-medium text-gray-700 hover:bg-gray-200 disabled:opacity-30 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
             >
-              −
-            </button>
-            <span className="min-w-[1.5rem] text-center text-sm font-medium text-gray-900 dark:text-gray-100">
+              <Minus />
+            </IconButton>
+            <span className="min-w-[1.5rem] text-center text-sm font-medium tabular-nums text-gray-900 dark:text-gray-100" aria-live="polite">
               {guestCount}
             </span>
-            <button
+            <IconButton
+              label={t('increaseGuests', { defaultValue: 'Add guest' })}
+              variant="secondary"
               onClick={() => handleGuestChange(1)}
-              className="flex h-7 w-7 items-center justify-center rounded-md bg-gray-100 text-sm font-medium text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
             >
-              +
-            </button>
+              <Plus />
+            </IconButton>
           </div>
         </div>
       )}
@@ -759,13 +776,14 @@ function EventSessionNote({ eventId, sessions }: { eventId: string; sessions: Ev
           placeholder={t('notePlaceholder')}
           className="min-w-0 flex-1 rounded-md border border-gray-200 bg-transparent px-2.5 py-1 text-sm text-gray-700 placeholder:text-gray-400 focus:border-brand-400 focus:outline-none dark:border-gray-600 dark:text-gray-300 dark:placeholder:text-gray-500 dark:focus:border-brand-500"
         />
-        <button
+        <IconButton
+          label={t('save', { ns: 'common' })}
           onClick={saveNote}
           disabled={noteText === savedNote}
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-green-600 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-green-400"
+          className="shrink-0 text-gray-400 hover:text-green-600 disabled:opacity-30 dark:hover:text-green-400"
         >
-          <Check className="h-4 w-4" />
-        </button>
+          <Check />
+        </IconButton>
       </div>
       {noteSaved && (
         <span className="absolute -top-7 left-1/2 -translate-x-1/2 flex items-center gap-1 whitespace-nowrap rounded-md bg-green-600 px-2 py-0.5 text-[11px] font-medium text-white shadow-lg animate-fade-in">

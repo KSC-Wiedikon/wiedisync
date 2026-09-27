@@ -1,16 +1,24 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Pencil } from 'lucide-react'
+import { Pencil, X, Minus, Plus, UserPlus } from 'lucide-react'
 import TeamChip from '../../components/TeamChip'
 import RichText from '../../components/RichText'
-import ParticipationButton from '../../components/ParticipationButton'
+import RsvpAnswerButtons from '../../components/RsvpAnswerButtons'
+import IconButton from '../../components/IconButton'
 import ParticipationSummary from '../../components/ParticipationSummary'
+import SessionParticipationSheet from '../../components/SessionParticipationSheet'
+import { Button } from '@/components/ui/button'
 import AbsenceForm from '../absences/AbsenceForm'
 import { useAuth } from '../../hooks/useAuth'
+import { useParticipation } from '../../hooks/useParticipation'
+import { useMyCoveringAbsence } from '../../hooks/useMyCoveringAbsence'
+import { useRsvpLabels } from '../../hooks/useRsvpLabels'
+import { useCollection } from '../../lib/query'
 import type { CalendarEntry, BirthdaySource } from '../../types/calendar'
-import type { Training, Event as KscwEvent, Game, Absence, Member } from '../../types'
+import type { Training, Event as KscwEvent, Game, Absence, Member, Participation, EventSession } from '../../types'
+import type { RsvpStatus } from '../../utils/participationColors'
 import { formatDate } from '../../utils/dateUtils'
-import { formatTime, meetingTimeFromOffset } from '../../utils/dateHelpers'
+import { formatTime, meetingTimeFromOffset, getDeadlineDate } from '../../utils/dateHelpers'
 import { asObj, memberName } from '../../utils/relations'
 import { isGuestExcludedFromEvent } from '../events/eventHelpers'
 import { eventTypeLabelKey } from './eventTypeLabel'
@@ -91,24 +99,14 @@ export default function CalendarEntryModal({ entry, onClose, onRefresh }: Calend
             <span className={`rounded px-2 py-0.5 text-xs font-medium ${typeBadgeStyles[entry.type]}`}>
               {typeLabels[entry.type]}
             </span>
-            <button
-              onClick={onClose}
-              aria-label={t('common:close')}
-              className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 sm:min-h-0 sm:min-w-0 sm:p-1 dark:hover:bg-gray-700"
-            >
-              <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                <path
-                  fillRule="evenodd"
-                  d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                  clipRule="evenodd"
-                />
-              </svg>
-            </button>
+            <IconButton label={t('common:close')} onClick={onClose} className="-mr-2 shrink-0 text-gray-400 sm:-mr-1">
+              <X className="!size-5" />
+            </IconButton>
           </div>
 
           {/* Title */}
           <div className="px-6 py-5">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+            <h3 className="break-words text-lg font-semibold leading-snug text-gray-900 dark:text-gray-100">
               {entry.title}
             </h3>
             {entry.teamNames.length > 0 && (
@@ -182,9 +180,13 @@ export default function CalendarEntryModal({ entry, onClose, onRefresh }: Calend
             return (
               <div className="border-t dark:border-gray-700 px-6 py-4 space-y-3">
                 {guestExcluded ? (
-                  <p className="text-sm italic text-gray-500 dark:text-gray-400">{tTrainings('guestExcluded')}</p>
+                  <>
+                    <p className="text-sm italic text-gray-500 dark:text-gray-400">{tTrainings('guestExcluded')}</p>
+                    <ParticipationSummary activityType="training" activityId={tr.id} bars />
+                  </>
                 ) : (
-                  <ParticipationButton
+                  // Answer buttons carry the totals — no separate counters row.
+                  <CalendarRsvp
                     activityType="training"
                     activityId={tr.id}
                     activityDate={tr.date}
@@ -194,11 +196,6 @@ export default function CalendarEntryModal({ entry, onClose, onRefresh }: Calend
                     requireNoteIfAbsent={tr.require_note_if_absent}
                   />
                 )}
-                <ParticipationSummary
-                  activityType="training"
-                  activityId={tr.id}
-                  compact
-                />
               </div>
             )
           })()}
@@ -211,24 +208,21 @@ export default function CalendarEntryModal({ entry, onClose, onRefresh }: Calend
             return (
             <div className="border-t dark:border-gray-700 px-6 py-4 space-y-3">
               {guestExcluded ? (
-                <p className="text-sm italic text-gray-500 dark:text-gray-400">{tEvents('guestNotInvited')}</p>
+                <>
+                  <p className="text-sm italic text-gray-500 dark:text-gray-400">{tEvents('guestNotInvited')}</p>
+                  <ParticipationSummary activityType="event" activityId={ev.id} bars hideExtras />
+                </>
               ) : (
-              <ParticipationButton
-                activityType="event"
-                activityId={entry.source.id}
-                respondBy={(entry.source as KscwEvent).respond_by}
-                participationMode={(entry.source as KscwEvent).participation_mode}
-                maxPlayers={(entry.source as KscwEvent).max_players}
-                requireNoteIfAbsent={(entry.source as KscwEvent).require_note_if_absent}
-                allowMaybe={(entry.source as KscwEvent).allow_maybe !== false}
-              />
+                <CalendarRsvp
+                  activityType="event"
+                  activityId={ev.id}
+                  respondBy={ev.respond_by}
+                  participationMode={ev.participation_mode}
+                  requireNoteIfAbsent={ev.require_note_if_absent}
+                  allowMaybe={ev.allow_maybe !== false}
+                  hideCoachPresent
+                />
               )}
-              <ParticipationSummary
-                activityType="event"
-                activityId={entry.source.id}
-                bars
-                hideExtras
-              />
             </div>
             )
           })()}
@@ -236,13 +230,10 @@ export default function CalendarEntryModal({ entry, onClose, onRefresh }: Calend
           {/* Edit button for own absences */}
           {isOwnAbsence && (
             <div className="border-t dark:border-gray-700 px-6 py-4">
-              <button
-                onClick={() => setEditingAbsence(true)}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
-              >
-                <Pencil className="h-3.5 w-3.5" />
+              <Button type="button" variant="outline" onClick={() => setEditingAbsence(true)}>
+                <Pencil aria-hidden />
                 {t('common:edit')}
-              </button>
+              </Button>
             </div>
           )}
         </div>
@@ -328,8 +319,8 @@ function renderEventDetails(event: KscwEvent, t: (key: string) => string) {
         <div className="flex items-start gap-3 text-sm">
           <span className="w-20 shrink-0 text-gray-500 dark:text-gray-400">{t('common:details')}</span>
           {/<[a-z][\s\S]*>/i.test(event.description)
-            ? <RichText html={event.description} className="text-gray-900 dark:text-gray-100" />
-            : <span className="text-gray-900 dark:text-gray-100">{event.description}</span>
+            ? <RichText html={event.description} className="min-w-0 flex-1 break-words text-gray-900 dark:text-gray-100" />
+            : <span className="min-w-0 flex-1 break-words text-gray-900 dark:text-gray-100">{event.description}</span>
           }
         </div>
       )}
@@ -341,7 +332,226 @@ function DetailRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-start gap-3 text-sm">
       <span className="w-20 shrink-0 text-gray-500 dark:text-gray-400">{label}</span>
-      <span className="text-gray-900 dark:text-gray-100">{value}</span>
+      <span className="min-w-0 flex-1 break-words text-gray-900 dark:text-gray-100">{value}</span>
+    </div>
+  )
+}
+
+interface CalendarRsvpProps {
+  activityType: Extract<Participation['activity_type'], 'training' | 'event'>
+  activityId: string
+  activityDate?: string
+  teamId?: string
+  respondBy?: string
+  activityStartTime?: string
+  participationMode?: KscwEvent['participation_mode']
+  requireNoteIfAbsent?: boolean
+  allowMaybe?: boolean
+  hideCoachPresent?: boolean
+}
+
+/**
+ * The calendar's RSVP block — RsvpAnswerButtons with the guards the old
+ * `ParticipationButton` dropdown carried: respond-by lock, "note required" for
+ * No/Maybe (asked inline before the answer is saved), Maybe hidden when the
+ * event disallows it, the guest counter, and per-session events routed to
+ * SessionParticipationSheet instead of a whole-event answer.
+ */
+function CalendarRsvp({
+  activityType, activityId, activityDate, teamId, respondBy, activityStartTime,
+  participationMode, requireNoteIfAbsent = false, allowMaybe = true, hideCoachPresent,
+}: CalendarRsvpProps) {
+  const { t } = useTranslation('participation')
+  const { t: tc } = useTranslation('common')
+  const { isStaffOnly } = useAuth()
+  const { status: statusLabels } = useRsvpLabels()
+  const isStaff = !!teamId && isStaffOnly(teamId)
+
+  // Per-day / per-session events answer per session (participations.session_id).
+  // Only the entry point lives here; the sheet itself is untouched.
+  const sessionMode = activityType === 'event' && !!participationMode && participationMode !== 'whole'
+  const { data: sessionsRaw } = useCollection<EventSession>('event_sessions', {
+    filter: { event: { _eq: activityId } },
+    sort: ['sort_order', 'date', 'start_time'],
+    limit: 100,
+    enabled: sessionMode,
+  })
+  const sessions = sessionsRaw ?? []
+  const [sessionSheetOpen, setSessionSheetOpen] = useState(false)
+
+  const { participation, effectiveStatus, setStatus, saveConfirmed, dismissConfirmed, isLoading } = useParticipation(
+    activityType, activityId, activityDate, undefined, isStaff,
+  )
+  const { absence, hasAbsence } = useMyCoveringAbsence(activityType, activityDate)
+  const absenceLabel = absence?.type === 'weekly' ? 'declinedUnavailable' : 'absent'
+
+  const serverGuestCount = participation?.guest_count ?? 0
+  const [guestCount, setGuestCount] = useState(serverGuestCount)
+  const [prevServerGuestCount, setPrevServerGuestCount] = useState(serverGuestCount)
+  if (prevServerGuestCount !== serverGuestCount) {
+    setPrevServerGuestCount(serverGuestCount)
+    setGuestCount(serverGuestCount)
+  }
+  // Debounced so rapid +/- taps issue one write, not one per tap (which can race).
+  const guestWriteTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => { if (guestWriteTimer.current) clearTimeout(guestWriteTimer.current) }, [])
+
+  const [pendingStatus, setPendingStatus] = useState<'declined' | 'tentative' | null>(null)
+  const [noteText, setNoteText] = useState('')
+  const [noteError, setNoteError] = useState(false)
+  const noteInputRef = useRef<HTMLTextAreaElement>(null)
+  // Focus the note as soon as it is asked for — it is the only thing left to do.
+  useEffect(() => {
+    if (pendingStatus) noteInputRef.current?.focus()
+  }, [pendingStatus])
+
+  useEffect(() => {
+    if (!saveConfirmed) return
+    const timer = setTimeout(dismissConfirmed, 2000)
+    return () => clearTimeout(timer)
+  }, [saveConfirmed, dismissConfirmed])
+
+  const deadlinePassed = respondBy ? getDeadlineDate(respondBy, activityStartTime) < new Date() : false
+
+  if (sessionMode && sessions.length > 0) {
+    return (
+      <>
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() => setSessionSheetOpen(true)}
+          className="bg-brand-100 text-brand-700 hover:bg-brand-200 dark:bg-brand-900/30 dark:text-brand-400 dark:hover:bg-brand-900/50"
+        >
+          {t('events:sessionParticipation')}
+        </Button>
+        {sessionSheetOpen && (
+          <SessionParticipationSheet
+            activityId={activityId}
+            sessions={sessions}
+            isStaff={isStaff}
+            onClose={() => setSessionSheetOpen(false)}
+          />
+        )}
+        <ParticipationSummary activityType={activityType} activityId={activityId} bars hideExtras={hideCoachPresent} />
+      </>
+    )
+  }
+
+  function select(status: RsvpStatus) {
+    if (requireNoteIfAbsent && (status === 'declined' || status === 'tentative')) {
+      setPendingStatus(status)
+      setNoteText(participation?.note ?? '')
+      setNoteError(false)
+      return
+    }
+    setPendingStatus(null)
+    void setStatus(status, participation?.note ?? '', status === 'declined' ? 0 : guestCount)
+  }
+
+  function submitNote() {
+    if (!pendingStatus) return
+    if (!noteText.trim()) {
+      setNoteError(true)
+      return
+    }
+    const status = pendingStatus
+    setPendingStatus(null)
+    setNoteError(false)
+    void setStatus(status, noteText.trim(), status === 'declined' ? 0 : guestCount)
+  }
+
+  function changeGuests(delta: number) {
+    const next = Math.max(0, guestCount + delta)
+    setGuestCount(next)
+    if (effectiveStatus && effectiveStatus !== 'declined') {
+      const status = effectiveStatus
+      const note = participation?.note ?? ''
+      if (guestWriteTimer.current) clearTimeout(guestWriteTimer.current)
+      guestWriteTimer.current = setTimeout(() => {
+        guestWriteTimer.current = null
+        void setStatus(status, note, next)
+      }, 500)
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      {hasAbsence && (
+        <p className="text-xs italic text-gray-500 dark:text-gray-400">{t(absenceLabel)}</p>
+      )}
+      <RsvpAnswerButtons
+        activityType={activityType}
+        activityId={activityId}
+        value={effectiveStatus}
+        loading={isLoading}
+        locked={deadlinePassed}
+        saved={saveConfirmed}
+        options={allowMaybe ? ['confirmed', 'tentative', 'declined'] : ['confirmed', 'declined']}
+        hideCoachPresent={hideCoachPresent}
+        onSelect={select}
+      />
+      {/* "Note required" — asked before a No/Maybe is saved. */}
+      {pendingStatus && !deadlinePassed && (
+        <div className="space-y-2 rounded-lg border border-gray-200 p-3 dark:border-gray-700">
+          <p className="text-xs font-medium text-gray-700 dark:text-gray-300">
+            {statusLabels[pendingStatus]} — {t('requireNoteIfAbsentHint')}
+          </p>
+          <textarea
+            value={noteText}
+            onChange={(e) => { setNoteText(e.target.value); setNoteError(false) }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                submitNote()
+              }
+            }}
+            placeholder={t('notePlaceholder')}
+            rows={2}
+            ref={noteInputRef}
+            className={`w-full rounded-md border bg-transparent px-2 py-1.5 text-sm text-gray-900 placeholder:text-gray-400 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 ${
+              noteError ? 'border-red-400 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
+            }`}
+          />
+          {noteError && (
+            <p className="text-[11px] text-red-500 dark:text-red-400">{t('noteRequiredError')}</p>
+          )}
+          <div className="flex gap-2">
+            <Button type="button" variant="outline" className="flex-1" onClick={() => { setPendingStatus(null); setNoteError(false) }}>
+              {tc('cancel')}
+            </Button>
+            <Button type="button" className="flex-1" onClick={submitNote}>
+              {tc('save')}
+            </Button>
+          </div>
+        </div>
+      )}
+      {/* Guest counter — shown when coming or maybe (as in the old dropdown). */}
+      {!deadlinePassed && effectiveStatus && effectiveStatus !== 'declined' && (
+        <div className="flex items-center gap-2">
+          <UserPlus className="h-4 w-4 shrink-0 text-gray-400" aria-hidden />
+          <span className="text-sm text-gray-500 dark:text-gray-400">{t('guests')}</span>
+          <div className="ml-auto flex shrink-0 items-center gap-1.5">
+            <IconButton
+              label={t('decreaseGuests', { defaultValue: 'Remove guest' })}
+              variant="secondary"
+              onClick={() => changeGuests(-1)}
+              disabled={guestCount <= 0}
+            >
+              <Minus />
+            </IconButton>
+            <span className="min-w-[1.5rem] text-center text-sm font-medium tabular-nums text-gray-900 dark:text-gray-100" aria-live="polite">
+              {guestCount}
+            </span>
+            <IconButton
+              label={t('increaseGuests', { defaultValue: 'Add guest' })}
+              variant="secondary"
+              onClick={() => changeGuests(1)}
+            >
+              <Plus />
+            </IconButton>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
