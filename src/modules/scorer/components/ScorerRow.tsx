@@ -10,8 +10,11 @@ import AssignmentEditor from './AssignmentEditor'
 import DelegationModal from './DelegationModal'
 import { downloadICal } from '../../../utils/icalGenerator'
 import type { CalendarEntry } from '../../../types/calendar'
-import { currentLocale, formatTime, toUtcIsoFromDatetimeLocal, isWithinGameContactWindow, DUTY_ARRIVAL_MIN } from '../../../utils/dateHelpers'
-import { Calendar, MapPin, Clock, AlertTriangle, Users } from 'lucide-react'
+import { currentLocale, formatTime, formatDayMonthZurich, formatWeekdayZurich, toUtcIsoFromDatetimeLocal, isWithinGameContactWindow, DUTY_ARRIVAL_MIN } from '../../../utils/dateHelpers'
+import { Calendar, MapPin, Clock, AlertTriangle, Users, Check, Plus } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { ActivityRow, DateRail, RowChip, TeamPair } from '@/components/ActivityRow'
+import type { RowTone } from '@/components/activityRowTokens'
 import { sanitizeUrl } from '../../../utils/sanitizeUrl'
 import { useNow } from '../../../hooks/useNow'
 import RosterModal from './RosterModal'
@@ -47,7 +50,7 @@ interface ScorerRowProps {
 }
 
 import { asObj } from '../../../utils/relations'
-import { isFullyAssigned, isVbCombinedMode, isVbRefereeMode } from './assignmentStatus'
+import { hasAnyAssignment, isFullyAssigned, isVbCombinedMode, isVbRefereeMode } from './assignmentStatus'
 
 export type ExpandedGame = Game
 
@@ -63,16 +66,14 @@ export function DutyStatus({ game, sport }: { game: Game; sport: 'volleyball' | 
   // when every applicable duty is filled, otherwise "Open". No "Assigned" state.
   if (isFullyAssigned(game, sport)) {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400">
-        <svg className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
-          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-        </svg>
+      <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400">
+        <Check className="h-3 w-3" strokeWidth={3} aria-hidden />
         {t('statusConfirmed')}
       </span>
     )
   }
   return (
-    <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700 dark:bg-red-900/30 dark:text-red-400">
+    <span className="whitespace-nowrap rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700 dark:bg-red-900/30 dark:text-red-400">
       {t('statusOpen')}
     </span>
   )
@@ -333,9 +334,10 @@ export default function ScorerRow({
 
   const gameLabel = `${game.home_team} – ${game.away_team}`
 
-  const sportBorder = sport === 'basketball'
-    ? 'border-l-orange-400 dark:border-l-orange-500'
-    : 'border-l-brand-400 dark:border-l-brand-500'
+  // Duty state → stripe + rail tone: every seat filled = green, some filled =
+  // amber, none = red. (The sport tab above already says VB vs BB, so the old
+  // sport-coloured border carried nothing.)
+  const dutyTone: RowTone = isFullyAssigned(game, sport) ? 'green' : hasAnyAssignment(game) ? 'amber' : 'red'
 
   // Helper to render a VB assignment editor
   const renderVbEditor = (role: VbAssignRole, labelKey: string, requiredLicence: LicenceType | undefined, teamField: keyof Game, personField: keyof Game) => (
@@ -367,70 +369,90 @@ export default function ScorerRow({
   )
 
   return (
-    <div className={`flex h-full flex-col rounded-lg border border-gray-200 border-l-4 ${sportBorder} bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800`}>
-      {/* Game info */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="text-sm font-medium text-gray-700 dark:text-gray-400">
-          {dateStr} · {game.time ? formatTime(game.time) : ''}
-        </div>
-        {kscwTeam && <TeamChip team={kscwTeam} size="sm" />}
-        <div className="min-w-0 break-words text-sm font-semibold text-gray-900 dark:text-gray-100">
-          {gameLabel}
-        </div>
-        <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-400">
-          {game.league}
-        </span>
-        <DutyStatus game={game} sport={sport} />
-        {hall && (
-          <span className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
-            <MapPin className="h-3 w-3" />
-            {hall.maps_url && sanitizeUrl(hall.maps_url) ? (
-              <a href={sanitizeUrl(hall.maps_url)} target="_blank" rel="noopener noreferrer" className="underline hover:text-brand-600 dark:hover:text-brand-400">
-                {hall.name}
-              </a>
-            ) : (
-              hall.name
-            )}
-          </span>
-        )}
-        {gameNumber && (
-          <span className="text-xs text-gray-400 dark:text-gray-500">#{gameNumber}</span>
-        )}
-        <button
-          onClick={() => handleExportICal(expanded, t('scorerDutyIcal', { home: game.home_team, away: game.away_team }))}
-          title={t('exportICal')}
-          aria-label={t('exportICal')}
-          className="ml-auto flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
-        >
-          <Calendar className="h-4 w-4" />
-        </button>
-        {canViewRoster && (
-          <button
-            onClick={() => setShowRoster(true)}
-            title={t('viewRoster')}
-            aria-label={t('viewRoster')}
-            className="flex min-h-[44px] items-center gap-1.5 rounded-lg bg-brand-50 px-3 text-xs font-medium text-brand-700 transition-colors hover:bg-brand-100 dark:bg-brand-900/30 dark:text-brand-300 dark:hover:bg-brand-900/50"
+    <div>
+      <ActivityRow
+        tone={dutyTone}
+        rail={
+          <DateRail
+            tone={dutyTone}
+            eyebrow={formatWeekdayZurich(game.date)}
+            main={formatDayMonthZurich(game.date)}
+            sub={game.time ? formatTime(game.time) : undefined}
+          />
+        }
+        title={
+          <TeamPair
+            home={game.home_team}
+            away={game.away_team}
+            emphasis={game.type === 'away' ? 'away' : 'home'}
+          />
+        }
+        status={<DutyStatus game={game} sport={sport} />}
+        chips={<>
+          {kscwTeam && <TeamChip team={kscwTeam} size="xs" />}
+          {game.league && <RowChip>{game.league}</RowChip>}
+          {hall && (
+            // Hall names run long ("Sporthalle Utogrund …") — the one chip
+            // allowed to wrap, so it never pushes the row wider than a phone.
+            <RowChip wrap title={hall.name}>
+              <MapPin aria-hidden />
+              {hall.maps_url && sanitizeUrl(hall.maps_url) ? (
+                <a href={sanitizeUrl(hall.maps_url)} target="_blank" rel="noopener noreferrer" className="underline hover:text-brand-600 dark:hover:text-brand-400">
+                  {hall.name}
+                </a>
+              ) : (
+                hall.name
+              )}
+            </RowChip>
+          )}
+          {gameNumber && <RowChip>#{gameNumber}</RowChip>}
+        </>}
+        tools={<>
+          {/* The roster (filled) leads — it's what the assigned Schreiber came for. */}
+          {canViewRoster && (
+            <Button
+              type="button"
+              size="tool"
+              onClick={() => setShowRoster(true)}
+              title={t('viewRoster')}
+              aria-label={t('viewRoster')}
+              icon={<Users aria-hidden />}
+            >
+              {t('viewRoster')}
+            </Button>
+          )}
+          <Button
+            type="button"
+            size="tool"
+            variant="outline"
+            onClick={() => handleExportICal(expanded, t('scorerDutyIcal', { home: game.home_team, away: game.away_team }))}
+            title={t('exportICal')}
+            aria-label={t('exportICal')}
+            icon={<Calendar aria-hidden />}
           >
-            <Users className="h-4 w-4" />
-            {t('viewRoster')}
-          </button>
-        )}
-      </div>
+            {t('common:calendar')}
+          </Button>
+        </>}
+      >
+        {/* Arrival reminder — how early each duty must be in the hall */}
+        <p className="mt-1.5 flex items-start gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+          <Clock className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden />
+          <span className="min-w-0">
+            {sport === 'basketball'
+              ? t('arrivalHintSingle', { min: DUTY_ARRIVAL_MIN.bb_scorer })
+              : vbCombined
+                ? t('arrivalHintSingle', { min: DUTY_ARRIVAL_MIN.scorer_scoreboard })
+                : vbReferee
+                  ? t('arrivalHintReferee', { min: DUTY_ARRIVAL_MIN.referee })
+                  : t('arrivalHintSplit', { scorer: DUTY_ARRIVAL_MIN.scorer, board: DUTY_ARRIVAL_MIN.scoreboard })}
+          </span>
+        </p>
+      </ActivityRow>
 
-      {/* Arrival reminder — how early each duty must be in the hall */}
-      <div className="mt-1.5 flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
-        <Clock className="h-3.5 w-3.5 shrink-0" />
-        {sport === 'basketball'
-          ? t('arrivalHintSingle', { min: DUTY_ARRIVAL_MIN.bb_scorer })
-          : vbCombined
-            ? t('arrivalHintSingle', { min: DUTY_ARRIVAL_MIN.scorer_scoreboard })
-            : vbReferee
-              ? t('arrivalHintReferee', { min: DUTY_ARRIVAL_MIN.referee })
-              : t('arrivalHintSplit', { scorer: DUTY_ARRIVAL_MIN.scorer, board: DUTY_ARRIVAL_MIN.scoreboard })}
-      </div>
-
-      {/* Assignment editors */}
-      <div className="mt-3 flex-1 space-y-3">
+      {/* Assignment editors — under the row, NOT inside its body: on a phone the
+          rail would leave the dropdowns ~240px, so they take the full width
+          there and line up with the body from sm. */}
+      <div className="grid gap-3 px-1.5 pb-4 sm:grid-cols-2 sm:pl-[6.625rem] sm:pr-2 xl:grid-cols-3">
         {sport === 'volleyball' ? (
           vbCombined ? (
             renderVbEditor('scorer_scoreboard', 'scorerTaefeler', undefined, 'scorer_scoreboard_duty_team', 'scorer_scoreboard_member')
@@ -444,7 +466,7 @@ export default function ScorerRow({
           )
         ) : (
           <>
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 sm:col-span-2 xl:col-span-3">
               <span className="text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">{t('bbDutyTeams')}</span>
               {effectiveCanEdit ? (
                 <TeamPickerMulti
@@ -454,11 +476,9 @@ export default function ScorerRow({
                   placeholder={t('selectTeam')}
                 />
               ) : bbGameTeams.length ? (
-                <div className="flex flex-wrap gap-1.5">
+                <div className="flex flex-wrap items-stretch gap-1.5">
                   {bbGameTeams.map((tid) => (
-                    <span key={tid} className="rounded bg-gray-200 px-1.5 py-0.5 text-xs font-semibold text-gray-700 dark:bg-gray-600 dark:text-gray-200">
-                      {bbTeamName(tid)}
-                    </span>
+                    <RowChip key={tid}>{bbTeamName(tid)}</RowChip>
                   ))}
                 </div>
               ) : (
@@ -549,15 +569,16 @@ export default function ScorerRow({
                 onHide={!game.bb_24s_official && !requires24s ? () => setShow24s(false) : undefined}
               />
             ) : (
-              <button
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
                 onClick={() => setShow24s(true)}
-                className="flex items-center gap-1.5 rounded-lg px-2 py-2 text-xs font-medium text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
+                icon={<Plus aria-hidden />}
+                className="justify-self-start text-gray-500 dark:text-gray-400"
               >
-                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                </svg>
                 {t('bb24sOfficial')}
-              </button>
+              </Button>
             )}
           </>
         )}
@@ -630,19 +651,13 @@ export default function ScorerRow({
               </div>
 
               {/* Actions */}
-              <div className="flex justify-end gap-3 border-t border-gray-100 px-5 pb-5 pt-4 dark:border-gray-700">
-                <button
-                  onClick={() => setConfirmRole(null)}
-                  className="rounded-lg px-4 py-2.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
-                >
+              <div className="flex flex-wrap items-center justify-end gap-2 border-t border-gray-100 px-5 pb-5 pt-4 dark:border-gray-700">
+                <Button type="button" variant="ghost" onClick={() => setConfirmRole(null)}>
                   {t('cancelAction')}
-                </button>
-                <button
-                  onClick={() => handleSelfAssign(confirmRole)}
-                  className="rounded-lg bg-brand-500 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-600"
-                >
+                </Button>
+                <Button type="button" onClick={() => handleSelfAssign(confirmRole)}>
                   {t('confirmAction')}
-                </button>
+                </Button>
               </div>
             </div>
           </div>

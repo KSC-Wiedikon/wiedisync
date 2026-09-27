@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { ArrowRightLeft, Check, X } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import type { ScorerDelegation, Member, Game } from '../../../types'
 import { memberDisplayName } from '../../../utils/relations'
 import { formatTime } from '../../../utils/dateHelpers'
@@ -76,21 +77,18 @@ export default function DelegationRequestBanner({
                     {dateStr} · {game.time ? formatTime(game.time) : ''} · {game.league}
                   </p>
                 )}
-                <div className="mt-3 flex gap-2">
-                  <button
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <Button
+                    type="button"
                     onClick={() => onAccept(d.id)}
-                    className="flex min-h-[44px] items-center gap-1.5 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700"
+                    icon={<Check aria-hidden />}
+                    className="bg-green-600 text-white hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-500"
                   >
-                    <Check className="h-4 w-4" />
                     {t('delegateAccept')}
-                  </button>
-                  <button
-                    onClick={() => onDecline(d.id)}
-                    className="flex min-h-[44px] items-center gap-1.5 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
-                  >
-                    <X className="h-4 w-4" />
+                  </Button>
+                  <Button type="button" variant="outline" onClick={() => onDecline(d.id)} icon={<X aria-hidden />}>
                     {t('delegateDecline')}
-                  </button>
+                  </Button>
                 </div>
               </div>
             </div>

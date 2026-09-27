@@ -22,6 +22,7 @@ import TabBar from '../../components/TabBar'
 import SportToggle from '../../components/SportToggle'
 import type { SportView } from '../../hooks/useSportPreference'
 import ScorerRow from './components/ScorerRow'
+import { RowList } from '@/components/ActivityRow'
 import { hasAnyVbAssignment, hasAnyBbAssignment, isFullyAssigned } from './components/assignmentStatus'
 import RosterModal from './components/RosterModal'
 import TeamOverview from './components/TeamOverview'
@@ -705,18 +706,21 @@ export default function ScorerPage() {
 
       {/* Reminder email toggle (superuser only) */}
       {isSuperAdmin && effectiveIsAdmin && reminderSetting && (
-        <button
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
           onClick={toggleReminders}
           disabled={reminderToggling}
-          className={`mt-3 flex items-center gap-2 rounded-lg border px-3 py-2.5 text-xs font-medium transition-colors ${
+          icon={remindersEnabled ? <Bell aria-hidden /> : <BellOff aria-hidden />}
+          className={`mt-3 ${
             remindersEnabled
-              ? 'border-green-300 bg-green-50 text-green-700 hover:bg-green-100 dark:border-green-700 dark:bg-green-900/30 dark:text-green-400 dark:hover:bg-green-900/50'
+              ? 'border-green-300 bg-green-50 text-green-700 hover:bg-green-100 hover:text-green-800 dark:border-green-700 dark:bg-green-900/30 dark:text-green-400 dark:hover:bg-green-900/50'
               : 'border-gray-300 bg-gray-50 text-gray-500 hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700'
           }`}
         >
-          {remindersEnabled ? <Bell className="h-3.5 w-3.5" /> : <BellOff className="h-3.5 w-3.5" />}
           {t('reminderEmails')}: {remindersEnabled ? t('reminderEmailsOn') : t('reminderEmailsOff')}
-        </button>
+        </Button>
       )}
 
       {/* Sport toggle + Tab bar */}
@@ -881,7 +885,8 @@ export default function ScorerPage() {
               </div>
             )}
             {!upcomingLoading && filteredGames.length > 0 && (
-              <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">{filteredGames.map((g) => renderScorerRow(g))}</div>
+              // Flat rows (ActivityRow), one game per line — the list owns the hairlines.
+              <RowList>{filteredGames.map((g) => renderScorerRow(g))}</RowList>
             )}
           </div>
         </>

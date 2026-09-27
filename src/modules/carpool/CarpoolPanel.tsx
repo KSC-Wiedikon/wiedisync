@@ -1,8 +1,11 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Car, ChevronDown, LogOut, MapPin, Pencil, Trash2, UserPlus, X } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import IconButton from '@/components/IconButton'
+import { ActivityRow, DateRail, RowChip, SectionHead } from '@/components/ActivityRow'
+import type { RowTone } from '@/components/activityRowTokens'
 import { useConfirm } from '../../components/ConfirmProvider'
 import { memberDisplayName } from '../../utils/relations'
 import {
@@ -137,15 +140,14 @@ export default function CarpoolPanel({ type, id, standalone = false, suggestedTi
           {!open && <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">{activity.enabled ? t('closedHint') : t('errorDisabled')}</p>}
         </div>
         {!standalone && hasEntries && (
-          <button
-            type="button"
+          <IconButton
+            label={t('title')}
             onClick={() => setExpanded((v) => !v)}
             aria-expanded={showBody}
-            aria-label={t('title')}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-sky-800 hover:bg-sky-100 dark:text-sky-200 dark:hover:bg-sky-900/50"
+            className="text-sky-800 hover:bg-sky-100 hover:text-sky-900 dark:text-sky-200 dark:hover:bg-sky-900/50 dark:hover:text-sky-100"
           >
-            <ChevronDown className={`h-5 w-5 transition-transform ${showBody ? 'rotate-180' : ''}`} />
-          </button>
+            <ChevronDown className={`!size-5 transition-transform ${showBody ? 'rotate-180' : ''}`} />
+          </IconButton>
         )}
       </div>
 
@@ -153,14 +155,14 @@ export default function CarpoolPanel({ type, id, standalone = false, suggestedTi
       {open && composer == null && (canOffer(board, open) || canRequest(board, open)) && (
         <div className="flex gap-2 px-3 pb-3">
           {canOffer(board, open) && (
-            <button type="button" onClick={() => setComposer({ kind: 'offer' })} className={cn(TOOL_BTN, TOOL_PRIMARY)}>
-              <Car className="h-4 w-4 shrink-0" aria-hidden />{t('offerRide')}
-            </button>
+            <Button type="button" size="tool" onClick={() => setComposer({ kind: 'offer' })} icon={<Car aria-hidden />}>
+              {t('offerRide')}
+            </Button>
           )}
           {canRequest(board, open) && (
-            <button type="button" onClick={() => setComposer({ kind: 'request' })} className={cn(TOOL_BTN, TOOL_OUTLINE)}>
-              <UserPlus className="h-4 w-4 shrink-0" aria-hidden />{t('requestRide')}
-            </button>
+            <Button type="button" size="tool" variant="outline" onClick={() => setComposer({ kind: 'request' })} icon={<UserPlus aria-hidden />}>
+              {t('requestRide')}
+            </Button>
           )}
         </div>
       )}
@@ -190,7 +192,7 @@ export default function CarpoolPanel({ type, id, standalone = false, suggestedTi
 
           {board.offers.length > 0 && (
             <div>
-              <SectionHead title={t('offersHeading')} count={board.offers.length} />
+              <SectionHead as="h4" className="mb-1" title={t('offersHeading')} count={board.offers.length} />
               <div className="divide-y divide-sky-200/70 dark:divide-sky-900/70">
                 {board.offers.map((o) => (
                   <RideRow
@@ -201,30 +203,30 @@ export default function CarpoolPanel({ type, id, standalone = false, suggestedTi
                       ? <span className="whitespace-nowrap text-sm font-semibold tabular-nums text-gray-900 dark:text-gray-100">{t('seatsFree', { free: o.seats_free, total: o.seats })}</span>
                       : <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700 dark:bg-red-900/40 dark:text-red-300">{t('full')}</span>}
                     chips={<>
-                      {o.mine && <Chip tone="sky">{t('youDrive')}</Chip>}
-                      {o.i_am_passenger && <Chip tone="sky">{t('youRide')}</Chip>}
-                      {o.teams.length > 0 && <Chip tone="violet">{t('forTeamsList', { teams: o.teams.map((tid) => teamName.get(tid)).filter(Boolean).join(', ') })}</Chip>}
+                      {o.mine && <RowChip tone="sky">{t('youDrive')}</RowChip>}
+                      {o.i_am_passenger && <RowChip tone="sky">{t('youRide')}</RowChip>}
+                      {o.teams.length > 0 && <RowChip tone="violet" wrap>{t('forTeamsList', { teams: o.teams.map((tid) => teamName.get(tid)).filter(Boolean).join(', ') })}</RowChip>}
                     </>}
                     tools={<>
                       {canJoin(board, o, open) && (
-                        <button type="button" disabled={busy} onClick={() => act(() => actions.join(o.id, seatsINeed(board)), 'joined').catch(() => {})} className={cn(TOOL_BTN, TOOL_PRIMARY)}>
-                          <UserPlus className="h-4 w-4 shrink-0" aria-hidden />{t('join')}
-                        </button>
+                        <Button type="button" size="tool" disabled={busy} onClick={() => act(() => actions.join(o.id, seatsINeed(board)), 'joined').catch(() => {})} icon={<UserPlus aria-hidden />}>
+                          {t('join')}
+                        </Button>
                       )}
                       {o.i_am_passenger && (
-                        <button type="button" disabled={busy} onClick={() => leave(o)} className={cn(TOOL_BTN, TOOL_OUTLINE)}>
-                          <LogOut className="h-4 w-4 shrink-0" aria-hidden />{t('leave')}
-                        </button>
+                        <Button type="button" size="tool" variant="outline" disabled={busy} onClick={() => leave(o)} icon={<LogOut aria-hidden />}>
+                          {t('leave')}
+                        </Button>
                       )}
                       {o.mine && open && (
-                        <button type="button" disabled={busy} onClick={() => setComposer({ kind: 'offer', editId: o.id })} className={cn(TOOL_BTN, TOOL_OUTLINE)}>
-                          <Pencil className="h-4 w-4 shrink-0" aria-hidden />{t('edit')}
-                        </button>
+                        <Button type="button" size="tool" variant="outline" disabled={busy} onClick={() => setComposer({ kind: 'offer', editId: o.id })} icon={<Pencil aria-hidden />}>
+                          {t('edit')}
+                        </Button>
                       )}
                       {o.mine && (
-                        <button type="button" disabled={busy} onClick={() => withdraw(o)} className={cn(TOOL_BTN, TOOL_DANGER)}>
-                          <Trash2 className="h-4 w-4 shrink-0" aria-hidden />{t('withdraw')}
-                        </button>
+                        <Button type="button" size="tool" variant="outline" disabled={busy} onClick={() => withdraw(o)} className={DANGER_OUTLINE} icon={<Trash2 aria-hidden />}>
+                          {t('withdraw')}
+                        </Button>
                       )}
                     </>}
                   >
@@ -238,15 +240,18 @@ export default function CarpoolPanel({ type, id, standalone = false, suggestedTi
                               <li key={p.id} className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-white py-0.5 pl-2.5 pr-1 text-xs text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
                                 <span>{name}{p.seats > 1 ? ` · ${t('seatsTaken', { count: p.seats })}` : ''}</span>
                                 {o.mine ? (
-                                  <button
-                                    type="button"
+                                  // Sits inside a name pill, so it keeps the pill's 28px
+                                  // instead of the 36/32 icon-sm tier — a full-height
+                                  // button would double every passenger chip.
+                                  <IconButton
+                                    size="sm"
+                                    label={`${t('remove')} ${name}`}
                                     disabled={busy}
                                     onClick={() => dropPassenger(p.id, name)}
-                                    aria-label={`${t('remove')} ${name}`}
-                                    className="flex h-7 w-7 items-center justify-center rounded-full text-gray-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/30"
+                                    className="h-7 w-7 rounded-full text-gray-400 hover:bg-red-50 hover:text-red-600 sm:h-7 sm:w-7 dark:text-gray-500 dark:hover:bg-red-900/30 dark:hover:text-red-400 [&_svg]:size-3.5"
                                   >
-                                    <X className="h-3.5 w-3.5" />
-                                  </button>
+                                    <X />
+                                  </IconButton>
                                 ) : <span className="w-1.5" />}
                               </li>
                             )
@@ -262,7 +267,7 @@ export default function CarpoolPanel({ type, id, standalone = false, suggestedTi
 
           {board.requests.length > 0 && (
             <div>
-              <SectionHead title={t('requestsHeading')} count={board.requests.filter((r) => !r.covered).length} />
+              <SectionHead as="h4" className="mb-1" title={t('requestsHeading')} count={board.requests.filter((r) => !r.covered).length} />
               <div className="divide-y divide-sky-200/70 dark:divide-sky-900/70">
                 {board.requests.map((r) => (
                   <RideRow
@@ -271,24 +276,24 @@ export default function CarpoolPanel({ type, id, standalone = false, suggestedTi
                     tone={r.covered ? 'done' : r.mine ? 'mine' : 'waiting'}
                     status={<span className="whitespace-nowrap text-sm font-semibold tabular-nums text-gray-900 dark:text-gray-100">{t('seatsTaken', { count: r.seats })}</span>}
                     chips={<>
-                      {r.mine && <Chip tone="sky">{t('you')}</Chip>}
-                      {r.covered && <Chip tone="emerald">{t('hasRide')} · {t('withDriver', { name: r.covered_by.map((d) => memberDisplayName(d)).join(', ') })}</Chip>}
+                      {r.mine && <RowChip tone="sky">{t('you')}</RowChip>}
+                      {r.covered && <RowChip tone="green" wrap>{t('hasRide')} · {t('withDriver', { name: r.covered_by.map((d) => memberDisplayName(d)).join(', ') })}</RowChip>}
                     </>}
                     tools={<>
                       {canTake(board, r, open) && (
-                        <button type="button" disabled={busy} onClick={() => act(() => actions.take(r.id), 'taken', { name: memberDisplayName(r.member) }).catch(() => {})} className={cn(TOOL_BTN, TOOL_PRIMARY)}>
-                          <UserPlus className="h-4 w-4 shrink-0" aria-hidden />{t('take')}
-                        </button>
+                        <Button type="button" size="tool" disabled={busy} onClick={() => act(() => actions.take(r.id), 'taken', { name: memberDisplayName(r.member) }).catch(() => {})} icon={<UserPlus aria-hidden />}>
+                          {t('take')}
+                        </Button>
                       )}
                       {r.mine && open && (
-                        <button type="button" disabled={busy} onClick={() => setComposer({ kind: 'request', editId: r.id })} className={cn(TOOL_BTN, TOOL_OUTLINE)}>
-                          <Pencil className="h-4 w-4 shrink-0" aria-hidden />{t('edit')}
-                        </button>
+                        <Button type="button" size="tool" variant="outline" disabled={busy} onClick={() => setComposer({ kind: 'request', editId: r.id })} icon={<Pencil aria-hidden />}>
+                          {t('edit')}
+                        </Button>
                       )}
                       {r.mine && (
-                        <button type="button" disabled={busy} onClick={() => withdraw(r)} className={cn(TOOL_BTN, TOOL_DANGER)}>
-                          <Trash2 className="h-4 w-4 shrink-0" aria-hidden />{t('withdraw')}
-                        </button>
+                        <Button type="button" size="tool" variant="outline" disabled={busy} onClick={() => withdraw(r)} className={DANGER_OUTLINE} icon={<Trash2 aria-hidden />}>
+                          {t('withdraw')}
+                        </Button>
                       )}
                     </>}
                   />
@@ -302,107 +307,66 @@ export default function CarpoolPanel({ type, id, standalone = false, suggestedTi
   )
 }
 
-/* ── Row vocabulary — aligned with svrz_rc's GameRow ────────────────────────
- * A rail on the left answers "when" (and which way), a coloured hairline says
- * the row's state, the body carries the person and the facts as chips, and
- * the row's own buttons sit on a line of their own underneath — side by side
- * at equal width on a phone, where a column of stacked buttons squeezed the
- * name into two lines and pushed every row twice as tall. */
+/* ── Ride rows on the shared row vocabulary (ActivityRow, svrz_rc's GameRow) ──
+ * The rail answers "when" (and which way), the 2px stripe says the row's state,
+ * the body carries the person and the facts as chips, and the row's own
+ * buttons sit on a line of their own underneath — side by side at equal width
+ * on a phone, where a column of stacked buttons squeezed the name into two
+ * lines and pushed every row twice as tall. */
 
-// ≥44px on a phone (house touch rule), svrz_rc's compact h-8 from sm up.
-const TOOL_BTN = 'inline-flex h-11 flex-1 basis-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-2 text-[13px] font-medium transition-colors disabled:opacity-50 sm:h-8 sm:flex-none sm:basis-auto sm:px-3 sm:text-xs'
-const TOOL_PRIMARY = 'bg-primary text-primary-foreground hover:bg-primary/90'
-const TOOL_OUTLINE = 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800'
-const TOOL_DANGER = 'border border-gray-300 bg-white text-red-600 hover:bg-red-50 dark:border-gray-600 dark:bg-gray-900 dark:text-red-400 dark:hover:bg-red-950/40'
+/** Outline tool button with a destructive label (withdraw). */
+const DANGER_OUTLINE = 'text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-950/40 dark:hover:text-red-300'
 
-type RowTone = 'mine' | 'open' | 'full' | 'waiting' | 'done'
-const RAIL: Record<RowTone, string> = {
-  mine: 'bg-sky-500',
-  open: 'bg-emerald-400 dark:bg-emerald-500',
-  full: 'bg-red-400 dark:bg-red-500',
-  waiting: 'bg-amber-400 dark:bg-amber-500',
-  done: 'bg-gray-300 dark:bg-gray-600',
-}
-const TIME_TEXT: Record<RowTone, string> = {
-  mine: 'text-sky-700 dark:text-sky-300',
-  open: 'text-emerald-700 dark:text-emerald-400',
-  full: 'text-red-600 dark:text-red-400',
-  waiting: 'text-amber-700 dark:text-amber-400',
-  done: 'text-gray-500 dark:text-gray-400',
-}
-
-const CHIP: Record<'sky' | 'violet' | 'emerald' | 'stone', string> = {
-  sky: 'border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-800 dark:bg-sky-950/60 dark:text-sky-200',
-  violet: 'border-violet-200 bg-violet-50 text-violet-800 dark:border-violet-800 dark:bg-violet-950/50 dark:text-violet-200',
-  emerald: 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300',
-  stone: 'border-gray-200 bg-white text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300',
-}
-
-function Chip({ tone = 'stone', children }: { tone?: keyof typeof CHIP; children: React.ReactNode }) {
-  return (
-    <span className={cn('inline-flex items-center gap-1 rounded border px-1.5 py-[3px] text-[11px] font-semibold leading-tight', CHIP[tone])}>
-      {children}
-    </span>
-  )
-}
-
-function SectionHead({ title, count }: { title: string; count: number }) {
-  return (
-    <div className="mb-1 flex items-center justify-between gap-2 border-b-[1.5px] border-gray-800 pb-1.5 dark:border-gray-300">
-      <h4 className="text-[11px] font-bold uppercase tracking-wider text-gray-800 dark:text-gray-200">{title}</h4>
-      <span className="text-[11px] font-semibold tabular-nums text-gray-500 dark:text-gray-400">{count}</span>
-    </div>
-  )
+type RideTone = 'mine' | 'open' | 'full' | 'waiting' | 'done'
+const RIDE_TONE: Record<RideTone, RowTone> = {
+  mine: 'sky',
+  open: 'green',
+  full: 'red',
+  waiting: 'amber',
+  done: 'gray',
 }
 
 function RideRow({ entry, tone, status, chips, tools, children }: {
   entry: CarpoolOffer | CarpoolRequest
-  tone: RowTone
-  status: React.ReactNode
-  chips?: React.ReactNode
-  tools?: React.ReactNode
-  children?: React.ReactNode
+  tone: RideTone
+  status: ReactNode
+  chips?: ReactNode
+  tools?: ReactNode
+  children?: ReactNode
 }) {
   const { t } = useTranslation('carpool')
   const person = entry.member
   const first = (person.nickname && person.nickname.trim()) || person.first_name
   return (
-    <div className={cn('flex flex-wrap items-stretch py-0.5', tone === 'done' && 'opacity-70')}>
-      <div className="flex min-w-0 flex-1 basis-0 items-stretch gap-2.5 px-1 py-2.5 sm:gap-3">
-        {/* Rail: when, and which way. */}
-        <div className="w-14 shrink-0 text-right leading-tight sm:w-16">
-          <div className={cn('text-sm font-bold tabular-nums', TIME_TEXT[tone])}>{entry.departure_time ?? '–'}</div>
-          <div className="text-[11px] text-gray-500 dark:text-gray-400">{t(`direction_${entry.direction}`)}</div>
-          {entry.direction === 'both' && entry.return_time && (
-            <div className="mt-0.5 text-[11px] tabular-nums text-gray-500 dark:text-gray-400">↩ {entry.return_time}</div>
-          )}
-        </div>
-        <div className={cn('w-[2px] shrink-0 self-stretch rounded-full', RAIL[tone])} aria-hidden />
-        {/* Body: who, then the facts as chips, then anything the list adds. */}
-        <div className="min-w-0 flex-1">
-          <div className="flex items-start gap-2">
-            <p className="min-w-0 flex-1 text-sm font-semibold leading-snug text-gray-900 break-words dark:text-gray-100">
-              {first} {person.last_name}
-            </p>
-            <span className="mt-0.5 shrink-0">{status}</span>
-          </div>
-          {entry.departure_location && (
-            <p className="mt-0.5 flex items-start gap-1 text-xs text-gray-600 dark:text-gray-400">
-              <MapPin className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
-              <span className="break-words">{entry.departure_location}</span>
-            </p>
-          )}
-          {chips && <div className="mt-1.5 flex flex-wrap items-stretch gap-1.5 empty:hidden">{chips}</div>}
-          {entry.notes && <p className="mt-1 text-xs italic text-gray-500 dark:text-gray-400">{entry.notes}</p>}
-          {children}
-        </div>
-      </div>
-      {/* The row's own buttons, on a line of their own under it. */}
-      {tools && (
-        <div className="flex basis-full items-center gap-1.5 px-1 pb-2.5 empty:hidden sm:gap-2 sm:pl-[5.75rem]">
-          {tools}
-        </div>
-      )}
-    </div>
+    <ActivityRow
+      tone={RIDE_TONE[tone]}
+      muted={tone === 'done'}
+      rail={
+        <DateRail
+          tone={RIDE_TONE[tone]}
+          main={entry.departure_time ?? '–'}
+          sub={t(`direction_${entry.direction}`)}
+          extra={entry.direction === 'both' && entry.return_time ? <span className="tabular-nums">↩ {entry.return_time}</span> : undefined}
+        />
+      }
+      // The pickup point rides with the name (above the chips), as before.
+      title={<>
+        <p className="text-sm font-semibold leading-snug text-gray-900 break-words dark:text-gray-100">
+          {first} {person.last_name}
+        </p>
+        {entry.departure_location && (
+          <p className="mt-0.5 flex items-start gap-1 text-xs text-gray-600 dark:text-gray-400">
+            <MapPin className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
+            <span className="break-words">{entry.departure_location}</span>
+          </p>
+        )}
+      </>}
+      status={status}
+      chips={chips}
+      tools={tools}
+    >
+      {entry.notes && <p className="mt-1 text-xs italic text-gray-500 dark:text-gray-400">{entry.notes}</p>}
+      {children}
+    </ActivityRow>
   )
 }

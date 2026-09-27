@@ -1,6 +1,8 @@
 import { useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Search, ArrowRight, X } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import IconButton from '@/components/IconButton'
 import type { Member, Team, MemberTeam, LicenceType, ScorerDelegation } from '../../../types'
 import { memberDisplayName, memberFirstName } from '../../../utils/relations'
 import { BB_OTR1_OR_HIGHER, BB_OTR2_OR_HIGHER } from '../lib/bbLeagueRequirements'
@@ -220,8 +222,8 @@ export default function DelegationModal({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-700">
-          <div>
+        <div className="flex items-center justify-between gap-2 border-b border-gray-200 px-4 py-3 dark:border-gray-700">
+          <div className="min-w-0">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
               {t('delegateTitle')}
             </h3>
@@ -229,13 +231,9 @@ export default function DelegationModal({
               {roleLabel} · {gameLabel}
             </p>
           </div>
-          <button
-            onClick={onClose}
-            className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
-            aria-label={t('cancelAction')}
-          >
-            <X className="h-5 w-5" />
-          </button>
+          <IconButton label={t('cancelAction')} onClick={onClose} className="shrink-0 text-gray-400">
+            <X className="!size-5" />
+          </IconButton>
         </div>
 
         {/* Confirmation step */}
@@ -248,19 +246,12 @@ export default function DelegationModal({
               {t('delegateConfirmPending', { name: selectedName })}
             </p>
             <div className="mt-4 flex gap-3">
-              <button
-                onClick={() => setSelected(null)}
-                className="flex-1 rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
-              >
+              <Button type="button" variant="outline" onClick={() => setSelected(null)} className="flex-1">
                 {t('cancelAction')}
-              </button>
-              <button
-                onClick={handleConfirm}
-                className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600"
-              >
-                <ArrowRight className="h-4 w-4" />
+              </Button>
+              <Button type="button" onClick={handleConfirm} icon={<ArrowRight aria-hidden />} className="flex-1">
                 {t('delegate')}
-              </button>
+              </Button>
             </div>
           </div>
         ) : (

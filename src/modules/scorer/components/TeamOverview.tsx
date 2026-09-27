@@ -154,7 +154,7 @@ export default function TeamOverview({ games, members, teams, sport, groupBy = '
                 <div className="text-xs text-gray-500 dark:text-gray-400">
                   {formatDateZurich(game.date)} · {game.time ? formatTime(game.time) : ''}
                 </div>
-                <div className="truncate text-sm font-semibold dark:text-gray-200">
+                <div className="break-words text-sm font-semibold leading-snug dark:text-gray-200">
                   {game.home_team} – {game.away_team}
                 </div>
               </div>
@@ -169,7 +169,8 @@ export default function TeamOverview({ games, members, teams, sport, groupBy = '
                     {dutyLabel[entry.dutyType]}
                   </span>
                   <div className="shrink-0"><TeamChip team={entry.teamName} size="sm" /></div>
-                  <span className={`ml-auto truncate pl-2 text-right text-sm ${entry.memberName ? 'font-medium dark:text-gray-200' : 'text-red-500'}`}>
+                  {/* Person name is primary text: wraps, never truncates. */}
+                  <span className={`ml-auto min-w-0 break-words pl-2 text-right text-sm leading-snug ${entry.memberName ? 'font-medium dark:text-gray-200' : 'text-red-500'}`}>
                     {entry.memberName ?? t('unassigned')}
                   </span>
                 </div>
@@ -233,7 +234,7 @@ export default function TeamOverview({ games, members, teams, sport, groupBy = '
                             </div>
                             <div className="mt-0.5 flex items-center gap-2 text-xs">
                               <span className="shrink-0 text-gray-400 dark:text-gray-500">{dutyLabel[entry.dutyType]}:</span>
-                              <span className={`min-w-0 truncate ${entry.memberName ? 'font-medium text-gray-800 dark:text-gray-200' : 'text-red-500'}`}>
+                              <span className={`min-w-0 break-words ${entry.memberName ? 'font-medium text-gray-800 dark:text-gray-200' : 'text-red-500'}`}>
                                 {entry.memberName ?? t('unassigned')}
                               </span>
                             </div>

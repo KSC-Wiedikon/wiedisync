@@ -72,20 +72,21 @@ export default function CarpoolEntryForm({ kind, initial, suggestedTime, minSeat
         <span className="text-xs font-medium text-gray-600 dark:text-gray-400">{t('directionLabel')}</span>
         <div role="radiogroup" aria-label={t('directionLabel')} className="grid grid-cols-3 gap-1.5">
           {CARPOOL_DIRECTIONS.map((d) => (
-            <button
+            <Button
               key={d}
               type="button"
               role="radio"
               aria-checked={direction === d}
+              variant="outline"
               onClick={() => setDirection(d)}
-              className={`min-h-[44px] rounded-md border px-2 text-sm font-medium transition-colors ${
+              className={`px-2 ${
                 direction === d
-                  ? 'border-sky-600 bg-sky-600 text-white dark:border-sky-500 dark:bg-sky-600'
+                  ? 'border-sky-600 bg-sky-600 text-white hover:bg-sky-600 hover:text-white dark:border-sky-500 dark:bg-sky-600'
                   : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700'
               }`}
             >
               {t(`direction_${d}`)}
-            </button>
+            </Button>
           ))}
         </div>
       </div>
@@ -97,14 +98,14 @@ export default function CarpoolEntryForm({ kind, initial, suggestedTime, minSeat
             id={`${idp}-seats`}
             value={seats}
             onChange={(e) => setSeats(Number(e.target.value))}
-            className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm dark:bg-gray-800"
+            className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm sm:h-9 dark:bg-gray-800"
           >
             {seatOptions.map((n) => <option key={n} value={n}>{n}</option>)}
           </select>
         </div>
         <div className="space-y-1.5">
           <Label htmlFor={`${idp}-time`}>{t(direction === 'both' ? 'departureThere' : direction === 'back' ? 'departureBack' : 'departureTime')}</Label>
-          <Input id={`${idp}-time`} type="time" step={300} value={time} onChange={(e) => setTime(e.target.value)} className="h-11" />
+          <Input id={`${idp}-time`} type="time" step={300} value={time} onChange={(e) => setTime(e.target.value)} />
         </div>
       </div>
 
@@ -114,7 +115,7 @@ export default function CarpoolEntryForm({ kind, initial, suggestedTime, minSeat
         <div className="grid grid-cols-2 gap-3">
           <div className="col-start-2 space-y-1.5">
             <Label htmlFor={`${idp}-return`}>{t('departureBack')}</Label>
-            <Input id={`${idp}-return`} type="time" step={300} value={returnTime} onChange={(e) => setReturnTime(e.target.value)} className="h-11" />
+            <Input id={`${idp}-return`} type="time" step={300} value={returnTime} onChange={(e) => setReturnTime(e.target.value)} />
           </div>
         </div>
       )}
@@ -137,7 +138,6 @@ export default function CarpoolEntryForm({ kind, initial, suggestedTime, minSeat
           value={location}
           placeholder={t(kind === 'offer' ? 'departureLocationPlaceholder' : 'pickupLocationPlaceholder')}
           onChange={(e) => setLocation(e.target.value)}
-          className="h-11"
         />
       </div>
 
