@@ -384,7 +384,7 @@ export default function TableBrowser({ collections, loadingCollections }: TableB
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                   disabled={page <= 1}
                   className="text-gray-600 disabled:opacity-40 dark:text-gray-400"
-                  label={t('previousPage', { defaultValue: 'Previous page' })}
+                  label={t('previousPage')}
                 >
                   <ChevronLeft />
                 </IconButton>
@@ -395,7 +395,7 @@ export default function TableBrowser({ collections, loadingCollections }: TableB
                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                   disabled={page >= totalPages}
                   className="text-gray-600 disabled:opacity-40 dark:text-gray-400"
-                  label={t('nextPage', { defaultValue: 'Next page' })}
+                  label={t('nextPage')}
                 >
                   <ChevronRight />
                 </IconButton>

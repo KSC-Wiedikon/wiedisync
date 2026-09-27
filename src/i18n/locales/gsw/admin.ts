@@ -1350,4 +1350,10 @@ export default {
   householdRenamed: 'Hushalt umbenännt',
   householdRevoke: 'Us em Hushalt entferne',
   householdSetupNeeded: 'Mues no igrichtet wärde',
+  auditFirstPage: 'Ersti Siite',
+  auditPrevPage: 'Vorherigi Siite',
+  auditNextPage: 'Nächschti Siite',
+  auditLastPage: 'Letschti Siite',
+  previousPage: 'Vorherigi Siite',
+  nextPage: 'Nächschti Siite',
 } as const

@@ -135,7 +135,7 @@ export default function PhoneInput({
       >
         <Check className={cn('h-4 w-4 shrink-0', dialValue === dial ? 'opacity-100' : 'opacity-0')} />
         <span aria-hidden="true">{flag}</span>
-        <span className="flex-1 truncate">{countryLabel(code) || name}</span>
+        <span className="flex-1 truncate" title={countryLabel(code) || name}>{countryLabel(code) || name}</span>
         <span className="tabular-nums text-muted-foreground">+{dialValue}</span>
       </CommandItem>
     )

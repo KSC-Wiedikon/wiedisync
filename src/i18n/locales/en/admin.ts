@@ -2030,4 +2030,10 @@ export default {
   householdRenamed: 'Household renamed',
   householdRevoke: 'Remove from household',
   householdSetupNeeded: 'Set up needed',
+  auditFirstPage: 'First page',
+  auditPrevPage: 'Previous page',
+  auditNextPage: 'Next page',
+  auditLastPage: 'Last page',
+  previousPage: 'Previous page',
+  nextPage: 'Next page',
 } as const

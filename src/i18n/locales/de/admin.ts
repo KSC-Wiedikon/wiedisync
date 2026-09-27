@@ -1990,4 +1990,10 @@ export default {
   householdRenamed: 'Haushalt umbenannt',
   householdRevoke: 'Aus dem Haushalt entfernen',
   householdSetupNeeded: 'Einrichtung nötig',
+  auditFirstPage: 'Erste Seite',
+  auditPrevPage: 'Vorherige Seite',
+  auditNextPage: 'Nächste Seite',
+  auditLastPage: 'Letzte Seite',
+  previousPage: 'Vorherige Seite',
+  nextPage: 'Nächste Seite',
 } as const

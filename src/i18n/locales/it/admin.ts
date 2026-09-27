@@ -1725,4 +1725,10 @@ export default {
   householdRenamed: 'Nucleo familiare rinominato',
   householdRevoke: 'Rimuovi dal nucleo familiare',
   householdSetupNeeded: 'Configurazione necessaria',
+  auditFirstPage: 'Prima pagina',
+  auditPrevPage: 'Pagina precedente',
+  auditNextPage: 'Pagina successiva',
+  auditLastPage: 'Ultima pagina',
+  previousPage: 'Pagina precedente',
+  nextPage: 'Pagina successiva',
 } as const

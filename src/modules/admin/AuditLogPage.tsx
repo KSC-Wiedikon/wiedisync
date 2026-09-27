@@ -478,7 +478,7 @@ export default function AuditLogPage() {
                   onClick={() => fetchLogs(1)}
                   disabled={page === 1}
                   className="text-gray-400 disabled:opacity-30"
-                  label={t('auditFirstPage', { defaultValue: 'First page' })}
+                  label={t('auditFirstPage')}
                 >
                   <ChevronsLeft />
                 </IconButton>
@@ -487,7 +487,7 @@ export default function AuditLogPage() {
                   onClick={() => fetchLogs(page - 1)}
                   disabled={page === 1}
                   className="text-gray-400 disabled:opacity-30"
-                  label={t('auditPrevPage', { defaultValue: 'Previous page' })}
+                  label={t('auditPrevPage')}
                 >
                   <ChevronLeft />
                 </IconButton>
@@ -499,7 +499,7 @@ export default function AuditLogPage() {
                   onClick={() => fetchLogs(page + 1)}
                   disabled={page >= result.totalPages}
                   className="text-gray-400 disabled:opacity-30"
-                  label={t('auditNextPage', { defaultValue: 'Next page' })}
+                  label={t('auditNextPage')}
                 >
                   <ChevronRight />
                 </IconButton>
@@ -508,7 +508,7 @@ export default function AuditLogPage() {
                   onClick={() => fetchLogs(result.totalPages)}
                   disabled={page >= result.totalPages}
                   className="text-gray-400 disabled:opacity-30"
-                  label={t('auditLastPage', { defaultValue: 'Last page' })}
+                  label={t('auditLastPage')}
                 >
                   <ChevronsRight />
                 </IconButton>

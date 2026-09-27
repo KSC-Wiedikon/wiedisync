@@ -29,12 +29,12 @@ export default defineConfig([
       globals: globals.browser,
     },
   },
-  // UI alignment guard rails (/kscw-ui → "Reviewer checklist"). `warn` while the
-  // full sweep migrates the app; flip to `error` once `npm run lint` is clean.
+  // UI alignment guard rails (/kscw-ui → "Reviewer checklist"). `error` since the
+  // 2026-09-28 full sweep brought the app to zero hits — keep it there.
   {
     files: ['src/**/*.tsx'],
     rules: {
-      'no-restricted-syntax': ['warn',
+      'no-restricted-syntax': ['error',
         {
           // Cut-off text must carry its full value (TruncatedText does it for you).
           selector: "JSXOpeningElement:not(:has(JSXAttribute[name.name='title'])) > JSXAttribute[name.name='className'] Literal[value=/(^|\\s)truncate(\\s|$)/]",

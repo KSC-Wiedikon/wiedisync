@@ -1727,4 +1727,10 @@ export default {
   householdRenamed: 'Ménage renommé',
   householdRevoke: 'Retirer du ménage',
   householdSetupNeeded: 'Configuration requise',
+  auditFirstPage: 'Première page',
+  auditPrevPage: 'Page précédente',
+  auditNextPage: 'Page suivante',
+  auditLastPage: 'Dernière page',
+  previousPage: 'Page précédente',
+  nextPage: 'Page suivante',
 } as const

@@ -107,7 +107,7 @@ function TeamOptionRow({
       )}
     >
       <Check className={cn('h-4 w-4 shrink-0', selected ? 'opacity-100' : 'opacity-0')} />
-      <span className="flex-1 truncate">{team.label}</span>
+      <span className="flex-1 truncate" title={team.label}>{team.label}</span>
       {team.season && (
         <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{team.season}</span>
       )}
@@ -160,17 +160,17 @@ export function TeamPickerSingle({
           type="button"
           disabled={disabled}
           className={cn(
-            'flex min-h-[44px] w-full items-center gap-2 rounded-md border border-input bg-transparent px-3 py-2 text-left text-sm shadow-sm transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50',
+            'flex min-h-11 w-full items-center gap-2 rounded-md border sm:min-h-9 border-input bg-transparent px-3 py-2 text-left text-sm shadow-sm transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50',
             className,
           )}
         >
           {selected ? (
             <>
-              <span className="flex-1 truncate">{selected.label}</span>
+              <span className="flex-1 truncate" title={selected.label}>{selected.label}</span>
               <SportBadge sport={selected.sport} />
             </>
           ) : (
-            <span className="flex-1 truncate text-muted-foreground">
+            <span className="flex-1 truncate text-muted-foreground" title={placeholder ?? emptyLabel}>
               {placeholder ?? emptyLabel}
             </span>
           )}
@@ -195,7 +195,7 @@ export function TeamPickerSingle({
                 )}
               >
                 <Check className={cn('h-4 w-4 shrink-0', value === null ? 'opacity-100' : 'opacity-0')} />
-                <span className="flex-1 truncate text-muted-foreground">{emptyLabel}</span>
+                <span className="flex-1 truncate text-muted-foreground" title={emptyLabel}>{emptyLabel}</span>
               </CommandItem>
             </CommandGroup>
             )}
@@ -260,7 +260,7 @@ export function TeamPickerMulti({
     <div className={className}>
       {/* One bordered field, chips inside — mirrors CountryMultiSelect so a
           member already on two teams reads as "filled", not as an empty box. */}
-      <div className="flex min-h-[44px] w-full flex-wrap items-center gap-1.5 rounded-md border border-input bg-transparent p-1.5 text-sm shadow-sm">
+      <div className="flex min-h-11 w-full flex-wrap items-center gap-1.5 rounded-md border sm:min-h-9 border-input bg-transparent p-1.5 text-sm shadow-sm">
         {value.map((id) => {
           const team = byId.get(id)
           const label = team?.label ?? id
@@ -268,7 +268,7 @@ export function TeamPickerMulti({
           return (
             <span
               key={id}
-              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full border border-border bg-muted/60 py-1 pl-2.5 pr-0.5 text-sm text-foreground"
+              className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-border sm:min-h-7 bg-muted/60 py-1 pl-2.5 pr-0.5 text-sm text-foreground"
             >
               <SportBadge sport={team?.sport ?? null} />
               <span className="font-medium">{label}</span>
@@ -297,7 +297,7 @@ export function TeamPickerMulti({
             <button
               type="button"
               disabled={disabled}
-              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full border border-dashed border-muted-foreground/50 px-3 text-sm text-muted-foreground transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-dashed sm:min-h-7 border-muted-foreground/50 px-3 text-sm text-muted-foreground transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Plus className="h-4 w-4" />
               {placeholder ?? t('admin:explorerFieldsTeamsPlaceholder')}

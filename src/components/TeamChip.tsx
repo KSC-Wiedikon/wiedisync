@@ -34,7 +34,7 @@ export default function TeamChip({ team, label, icon, size = 'md', className = '
       }}
     >
       {icon}
-      <span className="min-w-0 truncate">{text}</span>
+      <span className="min-w-0 truncate" title={text}>{text}</span>
     </span>
   )
 }
