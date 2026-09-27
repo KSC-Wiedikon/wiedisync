@@ -20,6 +20,7 @@ import ActivityParticipation from '../../../components/ActivityParticipation'
 import CarpoolChip from '../../carpool/CarpoolChip'
 import { ActivityRow, DateRail, RowChip, TeamPair } from '../../../components/ActivityRow'
 import type { RowTone } from '../../../components/activityRowTokens'
+import { rsvpTone } from '../../../utils/rsvpTone'
 import TruncatedText from '../../../components/TruncatedText'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -182,14 +183,14 @@ export default function GameCard({ game, onClick, variant = 'card', participatio
         : game.status === 'completed' ? (kscwWon ? 'green' : kscwLost ? 'red' : 'gray')
           : game.type === 'home' ? 'brand' : 'sky'
 
-  const rail = (
+  const railFor = (railTone: RowTone) => (
     <DateRail
       eyebrow={game.date ? formatWeekday(game.date) : undefined}
       main={game.date ? `${formatDayMonthZurich(game.date)}.` : '–'}
       sub={game.time ? formatTime(game.time) : undefined}
       // leagueShort can hold a newline (league + group) — keep it.
       extra={game.league ? <span className="whitespace-pre-line">{leagueShort(game.league)}</span> : undefined}
-      tone={tone}
+      tone={railTone}
     />
   )
 
@@ -224,7 +225,7 @@ export default function GameCard({ game, onClick, variant = 'card', participatio
   if (variant === 'compact') {
     return (
       <ActivityRow
-        rail={rail}
+        rail={railFor(tone)}
         tone={tone}
         title={title}
         status={game.status !== 'completed' ? <StatusBadge status={game.status} /> : undefined}
@@ -239,17 +240,25 @@ export default function GameCard({ game, onClick, variant = 'card', participatio
   const showEdit = !!onEdit && canManage
   const showDelete = !!onDelete && canDelete
   const hasTools = showCancel || showRoster || showEdit || showDelete
+  // Cards (game / training / event) share one stripe meaning: MY answer
+  // (rsvpTone), cancelled overriding in red; the rail date stays neutral so a
+  // red "declined" never reads as "cancelled". The game-state/result tone above
+  // is for the compact results list, where there is no answer to show.
+  const cardTone: RowTone = game.status === 'cancelled' ? 'red' : user ? rsvpTone(myParticipation?.status) : 'gray'
 
   return (
     <div className={cn(
-      'rounded-xl border border-gray-200 bg-white px-1 shadow-card transition-shadow dark:border-gray-700 dark:bg-gray-800',
+      // flex-col + flex-1 row: in the equal-height card grid the tools line
+      // sits on the card's bottom edge instead of floating mid-card.
+      'flex flex-col rounded-xl border border-gray-200 bg-white px-1 shadow-card transition-shadow dark:border-gray-700 dark:bg-gray-800',
       onClick && 'hover:shadow-card-hover',
     )}>
       <ActivityRow
-        rail={rail}
-        tone={tone}
+        rail={railFor(game.status === 'cancelled' ? 'red' : 'gray')}
+        tone={cardTone}
         title={title}
         muted={game.status === 'cancelled' || past}
+        className="flex-1 content-start"
         onClick={onClick ? () => onClick(game) : undefined}
         status={
           // The warning badge is a popover trigger — keep its click from also
@@ -278,57 +287,6 @@ export default function GameCard({ game, onClick, variant = 'card', participatio
             )}
           </>
         }
-        tools={hasTools ? (
-          <>
-            {showRoster && (
-              <Button
-                type="button"
-                size="tool"
-                variant="outline"
-                onClick={() => onOpenRoster(game)}
-                title={t('viewRoster')}
-                aria-label={t('viewRoster')}
-              >
-                <Users aria-hidden />{t('viewRoster', { ns: 'scorer' })}
-              </Button>
-            )}
-            {showEdit && (
-              <Button
-                type="button"
-                size="tool"
-                variant="outline"
-                onClick={() => onEdit(game)}
-                title={t('editGame')}
-                aria-label={t('editGame')}
-              >
-                <Pencil aria-hidden />{tc('edit')}
-              </Button>
-            )}
-            {showDelete && (
-              <Button
-                type="button"
-                size="tool"
-                variant="outline"
-                onClick={() => onDelete(game.id)}
-                title={t('deleteGame')}
-                aria-label={t('deleteGame')}
-                className="border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/20"
-              >
-                <Trash2 aria-hidden />{tc('delete')}
-              </Button>
-            )}
-            {showCancel && (
-              <CancelActivityButton
-                kind="game"
-                activityId={game.id}
-                isCancelled={game.status === 'cancelled'}
-                teamIds={teamIdForPerms ? [teamIdForPerms] : []}
-                variant="icon"
-                onDone={onParticipationSaved}
-              />
-            )}
-          </>
-        ) : undefined}
       >
         {!past && game.status === 'scheduled' && (
           <div className="mt-2 flex flex-wrap items-end gap-2">
@@ -349,6 +307,60 @@ export default function GameCard({ game, onClick, variant = 'card', participatio
           </div>
         )}
       </ActivityRow>
+      {/* Tools line under a hairline, full card width — same as TrainingCard /
+          EventCard (an indented ActivityRow `tools` line is too narrow in the
+          2–3 column card grid). */}
+      {hasTools && (
+        <div className="-mx-1 flex flex-wrap items-center gap-1.5 border-t border-gray-100 px-3 py-2 dark:border-gray-700">
+          {showRoster && (
+            <Button
+              type="button"
+              size="tool"
+              variant="outline"
+              onClick={() => onOpenRoster(game)}
+              title={t('viewRoster')}
+              aria-label={t('viewRoster')}
+            >
+              <Users aria-hidden />{t('viewRoster', { ns: 'scorer' })}
+            </Button>
+          )}
+          {showEdit && (
+            <Button
+              type="button"
+              size="tool"
+              variant="outline"
+              onClick={() => onEdit(game)}
+              title={t('editGame')}
+              aria-label={t('editGame')}
+            >
+              <Pencil aria-hidden />{tc('edit')}
+            </Button>
+          )}
+          {showDelete && (
+            <Button
+              type="button"
+              size="tool"
+              variant="outline"
+              onClick={() => onDelete(game.id)}
+              title={t('deleteGame')}
+              aria-label={t('deleteGame')}
+              className="border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/20"
+            >
+              <Trash2 aria-hidden />{tc('delete')}
+            </Button>
+          )}
+          {showCancel && (
+            <CancelActivityButton
+              kind="game"
+              activityId={game.id}
+              isCancelled={game.status === 'cancelled'}
+              teamIds={teamIdForPerms ? [teamIdForPerms] : []}
+              variant="icon"
+              onDone={onParticipationSaved}
+            />
+          )}
+        </div>
+      )}
     </div>
   )
 }

@@ -64,10 +64,10 @@ export default function TrainingCard({ training, participations, myParticipation
 
   return (
     <div className={cn(
-      'overflow-hidden rounded-xl border border-gray-200 bg-white shadow-card dark:border-gray-700 dark:bg-gray-800',
+      'flex flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-card dark:border-gray-700 dark:bg-gray-800',
       cancelled && 'opacity-60',
     )}>
-      <div className="flex items-stretch gap-2.5 p-3 sm:gap-3">
+      <div className="flex flex-1 items-stretch gap-2.5 p-3 sm:gap-3">
         {/* The rail stays neutral unless cancelled: a red date for "I declined"
             would read as "training cancelled". The RSVP colour lives on the stripe. */}
         <DateRail

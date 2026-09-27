@@ -20,8 +20,8 @@ export default function DutyEventCard({ duty }: { duty: MyDuty }) {
   const roleLabel = t(DUTY_ROLE_LABEL_KEYS[duty.role] ?? 'scorer')
 
   return (
-    <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-card dark:border-gray-700 dark:bg-gray-800">
-      <div className="flex items-stretch gap-2.5 p-3 sm:gap-3">
+    <div className="flex flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-card dark:border-gray-700 dark:bg-gray-800">
+      <div className="flex flex-1 items-stretch gap-2.5 p-3 sm:gap-3">
         <DateRail
           eyebrow={g.date ? formatWeekday(g.date) : undefined}
           main={g.date ? <span title={formatDate(g.date)}>{formatDayMonthZurich(g.date)}</span> : '–'}

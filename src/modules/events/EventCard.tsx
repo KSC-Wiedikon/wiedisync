@@ -93,7 +93,7 @@ export default function EventCard({ event, onClick, onEdit, onDelete, onOpenRost
   return (
     <div
       className={cn(
-        'overflow-hidden rounded-xl border border-gray-200 bg-white shadow-card dark:border-gray-700 dark:bg-gray-800',
+        'flex flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-card dark:border-gray-700 dark:bg-gray-800',
         onClick && 'cursor-pointer transition-shadow hover:shadow-card-hover',
         cancelled && 'opacity-60',
       )}
@@ -105,7 +105,7 @@ export default function EventCard({ event, onClick, onEdit, onDelete, onOpenRost
       // (and Space must still type a space in the note).
       onKeyDown={onClick ? (e) => { if (e.target !== e.currentTarget) return; if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick() } } : undefined}
     >
-      <div className="flex items-stretch gap-2.5 p-3 sm:gap-3">
+      <div className="flex flex-1 items-stretch gap-2.5 p-3 sm:gap-3">
         {/* Rail neutral unless cancelled; my RSVP colours the stripe only (a
             red date for "I declined" would read as "event cancelled"). */}
         <DateRail

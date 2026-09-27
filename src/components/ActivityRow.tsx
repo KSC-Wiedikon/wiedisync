@@ -131,10 +131,12 @@ export function ActivityRow({
 }
 
 /**
- * Home over away, as a grid. Home semibold, away regular; no "H:/A:" labels.
- * From sm the aside (score) sits at the end of its own team's line; on a phone
- * the grid collapses to one column and asides drop below both names. `order-*`
- * reflows — nothing is rendered twice. Names WRAP (`break-words`), never truncate.
+ * Home over away, as a grid. Home semibold, away regular (or whichever side is
+ * ours); no "H:/A:" labels. Each aside (score) sits at the end of its own
+ * team's line at every width. Cells are placed explicitly (col/row start):
+ * with auto-placement a missing aside let the away name slide into the `auto`
+ * column and squeezed the home name to a few characters per line.
+ * Names WRAP (`break-words`), never truncate.
  */
 export function TeamPair({
   home, away, homeAside, awayAside, emphasis = 'home', className,
@@ -149,12 +151,13 @@ export function TeamPair({
 }) {
   const strong = 'font-semibold text-gray-900 dark:text-gray-100'
   const weak = 'text-gray-600 dark:text-gray-400'
+  const hasAside = homeAside != null || awayAside != null
   return (
-    <div className={cn('grid min-w-0 grid-cols-1 items-baseline gap-x-2 sm:grid-cols-[minmax(0,1fr)_auto]', className)}>
-      <div className={cn('order-1 min-w-0 break-words text-sm leading-snug sm:text-[15px]', emphasis !== 'away' ? strong : weak)}>{home}</div>
-      {homeAside != null && <div className="order-3 mt-1 sm:order-2 sm:mt-0">{homeAside}</div>}
-      <div className={cn('order-2 min-w-0 break-words text-sm leading-snug sm:order-3 sm:text-[15px]', emphasis !== 'home' ? strong : weak)}>{away}</div>
-      {awayAside != null && <div className="order-4">{awayAside}</div>}
+    <div className={cn('grid min-w-0 items-baseline gap-x-2', hasAside ? 'grid-cols-[minmax(0,1fr)_auto]' : 'grid-cols-1', className)}>
+      <div className={cn('col-start-1 row-start-1 min-w-0 break-words text-sm leading-snug sm:text-[15px]', emphasis !== 'away' ? strong : weak)}>{home}</div>
+      {homeAside != null && <div className="col-start-2 row-start-1 text-right">{homeAside}</div>}
+      <div className={cn('col-start-1 row-start-2 min-w-0 break-words text-sm leading-snug sm:text-[15px]', emphasis !== 'home' ? strong : weak)}>{away}</div>
+      {awayAside != null && <div className="col-start-2 row-start-2 text-right">{awayAside}</div>}
     </div>
   )
 }
