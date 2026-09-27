@@ -5,6 +5,8 @@ export default {
   viewHall: 'Hall',
   viewWeek: 'Week',
   viewMonth: 'Calendar',
+  prevDays: 'Previous days',
+  nextDays: 'Next days',
   viewSchedule: 'Schedule',
   viewList: 'List',
 

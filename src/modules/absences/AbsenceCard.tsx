@@ -4,6 +4,7 @@ import { formatDate, formatDateTimeCompact } from '../../utils/dateHelpers'
 import { TableCell, TableRow } from '../../components/ui/table'
 import { asObj } from '../../utils/relations'
 import type { Absence, Member } from '../../types'
+import { Button } from '@/components/ui/button'
 
 /**
  * Inclusive day count between two ISO date strings (YYYY-MM-DD).
@@ -125,18 +126,22 @@ export default function AbsenceCard({ absence, onEdit, onDelete, memberName, can
       {canEdit && onEdit && onDelete ? (
         <TableCell className="text-right">
           <div className="flex flex-col items-stretch gap-1 sm:flex-row sm:justify-end sm:gap-2">
-            <button
+            <Button
+              size="sm"
+              variant="ghost"
               onClick={() => onEdit(absence)}
-              className="min-h-[44px] rounded px-3 py-1.5 text-sm text-brand-600 hover:bg-brand-50 hover:text-brand-700"
+              className="text-brand-600 hover:bg-brand-50 hover:text-brand-700 dark:text-brand-400 dark:hover:bg-brand-900/30 dark:hover:text-brand-300"
             >
               {t('common:edit')}
-            </button>
-            <button
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
               onClick={() => onDelete(absence.id)}
-              className="min-h-[44px] rounded px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 hover:text-red-800"
+              className="text-red-600 hover:bg-red-50 hover:text-red-800 dark:text-red-400 dark:hover:bg-red-900/30 dark:hover:text-red-300"
             >
               {t('common:delete')}
-            </button>
+            </Button>
           </div>
         </TableCell>
       ) : (

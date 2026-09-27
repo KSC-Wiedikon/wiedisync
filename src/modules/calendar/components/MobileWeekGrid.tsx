@@ -1,5 +1,8 @@
 import { useMemo, useRef, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import IconButton from '@/components/IconButton'
 import type { CalendarEntry } from '../../../types/calendar'
 import {
   isSameDay,
@@ -103,33 +106,20 @@ export default function MobileWeekGrid({
     <div className="flex flex-1 flex-col">
       {/* Navigation header */}
       <div className="mb-2 flex items-center justify-between">
-        <button
-          onClick={() => onDayChange(addDays(dayStart, -3))}
-          className="min-h-[44px] min-w-[44px] rounded-lg p-2 text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
-        >
-          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-        </button>
-        <div className="flex items-center gap-2">
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+        <IconButton label={t('prevDays')} onClick={() => onDayChange(addDays(dayStart, -3))} className="shrink-0">
+          <ChevronLeft className="!size-5" />
+        </IconButton>
+        <div className="flex min-w-0 items-center gap-2">
+          <h2 className="min-w-0 text-sm font-semibold text-gray-900 dark:text-gray-100">
             {formatDateCompactZurich(days[0])} – {formatDateCompactZurich(days[2])}
           </h2>
-          <button
-            onClick={() => onDayChange(today)}
-            className="rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
-          >
+          <Button size="sm" variant="outline" onClick={() => onDayChange(today)} className="shrink-0">
             {t('common:today')}
-          </button>
+          </Button>
         </div>
-        <button
-          onClick={() => onDayChange(addDays(dayStart, 3))}
-          className="min-h-[44px] min-w-[44px] rounded-lg p-2 text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
-        >
-          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
-        </button>
+        <IconButton label={t('nextDays')} onClick={() => onDayChange(addDays(dayStart, 3))} className="shrink-0">
+          <ChevronRight className="!size-5" />
+        </IconButton>
       </div>
 
       {/* Day headers */}
@@ -173,6 +163,7 @@ export default function MobileWeekGrid({
                       key={e.id}
                       type="button"
                       onClick={() => onEntryClick?.(e)}
+                      title={e.title}
                       className={`block w-full truncate rounded px-1 text-[9px] font-medium leading-[14px] ${blockClasses(e)} ${cancelledClasses(e)}`}
                     >
                       {e.title}
@@ -255,8 +246,8 @@ export default function MobileWeekGrid({
                       width: `calc(${pe.width * 100}% - 3px)`,
                     }}
                   >
-                    <div className="truncate font-medium">{pe.entry.startTime}</div>
-                    <div className="truncate">{pe.entry.title}</div>
+                    <div title={pe.entry.startTime ?? undefined} className="truncate font-medium">{pe.entry.startTime}</div>
+                    <div title={pe.entry.title} className="truncate">{pe.entry.title}</div>
                   </button>
                 ))}
               </div>

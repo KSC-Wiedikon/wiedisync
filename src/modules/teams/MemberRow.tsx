@@ -3,7 +3,8 @@ import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Link } from 'react-router-dom'
-import { Info, ShieldCheck, ShieldX } from 'lucide-react'
+import { Check, Info, ShieldCheck, ShieldX } from 'lucide-react'
+import IconButton from '../../components/IconButton'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog'
 import { logActivity } from '../../utils/logActivity'
 import { coercePositions, getPositionI18nKey, getSelectablePositions, isNonPlayingStaff } from '../../utils/memberPositions'
@@ -213,15 +214,15 @@ export default function MemberRow({ memberTeam, teamSlug, team, canEdit, isAdmin
                 </>
               )}
             </span>
-            <button
+            <IconButton
+              size="sm"
               type="button"
               onClick={() => setShellInfoOpen(true)}
-              className="p-1 -m-0.5 text-amber-500 transition-colors hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-200"
-              aria-label={t('shellInfoTitle')}
-              title={t('shellInfoTitle')}
+              className="-my-2 text-amber-500 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-200"
+              label={t('shellInfoTitle')}
             >
-              <Info className="h-3.5 w-3.5" />
-            </button>
+              <Info />
+            </IconButton>
             <Dialog open={shellInfoOpen} onOpenChange={setShellInfoOpen}>
               <DialogContent className="max-w-md">
                 <DialogHeader>
@@ -275,16 +276,20 @@ export default function MemberRow({ memberTeam, teamSlug, team, canEdit, isAdmin
             onChange={(e) => setEditValue(e.target.value)}
             onKeyDown={(e) => handleKeyDown(e, 'number')}
             onBlur={() => saveField('number', editValue ? parseInt(editValue, 10) : 0)}
-            className="w-14 rounded-md border border-brand-400 bg-white px-1.5 py-0.5 text-center text-sm font-medium text-gray-900 shadow-sm ring-1 ring-brand-400/30 focus:outline-none dark:border-brand-500 dark:bg-gray-700 dark:text-gray-100 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+            className="h-9 w-14 rounded-md border border-brand-400 bg-white px-1.5 text-center text-sm sm:h-8 font-medium text-gray-900 shadow-sm ring-1 ring-brand-400/30 focus:outline-none dark:border-brand-500 dark:bg-gray-700 dark:text-gray-100 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
             autoFocus
           />
-        ) : (
-          <span
-            className={canEdit ? 'inline-flex h-7 w-10 cursor-pointer items-center justify-center rounded-md border border-transparent font-medium transition-colors hover:border-brand-400 hover:text-brand-600 dark:hover:border-brand-500 dark:hover:text-brand-400' : ''}
-            onClick={canEdit ? () => startEdit('number', member.number) : undefined}
+        ) : canEdit ? (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => startEdit('number', member.number)}
+            className="w-10 border border-transparent px-0 text-sm hover:border-brand-400 hover:bg-transparent hover:text-brand-600 dark:hover:border-brand-500 dark:hover:text-brand-400"
           >
             {member.number || '—'}
-          </span>
+          </Button>
+        ) : (
+          <span>{member.number || '—'}</span>
         )}
       </td>
 
@@ -292,13 +297,15 @@ export default function MemberRow({ memberTeam, teamSlug, team, canEdit, isAdmin
       <td className="hidden px-4 py-3 text-sm text-gray-500 sm:table-cell dark:text-gray-400">
         {canEdit ? (
           <div className="relative">
-            <button
+            <Button
               ref={positionBtnRef}
+              size="sm"
+              variant="ghost"
               onClick={() => setEditingField(editingField === 'position' ? null : 'position')}
-              className="cursor-pointer rounded px-1.5 py-0.5 text-left transition-colors hover:text-brand-600"
+              className="h-auto min-h-9 justify-start whitespace-normal px-1.5 text-left font-normal hover:text-brand-600 sm:min-h-8"
             >
               {getPositionLabelList(memberPositions)}
-            </button>
+            </Button>
             {editingField === 'position' && (
               <AnchoredMenu anchorRef={positionBtnRef} onClose={() => setEditingField(null)} width={192}>
                   {selectablePositions.map((p) => {
@@ -316,9 +323,7 @@ export default function MemberRow({ memberTeam, teamSlug, team, canEdit, isAdmin
                       >
                         <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${active ? 'border-brand-500 bg-brand-500 text-white' : 'border-gray-300 dark:border-gray-500'}`}>
                           {active && (
-                            <svg className="h-3 w-3" viewBox="0 0 12 12">
-                              <path d="M10 3L4.5 8.5 2 6" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-                            </svg>
+                            <Check className="h-3 w-3" strokeWidth={3} aria-hidden />
                           )}
                         </span>
                         {getPositionI18nKey(p) ? t(getPositionI18nKey(p)!) : p}
@@ -372,17 +377,19 @@ export default function MemberRow({ memberTeam, teamSlug, team, canEdit, isAdmin
       <td className="px-4 py-3">
         {isAdmin && canEditRole ? (
           <div className="relative">
-            <button
+            <Button
               ref={roleBtnRef}
+              size="sm"
+              variant="ghost"
               onClick={() => setEditingField(editingField === 'role' ? null : 'role')}
-              className="flex items-center gap-1 text-xs"
+              className="gap-1 px-1.5"
             >
               {role ? (
                 <StatusBadge status={role} />
               ) : (
                 <span className="text-gray-400 hover:text-brand-600">+</span>
               )}
-            </button>
+            </Button>
             {editingField === 'role' && (
               <AnchoredMenu anchorRef={roleBtnRef} onClose={() => setEditingField(null)} width={176} align="right">
                   {LEADERSHIP_ROLES.map((r) => {
@@ -395,9 +402,7 @@ export default function MemberRow({ memberTeam, teamSlug, team, canEdit, isAdmin
                       >
                         <span className={`flex h-4 w-4 items-center justify-center rounded border ${active ? 'border-brand-500 bg-brand-500 text-white' : 'border-gray-300 dark:border-gray-500'}`}>
                           {active && (
-                            <svg className="h-3 w-3" viewBox="0 0 12 12" fill="currentColor">
-                              <path d="M10 3L4.5 8.5 2 6" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-                            </svg>
+                            <Check className="h-3 w-3" strokeWidth={3} aria-hidden />
                           )}
                         </span>
                         {t(roleI18nKeys[r])}

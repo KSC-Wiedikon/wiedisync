@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { Basketball, Volleyball } from '@phosphor-icons/react'
+import { Link2, Plus } from 'lucide-react'
 import ConflictBadge from './ConflictBadge'
 import type { PositionedSlot } from '../utils/timeGrid'
 
@@ -149,13 +150,16 @@ export default function SlotBlock({ positioned, teamName, teamSport, hasConflict
       >
         {hasConflict && <ConflictBadge />}
         <SlotIcon sport={teamSport} />
-        <span className={`relative truncate font-semibold ${isCancelled && !isFreed ? 'line-through' : ''}`}>
+        <span
+          title={(isFreed || isManuallyFree) ? t('slotFreed') : isClaimed ? t('slotClaimed') : typeLabels[slot.slot_type] || slot.label}
+          className={`relative truncate font-semibold ${isCancelled && !isFreed ? 'line-through' : ''}`}
+        >
           {(isFreed || isManuallyFree) ? t('slotFreed') : isClaimed ? t('slotClaimed') : typeLabels[slot.slot_type] || slot.label}
         </span>
         {compactShowType && teamName && (
-          <div className={`relative flex items-center gap-0.5 truncate opacity-90 ${isCancelled && !isFreed ? 'line-through' : ''}`}>
+          <div title={teamName} className={`relative flex items-center gap-0.5 truncate opacity-90 ${isCancelled && !isFreed ? 'line-through' : ''}`}>
             <SportIcon sport={teamSport} />
-            <span className="truncate">{teamName}</span>
+            <span title={teamName} className="truncate">{teamName}</span>
           </div>
         )}
         {compactShowTime && (
@@ -198,9 +202,7 @@ export default function SlotBlock({ positioned, teamName, teamSport, hasConflict
             className="absolute -right-0.5 -top-0.5 z-30 flex h-4 w-4 items-center justify-center rounded-full bg-green-500 text-white"
             title={t('slotFreed')}
           >
-            <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-            </svg>
+            <Plus className="h-2.5 w-2.5" strokeWidth={2.5} aria-hidden />
           </span>
         )}
         {/* Auto indicator for regular virtual slots */}
@@ -209,9 +211,7 @@ export default function SlotBlock({ positioned, teamName, teamSport, hasConflict
             className="absolute -right-0.5 -top-0.5 z-30 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-white/80 dark:bg-gray-800/80"
             title="Auto"
           >
-            <svg className="h-2.5 w-2.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-            </svg>
+            <Link2 className="h-2.5 w-2.5 text-gray-400" aria-hidden />
           </span>
         )}
         <SlotIcon sport={teamSport} />
@@ -227,13 +227,13 @@ export default function SlotBlock({ positioned, teamName, teamSport, hasConflict
               </div>
             )}
             {showDetails && slot.label && (
-              <div className="relative mt-0.5 truncate text-[10px] opacity-70">{slot.label}</div>
+              <div title={slot.label} className="relative mt-0.5 truncate text-[10px] opacity-70">{slot.label}</div>
             )}
           </>
         ) : isClaimed ? (
           <>
             <div className="relative flex items-center gap-1">
-              <span className="truncate font-medium">{t('slotClaimed')}</span>
+              <span title={t('slotClaimed')} className="truncate font-medium">{t('slotClaimed')}</span>
             </div>
             {showTime && (
               <div className="relative mt-0.5 opacity-80">
@@ -242,19 +242,19 @@ export default function SlotBlock({ positioned, teamName, teamSport, hasConflict
               </div>
             )}
             {showDetails && teamName && (
-              <div className="relative mt-0.5 truncate text-[10px] opacity-70">{teamName}</div>
+              <div title={teamName} className="relative mt-0.5 truncate text-[10px] opacity-70">{teamName}</div>
             )}
           </>
         ) : (
           <>
             <div className="relative flex items-center gap-1">
-              <span className={`truncate font-semibold ${isCancelled ? 'line-through' : ''}`}>
+              <span title={typeLabels[slot.slot_type] || slot.label} className={`truncate font-semibold ${isCancelled ? 'line-through' : ''}`}>
                 {typeLabels[slot.slot_type] || slot.label}
               </span>
               <SportIcon sport={teamSport} />
             </div>
             {teamName && (
-              <div className={`relative mt-0.5 truncate font-medium opacity-90 ${isCancelled ? 'line-through' : ''}`}>
+              <div title={teamName} className={`relative mt-0.5 truncate font-medium opacity-90 ${isCancelled ? 'line-through' : ''}`}>
                 {teamName}
               </div>
             )}

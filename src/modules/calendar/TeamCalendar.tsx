@@ -11,6 +11,7 @@ import CalendarFilters from './CalendarFilters'
 import MonthSurface from './components/MonthSurface'
 import DayOverflowModal from './components/DayOverflowModal'
 import EntryDetailModals from './components/EntryDetailModals'
+import { Button } from '@/components/ui/button'
 
 /**
  * One team's calendar, in the member calendar's own language.
@@ -112,20 +113,22 @@ export default function TeamCalendar({ team }: { team: Team }) {
   return (
     <div className="mt-8">
       <div className="mb-3 flex items-center justify-between gap-2">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('title')}</h2>
-        <button
+        <h2 className="min-w-0 text-lg font-semibold text-gray-900 dark:text-gray-100">{t('title')}</h2>
+        <Button
           type="button"
+          variant="outline"
           onClick={() => setFilterOpen(true)}
-          className="relative inline-flex min-h-[44px] items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 sm:min-h-0 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
+          aria-label={t('filterTitle')}
+          icon={<SlidersHorizontal />}
+          className="shrink-0 px-3"
         >
-          <SlidersHorizontal className="h-4 w-4" />
           <span className="hidden sm:inline">{t('filterTitle')}</span>
           {activeFilterCount > 0 && (
             <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-brand-500 px-1.5 text-xs font-semibold text-white">
               {activeFilterCount}
             </span>
           )}
-        </button>
+        </Button>
       </div>
 
       <CalendarFilters

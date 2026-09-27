@@ -28,6 +28,11 @@ import { buildMemberOptions } from './absenceMemberOptions'
 import type { CalendarEntry, SourceFilter } from '../../types/calendar'
 import type { Absence, Member, HallClosure, SchedulingBlock, Team } from '../../types'
 import { relId, asObj, memberDisplayName } from '../../utils/relations'
+import IconButton from '@/components/IconButton'
+import TruncatedText from '@/components/TruncatedText'
+
+const VIEW_TOGGLE_ON = 'bg-white text-gray-900 shadow-sm hover:bg-white dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-800'
+const VIEW_TOGGLE_OFF = 'text-gray-500 hover:bg-transparent hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
 
 interface TeamAbsenceViewProps {
   teamIds: string[]
@@ -442,7 +447,7 @@ export default function TeamAbsenceView({ teamIds, onEdit, onDelete, canEdit, re
         <Icon className={`h-4 w-4 shrink-0 ${iconClass}`} strokeWidth={2.5} {...(g.kind === 'event' ? { fill: 'currentColor' } : {})} />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
-            <p className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">
+            <p className="min-w-0 break-words text-sm font-medium text-gray-900 dark:text-gray-100">
               {g.name || t('common:unknown')}
             </p>
             {g.kind === 'absence'
@@ -453,7 +458,7 @@ export default function TeamAbsenceView({ teamIds, onEdit, onDelete, canEdit, re
               </span>
             )}
           </div>
-          {g.detail && <p className="truncate text-xs text-gray-500 dark:text-gray-400">{g.detail}</p>}
+          {g.detail && <TruncatedText as="p" text={g.detail} className="text-xs text-gray-500 dark:text-gray-400" />}
         </div>
       </button>
     )
@@ -467,8 +472,8 @@ export default function TeamAbsenceView({ teamIds, onEdit, onDelete, canEdit, re
     <div>
       {/* Controls row */}
       <div className="mb-4 space-y-3">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div className="flex flex-wrap items-end gap-4">
+      <div className="flex flex-wrap items-end gap-4">
+        <div className="flex min-w-0 flex-wrap items-end gap-4">
           <DatePicker label={t('fromTo')} value={startDate} onChange={setStartDate} />
           <DatePicker label={t('until')} value={endDate} onChange={setEndDate} />
           <AbsenceMemberFilter
@@ -478,29 +483,25 @@ export default function TeamAbsenceView({ teamIds, onEdit, onDelete, canEdit, re
           />
         </div>
         {/* View toggle */}
-        <div className="flex gap-1 rounded-lg bg-gray-100 p-1 dark:bg-gray-700">
-          <button
+        <div className="ml-auto flex shrink-0 gap-1 rounded-lg bg-gray-100 p-1 dark:bg-gray-700">
+          <IconButton
+            size="sm"
+            label={t('common:list')}
+            aria-pressed={viewMode === 'list'}
             onClick={() => setViewMode('list')}
-            className={`rounded-md p-2 transition-colors ${
-              viewMode === 'list'
-                ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-800 dark:text-gray-100'
-                : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
-            }`}
-            title={t('common:list')}
+            className={viewMode === 'list' ? VIEW_TOGGLE_ON : VIEW_TOGGLE_OFF}
           >
-            <List className="h-4 w-4" />
-          </button>
-          <button
+            <List />
+          </IconButton>
+          <IconButton
+            size="sm"
+            label={t('common:calendar')}
+            aria-pressed={viewMode === 'calendar'}
             onClick={() => setViewMode('calendar')}
-            className={`rounded-md p-2 transition-colors ${
-              viewMode === 'calendar'
-                ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-800 dark:text-gray-100'
-                : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
-            }`}
-            title={t('common:calendar')}
+            className={viewMode === 'calendar' ? VIEW_TOGGLE_ON : VIEW_TOGGLE_OFF}
           >
-            <CalendarDays className="h-4 w-4" />
-          </button>
+            <CalendarDays />
+          </IconButton>
         </div>
       </div>
       {/* Exclude toggles — flipping one ON hides that category */}
@@ -524,12 +525,11 @@ export default function TeamAbsenceView({ teamIds, onEdit, onDelete, canEdit, re
       {showBlockManager && (
         <div className="mb-4 rounded-lg border border-red-200 bg-red-50/40 p-3 dark:border-red-900/40 dark:bg-red-950/20">
           <div className="mb-1.5 flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <Ban className="h-4 w-4 text-red-600 dark:text-red-400" />
+            <div className="flex min-w-0 items-center gap-2">
+              <Ban className="h-4 w-4 shrink-0 text-red-600 dark:text-red-400" />
               <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200">{t('teamBlocks')}</h3>
             </div>
-            <Button size="sm" variant="outline" onClick={() => setBlockModalOpen(true)}>
-              <Plus className="h-4 w-4" />
+            <Button size="sm" variant="outline" icon={<Plus />} className="shrink-0" onClick={() => setBlockModalOpen(true)}>
               {t('addTeamBlock')}
             </Button>
           </div>
@@ -546,17 +546,17 @@ export default function TeamAbsenceView({ teamIds, onEdit, onDelete, canEdit, re
                 return (
                   <li key={b.id} className="flex items-center gap-2 rounded-md bg-white px-2.5 py-1.5 text-sm dark:bg-gray-800">
                     {tm?.name && <TeamChip team={teamNameToColorKey(tm.name, tm.sport)} label={tm.name} size="xs" />}
-                    <span className="font-medium text-gray-700 dark:text-gray-200">{range}</span>
-                    {b.reason && <span className="truncate text-gray-500 dark:text-gray-400">— {b.reason}</span>}
-                    <button
+                    <span className="shrink-0 font-medium text-gray-700 dark:text-gray-200">{range}</span>
+                    {b.reason && <TruncatedText text={`— ${b.reason}`} className="text-gray-500 dark:text-gray-400" />}
+                    <IconButton
+                      size="sm"
                       type="button"
                       onClick={() => setDeletingBlockId(String(b.id))}
-                      className="ml-auto shrink-0 rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/30"
-                      title={t('common:delete')}
-                      aria-label={t('common:delete')}
+                      label={t('common:delete')}
+                      className="ml-auto shrink-0 text-gray-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400"
                     >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                      <Trash2 />
+                    </IconButton>
                   </li>
                 )
               })}

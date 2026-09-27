@@ -5,6 +5,7 @@ import { Plus, Trash2, Pencil, Globe, X, Upload } from 'lucide-react'
 import { logActivity } from '../../utils/logActivity'
 import { getFileUrl } from '../../utils/fileUrl'
 import { Button } from '../../components/ui/button'
+import IconButton from '../../components/IconButton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import { Input } from '../../components/ui/input'
 import { Switch } from '../../components/ui/switch'
@@ -153,13 +154,13 @@ export default function TeamSponsorsEditor({ team }: { team: Team }) {
       {/* Add/Edit form */}
       {showForm && (
         <div className="mt-3 space-y-3 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+          <div className="flex items-center gap-2">
+            <span className="min-w-0 flex-1 text-sm font-medium text-gray-900 dark:text-gray-100">
               {editingId ? t('editSponsor') : t('addSponsor')}
             </span>
-            <button type="button" onClick={resetForm} aria-label={t('common:close')} className="flex min-h-[44px] min-w-[44px] items-center justify-center text-gray-400 hover:text-gray-600 sm:min-h-0 sm:min-w-0 dark:hover:text-gray-300">
-              <X className="h-4 w-4" />
-            </button>
+            <IconButton size="sm" type="button" onClick={resetForm} label={t('common:close')} className="shrink-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+              <X />
+            </IconButton>
           </div>
 
           <div className="space-y-2">
@@ -247,13 +248,13 @@ export default function TeamSponsorsEditor({ team }: { team: Team }) {
                       <Switch checked={sp.team_page_only} onCheckedChange={() => handleTeamPageOnlyToggle(sp)} />
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <button type="button" onClick={() => openEditForm(sp)} aria-label={t('common:edit')} className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 sm:min-h-0 sm:min-w-0 dark:hover:bg-gray-700 dark:hover:text-gray-300">
-                          <Pencil className="h-4 w-4" />
-                        </button>
-                        <button type="button" onClick={() => setDeleteTarget(sp)} aria-label={t('common:delete')} className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 sm:min-h-0 sm:min-w-0 dark:hover:bg-red-900/20 dark:hover:text-red-400">
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                      <div className="flex flex-col items-end gap-1 sm:flex-row sm:items-center sm:justify-end">
+                        <IconButton size="sm" type="button" onClick={() => openEditForm(sp)} label={t('common:edit')} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                          <Pencil />
+                        </IconButton>
+                        <IconButton size="sm" type="button" onClick={() => setDeleteTarget(sp)} label={t('common:delete')} className="text-gray-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400">
+                          <Trash2 />
+                        </IconButton>
                       </div>
                     </TableCell>
                   </TableRow>

@@ -118,14 +118,15 @@ export default function AbsenceImportModal({ open, onClose, onComplete }: Absenc
             onChange={handleFileChange}
             className="text-sm text-gray-700 dark:text-gray-300 file:mr-3 file:rounded-md file:border-0 file:bg-gray-100 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-gray-700 dark:file:bg-gray-700 dark:file:text-gray-300"
           />
-          <button
+          <Button
             type="button"
+            variant="link"
+            icon={<Download />}
             onClick={downloadTemplate}
-            className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+            className="self-start px-0 sm:self-auto"
           >
-            <Download className="h-3.5 w-3.5" />
             {t('importDownloadTemplate')}
-          </button>
+          </Button>
         </div>
 
         {parseError && (

@@ -5,6 +5,8 @@ import { toISODate, minutesToTime, timeToMinutes } from '../../../utils/dateHelp
 import { SLOT_MINUTES, getDayRange, getSmartStartHour, getSmartEndHour, buildTimeAxis, axisTimeToTop, axisTopToMinutes, positionSlotsOnAxis } from '../utils/timeGrid'
 import { buildConflictSet } from '../utils/conflictDetection'
 import { useOverlapResolution, useTeamResolver } from '../slotViewShared'
+import { ArrowUpDown } from 'lucide-react'
+import IconButton from '@/components/IconButton'
 import SlotBlock from './SlotBlock'
 import ClosureOverlay from './ClosureOverlay'
 
@@ -331,6 +333,16 @@ export default function WeekSlotView({
               >
                 <div className="font-medium">{DAY_HEADERS[dayIndex]}</div>
                 <div className="text-xs">{dateStr}</div>
+                {!multiHall && overlapGroupsByKey.has(`${dayIndex}:${visibleHalls[0]?.id}`) && (
+                  <IconButton
+                    size="sm"
+                    label={t('switchOverlap')}
+                    onClick={() => handleSwap(`${dayIndex}:${visibleHalls[0]?.id}`)}
+                    className="mx-auto mt-0.5"
+                  >
+                    <ArrowUpDown />
+                  </IconButton>
+                )}
               </div>
             )
           })}
@@ -359,11 +371,20 @@ export default function WeekSlotView({
               return dayHalls.map((hall, hi) => (
                 <div
                   key={`${dayIndex}-${hall.id}`}
-                  className={`border-r px-0.5 py-0.5 text-center text-[10px] font-medium text-gray-500 dark:text-gray-400 ${
+                  className={`flex min-w-0 flex-col items-center border-r px-0.5 py-0.5 text-center text-[10px] font-medium text-gray-500 dark:text-gray-400 ${
                     hi === dayHalls.length - 1 ? 'border-r-2 border-gray-300 dark:border-gray-600' : 'border-gray-100 dark:border-gray-800'
                   }`}
                 >
-                  {hall.name}
+                  <span className="max-w-full break-words">{hall.name}</span>
+                  {overlapGroupsByKey.has(`${dayIndex}:${hall.id}`) && (
+                    <IconButton
+                      size="sm"
+                      label={t('switchOverlap')}
+                      onClick={() => handleSwap(`${dayIndex}:${hall.id}`)}
+                    >
+                      <ArrowUpDown />
+                    </IconButton>
+                  )}
                 </div>
               ))
             })}
@@ -492,18 +513,6 @@ export default function WeekSlotView({
                       <ClosureOverlay key={`${closure.id}-${idx}`} reason={closure.reason} />
                     ))}
 
-                    {overlapGroupsByKey.has(dayHallKey) && (
-                      <button
-                        className="absolute right-0.5 top-0.5 z-50 flex h-5 w-5 items-center justify-center rounded bg-gray-700/60 text-white hover:bg-gray-700/80"
-                        onClick={(e) => { e.stopPropagation(); handleSwap(dayHallKey) }}
-                        title={t('switchOverlap')}
-                        aria-label={t('switchOverlap')}
-                      >
-                        <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4m6 4v12m0 0l4-4m-4 4l-4-4" />
-                        </svg>
-                      </button>
-                    )}
 
                     {hallSlots.map((ps) => {
                       // Compute hall span for multi-hall slots
@@ -579,18 +588,6 @@ export default function WeekSlotView({
                   const singleHallKey = `${dayIndex}:${visibleHalls[0]?.id}`
                   return (
                     <>
-                      {overlapGroupsByKey.has(singleHallKey) && (
-                        <button
-                          className="absolute right-1 top-1 z-50 flex h-6 w-6 items-center justify-center rounded bg-gray-700/60 text-white hover:bg-gray-700/80"
-                          onClick={(e) => { e.stopPropagation(); handleSwap(singleHallKey) }}
-                          title={t('switchOverlap')}
-                          aria-label={t('switchOverlap')}
-                        >
-                          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4m6 4v12m0 0l4-4m-4 4l-4-4" />
-                          </svg>
-                        </button>
-                      )}
                       {daySlots.map((ps) => (
                         <SlotBlock
                           key={ps.slot.id}

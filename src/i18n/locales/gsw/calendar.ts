@@ -5,6 +5,8 @@ export default {
   viewHall: 'Halle',
   viewWeek: 'Wuche',
   viewMonth: 'Kaländer',
+  prevDays: 'Vorderi Täg',
+  nextDays: 'Nächschti Täg',
   viewSchedule: 'Spielplan',
   viewList: 'Lischtä',
 

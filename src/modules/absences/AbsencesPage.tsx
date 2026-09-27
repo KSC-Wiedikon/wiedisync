@@ -181,17 +181,16 @@ export default function AbsencesPage() {
 
   return (
     <div>
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
+      <div className="flex flex-wrap items-start gap-4">
+        <div className="min-w-0">
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-bold text-gray-900 sm:text-2xl dark:text-gray-100">{t('title')}</h1>
             <GuideHelpButton />
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2 sm:ml-auto">
           {viewType === 'absences' && scope === 'mine' && (
-            <Button variant="outline" onClick={() => setImportOpen(true)}>
-              <Upload className="mr-2 h-4 w-4" />
+            <Button variant="outline" icon={<Upload />} onClick={() => setImportOpen(true)}>
               {t('importAbsences')}
             </Button>
           )}
@@ -266,14 +265,16 @@ export default function AbsencesPage() {
               )}
               {pastAbsences.length > 0 && (
                 <div>
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
+                    aria-expanded={showOlder}
+                    icon={showOlder ? <ChevronDown /> : <ChevronRight />}
                     onClick={() => setShowOlder(!showOlder)}
-                    className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors py-2"
+                    className="-ml-3 gap-1 font-normal text-muted-foreground hover:text-foreground"
                   >
-                    {showOlder ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                     {t('showOlderAbsences', { count: pastAbsences.length })}
-                  </button>
+                  </Button>
                   {showOlder && (
                     <div className="rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800 mt-2">
                       <Table>

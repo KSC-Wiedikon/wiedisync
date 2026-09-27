@@ -4,6 +4,7 @@ import { formatDate, formatDateTimeCompact } from '../../utils/dateHelpers'
 import { TableCell, TableRow } from '../../components/ui/table'
 import type { Absence, Member } from '../../types'
 import { asObj, memberDisplayName } from '../../utils/relations'
+import IconButton from '@/components/IconButton'
 
 const DAY_KEYS = ['dayMon', 'dayTue', 'dayWed', 'dayThu', 'dayFri', 'daySat', 'daySun'] as const
 
@@ -131,25 +132,25 @@ export default function WeeklyUnavailabilityCard({ absence, onEdit, onDelete, sh
       </TableCell>
       {canEdit ? (
         <TableCell className="w-10 px-1 align-middle text-right">
-          <div className="flex flex-col items-end gap-1">
-            <button
+          <div className="flex flex-col items-end gap-1 sm:flex-row sm:items-center sm:justify-end">
+            <IconButton
+              size="sm"
               type="button"
               onClick={() => onEdit(absence)}
-              aria-label={t('common:edit')}
-              title={t('common:edit')}
-              className="inline-flex h-8 w-8 items-center justify-center rounded text-brand-600 hover:bg-brand-50 hover:text-brand-700 dark:hover:bg-brand-900/30"
+              label={t('common:edit')}
+              className="text-brand-600 hover:bg-brand-50 hover:text-brand-700 dark:text-brand-400 dark:hover:bg-brand-900/30"
             >
-              <Pencil className="h-4 w-4" />
-            </button>
-            <button
+              <Pencil />
+            </IconButton>
+            <IconButton
+              size="sm"
               type="button"
               onClick={() => onDelete(absence.id)}
-              aria-label={t('common:delete')}
-              title={t('common:delete')}
-              className="inline-flex h-8 w-8 items-center justify-center rounded text-red-600 hover:bg-red-50 hover:text-red-800 dark:hover:bg-red-900/30"
+              label={t('common:delete')}
+              className="text-red-600 hover:bg-red-50 hover:text-red-800 dark:text-red-400 dark:hover:bg-red-900/30"
             >
-              <Trash2 className="h-4 w-4" />
-            </button>
+              <Trash2 />
+            </IconButton>
           </div>
         </TableCell>
       ) : (

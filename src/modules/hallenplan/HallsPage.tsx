@@ -180,14 +180,15 @@ export default function HallsPage() {
     <div>
       {/* Header */}
       <div className="mb-4">
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          icon={<ArrowLeft />}
           onClick={() => navigate(-1)}
-          className="mb-2 inline-flex min-h-[44px] items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
+          className="-ml-3 mb-2 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
         >
-          <ArrowLeft className="h-4 w-4" />
           {t('common:back')}
-        </button>
+        </Button>
         <h1 className="text-xl font-bold text-gray-900 sm:text-2xl dark:text-gray-100">{t('hallsTitle')}</h1>
         <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{t('hallsSubtitle')}</p>
       </div>

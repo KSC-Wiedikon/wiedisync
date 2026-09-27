@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import Modal from '@/components/Modal'
+import { Button } from '@/components/ui/button'
 import TeamChip from '../../../components/TeamChip'
 import type { HallSlot, Hall, Team, Game, Training, HallEvent } from '../../../types'
 import { formatTime } from '../../../utils/dateHelpers'
@@ -155,24 +156,21 @@ export default function VirtualSlotDetailModal({ slot, halls, teams, isAdmin, on
 
       <div className="mt-4 border-t border-gray-200 pt-3 dark:border-gray-700">
         {isAdmin && (meta.source === 'training' || meta.source === 'game') && (
-          <div className="mb-3 flex justify-end gap-2">
+          <div className="mb-3 flex flex-wrap justify-end gap-2">
             {meta.source === 'training' && onEditSlot && (
-              <button
-                className="rounded-lg border border-brand-300 px-4 py-2 text-sm font-medium text-brand-700 hover:bg-brand-50 dark:border-brand-600 dark:text-brand-300 dark:hover:bg-brand-900/30"
-                onClick={() => onEditSlot(meta.sourceRecord as Training)}
-              >
+              <Button variant="outline" onClick={() => onEditSlot(meta.sourceRecord as Training)}>
                 {t('editSlot')}
-              </button>
+              </Button>
             )}
-            <button
-              className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+            <Button
+              variant="outline"
               onClick={() => {
                 onClose()
                 navigate(meta.source === 'training' ? '/trainings' : '/games')
               }}
             >
               {meta.source === 'training' ? t('goToTrainings') : t('goToGames')}
-            </button>
+            </Button>
           </div>
         )}
         <div className="text-center">

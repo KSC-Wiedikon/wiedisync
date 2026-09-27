@@ -11,6 +11,7 @@ import { downloadICal } from '../../utils/icalGenerator'
 import type { CalendarEntry } from '../../types/calendar'
 import { API_URL, kscwApi } from '../../lib/api'
 import { toast } from 'sonner'
+import { Button } from '@/components/ui/button'
 
 
 // iCal feeds are served from THIS origin (the wiedisync host) via the
@@ -243,14 +244,14 @@ export default function ICalModal({ open, mode, onClose, entries }: ICalModalPro
         )}
 
         {/* Confirm button */}
-        <button
+        <Button
           type="button"
           onClick={handleConfirm}
           disabled={selectedCategories.length === 0}
-          className="w-full rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-700 active:bg-brand-800 disabled:opacity-50"
+          className="w-full"
         >
           {mode === 'subscribe' ? t('icalGenerateLink') : t('exportICal')}
-        </button>
+        </Button>
 
         {/* Subscription link — revealed after "Generate link" */}
         {mode === 'subscribe' && linkShown && (
@@ -263,15 +264,16 @@ export default function ICalModal({ open, mode, onClose, entries }: ICalModalPro
                 readOnly
                 value={subscribeUrl}
                 onFocus={(e) => e.currentTarget.select()}
-                className="min-w-0 flex-1 rounded-md border border-gray-300 bg-white px-3 py-2 text-xs text-gray-700 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200"
+                className="h-11 min-w-0 flex-1 rounded-md border border-gray-300 bg-white px-3 text-xs text-gray-700 sm:h-9 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200"
               />
-              <button
+              <Button
                 type="button"
+                variant="outline"
                 onClick={copyLink}
-                className="shrink-0 rounded-md bg-brand-600 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-brand-700 active:bg-brand-800"
+                className="shrink-0"
               >
                 {copied ? t('icalLinkCopied') : t('icalCopyLink')}
-              </button>
+              </Button>
             </div>
             <a
               href={webcalUrl}

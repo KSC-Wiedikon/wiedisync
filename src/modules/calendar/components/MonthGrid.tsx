@@ -374,7 +374,10 @@ export default function MonthGrid({
                                         {entry.gameType === 'home' ? 'H' : 'A'}
                                       </span>
                                       {(entry.teamNames[0] || entry.opponent) ? (
-                                        <span className="hidden min-w-0 truncate lg:block">
+                                        <span
+                                          title={`${entry.teamNames[0] ? trimBBTeamName(entry.teamNames[0]) : ''}${entry.opponent ? ` vs ${entry.opponent}` : ''}`}
+                                          className="hidden min-w-0 truncate lg:block"
+                                        >
                                           {entry.teamNames[0] ? trimBBTeamName(entry.teamNames[0]) : ''}{entry.opponent ? ` vs ${entry.opponent}` : ''}
                                         </span>
                                       ) : null}
@@ -382,7 +385,7 @@ export default function MonthGrid({
                                   ) : (
                                     // A birthday has no time to show, so below `lg` the row
                                     // would be a bare cake — keep its name at every width.
-                                    <span className={`min-w-0 truncate ${entry.type === 'birthday' ? '' : 'hidden lg:block'}`}>
+                                    <span title={entry.title} className={`min-w-0 truncate ${entry.type === 'birthday' ? '' : 'hidden lg:block'}`}>
                                       {entry.title}
                                     </span>
                                   )}
@@ -434,7 +437,7 @@ export default function MonthGrid({
                           }}
                         >
                           <CalendarTypeIcon type="absence" size="sm" className="opacity-70" />
-                          <span className="min-w-0 truncate">{label}</span>
+                          <span title={label} className="min-w-0 truncate">{label}</span>
                         </button>
                       )
                     })}
@@ -451,7 +454,7 @@ export default function MonthGrid({
                           style={{ gridColumn: `${bar.startCol + 1} / span ${bar.span}`, gridRow: absenceRows + bar.lane + 1, height: LANE_H - 3 }}
                           onClick={() => onEntryClick?.(bar.entry)}
                         >
-                          <span className="min-w-0 truncate">{bar.entry.title}</span>
+                          <span title={bar.entry.title} className="min-w-0 truncate">{bar.entry.title}</span>
                         </button>
                       )
                     })}

@@ -211,7 +211,7 @@ function StaffSection({ heading, role, currentIds, memberById, allMembers, membe
             return (
               <li key={id} className="flex min-h-[44px] items-center gap-3 px-3 py-1.5">
                 <Avatar member={m} pending={unresolved} />
-                <span className="min-w-0 flex-1 truncate text-sm text-gray-900 dark:text-gray-100">
+                <span className="min-w-0 flex-1 break-words text-sm text-gray-900 dark:text-gray-100">
                   {unresolved
                     ? <span className="block h-4 w-32 max-w-full animate-pulse rounded bg-gray-200 dark:bg-gray-700" />
                     : displayName(m)}

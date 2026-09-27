@@ -5,6 +5,8 @@ export default {
   viewHall: 'Halle',
   viewWeek: 'Woche',
   viewMonth: 'Kalender',
+  prevDays: 'Vorherige Tage',
+  nextDays: 'Nächste Tage',
   viewSchedule: 'Spielplan',
   viewList: 'Liste',
 

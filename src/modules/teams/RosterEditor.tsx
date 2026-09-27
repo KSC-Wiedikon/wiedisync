@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
 import { useParams, Link, Navigate } from 'react-router-dom'
-import { User, X } from 'lucide-react'
+import { Check, User, X } from 'lucide-react'
 import { logActivity } from '../../utils/logActivity'
 import { coercePositions, getPositionI18nKey, getPositionInitial, getPositionsForSport, getSelectablePositions, isNonPlayingStaff } from '../../utils/memberPositions'
 import { useTeamPermissions } from '../../hooks/useTeamPermissions'
@@ -18,7 +18,9 @@ import EmptyState from '../../components/EmptyState'
 import { getFileUrl } from '../../utils/fileUrl'
 import { getCurrentSeason } from '../../utils/dateHelpers'
 import type { Team, Member, MemberPosition, MemberTeam, TeamSettings } from '../../types'
-import { Button } from '../../components/ui/button'
+import { Button, buttonVariants } from '../../components/ui/button'
+import IconButton from '../../components/IconButton'
+import { cn } from '../../lib/utils'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import { fetchAllItems, fetchItems, updateRecord, uploadFile } from '../../lib/api'
 import { asObj, relId, memberFirstName } from '../../utils/relations'
@@ -296,7 +298,7 @@ export default function RosterEditor() {
             </div>
           )}
           <div className="flex flex-col gap-2">
-            <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-brand-500 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-brand-600">
+            <label className={cn(buttonVariants({ size: 'sm' }), 'cursor-pointer')}>
               {uploadingPicture ? '...' : t('uploadPicture')}
               <input
                 ref={fileInputRef}
@@ -308,13 +310,15 @@ export default function RosterEditor() {
               />
             </label>
             {team?.team_picture && (
-              <button
+              <Button
+                size="sm"
+                variant="ghost"
                 onClick={handlePictureRemove}
                 disabled={uploadingPicture}
-                className="text-sm text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
+                className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
               >
                 {t('removePicture')}
-              </button>
+              </Button>
             )}
             <span className="text-xs text-gray-400 dark:text-gray-500">{t('pictureHint')}</span>
           </div>
@@ -357,7 +361,7 @@ export default function RosterEditor() {
                   const guestLevel = guestOverrides[mtId] ?? (mt.guest_level as number) ?? 0
 
                   const numberEl = nonPlaying ? (
-                    <span className="flex h-7 w-10 mx-auto items-center justify-center text-sm text-gray-400 dark:text-gray-500">—</span>
+                    <span className="mx-auto flex h-9 w-10 items-center justify-center text-sm text-gray-400 sm:h-8 dark:text-gray-500">—</span>
                   ) : editingNumber === member.id ? (
                     <input
                       type="number"
@@ -368,35 +372,41 @@ export default function RosterEditor() {
                         else if (e.key === 'Escape') setEditingNumber(null)
                       }}
                       onBlur={() => saveNumber(member.id)}
-                      className="w-12 mx-auto block rounded-md border border-brand-400 bg-white px-1 py-0.5 text-center text-sm font-medium text-gray-900 shadow-sm ring-1 ring-brand-400/30 focus:outline-none dark:border-brand-500 dark:bg-gray-700 dark:text-gray-100 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                      className="mx-auto block h-9 w-12 rounded-md border border-brand-400 bg-white px-1 text-center sm:h-8 text-sm font-medium text-gray-900 shadow-sm ring-1 ring-brand-400/30 focus:outline-none dark:border-brand-500 dark:bg-gray-700 dark:text-gray-100 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                       autoFocus
                     />
                   ) : (
-                    <button
+                    <Button
+                      size="sm"
+                      variant="outline"
                       onClick={() => { setEditingNumber(member.id); setNumberValue(String(memberNumber || '')) }}
-                      className="flex h-7 w-10 mx-auto items-center justify-center rounded-md border border-gray-200 text-sm font-medium text-gray-500 transition-colors hover:border-brand-400 hover:text-brand-600 dark:border-gray-600 dark:text-gray-400 dark:hover:border-brand-500 dark:hover:text-brand-400"
+                      className="mx-auto flex w-10 px-0 text-sm text-gray-500 hover:border-brand-400 hover:text-brand-600 dark:text-gray-400 dark:hover:border-brand-500 dark:hover:text-brand-400"
                       title={t('numberCol')}
                     >
                       {memberNumber || '—'}
-                    </button>
+                    </Button>
                   )
 
                   const captainEl = (
-                    <button
+                    <Button
+                      size="sm"
+                      variant="ghost"
                       onClick={() => toggleRole(member.id, 'captain')}
                       title={t(ROLE_I18N.captain)}
-                      className={`rounded px-1.5 py-0.5 text-xs font-medium transition-colors ${
-                        isCaptain
-                          ? ROLE_COLORS.captain
-                          : 'bg-gray-100 text-gray-400 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-500 dark:hover:bg-gray-600'
-                      }`}
+                      aria-label={t(ROLE_I18N.captain)}
+                      aria-pressed={isCaptain}
+                      className={cn('min-w-9 px-2', isCaptain
+                        ? ROLE_COLORS.captain
+                        : 'bg-gray-100 text-gray-400 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-500 dark:hover:bg-gray-600')}
                     >
                       K
-                    </button>
+                    </Button>
                   )
 
                   const guestEl = (
-                    <button
+                    <Button
+                      size="sm"
+                      variant="ghost"
                       onClick={async () => {
                         const nextLevel = (guestLevel + 1) % 4
                         setGuestOverrides((prev) => ({ ...prev, [mtId]: nextLevel }))
@@ -409,18 +419,16 @@ export default function RosterEditor() {
                         }
                       }}
                       title={guestLevel === 0 ? t('guestLevel0') : t('guestLevelTooltip', { level: guestLevel })}
-                      className={`rounded px-1.5 py-0.5 text-xs font-medium transition-colors ${
-                        guestLevel === 0
-                          ? 'bg-gray-100 text-gray-400 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-500 dark:hover:bg-gray-600'
-                          : guestLevel === 1
-                            ? 'bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300'
-                            : guestLevel === 2
-                              ? 'bg-orange-100/70 text-orange-600 dark:bg-orange-900/60 dark:text-orange-400'
-                              : 'bg-orange-100/50 text-orange-500 dark:bg-orange-900/40 dark:text-orange-500'
-                      }`}
+                      className={cn('min-w-9 px-2', guestLevel === 0
+                        ? 'bg-gray-100 text-gray-400 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-500 dark:hover:bg-gray-600'
+                        : guestLevel === 1
+                          ? 'bg-orange-100 text-orange-700 hover:bg-orange-100 hover:text-orange-700 dark:bg-orange-900 dark:text-orange-300'
+                          : guestLevel === 2
+                            ? 'bg-orange-100/70 text-orange-600 hover:bg-orange-100/70 hover:text-orange-600 dark:bg-orange-900/60 dark:text-orange-400'
+                            : 'bg-orange-100/50 text-orange-500 hover:bg-orange-100/50 hover:text-orange-500 dark:bg-orange-900/40 dark:text-orange-500')}
                     >
                       {guestLevel === 0 ? t('guestBadge') : `G${guestLevel}`}
-                    </button>
+                    </Button>
                   )
 
                   const positionLabelFull = memberPositions
@@ -431,14 +439,16 @@ export default function RosterEditor() {
                     .join('/') || '—'
                   const positionEl = (
                     <div className="relative">
-                      <button
+                      <Button
+                        size="sm"
+                        variant="outline"
                         onClick={() => setEditingPosition(editingPosition === member.id ? null : member.id)}
-                        className="rounded border border-gray-300 px-2 py-1 text-left text-xs text-gray-700 transition-colors hover:border-brand-400 dark:border-gray-600 dark:text-gray-100 dark:hover:border-brand-500 w-12 sm:w-40"
+                        className="w-12 justify-start px-2 font-normal text-gray-700 hover:border-brand-400 sm:w-40 dark:text-gray-100 dark:hover:border-brand-500"
                         title={positionLabelFull}
                       >
-                        <span className="sm:hidden font-semibold tracking-wide">{positionLabelShort}</span>
-                        <span className="hidden sm:inline truncate">{positionLabelFull}</span>
-                      </button>
+                        <span className="font-semibold tracking-wide sm:hidden">{positionLabelShort}</span>
+                        <span title={positionLabelFull} className="hidden min-w-0 truncate sm:inline">{positionLabelFull}</span>
+                      </Button>
                       {editingPosition === member.id && (
                         <>
                           <div className="fixed inset-0 z-10" onClick={() => setEditingPosition(null)} />
@@ -458,9 +468,7 @@ export default function RosterEditor() {
                                 >
                                   <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${active ? 'border-brand-500 bg-brand-500 text-white' : 'border-gray-300 dark:border-gray-500'}`}>
                                     {active && (
-                                      <svg className="h-3 w-3" viewBox="0 0 12 12">
-                                        <path d="M10 3L4.5 8.5 2 6" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-                                      </svg>
+                                      <Check className="h-3 w-3" strokeWidth={3} aria-hidden />
                                     )}
                                   </span>
                                   {getPositionI18nKey(p) ? t(getPositionI18nKey(p)!) : p}
@@ -496,13 +504,14 @@ export default function RosterEditor() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex flex-col items-center gap-0.5 sm:flex-row sm:justify-end sm:gap-1">
-                          <button
+                          <IconButton
+                            size="sm"
+                            label={t('common:remove')}
                             onClick={() => setRemovingId(mt.id as string)}
-                            className="p-1 text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
-                            title={t('common:remove')}
+                            className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
                           >
-                            <X className="h-4 w-4" />
-                          </button>
+                            <X />
+                          </IconButton>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -824,18 +833,19 @@ function TeamSettingsSection({ team, onUpdate }: { team: Team; onUpdate: (s: Tea
                   .map((p) => {
                     const active = recruitingPositions.includes(p)
                     return (
-                      <button
+                      <Button
                         key={p}
                         type="button"
+                        size="sm"
+                        variant="outline"
+                        aria-pressed={active}
                         onClick={() => toggleRecruitingPosition(p)}
-                        className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                          active
-                            ? 'border-brand-500 bg-brand-500 text-white'
-                            : 'border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-gray-500 dark:text-gray-300 dark:hover:bg-gray-700'
-                        }`}
+                        className={cn('rounded-full', active
+                          ? 'border-brand-500 bg-brand-500 text-white hover:bg-brand-500 hover:text-white'
+                          : 'border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-gray-500 dark:text-gray-300 dark:hover:bg-gray-700')}
                       >
                         {getPositionI18nKey(p) ? t(getPositionI18nKey(p)!) : p}
-                      </button>
+                      </Button>
                     )
                   })}
               </div>

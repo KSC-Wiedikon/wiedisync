@@ -423,14 +423,15 @@ export default function ClosuresPage() {
     <div>
       {/* Header */}
       <div className="mb-4">
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          icon={<ArrowLeft />}
           onClick={() => navigate(-1)}
-          className="mb-2 inline-flex min-h-[44px] items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
+          className="-ml-3 mb-2 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
         >
-          <ArrowLeft className="h-4 w-4" />
           {t('common:back')}
-        </button>
+        </Button>
         <h1 className="text-xl font-bold text-gray-900 sm:text-2xl dark:text-gray-100">{t('closuresTitle')}</h1>
         <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{t('closuresSubtitle')}</p>
       </div>
@@ -469,20 +470,21 @@ export default function ClosuresPage() {
               {halls.map((h) => {
                 const active = selectedHalls.includes(h.id)
                 return (
-                  <button
+                  <Button
                     type="button"
+                    variant="outline"
                     key={h.id}
                     onClick={() => toggleHall(h.id)}
                     aria-pressed={active}
                     className={cn(
-                      'min-h-[44px] rounded-full border px-4 text-sm font-medium transition-colors',
+                      'rounded-full',
                       active
-                        ? 'border-brand-600 bg-brand-600 text-white'
+                        ? 'border-brand-600 bg-brand-600 text-white hover:bg-brand-600 hover:text-white'
                         : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700',
                     )}
                   >
                     {h.name}
-                  </button>
+                  </Button>
                 )
               })}
             </div>
@@ -491,7 +493,7 @@ export default function ClosuresPage() {
 
         <FormField label={t('source')}>
           <Select value={form.source} onValueChange={(v) => update('source', v as typeof form.source)}>
-            <SelectTrigger className="min-h-[44px] sm:max-w-xs">
+            <SelectTrigger className="sm:max-w-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -550,9 +552,9 @@ export default function ClosuresPage() {
 
       {/* List */}
       <div className="rounded-lg border border-gray-200 bg-white p-4 sm:p-6 dark:border-gray-700 dark:bg-gray-800">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{t('currentClosures')}</h2>
-          <div className="flex gap-2">
+        <div className="mb-3 flex items-center gap-2">
+          <h2 className="min-w-0 flex-1 break-words text-base font-semibold text-gray-900 dark:text-gray-100">{t('currentClosures')}</h2>
+          <div className="flex shrink-0 gap-2">
             {(['upcoming', 'all'] as const).map((s) => (
               <Button
                 key={s}

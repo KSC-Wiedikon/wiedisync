@@ -16,7 +16,8 @@ import { useAuth } from '../../hooks/useAuth'
 import { useAdminMode } from '../../hooks/useAdminMode'
 import { useIsMobile } from '../../hooks/useMediaQuery'
 import { startOfMonth, startOfWeek, endOfWeek } from '../../utils/dateUtils'
-import { SlidersHorizontal } from 'lucide-react'
+import { Download, Link2, SlidersHorizontal } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import type { CalendarViewMode, CalendarFilterState, SourceFilter, CalendarEntry } from '../../types/calendar'
 import type { Team } from '../../types'
 import { useCollection } from '../../lib/query'
@@ -164,38 +165,40 @@ export default function CalendarPage() {
         <div className="flex items-center gap-2">
           {needsData && (
             <>
-              <button
+              <Button
+                variant="outline"
                 onClick={() => setFilterOpen(true)}
-                className="relative inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                aria-label={t('filterTitle')}
+                icon={<SlidersHorizontal />}
+                className="relative px-3"
               >
-                <SlidersHorizontal className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">{t('filterTitle')}</span>
                 {getActiveFilterCount(filters, allowedSources.length) > 0 && (
                   <span className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-brand-500 text-[10px] font-bold text-white">
                     {getActiveFilterCount(filters, allowedSources.length)}
                   </span>
                 )}
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="outline"
                 onClick={() => setIcalMode('subscribe')}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                aria-label={t('subscribeICal')}
                 title={t('subscribeICal')}
+                icon={<Link2 />}
+                className="px-3"
               >
-                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                </svg>
                 <span className="hidden sm:inline">{t('subscribeICal')}</span>
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="outline"
                 onClick={() => setIcalMode('download')}
                 disabled={entries.length === 0}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                aria-label={t('exportICal')}
+                icon={<Download />}
+                className="px-3"
               >
-                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
                 <span className="hidden sm:inline">{t('exportICal')}</span>
-              </button>
+              </Button>
             </>
           )}
           <div>

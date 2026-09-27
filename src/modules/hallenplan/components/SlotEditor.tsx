@@ -235,7 +235,7 @@ export default function SlotEditor({
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormField label={t('hall')}>
             <Select value={form.hall} onValueChange={(v) => update('hall', v)}>
-              <SelectTrigger className="min-h-[44px]">
+              <SelectTrigger>
                 <SelectValue placeholder={t('selectPlaceholder')} />
               </SelectTrigger>
               <SelectContent>
@@ -261,9 +261,12 @@ export default function SlotEditor({
                   <Button
                     variant="outline"
                     role="combobox"
-                    className="min-h-[44px] w-full justify-between font-normal"
+                    className="w-full justify-between font-normal"
                   >
-                    <span className={`truncate ${form.team.length === 0 ? 'italic text-muted-foreground' : ''}`}>
+                    <span
+                      title={form.team.length === 0 ? t('freeSlot') : form.team.map(id => visibleTeams.find(tm => tm.id === id)?.name).filter(Boolean).join(', ')}
+                      className={`truncate ${form.team.length === 0 ? 'italic text-muted-foreground' : ''}`}
+                    >
                       {form.team.length === 0
                         ? t('freeSlot')
                         : form.team.map(id => visibleTeams.find(tm => tm.id === id)?.name).filter(Boolean).join(', ')}
@@ -312,7 +315,7 @@ export default function SlotEditor({
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormField label={t('dayOfWeek')}>
             <Select value={String(form.day_of_week)} onValueChange={(v) => update('day_of_week', Number(v))}>
-              <SelectTrigger className="min-h-[44px]">
+              <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -324,7 +327,7 @@ export default function SlotEditor({
           </FormField>
           <FormField label={t('slotType')}>
             <Select value={form.slot_type} onValueChange={(v) => update('slot_type', v as typeof form.slot_type)}>
-              <SelectTrigger className="min-h-[44px]">
+              <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -360,7 +363,7 @@ export default function SlotEditor({
               <div className="flex items-center gap-2">
                 <div className="min-w-0 flex-1">
                   <Select value={e.hall} onValueChange={(v) => updateExtraHall(i, { hall: v })}>
-                    <SelectTrigger className="min-h-[44px]" aria-label={t('hall')}>
+                    <SelectTrigger aria-label={t('hall')}>
                       <SelectValue placeholder={t('selectPlaceholder')} />
                     </SelectTrigger>
                     <SelectContent>
@@ -374,7 +377,6 @@ export default function SlotEditor({
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="min-h-[44px] min-w-[44px]"
                   aria-label={t('removeExtraHall')}
                   onClick={() => setForm((prev) => ({ ...prev, extra_halls: prev.extra_halls.filter((_, j) => j !== i) }))}
                 >
@@ -402,7 +404,6 @@ export default function SlotEditor({
           <Button
             type="button"
             variant="outline"
-            className="min-h-[44px]"
             onClick={() => setForm((prev) => ({ ...prev, extra_halls: [...prev.extra_halls, { hall: '', start_time: '', end_time: '' }] }))}
           >
             <Plus className="mr-1 h-4 w-4" />
@@ -469,7 +470,7 @@ export default function SlotEditor({
             />
             <span>{t('autoLabel')}</span>
             {autoLabelMode && (
-              <span className="ml-2 truncate text-xs italic text-gray-500 dark:text-gray-400">
+              <span title={form.label || undefined} className="ml-2 truncate text-xs italic text-gray-500 dark:text-gray-400">
                 {form.label || '—'}
               </span>
             )}

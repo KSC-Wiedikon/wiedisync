@@ -253,10 +253,10 @@ export default function WeekGrid({
                       width: `calc(${pe.width * 100}% - 2px)`,
                     }}
                   >
-                    <div className="truncate font-medium">
+                    <div title={pe.entry.startTime ?? undefined} className="truncate font-medium">
                       {pe.entry.startTime}
                     </div>
-                    <div className="hidden truncate lg:block">
+                    <div title={pe.entry.title} className="hidden truncate lg:block">
                       {pe.entry.title}
                     </div>
                   </button>

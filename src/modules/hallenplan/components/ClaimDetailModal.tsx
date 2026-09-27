@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import Modal from '@/components/Modal'
+import { Button } from '@/components/ui/button'
 import TeamChip from '../../../components/TeamChip'
 import { useTeamPermissions } from '../../../hooks/useTeamPermissions'
 import { formatDate } from '../../../utils/dateHelpers'
@@ -116,28 +117,22 @@ export default function ClaimDetailModal({ slot, claim, halls, teams, onClose, o
             <div className="space-y-2">
               <p className="text-sm text-gray-600 dark:text-gray-400">{t('claimReleaseConfirm')}</p>
               <div className="flex justify-end gap-2">
-                <button
-                  className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
-                  onClick={() => setConfirmRelease(false)}
-                >
+                <Button variant="outline" onClick={() => setConfirmRelease(false)}>
                   {t('common:cancel')}
-                </button>
-                <button
-                  className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
-                  onClick={handleRelease}
-                  disabled={releasing}
-                >
-                  {releasing ? '...' : t('claimRelease')}
-                </button>
+                </Button>
+                <Button variant="destructive" onClick={handleRelease} loading={releasing}>
+                  {t('claimRelease')}
+                </Button>
               </div>
             </div>
           ) : (
-            <button
-              className="w-full rounded-lg border border-red-300 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-900/20"
+            <Button
+              variant="outline"
+              className="w-full border-red-300 text-red-700 hover:bg-red-50 hover:text-red-700 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-900/20 dark:hover:text-red-400"
               onClick={() => setConfirmRelease(true)}
             >
               {t('claimRelease')}
-            </button>
+            </Button>
           )}
         </div>
       )}

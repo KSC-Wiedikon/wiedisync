@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useParams, Link } from 'react-router-dom'
-import { Move, Check, X as XIcon, XCircle, User, ZoomIn, ZoomOut } from 'lucide-react'
+import { Move, Check, ChevronDown, ChevronUp, X as XIcon, XCircle, User, ZoomIn, ZoomOut } from 'lucide-react'
 import { logActivity } from '../../utils/logActivity'
 import { useTeamMembers } from '../../hooks/useTeamMembers'
 import { useTeamIdentityDocs } from '../../hooks/useTeamIdentityDocs'
@@ -12,7 +12,9 @@ import { useTeamPermissions } from '../../hooks/useTeamPermissions'
 import { useAdminMode } from '../../hooks/useAdminMode'
 import { usePendingMembers } from '../../hooks/usePendingMembers'
 import { useCollection } from '../../lib/query'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
+import IconButton from '@/components/IconButton'
+import { cn } from '@/lib/utils'
 import { Table, TableBody, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import TeamChip from '../../components/TeamChip'
 import EmptyState from '../../components/EmptyState'
@@ -478,14 +480,16 @@ export default function TeamDetail() {
             )}
             {/* Crop controls for coaches */}
             {canManage && !adjustingCrop && (
-              <button
+              <Button
+                size="sm"
+                variant="ghost"
+                icon={<Move />}
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={(e) => { e.stopPropagation(); setAdjustingCrop(true) }}
-                className="absolute bottom-2 right-2 flex items-center gap-1.5 rounded-lg bg-black/50 px-3 py-1.5 text-xs font-medium text-white opacity-0 transition-opacity group-hover:opacity-100"
+                className="absolute bottom-2 right-2 bg-black/50 text-white opacity-0 transition-opacity hover:bg-black/60 hover:text-white group-hover:opacity-100"
               >
-                <Move className="h-3.5 w-3.5" />
                 {t('adjustCrop')}
-              </button>
+              </Button>
             )}
             {adjustingCrop && (
               <div
@@ -493,14 +497,15 @@ export default function TeamDetail() {
                 onPointerDown={(e) => e.stopPropagation()}
               >
                 {/* Zoom controls */}
-                <div className="flex items-center gap-2 rounded-lg bg-black/60 px-3 py-1.5">
-                  <button
+                <div className="flex items-center gap-1 rounded-lg bg-black/60 px-1.5 py-0.5">
+                  <IconButton
+                    size="sm"
+                    label={t('zoomOut')}
                     onClick={() => setZoom((z) => Math.max(0.5, +(z - 0.1).toFixed(1)))}
-                    className="rounded p-0.5 text-white hover:bg-white/20"
-                    title={t('zoomOut')}
+                    className="text-white hover:bg-white/20 hover:text-white"
                   >
-                    <ZoomOut className="h-4 w-4" />
-                  </button>
+                    <ZoomOut />
+                  </IconButton>
                   <input
                     type="range"
                     min="0.5"
@@ -510,31 +515,34 @@ export default function TeamDetail() {
                     onChange={(e) => setZoom(+e.target.value)}
                     className="h-1 w-20 cursor-pointer accent-brand-500 sm:w-28"
                   />
-                  <button
+                  <IconButton
+                    size="sm"
+                    label={t('zoomIn')}
                     onClick={() => setZoom((z) => Math.min(2, +(z + 0.1).toFixed(1)))}
-                    className="rounded p-0.5 text-white hover:bg-white/20"
-                    title={t('zoomIn')}
+                    className="text-white hover:bg-white/20 hover:text-white"
                   >
-                    <ZoomIn className="h-4 w-4" />
-                  </button>
+                    <ZoomIn />
+                  </IconButton>
                   <span className="min-w-[3ch] text-center text-xs text-white/80">{Math.round(zoom * 100)}%</span>
                 </div>
                 {/* Save/Cancel */}
                 <div className="flex gap-2">
-                  <button
+                  <Button
+                    size="sm"
+                    icon={<Check />}
                     onClick={saveCropPosition}
-                    className="flex items-center gap-1 rounded-lg bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700"
+                    className="bg-green-600 text-white hover:bg-green-700"
                   >
-                    <Check className="h-3.5 w-3.5" />
                     {t('common:save')}
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    size="sm"
+                    icon={<XIcon />}
                     onClick={cancelCropAdjust}
-                    className="flex items-center gap-1 rounded-lg bg-gray-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-700"
+                    className="bg-gray-600 text-white hover:bg-gray-700"
                   >
-                    <XIcon className="h-3.5 w-3.5" />
                     {t('common:cancel')}
-                  </button>
+                  </Button>
                 </div>
               </div>
             )}
@@ -548,8 +556,8 @@ export default function TeamDetail() {
         </>
       )}
 
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
+      <div className="flex flex-wrap items-start gap-4">
+        <div className="min-w-0">
           <div className="flex items-center gap-3">
             <TeamChip team={team.name} />
             <h1 className="text-xl font-bold text-gray-900 sm:text-2xl dark:text-gray-100">{team.full_name}</h1>
@@ -582,7 +590,7 @@ export default function TeamDetail() {
         {canManageTeam(teamId ?? '') && (
           <Link
             to={`/teams/${teamSlug}/roster/edit`}
-            className="inline-flex items-center justify-center rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-600"
+            className={cn(buttonVariants(), 'sm:ml-auto')}
           >
             {t('editTeam')}
           </Link>
@@ -602,7 +610,7 @@ export default function TeamDetail() {
                 <p className="font-medium text-gray-900 dark:text-gray-100">
                   {memberDisplayName(member)}
                 </p>
-                <p className="truncate text-sm text-gray-500 dark:text-gray-400">{member.email}</p>
+                <p className="break-all text-sm text-gray-500 dark:text-gray-400">{member.email}</p>
                 <div className="mt-2 grid grid-cols-2 gap-2">
                   <Button
                     size="sm"
@@ -631,7 +639,7 @@ export default function TeamDetail() {
                   <p className="font-medium text-gray-900 dark:text-gray-100">
                     {memberDisplayName(member)}
                   </p>
-                  <p className="truncate text-sm text-gray-500 dark:text-gray-400">
+                  <p className="break-all text-sm text-gray-500 dark:text-gray-400">
                     {member?.email} · {t('teamJoinRequest')}
                   </p>
                   <div className="mt-2 grid grid-cols-2 gap-2">
@@ -654,17 +662,18 @@ export default function TeamDetail() {
                   <div className="mt-2 flex flex-wrap items-center gap-1.5">
                     <span className="text-xs text-gray-500 dark:text-gray-400">{t('joinAs')}</span>
                     {[0, 1, 2, 3].map((level) => (
-                      <button
+                      <Button
                         key={level}
+                        size="sm"
+                        variant="outline"
+                        aria-pressed={selectedLevel === level}
                         onClick={() => setRequestGuestLevel(req.id, level)}
-                        className={`rounded border px-2 py-0.5 text-xs font-medium transition-colors ${
-                          selectedLevel === level
-                            ? 'border-brand-500 bg-brand-500 text-white'
-                            : 'border-gray-300 text-gray-600 hover:border-brand-400 dark:border-gray-600 dark:text-gray-400 dark:hover:border-brand-500'
-                        }`}
+                        className={cn(selectedLevel === level
+                          ? 'border-brand-500 bg-brand-500 text-white hover:bg-brand-500 hover:text-white'
+                          : 'border-gray-300 text-gray-600 hover:border-brand-400 dark:border-gray-600 dark:text-gray-400 dark:hover:border-brand-500')}
                       >
                         {level === 0 ? t('rolePlayer') : `${t('positionGuest')} L${level}`}
-                      </button>
+                      </Button>
                     ))}
                   </div>
                 </div>
@@ -707,12 +716,12 @@ export default function TeamDetail() {
       <TeamIdentityRepair teamId={teamId} enabled={canManage} />
 
       <div className="mt-8">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('currentRoster', { count: rosterMembers.length })}</h2>
+        <div className="flex items-center gap-2">
+          <h2 className="min-w-0 flex-1 break-words text-lg font-semibold text-gray-900 dark:text-gray-100">{t('currentRoster', { count: rosterMembers.length })}</h2>
           {/* Staff-only, and only once the identity column has an answer — same gate as the
               column itself, so the button never offers a view the server will refuse. */}
           {canManage && identityDocs !== null && identityDocs.size > 0 && (
-            <Button variant="outline" size="sm" onClick={() => setAccessOpen(true)}>
+            <Button variant="outline" size="sm" className="shrink-0" onClick={() => setAccessOpen(true)}>
               {t('identityAccessButton')}
             </Button>
           )}
@@ -914,11 +923,9 @@ function SortHeader({ label, sortKey: key, current, dir, onClick, className = ''
       <span className="inline-flex items-center gap-1">
         {label}
         {active && (
-          <svg className="h-3 w-3" viewBox="0 0 12 12" fill="currentColor">
-            {dir === 'asc'
-              ? <path d="M6 3L10 9H2z" />
-              : <path d="M6 9L2 3h8z" />}
-          </svg>
+          dir === 'asc'
+            ? <ChevronUp className="h-3 w-3" aria-hidden />
+            : <ChevronDown className="h-3 w-3" aria-hidden />
         )}
       </span>
     </TableHead>

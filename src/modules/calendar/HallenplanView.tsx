@@ -20,6 +20,11 @@ import { relId } from '../../utils/relations'
 import { formatDateCompactZurich } from '../../utils/dateHelpers'
 import type { HallSlot, HallClosure, SlotClaim, Game, Training, HallEvent, Hall, Team } from '../../types'
 import type { FreedSlotInfo, SportFilter } from '../hallenplan/HallenplanPage'
+import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
+
+const HALL_CHIP_ON = 'border-gold-400 bg-gold-100 text-gold-900 hover:bg-gold-100 hover:text-gold-900 dark:border-gold-400/50 dark:bg-gold-400/20 dark:text-gold-300 dark:hover:bg-gold-400/20 dark:hover:text-gold-300'
+const HALL_CHIP_OFF = 'border-gray-200 bg-gray-50 text-gray-600 hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
 
 function getTodayDayIndex(): number {
   const dow = new Date().getDay()
@@ -315,29 +320,27 @@ export default function HallenplanView() {
       {/* Hall filter chips — below content, compact */}
       {halls.length > 0 && (
         <div className="mt-3 border-t border-gray-200 pt-3 dark:border-gray-700">
-          <div className="flex flex-wrap gap-1">
-            <button
+          <div className="flex flex-wrap gap-1.5">
+            <Button
+              size="sm"
+              variant="outline"
+              aria-pressed={selectedHallIds.length === 0}
               onClick={() => setSelectedHallIds([])}
-              className={`rounded-full border px-2 py-0.5 text-[10px] font-medium transition-colors ${
-                selectedHallIds.length === 0
-                  ? 'border-gold-400 bg-gold-100 text-gold-900 dark:border-gold-400/50 dark:bg-gold-400/20 dark:text-gold-300'
-                  : 'border-gray-200 bg-gray-50 text-gray-600 hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
-              }`}
+              className={cn('rounded-full', selectedHallIds.length === 0 ? HALL_CHIP_ON : HALL_CHIP_OFF)}
             >
               {t('common:allHalls')}
-            </button>
+            </Button>
             {halls.map((hall) => (
-              <button
+              <Button
                 key={hall.id}
+                size="sm"
+                variant="outline"
+                aria-pressed={selectedHallIds.includes(hall.id)}
                 onClick={() => toggleHall(hall.id)}
-                className={`rounded-full border px-2 py-0.5 text-[10px] font-medium transition-colors ${
-                  selectedHallIds.includes(hall.id)
-                    ? 'border-gold-400 bg-gold-100 text-gold-900 dark:border-gold-400/50 dark:bg-gold-400/20 dark:text-gold-300'
-                    : 'border-gray-200 bg-gray-50 text-gray-600 hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
-                }`}
+                className={cn('rounded-full', selectedHallIds.includes(hall.id) ? HALL_CHIP_ON : HALL_CHIP_OFF)}
               >
                 {hall.name}
-              </button>
+              </Button>
             ))}
           </div>
         </div>

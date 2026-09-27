@@ -14,6 +14,7 @@ import AffectsMultiSelect from '@/components/AffectsMultiSelect'
 import type { Absence, Member } from '../../types'
 import { memberDisplayName, relId, asObj } from '../../utils/relations'
 import { useMultiTeamMembers } from '../../hooks/useTeamMembers'
+import { cn } from '@/lib/utils'
 
 const DAY_KEYS = ['dayMon', 'dayTue', 'dayWed', 'dayThu', 'dayFri', 'daySat', 'daySun'] as const
 
@@ -179,18 +180,18 @@ export default function WeeklyUnavailabilityForm({ open, absence, onSave, onCanc
             {DAY_KEYS.map((key, index) => {
               const isSelected = daysOfWeek.includes(index)
               return (
-                <button
+                <Button
                   key={key}
                   type="button"
+                  variant="outline"
+                  aria-pressed={isSelected}
                   onClick={() => toggleDay(index)}
-                  className={`min-h-[44px] rounded-full px-4 py-2 text-sm font-medium transition-colors sm:min-h-0 sm:px-3 sm:py-1.5 ${
-                    isSelected
-                      ? 'bg-brand-500 text-white shadow-sm'
-                      : 'border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'
-                  }`}
+                  className={cn('rounded-full', isSelected
+                    ? 'border-brand-500 bg-brand-500 text-white shadow-sm hover:bg-brand-500 hover:text-white'
+                    : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700')}
                 >
                   {t(key)}
-                </button>
+                </Button>
               )
             })}
           </div>

@@ -5,6 +5,8 @@ export default {
   viewHall: 'Palestra',
   viewWeek: 'Settimana',
   viewMonth: 'Calendario',
+  prevDays: 'Giorni precedenti',
+  nextDays: 'Giorni successivi',
   viewSchedule: 'Partite',
   viewList: 'Lista',
 

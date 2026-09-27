@@ -282,7 +282,7 @@ export default function SummaryView({ slots, closures, weekDays, halls, teams }:
                       }}
                       title={`${cell.teamName || cell.label} \u2013 ${typeLabels[cell.slotType] || cell.slotType}`}
                     >
-                      {displayText && <span className="truncate">{displayText}</span>}
+                      {displayText && <span title={displayText} className="truncate">{displayText}</span>}
                       {displayType && <span className="ml-0.5 font-normal opacity-80">{displayType}</span>}
                     </div>
                   )

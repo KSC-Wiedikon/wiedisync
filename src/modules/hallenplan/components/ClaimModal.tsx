@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import Modal from '@/components/Modal'
+import { Button } from '@/components/ui/button'
 import TeamChip from '../../../components/TeamChip'
 import { useAuth } from '../../../hooks/useAuth'
 import { useAdminMode } from '../../../hooks/useAdminMode'
@@ -202,30 +203,24 @@ export default function ClaimModal({ slot, halls, teams, rawSlots, weekDays, onC
         </div>
       )}
 
-      <div className="mt-4 flex items-center justify-between">
+      <div className="mt-4 flex items-center justify-between gap-2">
         {isAdmin && onEditSlot && isManuallyFree && (
-          <button
-            className="rounded-lg border border-brand-300 px-4 py-2 text-sm font-medium text-brand-700 hover:bg-brand-50 dark:border-brand-600 dark:text-brand-300 dark:hover:bg-brand-900/30"
-            onClick={() => onEditSlot(slot)}
-          >
+          <Button variant="outline" onClick={() => onEditSlot(slot)}>
             {t('editSlot')}
-          </button>
+          </Button>
         )}
         {!(isAdmin && onEditSlot && isManuallyFree) && <div />}
-        <div className="flex gap-2">
-          <button
-            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
-            onClick={onClose}
-          >
+        <div className="flex shrink-0 gap-2">
+          <Button variant="outline" onClick={onClose}>
             {t('common:cancel')}
-          </button>
-          <button
-            className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+          </Button>
+          <Button
             onClick={handleClaim}
-            disabled={submitting || isPast || !selectedTeamId || !hallSlotId}
+            loading={submitting}
+            disabled={isPast || !selectedTeamId || !hallSlotId}
           >
-            {submitting ? '...' : t('claimConfirm')}
-          </button>
+            {t('claimConfirm')}
+          </Button>
         </div>
       </div>
     </Modal>
