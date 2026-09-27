@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { MessageSquare, X, Check, AlertTriangle, Users } from 'lucide-react'
+import { MessageSquare, X, Check, AlertTriangle, } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Game, Team, Hall, Member, BaseRecord, Participation } from '../../../types'
 import { Button } from '@/components/ui/button'
@@ -721,15 +721,8 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
               loading={rsvpLoading}
               saved={saveConfirmed}
               label={answeringFor || t('participation:attending')}
-              trailing={(
-                <IconButton
-                  label={t('participationRoster')}
-                  onClick={() => setParticipationListOpen(true)}
-                  className="text-brand-600 hover:bg-brand-50 dark:text-brand-400 dark:hover:bg-brand-900/20"
-                >
-                  <Users className="!size-5" />
-                </IconButton>
-              )}
+              // No roster icon here: the full-width roster button right below
+              // opens the same list (one entry point, not two).
               onSelect={(status) => setStatus(status, noteText)}
             />
             {/* Participation note */}
