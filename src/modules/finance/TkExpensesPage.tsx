@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState, type MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useQueryClient } from '@tanstack/react-query'
@@ -19,7 +19,7 @@ import { ExpenseStatusBadge } from './expenseShared'
  * reimbursement is budgeted and OK to pay, and flags whether the section has
  * ALREADY reimbursed the member. Server-scoped via GET /kscw/expenses/tk-queue;
  * writes via POST /kscw/expenses/:id/tk-confirm (checkbox + notes autosave
- * without confirming; the buttons confirm/un-confirm). Purely informational — it never
+ * without confirming, serialised per row; the buttons confirm/un-confirm). Purely informational — it never
  * changes the treasurer's paid/rejected lifecycle.
  */
 // UI display name — prefers the member's chosen nickname (falls back to first_name).
@@ -29,46 +29,130 @@ const memberName = (e: FinanceExpense) => {
   return m != null ? `#${m}` : '—'
 }
 
+type TkFields = { already_paid?: boolean; note?: string; internal_note?: string }
+type NoteKind = 'note' | 'internal'
+/** A note saves this long after the last keystroke, so closing the tab or
+ *  swiping back mid-sentence loses at most the last couple of seconds. */
+const NOTE_DEBOUNCE_MS = 1500
+
 /** One expense row with its own confirm/already-paid/note controls. */
-function TkRow({ e, onDone }: { e: FinanceExpense; onDone: () => void }) {
+function TkRow({ e, onSaved }: { e: FinanceExpense; onSaved: (patch: Partial<FinanceExpense>) => void }) {
   const { t } = useTranslation('finance')
   const [alreadyPaid, setAlreadyPaid] = useState(!!e.tk_already_paid)
   const [note, setNote] = useState(e.tk_note ?? '')
   const [internal, setInternal] = useState(e.internal_note ?? '')
   const [busy, setBusy] = useState(false)
   const confirmed = !!e.tk_confirmed_at
-  // Last values the server holds — autosave only fires on a real change.
-  const saved = useRef({ note: e.tk_note ?? '', internal: e.internal_note ?? '' })
+  // What the server holds (as it normalised it) — autosave only fires on a real change.
+  const saved = useRef({ alreadyPaid: !!e.tk_already_paid, note: e.tk_note ?? '', internal: e.internal_note ?? '' })
+  // The TK's latest input, readable from queued writes and the unmount flush.
+  const latest = useRef({ alreadyPaid: !!e.tk_already_paid, note: e.tk_note ?? '', internal: e.internal_note ?? '' })
+  // Every write of this row runs after the previous one settles, so the server
+  // applies them in the order the TK made them (fast checkbox taps, blur + Confirm).
+  const chain = useRef<Promise<unknown>>(Promise.resolve())
+  const timers = useRef<Partial<Record<NoteKind, number>>>({})
 
-  /** Saves one field without touching the confirmation (checkbox on change,
-   *  notes on blur) — typing a note and leaving the page must not lose it. */
-  async function autosave(fields: { already_paid?: boolean; note?: string; internal_note?: string }) {
+  function enqueue(job: () => Promise<void>) {
+    const run = chain.current.then(job, job)
+    chain.current = run.catch(() => {})
+    return run
+  }
+
+  /** Adopts the server's copy of the row: `saved` follows the server, and a note
+   *  the TK hasn't touched since sending takes the server's normalised text. */
+  function applyServer(x: FinanceExpense, sent: TkFields) {
+    const s = { alreadyPaid: !!x.tk_already_paid, note: x.tk_note ?? '', internal: x.internal_note ?? '' }
+    if (sent.note !== undefined && latest.current.note === sent.note) { latest.current.note = s.note; setNote(s.note) }
+    if (sent.internal_note !== undefined && latest.current.internal === sent.internal_note) {
+      latest.current.internal = s.internal; setInternal(s.internal)
+    }
+    saved.current = s
+    onSaved({
+      tk_already_paid: x.tk_already_paid, tk_note: x.tk_note, internal_note: x.internal_note,
+      tk_confirmed_at: x.tk_confirmed_at, tk_confirmed_by_name: x.tk_confirmed_by_name,
+    })
+  }
+
+  function showError(err: unknown) {
+    const serverMsg = (err as { body?: { error?: string } })?.body?.error
+    toast.error(serverMsg || t('expenseUpdateError'))
+  }
+
+  /** Saves fields without touching the confirmation. */
+  async function write(fields: TkFields) {
     try {
-      await tkConfirmExpense(e.id, fields)
-      if (fields.note !== undefined) saved.current.note = fields.note
-      if (fields.internal_note !== undefined) saved.current.internal = fields.internal_note
-      toast.success(t('expenseTkSavedToast'))
-      onDone()
+      const r = await tkConfirmExpense(e.id, fields)
+      applyServer(r.expense, fields)
+      toast.success(t('expenseTkSavedToast'), { id: `tk-saved-${e.id}` })
     } catch (err) {
-      const serverMsg = (err as { body?: { error?: string } })?.body?.error
-      toast.error(serverMsg || t('expenseUpdateError'))
+      // A failed checkbox write snaps back to what the server holds (unless the
+      // TK already toggled again). A failed note keeps its text: it stays dirty
+      // and the next blur or keystroke retries.
+      if (fields.already_paid !== undefined && latest.current.alreadyPaid === fields.already_paid) {
+        latest.current.alreadyPaid = saved.current.alreadyPaid
+        setAlreadyPaid(saved.current.alreadyPaid)
+      }
+      showError(err)
     }
   }
+
+  function toggleAlreadyPaid(next: boolean) {
+    latest.current.alreadyPaid = next
+    setAlreadyPaid(next)
+    void enqueue(() => write({ already_paid: next }))
+  }
+
+  /** Queues a save of one note; it reads the text when it runs, so a burst of
+   *  blurs/timers collapses into at most one request per real change. */
+  function flushNote(kind: NoteKind) {
+    window.clearTimeout(timers.current[kind])
+    return enqueue(async () => {
+      const v = latest.current[kind]
+      if (v === saved.current[kind]) return
+      await write(kind === 'note' ? { note: v } : { internal_note: v })
+    })
+  }
+
+  function typeNote(kind: NoteKind, v: string) {
+    latest.current[kind] = v
+    if (kind === 'note') setNote(v)
+    else setInternal(v)
+    window.clearTimeout(timers.current[kind])
+    timers.current[kind] = window.setTimeout(() => void flushNote(kind), NOTE_DEBOUNCE_MS)
+  }
+
+  // Leaving the page (in-app link, browser back, swipe back) unmounts the row
+  // without a blur — save whatever is still pending on the way out.
+  const flushRef = useRef(flushNote)
+  useEffect(() => { flushRef.current = flushNote })
+  useEffect(() => () => {
+    void flushRef.current('note')
+    void flushRef.current('internal')
+  }, [])
 
   async function send(nextConfirmed: boolean) {
+    window.clearTimeout(timers.current.note)
+    window.clearTimeout(timers.current.internal)
     setBusy(true)
-    try {
-      await tkConfirmExpense(e.id, { confirmed: nextConfirmed, already_paid: alreadyPaid, note, internal_note: internal })
-      saved.current = { note, internal }
-      toast.success(nextConfirmed ? t('expenseTkConfirmedToast') : t('expenseTkUnconfirmedToast'))
-      onDone()
-    } catch (err) {
-      const serverMsg = (err as { body?: { error?: string } })?.body?.error
-      toast.error(serverMsg || t('expenseUpdateError'))
-    } finally {
-      setBusy(false)
-    }
+    await enqueue(async () => {
+      const fields = {
+        confirmed: nextConfirmed, already_paid: latest.current.alreadyPaid,
+        note: latest.current.note, internal_note: latest.current.internal,
+      }
+      try {
+        const r = await tkConfirmExpense(e.id, fields)
+        applyServer(r.expense, fields)
+        toast.success(nextConfirmed ? t('expenseTkConfirmedToast') : t('expenseTkUnconfirmedToast'))
+      } catch (err) {
+        showError(err)
+      }
+    })
+    setBusy(false)
   }
+
+  // Keeps a focused note from blurring (and autosaving) when a button is
+  // pressed — send() already carries every field in one request.
+  const keepFocus = (ev: MouseEvent) => ev.preventDefault()
 
   return (
     <TableRow className="min-h-[44px] align-top">
@@ -108,18 +192,15 @@ function TkRow({ e, onDone }: { e: FinanceExpense; onDone: () => void }) {
             </span>
           )}
           <label className="flex items-center gap-2 text-xs text-gray-700 dark:text-gray-300">
-            <Checkbox checked={alreadyPaid} onCheckedChange={(v) => {
-              const next = v === true
-              setAlreadyPaid(next)
-              void autosave({ already_paid: next })
-            }} disabled={busy} />
+            <Checkbox checked={alreadyPaid} onCheckedChange={(v) => toggleAlreadyPaid(v === true)} disabled={busy} />
             {t('expenseTkAlreadyPaidLabel')}
           </label>
           <textarea
             value={note}
-            onChange={(ev) => setNote(ev.target.value)}
-            onBlur={() => { if (note !== saved.current.note) void autosave({ note }) }}
+            onChange={(ev) => typeNote('note', ev.target.value)}
+            onBlur={() => void flushNote('note')}
             rows={2}
+            maxLength={1000}
             disabled={busy}
             placeholder={t('expenseTkNotePlaceholder')}
             className="w-full rounded-md border border-gray-300 bg-transparent px-2 py-1 text-xs text-gray-700 placeholder:text-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
@@ -128,9 +209,10 @@ function TkRow({ e, onDone }: { e: FinanceExpense; onDone: () => void }) {
             <label className="mb-0.5 block text-[11px] font-medium text-gray-500 dark:text-gray-400">{t('expenseInternalNote')}</label>
             <textarea
               value={internal}
-              onChange={(ev) => setInternal(ev.target.value)}
-              onBlur={() => { if (internal !== saved.current.internal) void autosave({ internal_note: internal }) }}
+              onChange={(ev) => typeNote('internal', ev.target.value)}
+              onBlur={() => void flushNote('internal')}
               rows={2}
+              maxLength={1000}
               disabled={busy}
               placeholder={t('expenseInternalNotePlaceholder')}
               className="w-full rounded-md border border-amber-300 bg-amber-50/40 px-2 py-1 text-xs text-gray-700 placeholder:text-gray-400 dark:border-amber-700/60 dark:bg-amber-900/10 dark:text-gray-200"
@@ -138,12 +220,12 @@ function TkRow({ e, onDone }: { e: FinanceExpense; onDone: () => void }) {
             <p className="mt-0.5 text-[11px] text-gray-400 dark:text-gray-500">{t('expenseInternalNoteHint')}</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button size="sm" disabled={busy} onClick={() => void send(true)}>
+            <Button size="sm" disabled={busy} onMouseDown={keepFocus} onClick={() => void send(true)}>
               {busy ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-1 h-4 w-4" />}
               {confirmed ? t('expenseTkSave') : t('expenseTkConfirmBtn')}
             </Button>
             {confirmed && (
-              <Button size="sm" variant="outline" disabled={busy} onClick={() => void send(false)}>
+              <Button size="sm" variant="outline" disabled={busy} onMouseDown={keepFocus} onClick={() => void send(false)}>
                 {t('expenseTkUnconfirm')}
               </Button>
             )}
@@ -159,7 +241,11 @@ export default function TkExpensesPage() {
   const qc = useQueryClient()
   const { data, isLoading } = useTkExpenses()
   const rows = data ?? []
-  const refresh = () => qc.invalidateQueries({ queryKey: ['finance', 'tk-expenses'] })
+  // Writes return the updated row — patch it into the cache instead of
+  // refetching the whole queue on every autosave.
+  const patchRow = (id: FinanceExpense['id'], patch: Partial<FinanceExpense>) =>
+    qc.setQueryData<{ expenses: FinanceExpense[]; sections: string[] }>(['finance', 'tk-expenses'], (old) =>
+      old && { ...old, expenses: old.expenses.map((x) => (x.id === id ? { ...x, ...patch } : x)) })
 
   return (
     <div className="mx-auto max-w-5xl space-y-6 p-4 sm:p-6">
@@ -187,7 +273,7 @@ export default function TkExpensesPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rows.map((e) => <TkRow key={e.id} e={e} onDone={refresh} />)}
+                {rows.map((e) => <TkRow key={e.id} e={e} onSaved={(p) => patchRow(e.id, p)} />)}
               </TableBody>
             </Table>
           </div>

@@ -854,9 +854,15 @@ export function registerExpenseUpload(router, { database, logger, services, getS
       const b = req.body || {}
       // true = the "Confirm" button, false = un-confirm, omitted = save the
       // fields below without touching the confirmation (autosave on the TK page).
-      const confirmed = b.confirmed === undefined ? null : b.confirmed !== false
+      const asBool = (v) => (v === true || v === 'true' ? true : v === false || v === 'false' ? false : undefined)
+      const confirmed = b.confirmed == null ? null : asBool(b.confirmed)
+      if (confirmed === undefined) return res.status(400).json({ error: 'Invalid confirmed' })
       const patch = {}
-      if (b.already_paid !== undefined) patch.tk_already_paid = b.already_paid === true || b.already_paid === 'true'
+      if (b.already_paid !== undefined) {
+        const paid = asBool(b.already_paid)
+        if (paid === undefined) return res.status(400).json({ error: 'Invalid already_paid' })
+        patch.tk_already_paid = paid
+      }
       if (b.note !== undefined) patch.tk_note = String(b.note || '').replace(/\r/g, '').slice(0, 1000) || null
       // Shared back-office note (finance / TK / admin). Only touch it when the
       // caller sent it, so a TK confirm without the field never blanks finance's.
@@ -874,7 +880,11 @@ export function registerExpenseUpload(router, { database, logger, services, getS
         patch.tk_confirmed_by_email = null
       }
 
-      if (!Object.keys(patch).length) return res.status(400).json({ error: 'Nothing to update' })
+      if (!Object.keys(patch).length) {
+        // Confirming an already-confirmed row is a no-op, not an error (retries).
+        if (confirmed === true) return res.json({ success: true, expense })
+        return res.status(400).json({ error: 'Nothing to update' })
+      }
       await database('finance_expenses').where({ id: expenseId }).update(patch)
 
       await writeUserLog(database, log, {
