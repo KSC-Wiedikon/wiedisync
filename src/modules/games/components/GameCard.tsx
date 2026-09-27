@@ -17,6 +17,7 @@ import type { Participation } from '../../../types'
 import { asObj, relId, teamCoachIds } from '../../../utils/relations'
 import CancelActivityButton from '../../../components/CancelActivityButton'
 import ActivityParticipation from '../../../components/ActivityParticipation'
+import CarpoolChip from '../../carpool/CarpoolChip'
 
 function parseSets(json: unknown): Array<{ home: number; away: number }> {
   if (!Array.isArray(json)) return []
@@ -302,6 +303,10 @@ export default function GameCard({ game, onClick, variant = 'card', participatio
         }`}>
           {game.type === 'home' ? t('typeHomeShort') : t('typeAwayShort')}
         </span>
+        {/* Car pooling (migration 378) — straight to the rides board. */}
+        {!past && game.status === 'scheduled' && game.carpool_enabled && user && (
+          <CarpoolChip type="game" id={game.id} />
+        )}
         {!past && (game.status === 'scheduled' || game.status === 'cancelled') && (
           <CancelActivityButton
             kind="game"

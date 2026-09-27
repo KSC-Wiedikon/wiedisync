@@ -96,4 +96,13 @@ export default {
   deadlineMissed: 'Scadenza mancata',
   auto_declined_deadline: 'Hai mancato la scadenza per l\'iscrizione del {{date}} ({{team}}) — registrato come assente',
   auto_declined_deadline_fined: 'Hai mancato la scadenza per l\'iscrizione del {{date}} ({{team}}) — registrato come assente, multa {{amount}}',
+  // Car pooling (migration 378) — body JSON: { name, seats?, activity }
+  carpoolLabel: 'Car pooling',
+  carpool_joined: '{{name}} viaggia con te ({{seats}} posto/i): {{activity}}',
+  carpool_left: '{{name}} non viaggia più con te: {{activity}}',
+  carpool_taken: '{{name}} ti dà un passaggio: {{activity}}',
+  carpool_removed: '{{name}} ti ha tolto dal suo passaggio: {{activity}}',
+  carpool_cancelled: '{{name}} ha annullato il passaggio, cercane un altro: {{activity}}',
+  carpool_requested: '{{name}} cerca un passaggio ({{seats}} posto/i): {{activity}}',
+  carpool_offered: '{{name}} offre {{seats}} posto/i: {{activity}}',
 } as const

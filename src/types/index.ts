@@ -522,6 +522,8 @@ export interface Game extends BaseRecord {
   vm_nomination_count?: number | null
   vm_nomination_pushed_at?: string | null
   vm_nomination_error?: string | null
+  /** Car pooling board on this game (migration 378). Default false; coach-owned. */
+  carpool_enabled?: boolean
 
 }
 
@@ -656,6 +658,8 @@ export interface Training extends BaseRecord {
   auto_shortened_by_game?: number | null
   /** End time before the game auto-shorten; set only while shortened. */
   original_end_time?: string | null
+  /** Car pooling board on this training (migration 378). Default false; coach-owned. */
+  carpool_enabled?: boolean
 }
 
 export interface Absence extends BaseRecord {
@@ -755,6 +759,8 @@ export interface Event extends BaseRecord {
   js_relevant?: boolean
   /** J+S NDS activity type used when js_relevant is set. */
   js_activity_type?: 'Training' | 'Wettkampf' | 'Trainingstag' | 'Lagertag' | null
+  /** Car pooling board on this event (migration 378). Default false; author-owned. */
+  carpool_enabled?: boolean
 
 }
 
@@ -1161,7 +1167,7 @@ export interface ScorerDelegation extends BaseRecord {
 
 export interface Notification extends BaseRecord {
   member: string
-  type: 'activity_change' | 'upcoming_activity' | 'deadline_reminder' | 'result_available' | 'duty_delegation_request' | 'member_join_request' | 'poll_created' | 'event_invite' | 'form_published' | 'form_submission' | 'form_reminder' | 'expense_status' | 'announcement' | 'licence_status' | 'auto_declined_deadline'
+  type: 'activity_change' | 'upcoming_activity' | 'deadline_reminder' | 'result_available' | 'duty_delegation_request' | 'member_join_request' | 'poll_created' | 'event_invite' | 'form_published' | 'form_submission' | 'form_reminder' | 'expense_status' | 'announcement' | 'licence_status' | 'auto_declined_deadline' | 'carpool_update'
   title: string
   body: string
   activity_type: 'game' | 'training' | 'event' | 'scorer_duty' | 'team' | 'poll' | 'form' | 'expense' | 'announcement' | 'fine' | ''

@@ -489,6 +489,64 @@ const T = {
     fr: 'Ta licence pour {season} est confirmée par la fédération.',
     it: 'La tua licenza per {season} è confermata dalla federazione.',
   },
+  // Car pooling (migration 378, carpools.js). {name} = the other person,
+  // {activity} = "<label>, dd.mm.yyyy", {seats} = seat count.
+  'carpool.title': {
+    de: 'Fahrgemeinschaft',
+    gsw: 'Mitfahrgleägeheit',
+    en: 'Car pooling',
+    fr: 'Covoiturage',
+    it: 'Car pooling',
+  },
+  'carpool_joined.push': {
+    de: '{name} fährt bei dir mit ({seats} Platz/Plätze): {activity}',
+    gsw: '{name} fahrt bi dir mit ({seats} Platz/Plätz): {activity}',
+    en: '{name} joined your car ({seats} seat(s)): {activity}',
+    fr: '{name} monte dans ta voiture ({seats} place(s)) : {activity}',
+    it: '{name} viaggia con te ({seats} posto/i): {activity}',
+  },
+  'carpool_left.push': {
+    de: '{name} fährt nicht mehr bei dir mit: {activity}',
+    gsw: '{name} fahrt nümm bi dir mit: {activity}',
+    en: '{name} left your car: {activity}',
+    fr: '{name} ne monte plus dans ta voiture : {activity}',
+    it: '{name} non viaggia più con te: {activity}',
+  },
+  'carpool_taken.push': {
+    de: '{name} nimmt dich mit: {activity}',
+    gsw: '{name} nimmt di mit: {activity}',
+    en: '{name} is giving you a ride: {activity}',
+    fr: '{name} t’emmène : {activity}',
+    it: '{name} ti dà un passaggio: {activity}',
+  },
+  'carpool_removed.push': {
+    de: '{name} hat dich aus der Fahrt entfernt: {activity}',
+    gsw: '{name} hät di us de Fahrt usegnoh: {activity}',
+    en: '{name} removed you from their car: {activity}',
+    fr: '{name} t’a retiré·e de sa voiture : {activity}',
+    it: '{name} ti ha tolto dal suo passaggio: {activity}',
+  },
+  'carpool_cancelled.push': {
+    de: '{name} hat die Fahrt abgesagt — such dir eine neue: {activity}',
+    gsw: '{name} hät d Fahrt abgseit — lueg für ä neui: {activity}',
+    en: '{name} cancelled the ride — find another one: {activity}',
+    fr: '{name} a annulé le trajet — trouve une autre voiture : {activity}',
+    it: '{name} ha annullato il passaggio — cercane un altro: {activity}',
+  },
+  'carpool_requested.push': {
+    de: '{name} sucht eine Mitfahrgelegenheit ({seats} Platz/Plätze): {activity}',
+    gsw: '{name} suecht ä Mitfahrgleägeheit ({seats} Platz/Plätz): {activity}',
+    en: '{name} needs a ride ({seats} seat(s)): {activity}',
+    fr: '{name} cherche un covoiturage ({seats} place(s)) : {activity}',
+    it: '{name} cerca un passaggio ({seats} posto/i): {activity}',
+  },
+  'carpool_offered.push': {
+    de: '{name} bietet {seats} Platz/Plätze an: {activity}',
+    gsw: '{name} bütet {seats} Platz/Plätz a: {activity}',
+    en: '{name} is offering {seats} seat(s): {activity}',
+    fr: '{name} propose {seats} place(s) : {activity}',
+    it: '{name} offre {seats} posto/i: {activity}',
+  },
 }
 
 /**

@@ -36,6 +36,9 @@ import ShareActivityButton from '../../../components/ShareActivityButton'
 import { isFeatureEnabled } from '../../../utils/featureToggles'
 import { asObj, relId, teamCoachIds, memberDisplayName } from '../../../utils/relations'
 import CancelActivityButton from '../../../components/CancelActivityButton'
+import { Switch } from '@/components/ui/switch'
+import CarpoolPanel from '../../carpool/CarpoolPanel'
+import { useCarpoolActions } from '../../carpool/carpoolApi'
 
 const GAME_EXPAND = 'kscw_team,hall,scorer_member,scoreboard_member,scorer_scoreboard_member,referee_member,scorer_duty_team,scoreboard_duty_team,scorer_scoreboard_duty_team,referee_duty_team,bb_scorer_member,bb_timekeeper_member,bb_24s_official,bb_duty_team,bb_scorer_duty_team,bb_timekeeper_duty_team,bb_24s_duty_team'
 
@@ -59,7 +62,7 @@ interface GameDetailModalProps {
    * nudge's "Record now" passes so the coach lands on the form, not on a
    * collapsed header they have to find first.
    */
-  focus?: 'refereeExpense'
+  focus?: 'refereeExpense' | 'carpool'
 }
 
 type ExpandedGame = Game & {
@@ -197,6 +200,11 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
   const [pushingNomination, setPushingNomination] = useState(false)
   const dialogRef = useRef<HTMLDivElement>(null)
   const { update: updateGame } = useMutation<Game>('games')
+  // Car pooling toggle (migration 378). The `game` prop is the opener's copy and
+  // does not refresh after the PATCH, so the flipped value is held here, keyed by
+  // game id so it never leaks onto the next game opened.
+  const [carpoolOverride, setCarpoolOverride] = useState<{ id: string; on: boolean } | null>(null)
+  const carpoolActions = useCarpoolActions('game', game?.id ?? '')
   // Teams this game is opened to (migration 271). A shared game puts both staffs
   // at the same check-in, so the guest team's coach/TR needs "Show IDs" too — see
   // canShowIds below, and the matching server-side grant in identity-document.js
@@ -806,6 +814,16 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
           </div>
         )}
 
+        {/* Car pooling banner (migration 378) — renders nothing unless switched on. */}
+        <div className="border-t px-6 py-3 empty:hidden dark:border-gray-700">
+          <CarpoolPanel
+            type="game"
+            id={game.id}
+            defaultExpanded={focus === 'carpool'}
+            suggestedTime={meetingTimeFromOffset(game.time, game.meeting_offset_minutes) || null}
+          />
+        </div>
+
         {/* Game info */}
         <div className="space-y-3 border-t dark:border-gray-700 px-6 py-4">
           <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
@@ -1064,6 +1082,27 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
                 onChange={(v) => { void updateGame(game.id, { meeting_offset_minutes: v }) }}
                 startClock={game.time}
               />
+            )}
+            {!readOnly && canEditAsCoach && (
+              <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                <Switch
+                  checked={carpoolOverride?.id === game.id ? carpoolOverride.on : game.carpool_enabled === true}
+                  onCheckedChange={async (on) => {
+                    setCarpoolOverride({ id: game.id, on })
+                    try {
+                      await updateGame(game.id, { carpool_enabled: on })
+                      void carpoolActions.refresh()
+                    } catch {
+                      setCarpoolOverride(null)
+                      toast.error(tc('errorSaving'))
+                    }
+                  }}
+                />
+                <div>
+                  <span>{t('toggleLabel', { ns: 'carpool' })}</span>
+                  <p className="text-xs text-muted-foreground">{t('toggleHint', { ns: 'carpool' })}</p>
+                </div>
+              </div>
             )}
             {game.respond_by && !editingDeadline && (
               <DetailRow label={t('respondBy')} value={`${formatDate(game.respond_by)}${(() => { const p = parseRespondByTime(game.respond_by, game.time); return p?.time ? `, ${p.time}` : '' })()}`} />

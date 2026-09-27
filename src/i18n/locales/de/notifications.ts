@@ -97,4 +97,13 @@ export default {
   deadlineMissed: 'Frist verpasst',
   auto_declined_deadline: 'Du hast die Anmeldefrist für {{date}} ({{team}}) verpasst — als nicht dabei eingetragen',
   auto_declined_deadline_fined: 'Du hast die Anmeldefrist für {{date}} ({{team}}) verpasst — als nicht dabei eingetragen, Busse {{amount}}',
+  // Car pooling (migration 378) — body JSON: { name, seats?, activity }
+  carpoolLabel: 'Fahrgemeinschaft',
+  carpool_joined: '{{name}} fährt bei dir mit ({{seats}} Platz/Plätze): {{activity}}',
+  carpool_left: '{{name}} fährt nicht mehr bei dir mit: {{activity}}',
+  carpool_taken: '{{name}} nimmt dich mit: {{activity}}',
+  carpool_removed: '{{name}} hat dich aus der Fahrt entfernt: {{activity}}',
+  carpool_cancelled: '{{name}} hat die Fahrt abgesagt, such dir eine neue: {{activity}}',
+  carpool_requested: '{{name}} sucht eine Mitfahrgelegenheit ({{seats}} Platz/Plätze): {{activity}}',
+  carpool_offered: '{{name}} bietet {{seats}} Platz/Plätze an: {{activity}}',
 } as const

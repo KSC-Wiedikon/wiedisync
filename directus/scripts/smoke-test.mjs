@@ -157,6 +157,10 @@ async function main() {
   })
   await check('kscw/sv-licence/me', () => api('GET', '/kscw/sv-licence/me'))
   // tasks check removed — collection retired in migration 257 (2026-07-27).
+  // Car pooling (migration 378) — the Home card calls this for every member; it
+  // reads games/trainings via knex and events via ItemsService under the member's
+  // own accountability, so a policy or column regression surfaces here as a 500.
+  await check('kscw/carpools/upcoming', () => api('GET', '/kscw/carpools/upcoming'))
   // Expense submissions (migration 177) — member reads OWN rows on /finance/expense
   // ("My submissions"); policy scopes to own, so an unfiltered read must not 4xx.
   await check('finance_expenses (own)', () => api('GET', '/items/finance_expenses?limit=10&fields=id,amount,status'))

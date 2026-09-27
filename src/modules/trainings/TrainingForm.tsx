@@ -86,6 +86,8 @@ export default function TrainingForm({ open, training, editScope = 'this', defau
   const [respondByDefaultDays, setRespondByDefaultDays] = useState<number | null>(null)
   const [autoConfirmRsvp, setAutoConfirmRsvp] = useState<boolean | null>(null)
   const [isTrial, setIsTrial] = useState(false)
+  // Car pooling board (migration 378) — per training, default off.
+  const [carpoolEnabled, setCarpoolEnabled] = useState(false)
   const [meetingOffset, setMeetingOffset] = useState<number | null>(10)
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -289,6 +291,7 @@ export default function TrainingForm({ open, training, editScope = 'this', defau
       const rawAcr = (training as Training).auto_confirm_rsvp
       setAutoConfirmRsvp(rawAcr === true ? true : rawAcr === false ? false : null)
       setIsTrial(!!training.is_trial)
+      setCarpoolEnabled(training.carpool_enabled === true)
       setMeetingOffset(training.meeting_offset_minutes ?? null)
       // Edit mode: if training has a hall_slot, start in auto mode with it pre-selected
       if (training.hall_slot) {
@@ -319,6 +322,7 @@ export default function TrainingForm({ open, training, editScope = 'this', defau
       setAutoConfirmRsvp(null)
       setAppliedDefaultsForTeam(null)
       setIsTrial(defaultIsTrial)
+      setCarpoolEnabled(false)
       setSlotMode('auto')
       setSelectedSlotKey('')
     }
@@ -413,6 +417,7 @@ export default function TrainingForm({ open, training, editScope = 'this', defau
       excluded_guest_levels: excludedGuestLevels,
       auto_confirm_rsvp: autoConfirmRsvp,
       is_trial: isTrial,
+      carpool_enabled: carpoolEnabled,
       meeting_offset_minutes: meetingOffset,
     }
 
@@ -782,6 +787,14 @@ export default function TrainingForm({ open, training, editScope = 'this', defau
           <div>
             <span>{t('isTrialTraining')}</span>
             <p className="text-xs text-muted-foreground">{t('isTrialTrainingHint')}</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+          <Switch checked={carpoolEnabled} onCheckedChange={setCarpoolEnabled} />
+          <div>
+            <span>{t('toggleLabel', { ns: 'carpool' })}</span>
+            <p className="text-xs text-muted-foreground">{t('toggleHint', { ns: 'carpool' })}</p>
           </div>
         </div>
 

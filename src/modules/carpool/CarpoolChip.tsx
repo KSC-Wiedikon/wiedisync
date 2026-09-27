@@ -1,0 +1,39 @@
+import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { Car } from 'lucide-react'
+import CarpoolDialog from './CarpoolDialog'
+import type { CarpoolActivityType } from './carpoolApi'
+
+interface CarpoolChipProps {
+  type: CarpoolActivityType
+  id: string | number
+  /** Icon only (dense rows); the label is still the accessible name. */
+  iconOnly?: boolean
+  className?: string
+}
+
+/**
+ * Car pooling entry point on an activity card. Opens the board in its own
+ * dialog. The wrapper swallows clicks: React bubbles events out of a portal
+ * through the component tree, so without it every click inside the dialog would
+ * also hit the card's own onClick and open the detail modal underneath.
+ */
+export default function CarpoolChip({ type, id, iconOnly = false, className = '' }: CarpoolChipProps) {
+  const { t } = useTranslation('carpool')
+  const [open, setOpen] = useState(false)
+  return (
+    <span onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()} className="contents">
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-label={t('chip')}
+        title={t('chip')}
+        className={`inline-flex min-h-[36px] items-center gap-1 rounded-full bg-sky-100 px-2.5 py-1 text-xs font-semibold text-sky-800 transition-colors hover:bg-sky-200 dark:bg-sky-900/50 dark:text-sky-200 dark:hover:bg-sky-900 ${className}`}
+      >
+        <Car className="h-3.5 w-3.5" aria-hidden />
+        {!iconOnly && <span className="hidden sm:inline">{t('chip')}</span>}
+      </button>
+      {open && <CarpoolDialog type={type} id={id} open={open} onOpenChange={setOpen} />}
+    </span>
+  )
+}

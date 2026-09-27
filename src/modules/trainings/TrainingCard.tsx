@@ -13,6 +13,7 @@ import CancelActivityButton from '../../components/CancelActivityButton'
 import ShareActivityButton from '../../components/ShareActivityButton'
 import ActivityParticipation from '../../components/ActivityParticipation'
 import ExtraHallsSuffix from '../../components/ExtraHallsSuffix'
+import CarpoolChip from '../carpool/CarpoolChip'
 
 type TrainingExpanded = Training & {
   team: Team | string
@@ -91,6 +92,11 @@ export default function TrainingCard({ training, participations, myParticipation
             <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
               {t('shortenedBadge')}
             </span>
+          )}
+          {/* Car pooling (migration 378). No detail modal behind this card, so the
+              chip opens the rides board in its own dialog. */}
+          {!training.cancelled && training.carpool_enabled && user && (
+            <CarpoolChip type="training" id={training.id} />
           )}
           <CancelActivityButton
             kind="training"

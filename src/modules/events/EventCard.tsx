@@ -20,6 +20,7 @@ import { formatDate, formatTime, getDeadlineDate } from '../../utils/dateHelpers
 import { asTeams, teamId, isHtml, isSameDay, isGuestExcludedFromEvent } from './eventHelpers'
 import type { Event, EventSession, Participation } from '../../types'
 import CancelActivityButton from '../../components/CancelActivityButton'
+import CarpoolChip from '../carpool/CarpoolChip'
 
 interface EventCardProps {
   event: Event
@@ -149,6 +150,10 @@ export default function EventCard({ event, onClick, onEdit, onDelete, onOpenRost
             <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700 dark:bg-red-900/30 dark:text-red-400">
               {t('cancelled')}
             </span>
+          )}
+          {/* Car pooling (migration 378) — straight to the rides board. */}
+          {!event.cancelled && event.carpool_enabled && user && (
+            <CarpoolChip type="event" id={event.id} />
           )}
           <CancelActivityButton
             kind="event"

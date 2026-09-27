@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { ClipboardList, Clock, AlertTriangle, Trophy, Bell, ArrowRightLeft, BellRing, BellOff, UserPlus, Trash2, ChevronDown, X, Banknote, Megaphone, IdCard, Gavel, CalendarX } from 'lucide-react'
+import { ClipboardList, Clock, AlertTriangle, Trophy, Bell, ArrowRightLeft, BellRing, BellOff, UserPlus, Trash2, ChevronDown, X, Banknote, Megaphone, IdCard, Gavel, CalendarX, Car } from 'lucide-react'
 import type { Notification } from '../types'
 import { usePushNotifications } from '../hooks/usePushNotifications'
 
@@ -33,6 +33,7 @@ const typeIcons: Record<string, React.ReactNode> = {
   team_fine_paid: <Gavel className="h-4 w-4" />,
   team_fine_waived: <Gavel className="h-4 w-4" />,
   auto_declined_deadline: <CalendarX className="h-4 w-4" />,
+  carpool_update: <Car className="h-4 w-4" />,
 }
 
 const typeLabels: Record<string, string> = {
@@ -53,6 +54,7 @@ const typeLabels: Record<string, string> = {
   team_fine_paid: 'fineLabel',
   team_fine_waived: 'fineLabel',
   auto_declined_deadline: 'deadlineMissed',
+  carpool_update: 'carpoolLabel',
 }
 
 function timeAgo(dateStr: string, t: (key: string, opts?: Record<string, unknown>) => string): string {
@@ -75,6 +77,10 @@ function getNavigationPath(n: Notification): string {
   if (n.type === 'announcement' || n.activity_type === 'announcement') return '/news'
   // Licence status (migration 301) → the profile, where the card lives.
   if (n.type === 'licence_status') return '/profile'
+  // Car pooling lands on the board itself, not the activity page it hangs off.
+  if (n.type === 'carpool_update' && n.activity_id && ['game', 'training', 'event'].includes(n.activity_type)) {
+    return `/carpool/${n.activity_type}/${n.activity_id}`
+  }
   // Activity notifications deep-link to the item itself now that the routes
   // exist. Falling back to the bare list is not cosmetic: the list is filtered
   // by team and hides past items, so the row the notification is about is

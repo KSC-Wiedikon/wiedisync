@@ -30,6 +30,7 @@ import { teamCoachIds } from '../../utils/relations'
 import { asTeams, teamId, isHtml, isSameDay, isGuestExcludedFromEvent, ALL_GUEST_LEVELS } from './eventHelpers'
 import type { Event, EventSession, Participation, VolleyPosition } from '../../types'
 import CancelActivityButton from '../../components/CancelActivityButton'
+import CarpoolPanel from '../carpool/CarpoolPanel'
 
 const VOLLEY_POSITIONS: VolleyPosition[] = ['Setter', 'Outside', 'Middle', 'Opposite', 'Libero', 'Universal']
 
@@ -427,6 +428,9 @@ export default function EventDetailModal({ event, onClose, participations }: Eve
             </div>
           </div>
           )}
+
+          {/* Car pooling banner (migration 378) — renders nothing unless switched on. */}
+          <CarpoolPanel type="event" id={event.id} suggestedTime={event.meeting_time ? event.meeting_time.slice(0, 5) : null} />
         </div>
       </Modal>
 

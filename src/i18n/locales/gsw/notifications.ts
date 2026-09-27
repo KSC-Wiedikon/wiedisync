@@ -96,4 +96,13 @@ export default {
   deadlineMissed: 'Frist verpasst',
   auto_declined_deadline: 'Du hesch d\'Aamäldefrist für {{date}} ({{team}}) verpasst — als nöd debi iiträit',
   auto_declined_deadline_fined: 'Du hesch d\'Aamäldefrist für {{date}} ({{team}}) verpasst — als nöd debi iiträit, Buess {{amount}}',
+  // Car pooling (migration 378) — body JSON: { name, seats?, activity }
+  carpoolLabel: 'Mitfahrgleägeheit',
+  carpool_joined: '{{name}} fahrt bi dir mit ({{seats}} Platz/Plätz): {{activity}}',
+  carpool_left: '{{name}} fahrt nümm bi dir mit: {{activity}}',
+  carpool_taken: '{{name}} nimmt di mit: {{activity}}',
+  carpool_removed: '{{name}} hät di us de Fahrt usegnoh: {{activity}}',
+  carpool_cancelled: '{{name}} hät d Fahrt abgseit, lueg für ä neui: {{activity}}',
+  carpool_requested: '{{name}} suecht ä Mitfahrgleägeheit ({{seats}} Platz/Plätz): {{activity}}',
+  carpool_offered: '{{name}} bütet {{seats}} Platz/Plätz a: {{activity}}',
 } as const

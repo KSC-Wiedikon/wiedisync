@@ -27,6 +27,7 @@ import scorerAssign from './locales/en/scorerAssign'
 import join from './locales/en/join'
 import feedback from './locales/en/feedback'
 import polls from './locales/en/polls'
+import carpool from './locales/en/carpool'
 import bugfixes from './locales/en/bugfixes'
 import guide from './locales/en/guide'
 import invitations from './locales/en/invitations'
@@ -66,6 +67,7 @@ import deScorerAssign from './locales/de/scorerAssign'
 import deJoin from './locales/de/join'
 import deFeedback from './locales/de/feedback'
 import dePolls from './locales/de/polls'
+import deCarpool from './locales/de/carpool'
 import deBugfixes from './locales/de/bugfixes'
 import deGuide from './locales/de/guide'
 import deInvitations from './locales/de/invitations'
@@ -102,6 +104,7 @@ import frTeamLinks from './locales/fr/teamLinks'
 import frScorerAssign from './locales/fr/scorerAssign'
 import frFeedback from './locales/fr/feedback'
 import frPolls from './locales/fr/polls'
+import frCarpool from './locales/fr/carpool'
 import frBugfixes from './locales/fr/bugfixes'
 import frGuide from './locales/fr/guide'
 import frInvitations from './locales/fr/invitations'
@@ -141,6 +144,7 @@ import itTeamLinks from './locales/it/teamLinks'
 import itScorerAssign from './locales/it/scorerAssign'
 import itFeedback from './locales/it/feedback'
 import itPolls from './locales/it/polls'
+import itCarpool from './locales/it/carpool'
 import itBugfixes from './locales/it/bugfixes'
 import itGuide from './locales/it/guide'
 import itInvitations from './locales/it/invitations'
@@ -181,6 +185,7 @@ import gswScorerAssign from './locales/gsw/scorerAssign'
 import gswFeedback from './locales/gsw/feedback'
 import gswJoin from './locales/gsw/join'
 import gswPolls from './locales/gsw/polls'
+import gswCarpool from './locales/gsw/carpool'
 import gswBugfixes from './locales/gsw/bugfixes'
 import gswGuide from './locales/gsw/guide'
 import gswInvitations from './locales/gsw/invitations'
@@ -238,6 +243,7 @@ i18n.use(initReactI18next).init({
     'join',
     'feedback',
     'polls',
+    'carpool',
     'bugfixes',
     'guide',
     'invitations',
@@ -280,6 +286,7 @@ i18n.use(initReactI18next).init({
       join,
       feedback,
       polls,
+      carpool,
       bugfixes,
       guide,
       invitations,
@@ -321,6 +328,7 @@ i18n.use(initReactI18next).init({
       join: deJoin,
       feedback: deFeedback,
       polls: dePolls,
+      carpool: deCarpool,
       bugfixes: deBugfixes,
       guide: deGuide,
       invitations: deInvitations,
@@ -358,6 +366,7 @@ i18n.use(initReactI18next).init({
       scorerAssign: frScorerAssign,
       feedback: frFeedback,
       polls: frPolls,
+      carpool: frCarpool,
       bugfixes: frBugfixes,
       guide: frGuide,
       invitations: frInvitations,
@@ -398,6 +407,7 @@ i18n.use(initReactI18next).init({
       scorerAssign: itScorerAssign,
       feedback: itFeedback,
       polls: itPolls,
+      carpool: itCarpool,
       bugfixes: itBugfixes,
       guide: itGuide,
       invitations: itInvitations,
@@ -439,6 +449,7 @@ i18n.use(initReactI18next).init({
       join: gswJoin,
       feedback: gswFeedback,
       polls: gswPolls,
+      carpool: gswCarpool,
       bugfixes: gswBugfixes,
       guide: gswGuide,
       invitations: gswInvitations,

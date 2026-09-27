@@ -930,6 +930,18 @@ const EXPECTED_ERROR_CODES = new Set([
   // decided — by a second admin, or by this admin's own tab left open across a
   // sync-down. The list is what is stale, so the UI re-reads it. Not a failure.
   'already_decided',
+  // Car pooling (carpools.js). The capacity trigger's refusals (someone took the
+  // last seat first, an offer shrunk below its riders) and the board's closed/
+  // off/duplicate states are all designed 409s the panel renders as a toast.
+  'carpool_full',
+  'carpool_seats_below_taken',
+  'carpool_duplicate',
+  'carpool_already_passenger',
+  'carpool_no_offer',
+  'carpool_disabled',
+  'carpool_closed',
+  'carpool_driver_is_passenger',
+  'missing_location',
 ])
 
 /**

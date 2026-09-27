@@ -973,6 +973,11 @@ const GAME_WRITE_FIELDS = [
   // the team's own coach sets when the team meets. Omitted here it would be
   // silently read-only to every non-admin — field perms are an allow-list.
   'meeting_offset_minutes',
+  // Car pooling board toggle (migration 378). Coach-owned, default off — the
+  // coach switches it on for the games where the team travels. The rides
+  // themselves (carpools / carpool_passengers) have no /items grant at all;
+  // they are endpoint-only (kscw-endpoints/src/carpools.js).
+  'carpool_enabled',
 
   // ── Deliberately NOT in this list: backend-owned columns ────────────────────
   // Directus field permissions are an allow-list, so anything omitted here is

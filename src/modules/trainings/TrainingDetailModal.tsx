@@ -21,6 +21,7 @@ import { asObj, relId, teamCoachIds, memberDisplayName } from '../../utils/relat
 import CancelActivityButton from '../../components/CancelActivityButton'
 import { MapPin, Clock, MessageSquare, User, Users, Calendar, Check, UserPlus, AlarmClock } from 'lucide-react'
 import ExtraHallsSuffix from '../../components/ExtraHallsSuffix'
+import CarpoolPanel from '../carpool/CarpoolPanel'
 
 type TrainingExpanded = Training & {
   team: Team | string
@@ -219,6 +220,13 @@ export default function TrainingDetailModal({ training, onClose, participations 
               </div>
             </div>
           )}
+
+          {/* Car pooling banner (migration 378) — renders nothing unless switched on. */}
+          <CarpoolPanel
+            type="training"
+            id={training.id}
+            suggestedTime={meetingTimeFromOffset(training.start_time, training.meeting_offset_minutes) || null}
+          />
 
           {/* Actions — kept at the bottom so they never overlap the title */}
           <div className="flex flex-wrap items-center gap-2 border-t border-gray-200 pt-3 dark:border-gray-700">

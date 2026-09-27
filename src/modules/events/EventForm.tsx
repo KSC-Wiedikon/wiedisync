@@ -134,6 +134,8 @@ export default function EventForm({ open, event, onSave, onCancel }: EventFormPr
   const [invitedMembers, setInvitedMembers] = useState<string[]>([])
   const [sendEmailInvite, setSendEmailInvite] = useState(false)
   const [jsRelevant, setJsRelevant] = useState(false)
+  // Car pooling board (migration 378) — per event, default off.
+  const [carpoolEnabled, setCarpoolEnabled] = useState(false)
   const [jsActivityType, setJsActivityType] = useState<'Training' | 'Wettkampf' | 'Trainingstag' | 'Lagertag'>('Training')
   const [signupUrl, setSignupUrl] = useState('')
   const [signupBusy, setSignupBusy] = useState(false)
@@ -211,6 +213,7 @@ export default function EventForm({ open, event, onSave, onCancel }: EventFormPr
       setSendEmailInvite(event.send_email_invite ?? false)
       setInviteGuests(event.invite_guests !== false)
       setJsRelevant(!!event.js_relevant)
+      setCarpoolEnabled(event.carpool_enabled === true)
       setJsActivityType((event.js_activity_type as 'Training' | 'Wettkampf' | 'Trainingstag' | 'Lagertag') || 'Training')
       setSignupUrl(event.signup_url ?? '')
     } else {
@@ -240,6 +243,7 @@ export default function EventForm({ open, event, onSave, onCancel }: EventFormPr
       setSendEmailInvite(false)
       setInviteGuests(true)
       setJsRelevant(false)
+      setCarpoolEnabled(false)
       setJsActivityType('Training')
       setSignupUrl('')
     }
@@ -478,6 +482,7 @@ export default function EventForm({ open, event, onSave, onCancel }: EventFormPr
       send_email_invite: sendEmailInvite,
       invite_guests: inviteGuests,
       js_relevant: jsRelevant,
+      carpool_enabled: carpoolEnabled,
       js_activity_type: jsRelevant ? jsActivityType : null,
       signup_url: signupUrl.trim() || null,
     }
@@ -697,6 +702,14 @@ export default function EventForm({ open, event, onSave, onCancel }: EventFormPr
           <div>
             <span>{t('allowMaybe')}</span>
             <p className="text-xs text-muted-foreground">{t('allowMaybeHint')}</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+          <Switch checked={carpoolEnabled} onCheckedChange={setCarpoolEnabled} />
+          <div>
+            <span>{t('toggleLabel', { ns: 'carpool' })}</span>
+            <p className="text-xs text-muted-foreground">{t('toggleHint', { ns: 'carpool' })}</p>
           </div>
         </div>
 
