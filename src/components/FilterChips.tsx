@@ -44,7 +44,8 @@ export default function FilterChips({
 
   const sizeClasses = compact
     ? 'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium transition-all'
-    : 'inline-flex items-center gap-1.5 min-h-[44px] rounded-full border px-3 py-2 text-sm font-medium transition-all active:scale-95 sm:min-h-0 sm:py-1.5 sm:text-xs'
+    // Tool tier of the control scale: 44px touch on a phone, 32px from sm.
+    : 'inline-flex h-11 items-center gap-1.5 rounded-full border px-3 text-sm font-medium transition-all active:scale-95 sm:h-8 sm:text-xs'
 
   const unselectedClasses = 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50 hover:shadow-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-gray-600 dark:hover:bg-gray-700/70'
   const dotSize = compact ? 'h-1.5 w-1.5' : 'h-2 w-2'
@@ -56,6 +57,7 @@ export default function FilterChips({
     <div className={cn('flex flex-wrap items-center', compact ? 'gap-1' : 'gap-2 sm:gap-1.5')}>
       {showBulkToggle && (
         <button
+          type="button"
           onClick={() => {
             if (allSelected) {
               onChange([])
@@ -84,6 +86,7 @@ export default function FilterChips({
           return (
             <button
               key={option.value}
+              type="button"
               onClick={() => handleClick(option.value)}
               aria-pressed={isSelected}
               className={cn(sizeClasses, isSelected ? cn(option.colorClasses, 'shadow-sm') : unselectedClasses)}
@@ -97,6 +100,7 @@ export default function FilterChips({
         return (
           <button
             key={option.value}
+            type="button"
             onClick={() => handleClick(option.value)}
             aria-pressed={isSelected}
             className={cn(sizeClasses, isSelected ? 'shadow-sm ring-1 ring-inset ring-white/25' : unselectedClasses)}

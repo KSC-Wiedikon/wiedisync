@@ -4,6 +4,8 @@ import { useAuth } from '../hooks/useAuth'
 import { useTheme } from '../hooks/useTheme'
 import { isAuthenticated } from '../lib/api'
 import LanguageDropdown from '@/components/LanguageDropdown'
+import IconButton from '@/components/IconButton'
+import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -184,10 +186,10 @@ export default function SchedulingLayout() {
             <div className="flex min-w-0 flex-1 sm:hidden">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button aria-label={activeItem.label} className="flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-gray-600 outline-none transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800">
-                    <activeItem.Icon className="h-5 w-5 shrink-0" />
-                    <ChevronDown className="h-3.5 w-3.5 shrink-0 text-gray-400" />
-                  </button>
+                  <Button variant="ghost" aria-label={activeItem.label} title={activeItem.label} className="gap-1.5 px-2.5 text-gray-600 dark:text-gray-300">
+                    <activeItem.Icon className="!size-5" />
+                    <ChevronDown className="!size-3.5 text-gray-400" />
+                  </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="min-w-[200px]">
                   {navItems.map((item) => (
@@ -218,21 +220,21 @@ export default function SchedulingLayout() {
 
           <div className="flex shrink-0 items-center gap-1">
             <LanguageDropdown />
-            <button
+            <IconButton
               onClick={toggleTheme}
-              aria-label={theme === 'dark' ? t('switchToLight') : t('switchToDark')}
-              className="rounded-lg p-2 text-gray-600 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+              label={theme === 'dark' ? t('switchToLight') : t('switchToDark')}
+              className="text-gray-600 dark:text-gray-300"
             >
-              {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-            </button>
+              {theme === 'dark' ? <Sun /> : <Moon />}
+            </IconButton>
             {user && (
-              <button
+              <IconButton
                 onClick={handleLogout}
-                aria-label={t('logout')}
-                className="rounded-lg p-2 text-gray-600 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                label={t('logout')}
+                className="text-gray-600 dark:text-gray-300"
               >
-                <LogOut className="h-4 w-4" />
-              </button>
+                <LogOut />
+              </IconButton>
             )}
           </div>
         </div>

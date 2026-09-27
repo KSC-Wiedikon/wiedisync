@@ -4,6 +4,8 @@ import { useTranslation } from 'react-i18next'
 import { ClipboardList, Clock, AlertTriangle, Trophy, Bell, ArrowRightLeft, BellRing, BellOff, UserPlus, Trash2, ChevronDown, X, Banknote, Megaphone, IdCard, Gavel, CalendarX, Car } from 'lucide-react'
 import type { Notification } from '../types'
 import { usePushNotifications } from '../hooks/usePushNotifications'
+import { Button } from '@/components/ui/button'
+import IconButton from './IconButton'
 
 interface NotificationPanelProps {
   notifications: Notification[]
@@ -251,32 +253,39 @@ export default function NotificationPanel({
             <h2 id="notification-panel-title" className="text-lg font-semibold text-gray-900 dark:text-gray-100">
               {t('title')}
             </h2>
-            <div className="flex items-center gap-3">
+            <div className="flex shrink-0 items-center gap-1">
               {unreadCount > 0 && (
-                <button
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
                   onClick={onMarkAllAsRead}
-                  className="text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300"
+                  className="text-sm text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300"
                 >
                   {t('markAllRead')}
-                </button>
+                </Button>
               )}
               {onClearRead && notifications.some((n) => n.read) && (
-                <button
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
                   onClick={onClearRead}
-                  className="text-sm font-medium text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400"
+                  className="text-sm text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400"
                 >
                   {t('clearRead')}
-                </button>
+                </Button>
               )}
               {/* Desktop close (mobile uses the chevron in the handle row) */}
-              <button
+              <IconButton
                 type="button"
+                size="sm"
                 onClick={startClose}
-                aria-label={t('close', { defaultValue: 'Close' })}
-                className="hidden h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:text-gray-500 dark:hover:bg-gray-700 dark:hover:text-gray-300 lg:inline-flex"
+                label={t('close', { defaultValue: 'Close' })}
+                className="hidden text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 lg:inline-flex"
               >
-                <X className="h-4 w-4" />
-              </button>
+                <X />
+              </IconButton>
             </div>
           </div>
         </div>
@@ -324,13 +333,14 @@ export default function NotificationPanel({
                   </div>
                 </button>
                 {onDelete && (
-                  <button
+                  <IconButton
+                    type="button"
                     onClick={(e) => { e.stopPropagation(); onDelete(n.id) }}
-                    className="flex shrink-0 items-center justify-center p-3 text-gray-400 transition-colors hover:text-red-600 dark:text-gray-500 dark:hover:text-red-400"
-                    aria-label={t('delete')}
+                    className="mr-1 mt-1 shrink-0 text-gray-400 hover:text-red-600 dark:text-gray-500 dark:hover:text-red-400"
+                    label={t('delete')}
                   >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                    <Trash2 />
+                  </IconButton>
                 )}
               </div>
             ))}
@@ -351,17 +361,16 @@ export default function NotificationPanel({
               {push.permission === 'denied' ? (
                 <span className="text-xs text-red-500">{t('pushDenied')}</span>
               ) : (
-                <button
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={push.probing || push.subscribed ? 'outline' : 'default'}
                   onClick={() => push.subscribed ? push.unsubscribe() : push.subscribe()}
                   disabled={push.loading || push.probing}
-                  className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                    push.probing || push.subscribed
-                      ? 'bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
-                      : 'bg-brand-600 text-white hover:bg-brand-700'
-                  } disabled:opacity-50`}
+                  className="shrink-0"
                 >
                   {push.loading || push.probing ? '...' : push.subscribed ? t('pushDisable') : t('pushEnable')}
-                </button>
+                </Button>
               )}
             </div>
           </div>

@@ -18,6 +18,8 @@ import { APP_VERSION } from '../modules/changelog/ChangelogPage'
 import NotificationBell from './NotificationBell'
 import AdminToggle from './AdminToggle'
 import SwitchToggle from '@/components/SwitchToggle'
+import IconButton from '@/components/IconButton'
+import { Button } from '@/components/ui/button'
 import LanguageDropdown from '@/components/LanguageDropdown'
 import TeamChip from './TeamChip'
 import HouseholdAvatar from './HouseholdAvatar'
@@ -302,9 +304,9 @@ export default function TopNav({ unreadCount, onOpenNotifications, memberTeams }
             dropdown work without auto-closing on interaction. */}
         <Popover open={optionsOpen} onOpenChange={setOptionsOpen}>
           <PopoverTrigger asChild>
-            <button aria-label={t('options', 'Options')} title={t('options', 'Options')} className={iconBtn}>
-              <Settings className="h-5 w-5" />
-            </button>
+            <IconButton label={t('options', 'Options')} className="text-gray-600 dark:text-gray-300 dark:hover:bg-brand-800">
+              <Settings className="!size-5" />
+            </IconButton>
           </PopoverTrigger>
           <PopoverContent align="end" className="w-72 p-1.5">
             <div className="flex items-center justify-between rounded-lg px-3 py-2 text-sm">
@@ -366,9 +368,11 @@ export default function TopNav({ unreadCount, onOpenNotifications, memberTeams }
         {user ? (
           <DropdownMenu modal={false}>
             <DropdownMenuTrigger asChild>
-              <button
-                className="flex items-center gap-1 rounded-lg p-1 transition-colors hover:bg-gray-100 dark:hover:bg-brand-800"
+              <Button
+                variant="ghost"
+                className="gap-1 px-1 dark:hover:bg-brand-800"
                 aria-label={t('myProfile')}
+                title={t('myProfile')}
               >
                 {user.photo ? (
                   <img src={getFileUrl('members', user.id, user.photo)} alt=""
@@ -379,11 +383,11 @@ export default function TopNav({ unreadCount, onOpenNotifications, memberTeams }
                   </div>
                 )}
                 <ChevronDown className="h-4 w-4 text-gray-400" />
-              </button>
+              </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-60">
               <div className="px-2 py-1.5">
-                <div className="truncate text-sm font-semibold text-gray-900 dark:text-white">
+                <div className="break-words text-sm font-semibold leading-snug text-gray-900 dark:text-white">
                   {memberDisplayName(user)}
                 </div>
                 {memberTeams.length > 0 && (
@@ -410,8 +414,8 @@ export default function TopNav({ unreadCount, onOpenNotifications, memberTeams }
                   <DropdownMenuItem onSelect={() => { void switchTo(null) }} className="min-h-11 cursor-pointer gap-2.5">
                     <HouseholdAvatar photo={realUser.photo} name={memberFirstName(realUser)} size="sm" />
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate">{memberFirstName(realUser)}</span>
-                      <span className="block truncate text-xs text-muted-foreground">{tCommon('householdSelf')}</span>
+                      <span className="block truncate" title={memberFirstName(realUser)}>{memberFirstName(realUser)}</span>
+                      <span className="block truncate text-xs text-muted-foreground" title={tCommon('householdSelf')}>{tCommon('householdSelf')}</span>
                     </span>
                     {!actingMember && <Check className="h-4 w-4 shrink-0 text-primary" />}
                   </DropdownMenuItem>
@@ -421,8 +425,8 @@ export default function TopNav({ unreadCount, onOpenNotifications, memberTeams }
                       <DropdownMenuItem key={m.id} onSelect={() => { void switchTo(Number(m.id)) }} className="min-h-11 cursor-pointer gap-2.5">
                         <HouseholdAvatar photo={m.photo} name={m.first_name || ''} accent={accentOf(m.accent)} size="sm" />
                         <span className="min-w-0 flex-1">
-                          <span className="block truncate">{m.first_name || m.last_name}</span>
-                          <span className="block truncate text-xs text-muted-foreground">
+                          <span className="block truncate" title={m.first_name || m.last_name || undefined}>{m.first_name || m.last_name}</span>
+                          <span className="block truncate text-xs text-muted-foreground" title={m.teams.length ? m.teams.join(', ') : tCommon('householdLinkedAccount')}>
                             {m.teams.length ? m.teams.join(', ') : tCommon('householdLinkedAccount')}
                           </span>
                         </span>

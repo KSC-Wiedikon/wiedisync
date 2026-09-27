@@ -49,8 +49,8 @@ export default function HouseholdSwitcher({ open, onClose }: { open: boolean; on
         >
           <HouseholdAvatar photo={realUser.photo} name={selfName} />
           <span className="min-w-0 flex-1">
-            <span className="block truncate font-semibold text-foreground">{selfName}</span>
-            <span className="block truncate text-xs text-muted-foreground">{t('householdSelf')}</span>
+            <span className="block truncate font-semibold text-foreground" title={selfName}>{selfName}</span>
+            <span className="block truncate text-xs text-muted-foreground" title={t('householdSelf')}>{t('householdSelf')}</span>
           </span>
           {!actingMember && <Check className="h-5 w-5 shrink-0 text-primary" />}
         </button>
@@ -68,8 +68,8 @@ export default function HouseholdSwitcher({ open, onClose }: { open: boolean; on
             >
               <HouseholdAvatar photo={m.photo} name={m.first_name || name} accent={accentOf(m.accent)} />
               <span className="min-w-0 flex-1">
-                <span className="block truncate font-semibold text-foreground">{m.first_name || name}</span>
-                <span className="block truncate text-xs text-muted-foreground">
+                <span className="block truncate font-semibold text-foreground" title={m.first_name || name}>{m.first_name || name}</span>
+                <span className="block truncate text-xs text-muted-foreground" title={m.teams.length ? m.teams.join(', ') : t('householdLinkedAccount')}>
                   {m.teams.length ? m.teams.join(', ') : t('householdLinkedAccount')}
                 </span>
               </span>

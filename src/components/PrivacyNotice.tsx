@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { Button } from '@/components/ui/button'
 
 const STORAGE_KEY = 'wiedisync-privacy-noticed'
 
@@ -37,12 +38,15 @@ export default function PrivacyNotice() {
             {t('noticeLink')}
           </Link>
         </p>
-        <button
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
           onClick={dismiss}
-          className="shrink-0 rounded-md bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
+          className="shrink-0"
         >
           OK
-        </button>
+        </Button>
       </div>
     </div>
   )

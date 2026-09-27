@@ -89,7 +89,7 @@ export default function LocationCombobox({
           placeholder={placeholder || t('locationPlaceholder')}
           disabled={disabled}
           className={cn(
-            'flex min-h-[44px] w-full rounded-md border border-input bg-transparent px-3 py-2 pr-10 text-sm shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50',
+            'flex h-11 w-full rounded-md border border-input bg-transparent px-3 py-2 pr-10 text-sm sm:h-9 shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50',
             className,
           )}
         />
@@ -113,9 +113,9 @@ export default function LocationCombobox({
                   >
                     <div className="h-full w-0.5 min-h-[24px] self-stretch rounded bg-gold-400" />
                     <div className="min-w-0 flex-1">
-                      <div className="truncate font-medium">{r.name}</div>
+                      <div className="truncate font-medium" title={r.name}>{r.name}</div>
                       {(r.address || r.city) && (
-                        <div className="truncate text-xs text-muted-foreground">
+                        <div className="truncate text-xs text-muted-foreground" title={[r.address, r.city].filter(Boolean).join(', ')}>
                           {[r.address, r.city].filter(Boolean).join(', ')}
                         </div>
                       )}
@@ -141,9 +141,9 @@ export default function LocationCombobox({
                     className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent hover:text-accent-foreground"
                   >
                     <div className="min-w-0 flex-1">
-                      <div className="truncate font-medium">{r.name}</div>
+                      <div className="truncate font-medium" title={r.name}>{r.name}</div>
                       {(r.address || r.city) && (
-                        <div className="truncate text-xs text-muted-foreground">
+                        <div className="truncate text-xs text-muted-foreground" title={[r.address, r.city].filter(Boolean).join(', ')}>
                           {[r.address, r.city].filter(Boolean).join(', ')}
                         </div>
                       )}

@@ -28,7 +28,7 @@ export default function TeamFilter({ selected, onChange, limitToTeamIds, groupBy
     sort: ['name'],
     all: true,
   })
-  const allTeams = allTeamsRaw ?? []
+  const allTeams = useMemo(() => allTeamsRaw ?? [], [allTeamsRaw])
 
   // Belt-and-suspenders: keep the client-side narrowing so the option list is
   // exactly the scoped set even before the refined query resolves.

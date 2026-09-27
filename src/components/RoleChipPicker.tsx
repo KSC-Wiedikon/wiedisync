@@ -37,7 +37,7 @@ export default function RoleChipPicker({ selected, onChange }: RoleChipPickerPro
                   type="button"
                   aria-pressed={active}
                   onClick={() => toggle(role)}
-                  className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                  className={`inline-flex h-9 items-center rounded-full px-3 text-xs font-medium transition-colors sm:h-8 ${
                     active
                       ? 'bg-brand-500 text-white'
                       : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'

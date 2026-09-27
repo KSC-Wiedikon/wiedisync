@@ -11,6 +11,7 @@ import SwitchToggle from '@/components/SwitchToggle'
 import LanguageDropdown from '@/components/LanguageDropdown'
 import { getFileUrl } from '../utils/fileUrl'
 import AdminToggle from './AdminToggle'
+import { Button } from '@/components/ui/button'
 import { Bell, LayoutGrid, UserX, PenSquare, PartyPopper, CalendarClock, LogIn, User, Users, Settings, ChevronDown, ScrollText, MessageSquare, Activity, GraduationCap, Newspaper, Coffee, Radio, ArrowLeftRight } from 'lucide-react'
 import type { MemberTeam, Team } from '../types'
 import { asObj, memberDisplayName } from '../utils/relations'
@@ -502,7 +503,7 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium text-gray-900 dark:text-gray-100">
+                    <span className="block break-words text-sm font-medium leading-snug text-gray-900 dark:text-gray-100">
                       {memberDisplayName(user)}
                     </span>
                     {memberTeams.length > 0 && (
@@ -514,15 +515,17 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
                     )}
                   </div>
                 </NavLink>
-                <button
+                <Button
+                  type="button"
+                  variant="ghost"
                   onClick={() => {
                     logout()
                     startClose()
                   }}
-                  className="rounded-lg px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
+                  className="shrink-0 text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-900/20 dark:hover:text-red-300"
                 >
                   {t('logout')}
-                </button>
+                </Button>
               </div>
               {/* Household account chooser — shown only for a login that
                   administers other members. Opens the shell's single chooser. */}

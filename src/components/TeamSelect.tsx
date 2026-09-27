@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import type { Team } from '../types'
 import { getTeamColor } from '../utils/teamColors'
+import { ChevronDown } from 'lucide-react'
 
 interface TeamSelectProps {
   value: string
@@ -40,8 +41,8 @@ export default function TeamSelect({
   const selectedColor = selected ? getTeamColor(selected.name) : null
 
   const btnBase = compact
-    ? 'flex w-full items-center gap-1.5 rounded border px-1.5 py-1 text-xs'
-    : 'flex min-h-[44px] w-full items-center gap-2 rounded-lg border px-3 py-2 text-sm sm:min-h-[42px]'
+    ? 'flex h-9 w-full items-center gap-1.5 rounded border px-1.5 text-xs sm:h-8'
+    : 'flex h-11 w-full items-center gap-2 rounded-lg border px-3 text-sm sm:h-9'
 
   // Keyboard support for the custom listbox: Escape closes, arrows open + move
   // focus between options (Enter/Space fire the option button's native onClick).
@@ -89,14 +90,12 @@ export default function TeamSelect({
               className="inline-block h-3 w-3 shrink-0 rounded-full border"
               style={{ backgroundColor: selectedColor.bg, borderColor: selectedColor.border }}
             />
-            <span className="truncate text-gray-900 dark:text-gray-100">{selected!.name}</span>
+            <span className="truncate text-gray-900 dark:text-gray-100" title={selected!.name}>{selected!.name}</span>
           </>
         ) : (
-          <span className="truncate text-gray-400 dark:text-gray-500">{placeholder}</span>
+          <span className="truncate text-gray-400 dark:text-gray-500" title={placeholder}>{placeholder}</span>
         )}
-        <svg className="ml-auto h-4 w-4 shrink-0 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
-          <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
-        </svg>
+        <ChevronDown className="ml-auto h-4 w-4 shrink-0 text-gray-400" />
       </button>
 
       {open && (
@@ -131,7 +130,7 @@ export default function TeamSelect({
                   className="inline-block h-3 w-3 shrink-0 rounded-full border"
                   style={{ backgroundColor: color.bg, borderColor: color.border }}
                 />
-                <span className="truncate">{team.name}</span>
+                <span className="truncate" title={team.name}>{team.name}</span>
               </button>
             )
           })}

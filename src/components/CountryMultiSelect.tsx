@@ -91,7 +91,7 @@ export default function CountryMultiSelect({
       <div
         onClick={() => { if (!disabled) { inputRef.current?.focus(); setOpen(true) } }}
         className={cn(
-          'flex min-h-[44px] w-full flex-wrap items-center gap-1.5 rounded-md border border-input bg-transparent px-2 py-1.5 text-sm shadow-sm transition-colors focus-within:ring-1 focus-within:ring-ring',
+          'flex min-h-11 w-full flex-wrap items-center gap-1.5 rounded-md border sm:min-h-9 border-input bg-transparent px-2 py-1.5 text-sm shadow-sm transition-colors focus-within:ring-1 focus-within:ring-ring',
           disabled ? 'cursor-not-allowed opacity-50' : 'cursor-text',
         )}
       >

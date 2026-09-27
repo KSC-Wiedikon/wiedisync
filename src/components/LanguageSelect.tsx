@@ -16,7 +16,7 @@ interface LanguageSelectProps {
 export default function LanguageSelect({ value, onChange }: LanguageSelectProps) {
   return (
     <Select value={value} onValueChange={(v) => onChange(v as BackendLanguage)}>
-      <SelectTrigger className="min-h-[44px]">
+      <SelectTrigger>
         <SelectValue />
       </SelectTrigger>
       <SelectContent>

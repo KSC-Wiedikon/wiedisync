@@ -50,7 +50,7 @@ export default function AffectsMultiSelect({ selected, onChange, label }: Affect
   }
 
   function pillClass(active: boolean, value: string) {
-    const base = 'inline-flex min-h-[36px] items-center rounded-full border px-3 py-1 text-sm font-medium transition-colors'
+    const base = 'inline-flex h-9 items-center rounded-full border px-3 text-sm font-medium transition-colors sm:h-8'
     return active
       ? `${base} ${AFFECTS_ACTIVE[value]}`
       : `${base} ${INACTIVE_PILL} hover:bg-gray-50 dark:hover:bg-gray-700/50`

@@ -4,6 +4,8 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Pencil, ChevronDown, Check, Download, FileText, Image as ImageIcon, FileType, X, HelpCircle, Hourglass, Minus, Users, UserCog } from 'lucide-react'
 import Modal from '@/components/Modal'
+import IconButton from '@/components/IconButton'
+import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -137,6 +139,7 @@ function RsvpTimestamp({ datetime, locale }: { datetime: string; locale: string 
     <button
       type="button"
       onClick={() => setShowAbsolute(v => !v)}
+      title={formatDateTimeCompact(datetime)}
       className="truncate text-[11px] text-gray-400 hover:text-gray-500 dark:text-gray-500 dark:hover:text-gray-400"
     >
       {showAbsolute ? formatDateTimeCompact(datetime) : capitalizeFirst(formatRelativeTime(datetime, locale))}
@@ -1811,14 +1814,15 @@ export default function ParticipationRosterModal({
             {showTeamFilter && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button
+                  <Button
                     type="button"
-                    className="inline-flex min-h-[36px] items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                    variant="outline"
+                    className="px-3 text-gray-700 dark:text-gray-200"
                   >
                     <Users className="h-4 w-4 text-gray-400" />
                     <span>{teamTriggerLabel}</span>
-                    <ChevronDown className="h-3.5 w-3.5 text-gray-400" />
-                  </button>
+                    <ChevronDown className="!size-3.5 text-gray-400" />
+                  </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="min-w-[220px]">
                   <DropdownMenuLabel>{t('filterByTeam', { defaultValue: 'Filter by team' })}</DropdownMenuLabel>
@@ -1864,14 +1868,15 @@ export default function ParticipationRosterModal({
             {roleFilterAvailable && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button
+                  <Button
                     type="button"
-                    className="inline-flex min-h-[36px] items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                    variant="outline"
+                    className="px-3 text-gray-700 dark:text-gray-200"
                   >
                     <UserCog className="h-4 w-4 text-gray-400" />
                     <span>{roleTriggerLabel}</span>
-                    <ChevronDown className="h-3.5 w-3.5 text-gray-400" />
-                  </button>
+                    <ChevronDown className="!size-3.5 text-gray-400" />
+                  </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="min-w-[220px]">
                   <DropdownMenuLabel>{t('filterByRole', { defaultValue: 'Filter by role' })}</DropdownMenuLabel>
@@ -1900,15 +1905,16 @@ export default function ParticipationRosterModal({
             )}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button
+                <Button
                   type="button"
-                  className="inline-flex min-h-[36px] items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                  variant="outline"
+                  className="px-3 text-gray-700 dark:text-gray-200"
                 >
                   <span className={`h-2 w-2 shrink-0 rounded-full ${active.dotClass}`} />
                   <span>{active.label}</span>
                   <span className="text-gray-400 dark:text-gray-500">({active.count})</span>
-                  <ChevronDown className="h-3.5 w-3.5 text-gray-400" />
-                </button>
+                  <ChevronDown className="!size-3.5 text-gray-400" />
+                </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="min-w-[200px]">
                 {filterOptions.map((opt) => (
@@ -1930,10 +1936,11 @@ export default function ParticipationRosterModal({
             {canEditRoster && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button
+                  <Button
                     type="button"
                     disabled={exporting !== null || exportRows.length === 0}
-                    className="inline-flex min-h-[36px] items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                    variant="outline"
+                    className="px-3 text-gray-700 dark:text-gray-200"
                   >
                     {exporting !== null ? (
                       <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-300 border-t-brand-500" />
@@ -1941,8 +1948,8 @@ export default function ParticipationRosterModal({
                       <Download className="h-4 w-4" />
                     )}
                     <span>{t('export', { defaultValue: 'Export' })}</span>
-                    <ChevronDown className="h-3.5 w-3.5 text-gray-400" />
-                  </button>
+                    <ChevronDown className="!size-3.5 text-gray-400" />
+                  </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="min-w-[180px]">
                   <DropdownMenuItem onClick={() => handleExport('csv')} className="flex cursor-pointer items-center gap-2">
@@ -2204,7 +2211,7 @@ export default function ParticipationRosterModal({
                     <RsvpTimestamp datetime={participation.date_updated ?? participation.date_created!} locale={i18n.language} />
                   )}
                   {participation?.position_1 && (
-                    <p className="truncate text-xs text-gray-400">
+                    <p className="truncate text-xs text-gray-400 dark:text-gray-500" title={[participation.position_1, participation.position_2, participation.position_3].filter(Boolean).join(' > ')}>
                       {[participation.position_1, participation.position_2, participation.position_3].filter(Boolean).join(' > ')}
                     </p>
                   )}
@@ -2268,15 +2275,15 @@ export default function ParticipationRosterModal({
                       )
                     })()}
                     {canEditRoster && editingMemberId !== member.id && !savingMemberIds.has(member.id) && (
-                      <button
+                      <IconButton
                         type="button"
+                        size="sm"
                         onClick={() => setEditingMemberId(member.id)}
-                        aria-label={t('editAllDays')}
-                        title={t('editAllDays')}
-                        className="inline-flex h-7 w-7 items-center justify-center rounded text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+                        label={t('editAllDays')}
+                        className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
                       >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </button>
+                        <Pencil className="!size-3.5" />
+                      </IconButton>
                     )}
                     {savingMemberIds.has(member.id) && (
                       <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-300 border-t-brand-500" />
@@ -2291,13 +2298,15 @@ export default function ParticipationRosterModal({
                   <div className="flex w-16 shrink-0 items-center justify-end gap-1">
                     <RsvpBrick status={status} label={statusLabelText(member.id, status)} />
                     {canEditRoster && editingMemberId !== member.id && !savingMemberIds.has(member.id) && (
-                      <button
+                      <IconButton
                         type="button"
+                        size="sm"
                         onClick={() => setEditingMemberId(member.id)}
-                        className="inline-flex h-7 w-7 items-center justify-center rounded text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+                        label={t('edit', { ns: 'common' })}
+                        className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
                       >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </button>
+                        <Pencil className="!size-3.5" />
+                      </IconButton>
                     )}
                     {savingMemberIds.has(member.id) && (
                       <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-300 border-t-brand-500" />
@@ -2333,7 +2342,7 @@ export default function ParticipationRosterModal({
                         ? uniformValue(sessionTargets(member.id), 'status')
                         : participationByMember.preferred.get(member.id)?.status ?? participationByMember.first.get(member.id)?.status ?? ''}
                       onChange={(e) => handleStatusChange(member.id, e.target.value)}
-                      className="shrink-0 rounded-md border border-gray-300 bg-white px-1.5 py-1 text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+                      className="h-11 shrink-0 rounded-md border border-gray-300 bg-white px-1.5 text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 sm:h-9"
                     >
                       <option value="">{t('clearStatus')}</option>
                       <option value="confirmed">{t('confirmed')}</option>
@@ -2353,7 +2362,7 @@ export default function ParticipationRosterModal({
                       // every day's note.
                       onBlur={(e) => { if (e.target.value !== e.target.defaultValue) handleNoteChange(member.id, e.target.value) }}
                       onKeyDown={(e) => { if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur() }}
-                      className="min-w-0 flex-1 rounded-md border border-gray-300 bg-white px-2 py-1 text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+                      className="h-11 min-w-0 flex-1 rounded-md border border-gray-300 bg-white px-2 text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 sm:h-9"
                     />
                   </div>
                 )}
@@ -2449,7 +2458,7 @@ export default function ParticipationRosterModal({
                           defaultValue={wp.status}
                           onChange={(e) => handleStatusChange(wp.member, e.target.value)}
                           onBlur={() => setTimeout(() => setEditingMemberId(prev => prev === wp.member ? null : prev), 150)}
-                          className="rounded-md border border-gray-300 bg-white px-1.5 py-0.5 text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+                          className="h-11 rounded-md border border-gray-300 bg-white px-1.5 text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 sm:h-9"
                         >
                           <option value="">{t('clearStatus')}</option>
                           <option value="confirmed">{t('confirmed')}</option>
@@ -2460,13 +2469,15 @@ export default function ParticipationRosterModal({
                         <>
                           <RsvpBrick status="waitlisted" label={statusLabels.waitlisted} />
                           {canEditRoster && !savingMemberIds.has(wp.member) && (
-                            <button
+                            <IconButton
                               type="button"
+                              size="sm"
                               onClick={() => setEditingMemberId(wp.member)}
-                              className="inline-flex h-7 w-7 items-center justify-center rounded text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+                              label={t('edit', { ns: 'common' })}
+                              className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
                             >
-                              <Pencil className="h-3.5 w-3.5" />
-                            </button>
+                              <Pencil className="!size-3.5" />
+                            </IconButton>
                           )}
                           {savingMemberIds.has(wp.member) && (
                             <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-300 border-t-brand-500" />
@@ -2538,15 +2549,15 @@ export default function ParticipationRosterModal({
                             )
                           })()}
                           {canEditRoster && editingMemberId !== member.id && !savingMemberIds.has(member.id) && (
-                            <button
+                            <IconButton
                               type="button"
+                              size="sm"
                               onClick={() => setEditingMemberId(member.id)}
-                              aria-label={t('editAllDays')}
-                              title={t('editAllDays')}
-                              className="inline-flex h-7 w-7 items-center justify-center rounded text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+                              label={t('editAllDays')}
+                              className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
                             >
-                              <Pencil className="h-3.5 w-3.5" />
-                            </button>
+                              <Pencil className="!size-3.5" />
+                            </IconButton>
                           )}
                           {savingMemberIds.has(member.id) && (
                             <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-300 border-t-brand-500" />
@@ -2556,13 +2567,15 @@ export default function ParticipationRosterModal({
                         <div className="flex w-16 shrink-0 items-center justify-end gap-1">
                           <RsvpBrick status={status} label={status ? (statusLabels[status] ?? t('notResponded')) : t('notResponded')} />
                           {canEditRoster && editingMemberId !== member.id && !savingMemberIds.has(member.id) && (
-                            <button
+                            <IconButton
                               type="button"
+                              size="sm"
                               onClick={() => setEditingMemberId(member.id)}
-                              className="inline-flex h-7 w-7 items-center justify-center rounded text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+                              label={t('edit', { ns: 'common' })}
+                              className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
                             >
-                              <Pencil className="h-3.5 w-3.5" />
-                            </button>
+                              <Pencil className="!size-3.5" />
+                            </IconButton>
                           )}
                           {savingMemberIds.has(member.id) && (
                             <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-300 border-t-brand-500" />
@@ -2588,7 +2601,7 @@ export default function ParticipationRosterModal({
                           autoFocus
                           defaultValue={isOverallSessionTab ? uniformValue(targets, 'status') : (targets[0]?.row?.status ?? '')}
                           onChange={(e) => handleStatusChange(member.id, e.target.value)}
-                          className="shrink-0 rounded-md border border-gray-300 bg-white px-1.5 py-1 text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+                          className="h-11 shrink-0 rounded-md border border-gray-300 bg-white px-1.5 text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 sm:h-9"
                         >
                           <option value="">{t('clearStatus')}</option>
                           <option value="confirmed">{t('confirmed')}</option>
@@ -2601,7 +2614,7 @@ export default function ParticipationRosterModal({
                           defaultValue={isOverallSessionTab ? uniformValue(targets, 'note') : (targets[0]?.row?.note ?? '')}
                           onBlur={(e) => { if (e.target.value !== e.target.defaultValue) handleNoteChange(member.id, e.target.value) }}
                           onKeyDown={(e) => { if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur() }}
-                          className="min-w-0 flex-1 rounded-md border border-gray-300 bg-white px-2 py-1 text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+                          className="h-11 min-w-0 flex-1 rounded-md border border-gray-300 bg-white px-2 text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 sm:h-9"
                         />
                       </div>
                     )}

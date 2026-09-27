@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { Eye } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
+import { Button } from '@/components/ui/button'
 
 /**
  * Persistent banner shown while a superadmin views the app "as" another member
@@ -22,14 +23,16 @@ export default function ImpersonationBanner({ topInset = false }: { topInset?: b
       style={topInset ? { paddingTop: 'calc(0.375rem + env(safe-area-inset-top, 0px))' } : undefined}
     >
       <Eye className="h-4 w-4 shrink-0" />
-      <span className="truncate">{t('impersonationBanner', { name })}</span>
-      <button
+      <span className="truncate" title={t('impersonationBanner', { name })}>{t('impersonationBanner', { name })}</span>
+      <Button
         type="button"
+        size="sm"
+        variant="ghost"
         onClick={() => { void stopImpersonation() }}
-        className="shrink-0 rounded bg-white/20 px-2 py-0.5 text-xs font-semibold transition-colors hover:bg-white/30"
+        className="shrink-0 bg-white/20 font-semibold text-white hover:bg-white/30 hover:text-white"
       >
         {t('impersonationExit')}
-      </button>
+      </Button>
     </div>
   )
 }

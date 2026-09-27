@@ -121,7 +121,7 @@ export default function TypedConfirmDialog({
             autoCorrect="off"
             autoCapitalize="off"
             spellCheck={false}
-            className="min-h-[44px] font-mono"
+            className="font-mono"
             aria-invalid={typed.length > 0 && !matches}
             aria-describedby={typed.length > 0 && !matches ? `${inputId}-hint` : undefined}
           />

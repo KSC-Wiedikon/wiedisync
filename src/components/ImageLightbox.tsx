@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import IconButton from './IconButton'
 import { X } from 'lucide-react'
 
 interface ImageLightboxProps {
@@ -75,13 +76,13 @@ export default function ImageLightbox({ src, alt, open, onClose }: ImageLightbox
       }`}
       onAnimationEnd={handleAnimEnd}
     >
-      <button
+      <IconButton
         onClick={handleClose}
-        aria-label={t('close')}
-        className="absolute right-3 top-3 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-white transition-colors hover:bg-black/70"
+        label={t('close')}
+        className="absolute right-3 top-3 z-10 rounded-full bg-black/50 text-white hover:bg-black/70 hover:text-white"
       >
-        <X className="h-5 w-5" />
-      </button>
+        <X className="!size-5" />
+      </IconButton>
       <img
         src={src}
         alt={alt}

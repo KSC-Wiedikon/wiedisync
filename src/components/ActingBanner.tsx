@@ -85,8 +85,8 @@ export default function ActingBanner({ topInset = false }: { topInset?: boolean 
                 {(name || '?').slice(0, 1).toUpperCase()}
               </span>}
           <span className="min-w-0">
-            <span className="block truncate">{name}</span>
-            {subtitle && <span className="block truncate text-xs font-medium text-white/85">{subtitle}</span>}
+            <span className="block truncate" title={name}>{name}</span>
+            {subtitle && <span className="block truncate text-xs font-medium text-white/85" title={subtitle}>{subtitle}</span>}
           </span>
           <ChevronsUpDown className="ml-auto h-4 w-4 shrink-0 opacity-80" />
         </button>
@@ -100,7 +100,7 @@ export default function ActingBanner({ topInset = false }: { topInset?: boolean 
             className="flex min-h-[44px] max-w-[45%] shrink-0 items-center gap-1.5 border-l border-white/25 bg-white/15 px-3 text-xs font-semibold transition-colors hover:bg-white/25"
           >
             <ArrowLeft className="h-3.5 w-3.5 shrink-0" />
-            <span className="truncate">{t('householdBackTo', { name: realUser.first_name || '' })}</span>
+            <span className="truncate" title={t('householdBackTo', { name: realUser.first_name || '' })}>{t('householdBackTo', { name: realUser.first_name || '' })}</span>
           </button>
         )}
         {!actingMember && resumeCandidate && (
@@ -110,7 +110,7 @@ export default function ActingBanner({ topInset = false }: { topInset?: boolean 
             className="flex min-h-[44px] max-w-[45%] shrink-0 items-center gap-1.5 border-l border-white/25 bg-white/15 px-3 text-xs font-semibold transition-colors hover:bg-white/25"
           >
             <RotateCcw className="h-3.5 w-3.5 shrink-0" />
-            <span className="truncate">{t('householdResume', { name: resumeName })}</span>
+            <span className="truncate" title={t('householdResume', { name: resumeName })}>{t('householdResume', { name: resumeName })}</span>
           </button>
         )}
       </div>

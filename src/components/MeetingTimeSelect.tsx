@@ -60,7 +60,7 @@ export function MeetingTimeSelect({
           onValueChange={(v) => onChange(v === NONE ? null : Number(v))}
           disabled={disabled}
         >
-          <SelectTrigger className="min-h-[44px] flex-1">
+          <SelectTrigger className="flex-1">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

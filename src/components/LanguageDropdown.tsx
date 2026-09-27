@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next'
+import { Button } from '@/components/ui/button'
 import { Check, ChevronDown, Glasses } from 'lucide-react'
 import {
   DropdownMenu,
@@ -60,8 +61,9 @@ export default function LanguageDropdown({ size = 'sm' }: LanguageDropdownProps)
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button
-          className="flex items-center gap-2 rounded-lg px-2 py-1.5 transition-colors hover:bg-gray-100 dark:hover:bg-gray-700 outline-none"
+        <Button
+          variant="ghost"
+          className="gap-2 px-2"
           aria-label="Select language"
         >
           <img
@@ -72,8 +74,8 @@ export default function LanguageDropdown({ size = 'sm' }: LanguageDropdownProps)
           <span className={`${textSize} text-gray-700 dark:text-gray-200`}>
             {currentLang.nativeName}
           </span>
-          <ChevronDown className="h-3.5 w-3.5 text-gray-400" />
-        </button>
+          <ChevronDown className="!size-3.5 text-gray-400" />
+        </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="min-w-[180px]">
         {regularLanguages.map((lang) => (

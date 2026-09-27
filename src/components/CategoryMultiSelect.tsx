@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo, useId } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ChevronDown, X } from 'lucide-react'
+import { ChevronDown, X, Check } from 'lucide-react'
 
 interface CategoryColor {
   bg: string
@@ -156,7 +156,7 @@ export default function CategoryMultiSelect({ options, selected, onChange, place
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={open ? listboxId : undefined}
-        className="flex min-h-[44px] w-full items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-left text-sm shadow-sm transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:hover:bg-gray-700 sm:min-h-0"
+        className="flex min-h-11 w-full items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-left text-sm shadow-sm transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:hover:bg-gray-700 sm:min-h-9"
       >
         <div className="flex flex-1 flex-wrap items-center gap-1.5 overflow-hidden">
           {allSelected ? (
@@ -237,9 +237,7 @@ function Checkbox({ checked, indeterminate, size = 'md' }: { checked: boolean; i
       checked ? 'border-brand-500 bg-brand-500' : indeterminate ? 'border-brand-400 bg-brand-200 dark:bg-brand-800' : 'border-gray-300 dark:border-gray-500'
     }`}>
       {checked && (
-        <svg className={size === 'sm' ? 'h-2 w-2 text-white' : 'h-2.5 w-2.5 text-white'} viewBox="0 0 12 12" fill="none">
-          <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
+        <Check className={size === 'sm' ? 'h-2 w-2 text-white' : 'h-2.5 w-2.5 text-white'} strokeWidth={3} />
       )}
       {indeterminate && !checked && (
         <span className="block h-1.5 w-1.5 rounded-sm bg-brand-500" />

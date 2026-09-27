@@ -13,6 +13,9 @@ import {
   toDateKey,
   dayHeaders,
 } from '../utils/dateUtils'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import IconButton from './IconButton'
 
 interface CalendarGridProps<T> {
   month: Date
@@ -94,37 +97,34 @@ export default function CalendarGrid<T>({
     <div className="flex flex-1 flex-col">
       {/* Month header */}
       <div className="mb-4 flex items-center justify-between">
-        <button
+        <IconButton
           onClick={() => onMonthChange(addMonths(month, -1))}
           disabled={!canGoPrev}
-          aria-label={t('prevMonth')}
-          className="rounded-lg p-2.5 text-gray-600 hover:bg-gray-100 disabled:text-gray-300 disabled:hover:bg-transparent sm:p-2 dark:text-gray-400 dark:hover:bg-gray-700"
+          label={t('prevMonth')}
+          className="text-gray-600 dark:text-gray-400"
         >
-          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-        </button>
+          <ChevronLeft className="!size-5" />
+        </IconButton>
         <div className="flex items-center gap-2">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
             {formatDate(month, 'MMMM yyyy')}
           </h2>
-          <button
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => onMonthChange(startOfMonth(new Date()))}
-            className="rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
           >
             {t('today')}
-          </button>
+          </Button>
         </div>
-        <button
+        <IconButton
           onClick={() => onMonthChange(addMonths(month, 1))}
           disabled={!canGoNext}
-          aria-label={t('nextMonth')}
-          className="rounded-lg p-2.5 text-gray-600 hover:bg-gray-100 disabled:text-gray-300 disabled:hover:bg-transparent sm:p-2 dark:text-gray-400 dark:hover:bg-gray-700"
+          label={t('nextMonth')}
+          className="text-gray-600 dark:text-gray-400"
         >
-          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
-        </button>
+          <ChevronRight className="!size-5" />
+        </IconButton>
       </div>
 
       {/* Day-of-week headers */}
@@ -234,7 +234,7 @@ export default function CalendarGrid<T>({
               {/* Closure label + reason (small) */}
               {isClosed && inMonth && closedLabel && startsRun((k) => (closedDates?.has(k) ? closureReasons?.get(k) ?? '' : null)) && (
                 <div className="relative mb-0.5 leading-tight">
-                  <div className="truncate text-[9px] font-semibold uppercase tracking-wide text-red-700 dark:text-red-300">
+                  <div className="truncate text-[9px] font-semibold uppercase tracking-wide text-red-700 dark:text-red-300" title={closedLabel}>
                     {closedLabel}
                   </div>
                   {closureReasons?.get(key) && (
@@ -248,7 +248,7 @@ export default function CalendarGrid<T>({
               {/* Blocked label + reason (e.g. "Blocked" / "U20 Tournament") */}
               {isBlocked && inMonth && blockedLabel && startsRun((k) => blockedDates?.get(k) ?? null) && (
                 <div className="relative mb-0.5 leading-tight">
-                  <div className="truncate text-[9px] font-bold uppercase tracking-wide text-red-800 dark:text-red-100">
+                  <div className="truncate text-[9px] font-bold uppercase tracking-wide text-red-800 dark:text-red-100" title={blockedLabel}>
                     {blockedLabel}
                   </div>
                   {blockedReason && (

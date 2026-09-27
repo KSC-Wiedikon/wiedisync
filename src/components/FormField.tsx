@@ -46,7 +46,7 @@ export const FormInput = forwardRef<HTMLInputElement, FormInputProps>(
             ref={ref}
             id={inputId}
             type={isPassword && showPassword ? 'text' : type}
-            className={cn('min-h-[44px]', isPassword && 'pr-10', error && 'border-destructive', className)}
+            className={cn(isPassword && 'pr-10', error && 'border-destructive', className)}
             {...props}
           />
           {isPassword && (
