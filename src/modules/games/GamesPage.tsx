@@ -17,7 +17,8 @@ import { teamIds } from '../../utils/teamColors'
 import { todayLocal, getCurrentSeason, formatSeasonLong } from '../../utils/dateHelpers'
 import { fetchSeasons } from '../../lib/api'
 import { isCupGame } from '../../utils/leagueClassification'
-import { asObj } from '../../utils/relations'
+import { asObj, relId } from '../../utils/relations'
+import { useTeamPermissions } from '../../hooks/useTeamPermissions'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import SportToggle from '../../components/SportToggle'
 import TeamFilterBar from './components/TeamFilterBar'
@@ -103,6 +104,10 @@ export default function GamesPage() {
     'games', gameId, [...DEEP_LINK_FIELDS.games],
   )
   const modalGame = selectedGame ?? linkedGame
+  // Delete lives in the game dialog (not on the card) — same gate the card's
+  // Delete had: a manual game the viewer can manage.
+  const { canManageTeam } = useTeamPermissions()
+  const canDeleteModalGame = !!user && !!modalGame && modalGame.source === 'manual' && canManageTeam(relId(modalGame.kscw_team))
   useEffect(() => {
     if (linkedGameMissing) {
       toast.error(tc('linkNotAvailable'))
@@ -324,9 +329,6 @@ export default function GamesPage() {
   const handleEdit = (g: Game) => {
     setSelectedGame(g)
   }
-  const handleDelete = (id: string) => {
-    setDeletingGameId(id)
-  }
   const confirmDelete = async () => {
     if (!deletingGameId) return
     await removeGame(deletingGameId)
@@ -469,7 +471,6 @@ export default function GamesPage() {
                 onClick={setSelectedGame}
                 onOpenRoster={setRosterGame}
                 onEdit={handleEdit}
-                onDelete={handleDelete}
                 variant="compact"
                 participations={participationsByGame.get(g.id)}
                 myParticipation={myParticipationByGame.get(g.id)}
@@ -478,7 +479,7 @@ export default function GamesPage() {
             ))}
           </RowList>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {section.items.map((g) => (
               <GameCard
                 key={g.id}
@@ -486,7 +487,6 @@ export default function GamesPage() {
                 onClick={setSelectedGame}
                 onOpenRoster={setRosterGame}
                 onEdit={handleEdit}
-                onDelete={handleDelete}
                 participations={participationsByGame.get(g.id)}
                 myParticipation={myParticipationByGame.get(g.id)}
                 warnings={warningsByGame.get(g.id)}
@@ -549,7 +549,7 @@ export default function GamesPage() {
                   <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('sectionPast')}</h2>
                   <div className="h-px flex-1 bg-gray-200 dark:bg-gray-700" />
                 </div>
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {pastGames.map((g) => (
                     <GameCard key={g.id} game={g} onClick={setSelectedGame} onEdit={handleEdit} past />
                   ))}
@@ -638,6 +638,12 @@ export default function GamesPage() {
         // map (different tab, filtered-out team), so the modal falls back to its
         // own fetch rather than rendering an empty roster.
         participations={modalGame ? participationsByGame.get(modalGame.id) : undefined}
+        onDelete={canDeleteModalGame ? () => {
+          const id = modalGame.id
+          if (selectedGame) setSelectedGame(null)
+          else navigate('/games', { replace: true })
+          setDeletingGameId(id)
+        } : undefined}
       />
 
       <ParticipationRosterModal

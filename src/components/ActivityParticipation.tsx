@@ -2,14 +2,12 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Check, MessageSquare, Minus, Plus } from 'lucide-react'
 import { formatDate, formatTime, getDeadlineDate } from '../utils/dateHelpers'
-import { rsvpButtonClass } from '../utils/participationColors'
 import { useAuth } from '../hooks/useAuth'
-import { useRsvpLabels } from '../hooks/useRsvpLabels'
 import { useMutation } from '../hooks/useMutation'
 import { useMyCoveringAbsence } from '../hooks/useMyCoveringAbsence'
 import { useAbsenceNoteText } from '../hooks/useAbsenceNoteText'
 import type { Participation } from '../types'
-import RsvpPill from './RsvpPill'
+import RsvpAnswerButtons from './RsvpAnswerButtons'
 import IconButton from './IconButton'
 
 interface ActivityParticipationProps {
@@ -34,6 +32,12 @@ interface ActivityParticipationProps {
   guestExcluded: boolean
   /** Called after a participation save — parent can refetch. */
   onSaved?: () => void
+  /** Pre-fetched rows for this activity (from the page's batch query) — the
+   *  totals inside the answer buttons come from these, so the card opens no
+   *  fetch / realtime subscription of its own. */
+  participations?: Participation[]
+  /** Coach member ids → "Coach present" for player-coaches. */
+  coachMemberIds?: string[]
 }
 
 /**
@@ -63,13 +67,12 @@ export default function ActivityParticipation({
   isStaff,
   guestExcluded,
   onSaved,
+  participations,
+  coachMemberIds,
 }: ActivityParticipationProps) {
   const { t } = useTranslation('participation')
   const { t: tKind } = useTranslation(kind === 'game' ? 'games' : 'trainings')
   const { user } = useAuth()
-  // Cards are too narrow for name-bearing buttons, so they keep Yes / Maybe /
-  // No and say who is answering in a caption instead.
-  const { answeringFor } = useRsvpLabels()
   const { create, update } = useMutation<Participation>('participations')
   const { absence, hasAbsence } = useMyCoveringAbsence(kind, date)
   const absenceLabel = absence?.type === 'weekly' ? 'declinedUnavailable' : 'absent'
@@ -178,97 +181,67 @@ export default function ActivityParticipation({
     return <p className="text-xs italic text-gray-500 dark:text-gray-400">{text}</p>
   }
 
+  // The answer buttons carry the team totals (RsvpAnswerButtons, compact card
+  // mode): they replace the old pills AND the separate counters row. The
+  // household "Answering for …" caption renders under them; "Deadline passed"
+  // is printed by the component itself when locked.
   return (
-    <div className="space-y-1.5">
+    <div
+      className="space-y-1.5"
+      onClick={stopProp ? (e) => e.stopPropagation() : undefined}
+    >
       {hasAbsence && (
         <p className="text-xs italic text-gray-500 dark:text-gray-400">{t(absenceLabel)}</p>
       )}
-      {answeringFor && (
-        <p className="text-[11px] font-medium leading-tight text-gray-600 dark:text-gray-300">{answeringFor}</p>
-      )}
-      <div
-        className="relative flex flex-wrap items-center gap-1.5"
-      >
-        {(['confirmed', 'tentative', 'declined'] as const)
-          // When deadline has passed: only render the user's selected choice (if any) in its color.
-          .filter((s) => !isLocked || displayStatus === s)
-          .map((status) => {
-            const active = displayStatus === status
-            const label = { confirmed: t('yes'), tentative: t('maybe'), declined: t('no') }
-            return (
-              <RsvpPill
-                key={status}
-                onClick={(e) => { if (stopProp) e.stopPropagation(); if (!isLocked) setStatus(status) }}
-                disabled={isLocked}
-                className={rsvpButtonClass(status, active)}
-              >
-                {label[status]}
-              </RsvpPill>
-            )
-          })}
+      <RsvpAnswerButtons
+        compact
+        activityType={kind}
+        activityId={activityId}
+        participations={participations ?? []}
+        coachMemberIds={coachMemberIds}
+        value={displayStatus}
+        onSelect={(status) => { void setStatus(status) }}
+        locked={isLocked}
+        saved={saveConfirmed}
+      />
 
-        {/* Inline guest counter — coaches/TR only */}
-        {displayStatus && isStaff && (
-          <div
-            className="ml-1 flex items-center gap-0.5 border-l border-gray-200 pl-1.5 dark:border-gray-600"
-            onClick={stopProp ? (e) => e.stopPropagation() : undefined}
+      {/* Guest counter — coaches/TR only. Steppers on the IconButton scale. */}
+      {displayStatus && isStaff && (
+        <div className="flex items-center gap-1">
+          <span className="mr-1 text-xs text-gray-500 dark:text-gray-400">{t('guests')}</span>
+          <IconButton
+            size="sm"
+            label={t('decreaseGuests', { defaultValue: 'Remove guest' })}
+            onClick={() => handleGuestChange(-1)}
+            disabled={guestCount <= 0}
+            className="text-gray-500 dark:text-gray-400"
           >
-            {/* Steppers on the IconButton scale (36px phone / 32px sm) — the old
-                20px squares were un-hittable on a phone. */}
-            <IconButton
-              size="sm"
-              label={t('decreaseGuests', { defaultValue: 'Remove guest' })}
-              onClick={(e) => { if (stopProp) e.stopPropagation(); handleGuestChange(-1) }}
-              disabled={guestCount <= 0}
-              className="text-gray-500 dark:text-gray-400"
-            >
-              <Minus />
-            </IconButton>
-            <span className="min-w-[1rem] text-center text-xs font-medium tabular-nums text-gray-700 dark:text-gray-300" aria-live="polite">
-              {guestCount}
-            </span>
-            <IconButton
-              size="sm"
-              label={t('increaseGuests', { defaultValue: 'Add guest' })}
-              onClick={(e) => { if (stopProp) e.stopPropagation(); handleGuestChange(1) }}
-              className="text-gray-500 dark:text-gray-400"
-            >
-              <Plus />
-            </IconButton>
-            <span className="text-[10px] text-gray-400 dark:text-gray-500">{t('guests')}</span>
-          </div>
-        )}
-
-        {/* Save confirmation popover */}
-        {saveConfirmed && (
-          <span className="absolute -top-7 left-1/2 -translate-x-1/2 flex items-center gap-1 whitespace-nowrap rounded-md bg-green-600 px-2 py-0.5 text-[11px] font-medium text-white shadow-lg animate-fade-in">
-            <Check className="h-3 w-3" />
-            {t('saved')}
+            <Minus />
+          </IconButton>
+          <span className="min-w-[1rem] text-center text-xs font-medium tabular-nums text-gray-700 dark:text-gray-300" aria-live="polite">
+            {guestCount}
           </span>
-        )}
-      </div>
-
-      {/* Deadline info */}
-      {respondBy && (
-        deadlinePassed ? (
-          <p className="text-[10px] leading-tight text-red-500 dark:text-red-400">
-            {t('deadlinePassed')}
-          </p>
-        ) : (
-          <p
-            className="text-[10px] leading-tight text-gray-400 dark:text-gray-500"
+          <IconButton
+            size="sm"
+            label={t('increaseGuests', { defaultValue: 'Add guest' })}
+            onClick={() => handleGuestChange(1)}
+            className="text-gray-500 dark:text-gray-400"
           >
-            {tKind('respondBy')}: {formatDate(respondBy)}, {formatTime(respondBy) || formatTime(activityTime)}
-          </p>
-        )
+            <Plus />
+          </IconButton>
+        </div>
+      )}
+
+      {/* Respond-by hint (the locked state is announced by the buttons). */}
+      {respondBy && !deadlinePassed && (
+        <p className="text-[10px] leading-tight text-gray-400 dark:text-gray-500">
+          {tKind('respondBy')}: {formatDate(respondBy)}, {formatTime(respondBy) || formatTime(activityTime)}
+        </p>
       )}
 
       {/* Note input */}
       {displayStatus && (
-        <div
-          className="relative flex items-center gap-1.5"
-          onClick={stopProp ? (e) => e.stopPropagation() : undefined}
-        >
+        <div className="relative flex items-center gap-1.5">
           <MessageSquare className="h-3.5 w-3.5 shrink-0 text-gray-400" />
           <input
             type="text"
@@ -278,14 +251,13 @@ export default function ActivityParticipation({
             onKeyDown={(e) => {
               if (e.key === 'Enter') saveNote()
             }}
-            onClick={stopProp ? (e) => e.stopPropagation() : undefined}
             placeholder={t('notePlaceholder')}
             className="h-9 min-w-0 flex-1 rounded-md border border-gray-200 bg-transparent px-2 text-xs sm:h-8 text-gray-700 placeholder:text-gray-400 focus:border-brand-400 focus:outline-none dark:border-gray-600 dark:text-gray-300 dark:placeholder:text-gray-500 dark:focus:border-brand-500"
           />
           <IconButton
             size="sm"
             label={t('save', { ns: 'common' })}
-            onClick={(e) => { if (stopProp) e.stopPropagation(); saveNote() }}
+            onClick={saveNote}
             disabled={noteText === serverNote}
             className="text-gray-400 hover:text-green-600 dark:hover:text-green-400"
           >

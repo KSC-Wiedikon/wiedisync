@@ -1,12 +1,11 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Check, ExternalLink, MessageSquare, Pencil, Trash2, Users } from 'lucide-react'
+import { CalendarDays, ExternalLink, MessageSquare, Pencil, Users } from 'lucide-react'
 import StatusBadge from '../../components/StatusBadge'
 import TeamChip from '../../components/TeamChip'
 import RichText from '../../components/RichText'
-import ParticipationSummary from '../../components/ParticipationSummary'
 import SessionParticipationSheet from '../../components/SessionParticipationSheet'
-import { rsvpButtonClass } from '../../utils/participationColors'
+import type { RsvpStatus } from '../../utils/participationColors'
 import ParticipationWarningBadge from '../../components/ParticipationWarningBadge'
 import { getEventWarnings } from '../../utils/participationWarnings'
 import { useAuth } from '../../hooks/useAuth'
@@ -15,13 +14,12 @@ import { useMutation } from '../../hooks/useMutation'
 import { useRealtime } from '../../hooks/useRealtime'
 import { useMyCoveringAbsence } from '../../hooks/useMyCoveringAbsence'
 import { useAbsenceNoteText } from '../../hooks/useAbsenceNoteText'
-import { useRsvpLabels } from '../../hooks/useRsvpLabels'
 import { formatDate, formatTime, formatWeekday, formatDayMonthZurich, getDeadlineDate } from '../../utils/dateHelpers'
 import { asTeams, teamId, isHtml, isSameDay, isGuestExcludedFromEvent } from './eventHelpers'
 import type { Event, EventSession, Participation } from '../../types'
 import CancelActivityButton from '../../components/CancelActivityButton'
 import CarpoolChip from '../carpool/CarpoolChip'
-import RsvpPill, { RsvpPillSkeleton } from '../../components/RsvpPill'
+import RsvpAnswerButtons from '../../components/RsvpAnswerButtons'
 import TruncatedText from '../../components/TruncatedText'
 import { DateRail, RowStripe, RowChip } from '../../components/ActivityRow'
 import { Button } from '@/components/ui/button'
@@ -31,8 +29,8 @@ import { rsvpTone } from '../../utils/rsvpTone'
 interface EventCardProps {
   event: Event
   onClick?: () => void
+  /** Delete lives in the edit dialog (EventForm `onDelete`), not on the card. */
   onEdit?: (event: Event) => void
-  onDelete?: (eventId: string) => void
   onOpenRoster?: (event: Event) => void
   /** Pre-fetched participations for this event (from batch query) */
   participations?: Participation[]
@@ -48,7 +46,7 @@ interface EventCardProps {
  *  which has no single answer colour (see rsvpTone). */
 type BannerStatus = Participation['status'] | 'mixed'
 
-export default function EventCard({ event, onClick, onEdit, onDelete, onOpenRoster, participations, myParticipation, onParticipationSaved }: EventCardProps) {
+export default function EventCard({ event, onClick, onEdit, onOpenRoster, participations, myParticipation, onParticipationSaved }: EventCardProps) {
   const { t } = useTranslation('events')
   const { user, canParticipateIn, memberTeamIds, getGuestLevel } = useAuth()
   const teams = asTeams(event.teams)
@@ -88,7 +86,9 @@ export default function EventCard({ event, onClick, onEdit, onDelete, onOpenRost
     ? `– ${formatDayMonthZurich(event.end_date)}${!event.all_day ? ` ${formatTime(event.end_date)}` : ''}`
     : !event.all_day && event.end_date ? `–${formatTime(event.end_date)}` : undefined
   const targeted = (event.invited_roles ?? []).length > 0 || (event.invited_members ?? []).length > 0
-  const showCounters = rsvpControlsVisible || (!canRSVP && warnings.length > 0)
+  // The answer buttons carry the totals, so the counters row is down to the
+  // warnings badge (the counters-only view was never shown to non-answerers here).
+  const showCounters = warnings.length > 0 && (rsvpControlsVisible || !canRSVP)
 
   return (
     <div
@@ -166,6 +166,7 @@ export default function EventCard({ event, onClick, onEdit, onDelete, onOpenRost
               {event.participation_mode && event.participation_mode !== 'whole' ? (
                 <EventCardSessionParticipation
                   event={event}
+                  participations={participations}
                   onSaved={onParticipationSaved}
                   onStatusChange={setLiveStatus}
                 />
@@ -173,6 +174,7 @@ export default function EventCard({ event, onClick, onEdit, onDelete, onOpenRost
                 <EventCardParticipation
                   event={event}
                   existingParticipation={myParticipation}
+                  participations={participations}
                   onSaved={onParticipationSaved}
                   onStatusChange={setLiveStatus}
                 />
@@ -186,12 +188,7 @@ export default function EventCard({ event, onClick, onEdit, onDelete, onOpenRost
           {/* Counters in the body, under the RSVP. */}
           {showCounters && (
             <div className="mt-2 flex flex-wrap items-center gap-2" onClick={(e) => e.stopPropagation()}>
-              {rsvpControlsVisible && (
-                <ParticipationSummary activityType="event" activityId={event.id} bars hideExtras participations={participations} />
-              )}
-              {warnings.length > 0 && (
-                <ParticipationWarningBadge warnings={warnings} namespace="participation" />
-              )}
+              <ParticipationWarningBadge warnings={warnings} namespace="participation" />
             </div>
           )}
         </div>
@@ -221,19 +218,6 @@ export default function EventCard({ event, onClick, onEdit, onDelete, onOpenRost
             {t('edit', { ns: 'common' })}
           </Button>
         )}
-        {onDelete && (
-          <Button
-            size="tool"
-            variant="outline"
-            onClick={() => onDelete(event.id)}
-            title={t('deleteEvent')}
-            aria-label={t('deleteEvent')}
-            className="text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-900/20 dark:hover:text-red-300"
-          >
-            <Trash2 aria-hidden />
-            {t('delete', { ns: 'common' })}
-          </Button>
-        )}
         <CancelActivityButton
           kind="event"
           activityId={event.id}
@@ -248,9 +232,8 @@ export default function EventCard({ event, onClick, onEdit, onDelete, onOpenRost
 }
 
 /** Inline Yes/Maybe/No buttons for event cards — matches training/game card pattern, no dropdown overflow */
-function EventCardParticipation({ event, existingParticipation, onSaved, onStatusChange }: { event: Event; existingParticipation?: Participation; onSaved?: () => void; onStatusChange?: (status: Participation['status'] | null) => void }) {
+function EventCardParticipation({ event, existingParticipation, participations, onSaved, onStatusChange }: { event: Event; existingParticipation?: Participation; participations?: Participation[]; onSaved?: () => void; onStatusChange?: (status: Participation['status'] | null) => void }) {
   const { t } = useTranslation('participation')
-  const { answer, answeringFor } = useRsvpLabels()
   const { user, isStaffOnlyForTeams } = useAuth()
   const isStaff = isStaffOnlyForTeams((event.teams ?? []).map((tm) => teamId(tm)))
   const { create, update } = useMutation<Participation>('participations')
@@ -340,42 +323,21 @@ function EventCardParticipation({ event, existingParticipation, onSaved, onStatu
       {hasAbsence && (
         <p className="text-xs italic text-gray-500 dark:text-gray-400">{t(absenceLabel)}</p>
       )}
-      {answeringFor && <p className="text-[11px] font-medium leading-tight text-gray-600 dark:text-gray-300">{answeringFor}</p>}
-      <div className="relative flex flex-wrap items-center gap-1.5">
-        {(['confirmed', 'tentative', 'declined'] as const)
-          .filter((s) => s !== 'tentative' || event.allow_maybe !== false)
-          // When deadline has passed: only render the user's selected choice (if any) in its color.
-          .filter((s) => !isLocked || displayStatus === s)
-          .map((status) => {
-          const active = displayStatus === status
-          const label = answer
-          return (
-            <RsvpPill
-              key={status}
-              onClick={() => !isLocked && setStatus(status)}
-              disabled={isLocked}
-              className={rsvpButtonClass(status, active)}
-            >
-              {label[status]}
-            </RsvpPill>
-          )
-        })}
+      {/* Totals inside the buttons (compact card mode); the household caption,
+          "Deadline passed" and the waitlist count come from the component. */}
+      <RsvpAnswerButtons
+        compact
+        activityType="event"
+        activityId={event.id}
+        participations={participations ?? []}
+        value={displayStatus}
+        onSelect={(status) => { void setStatus(status) }}
+        locked={isLocked}
+        saved={saveConfirmed}
+        options={rsvpOptions(event)}
+        hideCoachPresent
+      />
 
-        {/* Save confirmation popover */}
-        {saveConfirmed && (
-          <span className="absolute -top-7 left-1/2 -translate-x-1/2 flex items-center gap-1 whitespace-nowrap rounded-md bg-green-600 px-2 py-0.5 text-[11px] font-medium text-white shadow-lg animate-fade-in">
-            <Check className="h-3 w-3" />
-            {t('saved')}
-          </span>
-        )}
-      </div>
-
-      {/* Deadline info */}
-      {isLocked && (
-        <p className="text-[10px] leading-tight text-red-500 dark:text-red-400">
-          {t('deadlinePassed')}
-        </p>
-      )}
       {event.respond_by && !deadlinePassed && (
         <p className="text-[10px] leading-tight text-gray-400 dark:text-gray-500">
           {t('respondBy', { ns: 'events' })}: {formatDate(event.respond_by)}, {formatTime(event.respond_by) || (event.start_date ? formatTime(event.start_date) : '')}
@@ -416,10 +378,8 @@ function EventCardParticipation({ event, existingParticipation, onSaved, onStatu
  *  did that, which is why the roster's day tabs showed 0 while Overall showed
  *  N/2). Aggregate status: all-same → that button is active; mixed → no button
  *  active, and an "X/Y confirmed" hint shows. */
-function EventCardSessionParticipation({ event, onSaved, onStatusChange }: { event: Event; onSaved?: () => void; onStatusChange?: (status: Participation['status'] | 'mixed' | null | undefined) => void }) {
-  const { t } = useTranslation('participation')
+function EventCardSessionParticipation({ event, participations, onSaved, onStatusChange }: { event: Event; participations?: Participation[]; onSaved?: () => void; onStatusChange?: (status: Participation['status'] | 'mixed' | null | undefined) => void }) {
   const { t: te } = useTranslation('events')
-  const { answer, answeringFor } = useRsvpLabels()
   const { user, isStaffOnlyForTeams } = useAuth()
   // Every invited team, not just `teams[0]` — a D1 coach on an H3 + D1 event
   // was classified as a player whenever H3 sorted first in the junction.
@@ -526,60 +486,41 @@ function EventCardSessionParticipation({ event, onSaved, onStatusChange }: { eve
   }, [user, savingAll, total, sessionDataReady, sessions, myBySession, update, create, event.id, isStaff, onSaved])
 
   // Until both queries land, `statuses` is all-null and `aggregate` is therefore
-  // null — which the pill row below renders as three unselected buttons, i.e. a
-  // definitive "you have not answered this event" for a member who did answer.
-  // (Past the respond-by deadline it is worse: the `aggregate === s` filter strips
-  // every pill and only "Deadline passed" remains.) Show the row's shape as
-  // skeletons instead — same footprint, so nothing shifts when the real pills
-  // arrive, and nothing claims an answer that has not been fetched yet.
-  if (!sessionDataReady) return (
-    <div className="flex flex-wrap items-center gap-1.5" aria-busy="true">
-      {['w-12', 'w-16', 'w-11'].map((w) => (
-        <RsvpPillSkeleton key={w} className={w} />
-      ))}
-      {!isLocked && <RsvpPillSkeleton className="w-20" />}
-    </div>
-  )
-
-  if (total === 0) return null
+  // null — three unselected buttons would be a definitive "you have not answered"
+  // for a member who did. So the buttons render in their `loading` state (same
+  // footprint, disabled, nothing selected-looking) until the real answer lands.
+  if (sessionDataReady && total === 0) return null
 
   return (
     <div className="space-y-1.5">
-      {answeringFor && <p className="text-[11px] font-medium leading-tight text-gray-600 dark:text-gray-300">{answeringFor}</p>}
-      <div className="flex flex-wrap items-center gap-1.5">
-        {(['confirmed', 'tentative', 'declined'] as const)
-          .filter((s) => s !== 'tentative' || event.allow_maybe !== false)
-          .filter((s) => !isLocked || aggregate === s)
-          .map((status) => {
-            const active = aggregate === status
-            const label = answer
-            return (
-              <RsvpPill
-                key={status}
-                onClick={() => !isLocked && setAll(status)}
-                disabled={isLocked || savingAll}
-                className={rsvpButtonClass(status, active)}
-              >
-                {label[status]}
-              </RsvpPill>
-            )
-          })}
-        {!isLocked && (
-          <RsvpPill
+      <RsvpAnswerButtons
+        compact
+        activityType="event"
+        activityId={event.id}
+        participations={participations ?? []}
+        value={sessionDataReady ? aggregate : null}
+        onSelect={(status) => { void setAll(status) }}
+        locked={isLocked}
+        loading={!sessionDataReady || savingAll}
+        options={rsvpOptions(event)}
+        hideCoachPresent
+        trailing={!isLocked && sessionDataReady ? (
+          <Button
+            type="button"
+            size="tool"
+            variant="outline"
             onClick={() => setSheetOpen(true)}
-            className="bg-brand-100 text-brand-700 hover:bg-brand-200 dark:bg-brand-900/30 dark:text-brand-400 dark:hover:bg-brand-900/50"
+            className="text-brand-700 dark:text-brand-400"
           >
+            <CalendarDays aria-hidden />
             {te('perDay', { defaultValue: 'Per day' })}
-          </RsvpPill>
-        )}
-      </div>
+          </Button>
+        ) : undefined}
+      />
       {mixed && (
         <p className="text-[10px] leading-tight text-gray-400 dark:text-gray-500">
           {te('sessionsConfirmed', { confirmed: confirmedCount, total })}
         </p>
-      )}
-      {isLocked && (
-        <p className="text-[10px] leading-tight text-red-500 dark:text-red-400">{t('deadlinePassed')}</p>
       )}
       {event.respond_by && !deadlinePassed && (
         <p className="text-[10px] leading-tight text-gray-400 dark:text-gray-500">
@@ -598,3 +539,7 @@ function EventCardSessionParticipation({ event, onSaved, onStatusChange }: { eve
   )
 }
 
+/** Answers this event offers on its card (Maybe off when `allow_maybe` is false). */
+function rsvpOptions(event: Event): RsvpStatus[] {
+  return event.allow_maybe === false ? ['confirmed', 'declined'] : ['confirmed', 'tentative', 'declined']
+}

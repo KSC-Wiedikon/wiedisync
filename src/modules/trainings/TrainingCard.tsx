@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { Users, Pencil, Trash2 } from 'lucide-react'
+import { Users, Pencil } from 'lucide-react'
 import TeamChip from '../../components/TeamChip'
 import ParticipationSummary from '../../components/ParticipationSummary'
 import { useAuth } from '../../hooks/useAuth'
@@ -32,8 +32,8 @@ interface TrainingCardProps {
   /** Pre-fetched current user's participation (from batch query) */
   myParticipation?: Participation
   onOpenRoster?: (trainingId: string, teamId: string, date: string) => void
+  /** Delete lives in the edit dialog (TrainingForm `onDelete`), not on the card. */
   onEdit?: (training: Training) => void
-  onDelete?: (trainingId: string) => void
   /** Called after a participation save — parent can refetch */
   onParticipationSaved?: () => void
 }
@@ -43,7 +43,7 @@ interface TrainingCardProps {
  *   rail (weekday / dd.mm / time) ┃ stripe = my RSVP ┃ body (title + status,
  *   chips, details, RSVP, counters) — then ONE tools line under a hairline.
  */
-export default function TrainingCard({ training, participations, myParticipation, onOpenRoster, onEdit, onDelete, onParticipationSaved }: TrainingCardProps) {
+export default function TrainingCard({ training, participations, myParticipation, onOpenRoster, onEdit, onParticipationSaved }: TrainingCardProps) {
   const { t } = useTranslation('trainings')
   const { t: tc } = useTranslation('common')
   const { user, canParticipateIn, isStaffOnly, getGuestLevel } = useAuth()
@@ -60,7 +60,11 @@ export default function TrainingCard({ training, participations, myParticipation
   const cancelled = !!training.cancelled
   const shortened = !cancelled && training.auto_shortened_by_game != null
   const hallName = hall?.name || training.hall_name
-  const showCounters = !cancelled && ((participations?.length ?? 0) > 0 || warnings.length > 0)
+  const canAnswer = !cancelled && !!user && canParticipateIn(teamId)
+  // Viewers who answer see the totals INSIDE the answer buttons; everyone else
+  // keeps the counters-only bars.
+  const showSummary = !cancelled && !(canAnswer && !guestExcluded) && (participations?.length ?? 0) > 0
+  const showCounters = showSummary || (!cancelled && warnings.length > 0)
 
   return (
     <div className={cn(
@@ -121,7 +125,7 @@ export default function TrainingCard({ training, participations, myParticipation
             <p className="mt-1 break-words text-xs text-gray-500 dark:text-gray-400">{training.notes}</p>
           )}
 
-          {!cancelled && user && canParticipateIn(teamId) && (
+          {canAnswer && (
             <div className="mt-2.5">
               <ActivityParticipation
                 kind="training"
@@ -133,6 +137,8 @@ export default function TrainingCard({ training, participations, myParticipation
                 isStaff={isStaff}
                 guestExcluded={guestExcluded}
                 onSaved={onParticipationSaved}
+                participations={participations}
+                coachMemberIds={teamCoachIds(team)}
               />
             </div>
           )}
@@ -141,7 +147,7 @@ export default function TrainingCard({ training, participations, myParticipation
               justify-between line with the action buttons. */}
           {showCounters && (
             <div className="mt-2 flex flex-wrap items-center gap-2">
-              {participations && participations.length > 0 && (
+              {showSummary && (
                 <ParticipationSummary activityType="training" activityId={training.id} bars participations={participations} coachMemberIds={teamCoachIds(team)} />
               )}
               {warnings.length > 0 && <ParticipationWarningBadge warnings={warnings} namespace="participation" />}
@@ -174,19 +180,6 @@ export default function TrainingCard({ training, participations, myParticipation
           <Button size="tool" variant="outline" onClick={() => onEdit(training)} title={t('editTraining')} aria-label={t('editTraining')}>
             <Pencil aria-hidden />
             {tc('edit')}
-          </Button>
-        )}
-        {!cancelled && onDelete && (
-          <Button
-            size="tool"
-            variant="outline"
-            onClick={() => onDelete(training.id)}
-            title={t('deleteTraining')}
-            aria-label={t('deleteTraining')}
-            className="text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-900/20 dark:hover:text-red-300"
-          >
-            <Trash2 aria-hidden />
-            {tc('delete')}
           </Button>
         )}
         {/* Share sits on the CARD, not in a detail modal, because this card

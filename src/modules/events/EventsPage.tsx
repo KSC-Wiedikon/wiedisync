@@ -255,23 +255,30 @@ export default function EventsPage() {
 
   return (
     <div>
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="flex items-center gap-3">
+      {/* Non-wrapping header row: the title group wraps inside itself, the
+          "New event" action stays top-right (shrink-0). */}
+      <div className="flex items-start gap-4">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-2">
           <h1 className="text-xl font-bold text-gray-900 sm:text-2xl dark:text-gray-100">{t('title')}</h1>
           <GuideHelpButton />
-          <button
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            aria-pressed={showPast}
             onClick={() => setShowPast((v) => !v)}
-            className={`min-h-[36px] rounded-full px-2.5 py-1.5 text-xs font-medium transition-colors ${
+            className={`rounded-full ${
               showPast
-                ? 'bg-brand-100 text-brand-700 dark:bg-brand-900/40 dark:text-brand-300'
-                : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
+                ? 'bg-brand-100 text-brand-700 hover:bg-brand-200 dark:bg-brand-900/40 dark:text-brand-300 dark:hover:bg-brand-900/60'
+                : 'bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600'
             }`}
           >
             {t('showPast')}
-          </button>
+          </Button>
         </div>
         {!teamsLoading && isCoach && (
           <Button
+            className="shrink-0"
             onClick={() => {
               setEditingEvent(null)
               setFormOpen(true)
@@ -314,7 +321,6 @@ export default function EventsPage() {
                   event={event}
                   onClick={() => setSelectedEvent(event)}
                   onEdit={canEdit ? handleEdit : undefined}
-                  onDelete={canEdit ? setDeletingId : undefined}
                   onOpenRoster={setRosterEvent}
                   participations={participationsByEvent.get(event.id)}
                   myParticipation={myParticipationByEvent.get(event.id)}
@@ -334,6 +340,15 @@ export default function EventsPage() {
           setFormOpen(false)
           setEditingEvent(null)
         }}
+        // Delete lives in the edit dialog now (not on the card). The form only
+        // opens on an existing event through handleEdit, which the card offers
+        // only under `canEdit` — the same gate the card's Delete had.
+        onDelete={editingEvent ? () => {
+          const id = editingEvent.id
+          setFormOpen(false)
+          setEditingEvent(null)
+          setDeletingId(id)
+        } : undefined}
       />
 
       <ConfirmDialog

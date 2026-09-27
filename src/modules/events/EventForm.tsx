@@ -6,6 +6,7 @@ import { useAdminMode } from '../../hooks/useAdminMode'
 import { useMutation } from '../../hooks/useMutation'
 import { useCollection } from '../../lib/query'
 import { Button } from '@/components/ui/button'
+import { Trash2 } from 'lucide-react'
 import { FormInput, FormTextarea, FormField } from '@/components/FormField'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import DatePicker from '@/components/ui/DatePicker'
@@ -48,6 +49,9 @@ interface EventFormProps {
   event?: Event | null
   onSave: () => void
   onCancel: () => void
+  /** Editing an existing record: renders a destructive "Delete" on the left of
+   *  the footer. The page closes the form and opens its own confirm dialog. */
+  onDelete?: () => void
 }
 
 /** Generate dates between start and end (inclusive) as YYYY-MM-DD strings */
@@ -70,7 +74,7 @@ function formatDateShort(dateStr: string): string {
   return d.toLocaleDateString(currentLocale(), { weekday: 'short', day: 'numeric', month: 'short' })
 }
 
-export default function EventForm({ open, event, onSave, onCancel }: EventFormProps) {
+export default function EventForm({ open, event, onSave, onCancel, onDelete }: EventFormProps) {
   const { t, i18n } = useTranslation('events')
   const { t: tc } = useTranslation('common')
   const confirm = useConfirm()
@@ -1053,7 +1057,19 @@ export default function EventForm({ open, event, onSave, onCancel }: EventFormPr
 
         {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
-        <div className="flex justify-end gap-3 pt-2">
+        {/* Delete sits LEFT (mr-auto), Cancel/Save stay right — one non-wrapping row. */}
+        <div className="flex items-center justify-end gap-3 pt-2">
+          {event?.id && onDelete && (
+            <Button
+              variant="outline"
+              type="button"
+              onClick={onDelete}
+              className="mr-auto border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/20 dark:hover:text-red-300"
+            >
+              <Trash2 aria-hidden />
+              {tc('delete')}
+            </Button>
+          )}
           <Button variant="ghost" type="button" onClick={onCancel}>
             {tc('cancel')}
           </Button>

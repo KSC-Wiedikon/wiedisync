@@ -44,6 +44,14 @@ export interface RsvpAnswerButtonsProps {
   /** Show the green "Saved" flash above the buttons. */
   saved?: boolean
   hideCoachPresent?: boolean
+  /**
+   * Card mode: no label line above the buttons. The household "Answering for …"
+   * caption, "Coach present", the waitlist count and `trailing` go on ONE small
+   * line under the buttons instead, so the buttons sit right under the card's
+   * details. Everything else (grid, container queries, locked/loading/saved,
+   * household one-column mode) is unchanged.
+   */
+  compact?: boolean
   className?: string
 }
 
@@ -62,7 +70,7 @@ export interface RsvpAnswerButtonsProps {
 export default function RsvpAnswerButtons({
   activityType, activityId, participations, coachMemberIds,
   value, onSelect, locked, loading, options = ['confirmed', 'tentative', 'declined'],
-  label, trailing, saved, hideCoachPresent, className,
+  label, trailing, saved, hideCoachPresent, compact, className,
 }: RsvpAnswerButtonsProps) {
   const { t } = useTranslation('participation')
   const { answer, actingName, answeringFor } = useRsvpLabels()
@@ -75,33 +83,43 @@ export default function RsvpAnswerButtons({
   const stacked = !!actingName
   const disabled = !!locked || !!loading
 
+  const labelId = `rsvp-label-${activityType}-${activityId}`
+  const coachPresent = !hideCoachPresent && !counts.pending && counts.staffConfirmed > 0 ? (
+    <span className="flex items-center gap-1 text-[11px] text-brand-600 dark:text-brand-400">
+      <Award className="h-3 w-3" aria-hidden />
+      {t('coachPresent')}
+    </span>
+  ) : null
+  const waitlist = !counts.pending && counts.waitlisted > 0 ? (
+    <span className="flex items-center gap-1 rounded-md bg-orange-50 px-2 py-1 text-xs font-semibold tabular-nums text-orange-700 dark:bg-orange-900/20 dark:text-orange-300" title={t('waitlisted')}>
+      <Hourglass className="h-3 w-3" aria-hidden />
+      {counts.waitlisted}
+    </span>
+  ) : null
+  // Compact: the caption is only rendered when there is something to say —
+  // a household caption / custom label; "Your status" alone is noise on a card.
+  const compactCaption = label ?? answeringFor
+
   return (
     <div className={cn('space-y-1.5', className)}>
-      <div className="flex min-h-11 items-center justify-between gap-2">
-        <span id={`rsvp-label-${activityType}-${activityId}`} className="min-w-0 break-words text-sm font-medium text-gray-700 dark:text-gray-300">
-          {label ?? (answeringFor || t('yourStatus'))}
-        </span>
-        <span className="flex shrink-0 items-center gap-2">
-          {!hideCoachPresent && !counts.pending && counts.staffConfirmed > 0 && (
-            <span className="flex items-center gap-1 text-[11px] text-brand-600 dark:text-brand-400">
-              <Award className="h-3 w-3" aria-hidden />
-              {t('coachPresent')}
-            </span>
-          )}
-          {!counts.pending && counts.waitlisted > 0 && (
-            <span className="flex items-center gap-1 rounded-md bg-orange-50 px-2 py-1 text-xs font-semibold tabular-nums text-orange-700 dark:bg-orange-900/20 dark:text-orange-300" title={t('waitlisted')}>
-              <Hourglass className="h-3 w-3" aria-hidden />
-              {counts.waitlisted}
-            </span>
-          )}
-          {trailing}
-        </span>
-      </div>
+      {!compact && (
+        <div className="flex min-h-11 items-center justify-between gap-2">
+          <span id={labelId} className="min-w-0 break-words text-sm font-medium text-gray-700 dark:text-gray-300">
+            {label ?? (answeringFor || t('yourStatus'))}
+          </span>
+          <span className="flex shrink-0 items-center gap-2">
+            {coachPresent}
+            {waitlist}
+            {trailing}
+          </span>
+        </div>
+      )}
 
       <div className="relative @container">
         <div
           role="radiogroup"
-          aria-labelledby={`rsvp-label-${activityType}-${activityId}`}
+          aria-labelledby={compact ? undefined : labelId}
+          aria-label={compact ? (typeof compactCaption === 'string' && compactCaption ? compactCaption : t('yourStatus')) : undefined}
           aria-busy={loading || counts.pending || undefined}
           className={cn('grid gap-1.5', stacked ? 'grid-cols-1' : 'grid-cols-[repeat(var(--n),minmax(0,1fr))]')}
           style={{ ['--n' as string]: options.length }}
@@ -152,6 +170,21 @@ export default function RsvpAnswerButtons({
           </span>
         )}
       </div>
+
+      {compact && (compactCaption || coachPresent || waitlist || trailing) && (
+        // One small line under the buttons; the caption wraps, the indicators
+        // never do (shrink-0) — no justify-between around anything tappable.
+        <div className="flex items-center gap-2">
+          {compactCaption && (
+            <span className="min-w-0 flex-1 break-words text-[11px] font-medium leading-tight text-gray-600 dark:text-gray-300">{compactCaption}</span>
+          )}
+          <span className={cn('flex shrink-0 items-center gap-2', !compactCaption && 'flex-1')}>
+            {coachPresent}
+            {waitlist}
+            {trailing && <span className="ml-auto flex items-center">{trailing}</span>}
+          </span>
+        </div>
+      )}
 
       {locked && (
         <p className="flex items-center gap-1.5 text-xs text-red-600 dark:text-red-400">

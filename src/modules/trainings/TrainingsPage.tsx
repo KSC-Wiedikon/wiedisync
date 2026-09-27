@@ -195,8 +195,9 @@ export default function TrainingsPage() {
 
   return (
     <div>
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
+      {/* Non-wrapping header row: title block shrinks, the action stays top-right. */}
+      <div className="flex items-start gap-4">
+        <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-bold text-gray-900 sm:text-2xl dark:text-gray-100">{t('title')}</h1>
             <GuideHelpButton />
@@ -206,7 +207,7 @@ export default function TrainingsPage() {
         {(isCoach || effectiveIsAdmin) && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button>{t('newTraining')}</Button>
+              <Button className="shrink-0">{t('newTraining')}</Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem
@@ -274,7 +275,7 @@ export default function TrainingsPage() {
                 {t('hidePast')}
               </button>
             )}
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {trainings.map((training) => (
               <TrainingCard
                 key={training.id}
@@ -294,7 +295,6 @@ export default function TrainingsPage() {
                   excludedGuestLevels: Array.isArray(training.excluded_guest_levels) ? training.excluded_guest_levels : [],
                 })}
                 onEdit={canManageTeam(relId(training.team)) ? handleEdit : undefined}
-                onDelete={canManageTeam(relId(training.team)) ? setDeletingId : undefined}
               />
             ))}
             </div>
@@ -327,6 +327,15 @@ export default function TrainingsPage() {
           setEditingTraining(null)
           setEditScope('this')
         }}
+        // Delete lives in the edit dialog now (not on the card): close the form,
+        // then the same confirm + handleDelete + canManageTeam gate as before.
+        onDelete={editingTraining && canManageTeam(relId(editingTraining.team)) ? () => {
+          const id = editingTraining.id
+          setFormOpen(false)
+          setEditingTraining(null)
+          setEditScope('this')
+          setDeletingId(id)
+        } : undefined}
       />
 
       <RecurringTrainingModal

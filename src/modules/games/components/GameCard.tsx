@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { Users, Pencil, Trash2, MapPin } from 'lucide-react'
+import { Users, Pencil, MapPin } from 'lucide-react'
 import type { Game, Team, Hall, BaseRecord } from '../../../types'
 import { formatDayMonthZurich, formatTime, formatWeekday } from '../../../utils/dateHelpers'
 import { leagueShort } from '../../../utils/leagueShort'
@@ -45,8 +45,8 @@ interface GameCardProps {
   /** Called after a participation save — parent can refetch */
   onParticipationSaved?: () => void
   onOpenRoster?: (game: Game) => void
+  /** Delete lives in the edit dialog (GameDetailModal `onDelete`), not on the card. */
   onEdit?: (game: Game) => void
-  onDelete?: (id: string) => void
   /** Already-played fixture shown under the upcoming ones: greyed, no RSVP/cancel. */
   past?: boolean
 }
@@ -132,7 +132,7 @@ function ScoreAside({ side, game, sets, kscwWon, kscwLost }: {
   )
 }
 
-export default function GameCard({ game, onClick, variant = 'card', participations, myParticipation, warnings, onParticipationSaved, onOpenRoster, onEdit, onDelete, past }: GameCardProps) {
+export default function GameCard({ game, onClick, variant = 'card', participations, myParticipation, warnings, onParticipationSaved, onOpenRoster, onEdit, past }: GameCardProps) {
   const { t } = useTranslation('games')
   const { t: tc } = useTranslation('common')
   const { user, canParticipateIn, isStaffOnly, isGuestIn } = useAuth()
@@ -147,7 +147,7 @@ export default function GameCard({ game, onClick, variant = 'card', participatio
   const teamIdForPerms = relId(game.kscw_team)
   const canParticipate = !!user && !!teamIdForPerms && (canParticipateIn(teamIdForPerms) || isCalledUp)
   const canManage = !!user && canManageTeam(teamIdForPerms)
-  const canDelete = canManage && game.source === 'manual'
+  const guestExcluded = !!teamIdForPerms && isGuestIn(teamIdForPerms)
   const expanded = game as unknown as ExpandedGame
   const expandedHall = asObj<Hall & BaseRecord>(expanded.hall)
   const hallInfo = expandedHall
@@ -238,8 +238,7 @@ export default function GameCard({ game, onClick, variant = 'card', participatio
   const showCancel = !past && (game.status === 'scheduled' || game.status === 'cancelled')
   const showRoster = !!onOpenRoster
   const showEdit = !!onEdit && canManage
-  const showDelete = !!onDelete && canDelete
-  const hasTools = showCancel || showRoster || showEdit || showDelete
+  const hasTools = showCancel || showRoster || showEdit
   // Cards (game / training / event) share one stripe meaning: MY answer
   // (rsvpTone), cancelled overriding in red; the rail date stays neutral so a
   // red "declined" never reads as "cancelled". The game-state/result tone above
@@ -263,7 +262,13 @@ export default function GameCard({ game, onClick, variant = 'card', participatio
         status={
           // The warning badge is a popover trigger — keep its click from also
           // opening the game detail behind it.
-          <span className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+          // A played/cancelled game carries two badges (Home + Completed): stack
+          // them on a phone so they don't squeeze the team names to a few letters.
+          <span
+            className={cn('flex items-center gap-1.5', game.status !== 'scheduled' && 'max-sm:flex-col max-sm:items-end max-sm:gap-1')}
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
+          >
             {!past && game.status === 'scheduled' && warnings && warnings.length > 0 && (
               <ParticipationWarningBadge warnings={warnings} namespace="participation" />
             )}
@@ -289,7 +294,9 @@ export default function GameCard({ game, onClick, variant = 'card', participatio
         }
       >
         {!past && game.status === 'scheduled' && (
-          <div className="mt-2 flex flex-wrap items-end gap-2">
+          // Answerers get Yes/Maybe/No with the team totals inside the buttons;
+          // everyone else (and an excluded guest) keeps the counters-only bars.
+          <div className="mt-2 space-y-2">
             {canParticipate && (
               <ActivityParticipation
                 kind="game"
@@ -299,11 +306,15 @@ export default function GameCard({ game, onClick, variant = 'card', participatio
                 activityTime={game.time}
                 existingParticipation={myParticipation}
                 isStaff={!!teamIdForPerms && isStaffOnly(teamIdForPerms)}
-                guestExcluded={!!teamIdForPerms && isGuestIn(teamIdForPerms)}
+                guestExcluded={guestExcluded}
                 onSaved={onParticipationSaved}
+                participations={participations}
+                coachMemberIds={teamCoachIds(kscwTeamObj)}
               />
             )}
-            <ParticipationSummary activityType="game" activityId={game.id} bars alwaysShow participations={participations ?? []} coachMemberIds={teamCoachIds(kscwTeamObj)} />
+            {!(canParticipate && !guestExcluded) && (
+              <ParticipationSummary activityType="game" activityId={game.id} bars alwaysShow participations={participations ?? []} coachMemberIds={teamCoachIds(kscwTeamObj)} />
+            )}
           </div>
         )}
       </ActivityRow>
@@ -334,19 +345,6 @@ export default function GameCard({ game, onClick, variant = 'card', participatio
               aria-label={t('editGame')}
             >
               <Pencil aria-hidden />{tc('edit')}
-            </Button>
-          )}
-          {showDelete && (
-            <Button
-              type="button"
-              size="tool"
-              variant="outline"
-              onClick={() => onDelete(game.id)}
-              title={t('deleteGame')}
-              aria-label={t('deleteGame')}
-              className="border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/20"
-            >
-              <Trash2 aria-hidden />{tc('delete')}
             </Button>
           )}
           {showCancel && (

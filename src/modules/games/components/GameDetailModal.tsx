@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { MessageSquare, X, Check, AlertTriangle, } from 'lucide-react'
+import { MessageSquare, X, Check, AlertTriangle, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Game, Team, Hall, Member, BaseRecord, Participation } from '../../../types'
 import { Button } from '@/components/ui/button'
@@ -65,6 +65,13 @@ interface GameDetailModalProps {
    * collapsed header they have to find first.
    */
   focus?: 'refereeExpense' | 'carpool'
+  /**
+   * Games page only: deleting a manual game lives here (not on the card). When
+   * set, a destructive "Delete" renders in a footer at the bottom of the dialog;
+   * the page closes the dialog and opens its own confirm. The caller owns the
+   * permission gate (manual game + canManageTeam).
+   */
+  onDelete?: () => void
 }
 
 type ExpandedGame = Game & {
@@ -169,7 +176,7 @@ function DutyRowSkeleton() {
   )
 }
 
-export default function GameDetailModal({ game, onClose, readOnly, participations, focus }: GameDetailModalProps) {
+export default function GameDetailModal({ game, onClose, readOnly, participations, focus, onDelete }: GameDetailModalProps) {
   const { t } = useTranslation('games')
   const { t: tc } = useTranslation('common')
   const { user, isStaffOnly, canParticipateIn, isGuestIn, coachTeamIds, teamResponsibleIds, hasAdminAccessToTeam, isSuperAdmin, teamsLoading } = useAuth()
@@ -1175,6 +1182,21 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
             kscwTeamId={kscwTeamId}
             canEdit={!readOnly && (adminSeesContact || coachTeamIds.includes(kscwTeamId) || teamResponsibleIds.includes(kscwTeamId))}
           />
+        )}
+
+        {/* Footer: Delete on the left (mr-auto), in a non-wrapping row. */}
+        {!readOnly && onDelete && (
+          <div className="flex items-center gap-3 border-t px-6 py-4 dark:border-gray-700">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onDelete}
+              className="mr-auto border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/20 dark:hover:text-red-300"
+            >
+              <Trash2 aria-hidden />
+              {t('common:delete')}
+            </Button>
+          </div>
         )}
       </div>
     </div>
