@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Check, MessageSquare } from 'lucide-react'
+import { Check, ExternalLink, MessageSquare, Pencil, Trash2, Users } from 'lucide-react'
 import StatusBadge from '../../components/StatusBadge'
 import TeamChip from '../../components/TeamChip'
 import RichText from '../../components/RichText'
@@ -16,11 +16,17 @@ import { useRealtime } from '../../hooks/useRealtime'
 import { useMyCoveringAbsence } from '../../hooks/useMyCoveringAbsence'
 import { useAbsenceNoteText } from '../../hooks/useAbsenceNoteText'
 import { useRsvpLabels } from '../../hooks/useRsvpLabels'
-import { formatDate, formatTime, getDeadlineDate } from '../../utils/dateHelpers'
+import { formatDate, formatTime, formatWeekday, formatDayMonthZurich, getDeadlineDate } from '../../utils/dateHelpers'
 import { asTeams, teamId, isHtml, isSameDay, isGuestExcludedFromEvent } from './eventHelpers'
 import type { Event, EventSession, Participation } from '../../types'
 import CancelActivityButton from '../../components/CancelActivityButton'
 import CarpoolChip from '../carpool/CarpoolChip'
+import RsvpPill, { RsvpPillSkeleton } from '../../components/RsvpPill'
+import TruncatedText from '../../components/TruncatedText'
+import { DateRail, RowStripe, RowChip } from '../../components/ActivityRow'
+import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
+import { rsvpTone } from '../../utils/rsvpTone'
 
 interface EventCardProps {
   event: Event
@@ -36,19 +42,11 @@ interface EventCardProps {
   onParticipationSaved?: () => void
 }
 
-/** Status shown on the card's left-edge banner. `mixed` is not a participation
- *  status — it's what a per-day event looks like when the member answered its
- *  sessions differently (some yes, some no), which has no single colour. */
+/** Status shown on the card's state stripe (the former left-edge banner).
+ *  `mixed` is not a participation status — it's what a per-day event looks
+ *  like when the member answered its sessions differently (some yes, some no),
+ *  which has no single answer colour (see rsvpTone). */
 type BannerStatus = Participation['status'] | 'mixed'
-
-const statusBorderColor: Record<string, string> = {
-  confirmed: 'bg-green-500 dark:bg-green-400',
-  tentative: 'bg-yellow-500 dark:bg-yellow-400',
-  declined: 'bg-red-500 dark:bg-red-400',
-  waitlisted: 'bg-orange-500 dark:bg-orange-400',
-  absent: 'bg-gray-400 dark:bg-gray-500',
-  mixed: 'bg-gradient-to-b from-green-500 to-red-500 dark:from-green-400 dark:to-red-400',
-}
 
 export default function EventCard({ event, onClick, onEdit, onDelete, onOpenRoster, participations, myParticipation, onParticipationSaved }: EventCardProps) {
   const { t } = useTranslation('events')
@@ -82,183 +80,168 @@ export default function EventCard({ event, onClick, onEdit, onDelete, onOpenRost
     ? liveStatus
     : (myParticipation?.status ?? null)
 
-  // Roster / edit / delete. Extracted so the same markup can sit inline in the
-  // header on >=sm and drop to a full-width footer row on a phone: four icon
-  // buttons beside a nowrap title do not fit 375px, and the card's
-  // overflow-hidden clipped the last one clean off rather than wrapping it.
-  // `null` when the viewer manages nothing, so the footer's divider never
-  // renders as a stray line under a plain member's card.
-  const managementActions = (onOpenRoster || onEdit || onDelete) ? (
-    <>
-      {onOpenRoster && (
-        <button
-          onClick={() => onOpenRoster(event)}
-          className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-600 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-300"
-          title={t('viewRoster')}
-        >
-          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
-          </svg>
-        </button>
-      )}
-      {onEdit && (
-        <button
-          onClick={() => onEdit(event)}
-          className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-600 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-300"
-          title={t('editEvent')}
-        >
-          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
-          </svg>
-        </button>
-      )}
-      {onDelete && (
-        <button
-          onClick={() => onDelete(event.id)}
-          className="rounded-lg p-2 text-gray-500 hover:bg-red-50 hover:text-red-600 dark:text-gray-400 dark:hover:bg-red-900/20 dark:hover:text-red-400"
-          title={t('deleteEvent')}
-        >
-          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-          </svg>
-        </button>
-      )}
-    </>
-  ) : null
+  const cancelled = !!event.cancelled
+  const sameDay = isSameDay(event.start_date, event.end_date)
+  // Rail extra line: the end — "–18:00" on a timed one-day event, "– 14.06"
+  // (+ time) on a multi-day one. Wraps inside the rail, never truncates.
+  const railEnd = !sameDay
+    ? `– ${formatDayMonthZurich(event.end_date)}${!event.all_day ? ` ${formatTime(event.end_date)}` : ''}`
+    : !event.all_day && event.end_date ? `–${formatTime(event.end_date)}` : undefined
+  const targeted = (event.invited_roles ?? []).length > 0 || (event.invited_members ?? []).length > 0
+  const showCounters = rsvpControlsVisible || (!canRSVP && warnings.length > 0)
 
   return (
     <div
-      className={`flex items-stretch overflow-hidden rounded-xl border border-gray-200 bg-white shadow-card dark:border-gray-700 dark:bg-gray-800${onClick ? ' cursor-pointer transition-shadow hover:shadow-card-hover' : ''}${event.cancelled ? ' opacity-60' : ''}`}
+      className={cn(
+        'overflow-hidden rounded-xl border border-gray-200 bg-white shadow-card dark:border-gray-700 dark:bg-gray-800',
+        onClick && 'cursor-pointer transition-shadow hover:shadow-card-hover',
+        cancelled && 'opacity-60',
+      )}
       onClick={onClick}
       role={onClick ? 'button' : undefined}
       tabIndex={onClick ? 0 : undefined}
-      onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick() } } : undefined}
+      // Only the card itself reacts to Enter/Space — a keystroke bubbling up
+      // from the note input or an RSVP pill must not open the detail modal
+      // (and Space must still type a space in the note).
+      onKeyDown={onClick ? (e) => { if (e.target !== e.currentTarget) return; if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick() } } : undefined}
     >
-      {/* Participation status vertical banner */}
-      {user && myStatus && (
-        <div className={`w-1 shrink-0 ${statusBorderColor[myStatus] ?? ''}`} />
-      )}
-      <div className="min-w-0 flex-1 p-3">
-      {/* Top row: badge + title + actions */}
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-2">
-          <StatusBadge status={event.event_type} />
-          <h2 className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">{event.title}</h2>
-        </div>
-        <div className="flex shrink-0 items-center gap-1" onClick={(e) => e.stopPropagation()}>
-          {event.cancelled && (
-            <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700 dark:bg-red-900/30 dark:text-red-400">
-              {t('cancelled')}
-            </span>
-          )}
-          {/* Car pooling (migration 378) — straight to the rides board. */}
-          {!event.cancelled && event.carpool_enabled && user && (
-            <CarpoolChip type="event" id={event.id} scope={event.carpool_teams} />
-          )}
-          <CancelActivityButton
-            kind="event"
-            activityId={event.id}
-            isCancelled={!!event.cancelled}
-            teamIds={asTeams(event.teams).map((tm) => String(tm.id))}
-            variant="icon"
-            onDone={onParticipationSaved}
-          />
-          {managementActions && (
-            <div className="hidden items-center gap-1 sm:flex">{managementActions}</div>
-          )}
-        </div>
-      </div>
-      {/* Details */}
-      <p className="mt-1.5 text-sm text-gray-600 dark:text-gray-400">
-        {formatDate(event.start_date)}
-        {!event.all_day && `, ${formatTime(event.start_date)}`}
-        {!event.all_day && isSameDay(event.start_date, event.end_date)
-          ? `–${formatTime(event.end_date)}`
-          : !isSameDay(event.start_date, event.end_date) && (
-            ` — ${formatDate(event.end_date)}${!event.all_day ? `, ${formatTime(event.end_date)}` : ''}`
-          )}
-        {event.all_day && ` · ${t('allDay')}`}
-      </p>
-      {event.location && (
-        <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
-          <a
-            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.location)}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hover:text-brand-600 hover:underline dark:hover:text-brand-400"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {event.location} ↗
-          </a>
-        </p>
-      )}
-      {event.description && (
-        isHtml(event.description)
-          ? <RichText html={event.description} className="mt-1 text-sm text-gray-500 dark:text-gray-400" />
-          : <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{event.description}</p>
-      )}
-      {event.cancelled && event.cancel_reason && (
-        <p className="mt-1 text-xs text-red-600 dark:text-red-400">{event.cancel_reason}</p>
-      )}
-      {teams.length > 0 && (
-        <div className="mt-2 flex flex-wrap gap-1">
-          {teams.map((team) => (
-            <TeamChip key={team.id} team={team.name} size="sm" />
-          ))}
-        </div>
-      )}
-      {((event.invited_roles ?? []).length > 0 || (event.invited_members ?? []).length > 0) && (
-        <span className="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
-          {t('targetedEvent', { ns: 'invitations' })}
-        </span>
-      )}
+      <div className="flex items-stretch gap-2.5 p-3 sm:gap-3">
+        {/* Rail neutral unless cancelled; my RSVP colours the stripe only (a
+            red date for "I declined" would read as "event cancelled"). */}
+        <DateRail
+          eyebrow={formatWeekday(event.start_date)}
+          main={<span title={formatDate(event.start_date)}>{formatDayMonthZurich(event.start_date)}</span>}
+          sub={event.all_day ? t('allDay') : formatTime(event.start_date)}
+          extra={railEnd}
+          tone={cancelled ? 'red' : 'gray'}
+        />
+        <RowStripe tone={cancelled ? 'red' : user ? rsvpTone(myStatus) : 'gray'} />
 
-      {/* Bottom row: RSVP + participation bars */}
-      {canRSVP && !event.cancelled && (
-        <div className="mt-2.5 space-y-1.5" onClick={(e) => e.stopPropagation()}>
-          <div className="flex flex-wrap items-end justify-between gap-2">
-            {event.participation_mode && event.participation_mode !== 'whole' ? (
-              <EventCardSessionParticipation
-                event={event}
-                onSaved={onParticipationSaved}
-                onStatusChange={setLiveStatus}
-              />
-            ) : (
-              <EventCardParticipation
-                event={event}
-                existingParticipation={myParticipation}
-                onSaved={onParticipationSaved}
-                onStatusChange={setLiveStatus}
-              />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start gap-2">
+            {/* Primary text WRAPS — a truncated title hid the part that tells two events apart. */}
+            <h2 className="min-w-0 flex-1 break-words text-sm font-semibold leading-snug text-gray-900 sm:text-[15px] dark:text-gray-100">{event.title}</h2>
+            {cancelled && (
+              <span className="mt-0.5 flex shrink-0 items-center">
+                <RowChip tone="red">{t('cancelled')}</RowChip>
+              </span>
             )}
-            <div className="flex items-center gap-2">
+          </div>
+
+          <div className="mt-1.5 flex flex-wrap items-stretch gap-1.5">
+            <StatusBadge status={event.event_type} />
+            {teams.map((team) => (
+              <TeamChip key={team.id} team={team.name} size="sm" />
+            ))}
+            {targeted && <RowChip tone="violet">{t('targetedEvent', { ns: 'invitations' })}</RowChip>}
+          </div>
+
+          {event.location && (
+            <p className="mt-1.5 flex min-w-0 text-sm text-gray-500 dark:text-gray-400">
+              <a
+                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.location)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex min-w-0 items-center gap-1 hover:text-brand-600 hover:underline dark:hover:text-brand-400"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <TruncatedText text={event.location} />
+                <ExternalLink className="h-3 w-3 shrink-0" aria-hidden />
+              </a>
+            </p>
+          )}
+          {event.description && (
+            isHtml(event.description)
+              ? <RichText html={event.description} className="mt-1 text-sm text-gray-500 dark:text-gray-400" />
+              : <p className="mt-1 break-words text-sm text-gray-500 dark:text-gray-400">{event.description}</p>
+          )}
+          {cancelled && event.cancel_reason && (
+            <p className="mt-1 text-xs text-red-600 dark:text-red-400">{event.cancel_reason}</p>
+          )}
+
+          {/* RSVP. The wrapper swallows clicks: the per-day sheet is a portal,
+              and React bubbles portal clicks through the tree to the card. */}
+          {rsvpControlsVisible && (
+            <div className="mt-2.5" onClick={(e) => e.stopPropagation()}>
+              {event.participation_mode && event.participation_mode !== 'whole' ? (
+                <EventCardSessionParticipation
+                  event={event}
+                  onSaved={onParticipationSaved}
+                  onStatusChange={setLiveStatus}
+                />
+              ) : (
+                <EventCardParticipation
+                  event={event}
+                  existingParticipation={myParticipation}
+                  onSaved={onParticipationSaved}
+                  onStatusChange={setLiveStatus}
+                />
+              )}
+            </div>
+          )}
+          {guestExcluded && !cancelled && (
+            <p className="mt-2 text-xs italic text-gray-500 dark:text-gray-400">{t('guestNotInvited')}</p>
+          )}
+
+          {/* Counters in the body, under the RSVP. */}
+          {showCounters && (
+            <div className="mt-2 flex flex-wrap items-center gap-2" onClick={(e) => e.stopPropagation()}>
+              {rsvpControlsVisible && (
+                <ParticipationSummary activityType="event" activityId={event.id} bars hideExtras participations={participations} />
+              )}
               {warnings.length > 0 && (
                 <ParticipationWarningBadge warnings={warnings} namespace="participation" />
               )}
-              <ParticipationSummary activityType="event" activityId={event.id} bars hideExtras participations={participations} />
             </div>
-          </div>
+          )}
         </div>
-      )}
-      {guestExcluded && !event.cancelled && (
-        <p className="mt-2 text-xs italic text-gray-500 dark:text-gray-400">{t('guestNotInvited')}</p>
-      )}
-      {!canRSVP && warnings.length > 0 && (
-        <div className="mt-2 flex items-center gap-2">
-          <ParticipationWarningBadge warnings={warnings} namespace="participation" />
-        </div>
-      )}
+      </div>
 
-      {/* Phone-only action row. The negative margin + padding pair lets the
-          divider span the card's full width from inside the p-3 box. */}
-      {managementActions && (
-        <div
-          className="-mx-3 mt-2.5 flex items-center justify-end gap-1 border-t border-gray-100 px-3 pt-1.5 sm:hidden dark:border-gray-700"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {managementActions}
-        </div>
-      )}
+      {/* ONE tools line at every width (replaces the sm+ header cluster AND the
+          phone-only footer that duplicated it). Swallows clicks so a tool never
+          also opens the detail modal; `empty:hidden` drops the hairline when
+          the viewer has nothing to do here. */}
+      <div
+        className="flex flex-wrap items-center gap-1.5 border-t border-gray-100 px-3 py-2 empty:hidden dark:border-gray-700"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Car pooling (migration 378) — straight to the rides board. */}
+        {!cancelled && event.carpool_enabled && user && (
+          <CarpoolChip type="event" id={event.id} scope={event.carpool_teams} />
+        )}
+        {onOpenRoster && (
+          <Button size="tool" variant="outline" onClick={() => onOpenRoster(event)} title={t('viewRoster')} aria-label={t('viewRoster')}>
+            <Users aria-hidden />
+            {t('rosterTitle', { ns: 'participation' })}
+          </Button>
+        )}
+        {onEdit && (
+          <Button size="tool" variant="outline" onClick={() => onEdit(event)} title={t('editEvent')} aria-label={t('editEvent')}>
+            <Pencil aria-hidden />
+            {t('edit', { ns: 'common' })}
+          </Button>
+        )}
+        {onDelete && (
+          <Button
+            size="tool"
+            variant="outline"
+            onClick={() => onDelete(event.id)}
+            title={t('deleteEvent')}
+            aria-label={t('deleteEvent')}
+            className="text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-900/20 dark:hover:text-red-300"
+          >
+            <Trash2 aria-hidden />
+            {t('delete', { ns: 'common' })}
+          </Button>
+        )}
+        <CancelActivityButton
+          kind="event"
+          activityId={event.id}
+          isCancelled={cancelled}
+          teamIds={asTeams(event.teams).map((tm) => String(tm.id))}
+          variant="icon"
+          onDone={onParticipationSaved}
+        />
       </div>
     </div>
   )
@@ -367,14 +350,14 @@ function EventCardParticipation({ event, existingParticipation, onSaved, onStatu
           const active = displayStatus === status
           const label = answer
           return (
-            <button
+            <RsvpPill
               key={status}
               onClick={() => !isLocked && setStatus(status)}
               disabled={isLocked}
-              className={`rounded-full px-2.5 py-0.5 text-xs font-medium transition ${isLocked ? 'cursor-not-allowed' : ''} ${rsvpButtonClass(status, active)}`}
+              className={rsvpButtonClass(status, active)}
             >
               {label[status]}
-            </button>
+            </RsvpPill>
           )
         })}
 
@@ -411,7 +394,7 @@ function EventCardParticipation({ event, existingParticipation, onSaved, onStatu
             onKeyDown={(e) => { if (e.key === 'Enter') saveNote() }}
             onBlur={saveNote}
             placeholder={t('notePlaceholder')}
-            className={`min-w-0 flex-1 rounded-md border bg-transparent px-2 py-0.5 text-xs text-gray-700 placeholder:text-gray-400 focus:outline-none dark:text-gray-300 dark:placeholder:text-gray-500 ${
+            className={`h-9 min-w-0 flex-1 rounded-md border bg-transparent px-2 text-xs text-gray-700 sm:h-8 placeholder:text-gray-400 focus:outline-none dark:text-gray-300 dark:placeholder:text-gray-500 ${
               noteError ? 'border-red-400 dark:border-red-500' : 'border-gray-200 focus:border-brand-400 dark:border-gray-600 dark:focus:border-brand-500'
             }`}
           />
@@ -551,10 +534,10 @@ function EventCardSessionParticipation({ event, onSaved, onStatusChange }: { eve
   // arrive, and nothing claims an answer that has not been fetched yet.
   if (!sessionDataReady) return (
     <div className="flex flex-wrap items-center gap-1.5" aria-busy="true">
-      {['w-10', 'w-14', 'w-9'].map((w) => (
-        <span key={w} className={`h-5 ${w} animate-pulse rounded-full bg-gray-200 dark:bg-gray-700`} />
+      {['w-12', 'w-16', 'w-11'].map((w) => (
+        <RsvpPillSkeleton key={w} className={w} />
       ))}
-      {!isLocked && <span className="h-5 w-16 animate-pulse rounded-full bg-gray-200 dark:bg-gray-700" />}
+      {!isLocked && <RsvpPillSkeleton className="w-20" />}
     </div>
   )
 
@@ -571,24 +554,23 @@ function EventCardSessionParticipation({ event, onSaved, onStatusChange }: { eve
             const active = aggregate === status
             const label = answer
             return (
-              <button
+              <RsvpPill
                 key={status}
                 onClick={() => !isLocked && setAll(status)}
                 disabled={isLocked || savingAll}
-                className={`rounded-full px-2.5 py-0.5 text-xs font-medium transition ${isLocked ? 'cursor-not-allowed' : ''} ${rsvpButtonClass(status, active)}`}
+                className={rsvpButtonClass(status, active)}
               >
                 {label[status]}
-              </button>
+              </RsvpPill>
             )
           })}
         {!isLocked && (
-          <button
-            type="button"
+          <RsvpPill
             onClick={() => setSheetOpen(true)}
-            className="rounded-full bg-brand-100 px-2.5 py-0.5 text-xs font-medium text-brand-700 transition hover:bg-brand-200 dark:bg-brand-900/30 dark:text-brand-400 dark:hover:bg-brand-900/50"
+            className="bg-brand-100 text-brand-700 hover:bg-brand-200 dark:bg-brand-900/30 dark:text-brand-400 dark:hover:bg-brand-900/50"
           >
             {te('perDay', { defaultValue: 'Per day' })}
-          </button>
+          </RsvpPill>
         )}
       </div>
       {mixed && (

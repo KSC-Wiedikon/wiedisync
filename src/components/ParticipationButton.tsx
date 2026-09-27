@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Check, X, HelpCircle, Hourglass } from 'lucide-react'
+import { Check, X, HelpCircle, Hourglass, Minus, Plus } from 'lucide-react'
 import { useParticipation } from '../hooks/useParticipation'
 import { useMyCoveringAbsence } from '../hooks/useMyCoveringAbsence'
 import { getDeadlineDate } from '../utils/dateHelpers'
@@ -9,6 +9,9 @@ import { useAuth } from '../hooks/useAuth'
 import { useRsvpLabels } from '../hooks/useRsvpLabels'
 import type { Participation, EventSession } from '../types'
 import SessionParticipationSheet from './SessionParticipationSheet'
+import RsvpPill from './RsvpPill'
+import IconButton from './IconButton'
+import { Button } from '@/components/ui/button'
 
 interface ParticipationButtonProps {
   activityType: Participation['activity_type']
@@ -275,12 +278,12 @@ function ParticipationButtonInner({
   if (hasSessionMode) {
     return (
       <>
-        <button
+        <RsvpPill
           onClick={() => setSessionSheetOpen(true)}
-          className="inline-flex min-h-[44px] items-center gap-1 rounded-full bg-brand-100 px-2.5 py-1 text-xs font-medium text-brand-700 hover:bg-brand-200 dark:bg-brand-900/30 dark:text-brand-400 dark:hover:bg-brand-900/50 sm:min-h-0"
+          className="bg-brand-100 text-brand-700 hover:bg-brand-200 dark:bg-brand-900/30 dark:text-brand-400 dark:hover:bg-brand-900/50"
         >
           {t('events:sessionParticipation')}
-        </button>
+        </RsvpPill>
         {sessionSheetOpen && (
           <SessionParticipationSheet
             activityId={activityId}
@@ -295,19 +298,20 @@ function ParticipationButtonInner({
 
   return (
     <div className="relative">
-      <button
+      {/* Same pill height as the card RSVP pills (RsvpPill: 44px phone, 32px sm). */}
+      <RsvpPill
         onClick={() => !deadlinePassed && setMenuOpen(!menuOpen)}
         disabled={deadlinePassed || isLoading}
         aria-haspopup="menu"
         aria-expanded={menuOpen}
         title={answeringFor || undefined}
-        className={`inline-flex min-h-[44px] items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors sm:min-h-0 ${
+        className={
           deadlinePassed
             ? 'cursor-not-allowed bg-gray-100 text-gray-400 ring-1 ring-red-400 dark:bg-gray-700 dark:text-gray-500 dark:ring-red-500'
             : currentStyle
               ? `${currentStyle.bg} ${currentStyle.text}`
               : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
-        }`}
+        }
       >
         {currentStyle ? (
           <>
@@ -319,7 +323,7 @@ function ParticipationButtonInner({
         ) : (
           <>{t('rsvp')}</>
         )}
-      </button>
+      </RsvpPill>
 
       {deadlinePassed && !compact && (
         <p className="mt-0.5 text-[10px] leading-tight text-red-500 dark:text-red-400">
@@ -381,18 +385,12 @@ function ParticipationButtonInner({
                   <p className="mt-0.5 text-[11px] text-red-500 dark:text-red-400">{t('noteRequiredError')}</p>
                 )}
                 <div className="mt-2 flex gap-2">
-                  <button
-                    onClick={handleNoteCancel}
-                    className="flex-1 rounded-md border border-gray-300 px-2 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
-                  >
+                  <Button type="button" variant="outline" size="sm" onClick={handleNoteCancel} className="flex-1">
                     {t('cancel', { ns: 'common' })}
-                  </button>
-                  <button
-                    onClick={handleNoteSubmit}
-                    className="flex-1 rounded-md bg-brand-600 px-2 py-1.5 text-xs font-medium text-white hover:bg-brand-700"
-                  >
+                  </Button>
+                  <Button type="button" size="sm" onClick={handleNoteSubmit} className="flex-1">
                     {t('save', { ns: 'common' })}
-                  </button>
+                  </Button>
                 </div>
               </div>
             ) : (
@@ -433,24 +431,26 @@ function ParticipationButtonInner({
                   <div className="border-t px-3 py-2 dark:border-gray-700">
                     <p className="mb-1 text-xs text-gray-500 dark:text-gray-400">{t('guests')}</p>
                     <div className="flex items-center gap-2">
-                      <button
+                      <IconButton
+                        size="sm"
+                        variant="secondary"
+                        label={t('decreaseGuests', { defaultValue: 'Remove guest' })}
                         onClick={() => handleGuestChange(-1)}
                         disabled={guestCount <= 0}
-                        aria-label={t('decreaseGuests', { defaultValue: 'Remove guest' })}
-                        className="flex h-7 w-7 items-center justify-center rounded-md bg-gray-100 text-sm font-medium text-gray-700 hover:bg-gray-200 disabled:opacity-30 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
                       >
-                        −
-                      </button>
+                        <Minus />
+                      </IconButton>
                       <span className="min-w-[1.5rem] text-center text-sm font-medium text-gray-900 dark:text-gray-100" aria-live="polite">
                         {guestCount}
                       </span>
-                      <button
+                      <IconButton
+                        size="sm"
+                        variant="secondary"
+                        label={t('increaseGuests', { defaultValue: 'Add guest' })}
                         onClick={() => handleGuestChange(1)}
-                        aria-label={t('increaseGuests', { defaultValue: 'Add guest' })}
-                        className="flex h-7 w-7 items-center justify-center rounded-md bg-gray-100 text-sm font-medium text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
                       >
-                        +
-                      </button>
+                        <Plus />
+                      </IconButton>
                     </div>
                   </div>
                 )}

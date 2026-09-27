@@ -2,13 +2,16 @@ import { useTranslation } from 'react-i18next'
 import { ClipboardList } from 'lucide-react'
 import type { Team } from '../../types'
 import { type MyDuty, DUTY_ROLE_LABEL_KEYS } from '../../hooks/useMyDuties'
-import { formatDate, formatTime } from '../../utils/dateHelpers'
+import { formatDate, formatDayMonthZurich, formatTime, formatWeekday } from '../../utils/dateHelpers'
 import { asObj } from '../../utils/relations'
+import { DateRail, RowStripe, RowChip } from '../../components/ActivityRow'
 
 /**
  * Read-only card for a duty the logged-in member is on, shown interleaved with
  * real events on the Events page. A projection of the game's assignment — no
  * RSVP, since the person can't decline a duty (only delegate it on /scorer).
+ * Same anatomy as EventCard (rail ┃ stripe ┃ body); "duty" is the amber stripe
+ * + chip, not a filled amber box.
  */
 export default function DutyEventCard({ duty }: { duty: MyDuty }) {
   const { t } = useTranslation('scorer')
@@ -17,24 +20,26 @@ export default function DutyEventCard({ duty }: { duty: MyDuty }) {
   const roleLabel = t(DUTY_ROLE_LABEL_KEYS[duty.role] ?? 'scorer')
 
   return (
-    <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-800/60 dark:bg-amber-900/15">
-      <div className="flex items-start gap-3">
-        <ClipboardList className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
+    <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-card dark:border-gray-700 dark:bg-gray-800">
+      <div className="flex items-stretch gap-2.5 p-3 sm:gap-3">
+        <DateRail
+          eyebrow={g.date ? formatWeekday(g.date) : undefined}
+          main={g.date ? <span title={formatDate(g.date)}>{formatDayMonthZurich(g.date)}</span> : '–'}
+          sub={g.time ? formatTime(g.time) : undefined}
+        />
+        <RowStripe tone="amber" />
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded bg-amber-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-amber-800 dark:bg-amber-800/50 dark:text-amber-200">
-              {t('dutyBadge')}
-            </span>
-            <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">{roleLabel}</span>
-          </div>
-          <p className="mt-1 break-words text-sm text-gray-800 dark:text-gray-200">
+          <p className="break-words text-sm font-semibold leading-snug text-gray-900 sm:text-[15px] dark:text-gray-100">
             {g.home_team} – {g.away_team}
           </p>
-          <p className="text-xs text-gray-500 dark:text-gray-400">
-            {g.date ? formatDate(g.date) : ''}
-            {g.time ? ` · ${formatTime(g.time)}` : ''}
-            {team?.name ? ` · ${team.name}` : ''}
-          </p>
+          <div className="mt-1.5 flex flex-wrap items-stretch gap-1.5">
+            <RowChip tone="amber">
+              <ClipboardList aria-hidden />
+              {t('dutyBadge')}
+            </RowChip>
+            <RowChip>{roleLabel}</RowChip>
+            {team?.name && <RowChip>{team.name}</RowChip>}
+          </div>
         </div>
       </div>
     </div>

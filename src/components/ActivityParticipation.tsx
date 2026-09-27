@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Check, MessageSquare } from 'lucide-react'
+import { Check, MessageSquare, Minus, Plus } from 'lucide-react'
 import { formatDate, formatTime, getDeadlineDate } from '../utils/dateHelpers'
 import { rsvpButtonClass } from '../utils/participationColors'
 import { useAuth } from '../hooks/useAuth'
@@ -9,6 +9,8 @@ import { useMutation } from '../hooks/useMutation'
 import { useMyCoveringAbsence } from '../hooks/useMyCoveringAbsence'
 import { useAbsenceNoteText } from '../hooks/useAbsenceNoteText'
 import type { Participation } from '../types'
+import RsvpPill from './RsvpPill'
+import IconButton from './IconButton'
 
 interface ActivityParticipationProps {
   /** Which activity this RSVP control drives. Determines the i18n namespace,
@@ -194,39 +196,45 @@ export default function ActivityParticipation({
             const active = displayStatus === status
             const label = { confirmed: t('yes'), tentative: t('maybe'), declined: t('no') }
             return (
-              <button
+              <RsvpPill
                 key={status}
                 onClick={(e) => { if (stopProp) e.stopPropagation(); if (!isLocked) setStatus(status) }}
                 disabled={isLocked}
-                className={`rounded-full px-2.5 py-0.5 text-xs font-medium transition ${isLocked ? 'cursor-not-allowed' : ''} ${rsvpButtonClass(status, active)}`}
+                className={rsvpButtonClass(status, active)}
               >
                 {label[status]}
-              </button>
+              </RsvpPill>
             )
           })}
 
         {/* Inline guest counter — coaches/TR only */}
         {displayStatus && isStaff && (
           <div
-            className="flex items-center gap-1 ml-1 border-l border-gray-200 pl-2 dark:border-gray-600"
+            className="ml-1 flex items-center gap-0.5 border-l border-gray-200 pl-1.5 dark:border-gray-600"
             onClick={stopProp ? (e) => e.stopPropagation() : undefined}
           >
-            <button
+            {/* Steppers on the IconButton scale (36px phone / 32px sm) — the old
+                20px squares were un-hittable on a phone. */}
+            <IconButton
+              size="sm"
+              label={t('decreaseGuests', { defaultValue: 'Remove guest' })}
               onClick={(e) => { if (stopProp) e.stopPropagation(); handleGuestChange(-1) }}
               disabled={guestCount <= 0}
-              className="flex h-5 w-5 items-center justify-center rounded text-xs font-medium text-gray-500 hover:bg-gray-100 disabled:opacity-30 dark:text-gray-400 dark:hover:bg-gray-700"
+              className="text-gray-500 dark:text-gray-400"
             >
-              −
-            </button>
-            <span className="min-w-[1rem] text-center text-xs font-medium text-gray-700 dark:text-gray-300">
+              <Minus />
+            </IconButton>
+            <span className="min-w-[1rem] text-center text-xs font-medium tabular-nums text-gray-700 dark:text-gray-300" aria-live="polite">
               {guestCount}
             </span>
-            <button
+            <IconButton
+              size="sm"
+              label={t('increaseGuests', { defaultValue: 'Add guest' })}
               onClick={(e) => { if (stopProp) e.stopPropagation(); handleGuestChange(1) }}
-              className="flex h-5 w-5 items-center justify-center rounded text-xs font-medium text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
+              className="text-gray-500 dark:text-gray-400"
             >
-              +
-            </button>
+              <Plus />
+            </IconButton>
             <span className="text-[10px] text-gray-400 dark:text-gray-500">{t('guests')}</span>
           </div>
         )}
@@ -272,15 +280,17 @@ export default function ActivityParticipation({
             }}
             onClick={stopProp ? (e) => e.stopPropagation() : undefined}
             placeholder={t('notePlaceholder')}
-            className="min-w-0 flex-1 rounded-md border border-gray-200 bg-transparent px-2 py-0.5 text-xs text-gray-700 placeholder:text-gray-400 focus:border-brand-400 focus:outline-none dark:border-gray-600 dark:text-gray-300 dark:placeholder:text-gray-500 dark:focus:border-brand-500"
+            className="h-9 min-w-0 flex-1 rounded-md border border-gray-200 bg-transparent px-2 text-xs sm:h-8 text-gray-700 placeholder:text-gray-400 focus:border-brand-400 focus:outline-none dark:border-gray-600 dark:text-gray-300 dark:placeholder:text-gray-500 dark:focus:border-brand-500"
           />
-          <button
+          <IconButton
+            size="sm"
+            label={t('save', { ns: 'common' })}
             onClick={(e) => { if (stopProp) e.stopPropagation(); saveNote() }}
             disabled={noteText === serverNote}
-            className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-gray-400 transition-colors hover:bg-gray-100 hover:text-green-600 disabled:opacity-30 dark:hover:bg-gray-700 dark:hover:text-green-400"
+            className="text-gray-400 hover:text-green-600 dark:hover:text-green-400"
           >
-            <Check className="h-3 w-3" />
-          </button>
+            <Check />
+          </IconButton>
         </div>
       )}
     </div>
