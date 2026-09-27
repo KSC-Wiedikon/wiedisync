@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-09-27T19:47:09.937Z
+-- Generated:   2026-09-27T20:33:23.082Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -29,7 +29,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict C1w5RHVpmUFYEPgPnkn96FNQ74gbdFdj35ikSbFphBxgUs5em6TcLloLJStzXKp
+\restrict FWl1wQU8MgZN9XdgCltCPPGbxImOioZfMt6J0XOLSSMqUEz7k57jzvzfQ3BnOJU
 
 -- Dumped from database version 16.15 (Debian 16.15-1.pgdg13+2)
 -- Dumped by pg_dump version 16.15 (Debian 16.15-1.pgdg13+2)
@@ -3673,10 +3673,13 @@ CREATE TABLE public.carpools (
     notes character varying(500),
     date_created timestamp with time zone DEFAULT now() NOT NULL,
     date_updated timestamp with time zone DEFAULT now() NOT NULL,
+    teams jsonb,
+    return_time time without time zone,
     CONSTRAINT carpools_direction_check CHECK (((direction)::text = ANY ((ARRAY['there'::character varying, 'back'::character varying, 'both'::character varying])::text[]))),
     CONSTRAINT carpools_kind_check CHECK (((kind)::text = ANY ((ARRAY['offer'::character varying, 'request'::character varying])::text[]))),
     CONSTRAINT carpools_one_activity CHECK ((num_nonnulls(game, training, event) = 1)),
-    CONSTRAINT carpools_seats_range CHECK (((seats >= 1) AND (seats <= 8)))
+    CONSTRAINT carpools_seats_range CHECK (((seats >= 1) AND (seats <= 8))),
+    CONSTRAINT carpools_teams_array CHECK (((teams IS NULL) OR (jsonb_typeof(teams) = 'array'::text)))
 );
 
 
@@ -3685,6 +3688,20 @@ CREATE TABLE public.carpools (
 --
 
 COMMENT ON TABLE public.carpools IS 'Car pooling (migration 378): ride offers and ride requests for one game, training or event. Endpoint-only (kscw-endpoints/src/carpools.js) — no Directus registration, no /items grant.';
+
+
+--
+-- Name: COLUMN carpools.teams; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.carpools.teams IS 'Offer only: team ids this ride is for (subset of the activity''s invited teams). NULL/[] = every team that can see the board. Migration 380.';
+
+
+--
+-- Name: COLUMN carpools.return_time; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.carpools.return_time IS 'Departure time of the way back for a there-and-back ride. NULL = not set / not applicable. Migration 380.';
 
 
 --
@@ -17739,12 +17756,12 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict C1w5RHVpmUFYEPgPnkn96FNQ74gbdFdj35ikSbFphBxgUs5em6TcLloLJStzXKp
+\unrestrict FWl1wQU8MgZN9XdgCltCPPGbxImOioZfMt6J0XOLSSMqUEz7k57jzvzfQ3BnOJU
 
 
 
 -- ============================================================================
--- Migration tracker seed — 386 migration(s) already in the schema above.
+-- Migration tracker seed — 387 migration(s) already in the schema above.
 -- GENERATED with the snapshot; do not hand-edit.
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS kscw_migrations (
@@ -18142,6 +18159,7 @@ FROM (VALUES
   ('376-live-match-logs.sql'),
   ('377-household-shadow-consent.sql'),
   ('378-carpools.sql'),
-  ('379-carpool-teams.sql')
+  ('379-carpool-teams.sql'),
+  ('380-carpool-offer-teams-return.sql')
 ) AS v(fname)
 ON CONFLICT (filename) DO NOTHING;
