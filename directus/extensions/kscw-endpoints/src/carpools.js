@@ -746,7 +746,11 @@ export function registerCarpools(router, { services, database, logger, getSchema
         accountability: req.accountability, action: 'create', collection: 'carpool_passengers',
         recordId: row?.id ?? row, data: { carpool: act.entry.id, passenger: me.id, seats, [act.type]: act.id },
       })
-      await notify([act.entry.member], 'carpool_joined', act, { name: displayName(me), seats })
+      // The driver hears about every taken seat, with what is left — and a
+      // distinct "car is full" message when this was the last one.
+      const taken = Number((await database('carpool_passengers').where('carpool', act.entry.id).sum('seats as n').first())?.n ?? 0)
+      const free = Math.max(0, Number(act.entry.seats) - taken)
+      await notify([act.entry.member], free === 0 ? 'carpool_joined_full' : 'carpool_joined', act, { name: displayName(me), seats, free })
       res.json({ data: await board(act.type, act.id, me.id) })
     } catch (err) { fail(res, err, 'POST carpools/join') }
   })

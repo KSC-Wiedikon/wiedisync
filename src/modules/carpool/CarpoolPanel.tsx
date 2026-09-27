@@ -1,14 +1,13 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Car, ChevronDown, X } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Car, ChevronDown, LogOut, MapPin, Pencil, Trash2, UserPlus, X } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { useConfirm } from '../../components/ConfirmProvider'
 import { memberDisplayName } from '../../utils/relations'
 import {
   CARPOOL_ERROR_KEYS, useCarpoolActions, useCarpoolBoard,
-  type CarpoolActivityType, type CarpoolBoard, type CarpoolEntryInput, type CarpoolKind, type CarpoolOffer, type CarpoolRequest,
+  type CarpoolActivityType, type CarpoolEntryInput, type CarpoolKind, type CarpoolOffer, type CarpoolRequest,
 } from './carpoolApi'
 import { canJoin, canOffer, canRequest, canTake, myRole, seatsINeed } from './carpoolFormat'
 import CarpoolEntryForm from './CarpoolEntryForm'
@@ -106,14 +105,15 @@ export default function CarpoolPanel({ type, id, standalone = false, suggestedTi
       aria-label={t('title')}
       className="rounded-xl border border-sky-200 bg-sky-50/70 dark:border-sky-900 dark:bg-sky-950/30"
     >
-      {/* Banner */}
+      {/* Banner — in a dialog/page the title already says "Car pooling", so the
+          banner drops its own heading and leads with the numbers. */}
       <div className="flex items-start gap-3 p-3">
         <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sky-600 text-white dark:bg-sky-500 dark:text-sky-950">
           <Car className="h-5 w-5" aria-hidden />
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <h3 className="text-sm font-semibold text-sky-950 dark:text-sky-100">{t('title')}</h3>
+            {!standalone && <h3 className="text-sm font-semibold text-sky-950 dark:text-sky-100">{t('title')}</h3>}
             {role && (
               <span className="rounded-full bg-sky-600 px-2 py-0.5 text-[11px] font-semibold text-white dark:bg-sky-500 dark:text-sky-950">
                 {t(`role_${role}`)}
@@ -135,20 +135,6 @@ export default function CarpoolPanel({ type, id, standalone = false, suggestedTi
             </p>
           )}
           {!open && <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">{activity.enabled ? t('closedHint') : t('errorDisabled')}</p>}
-          {open && composer == null && (canOffer(board, open) || canRequest(board, open)) && (
-            <div className="mt-2 flex flex-wrap gap-2">
-              {canOffer(board, open) && (
-                <Button size="sm" className="min-h-[44px] sm:min-h-0" onClick={() => setComposer({ kind: 'offer' })}>
-                  {t('offerRide')}
-                </Button>
-              )}
-              {canRequest(board, open) && (
-                <Button size="sm" variant="outline" className="min-h-[44px] bg-white sm:min-h-0 dark:bg-gray-900" onClick={() => setComposer({ kind: 'request' })}>
-                  {t('requestRide')}
-                </Button>
-              )}
-            </div>
-          )}
         </div>
         {!standalone && hasEntries && (
           <button
@@ -162,6 +148,22 @@ export default function CarpoolPanel({ type, id, standalone = false, suggestedTi
           </button>
         )}
       </div>
+
+      {/* The two ways in, side by side at equal width — never stacked. */}
+      {open && composer == null && (canOffer(board, open) || canRequest(board, open)) && (
+        <div className="flex gap-2 px-3 pb-3">
+          {canOffer(board, open) && (
+            <button type="button" onClick={() => setComposer({ kind: 'offer' })} className={cn(TOOL_BTN, TOOL_PRIMARY)}>
+              <Car className="h-4 w-4 shrink-0" aria-hidden />{t('offerRide')}
+            </button>
+          )}
+          {canRequest(board, open) && (
+            <button type="button" onClick={() => setComposer({ kind: 'request' })} className={cn(TOOL_BTN, TOOL_OUTLINE)}>
+              <UserPlus className="h-4 w-4 shrink-0" aria-hidden />{t('requestRide')}
+            </button>
+          )}
+        </div>
+      )}
 
       {showBody && (
         <div className="space-y-4 border-t border-sky-200 p-3 dark:border-sky-900">
@@ -187,28 +189,112 @@ export default function CarpoolPanel({ type, id, standalone = false, suggestedTi
           )}
 
           {board.offers.length > 0 && (
-            <OffersTable
-              teamName={teamName}
-              board={board}
-              open={open}
-              busy={busy}
-              onJoin={(o) => act(() => actions.join(o.id, seatsINeed(board)), 'joined').catch(() => {})}
-              onLeave={leave}
-              onEdit={(o) => setComposer({ kind: 'offer', editId: o.id })}
-              onWithdraw={withdraw}
-              onDrop={dropPassenger}
-            />
+            <div>
+              <SectionHead title={t('offersHeading')} count={board.offers.length} />
+              <div className="divide-y divide-sky-200/70 dark:divide-sky-900/70">
+                {board.offers.map((o) => (
+                  <RideRow
+                    key={o.id}
+                    entry={o}
+                    tone={o.mine ? 'mine' : o.seats_free === 0 ? 'full' : 'open'}
+                    status={o.seats_free > 0
+                      ? <span className="whitespace-nowrap text-sm font-semibold tabular-nums text-gray-900 dark:text-gray-100">{t('seatsFree', { free: o.seats_free, total: o.seats })}</span>
+                      : <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700 dark:bg-red-900/40 dark:text-red-300">{t('full')}</span>}
+                    chips={<>
+                      {o.mine && <Chip tone="sky">{t('youDrive')}</Chip>}
+                      {o.i_am_passenger && <Chip tone="sky">{t('youRide')}</Chip>}
+                      {o.teams.length > 0 && <Chip tone="violet">{t('forTeamsList', { teams: o.teams.map((tid) => teamName.get(tid)).filter(Boolean).join(', ') })}</Chip>}
+                    </>}
+                    tools={<>
+                      {canJoin(board, o, open) && (
+                        <button type="button" disabled={busy} onClick={() => act(() => actions.join(o.id, seatsINeed(board)), 'joined').catch(() => {})} className={cn(TOOL_BTN, TOOL_PRIMARY)}>
+                          <UserPlus className="h-4 w-4 shrink-0" aria-hidden />{t('join')}
+                        </button>
+                      )}
+                      {o.i_am_passenger && (
+                        <button type="button" disabled={busy} onClick={() => leave(o)} className={cn(TOOL_BTN, TOOL_OUTLINE)}>
+                          <LogOut className="h-4 w-4 shrink-0" aria-hidden />{t('leave')}
+                        </button>
+                      )}
+                      {o.mine && open && (
+                        <button type="button" disabled={busy} onClick={() => setComposer({ kind: 'offer', editId: o.id })} className={cn(TOOL_BTN, TOOL_OUTLINE)}>
+                          <Pencil className="h-4 w-4 shrink-0" aria-hidden />{t('edit')}
+                        </button>
+                      )}
+                      {o.mine && (
+                        <button type="button" disabled={busy} onClick={() => withdraw(o)} className={cn(TOOL_BTN, TOOL_DANGER)}>
+                          <Trash2 className="h-4 w-4 shrink-0" aria-hidden />{t('withdraw')}
+                        </button>
+                      )}
+                    </>}
+                  >
+                    {o.passengers.length > 0 && (
+                      <div className="mt-1.5">
+                        <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('passengers')}</div>
+                        <ul className="mt-0.5 flex flex-wrap gap-1.5">
+                          {o.passengers.map((p) => {
+                            const name = memberDisplayName(p.member)
+                            return (
+                              <li key={p.id} className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-white py-0.5 pl-2.5 pr-1 text-xs text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
+                                <span>{name}{p.seats > 1 ? ` · ${t('seatsTaken', { count: p.seats })}` : ''}</span>
+                                {o.mine ? (
+                                  <button
+                                    type="button"
+                                    disabled={busy}
+                                    onClick={() => dropPassenger(p.id, name)}
+                                    aria-label={`${t('remove')} ${name}`}
+                                    className="flex h-7 w-7 items-center justify-center rounded-full text-gray-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/30"
+                                  >
+                                    <X className="h-3.5 w-3.5" />
+                                  </button>
+                                ) : <span className="w-1.5" />}
+                              </li>
+                            )
+                          })}
+                        </ul>
+                      </div>
+                    )}
+                  </RideRow>
+                ))}
+              </div>
+            </div>
           )}
 
           {board.requests.length > 0 && (
-            <RequestsTable
-              board={board}
-              open={open}
-              busy={busy}
-              onTake={(r) => act(() => actions.take(r.id), 'taken', { name: memberDisplayName(r.member) }).catch(() => {})}
-              onEdit={(r) => setComposer({ kind: 'request', editId: r.id })}
-              onWithdraw={withdraw}
-            />
+            <div>
+              <SectionHead title={t('requestsHeading')} count={board.requests.filter((r) => !r.covered).length} />
+              <div className="divide-y divide-sky-200/70 dark:divide-sky-900/70">
+                {board.requests.map((r) => (
+                  <RideRow
+                    key={r.id}
+                    entry={r}
+                    tone={r.covered ? 'done' : r.mine ? 'mine' : 'waiting'}
+                    status={<span className="whitespace-nowrap text-sm font-semibold tabular-nums text-gray-900 dark:text-gray-100">{t('seatsTaken', { count: r.seats })}</span>}
+                    chips={<>
+                      {r.mine && <Chip tone="sky">{t('you')}</Chip>}
+                      {r.covered && <Chip tone="emerald">{t('hasRide')} · {t('withDriver', { name: r.covered_by.map((d) => memberDisplayName(d)).join(', ') })}</Chip>}
+                    </>}
+                    tools={<>
+                      {canTake(board, r, open) && (
+                        <button type="button" disabled={busy} onClick={() => act(() => actions.take(r.id), 'taken', { name: memberDisplayName(r.member) }).catch(() => {})} className={cn(TOOL_BTN, TOOL_PRIMARY)}>
+                          <UserPlus className="h-4 w-4 shrink-0" aria-hidden />{t('take')}
+                        </button>
+                      )}
+                      {r.mine && open && (
+                        <button type="button" disabled={busy} onClick={() => setComposer({ kind: 'request', editId: r.id })} className={cn(TOOL_BTN, TOOL_OUTLINE)}>
+                          <Pencil className="h-4 w-4 shrink-0" aria-hidden />{t('edit')}
+                        </button>
+                      )}
+                      {r.mine && (
+                        <button type="button" disabled={busy} onClick={() => withdraw(r)} className={cn(TOOL_BTN, TOOL_DANGER)}>
+                          <Trash2 className="h-4 w-4 shrink-0" aria-hidden />{t('withdraw')}
+                        </button>
+                      )}
+                    </>}
+                  />
+                ))}
+              </div>
+            </div>
           )}
         </div>
       )}
@@ -216,189 +302,107 @@ export default function CarpoolPanel({ type, id, standalone = false, suggestedTi
   )
 }
 
-function DirectionTimePlace({ entry, teamNames = [] }: { entry: CarpoolOffer | CarpoolRequest; teamNames?: string[] }) {
-  const { t } = useTranslation('carpool')
+/* ── Row vocabulary — aligned with svrz_rc's GameRow ────────────────────────
+ * A rail on the left answers "when" (and which way), a coloured hairline says
+ * the row's state, the body carries the person and the facts as chips, and
+ * the row's own buttons sit on a line of their own underneath — side by side
+ * at equal width on a phone, where a column of stacked buttons squeezed the
+ * name into two lines and pushed every row twice as tall. */
+
+// ≥44px on a phone (house touch rule), svrz_rc's compact h-8 from sm up.
+const TOOL_BTN = 'inline-flex h-11 flex-1 basis-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-2 text-[13px] font-medium transition-colors disabled:opacity-50 sm:h-8 sm:flex-none sm:basis-auto sm:px-3 sm:text-xs'
+const TOOL_PRIMARY = 'bg-primary text-primary-foreground hover:bg-primary/90'
+const TOOL_OUTLINE = 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800'
+const TOOL_DANGER = 'border border-gray-300 bg-white text-red-600 hover:bg-red-50 dark:border-gray-600 dark:bg-gray-900 dark:text-red-400 dark:hover:bg-red-950/40'
+
+type RowTone = 'mine' | 'open' | 'full' | 'waiting' | 'done'
+const RAIL: Record<RowTone, string> = {
+  mine: 'bg-sky-500',
+  open: 'bg-emerald-400 dark:bg-emerald-500',
+  full: 'bg-red-400 dark:bg-red-500',
+  waiting: 'bg-amber-400 dark:bg-amber-500',
+  done: 'bg-gray-300 dark:bg-gray-600',
+}
+const TIME_TEXT: Record<RowTone, string> = {
+  mine: 'text-sky-700 dark:text-sky-300',
+  open: 'text-emerald-700 dark:text-emerald-400',
+  full: 'text-red-600 dark:text-red-400',
+  waiting: 'text-amber-700 dark:text-amber-400',
+  done: 'text-gray-500 dark:text-gray-400',
+}
+
+const CHIP: Record<'sky' | 'violet' | 'emerald' | 'stone', string> = {
+  sky: 'border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-800 dark:bg-sky-950/60 dark:text-sky-200',
+  violet: 'border-violet-200 bg-violet-50 text-violet-800 dark:border-violet-800 dark:bg-violet-950/50 dark:text-violet-200',
+  emerald: 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300',
+  stone: 'border-gray-200 bg-white text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300',
+}
+
+function Chip({ tone = 'stone', children }: { tone?: keyof typeof CHIP; children: React.ReactNode }) {
   return (
-    <div className="space-y-0.5">
-      <div className="text-sm text-gray-900 dark:text-gray-100">
-        {entry.departure_time && <span className="font-medium tabular-nums">{entry.departure_time}</span>}
-        {entry.departure_time && ' · '}
-        <span className="text-gray-600 dark:text-gray-400">{t(`direction_${entry.direction}`)}</span>
+    <span className={cn('inline-flex items-center gap-1 rounded border px-1.5 py-[3px] text-[11px] font-semibold leading-tight', CHIP[tone])}>
+      {children}
+    </span>
+  )
+}
+
+function SectionHead({ title, count }: { title: string; count: number }) {
+  return (
+    <div className="mb-1 flex items-center justify-between gap-2 border-b-[1.5px] border-gray-800 pb-1.5 dark:border-gray-300">
+      <h4 className="text-[11px] font-bold uppercase tracking-wider text-gray-800 dark:text-gray-200">{title}</h4>
+      <span className="text-[11px] font-semibold tabular-nums text-gray-500 dark:text-gray-400">{count}</span>
+    </div>
+  )
+}
+
+function RideRow({ entry, tone, status, chips, tools, children }: {
+  entry: CarpoolOffer | CarpoolRequest
+  tone: RowTone
+  status: React.ReactNode
+  chips?: React.ReactNode
+  tools?: React.ReactNode
+  children?: React.ReactNode
+}) {
+  const { t } = useTranslation('carpool')
+  const person = entry.member
+  const first = (person.nickname && person.nickname.trim()) || person.first_name
+  return (
+    <div className={cn('flex flex-wrap items-stretch py-0.5', tone === 'done' && 'opacity-70')}>
+      <div className="flex min-w-0 flex-1 basis-0 items-stretch gap-2.5 px-1 py-2.5 sm:gap-3">
+        {/* Rail: when, and which way. */}
+        <div className="w-14 shrink-0 text-right leading-tight sm:w-16">
+          <div className={cn('text-sm font-bold tabular-nums', TIME_TEXT[tone])}>{entry.departure_time ?? '–'}</div>
+          <div className="text-[11px] text-gray-500 dark:text-gray-400">{t(`direction_${entry.direction}`)}</div>
+          {entry.direction === 'both' && entry.return_time && (
+            <div className="mt-0.5 text-[11px] tabular-nums text-gray-500 dark:text-gray-400">↩ {entry.return_time}</div>
+          )}
+        </div>
+        <div className={cn('w-[2px] shrink-0 self-stretch rounded-full', RAIL[tone])} aria-hidden />
+        {/* Body: who, then the facts as chips, then anything the list adds. */}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start gap-2">
+            <p className="min-w-0 flex-1 text-sm font-semibold leading-snug text-gray-900 break-words dark:text-gray-100">
+              {first} {person.last_name}
+            </p>
+            <span className="mt-0.5 shrink-0">{status}</span>
+          </div>
+          {entry.departure_location && (
+            <p className="mt-0.5 flex items-start gap-1 text-xs text-gray-600 dark:text-gray-400">
+              <MapPin className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
+              <span className="break-words">{entry.departure_location}</span>
+            </p>
+          )}
+          {chips && <div className="mt-1.5 flex flex-wrap items-stretch gap-1.5 empty:hidden">{chips}</div>}
+          {entry.notes && <p className="mt-1 text-xs italic text-gray-500 dark:text-gray-400">{entry.notes}</p>}
+          {children}
+        </div>
       </div>
-      {entry.direction === 'both' && entry.return_time && (
-        <div className="text-sm text-gray-900 dark:text-gray-100">
-          <span className="text-gray-600 dark:text-gray-400">{t('backAt')}</span>{' '}
-          <span className="font-medium tabular-nums">{entry.return_time}</span>
+      {/* The row's own buttons, on a line of their own under it. */}
+      {tools && (
+        <div className="flex basis-full items-center gap-1.5 px-1 pb-2.5 empty:hidden sm:gap-2 sm:pl-[5.75rem]">
+          {tools}
         </div>
       )}
-      {teamNames.length > 0 && (
-        <span className="inline-block rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-semibold text-sky-800 dark:bg-sky-900/60 dark:text-sky-200">
-          {t('forTeamsList', { teams: teamNames.join(', ') })}
-        </span>
-      )}
-      {entry.departure_location && <div className="text-xs text-gray-600 dark:text-gray-400">{entry.departure_location}</div>}
-      {entry.notes && <div className="text-xs italic text-gray-500 dark:text-gray-400">{entry.notes}</div>}
-    </div>
-  )
-}
-
-function NameCell({ person, badge }: { person: CarpoolOffer['member']; badge?: string | null }) {
-  return (
-    <div className="space-y-0.5">
-      {/* Two lines on mobile (last / first), never truncated — table rule (a). */}
-      <div className="font-medium text-gray-900 dark:text-gray-100">
-        <span className="block sm:inline">{person.last_name}</span>{' '}
-        <span className="block sm:inline">{(person.nickname && person.nickname.trim()) || person.first_name}</span>
-      </div>
-      {badge && <span className="inline-block rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-semibold text-sky-800 dark:bg-sky-900/60 dark:text-sky-200">{badge}</span>}
-    </div>
-  )
-}
-
-// Actions render twice: under the name on phones (stacked, ≥44px targets —
-// table rules (c)/(e)), and in their own column from sm up. A fourth column
-// does not fit a 390px screen next to three wrapped text columns.
-const actionsMobile = 'mt-2 flex flex-col items-stretch gap-1.5 sm:hidden [&>button]:min-h-[44px]'
-const actionsDesktop = 'flex items-center justify-end gap-1.5'
-
-function OffersTable({ teamName, board, open, busy, onJoin, onLeave, onEdit, onWithdraw, onDrop }: {
-  teamName: Map<number, string>
-  board: CarpoolBoard
-  open: boolean
-  busy: boolean
-  onJoin: (o: CarpoolOffer) => void
-  onLeave: (o: CarpoolOffer) => void
-  onEdit: (o: CarpoolOffer) => void
-  onWithdraw: (o: CarpoolOffer) => void
-  onDrop: (rowId: number, name: string) => void
-}) {
-  const { t } = useTranslation('carpool')
-  return (
-    <div>
-      <h4 className="mb-1 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('offersHeading')}</h4>
-      <div className="overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>{t('colDriver')}</TableHead>
-              <TableHead>{t('colDeparture')}</TableHead>
-              <TableHead className="text-center">{t('colSeats')}</TableHead>
-              <TableHead className="hidden w-0 sm:table-cell"><span className="sr-only">{t('edit')}</span></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {board.offers.map((o) => {
-              const actions = (
-                <>
-                  {o.mine && open && <Button size="sm" variant="outline" disabled={busy} onClick={() => onEdit(o)}>{t('edit')}</Button>}
-                  {o.mine && <Button size="sm" variant="outline" disabled={busy} onClick={() => onWithdraw(o)} className="text-red-600 dark:text-red-400">{t('withdraw')}</Button>}
-                  {o.i_am_passenger && <Button size="sm" variant="outline" disabled={busy} onClick={() => onLeave(o)}>{t('leave')}</Button>}
-                  {canJoin(board, o, open) && <Button size="sm" disabled={busy} onClick={() => onJoin(o)}>{t('join')}</Button>}
-                </>
-              )
-              return (
-              <TableRow key={o.id} className="align-top">
-                <TableCell className="min-h-[44px] whitespace-normal py-2.5">
-                  <NameCell person={o.member} badge={o.mine ? t('youDrive') : o.i_am_passenger ? t('youRide') : null} />
-                  {o.passengers.length > 0 && (
-                    <ul className="mt-1.5 space-y-1 border-l-2 border-sky-200 pl-2 dark:border-sky-800">
-                      {o.passengers.map((p) => {
-                        const name = memberDisplayName(p.member)
-                        return (
-                          <li key={p.id} className="flex items-center gap-1 text-xs text-gray-700 dark:text-gray-300">
-                            <span className="min-w-0">
-                              <span className="block">{name}{p.seats > 1 ? ` (${t('seatsTaken', { count: p.seats })})` : ''}</span>
-                            </span>
-                            {o.mine && (
-                              <button
-                                type="button"
-                                disabled={busy}
-                                onClick={() => onDrop(p.id, name)}
-                                aria-label={`${t('remove')} ${name}`}
-                                className="flex h-8 w-8 shrink-0 items-center justify-center rounded text-gray-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
-                              >
-                                <X className="h-3.5 w-3.5" />
-                              </button>
-                            )}
-                          </li>
-                        )
-                      })}
-                    </ul>
-                  )}
-                  <div className={actionsMobile}>{actions}</div>
-                </TableCell>
-                <TableCell className="whitespace-normal py-2.5"><DirectionTimePlace entry={o} teamNames={o.teams.map((id) => teamName.get(id)).filter((n): n is string => !!n)} /></TableCell>
-                <TableCell className="py-2.5 text-center">
-                  {o.seats_free > 0
-                    ? <span className="whitespace-nowrap text-sm font-semibold tabular-nums text-gray-900 dark:text-gray-100">{t('seatsFree', { free: o.seats_free, total: o.seats })}</span>
-                    : <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700 dark:bg-red-900/40 dark:text-red-300">{t('full')}</span>}
-                </TableCell>
-                <TableCell className="hidden py-2.5 sm:table-cell">
-                  <div className={actionsDesktop}>{actions}</div>
-                </TableCell>
-              </TableRow>
-              )
-            })}
-          </TableBody>
-        </Table>
-      </div>
-    </div>
-  )
-}
-
-function RequestsTable({ board, open, busy, onTake, onEdit, onWithdraw }: {
-  board: CarpoolBoard
-  open: boolean
-  busy: boolean
-  onTake: (r: CarpoolRequest) => void
-  onEdit: (r: CarpoolRequest) => void
-  onWithdraw: (r: CarpoolRequest) => void
-}) {
-  const { t } = useTranslation('carpool')
-  return (
-    <div>
-      <h4 className="mb-1 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('requestsHeading')}</h4>
-      <div className="overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>{t('colPerson')}</TableHead>
-              <TableHead>{t('colDeparture')}</TableHead>
-              <TableHead className="text-center">{t('colSeats')}</TableHead>
-              <TableHead className="hidden w-0 sm:table-cell"><span className="sr-only">{t('edit')}</span></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {board.requests.map((r) => {
-              const actions = (
-                <>
-                  {r.mine && open && <Button size="sm" variant="outline" disabled={busy} onClick={() => onEdit(r)}>{t('edit')}</Button>}
-                  {r.mine && <Button size="sm" variant="outline" disabled={busy} onClick={() => onWithdraw(r)} className="text-red-600 dark:text-red-400">{t('withdraw')}</Button>}
-                  {canTake(board, r, open) && <Button size="sm" disabled={busy} onClick={() => onTake(r)}>{t('take')}</Button>}
-                </>
-              )
-              return (
-              <TableRow key={r.id} className={`align-top ${r.covered ? 'opacity-70' : ''}`}>
-                <TableCell className="whitespace-normal py-2.5">
-                  <NameCell person={r.member} badge={r.mine ? t('you') : null} />
-                  {r.covered && (
-                    <p className="mt-1 text-xs font-medium text-green-700 dark:text-green-400">
-                      {t('hasRide')} · {t('withDriver', { name: r.covered_by.map((d) => memberDisplayName(d)).join(', ') })}
-                    </p>
-                  )}
-                  <div className={actionsMobile}>{actions}</div>
-                </TableCell>
-                <TableCell className="whitespace-normal py-2.5"><DirectionTimePlace entry={r} /></TableCell>
-                <TableCell className="py-2.5 text-center text-sm font-semibold tabular-nums text-gray-900 dark:text-gray-100">{r.seats}</TableCell>
-                <TableCell className="hidden py-2.5 sm:table-cell">
-                  <div className={actionsDesktop}>{actions}</div>
-                </TableCell>
-              </TableRow>
-              )
-            })}
-          </TableBody>
-        </Table>
-      </div>
     </div>
   )
 }

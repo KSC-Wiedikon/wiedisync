@@ -146,9 +146,10 @@ export default function CarpoolEntryForm({ kind, initial, suggestedTime, minSeat
         <Textarea id={`${idp}-notes`} rows={2} maxLength={500} value={notes} placeholder={t('notesPlaceholder')} onChange={(e) => setNotes(e.target.value)} />
       </div>
 
-      <div className="flex justify-end gap-2">
-        <Button type="button" variant="outline" onClick={onCancel}>{tc('cancel')}</Button>
-        <Button type="submit" disabled={saving}>{editing ? tc('save') : t('post')}</Button>
+      {/* Equal halves on a phone (same rule as the ride rows), right-aligned from sm. */}
+      <div className="flex gap-2 sm:justify-end">
+        <Button type="button" variant="outline" onClick={onCancel} className="flex-1 sm:flex-none">{tc('cancel')}</Button>
+        <Button type="submit" disabled={saving} className="flex-1 sm:flex-none">{editing ? tc('save') : t('post')}</Button>
       </div>
     </form>
   )

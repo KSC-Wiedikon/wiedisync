@@ -98,7 +98,8 @@ export default {
   auto_declined_deadline_fined: 'Du hesch d\'Aamäldefrist für {{date}} ({{team}}) verpasst — als nöd debi iiträit, Buess {{amount}}',
   // Car pooling (migration 378) — body JSON: { name, seats?, activity }
   carpoolLabel: 'Mitfahrgleägeheit',
-  carpool_joined: '{{name}} fahrt bi dir mit ({{seats}} Platz/Plätz): {{activity}}',
+  carpool_joined: '{{name}} fahrt bi dir mit ({{seats}} Platz/Plätz), no {{free}} frei: {{activity}}',
+  carpool_joined_full: '{{name}} hät de letscht Platz gno, dis Auto isch voll: {{activity}}',
   carpool_left: '{{name}} fahrt nümm bi dir mit: {{activity}}',
   carpool_taken: '{{name}} nimmt di mit: {{activity}}',
   carpool_removed: '{{name}} hät di us de Fahrt usegnoh: {{activity}}',

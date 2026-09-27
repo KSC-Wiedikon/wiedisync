@@ -499,11 +499,18 @@ const T = {
     it: 'Car pooling',
   },
   'carpool_joined.push': {
-    de: '{name} fährt bei dir mit ({seats} Platz/Plätze): {activity}',
-    gsw: '{name} fahrt bi dir mit ({seats} Platz/Plätz): {activity}',
-    en: '{name} joined your car ({seats} seat(s)): {activity}',
-    fr: '{name} monte dans ta voiture ({seats} place(s)) : {activity}',
-    it: '{name} viaggia con te ({seats} posto/i): {activity}',
+    de: '{name} fährt bei dir mit ({seats} Platz/Plätze), noch {free} frei: {activity}',
+    gsw: '{name} fahrt bi dir mit ({seats} Platz/Plätz), no {free} frei: {activity}',
+    en: '{name} took {seats} seat(s) in your car, {free} left: {activity}',
+    fr: '{name} a pris {seats} place(s) dans ta voiture, encore {free} libre(s) : {activity}',
+    it: '{name} ha preso {seats} posto/i nella tua auto, ne restano {free}: {activity}',
+  },
+  'carpool_joined_full.push': {
+    de: '{name} hat den letzten Platz genommen, dein Auto ist voll: {activity}',
+    gsw: '{name} hät de letscht Platz gno, dis Auto isch voll: {activity}',
+    en: '{name} took the last seat, your car is full: {activity}',
+    fr: '{name} a pris la dernière place, ta voiture est pleine : {activity}',
+    it: '{name} ha preso l’ultimo posto, la tua auto è piena: {activity}',
   },
   'carpool_left.push': {
     de: '{name} fährt nicht mehr bei dir mit: {activity}',

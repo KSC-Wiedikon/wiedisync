@@ -98,7 +98,8 @@ export default {
   auto_declined_deadline_fined: 'Tu as manqué le délai d\'inscription pour {{date}} ({{team}}) — inscrit comme absent, amende {{amount}}',
   // Car pooling (migration 378) — body JSON: { name, seats?, activity }
   carpoolLabel: 'Covoiturage',
-  carpool_joined: '{{name}} monte dans ta voiture ({{seats}} place(s)) : {{activity}}',
+  carpool_joined: '{{name}} a pris {{seats}} place(s) dans ta voiture, encore {{free}} libre(s) : {{activity}}',
+  carpool_joined_full: '{{name}} a pris la dernière place, ta voiture est pleine : {{activity}}',
   carpool_left: '{{name}} ne monte plus dans ta voiture : {{activity}}',
   carpool_taken: '{{name}} t’emmène : {{activity}}',
   carpool_removed: '{{name}} t’a retiré·e de sa voiture : {{activity}}',

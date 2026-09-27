@@ -106,7 +106,8 @@ export default {
   auto_declined_deadline_fined: 'You missed the sign-up deadline for {{date}} ({{team}}) — marked as not coming, fine {{amount}}',
   // Car pooling (migration 378) — body JSON: { name, seats?, activity }
   carpoolLabel: 'Car pooling',
-  carpool_joined: '{{name}} joined your car ({{seats}} seat(s)): {{activity}}',
+  carpool_joined: '{{name}} took {{seats}} seat(s) in your car, {{free}} left: {{activity}}',
+  carpool_joined_full: '{{name}} took the last seat, your car is full: {{activity}}',
   carpool_left: '{{name}} left your car: {{activity}}',
   carpool_taken: '{{name}} is giving you a ride: {{activity}}',
   carpool_removed: '{{name}} removed you from their car: {{activity}}',

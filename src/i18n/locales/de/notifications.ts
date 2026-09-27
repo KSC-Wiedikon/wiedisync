@@ -99,7 +99,8 @@ export default {
   auto_declined_deadline_fined: 'Du hast die Anmeldefrist für {{date}} ({{team}}) verpasst — als nicht dabei eingetragen, Busse {{amount}}',
   // Car pooling (migration 378) — body JSON: { name, seats?, activity }
   carpoolLabel: 'Fahrgemeinschaft',
-  carpool_joined: '{{name}} fährt bei dir mit ({{seats}} Platz/Plätze): {{activity}}',
+  carpool_joined: '{{name}} fährt bei dir mit ({{seats}} Platz/Plätze), noch {{free}} frei: {{activity}}',
+  carpool_joined_full: '{{name}} hat den letzten Platz genommen, dein Auto ist voll: {{activity}}',
   carpool_left: '{{name}} fährt nicht mehr bei dir mit: {{activity}}',
   carpool_taken: '{{name}} nimmt dich mit: {{activity}}',
   carpool_removed: '{{name}} hat dich aus der Fahrt entfernt: {{activity}}',

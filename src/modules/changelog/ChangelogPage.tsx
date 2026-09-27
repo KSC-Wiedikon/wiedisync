@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.21.0'
+const APP_VERSION = '2.21.1'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,19 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.21.1',
+    date: '27.09.2026',
+    sections: [
+      {
+        title: 'Improved',
+        items: [
+          "Car pooling: clearer rides board. *Any activity → Car pooling.* Each ride shows its time on the left with a colour for its state (yours, free seats, full, still looking), the meeting point and teams as small tags, and its buttons side by side on their own line instead of stacked in a narrow column.",
+          "Car pooling: drivers are told how many seats are left each time someone joins, and get a separate message when their car is full. *Notifications.*",
+        ],
+      },
+    ],
+  },
   {
     version: '2.21.0',
     date: '27.09.2026',

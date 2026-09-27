@@ -2,6 +2,13 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.21.1 — 2026-09-27
+
+### Improved
+
+- **Car pooling: clearer rides board.** *Any activity → Car pooling.* Each ride shows its time on the left with a colour for its state (yours, free seats, full, still looking), the meeting point and teams as small tags, and its buttons side by side on their own line instead of stacked in a narrow column.
+- **Car pooling: drivers are told how many seats are left each time someone joins, and get a separate message when their car is full.** *Notifications.*
+
 ## v2.21.0 — 2026-09-27
 
 ### Improved
