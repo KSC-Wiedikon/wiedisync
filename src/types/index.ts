@@ -524,6 +524,8 @@ export interface Game extends BaseRecord {
   vm_nomination_error?: string | null
   /** Car pooling board on this game (migration 378). Default false; coach-owned. */
   carpool_enabled?: boolean
+  /** Teams the board is open to (migration 379): playing and/or guest teams. Empty/null = all. */
+  carpool_teams?: (string | number)[] | null
 
 }
 
@@ -761,6 +763,8 @@ export interface Event extends BaseRecord {
   js_activity_type?: 'Training' | 'Wettkampf' | 'Trainingstag' | 'Lagertag' | null
   /** Car pooling board on this event (migration 378). Default false; author-owned. */
   carpool_enabled?: boolean
+  /** Teams the board is open to (migration 379). Empty/null = everyone invited. */
+  carpool_teams?: (string | number)[] | null
 
 }
 

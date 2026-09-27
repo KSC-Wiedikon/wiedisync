@@ -68,12 +68,17 @@ export interface CarpoolActivityInfo {
   past: boolean
   /** enabled && not cancelled && not over — new rides and seats allowed. */
   open: boolean
+  /** Team ids the board is open to (migration 379). Empty = everyone who can see it. */
+  scope: number[]
 }
 
 export interface CarpoolBoardResponse {
   activity: CarpoolActivityInfo
   data: CarpoolBoard
   me: number | null
+  /** False when the board is scoped to teams the viewer is not in — render nothing. */
+  in_scope: boolean
+  scope_teams: Array<{ id: number; name: string; sport: 'volleyball' | 'basketball' | null }>
 }
 
 export interface CarpoolUpcoming extends CarpoolActivityInfo {
@@ -166,4 +171,5 @@ export const CARPOOL_ERROR_KEYS: Record<string, string> = {
   carpool_driver_is_passenger: 'errorOwnCar',
   missing_location: 'errorMissingLocation',
   no_member: 'errorNoMember',
+  carpool_not_in_scope: 'errorNotInScope',
 }

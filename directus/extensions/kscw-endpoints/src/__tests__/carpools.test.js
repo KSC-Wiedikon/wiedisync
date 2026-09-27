@@ -4,7 +4,7 @@
  * builder (seat maths, request coverage, who may see whose phone).
  */
 import { describe, it, expect } from 'vitest'
-import { parseEntryInput, normalizeTime, mapCarpoolError, describeActivity, buildBoard, zurichToday } from '../carpools.js'
+import { parseEntryInput, normalizeTime, mapCarpoolError, describeActivity, buildBoard, zurichToday, parseScope, scopeAllows } from '../carpools.js'
 
 describe('normalizeTime', () => {
   it('accepts 24h clocks and drops seconds', () => {
@@ -144,5 +144,25 @@ describe('buildBoard', () => {
     const b = buildBoard(entries, passengers, 1)
     expect(b.requests.every((r) => r.member.phone === null)).toBe(true)
     expect(JSON.stringify(b)).not.toContain('hide_phone')
+  })
+})
+
+describe('scope (migration 379)', () => {
+  it('parses jsonb arrays and their JSON text, dropping junk and duplicates', () => {
+    expect(parseScope([3, '9', 3, 0, -1, 'x', null])).toEqual([3, 9])
+    expect(parseScope('[4,"5"]')).toEqual([4, 5])
+    expect(parseScope(null)).toEqual([])
+    expect(parseScope('{"a":1}')).toEqual([])
+  })
+  it('an empty scope is open to everyone; otherwise any shared team lets you in', () => {
+    expect(scopeAllows([], [])).toBe(true)
+    expect(scopeAllows([3, 9], [1, 9])).toBe(true)
+    expect(scopeAllows([3, 9], ['9'])).toBe(true)
+    expect(scopeAllows([3, 9], [1, 2])).toBe(false)
+    expect(scopeAllows([3], [])).toBe(false)
+  })
+  it('describeActivity carries the scope', () => {
+    expect(describeActivity('game', { id: 1, date: '2026-10-03', carpool_enabled: true, carpool_teams: [3, 9] }, { today: '2026-10-01' }).scope).toEqual([3, 9])
+    expect(describeActivity('training', { id: 1, date: '2026-10-03', carpool_enabled: true }, { today: '2026-10-01' }).scope).toEqual([])
   })
 })

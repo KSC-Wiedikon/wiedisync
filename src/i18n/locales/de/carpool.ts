@@ -88,4 +88,8 @@ export default {
   errorMissingLocation: 'Gib einen Treffpunkt an.',
   errorNoMember: 'Nur Vereinsmitglieder können Fahrgemeinschaften nutzen.',
   errorGeneric: 'Speichern fehlgeschlagen. Bitte versuche es erneut.',
+  scopeLabel: 'Offen für',
+  scopeHint: 'Nur diese Teams sehen die Fahrgemeinschaft. Leer lassen für alle Eingeladenen.',
+  openTo: 'Offen für {{teams}}',
+  errorNotInScope: 'Die Fahrgemeinschaft dieser Aktivität ist für andere Teams offen.',
 } as const

@@ -88,4 +88,8 @@ export default {
   errorMissingLocation: 'Indica un punto d’incontro.',
   errorNoMember: 'Solo i membri del club possono usare il car pooling.',
   errorGeneric: 'Impossibile salvare. Riprova.',
+  scopeLabel: 'Aperto a',
+  scopeHint: 'Solo queste squadre vedono il car pooling. Lascia vuoto per tutti gli invitati.',
+  openTo: 'Aperto a {{teams}}',
+  errorNotInScope: 'Il car pooling di questa attività è riservato ad altre squadre.',
 } as const

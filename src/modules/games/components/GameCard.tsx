@@ -305,7 +305,7 @@ export default function GameCard({ game, onClick, variant = 'card', participatio
         </span>
         {/* Car pooling (migration 378) — straight to the rides board. */}
         {!past && game.status === 'scheduled' && game.carpool_enabled && user && (
-          <CarpoolChip type="game" id={game.id} />
+          <CarpoolChip type="game" id={game.id} scope={game.carpool_teams} />
         )}
         {!past && (game.status === 'scheduled' || game.status === 'cancelled') && (
           <CancelActivityButton

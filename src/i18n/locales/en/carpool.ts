@@ -88,4 +88,8 @@ export default {
   errorMissingLocation: 'Add a meeting point.',
   errorNoMember: 'Only club members can use car pooling.',
   errorGeneric: 'Could not save. Please try again.',
+  scopeLabel: 'Open to',
+  scopeHint: 'Only these teams see the rides board. Leave empty for everyone invited.',
+  openTo: 'Open to {{teams}}',
+  errorNotInScope: 'Car pooling for this activity is open to other teams.',
 } as const

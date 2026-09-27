@@ -978,6 +978,9 @@ const GAME_WRITE_FIELDS = [
   // themselves (carpools / carpool_passengers) have no /items grant at all;
   // they are endpoint-only (kscw-endpoints/src/carpools.js).
   'carpool_enabled',
+  // …and which of the game's teams (playing team + guest teams, migration 271)
+  // the board is open to (migration 379). Same coach-owned trust model.
+  'carpool_teams',
 
   // ── Deliberately NOT in this list: backend-owned columns ────────────────────
   // Directus field permissions are an allow-list, so anything omitted here is

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { CarpoolBoard, CarpoolOffer, CarpoolRequest } from '../carpoolApi'
-import { canJoin, canOffer, canRequest, canTake, myRole, seatsINeed, telHref } from '../carpoolFormat'
+import { canJoin, canOffer, canRequest, canTake, inCarpoolScope, myRole, seatsINeed, telHref } from '../carpoolFormat'
 
 const person = (id: number) => ({ id, first_name: `F${id}`, last_name: `L${id}`, nickname: null })
 
@@ -77,5 +77,15 @@ describe('car pooling viewer rules', () => {
     expect(telHref('079-123-45-67')).toBe('tel:0791234567')
     expect(telHref('n/a')).toBeNull()
     expect(telHref(null)).toBeNull()
+  })
+})
+
+describe('inCarpoolScope', () => {
+  it('open when unscoped, else needs a shared team (ids compared as strings)', () => {
+    expect(inCarpoolScope(null, [])).toBe(true)
+    expect(inCarpoolScope([], ['1'])).toBe(true)
+    expect(inCarpoolScope([3, 9], ['9'])).toBe(true)
+    expect(inCarpoolScope(['3'], [3])).toBe(true)
+    expect(inCarpoolScope([3], ['1', '2'])).toBe(false)
   })
 })

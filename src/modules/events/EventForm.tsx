@@ -12,6 +12,8 @@ import DatePicker from '@/components/ui/DatePicker'
 import TeamMultiSelect from '@/components/TeamMultiSelect'
 import LocationCombobox from '@/components/LocationCombobox'
 import { Switch } from '@/components/ui/switch'
+import type { TeamPickerOption } from '@/components/ui/TeamPicker'
+import CarpoolScopePicker from '../carpool/CarpoolScopePicker'
 import { teamNameToColorKey } from '../../utils/teamColors'
 import { formatDateLocale } from '../../utils/dateUtils'
 import { currentLocale, formatTime, parseRespondByTime, toUtcIsoFromDatetimeLocal, toDatetimeLocalFromUtcIso, toZurichDateString } from '../../utils/dateHelpers'
@@ -76,7 +78,7 @@ export default function EventForm({ open, event, onSave, onCancel }: EventFormPr
   const { effectiveIsAdmin } = useAdminMode()
   const { create, update, isLoading } = useMutation<Event>('events')
   const { data: allTeamsRaw } = useCollection<Team>('teams', { filter: { active: { _eq: true } }, sort: ['name'], limit: 50 })
-  const allTeams = allTeamsRaw ?? []
+  const allTeams = useMemo(() => allTeamsRaw ?? [], [allTeamsRaw])
 
   // Filter teams by permissions: admins see all, coaches see only their teams
   const availableTeams = useMemo(() => {
@@ -136,6 +138,15 @@ export default function EventForm({ open, event, onSave, onCancel }: EventFormPr
   const [jsRelevant, setJsRelevant] = useState(false)
   // Car pooling board (migration 378) — per event, default off.
   const [carpoolEnabled, setCarpoolEnabled] = useState(false)
+  // …and which of the event's teams it is open to (migration 379); [] = all.
+  const [carpoolTeams, setCarpoolTeams] = useState<string[]>([])
+  // Choices = the teams sharing this event; a club-wide event (no teams) can be
+  // narrowed to any active team.
+  const carpoolCandidates = useMemo<TeamPickerOption[]>(() => {
+    const pool = selectedTeams.length > 0 ? allTeams.filter((tm) => selectedTeams.includes(String(tm.id))) : allTeams
+    return pool.map((tm) => ({ id: String(tm.id), label: tm.name, sport: (tm.sport as TeamPickerOption['sport']) ?? null }))
+  }, [allTeams, selectedTeams])
+  const carpoolScopeValue = carpoolTeams.filter((id) => carpoolCandidates.some((c) => c.id === id))
   const [jsActivityType, setJsActivityType] = useState<'Training' | 'Wettkampf' | 'Trainingstag' | 'Lagertag'>('Training')
   const [signupUrl, setSignupUrl] = useState('')
   const [signupBusy, setSignupBusy] = useState(false)
@@ -214,6 +225,7 @@ export default function EventForm({ open, event, onSave, onCancel }: EventFormPr
       setInviteGuests(event.invite_guests !== false)
       setJsRelevant(!!event.js_relevant)
       setCarpoolEnabled(event.carpool_enabled === true)
+      setCarpoolTeams((event.carpool_teams ?? []).map(String))
       setJsActivityType((event.js_activity_type as 'Training' | 'Wettkampf' | 'Trainingstag' | 'Lagertag') || 'Training')
       setSignupUrl(event.signup_url ?? '')
     } else {
@@ -244,6 +256,7 @@ export default function EventForm({ open, event, onSave, onCancel }: EventFormPr
       setInviteGuests(true)
       setJsRelevant(false)
       setCarpoolEnabled(false)
+      setCarpoolTeams([])
       setJsActivityType('Training')
       setSignupUrl('')
     }
@@ -483,6 +496,8 @@ export default function EventForm({ open, event, onSave, onCancel }: EventFormPr
       invite_guests: inviteGuests,
       js_relevant: jsRelevant,
       carpool_enabled: carpoolEnabled,
+      // Only teams still on the event; nothing chosen (or board off) = open to all.
+      carpool_teams: carpoolEnabled && carpoolScopeValue.length > 0 ? carpoolScopeValue.map(Number) : null,
       js_activity_type: jsRelevant ? jsActivityType : null,
       signup_url: signupUrl.trim() || null,
     }
@@ -712,6 +727,9 @@ export default function EventForm({ open, event, onSave, onCancel }: EventFormPr
             <p className="text-xs text-muted-foreground">{t('toggleHint', { ns: 'carpool' })}</p>
           </div>
         </div>
+        {carpoolEnabled && (
+          <CarpoolScopePicker candidates={carpoolCandidates} value={carpoolTeams} onChange={setCarpoolTeams} />
+        )}
 
         {/* J+S export opt-in — flags the event as a J+S activity and picks its NDS type. */}
         <div className="space-y-2">

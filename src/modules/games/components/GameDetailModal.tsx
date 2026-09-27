@@ -39,6 +39,8 @@ import CancelActivityButton from '../../../components/CancelActivityButton'
 import { Switch } from '@/components/ui/switch'
 import CarpoolPanel from '../../carpool/CarpoolPanel'
 import { useCarpoolActions } from '../../carpool/carpoolApi'
+import CarpoolScopePicker from '../../carpool/CarpoolScopePicker'
+import type { TeamPickerOption } from '@/components/ui/TeamPicker'
 
 const GAME_EXPAND = 'kscw_team,hall,scorer_member,scoreboard_member,scorer_scoreboard_member,referee_member,scorer_duty_team,scoreboard_duty_team,scorer_scoreboard_duty_team,referee_duty_team,bb_scorer_member,bb_timekeeper_member,bb_24s_official,bb_duty_team,bb_scorer_duty_team,bb_timekeeper_duty_team,bb_24s_duty_team'
 
@@ -205,13 +207,15 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
   // game id so it never leaks onto the next game opened.
   const [carpoolOverride, setCarpoolOverride] = useState<{ id: string; on: boolean } | null>(null)
   const carpoolActions = useCarpoolActions('game', game?.id ?? '')
+  const [carpoolScopeOverride, setCarpoolScopeOverride] = useState<{ id: string; teams: string[] } | null>(null)
   // Teams this game is opened to (migration 271). A shared game puts both staffs
   // at the same check-in, so the guest team's coach/TR needs "Show IDs" too — see
   // canShowIds below, and the matching server-side grant in identity-document.js
   // (mayRead / recipientsFor / sharedGameTeamIds).
   const { data: guestOpeningsRaw } = useCollection<{ id: string, team: Team | string }>('game_guest_teams', {
     filter: { game: { _eq: game?.id } },
-    fields: ['id', 'team.id'],
+    // name + sport: the car pooling "Open to" picker (migration 379) lists them.
+    fields: ['id', 'team.id', 'team.name', 'team.sport'],
     all: true,
     enabled: !!game?.id,
   })
@@ -413,6 +417,19 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
   // sport while admin mode is ON. `coachTeamIds` is coaches ∪ responsibles, so this
   // covers what `isTeamStaff` and `canEditAsCoach` used to spell out separately.
   const canEditAsCoach = canManageTeam(kscwTeamId)
+  // Car pooling scope (migration 379): the playing team plus every guest team the
+  // game is opened to. One team only → no picker.
+  const carpoolCandidates: TeamPickerOption[] = [
+    kscwTeamObj,
+    ...(guestOpeningsRaw ?? []).map((o) => asObj<Team & BaseRecord>(o.team)),
+  ]
+    .filter((tm): tm is Team & BaseRecord => !!tm?.id)
+    .filter((tm, i, all) => all.findIndex((x) => String(x.id) === String(tm.id)) === i)
+    .map((tm) => ({ id: String(tm.id), label: tm.name, sport: (tm.sport as TeamPickerOption['sport']) ?? null }))
+  const carpoolOn = carpoolOverride?.id === game.id ? carpoolOverride.on : game.carpool_enabled === true
+  const carpoolScope = carpoolScopeOverride?.id === game.id
+    ? carpoolScopeOverride.teams
+    : (game.carpool_teams ?? []).map(String)
   // Staff of the playing team. Gates the referee-expenses panel.
   const isTeamStaff = canManageTeam(kscwTeamId)
   // Show IDs mirrors the server (mayRead() in identity-document.js): real coach/TR
@@ -1086,7 +1103,7 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
             {!readOnly && canEditAsCoach && (
               <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
                 <Switch
-                  checked={carpoolOverride?.id === game.id ? carpoolOverride.on : game.carpool_enabled === true}
+                  checked={carpoolOn}
                   onCheckedChange={async (on) => {
                     setCarpoolOverride({ id: game.id, on })
                     try {
@@ -1103,6 +1120,22 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
                   <p className="text-xs text-muted-foreground">{t('toggleHint', { ns: 'carpool' })}</p>
                 </div>
               </div>
+            )}
+            {!readOnly && canEditAsCoach && carpoolOn && (
+              <CarpoolScopePicker
+                candidates={carpoolCandidates}
+                value={carpoolScope}
+                onChange={async (teams) => {
+                  setCarpoolScopeOverride({ id: game.id, teams })
+                  try {
+                    await updateGame(game.id, { carpool_teams: teams.length ? teams.map(Number) : null })
+                    void carpoolActions.refresh()
+                  } catch {
+                    setCarpoolScopeOverride(null)
+                    toast.error(tc('errorSaving'))
+                  }
+                }}
+              />
             )}
             {game.respond_by && !editingDeadline && (
               <DetailRow label={t('respondBy')} value={`${formatDate(game.respond_by)}${(() => { const p = parseRespondByTime(game.respond_by, game.time); return p?.time ? `, ${p.time}` : '' })()}`} />

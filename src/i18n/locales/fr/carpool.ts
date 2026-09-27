@@ -88,4 +88,8 @@ export default {
   errorMissingLocation: 'Indique un point de rendez-vous.',
   errorNoMember: 'Seuls les membres du club peuvent utiliser le covoiturage.',
   errorGeneric: 'Impossible d’enregistrer. Réessaie.',
+  scopeLabel: 'Ouvert à',
+  scopeHint: 'Seules ces équipes voient le covoiturage. Laisse vide pour tous les invités.',
+  openTo: 'Ouvert à {{teams}}',
+  errorNotInScope: 'Le covoiturage de cette activité est réservé à d’autres équipes.',
 } as const

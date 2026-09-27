@@ -43,6 +43,8 @@ export default function CarpoolPanel({ type, id, standalone = false, suggestedTi
 
   if (isLoading || !res) return null
   const { activity, data: board } = res
+  // Scoped to teams the viewer is not in (migration 379) — not their board.
+  if (res.in_scope === false) return null
   const hasEntries = board.offers.length + board.requests.length > 0
   if (!activity.enabled && !hasEntries) return null
 
@@ -124,6 +126,11 @@ export default function CarpoolPanel({ type, id, standalone = false, suggestedTi
                 ].filter(Boolean).join(' · ')
               : t('emptyHint')}
           </p>
+          {res.scope_teams?.length > 0 && (
+            <p className="mt-0.5 text-xs text-sky-900/80 dark:text-sky-200/80">
+              {t('openTo', { teams: res.scope_teams.map((tm) => tm.name).join(', ') })}
+            </p>
+          )}
           {!open && <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">{activity.enabled ? t('closedHint') : t('errorDisabled')}</p>}
           {open && composer == null && (canOffer(board, open) || canRequest(board, open)) && (
             <div className="mt-2 flex flex-wrap gap-2">

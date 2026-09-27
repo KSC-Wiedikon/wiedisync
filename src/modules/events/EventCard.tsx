@@ -153,7 +153,7 @@ export default function EventCard({ event, onClick, onEdit, onDelete, onOpenRost
           )}
           {/* Car pooling (migration 378) — straight to the rides board. */}
           {!event.cancelled && event.carpool_enabled && user && (
-            <CarpoolChip type="event" id={event.id} />
+            <CarpoolChip type="event" id={event.id} scope={event.carpool_teams} />
           )}
           <CancelActivityButton
             kind="event"

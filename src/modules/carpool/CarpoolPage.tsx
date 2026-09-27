@@ -47,7 +47,12 @@ export default function CarpoolPage() {
           {t('notAvailable')}
         </p>
       )}
-      {a && !a.enabled && data.data.offers.length + data.data.requests.length === 0 && (
+      {data && data.in_scope === false && (
+        <p className="rounded-lg border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+          {t('errorNotInScope')}
+        </p>
+      )}
+      {a && data.in_scope !== false && !a.enabled && data.data.offers.length + data.data.requests.length === 0 && (
         <p className="rounded-lg border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
           {t('errorDisabled')}
         </p>

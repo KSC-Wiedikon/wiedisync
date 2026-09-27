@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Car } from 'lucide-react'
+import { useAuth } from '../../hooks/useAuth'
+import { inCarpoolScope } from './carpoolFormat'
 import CarpoolDialog from './CarpoolDialog'
 import type { CarpoolActivityType } from './carpoolApi'
 
@@ -10,6 +12,8 @@ interface CarpoolChipProps {
   /** Icon only (dense rows); the label is still the accessible name. */
   iconOnly?: boolean
   className?: string
+  /** The activity's `carpool_teams` (migration 379) — hides the chip for viewers outside it. */
+  scope?: readonly (string | number)[] | null
 }
 
 /**
@@ -18,9 +22,12 @@ interface CarpoolChipProps {
  * through the component tree, so without it every click inside the dialog would
  * also hit the card's own onClick and open the detail modal underneath.
  */
-export default function CarpoolChip({ type, id, iconOnly = false, className = '' }: CarpoolChipProps) {
+export default function CarpoolChip({ type, id, iconOnly = false, className = '', scope }: CarpoolChipProps) {
   const { t } = useTranslation('carpool')
+  const { memberTeamIds, coachTeamIds, isAdmin } = useAuth()
   const [open, setOpen] = useState(false)
+  // Admins pass the server's scope check, so they keep the chip.
+  if (!isAdmin && !inCarpoolScope(scope, [...memberTeamIds, ...coachTeamIds])) return null
   return (
     <span onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()} className="contents">
       <button

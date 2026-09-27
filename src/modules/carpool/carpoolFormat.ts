@@ -52,3 +52,14 @@ export function telHref(phone: string | null | undefined): string | null {
   const clean = phone.replace(/[^\d+]/g, '')
   return clean.length >= 6 ? `tel:${clean}` : null
 }
+
+/**
+ * Is the viewer inside a board's team scope (migration 379)? Mirrors the
+ * server's check minus the "already riding" exemption — used only to decide
+ * whether a card shows the chip; the server stays the authority.
+ */
+export function inCarpoolScope(scope: readonly (string | number)[] | null | undefined, myTeamIds: readonly (string | number)[]): boolean {
+  if (!scope || scope.length === 0) return true
+  const mine = new Set(myTeamIds.map(String))
+  return scope.some((t) => mine.has(String(t)))
+}

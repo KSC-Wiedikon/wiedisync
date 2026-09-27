@@ -26,6 +26,13 @@
  * member writes as that member — which is the point: a parent organising a lift
  * for a child. Full admins may withdraw any entry (moderation).
  *
+ * SCOPE (migration 379): a shared game/event can be opened to chosen teams
+ * only (`carpool_teams`, a jsonb id list on the activity; empty = everyone who
+ * can see it). Scoped out = not a team player/coach/TR of any listed team and
+ * no ride of your own on it — the board then reads as empty (`in_scope: false`)
+ * and every write 403s `carpool_not_in_scope`. Having a ride already keeps you
+ * in, so narrowing the scope never strands a passenger.
+ *
  * New entries and seats need `carpool_enabled` and an activity that is neither
  * cancelled nor over; withdrawing and leaving are always allowed, so switching
  * the board off never strands anybody in a car they cannot get out of.
@@ -144,6 +151,21 @@ const ymd = (v) => {
   return String(v).slice(0, 10) || null
 }
 
+/** `carpool_teams` (jsonb array, or its JSON text) → unique positive team ids. */
+export function parseScope(raw) {
+  let v = raw
+  if (typeof v === 'string') { try { v = JSON.parse(v) } catch { return [] } }
+  if (!Array.isArray(v)) return []
+  return [...new Set(v.map(Number).filter((n) => Number.isInteger(n) && n > 0))]
+}
+
+/** Empty scope = open to all who can see the activity; else any team in common. */
+export function scopeAllows(scope, myTeamIds) {
+  if (!scope?.length) return true
+  const mine = new Set([...(myTeamIds ?? [])].map(Number))
+  return scope.some((t) => mine.has(Number(t)))
+}
+
 /**
  * Normalise an activity row (as read by knex) into what the board needs:
  * the date the ride is for, its last day (writes close after it), a label and
@@ -180,6 +202,7 @@ export function describeActivity(type, row, { teamName = null, today = zurichTod
     date,
     time,
     enabled: row.carpool_enabled === true,
+    scope: parseScope(row.carpool_teams),
     cancelled,
     past,
     open: row.carpool_enabled === true && !cancelled && !past,
@@ -326,6 +349,48 @@ export function registerCarpools(router, { services, database, logger, getSchema
     return m
   }
 
+  /** Team ids a member belongs to for scoping: active rosters + coach + TR. */
+  async function teamsOf(memberId) {
+    const [playTeams, coachTeams, trTeams] = await Promise.all([
+      database('member_teams as mt').join('teams as t', 't.id', 'mt.team').where('mt.member', memberId).where('t.active', true).pluck('mt.team'),
+      database('teams_coaches').where('members_id', memberId).pluck('teams_id'),
+      database('teams_responsibles').where('members_id', memberId).pluck('teams_id'),
+    ])
+    return [...new Set([...playTeams, ...coachTeams, ...trTeams].filter((x) => x != null).map(Number))]
+  }
+
+  /** Does the caller already have a ride (entry or seat) on this activity? */
+  async function isInvolved(type, id, memberId) {
+    const fk = ACTIVITY[type].fk
+    const row = await database('carpools as c')
+      .leftJoin('carpool_passengers as p', 'p.carpool', 'c.id')
+      .where(`c.${fk}`, id)
+      .where((q) => q.where('c.member', memberId).orWhere('p.passenger', memberId))
+      .first('c.id')
+    return !!row
+  }
+
+  /** Scope check (migration 379). Admins and unscoped boards pass. */
+  async function inScope(req, act, me) {
+    if (req.accountability?.admin === true || !act.info.scope.length) return true
+    if (!me) return false
+    if (scopeAllows(act.info.scope, await teamsOf(me.id))) return true
+    return isInvolved(act.type, act.id, me.id)
+  }
+
+  async function assertInScope(req, act, me) {
+    if (!(await inScope(req, act, me))) {
+      throw httpError(403, 'Car pooling for this activity is open to other teams', 'carpool_not_in_scope')
+    }
+  }
+
+  /** Names for the "open to" line on the banner. */
+  async function scopeTeams(scope) {
+    if (!scope.length) return []
+    const rows = await database('teams').whereIn('id', scope).select('id', 'name', 'sport')
+    return rows.map((r) => ({ id: Number(r.id), name: r.name, sport: r.sport ?? null }))
+  }
+
   /**
    * Can the caller read this activity? ItemsService under the caller's own
    * accountability — the existing read policy is the answer. 404 either way
@@ -449,12 +514,7 @@ export function registerCarpools(router, { services, database, logger, getSchema
       const today = zurichToday()
       const until = zurichToday(new Date(Date.now() + UPCOMING_DAYS * 86400000))
 
-      const [playTeams, coachTeams, trTeams] = await Promise.all([
-        database('member_teams as mt').join('teams as t', 't.id', 'mt.team').where('mt.member', me.id).where('t.active', true).pluck('mt.team'),
-        database('teams_coaches').where('members_id', me.id).pluck('teams_id'),
-        database('teams_responsibles').where('members_id', me.id).pluck('teams_id'),
-      ])
-      const teamIds = [...new Set([...playTeams, ...coachTeams, ...trTeams].filter((x) => x != null).map(Number))]
+      const teamIds = await teamsOf(me.id)
 
       // Activities I'm already in, whatever the team.
       const involved = await database('carpools as c')
@@ -507,7 +567,10 @@ export function registerCarpools(router, { services, database, logger, getSchema
         ...games.map((r) => describeActivity('game', r, { teamName: teamNames.get(Number(r.kscw_team)) ?? null, today })),
         ...trainings.map((r) => describeActivity('training', r, { teamName: teamNames.get(Number(r.team)) ?? null, today })),
         ...events.map((r) => describeActivity('event', r, { today })),
-      ].filter((a) => a.open)
+      ]
+        .filter((a) => a.open)
+        // Scoped boards (379): only for the chosen teams, or someone already riding.
+        .filter((a) => scopeAllows(a.scope, teamIds) || invIds[a.type].has(a.id))
 
       // Totals for every listed activity in two queries.
       const counts = new Map()
@@ -565,6 +628,7 @@ export function registerCarpools(router, { services, database, logger, getSchema
       const act = await entryFromParams(req)
       if (Number(act.entry.member) !== Number(me.id)) throw httpError(403, 'Not your ride')
       assertOpen(act.info)
+      await assertInScope(req, act, me)
       const patch = parseEntryInput(req.body, { partial: true })
       if (!Object.keys(patch).length) throw httpError(400, 'Nothing to update')
       if (act.entry.kind === 'offer' && 'departure_location' in patch && !patch.departure_location) {
@@ -609,6 +673,7 @@ export function registerCarpools(router, { services, database, logger, getSchema
       const act = await entryFromParams(req)
       if (act.entry.kind !== 'offer') throw httpError(400, 'You can only join an offered ride')
       assertOpen(act.info)
+      await assertInScope(req, act, me)
       const seats = seatsParam(req.body?.seats ?? 1)
       const [row] = await database('carpool_passengers')
         .insert({ carpool: act.entry.id, passenger: me.id, seats, added_by_name: displayName(me) })
@@ -647,6 +712,7 @@ export function registerCarpools(router, { services, database, logger, getSchema
       const act = await entryFromParams(req)
       if (act.entry.kind !== 'request') throw httpError(400, 'Only a request can be taken')
       assertOpen(act.info)
+      await assertInScope(req, act, me)
       const fk = ACTIVITY[act.type].fk
       const offer = await database('carpools').where({ [fk]: act.id, kind: 'offer', member: me.id }).first()
       if (!offer) throw httpError(409, 'Offer a ride first, then take requests into your car', 'carpool_no_offer')
@@ -691,10 +757,14 @@ export function registerCarpools(router, { services, database, logger, getSchema
       requireSession(req)
       const act = await activityFromParams(req)
       const me = await actingMember(req)
+      const scope_teams = await scopeTeams(act.info.scope)
+      if (!(await inScope(req, act, me))) {
+        return res.json({ activity: act.info, data: buildBoard([], [], null), me: me?.id ?? null, in_scope: false, scope_teams })
+      }
       const data = act.info.enabled || (await database('carpools').where(ACTIVITY[act.type].fk, act.id).first('id'))
         ? await board(act.type, act.id, me?.id ?? null)
         : buildBoard([], [], null)
-      res.json({ activity: act.info, data, me: me?.id ?? null })
+      res.json({ activity: act.info, data, me: me?.id ?? null, in_scope: true, scope_teams })
     } catch (err) { fail(res, err, 'GET carpools/:type/:id') }
   })
 
@@ -704,6 +774,7 @@ export function registerCarpools(router, { services, database, logger, getSchema
       const me = await requireMember(req)
       const act = await activityFromParams(req)
       assertOpen(act.info)
+      await assertInScope(req, act, me)
       const input = parseEntryInput(req.body)
       const [row] = await database('carpools')
         .insert({ ...input, member: me.id, [ACTIVITY[act.type].fk]: act.id })

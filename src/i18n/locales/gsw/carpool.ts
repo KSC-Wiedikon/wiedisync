@@ -88,4 +88,8 @@ export default {
   errorMissingLocation: 'Gib en Treffpunkt aa.',
   errorNoMember: 'Nur Vereinsmitglieder chönd Mitfahrgleägeheite bruuche.',
   errorGeneric: 'Speichere hät nöd klappet. Bitte probier nomal.',
+  scopeLabel: 'Offe für',
+  scopeHint: 'Nur die Teams gsehnd d Mitfahrgleägeheit. Leer lah für alli Iiglade.',
+  openTo: 'Offe für {{teams}}',
+  errorNotInScope: 'D Mitfahrgleägeheit vo dere Aktivität isch für anderi Teams offe.',
 } as const
