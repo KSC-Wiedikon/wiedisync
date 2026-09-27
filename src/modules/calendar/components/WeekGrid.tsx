@@ -11,6 +11,9 @@ import {
   dayHeaders,
 } from '../../../utils/dateUtils'
 import { formatDateCompactZurich } from '../../../utils/dateHelpers'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import IconButton from '@/components/IconButton'
 import { blockClasses, cancelledClasses } from '../entryStyle'
 import {
   HOUR_HEIGHT,
@@ -109,32 +112,19 @@ export default function WeekGrid({
   return (
     <div className="flex flex-1 flex-col">
       {/* Week header */}
-      <div className="mb-3 flex items-center justify-between">
-        <button
-          onClick={() => onWeekChange(addWeeks(weekMonday, -1))}
-          className="rounded-lg p-2 text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
-        >
-          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-        </button>
-        <div className="flex items-center gap-2">
-          <h2 className="text-sm font-semibold text-gray-900 sm:text-lg dark:text-gray-100">{weekLabel}</h2>
-          <button
-            onClick={() => onWeekChange(startOfWeek(new Date()))}
-            className="rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
-          >
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <IconButton label={t('common:prevWeek')} onClick={() => onWeekChange(addWeeks(weekMonday, -1))} className="text-gray-600 dark:text-gray-400">
+          <ChevronLeft className="!size-5" />
+        </IconButton>
+        <div className="flex min-w-0 items-center gap-2">
+          <h2 className="text-sm font-semibold tabular-nums text-gray-900 sm:text-lg dark:text-gray-100">{weekLabel}</h2>
+          <Button variant="secondary" size="sm" onClick={() => onWeekChange(startOfWeek(new Date()))} className="shrink-0">
             {t('common:today')}
-          </button>
+          </Button>
         </div>
-        <button
-          onClick={() => onWeekChange(addWeeks(weekMonday, 1))}
-          className="rounded-lg p-2 text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
-        >
-          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
-        </button>
+        <IconButton label={t('common:nextWeek')} onClick={() => onWeekChange(addWeeks(weekMonday, 1))} className="text-gray-600 dark:text-gray-400">
+          <ChevronRight className="!size-5" />
+        </IconButton>
       </div>
 
       {/* Day headers */}
@@ -180,6 +170,7 @@ export default function WeekGrid({
                     key={e.id}
                     type="button"
                     onClick={() => onEntryClick?.(e)}
+                    title={e.title}
                     className={`block w-full truncate rounded px-1 text-[10px] font-medium leading-[16px] transition-opacity hover:opacity-80 ${blockClasses(e)} ${cancelledClasses(e)}`}
                   >
                     {e.title}
@@ -253,6 +244,7 @@ export default function WeekGrid({
                     key={pe.entry.id}
                     type="button"
                     onClick={() => onEntryClick?.(pe.entry)}
+                    title={[pe.entry.startTime, pe.entry.title].filter(Boolean).join(' · ')}
                     className={`absolute overflow-hidden rounded px-1 text-[10px] leading-tight transition-opacity hover:opacity-80 lg:text-xs ${blockClasses(pe.entry)} ${cancelledClasses(pe.entry)}`}
                     style={{
                       top: pe.top,

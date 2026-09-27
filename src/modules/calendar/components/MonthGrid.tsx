@@ -5,6 +5,8 @@ import { relId } from '../../../utils/relations'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { dotColors, monthTints, colorKey, paintKey, cancelledClasses } from '../entryStyle'
 import CalendarTypeIcon from './CalendarTypeIcon'
+import { Button } from '@/components/ui/button'
+import IconButton from '@/components/IconButton'
 import { trimBBTeamName } from '../../../utils/teamColors'
 import {
   startOfMonth,
@@ -243,9 +245,6 @@ export default function MonthGrid({
     [weekRows, entries],
   )
 
-  const navBtn =
-    'inline-flex h-9 w-9 items-center justify-center rounded-md border border-gray-200 text-gray-600 transition-colors hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800'
-
   return (
     <div className="flex flex-1 flex-col">
       {/* Month header */}
@@ -253,19 +252,16 @@ export default function MonthGrid({
         <h2 className="text-xl font-semibold tracking-tight text-gray-900 dark:text-gray-100">
           {formatDate(month, 'MMMM yyyy')}
         </h2>
-        <div className="flex items-center gap-1.5">
-          <button
-            onClick={() => onMonthChange(startOfMonth(new Date()))}
-            className="inline-flex h-9 items-center rounded-md border border-gray-200 px-3 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
-          >
+        <div className="flex shrink-0 items-center gap-1.5">
+          <Button variant="outline" onClick={() => onMonthChange(startOfMonth(new Date()))}>
             {t('today')}
-          </button>
-          <button onClick={() => onMonthChange(addMonths(month, -1))} aria-label={t('prevMonth')} className={navBtn}>
-            <ChevronLeft className="h-4 w-4" />
-          </button>
-          <button onClick={() => onMonthChange(addMonths(month, 1))} aria-label={t('nextMonth')} className={navBtn}>
-            <ChevronRight className="h-4 w-4" />
-          </button>
+          </Button>
+          <IconButton label={t('prevMonth')} variant="outline" onClick={() => onMonthChange(addMonths(month, -1))}>
+            <ChevronLeft />
+          </IconButton>
+          <IconButton label={t('nextMonth')} variant="outline" onClick={() => onMonthChange(addMonths(month, 1))}>
+            <ChevronRight />
+          </IconButton>
         </div>
       </div>
 
@@ -378,7 +374,7 @@ export default function MonthGrid({
                                         {entry.gameType === 'home' ? 'H' : 'A'}
                                       </span>
                                       {(entry.teamNames[0] || entry.opponent) ? (
-                                        <span className="hidden truncate lg:inline">
+                                        <span className="hidden min-w-0 truncate lg:block">
                                           {entry.teamNames[0] ? trimBBTeamName(entry.teamNames[0]) : ''}{entry.opponent ? ` vs ${entry.opponent}` : ''}
                                         </span>
                                       ) : null}
@@ -386,7 +382,7 @@ export default function MonthGrid({
                                   ) : (
                                     // A birthday has no time to show, so below `lg` the row
                                     // would be a bare cake — keep its name at every width.
-                                    <span className={`truncate ${entry.type === 'birthday' ? '' : 'hidden lg:inline'}`}>
+                                    <span className={`min-w-0 truncate ${entry.type === 'birthday' ? '' : 'hidden lg:block'}`}>
                                       {entry.title}
                                     </span>
                                   )}
@@ -438,7 +434,7 @@ export default function MonthGrid({
                           }}
                         >
                           <CalendarTypeIcon type="absence" size="sm" className="opacity-70" />
-                          <span className="truncate">{label}</span>
+                          <span className="min-w-0 truncate">{label}</span>
                         </button>
                       )
                     })}
@@ -455,7 +451,7 @@ export default function MonthGrid({
                           style={{ gridColumn: `${bar.startCol + 1} / span ${bar.span}`, gridRow: absenceRows + bar.lane + 1, height: LANE_H - 3 }}
                           onClick={() => onEntryClick?.(bar.entry)}
                         >
-                          <span className="truncate">{bar.entry.title}</span>
+                          <span className="min-w-0 truncate">{bar.entry.title}</span>
                         </button>
                       )
                     })}

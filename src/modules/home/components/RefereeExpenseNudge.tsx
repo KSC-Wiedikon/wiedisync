@@ -6,6 +6,7 @@ import { useAuth } from '../../../hooks/useAuth'
 import { useMissingRefereeExpenses, type NudgeGame } from '../../../hooks/useMissingRefereeExpenses'
 import { formatDate, formatTime } from '../../../utils/dateHelpers'
 import { asObj } from '../../../utils/relations'
+import { Button } from '@/components/ui/button'
 
 interface RefereeExpenseNudgeProps {
   /** Opens the game's detail modal — the caller sets `focus="refereeExpense"` so the section lands expanded. */
@@ -64,7 +65,7 @@ export default function RefereeExpenseNudge({ onOpenGame }: RefereeExpenseNudgeP
                 const team = asObj<Team & BaseRecord>(g.kscw_team)
                 const when = `${g.date ? formatDate(g.date) : ''}${g.time ? ` · ${formatTime(g.time)}` : ''}`
                 return (
-                  <li key={g.id} className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between">
+                  <li key={g.id} className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-center">
                     <div className="min-w-0">
                       <p className="break-words text-sm font-medium text-amber-900 dark:text-amber-100">
                         {g.home_team} – {g.away_team}
@@ -73,21 +74,20 @@ export default function RefereeExpenseNudge({ onOpenGame }: RefereeExpenseNudgeP
                         {when}{team?.name ? ` · ${team.name}` : ''}
                       </p>
                     </div>
-                    <div className="flex shrink-0 flex-wrap items-center gap-2">
-                      <button
-                        type="button"
+                    <div className="flex shrink-0 flex-wrap items-center gap-2 sm:ml-auto">
+                      <Button
                         onClick={() => onOpenGame(g)}
-                        className="inline-flex min-h-[44px] items-center rounded-md bg-amber-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-700 dark:bg-amber-500 dark:text-amber-950 dark:hover:bg-amber-400"
+                        className="bg-amber-600 text-white shadow-sm hover:bg-amber-700 dark:bg-amber-500 dark:text-amber-950 dark:hover:bg-amber-400"
                       >
                         {t('refExpenseNudgeCta')}
-                      </button>
-                      <button
-                        type="button"
+                      </Button>
+                      <Button
+                        variant="ghost"
                         onClick={() => dismiss(g)}
-                        className="inline-flex min-h-[44px] items-center rounded-md px-3 py-1.5 text-sm font-medium text-amber-700 hover:bg-amber-100 dark:text-amber-300 dark:hover:bg-amber-900/40"
+                        className="text-amber-700 hover:bg-amber-100 hover:text-amber-800 dark:text-amber-300 dark:hover:bg-amber-900/40 dark:hover:text-amber-200"
                       >
                         {t('ibanNudgeDismiss')}
-                      </button>
+                      </Button>
                     </div>
                   </li>
                 )

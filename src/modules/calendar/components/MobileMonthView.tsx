@@ -1,5 +1,10 @@
 import { useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import IconButton from '@/components/IconButton'
+import TruncatedText from '@/components/TruncatedText'
+import { ActivityRow, DateRail, RowList } from '@/components/ActivityRow'
 import type { CalendarEntry } from '../../../types/calendar'
 import {
   startOfMonth,
@@ -121,34 +126,21 @@ export default function MobileMonthView({
   return (
     <div className="flex flex-col">
       {/* Month header */}
-      <div className="mb-2 flex items-center justify-between">
-        <button
-          onClick={() => onMonthChange(addMonths(month, -1))}
-          className="min-h-[44px] min-w-[44px] rounded-lg p-2 text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
-        >
-          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-        </button>
-        <div className="flex items-center gap-2">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <IconButton label={t('common:prevMonth')} onClick={() => onMonthChange(addMonths(month, -1))} className="text-gray-600 dark:text-gray-400">
+          <ChevronLeft className="!size-5" />
+        </IconButton>
+        <div className="flex min-w-0 items-center gap-2">
           <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
             {formatDate(month, 'MMMM yyyy')}
           </h2>
-          <button
-            onClick={() => onMonthChange(startOfMonth(new Date()))}
-            className="rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
-          >
+          <Button variant="secondary" size="sm" onClick={() => onMonthChange(startOfMonth(new Date()))} className="shrink-0">
             {t('common:today')}
-          </button>
+          </Button>
         </div>
-        <button
-          onClick={() => onMonthChange(addMonths(month, 1))}
-          className="min-h-[44px] min-w-[44px] rounded-lg p-2 text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
-        >
-          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
-        </button>
+        <IconButton label={t('common:nextMonth')} onClick={() => onMonthChange(addMonths(month, 1))} className="text-gray-600 dark:text-gray-400">
+          <ChevronRight className="!size-5" />
+        </IconButton>
       </div>
 
       {/* Day-of-week headers */}
@@ -217,46 +209,41 @@ export default function MobileMonthView({
               {formatDate(new Date(selectedDay + 'T00:00:00'), 'EEEE, d. MMMM')}
             </h3>
           </div>
-          <div className="divide-y divide-gray-100 dark:divide-gray-700">
+          {/* Shared row vocabulary: time on the rail, title WRAPS (primary
+              text), location truncates with a title. */}
+          <RowList className="px-1">
             {displayEntries.map((entry) => {
               const grouped = entry.id.startsWith(ABSENCE_GROUP_PREFIX)
-              const body = (
-                <>
-                  <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${dotColors[colorKey(entry)]}`} />
-                  <div className={`min-w-0 flex-1 ${cancelledClasses(entry)}`}>
-                    <p className={`text-sm font-medium text-gray-900 dark:text-gray-100 ${grouped ? 'break-words' : 'truncate'}`}>
-                      {entry.title}
-                    </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      {entry.allDay
-                        ? t('common:allDay')
-                        : entry.startTime
-                          ? entry.endTime
-                            ? `${entry.startTime} – ${entry.endTime}`
-                            : entry.startTime
-                          : ''}
-                      {entry.location ? ` · ${entry.location}` : ''}
-                    </p>
-                  </div>
-                </>
-              )
-              // Collapsed multi-absence row is informational (no single detail to open).
-              return grouped ? (
-                <div key={entry.id} className="flex w-full items-start gap-2.5 px-3 py-2.5 text-left">
-                  {body}
-                </div>
-              ) : (
-                <button
+              return (
+                <ActivityRow
                   key={entry.id}
-                  type="button"
-                  onClick={() => onEntryClick?.(entry)}
-                  className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left active:bg-gray-50 dark:active:bg-gray-700"
+                  rail={
+                    <DateRail
+                      main={entry.startTime || '–'}
+                      sub={entry.allDay ? t('common:allDay') : entry.endTime ? `– ${entry.endTime}` : undefined}
+                    />
+                  }
+                  // Collapsed multi-absence row is informational (no single detail to open).
+                  onClick={grouped ? undefined : () => onEntryClick?.(entry)}
+                  title={
+                    <div className={`flex min-w-0 items-start gap-2 ${cancelledClasses(entry)}`}>
+                      <span className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${dotColors[colorKey(entry)]}`} />
+                      <p className="min-w-0 break-words text-sm font-medium leading-snug text-gray-900 dark:text-gray-100">
+                        {entry.title}
+                      </p>
+                    </div>
+                  }
                 >
-                  {body}
-                </button>
+                  {entry.location && (
+                    <TruncatedText
+                      text={entry.location}
+                      className={`mt-0.5 text-xs text-gray-500 dark:text-gray-400 ${cancelledClasses(entry)}`}
+                    />
+                  )}
+                </ActivityRow>
               )
             })}
-          </div>
+          </RowList>
         </div>
       )}
 

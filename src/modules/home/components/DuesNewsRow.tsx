@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Wallet } from 'lucide-react'
 import { formatChf, type DuesNews } from '../../../hooks/useFinance'
 import { formatDateCompactZurich, todayLocal } from '../../../utils/dateHelpers'
+import TruncatedText from '../../../components/TruncatedText'
 
 /**
  * "A bill is due" — the one news-feed row that is derived state rather than a
@@ -25,10 +26,12 @@ export default function DuesNewsRow({ news }: { news: DuesNews }) {
         <Wallet className="h-4 w-4" />
       </span>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">
-          {t('newsTitle', { count: news.count, amount: formatChf(news.total) })}
-        </p>
-        <p className="truncate text-xs text-amber-700 dark:text-amber-300">{t('newsHint')}</p>
+        <TruncatedText
+          as="p"
+          text={t('newsTitle', { count: news.count, amount: formatChf(news.total) })}
+          className="text-sm font-medium text-gray-900 dark:text-gray-100"
+        />
+        <TruncatedText as="p" text={t('newsHint')} className="text-xs text-amber-700 dark:text-amber-300" />
       </div>
       <span className={`shrink-0 whitespace-nowrap text-xs font-medium ${overdue ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'}`}>
         {news.dueDate

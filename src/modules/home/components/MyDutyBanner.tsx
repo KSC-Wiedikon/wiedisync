@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { AlertTriangle, Phone, ClipboardList } from 'lucide-react'
 import { kscwApi } from '../../../lib/api'
+import { Button } from '@/components/ui/button'
 import { formatDate, formatTime } from '../../../utils/dateHelpers'
 import {
   useMyDuties,
@@ -88,15 +89,16 @@ function DutyBannerCard({ duty, now }: { duty: MyDuty; now: number }) {
           <p className="text-xs text-amber-700/90 dark:text-amber-300/80">{when}</p>
 
           {showEmergency && revealed === null && (
-            <button
-              type="button"
+            <Button
+              variant="destructive"
+              size="lg"
               onClick={onEmergency}
               disabled={busy}
-              className="mt-3 flex min-h-[44px] w-full items-center justify-center gap-2 rounded-lg bg-red-600 px-3 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400 disabled:opacity-60 dark:bg-red-600 dark:hover:bg-red-500"
+              icon={<AlertTriangle />}
+              className="mt-3 w-full font-semibold"
             >
-              <AlertTriangle className="h-4 w-4 shrink-0" />
               {t('dutyEmergencyButton')}
-            </button>
+            </Button>
           )}
 
           {revealed !== null && (

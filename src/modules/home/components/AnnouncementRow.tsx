@@ -5,6 +5,7 @@ import { stripHtml } from '../../../utils/stripHtml'
 import { pickTranslation } from '../../../hooks/useAnnouncements'
 import { formatRelativeTimeZurich } from '../../../utils/dateHelpers'
 import type { Announcement } from '../../../types'
+import TruncatedText from '../../../components/TruncatedText'
 
 interface Props {
   announcement: Announcement
@@ -48,10 +49,10 @@ export default function AnnouncementRow({ announcement, onClick }: Props) {
           {announcement.pinned && (
             <Pin className="h-3 w-3 shrink-0 text-gold-500 dark:text-gold-400" aria-label="Pinned" />
           )}
-          <p className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">{tr.title}</p>
+          <TruncatedText as="p" text={tr.title} className="text-sm font-medium text-gray-900 dark:text-gray-100" />
         </div>
         {excerpt && (
-          <p className="truncate text-xs text-gray-500 dark:text-gray-400">{excerpt}</p>
+          <TruncatedText as="p" text={excerpt} className="text-xs text-gray-500 dark:text-gray-400" />
         )}
       </div>
       <span className="shrink-0 text-xs text-gray-500 dark:text-gray-400">{timeAgo}</span>

@@ -3,6 +3,8 @@ import type { CalendarEntry } from '../../../types/calendar'
 import { formatDate } from '../../../utils/dateUtils'
 import { entryIconColor, cancelledClasses } from '../entryStyle'
 import CalendarTypeIcon from './CalendarTypeIcon'
+import { ActivityRow, DateRail, RowList } from '@/components/ActivityRow'
+import TruncatedText from '@/components/TruncatedText'
 
 /**
  * The day list behind a month cell's "+N more".
@@ -37,30 +39,39 @@ export default function DayOverflowModal({
       title={date ? formatDate(date, 'EEEE, d MMMM') : ''}
       size="sm"
     >
+      {/* One row per entry on the shared row vocabulary: time on the rail,
+          title WRAPS (it is the primary text — a truncated "VBC Limmattal - D…"
+          is useless in a day list), location truncates with a title. */}
       {entries.length > 0 && (
-        <div className="space-y-2">
+        <RowList>
           {entries.map((entry) => (
-            <button
+            <ActivityRow
               key={entry.id}
-              type="button"
+              rail={<DateRail main={entry.startTime || '–'} />}
               onClick={() => {
                 onClose()
                 onSelect(entry)
               }}
-              className="flex w-full items-center gap-3 rounded-lg p-3 text-left transition-colors hover:bg-gray-50 active:bg-gray-100 dark:hover:bg-gray-700 dark:active:bg-gray-600"
+              title={
+                <div className={`flex min-w-0 items-start gap-2 ${cancelledClasses(entry)}`}>
+                  <span className="mt-0.5 shrink-0">
+                    <CalendarTypeIcon type={entry.type} sport={entry.sport} size="sm" filled className={entryIconColor(entry)} />
+                  </span>
+                  <p className="min-w-0 break-words text-sm font-medium leading-snug text-gray-900 dark:text-gray-100">
+                    {entry.title}
+                  </p>
+                </div>
+              }
             >
-              <CalendarTypeIcon type={entry.type} sport={entry.sport} size="sm" filled className={entryIconColor(entry)} />
-              <div className={`min-w-0 flex-1 ${cancelledClasses(entry)}`}>
-                <p className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">
-                  {entry.title}
-                </p>
-                <p className="text-xs text-gray-600 dark:text-gray-400">
-                  {entry.startTime ?? ''}{entry.location ? ` · ${entry.location}` : ''}
-                </p>
-              </div>
-            </button>
+              {entry.location && (
+                <TruncatedText
+                  text={entry.location}
+                  className={`mt-0.5 text-xs text-gray-600 dark:text-gray-400 ${cancelledClasses(entry)}`}
+                />
+              )}
+            </ActivityRow>
           ))}
-        </div>
+        </RowList>
       )}
     </Modal>
   )

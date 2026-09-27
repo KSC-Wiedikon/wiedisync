@@ -10,7 +10,12 @@ import { fetchSeasons } from '../../lib/api'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useNotificationsContext } from '../../hooks/NotificationsContext'
 import { useSportPreference } from '../../hooks/useSportPreference'
-import { formatDate, formatDateCompact, formatTime, formatWeekday, getCurrentSeason, formatSeasonLong, todayLocal, toZurichDateString, formatDateTimeCompactZurich } from '../../utils/dateHelpers'
+import { formatTime, formatWeekday, formatDayMonthZurich, getCurrentSeason, formatSeasonLong, todayLocal, toZurichDateString, formatDateTimeCompactZurich } from '../../utils/dateHelpers'
+import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import TruncatedText from '@/components/TruncatedText'
+import { ActivityRow, DateRail, RowChip, RowList, SectionHead, TeamPair } from '@/components/ActivityRow'
+import { ROW_HIGHLIGHT, type RowTone } from '@/components/activityRowTokens'
 import { asObj, relId, teamCoachIds } from '../../utils/relations'
 import TeamChip from '../../components/TeamChip'
 import StatusBadge from '../../components/StatusBadge'
@@ -36,7 +41,7 @@ import { useBulkParticipationStatuses, useBulkParticipations } from '../../hooks
 import { useEffectiveSeason } from '../../hooks/useEffectiveSeason'
 import { useNow } from '../../hooks/useNow'
 import type { Game, Event, Team, Training, Hall, Member, MemberTeam, Notification, Announcement, Participation, Ranking, BaseRecord } from '../../types'
-import { ClipboardList, Clock, AlertTriangle, Trophy, Medal, Bell, CalendarDays, LayoutGrid, List, ScrollText, Car } from 'lucide-react'
+import { ClipboardList, Clock, AlertTriangle, Trophy, Medal, Bell, CalendarDays, LayoutGrid, List, ScrollText, Car, TrafficCone } from 'lucide-react'
 import WhistleIcon from '../../components/WhistleIcon'
 import { detectCupMatch } from '../spielplanung/gameChipUtils'
 import { useReportPageLoading } from '../../hooks/usePageReady'
@@ -70,6 +75,10 @@ type TrainingExpanded = Training & {
 }
 
 type MemberTeamExpanded = MemberTeam & { team?: Team | string }
+
+/** Amber nudge-banner buttons — the Button scale, the banner's own colour. */
+const AMBER_CTA = 'bg-amber-600 text-white shadow-sm hover:bg-amber-700 dark:bg-amber-500 dark:text-amber-950 dark:hover:bg-amber-400'
+const AMBER_GHOST = 'text-amber-700 hover:bg-amber-100 hover:text-amber-800 dark:text-amber-300 dark:hover:bg-amber-900/40 dark:hover:text-amber-200'
 
 // Cut-off for the Spielplanung absences reminder banner (volleyball players).
 const ABSENCES_ALERT_DEADLINE = new Date('2026-06-01T23:59:59+02:00').getTime()
@@ -576,12 +585,9 @@ export default function HomePage() {
                 <p className="mt-1 text-sm text-amber-800 dark:text-amber-200/90">
                   {t('absencesAlertBody')}
                 </p>
-                <Link
-                  to="/absences"
-                  className="mt-2 inline-flex min-h-[36px] items-center rounded-md bg-amber-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-700 dark:bg-amber-500 dark:hover:bg-amber-400 dark:text-amber-950"
-                >
-                  {t('absencesAlertCta')}
-                </Link>
+                <Button asChild className={cn('mt-2', AMBER_CTA)}>
+                  <Link to="/absences">{t('absencesAlertCta')}</Link>
+                </Button>
               </div>
             </div>
           </div>
@@ -602,19 +608,12 @@ export default function HomePage() {
                   {user.iban ? t('ibanConfirmNudgeBody') : t('ibanNudgeBody')}
                 </p>
                 <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <Link
-                    to="/finance/dues"
-                    className="inline-flex min-h-[36px] items-center rounded-md bg-amber-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-700 dark:bg-amber-500 dark:hover:bg-amber-400 dark:text-amber-950"
-                  >
-                    {user.iban ? t('ibanConfirmNudgeCta') : t('ibanNudgeCta')}
-                  </Link>
-                  <button
-                    type="button"
-                    onClick={dismissIbanNudge}
-                    className="inline-flex min-h-[36px] items-center rounded-md px-3 py-1.5 text-sm font-medium text-amber-700 hover:bg-amber-100 dark:text-amber-300 dark:hover:bg-amber-900/40"
-                  >
+                  <Button asChild className={AMBER_CTA}>
+                    <Link to="/finance/dues">{user.iban ? t('ibanConfirmNudgeCta') : t('ibanNudgeCta')}</Link>
+                  </Button>
+                  <Button variant="ghost" onClick={dismissIbanNudge} className={AMBER_GHOST}>
                     {t('ibanNudgeDismiss')}
-                  </button>
+                  </Button>
                 </div>
               </div>
             </div>
@@ -629,6 +628,7 @@ export default function HomePage() {
             title={tn('news')}
             linkTo="/news"
             linkLabel={tn('showAll')}
+            className="w-full lg:max-w-2xl"
           />
           <div className="w-full overflow-hidden rounded-xl border border-gray-200 bg-white lg:max-w-2xl dark:border-gray-700 dark:bg-gray-800">
             {duesNews && <DuesNewsRow news={duesNews} />}
@@ -683,17 +683,14 @@ export default function HomePage() {
               {fillableForms.map((item) => (
                 <li key={item.form.id} className="flex items-center justify-between gap-3 px-4 py-3">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">{item.form.title}</p>
+                    <TruncatedText as="p" text={item.form.title} className="text-sm font-medium text-gray-900 dark:text-gray-100" />
                     {item.form.closes_at && (
                       <p className="text-xs text-gray-500 dark:text-gray-400">{tf('closesAt')}: {formatDateTimeCompactZurich(item.form.closes_at)}</p>
                     )}
                   </div>
-                  <button
-                    onClick={() => setFillItem(item)}
-                    className="min-h-[36px] shrink-0 rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-400 dark:text-blue-950"
-                  >
+                  <Button onClick={() => setFillItem(item)} className="shrink-0">
                     {item.submission ? tf('edit') : tf('fill')}
-                  </button>
+                  </Button>
                 </li>
               ))}
             </ul>
@@ -720,23 +717,22 @@ export default function HomePage() {
       {/* View toggle: unified appointments vs categorized sections */}
       {user && isApproved && (
         <div className="mb-4 flex justify-end lg:justify-center">
-          <button
+          <Button
+            variant="ghost"
             onClick={() => setShowCategorized((v) => !v)}
-            className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-gray-600 transition-colors hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
+            icon={showCategorized ? <List /> : <LayoutGrid />}
+            className="gap-1.5 px-3 font-normal text-gray-600 dark:text-gray-400"
           >
-            {showCategorized ? (
-              <><List className="h-4 w-4" />{t('showAppointments')}</>
-            ) : (
-              <><LayoutGrid className="h-4 w-4" />{t('showCategories')}</>
-            )}
-          </button>
+            {showCategorized ? t('showAppointments') : t('showCategories')}
+          </Button>
         </div>
       )}
 
       {/* Unified "My next appointments" view (default for logged-in users) */}
       {user && isApproved && !showCategorized && (
         <div className="lg:flex lg:items-start lg:justify-center lg:gap-8">
-          <div>
+          {/* Takes what the rankings column leaves, capped like the other home cards. */}
+          <div className="min-w-0 lg:max-w-2xl lg:flex-1">
             <NextAppointments
               games={nextGames}
               trainings={nextTrainings}
@@ -751,19 +747,23 @@ export default function HomePage() {
           </div>
           {hasTeams && userSvTeamIds.length > 0 && (userLeagueGroups.size > 0 || homeRankSeason !== null) && (
             <div className="hidden min-w-0 lg:block">
-              <div className="mb-3 flex items-center justify-between gap-2">
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('rankings')}</h2>
-                <Select value={selectedHomeSeason} onValueChange={setHomeRankSeason}>
-                  <SelectTrigger className="h-9 w-[140px]" aria-label={tg('season')}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {homeRankSeasonOptions.map((s) => (
-                      <SelectItem key={s} value={s}>{formatSeasonLong(s)}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <SectionHead
+                as="h2"
+                title={t('rankings')}
+                className="mb-3"
+                right={
+                  <Select value={selectedHomeSeason} onValueChange={setHomeRankSeason}>
+                    <SelectTrigger className="h-9 w-[140px]" aria-label={tg('season')}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {homeRankSeasonOptions.map((s) => (
+                        <SelectItem key={s} value={s}>{formatSeasonLong(s)}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                }
+              />
               {userLeagueGroups.size > 0 ? (
                 <div className="space-y-4">
                   {[...userLeagueGroups.entries()].map(([league, rows]) => (
@@ -789,11 +789,11 @@ export default function HomePage() {
           trainingsSection={hasTeams && nextTrainings.length > 0 ? (
             <div className="min-w-0">
               <SectionHeader title={t('nextTrainings')} linkTo="/trainings" linkLabel={t('allTrainings')} />
-              <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+              <RowList className={LIST_SHELL}>
                 {nextTrainings.map((tr) => (
                   <CompactTrainingRow key={tr.id} training={tr} onClick={() => setSelectedTraining(tr)} participationStatus={getParticipationStatus('training', tr.id)} participations={getParticipations('training', tr.id)} />
                 ))}
-              </div>
+              </RowList>
             </div>
           ) : null}
           trainingsDate={nextTrainings[0]?.date}
@@ -804,9 +804,13 @@ export default function HomePage() {
                 {dutyAppointments.map((d) => (
                   <DutyEventCard key={`duty-${d.game.id}-${d.role}`} duty={d} />
                 ))}
-                {events.map((event) => (
-                  <EventRow key={event.id} event={event} onClick={() => setSelectedEvent(event)} participationStatus={getParticipationStatus('event', event.id)} participations={getParticipations('event', event.id)} />
-                ))}
+                {events.length > 0 && (
+                  <RowList className={LIST_SHELL}>
+                    {events.map((event) => (
+                      <EventRow key={event.id} event={event} onClick={() => setSelectedEvent(event)} participationStatus={getParticipationStatus('event', event.id)} participations={getParticipations('event', event.id)} />
+                    ))}
+                  </RowList>
+                )}
               </div>
             </div>
           ) : null}
@@ -825,11 +829,11 @@ export default function HomePage() {
                       onToggle: () => setShowAllResults((v) => !v),
                     } : undefined}
                   />
-                  <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+                  <RowList className={LIST_SHELL}>
                     {latestResults.map((g) => (
                       <CompactGameRow key={g.id} game={g} showScore onClick={() => setSelectedGame(g)} participationStatus={getParticipationStatus('game', g.id)} participations={getParticipations('game', g.id)} />
                     ))}
-                  </div>
+                  </RowList>
                 </div>
               )}
               {/* When trainings column is present, keep next games stacked here */}
@@ -845,11 +849,11 @@ export default function HomePage() {
                       onToggle: () => setShowAllGames((v) => !v),
                     }}
                   />
-                  <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+                  <RowList className={LIST_SHELL}>
                     {nextGames.map((g) => (
                       <CompactGameRow key={g.id} game={g} showScore={false} onClick={() => setSelectedGame(g)} participationStatus={getParticipationStatus('game', g.id)} participations={getParticipations('game', g.id)} />
                     ))}
-                  </div>
+                  </RowList>
                 </div>
               )}
             </div>
@@ -858,11 +862,11 @@ export default function HomePage() {
           nextGamesSection={!hasOwnGames && nextGames.length > 0 ? (
             <div className="min-w-0">
               <SectionHeader title={t('nextGames')} linkTo="/games" linkLabel={t('allGames')} />
-              <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+              <RowList className={LIST_SHELL}>
                 {nextGames.map((g) => (
                   <CompactGameRow key={g.id} game={g} showScore={false} onClick={() => setSelectedGame(g)} participationStatus={getParticipationStatus('game', g.id)} participations={getParticipations('game', g.id)} />
                 ))}
-              </div>
+              </RowList>
             </div>
           ) : undefined}
           nextGamesDate={!hasOwnGames ? nextGames[0]?.date : undefined}
@@ -908,43 +912,103 @@ export default function HomePage() {
 
 /* ---------- Sub-components ---------- */
 
+/** Home section heading on a rule (shared SectionHead): title left, the
+ *  "My teams" filter and the "All …" link in the right-hand shrink-0 cluster. */
 function SectionHeader({
   title,
   linkTo,
   linkLabel,
   filterToggle,
   onLinkClick,
+  className,
 }: {
   title: string
   linkTo: string
   linkLabel: string
   filterToggle?: { active: boolean; label: string; onToggle: () => void }
   onLinkClick?: (e: React.MouseEvent) => void
+  className?: string
 }) {
   return (
-    <div className="mb-3 flex items-center justify-between gap-2">
-      <div className="flex min-w-0 items-center gap-2">
-        <h2 className="truncate text-lg font-semibold text-gray-900 dark:text-gray-100">{title}</h2>
-        {filterToggle && (
-          <button
-            onClick={filterToggle.onToggle}
-            className={`min-h-[36px] rounded-full px-2.5 py-1.5 text-xs font-medium transition-colors ${
-              filterToggle.active
-                ? 'bg-brand-100 text-brand-700 dark:bg-brand-900/40 dark:text-brand-300'
-                : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
-            }`}
-          >
-            {filterToggle.active ? filterToggle.label : filterToggle.label}
-          </button>
-        )}
-      </div>
-      <Link
-        to={linkTo}
-        onClick={onLinkClick}
-        className="shrink-0 whitespace-nowrap text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300"
-      >
-        {linkLabel} →
-      </Link>
+    <SectionHead
+      as="h2"
+      title={title}
+      className={cn('mb-2', className)}
+      right={
+        <>
+          {filterToggle && (
+            <Button
+              size="sm"
+              variant="ghost"
+              aria-pressed={filterToggle.active}
+              onClick={filterToggle.onToggle}
+              className={cn(
+                'rounded-full px-2.5',
+                filterToggle.active
+                  ? 'bg-brand-100 text-brand-700 hover:bg-brand-200 hover:text-brand-800 dark:bg-brand-900/40 dark:text-brand-300 dark:hover:bg-brand-900/60'
+                  : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400',
+              )}
+            >
+              {filterToggle.label}
+            </Button>
+          )}
+          <Button asChild size="sm" variant="link" className="px-1 text-brand-600 dark:text-brand-400">
+            <Link to={linkTo} onClick={onLinkClick}>{linkLabel} →</Link>
+          </Button>
+        </>
+      }
+    />
+  )
+}
+
+/** Card shell the home lists sit in — the page keeps its card hierarchy; the
+ *  rows inside are flat (RowList owns the hairlines). */
+const LIST_SHELL = 'overflow-hidden rounded-xl border border-gray-200 bg-white px-1 dark:border-gray-700 dark:bg-gray-800'
+
+/** RSVP status → row tone (stripe + rail text). No answer = neutral. */
+const RSVP_TONE: Record<string, RowTone> = {
+  confirmed: 'green',
+  tentative: 'amber',
+  declined: 'red',
+  waitlisted: 'violet',
+  absent: 'gray',
+}
+function rsvpTone(status: string | undefined): RowTone {
+  return (status && RSVP_TONE[status]) || 'gray'
+}
+
+/** Which side of a fixture is KSCW — bold in TeamPair. */
+function kscwSide(game: ExpandedGame): 'home' | 'away' {
+  return game.type === 'away' ? 'away' : 'home'
+}
+
+/** Standard rail for a dated activity: weekday / dd.mm / time. The year is
+ *  left out on purpose — these lists only look a few weeks ahead or back,
+ *  and dd.mm.yyyy does not fit the one rail width. */
+function dayRail(date: string, time: string, tone: RowTone, extra?: React.ReactNode) {
+  return (
+    <DateRail
+      eyebrow={formatWeekday(date)}
+      main={formatDayMonthZurich(date)}
+      sub={time || undefined}
+      extra={extra}
+      tone={tone}
+    />
+  )
+}
+
+/** "– dd.mm" under the rail for an event that runs over several days. */
+function eventEndExtra(ev: EventExpanded) {
+  return getEventDateBadgeParts(ev.start_date, ev.end_date).isMultiDay && ev.end_date
+    ? `– ${formatDayMonthZurich(ev.end_date)}`
+    : undefined
+}
+
+/** RSVP counters, in the row body under the title. */
+function RowCounters(props: React.ComponentProps<typeof ParticipationSummary>) {
+  return (
+    <div className="mt-1.5 empty:hidden">
+      <ParticipationSummary {...props} />
     </div>
   )
 }
@@ -1009,7 +1073,7 @@ function NewsRow({ notification, onMarkAsRead }: { notification: Notification; o
       }}
     >
       <span className="shrink-0 text-gray-500 dark:text-gray-400">{newsTypeIcons[notification.type] ?? <Bell className="h-4 w-4" />}</span>
-      <p className="min-w-0 flex-1 truncate text-sm text-gray-900 dark:text-gray-100">{message}</p>
+      <TruncatedText text={message} as="p" className="flex-1 text-sm text-gray-900 dark:text-gray-100" />
       <span className="shrink-0 text-xs text-gray-500 dark:text-gray-400">{timeAgo}</span>
     </div>
   )
@@ -1017,78 +1081,44 @@ function NewsRow({ notification, onMarkAsRead }: { notification: Notification; o
 
 function CompactGameRow({ game, showScore, onClick, participationStatus, participations }: { game: ExpandedGame; showScore: boolean; onClick?: () => void; participationStatus?: string; participations?: Participation[] }) {
   const { user } = useAuth()
-  const dateStr = game.date ? formatDateCompact(game.date) : ''
   const homeWon = Number(game.home_score) > Number(game.away_score)
   const awayWon = Number(game.away_score) > Number(game.home_score)
   const kscwWon = game.type === 'home' ? homeWon : awayWon
   const kscwLost = game.type === 'home' ? awayWon : homeWon
+  const tone = user ? rsvpTone(participationStatus) : 'gray'
 
-  const effectiveStatus = participationStatus
+  // KSCW line coloured by the outcome, opponent neutral.
+  const scoreClass = (side: 'home' | 'away') => game.type === side
+    ? `font-bold ${kscwWon ? 'text-green-600 dark:text-green-400' : kscwLost ? 'text-red-500 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'}`
+    : 'font-medium text-gray-500 dark:text-gray-400'
 
-  const statusBorderColor: Record<string, string> = {
-    confirmed: 'bg-green-500 dark:bg-green-400',
-    tentative: 'bg-yellow-500 dark:bg-yellow-400',
-    declined: 'bg-red-500 dark:bg-red-400',
-    waitlisted: 'bg-orange-500 dark:bg-orange-400',
-    absent: 'bg-gray-400 dark:bg-gray-500',
-  }
+  const isBasketball = asObj<Team & BaseRecord>(game.kscw_team)?.sport === 'basketball' || game.source === 'basketplan'
 
   return (
-    <div
-      className="flex cursor-pointer items-stretch border-b border-gray-100 last:border-b-0 hover:bg-gray-50 active:bg-gray-100 dark:border-gray-700 dark:hover:bg-gray-700/50 dark:active:bg-gray-700"
+    <ActivityRow
+      rail={dayRail(game.date, game.time ? formatTime(game.time) : '', tone)}
+      tone={tone}
       onClick={onClick}
-    >
-      {/* Participation status vertical banner — always render to avoid React removeChild errors */}
-      {user && effectiveStatus ? (
-        <div className={`w-1 shrink-0 ${statusBorderColor[effectiveStatus] ?? ''}`} />
-      ) : (
-        <div className="w-1 shrink-0" />
-      )}
-
-      <div className="min-w-0 flex-1 px-4 py-2">
-        <div className="flex items-center gap-3">
-          {/* Date & time */}
-          <div className="w-14 shrink-0 text-xs text-gray-500 dark:text-gray-400">
-            <div>{dateStr}</div>
-            {game.time && <div>{formatTime(game.time)}</div>}
-          </div>
-
-          {/* Sport icon */}
-          {asObj<Team & BaseRecord>(game.kscw_team)?.sport === 'basketball' || game.source === 'basketplan'
+      title={<TeamPair home={game.home_team} away={game.away_team} emphasis={kscwSide(game)} />}
+      status={
+        <>
+          {/* Vertical score, one line per team — level with the two names. */}
+          {showScore && game.status === 'completed' && (
+            <span className="text-right font-mono text-sm leading-snug tabular-nums">
+              <span className={`block ${scoreClass('home')}`}>{game.home_score}</span>
+              <span className={`block ${scoreClass('away')}`}>{game.away_score}</span>
+            </span>
+          )}
+          {isBasketball
             ? <BasketballIcon className="h-5 w-5 shrink-0" filled />
             : <VolleyballIcon className="h-5 w-5 shrink-0" filled />}
-
-          {/* Team names — stacked, Wiedikon team bold, wrap on small screens */}
-          <div className="min-w-0 flex-1">
-            <p className={`break-words text-sm leading-tight text-gray-900 dark:text-gray-100 ${game.type === 'home' ? 'font-bold' : ''}`}>
-              {game.home_team}
-            </p>
-            <p className={`break-words text-sm leading-tight text-gray-900 dark:text-gray-100 ${game.type === 'away' ? 'font-bold' : ''}`}>
-              {game.away_team}
-            </p>
-          </div>
-
-          {/* Vertical score: KSCW line colored, opponent neutral */}
-          {showScore && game.status === 'completed' && (
-            <div className="shrink-0 text-right font-mono text-sm leading-snug">
-              <div className={`${game.type === 'home' ? (kscwWon ? 'text-green-600 dark:text-green-400' : kscwLost ? 'text-red-500' : 'text-gray-500') : 'text-gray-500 dark:text-gray-400'} ${game.type === 'home' ? 'font-bold' : 'font-medium'}`}>
-                {game.home_score}
-              </div>
-              <div className={`${game.type === 'away' ? (kscwWon ? 'text-green-600 dark:text-green-400' : kscwLost ? 'text-red-500' : 'text-gray-500') : 'text-gray-500 dark:text-gray-400'} ${game.type === 'away' ? 'font-bold' : 'font-medium'}`}>
-                {game.away_score}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Participation bars — own row beneath info */}
-        {game.status === 'scheduled' && (
-          <div className="mt-1.5 pl-[calc(3.5rem+0.75rem)]">
-            <ParticipationSummary activityType="game" activityId={game.id} bars coachMemberIds={teamCoachIds(asObj<Team>(game.kscw_team))} participations={participations} />
-          </div>
-        )}
-      </div>
-    </div>
+        </>
+      }
+    >
+      {game.status === 'scheduled' && (
+        <RowCounters activityType="game" activityId={game.id} bars coachMemberIds={teamCoachIds(asObj<Team>(game.kscw_team))} participations={participations} />
+      )}
+    </ActivityRow>
   )
 }
 
@@ -1096,67 +1126,28 @@ function CompactTrainingRow({ training, onClick, participationStatus, participat
   const { user } = useAuth()
   const team = asObj<Team>(training.team)
   const hall = asObj<Hall>(training.hall)
-  const dateStr = training.date ? formatDate(training.date) : ''
-  const weekday = training.date ? formatWeekday(training.date) : ''
-
-  const effectiveStatus = participationStatus
-
-  const statusBorderColor: Record<string, string> = {
-    confirmed: 'bg-green-500 dark:bg-green-400',
-    tentative: 'bg-yellow-500 dark:bg-yellow-400',
-    declined: 'bg-red-500 dark:bg-red-400',
-    waitlisted: 'bg-orange-500 dark:bg-orange-400',
-    absent: 'bg-gray-400 dark:bg-gray-500',
-  }
+  const tone = user ? rsvpTone(participationStatus) : 'gray'
 
   return (
-    <div
-      className="flex cursor-pointer items-stretch border-b border-gray-100 last:border-b-0 hover:bg-gray-50 active:bg-gray-100 dark:border-gray-700 dark:hover:bg-gray-700/50 dark:active:bg-gray-700"
-      onClick={onClick}
-    >
-      {/* Participation status vertical banner — always render to avoid React removeChild errors */}
-      {user && effectiveStatus ? (
-        <div className={`w-1 shrink-0 ${statusBorderColor[effectiveStatus] ?? ''}`} />
-      ) : (
-        <div className="w-1 shrink-0" />
+    <ActivityRow
+      // End time as a rail sub-line: "18:00–20:00" does not fit the rail's width.
+      rail={dayRail(
+        training.date,
+        training.start_time ? formatTime(training.start_time) : '',
+        tone,
+        training.end_time ? `– ${formatTime(training.end_time)}` : undefined,
       )}
-
-      <div className="min-w-0 flex-1 px-4 py-3">
-        <div className="flex items-center gap-3">
-          {/* Date & time */}
-          <div className="w-24 shrink-0 text-xs text-gray-500 dark:text-gray-400">
-            <div>{weekday}, {dateStr}</div>
-            <div>{formatTime(training.start_time)} – {formatTime(training.end_time)}</div>
-          </div>
-
-          {/* Info */}
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              {team && <TeamChip team={team.name} size="sm" />}
-              {hall && <span className="text-sm text-gray-700 dark:text-gray-300">{hall.name}<ExtraHallsSuffix extraHalls={training.extra_halls} /></span>}
-            </div>
-          </div>
-        </div>
-
-        {/* Participation bars — own row beneath info */}
-        <div className="mt-1.5 pl-[calc(6rem+0.75rem)]">
-          <ParticipationSummary activityType="training" activityId={training.id} bars coachMemberIds={teamCoachIds(team)} participations={participations} />
-        </div>
-      </div>
-    </div>
-  )
-}
-
-
-/** Inline cone SVG for training icon */
-function TrainingConeIcon({ className = '' }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M16.05 10.966a5 2.5 0 0 1-8.1 0" />
-      <path d="m16.923 14.049 4.48 2.04a1 1 0 0 1 .001 1.831l-8.574 3.9a2 2 0 0 1-1.66 0l-8.574-3.91a1 1 0 0 1 0-1.83l4.484-2.04" />
-      <path d="M16.949 14.14a5 2.5 0 1 1-9.9 0L10.063 3.5a2 2 0 0 1 3.874 0z" />
-      <path d="M9.194 6.57a5 2.5 0 0 0 5.61 0" />
-    </svg>
+      tone={tone}
+      onClick={onClick}
+      title={team ? <TeamChip team={team.name} size="sm" /> : null}
+    >
+      {hall && (
+        <TruncatedText text={hall.name} className="mt-1 text-sm text-gray-700 dark:text-gray-300">
+          {hall.name}<ExtraHallsSuffix extraHalls={training.extra_halls} />
+        </TruncatedText>
+      )}
+      <RowCounters activityType="training" activityId={training.id} bars coachMemberIds={teamCoachIds(team)} participations={participations} />
+    </ActivityRow>
   )
 }
 
@@ -1169,203 +1160,87 @@ function gameIcon(game: ExpandedGame, className: string) {
   return <WhistleIcon className={className} />
 }
 
-/** Single appointment row with participation banner */
+type AppointmentItem =
+  | { type: 'game'; date: string; data: ExpandedGame }
+  | { type: 'training'; date: string; data: TrainingExpanded }
+  | { type: 'event'; date: string; data: EventExpanded }
+  | { type: 'duty'; date: string; data: ExpandedGame; roleLabel: string }
+
+/** One row of "My next appointments" — games, trainings, events and duties
+ *  on the same rail, rendered once and reflowed at every width. */
 function AppointmentRow({ appointment, onClick, participationStatus, participations }: {
-  appointment: { type: 'game' | 'training' | 'event' | 'duty'; date: string; data: ExpandedGame | TrainingExpanded | EventExpanded; label?: string }
+  appointment: AppointmentItem
   onClick?: () => void
   participationStatus?: string
   participations?: Participation[]
 }) {
   const { user } = useAuth()
   const { t: tCal } = useTranslation('calendar')
+  const tone: RowTone = appointment.type === 'duty' ? 'amber' : user ? rsvpTone(participationStatus) : 'gray'
+  const iconClass = 'h-4 w-4 shrink-0 text-gray-400 dark:text-gray-500'
+  const titleClass = 'break-words text-sm font-semibold leading-snug text-gray-900 sm:text-[15px] dark:text-gray-100'
 
-  const effectiveStatus = participationStatus
-
-  const statusBorderColor: Record<string, string> = {
-    confirmed: 'bg-green-500 dark:bg-green-400',
-    tentative: 'bg-yellow-500 dark:bg-yellow-400',
-    declined: 'bg-red-500 dark:bg-red-400',
-    waitlisted: 'bg-orange-500 dark:bg-orange-400',
-    absent: 'bg-gray-400 dark:bg-gray-500',
-  }
-
-  const bigTypeIcon = {
-    game: gameIcon(appointment.data as ExpandedGame, 'h-6 w-6 shrink-0'),
-    training: <TrainingConeIcon className="h-6 w-6 shrink-0" />,
-    event: <CalendarDays className="h-6 w-6 shrink-0" />,
-    duty: <ClipboardList className="h-6 w-6 shrink-0" />,
-  }
-
-  const dateStr = formatDateCompact(appointment.date)
-  const weekday = formatWeekday(appointment.date)
-
-  let label: string
-  let timeStr = ''
+  let time = ''
+  let railExtra: React.ReactNode
+  let title: React.ReactNode
+  let chips: React.ReactNode
+  let body: React.ReactNode
+  let icon: React.ReactNode
   let coachIds: string[] | undefined
-  if (appointment.type === 'game') {
-    const g = appointment.data as ExpandedGame
-    label = `${g.home_team} vs ${g.away_team}`
-    if (g.time) timeStr = formatTime(g.time)
-    coachIds = teamCoachIds(asObj<Team>(g.kscw_team))
+
+  if (appointment.type === 'game' || appointment.type === 'duty') {
+    const g = appointment.data
+    if (g.time) time = formatTime(g.time)
+    title = <TeamPair home={g.home_team} away={g.away_team} emphasis={kscwSide(g)} />
+    if (appointment.type === 'game') {
+      coachIds = teamCoachIds(asObj<Team>(g.kscw_team))
+      icon = gameIcon(g, iconClass)
+    } else {
+      chips = <RowChip tone="amber">{appointment.roleLabel}</RowChip>
+      icon = <ClipboardList className={iconClass} />
+    }
   } else if (appointment.type === 'training') {
-    const tr = appointment.data as TrainingExpanded
+    const tr = appointment.data
     const team = asObj<Team>(tr.team)
     const hall = asObj<Hall>(tr.hall)
-    label = [team?.name, hall?.name].filter(Boolean).join(' · ')
-    if (tr.start_time) timeStr = formatTime(tr.start_time)
+    if (tr.start_time) time = formatTime(tr.start_time)
     coachIds = teamCoachIds(team)
-  } else if (appointment.type === 'duty') {
-    const g = appointment.data as ExpandedGame
-    label = appointment.label ?? `${g.home_team} vs ${g.away_team}`
-    if (g.time) timeStr = formatTime(g.time)
+    title = team ? <p className={titleClass}>{team.name}</p> : null
+    body = hall && (
+      <TruncatedText text={hall.name} className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+        {hall.name}<ExtraHallsSuffix extraHalls={tr.extra_halls} />
+      </TruncatedText>
+    )
+    icon = <TrafficCone className={iconClass} />
   } else {
-    const ev = appointment.data as EventExpanded
+    const ev = appointment.data
     // An event title is free text and says nothing about what KIND of thing it
     // is — a friendly entered as "VBC Limmattal - D4" reads as a league fixture
-    // next to the real ones. Lead with the translated type; the cards elsewhere
-    // carry it as a StatusBadge, this row has no room for one.
+    // next to the real ones. Lead with the translated type as a chip.
     const typeKey = eventTypeLabelKey(ev.event_type)
-    label = typeKey ? `${tCal(typeKey)} · ${ev.title}` : ev.title
-    if (!ev.all_day && ev.start_date) timeStr = formatTime(ev.start_date)
+    if (!ev.all_day && ev.start_date) time = formatTime(ev.start_date)
+    railExtra = eventEndExtra(ev)
+    title = <p className={titleClass}>{ev.title}</p>
+    if (typeKey) chips = <RowChip tone="violet">{tCal(typeKey)}</RowChip>
+    icon = <CalendarDays className={iconClass} />
   }
 
   return (
-    <div
-      className={`cursor-pointer border-b border-gray-100 last:border-b-0 dark:border-gray-700 ${
-        appointment.type === 'duty'
-          ? 'bg-orange-50 hover:bg-orange-100 dark:bg-orange-500/10 dark:hover:bg-orange-500/20'
-          : 'hover:bg-gray-50 active:bg-gray-100 dark:hover:bg-gray-700/50 dark:active:bg-gray-700'
-      }`}
+    <ActivityRow
+      rail={dayRail(appointment.date, time, tone, railExtra)}
+      tone={tone}
       onClick={onClick}
+      title={title}
+      status={icon}
+      chips={chips}
+      // A duty is "this needs you" — highlighted, and the role chip says why.
+      className={appointment.type === 'duty' ? ROW_HIGHLIGHT.amber : undefined}
     >
-      <div className="flex items-stretch">
-        {/* Participation status vertical banner — spans full height including counter row */}
-        {user && effectiveStatus ? (
-          <div className={`w-1 shrink-0 ${statusBorderColor[effectiveStatus] ?? ''}`} />
-        ) : (
-          <div className="w-1 shrink-0" />
-        )}
-
-        <div className="min-w-0 flex-1">
-          {/* Two-row grid: [Date | Label] over [Icon | ParticipationSummary],
-              aligned so the right-hand content has a clear gap from the date
-              column and icon. */}
-          <div
-            className="grid items-center"
-            style={{ gridTemplateColumns: '4.5rem 1fr', columnGap: '1rem' }}
-          >
-            <div className="py-2.5 pl-3 text-xs text-gray-500 dark:text-gray-400">
-              <div>{weekday}</div>
-              <div>{dateStr}</div>
-              {timeStr && <div>{timeStr}</div>}
-            </div>
-            <p className="min-w-0 truncate pr-3 text-sm text-gray-900 dark:text-gray-100">{label}</p>
-
-            <div className="pb-2 pl-3">
-              <span className="text-gray-500 dark:text-gray-400">{bigTypeIcon[appointment.type]}</span>
-            </div>
-            <div className="pb-2 pr-3">
-              {appointment.type !== 'duty' && (
-                <ParticipationSummary activityType={appointment.type} activityId={appointment.data.id} bars coachMemberIds={coachIds} participations={participations} />
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-/** Desktop table row for aligned columns */
-function AppointmentTableRow({ appointment, onClick, participationStatus, participations }: {
-  appointment: { type: 'game' | 'training' | 'event' | 'duty'; date: string; data: ExpandedGame | TrainingExpanded | EventExpanded; label?: string }
-  onClick?: () => void
-  participationStatus?: string
-  participations?: Participation[]
-}) {
-  const { user } = useAuth()
-  const { t: tCal } = useTranslation('calendar')
-  const effectiveStatus = participationStatus
-
-  const statusBorderBg: Record<string, string> = {
-    confirmed: 'bg-green-500 dark:bg-green-400',
-    tentative: 'bg-yellow-500 dark:bg-yellow-400',
-    declined: 'bg-red-500 dark:bg-red-400',
-    waitlisted: 'bg-orange-500 dark:bg-orange-400',
-    absent: 'bg-gray-400 dark:bg-gray-500',
-  }
-
-  const typeIcon = {
-    game: gameIcon(appointment.data as ExpandedGame, 'h-4 w-4'),
-    training: <TrainingConeIcon className="h-4 w-4" />,
-    event: <CalendarDays className="h-4 w-4" />,
-    duty: <ClipboardList className="h-4 w-4" />,
-  }
-
-  const dateStr = formatDateCompact(appointment.date)
-  const weekday = formatWeekday(appointment.date)
-
-  let label: string
-  let timeStr = ''
-  let coachIds: string[] | undefined
-  if (appointment.type === 'game') {
-    const g = appointment.data as ExpandedGame
-    label = `${g.home_team} vs ${g.away_team}`
-    if (g.time) timeStr = formatTime(g.time)
-    coachIds = teamCoachIds(asObj<Team>(g.kscw_team))
-  } else if (appointment.type === 'training') {
-    const tr = appointment.data as TrainingExpanded
-    const team = asObj<Team>(tr.team)
-    const hall = asObj<Hall>(tr.hall)
-    label = [team?.name, hall?.name].filter(Boolean).join(' · ')
-    if (tr.start_time) timeStr = formatTime(tr.start_time)
-    coachIds = teamCoachIds(team)
-  } else if (appointment.type === 'duty') {
-    const g = appointment.data as ExpandedGame
-    label = appointment.label ?? `${g.home_team} vs ${g.away_team}`
-    if (g.time) timeStr = formatTime(g.time)
-  } else {
-    const ev = appointment.data as EventExpanded
-    // An event title is free text and says nothing about what KIND of thing it
-    // is — a friendly entered as "VBC Limmattal - D4" reads as a league fixture
-    // next to the real ones. Lead with the translated type; the cards elsewhere
-    // carry it as a StatusBadge, this row has no room for one.
-    const typeKey = eventTypeLabelKey(ev.event_type)
-    label = typeKey ? `${tCal(typeKey)} · ${ev.title}` : ev.title
-    if (!ev.all_day && ev.start_date) timeStr = formatTime(ev.start_date)
-  }
-
-  return (
-    <tr
-      className={`cursor-pointer border-b border-gray-100 last:border-b-0 dark:border-gray-700 ${
-        appointment.type === 'duty'
-          ? 'bg-orange-50 hover:bg-orange-100 dark:bg-orange-500/10 dark:hover:bg-orange-500/20'
-          : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'
-      }`}
-      onClick={onClick}
-    >
-      <td className={`w-1 p-0 ${user && effectiveStatus ? statusBorderBg[effectiveStatus] ?? '' : ''}`} />
-      <td className="whitespace-nowrap py-3.5 pl-4 pr-5 text-sm text-gray-500 dark:text-gray-400">
-        {weekday}
-      </td>
-      <td className="whitespace-nowrap py-3.5 pr-5 text-sm text-gray-500 dark:text-gray-400">
-        {dateStr}
-      </td>
-      <td className="whitespace-nowrap py-3.5 pr-5 text-sm text-gray-500 dark:text-gray-400">
-        {timeStr || ''}
-      </td>
-      <td className="py-3.5 pr-2 text-gray-500 dark:text-gray-400">
-        {typeIcon[appointment.type]}
-      </td>
-      <td className="whitespace-nowrap py-3.5 pr-4 text-sm text-gray-900 dark:text-gray-100">
-        {label}
-      </td>
-      <td className="py-3.5 pr-3">
-        {appointment.type !== 'duty' && (
-          <ParticipationSummary activityType={appointment.type} activityId={appointment.data.id} bars coachMemberIds={coachIds} participations={participations} />
-        )}
-      </td>
-    </tr>
+      {body}
+      {appointment.type !== 'duty' && (
+        <RowCounters activityType={appointment.type} activityId={appointment.data.id} bars coachMemberIds={coachIds} participations={participations} />
+      )}
+    </ActivityRow>
   )
 }
 
@@ -1395,13 +1270,8 @@ function NextAppointments({
   const { t: tScorer } = useTranslation('scorer')
   const [visibleCount, setVisibleCount] = useState(10)
 
-  type Appointment = { type: 'game'; date: string; data: ExpandedGame }
-    | { type: 'training'; date: string; data: TrainingExpanded }
-    | { type: 'event'; date: string; data: EventExpanded }
-    | { type: 'duty'; date: string; data: ExpandedGame; label: string }
-
   const allAppointments = useMemo(() => {
-    const items: Appointment[] = []
+    const items: AppointmentItem[] = []
     for (const g of games) {
       if (g.date) items.push({ type: 'game', date: g.date, data: g })
     }
@@ -1417,7 +1287,7 @@ function NextAppointments({
         type: 'duty',
         date: g.date,
         data: g,
-        label: `${tScorer(DUTY_ROLE_LABEL_KEYS[d.role] ?? 'scorer')} · ${g.home_team} – ${g.away_team}`,
+        roleLabel: tScorer(DUTY_ROLE_LABEL_KEYS[d.role] ?? 'scorer'),
       })
     }
     items.sort((a, b) => a.date.localeCompare(b.date))
@@ -1436,59 +1306,44 @@ function NextAppointments({
 
   if (appointments.length === 0) return null
 
-  const renderOnClick = (apt: Appointment) => {
-    if (apt.type === 'game' || apt.type === 'duty') return () => onGameClick(apt.data as ExpandedGame)
-    if (apt.type === 'training') return () => onTrainingClick(apt.data as TrainingExpanded)
-    return () => onEventClick(apt.data as EventExpanded)
+  const renderOnClick = (apt: AppointmentItem) => {
+    if (apt.type === 'game' || apt.type === 'duty') return () => onGameClick(apt.data)
+    if (apt.type === 'training') return () => onTrainingClick(apt.data)
+    return () => onEventClick(apt.data)
   }
 
+  // ONE list at every width. This used to be a desktop <table> plus a mobile
+  // list, both mounted and CSS-hidden — two ParticipationSummary per activity
+  // (see useParticipationCounts on why duplicate mounts cost). The rows reflow
+  // instead; participations stay prefetched as before.
   return (
-    <div className="mb-6 lg:flex lg:flex-col lg:items-center">
-      <h2 className="mb-3 text-lg font-semibold text-gray-900 dark:text-gray-100">{t('myNextAppointments')}</h2>
-
-      {/* Desktop: centered table layout with aligned columns */}
-      <div className="hidden lg:block">
-        <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
-          <table>
-            <tbody>
-              {appointments.map((apt) => (
-                <AppointmentTableRow
-                  key={`${apt.type}-${apt.data.id}`}
-                  appointment={apt}
-                  onClick={renderOnClick(apt)}
-                  participationStatus={apt.type === 'duty' ? undefined : getParticipationStatus(apt.type, apt.data.id)}
-                  participations={apt.type === 'duty' ? undefined : getParticipations(apt.type, apt.data.id)}
-                />
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Mobile: list layout */}
-      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white lg:hidden dark:border-gray-700 dark:bg-gray-800">
-        {appointments.map((apt) => (
-          <AppointmentRow
-            key={`${apt.type}-${apt.data.id}`}
-            appointment={apt}
-            onClick={renderOnClick(apt)}
-            participationStatus={apt.type === 'duty' ? undefined : getParticipationStatus(apt.type, apt.data.id)}
-            participations={apt.type === 'duty' ? undefined : getParticipations(apt.type, apt.data.id)}
-          />
-        ))}
+    <div className="mb-6">
+      <SectionHead as="h2" title={t('myNextAppointments')} className="mb-2" />
+      <div className={LIST_SHELL}>
+        <RowList>
+          {appointments.map((apt) => (
+            <AppointmentRow
+              key={`${apt.type}-${apt.data.id}`}
+              appointment={apt}
+              onClick={renderOnClick(apt)}
+              participationStatus={apt.type === 'duty' ? undefined : getParticipationStatus(apt.type, apt.data.id)}
+              participations={apt.type === 'duty' ? undefined : getParticipations(apt.type, apt.data.id)}
+            />
+          ))}
+        </RowList>
       </div>
 
       {hasMore && (
-        <button
-          onClick={() => setVisibleCount((v) => v + 10)}
-          className="mt-2 rounded-lg px-6 py-2 text-sm text-gray-500 transition-colors hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
-        >
+        <Button variant="ghost" onClick={() => setVisibleCount((v) => v + 10)} className="mt-2 w-full text-gray-500 dark:text-gray-400">
           {t('showMore')}
-        </button>
+        </Button>
       )}
     </div>
   )
 }
+
+/** Mobile ordering slots — static strings so Tailwind generates them. */
+const SECTION_ORDER = ['order-1', 'order-2', 'order-3', 'order-4']
 
 /** Renders 3 sections in 1/3 columns on desktop, ordered by closest date on mobile */
 function HomeSections({
@@ -1510,116 +1365,63 @@ function HomeSections({
   nextGamesSection?: React.ReactNode
   nextGamesDate?: string
 }) {
-  // Build sections with their earliest date for mobile ordering
+  // Sections in their fixed desktop order; the mobile rank (closest upcoming
+  // date first) is applied with `order-*`, so each section mounts ONCE — this
+  // used to render a desktop grid and a mobile stack side by side, CSS-hidden.
   const sections = useMemo(() => {
-    const items: { key: string; date: string; node: React.ReactNode }[] = []
+    const items: { key: string; date: string; node: React.ReactNode; desktopHidden?: boolean }[] = []
     if (trainingsSection) items.push({ key: 'trainings', date: trainingsDate ?? '9999', node: trainingsSection })
     if (eventsSection) items.push({ key: 'events', date: eventsDate ?? '9999', node: eventsSection })
     if (gamesSection) items.push({ key: 'games', date: gamesDate ?? '9999', node: gamesSection })
-    if (nextGamesSection) items.push({ key: 'nextGames', date: nextGamesDate ?? '9999', node: nextGamesSection })
-    // Sort by closest date for mobile
-    items.sort((a, b) => a.date.localeCompare(b.date))
-    return items
+    // Desktop only promotes next games into the third column when there is no
+    // trainings column; mobile always lists it.
+    if (nextGamesSection) items.push({ key: 'nextGames', date: nextGamesDate ?? '9999', node: nextGamesSection, desktopHidden: !!trainingsSection })
+    const rank = new Map([...items].sort((a, b) => a.date.localeCompare(b.date)).map((s, i) => [s.key, i]))
+    return items.map((s) => ({ ...s, order: rank.get(s.key) ?? 0 }))
   }, [trainingsSection, trainingsDate, eventsSection, eventsDate, gamesSection, gamesDate, nextGamesSection, nextGamesDate])
 
   if (sections.length === 0) return null
 
   return (
-    <>
-      {/* Desktop: always 1/3 columns in fixed order */}
-      <div className="hidden gap-6 lg:grid lg:grid-cols-3">
-        {trainingsSection && <div className="min-w-0">{trainingsSection}</div>}
-        {eventsSection && <div className="min-w-0">{eventsSection}</div>}
-        {gamesSection && <div className="min-w-0">{gamesSection}</div>}
-        {/* When no trainings column, promote next games to fill the empty column */}
-        {!trainingsSection && nextGamesSection && <div className="min-w-0">{nextGamesSection}</div>}
-      </div>
-      {/* Mobile: stacked, ordered by closest upcoming date */}
-      <div className="space-y-6 lg:hidden">
-        {sections.map((s) => (
-          <div key={s.key}>{s.node}</div>
-        ))}
-      </div>
-    </>
+    <div className="grid gap-6 lg:grid-cols-3">
+      {sections.map((s) => (
+        <div key={s.key} className={cn('min-w-0 lg:order-none', SECTION_ORDER[s.order], s.desktopHidden && 'lg:hidden')}>
+          {s.node}
+        </div>
+      ))}
+    </div>
   )
 }
 
 function EventRow({ event, onClick, participationStatus, participations }: { event: EventExpanded; onClick: () => void; participationStatus?: string; participations?: Participation[] }) {
-  const effectiveStatus = participationStatus
   const teams = asTeams(event.teams)
-
-  const statusBorderColor: Record<string, string> = {
-    confirmed: 'bg-green-500 dark:bg-green-400',
-    tentative: 'bg-yellow-500 dark:bg-yellow-400',
-    declined: 'bg-red-500 dark:bg-red-400',
-    waitlisted: 'bg-orange-500 dark:bg-orange-400',
-  }
+  const tone = rsvpTone(participationStatus)
+  const date = toZurichDateString(event.start_date)
 
   return (
-    <button onClick={onClick} className="flex w-full items-stretch overflow-hidden rounded-xl border border-gray-200 bg-white text-left shadow-card transition-shadow hover:shadow-card-hover dark:border-gray-700 dark:bg-gray-800">
-      {effectiveStatus ? (
-        <div className={`w-1 shrink-0 ${statusBorderColor[effectiveStatus] ?? ''}`} />
-      ) : (
-        <div className="w-1 shrink-0" />
-      )}
-      <div className="min-w-0 flex-1 p-3">
-        {/* Top row: event type badge */}
-        <div className="mb-2 flex items-center justify-between gap-2">
+    <ActivityRow
+      rail={dayRail(date, !event.all_day && event.start_date ? formatTime(event.start_date) : '', tone, eventEndExtra(event))}
+      tone={tone}
+      onClick={onClick}
+      title={<p className="break-words text-sm font-semibold leading-snug text-gray-900 dark:text-gray-100">{event.title}</p>}
+      chips={
+        <>
           <StatusBadge status={event.event_type} />
-          {effectiveStatus && (
-            <ParticipationSummary activityType="event" activityId={event.id} bars hideExtras participations={participations} />
-          )}
-        </div>
-
-        {/* Content row: date badge + details */}
-        <div className="flex items-start gap-2.5">
-          {(() => {
-            const { isMultiDay, startDay, startMonth, endDay, endMonth } = getEventDateBadgeParts(event.start_date, event.end_date)
-            if (!isMultiDay) {
-              return (
-                <div className="flex h-9 w-9 shrink-0 flex-col items-center justify-center rounded-lg bg-brand-50 dark:bg-brand-900/40">
-                  <span className="text-sm font-bold leading-none text-brand-600 dark:text-brand-400">{startDay}</span>
-                  <span className="text-[9px] font-medium uppercase text-brand-500 dark:text-brand-400">{startMonth}</span>
-                </div>
-              )
-            }
-            return (
-              <div className="flex h-9 shrink-0 items-center gap-1 rounded-lg bg-brand-50 px-1.5 dark:bg-brand-900/40">
-                <div className="flex flex-col items-center justify-center leading-none">
-                  <span className="text-sm font-bold text-brand-600 dark:text-brand-400">{startDay}</span>
-                  <span className="text-[9px] font-medium uppercase text-brand-500 dark:text-brand-400">{startMonth}</span>
-                </div>
-                <span className="text-xs font-medium text-brand-500 dark:text-brand-400">–</span>
-                <div className="flex flex-col items-center justify-center leading-none">
-                  <span className="text-sm font-bold text-brand-600 dark:text-brand-400">{endDay}</span>
-                  <span className="text-[9px] font-medium uppercase text-brand-500 dark:text-brand-400">{endMonth}</span>
-                </div>
-              </div>
-            )
-          })()}
-
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium leading-snug text-gray-900 dark:text-gray-100">
-              {event.title}
-            </p>
-            {event.location && (
-              <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{event.location}</p>
-            )}
-            {event.description && (
-              <p className="mt-1 line-clamp-2 text-xs text-gray-500 dark:text-gray-400">
-                {stripHtml(event.description)}
-              </p>
-            )}
-            {teams.length > 0 && (
-              <div className="mt-1.5 flex flex-wrap gap-1">
-                {teams.map((team) => (
-                  <TeamChip key={team.id} team={team.name} size="sm" />
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </button>
+          {teams.map((team) => (
+            <TeamChip key={team.id} team={team.name} size="sm" />
+          ))}
+        </>
+      }
+    >
+      {event.location && (
+        <TruncatedText text={event.location} className="mt-1 text-xs text-gray-500 dark:text-gray-400" />
+      )}
+      {event.description && (
+        <TruncatedText text={stripHtml(event.description)} as="p" lines={2} className="mt-1 text-xs text-gray-500 dark:text-gray-400" />
+      )}
+      {participationStatus && (
+        <RowCounters activityType="event" activityId={event.id} bars hideExtras participations={participations} />
+      )}
+    </ActivityRow>
   )
 }
