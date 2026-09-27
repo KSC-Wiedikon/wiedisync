@@ -34,7 +34,7 @@ export default function TeamLinksEditor({ teams, links, addLink, updateLink, rem
   const [linkType, setLinkType] = useState<LinkType>('diff')
 
   const teamName = (id: string | number) => teams.find((tm) => String(tm.id) === String(id))?.name ?? `#${id}`
-  const selectClass = 'rounded-md border border-border bg-transparent px-3 py-2 text-sm dark:bg-gray-800'
+  const selectClass = 'h-11 rounded-md border border-border bg-transparent px-3 py-2 text-sm sm:h-9 dark:bg-gray-800'
   const badge = (lt: string) =>
     lt === 'same'
       ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
@@ -104,16 +104,18 @@ export default function TeamLinksEditor({ teams, links, addLink, updateLink, rem
                 <option value="same">{t('linkSame')}</option>
               </select>
               <span>{teamName(l.team_a)} ↔ {teamName(l.team_b)}</span>
-              <button
+              <Button
                 type="button"
-                className="ml-auto text-xs text-rose-600 hover:underline"
+                variant="link"
+                size="sm"
+                className="ml-auto px-0 text-xs text-rose-600 dark:text-rose-400"
                 onClick={async () => {
                   if (!(await confirm({ message: `${teamName(l.team_a)} ↔ ${teamName(l.team_b)}`, danger: true }))) return
                   await removeLink(l.id)
                 }}
               >
                 {t('remove')}
-              </button>
+              </Button>
             </li>
           ))}
         </ul>

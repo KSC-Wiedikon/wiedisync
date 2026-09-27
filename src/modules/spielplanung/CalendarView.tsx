@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import CalendarGrid from '../../components/CalendarGrid'
 import GameChip from './GameChip'
+import { Button } from '../../components/ui/button'
 import DayOverflowPopover from './DayOverflowPopover'
 import AbsenceBadge from './AbsenceBadge'
 import CrossTeamBadge from './CrossTeamBadge'
@@ -68,17 +69,19 @@ export default function CalendarView({ entries, closedDates, blockedDates, month
         {seasonMonths.map((m) => {
           const isActive = m.getMonth() === month.getMonth() && m.getFullYear() === month.getFullYear()
           return (
-            <button
+            <Button
               key={m.toISOString()}
               onClick={() => onMonthChange(m)}
-              className={`rounded px-2.5 py-1.5 text-sm font-medium transition-colors sm:px-2 sm:py-1 sm:text-xs ${
+              variant="ghost"
+              size="sm"
+              className={`px-2.5 sm:px-2 ${
                 isActive
-                  ? 'bg-gold-400 text-brand-900'
-                  : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-700 dark:text-gray-300'
+                  ? 'bg-gold-400 text-brand-900 hover:bg-gold-400 hover:text-brand-900'
+                  : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-300 dark:hover:bg-gray-700'
               }`}
             >
               {formatDate(m, 'MMM')}
-            </button>
+            </Button>
           )
         })}
       </div>

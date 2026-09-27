@@ -122,7 +122,7 @@ export default function BasketballSettingsPage() {
   // bookings, so this panel only reads.
   const datePrefs = useBasketballDatePrefs(season?.id)
 
-  const selectClass = 'rounded-md border border-border bg-transparent px-3 py-2 text-sm dark:bg-gray-800'
+  const selectClass = 'h-11 rounded-md border border-border bg-transparent px-3 py-2 text-sm sm:h-9 dark:bg-gray-800'
 
   /** basketplan_clubs.id → how many placed home games are addressed to it. */
   const gamesByClub = useMemo(() => {
@@ -138,12 +138,12 @@ export default function BasketballSettingsPage() {
 
   return (
     <div className="space-y-8">
-      <header className="flex flex-wrap items-end justify-between gap-4">
+      <header className="flex flex-wrap items-end gap-4">
         <div>
           <h1 className="text-2xl font-bold">{t('settingsTitle')}</h1>
           <p className="mt-1 max-w-3xl text-sm text-muted-foreground">{t('settingsSubtitle')}</p>
         </div>
-        <label className="flex flex-col gap-1 text-sm">
+        <label className="ml-auto flex flex-col gap-1 text-sm">
           <span className="font-medium text-muted-foreground">{t('season')}</span>
           <select
             className={selectClass}

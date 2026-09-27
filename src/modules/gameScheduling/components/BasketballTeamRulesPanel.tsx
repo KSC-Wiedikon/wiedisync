@@ -58,7 +58,7 @@ const ALL_TIMES = [...new Set([...FRIDAY_SLOTS, ...SATURDAY_SLOTS, ...SUNDAY_SLO
 const DAY_KEY: Record<number, string> = { 5: 'day_fri', 6: 'day_sat', 0: 'day_sun' }
 
 const selectClass =
-  'min-h-11 w-full rounded-md border border-border bg-transparent px-2 py-1 text-xs dark:bg-gray-800'
+  'h-11 w-full rounded-md border border-border bg-transparent px-2 py-1 text-xs sm:h-9 dark:bg-gray-800'
 export default function BasketballTeamRulesPanel({
   teams,
   byTeam,
@@ -166,9 +166,8 @@ export default function BasketballTeamRulesPanel({
                     <TableCell className="hidden lg:table-cell" />
                     <TableCell>
                       <Button
-                        size="sm"
                         variant="outline"
-                        className="min-h-11 whitespace-nowrap"
+                        className="whitespace-nowrap"
                         disabled={disabled}
                         onClick={() => run(key, () => createRule(team))}
                       >
@@ -193,11 +192,10 @@ export default function BasketballTeamRulesPanel({
                   {/* Generate slots for this team at all */}
                   <TableCell>
                     <Button
-                      size="sm"
                       variant={rule.enabled ? 'default' : 'outline'}
                       aria-pressed={rule.enabled}
                       disabled={disabled}
-                      className="min-h-11 w-full text-xs"
+                      className="w-full text-xs"
                       onClick={() => patch(team, { enabled: !rule.enabled })}
                     >
                       {rule.enabled ? t('ruleOn') : t('ruleOff')}
@@ -232,11 +230,11 @@ export default function BasketballTeamRulesPanel({
                             return (
                               <Button
                                 key={d}
-                                size="sm"
+                                size="icon"
                                 variant={on ? 'default' : 'outline'}
                                 aria-pressed={on}
                                 disabled={disabled}
-                                className="h-11 w-11 p-0 text-xs sm:h-8 sm:w-9"
+                                className="text-xs"
                                 onClick={() =>
                                   patch(team, {
                                     allowed_dows: on
@@ -262,11 +260,11 @@ export default function BasketballTeamRulesPanel({
                             return (
                               <Button
                                 key={d}
-                                size="sm"
+                                size="icon"
                                 variant={on ? 'default' : 'outline'}
                                 aria-pressed={on}
                                 disabled={disabled || !allowed}
-                                className="h-11 w-11 p-0 text-xs sm:h-8 sm:w-9"
+                                className="text-xs"
                                 onClick={() =>
                                   patch(team, {
                                     preferred_dows: on
@@ -321,12 +319,11 @@ export default function BasketballTeamRulesPanel({
                       </label>
                       {(rule.start_min || rule.start_max) && (
                         <Button
-                          size="sm"
                           variant={rule.start_hard ? 'default' : 'outline'}
                           aria-pressed={rule.start_hard}
                           disabled={disabled}
                           title={t('startHardHint')}
-                          className="h-11 text-[11px] sm:h-8"
+                          className="text-[11px]"
                           onClick={() => patch(team, { start_hard: !rule.start_hard })}
                         >
                           {rule.start_hard ? t('startHard') : t('startSoft')}
@@ -362,12 +359,11 @@ export default function BasketballTeamRulesPanel({
                   {/* Own back-to-back games */}
                   <TableCell className="hidden sm:table-cell">
                     <Button
-                      size="sm"
                       variant={rule.own_back_to_back ? 'default' : 'outline'}
                       aria-pressed={rule.own_back_to_back}
                       disabled={disabled}
                       title={t('backToBackHint')}
-                      className="min-h-11 w-full text-xs"
+                      className="w-full text-xs"
                       onClick={() => patch(team, { own_back_to_back: !rule.own_back_to_back })}
                     >
                       {rule.own_back_to_back ? t('backToBackYes') : t('backToBackNo')}
@@ -485,11 +481,10 @@ function RuleDetail({ rule, disabled, blockedLabel, onPatch, onDelete }: DetailP
         <div className="flex flex-col gap-1 text-xs">
           <span className="font-medium text-gray-700 dark:text-gray-200">{t('ferienLabel')}</span>
           <Button
-            size="sm"
             variant={rule.ferien_hard ? 'default' : 'outline'}
             aria-pressed={rule.ferien_hard}
             disabled={disabled}
-            className="min-h-11 max-w-sm text-xs"
+            className="max-w-sm text-xs"
             onClick={() => onPatch({ ferien_hard: !rule.ferien_hard })}
           >
             {rule.ferien_hard ? t('ferienHard') : t('ferienSoft')}
@@ -563,7 +558,7 @@ function RuleDetail({ rule, disabled, blockedLabel, onPatch, onDelete }: DetailP
               {t('includeWeekendBefore')}
             </label>
           )}
-          <Button size="sm" variant="outline" className="min-h-11" disabled={disabled} onClick={addRule}>
+          <Button variant="outline" disabled={disabled} onClick={addRule}>
             <Plus className="h-4 w-4" aria-hidden /> {t('addBlockedRule')}
           </Button>
         </div>
@@ -585,9 +580,8 @@ function RuleDetail({ rule, disabled, blockedLabel, onPatch, onDelete }: DetailP
           />
         </label>
         <Button
-          size="sm"
           variant="outline"
-          className="min-h-11 text-rose-600"
+          className="text-rose-600"
           disabled={disabled}
           onClick={onDelete}
         >

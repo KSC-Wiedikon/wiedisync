@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { kscwApi } from '../../../lib/api'
 import { Badge } from '../../../components/ui/badge'
+import { Button } from '../../../components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../../../components/ui/dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../components/ui/table'
 import { currentLocale, formatDateZurich } from '../../../utils/dateHelpers'
@@ -155,13 +156,13 @@ export default function TeamAvailabilityDialog({ kscwTeamId, kscwTeamName, seaso
 
   return (
     <>
-      <button
+      <Button
         type="button"
         onClick={handleOpen}
-        className="inline-flex items-center gap-1.5 self-start rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+        variant="outline"
       >
         {t('availableSlots')}
-      </button>
+      </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-2xl">
@@ -230,22 +231,22 @@ export default function TeamAvailabilityDialog({ kscwTeamId, kscwTeamName, seaso
           )}
 
           <DialogFooter className="gap-2">
-            <button
+            <Button
               type="button"
               onClick={handleCopy}
               disabled={!data}
-              className="inline-flex items-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+              variant="outline"
             >
               {t('copyAsText')}
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               onClick={handleCsv}
               disabled={!data}
-              className="inline-flex items-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+              variant="outline"
             >
               {t('downloadCsv')}
-            </button>
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

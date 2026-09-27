@@ -112,19 +112,21 @@ export default function SendInvitesModal({ open, onOpenChange, ids, ctx, api }: 
         <div className="flex flex-wrap items-center gap-1.5 text-xs">
           <span className="font-medium text-gray-600 dark:text-gray-400">{t('sendToLabel')}:</span>
           {(['all', 'calendar', 'team'] as const).map((g) => (
-            <button
+            <Button
               key={g}
               type="button"
               onClick={() => setGroup(g)}
               disabled={sending}
-              className={`inline-flex items-center justify-center min-h-11 sm:min-h-0 rounded-full border px-2.5 py-1 transition-colors disabled:opacity-50 ${
+              variant="outline"
+              size="sm"
+              className={`rounded-full px-2.5 ${
                 group === g
-                  ? 'border-brand-500 bg-brand-50 font-medium text-brand-700 dark:border-brand-400 dark:bg-brand-900/40 dark:text-brand-300'
-                  : 'border-gray-300 text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800'
+                  ? 'border-brand-500 bg-brand-50 font-medium text-brand-700 hover:bg-brand-50 hover:text-brand-700 dark:border-brand-400 dark:bg-brand-900/40 dark:text-brand-300 dark:hover:bg-brand-900/40'
+                  : 'text-gray-600 dark:text-gray-300'
               }`}
             >
               {t(g === 'all' ? 'sendGroupAll' : g === 'calendar' ? 'calendarResponsibles' : 'teamResponsibles')}
-            </button>
+            </Button>
           ))}
         </div>
 
@@ -144,7 +146,7 @@ export default function SendInvitesModal({ open, onOpenChange, ids, ctx, api }: 
               <select
                 value={selected}
                 onChange={(e) => setSelected(Number(e.target.value))}
-                className="mt-1 block w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+                className="mt-1 block h-11 w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm sm:h-9 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
               >
                 {previews.map((p, i) => {
                   // Native <option> can't wrap — truncate the (often multi-)email

@@ -476,30 +476,34 @@ export default function ManualGameModal({
           <div>
             <Label>{t('manualGame.homeAway')} *</Label>
             <div className="mt-1 grid grid-cols-2 gap-1 rounded-md border bg-muted/30 p-1">
-              <button
+              <Button
                 type="button"
                 onClick={() => setType('home')}
+                variant="ghost"
+                size="sm"
                 className={cn(
-                  'flex items-center justify-center gap-1.5 rounded px-2 py-1.5 text-sm font-medium transition-colors',
+                  'gap-1.5 text-sm',
                   type === 'home'
-                    ? 'bg-gold-400 text-brand-900'
+                    ? 'bg-gold-400 text-brand-900 hover:bg-gold-400 hover:text-brand-900'
                     : 'text-muted-foreground hover:bg-muted',
                 )}
               >
                 <HomeIcon className="h-4 w-4" aria-hidden /> {t('manualGame.home')}
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
                 onClick={() => setType('away')}
+                variant="ghost"
+                size="sm"
                 className={cn(
-                  'flex items-center justify-center gap-1.5 rounded px-2 py-1.5 text-sm font-medium transition-colors',
+                  'gap-1.5 text-sm',
                   type === 'away'
-                    ? 'bg-gold-400 text-brand-900'
+                    ? 'bg-gold-400 text-brand-900 hover:bg-gold-400 hover:text-brand-900'
                     : 'text-muted-foreground hover:bg-muted',
                 )}
               >
                 <Plane className="h-4 w-4" aria-hidden /> {t('manualGame.away')}
-              </button>
+              </Button>
             </div>
           </div>
           <div>
@@ -630,19 +634,21 @@ export default function ManualGameModal({
             ] as { value: boolean | null; label: string }[]).map((opt) => {
               const active = autoConfirmRsvp === opt.value
               return (
-                <button
+                <Button
                   key={String(opt.value)}
                   type="button"
                   onClick={() => setAutoConfirmRsvp(opt.value)}
+                  variant="outline"
+                  size="sm"
                   className={cn(
-                    'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+                    'rounded-full',
                     active
-                      ? 'border-brand-500 bg-brand-100 text-brand-700 dark:border-brand-600 dark:bg-brand-900/30 dark:text-brand-300'
-                      : 'border-gray-300 bg-transparent text-gray-600 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-800',
+                      ? 'border-brand-500 bg-brand-100 text-brand-700 hover:bg-brand-100 hover:text-brand-700 dark:border-brand-600 dark:bg-brand-900/30 dark:text-brand-300 dark:hover:bg-brand-900/30'
+                      : 'bg-transparent text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800',
                   )}
                 >
                   {opt.label}
-                </button>
+                </Button>
               )
             })}
           </div>
@@ -667,19 +673,21 @@ export default function ManualGameModal({
               ] as { value: boolean | null; label: string }[]).map((opt) => {
                 const active = autoNominationList === opt.value
                 return (
-                  <button
+                  <Button
                     key={String(opt.value)}
                     type="button"
                     onClick={() => setAutoNominationList(opt.value)}
+                    variant="outline"
+                    size="sm"
                     className={cn(
-                      'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+                      'rounded-full',
                       active
-                        ? 'border-brand-500 bg-brand-100 text-brand-700 dark:border-brand-600 dark:bg-brand-900/30 dark:text-brand-300'
-                        : 'border-gray-300 bg-transparent text-gray-600 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-800',
+                        ? 'border-brand-500 bg-brand-100 text-brand-700 hover:bg-brand-100 hover:text-brand-700 dark:border-brand-600 dark:bg-brand-900/30 dark:text-brand-300 dark:hover:bg-brand-900/30'
+                        : 'bg-transparent text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800',
                     )}
                   >
                     {opt.label}
-                  </button>
+                  </Button>
                 )
               })}
             </div>

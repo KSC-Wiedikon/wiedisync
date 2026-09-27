@@ -192,7 +192,7 @@ export default function BasketballPrepPage() {
     }
   }
 
-  const selectClass = 'rounded-md border border-border bg-transparent px-3 py-2 text-sm dark:bg-gray-800'
+  const selectClass = 'h-11 rounded-md border border-border bg-transparent px-3 py-2 text-sm sm:h-9 dark:bg-gray-800'
 
   /**
    * Human reason a whole date cannot host a game, named so the planner can act on it.
@@ -340,7 +340,7 @@ export default function BasketballPrepPage() {
           variant="outline"
           onClick={() => setShowCalendar((v) => !v)}
           aria-expanded={showCalendar}
-          className="min-h-[44px] w-full justify-start gap-2 sm:w-auto"
+          className="w-full justify-start gap-2 sm:w-auto"
         >
           <CalendarDays className="h-4 w-4" aria-hidden />
           {t('calendarTitle')}
@@ -396,7 +396,7 @@ export default function BasketballPrepPage() {
               <Button
                 variant="outline"
                 size="sm"
-                className="ml-auto min-h-9"
+                className="ml-auto"
                 disabled={blockingDate === cd.date}
                 onClick={async () => {
                   setBlockingDate(cd.date)
@@ -483,7 +483,7 @@ export default function BasketballPrepPage() {
                                       <span className="rounded bg-purple-200 px-1 text-[10px] text-purple-800 dark:bg-purple-900/50 dark:text-purple-200">{t('type_guest')}</span>
                                     )}
                                   </div>
-                                  <div className="truncate">{placementLabel(p)}</div>
+                                  <div className="truncate" title={placementLabel(p)}>{placementLabel(p)}</div>
                                 </button>
                               )
                             }
@@ -502,7 +502,7 @@ export default function BasketballPrepPage() {
                                   className={`${base} cursor-not-allowed border-brand-300 bg-brand-50 text-brand-900 opacity-80 dark:border-brand-800 dark:bg-brand-900/30 dark:text-brand-100`}
                                 >
                                   <div className="font-medium">{cell.hall}</div>
-                                  <div className="truncate">{cell.fixture?.label || t('statusBbGame')}</div>
+                                  <div className="truncate" title={cell.fixture?.label || t('statusBbGame')}>{cell.fixture?.label || t('statusBbGame')}</div>
                                 </div>
                               )
                             }
@@ -518,7 +518,7 @@ export default function BasketballPrepPage() {
                                   className={`${base} cursor-not-allowed border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300`}
                                 >
                                   <div className="font-medium">{cell.hall}</div>
-                                  <div className="truncate">{t('statusVbUsing')}</div>
+                                  <div className="truncate" title={t('statusVbUsing')}>{t('statusVbUsing')}</div>
                                 </div>
                               )
                             }
@@ -531,7 +531,7 @@ export default function BasketballPrepPage() {
                                   className={`${base} cursor-not-allowed border-gray-300 bg-gray-100 text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400`}
                                 >
                                   <div className="font-medium">{cell.hall}</div>
-                                  <div className="truncate">{t('statusUnavailable')}</div>
+                                  <div className="truncate" title={t('statusUnavailable')}>{t('statusUnavailable')}</div>
                                 </div>
                               )
                             }
@@ -563,7 +563,7 @@ export default function BasketballPrepPage() {
                                     </span>
                                   )}
                                 </div>
-                                <div className="truncate">
+                                <div className="truncate" title={sug ? t('suggested') : t('putGameHere')}>
                                   {sug ? `${sug.top ? '★ ' : ''}${t('suggested')}` : `＋ ${t('putGameHere')}`}
                                 </div>
                               </button>

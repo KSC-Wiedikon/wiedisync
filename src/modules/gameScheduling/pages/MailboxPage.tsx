@@ -9,6 +9,7 @@ import { useAdminBookings } from '../hooks/useAdminBookings'
 import { useMailbox, contactAddressSet, type MailboxSport, type OpponentContacts } from '../hooks/useMailbox'
 import { isSchedulableTeam } from '../utils/schedulableTeams'
 import MailboxPanel from '../components/MailboxPanel'
+import { Button } from '../../../components/ui/button'
 import type { GameSchedulingOpponent } from '../../../types'
 
 /**
@@ -92,19 +93,20 @@ export default function MailboxPage() {
         {canVB && canBB && (
           <div className="inline-flex self-start rounded-lg border border-gray-200 bg-gray-50 p-0.5 dark:border-gray-700 dark:bg-gray-800">
             {(['volleyball', 'basketball'] as const).map((s) => (
-              <button
+              <Button
                 key={s}
                 type="button"
                 onClick={() => switchSport(s)}
-                className={`min-h-9 rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
+                variant="ghost"
+                className={`px-4 ${
                   sport === s
-                    ? 'bg-white text-brand-700 shadow-sm dark:bg-gray-900 dark:text-gold-400'
-                    : 'text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100'
+                    ? 'bg-white text-brand-700 shadow-sm hover:bg-white hover:text-brand-700 dark:bg-gray-900 dark:text-gold-400 dark:hover:bg-gray-900 dark:hover:text-gold-400'
+                    : 'text-gray-600 hover:bg-transparent hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100'
                 }`}
                 aria-pressed={sport === s}
               >
                 {s === 'volleyball' ? t('mailboxSportVolleyball') : t('mailboxSportBasketball')}
-              </button>
+              </Button>
             ))}
           </div>
         )}

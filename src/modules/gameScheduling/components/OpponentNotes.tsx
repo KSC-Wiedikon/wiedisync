@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Button } from '@/components/ui/button'
 
 interface Props {
   /** The opponent's own remark to KSCW (read-only here). */
@@ -48,13 +49,15 @@ export default function OpponentNotes({ opponentNote, kscwNote, onSave }: Props)
           {hasKscwNote
             ? <span className="whitespace-pre-wrap text-gray-800 dark:text-gray-200">{kscwNote}</span>
             : <span className="italic text-gray-400 dark:text-gray-500">{t('noteToOpponentNone')}</span>}
-          <button
+          <Button
             type="button"
             onClick={() => { setDraft(kscwNote || ''); setOpen(true); setSaved(false) }}
-            className="inline-flex items-center min-h-11 sm:min-h-0 text-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
+            variant="link"
+            size="sm"
+            className="px-0 text-xs"
           >
             {hasKscwNote ? t('edit') : t('add')}
-          </button>
+          </Button>
           {saved && <span className="text-xs text-green-600 dark:text-green-400">{t('noteSaved')}</span>}
         </div>
       ) : (
@@ -70,22 +73,23 @@ export default function OpponentNotes({ opponentNote, kscwNote, onSave }: Props)
             className="w-full rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
           />
           <div className="mt-1.5 flex items-center gap-2">
-            <button
+            <Button
               type="button"
               onClick={handleSave}
               disabled={saving}
-              className="rounded-md bg-brand-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-700 disabled:opacity-50 min-h-11 sm:min-h-0"
+              size="sm"
             >
               {saving ? t('saving') : t('save')}
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               onClick={() => setOpen(false)}
               disabled={saving}
-              className="rounded-md px-2.5 py-1 text-xs text-gray-600 hover:bg-gray-100 disabled:opacity-50 dark:text-gray-300 dark:hover:bg-gray-700 min-h-11 sm:min-h-0"
+              variant="ghost"
+              size="sm"
             >
               {t('cancel')}
-            </button>
+            </Button>
           </div>
         </div>
       )}

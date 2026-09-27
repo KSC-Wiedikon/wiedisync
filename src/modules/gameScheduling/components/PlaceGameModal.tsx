@@ -75,7 +75,7 @@ export default function PlaceGameModal({
     }
   }
 
-  const selectClass = 'w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm dark:bg-gray-800'
+  const selectClass = 'h-11 w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm sm:h-9 dark:bg-gray-800'
 
   return (
     <Modal open={open} onClose={onClose} title={`${t('placeGame')} — ${formatDateZurich(date)} · ${time} · ${targetHall}`}>
@@ -83,16 +83,16 @@ export default function PlaceGameModal({
         {/* Home (KSCW hosts) vs guest game */}
         <div className="flex gap-1">
           {(['home', 'guest'] as const).map((gt) => (
-            <button
+            <Button
               key={gt}
               type="button"
               onClick={() => setGameType(gt)}
-              className={`flex-1 rounded px-3 py-1.5 text-sm ${
-                gameType === gt ? 'bg-brand-600 text-white' : 'bg-muted text-muted-foreground hover:bg-muted/70'
-              }`}
+              variant={gameType === gt ? 'default' : 'ghost'}
+              size="sm"
+              className={`flex-1 ${gameType === gt ? '' : 'bg-muted text-muted-foreground hover:bg-muted/70'}`}
             >
               {t(`type_${gt}`)}
-            </button>
+            </Button>
           ))}
         </div>
 

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { House, Link2, Plane } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import CalendarGrid from '../../../components/CalendarGrid'
 import Modal from '../../../components/Modal'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../../../components/ui/table'
@@ -1043,20 +1044,22 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
       {/* Team filter (multi-select; none selected = all shown) */}
       {filterableTeams.length > 1 && (
         <div className="mb-3 flex flex-wrap items-center gap-1.5">
-          <button
+          <Button
             onClick={() => setTeamFilter(new Set())}
-            className={`rounded px-2 py-1 text-xs font-medium transition-colors ${
+            variant="ghost"
+            size="sm"
+            className={`px-2 ${
               teamFilter.size === 0
-                ? 'bg-gold-400 text-brand-900'
+                ? 'bg-gold-400 text-brand-900 hover:bg-gold-400 hover:text-brand-900'
                 : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
             }`}
           >
             {t('allTeams')}
-          </button>
+          </Button>
           {filterableTeams.map((tm) => {
             const on = teamFilter.has(String(tm.id))
             return (
-              <button
+              <Button
                 key={tm.id}
                 onClick={() =>
                   setTeamFilter((prev) => {
@@ -1067,14 +1070,16 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
                   })
                 }
                 aria-pressed={on}
-                className={`rounded px-2 py-1 text-xs font-medium transition-colors ${
+                variant="ghost"
+                size="sm"
+                className={`px-2 ${
                   on
-                    ? 'bg-gold-400 text-brand-900'
+                    ? 'bg-gold-400 text-brand-900 hover:bg-gold-400 hover:text-brand-900'
                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
                 }`}
               >
                 {tm.name}
-              </button>
+              </Button>
             )
           })}
         </div>
@@ -1085,17 +1090,19 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
         {seasonMonths.map((m) => {
           const isActive = m.getMonth() === month.getMonth() && m.getFullYear() === month.getFullYear()
           return (
-            <button
+            <Button
               key={m.toISOString()}
               onClick={() => goMonth(m)}
-              className={`rounded px-2.5 py-1.5 text-sm font-medium transition-colors sm:px-2 sm:py-1 sm:text-xs ${
+              variant="ghost"
+              size="sm"
+              className={`px-2.5 sm:px-2 ${
                 isActive
-                  ? 'bg-gold-400 text-brand-900'
+                  ? 'bg-gold-400 text-brand-900 hover:bg-gold-400 hover:text-brand-900'
                   : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-300 dark:hover:bg-gray-700'
               }`}
             >
               {formatDate(m, 'MMM')}
-            </button>
+            </Button>
           )
         })}
       </div>
@@ -1162,7 +1169,7 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
                     {e.time && <span className="shrink-0 tabular-nums">{e.time}</span>}
                     {isHomeKind && <House className="h-2.5 w-2.5 shrink-0" aria-hidden />}
                     {isAwayKind && <Plane className="h-2.5 w-2.5 shrink-0" aria-hidden />}
-                    <span className="truncate">{chipText}</span>
+                    <span className="truncate" title={e.title}>{chipText}</span>
                     {/* Which court a basketball game takes is what a volleyball
                         planner needs from that chip — one letter, always visible. */}
                     {e.kind === 'bb_game' && e.hallName && (

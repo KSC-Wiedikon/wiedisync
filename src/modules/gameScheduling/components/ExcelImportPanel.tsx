@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Download } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../components/ui/table'
 import { createRecord, fetchAllItems } from '../../../lib/api'
 import { toXlsx, downloadBlob } from '../../admin/utils/exportResults'
@@ -137,14 +138,15 @@ export default function ExcelImportPanel() {
           onChange={handleFileChange}
           className="text-sm text-gray-700 dark:text-gray-300 file:mr-3 file:rounded-md file:border-0 file:bg-gray-100 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-gray-700 dark:file:bg-gray-700 dark:file:text-gray-300"
         />
-        <button
+        <Button
           type="button"
           onClick={handleDownloadTemplate}
-          className="flex items-center gap-1.5 min-h-11 py-2 self-start sm:min-h-0 sm:py-0 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+          variant="link"
+          className="gap-1.5 self-start px-0"
         >
           <Download className="h-3.5 w-3.5" />
           {t('downloadTemplate')}
-        </button>
+        </Button>
       </div>
 
       {preview.length > 0 && (
@@ -172,13 +174,13 @@ export default function ExcelImportPanel() {
             </Table>
           </div>
 
-          <button
+          <Button
             onClick={handleImport}
             disabled={importing}
-            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 min-h-11 w-full sm:w-auto sm:min-h-0"
+            className="w-full sm:w-auto"
           >
             {importing ? '...' : t('importGames') + ` (${preview.length})`}
-          </button>
+          </Button>
         </>
       )}
 

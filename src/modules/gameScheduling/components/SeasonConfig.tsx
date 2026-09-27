@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import WeekdayHint from './WeekdayHint'
 import DatePicker from '@/components/ui/DatePicker'
+import { Button } from '@/components/ui/button'
 import { useConfirm } from '../../../components/ConfirmProvider'
 import { kscwApi } from '../../../lib/api'
 import type { GameSchedulingSeason } from '../../../types'
@@ -197,13 +198,13 @@ export default function SeasonConfig({
       <div className="mb-4 flex items-center justify-between gap-3">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('season')}</h2>
         {!seasonExists && (
-          <button
+          <Button
             onClick={handleCreate}
             disabled={creating}
-            className="min-h-11 sm:min-h-0 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            size="sm"
           >
             {creating ? '…' : `+ ${nextSeason}`}
-          </button>
+          </Button>
         )}
       </div>
 
@@ -211,20 +212,22 @@ export default function SeasonConfig({
       {allSeasons.length > 1 && (
         <div className="mb-4 flex flex-wrap items-center gap-2">
           {allSeasons.map((s) => (
-            <button
+            <Button
               key={s.id}
               onClick={() => onSelectSeason(s)}
-              className={`min-h-11 sm:min-h-0 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
+              variant="outline"
+              size="sm"
+              className={
                 season?.id === s.id
-                  ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
-                  : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300'
-              }`}
+                  ? 'border-blue-500 bg-blue-50 text-blue-700 hover:bg-blue-50 hover:text-blue-700 dark:border-blue-500 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/30'
+                  : 'text-gray-600 dark:text-gray-300'
+              }
             >
               {formatSeasonShort(s.season)}
               <span className={`ml-1.5 inline-block rounded-full px-1.5 py-0.5 text-[10px] ${statusColors[s.status]}`}>
                 {statusLabels[s.status]}
               </span>
-            </button>
+            </Button>
           ))}
         </div>
       )}
@@ -272,50 +275,50 @@ export default function SeasonConfig({
           {/* Primary action row */}
           <div className="mt-3 flex flex-wrap items-center gap-2">
             {status === 'setup' && (
-              <button
+              <Button
                 onClick={() => onStatusChange('open')}
-                className="rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700"
+                className="bg-green-600 text-white hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700"
               >
                 {t('openForBooking')} →
-              </button>
+              </Button>
             )}
             {status === 'open' && (
-              <button
+              <Button
                 onClick={() => onStatusChange('closed')}
-                className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
+                variant="outline"
                 title={t('closeBookingHint') || ''}
               >
                 {t('closeBooking')} →
-              </button>
+              </Button>
             )}
             {status === 'closed' && (
               <>
-                <button
+                <Button
                   onClick={() => onStatusChange('setup')}
-                  className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+                  variant="outline"
                 >
                   ← {t('statusSetup')}
-                </button>
-                <button
+                </Button>
+                <Button
                   onClick={handleArchive}
                   disabled={archiving}
-                  className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+                  variant="outline"
                   title={t('archiveSeasonHint') || ''}
                 >
                   {archiving ? '…' : t('archiveSeason')}
-                </button>
+                </Button>
               </>
             )}
             {status === 'archived' && (
               <>
                 <span className="text-sm italic text-gray-500 dark:text-gray-400">{t('archiveSeasonDone')}</span>
-                <button
+                <Button
                   onClick={handleRestore}
                   disabled={restoring}
-                  className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+                  variant="outline"
                 >
                   {restoring ? '…' : t('restoreSeason')}
-                </button>
+                </Button>
               </>
             )}
           </div>
@@ -326,13 +329,13 @@ export default function SeasonConfig({
               <p className="text-xs text-amber-800 dark:text-amber-200">
                 {t('rolloverHint', { from: previousSeasonShort(season?.season), to: formatSeasonShort(season?.season) })}
               </p>
-              <button
+              <Button
                 onClick={handleRolloverClick}
                 disabled={rollingOver}
-                className="mt-2 rounded-md bg-amber-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50"
+                className="mt-2 bg-amber-600 text-white hover:bg-amber-700 dark:bg-amber-600 dark:hover:bg-amber-700"
               >
                 {rollingOver ? '…' : t('rolloverButton', { from: previousSeasonShort(season?.season) })}
-              </button>
+              </Button>
             </div>
           )}
         </div>
@@ -351,7 +354,7 @@ export default function SeasonConfig({
                   value={currentSvrzUuid}
                   onChange={(e) => handleSvrzSelect(e.target.value)}
                   disabled={savingSvrz}
-                  className="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                  className="h-11 rounded-md border border-gray-300 bg-white px-2 py-1 text-xs text-gray-900 sm:h-9 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
                 >
                   <option value="">{t('svrzSeasonNone')}</option>
                   {svrzOptions.map((opt) => (

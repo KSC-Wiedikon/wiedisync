@@ -164,12 +164,12 @@ export default function BasketballSlotGenerationPanel({
       <p className="mt-1 mb-4 max-w-3xl text-xs text-gray-500 dark:text-gray-400">{t('generateHint')}</p>
 
       <div className="flex flex-wrap items-center gap-3">
-        <button
+        <Button
           type="button"
           onClick={handleGenerate}
           disabled={disabled || generating || clearing || plannedTeams.length === 0}
-          className={`min-h-11 shrink-0 rounded-md px-6 py-2.5 text-sm font-medium disabled:opacity-50 ${
-            hasSlots ? 'bg-gold-400 text-brand-900 hover:bg-gold-500' : 'bg-green-600 text-white hover:bg-green-700'
+          className={`shrink-0 px-6 ${
+            hasSlots ? 'bg-gold-400 text-brand-900 hover:bg-gold-500' : 'bg-green-600 text-white hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700'
           }`}
         >
           {generating ? (
@@ -181,12 +181,12 @@ export default function BasketballSlotGenerationPanel({
               <Sparkles className="h-4 w-4" aria-hidden /> {hasSlots ? t('regenerateSlots') : t('generateSlots')}
             </span>
           )}
-        </button>
+        </Button>
 
         {hasSlots && (
           <Button
             variant="outline"
-            className="min-h-11 text-rose-600"
+            className="text-rose-600"
             disabled={disabled || generating || clearing}
             onClick={handleClear}
           >

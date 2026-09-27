@@ -126,18 +126,15 @@ export default function PublicTerminplanungPage() {
             </label>
             <div className="flex gap-2">
               {[{ key: 'H' as const, label: t('genderMen') }, { key: 'D' as const, label: t('genderWomen') }].map(g => (
-                <button
+                <Button
                   key={g.key}
                   type="button"
                   onClick={() => { setGender(g.key); setSelectedTeamId('') }}
-                  className={`flex-1 rounded-md px-4 py-2 text-sm font-medium transition-colors ${
-                    gender === g.key
-                      ? 'bg-blue-600 text-white'
-                      : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300'
-                  }`}
+                  variant={gender === g.key ? 'default' : 'outline'}
+                  className="flex-1"
                 >
                   {g.label}
-                </button>
+                </Button>
               ))}
             </div>
           </div>
@@ -150,21 +147,18 @@ export default function PublicTerminplanungPage() {
               </label>
               <div className="flex flex-wrap gap-2">
                 {filteredTeams.map(team => (
-                  <button
+                  <Button
                     key={team.id}
                     type="button"
                     onClick={() => setSelectedTeamId(team.id)}
-                    className={`rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                      selectedTeamId === team.id
-                        ? 'bg-blue-600 text-white'
-                        : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300'
-                    }`}
+                    variant={selectedTeamId === team.id ? 'default' : 'outline'}
+                    className="max-w-full"
                   >
                     {team.name}
                     {team.league && (
                       <span className="ml-1 text-xs opacity-75">({team.league})</span>
                     )}
-                  </button>
+                  </Button>
                 ))}
               </div>
             </div>

@@ -108,10 +108,10 @@ export default function InviteRow({ invite, kscwTeam, season, frontendUrl, onRei
 
   return (
     <div className="rounded-md border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800/60">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="min-w-0">
+      <div className="flex items-start gap-2">
+        <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="font-medium text-gray-900 dark:text-gray-100">{invite.team_name}</span>
+            <span className="break-words font-medium text-gray-900 dark:text-gray-100">{invite.team_name}</span>
             <Badge variant={displayVariant}>{t(displayStatusKey)}</Badge>
             <span className="text-xs text-gray-500 dark:text-gray-400">{t(sourceKey(invite.source))}</span>
           </div>
@@ -126,7 +126,7 @@ export default function InviteRow({ invite, kscwTeam, season, frontendUrl, onRei
           </a>
         </div>
         {createdDate && (
-          <span className="whitespace-nowrap text-xs text-gray-400 dark:text-gray-500">{createdDate}</span>
+          <span className="shrink-0 whitespace-nowrap text-xs text-gray-400 dark:text-gray-500">{createdDate}</span>
         )}
       </div>
 

@@ -10,6 +10,7 @@ import { HomeProposalFormForCard, AwayProposalFormForCard } from '../components/
 import Modal from '../../../components/Modal'
 import { useReportPageLoading } from '../../../hooks/usePageReady'
 import { Badge } from '../../../components/ui/badge'
+import { Button } from '../../../components/ui/button'
 import LanguageDropdown from '../../../components/LanguageDropdown'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -321,7 +322,7 @@ export default function OpponentFlowPage() {
   )
 
   const sideButtonClass =
-    'mt-4 w-full rounded-md bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 sm:w-auto sm:px-8'
+    'mt-4 w-full sm:w-auto sm:px-8'
 
   return (
     <div className="min-h-screen bg-gray-50 px-4 py-8 dark:bg-gray-900">
@@ -371,14 +372,15 @@ export default function OpponentFlowPage() {
               <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('homeGamesTitle')}</h2>
               <div className="space-y-6">{homeCards.map(renderCard)}</div>
               {shownHome.length > 0 && (
-                <button
+                <Button
                   type="button"
                   onClick={() => openConfirmer('home')}
                   disabled={busy}
+                  size="lg"
                   className={sideButtonClass}
                 >
                   {submittingSide === 'home' ? t('submitting') : t('confirmHomeGames')}
-                </button>
+                </Button>
               )}
             </section>
           )}
@@ -388,14 +390,15 @@ export default function OpponentFlowPage() {
               <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('awayGamesTitle')}</h2>
               <div className="space-y-6">{awayCards.map(renderCard)}</div>
               {shownAway.length > 0 && (
-                <button
+                <Button
                   type="button"
                   onClick={() => openConfirmer('away')}
                   disabled={busy}
+                  size="lg"
                   className={sideButtonClass}
                 >
                   {submittingSide === 'away' ? t('submitting') : t('confirmAwayGames')}
-                </button>
+                </Button>
               )}
             </section>
           )}
@@ -437,14 +440,15 @@ export default function OpponentFlowPage() {
             className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
           />
           {remarkChanged && (
-            <button
+            <Button
               type="button"
               onClick={handleSaveRemark}
               disabled={busy}
-              className="mt-3 w-full rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 sm:w-auto dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
+              variant="outline"
+              className="mt-3 w-full sm:w-auto"
             >
               {savingRemark ? t('submitting') : t('saveRemarks')}
-            </button>
+            </Button>
           )}
         </div>
 
@@ -489,21 +493,20 @@ export default function OpponentFlowPage() {
               <p className="text-sm text-red-600 dark:text-red-400">{confirmerError}</p>
             )}
             <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-end">
-              <button
+              <Button
                 type="button"
                 onClick={() => setConfirmerSide(null)}
-                className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
+                variant="outline"
               >
                 {t('cancel')}
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
                 onClick={submitConfirmer}
                 disabled={busy}
-                className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
               >
                 {t('confirmAndSend')}
-              </button>
+              </Button>
             </div>
           </div>
         </Modal>

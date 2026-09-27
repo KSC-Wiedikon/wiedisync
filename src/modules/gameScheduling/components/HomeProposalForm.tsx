@@ -188,13 +188,15 @@ export default function HomeProposalForm({ slots, existing, onSubmit, onChange, 
   if (activeRow != null) {
     return (
       <div className="space-y-3">
-        <button
+        <Button
           type="button"
           onClick={() => { setActiveRow(null); setModalDate(null) }}
-          className="inline-flex items-center gap-1 text-sm font-medium text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
+          variant="ghost"
+          size="sm"
+          className="-ml-2 gap-1 text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
         >
           <span aria-hidden>←</span> {t('slotN', { number: activeRow + 1 })}
-        </button>
+        </Button>
 
         {sortedDates.length === 0 ? (
           <p className="text-sm text-gray-500 dark:text-gray-400">{t('noSlotsAvailable')}</p>
@@ -207,14 +209,15 @@ export default function HomeProposalForm({ slots, existing, onSubmit, onChange, 
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {spielsamstagDates.map((dk) => (
-                    <button
+                    <Button
                       key={dk}
                       type="button"
                       onClick={() => setModalDate(dk)}
-                      className="inline-flex items-center gap-2 rounded-md border border-amber-300 bg-white px-3 py-2 text-sm font-medium text-gray-900 hover:bg-amber-100 dark:border-amber-700 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-amber-900/40"
+                      variant="outline"
+                      className="border-amber-300 text-gray-900 hover:bg-amber-100 dark:border-amber-700 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-amber-900/40"
                     >
                       {formatDateLocale(parseISO(dk), 'EEE d. MMM', i18n.language)}
-                    </button>
+                    </Button>
                   ))}
                 </div>
               </div>
@@ -355,14 +358,14 @@ export default function HomeProposalForm({ slots, existing, onSubmit, onChange, 
       )}
 
       {!hideSubmit && (
-        <button
+        <Button
           type="button"
           disabled={!allFilled || submitting}
           onClick={handleSubmit}
-          className="w-full rounded-md bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+          className="w-full"
         >
           {submitting ? t('submitting') : existing ? t('updateProposals') : t('submitProposals')}
-        </button>
+        </Button>
       )}
     </div>
   )

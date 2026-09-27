@@ -101,7 +101,7 @@ export default function AwayProposalForm({ existingProposal, blockedStrict, bloc
           <div className="flex flex-col gap-2 sm:flex-row">
             <Popover open={openIdx === i} onOpenChange={(o) => setOpenIdx(o ? i : null)}>
               <PopoverTrigger asChild>
-                <Button type="button" variant="outline" size="sm" className="h-11 sm:h-10 w-full justify-start gap-2 sm:flex-1">
+                <Button type="button" variant="outline" className="w-full justify-start gap-2 sm:flex-1">
                   <CalendarIcon className="h-4 w-4 shrink-0" />
                   {s.date ? formatDateLocale(s.date, 'EEE d. MMM yyyy', i18n.language) : t('proposalDate')}
                 </Button>
@@ -132,7 +132,7 @@ export default function AwayProposalForm({ existingProposal, blockedStrict, bloc
               type="time"
               value={s.time}
               onChange={(e) => update(i, { time: e.target.value })}
-              className={`h-11 sm:h-10 w-full rounded-md border px-3 text-sm dark:bg-gray-600 dark:text-gray-100 sm:w-36 ${
+              className={`h-11 sm:h-9 w-full rounded-md border px-3 text-sm dark:bg-gray-600 dark:text-gray-100 sm:w-36 ${
                 s.date && !s.time
                   ? 'border-amber-500 dark:border-amber-500'
                   : 'border-gray-300 dark:border-gray-500'
@@ -154,13 +154,13 @@ export default function AwayProposalForm({ existingProposal, blockedStrict, bloc
       )}
 
       {!hideSubmit && (
-        <button
+        <Button
           type="submit"
           disabled={submitting || !canSubmit}
-          className="w-full rounded-md bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+          className="w-full"
         >
           {submitting ? t('submitting') : existingProposal ? t('updateProposals') : t('submitProposals')}
-        </button>
+        </Button>
       )}
     </form>
   )

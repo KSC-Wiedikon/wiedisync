@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Button } from '@/components/ui/button'
 import { gameStartForDate } from '../utils/slotTime'
 import BookingStatusBadge from './BookingStatusBadge'
 import ProposalContextHints from './ProposalContextHints'
@@ -128,14 +129,16 @@ export default function HomeProposalReview({ booking, slotsById, hallsById, also
           </div>
         )}
         {onDelete && (
-          <button
+          <Button
             type="button"
             onClick={handleDelete}
             disabled={deleting}
-            className="min-h-11 self-start text-xs font-medium text-red-600 hover:underline disabled:opacity-50 sm:min-h-0 dark:text-red-400"
+            variant="link"
+            size="sm"
+            className="self-start px-0 text-xs text-red-600 dark:text-red-400"
           >
             {deleting ? t('deletingGame') : t('deleteGame')}
-          </button>
+          </Button>
         )}
       </div>
     )
@@ -164,28 +167,33 @@ export default function HomeProposalReview({ booking, slotsById, hallsById, also
             askRequest ? (
               <div className="mt-1.5 flex items-center gap-2">
                 <span className="text-red-700 dark:text-red-300">{t('requestNewSlotsConfirm')}</span>
-                <button
+                <Button
                   onClick={handleRequest}
                   disabled={requesting}
-                  className="rounded bg-red-600 px-2 py-1 font-medium text-white hover:bg-red-700 disabled:opacity-50"
+                  variant="destructive"
+                  size="sm"
                 >
                   {requesting ? t('requestingNewSlots') : t('requestNewSlotsYes')}
-                </button>
-                <button
+                </Button>
+                <Button
                   onClick={() => setAskRequest(false)}
                   disabled={requesting}
-                  className="rounded px-2 py-1 text-red-700 hover:bg-red-100 disabled:opacity-50 dark:text-red-300 dark:hover:bg-red-900/50"
+                  variant="ghost"
+                  size="sm"
+                  className="text-red-700 hover:bg-red-100 hover:text-red-700 dark:text-red-300 dark:hover:bg-red-900/50 dark:hover:text-red-300"
                 >
                   {t('cancel')}
-                </button>
+                </Button>
               </div>
             ) : (
-              <button
+              <Button
                 onClick={() => setAskRequest(true)}
-                className="mt-1.5 rounded bg-red-600 px-2.5 py-1 font-medium text-white hover:bg-red-700"
+                variant="destructive"
+                size="sm"
+                className="mt-1.5"
               >
                 {t('requestNewSlots')}
-              </button>
+              </Button>
             )
           )}
         </div>
@@ -224,14 +232,15 @@ export default function HomeProposalReview({ booking, slotsById, hallsById, also
               )}
               {valid && <ProposalContextHints hp={hp} showAbsences={p.num === 3} />}
             </div>
-            <button
+            <Button
               onClick={() => handleConfirm(p.num)}
               disabled={confirming || !valid}
               title={!valid ? t(reasonKey) : undefined}
-              className="shrink-0 rounded-md bg-green-600 px-3 py-1 text-xs font-medium text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-40"
+              size="sm"
+              className="shrink-0 bg-green-600 text-white hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700"
             >
               {t('confirmProposal')}
-            </button>
+            </Button>
           </div>
         )
       })}

@@ -15,6 +15,7 @@ import { findMergeTokens, unknownMergeTokens } from '../../../utils/mergeTokens'
 import RichTextEditor from '../../../components/RichTextEditor'
 import { FilePreviewDialog } from '../../../components/FilePreview'
 import InlineSpinner from '../../../components/InlineSpinner'
+import TruncatedText from '../../../components/TruncatedText'
 import { formatDateTimeCompact } from '../../../utils/dateHelpers'
 import {
   chipOpponentForMessage,
@@ -793,14 +794,14 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
               <TableCell className="hidden whitespace-nowrap align-top text-xs text-gray-500 sm:table-cell dark:text-gray-400">
                 {when}
               </TableCell>
-              <TableCell className={`hidden max-w-44 truncate align-top sm:table-cell ${isUnread ? 'font-semibold text-gray-900 dark:text-gray-100' : 'text-gray-600 dark:text-gray-400'}`}>
+              <TableCell title={who} className={`hidden max-w-44 truncate align-top sm:table-cell ${isUnread ? 'font-semibold text-gray-900 dark:text-gray-100' : 'text-gray-600 dark:text-gray-400'}`}>
                 {who}
               </TableCell>
               {/* whitespace-normal overrides the cell default (nowrap) so the subject wraps instead of overflowing the viewport */}
               <TableCell className="whitespace-normal align-top">
                 {/* Mobile header line: sender (truncates) + date (right, never overflows) — mail-client style */}
                 <div className="mb-0.5 flex items-baseline gap-2 sm:hidden">
-                  <span className={`min-w-0 flex-1 truncate text-xs ${isUnread ? 'font-semibold text-gray-700 dark:text-gray-200' : 'text-gray-500 dark:text-gray-400'}`}>{who}</span>
+                  <span title={who} className={`min-w-0 flex-1 truncate text-xs ${isUnread ? 'font-semibold text-gray-700 dark:text-gray-200' : 'text-gray-500 dark:text-gray-400'}`}>{who}</span>
                   <span className="flex-shrink-0 whitespace-nowrap text-xs text-gray-400 dark:text-gray-500">{when}</span>
                 </div>
                 <div className={`flex flex-wrap items-center gap-1.5 ${isUnread ? 'font-semibold text-gray-900 dark:text-gray-100' : 'text-gray-700 dark:text-gray-300'}`}>
@@ -812,7 +813,7 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
                   )}
                 </div>
                 {msg.snippet && (
-                  <div className="mt-0.5 truncate text-xs text-gray-400 dark:text-gray-500">{msg.snippet}</div>
+                  <TruncatedText as="div" text={msg.snippet} className="mt-0.5 text-xs text-gray-400 dark:text-gray-500" />
                 )}
               </TableCell>
             </TableRow>
@@ -843,7 +844,7 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
               {/* Line 1: date + correspondent */}
               <div className="flex items-baseline gap-2 text-xs text-gray-500 dark:text-gray-400">
                 <span className="whitespace-nowrap">{when}</span>
-                <span className="min-w-0 flex-1 truncate">{who}</span>
+                <span className="min-w-0 flex-1 truncate" title={who}>{who}</span>
                 {isUnread && <span aria-hidden className="h-2 w-2 flex-shrink-0 self-center rounded-full bg-brand-600" />}
               </div>
               {/* Line 2: subject — full width, wraps */}
@@ -876,18 +877,20 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
   const sentCount = messages.length - inboxCount
 
   const folderTab = (key: Folder, label: string, count: number) => (
-    <button
+    <Button
       type="button"
       onClick={() => { setFolder(key); setShowAll(false) }}
-      className={`inline-flex min-h-9 items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+      variant="ghost"
+      size="sm"
+      className={`gap-1.5 text-sm ${
         folder === key
-          ? 'bg-brand-50 text-brand-700 dark:bg-brand-900/40 dark:text-gold-400'
+          ? 'bg-brand-50 text-brand-700 hover:bg-brand-50 hover:text-brand-700 dark:bg-brand-900/40 dark:text-gold-400 dark:hover:bg-brand-900/40 dark:hover:text-gold-400'
           : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'
       }`}
     >
       <span>{label}</span>
       <span className="text-xs text-gray-400 tabular-nums dark:text-gray-500">{count}</span>
-    </button>
+    </Button>
   )
 
   // ── Composer surface ──────────────────────────────────────────────────
@@ -998,14 +1001,15 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
               people, so a pasted list is mailed on exactly the same terms as an
               audience — one message each, merge fields, opt-outs honoured. */}
           {!pasteOpen ? (
-            <button
+            <Button
               type="button"
               onClick={() => setPasteOpen(true)}
-              className="mt-2 inline-flex min-h-11 items-center gap-1.5 text-sm font-medium text-brand-600 hover:underline dark:text-brand-400"
+              variant="link"
+              className="mt-2 gap-1.5 px-0"
             >
               <ClipboardList className="h-4 w-4" />
               {t('mailboxPasteOpen')}
-            </button>
+            </Button>
           ) : (
             <div className="mt-2 rounded-md border border-gray-200 p-3 dark:border-gray-700">
               <label className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
@@ -1017,19 +1021,15 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
                   group send. */}
               <div className="mt-1 flex flex-wrap gap-1.5">
                 {(['to', 'cc', 'bcc'] as const).map((target) => (
-                  <button
+                  <Button
                     key={target}
                     type="button"
                     onClick={() => setPasteTarget(target)}
                     aria-pressed={pasteTarget === target}
-                    className={`min-h-11 rounded-md border px-3 py-1.5 text-sm ${
-                      pasteTarget === target
-                        ? 'border-brand-500 bg-brand-500 text-white'
-                        : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800'
-                    }`}
+                    variant={pasteTarget === target ? 'default' : 'outline'}
                   >
                     {t(target === 'to' ? 'mailboxPasteTargetTo' : target === 'cc' ? 'mailboxPasteTargetCc' : 'mailboxPasteTargetBcc')}
-                  </button>
+                  </Button>
                 ))}
               </div>
               <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
@@ -1048,11 +1048,11 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
                 placeholder={t('mailboxPastePlaceholder')}
                 className="mt-1 w-full rounded-md border border-gray-300 bg-white px-2.5 py-1.5 font-mono text-xs text-gray-900 placeholder:text-gray-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500"
               />
-              <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+              <div className="mt-2 flex flex-wrap items-center gap-2">
                 <span className="text-xs text-gray-500 dark:text-gray-400">
                   {t('mailboxPasteCount', { count: parseAddressList(pasteText).length })}
                 </span>
-                <div className="flex gap-2">
+                <div className="ml-auto flex shrink-0 gap-2">
                   <Button
                     size="sm"
                     variant="outline"
@@ -1146,7 +1146,7 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
               resolves to nothing — so this row would sit on a spinner that never
               finishes before the operator had picked anything. */}
           {draftAudienceKeys.length > 0 && (
-            <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-gray-200 pt-2 dark:border-gray-700">
+            <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-gray-200 pt-2 dark:border-gray-700">
               <span className="text-xs text-gray-500 dark:text-gray-400">
                 {draftCount == null
                   ? <span className="inline-flex items-center gap-1.5"><InlineSpinner /> {t('mailboxPreviewLoading')}</span>
@@ -1155,6 +1155,7 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
               <Button
                 size="sm"
                 variant="outline"
+                className="ml-auto"
                 disabled={draftCount === 0}
                 onClick={() => {
                   const draft = c.draft ?? []
@@ -1356,7 +1357,7 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
             {c.attachments.map((f, i) => (
               <li key={`${f.name}-${f.size}-${i}`} className="flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-xs dark:border-gray-700 dark:bg-gray-900">
                 <Paperclip className="h-3.5 w-3.5 flex-shrink-0 text-gray-400" />
-                <span className="min-w-0 flex-1 truncate text-gray-700 dark:text-gray-200">{f.name}</span>
+                <TruncatedText text={f.name} className="flex-1 text-gray-700 dark:text-gray-200" />
                 <span className="flex-shrink-0 text-gray-400 dark:text-gray-500">{formatBytes(f.size)}</span>
                 <button
                   type="button"
@@ -1513,13 +1514,13 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
   return (
     <>
       <Card>
-        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0">
+        <CardHeader className="flex flex-row flex-wrap items-center gap-2 space-y-0">
           <CardTitle className="flex items-center gap-2">
             {t('mailboxTitle')}
             {unread > 0 && <Badge variant="warning" size="sm">{t('mailboxUnread', { count: unread })}</Badge>}
           </CardTitle>
           {configured && (
-            <div className="flex items-center gap-2">
+            <div className="ml-auto flex flex-wrap items-center gap-2">
               {lastSync && (
                 <span className="hidden text-xs text-gray-400 sm:inline dark:text-gray-500">
                   {t('mailboxLastSync', { time: formatDateTimeCompact(lastSync) })}
@@ -1559,7 +1560,7 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
           ) : (
             <>
               {/* Inbox / Sent folder tabs + (volleyball) KSCW-team filter */}
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 pb-2 dark:border-gray-700">
+              <div className="mb-3 flex flex-wrap items-center gap-2 border-b border-gray-200 pb-2 dark:border-gray-700">
                 <div className="flex items-center gap-1">
                   {folderTab('inbox', t('mailboxFolderInbox'), inboxCount)}
                   {folderTab('sent', t('mailboxFolderSent'), sentCount)}
@@ -1569,7 +1570,7 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
                     value={effectiveTeamFilter}
                     onChange={(e) => setTeamFilter(e.target.value)}
                     aria-label={t('mailboxTeamFilterLabel')}
-                    className="min-h-9 rounded-md border border-gray-300 bg-white px-2 py-1 text-sm text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                    className="ml-auto h-11 rounded-md border border-gray-300 bg-white px-2 py-1 text-sm text-gray-900 sm:h-9 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
                   >
                     <option value="">{t('mailboxTeamFilterAll')}</option>
                     {teamOptions.map((tm) => (
@@ -1584,7 +1585,7 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
                   value={search}
                   onChange={(e) => onSearchChange(e.target.value)}
                   placeholder={t('mailboxSearchPlaceholder')}
-                  className="min-h-11 sm:min-h-0 w-full rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+                  className="h-11 w-full rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm sm:h-9 text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
                 />
                 {(searching || searchActive) && (
                   <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
@@ -1598,13 +1599,15 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
                 <>
                   {renderRows(visible, true)}
                   {!searchActive && list.length > COLLAPSED_COUNT && (
-                    <button
+                    <Button
                       type="button"
                       onClick={() => setShowAll((v) => !v)}
-                      className="inline-flex items-center min-h-11 sm:min-h-0 mt-2 text-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
+                      variant="link"
+                      size="sm"
+                      className="mt-2 px-0 text-xs"
                     >
                       {showAll ? t('mailboxShowLess') : t('mailboxShowAll', { count: list.length })}
-                    </button>
+                    </Button>
                   )}
                 </>
               )}
@@ -1879,13 +1882,15 @@ function AudiencePicker({
         </div>
       ))}
       {selected.length > 0 && (
-        <button
+        <Button
           type="button"
           onClick={onClear}
-          className="text-xs text-gray-500 underline hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+          variant="link"
+          size="sm"
+          className="px-0 text-xs text-gray-500 underline dark:text-gray-400"
         >
           {t('mailboxGroupClear', { count: selected.length })}
-        </button>
+        </Button>
       )}
     </div>
   )
@@ -1998,7 +2003,7 @@ function MailboxAssign({
         value={String(message.assigned_opponent ?? '')}
         disabled={saving}
         onChange={(e) => { setSaving(true); void onAssign(e.target.value ? Number(e.target.value) : null).finally(() => setSaving(false)) }}
-        className="min-h-9 min-w-[12rem] flex-1 rounded-md border border-gray-300 bg-white px-2 py-1 text-sm text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+        className="h-11 min-w-[12rem] flex-1 rounded-md border border-gray-300 bg-white px-2 py-1 text-sm sm:h-9 text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
       >
         <option value="">{t('mailboxAssignAuto')}</option>
         {groups.map(([team, list]) => (
@@ -2040,14 +2045,17 @@ function MailboxAttachments({ message, sport }: { message: MailboxMessageFull; s
     <div className="flex flex-wrap items-center gap-2">
       <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('mailboxAttachments')}:</span>
       {attachments.map((a, i) => (
-        <button
+        <Button
           key={i}
           type="button"
           onClick={() => setPreview({ index: i, filename: a.filename })}
-          className="min-h-11 sm:min-h-0 rounded-md border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+          variant="outline"
+          size="sm"
+          className="max-w-full"
+          icon={<Paperclip className="!size-3.5" aria-hidden="true" />}
         >
-          <span className="inline-flex items-center gap-1"><Paperclip className="h-3.5 w-3.5 flex-shrink-0" aria-hidden="true" />{a.filename}</span>
-        </button>
+          <span className="min-w-0 truncate" title={a.filename}>{a.filename}</span>
+        </Button>
       ))}
       {/* Opponent clubs send schedules as PDFs — read them here rather than in
           the Downloads folder. Non-previewable types still offer a download. */}

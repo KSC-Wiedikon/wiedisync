@@ -13,6 +13,8 @@ import {
 } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
 import TeamChip from '../../components/TeamChip'
+import IconButton from '../../components/IconButton'
+import { Button } from '../../components/ui/button'
 import { cn } from '../../lib/utils'
 import { formatDate, isSameDay, toDateKey } from '../../utils/dateUtils'
 import { formatTime } from '../../utils/dateHelpers'
@@ -131,29 +133,29 @@ export default function WeekView({
       <div className="space-y-3">
         {/* Nav bar */}
         <div className="flex items-center gap-2">
-          <button
+          <IconButton
             type="button"
             onClick={goPrev}
-            aria-label={t('weekPrev')}
-            className="rounded-md border border-gray-300 bg-white p-1.5 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:hover:bg-gray-700"
+            label={t('weekPrev')}
+            variant="outline"
           >
             <ChevronLeft className="h-4 w-4" aria-hidden />
-          </button>
-          <button
+          </IconButton>
+          <Button
             type="button"
             onClick={goToday}
-            className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:hover:bg-gray-700"
+            variant="outline"
           >
             {t('weekToday')}
-          </button>
-          <button
+          </Button>
+          <IconButton
             type="button"
             onClick={goNext}
-            aria-label={t('weekNext')}
-            className="rounded-md border border-gray-300 bg-white p-1.5 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:hover:bg-gray-700"
+            label={t('weekNext')}
+            variant="outline"
           >
             <ChevronRight className="h-4 w-4" aria-hidden />
-          </button>
+          </IconButton>
           <span className="ml-2 text-sm font-medium text-gray-700 dark:text-gray-200">{rangeLabel}</span>
         </div>
 
@@ -359,7 +361,7 @@ function GameBlock({
         )}
         {time && <span className="shrink-0 font-semibold text-foreground">{time}</span>}
       </div>
-      <div className="truncate text-muted-foreground">{opponent}</div>
+      <div className="truncate text-muted-foreground" title={opponent}>{opponent}</div>
     </div>
   )
 }

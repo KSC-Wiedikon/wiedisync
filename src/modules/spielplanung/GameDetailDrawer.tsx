@@ -21,6 +21,7 @@ import {
   AlertDialogTitle,
 } from '../../components/ui/alert-dialog'
 import { Badge } from '../../components/ui/badge'
+import { Button } from '../../components/ui/button'
 import type { Game, Hall, Team } from '../../types'
 import { asObj } from '../../utils/relations'
 import { formatDate, parseDate } from '../../utils/dateUtils'
@@ -206,47 +207,49 @@ export default function GameDetailDrawer({
 
         <div className="mt-6 flex flex-col gap-2 px-4">
           {showEdit && (
-            <button
+            <Button
               type="button"
               onClick={() => { onEdit!(game!); onClose() }}
-              className="inline-flex items-center justify-center gap-2 rounded-md bg-gold-400 px-3 py-2 text-sm font-semibold text-brand-900 transition-colors hover:bg-gold-500"
+              variant="secondary"
+              className="font-semibold text-brand-900 hover:bg-gold-500"
             >
               <Pencil className="h-4 w-4" aria-hidden />
               {t('spielplanung:drawer.edit', 'Edit')}
-            </button>
+            </Button>
           )}
           {showComboToggle && (
-            <button
+            <Button
               type="button"
               onClick={hasCombo ? handleUnmarkCombo : handleMarkCombo}
               disabled={togglingCombo}
-              className="inline-flex items-center justify-center gap-2 rounded-md border bg-background px-3 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-50"
+              variant="outline"
             >
               <Layers className="h-4 w-4" aria-hidden />
               {hasCombo
                 ? t('spielplanung:drawer.unmarkCombo', 'Back to single hall')
                 : t('spielplanung:drawer.markAsComboAB', 'Mark as KWI A + B')}
-            </button>
+            </Button>
           )}
-          <button
+          <Button
             type="button"
             onClick={handleCopy}
-            className="inline-flex items-center justify-center gap-2 rounded-md border bg-background px-3 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
+            variant="outline"
           >
             {copied ? <Check className="h-4 w-4" aria-hidden /> : <Copy className="h-4 w-4" aria-hidden />}
             {copied
               ? t('spielplanung:drawer.copied', 'Copied!')
               : t('spielplanung:drawer.copySvrz', 'Copy SVRZ details')}
-          </button>
+          </Button>
           {showDelete && (
-            <button
+            <Button
               type="button"
               onClick={() => setConfirmingDelete(true)}
-              className="inline-flex items-center justify-center gap-2 rounded-md border border-red-300 bg-background px-3 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 dark:border-red-900 dark:hover:bg-red-950"
+              variant="outline"
+              className="border-red-300 text-red-600 hover:bg-red-50 hover:text-red-600 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950 dark:hover:text-red-400"
             >
               <Trash2 className="h-4 w-4" aria-hidden />
               {t('spielplanung:drawer.delete', 'Delete')}
-            </button>
+            </Button>
           )}
         </div>
       </SheetContent>

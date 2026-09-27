@@ -55,12 +55,12 @@ export default function VmPushStatus({ booking, onPush }: Props) {
       </span>
 
       {status === 'needs_pick' && (
-        <Button size="sm" variant="outline" className="h-11 sm:h-6 px-2 text-xs" disabled={busy} onClick={() => setPicking(true)}>
+        <Button size="sm" variant="outline" className="px-2" disabled={busy} onClick={() => setPicking(true)}>
           {t('vmPushChoose')}
         </Button>
       )}
       {canRetry && (
-        <Button size="sm" variant="ghost" className="h-11 sm:h-6 px-2 text-xs" disabled={busy} onClick={() => push()}>
+        <Button size="sm" variant="ghost" className="px-2" disabled={busy} onClick={() => push()}>
           {status === 'pushed' || status === 'pushed_no_hall' ? t('vmPushRetry') : t('vmPushButton')}
         </Button>
       )}

@@ -304,25 +304,23 @@ export default function BasketballOffersPanel({
   }
 
   const selectClass =
-    'min-h-11 w-full max-w-[16rem] rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100'
+    'h-11 sm:h-9 w-full max-w-[16rem] rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100'
   const inputClass =
     'min-h-11 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100'
 
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-4 sm:p-6 dark:border-gray-700 dark:bg-gray-800">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
+      <div className="flex flex-wrap items-start gap-3">
+        <div className="min-w-0 flex-1">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('offersTitle')}</h2>
           <p className="mt-1 max-w-3xl text-xs text-gray-500 dark:text-gray-400">{t('offersHint')}</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button size="sm" className="min-h-11" disabled={busy || offerable.length === 0} onClick={handleOffer}>
+          <Button disabled={busy || offerable.length === 0} onClick={handleOffer}>
             <Send className="h-4 w-4" aria-hidden /> {t('offerSelected', { count: offerable.length })}
           </Button>
           <Button
             variant="outline"
-            size="sm"
-            className="min-h-11"
             disabled={busy || withdrawable.length === 0}
             onClick={handleWithdraw}
           >
@@ -330,16 +328,12 @@ export default function BasketballOffersPanel({
           </Button>
           <Button
             variant="outline"
-            size="sm"
-            className="min-h-11"
             disabled={busy || agreeTargets.length === 0}
             onClick={openAgree}
           >
             <Handshake className="h-4 w-4" aria-hidden /> {t('agreedSelected', { count: agreeTargets.length })}
           </Button>
           <Button
-            size="sm"
-            className="min-h-11"
             disabled={busy || clubProposed.length === 0}
             onClick={handleAcceptPicks}
           >
@@ -347,8 +341,7 @@ export default function BasketballOffersPanel({
           </Button>
           <Button
             variant="outline"
-            size="sm"
-            className="min-h-11 text-rose-600"
+            className="text-rose-600"
             disabled={busy || clubProposed.length === 0}
             onClick={handleReleasePicks}
           >
@@ -587,10 +580,10 @@ export default function BasketballOffersPanel({
           )}
 
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <Button variant="outline" className="min-h-11" onClick={closeAgree} disabled={agreeSubmitting}>
+            <Button variant="outline" onClick={closeAgree} disabled={agreeSubmitting}>
               {t('cancel')}
             </Button>
-            <Button className="min-h-11" onClick={handleMarkAgreed} disabled={!agreeCanSubmit || agreeSubmitting}>
+            <Button onClick={handleMarkAgreed} disabled={!agreeCanSubmit || agreeSubmitting}>
               {agreeSubmitting
                 ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
                 : <Handshake className="h-4 w-4" aria-hidden />}

@@ -66,7 +66,7 @@ const GRID: { dow: number; time: string }[] = [
 const DAY_KEY: Record<number, string> = { 5: 'day_fri_long', 6: 'day_sat_long', 0: 'day_sun_long' }
 
 const selectClass =
-  'min-h-11 rounded-md border border-border bg-transparent px-2 py-1 text-xs dark:bg-gray-800'
+  'h-11 rounded-md border border-border bg-transparent px-2 py-1 text-xs sm:h-9 dark:bg-gray-800'
 
 /** allow → tolerate → off → allow. One button per (pitch, category). */
 function nextState(state: CellState): CellState {
@@ -269,9 +269,7 @@ export default function BasketballTimeslotMatrixPanel({ config, onUpdate }: Prop
             </select>
           </label>
           <Button
-            size="sm"
             variant="outline"
-            className="min-h-11"
             disabled={busy || !newDate || spielsamstage.some((s) => s.date === newDate)}
             onClick={() => {
               patchSpielsamstage([...spielsamstage, { date: newDate, status: newStatus }])

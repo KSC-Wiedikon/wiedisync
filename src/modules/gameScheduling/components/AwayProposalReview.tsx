@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Button } from '@/components/ui/button'
 import BookingStatusBadge from './BookingStatusBadge'
 import ProposalContextHints from './ProposalContextHints'
 import { formatWeekdayZurich, formatDateTimeCompact } from '../../../utils/dateHelpers'
@@ -135,26 +136,30 @@ export default function AwayProposalReview({ booking, onConfirm, vmCheck, onSync
             {vmCheck.status === 'mismatch' && vmCheck.vm ? `: ${vmCheck.vm}` : ''}
           </span>
           {vmCheck.status === 'mismatch' && onSyncVm && (
-            <button
+            <Button
               type="button"
               onClick={onSyncVm}
               disabled={vmSyncing}
-              className="rounded-md border border-red-300 bg-white px-2 py-0.5 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50 dark:border-red-700 dark:bg-gray-800 dark:text-red-300 dark:hover:bg-gray-700"
+              variant="outline"
+              size="sm"
+              className="border-red-300 text-red-700 hover:bg-red-50 hover:text-red-700 dark:border-red-700 dark:bg-gray-800 dark:text-red-300 dark:hover:bg-gray-700"
             >
               {vmSyncing ? '…' : t('syncWithVm')}
-            </button>
+            </Button>
           )}
           </div>
         )}
         {onDelete && (
-          <button
+          <Button
             type="button"
             onClick={handleDelete}
             disabled={deleting}
-            className="min-h-11 self-start text-xs font-medium text-red-600 hover:underline disabled:opacity-50 sm:min-h-0 dark:text-red-400"
+            variant="link"
+            size="sm"
+            className="self-start px-0 text-xs text-red-600 dark:text-red-400"
           >
             {deleting ? t('deletingGame') : t('deleteGame')}
-          </button>
+          </Button>
         )}
       </div>
     )
@@ -179,13 +184,14 @@ export default function AwayProposalReview({ booking, onConfirm, vmCheck, onSync
             <ProposalContextHints hp={healthByNum.get(p.num)} />
           </div>
           {booking.status === 'pending' && (
-            <button
+            <Button
               onClick={() => handleConfirm(p.num)}
               disabled={confirming}
-              className="rounded-md bg-green-600 px-3 py-1 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-50 min-h-11 sm:min-h-0"
+              size="sm"
+              className="bg-green-600 text-white hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700"
             >
               {t('confirmProposal')}
-            </button>
+            </Button>
           )}
         </div>
       ))}

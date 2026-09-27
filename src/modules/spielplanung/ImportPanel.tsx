@@ -1,6 +1,7 @@
 import { useState, useRef, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Download, FileSpreadsheet } from 'lucide-react'
+import { Button } from '../../components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import { toXlsx, downloadBlob } from '../admin/utils/exportResults'
 import { useCollection } from '../../lib/query'
@@ -194,14 +195,15 @@ export default function ImportPanel({ editableTeamIds, onImported }: ImportPanel
           onChange={handleFileChange}
           className="text-sm text-gray-700 dark:text-gray-300 file:mr-3 file:rounded-md file:border-0 file:bg-gray-100 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-gray-700 dark:file:bg-gray-700 dark:file:text-gray-300"
         />
-        <button
+        <Button
           type="button"
           onClick={handleDownloadTemplate}
-          className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+          variant="link"
+          className="gap-1.5 px-0"
         >
           <Download className="h-3.5 w-3.5" aria-hidden />
           {t('import.downloadTemplate')}
-        </button>
+        </Button>
       </div>
 
       {preview.length > 0 && (
@@ -238,16 +240,17 @@ export default function ImportPanel({ editableTeamIds, onImported }: ImportPanel
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <button
+            <Button
               type="button"
               onClick={handleImport}
               disabled={importing || validCount === 0}
-              className="rounded-md bg-gold-400 px-4 py-2 text-sm font-semibold text-brand-900 transition-colors hover:bg-gold-500 disabled:opacity-50"
+              variant="secondary"
+              className="font-semibold text-brand-900 hover:bg-gold-500"
             >
               {importing
                 ? t('import.importing')
                 : t('import.importNValid', { count: validCount })}
-            </button>
+            </Button>
             {errorCount > 0 && (
               <span className="text-xs text-red-600 dark:text-red-400">
                 {t('import.nSkipped', { count: errorCount })}

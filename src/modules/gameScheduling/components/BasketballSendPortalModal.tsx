@@ -133,7 +133,7 @@ export default function BasketballSendPortalModal({ open, onOpenChange, ids, sen
               <select
                 value={selected}
                 onChange={(e) => setSelected(Number(e.target.value))}
-                className="mt-1 block w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+                className="mt-1 block h-11 w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm sm:h-9 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
               >
                 {previews.map((p, i) => {
                   const to = p.to || ''

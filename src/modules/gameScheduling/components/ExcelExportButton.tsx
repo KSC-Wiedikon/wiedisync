@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { Button } from '@/components/ui/button'
 import type { GameSchedulingBooking, GameSchedulingOpponent, GameSchedulingSeason, GameSchedulingSlot, Team } from '../../../types'
 import {
   buildScheduleSections, buildScheduleXlsx, buildSchedulePdf,
@@ -61,28 +62,30 @@ export default function ExcelExportButton({ bookings, opponents, slots, teams, s
   const disabled = noGames || busy !== null
 
   if (compact) {
-    // Small outline buttons for the per-team row — sit next to "Notify coaches".
-    const cls = 'inline-flex items-center gap-1.5 self-start rounded-lg border px-3 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50'
+    // Outline buttons for the per-team row — sit next to "Notify coaches",
+    // same height (control scale default).
     return (
       <>
-        <button
+        <Button
           type="button"
           onClick={handleExcel}
           disabled={disabled}
           title={t('downloadExcel')}
-          className={`${cls} border-green-300 bg-green-50 text-green-700 hover:bg-green-100 dark:border-green-900 dark:bg-green-900/20 dark:text-green-300 dark:hover:bg-green-900/40`}
+          variant="outline"
+          className="border-green-300 bg-green-50 text-green-700 hover:bg-green-100 hover:text-green-700 dark:border-green-900 dark:bg-green-900/20 dark:text-green-300 dark:hover:bg-green-900/40 dark:hover:text-green-300"
         >
           {busy === 'xlsx' ? '…' : t('exportExcelShort')}
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
           onClick={handlePdf}
           disabled={disabled}
           title={t('downloadPdf')}
-          className={`${cls} border-rose-300 bg-rose-50 text-rose-700 hover:bg-rose-100 dark:border-rose-900 dark:bg-rose-900/20 dark:text-rose-300 dark:hover:bg-rose-900/40`}
+          variant="outline"
+          className="border-rose-300 bg-rose-50 text-rose-700 hover:bg-rose-100 hover:text-rose-700 dark:border-rose-900 dark:bg-rose-900/20 dark:text-rose-300 dark:hover:bg-rose-900/40 dark:hover:text-rose-300"
         >
           {busy === 'pdf' ? '…' : t('exportPdfShort')}
-        </button>
+        </Button>
       </>
     )
   }
@@ -91,20 +94,20 @@ export default function ExcelExportButton({ bookings, opponents, slots, teams, s
     // Stack on mobile (PDF beneath Excel) so the buttons never overflow; side by
     // side on ≥sm.
     <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-      <button
+      <Button
         onClick={handleExcel}
         disabled={disabled}
-        className="w-full rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50 sm:w-auto"
+        className="w-full bg-green-600 text-white hover:bg-green-700 sm:w-auto dark:bg-green-600 dark:hover:bg-green-700"
       >
         {busy === 'xlsx' ? '…' : t('downloadExcel')}
-      </button>
-      <button
+      </Button>
+      <Button
         onClick={handlePdf}
         disabled={disabled}
-        className="w-full rounded-md bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700 disabled:opacity-50 sm:w-auto"
+        className="w-full bg-rose-600 text-white hover:bg-rose-700 sm:w-auto dark:bg-rose-600 dark:hover:bg-rose-700"
       >
         {busy === 'pdf' ? '…' : t('downloadPdf')}
-      </button>
+      </Button>
     </div>
   )
 }

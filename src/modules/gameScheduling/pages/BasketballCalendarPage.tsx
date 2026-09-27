@@ -261,7 +261,7 @@ export function BasketballCalendarPanel({
                           ? <Plane className="h-2.5 w-2.5 shrink-0" aria-hidden />
                           : <House className="h-2.5 w-2.5 shrink-0" aria-hidden />
                       )}
-                      <span className="truncate">{it.kind === 'vb' ? t('homeGameVb') : it.label}</span>
+                      <span className="truncate" title={it.kind === 'vb' ? t('homeGameVb') : it.label}>{it.kind === 'vb' ? t('homeGameVb') : it.label}</span>
                     </span>
                   ))}
                   {items.length > 3 && (
@@ -350,7 +350,6 @@ export function BasketballCalendarPanel({
                             type="button"
                             variant="outline"
                             size="sm"
-                            className="min-h-11 sm:min-h-9"
                             onClick={() => { setEditingGame(it.fixture.game); setDayDetail(null) }}
                           >
                             <Pencil className="h-4 w-4" aria-hidden /> {t('editFixture')}
@@ -360,7 +359,7 @@ export function BasketballCalendarPanel({
                             variant="outline"
                             size="sm"
                             disabled={deletingId === it.fixture.id}
-                            className="min-h-11 text-red-600 hover:text-red-700 sm:min-h-9 dark:text-red-400"
+                            className="text-red-600 hover:text-red-700 dark:text-red-400"
                             onClick={() => void handleDelete(it.fixture)}
                           >
                             <Trash2 className="h-4 w-4" aria-hidden /> {t('deleteFixture')}
@@ -371,7 +370,6 @@ export function BasketballCalendarPanel({
                           type="button"
                           variant="outline"
                           size="sm"
-                          className="min-h-11 sm:min-h-9"
                           onClick={() => { setEditingPlacement(it.placement); setDayDetail(null) }}
                         >
                           <Pencil className="h-4 w-4" aria-hidden /> {t('editFixture')}
@@ -394,7 +392,7 @@ export function BasketballCalendarPanel({
                 is not a placement — it is a `games` fixture, and from here it also closes
                 the date for that team in the slot grid and the generator. */}
             <div className="flex justify-end">
-              <Button className="min-h-11" onClick={() => setAddAwayOn(dayDetail.date)}>
+              <Button onClick={() => setAddAwayOn(dayDetail.date)}>
                 <Plus className="h-4 w-4" aria-hidden /> {t('addAwayGame')}
               </Button>
             </div>
@@ -453,13 +451,13 @@ export default function BasketballCalendarPage() {
     teams, placements, vbGames, fixtures, closureEntries, blockedDayReasons, placeGame, removeGame,
   } = useBasketballPlan(season)
 
-  const selectClass = 'rounded-md border border-border bg-transparent px-3 py-2 text-sm dark:bg-gray-800'
+  const selectClass = 'h-11 rounded-md border border-border bg-transparent px-3 py-2 text-sm sm:h-9 dark:bg-gray-800'
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-wrap items-end justify-between gap-4">
+      <header className="flex flex-wrap items-end gap-4">
         <h1 className="text-2xl font-bold">{t('calendarTitle')}</h1>
-        <label className="flex flex-col gap-1 text-sm">
+        <label className="ml-auto flex flex-col gap-1 text-sm">
           <span className="font-medium text-muted-foreground">{t('season')}</span>
           <select
             className={selectClass}

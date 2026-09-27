@@ -9,6 +9,8 @@ import { HomeProposalFormForCard, AwayProposalFormForCard } from '../components/
 import Modal from '../../../components/Modal'
 import { useReportPageLoading } from '../../../hooks/usePageReady'
 import { Badge } from '../../../components/ui/badge'
+import { Button } from '../../../components/ui/button'
+import { ChevronRight } from 'lucide-react'
 import LanguageDropdown from '../../../components/LanguageDropdown'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -298,7 +300,7 @@ export default function ClubFlowPage() {
   }
 
   const sideButtonClass =
-    'mt-4 w-full rounded-md bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 sm:w-auto sm:px-8'
+    'mt-4 w-full sm:w-auto sm:px-8'
 
   // One accordion item per pairing — collapsed by default; the header shows the
   // matchup + league + a to-do/confirmed badge; expanded shows the home/away cards.
@@ -323,9 +325,7 @@ export default function ClubFlowPage() {
           className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700/40"
         >
           <span className="flex min-w-0 items-center gap-2">
-            <svg className={`h-4 w-4 flex-none text-gray-400 transition-transform ${isOpen ? 'rotate-90' : ''}`} viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-              <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 0 1 .02-1.06L11.168 10 7.23 6.29a.75.75 0 1 1 1.04-1.08l4.5 4.25a.75.75 0 0 1 0 1.08l-4.5 4.25a.75.75 0 0 1-1.06-.02Z" clipRule="evenodd" />
-            </svg>
+            <ChevronRight className={`h-4 w-4 flex-none text-gray-400 transition-transform ${isOpen ? 'rotate-90' : ''}`} aria-hidden="true" />
             <span className="min-w-0 text-sm sm:text-base">
               <span className="font-semibold text-gray-900 dark:text-gray-100">KSCW {pairing.opponent.kscw_team_name} <span className="font-normal text-gray-400">·</span> {pairing.opponent.team_name}</span>
               {league && <span className="ml-2 text-xs font-medium text-gray-400">{league}</span>}
@@ -343,9 +343,9 @@ export default function ClubFlowPage() {
                   <h4 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('homeGamesTitle')}</h4>
                   <div className="space-y-6">{homeCards.map((c) => renderCard(pairing, c))}</div>
                   {shownHome.length > 0 && (
-                    <button type="button" onClick={() => openConfirmer(pairing, 'home', homeCards, awayCards)} disabled={busy} className={sideButtonClass}>
+                    <Button type="button" onClick={() => openConfirmer(pairing, 'home', homeCards, awayCards)} disabled={busy} size="lg" className={sideButtonClass}>
                       {submittingHome ? t('submitting') : t('confirmHomeGames')}
-                    </button>
+                    </Button>
                   )}
                 </div>
               )}
@@ -354,9 +354,9 @@ export default function ClubFlowPage() {
                   <h4 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('awayGamesTitle')}</h4>
                   <div className="space-y-6">{awayCards.map((c) => renderCard(pairing, c))}</div>
                   {shownAway.length > 0 && (
-                    <button type="button" onClick={() => openConfirmer(pairing, 'away', homeCards, awayCards)} disabled={busy} className={sideButtonClass}>
+                    <Button type="button" onClick={() => openConfirmer(pairing, 'away', homeCards, awayCards)} disabled={busy} size="lg" className={sideButtonClass}>
                       {submittingAway ? t('submitting') : t('confirmAwayGames')}
-                    </button>
+                    </Button>
                   )}
                 </div>
               )}
@@ -444,9 +444,9 @@ export default function ClubFlowPage() {
             className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
           />
           {remarkChanged && (
-            <button type="button" onClick={handleSaveRemark} disabled={busy} className="mt-3 w-full rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 sm:w-auto dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">
+            <Button type="button" onClick={handleSaveRemark} disabled={busy} variant="outline" className="mt-3 w-full sm:w-auto">
               {savingRemark ? t('submitting') : t('saveRemarks')}
-            </button>
+            </Button>
           )}
         </div>
 
@@ -468,12 +468,12 @@ export default function ClubFlowPage() {
             </div>
             {confirmerError && <p className="text-sm text-red-600 dark:text-red-400">{confirmerError}</p>}
             <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-end">
-              <button type="button" onClick={() => setConfirmTarget(null)} className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">
+              <Button type="button" onClick={() => setConfirmTarget(null)} variant="outline">
                 {t('cancel')}
-              </button>
-              <button type="button" onClick={submitConfirmer} disabled={busy} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50">
+              </Button>
+              <Button type="button" onClick={submitConfirmer} disabled={busy}>
                 {t('confirmAndSend')}
-              </button>
+              </Button>
             </div>
           </div>
         </Modal>

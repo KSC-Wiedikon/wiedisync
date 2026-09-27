@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Button } from '@/components/ui/button'
 import type { GameSchedulingSlot, Team } from '../../../types'
 
 interface Props {
@@ -39,17 +40,17 @@ export default function SlotGenerationPanel({ seasonStatus, generating, genResul
       <p className="mb-4 text-sm text-gray-600 dark:text-gray-400">{t('slotGenerationDescription')}</p>
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
-        <button
+        <Button
           onClick={onGenerate}
           disabled={generating || seasonStatus === 'closed'}
-          className={`shrink-0 rounded-md px-6 py-2.5 text-sm font-medium min-h-11 disabled:opacity-50 ${
+          className={`shrink-0 px-6 ${
             hasSlots
               ? 'bg-gold-400 text-brand-900 hover:bg-gold-500'
-              : 'bg-green-600 text-white hover:bg-green-700'
+              : 'bg-green-600 text-white hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700'
           }`}
         >
           {generating ? t('generatingSlots') : hasSlots ? t('regenerateSlots') : t('generateSlots')}
-        </button>
+        </Button>
 
         {/* Per-team available-slot summary (next to the button) */}
         {hasSlots && summary.length > 0 && (

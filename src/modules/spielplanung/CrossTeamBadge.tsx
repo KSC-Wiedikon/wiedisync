@@ -54,10 +54,10 @@ export default function CrossTeamBadge({ conflicts }: CrossTeamBadgeProps) {
           {conflicts.map((c) => (
             <li key={`${c.teamId}-${c.kind}`} className="text-muted-foreground">
               <div className="flex items-center justify-between gap-2">
-                <span className="min-w-0 truncate font-medium text-foreground">{c.teamName}</span>
+                <span className="min-w-0 break-words font-medium text-foreground">{c.teamName}</span>
                 <span className="shrink-0 text-[10px] opacity-70">{t(`crossTeamBadge.kind.${c.kind}`)}</span>
               </div>
-              {c.matchup && <div className="truncate opacity-80">{c.matchup}</div>}
+              {c.matchup && <div className="truncate opacity-80" title={c.matchup}>{c.matchup}</div>}
             </li>
           ))}
         </ul>

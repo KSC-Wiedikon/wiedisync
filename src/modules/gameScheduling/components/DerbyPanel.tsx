@@ -144,14 +144,16 @@ export default function DerbyPanel({ seasonId }: Props) {
                 <Button onClick={() => handleSave(d, true)} disabled={saving} size="sm">
                   {saving ? '…' : d.confirmed ? t('derbyUpdate') : t('derbyConfirm')}
                 </Button>
-                <button
+                <Button
                   type="button"
                   onClick={() => handleSave(d, false)}
                   disabled={saving}
-                  className="inline-flex items-center min-h-11 sm:min-h-0 px-2 text-xs text-gray-500 underline-offset-2 hover:underline disabled:opacity-50 dark:text-gray-400"
+                  variant="link"
+                  size="sm"
+                  className="px-2 text-xs text-gray-500 dark:text-gray-400"
                 >
                   {t('derbySaveDraftAction')}
-                </button>
+                </Button>
               </div>
             </div>
           )

@@ -55,7 +55,7 @@ export default function AbsenceBadge({ absent }: AbsenceBadgeProps) {
               key={m.memberId}
               className="flex items-center justify-between gap-2 text-muted-foreground"
             >
-              <span className="min-w-0 truncate">{m.name}</span>
+              <span className="min-w-0 break-words">{m.name}</span>
               {m.teams.length > 0 && (
                 <span className="shrink-0 text-[10px] opacity-70">{m.teams.join(', ')}</span>
               )}

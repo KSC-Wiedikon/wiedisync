@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Button } from '@/components/ui/button'
 import type { Team, GameSchedulingSeason, GameSchedulingSlot } from '../../../types'
 import type { ExpandedBooking } from '../hooks/useAdminBookings'
 import { fetchAllItems, kscwApi } from '../../../lib/api'
@@ -160,13 +161,14 @@ export default function TeamScheduleCalendar({ team, hideWhenEmpty = true, varia
       <div className="mt-8">
         <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
           <p className="text-sm text-gray-500 dark:text-gray-400">{t('common:error')}</p>
-          <button
+          <Button
             type="button"
             onClick={() => { setGamesError(false); setGamesKey(null); setGamesReload((n) => n + 1) }}
-            className="mt-1 min-h-[44px] text-sm font-medium text-blue-600 hover:underline dark:text-blue-400"
+            variant="link"
+            className="mt-1 px-0"
           >
             {t('admin:retry')}
-          </button>
+          </Button>
         </div>
       </div>
     )

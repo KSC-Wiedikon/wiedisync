@@ -856,28 +856,32 @@ function VolleyballDashboardBody() {
               <li key={m.bid} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-red-700 dark:text-red-300">
                 <span className="font-medium">{[m.team, m.opp].filter(Boolean).join(' · ')}</span>
                 <span className="text-red-600/80 dark:text-red-400/80">{t('awayVmMismatchRow', { agreed: m.agreed || '—', vm: m.vm || '—' })}</span>
-                <button
+                <Button
                   type="button"
                   onClick={() => handleSyncFromVm({ key: `b:${m.bid}`, bookingId: m.bid })}
                   disabled={vmSyncing === `b:${m.bid}`}
-                  className="rounded-md border border-red-300 bg-white px-2 py-0.5 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50 dark:border-red-700 dark:bg-gray-800 dark:text-red-300 dark:hover:bg-gray-700"
+                  variant="outline"
+                  size="sm"
+                  className="border-red-300 text-red-700 hover:bg-red-50 hover:text-red-700 dark:border-red-700 dark:bg-gray-800 dark:text-red-300 dark:hover:bg-gray-700"
                 >
                   {vmSyncing === `b:${m.bid}` ? <InlineSpinner /> : t('syncWithVm')}
-                </button>
+                </Button>
               </li>
             ))}
             {awayUnbooked.map((u) => (
               <li key={u.key} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-red-700 dark:text-red-300">
                 <span className="font-medium">{[u.team, u.opp].filter(Boolean).join(' · ')}</span>
                 <span className="text-red-600/80 dark:text-red-400/80">{t('awayVmUnbookedRow', { vm: u.vm })}</span>
-                <button
+                <Button
                   type="button"
                   onClick={() => handleSyncFromVm({ key: `u:${u.key}`, opponentId: u.opponentId, svrzGameId: u.svrzGameId })}
                   disabled={vmSyncing === `u:${u.key}`}
-                  className="rounded-md border border-red-300 bg-white px-2 py-0.5 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50 dark:border-red-700 dark:bg-gray-800 dark:text-red-300 dark:hover:bg-gray-700"
+                  variant="outline"
+                  size="sm"
+                  className="border-red-300 text-red-700 hover:bg-red-50 hover:text-red-700 dark:border-red-700 dark:bg-gray-800 dark:text-red-300 dark:hover:bg-gray-700"
                 >
                   {vmSyncing === `u:${u.key}` ? <InlineSpinner /> : t('syncWithVm')}
-                </button>
+                </Button>
               </li>
             ))}
           </ul>
@@ -902,14 +906,16 @@ function VolleyballDashboardBody() {
                     ? t('homeVmMismatchRow', { agreed: m.agreed || '—', vm: m.vm || '—' })
                     : t('homeVmNotPushedRow', { agreed: m.agreed || '—' })}
                 </span>
-                <button
+                <Button
                   type="button"
                   onClick={() => handleRepushVm(m.bid)}
                   disabled={vmRepushing === m.bid}
-                  className="rounded-md border border-amber-300 bg-white px-2 py-0.5 text-xs font-medium text-amber-700 hover:bg-amber-50 disabled:opacity-50 dark:border-amber-700 dark:bg-gray-800 dark:text-amber-300 dark:hover:bg-gray-700"
+                  variant="outline"
+                  size="sm"
+                  className="border-amber-300 text-amber-700 hover:bg-amber-50 hover:text-amber-700 dark:border-amber-700 dark:bg-gray-800 dark:text-amber-300 dark:hover:bg-gray-700"
                 >
                   {vmRepushing === m.bid ? <InlineSpinner /> : t('repushVm')}
-                </button>
+                </Button>
               </li>
             ))}
           </ul>
@@ -976,9 +982,9 @@ function VolleyballDashboardBody() {
                     className="inline-block h-3 w-3 flex-shrink-0 rounded-full"
                     style={{ backgroundColor: team.color || '#6b7280' }}
                   />
-                  <span className="truncate font-semibold text-gray-900 dark:text-gray-100">{team.name}</span>
+                  <span className="truncate font-semibold text-gray-900 dark:text-gray-100" title={team.name}>{team.name}</span>
                   {team.full_name && (
-                    <span className="hidden truncate text-sm text-gray-500 sm:inline dark:text-gray-400">
+                    <span className="hidden truncate text-sm text-gray-500 sm:inline dark:text-gray-400" title={team.full_name}>
                       {team.full_name}
                     </span>
                   )}
@@ -1037,7 +1043,7 @@ function VolleyballDashboardBody() {
               {isExpanded && (
                 <div className="border-t border-gray-200 px-4 py-4 dark:border-gray-700">
                   {!searchQuery && (
-                  <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                  <div className="mb-4 space-y-2">
                     <p className="text-xs text-gray-500 dark:text-gray-400">
                       {teamPending(team.id) > 0
                         ? t('finalizeNotifyPending', { count: teamPending(team.id) })
@@ -1050,22 +1056,22 @@ function VolleyballDashboardBody() {
                         seasonId={season.id}
                         seasonName={season.season}
                       />
-                      <button
+                      <Button
                         type="button"
+                        variant="outline"
                         onClick={() => handleFinalizeNotify(team.id, teamPending(team.id))}
                         disabled={notifyingTeam === team.id || stats.opponents === 0}
-                        className="inline-flex items-center gap-1.5 self-start rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
                       >
                         {notifyingTeam === team.id ? t('finalizeNotifySending') : t('finalizeNotify')}
-                      </button>
-                      <button
+                      </Button>
+                      <Button
                         type="button"
+                        variant="outline"
                         onClick={() => handleSendReminders(team.id)}
                         disabled={remindingTeam === team.id || stats.opponents === 0}
-                        className="inline-flex items-center gap-1.5 self-start rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
                       >
                         {remindingTeam === team.id ? '…' : t('sendReminder')}
-                      </button>
+                      </Button>
                       {/* Per-team Excel / PDF export of just this team's games. */}
                       <ExcelExportButton
                         bookings={bookings}
@@ -1397,7 +1403,7 @@ function TeamBookingsContent({
             key={opp.id}
             className={`rounded-md border p-3 ${cardClass}`}
           >
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <div className="mb-2 flex items-center gap-2">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-medium text-gray-900 dark:text-gray-100">{opp.club_name || opp.team_name}</span>
@@ -1408,54 +1414,54 @@ function TeamBookingsContent({
                     {t(sourceKey(source))}
                   </Badge>
                   {opp.token && (
-                    <button
+                    <Button
                       type="button"
                       onClick={() => copyOpponentLink(opp)}
-                      className="text-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
+                      variant="link" size="sm" className="px-1 text-xs"
                     >
                       {t('copyLink')}
-                    </button>
+                    </Button>
                   )}
                   {oppGames.length > 0 && (
-                    <button
+                    <Button
                       type="button"
                       onClick={() => setGamesFor({ label: opp.team_name || opp.club_name, games: overlayBookedDates(oppGames, oppBookings) })}
-                      className="text-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
+                      variant="link" size="sm" className="px-1 text-xs"
                     >
                       {t('gameCount', { count: oppGames.length })}
-                    </button>
+                    </Button>
                   )}
                   {mailboxConfigured && (
                     emailsFor(opp).length > 0 ? (
                       <>
                         {/* Expand the email chain inline (kept on the dashboard) … */}
-                        <button
+                        <Button
                           type="button"
                           onClick={() => toggleEmails(String(opp.id))}
                           aria-expanded={openEmails.has(String(opp.id))}
-                          className="inline-flex items-center gap-0.5 text-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
+                          variant="link" size="sm" className="gap-0.5 px-1 text-xs"
                         >
                           {t('opponentEmails', { count: emailsFor(opp).length })}
                           <span aria-hidden>{openEmails.has(String(opp.id)) ? '▾' : '▸'}</span>
-                        </button>
+                        </Button>
                         {/* … plus an explicit jump to the full Mailbox tab for this opponent. */}
-                        <button
+                        <Button
                           type="button"
                           onClick={() => onOpenMailbox(opp)}
                           title={t('openInMailbox')}
-                          className="text-xs font-medium text-gray-500 hover:text-brand-600 hover:underline dark:text-gray-400 dark:hover:text-brand-400"
+                          variant="link" size="sm" className="px-1 text-xs text-gray-500 dark:text-gray-400"
                         >
                           {t('openInMailbox')} ↗
-                        </button>
+                        </Button>
                       </>
                     ) : (
-                      <button
+                      <Button
                         type="button"
                         onClick={() => onOpenMailbox(opp)}
-                        className="text-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
+                        variant="link" size="sm" className="px-1 text-xs"
                       >
                         {t('mailboxCompose')}
-                      </button>
+                      </Button>
                     )
                   )}
                 </div>
@@ -1481,15 +1487,15 @@ function TeamBookingsContent({
                   return (
                     <div className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                       {collapsible && (
-                        <button
+                        <Button
                           type="button"
                           onClick={() => toggleContacts(idStr)}
                           aria-expanded={open}
-                          className="inline-flex items-center gap-0.5 font-medium text-brand-600 hover:underline dark:text-brand-400"
+                          variant="link" size="sm" className="gap-0.5 px-0"
                         >
                           {t('contactCount', { count: contactEmails.length })}
                           <span aria-hidden>{open ? '▾' : '▸'}</span>
-                        </button>
+                        </Button>
                       )}
                       {(!collapsible || open) && (
                         hasSplit ? (
@@ -1531,7 +1537,7 @@ function TeamBookingsContent({
                       <span className="whitespace-nowrap text-xs text-gray-400 dark:text-gray-500">
                         {m.date_sent ? formatDateTimeCompact(m.date_sent) : ''}
                       </span>
-                      <span className={`min-w-0 flex-1 truncate text-xs ${unread ? 'font-semibold text-gray-900 dark:text-gray-100' : 'text-gray-600 dark:text-gray-400'}`}>
+                      <span title={m.subject || t('mailboxNoSubject')} className={`min-w-0 flex-1 truncate text-xs ${unread ? 'font-semibold text-gray-900 dark:text-gray-100' : 'text-gray-600 dark:text-gray-400'}`}>
                         {m.direction === 'out' ? '→ ' : ''}{m.subject || t('mailboxNoSubject')}
                       </span>
                       {unread && <span aria-hidden className="mt-1 inline-block h-1.5 w-1.5 flex-shrink-0 rounded-full bg-brand-600" />}
@@ -1617,14 +1623,14 @@ function TeamBookingsContent({
                           <span className="text-sm text-amber-700 dark:text-amber-400">
                             {t('awayVmUnbookedRow', { vm: unbookedByKey.get(`${opp.id}:${leg.svrzGameId}`)!.vm })}
                           </span>
-                          <button
+                          <Button
                             type="button"
                             onClick={() => onSyncVm({ key: `u:${opp.id}:${leg.svrzGameId}`, opponentId: String(opp.id), svrzGameId: leg.svrzGameId })}
                             disabled={vmSyncing === `u:${opp.id}:${leg.svrzGameId}`}
-                            className="rounded-md border border-amber-300 bg-white px-2 py-0.5 text-xs font-medium text-amber-700 hover:bg-amber-50 disabled:opacity-50 dark:border-amber-700 dark:bg-gray-800 dark:text-amber-300 dark:hover:bg-gray-700"
+                            variant="outline" size="sm" className="border-amber-300 text-amber-700 hover:bg-amber-50 hover:text-amber-700 dark:border-amber-700 dark:bg-gray-800 dark:text-amber-300 dark:hover:bg-gray-700"
                           >
                             {vmSyncing === `u:${opp.id}:${leg.svrzGameId}` ? '…' : t('syncWithVm')}
-                          </button>
+                          </Button>
                         </div>
                       ) : !fixturesSettled ? (
                         // "Pending" asserts a game exists on this side and is

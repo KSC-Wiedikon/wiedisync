@@ -17,6 +17,8 @@ import {
   DialogTitle,
 } from '../../../components/ui/dialog'
 import { Button } from '../../../components/ui/button'
+import IconButton from '../../../components/IconButton'
+import { X } from 'lucide-react'
 import { Badge } from '../../../components/ui/badge'
 import { Checkbox } from '../../../components/ui/checkbox'
 import { Input } from '../../../components/ui/input'
@@ -239,9 +241,9 @@ export default function InvitesDrawer({ open, onOpenChange, kscwTeam, api }: Pro
               two buttons are optional: re-pull the synced data, or do a slow live
               re-fetch for the freshest contacts. */}
           <div>
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <div className="mb-2 flex flex-wrap items-center gap-2">
               <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t('opponentContacts')}</h3>
-              <div className="flex gap-2">
+              <div className="ml-auto flex shrink-0 gap-2">
                 <Button size="sm" variant="secondary" onClick={() => loadLeagueClubs()} disabled={loadingClubs || !kscwTeam}>
                   {loadingClubs ? t('loadingClubs') : t('reloadSynced')}
                 </Button>
@@ -334,14 +336,14 @@ export default function InvitesDrawer({ open, onOpenChange, kscwTeam, api }: Pro
                         </Badge>
                       </td>
                       <td className="py-1.5 pr-2 text-right">
-                        <button
+                        <IconButton
                           type="button"
                           onClick={() => removeDraft(d.id)}
-                          className="inline-flex h-11 w-11 items-center justify-center text-xs text-gray-400 hover:text-red-600"
-                          aria-label="Remove"
+                          label="Remove"
+                          className="text-gray-400 hover:text-red-600 dark:hover:text-red-400"
                         >
-                          ✕
-                        </button>
+                          <X />
+                        </IconButton>
                       </td>
                     </tr>
                   ))}

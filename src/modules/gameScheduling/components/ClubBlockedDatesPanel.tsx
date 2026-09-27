@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { CalendarOff, Plus, Trash2, Loader2 } from 'lucide-react'
 import { Button } from '../../../components/ui/button'
+import IconButton from '../../../components/IconButton'
 import DatePicker from '@/components/ui/DatePicker'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../components/ui/table'
 import { kscwApi } from '../../../lib/api'
@@ -133,10 +134,10 @@ export default function ClubBlockedDatesPanel() {
                 </TableCell>
                 <TableCell className="whitespace-normal break-words text-gray-500 dark:text-gray-400">{b.reason || '–'}</TableCell>
                 <TableCell>
-                  <button type="button" onClick={() => remove(b)} title={t('clubBlockRemove')}
+                  <IconButton type="button" size="sm" onClick={() => remove(b)} label={t('clubBlockRemove')}
                     className="text-gray-400 hover:text-red-600 dark:hover:text-red-400">
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                    <Trash2 />
+                  </IconButton>
                 </TableCell>
               </TableRow>
             ))}

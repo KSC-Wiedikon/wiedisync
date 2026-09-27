@@ -86,7 +86,7 @@ function GameTableRow({ game, teams, showTeam, showDate }: { game: Game; teams: 
         )}
       </TableCell>
       <TableCell className="whitespace-nowrap"><TypeBadge type={game.type} /></TableCell>
-      <TableCell className="hidden md:table-cell whitespace-nowrap text-xs text-gray-500 truncate max-w-[10rem]">
+      <TableCell className="hidden md:table-cell whitespace-nowrap text-xs text-gray-500 truncate max-w-[10rem]" title={hallName}>
         {hallName}
       </TableCell>
       <TableCell className="whitespace-nowrap"><StatusBadge status={game.status} /></TableCell>
