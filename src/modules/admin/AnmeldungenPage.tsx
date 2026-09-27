@@ -40,6 +40,8 @@ import type { BaseRecord, Team } from '../../types'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import { MEMBER_SELECT_FIELDS } from './components/memberFieldOptions'
 import RegistrationFeePanel from './components/RegistrationFeePanel'
+import { Button } from '../../components/ui/button'
+import IconButton from '../../components/IconButton'
 
 interface Registration extends BaseRecord {
   status: 'pending' | 'approved' | 'rejected'
@@ -654,7 +656,7 @@ export default function AnmeldungenPage() {
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
-          className="rounded-md border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+          className="h-11 rounded-md border border-gray-200 bg-white px-3 text-sm sm:h-9 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
         >
           <option value="all">{t('anmeldungenAllStatuses')}</option>
           <option value="pending">{t('anmeldungenPending')}</option>
@@ -674,22 +676,22 @@ export default function AnmeldungenPage() {
             {selectedIds.size} {t('anmeldungenSelected')}
           </span>
           {selectedDocsMissingCount > 0 && (
-            <button
+            <Button
               onClick={handleBulkRequestDocs}
               disabled={bulkRequesting}
-              className="ml-auto inline-flex min-h-[44px] items-center gap-1.5 rounded-md bg-amber-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-40 sm:min-h-0"
+              className="ml-auto bg-amber-600 text-white hover:bg-amber-700"
+              icon={<Upload />}
             >
-              <Upload className="h-3.5 w-3.5" />
               {t('anmeldungenDocsRequestBulk', { count: selectedDocsMissingCount })}
-            </button>
+            </Button>
           )}
-          <button
+          <Button
             onClick={() => downloadCSV(selectedRegistrations)}
-            className={`inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 ${selectedDocsMissingCount > 0 ? '' : 'ml-auto'}`}
+            className={selectedDocsMissingCount > 0 ? '' : 'ml-auto'}
+            icon={<Download />}
           >
-            <Download className="h-3.5 w-3.5" />
             {t('anmeldungenDownloadCSV')}
-          </button>
+          </Button>
         </div>
       )}
 
@@ -806,13 +808,15 @@ export default function AnmeldungenPage() {
                               </TableCell>
                               <TableCell className="hidden lg:table-cell text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">{formatDate(reg.submitted_at)}</TableCell>
                               <TableCell className="text-right">
-                                <button
+                                <IconButton
+                                  size="sm"
                                   onClick={() => setExpandedId(isExpanded ? null : reg.id)}
-                                  className="rounded-md p-2 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
-                                  title={t('anmeldungenDetails')}
+                                  className="text-gray-400"
+                                  label={t('anmeldungenDetails')}
+                                  aria-expanded={isExpanded}
                                 >
-                                  {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                                </button>
+                                  {isExpanded ? <ChevronUp /> : <ChevronDown />}
+                                </IconButton>
                               </TableCell>
                             </TableRow>
                             {isExpanded && (
@@ -872,19 +876,16 @@ export default function AnmeldungenPage() {
             />
           </div>
           <DialogFooter>
-            <button
-              onClick={() => setRejectTarget(null)}
-              className="rounded-md border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
-            >
+            <Button variant="outline" onClick={() => setRejectTarget(null)}>
               {t('cancel')}
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="destructive"
               onClick={confirmReject}
               disabled={!rejectReason.trim() || isUpdating}
-              className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-40"
             >
               {t('anmeldungenConfirmReject')}
-            </button>
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -922,19 +923,16 @@ export default function AnmeldungenPage() {
             />
           </div>
           <DialogFooter>
-            <button
-              onClick={() => setWaiveTarget(null)}
-              className="rounded-md border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
-            >
+            <Button variant="outline" onClick={() => setWaiveTarget(null)}>
               {t('cancel')}
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={confirmWaiveAndApprove}
               disabled={!waiveReason.trim() || isUpdating}
-              className="rounded-md bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-40"
+              className="bg-amber-600 text-white hover:bg-amber-700"
             >
               {t('anmeldungenDocsWaiveConfirm')}
-            </button>
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1012,19 +1010,17 @@ function LicenceStatusButtons({ memberId, t }: { memberId: string; t: (key: stri
         {LICENCE_STATUSES.map((s) => {
           const active = s === status
           return (
-            <button
+            <Button
               key={s}
               type="button"
+              variant={active ? 'ghost' : 'outline'}
               disabled={isPending || active}
+              aria-pressed={active}
               onClick={() => updateMember({ id: memberId, data: { licence_status: s } })}
-              className={`inline-flex min-h-[44px] items-center rounded-md px-3 py-1.5 text-sm font-medium transition-colors disabled:cursor-default sm:min-h-0 ${
-                active
-                  ? LICENCE_STATUS_BADGE[s]
-                  : 'border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-40 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800'
-              }`}
+              className={active ? `${LICENCE_STATUS_BADGE[s]} disabled:opacity-100` : 'disabled:opacity-40'}
             >
               {tCommon(`licenceStatus_${s}`)}
-            </button>
+            </Button>
           )
         })}
       </div>
@@ -1339,7 +1335,7 @@ function ExpandedDetails({
       return (
         <div key={key} className="flex min-h-11 items-center gap-2 rounded-md border border-dashed border-gray-300 px-3 py-2 text-sm text-gray-400 dark:border-gray-600">
           <FileText className="h-4 w-4 shrink-0" />
-          <span className="truncate">{label}</span>
+          <span className="truncate" title={label}>{label}</span>
           {picker(
             <span className="ml-auto flex items-center gap-1 whitespace-nowrap text-xs font-medium text-orange-600 hover:text-orange-700 dark:text-orange-400 dark:hover:text-orange-300">
               <Upload className="h-3.5 w-3.5" />
@@ -1358,7 +1354,7 @@ function ExpandedDetails({
           className="flex min-w-0 flex-1 items-center gap-2 px-3 py-2 text-left hover:underline"
         >
           <FileText className="h-4 w-4 shrink-0" />
-          <span className="truncate">{label}</span>
+          <span className="truncate" title={label}>{label}</span>
           <ExternalLink className="h-3.5 w-3.5 shrink-0" />
         </button>
         {picker(
@@ -1491,77 +1487,67 @@ function ExpandedDetails({
         </div>
       )}
 
-      {/* Action bar: save first if edited, then approve/reject. Every button
-          here carries the same min-h-[44px] … sm:min-h-0 pair, so the touch
-          target is a uniform 44px on a phone and the row does not look ragged
-          — "Request documents" used to be the only tall one. flex-wrap because
-          approve + reject + request do not fit one phone line. */}
+      {/* Action bar: save first if edited, then approve/reject. All buttons
+          are on the control scale (44px on a phone, 36px from sm), so the row
+          never looks ragged. flex-wrap because approve + reject + request do
+          not fit one phone line. */}
       <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
         {hasChanges ? (
-          <button
-            onClick={handleSave}
-            disabled={isUpdating}
-            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-40 sm:min-h-0"
-          >
-            <Save className="h-3.5 w-3.5" />
+          <Button onClick={handleSave} disabled={isUpdating} icon={<Save />}>
             {t('save')}
-          </button>
+          </Button>
         ) : reg.status === 'pending' ? (
           <>
-            <button
+            <Button
               onClick={onApprove}
               disabled={isUpdating}
-              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-40 sm:min-h-0"
+              className="bg-green-600 text-white hover:bg-green-700"
+              icon={<Check />}
             >
-              <Check className="h-3.5 w-3.5" />
               {t('anmeldungenApprove')}
-            </button>
-            <button
-              onClick={onReject}
-              disabled={isUpdating}
-              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-40 sm:min-h-0"
-            >
-              <X className="h-3.5 w-3.5" />
+            </Button>
+            <Button variant="destructive" onClick={onReject} disabled={isUpdating} icon={<X />}>
               {t('anmeldungenReject')}
-            </button>
+            </Button>
           </>
         ) : reg.status === 'approved' ? (
-          <button
+          <Button
+            variant="outline"
             onClick={onResendInvite}
             disabled={isResending || isUpdating}
-            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 sm:min-h-0 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
             title={t('anmeldungenResendInvite')}
+            icon={<Send />}
           >
-            <Send className="h-3.5 w-3.5" />
             {t('anmeldungenResendInvite')}
-          </button>
+          </Button>
         ) : null}
         {/* Documents can go missing after approval (the 2026-07 upload faults),
             and the applicant has no way to find out — so this stays available on
             pending AND approved rows. It does not change the status. */}
         {missingDocCount > 0 && (reg.status === 'pending' || reg.status === 'approved') && (
-          <button
+          <Button
             onClick={onRequestDocs}
             disabled={isRequestingDocs || isUpdating}
-            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md bg-amber-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-40 sm:min-h-0"
+            className="bg-amber-600 text-white hover:bg-amber-700"
             title={t('anmeldungenDocsRequestTitle')}
+            icon={<Upload />}
           >
-            <Upload className="h-3.5 w-3.5" />
             {t('anmeldungenDocsRequest')}
-          </button>
+          </Button>
         )}
         {/* The way past the gate. Pending only — a waiver exists to let an
             approval through, and an approved row is already through. */}
         {missingDocCount > 0 && reg.status === 'pending' && (
-          <button
+          <Button
+            variant="outline"
             onClick={onWaiveDocs}
             disabled={isUpdating}
-            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md border border-amber-300 px-3 py-1.5 text-sm font-medium text-amber-700 hover:bg-amber-50 disabled:opacity-40 sm:min-h-0 dark:border-amber-700 dark:text-amber-400 dark:hover:bg-amber-950"
+            className="border-amber-300 text-amber-700 hover:bg-amber-50 hover:text-amber-800 dark:border-amber-700 dark:text-amber-400 dark:hover:bg-amber-950 dark:hover:text-amber-300"
             title={t('anmeldungenDocsWaiveTitle')}
+            icon={<CircleAlert />}
           >
-            <CircleAlert className="h-3.5 w-3.5" />
             {t('anmeldungenDocsWaive')}
-          </button>
+          </Button>
         )}
       </div>
     </div>

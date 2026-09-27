@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { Button } from '@/components/ui/button'
 import { useTranslation } from 'react-i18next'
 import { useInfraHealth } from '../../hooks/useInfraHealth'
 import { API_URL, fetchItems, countItems } from '../../lib/api'
@@ -110,21 +111,15 @@ function Card({ check }: { check: HealthCheck }) {
         </p>
       )}
       {check.onRefresh && (
-        <button
+        <Button
+          size="sm"
+          variant="outline"
           onClick={check.onRefresh}
-          disabled={check.refreshing}
-          className="mt-2.5 inline-flex items-center gap-1.5 rounded-md bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-200 disabled:opacity-50 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
+          loading={check.refreshing}
+          className="mt-2.5"
         >
-          {check.refreshing ? (
-            <>
-              <svg className="h-3 w-3 animate-spin" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
-              {t('infraChecking')}
-            </>
-          ) : t('infraRunNow')}
-        </button>
+          {check.refreshing ? t('infraChecking') : t('infraRunNow')}
+        </Button>
       )}
     </div>
   )
@@ -550,21 +545,9 @@ export default function InfraHealthPage() {
               {lastCheck}
             </span>
           )}
-          <button
-            onClick={runChecks}
-            disabled={loading}
-            className="rounded-lg bg-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-300 disabled:opacity-50 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
-          >
-            {loading ? (
-              <span className="flex items-center gap-1.5">
-                <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
-                {t('infraChecking')}
-              </span>
-            ) : t('infraRefresh')}
-          </button>
+          <Button variant="outline" onClick={runChecks} loading={loading}>
+            {loading ? t('infraChecking') : t('infraRefresh')}
+          </Button>
         </div>
       </div>
 

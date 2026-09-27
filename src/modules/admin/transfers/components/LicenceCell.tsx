@@ -115,7 +115,7 @@ export function LicenceCell({
             size="sm"
             onClick={() => { onSetStatus(member, 'done') }}
             disabled={saving}
-            className="min-h-[44px] border-blue-300 text-blue-700 hover:bg-blue-100 sm:min-h-0 dark:border-blue-700 dark:text-blue-200 dark:hover:bg-blue-800/40"
+            className="border-blue-300 text-blue-700 hover:bg-blue-100 dark:border-blue-700 dark:text-blue-200 dark:hover:bg-blue-800/40"
           >
             {t('trMarkDone')}
           </Button>

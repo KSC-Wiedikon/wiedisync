@@ -1,4 +1,5 @@
 import { useState, useEffect, type ReactNode } from 'react'
+import { Button } from '@/components/ui/button'
 
 interface DashboardSectionProps {
   id: string
@@ -54,9 +55,9 @@ export default function DashboardSection({
             <div className="flex items-center gap-2 text-sm text-destructive">
               <span>{error}</span>
               {onRetry && (
-                <button onClick={onRetry} className="underline hover:no-underline">
+                <Button size="sm" variant="outline" onClick={onRetry}>
                   Retry
-                </button>
+                </Button>
               )}
             </div>
           ) : isEmpty ? (

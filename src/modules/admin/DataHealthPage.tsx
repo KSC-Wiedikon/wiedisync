@@ -429,22 +429,22 @@ function CollectionCard({
               <span className="text-xs text-gray-500 dark:text-gray-400">
                 {fixableCount} {t('dhAutoFixable')}
               </span>
-              <button
+              <Button size="sm"
                 onClick={handleFixAll}
                 disabled={fixingAll}
                 aria-busy={fixingAll}
-                className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-700 disabled:opacity-50 sm:min-h-0"
+                className="shrink-0"
               >
                 <Wrench className="h-3 w-3" aria-hidden="true" />
                 {fixingAll ? t('dhFixing') : t('dhFixAll')}
-              </button>
+              </Button>
             </div>
           )}
 
           {/* Bulk "Mark for sync-up" — select-all + a single flag POST for the
               selection. Only shows when the collection has markable drift rows. */}
           {markable.length > 0 && (
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-4 py-2 dark:border-gray-700">
+            <div className="flex flex-wrap items-center gap-3 border-b border-gray-100 px-4 py-2 dark:border-gray-700">
               <label className="inline-flex min-h-[44px] cursor-pointer items-center gap-2 text-xs text-gray-500 sm:min-h-0 dark:text-gray-400">
                 <Checkbox
                   checked={
@@ -460,15 +460,16 @@ function CollectionCard({
                   : t('dhBulkSelectAll')}
               </label>
               {selectedMarkable.length > 0 && (
-                <button
+                <Button
+                  size="sm"
                   onClick={handleBulkMark}
                   disabled={bulkMarking}
                   aria-busy={bulkMarking}
-                  className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-700 disabled:opacity-50 sm:min-h-0"
+                  className="ml-auto"
+                  icon={<ArrowUpFromLine aria-hidden="true" />}
                 >
-                  <ArrowUpFromLine className="h-3 w-3" aria-hidden="true" />
                   {bulkMarking ? t('dhFixing') : t('dhBulkMark', { count: selectedMarkable.length })}
-                </button>
+                </Button>
               )}
             </div>
           )}
@@ -521,102 +522,95 @@ function CollectionCard({
                   </TableCell>
                   <TableCell className="text-right align-top">
                     {issue.exportRows ? (
-                      <button
+                      <Button size="sm" variant="outline"
                         onClick={() => { void handleExport(issue) }}
-                        className="inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-md border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-100 sm:min-h-0 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
                       >
                         <Download className="h-3.5 w-3.5" aria-hidden="true" />
                         {t('dhExport')}
-                      </button>
+                      </Button>
                     ) : issue.manualKind === 'clubdeskDeactivate' ? (
-                      <button
+                      <Button size="sm" variant="outline"
                         onClick={() => handleDeactivate(issue)}
                         disabled={manualFixingId === issue.id}
                         aria-busy={manualFixingId === issue.id}
-                        className="inline-flex min-h-[44px] items-center justify-center rounded-md border border-red-200 px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 sm:min-h-0 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/30"
+                        className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/30 dark:hover:text-red-300"
                       >
                         {manualFixingId === issue.id ? t('dhFixing') : t('dhDeactivate')}
-                      </button>
+                      </Button>
                     ) : issue.manualKind === 'retentionErase' ? (
-                      <button
+                      <Button size="sm" variant="outline"
                         onClick={() => void handleRetentionErase(issue)}
                         disabled={manualFixingId === issue.id}
                         aria-busy={manualFixingId === issue.id}
-                        className="inline-flex min-h-[44px] items-center justify-center rounded-md border border-red-200 px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 sm:min-h-0 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/30"
+                        className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/30 dark:hover:text-red-300"
                       >
                         {manualFixingId === issue.id ? t('dhFixing') : t('dhErase')}
-                      </button>
+                      </Button>
                     ) : issue.manualKind === 'clubdeskStale' ? (
                       // A deleted ClubDesk contact has two honest readings and
                       // the server cannot pick between them — so both are
                       // offered, side by side, rather than guessing.
                       <div className="inline-flex flex-col gap-1.5 sm:flex-row">
-                        <button
+                        <Button size="sm" variant="outline"
                           onClick={() => void handleStale(issue, 'unlink')}
                           disabled={manualFixingId === issue.id}
                           aria-busy={manualFixingId === issue.id}
-                          className="inline-flex min-h-[44px] items-center justify-center rounded-md border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-50 sm:min-h-0 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
                         >
                           {manualFixingId === issue.id ? t('dhFixing') : t('dhUnlink')}
-                        </button>
-                        <button
+                        </Button>
+                        <Button size="sm" variant="outline"
                           onClick={() => void handleStale(issue, 'deactivate')}
                           disabled={manualFixingId === issue.id}
                           aria-busy={manualFixingId === issue.id}
-                          className="inline-flex min-h-[44px] items-center justify-center rounded-md border border-red-200 px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 sm:min-h-0 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/30"
+                          className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/30 dark:hover:text-red-300"
                         >
                           {manualFixingId === issue.id ? t('dhFixing') : t('dhDeactivate')}
-                        </button>
+                        </Button>
                       </div>
                     ) : issue.manualKind === 'clubdeskDriftFlag' ? (
-                      <button
+                      <Button size="sm" variant="outline"
                         onClick={() => handleFlagDrift(issue)}
                         disabled={manualFixingId === issue.id}
                         aria-busy={manualFixingId === issue.id}
-                        className="inline-flex min-h-[44px] items-center justify-center rounded-md border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-50 sm:min-h-0 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
                       >
                         {manualFixingId === issue.id ? t('dhFixing') : t('dhMarkSync')}
-                      </button>
+                      </Button>
                     ) : issue.manualKind === 'clubdeskLink' ? (
-                      <button
+                      <Button size="sm" variant="outline"
                         onClick={() => handleLinkClubdesk(issue)}
                         disabled={manualFixingId === issue.id}
                         aria-busy={manualFixingId === issue.id}
-                        className="inline-flex min-h-[44px] items-center justify-center rounded-md border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-50 sm:min-h-0 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
                       >
                         {manualFixingId === issue.id ? t('dhFixing') : t('dhLink')}
-                      </button>
+                      </Button>
                     ) : issue.manualKind === 'sex' ? (
                       <div className="inline-flex flex-col gap-1.5 sm:flex-row">
                         {(['m', 'f'] as const).map((val) => (
-                          <button
+                          <Button size="sm" variant="outline"
                             key={val}
                             onClick={() => handleManualFix(issue, val)}
                             disabled={manualFixingId === issue.id}
                             aria-busy={manualFixingId === issue.id}
-                            className="inline-flex min-h-[44px] items-center justify-center rounded-md border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-50 sm:min-h-0 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
                           >
                             {manualFixingId === issue.id
                               ? t('dhFixing')
                               : val === 'm' ? t('dhSetMale') : t('dhSetFemale')}
-                          </button>
+                          </Button>
                         ))}
                       </div>
                     ) : issue.autoFixable ? (
-                      <button
+                      <Button
+                        size="sm"
+                        variant="outline"
                         onClick={() => handleFixOne(issue)}
                         disabled={fixingId === issue.id}
                         aria-busy={fixingId === issue.id}
-                        className={`inline-flex min-h-[44px] items-center justify-center rounded-md border px-2.5 py-1 text-xs font-medium disabled:opacity-50 sm:min-h-0 ${
-                          issue.fixAction === 'delete'
-                            ? 'border-red-200 text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/30'
-                            : 'border-gray-200 text-gray-600 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700'
-                        }`}
+                        className={issue.fixAction === 'delete' ? 'border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/30 dark:hover:text-red-300' : undefined}
                       >
                         {fixingId === issue.id
                           ? t('dhFixing')
                           : issue.fixAction === 'delete' ? t('dhDelete') : t('dhFix')}
-                      </button>
+                      </Button>
                     ) : null}
                   </TableCell>
                 </TableRow>
@@ -834,8 +828,8 @@ export default function DataHealthPage() {
   return (
     <div className="mx-auto max-w-5xl px-4 py-4">
       {/* Header */}
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-        <div>
+      <div className="mb-4 flex flex-wrap items-start gap-3">
+        <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
             {t('dhTitle')}
           </h1>
@@ -965,7 +959,7 @@ export default function DataHealthPage() {
               <div className="flex items-center gap-2">
                 <span className="text-xs text-gray-500 dark:text-gray-400">{t('dhSportFilter')}</span>
                 <Select value={tab} onValueChange={(v) => setTab(v as SportTab)}>
-                  <SelectTrigger className="h-9 w-48 min-h-11 sm:min-h-0">
+                  <SelectTrigger className="h-9 w-48">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>

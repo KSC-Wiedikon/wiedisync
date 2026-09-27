@@ -236,8 +236,8 @@ export default function ClubdeskGroupCheck({ data, loading, error, onRefresh, ta
   return (
     <Card>
       <CardHeader>
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <div>
+        <div className="flex flex-wrap items-start gap-2">
+          <div className="min-w-0 flex-1">
             <CardTitle className="flex items-center gap-2 text-base">
               <ShieldCheck className="h-4 w-4" />{t('clubdeskGroupCheckTitle')}
             </CardTitle>

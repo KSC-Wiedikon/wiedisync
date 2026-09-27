@@ -81,12 +81,12 @@ export default function PlayerStatusTable({ players, teams, sport }: {
 
   return (
     <section className="rounded-xl border border-border bg-card" aria-labelledby="sh-players-title">
-      <div className="flex flex-wrap items-center justify-between gap-2 px-4 pt-3">
-        <h2 id="sh-players-title" className="text-sm font-semibold text-foreground">
+      <div className="flex flex-wrap items-center gap-2 px-4 pt-3">
+        <h2 id="sh-players-title" className="text-sm font-semibold text-foreground min-w-0 flex-1">
           {t('playersTitle')} <span className="font-normal text-muted-foreground">({players.length})</span>
         </h2>
         <Button
-          type="button" variant="outline" size="sm" className="min-h-11 gap-1.5 sm:min-h-0"
+          type="button" variant="outline" size="sm" className="gap-1.5"
           onClick={handleExport} disabled={exporting || filtered.length === 0} aria-busy={exporting}
         >
           <Download className="h-3.5 w-3.5" aria-hidden="true" />

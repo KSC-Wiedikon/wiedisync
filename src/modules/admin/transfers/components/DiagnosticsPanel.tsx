@@ -135,7 +135,7 @@ export function DiagnosticsPanel({
             <>
               <Button
                 size="sm"
-                className="mt-2 min-h-[44px] sm:min-h-0"
+                className="mt-2"
                 onClick={onRunVisCheck}
                 disabled={visRunning}
                 aria-busy={visRunning}

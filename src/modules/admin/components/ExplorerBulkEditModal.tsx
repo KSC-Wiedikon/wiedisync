@@ -25,6 +25,7 @@
 //     failures are listed by name.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import IconButton from '@/components/IconButton'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { AlertTriangle, Loader2, Plus, X } from 'lucide-react'
@@ -480,7 +481,7 @@ export default function ExplorerBulkEditModal({
 
           <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
             <PopoverTrigger asChild>
-              <Button type="button" variant="outline" size="sm" disabled={running} className="min-h-[44px]">
+              <Button type="button" variant="outline" size="sm" disabled={running}>
                 <Plus className="mr-1.5 h-4 w-4" />
                 {t('explorerBulkAddField')}
               </Button>
@@ -501,7 +502,7 @@ export default function ExplorerBulkEditModal({
                             value={`${def.label} ${def.key}`}
                             onSelect={() => addField(def)}
                           >
-                            <span className="truncate">{def.label}</span>
+                            <span className="truncate" title={def.label}>{def.label}</span>
                           </CommandItem>
                         ))}
                       </CommandGroup>
@@ -559,10 +560,10 @@ export default function ExplorerBulkEditModal({
         )}
 
         <div className="flex justify-end gap-2 pt-1">
-          <Button type="button" variant="outline" onClick={onClose} disabled={running} className="min-h-[44px]">
+          <Button type="button" variant="outline" onClick={onClose} disabled={running}>
             {t('explorerBulkClose')}
           </Button>
-          <Button type="button" onClick={handleApply} disabled={!canApply} className="min-h-[44px]">
+          <Button type="button" onClick={handleApply} disabled={!canApply}>
             {running && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
             {t('explorerBulkApply', { count: affectedCount })}
           </Button>
@@ -598,35 +599,32 @@ function ChangeCard({
           <p className="text-sm font-medium text-foreground">{def.label}</p>
           {def.help && <p className="mt-0.5 text-xs text-muted-foreground">{def.help}</p>}
         </div>
-        <button
+        <IconButton size="sm"
           type="button"
           onClick={onRemove}
           disabled={disabled}
-          aria-label={t('explorerBulkRemoveField')}
-          className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+          label={t('explorerBulkRemoveField')}
+          className="shrink-0 text-muted-foreground"
         >
           <X className="h-4 w-4" />
-        </button>
+        </IconButton>
       </div>
 
       {/* Mode switch */}
       <div className="mt-2 flex flex-wrap gap-1" role="group">
         {modes.map((mode) => (
-          <button
+          <Button
             key={mode}
             type="button"
+            size="sm"
+            variant={change.mode === mode ? 'default' : 'ghost'}
             disabled={disabled}
             onClick={() => onModeChange(mode)}
             aria-pressed={change.mode === mode}
-            className={
-              'rounded-md px-2.5 py-1.5 text-xs font-medium ' +
-              (change.mode === mode
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-muted text-muted-foreground hover:text-foreground')
-            }
+            className={change.mode === mode ? undefined : 'bg-muted text-muted-foreground hover:text-foreground'}
           >
             {t(`explorerBulkMode_${mode}`)}
-          </button>
+          </Button>
         ))}
       </div>
 

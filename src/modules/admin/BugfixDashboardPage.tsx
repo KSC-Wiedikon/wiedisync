@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
+import { Button } from '@/components/ui/button'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
@@ -218,16 +219,16 @@ function IssueRow({ issue, t, lang }: { issue: BugfixIssue; t: (k: string, opts?
       {/* Action buttons row */}
       <TableRow className={`hover:bg-transparent ${expanded ? 'border-b-0' : ''}`}>
         <TableCell colSpan={7} className="pt-0">
-          <div className="flex items-center gap-1.5">
+          <div className="flex flex-wrap items-center gap-1.5">
 
         {status === 'new' && (
           <>
-            <button onClick={handleFix} className="rounded bg-brand-600 px-2 py-0.5 text-[10px] font-medium text-white hover:bg-brand-700">
+            <Button size="sm" onClick={handleFix}>
               {t('fix')}
-            </button>
-            <button onClick={handleDismiss} className="rounded border border-gray-200 px-2 py-0.5 text-[10px] text-gray-500 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-700">
+            </Button>
+            <Button size="sm" variant="outline" onClick={handleDismiss}>
               {t('dismiss')}
-            </button>
+            </Button>
           </>
         )}
 
@@ -244,29 +245,30 @@ function IssueRow({ issue, t, lang }: { issue: BugfixIssue; t: (k: string, opts?
             {(() => {
               const safe = sanitizeUrl(issue.pr_url || '')
               return safe ? (
-                <a href={safe} target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-1 rounded bg-blue-600 px-2 py-0.5 text-[10px] font-medium text-white hover:bg-blue-700">
-                  <ExternalLink className="h-2.5 w-2.5" /> {t('viewPr')}
-                </a>
+                <Button asChild size="sm" className="bg-blue-600 text-white hover:bg-blue-700">
+                  <a href={safe} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink /> {t('viewPr')}
+                  </a>
+                </Button>
               ) : null
             })()}
-            <button onClick={handleDeployDev} className="rounded bg-cyan-600 px-2 py-0.5 text-[10px] font-medium text-white hover:bg-cyan-700">
+            <Button size="sm" onClick={handleDeployDev} className="bg-cyan-600 text-white hover:bg-cyan-700">
               {t('deployDev')}
-            </button>
-            <button onClick={handleDismiss} className="rounded border border-gray-200 px-2 py-0.5 text-[10px] text-gray-500 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-700">
+            </Button>
+            <Button size="sm" variant="outline" onClick={handleDismiss}>
               {t('dismiss')}
-            </button>
+            </Button>
           </>
         )}
 
         {status === 'deployed_dev' && (
           <>
-            <button onClick={handleDeployProd} className="rounded bg-green-600 px-2 py-0.5 text-[10px] font-medium text-white hover:bg-green-700">
+            <Button size="sm" onClick={handleDeployProd} className="bg-green-600 text-white hover:bg-green-700">
               {t('deployProd')}
-            </button>
-            <button onClick={handleDismiss} className="rounded border border-gray-200 px-2 py-0.5 text-[10px] text-gray-500 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-700">
+            </Button>
+            <Button size="sm" variant="outline" onClick={handleDismiss}>
               {t('revert')}
-            </button>
+            </Button>
           </>
         )}
 
@@ -281,30 +283,30 @@ function IssueRow({ issue, t, lang }: { issue: BugfixIssue; t: (k: string, opts?
             <span className="flex items-center gap-1 text-[10px] text-red-500">
               <XCircle className="h-3 w-3" /> {t('statusFailed')}
             </span>
-            <button onClick={handleFix} className="flex items-center gap-1 rounded bg-brand-600 px-2 py-0.5 text-[10px] font-medium text-white hover:bg-brand-700">
+            <Button size="sm" onClick={handleFix}>
               <RotateCcw className="h-2.5 w-2.5" /> {t('retry')}
-            </button>
-            <button onClick={handleDismiss} className="rounded border border-gray-200 px-2 py-0.5 text-[10px] text-gray-500 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-700">
+            </Button>
+            <Button size="sm" variant="outline" onClick={handleDismiss}>
               {t('dismiss')}
-            </button>
+            </Button>
           </>
         )}
 
         {status === 'reverted' && (
           <>
-            <button onClick={handleFix} className="flex items-center gap-1 rounded bg-brand-600 px-2 py-0.5 text-[10px] font-medium text-white hover:bg-brand-700">
+            <Button size="sm" onClick={handleFix}>
               <RotateCcw className="h-2.5 w-2.5" /> {t('retry')}
-            </button>
-            <button onClick={handleDismiss} className="rounded border border-gray-200 px-2 py-0.5 text-[10px] text-gray-500 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-700">
+            </Button>
+            <Button size="sm" variant="outline" onClick={handleDismiss}>
               {t('dismiss')}
-            </button>
+            </Button>
           </>
         )}
 
         {status === 'dismissed' && (
-          <button onClick={handleReopen} className="rounded border border-gray-200 px-2 py-0.5 text-[10px] text-gray-500 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-700">
+          <Button size="sm" variant="outline" onClick={handleReopen}>
             {t('reopen')}
-          </button>
+          </Button>
         )}
           </div>
         </TableCell>
@@ -468,21 +470,21 @@ export default function BugfixDashboardPage() {
   return (
     <div className="mx-auto max-w-5xl space-y-4 p-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
           <h1 className="flex items-center gap-2 text-lg font-bold text-gray-900 dark:text-white">
             <Bug className="h-5 w-5" />
             {t('title')}
           </h1>
         </div>
-        <button
+        <Button
           onClick={() => refetch()}
           disabled={isLoading}
-          className="flex items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-700 disabled:opacity-50"
+          className="shrink-0"
         >
           <RefreshCcw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
           {t('refresh')}
-        </button>
+        </Button>
       </div>
 
       {/* Tabs */}

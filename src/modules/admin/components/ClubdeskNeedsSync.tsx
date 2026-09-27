@@ -10,6 +10,7 @@
 // print "✓ 0/80 mismatches" during the 2026-07-16 hall audit).
 
 import { Fragment, useMemo, useState } from 'react'
+import IconButton from '@/components/IconButton'
 import { useTranslation } from 'react-i18next'
 import { ChevronDown, ChevronRight, Download, Loader2, RefreshCw, Upload, UserMinus } from 'lucide-react'
 import { toast } from 'sonner'
@@ -210,8 +211,8 @@ export default function ClubdeskNeedsSync({
   return (
     <Card>
       <CardHeader>
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <div>
+        <div className="flex flex-wrap items-start gap-2">
+          <div className="min-w-0 flex-1">
             <CardTitle className="flex items-center gap-2 text-base">
               <RefreshCw className="h-4 w-4" />{t('cdNeedsSyncTitle')}
             </CardTitle>
@@ -335,7 +336,7 @@ export default function ClubdeskNeedsSync({
                             {/* ClubDesk id and the last bill are context, not the
                                 decision — they live behind this so the row stays
                                 narrow enough to show the button. */}
-                            <button
+                            <IconButton size="sm"
                               type="button"
                               onClick={() => setExpanded((prev) => {
                                 const next = new Set(prev)
@@ -344,13 +345,13 @@ export default function ClubdeskNeedsSync({
                                 return next
                               })}
                               aria-expanded={open}
-                              aria-label={t('cdSyncToggleDetails', { name: r.member_name })}
-                              className="flex h-11 w-8 items-center justify-center text-muted-foreground sm:h-6"
+                              label={t('cdSyncToggleDetails', { name: r.member_name })}
+                              className="text-muted-foreground"
                             >
                               {open
                                 ? <ChevronDown className="h-4 w-4" aria-hidden="true" />
                                 : <ChevronRight className="h-4 w-4" aria-hidden="true" />}
-                            </button>
+                            </IconButton>
                           </TableCell>
                           <TableCell className="whitespace-normal break-words align-top font-medium">
                             {r.member_name}
@@ -393,7 +394,7 @@ export default function ClubdeskNeedsSync({
                                     onClick={() => { void onReoffer(r) }}
                                     disabled={loading || reoffering != null}
                                     aria-busy={reoffering === r.member_id}
-                                    className="min-h-11 gap-1.5 sm:min-h-0"
+                                    className="gap-1.5"
                                   >
                                     {reoffering === r.member_id
                                       ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />

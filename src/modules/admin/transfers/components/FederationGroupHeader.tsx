@@ -173,7 +173,7 @@ export function FederationGroupHeader({
                     variant="outline"
                     size="sm"
                     onClick={() => { setLetterOpen(true) }}
-                    className="min-h-[44px] max-w-full gap-1 text-left whitespace-normal sm:min-h-0"
+                    className="max-w-full gap-1 text-left whitespace-normal"
                   >
                     <Mail className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                     {t('trBulkRequestTitle', { count: pending.length })}

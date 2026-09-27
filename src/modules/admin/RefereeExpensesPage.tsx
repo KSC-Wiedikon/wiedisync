@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { Button } from '@/components/ui/button'
 import { useTranslation } from 'react-i18next'
 import { Download } from 'lucide-react'
 import type { RefereeExpense, Game, Team, Member, BaseRecord } from '../../types'
@@ -108,7 +109,7 @@ export default function RefereeExpensesPage() {
         <select
           value={teamFilter}
           onChange={(e) => setTeamFilter(e.target.value)}
-          className="rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+          className="h-11 rounded-md border border-gray-200 bg-transparent px-3 text-sm sm:h-9 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
         >
           <option value="">{t('refereeExpensesAllTeams')}</option>
           {vbTeams.map((team) => (
@@ -121,7 +122,7 @@ export default function RefereeExpensesPage() {
         <select
           value={seasonFilter}
           onChange={(e) => setSeasonFilter(e.target.value)}
-          className="rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+          className="h-11 rounded-md border border-gray-200 bg-transparent px-3 text-sm sm:h-9 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
         >
           <option value="">{t('refereeExpensesAllSeasons')}</option>
           {seasons.map((s) => (
@@ -131,14 +132,14 @@ export default function RefereeExpensesPage() {
           ))}
         </select>
 
-        <button
+        <Button variant="outline"
           onClick={exportCsv}
           disabled={expenses.length === 0}
-          className="ml-auto flex items-center gap-1.5 rounded-md border border-gray-200 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-40 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+          className="ml-auto"
         >
           <Download className="h-4 w-4" />
           {t('refereeExpensesExport')}
-        </button>
+        </Button>
       </div>
 
       {/* Table */}

@@ -24,6 +24,7 @@
 // on members/member_teams/teams, so it gets a read-only grid).
 
 import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
+import IconButton from '@/components/IconButton'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
@@ -1462,15 +1463,14 @@ export default function ExplorerGrid({
                 />
               </span>
             )}
-            <button
+            <IconButton size="sm"
               type="button"
               onClick={() => onOpenDetail(memberId)}
-              className="flex h-8 w-8 min-h-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
-              title={t('admin:explorerGridOpenDetail')}
-              aria-label={t('admin:explorerGridOpenDetail')}
+              className="text-muted-foreground"
+              label={t('admin:explorerGridOpenDetail')}
             >
               <Eye className="h-3.5 w-3.5" />
-            </button>
+            </IconButton>
           </div>
         </TableCell>
         {visibleCols.map((c, i) => {
@@ -1800,35 +1800,33 @@ export default function ExplorerGrid({
         <div className="flex flex-wrap items-center gap-2 border-b border-border bg-card px-3 py-1.5">
           {/* Member / team view toggle */}
           <div className="flex overflow-hidden rounded-md border border-border" role="group" aria-label={t('admin:explorerViewToggle')}>
-            <button
+            <Button
               type="button"
+              size="sm"
+              variant={view === 'members' ? 'default' : 'ghost'}
               onClick={() => changeView('members')}
-              className={
-                'px-2 py-1 text-xs font-medium ' +
-                (view === 'members' ? 'bg-primary text-primary-foreground' : 'bg-card text-foreground hover:bg-muted')
-              }
+              className="rounded-none shadow-none"
               aria-pressed={view === 'members'}
             >
               {t('admin:explorerGridViewMembers')}
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              size="sm"
+              variant={view === 'teams' ? 'default' : 'ghost'}
               onClick={() => changeView('teams')}
-              className={
-                'px-2 py-1 text-xs font-medium ' +
-                (view === 'teams' ? 'bg-primary text-primary-foreground' : 'bg-card text-foreground hover:bg-muted')
-              }
+              className="rounded-none shadow-none"
               aria-pressed={view === 'teams'}
             >
               {t('admin:explorerGridViewTeams')}
-            </button>
+            </Button>
           </div>
 
           {/* Mobile group picker (native select — needs explicit dark bg) */}
           <select
             value={selectedGroup}
             onChange={(e) => setSelectedGroup(e.target.value)}
-            className="max-w-[35%] rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground dark:bg-gray-800 md:hidden"
+            className="h-9 max-w-[35%] rounded-md border border-border bg-background px-2 text-xs text-foreground sm:h-8 dark:bg-gray-800 md:hidden"
             aria-label={t('admin:explorerGridGroups')}
           >
             <option value="all">{view === 'teams' ? t('admin:explorerGridAllTeams') : t('admin:explorerGridAllMembers')}</option>
@@ -1870,7 +1868,6 @@ export default function ExplorerGrid({
             <Button
               size="sm"
               variant={editMode ? 'default' : 'outline'}
-              className="h-7 gap-1.5 px-2 text-xs"
               onClick={() => setEditMode((v) => !v)}
               aria-pressed={editMode}
             >
@@ -1894,7 +1891,7 @@ export default function ExplorerGrid({
                 <select
                   value={groupBy}
                   onChange={(e) => setGroupBy(e.target.value as ColKey | 'none')}
-                  className="rounded-md border border-border bg-background px-1.5 py-1 text-xs text-foreground dark:bg-gray-800"
+                  className="h-9 rounded-md border border-border bg-background px-1.5 text-xs text-foreground sm:h-8 dark:bg-gray-800"
                   aria-label={t('admin:explorerGridGroupBy')}
                 >
                   <option value="none">{t('admin:explorerGridGroupNone')}</option>
@@ -1908,7 +1905,7 @@ export default function ExplorerGrid({
             {/* Export */}
             <DropdownMenu modal={false}>
               <DropdownMenuTrigger asChild>
-                <Button size="sm" variant="outline" className="h-7 gap-1.5 px-2 text-xs" disabled={exporting || totalShown === 0}>
+                <Button size="sm" variant="outline" disabled={exporting || totalShown === 0}>
                   {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
                   <span className="hidden sm:inline">{t('admin:explorerGridExport')}</span>
                 </Button>
@@ -1926,7 +1923,7 @@ export default function ExplorerGrid({
             {/* Column chooser */}
             <Popover>
               <PopoverTrigger asChild>
-                <Button size="sm" variant="outline" className="h-7 gap-1.5 px-2 text-xs">
+                <Button size="sm" variant="outline">
                   <Settings2 className="h-3.5 w-3.5" />
                   <span className="hidden sm:inline">{t('admin:explorerGridColumns')}</span>
                   <span className="rounded bg-muted px-1 text-[10px] text-muted-foreground">
@@ -1987,7 +1984,7 @@ export default function ExplorerGrid({
               </span>
             )}
             <div className="ml-auto flex flex-wrap items-center gap-1.5">
-              <Button size="sm" className="h-8 gap-1.5 px-2.5 text-xs" onClick={() => openBulk('edit')}>
+              <Button size="sm" onClick={() => openBulk('edit')}>
                 <Pencil className="h-3.5 w-3.5" />
                 {t('admin:explorerGridBulkEdit')}
               </Button>
@@ -1995,14 +1992,14 @@ export default function ExplorerGrid({
                 <Button
                   size="sm"
                   variant="outline"
-                  className="h-8 gap-1.5 border-destructive/40 px-2.5 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
                   onClick={() => openBulk('depart')}
                 >
                   <UserMinus className="h-3.5 w-3.5" />
                   {t('admin:explorerGridBulkDepart')}
                 </Button>
               )}
-              <Button size="sm" variant="ghost" className="h-8 px-2.5 text-xs" onClick={clearSelection}>
+              <Button size="sm" variant="ghost" onClick={clearSelection}>
                 {t('admin:explorerGridClearSelection')}
               </Button>
             </div>
@@ -2208,20 +2205,20 @@ function ColumnPicker({
         value={q}
         onChange={(e: React.ChangeEvent<HTMLInputElement>) => setQ(e.target.value)}
         placeholder={t('admin:explorerGridColumnSearch')}
-        className="mb-2 h-8 text-sm"
+        className="mb-2 text-sm"
         aria-label={t('admin:explorerGridColumnSearch')}
       />
       <div className="mb-1 flex items-center justify-between border-b border-border pb-1">
         <span className="text-[11px] text-muted-foreground">
           {t('admin:explorerGridColumnCount', { shown: shown.length, total: columns.length })}
         </span>
-        <button
+        <Button size="sm" variant="ghost"
           type="button"
           onClick={() => onSetMany(shownKeys, !allShown)}
-          className="rounded px-1.5 py-0.5 text-[11px] font-medium text-primary hover:bg-muted"
+          className="text-primary"
         >
           {allShown ? t('admin:explorerGridColumnHideAll') : t('admin:explorerGridColumnShowAll')}
-        </button>
+        </Button>
       </div>
       <div className="min-h-0 flex-1 space-y-2 overflow-y-auto">
         {sections.map(([group, cols]) => (
@@ -2293,7 +2290,7 @@ function RailNode({
             ? (isOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />)
             : null}
         </span>
-        <span className="truncate">{label(node)}</span>
+        <span className="truncate" title={label(node)}>{label(node)}</span>
         <span className={'ml-auto pl-1 text-xs ' + (active ? 'text-primary-foreground/80' : 'text-muted-foreground')}>
           {countMembers(node)}
         </span>
@@ -2333,7 +2330,7 @@ function GroupButton({
       }
     >
       {icon}
-      <span className="truncate">{label}</span>
+      <span className="truncate" title={label}>{label}</span>
       <span className={'ml-auto text-xs ' + (active ? 'text-primary-foreground/80' : 'text-muted-foreground')}>
         {count}
       </span>
@@ -2935,7 +2932,7 @@ function RegFilesCell({ info }: { info: RegFileInfo | undefined }) {
                 className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-muted"
               >
                 <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                <span className="truncate">{label}</span>
+                <span className="truncate" title={label}>{label}</span>
               </button>
             )
           })}

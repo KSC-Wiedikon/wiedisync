@@ -49,8 +49,8 @@ export function TransfersHeader({ isFetching, onRefresh, hidden, u20Count }: {
     .join(' ')
 
   return (
-    <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-      <div className="min-w-0">
+    <div className="mb-4 flex flex-wrap items-start gap-3">
+      <div className="min-w-0 flex-1">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('trTitle')}</h1>
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t('trDescription')}</p>
         {hiddenTotal > 0 && (
@@ -67,7 +67,6 @@ export function TransfersHeader({ isFetching, onRefresh, hidden, u20Count }: {
           // size="sm" is 32px tall; the floor is lifted back to 44px on touch
           // and released from `sm` up, the way every other control on this page
           // sizes itself.
-          className="min-h-[44px] sm:min-h-0"
           onClick={onRefresh}
           loading={isFetching}
           icon={<RefreshCcw aria-hidden="true" />}

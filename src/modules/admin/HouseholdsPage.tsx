@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import IconButton from '@/components/IconButton'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Plus, Trash2, UserPlus, KeyRound, Pencil, StickyNote } from 'lucide-react'
@@ -171,7 +172,7 @@ function MemberSearchDialog({ adding, pending, error, onClose, onPick }: {
                   {role === 'guardian' && m.register_status && (
                     <Badge variant="outline" className="text-[10px]">{m.register_status}</Badge>
                   )}
-                  <span className="ml-auto max-w-[45%] truncate text-xs text-muted-foreground">{m.email}</span>
+                  <span className="ml-auto max-w-[45%] truncate text-xs text-muted-foreground" title={m.email ?? undefined}>{m.email}</span>
                   {reason && (
                     <span className="basis-full text-xs text-amber-700 dark:text-amber-400">{reason}</span>
                   )}
@@ -181,7 +182,7 @@ function MemberSearchDialog({ adding, pending, error, onClose, onPick }: {
           </CommandList>
         </Command>
         <div className="flex justify-end border-t px-4 py-3">
-          <Button variant="outline" onClick={onClose} disabled={pending} className="min-h-11 sm:min-h-9">
+          <Button variant="outline" onClick={onClose} disabled={pending}>
             {t('admin:householdPickerDone')}
           </Button>
         </div>
@@ -325,12 +326,12 @@ export default function HouseholdsPage() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-6 p-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-bold text-foreground">{t('admin:householdsTitle')}</h1>
           <p className="mt-1 max-w-prose text-sm text-muted-foreground">{t('admin:householdsIntro')}</p>
         </div>
-        <Button onClick={() => { void createHousehold() }} disabled={busy} className="min-h-11 sm:min-h-9">
+        <Button onClick={() => { void createHousehold() }} disabled={busy}>
           <Plus className="mr-1.5 h-4 w-4" />{t('admin:householdNew')}
         </Button>
       </div>
@@ -347,23 +348,21 @@ export default function HouseholdsPage() {
         const neverUsed = h.members.length === 0
         return (
         <section key={h.id} className="rounded-lg border border-border bg-card p-4">
-          <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
-            <div className="min-w-0">
+          <div className="mb-3 flex flex-wrap items-start gap-2">
+            <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1">
                 <h2 className="break-words text-lg font-semibold text-foreground">{h.name}</h2>
-                <Button size="sm" variant="ghost" disabled={busy}
-                  className="min-h-11 min-w-11 sm:min-h-8 sm:min-w-8"
-                  aria-label={t('admin:householdRename')} title={t('admin:householdRename')}
+                <IconButton size="sm" disabled={busy}
+                  label={t('admin:householdRename')}
                   onClick={() => { void renameHousehold(h) }}>
                   <Pencil className="h-4 w-4" />
-                </Button>
+                </IconButton>
                 {neverUsed && (
-                  <Button size="sm" variant="ghost" disabled={busy}
-                    className="min-h-11 min-w-11 sm:min-h-8 sm:min-w-8"
-                    aria-label={t('admin:householdDelete')} title={t('admin:householdDelete')}
+                  <IconButton size="sm" disabled={busy}
+                    label={t('admin:householdDelete')}
                     onClick={() => { void deleteHousehold(h) }}>
                     <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
+                  </IconButton>
                 )}
               </div>
               <button type="button" disabled={busy}
@@ -374,10 +373,10 @@ export default function HouseholdsPage() {
               </button>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Button size="sm" variant="outline" onClick={() => addMember(h, 'guardian')} disabled={busy} className="min-h-11 sm:min-h-8">
+              <Button size="sm" variant="outline" onClick={() => addMember(h, 'guardian')} disabled={busy}>
                 <UserPlus className="mr-1.5 h-4 w-4" />{t('admin:householdAddGuardian')}
               </Button>
-              <Button size="sm" variant="outline" onClick={() => addMember(h, 'managed')} disabled={busy} className="min-h-11 sm:min-h-8">
+              <Button size="sm" variant="outline" onClick={() => addMember(h, 'managed')} disabled={busy}>
                 <UserPlus className="mr-1.5 h-4 w-4" />{t('admin:householdAddManaged')}
               </Button>
             </div>
@@ -463,16 +462,16 @@ export default function HouseholdsPage() {
                         {!revoked && (
                           <div className="flex flex-col items-end gap-1.5 sm:flex-row sm:justify-end">
                             {needsSetup && (
-                              <Button size="sm" variant="outline" disabled={busy} className="min-h-11 sm:min-h-8"
+                              <Button size="sm" variant="outline" disabled={busy}
                                 onClick={() => { void provision(h.id, row.member, row.first_name || name) }}>
                                 <KeyRound className="mr-1.5 h-4 w-4" />{t('admin:householdProvision')}
                               </Button>
                             )}
-                            <Button size="sm" variant="ghost" disabled={busy} className="min-h-11 min-w-11 sm:min-h-8 sm:min-w-8"
-                              aria-label={t('admin:householdRevoke')} title={t('admin:householdRevoke')}
+                            <IconButton size="sm" disabled={busy}
+                              label={t('admin:householdRevoke')}
                               onClick={() => { void revoke(h.id, row) }}>
                               <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
+                            </IconButton>
                           </div>
                         )}
                       </TableCell>

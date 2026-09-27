@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next'
+import IconButton from '@/components/IconButton'
 import { Info } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '../../../../components/ui/popover'
 
@@ -25,18 +26,19 @@ export function HintPopover({ text, label }: { text: string; label?: string }) {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <button
+        <IconButton
           type="button"
-          aria-label={label ?? t('trWhatIsThis')}
+          size="sm"
+          label={label ?? t('trWhatIsThis')}
           title={text}
           // Stops the tap from also firing a row-detail toggle or a Collapsible
           // trigger it sits inside. Radix still receives its own click — this
           // does not preventDefault.
           onClick={(e) => { e.stopPropagation() }}
-          className="inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-md text-gray-400 hover:text-gray-600 sm:min-h-0 sm:min-w-0 dark:text-gray-500 dark:hover:text-gray-300"
+          className="shrink-0 text-gray-400 hover:bg-transparent hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
         >
           <Info className="h-3.5 w-3.5" aria-hidden="true" />
-        </button>
+        </IconButton>
       </PopoverTrigger>
       <PopoverContent className="max-w-xs p-3 text-xs whitespace-normal break-words">
         {text}

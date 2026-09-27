@@ -941,8 +941,8 @@ export default function ExplorerMemberFields({
   return (
     <>
     <section className="mb-4">
-      <header className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-xs font-semibold tracking-wide text-muted-foreground">
+      <header className="mb-4 flex flex-wrap items-center gap-2">
+        <h2 className="text-xs font-semibold tracking-wide text-muted-foreground min-w-0 flex-1">
           {t('explorerMemberFieldsTitle')}
           <span className="ml-2 font-normal text-muted-foreground/70">
             {visibleFieldCount} / {keys.length} {t('explorerMemberFieldsCount')}
@@ -1026,14 +1026,14 @@ export default function ExplorerMemberFields({
             </span>
           )}
           {onClearFocus && (
-            <button
+            <Button size="sm" variant="ghost"
               type="button"
               onClick={onClearFocus}
-              className="ml-auto inline-flex min-h-[32px] items-center gap-1 rounded-md px-2 text-xs font-medium text-primary hover:bg-primary/10"
+              className="ml-auto text-primary hover:bg-primary/10 hover:text-primary"
             >
               <X className="h-3.5 w-3.5" />
               {t('explorerDatapointShowAll')}
-            </button>
+            </Button>
           )}
         </div>
       )}
@@ -1048,8 +1048,8 @@ export default function ExplorerMemberFields({
 
           return (
             <section key={section.group.id}>
-              <header className="mb-2 flex flex-wrap items-end justify-between gap-2 border-b border-border pb-1.5">
-                <div className="min-w-0">
+              <header className="mb-2 flex flex-wrap items-end gap-2 border-b border-border pb-1.5">
+                <div className="min-w-0 flex-1">
                   <h3 className="text-[11px] font-semibold tracking-wide text-muted-foreground">
                     {section.group.label}
                     <span className="ml-2 font-normal text-muted-foreground/60">
@@ -1066,15 +1066,15 @@ export default function ExplorerMemberFields({
                         ? (gate === 'volleyball' ? 'explorerFieldsHideVolleyball' : 'explorerFieldsHideBasketball')
                         : (gate === 'volleyball' ? 'explorerFieldsShowVolleyball' : 'explorerFieldsShowBasketball')
                       return (
-                        <button
+                        <Button size="sm" variant="outline"
                           key={gate}
                           type="button"
                           onClick={() => toggleSport(gate)}
-                          className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md border border-border bg-card px-3 text-xs font-medium text-muted-foreground transition-colors hover:border-primary hover:text-primary"
+                          className="text-muted-foreground hover:border-primary hover:bg-card hover:text-primary"
                         >
                           {revealed ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                           {t(key)}
-                        </button>
+                        </Button>
                       )
                     })}
                   </div>
@@ -1243,15 +1243,15 @@ function NoiseToggle({
 }) {
   if (suppressed) return null
   return (
-    <button
+    <Button size="sm" variant="outline"
       type="button"
       onClick={onClick}
       aria-pressed={on}
-      className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md border border-border bg-card px-3 text-xs font-medium text-muted-foreground transition-colors hover:border-primary hover:text-primary"
+      className="text-muted-foreground hover:border-primary hover:bg-card hover:text-primary"
     >
       {on ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
       {label}
-    </button>
+    </Button>
   )
 }
 
@@ -1920,7 +1920,6 @@ export function FieldEditor({
           <Input
             type="text"
             list={listId}
-            className="min-h-[44px]"
             value={asText}
             disabled={ctx.disabled}
             onChange={(e) => onChange(e.target.value === '' ? null : e.target.value)}
@@ -1955,7 +1954,6 @@ export function FieldEditor({
         <Input
           type="number"
           inputMode="numeric"
-          className="min-h-[44px]"
           disabled={ctx.disabled}
           value={value === null || value === undefined || value === '' ? '' : String(value)}
           onChange={(e) => {
@@ -2033,7 +2031,6 @@ function TextEditor({
   return (
     <Input
       type="text"
-      className="min-h-[44px]"
       value={value}
       disabled={disabled}
       onChange={(e) => onChange(e.target.value === '' ? null : e.target.value)}
@@ -2095,18 +2092,18 @@ function OptionChips({
       {options.map((o) => {
         const active = selected.includes(o.value)
         return (
-          <button
+          <Button
+            variant="outline"
             key={o.value}
             type="button"
             role="checkbox"
             aria-checked={active}
             onClick={() => onToggle(o.value)}
             className={
-              'inline-flex min-h-[44px] items-center gap-1.5 rounded-full border px-3 py-1.5 '
-              + 'text-sm transition-colors sm:min-h-[36px] '
+              'gap-1.5 rounded-full px-3 font-normal '
               + (active
-                ? 'border-primary bg-primary text-primary-foreground shadow-sm'
-                : 'border-border bg-card text-foreground hover:border-primary/50 hover:bg-muted')
+                ? 'border-primary bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground'
+                : 'text-foreground hover:border-primary/50 hover:bg-muted')
             }
           >
             <span className="flex size-4 shrink-0 items-center justify-center">
@@ -2115,7 +2112,7 @@ function OptionChips({
                 : <span className="size-3.5 rounded-full border border-muted-foreground/50" />}
             </span>
             {o.label}
-          </button>
+          </Button>
         )
       })}
     </div>
@@ -2232,7 +2229,7 @@ function SelectEditor({
       value={current === '' ? NONE_VALUE : current}
       onValueChange={(v) => onChange(v === NONE_VALUE ? null : v)}
     >
-      <SelectTrigger className="min-h-[44px] w-full text-sm">
+      <SelectTrigger className="w-full text-sm">
         <SelectValue placeholder="—" />
       </SelectTrigger>
       <SelectContent>

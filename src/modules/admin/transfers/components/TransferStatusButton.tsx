@@ -1,4 +1,6 @@
 import { useTranslation } from 'react-i18next'
+import IconButton from '@/components/IconButton'
+import { Button } from '@/components/ui/button'
 import { X, type LucideIcon } from 'lucide-react'
 import type { TransferMember, TransferStatus } from '../types'
 
@@ -34,22 +36,24 @@ export function TransferStatusButton({ member, value, label, icon: Icon, disable
 }) {
   const on = member.transfer_status === value
   return (
-    <button
+    <Button
       type="button"
+      size="sm"
+      variant="outline"
       onClick={() => { onSelect(member, value) }}
       disabled={disabled}
       aria-pressed={on}
       aria-label={label}
       title={label}
-      className={`inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1 rounded-md border px-2.5 py-1 text-xs font-medium disabled:opacity-50 sm:min-h-0 sm:min-w-0 ${
+      className={`min-w-9 gap-1 px-2.5 sm:min-w-0 ${
         on
-          ? STATUS_ON_CLASS[value]
-          : 'border-gray-200 text-gray-600 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700'
+          ? `${STATUS_ON_CLASS[value]} hover:opacity-90`
+          : 'text-gray-600 dark:text-gray-300'
       }`}
     >
       <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
       <span className="hidden sm:inline">{label}</span>
-    </button>
+    </Button>
   )
 }
 
@@ -64,17 +68,18 @@ export function TransferStatusButton({ member, value, label, icon: Icon, disable
 export function ClearStatusButton({ disabled, onClear }: { disabled: boolean; onClear: () => void }) {
   const { t } = useTranslation('admin')
   return (
-    <button
+    // Icon-only → IconButton (square on the dense `sm` tier, like its
+    // TransferStatusButton neighbours).
+    <IconButton
       type="button"
+      size="sm"
+      variant="outline"
       onClick={() => { onClear() }}
       disabled={disabled}
-      aria-label={t('trClearStatus')}
-      title={t('trClearStatus')}
-      // Icon-only, so BOTH axes carry the 44px floor (the original was 44px tall
-      // and ~30px wide).
-      className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md border border-gray-200 px-2 py-1 text-gray-500 hover:bg-gray-100 disabled:opacity-50 sm:min-h-0 sm:min-w-0 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-700"
+      label={t('trClearStatus')}
+      className="text-gray-500 dark:text-gray-400"
     >
       <X className="h-3.5 w-3.5" aria-hidden="true" />
-    </button>
+    </IconButton>
   )
 }

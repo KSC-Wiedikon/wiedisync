@@ -1,7 +1,7 @@
 // src/modules/admin/components/ExplorerDetail.tsx
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ExternalLink, Eye, Trash2 } from 'lucide-react'
+import { ArrowLeft, ExternalLink, Eye, Trash2 } from 'lucide-react'
 import { API_URL } from '../../../lib/api'
 import type { BucketKey, CacheShape } from './explorerHelpers'
 import {
@@ -143,37 +143,39 @@ export default function ExplorerDetail({
     <div className="h-full overflow-y-auto px-4 py-3 md:px-6 md:py-4">
       {/* Mobile back */}
       {onBack && (
-        <button
+        <Button
           type="button"
+          size="sm"
+          variant="ghost"
           onClick={onBack}
-          className="mb-2 text-sm text-muted-foreground hover:text-foreground md:hidden"
+          className="mb-2 -ml-2 text-muted-foreground md:hidden"
+          icon={<ArrowLeft />}
         >
-          ← {t('explorerBackToTree')}
-        </button>
+          {t('explorerBackToTree')}
+        </Button>
       )}
 
       {/* Title + directus link */}
       <h1 className="text-xl font-bold text-primary">{title}</h1>
-      <div className="mb-4 flex items-center gap-3 text-xs text-muted-foreground">
+      <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-muted-foreground">
         <span>{t(`explorerBucket${type.charAt(0).toUpperCase()}${type.slice(1)}` as never)} · #{id}</span>
-        <a
-          href={directusUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 rounded border border-primary px-2 py-0.5 text-primary hover:bg-primary hover:text-primary-foreground"
-        >
-          <ExternalLink className="h-3 w-3" />
-          {t('explorerOpenInDirectus')}
-        </a>
+        <Button asChild size="sm" variant="outline" className="border-primary text-primary hover:bg-primary hover:text-primary-foreground">
+          <a href={directusUrl} target="_blank" rel="noopener noreferrer">
+            <ExternalLink />
+            {t('explorerOpenInDirectus')}
+          </a>
+        </Button>
         {type === 'members' && canImpersonate && !isImpersonating && (
-          <button
+          <Button
             type="button"
+            size="sm"
+            variant="outline"
             onClick={() => { void startImpersonation(String(id)) }}
-            className="inline-flex items-center gap-1 rounded border border-orange-500 px-2 py-0.5 text-orange-600 hover:bg-orange-500 hover:text-white dark:text-orange-400"
+            className="border-orange-500 text-orange-600 hover:bg-orange-500 hover:text-white dark:text-orange-400 dark:hover:text-white"
+            icon={<Eye />}
           >
-            <Eye className="h-3 w-3" />
             {t('explorerViewAsMember')}
-          </button>
+          </Button>
         )}
       </div>
 

@@ -1,4 +1,6 @@
 import { useState, useCallback, useEffect } from 'react'
+import IconButton from '@/components/IconButton'
+import { Button } from '@/components/ui/button'
 import { kscwApi } from '../../lib/api'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -137,18 +139,15 @@ function ActionButton({ onClick, icon, label, tone = 'neutral' }: {
   tone?: 'neutral' | 'amber' | 'green'
 }) {
   const tones = {
-    neutral: 'border-gray-200 text-gray-600 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700',
-    amber: 'border-amber-200 text-amber-700 hover:bg-amber-50 dark:border-amber-800/50 dark:text-amber-400 dark:hover:bg-amber-900/20',
-    green: 'border-green-200 text-green-700 hover:bg-green-50 dark:border-green-800/50 dark:text-green-400 dark:hover:bg-green-900/20',
+    neutral: 'text-gray-600 dark:text-gray-300',
+    amber: 'border-amber-200 text-amber-700 hover:bg-amber-50 hover:text-amber-800 dark:border-amber-800/50 dark:text-amber-400 dark:hover:bg-amber-900/20 dark:hover:text-amber-300',
+    green: 'border-green-200 text-green-700 hover:bg-green-50 hover:text-green-800 dark:border-green-800/50 dark:text-green-400 dark:hover:bg-green-900/20 dark:hover:text-green-300',
   }
   return (
-    <button
-      onClick={onClick}
-      className={`flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-medium ${tones[tone]}`}
-    >
+    <Button size="sm" variant="outline" onClick={onClick} className={tones[tone]}>
       {icon}
       {label}
-    </button>
+    </Button>
   )
 }
 
@@ -346,20 +345,18 @@ function ErrorRow({ entry, selected, onToggleSelect, onFilterEvent, onAnnotate, 
                   </label>
                   <p className="text-[10px] text-gray-400">{t('errorLogsMuteHint')}</p>
                   <div className="flex items-center gap-2">
-                    <button
+                    <Button
                       onClick={saveMute}
                       disabled={muteSaving || (!muteMatch.trim() && !muteEvent)}
-                      className="flex items-center gap-1 rounded-md bg-brand-600 px-3 py-1 text-xs font-medium text-white hover:bg-brand-700 disabled:opacity-50"
                     >
                       <BellOff className="h-3 w-3" />
                       {t('errorLogsMuteSave')}
-                    </button>
-                    <button
+                    </Button>
+                    <Button variant="outline"
                       onClick={() => setMuteOpen(false)}
-                      className="rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-500 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-700"
                     >
                       {t('errorLogsCancel')}
-                    </button>
+                    </Button>
                   </div>
                 </div>
               )}
@@ -553,14 +550,14 @@ export default function ErrorLogsPage() {
           </h1>
           <p className="text-xs text-gray-500 dark:text-gray-400">{t('errorLogsDescription')}</p>
         </div>
-        <button
+        <Button
           onClick={() => { fetchLogs(); fetchDates(); fetchMuteRules() }}
           disabled={loading}
-          className="flex items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-700 disabled:opacity-50"
+          className="shrink-0"
         >
           <RefreshCcw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
           {t('errorLogsRefresh')}
-        </button>
+        </Button>
       </div>
 
       {/* Mute rules */}
@@ -592,19 +589,18 @@ export default function ErrorLogsPage() {
                       {r.error_match || <span className="italic text-gray-400">{t('errorLogsMuteAnyMessage')}</span>}
                       {r.note ? <span className="ml-1 text-gray-400">— {r.note}</span> : null}
                     </span>
-                    <button
+                    <Button size="sm" variant="outline"
                       onClick={() => toggleMuteRule(r)}
-                      className="rounded-md border border-gray-200 px-2 py-0.5 text-[10px] text-gray-500 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-700"
                     >
                       {r.enabled ? t('errorLogsDisable') : t('errorLogsEnable')}
-                    </button>
-                    <button
+                    </Button>
+                    <IconButton size="sm" variant="outline"
                       onClick={() => deleteMuteRule(r.id)}
-                      className="rounded-md border border-gray-200 p-1 text-gray-400 hover:bg-red-50 hover:text-red-500 dark:border-gray-600 dark:hover:bg-red-900/20"
-                      aria-label={t('errorLogsDelete')}
+                      className="text-gray-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20"
+                      label={t('errorLogsDelete')}
                     >
                       <Trash2 className="h-3 w-3" />
-                    </button>
+                    </IconButton>
                   </div>
                 ))}
               </div>
@@ -619,7 +615,7 @@ export default function ErrorLogsPage() {
           <select
             value={project}
             onChange={(ev) => setProject(ev.target.value)}
-            className="rounded-md border border-gray-200 bg-white px-2 py-1.5 text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+            className="h-11 min-w-0 rounded-md border border-gray-200 bg-white px-2 text-sm sm:h-9 sm:text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
           >
             <option value="">{t('errorLogsAllProjects')}</option>
             {PROJECTS.map((p) => <option key={p} value={p}>{p === 'kscw-website' ? 'website' : p}</option>)}
@@ -628,7 +624,7 @@ export default function ErrorLogsPage() {
           <select
             value={level}
             onChange={(ev) => setLevel(ev.target.value)}
-            className="rounded-md border border-gray-200 bg-white px-2 py-1.5 text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+            className="h-11 min-w-0 rounded-md border border-gray-200 bg-white px-2 text-sm sm:h-9 sm:text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
           >
             <option value="">{t('errorLogsAllLevels')}</option>
             {LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
@@ -637,7 +633,7 @@ export default function ErrorLogsPage() {
           <select
             value={event}
             onChange={(ev) => setEvent(ev.target.value)}
-            className="rounded-md border border-gray-200 bg-white px-2 py-1.5 text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+            className="h-11 min-w-0 rounded-md border border-gray-200 bg-white px-2 text-sm sm:h-9 sm:text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
           >
             <option value="">{t('errorLogsAllEvents')}</option>
             {EVENTS.map((e) => <option key={e} value={e}>{e}</option>)}
@@ -646,7 +642,7 @@ export default function ErrorLogsPage() {
           <select
             value={date}
             onChange={(ev) => setDate(ev.target.value)}
-            className="rounded-md border border-gray-200 bg-white px-2 py-1.5 text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+            className="h-11 min-w-0 rounded-md border border-gray-200 bg-white px-2 text-sm sm:h-9 sm:text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
           >
             <option value="">{t('errorLogsToday')}</option>
             {dates.map((d) => <option key={d} value={d}>{d}</option>)}
@@ -658,13 +654,13 @@ export default function ErrorLogsPage() {
             value={search}
             onChange={(ev) => setSearch(ev.target.value)}
             onKeyDown={(ev) => { if (ev.key === 'Enter') fetchLogs() }}
-            className="col-span-2 rounded-md border border-gray-200 bg-white px-2 py-1.5 text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+            className="col-span-2 h-11 min-w-0 rounded-md border border-gray-200 bg-white px-2 text-sm sm:h-9 sm:text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
           />
 
           <select
             value={limit}
             onChange={(ev) => setLimit(Number(ev.target.value))}
-            className="rounded-md border border-gray-200 bg-white px-2 py-1.5 text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+            className="h-11 min-w-0 rounded-md border border-gray-200 bg-white px-2 text-sm sm:h-9 sm:text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
           >
             {[200, 500, 1000].map((n) => <option key={n} value={n}>{t('errorLogsLimit', { count: n })}</option>)}
           </select>
@@ -676,22 +672,20 @@ export default function ErrorLogsPage() {
         </div>
 
         <div className="mt-2 flex items-center gap-2">
-          <button
+          <Button
             onClick={() => fetchLogs()}
             disabled={loading}
-            className="flex items-center gap-1 rounded-md bg-brand-600 px-3 py-1 text-xs font-medium text-white hover:bg-brand-700 disabled:opacity-50"
           >
             <Search className="h-3 w-3" />
             {t('errorLogsSearch')}
-          </button>
+          </Button>
           {hasFilters && (
-            <button
+            <Button variant="outline"
               onClick={clearFilters}
-              className="flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-500 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-700"
             >
               <X className="h-3 w-3" />
               {t('errorLogsClear')}
-            </button>
+            </Button>
           )}
           {entries && (
             <span className="ml-auto text-[10px] text-gray-400">
@@ -707,27 +701,27 @@ export default function ErrorLogsPage() {
           <span className="text-xs font-medium text-brand-700 dark:text-brand-300">
             {t('errorLogsSelected', { count: selected.size })}
           </span>
-          <button
+          <Button size="sm" variant="outline"
             onClick={() => bulkAnnotate('solved')}
-            className="flex items-center gap-1 rounded-md border border-green-200 bg-white px-2 py-1 text-[11px] font-medium text-green-700 hover:bg-green-50 dark:border-green-800/50 dark:bg-gray-800 dark:text-green-400 dark:hover:bg-green-900/20"
+            className="border-green-200 text-green-700 hover:bg-green-50 hover:text-green-800 dark:border-green-800/50 dark:text-green-400 dark:hover:bg-green-900/20 dark:hover:text-green-300"
           >
             <Archive className="h-3 w-3" />
             {t('errorLogsArchiveSelected')}
-          </button>
-          <button
+          </Button>
+          <Button size="sm" variant="outline"
             onClick={() => bulkAnnotate('important')}
-            className="flex items-center gap-1 rounded-md border border-amber-200 bg-white px-2 py-1 text-[11px] font-medium text-amber-700 hover:bg-amber-50 dark:border-amber-800/50 dark:bg-gray-800 dark:text-amber-400 dark:hover:bg-amber-900/20"
+            className="border-amber-200 text-amber-700 hover:bg-amber-50 hover:text-amber-800 dark:border-amber-800/50 dark:text-amber-400 dark:hover:bg-amber-900/20 dark:hover:text-amber-300"
           >
             <Star className="h-3 w-3" />
             {t('errorLogsMarkImportant')}
-          </button>
-          <button
+          </Button>
+          <Button size="sm" variant="outline"
             onClick={() => setSelected(new Set())}
-            className="ml-auto flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-[11px] text-gray-500 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-700"
+            className="ml-auto"
           >
             <X className="h-3 w-3" />
             {t('errorLogsClear')}
-          </button>
+          </Button>
         </div>
       )}
 

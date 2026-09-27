@@ -183,7 +183,7 @@ export function VisCell({
           onClick={() => { onLinkVisPlayer(member) }}
           disabled={saving}
           title={t('trManualLinkHint')}
-          className="min-h-[44px] gap-1 sm:min-h-0"
+          className="gap-1"
         >
           <Link2 className="h-3 w-3" aria-hidden="true" />
           {manualNo != null ? t('trManualLinkEdit') : t('trManualLinkAdd')}

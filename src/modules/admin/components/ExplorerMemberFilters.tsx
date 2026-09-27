@@ -1,5 +1,6 @@
 // src/modules/admin/components/ExplorerMemberFilters.tsx
 import { useMemo } from 'react'
+import { Button } from '@/components/ui/button'
 import { useTranslation } from 'react-i18next'
 import { Filter, X } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '../../../components/ui/popover'
@@ -104,14 +105,11 @@ export default function ExplorerMemberFilters({ value, onChange, seasons }: Prop
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <button
+        <Button
           type="button"
-          className={
-            'relative inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium hover:bg-muted ' +
-            (activeCount > 0
-              ? 'border-primary bg-primary/10 text-primary'
-              : 'border-border bg-card text-foreground')
-          }
+          size="sm"
+          variant="outline"
+          className={activeCount > 0 ? 'relative border-primary bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary' : 'relative'}
           title={t('memberFilterTitle')}
         >
           <Filter className="h-3.5 w-3.5" />
@@ -121,7 +119,7 @@ export default function ExplorerMemberFilters({ value, onChange, seasons }: Prop
               {activeCount}
             </span>
           )}
-        </button>
+        </Button>
       </PopoverTrigger>
       <PopoverContent
         align="end"
@@ -131,13 +129,15 @@ export default function ExplorerMemberFilters({ value, onChange, seasons }: Prop
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-sm font-semibold">{t('memberFilterTitle')}</h2>
           {activeCount > 0 && (
-            <button
+            <Button
               type="button"
+              size="sm"
+              variant="ghost"
               onClick={() => onChange(EMPTY_FILTERS)}
-              className="inline-flex items-center gap-1 rounded text-xs text-muted-foreground hover:text-destructive"
+              className="text-muted-foreground hover:text-destructive"
             >
-              <X className="h-3 w-3" /> {t('memberFilterReset')}
-            </button>
+              <X /> {t('memberFilterReset')}
+            </Button>
           )}
         </div>
 
@@ -403,18 +403,16 @@ function PillRow({ children }: { children: React.ReactNode }) {
 
 function Pill({ active, onClick, label }: { active: boolean; onClick: () => void; label: string }) {
   return (
-    <button
+    <Button
       type="button"
+      size="sm"
+      variant={active ? 'default' : 'outline'}
+      aria-pressed={active}
       onClick={onClick}
-      className={
-        'rounded-full border px-2.5 py-1 text-xs ' +
-        (active
-          ? 'border-primary bg-primary text-primary-foreground'
-          : 'border-border bg-card text-foreground hover:bg-muted')
-      }
+      className="rounded-full font-normal"
     >
       {label}
-    </button>
+    </Button>
   )
 }
 
@@ -431,28 +429,31 @@ function TriRow({
 }) {
   return (
     <div className="flex items-center justify-between gap-2 py-1">
-      <span className="flex-1 truncate text-xs text-foreground" title={label}>
+      <span className="min-w-0 flex-1 truncate text-xs text-foreground" title={label}>
         {label}
       </span>
       <div className="inline-flex shrink-0 overflow-hidden rounded-md border border-border text-[11px]">
         {(['any', 'yes', 'no'] as Tri[]).map((opt) => (
-          <button
+          <Button
             key={opt}
             type="button"
+            size="sm"
+            variant="ghost"
+            aria-pressed={value === opt}
             onClick={() => onChange(opt)}
             className={
-              'px-2 py-0.5 ' +
+              'rounded-none px-2 text-[11px] font-normal ' +
               (value === opt
                 ? opt === 'yes'
-                  ? 'bg-primary text-primary-foreground'
+                  ? 'bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground'
                   : opt === 'no'
-                    ? 'bg-destructive text-destructive-foreground'
-                    : 'bg-muted text-foreground'
+                    ? 'bg-destructive text-destructive-foreground hover:bg-destructive hover:text-destructive-foreground'
+                    : 'bg-muted text-foreground hover:bg-muted'
                 : 'bg-card text-muted-foreground hover:bg-muted')
             }
           >
             {opt === 'any' ? t('memberFilterAny') : opt === 'yes' ? t('memberFilterYes') : t('memberFilterNo')}
-          </button>
+          </Button>
         ))}
       </div>
     </div>

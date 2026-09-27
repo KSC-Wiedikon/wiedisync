@@ -73,7 +73,9 @@ export default function SyncJobProgress({
           ) : running ? (
             <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-blue-500" aria-hidden="true" />
           ) : null}
-          <span className={`truncate ${
+          <span
+            title={error || phase || (running ? t('dhJobStarting') : idleText || t('dhJobIdle'))}
+            className={`truncate ${
             error
               ? 'text-red-600 dark:text-red-400'
               : running

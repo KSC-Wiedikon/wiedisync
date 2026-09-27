@@ -56,7 +56,7 @@ export function TransferAlerts({ blockedCount, dangerousConflictCount, onShowBlo
           <Button
             variant="outline"
             size="sm"
-            className="min-h-[44px] w-full shrink-0 border-red-300 text-red-800 hover:bg-red-100 sm:min-h-0 sm:w-auto dark:border-red-700 dark:text-red-200 dark:hover:bg-red-900/50"
+            className="w-full shrink-0 border-red-300 text-red-800 hover:bg-red-100 sm:w-auto dark:border-red-700 dark:text-red-200 dark:hover:bg-red-900/50"
             onClick={onShowBlocked}
           >
             {t('trShowThese')}
@@ -88,7 +88,7 @@ export function TransferAlerts({ blockedCount, dangerousConflictCount, onShowBlo
           </div>
           <Button
             size="sm"
-            className="min-h-[44px] w-full shrink-0 sm:min-h-0 sm:w-auto"
+            className="w-full shrink-0 sm:w-auto"
             onClick={onShowConflicts}
           >
             {t('trShowInDiagnostics')}

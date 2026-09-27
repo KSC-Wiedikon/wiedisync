@@ -7,6 +7,7 @@
 // Deliberately multi-select: "show me AHV and the scorer licence side by side"
 // is the actual question an admin has, and it is one column set in the grid.
 import { useMemo, useRef, useState } from 'react'
+import { Button } from '@/components/ui/button'
 import { useTranslation } from 'react-i18next'
 import { Crosshair, X } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -34,14 +35,11 @@ export default function ExplorerFieldSearch({ value, onChange }: Props) {
     <div className="flex items-center gap-1.5">
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
-          <button
+          <Button
             type="button"
-            className={
-              'inline-flex min-h-[34px] items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium '
-              + (value.length > 0
-                ? 'border-primary bg-primary/10 text-primary'
-                : 'border-border bg-card text-foreground hover:bg-muted')
-            }
+            size="sm"
+            variant="outline"
+            className={value.length > 0 ? 'border-primary bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary' : undefined}
             title={t('explorerDatapointTitle')}
           >
             <Crosshair className="h-3.5 w-3.5" />
@@ -51,7 +49,7 @@ export default function ExplorerFieldSearch({ value, onChange }: Props) {
                 {value.length}
               </span>
             )}
-          </button>
+          </Button>
         </PopoverTrigger>
         <PopoverContent align="start" className="w-80 p-2">
           <input
@@ -69,7 +67,7 @@ export default function ExplorerFieldSearch({ value, onChange }: Props) {
               if (e.key === 'Escape') setQuery('')
             }}
             placeholder={t('explorerDatapointPlaceholder')}
-            className="mb-2 w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm text-foreground outline-none placeholder:text-muted-foreground"
+            className="mb-2 h-11 w-full rounded-md border border-border bg-background px-2 text-sm text-foreground outline-none placeholder:text-muted-foreground sm:h-9"
             autoComplete="off"
           />
 
@@ -86,13 +84,13 @@ export default function ExplorerFieldSearch({ value, onChange }: Props) {
                   <X className="h-3 w-3" />
                 </button>
               ))}
-              <button
+              <Button size="sm" variant="ghost"
                 type="button"
                 onClick={() => onChange([])}
-                className="rounded-full px-2 py-0.5 text-[11px] text-muted-foreground hover:text-foreground"
+                className="text-muted-foreground"
               >
                 {t('explorerDatapointClear')}
-              </button>
+              </Button>
             </div>
           )}
 
@@ -115,7 +113,7 @@ export default function ExplorerFieldSearch({ value, onChange }: Props) {
                     }
                   >
                     <span className="flex w-full items-center gap-1.5">
-                      <span className="truncate text-sm font-medium text-foreground">{def.label}</span>
+                      <span className="truncate text-sm font-medium text-foreground" title={def.label}>{def.label}</span>
                       {def.readOnly && (
                         <span className="shrink-0 rounded bg-muted px-1 text-[9px] tracking-wide text-muted-foreground">
                           {t('explorerDatapointReadOnly')}
@@ -123,8 +121,8 @@ export default function ExplorerFieldSearch({ value, onChange }: Props) {
                       )}
                     </span>
                     <span className="flex w-full items-center gap-1.5 text-[11px] text-muted-foreground">
-                      <span className="truncate">{groupLabel}</span>
-                      <code className="truncate font-mono text-muted-foreground/70">{def.key}</code>
+                      <span className="truncate" title={groupLabel}>{groupLabel}</span>
+                      <code className="truncate font-mono text-muted-foreground/70" title={def.key}>{def.key}</code>
                     </span>
                   </button>
                 )
@@ -137,15 +135,15 @@ export default function ExplorerFieldSearch({ value, onChange }: Props) {
       {/* Outside the popover so the focus stays visible (and clearable) once it
           is closed — otherwise a filtered view has no on-screen explanation. */}
       {value.length > 0 && (
-        <button
+        <Button size="sm" variant="outline"
           type="button"
           onClick={() => onChange([])}
-          className="inline-flex min-h-[34px] items-center gap-1 rounded-md border border-border bg-card px-2 py-1.5 text-xs text-muted-foreground hover:bg-muted"
+          className="text-muted-foreground"
           title={t('explorerDatapointClear')}
         >
           <X className="h-3.5 w-3.5" />
           <span className="hidden xl:inline">{t('explorerDatapointClear')}</span>
-        </button>
+        </Button>
       )}
     </div>
   )

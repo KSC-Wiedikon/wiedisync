@@ -1,6 +1,8 @@
 import { useState, useMemo } from 'react'
+import IconButton from '@/components/IconButton'
+import { Button } from '@/components/ui/button'
 import { useTranslation } from 'react-i18next'
-import { BarChart3, MessageSquare } from 'lucide-react'
+import { BarChart3, MessageSquare, X } from 'lucide-react'
 import { useCollection } from '../../lib/query'
 import { formatDateZurich } from '../../utils/dateHelpers'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
@@ -165,21 +167,21 @@ export default function VolleyFeedbackPage() {
 
       {/* Response table */}
       <DashboardSection id="vf-responses" title={t('vfIndividualResponses')} icon={<MessageSquare className="h-4 w-4" aria-hidden="true" />} isLoading={isLoading} isEmpty={items.length === 0} emptyMessage={t('vfEmpty')}>
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="mb-3 flex flex-wrap items-center gap-2">
           <select
             value={teamFilter}
             onChange={e => setTeamFilter(e.target.value)}
-            className="rounded-md border border-input bg-background px-2 py-1 text-sm"
+            className="h-11 rounded-md border border-input bg-background px-2 text-sm sm:h-9 dark:bg-gray-800"
           >
             <option value="">{t('vfAllTeams')}</option>
             {allTeams.map(team => <option key={team} value={team}>{team}</option>)}
           </select>
-          <button
+          <Button
             onClick={exportCSV}
-            className="rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+            className="ml-auto"
           >
             CSV Export
-          </button>
+          </Button>
         </div>
 
         <Table>
@@ -214,14 +216,13 @@ export default function VolleyFeedbackPage() {
                   ))}
                   <TableCell className="text-center">
                     {hasText ? (
-                      <button
+                      <IconButton size="sm"
                         onClick={() => setSelectedItem(item)}
-                        className="inline-flex cursor-pointer hover:opacity-70"
-                        title={t('vfReadText')}
-                        aria-label={t('vfReadText')}
+                        className="text-muted-foreground"
+                        label={t('vfReadText')}
                       >
                         <MessageSquare className="h-4 w-4" aria-hidden="true" />
-                      </button>
+                      </IconButton>
                     ) : '—'}
                   </TableCell>
                 </TableRow>
@@ -243,12 +244,13 @@ export default function VolleyFeedbackPage() {
           >
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-lg font-semibold">{t('vfFeedbackDetails')}</h3>
-              <button
+              <IconButton
                 onClick={() => setSelectedItem(null)}
-                className="text-2xl leading-none text-muted-foreground hover:text-foreground"
+                className="text-muted-foreground"
+                label={t('common:close')}
               >
-                &times;
-              </button>
+                <X />
+              </IconButton>
             </div>
             {selectedItem.name && !selectedItem.is_anonymous && (
               <p className="mb-3 text-sm text-muted-foreground">

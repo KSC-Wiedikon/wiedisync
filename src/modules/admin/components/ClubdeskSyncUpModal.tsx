@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import IconButton from '@/components/IconButton'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Loader2, ArrowUpFromLine, ArrowDownToLine, AlertTriangle, CheckCircle2, EyeOff, RefreshCw } from 'lucide-react'
@@ -391,14 +392,14 @@ export default function ClubdeskSyncUpModal({
                         </TableCell>
                         <TableCell className="w-10 text-right">
                           {m.stale && (
-                            <Button
-                              type="button" variant="ghost" size="icon"
-                              className="h-8 w-8 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
-                              title={t('clubdeskUpMute')}
+                            <IconButton
+                              type="button" size="sm"
+                              className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                              label={t('clubdeskUpMute')}
                               onClick={() => mute(m.id)}
                             >
                               <EyeOff className="h-4 w-4" />
-                            </Button>
+                            </IconButton>
                           )}
                         </TableCell>
                       </TableRow>
@@ -454,14 +455,14 @@ export default function ClubdeskSyncUpModal({
                         </TableCell>
                         <TableCell className="whitespace-normal break-words text-xs text-gray-500 dark:text-gray-400">{m.email}</TableCell>
                         <TableCell className="w-10 text-right">
-                          <Button
-                            type="button" variant="ghost" size="icon"
-                            className="h-8 w-8 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
-                            title={t('clubdeskUpMute')}
+                          <IconButton
+                            type="button" size="sm"
+                            className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                            label={t('clubdeskUpMute')}
                             onClick={() => mute(m.id)}
                           >
                             <EyeOff className="h-4 w-4" />
-                          </Button>
+                          </IconButton>
                         </TableCell>
                       </TableRow>
                     ))}

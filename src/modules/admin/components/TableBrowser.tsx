@@ -1,4 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
+import IconButton from '@/components/IconButton'
+import { Button } from '@/components/ui/button'
 import { useTranslation } from 'react-i18next'
 import { fetchItems } from '../../../lib/api'
 import { useCollection, useCount } from '../../../lib/query'
@@ -231,7 +234,7 @@ export default function TableBrowser({ collections, loadingCollections }: TableB
       <div className="shrink-0 sm:w-48">
         {/* Mobile: select dropdown */}
         <select
-          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 sm:hidden"
+          className="h-11 w-full rounded-lg border border-gray-300 px-3 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 sm:hidden"
           value={selected}
           onChange={(e) => handleSelectCollection(e.target.value)}
         >
@@ -259,6 +262,7 @@ export default function TableBrowser({ collections, loadingCollections }: TableB
                       <button
                         key={c.id}
                         onClick={() => handleSelectCollection(c.name)}
+                        title={c.name}
                         className={`block w-full truncate px-3 py-1.5 text-left text-xs ${
                           selected === c.name
                             ? 'bg-brand-50 font-medium text-brand-700 dark:bg-brand-900/30 dark:text-brand-400'
@@ -284,21 +288,19 @@ export default function TableBrowser({ collections, loadingCollections }: TableB
         ) : (
           <div className="space-y-3">
             {/* Header */}
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{selected}</h2>
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white min-w-0 flex-1">{selected}</h2>
               <div className="flex gap-2">
-                <button
+                <Button size="sm" variant="ghost"
                   onClick={() => setShowSchema(!showSchema)}
-                  className="rounded-lg px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
                 >
                   {t('schema')}
-                </button>
-                <button
+                </Button>
+                <Button size="sm"
                   onClick={() => setShowCreate(true)}
-                  className="rounded-lg bg-brand-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-600"
                 >
                   {t('newRecord')}
-                </button>
+                </Button>
               </div>
             </div>
 
@@ -317,32 +319,35 @@ export default function TableBrowser({ collections, loadingCollections }: TableB
                   if (e.key === 'Enter') handleApplyFilter()
                 }}
                 placeholder={t('filterPlaceholder')}
-                className="min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500 focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+                className="h-11 min-w-0 flex-1 rounded-lg border border-gray-300 px-3 text-sm sm:h-9 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
               />
-              <button
+              <Button variant="outline"
                 onClick={handleApplyFilter}
-                className="rounded-lg bg-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-300 dark:bg-gray-600 dark:text-gray-200 dark:hover:bg-gray-500"
+                className="shrink-0"
               >
                 {t('filter')}
-              </button>
+              </Button>
             </div>
 
             {/* Sortable column headers */}
             {columns.length > 0 && (
               <div className="flex flex-wrap gap-1">
                 {columns.map((col) => (
-                  <button
+                  <Button
                     key={col}
+                    size="sm"
+                    variant="outline"
+                    aria-pressed={sortField === col}
                     onClick={() => handleSort(col)}
-                    className={`rounded px-2 py-0.5 text-[10px] font-medium ${
+                    className={
                       sortField === col
-                        ? 'bg-brand-100 text-brand-700 dark:bg-brand-900/30 dark:text-brand-400'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600'
-                    }`}
+                        ? 'border-brand-200 bg-brand-100 text-brand-700 hover:bg-brand-100 hover:text-brand-700 dark:border-brand-800 dark:bg-brand-900/30 dark:text-brand-400'
+                        : 'text-gray-600 dark:text-gray-400'
+                    }
                   >
                     {col}
                     {sortField === col && (sortDir === '+' ? ' ↑' : ' ↓')}
-                  </button>
+                  </Button>
                 ))}
               </div>
             )}
@@ -375,23 +380,25 @@ export default function TableBrowser({ collections, loadingCollections }: TableB
             {/* Pagination */}
             {totalPages > 1 && (
               <div className="flex items-center justify-between">
-                <button
+                <IconButton
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                   disabled={page <= 1}
-                  className="rounded-lg px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-40 dark:text-gray-400 dark:hover:bg-gray-700"
+                  className="text-gray-600 disabled:opacity-40 dark:text-gray-400"
+                  label={t('previousPage', { defaultValue: 'Previous page' })}
                 >
-                  ←
-                </button>
+                  <ChevronLeft />
+                </IconButton>
                 <span className="text-xs text-gray-500 dark:text-gray-400">
                   {page} / {totalPages} ({total})
                 </span>
-                <button
+                <IconButton
                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                   disabled={page >= totalPages}
-                  className="rounded-lg px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-40 dark:text-gray-400 dark:hover:bg-gray-700"
+                  className="text-gray-600 disabled:opacity-40 dark:text-gray-400"
+                  label={t('nextPage', { defaultValue: 'Next page' })}
                 >
-                  →
-                </button>
+                  <ChevronRight />
+                </IconButton>
               </div>
             )}
           </div>

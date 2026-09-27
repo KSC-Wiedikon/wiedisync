@@ -10,6 +10,8 @@ import {
 } from 'lucide-react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table'
 import DatePicker from '@/components/ui/DatePicker'
+import { Button } from '@/components/ui/button'
+import IconButton from '@/components/IconButton'
 import { useReportPageLoading } from '../../hooks/usePageReady'
 
 interface AuditEntry {
@@ -309,22 +311,22 @@ export default function AuditLogPage() {
   return (
     <div className="mx-auto max-w-5xl space-y-4 p-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
           <h1 className="flex items-center gap-2 text-lg font-bold text-gray-900 dark:text-white">
             <ScrollText className="h-5 w-5" />
             {t('auditTitle')}
           </h1>
           <p className="text-xs text-gray-500 dark:text-gray-400">{t('auditDescription')}</p>
         </div>
-        <button
+        <Button
           onClick={() => { fetchLogs(page); fetchStats() }}
           disabled={loading}
-          className="flex items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-700 disabled:opacity-50"
+          className="shrink-0"
+          icon={<RefreshCcw className={loading ? 'animate-spin' : ''} />}
         >
-          <RefreshCcw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
           {t('auditRefresh')}
-        </button>
+        </Button>
       </div>
 
       {/* Stats cards */}
@@ -353,7 +355,7 @@ export default function AuditLogPage() {
           <select
             value={collection}
             onChange={(ev) => setCollection(ev.target.value)}
-            className="rounded-md border border-gray-200 bg-white px-2 py-1.5 text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+            className="h-11 min-w-0 rounded-md border border-gray-200 bg-white px-2 text-sm sm:h-9 sm:text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
           >
             <option value="">{t('auditAllCollections')}</option>
             {availableCollections.map((c) => <option key={c} value={c}>{c}</option>)}
@@ -362,7 +364,7 @@ export default function AuditLogPage() {
           <select
             value={action}
             onChange={(ev) => setAction(ev.target.value)}
-            className="rounded-md border border-gray-200 bg-white px-2 py-1.5 text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+            className="h-11 min-w-0 rounded-md border border-gray-200 bg-white px-2 text-sm sm:h-9 sm:text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
           >
             <option value="">{t('auditAllActions')}</option>
             {ACTIONS.map((a) => <option key={a} value={a}>{a}</option>)}
@@ -371,7 +373,7 @@ export default function AuditLogPage() {
           <select
             value={level}
             onChange={(ev) => setLevel(ev.target.value)}
-            className="rounded-md border border-gray-200 bg-white px-2 py-1.5 text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+            className="h-11 min-w-0 rounded-md border border-gray-200 bg-white px-2 text-sm sm:h-9 sm:text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
           >
             <option value="">{t('auditAllLevels')}</option>
             {LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
@@ -382,7 +384,7 @@ export default function AuditLogPage() {
             placeholder={t('auditRecordId')}
             value={recordId}
             onChange={(ev) => setRecordId(ev.target.value)}
-            className="rounded-md border border-gray-200 bg-white px-2 py-1.5 text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+            className="h-11 min-w-0 rounded-md border border-gray-200 bg-white px-2 text-sm sm:h-9 sm:text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
           />
 
           <input
@@ -390,7 +392,7 @@ export default function AuditLogPage() {
             placeholder={t('auditActorId')}
             value={actor}
             onChange={(ev) => setActor(ev.target.value)}
-            className="rounded-md border border-gray-200 bg-white px-2 py-1.5 text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+            className="h-11 min-w-0 rounded-md border border-gray-200 bg-white px-2 text-sm sm:h-9 sm:text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
           />
 
           <input
@@ -398,7 +400,7 @@ export default function AuditLogPage() {
             placeholder={t('auditSearchDetails')}
             value={search}
             onChange={(ev) => setSearch(ev.target.value)}
-            className="rounded-md border border-gray-200 bg-white px-2 py-1.5 text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+            className="h-11 min-w-0 rounded-md border border-gray-200 bg-white px-2 text-sm sm:h-9 sm:text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
           />
 
           <DatePicker
@@ -413,22 +415,13 @@ export default function AuditLogPage() {
         </div>
 
         <div className="mt-2 flex items-center gap-2">
-          <button
-            onClick={() => handleSearch()}
-            disabled={loading}
-            className="flex items-center gap-1 rounded-md bg-brand-600 px-3 py-1 text-xs font-medium text-white hover:bg-brand-700 disabled:opacity-50"
-          >
-            <Search className="h-3 w-3" />
+          <Button onClick={() => handleSearch()} disabled={loading} icon={<Search />}>
             {t('auditSearch')}
-          </button>
+          </Button>
           {hasFilters && (
-            <button
-              onClick={clearFilters}
-              className="flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-500 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-700"
-            >
-              <X className="h-3 w-3" />
+            <Button variant="outline" onClick={clearFilters} icon={<X />}>
               {t('auditClearFilters')}
-            </button>
+            </Button>
           )}
           {result && (
             <span className="ml-auto text-[10px] text-gray-400">
@@ -480,37 +473,45 @@ export default function AuditLogPage() {
             {/* Pagination */}
             {result.totalPages > 1 && (
               <div className="flex items-center justify-center gap-1 border-t border-gray-100 px-3 py-2 dark:border-gray-700">
-                <button
+                <IconButton
+                  size="sm"
                   onClick={() => fetchLogs(1)}
                   disabled={page === 1}
-                  className="rounded p-1 text-gray-400 hover:bg-gray-100 disabled:opacity-30 dark:hover:bg-gray-700"
+                  className="text-gray-400 disabled:opacity-30"
+                  label={t('auditFirstPage', { defaultValue: 'First page' })}
                 >
-                  <ChevronsLeft className="h-4 w-4" />
-                </button>
-                <button
+                  <ChevronsLeft />
+                </IconButton>
+                <IconButton
+                  size="sm"
                   onClick={() => fetchLogs(page - 1)}
                   disabled={page === 1}
-                  className="rounded p-1 text-gray-400 hover:bg-gray-100 disabled:opacity-30 dark:hover:bg-gray-700"
+                  className="text-gray-400 disabled:opacity-30"
+                  label={t('auditPrevPage', { defaultValue: 'Previous page' })}
                 >
-                  <ChevronLeft className="h-4 w-4" />
-                </button>
+                  <ChevronLeft />
+                </IconButton>
                 <span className="px-2 text-xs text-gray-500">
                   {page} / {result.totalPages}
                 </span>
-                <button
+                <IconButton
+                  size="sm"
                   onClick={() => fetchLogs(page + 1)}
                   disabled={page >= result.totalPages}
-                  className="rounded p-1 text-gray-400 hover:bg-gray-100 disabled:opacity-30 dark:hover:bg-gray-700"
+                  className="text-gray-400 disabled:opacity-30"
+                  label={t('auditNextPage', { defaultValue: 'Next page' })}
                 >
-                  <ChevronRight className="h-4 w-4" />
-                </button>
-                <button
+                  <ChevronRight />
+                </IconButton>
+                <IconButton
+                  size="sm"
                   onClick={() => fetchLogs(result.totalPages)}
                   disabled={page >= result.totalPages}
-                  className="rounded p-1 text-gray-400 hover:bg-gray-100 disabled:opacity-30 dark:hover:bg-gray-700"
+                  className="text-gray-400 disabled:opacity-30"
+                  label={t('auditLastPage', { defaultValue: 'Last page' })}
                 >
-                  <ChevronsRight className="h-4 w-4" />
-                </button>
+                  <ChevronsRight />
+                </IconButton>
               </div>
             )}
           </>

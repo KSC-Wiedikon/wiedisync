@@ -1,5 +1,6 @@
 // src/modules/admin/SqlWorkspacePage.tsx
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import IconButton from '@/components/IconButton'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
@@ -402,23 +403,20 @@ export default function SqlWorkspacePage() {
         <Database className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
         <span className="text-xs font-semibold text-foreground">{t('sqlWorkspaceSchema')}</span>
         <span className="ml-auto font-mono text-[10px] text-muted-foreground">{tables.length}</span>
-        <Button
-          variant="ghost"
-          size="icon"
+        <IconButton
+          size="sm"
           onClick={() => void loadSchema()}
-          title={t('sqlWorkspaceRefreshSchema')}
-          aria-label={t('sqlWorkspaceRefreshSchema')}
-          className="h-8 w-8"
+          label={t('sqlWorkspaceRefreshSchema')}
         >
           <RefreshCw className={schemaLoading ? 'animate-spin motion-reduce:animate-none' : ''} />
-        </Button>
+        </IconButton>
       </div>
       <Input
         type="text"
         value={tableFilter}
         onChange={(e) => setTableFilter(e.target.value)}
         placeholder={t('sqlWorkspaceFilterTables')}
-        className="mb-2 h-9 text-xs"
+        className="mb-2 text-xs"
       />
       {/* `table-fixed` + the neutralised inner wrapper is what keeps this
           honest: long identifiers (`svrz_spielplaner_contacts`) otherwise widen
@@ -443,7 +441,7 @@ export default function SqlWorkspacePage() {
                         <ChevronRight
                           className={`h-3 w-3 shrink-0 text-muted-foreground transition-transform motion-reduce:transition-none ${open ? 'rotate-90' : ''}`}
                         />
-                        <span className="min-w-0 flex-1 truncate font-mono text-xs text-foreground">{tb.name}</span>
+                        <span className="min-w-0 flex-1 truncate font-mono text-xs text-foreground" title={tb.name}>{tb.name}</span>
                         <span className="ml-auto shrink-0 font-mono text-[10px] text-muted-foreground">
                           {tb.columns.length}
                         </span>
@@ -455,7 +453,7 @@ export default function SqlWorkspacePage() {
                         size="sm"
                         onClick={() => insertTableRef(tb.name)}
                         title={t('sqlWorkspaceInsertSelect')}
-                        className="min-h-11 font-mono text-[10px] text-primary sm:min-h-9"
+                        className="font-mono text-[10px] text-primary"
                       >
                         SELECT
                       </Button>
@@ -466,7 +464,7 @@ export default function SqlWorkspacePage() {
                       <TableRow key={c.name} className="bg-muted/30">
                         <TableCell colSpan={2} className="py-1 pl-6 pr-2 text-[11px]">
                           <div className="flex items-baseline gap-1.5">
-                            <span className="min-w-0 flex-1 truncate font-mono text-foreground">{c.name}</span>
+                            <span className="min-w-0 flex-1 truncate font-mono text-foreground" title={c.name}>{c.name}</span>
                             {c.pk && (
                               <span className="shrink-0 text-[9px] font-semibold uppercase text-primary">pk</span>
                             )}
@@ -522,7 +520,7 @@ export default function SqlWorkspacePage() {
             variant="outline"
             size="sm"
             onClick={() => setSchemaSheetOpen(true)}
-            className="ml-auto min-h-9"
+            className="ml-auto"
           >
             <Table2 />
             {t('sqlWorkspaceTables', { count: tables.length })}
@@ -546,10 +544,10 @@ export default function SqlWorkspacePage() {
               <Button
                 variant="outline"
                 title={t('sqlWorkspaceAskAiHint')}
-                className="w-full gap-1.5 border-primary/60 bg-primary/5 px-2.5 text-xs font-semibold text-primary hover:bg-primary/10 hover:text-primary md:h-9 md:min-h-9 md:w-auto"
+                className="w-full gap-1.5 border-primary/60 bg-primary/5 px-2.5 text-xs font-semibold text-primary hover:bg-primary/10 hover:text-primary md:w-auto"
               >
                 <Sparkles />
-                <span className="truncate">{t('sqlWorkspaceAskAi')}</span>
+                <span className="truncate" title={t('sqlWorkspaceAskAi')}>{t('sqlWorkspaceAskAi')}</span>
                 {aiMemory.length > 0 && (
                   <span
                     className="rounded-full bg-primary/15 px-1.5 font-mono text-[10px]"
@@ -577,7 +575,7 @@ export default function SqlWorkspacePage() {
                       variant="ghost"
                       size="sm"
                       onClick={clearAiMemory}
-                      className="ml-auto h-7 min-h-0 px-1.5 text-[10px] text-muted-foreground hover:text-destructive"
+                      className="ml-auto px-1.5 text-[10px] text-muted-foreground hover:text-destructive"
                     >
                       {t('sqlWorkspaceAiClearMemory')}
                     </Button>
@@ -614,7 +612,7 @@ export default function SqlWorkspacePage() {
                   disabled={!aiPrompt.trim()}
                   loading={aiLoading}
                   icon={<Sparkles />}
-                  className="flex-1 px-3 text-xs font-semibold sm:h-9 sm:min-h-9 sm:flex-none"
+                  className="flex-1 px-3 text-xs font-semibold sm:flex-none"
                 >
                   {t('sqlWorkspaceAskAiGenerate')}
                 </Button>
@@ -629,7 +627,7 @@ export default function SqlWorkspacePage() {
 
           <label
             htmlFor="sql-write-mode"
-            className={`inline-flex min-h-11 w-full cursor-pointer select-none items-center justify-center gap-1.5 whitespace-nowrap rounded-md border px-2 text-xs font-medium transition-colors md:min-h-9 md:w-auto md:gap-2 md:px-2.5 ${
+            className={`inline-flex min-h-11 w-full cursor-pointer select-none items-center justify-center gap-1.5 whitespace-nowrap rounded-md border px-2 text-xs font-medium transition-colors sm:min-h-9 md:w-auto md:gap-2 md:px-2.5 ${
               writeMode
                 ? 'border-destructive bg-destructive/10 text-destructive'
                 : 'border-border bg-background text-muted-foreground'
@@ -651,7 +649,7 @@ export default function SqlWorkspacePage() {
             loading={loading}
             icon={<Play />}
             title={t('sqlWorkspaceRunHint')}
-            className="w-full px-3 text-xs font-semibold md:h-9 md:min-h-9 md:w-auto"
+            className="w-full px-3 text-xs font-semibold md:w-auto"
           >
             {t('sqlWorkspaceRun')}
           </Button>
@@ -705,16 +703,14 @@ export default function SqlWorkspacePage() {
                   </Button>
                 ))}
               </div>
-              <Button
-                variant="ghost"
-                size="icon"
+              <IconButton
+                size="sm"
                 onClick={clearRecent}
-                aria-label={t('sqlWorkspaceClearRecent')}
-                title={t('sqlWorkspaceClearRecent')}
-                className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                label={t('sqlWorkspaceClearRecent')}
+                className="shrink-0 text-muted-foreground hover:text-destructive"
               >
                 <X />
-              </Button>
+              </IconButton>
             </div>
           )}
 
@@ -738,7 +734,7 @@ export default function SqlWorkspacePage() {
                     disabled={exporting !== null}
                     icon={<FileDown />}
                     title={t('sqlWorkspaceExportCsv')}
-                    className="gap-1 px-2 text-[11px] sm:h-9 sm:min-h-9"
+                    className="gap-1 px-2 text-[11px]"
                   >
                     {t('sqlWorkspaceExportCsv')}
                   </Button>
@@ -749,7 +745,7 @@ export default function SqlWorkspacePage() {
                     loading={exporting === 'xlsx'}
                     icon={<FileSpreadsheet />}
                     title={t('sqlWorkspaceExportXlsx')}
-                    className="gap-1 px-2 text-[11px] sm:h-9 sm:min-h-9"
+                    className="gap-1 px-2 text-[11px]"
                   >
                     {t('sqlWorkspaceExportXlsx')}
                   </Button>
@@ -759,7 +755,7 @@ export default function SqlWorkspacePage() {
                     disabled={exporting !== null}
                     icon={copied ? <Check className="text-emerald-600 dark:text-emerald-400" /> : <ClipboardCopy />}
                     title={t('sqlWorkspaceCopyTableHint')}
-                    className="gap-1 px-2 text-[11px] sm:h-9 sm:min-h-9"
+                    className="gap-1 px-2 text-[11px]"
                   >
                     {copied ? t('sqlWorkspaceCopied') : t('sqlWorkspaceCopyTable')}
                   </Button>
@@ -792,7 +788,7 @@ export default function SqlWorkspacePage() {
                           variant="outline"
                           size="sm"
                           onClick={() => applyFix(s)}
-                          className="min-h-11 border-primary/60 bg-primary/15 px-2.5 font-mono text-[11px] font-semibold text-foreground hover:bg-primary/25 sm:min-h-9"
+                          className="border-primary/60 bg-primary/15 px-2.5 font-mono text-[11px] font-semibold text-foreground hover:bg-primary/25"
                         >
                           {s}
                         </Button>

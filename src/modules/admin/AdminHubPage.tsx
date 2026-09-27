@@ -101,7 +101,7 @@ export default function AdminHubPage() {
           onChange={(ev) => setQuery(ev.target.value)}
           placeholder={t('hubSearch')}
           aria-label={t('hubSearch')}
-          className="h-11 pl-9 dark:bg-brand-900/40"
+          className="pl-9 dark:bg-brand-900/40"
         />
       </div>
 

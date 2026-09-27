@@ -176,7 +176,7 @@ export function TransferCohortTabs({
         onChange={(e) => { onSearchChange(e.target.value) }}
         placeholder={t('trSearchPlaceholder')}
         aria-label={t('trSearchPlaceholder')}
-        className="min-h-[44px] pl-8 sm:min-h-0"
+        className="pl-8"
       />
     </div>
   )

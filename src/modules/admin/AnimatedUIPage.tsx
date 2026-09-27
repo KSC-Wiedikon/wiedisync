@@ -116,7 +116,7 @@ function Demo({ title, lib, importPath, children }: {
     <div className="group relative flex flex-col rounded-lg border bg-card overflow-hidden">
       <div className="flex items-center justify-between px-3 py-2 border-b bg-muted/30">
         <div className="flex items-center gap-2 min-w-0">
-          <span className="font-mono text-xs font-medium truncate">{title}</span>
+          <span className="font-mono text-xs font-medium truncate" title={title}>{title}</span>
           <span className={
             'rounded px-1.5 py-0.5 text-[10px] font-medium ' +
             (lib === 'magicui' ? 'bg-purple-500/15 text-purple-700 dark:text-purple-300' : 'bg-amber-500/15 text-amber-700 dark:text-amber-300')
@@ -593,7 +593,7 @@ export default function AnimatedUIPage() {
                 className="rounded-md border bg-card px-3 py-2 hover:bg-accent transition-colors"
               >
                 <div className="font-mono text-sm font-medium">{name}</div>
-                <div className="text-[10px] text-muted-foreground truncate">@/components/magicui/{name}</div>
+                <div className="text-[10px] text-muted-foreground truncate" title={`@/components/magicui/${name}`}>@/components/magicui/{name}</div>
               </a>
             ))}
           </div>
@@ -614,7 +614,7 @@ export default function AnimatedUIPage() {
                 className="rounded-md border bg-card px-3 py-2 hover:bg-accent transition-colors"
               >
                 <div className="font-mono text-sm font-medium">{name}</div>
-                <div className="text-[10px] text-muted-foreground truncate">@/components/aceternity/{name}</div>
+                <div className="text-[10px] text-muted-foreground truncate" title={`@/components/aceternity/${name}`}>@/components/aceternity/{name}</div>
               </a>
             ))}
           </div>

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Button } from '@/components/ui/button'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Check, Copy } from 'lucide-react'
@@ -27,21 +28,21 @@ export function CopyButton({ value, title, label }: { value: string; title: stri
     }
   }
   return (
-    <button
+    <Button
       type="button"
+      size="sm"
+      variant="outline"
       onClick={() => { void copy() }}
       title={title}
       aria-label={title}
-      // ⚠ BOTH axes get the 44px floor. Icon-only this button is 44px tall but
-      // only ~30px wide (a 14px icon between two 8px paddings), which fails the
-      // touch-target rule on the short axis. Reference impl: RosterEditor.tsx:556
-      // sizes both (`h-11 w-11 … sm:h-8 sm:w-8`).
-      className="inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-100 sm:min-h-0 sm:min-w-0 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+      // Dense `sm` tier (it sits in table cells). Icon-only it would be ~30px
+      // wide, so the min-width keeps it square on the same scale (36 → 32).
+      className="min-w-9 shrink-0 gap-1 px-2 text-gray-600 sm:min-w-8 dark:text-gray-300"
     >
       {copied
         ? <Check className="h-3.5 w-3.5 text-green-600 dark:text-green-400" aria-hidden="true" />
         : <Copy className="h-3.5 w-3.5" aria-hidden="true" />}
       {label && <span>{copied ? t('trCopied') : label}</span>}
-    </button>
+    </Button>
   )
 }

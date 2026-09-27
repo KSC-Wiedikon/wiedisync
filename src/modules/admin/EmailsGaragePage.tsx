@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import IconButton from '@/components/IconButton'
+import { Button } from '@/components/ui/button'
 import { useTranslation } from 'react-i18next'
 import { AlertTriangle, Check, Copy, Eye, EyeOff, KeyRound, Megaphone, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -210,12 +212,12 @@ export default function EmailsGaragePage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder={t('egSearchPlaceholder')}
-          className="min-w-[12rem] flex-1 rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+          className="h-11 min-w-[12rem] flex-1 rounded-md border border-gray-200 bg-transparent px-3 text-sm sm:h-9 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
         />
         <select
           value={sportFilter}
           onChange={(e) => setSportFilter(e.target.value as '' | Sport)}
-          className="rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+          className="h-11 rounded-md border border-gray-200 bg-transparent px-3 text-sm sm:h-9 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
         >
           <option value="">{t('egAllSports')}</option>
           {SPORTS.filter((s) => data?.scope?.includes(s) ?? true).map((s) => (
@@ -230,22 +232,20 @@ export default function EmailsGaragePage() {
 
         {canEdit && (
           <>
-            <button
+            <Button variant="outline"
               onClick={syncMigadu}
               disabled={syncing || data?.migadu_configured === false}
               title={data?.migadu_configured === false ? t('egMigaduMissing') : undefined}
-              className="flex min-h-[44px] items-center gap-1.5 rounded-md border border-gray-200 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-40 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
             >
               <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
               {t('egSyncMigadu')}
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={() => setEditing('new')}
-              className="flex min-h-[44px] items-center gap-1.5 rounded-md bg-gray-900 px-3 py-2 text-sm text-white hover:bg-gray-700 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-300"
             >
               <Plus className="h-4 w-4" />
               {t('egAdd')}
-            </button>
+            </Button>
           </>
         )}
       </div>
@@ -337,24 +337,22 @@ export default function EmailsGaragePage() {
                         // wrap, and Copy is there for those.
                         <div className="flex flex-col gap-1">
                           <div className="flex flex-wrap items-center gap-1.5">
-                            <button
+                            <Button size="sm" variant="outline"
                               type="button"
                               onClick={() => reveal(a)}
                               disabled={revealing === a.id || data?.vault_configured === false}
-                              className="flex min-h-[44px] items-center gap-1.5 rounded-md border border-gray-200 px-2 py-1 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-40 sm:min-h-0 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
                             >
                               {plain !== undefined ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                               {plain !== undefined ? t('egHide') : t('egReveal')}
-                            </button>
+                            </Button>
                             {plain !== undefined && (
-                              <button
+                              <Button size="sm" variant="outline"
                                 type="button"
                                 onClick={() => copy(a, plain)}
-                                className="flex min-h-[44px] items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-sm text-gray-600 hover:bg-gray-50 sm:min-h-0 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
                               >
                                 {copied === a.id ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
                                 {copied === a.id ? t('egCopied') : t('egCopy')}
-                              </button>
+                              </Button>
                             )}
                           </div>
                           {plain !== undefined && (
@@ -373,22 +371,22 @@ export default function EmailsGaragePage() {
                     {canEdit && (
                       <TableCell className="align-top text-right">
                         <div className="flex flex-col items-end gap-1 sm:flex-row sm:justify-end">
-                          <button
+                          <IconButton size="sm"
                             type="button"
                             onClick={() => setEditing(a)}
-                            aria-label={t('egEdit')}
-                            className="flex h-11 w-11 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 sm:h-8 sm:w-8 dark:text-gray-400 dark:hover:bg-gray-700"
+                            label={t('egEdit')}
+                            className="text-gray-500 dark:text-gray-400"
                           >
                             <Pencil className="h-4 w-4" />
-                          </button>
-                          <button
+                          </IconButton>
+                          <IconButton size="sm"
                             type="button"
                             onClick={() => remove(a)}
-                            aria-label={t('egDelete')}
-                            className="flex h-11 w-11 items-center justify-center rounded-md text-red-600 hover:bg-red-50 sm:h-8 sm:w-8 dark:text-red-400 dark:hover:bg-red-950/40"
+                            label={t('egDelete')}
+                            className="text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-950/40"
                           >
                             <Trash2 className="h-4 w-4" />
-                          </button>
+                          </IconButton>
                         </div>
                       </TableCell>
                     )}
@@ -543,16 +541,16 @@ function AccountDialog({ account, vaultConfigured, onClose, onSaved }: {
                 disabled={clearPassword || !vaultConfigured}
                 onChange={(e) => { setPassword(e.target.value); setPasswordTouched(true) }}
                 placeholder={isNew ? '' : t('egFieldPasswordKeep')}
-                className={`${field} disabled:opacity-40`}
+                className={`${field} h-11 disabled:opacity-40 sm:h-9`}
               />
-              <button
+              <IconButton variant="outline"
                 type="button"
                 onClick={() => setShowPassword((v) => !v)}
-                aria-label={showPassword ? t('egHide') : t('egReveal')}
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-gray-200 text-gray-500 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-700"
+                label={showPassword ? t('egHide') : t('egReveal')}
+                className="shrink-0 text-gray-500 dark:text-gray-400"
               >
                 {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
+              </IconButton>
             </div>
             {!vaultConfigured && <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">{t('egVaultMissing')}</p>}
             {!isNew && account.has_password && (
@@ -575,21 +573,19 @@ function AccountDialog({ account, vaultConfigured, onClose, onSaved }: {
         </div>
 
         <DialogFooter>
-          <button
+          <Button variant="outline"
             type="button"
             onClick={onClose}
-            className="min-h-[44px] rounded-md border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
           >
             {t('egCancel')}
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
             onClick={save}
             disabled={saving || !address.trim()}
-            className="min-h-[44px] rounded-md bg-gray-900 px-4 py-2 text-sm text-white hover:bg-gray-700 disabled:opacity-40 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-300"
           >
             {t('egSave')}
-          </button>
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -192,7 +192,7 @@ export default function MemberDepartModal({
         <div className="space-y-1">
           <label className="text-sm font-medium text-foreground">{t('explorerBulkDepartStatus')}</label>
           <Select value={status} onValueChange={setStatus} disabled={running}>
-            <SelectTrigger className="min-h-[44px]">
+            <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -233,7 +233,7 @@ export default function MemberDepartModal({
         </div>
 
         <div className="flex justify-end gap-2 pt-1">
-          <Button type="button" variant="outline" onClick={onClose} disabled={running} className="min-h-[44px]">
+          <Button type="button" variant="outline" onClick={onClose} disabled={running}>
             {t('explorerBulkClose')}
           </Button>
           <Button
@@ -241,7 +241,6 @@ export default function MemberDepartModal({
             variant="destructive"
             onClick={handleApply}
             disabled={running || !exitDate || noop || rosterError || rosters === null}
-            className="min-h-[44px]"
           >
             {running && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
             {t('explorerDepartApply')}

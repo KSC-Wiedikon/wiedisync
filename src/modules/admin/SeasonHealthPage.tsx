@@ -165,8 +165,8 @@ export default function SeasonHealthPage() {
   if (initial) return null
 
   const header = (
-    <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-      <div className="min-w-0">
+    <div className="mb-4 flex flex-wrap items-start gap-3">
+      <div className="min-w-0 flex-1">
         <h1 className="text-2xl font-bold text-foreground">{t('title')}</h1>
         <p className="mt-1 text-sm text-muted-foreground">{t('subtitle')}</p>
         {report && (
@@ -178,7 +178,7 @@ export default function SeasonHealthPage() {
       <Button
         type="button" variant="outline" size="sm"
         onClick={rescan} disabled={loading} aria-busy={loading}
-        className="min-h-11 gap-1.5 sm:min-h-0"
+        className="gap-1.5"
       >
         <RefreshCcw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
         {loading ? t('scanning') : t('rescan')}
@@ -202,9 +202,9 @@ export default function SeasonHealthPage() {
           <span className="min-w-0 flex-1">
             {notDeployed ? t('notDeployed') : `${t('loadFailed')} (${error?.message ?? ''})`}
           </span>
-          <button type="button" onClick={retry} className="min-h-11 underline hover:no-underline sm:min-h-0">
+          <Button size="sm" variant="outline" type="button" onClick={retry} className="shrink-0">
             {t('retry')}
-          </button>
+          </Button>
         </div>
       </div>
     )
@@ -243,7 +243,7 @@ export default function SeasonHealthPage() {
       )}
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as SeasonTab)}>
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="mb-4 flex flex-wrap items-center gap-3">
           <TabsList className="mb-0 flex-wrap group-data-[orientation=horizontal]/tabs:h-auto">
             <TabsTrigger value="volleyball" className="min-h-11 sm:min-h-0">
               <VolleyballIcon className="h-4 w-4" />
@@ -260,7 +260,7 @@ export default function SeasonHealthPage() {
               <TabPills totals={totalsByTab.club} />
             </TabsTrigger>
           </TabsList>
-          <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm text-muted-foreground sm:min-h-0">
+          <label className="ml-auto flex min-h-11 cursor-pointer items-center gap-2 text-sm text-muted-foreground sm:min-h-0">
             <Checkbox checked={showClean} onCheckedChange={(v) => setShowClean(v === true)} />
             {t('showClean')}
           </label>

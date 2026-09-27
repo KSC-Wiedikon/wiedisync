@@ -1,5 +1,6 @@
 // src/modules/admin/ExplorePage.tsx
 import { useCallback, useMemo, useRef, useState } from 'react'
+import { Button } from '@/components/ui/button'
 import { useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { LayoutGrid, ListTree, RefreshCw } from 'lucide-react'
@@ -195,43 +196,40 @@ export default function ExplorePage() {
         <ExplorerMemberFilters value={memberFilters} onChange={setMemberFilters} seasons={seasons} />
         {/* Tree / grid view toggle */}
         <div className="flex overflow-hidden rounded-md border border-border" role="group" aria-label={t('explorerViewToggle')}>
-          <button
+          <Button
             type="button"
+            size="sm"
+            variant={view === 'tree' ? 'default' : 'ghost'}
             onClick={() => setView('tree')}
-            className={
-              'inline-flex items-center gap-1 px-2 py-1.5 text-xs font-medium ' +
-              (view === 'tree' ? 'bg-primary text-primary-foreground' : 'bg-card text-foreground hover:bg-muted')
-            }
+            className="gap-1 rounded-none px-2 shadow-none"
             title={t('explorerViewTree')}
             aria-pressed={view === 'tree'}
           >
             <ListTree className="h-3.5 w-3.5" />
             <span className="hidden lg:inline">{t('explorerViewTree')}</span>
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            size="sm"
+            variant={view === 'grid' ? 'default' : 'ghost'}
             onClick={() => setView('grid')}
-            className={
-              'inline-flex items-center gap-1 px-2 py-1.5 text-xs font-medium ' +
-              (view === 'grid' ? 'bg-primary text-primary-foreground' : 'bg-card text-foreground hover:bg-muted')
-            }
+            className="gap-1 rounded-none px-2 shadow-none"
             title={t('explorerViewGrid')}
             aria-pressed={view === 'grid'}
           >
             <LayoutGrid className="h-3.5 w-3.5" />
             <span className="hidden lg:inline">{t('explorerViewGrid')}</span>
-          </button>
+          </Button>
         </div>
-        <button
+        <Button size="sm" variant="outline"
           type="button"
           onClick={handleRefresh}
           disabled={isLoading}
-          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-50"
           title={refreshedAt ? t('explorerRefreshedAt', { time: refreshedAt }) : undefined}
         >
           <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
           <span className="hidden sm:inline">{t('explorerRefresh')}</span>
-        </button>
+        </Button>
       </header>
 
       {/* Body — grid view */}

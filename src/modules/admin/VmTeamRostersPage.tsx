@@ -254,8 +254,8 @@ export default function VmTeamRostersPage() {
           {/* ── Last run ────────────────────────────────────────────── */}
           {run && run.status !== 'running' && (
             <div className="mt-4 rounded-lg border bg-card p-4 dark:border-gray-700">
-              <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+              <div className="flex flex-wrap items-baseline gap-2">
+                <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 min-w-0 flex-1">
                   {run.dryRun ? t('vmtLastPreview') : t('vmtLastRun')}
                   <span className="ml-2 text-sm font-normal text-gray-500 dark:text-gray-400">
                     {formatDateTimeCompactZurich(run.finishedAt ?? run.startedAt)}
@@ -322,9 +322,9 @@ export default function VmTeamRostersPage() {
               )}
               {run.log.length > 0 && (
                 <div className="mt-3">
-                  <button type="button" className="text-xs text-primary underline-offset-2 hover:underline" onClick={() => setShowLog((v) => !v)}>
+                  <Button size="sm" variant="link" type="button" className="px-0" onClick={() => setShowLog((v) => !v)}>
                     {showLog ? t('vmtHideLog') : t('vmtShowLog')}
-                  </button>
+                  </Button>
                   {showLog && (
                     <pre className="mt-2 max-h-72 overflow-auto rounded-md bg-gray-100 p-3 text-[11px] leading-snug text-gray-800 dark:bg-gray-900 dark:text-gray-200">
                       {run.log.join('\n')}
@@ -336,8 +336,8 @@ export default function VmTeamRostersPage() {
           )}
 
           {/* ── Plan table ──────────────────────────────────────────── */}
-          <div className="mt-6 flex flex-wrap items-center justify-between gap-2">
-            <div className="flex flex-wrap gap-2 text-xs">
+          <div className="mt-6 flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap gap-2 text-xs min-w-0 flex-1">
               {(Object.keys(totals) as PlanStatus[]).filter((s) => totals[s] > 0).map((s) => (
                 <Badge key={s} variant={STATUS_BADGE[s]}>{t(`vmtStatus_${s}`)}: {totals[s]}</Badge>
               ))}

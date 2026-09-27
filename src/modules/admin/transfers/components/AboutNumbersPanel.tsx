@@ -24,7 +24,7 @@ export function AboutNumbersPanel() {
   return (
     <Collapsible className="mt-6">
       <CollapsibleTrigger asChild>
-        <Button variant="ghost" size="sm" className="group min-h-[44px] sm:min-h-0">
+        <Button variant="ghost" size="sm" className="group">
           <ChevronRight
             className="h-4 w-4 transition-transform group-data-[state=open]:rotate-90"
             aria-hidden="true"

@@ -151,7 +151,7 @@ export default function ClubdeskRegistrationZone({ registrationId }: { registrat
       <div className="flex flex-wrap items-center gap-2 text-sm text-red-600 dark:text-red-400">
         <CircleAlert className="h-4 w-4 shrink-0" />
         {t('cdRegCheckFailed')}
-        <Button type="button" variant="outline" size="sm" onClick={refetch} className="ml-auto min-h-[44px] gap-1.5 sm:min-h-0">
+        <Button type="button" variant="outline" size="sm" onClick={refetch} className="ml-auto gap-1.5">
           <RefreshCw className="h-3.5 w-3.5" />
           {t('cdRegRetry')}
         </Button>
@@ -181,7 +181,7 @@ export default function ClubdeskRegistrationZone({ registrationId }: { registrat
             <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">({status.clubdesk_id})</span>
           )}
         </span>
-        <Button type="button" variant="outline" size="sm" onClick={push} disabled={!!busy} className="ml-auto min-h-[44px] gap-1.5 sm:min-h-0">
+        <Button type="button" variant="outline" size="sm" onClick={push} disabled={!!busy} className="ml-auto gap-1.5">
           {busy === 'push' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ArrowUpFromLine className="h-3.5 w-3.5" />}
           {t('cdRegSync')}
         </Button>
@@ -208,7 +208,7 @@ export default function ClubdeskRegistrationZone({ registrationId }: { registrat
             <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">({contactHint})</span>
           )}
         </span>
-        <Button type="button" variant="outline" size="sm" onClick={link} disabled={!!busy} className="ml-auto min-h-[44px] gap-1.5 sm:min-h-0">
+        <Button type="button" variant="outline" size="sm" onClick={link} disabled={!!busy} className="ml-auto gap-1.5">
           {busy === 'link' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Link2 className="h-3.5 w-3.5" />}
           {t('cdRegLink')}
         </Button>
@@ -234,7 +234,7 @@ export default function ClubdeskRegistrationZone({ registrationId }: { registrat
       <div className="flex flex-wrap items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
         <CircleAlert className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
         {busy === 'push' ? t('clubdeskUpPushing') : t('cdRegNotIn')}
-        <Button type="button" variant="outline" size="sm" onClick={push} disabled={!!busy} className="ml-auto min-h-[44px] gap-1.5 sm:min-h-0">
+        <Button type="button" variant="outline" size="sm" onClick={push} disabled={!!busy} className="ml-auto gap-1.5">
           {busy === 'push' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ArrowUpFromLine className="h-3.5 w-3.5" />}
           {t('cdRegSync')}
         </Button>

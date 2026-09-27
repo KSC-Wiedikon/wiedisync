@@ -523,8 +523,8 @@ export default function ClubdeskSyncPath({
 
   return (
     <div className="rounded-lg border border-gray-200 px-4 py-3 dark:border-gray-700">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
+      <div className="flex flex-wrap items-start gap-3">
+        <div className="min-w-0 flex-1">
           <h3 className="text-sm font-medium text-gray-900 dark:text-white">{t('dhPathTitle')}</h3>
           <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{t('dhPathHint')}</p>
         </div>

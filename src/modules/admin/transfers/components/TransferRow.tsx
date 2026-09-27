@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next'
+import IconButton from '@/components/IconButton'
 import { Ban, ChevronRight } from 'lucide-react'
 import { Button } from '../../../../components/ui/button'
 import { TableCell, TableRow } from '../../../../components/ui/table'
@@ -182,23 +183,18 @@ export function TransferRow({ member, mode, columns, derivations, actions }: {
             `has-aria-expanded:bg-muted/50`, so an open row stays tied to its
             detail visually. */}
         <TableCell className="w-11 align-top">
-          <Button
+          <IconButton
             type="button"
-            variant="ghost"
-            size="icon"
-            // Both axes carry the 44px floor on touch; back to the primitive's
-            // own size from `sm`.
-            className="h-11 w-11 shrink-0 sm:h-9 sm:w-9"
+            className="shrink-0"
             aria-expanded={open}
-            aria-label={t('trRowDetail')}
-            title={t('trRowDetail')}
+            label={t('trRowDetail')}
             onClick={() => { actions.onToggleRow(id, !open) }}
           >
             <ChevronRight
               className={`h-4 w-4 transition-transform${open ? ' rotate-90' : ''}`}
               aria-hidden="true"
             />
-          </Button>
+          </IconButton>
         </TableCell>
       </TableRow>
 
@@ -263,7 +259,6 @@ function RuledOutByCell({ member, vmSaysSwiss, saving, onSetStatus }: {
           type="button"
           variant="outline"
           size="sm"
-          className="min-h-[44px] sm:min-h-0"
           disabled={saving}
           onClick={() => { onSetStatus(member, 'pending') }}
         >

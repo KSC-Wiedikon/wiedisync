@@ -1,4 +1,5 @@
 import { Fragment, useState, useEffect, useMemo } from 'react'
+import { Button } from '@/components/ui/button'
 import { useTranslation } from 'react-i18next'
 import { kscwApi } from '../../lib/api'
 import { formatDateZurich, getCurrentSeason } from '../../utils/dateHelpers'
@@ -345,7 +346,7 @@ export default function ClubStatsPage() {
       <div className="p-6">
         <h1 className="text-xl font-bold mb-4">{t('clubStatsTitle')}</h1>
         <div className="text-destructive">{error}</div>
-        <button onClick={fetchStats} className="mt-2 text-sm underline">{t('retry')}</button>
+        <Button size="sm" variant="outline" onClick={fetchStats} className="mt-2">{t('retry')}</Button>
       </div>
     )
   }
@@ -379,7 +380,7 @@ export default function ClubStatsPage() {
               value={effectiveSeason}
               onChange={e => setSeasonFilter(e.target.value)}
               aria-label={t('clubStatsSeason')}
-              className="rounded-lg border border-border bg-background px-3 py-1.5 text-sm dark:bg-gray-800"
+              className="h-11 rounded-lg border border-border bg-background px-3 text-sm sm:h-9 dark:bg-gray-800"
             >
               {availableSeasons.map(s => (
                 <option key={s} value={s}>{s}</option>

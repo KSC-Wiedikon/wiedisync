@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
+import IconButton from '@/components/IconButton'
+import { Button } from '@/components/ui/button'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
@@ -381,13 +383,13 @@ export default function AnnouncementsPage() {
     <div className="mx-auto max-w-4xl">
       <div className="mb-4 flex items-center justify-between gap-3">
         <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{t('pageTitle')}</h1>
-        <button
+        <Button
           onClick={openCreate}
-          className="inline-flex items-center gap-1.5 rounded-md bg-brand-600 px-3 py-2 text-sm font-medium text-white hover:bg-brand-700"
+          className="shrink-0"
         >
           <Plus className="h-4 w-4" />
           {t('newAnnouncement')}
-        </button>
+        </Button>
       </div>
 
       {isLoading ? null : items.length === 0 ? (
@@ -472,20 +474,20 @@ export default function AnnouncementsPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex flex-col items-end gap-1 sm:flex-row sm:justify-end">
-                        <button
+                        <IconButton size="sm"
                           onClick={() => openEdit(a)}
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700"
-                          aria-label={t('common:edit')}
+                          className="text-gray-500 dark:text-gray-400"
+                          label={t('common:edit')}
                         >
                           <Edit2 className="h-4 w-4" />
-                        </button>
-                        <button
+                        </IconButton>
+                        <IconButton size="sm"
                           onClick={() => setConfirmDeleteId(a.id)}
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30"
-                          aria-label={t('common:delete')}
+                          className="text-red-500 hover:bg-red-50 hover:text-red-600 dark:text-red-400 dark:hover:bg-red-900/30"
+                          label={t('common:delete')}
                         >
                           <Trash2 className="h-4 w-4" />
-                        </button>
+                        </IconButton>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -511,14 +513,14 @@ export default function AnnouncementsPage() {
                   alt=""
                   className="h-32 w-auto rounded-md object-cover"
                 />
-                <button
+                <IconButton size="sm"
                   type="button"
                   onClick={() => setForm((f) => ({ ...f, image: null }))}
-                  className="absolute right-1 top-1 rounded-full bg-white/90 p-1 text-gray-700 shadow hover:bg-white"
-                  aria-label={t('common:remove')}
+                  className="absolute right-1 top-1 rounded-full bg-white/90 text-gray-700 shadow hover:bg-white dark:bg-gray-900/90 dark:text-gray-200 dark:hover:bg-gray-900"
+                  label={t('common:remove')}
                 >
                   <X className="h-3.5 w-3.5" />
-                </button>
+                </IconButton>
               </div>
             ) : (
               <label className="flex h-24 cursor-pointer items-center justify-center rounded-md border-2 border-dashed border-gray-300 bg-gray-50 text-sm text-gray-500 hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:hover:bg-gray-700">
@@ -606,7 +608,7 @@ export default function AnnouncementsPage() {
               <select
                 value={form.audience_type}
                 onChange={(e) => setForm((f) => ({ ...f, audience_type: e.target.value as AnnouncementAudienceType }))}
-                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                className="h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-sm sm:h-9 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
               >
                 <option value="all">{t('audienceAll')}</option>
                 <option value="sport">{t('audienceSport')}</option>
@@ -622,7 +624,7 @@ export default function AnnouncementsPage() {
                 <select
                   value={form.audience_sport ?? ''}
                   onChange={(e) => setForm((f) => ({ ...f, audience_sport: (e.target.value || null) as 'volleyball' | 'basketball' | null }))}
-                  className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                  className="h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-sm sm:h-9 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
                 >
                   <option value="">—</option>
                   <option value="volleyball">{t('volleyball')}</option>
@@ -764,7 +766,7 @@ export default function AnnouncementsPage() {
                 <select
                   value={form.email_layout}
                   onChange={(e) => setForm((f) => ({ ...f, email_layout: e.target.value as 'standard' | 'newsletter' }))}
-                  className="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                  className="h-11 w-full rounded-md border border-gray-300 bg-white px-2 text-sm sm:h-9 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
                 >
                   <option value="standard">{t('emailLayoutStandard')}</option>
                   <option value="newsletter">{t('emailLayoutNewsletter')}</option>
@@ -789,23 +791,21 @@ export default function AnnouncementsPage() {
 
           {/* Footer */}
           <div className="flex items-center justify-end gap-2 border-t border-gray-200 pt-3 dark:border-gray-700">
-            <button
+            <Button variant="ghost"
               type="button"
               onClick={() => setEditorOpen(false)}
               disabled={submitting}
-              className="rounded-md px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
             >
               {t('cancel')}
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               onClick={handleSubmit}
               disabled={submitting}
-              className="inline-flex items-center gap-1.5 rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
             >
               {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
               {form.id ? t('save') : t('create')}
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>
@@ -818,18 +818,16 @@ export default function AnnouncementsPage() {
               {t('confirmDeleteBody')}
             </p>
             <div className="flex justify-end gap-2">
-              <button
+              <Button variant="ghost"
                 onClick={() => setConfirmDeleteId(null)}
-                className="rounded-md px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
               >
                 {t('cancel')}
-              </button>
-              <button
+              </Button>
+              <Button variant="destructive"
                 onClick={() => handleDelete(confirmDeleteId)}
-                className="rounded-md bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700"
               >
                 {t('delete')}
-              </button>
+              </Button>
             </div>
           </div>
         </Modal>

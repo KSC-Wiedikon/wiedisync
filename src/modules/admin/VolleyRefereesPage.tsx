@@ -1,4 +1,5 @@
 import { useId, useMemo, useState } from 'react'
+import IconButton from '@/components/IconButton'
 import { useTranslation } from 'react-i18next'
 import { Navigate } from 'react-router-dom'
 import { Search, Trash2 } from 'lucide-react'
@@ -268,16 +269,15 @@ export default function VolleyRefereesPage() {
                         </div>
                       </TableCell>
                       <TableCell className="align-top">
-                        <button
+                        <IconButton
                           type="button"
                           onClick={() => removeReferee(r)}
                           disabled={busy}
-                          title={t('vbRefRemove', { defaultValue: 'Remove referee' })}
-                          aria-label={t('vbRefRemove', { defaultValue: 'Remove referee' })}
-                          className="inline-flex h-11 w-11 items-center justify-center rounded-md text-gray-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-50 sm:h-9 sm:w-9 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+                          label={t('vbRefRemove', { defaultValue: 'Remove referee' })}
+                          className="text-gray-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
                         >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                          <Trash2 />
+                        </IconButton>
                       </TableCell>
                     </TableRow>
                   )

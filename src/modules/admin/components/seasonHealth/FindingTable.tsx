@@ -134,14 +134,14 @@ export default function FindingTable({ check, rows, total, tab }: {
           </TableBody>
         </Table>
       )}
-      <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs text-muted-foreground">
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <p className="text-xs text-muted-foreground min-w-0 flex-1">
           {truncated
             ? t('truncated', { shown: rows.length, total })
             : t('shownOf', { shown: rows.length, total })}
         </p>
         <Button
-          type="button" variant="outline" size="sm" className="min-h-11 gap-1.5 sm:min-h-0"
+          type="button" variant="outline" size="sm" className="gap-1.5"
           onClick={handleExport} disabled={exporting || total === 0} aria-busy={exporting}
         >
           <Download className="h-3.5 w-3.5" aria-hidden="true" />

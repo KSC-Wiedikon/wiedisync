@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback } from 'react'
+import { Button } from '@/components/ui/button'
 import { useTranslation } from 'react-i18next'
 import { Mail, Send, Eye, RotateCcw, Save, AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
@@ -190,17 +191,15 @@ export default function EmailTemplatesPage() {
           {/* Locale picker */}
           <div className="flex flex-wrap gap-1.5">
             {LOCALES.map((l) => (
-              <button
+              <Button
                 key={l}
+                variant={locale === l ? 'default' : 'outline'}
+                aria-pressed={locale === l}
                 onClick={() => switchLocale(l)}
-                className={`min-h-[44px] rounded-md px-3 text-sm font-medium uppercase transition-colors sm:min-h-0 sm:py-1.5 ${
-                  locale === l
-                    ? 'bg-primary text-primary-foreground'
-                    : 'border border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800'
-                }`}
+                className="uppercase"
               >
                 {l}
-              </button>
+              </Button>
             ))}
           </div>
 
@@ -219,14 +218,14 @@ export default function EmailTemplatesPage() {
                     <>
                       <div className="flex flex-wrap gap-1.5 pb-1">
                         {PLACEHOLDERS.map((p) => (
-                          <button
+                          <Button size="sm" variant="outline"
                             key={p}
                             type="button"
                             onClick={() => insertPlaceholder(p)}
-                            className="rounded border border-gray-200 bg-gray-50 px-2 py-1 font-mono text-xs text-gray-600 hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                            className="font-mono text-gray-600 dark:text-gray-300"
                           >
                             {`{{${p}}}`}
-                          </button>
+                          </Button>
                         ))}
                       </div>
                       <textarea
@@ -251,30 +250,27 @@ export default function EmailTemplatesPage() {
               ))}
 
               <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
-                <button
+                <Button variant="outline"
                   onClick={handleReset}
                   disabled={saving}
-                  className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
                 >
                   <RotateCcw className="h-3.5 w-3.5" />
                   {t('etReset')}
-                </button>
-                <button
+                </Button>
+                <Button variant="outline"
                   onClick={handlePreview}
                   disabled={previewing}
-                  className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
                 >
                   <Eye className="h-3.5 w-3.5" />
                   {t('etPreview')}
-                </button>
-                <button
+                </Button>
+                <Button
                   onClick={handleSave}
                   disabled={!dirty || saving}
-                  className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-40"
                 >
                   <Save className="h-3.5 w-3.5" />
                   {t('save')}
-                </button>
+                </Button>
               </div>
 
               {preview && (
@@ -341,13 +337,12 @@ function SentTab({
                 <TableCell className="hidden whitespace-normal break-words text-sm sm:table-cell">{s.subject}</TableCell>
                 <TableCell className="hidden whitespace-normal break-words text-sm sm:table-cell">{s.sent_by_name || '—'}</TableCell>
                 <TableCell className="text-right">
-                  <button
+                  <Button size="sm" variant="outline"
                     onClick={() => setOpen(s)}
-                    className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800 sm:min-h-0"
                   >
                     <Send className="h-3 w-3" />
                     {t('etViewSent')}
-                  </button>
+                  </Button>
                 </TableCell>
               </TableRow>
             ))}
@@ -361,12 +356,11 @@ function SentTab({
             <p className="text-sm text-gray-600 dark:text-gray-300">
               <span className="text-gray-400 dark:text-gray-500">{t('etColTo')}: </span>{open.to_email}
             </p>
-            <button
+            <Button variant="outline"
               onClick={() => setOpen(null)}
-              className="min-h-[44px] rounded-md border border-gray-200 px-3 text-sm text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800 sm:min-h-0 sm:py-1.5"
             >
               {t('close')}
-            </button>
+            </Button>
           </div>
           <iframe
             title={t('etViewSent')}
