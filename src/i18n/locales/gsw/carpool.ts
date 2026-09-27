@@ -53,7 +53,6 @@ export default {
   noPassengers: 'No kei Mitfahrendi',
   seatsTaken_one: '{{count}} Platz',
   seatsTaken_other: '{{count}} Plätz',
-  call: 'Aalüte',
   confirmWithdrawOffer: 'Fahrt zruggzieh? Dini Mitfahrende wärded benachrichtigt.',
   confirmWithdraw: 'Aafrag zruggzieh?',
   confirmRemove: '{{name}} us dim Auto entferne? D Person wird benachrichtigt.',

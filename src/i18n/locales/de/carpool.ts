@@ -53,7 +53,6 @@ export default {
   noPassengers: 'Noch keine Mitfahrenden',
   seatsTaken_one: '{{count}} Platz',
   seatsTaken_other: '{{count}} Plätze',
-  call: 'Anrufen',
   confirmWithdrawOffer: 'Fahrt zurückziehen? Deine Mitfahrenden werden benachrichtigt.',
   confirmWithdraw: 'Anfrage zurückziehen?',
   confirmRemove: '{{name}} aus deinem Auto entfernen? Die Person wird benachrichtigt.',

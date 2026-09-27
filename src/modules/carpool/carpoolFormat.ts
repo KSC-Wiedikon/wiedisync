@@ -46,13 +46,6 @@ export function myRole(board: CarpoolBoard): 'driver' | 'passenger' | 'requester
   return null
 }
 
-/** `tel:` href from a stored phone number (spaces and dashes dropped). */
-export function telHref(phone: string | null | undefined): string | null {
-  if (!phone) return null
-  const clean = phone.replace(/[^\d+]/g, '')
-  return clean.length >= 6 ? `tel:${clean}` : null
-}
-
 /**
  * Is the viewer inside a board's team scope (migration 379)? Mirrors the
  * server's check minus the "already riding" exemption — used only to decide

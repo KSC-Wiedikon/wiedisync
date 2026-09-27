@@ -53,7 +53,6 @@ export default {
   noPassengers: 'No passengers yet',
   seatsTaken_one: '{{count}} seat',
   seatsTaken_other: '{{count}} seats',
-  call: 'Call',
   confirmWithdrawOffer: 'Withdraw your ride? Your passengers will be notified.',
   confirmWithdraw: 'Withdraw your request?',
   confirmRemove: 'Remove {{name}} from your car? They will be notified.',

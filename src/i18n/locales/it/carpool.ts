@@ -53,7 +53,6 @@ export default {
   noPassengers: 'Ancora nessun passeggero',
   seatsTaken_one: '{{count}} posto',
   seatsTaken_other: '{{count}} posti',
-  call: 'Chiama',
   confirmWithdrawOffer: 'Ritirare il tuo passaggio? I passeggeri saranno avvisati.',
   confirmWithdraw: 'Ritirare la tua richiesta?',
   confirmRemove: 'Rimuovere {{name}} dalla tua auto? La persona sarà avvisata.',

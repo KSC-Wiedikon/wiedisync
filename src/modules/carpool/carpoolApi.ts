@@ -19,8 +19,6 @@ export interface CarpoolPerson {
   first_name: string
   last_name: string
   nickname: string | null
-  /** Only set between people sharing a car, and never when the member hides it. */
-  phone?: string | null
 }
 
 interface CarpoolEntryBase {

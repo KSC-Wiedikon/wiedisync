@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Car, ChevronDown, Phone, X } from 'lucide-react'
+import { Car, ChevronDown, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useConfirm } from '../../components/ConfirmProvider'
@@ -10,7 +10,7 @@ import {
   CARPOOL_ERROR_KEYS, useCarpoolActions, useCarpoolBoard,
   type CarpoolActivityType, type CarpoolBoard, type CarpoolEntryInput, type CarpoolKind, type CarpoolOffer, type CarpoolRequest,
 } from './carpoolApi'
-import { canJoin, canOffer, canRequest, canTake, myRole, seatsINeed, telHref } from './carpoolFormat'
+import { canJoin, canOffer, canRequest, canTake, myRole, seatsINeed } from './carpoolFormat'
 import CarpoolEntryForm from './CarpoolEntryForm'
 
 interface CarpoolPanelProps {
@@ -243,8 +243,6 @@ function DirectionTimePlace({ entry, teamNames = [] }: { entry: CarpoolOffer | C
 }
 
 function NameCell({ person, badge }: { person: CarpoolOffer['member']; badge?: string | null }) {
-  const { t } = useTranslation('carpool')
-  const href = telHref(person.phone)
   return (
     <div className="space-y-0.5">
       {/* Two lines on mobile (last / first), never truncated — table rule (a). */}
@@ -253,11 +251,6 @@ function NameCell({ person, badge }: { person: CarpoolOffer['member']; badge?: s
         <span className="block sm:inline">{(person.nickname && person.nickname.trim()) || person.first_name}</span>
       </div>
       {badge && <span className="inline-block rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-semibold text-sky-800 dark:bg-sky-900/60 dark:text-sky-200">{badge}</span>}
-      {href && (
-        <a href={href} className="flex min-h-[32px] items-center gap-1 whitespace-nowrap text-xs text-brand-600 hover:underline dark:text-brand-400" aria-label={`${t('call')} ${person.phone}`}>
-          <Phone className="h-3.5 w-3.5" aria-hidden />{person.phone}
-        </a>
-      )}
     </div>
   )
 }
@@ -311,12 +304,10 @@ function OffersTable({ teamName, board, open, busy, onJoin, onLeave, onEdit, onW
                     <ul className="mt-1.5 space-y-1 border-l-2 border-sky-200 pl-2 dark:border-sky-800">
                       {o.passengers.map((p) => {
                         const name = memberDisplayName(p.member)
-                        const href = telHref(p.member.phone)
                         return (
                           <li key={p.id} className="flex items-center gap-1 text-xs text-gray-700 dark:text-gray-300">
                             <span className="min-w-0">
                               <span className="block">{name}{p.seats > 1 ? ` (${t('seatsTaken', { count: p.seats })})` : ''}</span>
-                              {href && <a href={href} className="block whitespace-nowrap text-brand-600 hover:underline dark:text-brand-400">{p.member.phone}</a>}
                             </span>
                             {o.mine && (
                               <button

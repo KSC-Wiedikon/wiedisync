@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { CarpoolBoard, CarpoolOffer, CarpoolRequest } from '../carpoolApi'
-import { canJoin, canOffer, canRequest, canTake, inCarpoolScope, myRole, seatsINeed, telHref } from '../carpoolFormat'
+import { canJoin, canOffer, canRequest, canTake, inCarpoolScope, myRole, seatsINeed } from '../carpoolFormat'
 
 const person = (id: number) => ({ id, first_name: `F${id}`, last_name: `L${id}`, nickname: null })
 
@@ -70,13 +70,6 @@ describe('car pooling viewer rules', () => {
     expect(canRequest(b, true)).toBe(false)
     expect(canJoin(b, b.offers[0], true)).toBe(false)
     expect(canJoin(b, b.offers[1], true)).toBe(true) // may still switch cars
-  })
-
-  it('builds tel: links only from real numbers', () => {
-    expect(telHref('+41 79 123 45 67')).toBe('tel:+41791234567')
-    expect(telHref('079-123-45-67')).toBe('tel:0791234567')
-    expect(telHref('n/a')).toBeNull()
-    expect(telHref(null)).toBeNull()
   })
 })
 

@@ -53,7 +53,6 @@ export default {
   noPassengers: 'Pas encore de passager·ère',
   seatsTaken_one: '{{count}} place',
   seatsTaken_other: '{{count}} places',
-  call: 'Appeler',
   confirmWithdrawOffer: 'Retirer ton trajet ? Tes passager·ère·s seront averti·e·s.',
   confirmWithdraw: 'Retirer ta demande ?',
   confirmRemove: 'Retirer {{name}} de ta voiture ? La personne sera avertie.',

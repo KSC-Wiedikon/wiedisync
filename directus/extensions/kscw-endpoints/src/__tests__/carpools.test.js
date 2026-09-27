@@ -1,7 +1,7 @@
 /**
  * Car pooling (migration 378) — the pure halves of carpools.js: input
  * validation, Postgres-error mapping, activity description and the board
- * builder (seat maths, request coverage, who may see whose phone).
+ * builder (seat maths, request coverage, and that no phone number ever leaves).
  */
 import { describe, it, expect } from 'vitest'
 import { parseEntryInput, normalizeTime, mapCarpoolError, describeActivity, buildBoard, zurichToday, parseScope, scopeAllows } from '../carpools.js'
@@ -116,34 +116,22 @@ describe('buildBoard', () => {
     expect(b.totals).toEqual({ offers: 2, seats_free: 2, requests_open: 1 })
   })
 
-  it('shows phones only between people sharing a car, never when hidden', () => {
-    const outsider = buildBoard(entries, passengers, 4)
-    expect(outsider.offers.every((o) => o.member.phone === null)).toBe(true)
-    expect(outsider.offers.flatMap((o) => o.passengers).every((p) => p.member.phone === null)).toBe(true)
-
+  it('tracks my own role: driver, rider, requester', () => {
     const driver = buildBoard(entries, passengers, 1)
-    const own = driver.offers.find((o) => o.id === 10)
-    expect(own.mine).toBe(true)
-    expect(own.member.phone).toBe('+41 79 1')
-    expect(own.passengers[0].member.phone).toBe('+41 79 3')
+    expect(driver.offers.find((o) => o.id === 10).mine).toBe(true)
     expect(driver.mine).toEqual({ offer: 10, request: null, riding_in: [] })
-
     const rider = buildBoard(entries, passengers, 3)
-    expect(rider.offers.find((o) => o.id === 10).member.phone).toBe('+41 79 1')
     expect(rider.mine.riding_in).toEqual([10])
     expect(rider.mine.request).toBe(12)
-
-    // Driver 2 hides their phone; passenger 5 hides theirs.
-    const hiddenDriver = buildBoard(entries, passengers, 5)
-    expect(hiddenDriver.offers.find((o) => o.id === 11).member.phone).toBeNull()
-    const d2 = buildBoard(entries, passengers, 2)
-    expect(d2.offers.find((o) => o.id === 11).passengers[0].member.phone).toBeNull()
   })
 
-  it('never leaks the hide_phone flag or a requester phone', () => {
-    const b = buildBoard(entries, passengers, 1)
-    expect(b.requests.every((r) => r.member.phone === null)).toBe(true)
-    expect(JSON.stringify(b)).not.toContain('hide_phone')
+  it('never carries a phone number — not even between driver and passengers', () => {
+    // The rows below DO carry phones (as a careless query would); none may leak.
+    for (const me of [null, 1, 2, 3, 4, 5]) {
+      const json = JSON.stringify(buildBoard(entries, passengers, me))
+      expect(json).not.toContain('phone')
+      expect(json).not.toContain('+41')
+    }
   })
 })
 

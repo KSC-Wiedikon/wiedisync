@@ -47,10 +47,10 @@
  * Postgres), not by a count here — two members racing for the last seat cannot
  * both win. Its `carpool_*` exceptions map to 409s via mapCarpoolError().
  *
- * Contact: a driver sees their passengers' phone numbers and a passenger sees
- * their driver's — nobody else's, and `hide_phone` is honoured. Members cannot
- * read each other's phone through /items (migration 024), so this is the only
- * place it widens, and only between people sharing a car.
+ * No contact details: the board carries names only — no phone numbers, not
+ * even between people sharing a car (dropped 27.09.2026 at the club's request).
+ * Members cannot read each other's phone through /items (migration 024) and
+ * this endpoint must not become the way around that.
  *
  * Every mutation calls writeUserLog (raw knex bypasses the items audit hook —
  * CLAUDE.md → Audit logging) and notifies the other party in-app + push,
@@ -246,8 +246,6 @@ export function buildBoard(entries, passengers, me, { myTeams = [], admin = fals
     first_name: r[`${prefix}first_name`] ?? '',
     last_name: r[`${prefix}last_name`] ?? '',
     nickname: r[`${prefix}nickname`] ?? null,
-    phone: r[`${prefix}phone`] ?? null,
-    hide_phone: r[`${prefix}hide_phone`] === true,
   })
 
   const byOffer = new Map()
@@ -302,30 +300,18 @@ export function buildBoard(entries, passengers, me, { myTeams = [], admin = fals
         seats_taken: taken,
         seats_free: Math.max(0, Number(e.seats) - taken),
         i_am_passenger: inCar,
-        passengers: rows.map((p) => {
-          const who = person(p, 'p_')
-          // Phone only between people sharing this car, and never when hidden.
-          const share = (mine || (meId != null && who.id === meId)) && !who.hide_phone
-          return {
-            id: Number(p.id),
-            seats: Number(p.seats || 1),
-            added_by_name: p.added_by_name ?? null,
-            member: { ...who, phone: share ? who.phone : null, hide_phone: undefined },
-          }
-        }),
+        passengers: rows.map((p) => ({
+          id: Number(p.id),
+          seats: Number(p.seats || 1),
+          added_by_name: p.added_by_name ?? null,
+          member: person(p, 'p_'),
+        })),
       })
     } else {
       const drivers = riding.get(owner.id) ?? []
       requests.push({ ...base, covered: drivers.length > 0, covered_by: drivers.map((d) => ({ id: d.id, first_name: d.first_name, last_name: d.last_name, nickname: d.nickname })) })
     }
   }
-
-  // Driver's phone: only to someone sitting in that car, only if not hidden.
-  for (const o of offers) {
-    const share = (o.mine || o.i_am_passenger) && !o.member.hide_phone
-    o.member = { ...o.member, phone: share ? o.member.phone : null, hide_phone: undefined }
-  }
-  for (const r of requests) r.member = { ...r.member, phone: null, hide_phone: undefined }
 
   const byTime = (a, b) => String(a.departure_time ?? '99').localeCompare(String(b.departure_time ?? '99')) || a.id - b.id
   offers.sort(byTime)
@@ -483,7 +469,7 @@ export function registerCarpools(router, { services, database, logger, getSchema
       .where(`c.${fk}`, id)
       .orderBy('c.id')
       .select('c.*', 'm.id as m_id', 'm.first_name as m_first_name', 'm.last_name as m_last_name',
-        'm.nickname as m_nickname', 'm.phone as m_phone', 'm.hide_phone as m_hide_phone')
+        'm.nickname as m_nickname')
     const offerIds = entries.filter((e) => e.kind === 'offer').map((e) => e.id)
     const passengers = offerIds.length
       ? await database('carpool_passengers as p')
@@ -491,7 +477,7 @@ export function registerCarpools(router, { services, database, logger, getSchema
         .whereIn('p.carpool', offerIds)
         .orderBy('p.id')
         .select('p.*', 'm.id as p_id', 'm.first_name as p_first_name', 'm.last_name as p_last_name',
-          'm.nickname as p_nickname', 'm.phone as p_phone', 'm.hide_phone as p_hide_phone')
+          'm.nickname as p_nickname')
       : []
     const myTeams = meId != null ? await teamsOf(meId) : []
     return buildBoard(entries, passengers, meId, { myTeams, admin })
