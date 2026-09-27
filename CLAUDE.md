@@ -145,7 +145,7 @@ See `INFRA.md → Domains & Hosting Overview` for full map.
 <!-- Last few dev/deploy entries only, for at-a-glance recent context. Full history → docs/DEVLOG.md
      (append new dev/deploy entries THERE, not here). User-facing release notes → CHANGELOG.md.
      Keep this list pruned to ~5 entries. -->
-- **2026-09-27** Car pooling back, per game/training/event (default off) + "Open to" team scope for shared activities; endpoint-only `carpools.js`, migrations 378+379, v2.20.0 — dev deployed, `db:setup-perms` + prod pending
+- **2026-09-27** Car pooling back, per game/training/event (default off) + "Open to" team scope for shared activities; endpoint-only `carpools.js`, migrations 378+379, v2.20.0 (dev+prod)
 - **2026-09-22** DU18 Fire/Spark derby: fixed home/away + KWI calendar push — `teams.bb_source_id` was stale after Basketplan's season rollover (broke sv-sync-style intra-club derby detection); migration 369 repoints it, resynced (no version bump, dev+prod)
 - **2026-09-22** Coach/TR can no longer invite new people into WiediSync outside `/registration` — deleted `team-invites/create`+`/claim`, restricted `signup-invites/create` to admin/vorstand (security hardening, ext+frontend dev+prod, v2.14.2)
 - **2026-09-21** ClubDesk register triple (Status/Sektion/Eintritt) + Anrede now seeded at registration time instead of only at push time; migration 366 backfilled both for existing members (fill-only, no version bump, dev+prod)

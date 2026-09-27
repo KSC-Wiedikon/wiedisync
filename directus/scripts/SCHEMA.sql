@@ -2,7 +2,7 @@
 -- KSCW SCHEMA baseline — GENERATED, DO NOT EDIT BY HAND
 -- ============================================================================
 --
--- Generated:   2026-09-24T18:58:41.557Z
+-- Generated:   2026-09-27T19:47:09.937Z
 -- Source:      prod (db=postgres)
 -- Generator:   directus/scripts/regenerate-baseline.mjs
 --
@@ -29,7 +29,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict v277mv6UPsxis0XZtBZt1KPqQlddPD89gESLghSF4hQC0KMweqbcliAMogE2FkO
+\restrict C1w5RHVpmUFYEPgPnkn96FNQ74gbdFdj35ikSbFphBxgUs5em6TcLloLJStzXKp
 
 -- Dumped from database version 16.15 (Debian 16.15-1.pgdg13+2)
 -- Dumped by pg_dump version 16.15 (Debian 16.15-1.pgdg13+2)
@@ -1196,6 +1196,69 @@ BEGIN
    WHERE activity_type = TG_ARGV[0] AND activity_id = OLD.id::text
      AND title NOT IN ('training_deleted', 'game_deleted', 'event_deleted');
   RETURN OLD;
+END;
+$$;
+
+
+--
+-- Name: trg_carpool_passengers_capacity(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.trg_carpool_passengers_capacity() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  v_offer carpools%ROWTYPE;
+  v_taken integer;
+BEGIN
+  SELECT * INTO v_offer FROM carpools WHERE id = NEW.carpool FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'carpool_not_found' USING ERRCODE = 'foreign_key_violation';
+  END IF;
+  IF v_offer.kind <> 'offer' THEN
+    RAISE EXCEPTION 'carpool_not_an_offer' USING ERRCODE = 'check_violation';
+  END IF;
+  IF v_offer.member = NEW.passenger THEN
+    RAISE EXCEPTION 'carpool_driver_is_passenger' USING ERRCODE = 'check_violation';
+  END IF;
+  SELECT COALESCE(sum(seats), 0) INTO v_taken
+    FROM carpool_passengers
+   WHERE carpool = NEW.carpool
+     AND id IS DISTINCT FROM NEW.id;
+  IF v_taken + NEW.seats > v_offer.seats THEN
+    RAISE EXCEPTION 'carpool_full' USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: trg_carpools_guard(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.trg_carpools_guard() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  v_taken integer;
+BEGIN
+  IF NEW.kind <> OLD.kind THEN
+    RAISE EXCEPTION 'carpool_kind_immutable' USING ERRCODE = 'check_violation';
+  END IF;
+  IF NEW.game IS DISTINCT FROM OLD.game
+     OR NEW.training IS DISTINCT FROM OLD.training
+     OR NEW.event IS DISTINCT FROM OLD.event THEN
+    RAISE EXCEPTION 'carpool_activity_immutable' USING ERRCODE = 'check_violation';
+  END IF;
+  IF NEW.kind = 'offer' AND NEW.seats < OLD.seats THEN
+    SELECT COALESCE(sum(seats), 0) INTO v_taken FROM carpool_passengers WHERE carpool = NEW.id;
+    IF NEW.seats < v_taken THEN
+      RAISE EXCEPTION 'carpool_seats_below_taken' USING ERRCODE = 'check_violation';
+    END IF;
+  END IF;
+  NEW.date_updated := now();
+  RETURN NEW;
 END;
 $$;
 
@@ -3213,6 +3276,9 @@ CREATE TABLE public.games (
     meeting_offset_minutes integer DEFAULT 60,
     vm_nomination_claimed_at timestamp with time zone,
     bb_extra_duty_teams json,
+    carpool_enabled boolean DEFAULT false NOT NULL,
+    carpool_teams jsonb,
+    CONSTRAINT games_carpool_teams_array CHECK (((carpool_teams IS NULL) OR (jsonb_typeof(carpool_teams) = 'array'::text))),
     CONSTRAINT games_meeting_offset_range CHECK (((meeting_offset_minutes IS NULL) OR ((meeting_offset_minutes >= 0) AND (meeting_offset_minutes <= 1440)))),
     CONSTRAINT games_status_chk CHECK (((status IS NULL) OR ((status)::text = ANY ((ARRAY['scheduled'::character varying, 'completed'::character varying, 'cancelled'::character varying, 'postponed'::character varying])::text[]))))
 );
@@ -3286,6 +3352,20 @@ COMMENT ON COLUMN public.games.meeting_offset_minutes IS 'Besammlung: minutes BE
 --
 
 COMMENT ON COLUMN public.games.vm_nomination_claimed_at IS 'When the current nomination-push worker claimed this game. Lets a stale claim be reclaimed after a container restart or a lost worker; NULL when unclaimed.';
+
+
+--
+-- Name: COLUMN games.carpool_enabled; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.games.carpool_enabled IS 'Car pooling board shown on this game (offer / request rides). Default off; the coach/TR switches it on per game. Rides live in carpools (migration 378).';
+
+
+--
+-- Name: COLUMN games.carpool_teams; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.games.carpool_teams IS 'Car pooling scope (migration 379): team ids the rides board is open to — the playing team and/or its guest teams. NULL/[] = everyone who can see the game.';
 
 
 --
@@ -3531,6 +3611,100 @@ CREATE SEQUENCE public.bugfix_jobs_id_seq
 --
 
 ALTER SEQUENCE public.bugfix_jobs_id_seq OWNED BY public.bugfix_jobs.id;
+
+
+--
+-- Name: carpool_passengers; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.carpool_passengers (
+    id integer NOT NULL,
+    carpool integer NOT NULL,
+    passenger integer NOT NULL,
+    seats smallint DEFAULT 1 NOT NULL,
+    added_by_name character varying(150),
+    date_created timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT carpool_passengers_seats_range CHECK (((seats >= 1) AND (seats <= 8)))
+);
+
+
+--
+-- Name: TABLE carpool_passengers; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.carpool_passengers IS 'Car pooling (migration 378): a member riding in an offered car. Seat capacity is enforced by trg_carpool_passengers_capacity.';
+
+
+--
+-- Name: carpool_passengers_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.carpool_passengers_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: carpool_passengers_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.carpool_passengers_id_seq OWNED BY public.carpool_passengers.id;
+
+
+--
+-- Name: carpools; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.carpools (
+    id integer NOT NULL,
+    game integer,
+    training integer,
+    event integer,
+    kind character varying(10) NOT NULL,
+    member integer NOT NULL,
+    direction character varying(10) DEFAULT 'both'::character varying NOT NULL,
+    seats smallint DEFAULT 1 NOT NULL,
+    departure_time time without time zone,
+    departure_location character varying(200),
+    notes character varying(500),
+    date_created timestamp with time zone DEFAULT now() NOT NULL,
+    date_updated timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT carpools_direction_check CHECK (((direction)::text = ANY ((ARRAY['there'::character varying, 'back'::character varying, 'both'::character varying])::text[]))),
+    CONSTRAINT carpools_kind_check CHECK (((kind)::text = ANY ((ARRAY['offer'::character varying, 'request'::character varying])::text[]))),
+    CONSTRAINT carpools_one_activity CHECK ((num_nonnulls(game, training, event) = 1)),
+    CONSTRAINT carpools_seats_range CHECK (((seats >= 1) AND (seats <= 8)))
+);
+
+
+--
+-- Name: TABLE carpools; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.carpools IS 'Car pooling (migration 378): ride offers and ride requests for one game, training or event. Endpoint-only (kscw-endpoints/src/carpools.js) — no Directus registration, no /items grant.';
+
+
+--
+-- Name: carpools_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.carpools_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: carpools_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.carpools_id_seq OWNED BY public.carpools.id;
 
 
 --
@@ -4667,6 +4841,9 @@ CREATE TABLE public.events (
     invite_guests boolean DEFAULT true NOT NULL,
     open_roster boolean DEFAULT false NOT NULL,
     meeting_time time without time zone,
+    carpool_enabled boolean DEFAULT false NOT NULL,
+    carpool_teams jsonb,
+    CONSTRAINT events_carpool_teams_array CHECK (((carpool_teams IS NULL) OR (jsonb_typeof(carpool_teams) = 'array'::text))),
     CONSTRAINT events_public_share_token_format CHECK (((public_share_token IS NULL) OR ((public_share_token)::text ~ '^[A-Za-z0-9_-]{24,64}$'::text)))
 );
 
@@ -4704,6 +4881,20 @@ COMMENT ON COLUMN public.events.open_roster IS 'TRUE when the audience spans mor
 --
 
 COMMENT ON COLUMN public.events.meeting_time IS 'Besammlung: the wall-clock time the group meets on the event''s start date. NULL (the default) = none, which is right for most events. Absolute rather than an offset because `all_day` events — tournaments, the case this was built for — have no start clock to count back from, and because no sync rewrites events.start_date.';
+
+
+--
+-- Name: COLUMN events.carpool_enabled; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.events.carpool_enabled IS 'Car pooling board shown on this event (offer / request rides). Default off; the event author switches it on. Rides live in carpools (migration 378).';
+
+
+--
+-- Name: COLUMN events.carpool_teams; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.events.carpool_teams IS 'Car pooling scope (migration 379): team ids the rides board is open to. NULL/[] = everyone who can see the event.';
 
 
 --
@@ -9777,6 +9968,7 @@ CREATE TABLE public.trainings (
     original_end_time time without time zone,
     meeting_offset_minutes integer DEFAULT 10,
     extra_halls json,
+    carpool_enabled boolean DEFAULT false NOT NULL,
     CONSTRAINT trainings_meeting_offset_range CHECK (((meeting_offset_minutes IS NULL) OR ((meeting_offset_minutes >= 0) AND (meeting_offset_minutes <= 1440))))
 );
 
@@ -9814,6 +10006,13 @@ COMMENT ON COLUMN public.trainings.recruiting_positions IS 'Trial trainings only
 --
 
 COMMENT ON COLUMN public.trainings.meeting_offset_minutes IS 'Besammlung: minutes BEFORE `start_time` that the team meets. NULL = no meeting time shown. An offset, not a clock, so slot-cascade regeneration and the game-shorten hook can move a training without stranding it. DEFAULT 10 is what gives cascade-generated trainings a meeting time with no code in slot-cascade.js.';
+
+
+--
+-- Name: COLUMN trainings.carpool_enabled; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.trainings.carpool_enabled IS 'Car pooling board shown on this training (offer / request rides). Default off; the coach/TR switches it on per training. Rides live in carpools (migration 378).';
 
 
 --
@@ -10959,6 +11158,20 @@ ALTER TABLE ONLY public.bugfix_jobs ALTER COLUMN id SET DEFAULT nextval('public.
 
 
 --
+-- Name: carpool_passengers id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.carpool_passengers ALTER COLUMN id SET DEFAULT nextval('public.carpool_passengers_id_seq'::regclass);
+
+
+--
+-- Name: carpools id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.carpools ALTER COLUMN id SET DEFAULT nextval('public.carpools_id_seq'::regclass);
+
+
+--
 -- Name: clubdesk_auto_sync_queue id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -11873,6 +12086,22 @@ ALTER TABLE ONLY public.broadcasts
 
 ALTER TABLE ONLY public.bugfix_jobs
     ADD CONSTRAINT bugfix_jobs_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: carpool_passengers carpool_passengers_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.carpool_passengers
+    ADD CONSTRAINT carpool_passengers_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: carpools carpools_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.carpools
+    ADD CONSTRAINT carpools_pkey PRIMARY KEY (id);
 
 
 --
@@ -13230,6 +13459,69 @@ CREATE INDEX bb_club_date_prefs_club_idx ON public.basketball_club_date_prefs US
 --
 
 CREATE INDEX bb_club_date_prefs_team_date_idx ON public.basketball_club_date_prefs USING btree (season, kscw_team, date);
+
+
+--
+-- Name: carpool_passengers_pair_uq; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX carpool_passengers_pair_uq ON public.carpool_passengers USING btree (carpool, passenger);
+
+
+--
+-- Name: carpool_passengers_passenger_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX carpool_passengers_passenger_idx ON public.carpool_passengers USING btree (passenger);
+
+
+--
+-- Name: carpools_event_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX carpools_event_idx ON public.carpools USING btree (event) WHERE (event IS NOT NULL);
+
+
+--
+-- Name: carpools_event_member_kind_uq; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX carpools_event_member_kind_uq ON public.carpools USING btree (event, member, kind) WHERE (event IS NOT NULL);
+
+
+--
+-- Name: carpools_game_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX carpools_game_idx ON public.carpools USING btree (game) WHERE (game IS NOT NULL);
+
+
+--
+-- Name: carpools_game_member_kind_uq; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX carpools_game_member_kind_uq ON public.carpools USING btree (game, member, kind) WHERE (game IS NOT NULL);
+
+
+--
+-- Name: carpools_member_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX carpools_member_idx ON public.carpools USING btree (member);
+
+
+--
+-- Name: carpools_training_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX carpools_training_idx ON public.carpools USING btree (training) WHERE (training IS NOT NULL);
+
+
+--
+-- Name: carpools_training_member_kind_uq; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX carpools_training_member_kind_uq ON public.carpools USING btree (training, member, kind) WHERE (training IS NOT NULL);
 
 
 --
@@ -15053,6 +15345,20 @@ CREATE TRIGGER trg_basketball_slot_plan_0_sync_slots AFTER INSERT OR UPDATE ON p
 
 
 --
+-- Name: carpool_passengers trg_carpool_passengers_capacity; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_carpool_passengers_capacity BEFORE INSERT OR UPDATE OF carpool, passenger, seats ON public.carpool_passengers FOR EACH ROW EXECUTE FUNCTION public.trg_carpool_passengers_capacity();
+
+
+--
+-- Name: carpools trg_carpools_guard; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_carpools_guard BEFORE UPDATE ON public.carpools FOR EACH ROW EXECUTE FUNCTION public.trg_carpools_guard();
+
+
+--
 -- Name: events trg_events_0_purge_polymorphic; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -15679,6 +15985,54 @@ ALTER TABLE ONLY public.basketball_team_rules
 
 ALTER TABLE ONLY public.broadcasts
     ADD CONSTRAINT broadcasts_sender_fkey FOREIGN KEY (sender) REFERENCES public.members(id) ON DELETE SET NULL;
+
+
+--
+-- Name: carpool_passengers carpool_passengers_carpool_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.carpool_passengers
+    ADD CONSTRAINT carpool_passengers_carpool_fkey FOREIGN KEY (carpool) REFERENCES public.carpools(id) ON DELETE CASCADE;
+
+
+--
+-- Name: carpool_passengers carpool_passengers_passenger_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.carpool_passengers
+    ADD CONSTRAINT carpool_passengers_passenger_fkey FOREIGN KEY (passenger) REFERENCES public.members(id) ON DELETE CASCADE;
+
+
+--
+-- Name: carpools carpools_event_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.carpools
+    ADD CONSTRAINT carpools_event_fkey FOREIGN KEY (event) REFERENCES public.events(id) ON DELETE CASCADE;
+
+
+--
+-- Name: carpools carpools_game_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.carpools
+    ADD CONSTRAINT carpools_game_fkey FOREIGN KEY (game) REFERENCES public.games(id) ON DELETE CASCADE;
+
+
+--
+-- Name: carpools carpools_member_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.carpools
+    ADD CONSTRAINT carpools_member_fkey FOREIGN KEY (member) REFERENCES public.members(id) ON DELETE CASCADE;
+
+
+--
+-- Name: carpools carpools_training_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.carpools
+    ADD CONSTRAINT carpools_training_fkey FOREIGN KEY (training) REFERENCES public.trainings(id) ON DELETE CASCADE;
 
 
 --
@@ -17385,12 +17739,12 @@ ALTER TABLE public.volley_feedback ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict v277mv6UPsxis0XZtBZt1KPqQlddPD89gESLghSF4hQC0KMweqbcliAMogE2FkO
+\unrestrict C1w5RHVpmUFYEPgPnkn96FNQ74gbdFdj35ikSbFphBxgUs5em6TcLloLJStzXKp
 
 
 
 -- ============================================================================
--- Migration tracker seed — 384 migration(s) already in the schema above.
+-- Migration tracker seed — 386 migration(s) already in the schema above.
 -- GENERATED with the snapshot; do not hand-edit.
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS kscw_migrations (
@@ -17786,6 +18140,8 @@ FROM (VALUES
   ('374-members-sektion-fill-blank.sql'),
   ('375-game-recordings.sql'),
   ('376-live-match-logs.sql'),
-  ('377-household-shadow-consent.sql')
+  ('377-household-shadow-consent.sql'),
+  ('378-carpools.sql'),
+  ('379-carpool-teams.sql')
 ) AS v(fname)
 ON CONFLICT (filename) DO NOTHING;
