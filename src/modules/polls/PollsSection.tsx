@@ -25,7 +25,7 @@ export default function PollsSection({ teamId, canManage }: PollsSectionProps) {
     <section>
       {/* Section header */}
       <div className="mb-4 flex items-center justify-between">
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 items-center gap-2">
           <BarChart3 className="h-5 w-5 text-gray-600 dark:text-gray-400" />
           <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">
             {t('title')}
@@ -37,8 +37,7 @@ export default function PollsSection({ teamId, canManage }: PollsSectionProps) {
           )}
         </div>
         {canManage && (
-          <Button size="sm" variant="outline" onClick={() => setShowForm(true)}>
-            <Plus className="mr-1 h-3.5 w-3.5" />
+          <Button size="sm" variant="outline" onClick={() => setShowForm(true)} icon={<Plus />} className="shrink-0">
             {t('createPoll')}
           </Button>
         )}
@@ -73,18 +72,17 @@ export default function PollsSection({ teamId, canManage }: PollsSectionProps) {
       {/* Closed polls (collapsible) */}
       {closedPolls.length > 0 && (
         <div className="mt-4">
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="sm"
             onClick={() => setShowClosed(!showClosed)}
-            className="flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+            icon={showClosed ? <ChevronDown /> : <ChevronRight />}
+            aria-expanded={showClosed}
+            className="-ml-3 gap-1.5 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
           >
-            {showClosed ? (
-              <ChevronDown className="h-4 w-4" />
-            ) : (
-              <ChevronRight className="h-4 w-4" />
-            )}
             {t('closedPolls')} ({closedPolls.length})
-          </button>
+          </Button>
           {showClosed && (
             <div className="mt-3 space-y-3">
               {closedPolls.map(poll => (

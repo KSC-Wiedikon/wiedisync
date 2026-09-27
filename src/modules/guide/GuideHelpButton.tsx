@@ -4,6 +4,8 @@ import { useTranslation } from 'react-i18next'
 import { BookOpen, CircleHelp, Loader2, TriangleAlert } from 'lucide-react'
 import { useIsMobile } from '../../hooks/useMediaQuery'
 import { Badge } from '../../components/ui/badge'
+import { Button } from '../../components/ui/button'
+import IconButton from '../../components/IconButton'
 import {
   Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle,
 } from '../../components/ui/sheet'
@@ -40,28 +42,29 @@ export function GuideHelpButton() {
   const { pathname } = useLocation()
   const [open, setOpen] = useState(false)
   const section = sectionForPath(pathname)
-  // 44 px hit area on touch screens, the familiar 32 px icon button on desktop.
-  const cls = 'inline-flex h-11 w-11 sm:h-8 sm:w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground'
+  // Icon-button scale: 44 px touch on phones, 36 px from sm (see /kscw-ui).
+  const cls = 'shrink-0 text-muted-foreground hover:bg-muted hover:text-foreground'
 
   if (!section) {
     return (
-      <Link to="/guide" aria-label={t('page.helpButton')} title={t('page.helpButton')} className={cls}>
-        <CircleHelp className="h-5 w-5" />
-      </Link>
+      <Button asChild variant="ghost" size="icon" className={cls}>
+        <Link to="/guide" aria-label={t('page.helpButton')} title={t('page.helpButton')}>
+          <CircleHelp className="!size-5" />
+        </Link>
+      </Button>
     )
   }
 
   return (
     <>
-      <button
+      <IconButton
         type="button"
+        label={t('page.helpButton')}
         onClick={() => setOpen(true)}
-        aria-label={t('page.helpButton')}
-        title={t('page.helpButton')}
         className={cls}
       >
-        <CircleHelp className="h-5 w-5" />
-      </button>
+        <CircleHelp className="!size-5" />
+      </IconButton>
       {/* The Sheet stays mounted so Radix can play its close animation; the
           body — and with it the content chunk fetch — mounts only while open. */}
       <HelpSheet open={open} onOpenChange={setOpen} sectionId={section.id} audience={section.audience} />
@@ -98,7 +101,6 @@ function HelpPanelBody({ sectionId, audience, onClose }: {
   const c = (content?.[sectionId] ?? null) as GuideSectionContent | null
   const href = guideHref(sectionId)
   const external = href.startsWith('http')
-  const linkCls = 'inline-flex min-h-[44px] items-center gap-2 rounded-lg border border-border px-4 text-sm font-medium text-foreground hover:bg-muted/50'
 
   return (
     <>
@@ -128,15 +130,19 @@ function HelpPanelBody({ sectionId, audience, onClose }: {
       </div>
       <div className="mt-6 border-t border-border pt-4">
         {external ? (
-          <a href={href} className={linkCls}>
-            <BookOpen className="h-4 w-4" />
-            {t('page.openGuide')}
-          </a>
+          <Button asChild variant="outline">
+            <a href={href}>
+              <BookOpen />
+              {t('page.openGuide')}
+            </a>
+          </Button>
         ) : (
-          <Link to={href} onClick={onClose} className={linkCls}>
-            <BookOpen className="h-4 w-4" />
-            {t('page.openGuide')}
-          </Link>
+          <Button asChild variant="outline">
+            <Link to={href} onClick={onClose}>
+              <BookOpen />
+              {t('page.openGuide')}
+            </Link>
+          </Button>
         )}
       </div>
     </>

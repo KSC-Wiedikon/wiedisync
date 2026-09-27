@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
+import IconButton from '@/components/IconButton'
 import { FormInput, FormTextarea, FormField } from '@/components/FormField'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import DateTimePicker from '@/components/ui/DateTimePicker'
@@ -240,7 +241,7 @@ export default function FormBuilder({ form, onSave, onCancel }: Props) {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormField label={t('status')}>
             <Select value={status} onValueChange={(v) => setStatus(v as FormStatus)}>
-              <SelectTrigger className="min-h-[44px]"><SelectValue /></SelectTrigger>
+              <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="draft">{t('statusDraft')}</SelectItem>
                 <SelectItem value="open">{t('statusOpen')}</SelectItem>
@@ -251,7 +252,7 @@ export default function FormBuilder({ form, onSave, onCancel }: Props) {
           {canClubWide && (
             <FormField label={t('audience')}>
               <Select value={audience} onValueChange={(v) => setAudience(v as FormAudience)}>
-                <SelectTrigger className="min-h-[44px]"><SelectValue /></SelectTrigger>
+                <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="club_wide">{t('audienceClub')}</SelectItem>
                   <SelectItem value="teams">{t('audienceTeams')}</SelectItem>
@@ -312,7 +313,7 @@ export default function FormBuilder({ form, onSave, onCancel }: Props) {
                     value={slug}
                     onChange={(e) => setSlug(slugify(e.target.value))}
                     placeholder={slugify(title) || 'mein-formular'}
-                    className="min-h-[44px] flex-1 rounded border border-gray-200 bg-transparent px-2 py-1 text-sm dark:border-gray-600 dark:text-gray-100"
+                    className="h-11 min-w-0 flex-1 rounded border border-gray-200 bg-transparent px-2 py-1 text-sm dark:border-gray-600 dark:text-gray-100 sm:h-9"
                   />
                 </div>
                 {(slug.trim() || title.trim()) && (
@@ -330,9 +331,9 @@ export default function FormBuilder({ form, onSave, onCancel }: Props) {
           <div className="flex items-center justify-between border-b border-gray-200 px-3 py-2 dark:border-gray-700">
             <span className="text-sm font-medium">{t('fields')} ({fields.length})</span>
             <div className="flex gap-2">
-              <button type="button" onClick={() => setShowPreview((v) => !v)} className="text-xs font-medium text-brand-600 hover:underline dark:text-brand-400">
+              <Button type="button" variant="link" size="sm" onClick={() => setShowPreview((v) => !v)} className="px-0 text-brand-600 dark:text-brand-400">
                 {showPreview ? t('hidePreview') : t('showPreview')}
-              </button>
+              </Button>
             </div>
           </div>
 
@@ -358,17 +359,17 @@ export default function FormBuilder({ form, onSave, onCancel }: Props) {
                       value={f.label}
                       onChange={(e) => updateField(f.id, { label: e.target.value })}
                       placeholder={t('fieldLabelPlaceholder')}
-                      className="min-h-[44px] flex-1 rounded border border-gray-200 bg-transparent px-2 py-1 text-sm dark:border-gray-600 dark:text-gray-100"
+                      className="h-11 min-w-0 flex-1 rounded border border-gray-200 bg-transparent px-2 py-1 text-sm dark:border-gray-600 dark:text-gray-100 sm:h-9"
                     />
                     <div className="flex shrink-0 flex-col gap-1 sm:flex-row">
-                      <button type="button" onClick={() => moveField(i, -1)} disabled={i === 0} title={t('moveUp')} className="rounded p-1.5 text-gray-500 hover:bg-muted disabled:opacity-30"><ChevronUp size={16} /></button>
-                      <button type="button" onClick={() => moveField(i, 1)} disabled={i === fields.length - 1} title={t('moveDown')} className="rounded p-1.5 text-gray-500 hover:bg-muted disabled:opacity-30"><ChevronDown size={16} /></button>
-                      <button type="button" onClick={() => removeField(f.id)} title={tc('delete')} className="rounded p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30"><Trash2 size={16} /></button>
+                      <IconButton type="button" size="sm" label={t('moveUp')} onClick={() => moveField(i, -1)} disabled={i === 0} className="text-gray-500 dark:text-gray-400"><ChevronUp /></IconButton>
+                      <IconButton type="button" size="sm" label={t('moveDown')} onClick={() => moveField(i, 1)} disabled={i === fields.length - 1} className="text-gray-500 dark:text-gray-400"><ChevronDown /></IconButton>
+                      <IconButton type="button" size="sm" label={tc('delete')} onClick={() => removeField(f.id)} className="text-red-500 hover:bg-red-50 hover:text-red-600 dark:text-red-400 dark:hover:bg-red-900/30"><Trash2 /></IconButton>
                     </div>
                   </div>
                   <div className="flex flex-wrap items-center gap-3">
                     <Select value={f.type} onValueChange={(v) => updateField(f.id, { type: v as FieldType })}>
-                      <SelectTrigger className="h-9 w-40"><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {FIELD_TYPES.map((ft) => (
                           <SelectItem key={ft} value={ft}>{t(`type_${ft}`)}</SelectItem>
@@ -379,18 +380,20 @@ export default function FormBuilder({ form, onSave, onCancel }: Props) {
                       <Switch checked={f.required} onCheckedChange={(v) => updateField(f.id, { required: v })} />
                       {t('required')}
                     </label>
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost"
                       onClick={() => toggleTrans(f.id)}
-                      className={`inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium ${
+                      icon={<Languages />}
+                      className={`gap-1 px-2 text-xs ${
                         transOpen.has(f.id) || f.label_i18n
                           ? 'text-brand-600 dark:text-brand-400'
                           : 'text-muted-foreground hover:text-foreground'
                       }`}
                       title={t('translateLabel')}
                     >
-                      <Languages size={14} /> {t('translateLabel')}
-                    </button>
+                      {t('translateLabel')}
+                    </Button>
                   </div>
                   {CHOICE_TYPES.includes(f.type) && (
                     <textarea
@@ -412,7 +415,7 @@ export default function FormBuilder({ form, onSave, onCancel }: Props) {
                             value={f.label_i18n?.[loc] ?? ''}
                             onChange={(e) => setFieldLabelI18n(f.id, loc, e.target.value)}
                             placeholder={f.label}
-                            className="min-h-[36px] flex-1 rounded border border-gray-200 bg-transparent px-2 py-1 text-sm dark:border-gray-600 dark:text-gray-100"
+                            className="h-11 min-w-0 flex-1 rounded border border-gray-200 bg-transparent px-2 py-1 text-sm dark:border-gray-600 dark:text-gray-100 sm:h-9"
                           />
                         </div>
                       ))}

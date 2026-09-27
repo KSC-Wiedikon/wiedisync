@@ -5,6 +5,7 @@ import { ChevronDown } from 'lucide-react'
 import type { Game, Ranking } from '../../../types'
 import TeamChip from '../../../components/TeamChip'
 import Modal from '@/components/Modal'
+import { Button } from '@/components/ui/button'
 import { teamIds } from '../../../utils/teamColors'
 import { getPromotionColor, promotionBorderColors } from '../../../utils/leaguePromotion'
 import { formatNumberSwiss } from '../../../utils/formatNumber'
@@ -153,7 +154,10 @@ export default function RankingsTable({ league, rankings, compact }: RankingsTab
                           {isKscw ? (
                             <TeamChip team={kscwTeam} label={`KSC Wiedikon ${kscwTeam}`} size="sm" />
                           ) : (
-                            <span className={`${compact ? 'whitespace-nowrap' : 'truncate'} text-gray-700 dark:text-gray-300`}>
+                            <span
+                              title={row.team_name || `Team ${row.team_id}`}
+                              className={`${compact ? 'whitespace-nowrap' : 'truncate'} text-gray-700 dark:text-gray-300`}
+                            >
                               {row.team_name || `Team ${row.team_id}`}
                             </span>
                           )}
@@ -164,14 +168,16 @@ export default function RankingsTable({ league, rankings, compact }: RankingsTab
                       <td className={`${compact ? 'px-3 py-3' : 'px-2 py-2'} text-center text-green-600 dark:text-green-400 ${isBasketball ? 'hidden sm:table-cell' : ''}`}>
                         {canShowBreakdown ? (
                           <>
-                            <button
+                            <Button
                               type="button"
-                              className="mx-auto min-h-[36px] rounded px-1.5 hover:bg-gray-100 sm:hidden dark:hover:bg-gray-700"
+                              variant="ghost"
+                              size="sm"
+                              className="mx-auto px-1.5 text-sm font-normal sm:hidden"
                               onClick={(e) => { e.stopPropagation(); setBreakdown({ row, mode: 'win' }) }}
                               aria-label={`${t('won')} ${getTeamLabel(row)}`}
                             >
                               {row.won}
-                            </button>
+                            </Button>
                             <div className="hidden flex-col items-center leading-tight sm:flex">
                               <span>{row.won}</span>
                               <span className="text-[10px] font-normal text-gray-500 dark:text-gray-400">
@@ -184,14 +190,16 @@ export default function RankingsTable({ league, rankings, compact }: RankingsTab
                       <td className={`${compact ? 'px-3 py-3' : 'px-2 py-2'} text-center text-red-500 dark:text-red-400 ${isBasketball ? 'hidden sm:table-cell' : ''}`}>
                         {canShowBreakdown ? (
                           <>
-                            <button
+                            <Button
                               type="button"
-                              className="mx-auto min-h-[36px] rounded px-1.5 hover:bg-gray-100 sm:hidden dark:hover:bg-gray-700"
+                              variant="ghost"
+                              size="sm"
+                              className="mx-auto px-1.5 text-sm font-normal sm:hidden"
                               onClick={(e) => { e.stopPropagation(); setBreakdown({ row, mode: 'loss' }) }}
                               aria-label={`${t('lost')} ${getTeamLabel(row)}`}
                             >
                               {row.lost}
-                            </button>
+                            </Button>
                             <div className="hidden flex-col items-center leading-tight sm:flex">
                               <span>{row.lost}</span>
                               <span className="text-[10px] font-normal text-gray-500 dark:text-gray-400">
@@ -272,7 +280,7 @@ export default function RankingsTable({ league, rankings, compact }: RankingsTab
                                       <span className="w-4 shrink-0 text-center text-[10px] text-gray-400">
                                         {isHome ? 'H' : 'A'}
                                       </span>
-                                      <span className="min-w-0 flex-1 truncate text-gray-700 dark:text-gray-300">
+                                      <span title={opponent} className="min-w-0 flex-1 truncate text-gray-700 dark:text-gray-300">
                                         {opponent}
                                       </span>
                                       {isFuture ? (

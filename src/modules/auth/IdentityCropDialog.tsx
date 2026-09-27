@@ -204,20 +204,16 @@ export default function IdentityCropDialog({ file, onCancel, onConfirm }: Props)
 
           <div className="ml-auto flex gap-1" role="group" aria-label={t('idCropShape')}>
             {ASPECTS.map((a) => (
-              <button
+              <Button
                 key={a.key}
                 type="button"
+                variant={aspect === a.value ? 'default' : 'outline'}
                 onClick={() => setAspect(a.value)}
                 aria-pressed={aspect === a.value}
-                className={cn(
-                  'min-h-[44px] rounded-md border px-3 text-xs',
-                  aspect === a.value
-                    ? 'border-primary bg-primary text-primary-foreground'
-                    : 'bg-background text-muted-foreground',
-                )}
+                className={cn('px-3 text-xs', aspect !== a.value && 'text-muted-foreground')}
               >
                 {t(`idCropAspect_${a.key}`)}
-              </button>
+              </Button>
             ))}
           </div>
         </div>

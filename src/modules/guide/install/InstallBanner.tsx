@@ -32,13 +32,13 @@ export default function InstallBanner() {
           </div>
         </div>
         <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-          <Button size="sm" className="min-h-[44px] sm:min-h-9" onClick={() => setSheetOpen(true)}>
+          <Button onClick={() => setSheetOpen(true)}>
             {t('banner.showHow')}
           </Button>
-          <Button size="sm" variant="ghost" className="min-h-[44px] sm:min-h-9" onClick={remindLater}>
+          <Button variant="ghost" onClick={remindLater}>
             {t('banner.remindLater')}
           </Button>
-          <Button size="sm" variant="ghost" className="min-h-[44px] sm:min-h-9" onClick={understood}>
+          <Button variant="ghost" onClick={understood}>
             {t('banner.understood')}
           </Button>
         </div>

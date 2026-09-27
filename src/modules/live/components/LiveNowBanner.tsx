@@ -26,7 +26,7 @@ export default function LiveNowBanner() {
         {t('statusLive')}
       </span>
       {headline && (
-        <span className="min-w-0 flex-1 truncate text-sm font-semibold tabular-nums text-foreground">
+        <span title={headline} className="min-w-0 flex-1 truncate text-sm font-semibold tabular-nums text-foreground">
           {headline}
         </span>
       )}

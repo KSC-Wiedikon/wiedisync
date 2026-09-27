@@ -9,6 +9,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import IconButton from '@/components/IconButton'
 import DatePicker from '@/components/ui/DatePicker'
 
 interface PollFormProps {
@@ -102,7 +103,7 @@ export default function PollForm({ open, onClose, onSubmit }: PollFormProps) {
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
               placeholder={t('questionPlaceholder')}
-              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500 dark:focus:border-blue-400 dark:focus:ring-blue-400"
+              className="h-11 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm sm:h-9 text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500 dark:focus:border-blue-400 dark:focus:ring-blue-400"
               autoFocus
             />
           </div>
@@ -121,29 +122,31 @@ export default function PollForm({ open, onClose, onSubmit }: PollFormProps) {
                     onChange={(e) => updateOption(idx, e.target.value)}
                     placeholder={t('optionPlaceholder', { number: idx + 1 })}
                     aria-label={t('optionPlaceholder', { number: idx + 1 })}
-                    className="flex-1 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500 dark:focus:border-blue-400 dark:focus:ring-blue-400"
+                    className="h-11 min-w-0 flex-1 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm sm:h-9 text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500 dark:focus:border-blue-400 dark:focus:ring-blue-400"
                   />
                   {options.length > 2 && (
-                    <button
+                    <IconButton
                       type="button"
+                      label={t('removeOption')}
                       onClick={() => removeOption(idx)}
-                      className="shrink-0 rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
-                      title={t('removeOption')}
+                      className="shrink-0 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:text-gray-500 dark:hover:bg-gray-700 dark:hover:text-gray-300"
                     >
-                      <X className="h-4 w-4" />
-                    </button>
+                      <X />
+                    </IconButton>
                   )}
                 </div>
               ))}
             </div>
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="sm"
               onClick={addOption}
-              className="mt-2 flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+              icon={<Plus />}
+              className="mt-2 -ml-3 gap-1 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
             >
-              <Plus className="h-3.5 w-3.5" />
               {t('addOption')}
-            </button>
+            </Button>
           </div>
 
           {/* Mode toggle */}
@@ -152,28 +155,30 @@ export default function PollForm({ open, onClose, onSubmit }: PollFormProps) {
               {t('mode')}
             </label>
             <div className="flex gap-2">
-              <button
+              <Button
                 type="button"
+                variant="ghost"
                 onClick={() => setMode('single')}
-                className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                className={`px-3 ${
                   mode === 'single'
                     ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600'
                 }`}
               >
                 {t('singleChoice')}
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
+                variant="ghost"
                 onClick={() => setMode('multi')}
-                className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                className={`px-3 ${
                   mode === 'multi'
                     ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600'
                 }`}
               >
                 {t('multiChoice')}
-              </button>
+              </Button>
             </div>
           </div>
 

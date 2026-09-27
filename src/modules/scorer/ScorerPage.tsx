@@ -740,7 +740,7 @@ export default function ScorerPage() {
             <button
               key={key}
               onClick={() => setTab(key)}
-              className={`min-h-[44px] px-4 py-3 text-sm font-medium transition-colors ${
+              className={`px-4 py-3 text-sm font-medium transition-colors ${
                 tab === key
                   ? 'border-b-2 border-brand-600 text-brand-700 dark:text-brand-400'
                   : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
@@ -824,7 +824,7 @@ export default function ScorerPage() {
                     <div>
                       <label htmlFor="scorer-duty-type" className={filterLabelClass}>{t('filterDutyType')}</label>
                       <Select value={dutyTypeFilter} onValueChange={(v) => setDutyTypeFilter(v as VbDutyTypeFilter)}>
-                        <SelectTrigger className="min-h-[44px]">
+                        <SelectTrigger>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -839,7 +839,7 @@ export default function ScorerPage() {
                   <div>
                     <label htmlFor="scorer-unassigned" className={filterLabelClass}>{t('filterUnassigned')}</label>
                     <Select value={unassignedFilter} onValueChange={(v) => setUnassignedFilter(v as VbUnassignedFilter | BbUnassignedFilter)}>
-                      <SelectTrigger className="min-h-[44px]">
+                      <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>

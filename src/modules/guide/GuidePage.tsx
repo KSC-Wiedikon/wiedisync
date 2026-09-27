@@ -11,6 +11,9 @@ import { useReportPageLoading } from '../../hooks/usePageReady'
 import { useGuideContent } from './useGuideContent'
 import { badgeVariants } from '../../components/ui/badge'
 import { Input } from '../../components/ui/input'
+import { Button } from '../../components/ui/button'
+import IconButton from '../../components/IconButton'
+import TruncatedText from '../../components/TruncatedText'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '../../components/ui/dialog'
@@ -135,14 +138,15 @@ export default function GuidePage() {
           className="pl-9 pr-9 h-11 [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-cancel-button]:appearance-none"
         />
         {query && (
-          <button
+          <IconButton
             type="button"
+            size="sm"
+            label={t('page.clearSearch')}
             onClick={() => setQuery('')}
-            aria-label={t('page.clearSearch')}
-            className="absolute right-1 top-1/2 -translate-y-1/2 rounded-md p-2.5 text-muted-foreground hover:text-foreground"
+            className="absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
           >
-            <X className="h-4 w-4" />
-          </button>
+            <X />
+          </IconButton>
         )}
       </div>
 
@@ -165,7 +169,7 @@ export default function GuidePage() {
           <Smartphone className="h-5 w-5 text-primary shrink-0" />
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-foreground">{tPwa('guide.cardTitle')}</p>
-            <p className="text-xs text-muted-foreground truncate">{tPwa('guide.cardSubtitle')}</p>
+            <TruncatedText as="p" text={tPwa('guide.cardSubtitle')} className="text-xs text-muted-foreground" />
           </div>
           <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />
         </button>
@@ -198,10 +202,10 @@ export default function GuidePage() {
                         <button
                           type="button"
                           onClick={() => jumpTo(def.id)}
-                          className="flex w-full items-center gap-2 rounded-md px-1.5 py-1.5 text-left text-sm text-foreground hover:bg-muted/60 min-h-[44px] sm:min-h-[36px]"
+                          className="flex min-h-11 w-full items-center gap-2 rounded-md px-1.5 py-1.5 text-left text-sm text-foreground hover:bg-muted/60 sm:min-h-9"
                         >
                           <def.icon className="h-4 w-4 shrink-0 text-muted-foreground" />
-                          <span className="flex-1">{content.title}</span>
+                          <span className="min-w-0 flex-1 break-words">{content.title}</span>
                         </button>
                       </li>
                     ))}
@@ -252,14 +256,15 @@ export default function GuidePage() {
 
       {/* Back to top */}
       <div className="pt-2 flex justify-center">
-        <button
+        <Button
           type="button"
+          variant="outline"
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-border px-4 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+          icon={<ArrowUp />}
+          className="gap-1.5 text-muted-foreground hover:text-foreground"
         >
-          <ArrowUp className="h-4 w-4" />
           {t('page.backToTop')}
-        </button>
+        </Button>
       </div>
     </div>
   )
@@ -312,24 +317,24 @@ function GuideSection({
       {open && (
         <div id={`guide-${def.id}-body`} className="px-4 pb-5 pl-12 space-y-3 text-sm text-foreground">
           <GuideBody body={content.body} query={query || undefined} />
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pt-1">
+          <div className="flex flex-wrap items-center gap-2 pt-1">
             {def.open && (
-              <Link
-                to={def.open}
-                className="inline-flex min-h-[44px] sm:min-h-[36px] items-center gap-1.5 rounded-md border border-border px-3 text-xs font-medium text-foreground hover:bg-muted/60"
-              >
-                {labels.openPage}
-                <ArrowRight className="h-3.5 w-3.5" />
-              </Link>
+              <Button asChild variant="outline" className="gap-1.5 px-3 text-xs">
+                <Link to={def.open}>
+                  {labels.openPage}
+                  <ArrowRight />
+                </Link>
+              </Button>
             )}
-            <button
+            <Button
               type="button"
+              variant="ghost"
               onClick={onCopyLink}
-              className="inline-flex min-h-[44px] sm:min-h-0 items-center gap-1.5 px-1 text-xs text-muted-foreground hover:text-foreground"
+              icon={<LinkIcon />}
+              className="gap-1.5 px-2 text-xs text-muted-foreground hover:text-foreground"
             >
-              <LinkIcon className="h-3.5 w-3.5" />
               {labels.copyLink}
-            </button>
+            </Button>
           </div>
         </div>
       )}

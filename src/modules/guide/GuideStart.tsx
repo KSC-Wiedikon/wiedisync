@@ -5,6 +5,7 @@ import { CheckCircle2, Circle, Loader2, Sparkles } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { usePushNotifications } from '../../hooks/usePushNotifications'
 import { Badge } from '../../components/ui/badge'
+import { Button } from '../../components/ui/button'
 import { usePlatform } from './install/usePlatform'
 
 /**
@@ -95,13 +96,13 @@ export default function GuideStart({ onInstall }: { onInstall: () => void }) {
         </div>
         <ul className="divide-y divide-border rounded-lg border border-border">
           {items.map((item) => (
-            <li key={item.key} className="flex items-center gap-3 px-3 py-2.5 min-h-[44px]">
+            <li key={item.key} className="flex min-h-11 items-center gap-3 px-3 py-2.5">
               {item.pending
                 ? <Loader2 className="h-5 w-5 shrink-0 animate-spin text-muted-foreground" />
                 : item.done
                   ? <CheckCircle2 className="h-5 w-5 shrink-0 text-green-600 dark:text-green-500" />
                   : <Circle className="h-5 w-5 shrink-0 text-muted-foreground" />}
-              <span className={`flex-1 text-sm ${item.done ? 'text-muted-foreground line-through' : 'text-foreground'}`}>
+              <span className={`min-w-0 flex-1 break-words text-sm ${item.done ? 'text-muted-foreground line-through' : 'text-foreground'}`}>
                 {t(`start.items.${item.key}`)}
               </span>
               {!item.done && !item.pending && item.action}
@@ -113,12 +114,12 @@ export default function GuideStart({ onInstall }: { onInstall: () => void }) {
   )
 }
 
-const actionCls = 'inline-flex min-h-[44px] sm:min-h-[36px] items-center rounded-md border border-border px-3 text-xs font-medium text-foreground hover:bg-muted/60'
+const actionCls = 'shrink-0 px-3 text-xs'
 
 function ActionButton({ onClick, children }: { onClick: () => void; children: ReactNode }) {
-  return <button type="button" onClick={onClick} className={actionCls}>{children}</button>
+  return <Button type="button" variant="outline" onClick={onClick} className={actionCls}>{children}</Button>
 }
 
 function ActionLink({ to, children }: { to: string; children: ReactNode }) {
-  return <Link to={to} className={actionCls}>{children}</Link>
+  return <Button asChild variant="outline" className={actionCls}><Link to={to}>{children}</Link></Button>
 }

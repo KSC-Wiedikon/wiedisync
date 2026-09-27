@@ -1017,7 +1017,7 @@ export default function ScorerAssignPage() {
                             const v = Math.max(0, Math.round(Number(e.target.value) || 0))
                             if (v !== (counts.dutyCredit || 0)) commitCredit(counts.teamId, v)
                           }}
-                          className="w-14 rounded border border-gray-300 bg-white px-2 py-1 text-center text-sm text-gray-900 focus:border-primary focus:outline-none disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                          className="h-9 w-14 rounded border border-gray-300 bg-white px-2 text-center text-sm sm:h-8 text-gray-900 focus:border-primary focus:outline-none disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
                           aria-label={t('creditCount')}
                         />
                       </TableCell>

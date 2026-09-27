@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { ArrowLeft } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { useAuth } from '../../hooks/useAuth'
 import { useCollection } from '../../lib/query'
 import { useReportPageLoading } from '../../hooks/usePageReady'
@@ -44,12 +45,15 @@ export default function FormBuilderPage() {
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-6">
-      <button
+      <Button
+        variant="ghost"
+        size="sm"
         onClick={back}
-        className="mb-4 inline-flex min-h-[36px] items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+        icon={<ArrowLeft />}
+        className="-ml-3 mb-4 gap-1 text-sm text-muted-foreground hover:text-foreground"
       >
-        <ArrowLeft size={16} /> {t('title')}
-      </button>
+        {t('title')}
+      </Button>
       <h1 className="mb-6 text-2xl font-bold">{isEdit ? t('editForm') : t('newForm')}</h1>
 
       {isEdit && isLoading ? (

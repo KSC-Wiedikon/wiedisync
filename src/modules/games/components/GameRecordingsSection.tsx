@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Globe, Pencil, Plus, Trash2, Video } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import IconButton from '@/components/IconButton'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { kscwApi } from '../../../lib/api'
@@ -101,7 +102,7 @@ export default function GameRecordingsSection({ gameId, canManage, upcoming = fa
           {upcoming ? t('recordingsLivestream') : t('recordings')}
         </h4>
         {canEdit && !editing && (
-          <Button variant="ghost" size="sm" className="min-h-[44px] sm:min-h-0" onClick={startEdit}>
+          <Button variant="ghost" className="shrink-0" onClick={startEdit}>
             {recordings.length ? <Pencil className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
             {recordings.length ? t('recordingsEdit') : t('recordingsAdd')}
           </Button>
@@ -160,18 +161,15 @@ export default function GameRecordingsSection({ gameId, canManage, upcoming = fa
                     aria-label={t('recordingsTitle')}
                   />
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-11 w-11 shrink-0 sm:h-9 sm:w-9"
+                <IconButton
+                  className="shrink-0"
                   onClick={() => setDraft((d) => d.filter((_, j) => j !== i))}
-                  aria-label={t('recordingsRemove')}
-                  title={t('recordingsRemove')}
+                  label={t('recordingsRemove')}
                 >
                   <Trash2 className="h-4 w-4" />
-                </Button>
+                </IconButton>
               </div>
-              <label className="flex min-h-[44px] items-center gap-2 text-sm sm:min-h-0">
+              <label className="flex items-center gap-2 text-sm">
                 <Switch
                   checked={r.show_on_website}
                   onCheckedChange={(v) => patchDraft(i, { show_on_website: v })}
@@ -183,8 +181,6 @@ export default function GameRecordingsSection({ gameId, canManage, upcoming = fa
           {draft.length < MAX_RECORDINGS && (
             <Button
               variant="outline"
-              size="sm"
-              className="min-h-[44px] sm:min-h-0"
               onClick={() => setDraft((d) => [...d, { url: '', title: '', show_on_website: false }])}
             >
               <Plus className="h-4 w-4" />

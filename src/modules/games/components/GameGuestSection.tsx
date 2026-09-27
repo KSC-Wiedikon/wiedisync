@@ -283,14 +283,16 @@ export default function GameGuestSection({ game, kscwTeamId, canEdit }: Props) {
               <p className="mb-1.5 text-xs font-medium text-gray-600 dark:text-gray-400">{t('guestOpenToTeam')}</p>
               <div className="flex flex-wrap gap-1.5">
                 {availableTeams.map(tm => (
-                  <button
+                  <Button
                     key={tm.id}
                     type="button"
+                    variant="outline"
+                    size="sm"
                     onClick={() => openToTeam(String(tm.id))}
-                    className="min-h-[44px] rounded-full border border-gray-300 px-3 py-1 text-xs hover:border-sky-400 hover:bg-sky-50 dark:border-gray-600 dark:text-gray-200 dark:hover:border-sky-500 dark:hover:bg-sky-900/30 sm:min-h-0"
+                    className="rounded-full font-normal hover:border-sky-400 hover:bg-sky-50 dark:hover:border-sky-500 dark:hover:bg-sky-900/30"
                   >
                     {tm.name}
-                  </button>
+                  </Button>
                 ))}
               </div>
             </div>
@@ -308,13 +310,14 @@ export default function GameGuestSection({ game, kscwTeamId, canEdit }: Props) {
           </div>
 
           <div className="flex justify-end gap-2">
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="sm"
               onClick={() => { setPicking(false); setPendingMembers([]) }}
-              className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400"
             >
               {t('cancel', { ns: 'common' })}
-            </button>
+            </Button>
             <Button size="sm" onClick={inviteMembers} disabled={pendingMembers.length === 0}>
               {t('guestInvite')}
             </Button>

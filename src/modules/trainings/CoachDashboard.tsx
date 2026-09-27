@@ -11,6 +11,7 @@ import { useCollection } from '../../lib/query'
 import { useMutation } from '../../hooks/useMutation'
 import LoadingSpinner from '../../components/LoadingSpinner'
 import DatePicker from '@/components/ui/DatePicker'
+import { Button } from '@/components/ui/button'
 import type { Team } from '../../types'
 
 interface CoachDashboardProps {
@@ -103,13 +104,9 @@ export default function CoachDashboard({ teamId }: CoachDashboardProps) {
           value={to}
           onChange={(v) => { setTo(v); persistTo(v) }}
         />
-        <button
-          type="button"
-          onClick={handleReset}
-          className="text-xs font-medium text-brand-600 underline-offset-4 hover:underline dark:text-brand-300"
-        >
+        <Button type="button" variant="outline" onClick={handleReset}>
           {t('resetRange')}
-        </button>
+        </Button>
         {rangeError && (
           <p className="w-full text-xs text-red-500">{rangeError}</p>
         )}

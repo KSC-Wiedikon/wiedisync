@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile'
-import { CheckCircle2, Calendar, Clock, MapPin, Users, LogIn } from 'lucide-react'
+import { CheckCircle2, Calendar, Clock, MapPin, Users, LogIn, Minus, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import IconButton from '@/components/IconButton'
 import { FormInput } from '@/components/FormField'
 import { API_URL, isAuthenticated } from '../../lib/api'
 import { TURNSTILE_SITE_KEY } from '../../lib/turnstile'
@@ -204,19 +205,23 @@ export default function PublicEventSignupPage() {
                 {t('publicSignupGuests')}
               </label>
               <div className="flex items-center gap-2">
-                <button
+                <IconButton
                   type="button"
+                  variant="outline"
                   onClick={() => setGuests((g) => Math.max(0, g - 1))}
-                  className="flex h-11 w-11 items-center justify-center rounded-md border border-border text-lg hover:bg-accent"
-                  aria-label={t('publicSignupGuestsMinus')}
-                >−</button>
+                  label={t('publicSignupGuestsMinus')}
+                >
+                  <Minus />
+                </IconButton>
                 <span id="guest-count" className="w-8 text-center text-sm font-medium">{guests}</span>
-                <button
+                <IconButton
                   type="button"
+                  variant="outline"
                   onClick={() => setGuests((g) => Math.min(20, g + 1))}
-                  className="flex h-11 w-11 items-center justify-center rounded-md border border-border text-lg hover:bg-accent"
-                  aria-label={t('publicSignupGuestsPlus')}
-                >+</button>
+                  label={t('publicSignupGuestsPlus')}
+                >
+                  <Plus />
+                </IconButton>
               </div>
             </div>
 

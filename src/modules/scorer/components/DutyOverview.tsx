@@ -127,11 +127,11 @@ export default function DutyOverview({ games, teams, members, hallNameById, spor
   return (
     <div className="mt-4">
       <div className="flex flex-wrap items-center gap-4">
-        <label className="flex min-h-[44px] cursor-pointer items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+        <label className="flex min-h-9 cursor-pointer sm:min-h-8 items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
           <Checkbox checked={onlyEmpty} onCheckedChange={(v) => setOnlyEmpty(v === true)} />
           {t('overviewOnlyEmpty')}
         </label>
-        <label className="flex min-h-[44px] cursor-pointer items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+        <label className="flex min-h-9 cursor-pointer sm:min-h-8 items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
           <Checkbox checked={showPast} onCheckedChange={(v) => setShowPast(v === true)} />
           {t('overviewShowPast')}
         </label>

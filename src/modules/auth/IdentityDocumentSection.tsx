@@ -449,13 +449,15 @@ export default function IdentityDocumentSection() {
             </div>
           )}
 
-          <button
+          <Button
             type="button"
+            variant="link"
+            size="sm"
             onClick={() => void lock()}
-            className="text-xs text-muted-foreground underline underline-offset-2"
+            className="px-0 text-muted-foreground underline underline-offset-2"
           >
             {t('idForgetDevice')}
-          </button>
+          </Button>
 
           <input
             ref={fileRef}

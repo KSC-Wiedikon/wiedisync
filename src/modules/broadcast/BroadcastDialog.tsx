@@ -17,6 +17,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import Modal from '@/components/Modal'
+import TruncatedText from '@/components/TruncatedText'
 import { useBroadcast } from './useBroadcast'
 import { useBroadcastPreview } from './useBroadcastPreview'
 import type {
@@ -276,9 +277,11 @@ export default function BroadcastDialog({
                   })}
                 </p>
                 {sampleNames && (
-                  <p className="text-xs text-muted-foreground truncate">
-                    {t('preview.sample', { names: sampleNames + (preview.sample.length > 3 ? ', …' : '') })}
-                  </p>
+                  <TruncatedText
+                    as="p"
+                    text={t('preview.sample', { names: sampleNames + (preview.sample.length > 3 ? ', …' : '') })}
+                    className="text-xs text-muted-foreground"
+                  />
                 )}
               </div>
             )}

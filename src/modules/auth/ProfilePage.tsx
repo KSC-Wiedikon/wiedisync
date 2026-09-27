@@ -7,6 +7,7 @@ import { useAuth } from '../../hooks/useAuth'
 import { useCollection } from '../../lib/query'
 import { kscwApi } from '../../lib/api'
 import { Button } from '@/components/ui/button'
+import IconButton from '@/components/IconButton'
 import { Switch } from '@/components/ui/switch'
 import StatusBadge from '../../components/StatusBadge'
 import TeamChip from '../../components/TeamChip'
@@ -405,17 +406,17 @@ export default function ProfilePage() {
                         <Link to={`/teams/${team?.name ?? mt.team}`} className="flex shrink-0">
                           <TeamChip team={team?.name ?? '?'} size="sm" />
                         </Link>
-                        <span className="text-xs text-gray-600 dark:text-gray-400">
+                        <span className="min-w-0 flex-1 break-words text-xs text-gray-600 dark:text-gray-400">
                           {teamRoles.join(' · ')}
                         </span>
-                        <button
+                        <IconButton
+                          size="sm"
+                          label={t('leaveTeam')}
                           onClick={() => setLeavingTeam({ id: mt.id, name: team?.name ?? String(mt.team) })}
-                          className="ml-auto rounded-full p-0.5 text-gray-400 hover:bg-gray-100 hover:text-red-500 dark:hover:bg-gray-700 dark:hover:text-red-400"
-                          title={t('leaveTeam')}
-                          aria-label={t('leaveTeam')}
+                          className="ml-auto shrink-0 rounded-full text-gray-400 hover:text-red-500 dark:hover:text-red-400"
                         >
-                          <X className="h-3.5 w-3.5" />
-                        </button>
+                          <X />
+                        </IconButton>
                       </div>
                     </div>
                   )
@@ -431,26 +432,29 @@ export default function ProfilePage() {
                     <Clock className="h-3.5 w-3.5 text-amber-500" />
                     <TeamChip team={asObj<Team>(req.team)?.name ?? '?'} size="sm" />
                     <span className="text-xs text-amber-600 dark:text-amber-400">{t('pendingApproval')}</span>
-                    <button
+                    <IconButton
+                      size="sm"
+                      label={t('common:cancel')}
                       onClick={() => handleCancelRequest(req.id)}
-                      className="ml-auto rounded-full p-0.5 text-gray-400 hover:bg-gray-100 hover:text-red-500 dark:hover:bg-gray-700 dark:hover:text-red-400"
-                      title={t('common:cancel')}
+                      className="ml-auto shrink-0 rounded-full text-gray-400 hover:text-red-500 dark:hover:text-red-400"
                     >
-                      <X className="h-3.5 w-3.5" />
-                    </button>
+                      <X />
+                    </IconButton>
                   </div>
                 ))}
               </div>
             )}
 
             {/* Add Team button */}
-            <button
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => setTeamRequestOpen(true)}
-              className="mt-1 flex items-center gap-1.5 py-1.5 pl-5 text-xs text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300"
+              icon={<Plus />}
+              className="ml-3 mt-1 gap-1.5 px-2 text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300"
             >
-              <Plus className="h-3.5 w-3.5" />
               {t('addTeam')}
-            </button>
+            </Button>
 
             {user.role.length > 0 && (
               <div className={memberTeams.length > 0 ? 'mt-2 border-t border-gray-100 pt-2 dark:border-gray-700' : ''}>

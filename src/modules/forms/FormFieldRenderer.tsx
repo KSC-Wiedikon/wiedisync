@@ -4,6 +4,9 @@ import { Paperclip, X, Loader2 } from 'lucide-react'
 import { FormField, FormInput, FormTextarea } from '@/components/FormField'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+import { Button } from '@/components/ui/button'
+import IconButton from '@/components/IconButton'
+import TruncatedText from '@/components/TruncatedText'
 import { uploadFile } from '../../lib/api'
 import { resolveFieldLabel } from './labels'
 import type { FieldDef, AnswerValue, FileAnswer } from './types'
@@ -80,20 +83,22 @@ export default function FormFieldRenderer({ field, value, onChange, disabled, pr
         <FormField label={label}>
           <div className="flex gap-1.5">
             {[1, 2, 3, 4, 5].map((n) => (
-              <button
+              <Button
                 key={n}
                 type="button"
+                size="icon"
+                variant="outline"
                 disabled={disabled}
                 onClick={() => onChange(n === current ? null : n)}
                 aria-label={`${n}`}
-                className={`h-10 w-10 rounded-md border text-sm font-medium transition-colors ${
+                className={
                   n <= current
-                    ? 'border-brand-500 bg-brand-500 text-white'
-                    : 'border-gray-200 text-gray-600 hover:bg-muted dark:border-gray-600 dark:text-gray-300'
-                }`}
+                    ? 'border-brand-500 bg-brand-500 text-white hover:bg-brand-600 hover:text-white'
+                    : 'border-gray-200 text-gray-600 dark:border-gray-600 dark:text-gray-300'
+                }
               >
                 {n}
-              </button>
+              </Button>
             ))}
           </div>
         </FormField>
@@ -103,7 +108,7 @@ export default function FormFieldRenderer({ field, value, onChange, disabled, pr
     case 'yes_no':
       return (
         <FormField label={label}>
-          <div className="flex min-h-[44px] items-center gap-2">
+          <div className="flex min-h-11 items-center gap-2 sm:min-h-9">
             <Switch checked={value === true} onCheckedChange={(v) => onChange(v)} disabled={disabled} />
             <span className="text-sm text-muted-foreground">{value === true ? t('yes') : t('no')}</span>
           </div>
@@ -114,7 +119,7 @@ export default function FormFieldRenderer({ field, value, onChange, disabled, pr
       return (
         <FormField label={label}>
           <Select value={(value as string) ?? ''} onValueChange={(v) => onChange(v)} disabled={disabled}>
-            <SelectTrigger className="min-h-[44px]">
+            <SelectTrigger>
               <SelectValue placeholder={t('choosePlaceholder')} />
             </SelectTrigger>
             <SelectContent>
@@ -136,7 +141,7 @@ export default function FormFieldRenderer({ field, value, onChange, disabled, pr
         <FormField label={label}>
           <div className="space-y-1">
             {options.map((o) => (
-              <label key={o} className="flex min-h-[44px] cursor-pointer items-center gap-2 rounded-md px-2 hover:bg-muted">
+              <label key={o} className="flex min-h-11 cursor-pointer items-center gap-2 rounded-md px-2 hover:bg-muted sm:min-h-9">
                 <input
                   type="checkbox"
                   checked={arr.includes(o)}
@@ -170,17 +175,17 @@ export default function FormFieldRenderer({ field, value, onChange, disabled, pr
       return (
         <FormField label={label}>
           {file ? (
-            <div className="flex min-h-[44px] items-center gap-2 rounded-md border border-gray-200 px-3 py-2 text-sm dark:border-gray-600">
+            <div className="flex min-h-11 items-center gap-2 rounded-md border border-gray-200 py-1 pl-3 pr-1 text-sm dark:border-gray-600 sm:min-h-9">
               <Paperclip size={15} className="shrink-0 text-muted-foreground" />
-              <span className="min-w-0 flex-1 truncate">{file.name}</span>
+              <TruncatedText text={file.name} className="flex-1" />
               {!disabled && (
-                <button type="button" onClick={() => onChange(null)} className="shrink-0 rounded p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30" aria-label={t('removeFile')}>
-                  <X size={15} />
-                </button>
+                <IconButton type="button" size="sm" label={t('removeFile')} onClick={() => onChange(null)} className="shrink-0 text-red-500 hover:bg-red-50 hover:text-red-600 dark:text-red-400 dark:hover:bg-red-900/30">
+                  <X />
+                </IconButton>
               )}
             </div>
           ) : (
-            <label className={`flex min-h-[44px] cursor-pointer items-center gap-2 rounded-md border border-dashed border-gray-300 px-3 py-2 text-sm text-muted-foreground hover:bg-muted dark:border-gray-600 ${disabled || uploading ? 'pointer-events-none opacity-60' : ''}`}>
+            <label className={`flex min-h-11 cursor-pointer items-center gap-2 rounded-md border border-dashed sm:min-h-9 border-gray-300 px-3 py-2 text-sm text-muted-foreground hover:bg-muted dark:border-gray-600 ${disabled || uploading ? 'pointer-events-none opacity-60' : ''}`}>
               {uploading ? <Loader2 size={15} className="animate-spin" /> : <Paperclip size={15} />}
               <span>{uploading ? t('uploading') : t('chooseFile')}</span>
               <input type="file" className="hidden" onChange={onPick} disabled={disabled || uploading} />

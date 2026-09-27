@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Check, ChevronDown, Pencil } from 'lucide-react'
+import { Check, ChevronDown, Pencil, X } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import IconButton from '@/components/IconButton'
 import type { RefereeExpense, Member, Team, BaseRecord } from '../../../types'
 import { useTeamMembers } from '../../../hooks/useTeamMembers'
 import { useMutation } from '../../../hooks/useMutation'
@@ -234,7 +236,7 @@ export default function RefereeExpenseSection({ gameId, teamId, canEdit, default
               value={otherName}
               onChange={(e) => setOtherName(e.target.value)}
               placeholder={t('refereeExpensesOtherName')}
-              className="w-full rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm placeholder:text-gray-400 focus:border-brand-400 focus:outline-none dark:border-gray-600 dark:text-gray-100 dark:placeholder:text-gray-500 dark:focus:border-brand-500"
+              className="h-11 w-full rounded-md border border-gray-200 bg-transparent px-3 text-sm sm:h-9 placeholder:text-gray-400 focus:border-brand-400 focus:outline-none dark:border-gray-600 dark:text-gray-100 dark:placeholder:text-gray-500 dark:focus:border-brand-500"
             />
           )}
 
@@ -247,7 +249,7 @@ export default function RefereeExpenseSection({ gameId, teamId, canEdit, default
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               placeholder="0.00"
-              className="w-full rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm placeholder:text-gray-400 focus:border-brand-400 focus:outline-none dark:border-gray-600 dark:text-gray-100 dark:placeholder:text-gray-500 dark:focus:border-brand-500"
+              className="h-11 w-full rounded-md border border-gray-200 bg-transparent px-3 text-sm sm:h-9 placeholder:text-gray-400 focus:border-brand-400 focus:outline-none dark:border-gray-600 dark:text-gray-100 dark:placeholder:text-gray-500 dark:focus:border-brand-500"
             />
           </div>
 
@@ -258,20 +260,20 @@ export default function RefereeExpenseSection({ gameId, teamId, canEdit, default
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder={t('refereeExpensesNotes')}
-              className="w-full rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm placeholder:text-gray-400 focus:border-brand-400 focus:outline-none dark:border-gray-600 dark:text-gray-100 dark:placeholder:text-gray-500 dark:focus:border-brand-500"
+              className="h-11 w-full rounded-md border border-gray-200 bg-transparent px-3 text-sm sm:h-9 placeholder:text-gray-400 focus:border-brand-400 focus:outline-none dark:border-gray-600 dark:text-gray-100 dark:placeholder:text-gray-500 dark:focus:border-brand-500"
             />
           </div>
 
           <div className="flex gap-2">
-            <button
+            <Button
               onClick={handleSave}
               disabled={!paidBy || (paidBy === OTHER_VALUE && !otherName.trim())}
-              className="rounded-md bg-brand-600 px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-brand-700 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {t('refereeExpensesSave')}
-            </button>
+            </Button>
             {editing && (
-              <button
+              <IconButton
+                label={t('common:cancel')}
                 onClick={() => {
                   setEditing(false)
                   // Reset to existing values
@@ -283,11 +285,10 @@ export default function RefereeExpenseSection({ gameId, teamId, canEdit, default
                     setNotes(existing.notes || '')
                   }
                 }}
-                className="rounded-md px-4 py-1.5 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-                aria-label={t('common:cancel')}
+                className="text-gray-500 dark:text-gray-400"
               >
-                ✕
-              </button>
+                <X />
+              </IconButton>
             )}
           </div>
         </div>
@@ -312,13 +313,14 @@ export default function RefereeExpenseSection({ gameId, teamId, canEdit, default
           {reimbursed ? (
             <p className="text-xs text-gray-500 dark:text-gray-400">{t('refereeExpensesReimbursed')}</p>
           ) : canEdit && (
-            <button
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => setEditing(true)}
-              className="flex items-center gap-1 text-xs text-brand-600 hover:underline dark:text-brand-400"
+              icon={<Pencil />}
             >
-              <Pencil className="h-3 w-3" />
               {t('refereeExpensesEdit')}
-            </button>
+            </Button>
           )}
         </div>
       ) : (

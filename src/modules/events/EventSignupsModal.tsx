@@ -130,7 +130,7 @@ export default function EventSignupsModal({ open, onClose, event }: EventSignups
       size="lg"
       disableAutoFocus
       headerAction={total > 0 ? (
-        <Button type="button" variant="outline" className="min-h-[44px]" onClick={exportCsv}>
+        <Button type="button" variant="outline" onClick={exportCsv}>
           {t('signupsExport')}
         </Button>
       ) : undefined}

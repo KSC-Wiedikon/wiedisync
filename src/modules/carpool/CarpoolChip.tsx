@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Car } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 import { useAuth } from '../../hooks/useAuth'
 import { inCarpoolScope } from './carpoolFormat'
 import CarpoolDialog from './CarpoolDialog'
@@ -30,16 +32,21 @@ export default function CarpoolChip({ type, id, iconOnly = false, className = ''
   if (!isAdmin && !inCarpoolScope(scope, [...memberTeamIds, ...coachTeamIds])) return null
   return (
     <span onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()} className="contents">
-      <button
+      <Button
         type="button"
+        variant="ghost"
+        size="sm"
         onClick={() => setOpen(true)}
         aria-label={t('chip')}
         title={t('chip')}
-        className={`inline-flex min-h-[36px] items-center gap-1 rounded-full bg-sky-100 px-2.5 py-1 text-xs font-semibold text-sky-800 transition-colors hover:bg-sky-200 dark:bg-sky-900/50 dark:text-sky-200 dark:hover:bg-sky-900 ${className}`}
+        className={cn(
+          'gap-1 rounded-full bg-sky-100 px-2.5 font-semibold text-sky-800 hover:bg-sky-200 hover:text-sky-800 dark:bg-sky-900/50 dark:text-sky-200 dark:hover:bg-sky-900 dark:hover:text-sky-200 [&_svg]:size-3.5',
+          className,
+        )}
       >
-        <Car className="h-3.5 w-3.5" aria-hidden />
+        <Car aria-hidden />
         {!iconOnly && <span className="hidden sm:inline">{t('chip')}</span>}
-      </button>
+      </Button>
       {open && <CarpoolDialog type={type} id={id} open={open} onOpenChange={setOpen} />}
     </span>
   )

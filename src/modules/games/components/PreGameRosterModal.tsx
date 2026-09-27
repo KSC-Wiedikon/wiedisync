@@ -1,8 +1,9 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { AlertTriangle } from 'lucide-react'
+import { AlertTriangle, Plus, RotateCcw, X } from 'lucide-react'
 import Modal from '@/components/Modal'
 import { Button } from '@/components/ui/button'
+import IconButton from '@/components/IconButton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import RsvpCheck, { type RsvpState } from '../../../components/RsvpCheck'
 import LoadingSpinner from '../../../components/LoadingSpinner'
@@ -378,7 +379,7 @@ export default function PreGameRosterModal({ gameId, onClose }: PreGameRosterMod
       aria-label={t('pregameColRole')}
       value={c.role ?? ''}
       onChange={(e) => setOfficialRole(c.ref, (e.target.value || null) as OfficialRole | null)}
-      className="h-11 max-w-full rounded-md border bg-background px-2 text-sm font-bold text-foreground dark:bg-gray-800"
+      className="h-11 max-w-full rounded-md border bg-background px-2 sm:h-9 text-sm font-bold text-foreground dark:bg-gray-800"
     >
       <option value="">{t('pregameRoleUnassigned')}</option>
       {OFFICIAL_ROLES.map((r) => (
@@ -388,52 +389,62 @@ export default function PreGameRosterModal({ gameId, onClose }: PreGameRosterMod
   )
 
   const removeOfficialButton = (c: OfficialRow) => (
-    <button
+    <IconButton
       type="button"
-      title={t('pregameRemoveOfficial')}
+      variant="outline"
+      label={t('pregameRemoveOfficial')}
       onClick={() => removeOfficial(c.ref)}
-      className="h-11 w-11 shrink-0 rounded-md border text-sm font-bold text-destructive"
+      className="shrink-0 text-destructive"
     >
-      ✕
-    </button>
+      <X />
+    </IconButton>
   )
 
   /** K / L / ✕ for one player. Beside the row from sm up; on a phone, a row of its own
    *  beneath the player, so the sheet never scrolls sideways. */
   const playerControls = (r: SheetRow) => (
     <div className="flex items-center justify-end gap-2">
-      <button
+      <Button
         type="button"
+        variant="outline"
+        size="icon"
         aria-pressed={r.is_captain}
         title={t('pregameCaptain')}
         onClick={() => toggleCaptain(r.member)}
         className={[
-          'h-11 w-11 rounded-full border text-sm font-bold',
-          r.is_captain ? 'border-foreground bg-foreground text-background' : 'text-muted-foreground',
+          'rounded-full font-bold',
+          r.is_captain
+            ? 'border-foreground bg-foreground text-background hover:bg-foreground/90 hover:text-background'
+            : 'text-muted-foreground',
         ].join(' ')}
       >
         {t('pregameCaptainShort')}
-      </button>
-      <button
+      </Button>
+      <Button
         type="button"
+        variant="outline"
+        size="icon"
         aria-pressed={r.is_libero}
         title={t('pregameLibero')}
         onClick={() => setRow(r.member, { is_libero: !r.is_libero })}
         className={[
-          'h-11 w-11 rounded-full border text-sm font-bold',
-          r.is_libero ? 'border-foreground bg-foreground text-background' : 'text-muted-foreground',
+          'rounded-full font-bold',
+          r.is_libero
+            ? 'border-foreground bg-foreground text-background hover:bg-foreground/90 hover:text-background'
+            : 'text-muted-foreground',
         ].join(' ')}
       >
         {t('pregameLiberoShort')}
-      </button>
-      <button
+      </Button>
+      <IconButton
         type="button"
-        title={r.dropped ? t('pregamePutBack') : t('pregameRemove')}
+        variant="outline"
+        label={r.dropped ? t('pregamePutBack') : t('pregameRemove')}
         onClick={() => removeRow(r)}
-        className="h-11 w-11 rounded-md border text-sm font-bold text-destructive"
+        className="text-destructive"
       >
-        {r.dropped ? '↺' : '✕'}
-      </button>
+        {r.dropped ? <RotateCcw /> : <X />}
+      </IconButton>
     </div>
   )
 
@@ -463,7 +474,7 @@ export default function PreGameRosterModal({ gameId, onClose }: PreGameRosterMod
             {showCheck && (
               <TableCell className="text-center"><RsvpCheck state={r.rsvp ?? null} /></TableCell>
             )}
-            <TableCell className="min-h-[44px] whitespace-normal tabular-nums text-xs text-muted-foreground">
+            <TableCell className="whitespace-normal tabular-nums text-xs text-muted-foreground">
               {r.birthdate ? formatDateZurich(r.birthdate) : '—'}
             </TableCell>
             <TableCell className="text-center">
@@ -478,7 +489,7 @@ export default function PreGameRosterModal({ gameId, onClose }: PreGameRosterMod
                   onChange={(e) => setRow(r.member, {
                     number: e.target.value === '' ? null : Number(e.target.value),
                   })}
-                  className="h-11 w-14 rounded-md border bg-background text-center text-base font-bold tabular-nums"
+                  className="h-11 w-14 rounded-md border bg-background sm:h-9 text-center text-base font-bold tabular-nums"
                 />
               ) : jerseyCell(r)}
             </TableCell>
@@ -605,14 +616,15 @@ export default function PreGameRosterModal({ gameId, onClose }: PreGameRosterMod
                       <TableCell className="w-14 text-center font-bold tabular-nums">{b.number ?? '—'}</TableCell>
                       <TableCell className="whitespace-normal break-words font-medium">{nameOf(b)}</TableCell>
                       <TableCell className="w-32 text-right">
-                        <button
+                        <IconButton
                           type="button"
-                          title={t('pregameAdd')}
+                          variant="outline"
+                          label={t('pregameAdd')}
                           onClick={() => addFromBench(b)}
-                          className="h-11 w-11 rounded-md border border-emerald-600 text-lg font-bold text-emerald-600"
+                          className="border-emerald-600 text-emerald-600 dark:border-emerald-500 dark:text-emerald-400"
                         >
-                          +
-                        </button>
+                          <Plus />
+                        </IconButton>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -645,7 +657,7 @@ export default function PreGameRosterModal({ gameId, onClose }: PreGameRosterMod
                   {officials.map((c) => (
                     <Fragment key={`o-${c.ref}`}>
                     <TableRow className={editing ? 'max-sm:border-b-0' : undefined}>
-                      <TableCell className="min-h-[44px] whitespace-normal tabular-nums text-xs text-muted-foreground">
+                      <TableCell className="whitespace-normal tabular-nums text-xs text-muted-foreground">
                         {c.birthdate ? formatDateZurich(c.birthdate) : '—'}
                       </TableCell>
                       {/* The scoresheet letters (C / AC1 / AC2 / P / M), in the slot the
@@ -691,7 +703,7 @@ export default function PreGameRosterModal({ gameId, onClose }: PreGameRosterMod
                     onChange={(e) => onSearch(e.target.value)}
                     placeholder={t('pregameOfficialSearch')}
                     aria-label={t('pregameAddOfficial')}
-                    className="h-11 w-full rounded-md border bg-background px-3 text-sm"
+                    className="h-11 w-full rounded-md border bg-background px-3 text-sm sm:h-9"
                   />
                   {search.trim().length >= 2 && !searching && (
                     candidates.filter((c) => !officials.some((o) => o.ref === c.ref)).length > 0 ? (
@@ -705,14 +717,15 @@ export default function PreGameRosterModal({ gameId, onClose }: PreGameRosterMod
                                   {c.last_name} {c.first_name}
                                 </TableCell>
                                 <TableCell className="w-14 text-right">
-                                  <button
+                                  <IconButton
                                     type="button"
-                                    title={t('pregameAddOfficial')}
+                                    variant="outline"
+                                    label={t('pregameAddOfficial')}
                                     onClick={() => addOfficial(c)}
-                                    className="h-11 w-11 rounded-md border border-emerald-600 text-lg font-bold text-emerald-600"
+                                    className="border-emerald-600 text-emerald-600 dark:border-emerald-500 dark:text-emerald-400"
                                   >
-                                    +
-                                  </button>
+                                    <Plus />
+                                  </IconButton>
                                 </TableCell>
                               </TableRow>
                             ))}

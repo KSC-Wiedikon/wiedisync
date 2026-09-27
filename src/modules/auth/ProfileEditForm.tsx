@@ -28,7 +28,8 @@ import {
   TRAINER_LICENCE_CODES, TRAINER_LICENCE_CODES_BY_SPORT, TRAINER_LICENCE_I18N_KEYS,
   parseTrainerLicences, serializeTrainerLicences, type TrainerLicence,
 } from '../../utils/trainerLicences'
-import { CheckIcon } from 'lucide-react'
+import { CheckIcon, ChevronDown, Info, Lock } from 'lucide-react'
+import IconButton from '@/components/IconButton'
 import { toast } from 'sonner'
 import { logActivity } from '../../utils/logActivity'
 import { KANTONSSCHULEN } from '../../utils/kantonsschulen'
@@ -625,15 +626,15 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
             <label htmlFor="website-visible" className="cursor-pointer text-sm text-gray-700 dark:text-gray-300">
               {t('websiteVisible')}
             </label>
-            <button
+            <IconButton
               type="button"
+              size="sm"
+              label={t('websiteVisible')}
               onClick={() => setInfoOpen(true)}
-              aria-label={t('websiteVisible')}
-              title={t('websiteVisible')}
-              className="flex h-4 w-4 items-center justify-center rounded-full bg-gray-200 text-[10px] font-bold text-gray-500 hover:bg-gray-300 dark:bg-gray-600 dark:text-gray-400 dark:hover:bg-gray-500"
+              className="shrink-0 rounded-full text-gray-500 dark:text-gray-400"
             >
-              i
-            </button>
+              <Info />
+            </IconButton>
           </div>
         </div>
       </div>
@@ -722,16 +723,14 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
             aria-haspopup="listbox"
             aria-expanded={positionDropdownOpen}
             aria-label={t('position')}
-            className="flex min-h-[44px] w-full items-center justify-between rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 transition-colors hover:border-brand-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:hover:border-brand-500"
+            className="flex min-h-11 w-full items-center justify-between gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-left text-sm sm:min-h-9 sm:py-1.5 text-gray-900 transition-colors hover:border-brand-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:hover:border-brand-500"
           >
-            <span className={selectedPositions.length === 0 ? 'text-gray-400' : ''}>
+            <span className={`min-w-0 break-words ${selectedPositions.length === 0 ? 'text-gray-400' : ''}`}>
               {selectedPositions.length > 0
                 ? selectedPositions.map((p) => (getPositionI18nKey(p) ? tt(getPositionI18nKey(p)!) : p)).join(', ')
                 : '—'}
             </span>
-            <svg className={`h-4 w-4 text-gray-400 transition-transform ${positionDropdownOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-            </svg>
+            <ChevronDown className={`h-4 w-4 shrink-0 text-gray-400 transition-transform ${positionDropdownOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
           </button>
           {positionDropdownOpen && (
             <>
@@ -780,14 +779,11 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
         <button
           type="button"
           onClick={() => !onboarding && setClubdeskOpen(!clubdeskOpen)}
-          className="flex w-full items-center justify-between px-4 py-3 text-sm font-semibold text-gray-900 dark:text-gray-100"
-          style={{ minHeight: 44 }}
+          className="flex min-h-11 w-full items-center justify-between gap-2 px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100"
         >
           <span>{t('personalDataClubdesk')}</span>
           {!onboarding && (
-            <svg className={`h-4 w-4 text-gray-400 transition-transform ${clubdeskOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-            </svg>
+            <ChevronDown className={`h-4 w-4 shrink-0 text-gray-400 transition-transform ${clubdeskOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
           )}
         </button>
         {(clubdeskOpen || onboarding) && (
@@ -796,7 +792,7 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
             <div className="grid grid-cols-2 gap-4">
               <FormField label={t('anrede')}>
                 <Select value={anrede} onValueChange={setAnrede}>
-                  <SelectTrigger className="min-h-[44px]">
+                  <SelectTrigger>
                     <SelectValue placeholder="—" />
                   </SelectTrigger>
                   <SelectContent>
@@ -807,7 +803,7 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
               </FormField>
               <FormField label={t('sex')}>
                 <Select value={sex} onValueChange={setSex}>
-                  <SelectTrigger className="min-h-[44px]">
+                  <SelectTrigger>
                     <SelectValue placeholder="—" />
                   </SelectTrigger>
                   <SelectContent>
@@ -888,7 +884,7 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
                             : parseTrainerLicences([...prev, code].join(',')),
                         )
                       }}
-                      className={`flex min-h-[44px] items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors ${
+                      className={`flex h-11 items-center gap-2 rounded-md border px-3 text-sm transition-colors sm:h-9 ${
                         active
                           ? 'border-primary bg-primary/10 font-medium text-foreground'
                           : 'border-gray-300 bg-white text-gray-700 hover:border-brand-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-brand-500'
@@ -944,9 +940,7 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
             {!onboarding && (
               <div className="mt-2 space-y-2 rounded-md bg-gray-50 p-3 dark:bg-gray-800">
                 <p className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
-                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                  </svg>
+                  <Lock className="h-3.5 w-3.5" aria-hidden="true" />
                   {t('managedByAdmin')}
                 </p>
                 <div className="grid grid-cols-2 gap-2 text-sm">
@@ -992,7 +986,7 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
             </label>
             <FormField label={t('birthdateVisibility')}>
               <Select value={birthdateVisibility} onValueChange={(v) => setBirthdateVisibility(v as 'full' | 'year_only' | 'hidden')}>
-                <SelectTrigger className="min-h-[44px]">
+                <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -1042,14 +1036,16 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
                 {t('resetLinkSent')}
               </span>
             ) : (
-              <button
+              <Button
                 type="button"
+                variant="link"
+                size="sm"
                 onClick={handlePasswordReset}
                 disabled={resetLoading}
-                className="text-xs text-gray-500 underline underline-offset-2 dark:text-gray-400"
+                className="shrink-0 px-0 text-gray-500 underline underline-offset-2 dark:text-gray-400"
               >
                 {resetLoading ? tc('saving') : t('sendResetLink')}
-              </button>
+              </Button>
             )}
           </div>
         </div>

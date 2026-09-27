@@ -239,13 +239,14 @@ export default function SetPasswordPage() {
                   {/* Members who have an account but never chose a password get
                       no useful link — mode 2 would mail one, but the OTP path
                       is the flow they were told about. Keep it one click away. */}
-                  <button
+                  <Button
                     type="button"
+                    variant="link"
                     onClick={() => { setError(null); setPhase('email') }}
-                    className="block min-h-[44px] w-full text-center text-sm text-brand-600 hover:text-brand-500 dark:text-brand-400"
+                    className="w-full whitespace-normal font-normal text-brand-600 no-underline hover:text-brand-500 hover:no-underline dark:text-brand-400"
                   >
                     {t('resetUseCodeInstead')}
-                  </button>
+                  </Button>
                 </form>
               )}
 
@@ -254,13 +255,14 @@ export default function SetPasswordPage() {
                   <p className="text-sm text-gray-600 dark:text-gray-300">
                     {t('resetLinkSentInfo', { email: email.trim().toLowerCase() })}
                   </p>
-                  <button
+                  <Button
                     type="button"
+                    variant="link"
                     onClick={() => { setError(null); setPhase('email') }}
-                    className="block min-h-[44px] w-full text-center text-sm text-brand-600 hover:text-brand-500 dark:text-brand-400"
+                    className="w-full whitespace-normal font-normal text-brand-600 no-underline hover:text-brand-500 hover:no-underline dark:text-brand-400"
                   >
                     {t('resetUseCodeInstead')}
-                  </button>
+                  </Button>
                 </div>
               )}
 

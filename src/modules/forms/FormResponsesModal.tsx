@@ -176,14 +176,14 @@ export default function FormResponsesModal({ open, form, onClose }: Props) {
         {/* Roster-aware progress + reminder (member-scoped forms only) */}
         {trackable && stats && stats.targeted > 0 && (
           <div className="rounded-lg border border-gray-200 p-3 dark:border-gray-700">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-2 text-sm">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex min-w-0 items-center gap-2 text-sm">
                 <Users size={15} className="text-muted-foreground" />
                 <span className="font-medium">{t('respondedCount', { done: stats.responded, total: stats.targeted })}</span>
               </div>
               {stats.nonResponders.length > 0 && (
-                <Button variant="outline" size="sm" onClick={remind} loading={reminding}>
-                  <BellRing size={15} className="mr-1" />{t('remindNonResponders')}
+                <Button variant="outline" size="sm" onClick={remind} loading={reminding} icon={<BellRing />} className="ml-auto">
+                  {t('remindNonResponders')}
                 </Button>
               )}
             </div>
@@ -195,13 +195,15 @@ export default function FormResponsesModal({ open, form, onClose }: Props) {
             </div>
             {remindMsg && <p className="mt-2 text-xs text-muted-foreground">{remindMsg}</p>}
             {stats.nonResponders.length > 0 && (
-              <button
+              <Button
                 type="button"
+                variant="link"
+                size="sm"
                 onClick={() => setShowMissing((v) => !v)}
-                className="mt-2 text-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
+                className="mt-1 px-0 text-brand-600 dark:text-brand-400"
               >
                 {showMissing ? t('hideMissing') : t('showMissing', { count: stats.nonResponders.length })}
-              </button>
+              </Button>
             )}
             {showMissing && (
               <p className="mt-1 text-xs text-muted-foreground">
@@ -211,13 +213,13 @@ export default function FormResponsesModal({ open, form, onClose }: Props) {
           </div>
         )}
 
-        <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm text-muted-foreground">{t('responseCount', { count: submissions.length })}</span>
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" onClick={exportCsv} disabled={!hasRows}><FileText size={15} className="mr-1" />CSV</Button>
-            <Button variant="outline" size="sm" onClick={exportXlsx} disabled={!hasRows}><FileSpreadsheet size={15} className="mr-1" />Excel</Button>
-            <Button variant="outline" size="sm" onClick={exportJson} disabled={!hasRows}><Braces size={15} className="mr-1" />JSON</Button>
-            <Button variant="outline" size="sm" onClick={exportPdf} disabled={!hasRows} loading={pdfBusy}><FileDown size={15} className="mr-1" />PDF</Button>
+          <div className="ml-auto flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" onClick={exportCsv} disabled={!hasRows} icon={<FileText />}>CSV</Button>
+            <Button variant="outline" size="sm" onClick={exportXlsx} disabled={!hasRows} icon={<FileSpreadsheet />}>Excel</Button>
+            <Button variant="outline" size="sm" onClick={exportJson} disabled={!hasRows} icon={<Braces />}>JSON</Button>
+            <Button variant="outline" size="sm" onClick={exportPdf} disabled={!hasRows} loading={pdfBusy} icon={<FileDown />}>PDF</Button>
           </div>
         </div>
 

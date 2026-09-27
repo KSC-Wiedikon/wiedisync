@@ -388,7 +388,7 @@ export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModa
                   {card.number ?? '—'}
                 </span>
                 <div className="min-w-0">
-                  <div className="truncate text-base font-bold uppercase leading-tight">{card.name}</div>
+                  <div className="break-words text-base font-bold uppercase leading-tight">{card.name}</div>
                   <div className="flex gap-1.5 pt-0.5">
                     {card.is_captain && <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-bold uppercase text-secondary-foreground">{t('pregameCaptain')}</span>}
                     {card.is_libero && <span className="rounded-full border border-primary px-2 py-0.5 text-[10px] font-bold uppercase text-primary">{t('pregameLibero')}</span>}

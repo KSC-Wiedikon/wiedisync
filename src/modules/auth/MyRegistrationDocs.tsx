@@ -71,7 +71,7 @@ export default function MyRegistrationDocs() {
               className="flex min-h-11 items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-700"
             >
               <FileText className="h-4 w-4 shrink-0 text-gray-400" />
-              <span className="truncate">{label}</span>
+              <span className="min-w-0 truncate" title={label}>{label}</span>
             </button>
           )
         })}

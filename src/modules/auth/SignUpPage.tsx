@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { ExternalLink } from 'lucide-react'
+import { Check, ExternalLink } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { useTheme } from '../../hooks/useTheme'
 import { useTurnstile } from '../../lib/turnstile'
@@ -526,15 +526,12 @@ export default function SignUpPage() {
                 {t('registrationClosedDescription')}
               </p>
 
-              <a
-                href={CLUB_SIGNUP_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-600"
-              >
-                {t('registrationClosedWebsiteLink')}
-                <ExternalLink className="h-4 w-4" />
-              </a>
+              <Button asChild className="w-full">
+                <a href={CLUB_SIGNUP_URL} target="_blank" rel="noopener noreferrer">
+                  {t('registrationClosedWebsiteLink')}
+                  <ExternalLink className="h-4 w-4" />
+                </a>
+              </Button>
 
               <Button variant="outline" onClick={handleBackToEmail} className="w-full">
                 {t('tryDifferentEmail')}
@@ -677,9 +674,7 @@ export default function SignUpPage() {
                         key={team.id}
                         className="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-3 py-1 text-sm font-medium text-green-800 dark:bg-green-900/30 dark:text-green-300"
                       >
-                        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                        </svg>
+                        <Check className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                         {team.name}{team.league ? ` — ${team.league}` : ''}
                       </span>
                     ))}
@@ -700,7 +695,7 @@ export default function SignUpPage() {
                       key={sport}
                       type="button"
                       onClick={() => setSelectedSport(sport)}
-                      className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                      className={`h-11 rounded-lg border px-3 text-sm font-medium transition-colors sm:h-9 ${
                         selectedSport === sport
                           ? 'border-gold-400 bg-gold-100 text-gold-900 dark:border-gold-400/50 dark:bg-gold-400/20 dark:text-gold-300'
                           : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'

@@ -58,12 +58,12 @@ export default function LivePage() {
 
   return (
     <div className="mx-auto w-full max-w-2xl p-4 sm:p-6">
-      <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div>
+      <header className="mb-4 flex flex-wrap items-center gap-3">
+        <div className="min-w-0">
           <h1 className="text-xl font-bold text-foreground sm:text-2xl">{t('title')}</h1>
           <p className="text-sm text-muted-foreground">{t('subtitle')}</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="ml-auto flex shrink-0 flex-wrap items-center gap-2">
           {/* Which game is on the board — the layout differs per sport, so name it. */}
           {envelope?.match && (
             <span className="rounded-full border bg-card px-3 py-1 text-xs font-semibold text-muted-foreground">
@@ -84,7 +84,7 @@ export default function LivePage() {
             <Scoreboard state={envelope!.match!} />
           )}
 
-          <div className="mt-3 flex min-h-5 flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+          <div className="mt-3 flex min-h-5 flex-wrap items-center gap-2 text-xs text-muted-foreground">
             {eventNote && !isFinal ? (
               <span className="rounded-md bg-accent px-2 py-1 font-medium text-accent-foreground">
                 {eventNote}
@@ -93,7 +93,7 @@ export default function LivePage() {
               <span />
             )}
             {lastReceivedAt && (
-              <span>{t('updatedAt', { time: formatTimeZurich(new Date(lastReceivedAt)) })}</span>
+              <span className="ml-auto">{t('updatedAt', { time: formatTimeZurich(new Date(lastReceivedAt)) })}</span>
             )}
           </div>
         </>

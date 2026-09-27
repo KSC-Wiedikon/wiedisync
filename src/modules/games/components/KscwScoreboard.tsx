@@ -2,6 +2,7 @@ import { Fragment, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Ranking } from '../../../types'
 import TeamChip from '../../../components/TeamChip'
+import { Button } from '@/components/ui/button'
 import { teamIds } from '../../../utils/teamColors'
 import { formatNumberSwiss } from '../../../utils/formatNumber'
 
@@ -126,20 +127,26 @@ export default function KscwScoreboard({ rankings }: KscwScoreboardProps) {
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{t('scoreboardTitle')}</h2>
         <div className="inline-flex rounded-lg border border-gray-200 bg-gray-100 p-0.5 dark:border-gray-600 dark:bg-gray-700">
-          <button
+          <Button
             type="button"
-            className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${mode === 'absolute' ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-600 dark:text-gray-100' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'}`}
+            variant="ghost"
+            size="sm"
+            aria-pressed={mode === 'absolute'}
+            className={mode === 'absolute' ? 'bg-white text-gray-900 shadow-sm hover:bg-white dark:bg-gray-600 dark:text-gray-100 dark:hover:bg-gray-600' : 'text-gray-500 hover:bg-transparent hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'}
             onClick={() => setMode('absolute')}
           >
             {t('scoreboardAbsolute')}
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
-            className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${mode === 'perGame' ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-600 dark:text-gray-100' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'}`}
+            variant="ghost"
+            size="sm"
+            aria-pressed={mode === 'perGame'}
+            className={mode === 'perGame' ? 'bg-white text-gray-900 shadow-sm hover:bg-white dark:bg-gray-600 dark:text-gray-100 dark:hover:bg-gray-600' : 'text-gray-500 hover:bg-transparent hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'}
             onClick={() => setMode('perGame')}
           >
             {t('scoreboardPerGame')}
-          </button>
+          </Button>
         </div>
       </div>
 

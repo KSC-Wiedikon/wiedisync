@@ -8,6 +8,7 @@ import AttendanceTable from '../../../components/AttendanceTable'
 import EmptyState from '../../../components/EmptyState'
 import LoadingSpinner from '../../../components/LoadingSpinner'
 import DatePicker from '@/components/ui/DatePicker'
+import { Button } from '@/components/ui/button'
 import { BarChart3 } from 'lucide-react'
 import { useGameAttendanceStats } from './useGameAttendanceStats'
 import GameAttendanceDrilldown from './GameAttendanceDrilldown'
@@ -124,9 +125,9 @@ export default function GameCoachDashboard({ teamId }: Props) {
           />
           {t('leagueOnly')}
         </label>
-        <button type="button" onClick={handleReset} className="text-xs font-medium text-brand-600 underline-offset-4 hover:underline dark:text-brand-300">
+        <Button type="button" variant="outline" onClick={handleReset}>
           {tTrainings('resetRange')}
-        </button>
+        </Button>
         {rangeError && <p className="w-full text-xs text-red-500">{rangeError}</p>}
       </div>
 

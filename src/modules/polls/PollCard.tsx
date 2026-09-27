@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { AlertCircle, Clock, EyeOff, Lock, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import IconButton from '@/components/IconButton'
 import type { Poll } from '../../types'
 import { formatDateZurich } from '../../utils/dateHelpers'
 import { usePollVotes, isDeadlinePassed } from './hooks/usePoll'
@@ -141,7 +142,7 @@ export default function PollCard({ poll, canManage, onClose, onDelete }: PollCar
     <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
       {/* Header */}
       <div className="mb-3 flex items-start justify-between gap-2">
-        <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+        <h4 className="min-w-0 break-words text-sm font-semibold text-gray-900 dark:text-gray-100">
           {poll.question}
         </h4>
         <span
@@ -362,15 +363,15 @@ export default function PollCard({ poll, canManage, onClose, onDelete }: PollCar
         </span>
 
         {canManage && (
-          <div className="flex gap-1">
+          <div className="flex shrink-0 gap-1">
             {isOpen && (
-              <Button variant="ghost" size="sm" onClick={handleClose} title={t('closePoll')}>
-                <Lock className="h-3.5 w-3.5" />
-              </Button>
+              <IconButton size="sm" label={t('closePoll')} onClick={handleClose}>
+                <Lock />
+              </IconButton>
             )}
-            <Button variant="ghost" size="sm" onClick={handleDelete} title={t('deletePoll')}>
-              <Trash2 className="h-3.5 w-3.5 text-red-500" />
-            </Button>
+            <IconButton size="sm" label={t('deletePoll')} onClick={handleDelete} className="text-red-500 hover:text-red-600 dark:text-red-400">
+              <Trash2 />
+            </IconButton>
           </div>
         )}
       </div>

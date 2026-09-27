@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { ArrowLeft } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { useReportPageLoading } from '../../hooks/usePageReady'
+import IconButton from '@/components/IconButton'
 import ProfileEditForm from './ProfileEditForm'
 import IdentityDocumentSection from './IdentityDocumentSection'
 
@@ -29,13 +30,13 @@ export default function ProfileEditPage() {
   return (
     <div className="mx-auto max-w-2xl">
       <div className="mb-4 flex items-center gap-3">
-        <button
+        <IconButton
+          label={tc('back')}
           onClick={goBack}
-          className="inline-flex h-9 w-9 items-center justify-center rounded-md text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
-          aria-label={tc('back')}
+          className="shrink-0 text-gray-600 dark:text-gray-300"
         >
-          <ArrowLeft className="h-5 w-5" />
-        </button>
+          <ArrowLeft className="!size-5" />
+        </IconButton>
         <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{t('editProfile')}</h1>
       </div>
 

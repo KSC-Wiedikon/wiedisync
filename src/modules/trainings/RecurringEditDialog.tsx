@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import Modal from '@/components/Modal'
+import { Button } from '@/components/ui/button'
 
 export type RecurringEditScope = 'this' | 'all' | 'same_day'
 
@@ -35,12 +36,13 @@ export default function RecurringEditDialog({ open, onClose, onSelect }: Recurri
           {t('editAllRecurring')}
         </button>
         <div className="pt-2">
-          <button
+          <Button
+            variant="ghost"
             onClick={onClose}
-            className="w-full rounded-lg px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
+            className="w-full text-gray-500 dark:text-gray-400"
           >
             {t('cancelEdit')}
-          </button>
+          </Button>
         </div>
       </div>
     </Modal>

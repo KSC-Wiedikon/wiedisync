@@ -14,6 +14,7 @@ import type { TeamSettings } from '../../types'
 import TeamChip from '../../components/TeamChip'
 import DatePicker from '@/components/ui/DatePicker'
 import { Switch } from '@/components/ui/switch'
+import { Button } from '@/components/ui/button'
 import { MeetingTimeSelect } from '@/components/MeetingTimeSelect'
 import { createRecords, fetchAllItems, fetchItem } from '../../lib/api'
 import { relId, asObj } from '../../utils/relations'
@@ -404,7 +405,9 @@ export default function RecurringTrainingModal({ open, onClose, onGenerated, sel
     }
   }
 
-  const inputCls = 'mt-1 w-full rounded-lg border px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500 focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none'
+  const fieldCls = 'mt-1 w-full rounded-lg border px-3 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500 focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none'
+  const inputCls = `${fieldCls} h-11 sm:h-9`
+  const textareaCls = `${fieldCls} py-2`
   const labelCls = 'block text-sm font-medium text-gray-700 dark:text-gray-300'
 
   if (done) {
@@ -436,12 +439,9 @@ export default function RecurringTrainingModal({ open, onClose, onGenerated, sel
             </p>
           )}
           <div className="pt-2">
-            <button
-              onClick={handleClose}
-              className="rounded-lg bg-brand-500 px-6 py-2 text-sm font-medium text-white hover:bg-brand-600"
-            >
+            <Button onClick={handleClose}>
               {tc('close')}
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>
@@ -492,22 +492,25 @@ export default function RecurringTrainingModal({ open, onClose, onGenerated, sel
             ['slot', t('useSlot')],
             ['manual', t('enterManually')],
           ] as const).map(([value, label]) => (
-            <button
+            <Button
               key={value}
               type="button"
+              variant="ghost"
+              size="sm"
+              aria-pressed={mode === value}
               onClick={() => {
                 setMode(value)
                 // Manual mode has no slot to seed the range from.
                 if (value === 'manual' && !startDate) setStartDate(toISODate(new Date()))
               }}
-              className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+              className={`flex-1 text-sm ${
                 mode === value
-                  ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-gray-100'
-                  : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
+                  ? 'bg-white text-gray-900 shadow-sm hover:bg-white dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-700'
+                  : 'text-gray-600 hover:bg-transparent hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
               }`}
             >
               {label}
-            </button>
+            </Button>
           ))}
         </div>
 
@@ -638,7 +641,7 @@ export default function RecurringTrainingModal({ open, onClose, onGenerated, sel
             />
           )}
           <div className="flex items-end">
-            <div className="flex min-h-[44px] w-full items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300">
+            <div className="flex min-h-11 w-full items-center gap-2 rounded-lg border border-gray-300 px-3 py-1 text-sm sm:min-h-9 text-gray-700 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300">
               <Switch
                 checked={untilSeasonEnd}
                 onCheckedChange={(checked) => {
@@ -729,7 +732,7 @@ export default function RecurringTrainingModal({ open, onClose, onGenerated, sel
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             rows={2}
-            className={inputCls}
+            className={textareaCls}
           />
         </div>
 
@@ -749,20 +752,19 @@ export default function RecurringTrainingModal({ open, onClose, onGenerated, sel
         {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
         <div className="flex justify-end gap-3 pt-2">
-          <button
+          <Button
             type="button"
+            variant="ghost"
             onClick={handleClose}
-            className="rounded-lg px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
           >
             {tc('close')}
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={handleGenerate}
             disabled={loading || previewDates.length === 0}
-            className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white hover:bg-brand-600 disabled:opacity-50"
           >
             {loading ? tc('saving') : t('generate')}
-          </button>
+          </Button>
         </div>
       </div>
     </Modal>
