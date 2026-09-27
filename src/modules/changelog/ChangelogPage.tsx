@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.19.0'
+const APP_VERSION = '2.20.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,19 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.20.0',
+    date: '27.09.2026',
+    sections: [
+      {
+        title: 'New',
+        items: [
+          "Car pooling is back, now for games, trainings and events. *Game, training or event settings → Car pooling.* It is off by default; whoever sets up the activity switches it on. Members can offer a ride or ask for one, with the direction (there, back or both), the number of seats, the departure time and a meeting or pick-up point. Passengers join a car in one tap, a driver can take someone who asked along, and everyone involved gets a notification when something changes. Drivers and their passengers see each other's phone number (unless it is hidden). The board shows up as a banner in the activity, as a car chip on its card, and on Home under \"Car pooling\".",
+          "Shared activities can open car pooling to chosen teams only. *Car pooling switch → Open to.* For an event several teams are invited to, or a game opened to guest teams, pick which of those teams see the rides. Leave it empty and everyone invited sees them.",
+        ],
+      },
+    ],
+  },
   {
     version: '2.19.0',
     date: '25.09.2026',
