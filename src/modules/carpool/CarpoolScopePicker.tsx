@@ -29,6 +29,7 @@ export default function CarpoolScopePicker({ candidates, value, onChange, disabl
         value={value.filter((v) => ids.has(v))}
         onChange={onChange}
         disabled={disabled}
+        placeholder={t('addTeam')}
       />
     </div>
   )

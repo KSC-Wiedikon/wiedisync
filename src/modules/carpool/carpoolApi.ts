@@ -30,6 +30,10 @@ interface CarpoolEntryBase {
   direction: CarpoolDirection
   seats: number
   departure_time: string | null
+  /** Way back, for a there-and-back ride (migration 380). */
+  return_time: string | null
+  /** Offer only: team ids the ride is for (migration 380). Empty = all. */
+  teams: number[]
   departure_location: string | null
   notes: string | null
   mine: boolean
@@ -79,6 +83,8 @@ export interface CarpoolBoardResponse {
   /** False when the board is scoped to teams the viewer is not in — render nothing. */
   in_scope: boolean
   scope_teams: Array<{ id: number; name: string; sport: 'volleyball' | 'basketball' | null }>
+  /** Teams a ride can be offered to (migration 380) — the "For teams" choices. */
+  activity_teams?: Array<{ id: number; name: string; sport: 'volleyball' | 'basketball' | null }>
 }
 
 export interface CarpoolUpcoming extends CarpoolActivityInfo {
@@ -93,6 +99,8 @@ export interface CarpoolEntryInput {
   direction: CarpoolDirection
   seats: number
   departure_time: string | null
+  return_time?: string | null
+  teams?: number[]
   departure_location: string | null
   notes: string | null
 }
@@ -172,4 +180,6 @@ export const CARPOOL_ERROR_KEYS: Record<string, string> = {
   missing_location: 'errorMissingLocation',
   no_member: 'errorNoMember',
   carpool_not_in_scope: 'errorNotInScope',
+  carpool_offer_other_teams: 'errorOfferOtherTeams',
+  carpool_invalid_teams: 'errorInvalidTeams',
 }

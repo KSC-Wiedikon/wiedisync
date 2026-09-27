@@ -49,6 +49,9 @@ export default function CarpoolPanel({ type, id, standalone = false, suggestedTi
   if (!activity.enabled && !hasEntries) return null
 
   const open = activity.open
+  // Teams a ride can be offered to (migration 380) — the form's "For teams".
+  const teamOptions = (res.activity_teams ?? []).map((tm) => ({ id: String(tm.id), label: tm.name, sport: tm.sport }))
+  const teamName = new Map((res.activity_teams ?? []).map((tm) => [tm.id, tm.name]))
   const showBody = standalone || expanded || composer != null
   const role = myRole(board)
 
@@ -170,11 +173,14 @@ export default function CarpoolPanel({ type, id, standalone = false, suggestedTi
                 direction: editing.direction,
                 seats: editing.seats,
                 departure_time: editing.departure_time,
+                return_time: editing.return_time,
+                teams: editing.teams,
                 departure_location: editing.departure_location,
                 notes: editing.notes,
               } : undefined}
               minSeats={editing?.kind === 'offer' ? Math.max(1, editing.seats_taken) : 1}
               suggestedTime={suggestedTime}
+              teamOptions={teamOptions}
               onSubmit={submitComposer}
               onCancel={() => setComposer(null)}
             />
@@ -182,6 +188,7 @@ export default function CarpoolPanel({ type, id, standalone = false, suggestedTi
 
           {board.offers.length > 0 && (
             <OffersTable
+              teamName={teamName}
               board={board}
               open={open}
               busy={busy}
@@ -209,7 +216,7 @@ export default function CarpoolPanel({ type, id, standalone = false, suggestedTi
   )
 }
 
-function DirectionTimePlace({ entry }: { entry: CarpoolOffer | CarpoolRequest }) {
+function DirectionTimePlace({ entry, teamNames = [] }: { entry: CarpoolOffer | CarpoolRequest; teamNames?: string[] }) {
   const { t } = useTranslation('carpool')
   return (
     <div className="space-y-0.5">
@@ -218,6 +225,17 @@ function DirectionTimePlace({ entry }: { entry: CarpoolOffer | CarpoolRequest })
         {entry.departure_time && ' · '}
         <span className="text-gray-600 dark:text-gray-400">{t(`direction_${entry.direction}`)}</span>
       </div>
+      {entry.direction === 'both' && entry.return_time && (
+        <div className="text-sm text-gray-900 dark:text-gray-100">
+          <span className="text-gray-600 dark:text-gray-400">{t('backAt')}</span>{' '}
+          <span className="font-medium tabular-nums">{entry.return_time}</span>
+        </div>
+      )}
+      {teamNames.length > 0 && (
+        <span className="inline-block rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-semibold text-sky-800 dark:bg-sky-900/60 dark:text-sky-200">
+          {t('forTeamsList', { teams: teamNames.join(', ') })}
+        </span>
+      )}
       {entry.departure_location && <div className="text-xs text-gray-600 dark:text-gray-400">{entry.departure_location}</div>}
       {entry.notes && <div className="text-xs italic text-gray-500 dark:text-gray-400">{entry.notes}</div>}
     </div>
@@ -250,7 +268,8 @@ function NameCell({ person, badge }: { person: CarpoolOffer['member']; badge?: s
 const actionsMobile = 'mt-2 flex flex-col items-stretch gap-1.5 sm:hidden [&>button]:min-h-[44px]'
 const actionsDesktop = 'flex items-center justify-end gap-1.5'
 
-function OffersTable({ board, open, busy, onJoin, onLeave, onEdit, onWithdraw, onDrop }: {
+function OffersTable({ teamName, board, open, busy, onJoin, onLeave, onEdit, onWithdraw, onDrop }: {
+  teamName: Map<number, string>
   board: CarpoolBoard
   open: boolean
   busy: boolean
@@ -317,7 +336,7 @@ function OffersTable({ board, open, busy, onJoin, onLeave, onEdit, onWithdraw, o
                   )}
                   <div className={actionsMobile}>{actions}</div>
                 </TableCell>
-                <TableCell className="whitespace-normal py-2.5"><DirectionTimePlace entry={o} /></TableCell>
+                <TableCell className="whitespace-normal py-2.5"><DirectionTimePlace entry={o} teamNames={o.teams.map((id) => teamName.get(id)).filter((n): n is string => !!n)} /></TableCell>
                 <TableCell className="py-2.5 text-center">
                   {o.seats_free > 0
                     ? <span className="whitespace-nowrap text-sm font-semibold tabular-nums text-gray-900 dark:text-gray-100">{t('seatsFree', { free: o.seats_free, total: o.seats })}</span>

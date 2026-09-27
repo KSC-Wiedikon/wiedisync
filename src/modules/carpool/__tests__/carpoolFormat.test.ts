@@ -6,13 +6,13 @@ const person = (id: number) => ({ id, first_name: `F${id}`, last_name: `L${id}`,
 
 function offer(id: number, driver: number, seats: number, taken: number, extra: Partial<CarpoolOffer> = {}): CarpoolOffer {
   return {
-    id, kind: 'offer', member: person(driver), direction: 'both', seats, departure_time: '16:45', departure_location: 'HB',
+    id, kind: 'offer', member: person(driver), direction: 'both', seats, departure_time: '16:45', return_time: null, teams: [], departure_location: 'HB',
     notes: null, mine: false, seats_taken: taken, seats_free: seats - taken, i_am_passenger: false, passengers: [], ...extra,
   }
 }
 function request(id: number, who: number, seats: number, extra: Partial<CarpoolRequest> = {}): CarpoolRequest {
   return {
-    id, kind: 'request', member: person(who), direction: 'there', seats, departure_time: null, departure_location: null,
+    id, kind: 'request', member: person(who), direction: 'there', seats, departure_time: null, return_time: null, teams: [], departure_location: null,
     notes: null, mine: false, covered: false, covered_by: [], ...extra,
   }
 }

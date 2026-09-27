@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { TeamPickerMulti, type TeamPickerOption } from '@/components/ui/TeamPicker'
 import type { CarpoolDirection, CarpoolEntryInput, CarpoolKind } from './carpoolApi'
 import { CARPOOL_DIRECTIONS, CARPOOL_MAX_SEATS } from './carpoolFormat'
 
@@ -15,6 +16,8 @@ interface CarpoolEntryFormProps {
   suggestedTime?: string | null
   /** Seats already taken in this car — an offer cannot go below it. */
   minSeats?: number
+  /** Teams an offer can be for (migration 380). Picker shown when ≥2. */
+  teamOptions?: readonly TeamPickerOption[]
   onSubmit: (input: CarpoolEntryInput) => Promise<void>
   onCancel: () => void
 }
@@ -24,13 +27,15 @@ interface CarpoolEntryFormProps {
  * dialog: the banner itself lives inside the game/training/event modals, and a
  * dialog on top of those fights their focus traps.
  */
-export default function CarpoolEntryForm({ kind, initial, suggestedTime, minSeats = 1, onSubmit, onCancel }: CarpoolEntryFormProps) {
+export default function CarpoolEntryForm({ kind, initial, suggestedTime, minSeats = 1, teamOptions = [], onSubmit, onCancel }: CarpoolEntryFormProps) {
   const { t } = useTranslation('carpool')
   const { t: tc } = useTranslation('common')
   const editing = !!initial
   const [direction, setDirection] = useState<CarpoolDirection>(initial?.direction ?? 'both')
   const [seats, setSeats] = useState<number>(initial?.seats ?? (kind === 'offer' ? 3 : 1))
   const [time, setTime] = useState<string>(initial?.departure_time ?? suggestedTime ?? '')
+  const [returnTime, setReturnTime] = useState<string>(initial?.return_time ?? '')
+  const [teams, setTeams] = useState<string[]>((initial?.teams ?? []).map(String))
   const [location, setLocation] = useState<string>(initial?.departure_location ?? '')
   const [notes, setNotes] = useState<string>(initial?.notes ?? '')
   const [saving, setSaving] = useState(false)
@@ -45,6 +50,8 @@ export default function CarpoolEntryForm({ kind, initial, suggestedTime, minSeat
         direction,
         seats,
         departure_time: time || null,
+        return_time: direction === 'both' ? (returnTime || null) : null,
+        teams: kind === 'offer' ? teams.filter((id) => teamOptions.some((o) => o.id === id)).map(Number) : [],
         departure_location: location.trim() || null,
         notes: notes.trim() || null,
       })
@@ -96,10 +103,30 @@ export default function CarpoolEntryForm({ kind, initial, suggestedTime, minSeat
           </select>
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor={`${idp}-time`}>{t('departureTime')}</Label>
+          <Label htmlFor={`${idp}-time`}>{t(direction === 'both' ? 'departureThere' : direction === 'back' ? 'departureBack' : 'departureTime')}</Label>
           <Input id={`${idp}-time`} type="time" step={300} value={time} onChange={(e) => setTime(e.target.value)} className="h-11" />
         </div>
       </div>
+
+      {/* There & back: the way home gets its own clock — people may leave at
+          different times (per-day participation). */}
+      {direction === 'both' && (
+        <div className="grid grid-cols-2 gap-3">
+          <div className="col-start-2 space-y-1.5">
+            <Label htmlFor={`${idp}-return`}>{t('departureBack')}</Label>
+            <Input id={`${idp}-return`} type="time" step={300} value={returnTime} onChange={(e) => setReturnTime(e.target.value)} className="h-11" />
+          </div>
+        </div>
+      )}
+
+      {/* Which of the invited teams this ride is for (offers only). */}
+      {kind === 'offer' && teamOptions.length >= 2 && (
+        <div className="space-y-1.5">
+          <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{t('forTeams')}</span>
+          <p className="text-xs text-muted-foreground">{t('forTeamsHint')}</p>
+          <TeamPickerMulti teams={teamOptions} value={teams} onChange={setTeams} placeholder={t('addTeam')} />
+        </div>
+      )}
 
       <div className="space-y-1.5">
         <Label htmlFor={`${idp}-location`}>{t(kind === 'offer' ? 'departureLocation' : 'pickupLocation')}</Label>

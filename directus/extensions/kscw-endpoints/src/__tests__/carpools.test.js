@@ -19,11 +19,11 @@ describe('normalizeTime', () => {
 describe('parseEntryInput', () => {
   it('cleans a full offer', () => {
     expect(parseEntryInput({ kind: 'offer', seats: '3', direction: 'there', departure_time: '16:45:00', departure_location: '  Bhf   Wiedikon ', notes: '' }))
-      .toEqual({ kind: 'offer', seats: 3, direction: 'there', departure_time: '16:45', departure_location: 'Bhf Wiedikon', notes: null })
+      .toEqual({ kind: 'offer', seats: 3, direction: 'there', departure_time: '16:45', return_time: null, teams: null, departure_location: 'Bhf Wiedikon', notes: null })
   })
   it('defaults a request to one seat, both ways, no time', () => {
     expect(parseEntryInput({ kind: 'request' }))
-      .toEqual({ kind: 'request', seats: 1, direction: 'both', departure_time: null, departure_location: null, notes: null })
+      .toEqual({ kind: 'request', seats: 1, direction: 'both', departure_time: null, return_time: null, teams: null, departure_location: null, notes: null })
   })
   it('refuses bad kinds, seats, directions and times with a 400', () => {
     for (const body of [
@@ -164,5 +164,35 @@ describe('scope (migration 379)', () => {
   it('describeActivity carries the scope', () => {
     expect(describeActivity('game', { id: 1, date: '2026-10-03', carpool_enabled: true, carpool_teams: [3, 9] }, { today: '2026-10-01' }).scope).toEqual([3, 9])
     expect(describeActivity('training', { id: 1, date: '2026-10-03', carpool_enabled: true }, { today: '2026-10-01' }).scope).toEqual([])
+  })
+})
+
+describe('per-offer teams + return time (migration 380)', () => {
+  it('keeps a return time only on a there-and-back ride', () => {
+    expect(parseEntryInput({ kind: 'offer', direction: 'both', departure_time: '08:00', return_time: '18:30:00', departure_location: 'HB' }).return_time).toBe('18:30')
+    expect(parseEntryInput({ kind: 'offer', direction: 'there', return_time: '18:30', departure_location: 'HB' }).return_time).toBeNull()
+    expect(() => parseEntryInput({ kind: 'offer', direction: 'both', return_time: '25:00', departure_location: 'HB' })).toThrow(/return_time/)
+    expect(parseEntryInput({ direction: 'back' }, { partial: true })).toEqual({ direction: 'back', return_time: null })
+  })
+  it('stores an offer\'s teams as a JSON list, never on a request', () => {
+    expect(parseEntryInput({ kind: 'offer', teams: [3, '9', 3], departure_location: 'HB' }).teams).toBe('[3,9]')
+    expect(parseEntryInput({ kind: 'offer', teams: [], departure_location: 'HB' }).teams).toBeNull()
+    expect(parseEntryInput({ kind: 'request', teams: [3] }).teams).toBeNull()
+  })
+  it('hides an offer for other teams unless it is mine, I ride in it, or I am admin', () => {
+    const m = (id) => ({ m_id: id, m_first_name: 'F', m_last_name: 'L', m_nickname: null, m_phone: null, m_hide_phone: false })
+    const entries = [
+      { id: 1, kind: 'offer', member: 1, seats: 3, direction: 'both', departure_time: '08:00:00', return_time: '18:00:00', teams: [3], ...m(1) },
+      { id: 2, kind: 'offer', member: 2, seats: 2, direction: 'there', teams: null, ...m(2) },
+    ]
+    const pax = [{ id: 10, carpool: 1, passenger: 7, seats: 1, p_id: 7, p_first_name: 'P', p_last_name: 'Q', p_nickname: null, p_phone: null, p_hide_phone: false }]
+    expect(buildBoard(entries, pax, 5, { myTeams: [9] }).offers.map((o) => o.id)).toEqual([2])
+    expect(buildBoard(entries, pax, 5, { myTeams: [3] }).offers.map((o) => o.id)).toEqual([1, 2])
+    expect(buildBoard(entries, pax, 1, { myTeams: [] }).offers.map((o) => o.id)).toEqual([1, 2])
+    expect(buildBoard(entries, pax, 7, { myTeams: [] }).offers.map((o) => o.id)).toEqual([1, 2])
+    expect(buildBoard(entries, pax, null, { admin: true }).offers.length).toBe(2)
+    const o = buildBoard(entries, pax, 1).offers.find((x) => x.id === 1)
+    expect(o).toMatchObject({ return_time: '18:00', teams: [3] })
+    expect(buildBoard(entries, pax, 5, { myTeams: [9] }).totals.seats_free).toBe(2)
   })
 })

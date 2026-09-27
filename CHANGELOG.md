@@ -2,6 +2,13 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.21.0 — 2026-09-27
+
+### Improved
+
+- **Car pooling: offer a ride to some of the invited teams only.** *Offer a ride → For teams.* On an activity shared by several teams, a driver can offer seats to their own team (or any mix of the invited teams); other teams do not see that ride. Leave it empty to offer to everyone.
+- **Car pooling: a separate time for the way back.** *Offer or request → There & back.* Rides going there and back now have a departure time for each direction, for when people leave at a different time than the group.
+
 ## v2.20.0 — 2026-09-27
 
 ### New

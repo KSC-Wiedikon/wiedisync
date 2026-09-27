@@ -33,6 +33,12 @@
  * and every write 403s `carpool_not_in_scope`. Having a ride already keeps you
  * in, so narrowing the scope never strands a passenger.
  *
+ * PER-OFFER TEAMS + RETURN TIME (migration 380): a driver can offer a ride to
+ * some of the invited teams only (`carpools.teams`, empty = all). Such an offer
+ * is hidden from members outside those teams (unless they sit in it) and a
+ * join / take across teams is refused. A there-and-back ride carries its own
+ * `return_time` for the way home.
+ *
  * New entries and seats need `carpool_enabled` and an activity that is neither
  * cancelled nor over; withdrawing and leaving are always allowed, so switching
  * the board off never strands anybody in a car they cannot get out of.
@@ -118,8 +124,24 @@ export function parseEntryInput(body, { partial = false } = {}) {
       out.departure_time = t
     }
   }
+  if (!partial || 'return_time' in b) {
+    if (b.return_time == null || b.return_time === '') out.return_time = null
+    else {
+      const t = normalizeTime(b.return_time)
+      if (!t) throw httpError(400, 'return_time must be HH:MM', 'invalid_time')
+      out.return_time = t
+    }
+  }
+  // A return time only means something on a there-and-back ride.
+  if (out.direction && out.direction !== 'both') out.return_time = null
+  if (!partial || 'teams' in b) {
+    const teams = parseScope(b.teams)
+    out.teams = teams.length ? JSON.stringify(teams) : null
+  }
   if (!partial || 'departure_location' in b) out.departure_location = optionalText(b.departure_location, MAX_LOCATION)
   if (!partial || 'notes' in b) out.notes = optionalText(b.notes, MAX_NOTES)
+  // Team choice is a driver's; a request is simply for whoever can drive.
+  if (!partial && out.kind === 'request') out.teams = null
   // An offer with no meeting point is not actionable for anyone reading it.
   if (!partial && out.kind === 'offer' && !out.departure_location) {
     throw httpError(400, 'An offer needs a meeting point', 'missing_location')
@@ -217,7 +239,7 @@ export function describeActivity(type, row, { teamName = null, today = zurichTod
  * Offers carry seats_taken / seats_free / passengers; a request is `covered`
  * once its requester sits in any offered car of the activity.
  */
-export function buildBoard(entries, passengers, me) {
+export function buildBoard(entries, passengers, me, { myTeams = [], admin = false } = {}) {
   const meId = me != null ? Number(me) : null
   const person = (r, prefix) => ({
     id: Number(r[`${prefix}id`]),
@@ -253,6 +275,10 @@ export function buildBoard(entries, passengers, me) {
   for (const e of entries) {
     const owner = person(e, 'm_')
     const mine = meId != null && owner.id === meId
+    const teams = parseScope(e.teams)
+    // An offer for other teams (380): hidden unless it is mine or I sit in it.
+    if (e.kind === 'offer' && teams.length && !admin && !mine
+      && !myCars.has(Number(e.id)) && !scopeAllows(teams, myTeams)) continue
     const base = {
       id: Number(e.id),
       kind: e.kind,
@@ -260,6 +286,8 @@ export function buildBoard(entries, passengers, me) {
       direction: e.direction,
       seats: Number(e.seats),
       departure_time: e.departure_time ? String(e.departure_time).slice(0, 5) : null,
+      return_time: e.return_time ? String(e.return_time).slice(0, 5) : null,
+      teams,
       departure_location: e.departure_location ?? null,
       notes: e.notes ?? null,
       mine,
@@ -448,7 +476,7 @@ export function registerCarpools(router, { services, database, logger, getSchema
     if (info.past) throw httpError(409, 'This activity is over', 'carpool_closed')
   }
 
-  async function board(type, id, meId) {
+  async function board(type, id, meId, { admin = false } = {}) {
     const fk = ACTIVITY[type].fk
     const entries = await database('carpools as c')
       .join('members as m', 'm.id', 'c.member')
@@ -465,7 +493,46 @@ export function registerCarpools(router, { services, database, logger, getSchema
         .select('p.*', 'm.id as p_id', 'm.first_name as p_first_name', 'm.last_name as p_last_name',
           'm.nickname as p_nickname', 'm.phone as p_phone', 'm.hide_phone as p_hide_phone')
       : []
-    return buildBoard(entries, passengers, meId)
+    const myTeams = meId != null ? await teamsOf(meId) : []
+    return buildBoard(entries, passengers, meId, { myTeams, admin })
+  }
+
+  /**
+   * The teams a ride can be offered to (380): the board's scope when set,
+   * else the activity's own teams — a game's playing team + guest teams, an
+   * event's invited teams (a club-wide event: none, i.e. no picker), a
+   * training's one team.
+   */
+  async function activityTeams(act) {
+    let ids = act.info.scope
+    if (!ids.length) {
+      if (act.type === 'game') {
+        const guests = await database('game_guest_teams').where('game', act.id).pluck('team')
+        ids = [act.teamId, ...guests]
+      } else if (act.type === 'training') {
+        ids = [act.teamId]
+      } else {
+        ids = await database('events_teams').where('events_id', act.id).pluck('teams_id')
+      }
+    }
+    ids = [...new Set(ids.filter((x) => x != null).map(Number))]
+    return scopeTeams(ids)
+  }
+
+  /** Offer teams must be a subset of the activity's teams (when it has any). */
+  async function assertOfferTeams(act, teamsJson) {
+    const chosen = parseScope(teamsJson)
+    if (!chosen.length) return
+    const allowed = new Set((await activityTeams(act)).map((t) => t.id))
+    if (allowed.size && chosen.some((t) => !allowed.has(t))) {
+      throw httpError(400, 'A ride can only be offered to the teams invited', 'carpool_invalid_teams')
+    }
+  }
+
+  /** Is this member inside an offer's team choice? */
+  async function offerAllows(offer, memberId) {
+    const teams = parseScope(offer.teams)
+    return !teams.length || scopeAllows(teams, await teamsOf(memberId))
   }
 
   const displayName = (m) => [((m?.nickname || '').trim() || m?.first_name), m?.last_name].filter(Boolean).join(' ')
@@ -599,6 +666,10 @@ export function registerCarpools(router, { services, database, logger, getSchema
           const k = keyOf(r)
           const c = counts.get(k) ?? { offers: 0, seats_free: 0, requests_open: 0, my_role: null }
           const riders = ridersByAct.get(k) ?? new Set()
+          // Offers for other teams (380) are not this member's to count.
+          const forMe = r.kind !== 'offer' || Number(r.member) === Number(me.id)
+            || scopeAllows(parseScope(r.teams), teamIds) || riders.has(Number(me.id))
+          if (r.kind === 'offer' && !forMe) { counts.set(k, c); continue }
           if (r.kind === 'offer') {
             c.offers += 1
             c.seats_free += Math.max(0, Number(r.seats) - (taken.get(Number(r.id)) ?? 0))
@@ -634,6 +705,10 @@ export function registerCarpools(router, { services, database, logger, getSchema
       if (act.entry.kind === 'offer' && 'departure_location' in patch && !patch.departure_location) {
         throw httpError(400, 'An offer needs a meeting point', 'missing_location')
       }
+      if (act.entry.kind === 'request') delete patch.teams
+      else if ('teams' in patch) await assertOfferTeams(act, patch.teams)
+      // Switching away from there-and-back drops the return time.
+      if (patch.direction && patch.direction !== 'both') patch.return_time = null
       await database('carpools').where('id', act.entry.id).update(patch)
       await writeUserLog(database, log, {
         accountability: req.accountability, action: 'update', collection: 'carpools',
@@ -674,6 +749,9 @@ export function registerCarpools(router, { services, database, logger, getSchema
       if (act.entry.kind !== 'offer') throw httpError(400, 'You can only join an offered ride')
       assertOpen(act.info)
       await assertInScope(req, act, me)
+      if (!(await offerAllows(act.entry, me.id))) {
+        throw httpError(403, 'This ride is offered to other teams', 'carpool_offer_other_teams')
+      }
       const seats = seatsParam(req.body?.seats ?? 1)
       const [row] = await database('carpool_passengers')
         .insert({ carpool: act.entry.id, passenger: me.id, seats, added_by_name: displayName(me) })
@@ -716,6 +794,9 @@ export function registerCarpools(router, { services, database, logger, getSchema
       const fk = ACTIVITY[act.type].fk
       const offer = await database('carpools').where({ [fk]: act.id, kind: 'offer', member: me.id }).first()
       if (!offer) throw httpError(409, 'Offer a ride first, then take requests into your car', 'carpool_no_offer')
+      if (!(await offerAllows(offer, act.entry.member))) {
+        throw httpError(409, 'Your ride is offered to other teams than this person\'s', 'carpool_offer_other_teams')
+      }
       const requester = await database('members').where('id', act.entry.member).first('id', 'first_name', 'last_name', 'nickname')
       const [row] = await database('carpool_passengers')
         .insert({ carpool: offer.id, passenger: act.entry.member, seats: Number(act.entry.seats) || 1, added_by_name: displayName(me) })
@@ -762,9 +843,10 @@ export function registerCarpools(router, { services, database, logger, getSchema
         return res.json({ activity: act.info, data: buildBoard([], [], null), me: me?.id ?? null, in_scope: false, scope_teams })
       }
       const data = act.info.enabled || (await database('carpools').where(ACTIVITY[act.type].fk, act.id).first('id'))
-        ? await board(act.type, act.id, me?.id ?? null)
+        ? await board(act.type, act.id, me?.id ?? null, { admin: req.accountability?.admin === true })
         : buildBoard([], [], null)
-      res.json({ activity: act.info, data, me: me?.id ?? null, in_scope: true, scope_teams })
+      const activity_teams = await activityTeams(act)
+      res.json({ activity: act.info, data, me: me?.id ?? null, in_scope: true, scope_teams, activity_teams })
     } catch (err) { fail(res, err, 'GET carpools/:type/:id') }
   })
 
@@ -776,6 +858,7 @@ export function registerCarpools(router, { services, database, logger, getSchema
       assertOpen(act.info)
       await assertInScope(req, act, me)
       const input = parseEntryInput(req.body)
+      if (input.kind === 'offer') await assertOfferTeams(act, input.teams)
       const [row] = await database('carpools')
         .insert({ ...input, member: me.id, [ACTIVITY[act.type].fk]: act.id })
         .returning('id')
@@ -792,7 +875,14 @@ export function registerCarpools(router, { services, database, logger, getSchema
         const drivers = b.offers.filter((o) => o.seats_free > 0 && !o.mine).map((o) => o.member.id)
         await notify(drivers, 'carpool_requested', act, { name: displayName(me), seats: input.seats })
       } else {
-        const waiting = b.requests.filter((r) => !r.covered && !r.mine).map((r) => r.member.id)
+        let waiting = b.requests.filter((r) => !r.covered && !r.mine).map((r) => r.member.id)
+        // An offer for some teams only nudges the people it is actually for.
+        const offerTeams = parseScope(input.teams)
+        if (offerTeams.length) {
+          const keep = []
+          for (const m of waiting) if (scopeAllows(offerTeams, await teamsOf(m))) keep.push(m)
+          waiting = keep
+        }
         await notify(waiting, 'carpool_offered', act, { name: displayName(me), seats: input.seats })
       }
       res.json({ data: b, id: entryId })

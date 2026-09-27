@@ -942,6 +942,8 @@ const EXPECTED_ERROR_CODES = new Set([
   'carpool_closed',
   'carpool_driver_is_passenger',
   'carpool_not_in_scope',
+  'carpool_offer_other_teams',
+  'carpool_invalid_teams',
   'missing_location',
 ])
 

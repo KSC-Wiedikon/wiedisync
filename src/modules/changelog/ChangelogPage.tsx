@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.20.0'
+const APP_VERSION = '2.21.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,19 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.21.0',
+    date: '27.09.2026',
+    sections: [
+      {
+        title: 'Improved',
+        items: [
+          "Car pooling: offer a ride to some of the invited teams only. *Offer a ride → For teams.* On an activity shared by several teams, a driver can offer seats to their own team (or any mix of the invited teams); other teams do not see that ride. Leave it empty to offer to everyone.",
+          "Car pooling: a separate time for the way back. *Offer or request → There & back.* Rides going there and back now have a departure time for each direction, for when people leave at a different time than the group.",
+        ],
+      },
+    ],
+  },
   {
     version: '2.20.0',
     date: '27.09.2026',
