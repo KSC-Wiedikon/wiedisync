@@ -86,7 +86,16 @@ function NavCategory({
       <DropdownMenuItem
         key={item.to}
         onSelect={() => go(item)}
-        className={`cursor-pointer gap-2.5 ${active ? 'bg-brand-50 font-medium text-brand-700 dark:bg-brand-800 dark:text-gold-400' : ''}`}
+        // Hover/keyboard focus stays NEUTRAL: the shadcn focus style is
+        // `accent-foreground`, which is gold in dark mode — the same colour as
+        // "you are here", so the item under the pointer read as a second
+        // selected page. Current page = brand wash + gold + a left bar.
+        className={cn(
+          'relative min-h-10 cursor-pointer gap-2.5 rounded-md px-2.5',
+          active
+            ? 'bg-brand-50 font-medium text-brand-700 before:absolute before:inset-y-1.5 before:left-0 before:w-[3px] before:rounded-full before:bg-brand-500 focus:bg-brand-100 focus:text-brand-800 dark:bg-brand-800 dark:text-gold-400 dark:before:bg-gold-400 dark:focus:bg-brand-800 dark:focus:text-gold-300'
+            : 'text-gray-700 focus:bg-gray-100 focus:text-gray-900 dark:text-gray-200 dark:focus:bg-white/5 dark:focus:text-white',
+        )}
       >
         {item.icon}
         <span className="flex-1">{item.label}</span>

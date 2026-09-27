@@ -17,9 +17,9 @@ const TINT: Record<RsvpStatus, string> = {
 // Selected = solid fill + a ring offset from the card, so the choice reads
 // without relying on colour alone (plus aria-checked).
 const FILL: Record<RsvpStatus, string> = {
-  confirmed: 'bg-green-600 text-white ring-2 ring-green-400 ring-offset-2 ring-offset-background dark:bg-green-600',
-  tentative: 'bg-yellow-600 text-white ring-2 ring-yellow-400 ring-offset-2 ring-offset-background dark:bg-yellow-600',
-  declined: 'bg-red-600 text-white ring-2 ring-red-400 ring-offset-2 ring-offset-background dark:bg-red-600',
+  confirmed: 'bg-green-600 text-white ring-2 ring-green-400 ring-offset-1 ring-offset-background dark:bg-green-600',
+  tentative: 'bg-yellow-600 text-white ring-2 ring-yellow-400 ring-offset-1 ring-offset-background dark:bg-yellow-600',
+  declined: 'bg-red-600 text-white ring-2 ring-red-400 ring-offset-1 ring-offset-background dark:bg-red-600',
 }
 
 export interface RsvpAnswerButtonsProps {
@@ -103,7 +103,7 @@ export default function RsvpAnswerButtons({
   return (
     <div className={cn('space-y-1.5', className)}>
       {!compact && (
-        <div className="flex min-h-11 items-center justify-between gap-2">
+        <div className="flex min-h-9 items-center justify-between gap-2">
           <span id={labelId} className="min-w-0 break-words text-sm font-medium text-gray-700 dark:text-gray-300">
             {label ?? (answeringFor || t('yourStatus'))}
           </span>
@@ -137,8 +137,12 @@ export default function RsvpAnswerButtons({
                 title={`${answer[status]}: ${counts.pending ? '…' : total[status]}`}
                 onClick={() => { if (!disabled && !on) onSelect(status) }}
                 className={cn(
-                  'flex min-h-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none',
-                  !stacked && '@max-3xs:min-h-[52px] @max-3xs:flex-col @max-3xs:gap-0 @max-3xs:px-1',
+                  // Deliberately below the 44px button scale (user call, 2026-09-28): three
+                  // side-by-side answers are a wide target, and 44px read as oversized.
+                  // Modal 40/36, card (compact) 36/32; the narrow two-line mode 44.
+                  'flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-2 font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none',
+                  compact ? 'min-h-9 text-[13px] sm:min-h-8' : 'min-h-10 text-sm sm:min-h-9',
+                  !stacked && '@max-3xs:min-h-11 @max-3xs:flex-col @max-3xs:gap-0 @max-3xs:px-1',
                   on ? FILL[status] : TINT[status],
                   stacked && 'justify-start px-3',
                   locked && 'cursor-not-allowed',
@@ -146,12 +150,12 @@ export default function RsvpAnswerButtons({
                   loading && 'opacity-50',
                 )}
               >
-                <Icon className={cn('h-4 w-4 shrink-0', !stacked && '@max-3xs:hidden', !on && !stacked && '@max-xs:hidden')} aria-hidden />
-                <span className={cn('min-w-0', stacked ? 'whitespace-normal text-left' : '@max-3xs:text-[11.5px] @max-3xs:leading-tight')}>{answer[status]}</span>
+                <Icon className={cn('h-3.5 w-3.5 shrink-0', !stacked && '@max-3xs:hidden', !on && !stacked && '@max-xs:hidden')} aria-hidden />
+                <span className={cn('min-w-0', stacked ? 'whitespace-normal text-left' : '@max-3xs:text-[11px] @max-3xs:leading-tight')}>{answer[status]}</span>
                 <span
                   className={cn(
                     'min-w-[1ch] text-center font-bold tabular-nums',
-                    !stacked && '@max-3xs:order-first @max-3xs:text-base @max-3xs:leading-tight',
+                    !stacked && '@max-3xs:order-first @max-3xs:text-sm @max-3xs:leading-tight',
                     on && 'rounded-md bg-white/20 px-1.5',
                     counts.pending && 'inline-block h-[0.9em] w-[1ch] animate-pulse rounded-sm bg-current opacity-30 motion-reduce:animate-none',
                     stacked && 'ml-auto',

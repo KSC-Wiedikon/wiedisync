@@ -1,4 +1,7 @@
 import { useTranslation } from 'react-i18next'
+import { useLocation } from 'react-router-dom'
+import { cn } from '@/lib/utils'
+import { useLiveNow } from '../modules/live/useLiveNow'
 import { useAuth } from './useAuth'
 import { useAdminMode } from './useAdminMode'
 import { SCHEDULING_ORIGIN } from '../lib/api'
@@ -34,13 +37,18 @@ export function useNavItems(isLoggedIn: boolean, isApproved: boolean) {
   const canManageForms = isAdmin || isVorstand || coachTeamIds.length > 0 || teamResponsibleIds.length > 0
   const showTeamsPlural = effectiveIsAdmin || effectiveIsVorstand || memberTeamIds.length > 1
   const iconClass = 'h-5 w-5'
+  const liveNow = useLiveNow()
+  const { pathname } = useLocation()
+  const showLive = liveNow.live || pathname.startsWith('/live')
   const publicItems: NavItem[] = [
     { to: '/', label: t('home'), icon: <Home className={iconClass} /> },
     { to: '/calendar', label: t('calendar'), icon: <Calendar className={iconClass} /> },
     { to: '/games', label: t('games'), icon: <WhistleIcon className={iconClass} /> },
     // Live scoreboard — public like /games: spectators in the hall follow it
     // without an account (the `live_scores` read is on the Public policy).
-    { to: '/live', label: t('live'), icon: <Radio className={iconClass} /> },
+    // Listed only while a match is actually live (or while you're on /live, so
+    // the current page never vanishes from under you); a pulsing icon marks it.
+    ...(showLive ? [{ to: '/live', label: t('live'), icon: <Radio className={cn(iconClass, liveNow.live && 'text-red-500 motion-safe:animate-pulse')} /> }] : []),
   ]
   // Primary = the daily "what's happening" views (these mirror the mobile bottom
   // tab bar). In the desktop top navbar Home stays a direct link and the rest are

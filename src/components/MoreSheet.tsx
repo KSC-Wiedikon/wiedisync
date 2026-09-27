@@ -7,6 +7,7 @@ import { useTheme } from '../hooks/useTheme'
 import TeamChip from './TeamChip'
 import { accentOf } from './householdAccents'
 import { cn } from '@/lib/utils'
+import { useLiveNow } from '../modules/live/useLiveNow'
 import SwitchToggle from '@/components/SwitchToggle'
 import LanguageDropdown from '@/components/LanguageDropdown'
 import { getFileUrl } from '../utils/fileUrl'
@@ -235,6 +236,9 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
   // For the scope-aware active state of `/fines?scope=…` entries — NavLink's own
   // isActive ignores the query and would light both at once.
   const location = useLocation()
+  // Live scoreboard entry only while a match is live (or you're on /live).
+  const liveNow = useLiveNow()
+  const showLive = liveNow.live || location.pathname.startsWith('/live')
   // scheduling: null — on mobile the Spielplanung entry keeps its own section
   // below (see buildSecondaryItems), it does not lead the Planning group.
   // isSuperAdmin: false — the superadmin block renders separately, below.
@@ -367,7 +371,7 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
           {/* Live scoreboard — public like on desktop (spectators follow it
               without an account), so it sits outside the approved-member
               block below. The bottom tab bar has no room for it. */}
-          {renderNavItem({ to: '/live', labelKey: 'live', icon: <Radio className={iconClass} /> })}
+          {showLive && renderNavItem({ to: '/live', labelKey: 'live', icon: <Radio className={cn(iconClass, liveNow.live && 'text-red-500 motion-safe:animate-pulse')} /> })}
           {(!user || !isApproved) ? null : (() => {
             const groups = buildSecondaryItems({ isAdmin, isVorstand, canAccessFinance, isVbAdmin, isBbAdmin, hasTeam, is_spielplaner, spielplanerTeamIds, coachTeamIds, teamResponsibleIds, canManageForms })
             const renderItem = (item: SheetItem) => (
