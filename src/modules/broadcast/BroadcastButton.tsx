@@ -25,7 +25,7 @@ export default function BroadcastButton({
   activity,
   member,
   variant = 'outline',
-  size = 'sm',
+  size = 'default',
   label,
   labelAlwaysVisible = false,
   className,
@@ -43,10 +43,11 @@ export default function BroadcastButton({
         size={size}
         onClick={() => setOpen(true)}
         aria-label={label ?? t('button.label')}
-        // Mobile-first: tap target ≥44px (size="sm" is 36px; we bump min via classes)
-        className={`min-h-11 ${className ?? ''}`.trim()}
+        // Height comes from the Button scale (44px touch / 36px sm+) — the same
+        // as Share and Cancel next to it, so the header row never steps.
+        className={className}
       >
-        <Send className={labelAlwaysVisible ? 'h-4 w-4 mr-1.5' : 'h-4 w-4 md:mr-1'} />
+        <Send aria-hidden />
         <span className={labelAlwaysVisible ? 'inline' : 'hidden md:inline'}>{label ?? t('button.label')}</span>
       </Button>
       {open && (

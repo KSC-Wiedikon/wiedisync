@@ -6,6 +6,8 @@ import { useAuth } from '../hooks/useAuth'
 import { useTeamPermissions } from '../hooks/useTeamPermissions'
 import { useAdminMode } from '../hooks/useAdminMode'
 import { useMutation } from '../hooks/useMutation'
+import IconButton from './IconButton'
+import { Button } from '@/components/ui/button'
 
 type ActivityKind = 'training' | 'event' | 'game'
 
@@ -91,38 +93,37 @@ export default function CancelActivityButton({
   return (
     <>
       {variant === 'icon' ? (
-        <button
-          type="button"
+        <IconButton
+          label={actionLabel}
           onClick={(e) => {
             e.stopPropagation()
             setDialogOpen(true)
           }}
-          title={actionLabel}
-          aria-label={actionLabel}
           className={
             isCancelled
-              ? 'rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200'
-              : 'rounded-lg p-2 text-gray-500 hover:bg-red-50 hover:text-red-600 dark:text-gray-400 dark:hover:bg-red-900/20 dark:hover:text-red-400'
+              ? 'text-gray-500 dark:text-gray-400'
+              : 'text-gray-500 hover:bg-red-50 hover:text-red-600 dark:text-gray-400 dark:hover:bg-red-900/20 dark:hover:text-red-400'
           }
         >
-          {isCancelled ? <RotateCcw className="h-4 w-4" /> : <Ban className="h-4 w-4" />}
-        </button>
+          {isCancelled ? <RotateCcw /> : <Ban />}
+        </IconButton>
       ) : (
-        <button
+        <Button
           type="button"
+          variant="outline"
           onClick={(e) => {
             e.stopPropagation()
             setDialogOpen(true)
           }}
           className={
             isCancelled
-              ? 'flex min-h-[36px] items-center gap-1.5 rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700'
-              : 'flex min-h-[36px] items-center gap-1.5 rounded-lg border border-red-300 px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/20'
+              ? undefined
+              : 'border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/20'
           }
         >
-          {isCancelled ? <RotateCcw className="h-4 w-4" /> : <Ban className="h-4 w-4" />}
+          {isCancelled ? <RotateCcw aria-hidden /> : <Ban aria-hidden />}
           {actionLabel}
-        </button>
+        </Button>
       )}
 
       <Modal open={dialogOpen} onClose={() => setDialogOpen(false)} title={actionLabel} size="sm">
@@ -147,26 +148,17 @@ export default function CancelActivityButton({
           {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
           <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => setDialogOpen(false)}
-              disabled={isLoading}
-              className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
-            >
+            <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} disabled={isLoading}>
               {t('keepBtn')}
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant={isCancelled ? 'default' : 'destructive'}
               onClick={handleConfirm}
-              disabled={isLoading}
-              className={
-                isCancelled
-                  ? 'rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50'
-                  : 'rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50'
-              }
+              loading={isLoading}
             >
               {isCancelled ? t('reinstateConfirmBtn') : t('cancelConfirmBtn')}
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>

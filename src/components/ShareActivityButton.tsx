@@ -2,6 +2,9 @@ import { useTranslation } from 'react-i18next'
 import { Share2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { activityLink, type ShareableActivity } from '../utils/activityLinks'
+import IconButton from './IconButton'
+import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 
 /**
  * "Copy link" for one activity — the member-facing share affordance.
@@ -57,23 +60,17 @@ export default function ShareActivityButton({ kind, id, title, iconOnly, classNa
     }
   }
 
+  if (iconOnly) {
+    return (
+      <IconButton label={t('shareLink')} onClick={handleShare} className={cn('text-muted-foreground', className)}>
+        <Share2 />
+      </IconButton>
+    )
+  }
   return (
-    <button
-      type="button"
-      onClick={handleShare}
-      title={t('shareLink')}
-      aria-label={t('shareLink')}
-      className={
-        className
-        ?? (iconOnly
-          // Square 44px so the header row keeps a touch target on mobile even
-          // without the label to pad it out.
-          ? 'flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground'
-          : 'flex min-h-[44px] items-center gap-1.5 rounded-md border border-border px-3 text-sm hover:bg-accent')
-      }
-    >
-      <Share2 className="h-4 w-4" />
-      {!iconOnly && <span>{t('shareLink')}</span>}
-    </button>
+    <Button type="button" variant="outline" onClick={handleShare} title={t('shareLink')} className={className}>
+      <Share2 aria-hidden />
+      {t('shareLink')}
+    </Button>
   )
 }

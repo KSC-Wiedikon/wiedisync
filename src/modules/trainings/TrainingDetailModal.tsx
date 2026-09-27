@@ -1,12 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import Modal from '@/components/Modal'
 import TeamChip from '../../components/TeamChip'
 import ParticipationSummary from '../../components/ParticipationSummary'
-import { rsvpButtonClass } from '../../utils/participationColors'
+import RsvpAnswerButtons from '../../components/RsvpAnswerButtons'
+import IconButton from '../../components/IconButton'
 import ParticipationRosterModal from '../../components/ParticipationRosterModal'
 import { useAuth } from '../../hooks/useAuth'
-import { useRsvpLabels } from '../../hooks/useRsvpLabels'
 import { useTeamPermissions } from '../../hooks/useTeamPermissions'
 import { useParticipation } from '../../hooks/useParticipation'
 import { useMyCoveringAbsence } from '../../hooks/useMyCoveringAbsence'
@@ -56,6 +56,12 @@ export default function TrainingDetailModal({ training, onClose, participations 
   const team = asObj<Team>(training.team)
   const hall = asObj<Hall>(training.hall)
   const coach = asObj<Member>(training.coach)
+
+  const rosterButton = (
+    <IconButton label={t('participation')} onClick={() => setRosterOpen(true)} className="text-brand-600 hover:bg-brand-50 dark:text-brand-400 dark:hover:bg-brand-900/20">
+      <Users className="!size-5" />
+    </IconButton>
+  )
 
   const actionRow = (
     <>
@@ -199,25 +205,19 @@ export default function TrainingDetailModal({ training, onClose, participations 
           {/* Participation section */}
           {!training.cancelled && (
             <div className="space-y-3 border-t border-gray-200 pt-3 dark:border-gray-700">
-              {/* Participation buttons */}
-              {canParticipate && (
-                <TrainingParticipation training={training} isStaff={isStaff} isStaffParticipant={!!teamId && isStaffOnly(teamId)} participations={participations} />
+              {canParticipate ? (
+                // Answer buttons carry the totals (RsvpAnswerButtons) — no separate counters row.
+                <TrainingParticipation
+                  training={training}
+                  isStaff={isStaff}
+                  isStaffParticipant={!!teamId && isStaffOnly(teamId)}
+                  participations={participations}
+                  coachMemberIds={teamCoachIds(team)}
+                  rosterButton={rosterButton}
+                />
+              ) : (
+                <ParticipationCountsRow training={training} participations={participations} coachMemberIds={teamCoachIds(team)} rosterButton={rosterButton} />
               )}
-
-              {/* Summary + roster button */}
-              <div className="flex items-center justify-between gap-2">
-                <div className="min-w-0 flex-1">
-                  <ParticipationSummary activityType="training" activityId={training.id} bars coachMemberIds={teamCoachIds(team)} participations={participations} />
-                </div>
-                <button
-                  onClick={() => setRosterOpen(true)}
-                  aria-label={t('participation')}
-                  title={t('participation')}
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-brand-600 hover:bg-brand-50 dark:text-brand-400 dark:hover:bg-brand-900/20"
-                >
-                  <Users className="h-5 w-5" />
-                </button>
-              </div>
             </div>
           )}
 
@@ -254,11 +254,22 @@ export default function TrainingDetailModal({ training, onClose, participations 
   )
 }
 
-function TrainingParticipation({ training, isStaff, isStaffParticipant, participations }: { training: TrainingExpanded; isStaff: boolean; isStaffParticipant: boolean; participations?: Participation[] }) {
+/** Counters + roster button for viewers who can't answer (not on the team / guest-excluded). */
+function ParticipationCountsRow({ training, participations, coachMemberIds, rosterButton }: { training: TrainingExpanded; participations?: Participation[]; coachMemberIds: string[]; rosterButton: ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <div className="min-w-0 flex-1">
+        <ParticipationSummary activityType="training" activityId={training.id} bars coachMemberIds={coachMemberIds} participations={participations} />
+      </div>
+      <span className="shrink-0">{rosterButton}</span>
+    </div>
+  )
+}
+
+function TrainingParticipation({ training, isStaff, isStaffParticipant, participations, coachMemberIds, rosterButton }: { training: TrainingExpanded; isStaff: boolean; isStaffParticipant: boolean; participations?: Participation[]; coachMemberIds: string[]; rosterButton: ReactNode }) {
   const { t } = useTranslation('participation')
   const { t: tTrainings } = useTranslation('trainings')
   const { getGuestLevel } = useAuth()
-  const { answer: rsvpLabels, answeringFor } = useRsvpLabels()
   const myGuestLevel = getGuestLevel(relId(training.team))
   const excludedGuestLevels = Array.isArray(training.excluded_guest_levels) ? training.excluded_guest_levels : []
   const guestExcluded = myGuestLevel > 0 && excludedGuestLevels.map((n: number) => Number(n)).includes(myGuestLevel)
@@ -334,7 +345,12 @@ function TrainingParticipation({ training, isStaff, isStaffParticipant, particip
   const isLocked = deadlinePassed
 
   if (guestExcluded) {
-    return <p className="text-sm italic text-gray-500 dark:text-gray-400">{tTrainings('guestExcluded')}</p>
+    return (
+      <div className="space-y-2">
+        <p className="text-sm italic text-gray-500 dark:text-gray-400">{tTrainings('guestExcluded')}</p>
+        <ParticipationCountsRow training={training} participations={participations} coachMemberIds={coachMemberIds} rosterButton={rosterButton} />
+      </div>
+    )
   }
 
   return (
@@ -342,57 +358,31 @@ function TrainingParticipation({ training, isStaff, isStaffParticipant, particip
       {hasAbsence && (
         <p className="text-xs italic text-gray-500 dark:text-gray-400">{t(absenceLabel)}</p>
       )}
-      <div className="relative flex flex-wrap items-center gap-2">
-        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{answeringFor || `${t('yourStatus')}:`}</span>
-        <div
-          className={`flex flex-wrap items-center gap-1.5 ${rsvpLoading ? 'pointer-events-none opacity-50' : ''}`}
-          aria-busy={rsvpLoading}
-        >
-          {(['confirmed', 'tentative', 'declined'] as const)
-            // ⚠ While loading, effectiveStatus is null — so with isLocked the filter
-            // below would render NO buttons at all, then pop one in. Keep all three
-            // (dimmed) until the saved answer is known.
-            .filter((s) => rsvpLoading || !isLocked || effectiveStatus === s)
-            // When deadline has passed: only render the user's selected choice (if any) in its color.
-            .map((status) => {
-            const active = effectiveStatus === status
-            return (
-              <button
-                key={status}
-                disabled={isLocked || rsvpLoading}
-                onClick={() => {
-                  if (isLocked) return
-                  if (requireNote && (status === 'declined' || status === 'tentative') && !noteText.trim()) {
-                    setNoteRequiredError(true)
-                    return
-                  }
-                  setNoteRequiredError(false)
-                  setStatus(status, noteText, guestCount)
-                }}
-                className={`rounded-full px-3 py-1 text-sm font-medium transition ${isLocked ? 'cursor-not-allowed' : ''} ${rsvpButtonClass(status, active)}`}
-              >
-                {rsvpLabels[status]}
-              </button>
-            )
-          })}
-        </div>
-        {/* Save confirmation popover */}
-        {saveConfirmed && (
-          <span className="absolute -top-7 left-1/2 -translate-x-1/2 flex items-center gap-1 whitespace-nowrap rounded-md bg-green-600 px-2 py-0.5 text-[11px] font-medium text-white shadow-lg animate-fade-in">
-            <Check className="h-3 w-3" />
-            {t('saved')}
-          </span>
-        )}
-      </div>
+      <RsvpAnswerButtons
+        activityType="training"
+        activityId={training.id}
+        participations={participations}
+        coachMemberIds={coachMemberIds}
+        value={effectiveStatus}
+        loading={rsvpLoading}
+        locked={isLocked}
+        saved={saveConfirmed}
+        trailing={rosterButton}
+        onSelect={(status) => {
+          if (requireNote && (status === 'declined' || status === 'tentative') && !noteText.trim()) {
+            setNoteRequiredError(true)
+            return
+          }
+          setNoteRequiredError(false)
+          setStatus(status, noteText, guestCount)
+        }}
+      />
       {/* Deadline info */}
-      {training.respond_by && (
-        deadlinePassed ? (
-          <p className="text-xs text-red-500 dark:text-red-400">{t('deadlinePassed')}</p>
-        ) : (
-          <p className="text-xs text-gray-400 dark:text-gray-500">
-            {tTrainings('respondBy')}: {formatDate(training.respond_by)}, {formatTime(training.respond_by) || formatTime(training.start_time)}
-          </p>
-        )
+      {/* Deadline info — "Deadline passed" is shown by RsvpAnswerButtons itself. */}
+      {training.respond_by && !deadlinePassed && (
+        <p className="text-xs text-gray-500 dark:text-gray-400">
+          {tTrainings('respondBy')}: {formatDate(training.respond_by)}, {formatTime(training.respond_by) || formatTime(training.start_time)}
+        </p>
       )}
       {/* Participation note */}
       {(effectiveStatus || requireNote) && (

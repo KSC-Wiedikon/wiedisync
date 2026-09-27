@@ -21,11 +21,19 @@ const buttonVariants = cva(
         ghost: "hover:bg-accent hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
       },
+      // KSCW control height scale (see /kscw-ui → "Control heights"):
+      //   touch 44px on phones, 36px from sm up — one height for every
+      //   standalone button, so a row of mixed buttons never steps.
+      //   `sm` is the dense tier (row tools, table cells): 36 → 32.
+      //   `tool` = svrz-style row toolbar: equal-width 44px on a phone,
+      //   content-width 32px from sm up.
       size: {
-        default: "h-9 min-h-[44px] px-4 py-2",
-        sm: "h-8 rounded-md px-3 text-xs",
-        lg: "h-10 rounded-md px-8",
-        icon: "h-9 w-9",
+        default: "h-11 px-4 sm:h-9",
+        sm: "h-9 px-3 text-xs sm:h-8",
+        lg: "h-11 px-6",
+        icon: "h-11 w-11 sm:h-9 sm:w-9",
+        "icon-sm": "h-9 w-9 sm:h-8 sm:w-8",
+        tool: "h-11 flex-1 basis-0 gap-1.5 px-2 text-[13px] sm:h-8 sm:flex-none sm:basis-auto sm:px-3 sm:text-xs",
       },
     },
     defaultVariants: {
