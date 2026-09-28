@@ -181,8 +181,8 @@ export default function SearchableSelect({
       <div
         ref={triggerRef}
         className={cn(
-          'flex min-h-[44px] w-full items-center rounded-md border border-input bg-transparent text-sm shadow-sm ring-offset-background transition-colors',
-          open && 'ring-1 ring-ring',
+          'flex min-h-[44px] w-full items-center rounded-lg border border-input bg-card text-sm ring-offset-background transition-colors dark:bg-input/20',
+          open && 'border-primary/60 ring-2 ring-ring',
           error && 'border-destructive',
           disabled && 'cursor-not-allowed opacity-50',
           triggerClassName,
@@ -234,7 +234,7 @@ export default function SearchableSelect({
         )}
       </div>
       {open && !isDesktop && (
-        <div ref={dropdownRef} data-searchable-select className="mt-1 cursor-default rounded-md border bg-popover shadow-md">
+        <div ref={dropdownRef} data-searchable-select className="mt-1 cursor-default rounded-lg border border-border bg-popover shadow-xl">
           {/* Filter input — NOT auto-focused so the iOS keyboard only appears
               when the user taps it (large member lists stay filterable without
               popping the keyboard on open). */}
@@ -247,7 +247,7 @@ export default function SearchableSelect({
               aria-autocomplete="list"
               aria-activedescendant={activeDescendant}
               aria-labelledby={label ? labelId : undefined}
-              className="min-h-[40px] w-full rounded border border-input bg-transparent px-2 text-sm outline-none placeholder:text-muted-foreground"
+              className="min-h-[40px] w-full rounded-lg border border-input bg-card px-2.5 text-base outline-none placeholder:text-muted-foreground/70 focus-visible:border-primary/60 focus-visible:ring-2 focus-visible:ring-ring dark:bg-input/20 md:text-sm"
               placeholder={searchPlaceholder ?? t('search')}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -269,7 +269,7 @@ export default function SearchableSelect({
                 role="option"
                 aria-selected={value === option.value}
                 className={cn(
-                  'flex min-h-[44px] cursor-pointer select-none items-center px-3 py-2 text-sm hover:bg-accent',
+                  'mx-1 flex min-h-[44px] cursor-pointer select-none items-center rounded-md px-2.5 py-2 text-sm hover:bg-accent',
                   (value === option.value || i === activeIndex) && 'bg-accent',
                 )}
                 onClick={() => {
@@ -290,7 +290,7 @@ export default function SearchableSelect({
         </div>
       )}
       {open && isDesktop && portalTarget && portalTarget.isConnected && createPortal(
-        <div ref={dropdownRef} data-searchable-select style={dropdownStyle} className="cursor-default rounded-md border bg-popover shadow-md">
+        <div ref={dropdownRef} data-searchable-select style={dropdownStyle} className="cursor-default rounded-lg border border-border bg-popover shadow-xl">
           <ul
             id={listboxId}
             className="max-h-60 overflow-y-auto overscroll-contain py-1 [touch-action:pan-y] [-webkit-overflow-scrolling:touch]"
@@ -306,7 +306,7 @@ export default function SearchableSelect({
                 role="option"
                 aria-selected={value === option.value}
                 className={cn(
-                  'flex min-h-[44px] cursor-pointer select-none items-center px-3 py-2 text-sm hover:bg-accent',
+                  'mx-1 flex min-h-[44px] cursor-pointer select-none items-center rounded-md px-2.5 py-2 text-sm hover:bg-accent',
                   (value === option.value || i === activeIndex) && 'bg-accent',
                 )}
                 onClick={() => {

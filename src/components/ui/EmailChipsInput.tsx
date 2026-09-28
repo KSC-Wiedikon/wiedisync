@@ -105,7 +105,7 @@ export default function EmailChipsInput({
     <div
       onClick={() => inputRef.current?.focus()}
       className={cn(
-        'mt-1 flex min-h-11 flex-wrap items-center gap-1.5 rounded-md border border-gray-300 bg-white p-1.5 text-sm focus-within:border-brand-500 focus-within:ring-1 focus-within:ring-brand-500 dark:border-gray-600 dark:bg-gray-900',
+        'mt-1 flex min-h-11 flex-wrap items-center gap-1.5 rounded-lg border border-input bg-card p-1.5 text-sm transition-colors focus-within:border-primary/60 focus-within:ring-2 focus-within:ring-ring dark:bg-input/20',
         disabled && 'opacity-60',
         className,
       )}
@@ -118,7 +118,7 @@ export default function EmailChipsInput({
             'inline-flex min-h-8 max-w-full items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs',
             chip.invalid
               ? 'border-red-300 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-300'
-              : 'border-gray-300 bg-gray-100 text-gray-700 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200',
+              : 'border-border bg-muted text-foreground/85',
           )}
         >
           <span className="truncate">{chip.email}</span>
@@ -132,7 +132,7 @@ export default function EmailChipsInput({
               'rounded p-1',
               chip.invalid
                 ? 'text-red-500 hover:bg-red-100 hover:text-red-800 dark:hover:bg-red-900 dark:hover:text-red-200'
-                : 'text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-200',
+                : 'text-muted-foreground/80 hover:bg-accent hover:text-foreground',
             )}
           >
             <X className="h-3.5 w-3.5" />
@@ -153,7 +153,7 @@ export default function EmailChipsInput({
         onKeyDown={handleKeyDown}
         onPaste={handlePaste}
         onBlur={() => setText(commit(text))}
-        className="min-w-[10rem] flex-1 bg-transparent px-1 py-1 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none dark:text-gray-100 dark:placeholder:text-gray-500"
+        className="min-w-[10rem] flex-1 bg-transparent px-1 py-1 text-sm text-foreground placeholder:text-muted-foreground/70 focus:outline-none"
       />
     </div>
   )

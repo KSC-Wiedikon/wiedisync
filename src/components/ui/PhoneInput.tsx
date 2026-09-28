@@ -150,7 +150,7 @@ export default function PhoneInput({
               type="button"
               disabled={disabled}
               aria-label={t('admin:explorerFieldsDialCode')}
-              className="flex min-h-[44px] shrink-0 items-center gap-1 rounded-md border border-input bg-transparent px-2 text-sm shadow-sm transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex min-h-[44px] shrink-0 items-center gap-1 rounded-lg border border-input bg-card px-2 text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 dark:bg-input/20"
             >
               <span aria-hidden="true">{selected?.flag ?? '🏳️'}</span>
               <span className="tabular-nums">+{dial}</span>
