@@ -116,19 +116,19 @@ export default function GameCoachDashboard({ teamId }: Props) {
           value={to}
           onChange={(v) => { setTo(v); persistTo(v) }}
         />
-        <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+        <label className="flex items-center gap-2 text-sm text-foreground/85">
           <input
             type="checkbox"
             checked={leagueOnly}
             onChange={(e) => { setLeagueOnly(e.target.checked); persistLeagueOnly(e.target.checked) }}
-            className="h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+            className="h-4 w-4 rounded border-input accent-[var(--primary)] focus-visible:ring-2 focus-visible:ring-ring"
           />
           {t('leagueOnly')}
         </label>
         <Button type="button" variant="outline" onClick={handleReset}>
           {tTrainings('resetRange')}
         </Button>
-        {rangeError && <p className="w-full text-xs text-red-500">{rangeError}</p>}
+        {rangeError && <p className="w-full text-xs font-medium text-destructive">{rangeError}</p>}
       </div>
 
       <div>

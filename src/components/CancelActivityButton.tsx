@@ -101,8 +101,8 @@ export default function CancelActivityButton({
           }}
           className={
             isCancelled
-              ? 'text-gray-500 dark:text-gray-400'
-              : 'text-gray-500 hover:bg-red-50 hover:text-red-600 dark:text-gray-400 dark:hover:bg-red-900/20 dark:hover:text-red-400'
+              ? 'text-muted-foreground'
+              : 'text-muted-foreground hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400'
           }
         >
           {isCancelled ? <RotateCcw /> : <Ban />}
@@ -128,11 +128,11 @@ export default function CancelActivityButton({
 
       <Modal open={dialogOpen} onClose={() => setDialogOpen(false)} title={actionLabel} size="sm">
         <div className="space-y-4" onClick={(e) => e.stopPropagation()}>
-          <p className="text-sm text-gray-700 dark:text-gray-300">{confirmText}</p>
+          <p className="text-sm text-foreground/85">{confirmText}</p>
 
           {!isCancelled && kind !== 'game' && (
             <div className="space-y-1">
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              <label className="text-sm font-medium text-foreground/85">
                 {t('cancelReasonLabel')}
               </label>
               <textarea
@@ -140,7 +140,7 @@ export default function CancelActivityButton({
                 onChange={(e) => setReason(e.target.value)}
                 placeholder={t('cancelReasonPlaceholder')}
                 rows={2}
-                className="w-full rounded-md border border-gray-300 bg-transparent px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-400 focus:outline-none dark:border-gray-600 dark:text-gray-100 dark:placeholder:text-gray-500"
+                className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/70 focus-visible:border-primary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-input/20"
               />
             </div>
           )}

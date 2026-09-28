@@ -55,25 +55,25 @@ export default function FinesDashboardCard({ teamId }: FinesDashboardCardProps) 
   return (
     <Link
       to={`/fines?team=${teamId}`}
-      className="block rounded-xl border border-gray-200 bg-white p-4 transition-colors hover:border-amber-300 dark:border-gray-700 dark:bg-gray-800 dark:hover:border-amber-700"
+      className="block rounded-2xl border border-hairline bg-card shadow-card p-4 transition-colors hover:border-amber-300 dark:hover:border-amber-700"
     >
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-gray-100">
+        <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
           <Gavel className="h-4 w-4 text-amber-600" />
           {t('dashboardTitle')}
         </div>
         <span className="text-xs text-amber-600 dark:text-amber-400">{t('dashboardViewAll')} →</span>
       </div>
       <div className="mt-3 flex items-baseline justify-between">
-        <div className="text-2xl font-bold tabular-nums text-gray-900 dark:text-gray-100">
+        <div className="text-2xl font-bold tabular-nums text-foreground">
           {formatFineAmount(stats.total)}
         </div>
-        <div className="text-xs text-gray-500 dark:text-gray-400">
+        <div className="text-xs text-muted-foreground">
           {t('dashboardCount', { count: stats.count })}
           {stats.openCount > 0 && ` · ${stats.openCount} ${t('statusOpen').toLowerCase()}`}
         </div>
       </div>
-      <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{deltaLabel}</div>
+      <div className="mt-1 text-xs text-muted-foreground">{deltaLabel}</div>
     </Link>
   )
 }

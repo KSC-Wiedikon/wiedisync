@@ -123,7 +123,7 @@ export default function PublicEventSignupPage() {
   if (status === 'notfound' || !event) {
     return (
       <div className="mx-auto flex min-h-screen max-w-md flex-col items-center justify-center px-4 text-center">
-        <h1 className="text-xl font-semibold text-foreground">{t('publicSignupNotFoundTitle')}</h1>
+        <h1 className="text-xl font-bold tracking-tight text-foreground">{t('publicSignupNotFoundTitle')}</h1>
         <p className="mt-2 text-sm text-muted-foreground">{t('publicSignupNotFoundBody')}</p>
       </div>
     )
@@ -136,8 +136,8 @@ export default function PublicEventSignupPage() {
 
   return (
     <div className="mx-auto max-w-md px-4 py-8">
-      <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
-        <h1 className="text-xl font-bold text-foreground">{event.title}</h1>
+      <div className="rounded-3xl border border-hairline bg-card p-5 shadow-card-lg sm:p-6">
+        <h1 className="text-xl font-bold tracking-tight text-foreground">{event.title}</h1>
 
         <div className="mt-3 space-y-2 text-sm text-muted-foreground">
           {when && (
@@ -171,7 +171,7 @@ export default function PublicEventSignupPage() {
         {/* Members go to the app. Signing up here would leave no participation
             row and the event's own count would under-report them. */}
         {memberSession ? (
-          <div className="mt-5 rounded-lg border border-border bg-accent/40 p-4">
+          <div className="mt-5 rounded-xl border border-hairline bg-surface-sunken p-4">
             <p className="text-sm text-foreground">{t('publicSignupMemberNotice')}</p>
             <Button asChild className="mt-3 w-full">
               <Link to={`/events/${event.id}`}>
@@ -181,15 +181,15 @@ export default function PublicEventSignupPage() {
             </Button>
           </div>
         ) : event.cancelled ? (
-          <p className="mt-5 rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-400">
+          <p className="mt-5 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">
             {event.cancel_reason || t('cancelled')}
           </p>
         ) : event.closed ? (
-          <p className="mt-5 rounded-lg border border-border p-3 text-sm text-muted-foreground">
+          <p className="mt-5 rounded-xl border border-hairline bg-surface-sunken p-3 text-sm text-muted-foreground">
             {t('publicSignupClosed')}
           </p>
         ) : done ? (
-          <div className="mt-5 flex flex-col items-center gap-2 rounded-lg border border-border p-5 text-center">
+          <div className="mt-5 flex flex-col items-center gap-2 rounded-xl border border-hairline bg-surface-sunken p-5 text-center">
             <CheckCircle2 className="h-9 w-9 text-green-600 dark:text-green-400" />
             <p className="text-sm font-medium text-foreground">{t('publicSignupDone')}</p>
           </div>
@@ -201,7 +201,7 @@ export default function PublicEventSignupPage() {
             <FormInput label={t('publicSignupNote')} value={note} onChange={(e) => setNote(e.target.value)} />
 
             <div>
-              <label htmlFor="guest-count" className="mb-1 block text-sm font-medium text-foreground">
+              <label htmlFor="guest-count" className="mb-1.5 block text-xs font-medium text-muted-foreground">
                 {t('publicSignupGuests')}
               </label>
               <div className="flex items-center gap-2">
@@ -213,7 +213,7 @@ export default function PublicEventSignupPage() {
                 >
                   <Minus />
                 </IconButton>
-                <span id="guest-count" className="w-8 text-center text-sm font-medium">{guests}</span>
+                <span id="guest-count" className="w-8 text-center text-sm font-medium tabular-nums">{guests}</span>
                 <IconButton
                   type="button"
                   variant="outline"

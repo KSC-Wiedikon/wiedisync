@@ -91,7 +91,7 @@ export function TransferStatusCell({
       {derived && (
         <div className="mt-1 flex flex-wrap items-start gap-1">
           <p
-            className="flex items-start gap-1 text-xs whitespace-normal text-gray-500 dark:text-gray-400"
+            className="flex items-start gap-1 text-xs whitespace-normal text-muted-foreground"
             title={derivedHint}
           >
             <Ban className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
@@ -105,7 +105,7 @@ export function TransferStatusCell({
       )}
 
       {member.transfer_status === 'done' && member.transfer_done_at && (
-        <p className="mt-1 text-xs whitespace-normal text-gray-400 dark:text-gray-500">
+        <p className="mt-1 text-xs whitespace-normal text-muted-foreground/80">
           {member.transfer_done_by_name
             ? t('trDoneByOn', {
                 date: formatDateTimeCompact(member.transfer_done_at),

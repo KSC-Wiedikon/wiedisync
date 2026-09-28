@@ -45,7 +45,7 @@ const SOURCE_COLORS: Record<string, string> = {
   school_holidays: 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300',
   gcal: 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300',
   hauswart: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300',
-  admin: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400',
+  admin: 'bg-muted text-muted-foreground',
   auto: 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300',
 }
 
@@ -428,17 +428,17 @@ export default function ClosuresPage() {
           variant="ghost"
           icon={<ArrowLeft />}
           onClick={() => navigate(-1)}
-          className="-ml-3 mb-2 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
+          className="-ml-3 mb-2 text-muted-foreground hover:text-foreground"
         >
           {t('common:back')}
         </Button>
-        <h1 className="text-xl font-bold text-gray-900 sm:text-2xl dark:text-gray-100">{t('closuresTitle')}</h1>
-        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{t('closuresSubtitle')}</p>
+        <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">{t('closuresTitle')}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{t('closuresSubtitle')}</p>
       </div>
 
       {/* Add / edit form */}
-      <div ref={formRef} className="mb-6 space-y-4 rounded-lg border border-gray-200 bg-white p-4 sm:p-6 dark:border-gray-700 dark:bg-gray-800">
-        <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+      <div ref={formRef} className="mb-6 space-y-4 rounded-2xl border border-hairline bg-card p-4 shadow-card sm:p-6">
+        <h2 className="text-sm font-semibold text-foreground">
           {editingGroup ? t('editClosure') : t('addNewClosure')}
         </h2>
 
@@ -479,8 +479,8 @@ export default function ClosuresPage() {
                     className={cn(
                       'rounded-full',
                       active
-                        ? 'border-brand-600 bg-brand-600 text-white hover:bg-brand-600 hover:text-white'
-                        : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700',
+                        ? 'border-selected bg-selected text-selected-foreground hover:bg-selected hover:text-selected-foreground'
+                        : 'border-input bg-card text-foreground/85 hover:bg-accent',
                     )}
                   >
                     {h.name}
@@ -551,9 +551,9 @@ export default function ClosuresPage() {
       </div>
 
       {/* List */}
-      <div className="rounded-lg border border-gray-200 bg-white p-4 sm:p-6 dark:border-gray-700 dark:bg-gray-800">
+      <div className="rounded-2xl border border-hairline bg-card p-4 shadow-card sm:p-6">
         <div className="mb-3 flex items-center gap-2">
-          <h2 className="min-w-0 flex-1 break-words text-base font-semibold text-gray-900 dark:text-gray-100">{t('currentClosures')}</h2>
+          <h2 className="min-w-0 flex-1 break-words text-sm font-semibold text-foreground">{t('currentClosures')}</h2>
           <div className="flex shrink-0 gap-2">
             {(['upcoming', 'all'] as const).map((s) => (
               <Button
@@ -570,9 +570,9 @@ export default function ClosuresPage() {
         </div>
 
         {isLoading ? (
-          <p className="py-6 text-center text-sm text-gray-400 dark:text-gray-500">{t('common:loading')}</p>
+          <p className="py-6 text-center text-sm text-muted-foreground/80">{t('common:loading')}</p>
         ) : groups.length === 0 ? (
-          <p className="py-6 text-center text-sm text-gray-500 dark:text-gray-400">{t('noClosures')}</p>
+          <p className="py-6 text-center text-sm text-muted-foreground">{t('noClosures')}</p>
         ) : (
           <Table>
             <TableHeader>
@@ -604,9 +604,9 @@ export default function ClosuresPage() {
                       {dateRange}
                     </TableCell>
                     <TableCell className="whitespace-normal break-words">{group.reason}</TableCell>
-                    <TableCell className="whitespace-normal break-words text-gray-500 dark:text-gray-400">
+                    <TableCell className="whitespace-normal break-words text-muted-foreground">
                       {isAllHalls ? (
-                        <span className="font-medium text-gray-600 dark:text-gray-300">{t('allHalls')}</span>
+                        <span className="font-medium text-muted-foreground">{t('allHalls')}</span>
                       ) : (
                         [...group.hallNames].sort().join(', ')
                       )}
@@ -620,7 +620,7 @@ export default function ClosuresPage() {
                       {SYNC_OWNED.includes(group.source) ? (
                         // Came FROM their calendar, or is the city's school-holiday
                         // feed which they enter themselves — nothing to publish.
-                        <span className="text-xs text-gray-400 dark:text-gray-500">{t('gcalPushNotEligible')}</span>
+                        <span className="text-xs text-muted-foreground/80">{t('gcalPushNotEligible')}</span>
                       ) : (
                         <div className="flex flex-col items-start gap-1">
                           <span
@@ -628,7 +628,7 @@ export default function ClosuresPage() {
                               'inline-flex rounded-full px-2 py-0.5 text-xs',
                               group.pushToGcal
                                 ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
-                                : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300',
+                                : 'bg-muted text-muted-foreground',
                             )}
                           >
                             {group.pushToGcal ? t('gcalPushYes') : t('gcalPushNo')}
@@ -639,7 +639,7 @@ export default function ClosuresPage() {
                             disabled={pushingKey === group.key}
                             loading={pushingKey === group.key}
                             onClick={() => { void togglePushToGcal(group) }}
-                            className="h-auto whitespace-nowrap px-2 py-1 text-xs text-brand-600 hover:bg-brand-50 hover:text-brand-700 dark:hover:bg-gray-800"
+                            className="h-auto whitespace-nowrap px-2 py-1 text-xs text-primary hover:bg-primary/10 hover:text-primary dark:text-brand-300 dark:hover:text-brand-200"
                           >
                             {group.pushToGcal ? t('gcalPushRemoveAction') : t('gcalPushAction')}
                           </Button>
@@ -652,7 +652,7 @@ export default function ClosuresPage() {
                           variant="ghost"
                           size="sm"
                           onClick={() => startEdit(group)}
-                          className="text-brand-600 hover:bg-brand-50 hover:text-brand-700 dark:hover:bg-gray-800"
+                          className="text-primary hover:bg-primary/10 hover:text-primary dark:text-brand-300 dark:hover:text-brand-200"
                         >
                           {t('common:edit')}
                         </Button>
@@ -660,7 +660,7 @@ export default function ClosuresPage() {
                           variant="ghost"
                           size="sm"
                           onClick={() => handleDeleteGroup(group)}
-                          className="text-red-600 hover:bg-red-50 hover:text-red-800 dark:hover:bg-gray-800"
+                          className="text-red-600 hover:bg-red-50 hover:text-red-800 dark:text-red-400 dark:hover:bg-red-950/40 dark:hover:text-red-300"
                         >
                           {t('common:delete')}
                         </Button>
@@ -678,14 +678,14 @@ export default function ClosuresPage() {
           Its own list rather than a column on the closures table above: a
           switched-off entry HAS no closure rows, so it would be invisible there
           exactly when the admin needs to find it again. */}
-      <div className="mt-6 rounded-lg border border-gray-200 bg-white p-4 sm:p-6 dark:border-gray-700 dark:bg-gray-800">
-        <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{t('gcalEntriesTitle')}</h2>
-        <p className="mt-1 mb-3 text-sm text-gray-500 dark:text-gray-400">{t('gcalEntriesSubtitle')}</p>
+      <div className="mt-6 rounded-2xl border border-hairline bg-card p-4 shadow-card sm:p-6">
+        <h2 className="text-sm font-semibold text-foreground">{t('gcalEntriesTitle')}</h2>
+        <p className="mt-1 mb-3 text-sm text-muted-foreground">{t('gcalEntriesSubtitle')}</p>
 
         {gcalLoading ? (
-          <p className="py-6 text-center text-sm text-gray-400 dark:text-gray-500">{t('common:loading')}</p>
+          <p className="py-6 text-center text-sm text-muted-foreground/80">{t('common:loading')}</p>
         ) : gcalEvents.length === 0 ? (
-          <p className="py-6 text-center text-sm text-gray-500 dark:text-gray-400">{t('gcalEntriesEmpty')}</p>
+          <p className="py-6 text-center text-sm text-muted-foreground">{t('gcalEntriesEmpty')}</p>
         ) : (
           <Table>
             <TableHeader>
@@ -736,7 +736,7 @@ export default function ClosuresPage() {
                           'mt-1 inline-flex rounded-full px-2 py-0.5 text-xs sm:hidden',
                           closes
                             ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300'
-                            : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300',
+                            : 'bg-muted text-muted-foreground',
                         )}
                       >
                         {effect}
@@ -748,7 +748,7 @@ export default function ClosuresPage() {
                           'inline-flex rounded-full px-2 py-0.5 text-xs',
                           closes
                             ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300'
-                            : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300',
+                            : 'bg-muted text-muted-foreground',
                         )}
                       >
                         {effect}
@@ -764,8 +764,8 @@ export default function ClosuresPage() {
                         className={cn(
                           'whitespace-nowrap px-2 sm:px-3',
                           closes
-                            ? 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700'
-                            : 'text-brand-600 hover:bg-brand-50 hover:text-brand-700 dark:hover:bg-gray-800',
+                            ? 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                            : 'text-primary hover:bg-primary/10 hover:text-primary dark:text-brand-300 dark:hover:text-brand-200',
                         )}
                       >
                         {closes ? t('gcalActionOpen') : t('gcalActionClose')}

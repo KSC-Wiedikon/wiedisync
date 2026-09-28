@@ -13,8 +13,8 @@ function ParticipationBarsSkeleton() {
       <div className="flex items-center gap-1">
         {['bg-green-50 dark:bg-green-900/20', 'bg-yellow-50 dark:bg-yellow-900/20', 'bg-red-50 dark:bg-red-900/20'].map((tint) => (
           <div key={tint} className={`${BAR_BOX} ${tint}`}>
-            <span className="h-3 w-3 rounded-full bg-gray-300 dark:bg-gray-600" />
-            <span className="h-4 w-2 rounded-sm bg-gray-300 dark:bg-gray-600" />
+            <span className="h-3 w-3 rounded-full bg-stone-300 dark:bg-gray-600" />
+            <span className="h-4 w-2 rounded-sm bg-stone-300 dark:bg-gray-600" />
           </div>
         ))}
       </div>
@@ -64,7 +64,7 @@ export default function ParticipationSummary({
   // below it once the fetch lands. The inline variants have no such footprint to hold,
   // so they keep this component's existing pending idiom.
   if (countsPending) {
-    return bars ? <ParticipationBarsSkeleton /> : <span className="text-xs text-gray-400">…</span>
+    return bars ? <ParticipationBarsSkeleton /> : <span className="text-xs text-muted-foreground/80">…</span>
   }
 
   // Everything resolved with nothing to show. `alwaysShow` keeps the counters
@@ -95,7 +95,7 @@ export default function ParticipationSummary({
           )}
         </div>
         {!hideExtras && staffConfirmed > 0 && (
-          <span className="flex items-center gap-1 text-[10px] text-brand-600 dark:text-brand-400">
+          <span className="flex items-center gap-1 text-[10px] text-primary dark:text-brand-300">
             <Award className="h-3 w-3" />
             {t('coachPresent')}
           </span>
@@ -109,12 +109,12 @@ export default function ParticipationSummary({
       <div className="flex flex-col items-end gap-0.5 text-xs">
         <span className="inline-flex items-center gap-1 text-green-600 dark:text-green-400">
           {!hideExtras && staffConfirmed > 0 && (
-            <span className="text-[10px] text-gray-500 dark:text-gray-400">{t('coachPresent')}</span>
+            <span className="text-[10px] text-muted-foreground">{t('coachPresent')}</span>
           )}
           {confirmedTotal}
           <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-green-600 text-white dark:bg-green-500"><Check className="h-2.5 w-2.5" /></span>
           {!hideExtras && hasGuestBreakdown && (
-            <span className="text-[10px] text-gray-500 dark:text-gray-400">
+            <span className="text-[10px] text-muted-foreground">
               ({confirmed}P {allGuests}G)
             </span>
           )}
@@ -144,7 +144,7 @@ export default function ParticipationSummary({
               {confirmedTotal}
               <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-green-600 text-white dark:bg-green-500"><Check className="h-2.5 w-2.5" /></span>
               {!hideExtras && hasGuestBreakdown && (
-                <span className="text-[10px] text-gray-500 dark:text-gray-400">
+                <span className="text-[10px] text-muted-foreground">
                   ({confirmed}P {allGuests}G)
                 </span>
               )}
@@ -170,7 +170,7 @@ export default function ParticipationSummary({
           )}
         </span>
         {!hideExtras && staffConfirmed > 0 && (
-          <span className="text-[10px] text-gray-500 dark:text-gray-400">{t('coachPresent')}</span>
+          <span className="text-[10px] text-muted-foreground">{t('coachPresent')}</span>
         )}
       </div>
     )
@@ -191,7 +191,7 @@ export default function ParticipationSummary({
         )}
       </div>
       {!hideExtras && staffConfirmed > 0 && (
-        <span className="text-[10px] text-gray-500 dark:text-gray-400">{t('coachPresent')}</span>
+        <span className="text-[10px] text-muted-foreground">{t('coachPresent')}</span>
       )}
     </div>
   )

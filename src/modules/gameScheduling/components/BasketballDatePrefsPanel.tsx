@@ -41,11 +41,11 @@ export default function BasketballDatePrefsPanel({ groups, clubsAnswered, isLoad
   )
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-4 sm:p-6 dark:border-gray-700 dark:bg-gray-800">
+    <div className="rounded-2xl border border-hairline bg-card shadow-card p-4 sm:p-6">
       <div className="flex flex-wrap items-start gap-3">
         <div className="min-w-0 flex-1">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('datePrefsTitle')}</h2>
-          <p className="mt-1 max-w-3xl text-xs text-gray-500 dark:text-gray-400">{t('datePrefsHint')}</p>
+          <h2 className="text-base font-semibold tracking-tight text-foreground">{t('datePrefsTitle')}</h2>
+          <p className="mt-1 max-w-3xl text-xs text-muted-foreground">{t('datePrefsHint')}</p>
         </div>
         {teams.length > 1 && (
           // `dark:bg-gray-800` is mandatory — an <option> inherits the select's background
@@ -54,7 +54,7 @@ export default function BasketballDatePrefsPanel({ groups, clubsAnswered, isLoad
             aria-label={t('dashTeam')}
             value={teamFilter}
             onChange={(e) => setTeamFilter(e.target.value)}
-            className="h-11 rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 sm:h-9 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+            className="h-11 rounded-lg border border-input bg-card px-2 py-1.5 text-sm text-foreground sm:h-9 dark:bg-gray-800"
           >
             <option value="">{t('datePrefsAllTeams')}</option>
             {teams.map(([id, name]) => (
@@ -65,7 +65,7 @@ export default function BasketballDatePrefsPanel({ groups, clubsAnswered, isLoad
       </div>
 
       {isLoading ? (
-        <div className="py-8 text-center text-sm text-gray-400">
+        <div className="py-8 text-center text-sm text-muted-foreground/80">
           <Loader2 className="mx-auto h-4 w-4 animate-spin" aria-hidden />
         </div>
       ) : error ? (
@@ -73,10 +73,10 @@ export default function BasketballDatePrefsPanel({ groups, clubsAnswered, isLoad
       ) : groups.length === 0 ? (
         // Distinguishes "nobody has replied yet" from "something is broken" — before the links
         // go out this is the expected state, not a fault.
-        <p className="py-6 text-center text-sm text-gray-400 dark:text-gray-500">{t('datePrefsEmpty')}</p>
+        <p className="py-6 text-center text-sm text-muted-foreground/80">{t('datePrefsEmpty')}</p>
       ) : (
         <>
-          <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
+          <p className="mt-3 text-xs text-muted-foreground">
             {t('datePrefsAnswered', { count: clubsAnswered })}
           </p>
           <div className="mt-3 overflow-x-auto">
@@ -105,7 +105,7 @@ export default function BasketballDatePrefsPanel({ groups, clubsAnswered, isLoad
                         ))}
                       </span>
                     </TableCell>
-                    <TableCell className="hidden whitespace-normal break-words text-xs text-gray-500 lg:table-cell dark:text-gray-400">
+                    <TableCell className="hidden whitespace-normal break-words text-xs text-muted-foreground lg:table-cell">
                       {g.clubs.map((c) => c.note).filter(Boolean).join(' · ')}
                     </TableCell>
                   </TableRow>

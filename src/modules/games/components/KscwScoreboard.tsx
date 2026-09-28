@@ -125,14 +125,14 @@ export default function KscwScoreboard({ rankings }: KscwScoreboardProps) {
   return (
     <div className="mb-6 space-y-4">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{t('scoreboardTitle')}</h2>
-        <div className="inline-flex rounded-lg border border-gray-200 bg-gray-100 p-0.5 dark:border-gray-600 dark:bg-gray-700">
+        <h2 className="text-base font-semibold text-foreground">{t('scoreboardTitle')}</h2>
+        <div className="inline-flex items-center rounded-lg border border-border bg-card p-0.5">
           <Button
             type="button"
             variant="ghost"
             size="sm"
             aria-pressed={mode === 'absolute'}
-            className={mode === 'absolute' ? 'bg-white text-gray-900 shadow-sm hover:bg-white dark:bg-gray-600 dark:text-gray-100 dark:hover:bg-gray-600' : 'text-gray-500 hover:bg-transparent hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'}
+            className={mode === 'absolute' ? 'bg-selected text-selected-foreground hover:bg-selected hover:text-selected-foreground' : 'text-muted-foreground hover:bg-transparent hover:text-foreground'}
             onClick={() => setMode('absolute')}
           >
             {t('scoreboardAbsolute')}
@@ -142,7 +142,7 @@ export default function KscwScoreboard({ rankings }: KscwScoreboardProps) {
             variant="ghost"
             size="sm"
             aria-pressed={mode === 'perGame'}
-            className={mode === 'perGame' ? 'bg-white text-gray-900 shadow-sm hover:bg-white dark:bg-gray-600 dark:text-gray-100 dark:hover:bg-gray-600' : 'text-gray-500 hover:bg-transparent hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'}
+            className={mode === 'perGame' ? 'bg-selected text-selected-foreground hover:bg-selected hover:text-selected-foreground' : 'text-muted-foreground hover:bg-transparent hover:text-foreground'}
             onClick={() => setMode('perGame')}
           >
             {t('scoreboardPerGame')}
@@ -152,37 +152,37 @@ export default function KscwScoreboard({ rankings }: KscwScoreboardProps) {
 
       <div className="grid gap-4 lg:grid-cols-2">
         {sections.map((section) => (
-          <div key={section.sportKey} className="rounded-xl border border-gray-200 bg-white p-4 shadow-card dark:border-gray-700 dark:bg-gray-800">
+          <div key={section.sportKey} className="rounded-2xl border border-hairline bg-card p-4 shadow-card">
             <div className="mb-3 flex items-center justify-between gap-2">
-              <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100">
+              <h3 className="text-sm font-semibold text-foreground">
                 {`KSCW ${section.sportKey === 'volleyball' ? t('scoreboardVolleyball') : t('scoreboardBasketball')}`}
               </h3>
-              <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-200">
+              <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
                 {t('scoreboardTotalTeams', { count: section.rows.length })}
               </span>
             </div>
 
             {section.season && (
               <div className="mb-3">
-                <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-200">
+                <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
                   {t('scoreboardSeason', { season: section.season })}
                 </span>
               </div>
             )}
 
             {!section.hasEnoughTeams ? (
-              <p className="text-sm text-gray-500 dark:text-gray-400">{t('scoreboardNeedsTeams')}</p>
+              <p className="text-sm text-muted-foreground">{t('scoreboardNeedsTeams')}</p>
             ) : (
-              <div className="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
+              <div className="overflow-hidden rounded-xl border border-hairline">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-gray-200 bg-gray-50 text-left text-xs font-medium uppercase tracking-wide text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
+                    <tr className="border-b border-border bg-surface-sunken text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                       <th className="w-2/6 px-3 py-2 text-left">{t('scoreboardMetric')}</th>
                       <th className="w-1/6 px-3 py-2 text-center">{mode === 'perGame' ? t('scoreboardAvg') : t('breakdownTotal')}</th>
                       <th className="w-3/6 px-3 py-2 text-left">{t('scoreboardMost')}</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                  <tbody className="divide-y divide-border/60">
                     {section.metrics.map((metric) => {
                       const rowKey = `${section.sportKey}:${metric.key}`
                       const isExpanded = !!expandedRows[rowKey]
@@ -197,7 +197,7 @@ export default function KscwScoreboard({ rankings }: KscwScoreboardProps) {
                       return (
                         <Fragment key={metric.key}>
                           <tr
-                            className="cursor-pointer transition-colors hover:bg-gray-50/70 dark:hover:bg-gray-700/30"
+                            className="cursor-pointer transition-colors hover:bg-muted/70"
                             onClick={() =>
                               setExpandedRows((prev) => ({
                                 ...prev,
@@ -205,18 +205,18 @@ export default function KscwScoreboard({ rankings }: KscwScoreboardProps) {
                               }))
                             }
                           >
-                            <td className="w-2/6 px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                            <td className="w-2/6 px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                               <span className="inline-flex items-center gap-1.5">
                                 <span>{isExpanded ? '▾' : '▸'}</span>
                                 {t(metric.labelKey)}
                               </span>
                             </td>
-                            <td className="w-1/6 px-3 py-2 text-center font-semibold text-gray-900 dark:text-gray-100">
+                            <td className="w-1/6 px-3 py-2 text-center font-semibold tabular-nums text-foreground">
                             {total === null ? t('scoreboardUnavailable') : formatValue(total, mode)}
                             </td>
                             <td className="w-3/6 px-3 py-2">
                               {topValue === null || topTeams.length === 0 ? (
-                                <span className="block text-center text-sm text-gray-500 dark:text-gray-400">{t('scoreboardUnavailable')}</span>
+                                <span className="block text-center text-sm text-muted-foreground">{t('scoreboardUnavailable')}</span>
                               ) : (
                                 <div className="flex min-w-0 flex-wrap justify-start gap-1.5">
                                   {topTeams.map((entry) => {
@@ -233,22 +233,22 @@ export default function KscwScoreboard({ rankings }: KscwScoreboardProps) {
                           </tr>
                           {isExpanded && (
                             <tr>
-                              <td colSpan={3} className="bg-gray-50/60 px-3 py-2 dark:bg-gray-700/20">
+                              <td colSpan={3} className="bg-surface-sunken/60 px-3 py-2">
                                 {rankingRows.length === 0 || total === null || total <= 0 ? (
-                                  <span className="text-sm text-gray-500 dark:text-gray-400">{t('scoreboardUnavailable')}</span>
+                                  <span className="text-sm text-muted-foreground">{t('scoreboardUnavailable')}</span>
                                 ) : (
                                   <div>
-                                    <div className="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
+                                    <div className="overflow-hidden rounded-xl border border-hairline">
                                       <table className="w-full text-sm">
                                       <thead>
-                                        <tr className="border-b border-gray-200 bg-gray-100/70 text-xs font-medium uppercase tracking-wide text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
+                                        <tr className="border-b border-border bg-muted/70 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                                           <th className="px-3 py-1.5 text-center">{t('rank')}</th>
                                           <th className="px-3 py-1.5 text-left">{t('teamCol')}</th>
                                           <th className="px-3 py-1.5 text-center">{t(metric.labelKey)}</th>
                                           <th className="px-3 py-1.5 text-center">{t('scoreboardPercent')}</th>
                                         </tr>
                                       </thead>
-                                      <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                                      <tbody className="divide-y divide-border/60">
                                         {rankingRows.map((entry, idx) => {
                                           const shortTeam = teamIds[entry.teamId]
                                           if (!shortTeam) return null
@@ -257,16 +257,16 @@ export default function KscwScoreboard({ rankings }: KscwScoreboardProps) {
                                           const pct = mode === 'absolute' && total > 0 ? Math.round((entry.value / total) * 100) : null
                                           return (
                                             <tr key={entry.teamId}>
-                                              <td className="px-2 py-1.5 text-center text-xs text-gray-500 dark:text-gray-400">#{rank}</td>
+                                              <td className="px-2 py-1.5 text-center text-xs tabular-nums text-muted-foreground">#{rank}</td>
                                               <td className="px-2 py-1.5 text-left">
                                                 <span className="inline-flex">
                                                   <TeamChip team={shortTeam} size="sm" label={shortTeam} />
                                                 </span>
                                               </td>
-                                              <td className="px-2 py-1.5 text-center font-medium text-gray-700 dark:text-gray-300">
+                                              <td className="px-2 py-1.5 text-center font-medium tabular-nums text-foreground/85">
                                                 {formatValue(entry.value, mode)}
                                               </td>
-                                              <td className="px-2 py-1.5 text-center font-medium text-gray-700 dark:text-gray-300">
+                                              <td className="px-2 py-1.5 text-center font-medium tabular-nums text-foreground/85">
                                                 {pct !== null ? `${pct}%` : '–'}
                                               </td>
                                             </tr>

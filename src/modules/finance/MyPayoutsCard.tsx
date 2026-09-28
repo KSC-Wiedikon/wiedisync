@@ -47,35 +47,35 @@ export default function MyPayoutsCard() {
   }
 
   return (
-    <section className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
-      <h2 className="flex items-center gap-1.5 text-sm font-semibold text-gray-900 dark:text-gray-100">
+    <section className="rounded-2xl border border-hairline bg-card shadow-card p-4">
+      <h2 className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
         <Banknote className="h-4 w-4 text-green-600 dark:text-green-400" /> {t('myPayoutsTitle')}
       </h2>
-      <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{t('myPayoutsSubtitle')}</p>
-      <div className="-mx-4 mt-3 border-t border-gray-200 dark:border-gray-700">
+      <p className="mt-0.5 text-xs text-muted-foreground">{t('myPayoutsSubtitle')}</p>
+      <div className="-mx-4 mt-3 border-t border-border">
         <Table>
           <TableHeader>
-            <TableRow className="border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/40">
-              <TableHead className="hidden sm:table-cell text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colDate')}</TableHead>
-              <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colSubject')}</TableHead>
-              <TableHead className="text-right text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colAmount')}</TableHead>
-              <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colStatus')}</TableHead>
+            <TableRow>
+              <TableHead className="hidden sm:table-cell">{t('colDate')}</TableHead>
+              <TableHead>{t('colSubject')}</TableHead>
+              <TableHead className="text-right">{t('colAmount')}</TableHead>
+              <TableHead>{t('colStatus')}</TableHead>
               <TableHead className="sr-only">{t('payoutDownloadPdf')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {payouts.map((p) => (
-              <TableRow key={p.id} className="min-h-[44px] border-gray-200 dark:border-gray-700">
-                <TableCell className="hidden sm:table-cell whitespace-nowrap text-xs text-gray-600 dark:text-gray-400">
+              <TableRow key={p.id} className="min-h-[44px]">
+                <TableCell className="hidden sm:table-cell whitespace-nowrap text-xs text-muted-foreground">
                   {p.date_created ? formatDateCompactZurich(p.date_created) : '–'}
                 </TableCell>
-                <TableCell className="whitespace-normal break-words text-gray-900 dark:text-gray-100">
+                <TableCell className="whitespace-normal break-words text-foreground">
                   {p.message || '–'}
-                  <span className="mt-0.5 block text-xs text-gray-400 sm:hidden">
+                  <span className="mt-0.5 block text-xs text-muted-foreground/80 sm:hidden">
                     {p.date_created ? formatDateCompactZurich(p.date_created) : ''}
                   </span>
                 </TableCell>
-                <TableCell className="text-right font-medium tabular-nums text-gray-900 dark:text-gray-100">
+                <TableCell className="text-right font-medium tabular-nums text-foreground">
                   {p.amount != null ? formatChf(p.amount) : '—'}
                 </TableCell>
                 <TableCell><PayoutStatusBadge status={p.status} /></TableCell>

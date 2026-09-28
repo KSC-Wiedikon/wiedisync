@@ -57,7 +57,7 @@ export default function DayOverflowModal({
                   <span className="mt-0.5 shrink-0">
                     <CalendarTypeIcon type={entry.type} sport={entry.sport} size="sm" filled className={entryIconColor(entry)} />
                   </span>
-                  <p className="min-w-0 break-words text-sm font-medium leading-snug text-gray-900 dark:text-gray-100">
+                  <p className="min-w-0 break-words text-sm font-medium leading-snug text-foreground">
                     {entry.title}
                   </p>
                 </div>
@@ -66,7 +66,7 @@ export default function DayOverflowModal({
               {entry.location && (
                 <TruncatedText
                   text={entry.location}
-                  className={`mt-0.5 text-xs text-gray-600 dark:text-gray-400 ${cancelledClasses(entry)}`}
+                  className={`mt-0.5 text-xs text-muted-foreground ${cancelledClasses(entry)}`}
                 />
               )}
             </ActivityRow>

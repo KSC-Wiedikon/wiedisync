@@ -71,7 +71,7 @@ export default function DayNavigation({
   const todayStr = new Date().toDateString()
 
   return (
-    <div className="mb-4 space-y-3 rounded-xl bg-white p-3 shadow-card dark:bg-gray-800">
+    <div className="mb-4 space-y-3 rounded-2xl border border-hairline bg-card p-3 shadow-card">
       {/* Week navigation row */}
       <div className="flex items-center justify-between">
         <IconButton label={t('prevWeek')} onClick={onPrevWeek} className="shrink-0">
@@ -79,7 +79,7 @@ export default function DayNavigation({
         </IconButton>
 
         <div className="min-w-0 text-center">
-          <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+          <div className="text-sm font-semibold text-foreground">
             {dateStr}
           </div>
         </div>
@@ -100,10 +100,10 @@ export default function DayNavigation({
               onClick={() => onSelectDay(i)}
               className={`flex h-10 w-10 flex-col items-center justify-center rounded-lg text-xs font-medium transition-colors ${
                 isSelected
-                  ? 'bg-brand-500 text-white'
+                  ? 'bg-selected text-selected-foreground'
                   : isToday
                     ? 'bg-gold-100 text-gold-700 dark:bg-gold-900/30 dark:text-gold-400'
-                    : 'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700'
+                    : 'text-muted-foreground hover:bg-muted'
               }`}
             >
               <span className="text-[10px] leading-none">{dayHeaders()[i]}</span>
@@ -123,7 +123,7 @@ export default function DayNavigation({
           variant="outline"
           aria-pressed={showSummary}
           onClick={onToggleSummary}
-          className={showSummary ? 'border-brand-400 bg-brand-100 text-brand-800 hover:bg-brand-100 hover:text-brand-800 dark:border-brand-400 dark:bg-brand-700 dark:text-white dark:hover:bg-brand-700 dark:hover:text-white' : undefined}
+          className={showSummary ? 'border-selected bg-selected text-selected-foreground hover:bg-selected hover:text-selected-foreground' : undefined}
         >
           {t('summary')}
         </Button>

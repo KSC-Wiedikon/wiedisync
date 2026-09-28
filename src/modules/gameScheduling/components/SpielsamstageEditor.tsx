@@ -135,17 +135,17 @@ export default function SpielsamstageEditor({ spielsamstage, onUpdate, season }:
   const hallNames = kwiHalls.map(h => h.name).join(' / ') || 'KWI'
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
-      <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+    <div className="rounded-2xl border border-hairline bg-card shadow-card p-4">
+      <h2 className="text-base font-semibold tracking-tight text-foreground">
         {t('spielsamstage')}
       </h2>
       {/* Never state a slot count from an unloaded hall list — "0 slots × KWI" reads
           as a misconfigured club. Skeleton while pending, the read error when it failed. */}
-      <p className="mt-1 mb-4 text-xs text-gray-500 dark:text-gray-400">
+      <p className="mt-1 mb-4 text-xs text-muted-foreground">
         {hallsPending ? (
           <span
             aria-hidden
-            className="inline-block h-3 w-72 max-w-full animate-pulse rounded bg-gray-200 align-middle dark:bg-gray-700"
+            className="inline-block h-3 w-72 max-w-full animate-pulse rounded bg-stone-200/80 align-middle dark:bg-muted"
           />
         ) : hallsFailed ? (
           <span className="text-amber-600 dark:text-amber-400">
@@ -212,7 +212,7 @@ export default function SpielsamstageEditor({ spielsamstage, onUpdate, season }:
           })}
         </div>
       ) : (
-        <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">
+        <p className="mt-3 text-sm text-muted-foreground">
           {t('noSpielsamstage', { defaultValue: 'No game Saturdays yet.' })}
         </p>
       )}

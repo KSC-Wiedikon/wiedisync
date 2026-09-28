@@ -68,7 +68,7 @@ export default function TrainingCard({ training, participations, myParticipation
 
   return (
     <div className={cn(
-      'flex flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-card dark:border-gray-700 dark:bg-gray-800',
+      'flex flex-col overflow-hidden rounded-2xl border border-hairline bg-card shadow-card',
       cancelled && 'opacity-60',
     )}>
       <div className="flex flex-1 items-stretch gap-2.5 p-3 sm:gap-3">
@@ -89,7 +89,7 @@ export default function TrainingCard({ training, participations, myParticipation
         <div className="min-w-0 flex-1">
           <div className="flex items-start gap-2">
             <div className="min-w-0 flex-1">
-              {team ? <TeamChip team={team.name} size="sm" /> : <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t('title')}</span>}
+              {team ? <TeamChip team={team.name} size="sm" /> : <span className="text-sm font-semibold text-foreground">{t('title')}</span>}
             </div>
             {cancelled && (
               <span className="mt-0.5 flex shrink-0 items-center">
@@ -108,7 +108,7 @@ export default function TrainingCard({ training, participations, myParticipation
           {/* Hall line WRAPS rather than truncating: the extra-halls suffix
               ("+ KWI A (from 18:30)") is exactly the part a truncation would hide. */}
           {(hallName || coach) && (
-            <p className="mt-1.5 break-words text-sm leading-snug text-gray-600 dark:text-gray-400">
+            <p className="mt-1.5 break-words text-sm leading-snug text-muted-foreground">
               {hallName && <span>{hallName}<ExtraHallsSuffix extraHalls={training.extra_halls} /></span>}
               {hallName && coach && ' · '}
               {coach && <span>{memberDisplayName(coach)}</span>}
@@ -122,7 +122,7 @@ export default function TrainingCard({ training, participations, myParticipation
             <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">{t('shortenedHint')}</p>
           )}
           {training.notes && !cancelled && (
-            <p className="mt-1 break-words text-xs text-gray-500 dark:text-gray-400">{training.notes}</p>
+            <p className="mt-1 break-words text-xs text-muted-foreground">{training.notes}</p>
           )}
 
           {canAnswer && (
@@ -158,7 +158,7 @@ export default function TrainingCard({ training, participations, myParticipation
 
       {/* Tools line: rendered once at every width, wraps as a whole line.
           `empty:hidden` drops the hairline for a viewer with nothing to do. */}
-      <div className="flex flex-wrap items-center gap-1.5 border-t border-gray-100 px-3 py-2 empty:hidden dark:border-gray-700">
+      <div className="flex flex-wrap items-center gap-1.5 border-t border-hairline px-3 py-2 empty:hidden">
         {/* Car pooling (migration 378). No detail modal behind this card, so the
             chip opens the rides board in its own dialog. */}
         {!cancelled && training.carpool_enabled && user && (

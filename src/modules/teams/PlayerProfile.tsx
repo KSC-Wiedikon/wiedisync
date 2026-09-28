@@ -230,8 +230,8 @@ export default function PlayerProfile() {
   return (
     <div className="mx-auto max-w-3xl">
       {/* Breadcrumb */}
-      <nav className="mb-6 flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400">
-        <Link to="/teams" className="transition-colors hover:text-gray-700 dark:hover:text-gray-200">
+      <nav className="mb-6 flex items-center gap-1.5 text-sm text-muted-foreground">
+        <Link to="/teams" className="transition-colors hover:text-foreground">
           {t('title')}
         </Link>
         {fromTeamData && (
@@ -239,18 +239,18 @@ export default function PlayerProfile() {
             <ChevronRight className="h-3.5 w-3.5 shrink-0" />
             <Link
               to={`/teams/${fromTeamData.name}`}
-              className="transition-colors hover:text-gray-700 dark:hover:text-gray-200"
+              className="transition-colors hover:text-foreground"
             >
               {fromTeamData.full_name}
             </Link>
           </>
         )}
         <ChevronRight className="h-3.5 w-3.5 shrink-0" />
-        <span className="font-medium text-gray-900 dark:text-gray-100">{memberDisplayName(member)}</span>
+        <span className="font-medium text-foreground">{memberDisplayName(member)}</span>
       </nav>
 
       {/* Profile card */}
-      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+      <div className="overflow-hidden rounded-2xl border border-hairline bg-card shadow-card">
         {/* Header section */}
         <div className="relative px-6 pb-5 pt-6">
           <div className="flex items-start gap-5">
@@ -261,11 +261,11 @@ export default function PlayerProfile() {
                   <img
                     src={getFileUrl('members', member.id, member.photo)}
                     alt={memberDisplayName(member)}
-                    className="h-20 w-20 cursor-pointer rounded-full object-cover ring-2 ring-white sm:h-24 sm:w-24 dark:ring-gray-800"
+                    className="h-20 w-20 cursor-pointer rounded-full object-cover ring-2 ring-card sm:h-24 sm:w-24"
                     onClick={() => setLightboxOpen(true)}
                   />
                   {member.number > 0 && (
-                    <span className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-brand-500 text-xs font-bold text-white ring-2 ring-white dark:ring-gray-800">
+                    <span className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground ring-2 ring-card">
                       {member.number}
                     </span>
                   )}
@@ -283,7 +283,7 @@ export default function PlayerProfile() {
                   {initials}
                 </div>
                 {member.number > 0 && (
-                  <span className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-brand-500 text-xs font-bold text-white ring-2 ring-white dark:ring-gray-800">
+                  <span className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground ring-2 ring-card">
                     {member.number}
                   </span>
                 )}
@@ -293,21 +293,21 @@ export default function PlayerProfile() {
             {/* Info */}
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-xl font-bold text-gray-900 sm:text-2xl dark:text-gray-100">
+                <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">
                   {memberDisplayName(member)}
                 </h1>
                 {member.role.map((r) => <StatusBadge key={r} status={r} />)}
               </div>
 
               {positions.length > 0 && (
-                <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                <p className="mt-1 text-sm text-muted-foreground">
                   {positions.map((p) => (getPositionI18nKey(p) ? t(getPositionI18nKey(p)!) : p)).join(' · ')}
                 </p>
               )}
 
               {/* Contact info — coach only */}
               {isCoach && (
-                <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-500 dark:text-gray-400">
+                <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
                   {member.birthdate_visibility !== 'hidden' && member.birthdate && (
                     <span className="inline-flex items-center gap-1.5">
                       <Calendar className="h-3.5 w-3.5" />
@@ -315,14 +315,14 @@ export default function PlayerProfile() {
                     </span>
                   )}
                   {!member.hide_email && member.email && (
-                    <a href={`mailto:${member.email}`} className="inline-flex items-center gap-1.5 transition-colors hover:text-brand-500">
+                    <a href={`mailto:${member.email}`} className="inline-flex items-center gap-1.5 transition-colors hover:text-primary">
                       <Mail className="h-3.5 w-3.5" />
                       <span className="hidden sm:inline">{member.email}</span>
                       <span className="sm:hidden">Email</span>
                     </a>
                   )}
                   {!member.hide_phone && member.phone && (
-                    <a href={`tel:${member.phone}`} className="inline-flex items-center gap-1.5 transition-colors hover:text-brand-500">
+                    <a href={`tel:${member.phone}`} className="inline-flex items-center gap-1.5 transition-colors hover:text-primary">
                       <Phone className="h-3.5 w-3.5" />
                       {member.phone}
                     </a>
@@ -340,7 +340,7 @@ export default function PlayerProfile() {
         </div>
 
         {/* Teams row */}
-        <div className="border-t border-gray-100 bg-gray-50 px-6 py-3 dark:border-gray-700 dark:bg-gray-800/50">
+        <div className="border-t border-hairline bg-surface-sunken/70 px-6 py-3">
           <div className="flex flex-wrap items-center gap-2">
             {memberTeams.map((mt) => {
               const teamObj = asObj<Team>(mt.team)
@@ -351,7 +351,7 @@ export default function PlayerProfile() {
               )
             })}
             {memberTeams.length === 0 && (
-              <p className="text-sm text-gray-500 dark:text-gray-400">{t('noTeams')}</p>
+              <p className="text-sm text-muted-foreground">{t('noTeams')}</p>
             )}
           </div>
         </div>
@@ -359,7 +359,7 @@ export default function PlayerProfile() {
 
       {/* Statistics */}
       <div className="mt-6">
-        <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+        <h2 className="text-base font-semibold text-foreground">
           {t('statistics')} ({season})
         </h2>
         <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -405,22 +405,22 @@ export default function PlayerProfile() {
       {/* Active Absences */}
       {absences.length > 0 && (
         <div className="mt-6">
-          <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+          <h2 className="text-base font-semibold text-foreground">
             {t('currentAbsences')}
           </h2>
           <div className="mt-3 space-y-2">
             {absences.map((a) => (
               <div
                 key={a.id}
-                className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-800"
+                className="flex items-center gap-3 rounded-xl border border-hairline bg-card px-4 py-3"
               >
                 <StatusBadge status={a.reason} />
-                <span className="text-sm text-gray-700 dark:text-gray-300">
+                <span className="text-sm text-foreground/85">
                   {formatDate(a.start_date)}
                   {a.start_date !== a.end_date && ` — ${formatDate(a.end_date)}`}
                 </span>
                 {a.reason_detail && (
-                  <span className="text-sm text-gray-400">{a.reason_detail}</span>
+                  <span className="text-sm text-muted-foreground/80">{a.reason_detail}</span>
                 )}
               </div>
             ))}
@@ -465,17 +465,17 @@ function StatCard({
 
   return (
     <div
-      className={`rounded-lg border p-3 sm:p-4 ${
+      className={`rounded-2xl border p-3 shadow-card sm:p-4 ${
         highlight && !loading
           ? 'border-red-200 bg-red-50/50 dark:border-red-900/50 dark:bg-red-900/10'
-          : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800'
+          : 'border-hairline bg-card'
       }`}
     >
       <div className="flex items-center gap-2">
         <span className={`flex h-6 w-6 items-center justify-center rounded-md ${iconColors[color]}`}>
           {icon}
         </span>
-        <p className="text-xs text-gray-500 dark:text-gray-400">{label}</p>
+        <p className="text-xs text-muted-foreground">{label}</p>
       </div>
       <div className="mt-2 flex items-baseline gap-1.5">
         {loading ? (
@@ -483,21 +483,21 @@ function StatCard({
           // not resize when the real figure lands.
           <span
             aria-hidden="true"
-            className="inline-block h-7 w-16 animate-pulse rounded bg-gray-200 sm:h-8 dark:bg-gray-700"
+            className="inline-block h-7 w-16 animate-pulse rounded bg-stone-200/80 sm:h-8 dark:bg-muted"
           />
         ) : (
           <>
             <p
               className={
                 muted
-                  ? 'text-sm font-medium leading-7 text-gray-500 sm:leading-8 dark:text-gray-400'
-                  : 'text-xl font-bold text-gray-900 sm:text-2xl dark:text-gray-100'
+                  ? 'text-sm font-medium leading-7 text-muted-foreground sm:leading-8'
+                  : 'text-xl font-bold tabular-nums text-foreground sm:text-2xl'
               }
             >
               {value}
             </p>
             {sub && (
-              <span className="text-sm text-gray-400 dark:text-gray-500">{sub}</span>
+              <span className="text-sm text-muted-foreground/80">{sub}</span>
             )}
           </>
         )}

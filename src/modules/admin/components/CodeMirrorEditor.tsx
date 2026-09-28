@@ -210,7 +210,7 @@ export default function CodeMirrorEditor({
     // a query taller than the box scrolls instead of being clipped.
     <div
       ref={containerRef}
-      className="resize-y overflow-hidden rounded-lg border border-border bg-card min-h-[160px] h-[220px] max-h-[70vh] md:h-[260px] [&_.cm-editor]:h-full"
+      className="resize-y overflow-hidden rounded-lg border border-input bg-card min-h-[160px] h-[220px] max-h-[70vh] md:h-[260px] [&_.cm-editor]:h-full"
     />
   )
 }

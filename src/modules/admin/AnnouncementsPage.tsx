@@ -378,7 +378,7 @@ export default function AnnouncementsPage() {
   return (
     <div className="mx-auto max-w-4xl">
       <div className="mb-4 flex items-center justify-between gap-3">
-        <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{t('pageTitle')}</h1>
+        <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">{t('pageTitle')}</h1>
         <Button
           onClick={openCreate}
           className="shrink-0"
@@ -389,18 +389,18 @@ export default function AnnouncementsPage() {
       </div>
 
       {isLoading ? null : items.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-gray-300 px-6 py-10 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+        <div className="rounded-2xl border border-dashed border-input px-6 py-10 text-center text-sm text-muted-foreground">
           {t('empty')}
         </div>
       ) : (
-        <div className="rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+        <div className="overflow-hidden rounded-2xl border border-hairline bg-card shadow-card">
           <Table>
             <TableHeader>
-              <TableRow className="border-gray-200 dark:border-gray-700">
+              <TableRow className="border-border">
                 <TableHead className="hidden sm:table-cell w-16" />
-                <TableHead className="text-gray-500 dark:text-gray-400">{t('pageTitle')}</TableHead>
-                <TableHead className="hidden md:table-cell text-gray-500 dark:text-gray-400">{t('audienceLabel')}</TableHead>
-                <TableHead className="hidden sm:table-cell text-gray-500 dark:text-gray-400">{t('statusPublished')}</TableHead>
+                <TableHead>{t('pageTitle')}</TableHead>
+                <TableHead className="hidden md:table-cell">{t('audienceLabel')}</TableHead>
+                <TableHead className="hidden sm:table-cell">{t('statusPublished')}</TableHead>
                 <TableHead className="w-20 text-right" />
               </TableRow>
             </TableHeader>
@@ -410,7 +410,7 @@ export default function AnnouncementsPage() {
                 const isPublished = !!a.published_at && new Date(a.published_at) <= new Date()
                 const isExpired = !!a.expires_at && new Date(a.expires_at) <= new Date()
                 return (
-                  <TableRow key={a.id} className="border-gray-200 dark:border-gray-700 align-top">
+                  <TableRow key={a.id} className="border-border align-top">
                     <TableCell className="hidden sm:table-cell">
                       {a.image ? (
                         <img
@@ -427,14 +427,14 @@ export default function AnnouncementsPage() {
                     <TableCell className="whitespace-normal">
                       <div className="flex items-center gap-1.5">
                         {a.pinned && <Pin className="h-3.5 w-3.5 shrink-0 text-gold-500 dark:text-gold-400" />}
-                        <span className="font-medium text-gray-900 dark:text-gray-100">{trItem.title || <span className="italic text-gray-400">({t('noTitle')})</span>}</span>
+                        <span className="font-medium text-foreground">{trItem.title || <span className="italic text-muted-foreground/80">({t('noTitle')})</span>}</span>
                       </div>
                       {trItem.body && (
-                        <p className="mt-0.5 line-clamp-2 text-xs text-gray-500 dark:text-gray-400">
+                        <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
                           {stripHtml(trItem.body)}
                         </p>
                       )}
-                      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-gray-500 dark:text-gray-400 md:hidden">
+                      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground md:hidden">
                         <span>{audienceLabel(a, t)}</span>
                         {a.published_at && (
                           <span className="inline-flex items-center gap-1 sm:hidden">
@@ -444,7 +444,7 @@ export default function AnnouncementsPage() {
                         )}
                       </div>
                     </TableCell>
-                    <TableCell className="hidden md:table-cell text-xs text-gray-600 dark:text-gray-400">
+                    <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
                       {audienceLabel(a, t)}
                     </TableCell>
                     <TableCell className="hidden sm:table-cell">
@@ -452,7 +452,7 @@ export default function AnnouncementsPage() {
                         <span
                           className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs ${
                             isExpired
-                              ? 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
+                              ? 'bg-muted text-muted-foreground'
                               : isPublished
                                 ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
                                 : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300'
@@ -461,7 +461,7 @@ export default function AnnouncementsPage() {
                           {isExpired ? t('statusExpired') : isPublished ? t('statusPublished') : t('statusDraft')}
                         </span>
                         {a.published_at && (
-                          <span className="inline-flex items-center gap-1 text-[11px] text-gray-500 dark:text-gray-400">
+                          <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
                             <Calendar className="h-3 w-3" />
                             {formatDate(a.published_at)}
                           </span>
@@ -472,7 +472,7 @@ export default function AnnouncementsPage() {
                       <div className="flex flex-col items-end gap-1 sm:flex-row sm:justify-end">
                         <IconButton size="sm"
                           onClick={() => openEdit(a)}
-                          className="text-gray-500 dark:text-gray-400"
+                          className="text-muted-foreground"
                           label={t('common:edit')}
                         >
                           <Edit2 className="h-4 w-4" />
@@ -499,7 +499,7 @@ export default function AnnouncementsPage() {
         <div className="space-y-4">
           {/* Hero image */}
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">
               {t('image')}
             </label>
             {form.image ? (
@@ -512,14 +512,14 @@ export default function AnnouncementsPage() {
                 <IconButton size="sm"
                   type="button"
                   onClick={() => setForm((f) => ({ ...f, image: null }))}
-                  className="absolute right-1 top-1 rounded-full bg-white/90 text-gray-700 shadow hover:bg-white dark:bg-gray-900/90 dark:text-gray-200 dark:hover:bg-gray-900"
+                  className="absolute right-1 top-1 rounded-full bg-card/90 text-foreground/85 shadow hover:bg-card"
                   label={t('common:remove')}
                 >
                   <X className="h-3.5 w-3.5" />
                 </IconButton>
               </div>
             ) : (
-              <label className="flex h-24 cursor-pointer items-center justify-center rounded-md border-2 border-dashed border-gray-300 bg-gray-50 text-sm text-gray-500 hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:hover:bg-gray-700">
+              <label className="flex h-24 cursor-pointer items-center justify-center rounded-xl border-2 border-dashed border-input bg-surface-sunken text-sm text-muted-foreground hover:bg-muted">
                 {uploading ? <Loader2 className="h-5 w-5 animate-spin" /> : (
                   <>
                     <ImageIcon className="mr-2 h-4 w-4" />
@@ -539,7 +539,7 @@ export default function AnnouncementsPage() {
 
           {/* Translation tabs */}
           <div>
-            <div className="flex flex-wrap gap-1 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex flex-wrap gap-1 border-b border-border">
               {LOCALES.map((code) => {
                 const isActive = activeLocale === code
                 const isFilled = filledLocales.includes(code)
@@ -550,8 +550,8 @@ export default function AnnouncementsPage() {
                     onClick={() => setActiveLocale(code)}
                     className={`relative -mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
                       isActive
-                        ? 'border-brand-600 text-brand-700 dark:border-brand-400 dark:text-brand-300'
-                        : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                        ? 'border-foreground font-semibold text-foreground'
+                        : 'border-transparent text-muted-foreground hover:text-foreground'
                     }`}
                   >
                     {LOCALE_LABEL[code]}
@@ -570,7 +570,7 @@ export default function AnnouncementsPage() {
                 value={tr.title}
                 onChange={(e) => updateTranslation({ title: e.target.value })}
                 placeholder={t('titlePlaceholder')}
-                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-input/20 placeholder:text-muted-foreground/70"
               />
               <RichTextEditor
                 value={tr.body}
@@ -583,7 +583,7 @@ export default function AnnouncementsPage() {
 
           {/* Optional CTA link */}
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">
               {t('link')}
             </label>
             <input
@@ -591,20 +591,20 @@ export default function AnnouncementsPage() {
               value={form.link}
               onChange={(e) => setForm((f) => ({ ...f, link: e.target.value }))}
               placeholder={t('common:linkUrl')}
-              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+              className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-input/20 placeholder:text-muted-foreground/70"
             />
           </div>
 
           {/* Audience */}
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">
                 {t('audience')}
               </label>
               <select
                 value={form.audience_type}
                 onChange={(e) => setForm((f) => ({ ...f, audience_type: e.target.value as AnnouncementAudienceType }))}
-                className="h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-sm sm:h-9 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                className="h-11 w-full rounded-lg border border-input bg-card px-3 text-sm sm:h-9 text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-gray-800"
               >
                 <option value="all">{t('audienceAll')}</option>
                 <option value="sport">{t('audienceSport')}</option>
@@ -614,13 +614,13 @@ export default function AnnouncementsPage() {
             </div>
             {form.audience_type === 'sport' && (
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">
                   {t('sport')}
                 </label>
                 <select
                   value={form.audience_sport ?? ''}
                   onChange={(e) => setForm((f) => ({ ...f, audience_sport: (e.target.value || null) as 'volleyball' | 'basketball' | null }))}
-                  className="h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-sm sm:h-9 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                  className="h-11 w-full rounded-lg border border-input bg-card px-3 text-sm sm:h-9 text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-gray-800"
                 >
                   <option value="">—</option>
                   <option value="volleyball">{t('volleyball')}</option>
@@ -632,73 +632,73 @@ export default function AnnouncementsPage() {
 
           {form.audience_type === 'teams' && (
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">
                 {t('selectTeams')}
               </label>
-              <div className="max-h-52 overflow-y-auto rounded-md border border-gray-300 p-2 dark:border-gray-600">
+              <div className="max-h-52 overflow-y-auto rounded-lg border border-input p-2">
                 {teams.length === 0 && (
-                  <p className="px-1 py-2 text-sm text-gray-500 dark:text-gray-400">{t('noTeams')}</p>
+                  <p className="px-1 py-2 text-sm text-muted-foreground">{t('noTeams')}</p>
                 )}
                 {teams.map((tm) => (
                   <label
                     key={tm.id}
-                    className="flex min-h-[44px] cursor-pointer items-center gap-2 rounded px-1 hover:bg-gray-50 dark:hover:bg-gray-800"
+                    className="flex min-h-[44px] cursor-pointer items-center gap-2 rounded-md px-1 hover:bg-muted"
                   >
                     <input
                       type="checkbox"
                       checked={form.audience_teams.includes(String(tm.id))}
                       onChange={() => toggleTeam(String(tm.id))}
-                      className="h-4 w-4 shrink-0 rounded border-gray-300"
+                      className="h-4 w-4 shrink-0 rounded border-input accent-[var(--primary)]"
                     />
-                    <span className="text-sm text-gray-900 dark:text-gray-100">{tm.name}</span>
-                    <span className="ml-auto text-xs text-gray-500 dark:text-gray-400">{t(tm.sport)}</span>
+                    <span className="text-sm text-foreground">{tm.name}</span>
+                    <span className="ml-auto text-xs text-muted-foreground">{t(tm.sport)}</span>
                   </label>
                 ))}
               </div>
-              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('teamsHint')}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{t('teamsHint')}</p>
             </div>
           )}
 
           {form.audience_type === 'roles' && (
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">
                 {t('selectRoles')}
               </label>
-              <div className="max-h-64 overflow-y-auto rounded-md border border-gray-300 p-2 dark:border-gray-600">
+              <div className="max-h-64 overflow-y-auto rounded-lg border border-input p-2">
                 {ROLE_GROUPS.map((group) => (
                   <div key={group.labelKey} className="mb-2 last:mb-0">
-                    <p className="px-1 pb-1 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                    <p className="px-1 pb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                       {t(group.labelKey)}
                     </p>
                     {group.options.map((opt) => (
                       <label
                         key={opt.token}
-                        className="flex min-h-[44px] cursor-pointer items-center gap-2 rounded px-1 hover:bg-gray-50 dark:hover:bg-gray-800"
+                        className="flex min-h-[44px] cursor-pointer items-center gap-2 rounded-md px-1 hover:bg-muted"
                       >
                         <input
                           type="checkbox"
                           checked={form.audience_roles.includes(opt.token)}
                           onChange={() => toggleRole(opt.token)}
-                          className="h-4 w-4 shrink-0 rounded border-gray-300"
+                          className="h-4 w-4 shrink-0 rounded border-input accent-[var(--primary)]"
                         />
-                        <span className="text-sm text-gray-900 dark:text-gray-100">{t(opt.labelKey)}</span>
+                        <span className="text-sm text-foreground">{t(opt.labelKey)}</span>
                       </label>
                     ))}
                   </div>
                 ))}
               </div>
-              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('rolesHint')}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{t('rolesHint')}</p>
             </div>
           )}
 
           {/* Pin + Expiry + Publish */}
           <div className="grid gap-3 sm:grid-cols-2">
-            <label className="flex cursor-pointer items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+            <label className="flex cursor-pointer items-center gap-2 text-sm text-foreground/85">
               <input
                 type="checkbox"
                 checked={form.pinned}
                 onChange={(e) => setForm((f) => ({ ...f, pinned: e.target.checked }))}
-                className="h-4 w-4 rounded text-brand-600"
+                className="h-4 w-4 rounded border-input accent-[var(--primary)]"
               />
               <Pin className="h-3.5 w-3.5" />
               {t('pin')}
@@ -711,29 +711,29 @@ export default function AnnouncementsPage() {
           </div>
 
           {/* Publish + Notification toggles */}
-          <div className="space-y-2 rounded-md border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800/60">
-            <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+          <div className="space-y-2 rounded-xl border border-hairline bg-surface-sunken p-3">
+            <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-foreground/85">
               <input
                 type="checkbox"
                 checked={form.publishNow}
                 onChange={(e) => setForm((f) => ({ ...f, publishNow: e.target.checked }))}
-                className="h-4 w-4 rounded text-brand-600"
+                className="h-4 w-4 rounded border-input accent-[var(--primary)]"
               />
               <Send className="h-3.5 w-3.5" />
               {t('publish')}
             </label>
-            <label className="ml-6 flex cursor-pointer items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+            <label className="ml-6 flex cursor-pointer items-center gap-2 text-sm text-foreground/85">
               <input
                 type="checkbox"
                 checked={form.notify_push}
                 onChange={(e) => setForm((f) => ({ ...f, notify_push: e.target.checked }))}
                 disabled={!form.publishNow}
-                className="h-4 w-4 rounded text-brand-600"
+                className="h-4 w-4 rounded border-input accent-[var(--primary)]"
               />
               <Bell className="h-3.5 w-3.5" />
               {t('notifyPush')}
             </label>
-            <label className="ml-6 flex cursor-pointer items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+            <label className="ml-6 flex cursor-pointer items-center gap-2 text-sm text-foreground/85">
               <input
                 type="checkbox"
                 checked={form.notify_email}
@@ -745,7 +745,7 @@ export default function AnnouncementsPage() {
                   reply_to: e.target.checked && !f.reply_to ? (user?.email ?? '') : f.reply_to,
                 }))}
                 disabled={!form.publishNow}
-                className="h-4 w-4 rounded text-brand-600"
+                className="h-4 w-4 rounded border-input accent-[var(--primary)]"
               />
               <Mail className="h-3.5 w-3.5" />
               {t('notifyEmail')}
@@ -754,23 +754,23 @@ export default function AnnouncementsPage() {
 
           {/* Email options — layout + reply-to (only when emailing) */}
           {form.notify_email && (
-            <div className="grid grid-cols-1 gap-3 rounded-lg border border-gray-200 p-3 dark:border-gray-700 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 rounded-xl border border-hairline bg-surface-sunken p-3 sm:grid-cols-2">
               <div>
-                <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">
                   {t('emailLayout')}
                 </label>
                 <select
                   value={form.email_layout}
                   onChange={(e) => setForm((f) => ({ ...f, email_layout: e.target.value as 'standard' | 'newsletter' }))}
-                  className="h-11 w-full rounded-md border border-gray-300 bg-white px-2 text-sm sm:h-9 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                  className="h-11 w-full rounded-lg border border-input bg-card px-2 text-sm sm:h-9 text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-gray-800"
                 >
                   <option value="standard">{t('emailLayoutStandard')}</option>
                   <option value="newsletter">{t('emailLayoutNewsletter')}</option>
                 </select>
-                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('emailLayoutHint')}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{t('emailLayoutHint')}</p>
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">
                   {t('emailReplyTo')}
                 </label>
                 <input
@@ -778,15 +778,15 @@ export default function AnnouncementsPage() {
                   value={form.reply_to}
                   onChange={(e) => setForm((f) => ({ ...f, reply_to: e.target.value }))}
                   placeholder="noreply"
-                  className="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                  className="w-full rounded-lg border border-input bg-card px-2 py-1.5 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-input/20 placeholder:text-muted-foreground/70"
                 />
-                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('emailReplyToHint')}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{t('emailReplyToHint')}</p>
               </div>
             </div>
           )}
 
           {/* Footer */}
-          <div className="flex items-center justify-end gap-2 border-t border-gray-200 pt-3 dark:border-gray-700">
+          <div className="flex items-center justify-end gap-2 border-t border-border pt-3">
             <Button variant="ghost"
               type="button"
               onClick={() => setEditorOpen(false)}
@@ -810,7 +810,7 @@ export default function AnnouncementsPage() {
       {confirmDeleteId && (
         <Modal open onClose={() => setConfirmDeleteId(null)} title={t('confirmDeleteTitle')} size="sm">
           <div className="space-y-4">
-            <p className="text-sm text-gray-700 dark:text-gray-300">
+            <p className="text-sm text-foreground/85">
               {t('confirmDeleteBody')}
             </p>
             <div className="flex justify-end gap-2">

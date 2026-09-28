@@ -318,7 +318,7 @@ export default function ClubdeskSyncUpModal({
     >
 
         {phase === 'loading' && (
-          <div className="flex items-center justify-center gap-2 py-12 text-sm text-gray-500 dark:text-gray-400">
+          <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />{t('clubdeskUpLoading')}
           </div>
         )}
@@ -327,7 +327,7 @@ export default function ClubdeskSyncUpModal({
           <div className="flex flex-col items-center justify-center gap-3 py-10 text-center">
             <ArrowDownToLine className="h-8 w-8 text-amber-600 dark:text-amber-400" />
             <p className="text-sm font-medium">{t('clubdeskUpBlockedByDown')}</p>
-            <p className="max-w-sm text-xs text-gray-500 dark:text-gray-400">{t('clubdeskUpBlockedByDownNote')}</p>
+            <p className="max-w-sm text-xs text-muted-foreground">{t('clubdeskUpBlockedByDownNote')}</p>
             <div className="flex gap-2">
               <Button variant="outline" onClick={() => { setPhase('loading'); loadPreview(() => openRef.current) }} className="gap-2">
                 <RefreshCw className="h-4 w-4" />{t('clubdeskUpBlockedRetry')}
@@ -340,14 +340,14 @@ export default function ClubdeskSyncUpModal({
         {phase === 'review' && (
           <div className="space-y-5">
             {nothing && (
-              <div className="rounded-lg border border-dashed border-gray-300 py-10 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+              <div className="rounded-xl border border-dashed border-input py-10 text-center text-sm text-muted-foreground">
                 {t('clubdeskUpNothing')}
               </div>
             )}
 
             {preview.changed.length > 0 && (
               <section>
-                <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                   {t('clubdeskUpChangedHeading', { count: preview.changed.length })}
                 </h3>
                 <Table>
@@ -368,7 +368,7 @@ export default function ClubdeskSyncUpModal({
                         <TableCell className="align-top"><Checkbox checked={selected.has(m.id)} disabled={m.stale} onCheckedChange={() => toggle(m.id)} /></TableCell>
                         <TableCell className="whitespace-normal break-words align-top">
                           <div className="font-medium">{m.last_name} {m.first_name}</div>
-                          <div className="text-xs text-gray-500 dark:text-gray-400 break-all">{m.email}</div>
+                          <div className="text-xs text-muted-foreground break-all">{m.email}</div>
                           {m.stale && (
                             <Badge variant="outline" className="mt-0.5 border-amber-300 text-[10px] text-amber-700 dark:text-amber-300">
                               {t('clubdeskUpStale')}
@@ -380,21 +380,21 @@ export default function ClubdeskSyncUpModal({
                           <div className="mt-1.5 flex flex-col gap-1 sm:hidden">
                             {m.changes.length ? m.changes.map((c, i) => (
                               <ChangeChip key={i} change={c} />
-                            )) : <span className="text-xs text-gray-400">{t('clubdeskUpContactSync')}</span>}
+                            )) : <span className="text-xs text-muted-foreground/80">{t('clubdeskUpContactSync')}</span>}
                           </div>
                         </TableCell>
                         <TableCell className="hidden whitespace-normal break-words align-top sm:table-cell">
                           <div className="flex flex-wrap gap-1">
                             {m.changes.length ? m.changes.map((c, i) => (
                               <ChangeChip key={i} change={c} />
-                            )) : <span className="text-xs text-gray-400">{t('clubdeskUpContactSync')}</span>}
+                            )) : <span className="text-xs text-muted-foreground/80">{t('clubdeskUpContactSync')}</span>}
                           </div>
                         </TableCell>
                         <TableCell className="w-10 text-right">
                           {m.stale && (
                             <IconButton
                               type="button" size="sm"
-                              className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                              className="text-muted-foreground/80 hover:text-foreground"
                               label={t('clubdeskUpMute')}
                               onClick={() => mute(m.id)}
                             >
@@ -411,10 +411,10 @@ export default function ClubdeskSyncUpModal({
 
             {preview.unlinked.length > 0 && (
               <section>
-                <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                <h3 className="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                   {t('clubdeskUpUnlinkedHeading', { count: preview.unlinked.length })}
                 </h3>
-                <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">{t('clubdeskUpUnlinkedNote')}</p>
+                <p className="mb-2 text-xs text-muted-foreground">{t('clubdeskUpUnlinkedNote')}</p>
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -432,12 +432,12 @@ export default function ClubdeskSyncUpModal({
                           <div className="font-medium">{m.last_name} {m.first_name}</div>
                           <div className="flex flex-wrap gap-1">
                             {m.beitragskategorie && (
-                              <Badge variant="outline" className="mt-0.5 text-[10px] text-gray-600 dark:text-gray-300">
+                              <Badge variant="outline" className="mt-0.5 text-[10px] text-muted-foreground">
                                 {m.beitragskategorie}{m.mitgliederbeitrag ? ` · CHF ${m.mitgliederbeitrag}` : ''}
                               </Badge>
                             )}
                             {m.offiziellen_lizenz && (
-                              <Badge variant="outline" className="mt-0.5 text-[10px] text-gray-600 dark:text-gray-300">
+                              <Badge variant="outline" className="mt-0.5 text-[10px] text-muted-foreground">
                                 {m.offiziellen_lizenz}
                               </Badge>
                             )}
@@ -453,11 +453,11 @@ export default function ClubdeskSyncUpModal({
                             )}
                           </div>
                         </TableCell>
-                        <TableCell className="whitespace-normal break-words text-xs text-gray-500 dark:text-gray-400">{m.email}</TableCell>
+                        <TableCell className="whitespace-normal break-words text-xs text-muted-foreground">{m.email}</TableCell>
                         <TableCell className="w-10 text-right">
                           <IconButton
                             type="button" size="sm"
-                            className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                            className="text-muted-foreground/80 hover:text-foreground"
                             label={t('clubdeskUpMute')}
                             onClick={() => mute(m.id)}
                           >
@@ -472,8 +472,8 @@ export default function ClubdeskSyncUpModal({
             )}
 
             {!nothing && (
-              <div className="flex flex-col gap-2 border-t border-gray-200 pt-4 dark:border-gray-700 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-sm text-gray-600 dark:text-gray-300">
+              <div className="flex flex-col gap-2 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm text-muted-foreground">
                   {t('clubdeskUpSelected', { update: selChanged, create: selUnlinked })}
                 </p>
                 <Button onClick={push} disabled={selected.size === 0} className="gap-2">
@@ -487,7 +487,7 @@ export default function ClubdeskSyncUpModal({
         {/* The bar above IS the push status now — this only adds the sentence the
             bar cannot: closing the dialog does not stop it. */}
         {phase === 'pushing' && (
-          <p className="text-center text-xs text-gray-500 dark:text-gray-400">{t('clubdeskUpPushingNote')}</p>
+          <p className="text-center text-xs text-muted-foreground">{t('clubdeskUpPushingNote')}</p>
         )}
 
         {phase === 'done' && (
@@ -501,14 +501,14 @@ export default function ClubdeskSyncUpModal({
                 per set but does not total, so derive it: total = neu + veraendert +
                 unchanged. Shown only when it is the whole story a reader is missing. */}
             {unchanged > 0 && (
-              <p className="text-sm text-gray-600 dark:text-gray-400">
+              <p className="text-sm text-muted-foreground">
                 {t('clubdeskUpUnchanged', { count: unchanged })}
               </p>
             )}
             {/* ⚠ Two different truths. Inside the path the read-back is the next
                 step and starts by itself, so telling the operator to go and run a
                 sync down would send them to do the thing already happening. */}
-            <p className="max-w-sm text-xs text-gray-500 dark:text-gray-400">
+            <p className="max-w-sm text-xs text-muted-foreground">
               {onNext ? t('clubdeskUpContinuing') : t('clubdeskUpReadback')}
             </p>
             <div className="flex flex-col gap-2 sm:flex-row">

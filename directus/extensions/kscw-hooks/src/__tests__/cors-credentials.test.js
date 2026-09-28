@@ -20,7 +20,7 @@ function run(origin, env = {}) {
 
 describe('cors credentials allow-list', () => {
   it('keeps credentials for the app origins', () => {
-    for (const o of ['https://wiedisync.kscw.ch', 'https://spielplanung.wiedisync.kscw.ch', 'https://spielplanung-dev.kscw.ch', 'http://localhost:5173', 'http://100.76.39.66:1234']) {
+    for (const o of ['https://wiedisync.kscw.ch', 'https://spielplanung.wiedisync.kscw.ch', 'https://spielplanung-dev.kscw.ch', 'https://dev.kscw-wiedisync.pages.dev', 'https://wiedisync-dev.kscw.ch', 'http://localhost:5173', 'http://100.76.39.66:1234']) {
       const { headers, called } = run(o)
       expect(called).toBe(true)
       expect(headers['access-control-allow-credentials']).toBe('true')

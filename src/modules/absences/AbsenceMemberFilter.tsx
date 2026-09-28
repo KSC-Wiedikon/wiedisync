@@ -38,7 +38,7 @@ export default function AbsenceMemberFilter({ options, excluded, onChange }: Abs
 
   return (
     <div>
-      <label className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">
+      <label className="mb-1 block text-xs font-medium text-muted-foreground">
         {t('filterByMember')}
       </label>
       <div className="relative">
@@ -47,7 +47,7 @@ export default function AbsenceMemberFilter({ options, excluded, onChange }: Abs
           variant="outline"
           aria-expanded={open}
           onClick={() => setOpen((v) => !v)}
-          className="w-full min-w-[12rem] justify-between px-3 font-normal dark:border-gray-600 dark:text-gray-100"
+          className="w-full min-w-[12rem] justify-between px-3 font-normal"
         >
           <span className="flex min-w-0 items-center gap-2">
             <Users className="h-4 w-4 text-muted-foreground" />
@@ -59,14 +59,14 @@ export default function AbsenceMemberFilter({ options, excluded, onChange }: Abs
         </Button>
 
         {open && (
-          <div className="absolute z-50 mt-1 max-h-72 w-64 overflow-y-auto rounded-md border border-gray-200 bg-white shadow-lg dark:border-gray-600 dark:bg-gray-800">
-            <div className="flex items-center justify-between gap-2 border-b border-gray-100 px-3 py-1 dark:border-gray-700">
+          <div className="absolute z-50 mt-1 max-h-72 w-64 overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-xl">
+            <div className="flex items-center justify-between gap-2 border-b border-border/60 px-3 py-1">
               <Button
                 type="button"
                 variant="link"
                 size="sm"
                 onClick={() => onChange(new Set())}
-                className="px-0 text-brand-700 dark:text-brand-300"
+                className="px-0 text-primary dark:text-brand-300"
               >
                 {t('selectAllMembers')}
               </Button>
@@ -75,7 +75,7 @@ export default function AbsenceMemberFilter({ options, excluded, onChange }: Abs
                 variant="link"
                 size="sm"
                 onClick={() => onChange(new Set(options.map((o) => o.id)))}
-                className="px-0 text-brand-700 dark:text-brand-300"
+                className="px-0 text-primary dark:text-brand-300"
               >
                 {t('deselectAllMembers')}
               </Button>
@@ -87,18 +87,18 @@ export default function AbsenceMemberFilter({ options, excluded, onChange }: Abs
                   key={o.id}
                   type="button"
                   onClick={() => toggle(o.id)}
-                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700"
+                  className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm hover:bg-accent"
                 >
                   <div
                     className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
                       isSelected
-                        ? 'border-brand-500 bg-brand-500 text-white'
-                        : 'border-gray-300 dark:border-gray-500'
+                        ? 'border-primary bg-primary text-primary-foreground'
+                        : 'border-input'
                     }`}
                   >
                     {isSelected && <Check className="h-3 w-3" />}
                   </div>
-                  <span className="dark:text-gray-100">{o.name}</span>
+                  <span className="text-foreground">{o.name}</span>
                 </button>
               )
             })}

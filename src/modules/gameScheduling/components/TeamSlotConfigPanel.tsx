@@ -119,8 +119,8 @@ export default function TeamSlotConfigPanel({ teams, config, onUpdate }: Props) 
   }
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
-      <h2 className="mb-4 text-lg font-semibold text-gray-900 dark:text-gray-100">{t('teamSlotConfig')}</h2>
+    <div className="rounded-2xl border border-hairline bg-card shadow-card p-4">
+      <h2 className="mb-4 text-base font-semibold tracking-tight text-foreground">{t('teamSlotConfig')}</h2>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {teams.map((team) => {
@@ -131,17 +131,17 @@ export default function TeamSlotConfigPanel({ teams, config, onUpdate }: Props) 
           return (
             <div
               key={team.id}
-              className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-600 dark:bg-gray-700/50"
+              className="rounded-xl border border-hairline bg-surface-sunken p-3"
             >
-              <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+              <div className="text-sm font-semibold text-foreground">
                 {team.name}
                 {team.full_name && (
-                  <span className="ml-1 font-normal text-gray-500 dark:text-gray-400">· {team.full_name}</span>
+                  <span className="ml-1 font-normal text-muted-foreground">· {team.full_name}</span>
                 )}
               </div>
 
               {/* Resolved Standard slot — struck through when the Standard toggle is off */}
-              <div className={`mt-1.5 text-xs ${standardOn ? 'text-gray-600 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500'}`}>
+              <div className={`mt-1.5 text-xs ${standardOn ? 'text-muted-foreground' : 'text-muted-foreground/80'}`}>
                 <span className="font-medium">{t('latestSlot')}:</span>
                 <ul className={`mt-0.5 space-y-0.5 ${standardOn ? '' : 'line-through'}`}>
                   {std.labels.map((l, i) => (
@@ -152,7 +152,7 @@ export default function TeamSlotConfigPanel({ teams, config, onUpdate }: Props) 
 
               {/* Resolved Spielsamstag slots — struck through when the Saturday toggle is off */}
               {/* Spielsamstag source — the label alone (struck through when the toggle is off) */}
-              <div className={`mt-1.5 text-xs font-medium ${saturdayOn ? 'text-gray-600 dark:text-gray-300' : 'text-gray-400 line-through dark:text-gray-500'}`}>
+              <div className={`mt-1.5 text-xs font-medium ${saturdayOn ? 'text-muted-foreground' : 'text-muted-foreground/80 line-through'}`}>
                 {t('spielsamstage')}
               </div>
 
@@ -176,7 +176,7 @@ export default function TeamSlotConfigPanel({ teams, config, onUpdate }: Props) 
                   })}
                 </div>
                 {active.size === 0 && (
-                  <span className="mt-1 block text-xs italic text-gray-400 dark:text-gray-500">{t('sourceManual')}</span>
+                  <span className="mt-1 block text-xs italic text-muted-foreground/80">{t('sourceManual')}</span>
                 )}
               </div>
             </div>
@@ -184,17 +184,17 @@ export default function TeamSlotConfigPanel({ teams, config, onUpdate }: Props) 
         })}
       </div>
 
-      <dl className="mt-4 space-y-1.5 border-t border-gray-100 pt-3 text-xs text-gray-500 dark:border-gray-700 dark:text-gray-400">
+      <dl className="mt-4 space-y-1.5 border-t border-border/60 pt-3 text-xs text-muted-foreground">
         <div>
-          <dt className="inline font-medium text-gray-700 dark:text-gray-300">{t('latestSlot')}:</dt>{' '}
+          <dt className="inline font-medium text-foreground/85">{t('latestSlot')}:</dt>{' '}
           <dd className="inline">{t('latestSlotHint')}</dd>
         </div>
         <div>
-          <dt className="inline font-medium text-gray-700 dark:text-gray-300">{t('spielsamstagMode')}:</dt>{' '}
+          <dt className="inline font-medium text-foreground/85">{t('spielsamstagMode')}:</dt>{' '}
           <dd className="inline">{t('spielsamstagModeHint')}</dd>
         </div>
         <div>
-          <dt className="inline font-medium text-gray-700 dark:text-gray-300">{t('sourceManual')}:</dt>{' '}
+          <dt className="inline font-medium text-foreground/85">{t('sourceManual')}:</dt>{' '}
           <dd className="inline">{t('manualHint')}</dd>
         </div>
       </dl>

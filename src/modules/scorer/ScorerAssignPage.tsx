@@ -334,7 +334,7 @@ export default function ScorerAssignPage() {
     tone === 'danger' ? 'text-red-600 dark:text-red-400 font-medium'
       : tone === 'warn' ? 'text-amber-600 dark:text-amber-400'
         : tone === 'ok' ? 'text-green-600 dark:text-green-400'
-          : 'text-gray-400 dark:text-gray-500'
+          : 'text-muted-foreground/80'
 
   // Teams with any pending manual-credit edits merged in, so the next run and the
   // summary reflect the change instantly (the DB write happens in the background).
@@ -822,10 +822,10 @@ export default function ScorerAssignPage() {
   return (
     <div>
       <div className="flex items-center gap-2">
-        <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100 sm:text-2xl">{t('title')}</h1>
+        <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">{t('title')}</h1>
         <GuideHelpButton />
       </div>
-      <p className="mt-1 text-gray-600 dark:text-gray-400">
+      <p className="mt-1 text-muted-foreground">
         {sportTab === 'volleyball' ? t('subtitle') : t('subtitleBb')}
       </p>
 
@@ -839,7 +839,7 @@ export default function ScorerAssignPage() {
           />
         )}
 
-        <div className="rounded-lg bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 dark:bg-gray-700 dark:text-gray-300">
+        <div className="rounded-lg bg-muted px-3 py-1.5 text-sm font-medium text-foreground/85">
           {t('season')}: {season}
         </div>
 
@@ -919,7 +919,7 @@ export default function ScorerAssignPage() {
       <div className="mt-2 flex flex-wrap gap-2">
         {dataLoading && <LoadingSpinner />}
         {!dataLoading && homeGames.length > 0 && assignments.length === 0 && (
-          <span className="text-sm text-gray-500">{t('gamesLoaded', { count: homeGames.length })}</span>
+          <span className="text-sm text-muted-foreground">{t('gamesLoaded', { count: homeGames.length })}</span>
         )}
         {assignments.length > 0 && (
           <span className="text-sm text-green-600 dark:text-green-400">
@@ -927,10 +927,10 @@ export default function ScorerAssignPage() {
           </span>
         )}
         {assignments.length > 0 && (
-          <span className="text-sm text-gray-400 dark:text-gray-500">· {t('draftSaved')}</span>
+          <span className="text-sm text-muted-foreground/80">· {t('draftSaved')}</span>
         )}
         {saveMsg && (
-          <span className={`text-sm ${saveMsg.error ? 'text-red-600' : 'text-green-600 dark:text-green-400'}`}>
+          <span className={`text-sm ${saveMsg.error ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
             {saveMsg.text}
           </span>
         )}
@@ -939,31 +939,31 @@ export default function ScorerAssignPage() {
       {/* Algorithm rules — collapsible; content switches with the sport
           because VB and BB use different engines (AssignmentAlgorithm.ts vs
           AssignmentAlgorithmBb.ts). */}
-      <details className="mt-4 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm dark:border-gray-700 dark:bg-gray-800/40">
-        <summary className="cursor-pointer select-none font-medium text-gray-700 dark:text-gray-300">
+      <details className="mt-4 rounded-xl border border-hairline bg-surface-sunken px-4 py-3 text-sm">
+        <summary className="cursor-pointer select-none font-medium text-foreground/85">
           {t('rulesTitle')}
         </summary>
         <div className="mt-3 space-y-3">
-          <p className="text-gray-600 dark:text-gray-400">
+          <p className="text-muted-foreground">
             {sportTab === 'volleyball' ? t('rulesModeVb') : t('rulesModeBb')}
           </p>
           <div>
-            <h3 className="font-semibold text-gray-800 dark:text-gray-200">{t('rulesHardTitle')}</h3>
-            <ul className="mt-1 list-disc space-y-0.5 pl-5 text-gray-600 dark:text-gray-400">
+            <h3 className="font-semibold text-foreground">{t('rulesHardTitle')}</h3>
+            <ul className="mt-1 list-disc space-y-0.5 pl-5 text-muted-foreground">
               {(sportTab === 'volleyball' ? VB_HARD_RULES : BB_HARD_RULES).map((k) => (
                 <li key={k}>{t(k)}</li>
               ))}
             </ul>
           </div>
           <div>
-            <h3 className="font-semibold text-gray-800 dark:text-gray-200">{t('rulesSoftTitle')}</h3>
-            <ul className="mt-1 list-disc space-y-0.5 pl-5 text-gray-600 dark:text-gray-400">
+            <h3 className="font-semibold text-foreground">{t('rulesSoftTitle')}</h3>
+            <ul className="mt-1 list-disc space-y-0.5 pl-5 text-muted-foreground">
               {(sportTab === 'volleyball' ? VB_SOFT_RULES : BB_SOFT_RULES).map((k) => (
                 <li key={k}>{t(k)}</li>
               ))}
             </ul>
           </div>
-          <p className="text-xs italic text-gray-500 dark:text-gray-400">{t('rulesExisting')}</p>
+          <p className="text-xs italic text-muted-foreground">{t('rulesExisting')}</p>
         </div>
       </details>
 
@@ -972,11 +972,11 @@ export default function ScorerAssignPage() {
           via sportTab (each engine only fills its own sport's counts). */}
       {sportTab === 'volleyball' && vbTeamCounts.size > 0 && (
         <div className="mt-6">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('teamSummary')}</h2>
+          <h2 className="text-base font-semibold text-foreground">{t('teamSummary')}</h2>
           <div className="mt-3 overflow-x-auto">
             <Table className="w-fit text-left text-sm">
               <TableHeader>
-                <TableRow className="border-b border-gray-200 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:border-gray-700 dark:text-gray-400">
+                <TableRow className="border-b border-border text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                   <TableHead className="px-3 py-2">{t('teamName')}</TableHead>
                   <TableHead className="px-3 py-2 text-center">{t('ownGames')}</TableHead>
                   <TableHead className="px-3 py-2 text-center">{t('scorerCount')}</TableHead>
@@ -992,17 +992,17 @@ export default function ScorerAssignPage() {
                 {Array.from(vbTeamCounts.entries())
                   .sort(([a], [b]) => a.localeCompare(b))
                   .map(([name, counts]) => (
-                    <TableRow key={name} className="border-b border-gray-100 dark:border-gray-700/50">
+                    <TableRow key={name} className="border-b border-border/60">
                       <TableCell className="px-3 py-2"><TeamChip team={name} size="sm" /></TableCell>
-                      <TableCell className="px-3 py-2 text-center text-gray-500 dark:text-gray-400">{counts.ownGames}</TableCell>
-                      <TableCell className="px-3 py-2 text-center text-gray-600 dark:text-gray-400">{counts.scorer || '—'}</TableCell>
-                      <TableCell className="px-3 py-2 text-center text-gray-600 dark:text-gray-400">{counts.scoreboard || '—'}</TableCell>
-                      <TableCell className="px-3 py-2 text-center text-gray-600 dark:text-gray-400">{counts.combined || '—'}</TableCell>
-                      <TableCell className="px-3 py-2 text-center text-gray-600 dark:text-gray-400">{counts.referee || '—'}</TableCell>
-                      <TableCell className="px-3 py-2 text-center text-gray-500 dark:text-gray-400"
+                      <TableCell className="px-3 py-2 text-center text-muted-foreground">{counts.ownGames}</TableCell>
+                      <TableCell className="px-3 py-2 text-center text-muted-foreground">{counts.scorer || '—'}</TableCell>
+                      <TableCell className="px-3 py-2 text-center text-muted-foreground">{counts.scoreboard || '—'}</TableCell>
+                      <TableCell className="px-3 py-2 text-center text-muted-foreground">{counts.combined || '—'}</TableCell>
+                      <TableCell className="px-3 py-2 text-center text-muted-foreground">{counts.referee || '—'}</TableCell>
+                      <TableCell className="px-3 py-2 text-center text-muted-foreground"
                         title={counts.referees > counts.refereeCredit ? t('refereesCapped', { count: counts.referees, credit: counts.refereeCredit }) : undefined}>
                         {counts.referees
-                          ? <span>{counts.referees}<span className="text-gray-400 dark:text-gray-500"> (−{counts.refereeCredit})</span></span>
+                          ? <span>{counts.referees}<span className="text-muted-foreground/80"> (−{counts.refereeCredit})</span></span>
                           : '—'}
                       </TableCell>
                       <TableCell className="px-3 py-2 text-center">
@@ -1017,27 +1017,27 @@ export default function ScorerAssignPage() {
                             const v = Math.max(0, Math.round(Number(e.target.value) || 0))
                             if (v !== (counts.dutyCredit || 0)) commitCredit(counts.teamId, v)
                           }}
-                          className="h-9 w-14 rounded border border-gray-300 bg-white px-2 text-center text-sm sm:h-8 text-gray-900 focus:border-primary focus:outline-none disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                          className="h-9 w-14 rounded-lg border border-input bg-card px-2 text-center text-sm tabular-nums sm:h-8 text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary/60 disabled:opacity-50 dark:bg-input/20"
                           aria-label={t('creditCount')}
                         />
                       </TableCell>
-                      <TableCell className="px-3 py-2 text-center font-medium text-gray-900 dark:text-gray-100">{counts.totalDuties || '—'}</TableCell>
+                      <TableCell className="px-3 py-2 text-center font-medium text-foreground">{counts.totalDuties || '—'}</TableCell>
                     </TableRow>
                   ))}
               </TableBody>
             </Table>
           </div>
-          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{t('creditFootnote')}</p>
+          <p className="mt-2 text-xs text-muted-foreground">{t('creditFootnote')}</p>
         </div>
       )}
 
       {sportTab === 'basketball' && bbTeamCounts.size > 0 && (
         <div className="mt-6">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('teamSummary')}</h2>
+          <h2 className="text-base font-semibold text-foreground">{t('teamSummary')}</h2>
           <div className="mt-3 overflow-x-auto">
             <Table className="w-fit text-left text-sm">
               <TableHeader>
-                <TableRow className="border-b border-gray-200 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:border-gray-700 dark:text-gray-400">
+                <TableRow className="border-b border-border text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                   <TableHead className="px-3 py-2">{t('teamName')}</TableHead>
                   <TableHead className="px-3 py-2 text-center">{t('ownGames')}</TableHead>
                   <TableHead className="px-3 py-2 text-center">{t('dutyCount')}</TableHead>
@@ -1048,11 +1048,11 @@ export default function ScorerAssignPage() {
                 {Array.from(bbTeamCounts.entries())
                   .sort(([a], [b]) => a.localeCompare(b))
                   .map(([name, counts]) => (
-                    <TableRow key={name} className="border-b border-gray-100 dark:border-gray-700/50">
+                    <TableRow key={name} className="border-b border-border/60">
                       <TableCell className="px-3 py-2"><TeamChip team={name} size="sm" /></TableCell>
-                      <TableCell className="px-3 py-2 text-center text-gray-500 dark:text-gray-400">{counts.ownGames}</TableCell>
-                      <TableCell className="px-3 py-2 text-center font-medium text-gray-900 dark:text-gray-100">{counts.duties || '—'}</TableCell>
-                      <TableCell className="px-3 py-2 text-center text-gray-500 dark:text-gray-400">{bbOtr2DutiesByTeam.get(name) || '—'}</TableCell>
+                      <TableCell className="px-3 py-2 text-center text-muted-foreground">{counts.ownGames}</TableCell>
+                      <TableCell className="px-3 py-2 text-center font-medium text-foreground">{counts.duties || '—'}</TableCell>
+                      <TableCell className="px-3 py-2 text-center text-muted-foreground">{bbOtr2DutiesByTeam.get(name) || '—'}</TableCell>
                     </TableRow>
                   ))}
               </TableBody>
@@ -1063,10 +1063,10 @@ export default function ScorerAssignPage() {
 
       {/* Results table */}
       {assignments.length > 0 && (
-        <div className="mt-6 overflow-x-auto">
+        <div className="mt-6 overflow-x-auto rounded-2xl border border-hairline bg-card shadow-card">
           <Table className="w-full text-left text-sm">
             <TableHeader>
-              <TableRow className="border-b border-gray-200 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:border-gray-700 dark:text-gray-400">
+              <TableRow className="border-b border-border text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                 <TableHead className="px-2 py-2">{t('date')}</TableHead>
                 <TableHead className="px-2 py-2">{t('hall')}</TableHead>
                 <TableHead className="px-2 py-2">{t('home')}</TableHead>
@@ -1105,33 +1105,33 @@ export default function ScorerAssignPage() {
                     return (
                       <TableRow
                         key={a.gameId}
-                        className={`border-b border-gray-100 dark:border-gray-700/50 ${
+                        className={`border-b border-border/60 ${
                           hasNoAssignment ? 'bg-red-50 dark:bg-red-900/10' :
                           isCup ? 'bg-blue-50/50 dark:bg-blue-900/10' :
-                          isExisting ? 'bg-gray-50 dark:bg-gray-800/50' : ''
+                          isExisting ? 'bg-surface-sunken' : ''
                         }`}
                       >
-                        <TableCell className="whitespace-nowrap px-2 py-2 text-gray-700 dark:text-gray-300">
-                          <div><span className="text-gray-400 dark:text-gray-500">{weekdayShort(game.date)}</span> {formatDateCompact(game.date)}</div>
-                          <div className="text-xs text-gray-500 dark:text-gray-400">{game.time ? formatTime(game.time) : ''}</div>
+                        <TableCell className="whitespace-nowrap px-2 py-2 text-foreground/85">
+                          <div><span className="text-muted-foreground/80">{weekdayShort(game.date)}</span> {formatDateCompact(game.date)}</div>
+                          <div className="text-xs text-muted-foreground">{game.time ? formatTime(game.time) : ''}</div>
                         </TableCell>
-                        <TableCell className="px-2 py-2 text-gray-600 dark:text-gray-400">{hallName}</TableCell>
-                        <TableCell className="px-2 py-2 font-medium text-gray-900 dark:text-gray-100">{game.home_team}</TableCell>
-                        <TableCell className="px-2 py-2 text-gray-700 dark:text-gray-300">{game.away_team}</TableCell>
-                        <TableCell className="px-2 py-2 text-gray-500 dark:text-gray-400">
-                          <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs dark:bg-gray-700">{game.league}</span>
+                        <TableCell className="px-2 py-2 text-muted-foreground">{hallName}</TableCell>
+                        <TableCell className="px-2 py-2 font-medium text-foreground">{game.home_team}</TableCell>
+                        <TableCell className="px-2 py-2 text-foreground/85">{game.away_team}</TableCell>
+                        <TableCell className="px-2 py-2 text-muted-foreground">
+                          <span className="rounded bg-muted px-1.5 py-0.5 text-xs">{game.league}</span>
                         </TableCell>
                         {layoutMode === 'combined' ? (
                           <>
                             <TableCell className="px-2 py-2 align-top" colSpan={2}>
                               {renderVbDuty(a.gameId, 'combined', a.combinedTeamId, a.combinedMemberId, game.scorer_scoreboard_member)}
                             </TableCell>
-                            <TableCell className="px-2 py-2 text-center text-gray-300 dark:text-gray-600">—</TableCell>
+                            <TableCell className="px-2 py-2 text-center text-muted-foreground/50">—</TableCell>
                           </>
                         ) : layoutMode === 'referee' ? (
                           <>
-                            <TableCell className="px-2 py-2 text-center text-gray-300 dark:text-gray-600">—</TableCell>
-                            <TableCell className="px-2 py-2 text-center text-gray-300 dark:text-gray-600">—</TableCell>
+                            <TableCell className="px-2 py-2 text-center text-muted-foreground/50">—</TableCell>
+                            <TableCell className="px-2 py-2 text-center text-muted-foreground/50">—</TableCell>
                             <TableCell className="px-2 py-2 align-top">
                               {renderVbDuty(a.gameId, 'referee', a.refereeTeamId, a.refereeMemberId, game.referee_member)}
                             </TableCell>
@@ -1144,7 +1144,7 @@ export default function ScorerAssignPage() {
                             <TableCell className="px-2 py-2 align-top">
                               {renderVbDuty(a.gameId, 'scoreboard', a.scoreboardTeamId, a.scoreboardMemberId, game.scoreboard_member)}
                             </TableCell>
-                            <TableCell className="px-2 py-2 text-center text-gray-300 dark:text-gray-600">—</TableCell>
+                            <TableCell className="px-2 py-2 text-center text-muted-foreground/50">—</TableCell>
                           </>
                         )}
                         <TableCell className="max-w-[240px] px-2 py-2">
@@ -1168,25 +1168,25 @@ export default function ScorerAssignPage() {
                     return (
                       <TableRow
                         key={a.gameId}
-                        className={`border-b border-gray-100 dark:border-gray-700/50 ${
+                        className={`border-b border-border/60 ${
                           hasNoAssignment ? 'bg-red-50 dark:bg-red-900/10' :
-                          isExisting ? 'bg-gray-50 dark:bg-gray-800/50' : ''
+                          isExisting ? 'bg-surface-sunken' : ''
                         }`}
                       >
-                        <TableCell className="whitespace-nowrap px-2 py-2 text-gray-700 dark:text-gray-300">
-                          <div><span className="text-gray-400 dark:text-gray-500">{weekdayShort(game.date)}</span> {formatDateCompact(game.date)}</div>
-                          <div className="text-xs text-gray-500 dark:text-gray-400">{game.time ? formatTime(game.time) : ''}</div>
+                        <TableCell className="whitespace-nowrap px-2 py-2 text-foreground/85">
+                          <div><span className="text-muted-foreground/80">{weekdayShort(game.date)}</span> {formatDateCompact(game.date)}</div>
+                          <div className="text-xs text-muted-foreground">{game.time ? formatTime(game.time) : ''}</div>
                         </TableCell>
-                        <TableCell className="px-2 py-2 text-gray-600 dark:text-gray-400">{hallName}</TableCell>
-                        <TableCell className="px-2 py-2 font-medium text-gray-900 dark:text-gray-100">{game.home_team}</TableCell>
-                        <TableCell className="px-2 py-2 text-gray-700 dark:text-gray-300">{game.away_team}</TableCell>
-                        <TableCell className="px-2 py-2 text-gray-500 dark:text-gray-400">
-                          <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs dark:bg-gray-700">{game.league}</span>
+                        <TableCell className="px-2 py-2 text-muted-foreground">{hallName}</TableCell>
+                        <TableCell className="px-2 py-2 font-medium text-foreground">{game.home_team}</TableCell>
+                        <TableCell className="px-2 py-2 text-foreground/85">{game.away_team}</TableCell>
+                        <TableCell className="px-2 py-2 text-muted-foreground">
+                          <span className="rounded bg-muted px-1.5 py-0.5 text-xs">{game.league}</span>
                         </TableCell>
                         <TableCell className="px-2 py-2 align-top">
                           {renderBbDuty(a, game)}
                         </TableCell>
-                        <TableCell className="whitespace-nowrap px-2 py-2 text-xs text-gray-600 dark:text-gray-400">
+                        <TableCell className="whitespace-nowrap px-2 py-2 text-xs text-muted-foreground">
                           {crewLabel(resolveBbRequirement(game.league))}
                         </TableCell>
                         <TableCell className="max-w-[240px] px-2 py-2">
@@ -1206,7 +1206,7 @@ export default function ScorerAssignPage() {
 
       {/* Empty state */}
       {!dataLoading && homeGames.length === 0 && (
-        <div className="mt-12 py-12 text-center text-gray-500 dark:text-gray-400">
+        <div className="mt-12 py-12 text-center text-muted-foreground">
           <p>{t('noGames')}</p>
         </div>
       )}

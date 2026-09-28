@@ -37,7 +37,7 @@ export function RefereeStatusPill({ row }: { row: RefereeExpenseLine }) {
     )
   }
   if (toNum(row.amount) === 0) {
-    return <span className={`${pillBase} bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300`}>{t('refereeStatusRecorded')}</span>
+    return <span className={`${pillBase} bg-muted text-muted-foreground`}>{t('refereeStatusRecorded')}</span>
   }
   if (row.payout != null && row.payout_status === 'open') {
     return <span className={`${pillBase} bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300`}>{t('payoutStatusOpen')}</span>
@@ -67,32 +67,32 @@ export default function MyRefereeExpensesCard() {
   if (rows.length === 0) return null
 
   return (
-    <section className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
-      <h2 className="flex items-center gap-1.5 text-sm font-semibold text-gray-900 dark:text-gray-100">
-        <HandCoins className="h-4 w-4 text-brand-600 dark:text-brand-400" /> {t('myRefereeTitle')}
+    <section className="rounded-2xl border border-hairline bg-card shadow-card p-4">
+      <h2 className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+        <HandCoins className="h-4 w-4 text-primary dark:text-brand-300" /> {t('myRefereeTitle')}
       </h2>
-      <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{t('myRefereeSubtitle')}</p>
-      <div className="-mx-4 mt-3 border-t border-gray-200 dark:border-gray-700">
+      <p className="mt-0.5 text-xs text-muted-foreground">{t('myRefereeSubtitle')}</p>
+      <div className="-mx-4 mt-3 border-t border-border">
         <Table>
           <TableHeader>
-            <TableRow className="border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/40">
-              <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colDate')}</TableHead>
-              <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colGame')}</TableHead>
-              <TableHead className="text-right text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colAmount')}</TableHead>
-              <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colStatus')}</TableHead>
+            <TableRow>
+              <TableHead>{t('colDate')}</TableHead>
+              <TableHead>{t('colGame')}</TableHead>
+              <TableHead className="text-right">{t('colAmount')}</TableHead>
+              <TableHead>{t('colStatus')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {rows.map((r) => (
-              <TableRow key={r.id} className="min-h-[44px] border-gray-200 dark:border-gray-700">
-                <TableCell className="whitespace-nowrap text-xs text-gray-600 dark:text-gray-400">
+              <TableRow key={r.id} className="min-h-[44px]">
+                <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
                   {r.game?.date ? formatDateCompactZurich(r.game.date) : (r.date_created ? formatDateCompactZurich(r.date_created) : '–')}
                 </TableCell>
-                <TableCell className="whitespace-normal break-words text-gray-900 dark:text-gray-100">
+                <TableCell className="whitespace-normal break-words text-foreground">
                   {r.game ? `${r.game.home_team ?? '?'} – ${r.game.away_team ?? '?'}` : '–'}
-                  {r.team_name && <span className="block text-xs text-gray-500 dark:text-gray-400">{r.team_name}</span>}
+                  {r.team_name && <span className="block text-xs text-muted-foreground">{r.team_name}</span>}
                 </TableCell>
-                <TableCell className="text-right tabular-nums text-gray-900 dark:text-gray-100">{formatChf(r.amount)}</TableCell>
+                <TableCell className="text-right tabular-nums text-foreground">{formatChf(r.amount)}</TableCell>
                 <TableCell><RefereeStatusPill row={r} /></TableCell>
               </TableRow>
             ))}
@@ -100,8 +100,8 @@ export default function MyRefereeExpensesCard() {
         </Table>
       </div>
       <div className="mt-3 flex items-baseline justify-between gap-3 text-sm">
-        <span className="text-gray-600 dark:text-gray-300">{t('myRefereeTotal')}</span>
-        <span className={`font-semibold tabular-nums ${toReimburse > 0 ? 'text-brand-700 dark:text-brand-300' : 'text-gray-500 dark:text-gray-400'}`}>
+        <span className="text-muted-foreground">{t('myRefereeTotal')}</span>
+        <span className={`font-semibold tabular-nums ${toReimburse > 0 ? 'text-brand-700 dark:text-brand-300' : 'text-muted-foreground'}`}>
           {formatChf(toReimburse)}
         </span>
       </div>

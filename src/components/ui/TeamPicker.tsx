@@ -101,7 +101,7 @@ function TeamOptionRow({
       className={cn(
         'min-h-[44px] border-l-2 px-3',
         selected
-          ? 'border-l-primary bg-primary/10 font-semibold text-primary dark:bg-primary/30 dark:text-primary-foreground'
+          ? 'border-l-primary bg-primary/10 font-semibold text-primary dark:bg-primary/25 dark:text-brand-200'
           : 'border-l-transparent',
         team.active === false && 'opacity-60',
       )}
@@ -160,7 +160,7 @@ export function TeamPickerSingle({
           type="button"
           disabled={disabled}
           className={cn(
-            'flex min-h-11 w-full items-center gap-2 rounded-md border sm:min-h-9 border-input bg-transparent px-3 py-2 text-left text-sm shadow-sm transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50',
+            'flex min-h-11 w-full items-center gap-2 rounded-lg border sm:min-h-9 border-input bg-card px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 dark:bg-input/20',
             className,
           )}
         >
@@ -174,7 +174,7 @@ export function TeamPickerSingle({
               {placeholder ?? emptyLabel}
             </span>
           )}
-          <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
+          <ChevronsUpDown className="h-4 w-4 shrink-0 text-muted-foreground" />
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-[min(20rem,calc(100vw-2rem))] p-0">
@@ -190,7 +190,7 @@ export function TeamPickerSingle({
                 className={cn(
                   'min-h-[44px] border-l-2 px-3',
                   value === null
-                    ? 'border-l-primary bg-primary/10 font-semibold text-primary dark:bg-primary/30 dark:text-primary-foreground'
+                    ? 'border-l-primary bg-primary/10 font-semibold text-primary dark:bg-primary/25 dark:text-brand-200'
                     : 'border-l-transparent',
                 )}
               >
@@ -260,7 +260,7 @@ export function TeamPickerMulti({
     <div className={className}>
       {/* One bordered field, chips inside — mirrors CountryMultiSelect so a
           member already on two teams reads as "filled", not as an empty box. */}
-      <div className="flex min-h-11 w-full flex-wrap items-center gap-1.5 rounded-md border sm:min-h-9 border-input bg-transparent p-1.5 text-sm shadow-sm">
+      <div className="flex min-h-11 w-full flex-wrap items-center gap-1.5 rounded-lg border sm:min-h-9 border-input bg-card p-1.5 text-sm dark:bg-input/20">
         {value.map((id) => {
           const team = byId.get(id)
           const label = team?.label ?? id
@@ -268,7 +268,7 @@ export function TeamPickerMulti({
           return (
             <span
               key={id}
-              className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-border sm:min-h-7 bg-muted/60 py-1 pl-2.5 pr-0.5 text-sm text-foreground"
+              className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-border sm:min-h-7 bg-muted py-1 pl-2.5 pr-0.5 text-sm text-foreground"
             >
               <SportBadge sport={team?.sport ?? null} />
               <span className="font-medium">{label}</span>

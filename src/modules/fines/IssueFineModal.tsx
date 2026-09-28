@@ -150,20 +150,20 @@ export default function IssueFineModal({
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         {isTeamFine ? (
-          <div className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-300">
             {t('fines:targetTeamHint')}
           </div>
         ) : teamName ? (
-          <div className="text-xs text-gray-500 dark:text-gray-400">{teamName}</div>
+          <div className="text-xs text-muted-foreground">{teamName}</div>
         ) : null}
 
         {/* Category */}
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+        <label className="block text-xs font-medium text-muted-foreground">
           {t('fines:categoryLabel')}
           <select
             value={category}
             onChange={(e) => { setCategory(e.target.value as FineCategory); setAmountOverridden(false) }}
-            className="mt-1 h-11 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm sm:h-9 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+            className="mt-1 h-11 w-full sm:h-9 rounded-lg border border-input bg-card px-3 text-sm text-foreground dark:bg-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             {CATEGORIES.map((c) => (
               <option key={c} value={c}>
@@ -174,7 +174,7 @@ export default function IssueFineModal({
         </label>
 
         {/* Amount */}
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+        <label className="block text-xs font-medium text-muted-foreground">
           {t('fines:amountLabel')}
           <input
             type="number"
@@ -184,26 +184,26 @@ export default function IssueFineModal({
             onChange={(e) => { setAmountText(e.target.value); setAmountOverridden(true) }}
             placeholder={isTeamFine ? t('fines:amountPlaceholderTeam') : t('fines:amountPlaceholder')}
             required
-            className="mt-1 h-11 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm sm:h-9 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+            className="mt-1 h-11 w-full sm:h-9 rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/70 dark:bg-input/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
         </label>
 
         {/* Preview */}
         {previewLine && (
-          <div className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-300">
             {previewLine}
           </div>
         )}
 
         {/* Reason */}
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+        <label className="block text-xs font-medium text-muted-foreground">
           {t('fines:reasonLabel')}
           <textarea
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             placeholder={t('fines:reasonPlaceholder')}
             rows={2}
-            className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+            className="mt-1 w-full leading-relaxed rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/70 dark:bg-input/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
         </label>
 

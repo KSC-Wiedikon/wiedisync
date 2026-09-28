@@ -82,7 +82,7 @@ export const Content = () => {
       <p className="text-2xl font-bold text-white  ">
         The path follows the scroll
       </p>
-      <p className="text-base font-normal text-neutral-300  ">
+      <p className="text-base font-normal text-stone-300  ">
         If you look closely, you can see the path is being animated.
       </p>
       <div className="flex space-x-4 w-full ">

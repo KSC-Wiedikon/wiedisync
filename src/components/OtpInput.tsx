@@ -149,14 +149,14 @@ export function OtpInput({ onComplete, onResend, loading, error, email }: OtpInp
             disabled={loading}
             autoComplete={index === 0 ? "one-time-code" : "off"}
             className={cn(
-              "h-10 w-8 sm:h-11 sm:w-9 rounded-md border text-center text-base sm:text-lg font-bold",
-              "bg-background text-foreground",
+              "h-10 w-8 sm:h-11 sm:w-9 rounded-lg border text-center text-base sm:text-lg font-bold",
+              "bg-card text-foreground dark:bg-input/20",
               "outline-none transition-colors",
-              "focus:border-brand-500 focus:ring-1 focus:ring-brand-500",
+              "focus-visible:border-primary/60 focus-visible:ring-2 focus-visible:ring-ring",
               "disabled:opacity-50 disabled:cursor-not-allowed",
               error
                 ? "border-destructive"
-                : "border-input dark:border-zinc-700",
+                : "border-input",
             )}
             onChange={(e) => handleChange(index, e.target.value)}
             onKeyDown={(e) => handleKeyDown(index, e)}

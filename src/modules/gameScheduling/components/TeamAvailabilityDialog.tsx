@@ -171,7 +171,7 @@ export default function TeamAvailabilityDialog({ kscwTeamId, kscwTeamName, seaso
             <DialogDescription>{t('availableSlotsHint')}</DialogDescription>
           </DialogHeader>
 
-          {loading && <p className="text-sm text-gray-500 dark:text-gray-400">…</p>}
+          {loading && <p className="text-sm text-muted-foreground">…</p>}
 
           {!loading && data && (
             <div className="max-h-[60vh] space-y-4 overflow-y-auto">
@@ -179,18 +179,18 @@ export default function TeamAvailabilityDialog({ kscwTeamId, kscwTeamName, seaso
                 <p className="text-xs text-amber-600 dark:text-amber-400">{t('availabilityNoSaturday')}</p>
               )}
               {!data.saturday.no_saturday && data.saturday.cap != null && (
-                <p className="text-xs text-gray-500 dark:text-gray-400">
+                <p className="text-xs text-muted-foreground">
                   {t('availabilitySaturdayCap', { used: data.saturday.used, cap: data.saturday.cap })}
                 </p>
               )}
               {typeof data.saturday.away_used === 'number' && (
-                <p className="text-xs text-gray-500 dark:text-gray-400">
+                <p className="text-xs text-muted-foreground">
                   {t('availabilitySaturdayAway', { n: data.saturday.away_used })}
                 </p>
               )}
 
               {data.slots.length === 0 ? (
-                <p className="text-sm text-gray-500 dark:text-gray-400">{t('noAvailableSlots')}</p>
+                <p className="text-sm text-muted-foreground">{t('noAvailableSlots')}</p>
               ) : (
                 <Table>
                   <TableHeader>
@@ -221,9 +221,9 @@ export default function TeamAvailabilityDialog({ kscwTeamId, kscwTeamName, seaso
               )}
 
               <div>
-                <h4 className="mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">{t('awayBlockedTitle')}</h4>
-                <p className="mb-1 text-xs text-gray-500 dark:text-gray-400">{t('awayBlockedHint')}</p>
-                <p className="text-sm break-words text-gray-700 dark:text-gray-300">
+                <h4 className="mb-1 text-sm font-medium text-foreground/85">{t('awayBlockedTitle')}</h4>
+                <p className="mb-1 text-xs text-muted-foreground">{t('awayBlockedHint')}</p>
+                <p className="text-sm break-words text-foreground/85">
                   {mergeDateRanges(data.blocked_away_strict).join(', ') || '—'}
                 </p>
               </div>

@@ -195,13 +195,13 @@ export default function ExplorePage() {
         <ExplorerFieldSearch value={focusFields} onChange={setFocusFields} />
         <ExplorerMemberFilters value={memberFilters} onChange={setMemberFilters} seasons={seasons} />
         {/* Tree / grid view toggle */}
-        <div className="flex overflow-hidden rounded-md border border-border" role="group" aria-label={t('explorerViewToggle')}>
+        <div className="flex gap-0.5 overflow-hidden rounded-lg border border-border bg-card p-0.5" role="group" aria-label={t('explorerViewToggle')}>
           <Button
             type="button"
             size="sm"
             variant={view === 'tree' ? 'default' : 'ghost'}
             onClick={() => setView('tree')}
-            className="gap-1 rounded-none px-2 shadow-none"
+            className="gap-1 rounded-md px-2 shadow-none aria-pressed:bg-selected aria-pressed:text-selected-foreground aria-pressed:hover:bg-selected/90"
             title={t('explorerViewTree')}
             aria-pressed={view === 'tree'}
           >
@@ -213,7 +213,7 @@ export default function ExplorePage() {
             size="sm"
             variant={view === 'grid' ? 'default' : 'ghost'}
             onClick={() => setView('grid')}
-            className="gap-1 rounded-none px-2 shadow-none"
+            className="gap-1 rounded-md px-2 shadow-none aria-pressed:bg-selected aria-pressed:text-selected-foreground aria-pressed:hover:bg-selected/90"
             title={t('explorerViewGrid')}
             aria-pressed={view === 'grid'}
           >

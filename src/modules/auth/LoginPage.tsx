@@ -68,23 +68,23 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 dark:bg-gray-900">
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-stone-100 via-stone-50 to-stone-100 p-4 dark:from-background dark:via-background dark:to-card/40">
       <div className="w-full max-w-sm">
-        <div className="mb-8 flex justify-center">
-          <img
-            src={theme === 'light' ? '/wiedisync_blau.png' : '/wiedisync_weiss.png'}
-            alt="KSC Wiedikon"
-            className="h-16 w-auto"
-          />
-        </div>
-
-        <div className="rounded-xl bg-white p-6 shadow-lg sm:p-8 dark:bg-gray-800">
-          <h1 className="mb-6 text-center text-xl font-bold text-gray-900 dark:text-gray-100">
+        <div className="relative w-full overflow-hidden rounded-3xl border border-hairline bg-card p-6 shadow-card-lg sm:p-8">
+          <div aria-hidden="true" className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-brand-600 to-brand-400" />
+          <div className="mb-6 flex justify-center">
+            <img
+              src={theme === 'light' ? '/wiedisync_blau.png' : '/wiedisync_weiss.png'}
+              alt="KSC Wiedikon"
+              className="h-11 w-auto"
+            />
+          </div>
+          <h1 className="mb-6 text-center text-xl font-bold tracking-tight text-foreground">
             {t('signIn')}
           </h1>
 
           {showAccountExists && (
-            <div className="mb-4 rounded-lg bg-blue-50 p-3 text-center text-sm text-blue-700 dark:bg-blue-900/20 dark:text-blue-400">
+            <div className="mb-4 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-center text-sm font-medium text-sky-800 dark:border-sky-900/60 dark:bg-sky-950/40 dark:text-sky-300">
               {t('accountAlreadyExists')}
             </div>
           )}
@@ -93,6 +93,7 @@ export default function LoginPage() {
             <FormInput
               type="email"
               label={t('email')}
+              className="h-12 rounded-xl bg-surface-sunken focus:bg-card sm:h-12 dark:bg-surface-sunken dark:focus:bg-card"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -104,6 +105,7 @@ export default function LoginPage() {
               <FormInput
                 type="password"
                 label={t('password')}
+                className="h-12 rounded-xl bg-surface-sunken focus:bg-card sm:h-12 dark:bg-surface-sunken dark:focus:bg-card"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
@@ -113,7 +115,7 @@ export default function LoginPage() {
               <div className="mt-1 text-right">
                 <Link
                   to={email.trim() ? `/set-password?email=${encodeURIComponent(email.trim())}` : '/set-password'}
-                  className="text-sm text-brand-600 hover:text-brand-500 dark:text-brand-400 dark:hover:text-brand-300"
+                  className="text-sm font-medium text-primary hover:text-primary/80 dark:text-brand-300 dark:hover:text-brand-200"
                 >
                   {t('forgotPassword')}
                 </Link>
@@ -121,17 +123,17 @@ export default function LoginPage() {
             </div>
 
             {error && (
-              <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+              <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">{error}</p>
             )}
 
-            <Button type="submit" loading={loading} className="w-full">
+            <Button type="submit" loading={loading} className="h-12 w-full rounded-xl font-semibold shadow-sm shadow-primary/20 sm:h-12">
               {loading ? t('signingIn') : t('signIn')}
             </Button>
           </form>
 
-          <p className="mt-4 text-center text-sm text-gray-500 dark:text-gray-400">
+          <p className="mt-4 text-center text-sm text-muted-foreground">
             {t('noAccountYet')}{' '}
-            <Link to="/signup" className="font-medium text-brand-600 hover:text-brand-500 dark:text-brand-400">
+            <Link to="/signup" className="font-medium text-primary hover:text-primary/80 dark:text-brand-300 dark:hover:text-brand-200">
               {t('signUp')}
             </Link>
           </p>

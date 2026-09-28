@@ -193,17 +193,17 @@ export default function AbsenceForm({ open, absence, onSave, onCancel, forTeam, 
             />
           )}
         </div>
-        <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+        <label className="flex items-center gap-2 text-sm text-foreground/85 cursor-pointer">
           <Checkbox
             checked={indefinite}
             onCheckedChange={(checked) => setIndefinite(checked === true)}
           />
           {t('indefinite')}
-          <span className="text-gray-400 dark:text-gray-500">({t('indefiniteHint')})</span>
+          <span className="text-muted-foreground/80">({t('indefiniteHint')})</span>
         </label>
 
         <div>
-          <label className="mb-1.5 block text-sm font-medium">{t('reason')}</label>
+          <label className="mb-1.5 block text-xs font-medium text-muted-foreground">{t('reason')}</label>
           <Select value={reason} onValueChange={(v) => setReason(v as Absence['reason'])}>
             <SelectTrigger className="min-h-[44px] w-full">
               <SelectValue />
@@ -241,8 +241,8 @@ export default function AbsenceForm({ open, absence, onSave, onCancel, forTeam, 
         />
         </div>
 
-        <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
-          <label className="flex items-start gap-2.5 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+        <div className="rounded-xl border border-hairline bg-surface-sunken p-3">
+          <label className="flex items-start gap-2.5 text-sm text-foreground/85 cursor-pointer">
             <Checkbox
               className="mt-0.5"
               checked={blocking}
@@ -250,7 +250,7 @@ export default function AbsenceForm({ open, absence, onSave, onCancel, forTeam, 
             />
             <span>
               <span className="font-medium">{t('blocking')}</span>
-              <span className="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">
+              <span className="mt-0.5 block text-xs text-muted-foreground">
                 {t('blockingHint')}
               </span>
             </span>
@@ -258,7 +258,7 @@ export default function AbsenceForm({ open, absence, onSave, onCancel, forTeam, 
         </div>
 
         {validationError && (
-          <p className="text-sm text-red-600">{validationError}</p>
+          <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">{validationError}</p>
         )}
 
         <div className="flex justify-end gap-3 pt-2">

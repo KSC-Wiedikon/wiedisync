@@ -151,15 +151,15 @@ export default function TransfersPage() {
            invention. */
         <div
           aria-hidden="true"
-          className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-800/30"
+          className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-hairline bg-surface-sunken px-4 py-3"
         >
-          <div className="h-4 w-28 animate-pulse rounded bg-gray-100 dark:bg-gray-800" />
+          <div className="h-4 w-28 animate-pulse rounded bg-muted" />
           <div className="flex flex-wrap items-center gap-1.5">
-            <div className="h-11 w-24 animate-pulse rounded-full bg-gray-100 sm:h-6 dark:bg-gray-800" />
-            <div className="h-11 w-28 animate-pulse rounded-full bg-gray-100 sm:h-6 dark:bg-gray-800" />
-            <div className="h-11 w-20 animate-pulse rounded-full bg-gray-100 sm:h-6 dark:bg-gray-800" />
+            <div className="h-11 w-24 animate-pulse rounded-full bg-muted sm:h-6" />
+            <div className="h-11 w-28 animate-pulse rounded-full bg-muted sm:h-6" />
+            <div className="h-11 w-20 animate-pulse rounded-full bg-muted sm:h-6" />
           </div>
-          <div className="ml-auto h-4 w-36 animate-pulse rounded bg-gray-100 dark:bg-gray-800" />
+          <div className="ml-auto h-4 w-36 animate-pulse rounded bg-muted" />
         </div>
       ) : (
         <TransferNumbersBar

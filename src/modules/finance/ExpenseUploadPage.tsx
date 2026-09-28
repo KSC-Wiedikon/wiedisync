@@ -46,35 +46,35 @@ function MyExpensesTable() {
   const rows = data ?? []
   if (rows.length === 0) return null
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
-      <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t('expenseMineTitle')}</h2>
+    <div className="rounded-2xl border border-hairline bg-card shadow-card p-4">
+      <h2 className="text-sm font-semibold text-foreground">{t('expenseMineTitle')}</h2>
       <div className="mt-2 overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('expenseDate')}</TableHead>
-              <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('expenseAmount')}</TableHead>
-              <TableHead className="hidden sm:table-cell text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('expenseVendor')}</TableHead>
-              <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('expenseStatusCol')}</TableHead>
+              <TableHead>{t('expenseDate')}</TableHead>
+              <TableHead>{t('expenseAmount')}</TableHead>
+              <TableHead className="hidden sm:table-cell">{t('expenseVendor')}</TableHead>
+              <TableHead>{t('expenseStatusCol')}</TableHead>
               <TableHead />
             </TableRow>
           </TableHeader>
           <TableBody>
             {rows.map((e) => (
               <TableRow key={e.id} className="min-h-[44px]">
-                <TableCell className="text-sm text-gray-500 dark:text-gray-400">
+                <TableCell className="text-sm text-muted-foreground">
                   {e.date_created ? formatDateCompactZurich(e.date_created) : '—'}
                 </TableCell>
-                <TableCell className="text-sm font-medium tabular-nums text-gray-900 dark:text-gray-100">
+                <TableCell className="text-sm font-medium tabular-nums text-foreground">
                   {formatExpenseAmount(e)}
                 </TableCell>
-                <TableCell className="hidden sm:table-cell whitespace-normal break-words text-sm text-gray-700 dark:text-gray-300">
+                <TableCell className="hidden sm:table-cell whitespace-normal break-words text-sm text-foreground/85">
                   {e.vendor || e.description || '—'}
                 </TableCell>
                 <TableCell>
                   <ExpenseStatusBadge status={e.status} />
                   {e.finance_note && (
-                    <p className="mt-1 whitespace-normal break-words text-xs text-gray-500 dark:text-gray-400">{e.finance_note}</p>
+                    <p className="mt-1 whitespace-normal break-words text-xs text-muted-foreground">{e.finance_note}</p>
                   )}
                 </TableCell>
                 <TableCell className="text-right">
@@ -234,15 +234,15 @@ export default function ExpenseUploadPage() {
     <div className="mx-auto max-w-2xl space-y-6 p-4 sm:p-6">
       <div>
         <div className="flex items-center gap-2">
-          <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">{t('expenseTitle')}</h1>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">{t('expenseTitle')}</h1>
           <GuideHelpButton />
         </div>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t('expenseSubtitle')}</p>
+        <p className="mt-1 text-sm text-muted-foreground">{t('expenseSubtitle')}</p>
       </div>
 
       {/* Upload / scanning state */}
       {step !== 'review' && step !== 'submitting' && (
-        <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+        <div className="rounded-2xl border border-hairline bg-card shadow-card p-4">
           <input
             ref={fileInputRef}
             type="file"
@@ -255,20 +255,20 @@ export default function ExpenseUploadPage() {
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={busy || !turnstileToken}
-            className="flex min-h-[140px] w-full flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 px-4 py-8 text-center transition-colors hover:border-brand-400 hover:bg-brand-50/40 disabled:cursor-not-allowed disabled:opacity-70 dark:border-gray-600 dark:hover:border-brand-500 dark:hover:bg-brand-900/20"
+            className="flex min-h-[140px] w-full flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-border px-4 py-8 text-center transition-colors hover:border-brand-400 hover:bg-brand-50/40 disabled:cursor-not-allowed disabled:opacity-70 dark:hover:border-brand-500 dark:hover:bg-brand-900/20"
           >
             {busy ? (
               <>
-                <Loader2 className="h-7 w-7 animate-spin text-brand-500" />
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                <Loader2 className="h-7 w-7 animate-spin text-primary" />
+                <span className="text-sm font-medium text-foreground/85">
                   {step === 'uploading' ? t('expenseUploading') : t('expenseScanning')}
                 </span>
               </>
             ) : (
               <>
-                <Upload className="h-7 w-7 text-gray-400" />
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('expensePickFile')}</span>
-                <span className="text-xs text-gray-400 dark:text-gray-500">{t('expensePickHint')}</span>
+                <Upload className="h-7 w-7 text-muted-foreground/80" />
+                <span className="text-sm font-medium text-foreground/85">{t('expensePickFile')}</span>
+                <span className="text-xs text-muted-foreground/80">{t('expensePickHint')}</span>
               </>
             )}
           </button>
@@ -284,7 +284,7 @@ export default function ExpenseUploadPage() {
                 options={{ size: 'flexible' }}
               />
               {!turnstileToken && (
-                <span className="text-xs text-gray-400 dark:text-gray-500">{t('expenseVerifyFirst')}</span>
+                <span className="text-xs text-muted-foreground/80">{t('expenseVerifyFirst')}</span>
               )}
             </div>
           )}
@@ -296,27 +296,27 @@ export default function ExpenseUploadPage() {
       {(step === 'review' || step === 'submitting') && (
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* File chip */}
-          <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800">
-            <FileText className="h-4 w-4 shrink-0 text-gray-400" />
-            <span className="min-w-0 flex-1 truncate text-gray-700 dark:text-gray-300" title={fileName}>{fileName}</span>
+          <div className="flex items-center gap-2 rounded-xl border border-hairline bg-surface-sunken px-3 py-2 text-sm">
+            <FileText className="h-4 w-4 shrink-0 text-muted-foreground/80" />
+            <span className="min-w-0 flex-1 truncate text-foreground/85" title={fileName}>{fileName}</span>
             <Button
               type="button"
               variant="ghost"
               size="sm"
               onClick={resetForm}
-              className="shrink-0 text-gray-500 hover:bg-gray-200 dark:text-gray-400 dark:hover:bg-gray-700"
+              className="shrink-0 text-muted-foreground hover:bg-accent"
             >
               <X />
               {t('expenseChangeFile')}
             </Button>
           </div>
 
-          <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
-            <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t('expenseReviewTitle')}</h2>
+          <div className="rounded-2xl border border-hairline bg-card shadow-card p-4">
+            <h2 className="text-sm font-semibold text-foreground">{t('expenseReviewTitle')}</h2>
             {scanFailed ? (
               <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">{t('expenseScanFailed')}</p>
             ) : (
-              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('expenseReviewHint')}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{t('expenseReviewHint')}</p>
             )}
 
             <div className="mt-4 space-y-4">
@@ -359,7 +359,7 @@ export default function ExpenseUploadPage() {
                 helperText={user?.iban ? t('expenseReimburseIbanHint') : t('expenseReimburseIbanHintEmpty')}
               />
               <FormTextarea label={t('expenseNote')} value={note} onChange={(e) => setNote(e.target.value)} rows={3} />
-              <label className="flex items-start gap-2.5 text-sm text-gray-700 dark:text-gray-300">
+              <label className="flex items-start gap-2.5 text-sm text-foreground/85">
                 <Checkbox
                   className="mt-0.5"
                   checked={alreadyPaid}
@@ -367,7 +367,7 @@ export default function ExpenseUploadPage() {
                 />
                 <span>
                   {t('expenseAlreadyPaid')}
-                  <span className="mt-0.5 block text-xs text-gray-400 dark:text-gray-500">{t('expenseAlreadyPaidHint')}</span>
+                  <span className="mt-0.5 block text-xs text-muted-foreground/80">{t('expenseAlreadyPaidHint')}</span>
                 </span>
               </label>
             </div>

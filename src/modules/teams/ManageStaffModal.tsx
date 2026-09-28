@@ -121,7 +121,7 @@ export default function ManageStaffModal({ open, onClose, team, onTeamUpdate }: 
 
   return (
     <Modal open={open} onClose={onClose} title={t('manageStaffTitle')} size="md">
-      <p className="text-xs text-gray-500 dark:text-gray-400">{t('manageStaffHint')}</p>
+      <p className="text-xs text-muted-foreground">{t('manageStaffHint')}</p>
 
       <StaffSection
         heading={t('coaches')}
@@ -192,14 +192,14 @@ function StaffSection({ heading, role, currentIds, memberById, allMembers, membe
 
   return (
     <div className="mt-5">
-      <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+      <h3 className="text-sm font-semibold text-foreground">
         {heading} ({currentIds.length})
       </h3>
 
       {currentIds.length === 0 ? (
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t('noStaffYet')}</p>
+        <p className="mt-1 text-sm text-muted-foreground">{t('noStaffYet')}</p>
       ) : (
-        <ul className="mt-2 divide-y divide-gray-100 rounded-lg border border-gray-200 dark:divide-gray-700 dark:border-gray-700">
+        <ul className="mt-2 divide-y divide-border/60 rounded-xl border border-hairline">
           {currentIds.map((id) => {
             const m = memberById.get(id)
             // The junction gives the ids synchronously, the names arrive a
@@ -211,15 +211,15 @@ function StaffSection({ heading, role, currentIds, memberById, allMembers, membe
             return (
               <li key={id} className="flex min-h-[44px] items-center gap-3 px-3 py-1.5">
                 <Avatar member={m} pending={unresolved} />
-                <span className="min-w-0 flex-1 break-words text-sm text-gray-900 dark:text-gray-100">
+                <span className="min-w-0 flex-1 break-words text-sm text-foreground">
                   {unresolved
-                    ? <span className="block h-4 w-32 max-w-full animate-pulse rounded bg-gray-200 dark:bg-gray-700" />
+                    ? <span className="block h-4 w-32 max-w-full animate-pulse rounded bg-stone-200/80 dark:bg-muted" />
                     : displayName(m)}
                 </span>
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-9 w-9 shrink-0 p-0 text-gray-400 hover:text-red-600 dark:hover:text-red-400"
+                  className="h-9 w-9 shrink-0 p-0 text-muted-foreground/80 hover:text-red-600 dark:hover:text-red-400"
                   onClick={() => onRemove(id)}
                   disabled={busy || unresolved}
                   title={t('common:remove')}
@@ -237,25 +237,25 @@ function StaffSection({ heading, role, currentIds, memberById, allMembers, membe
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         placeholder={t('searchPlaceholder')}
-        className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500"
+        className="mt-2 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary/60 dark:bg-input/20"
       />
       {search.length >= 2 && (
-        <div className="mt-1 max-h-44 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
+        <div className="mt-1 max-h-44 overflow-y-auto rounded-lg border border-border bg-card">
           {/* Never claim "No results" against a pool that hasn't arrived — an
               admin who reads it goes off and creates a duplicate member. */}
           {membersLoading ? (
-            <p className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{t('common:loading')}</p>
+            <p className="px-4 py-3 text-sm text-muted-foreground">{t('common:loading')}</p>
           ) : membersError ? (
-            <p className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{t('common:error')}</p>
+            <p className="px-4 py-3 text-sm text-muted-foreground">{t('common:error')}</p>
           ) : matches.length === 0 ? (
-            <p className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{t('noSearchResults')}</p>
+            <p className="px-4 py-3 text-sm text-muted-foreground">{t('noSearchResults')}</p>
           ) : (
             matches.slice(0, 10).map((m) => (
               <button
                 key={m.id}
                 onClick={() => { onAdd(role, String(m.id)); setSearch('') }}
                 disabled={busy}
-                className="flex min-h-[44px] w-full items-center gap-3 px-4 py-2 text-left text-sm text-gray-900 hover:bg-gray-50 disabled:pointer-events-none disabled:opacity-50 dark:text-gray-100 dark:hover:bg-gray-700"
+                className="flex min-h-[44px] w-full items-center gap-3 px-4 py-2 text-left text-sm text-foreground hover:bg-accent disabled:pointer-events-none disabled:opacity-50"
               >
                 <Avatar member={m} />
                 <span>{displayName(m)}</span>
@@ -270,7 +270,7 @@ function StaffSection({ heading, role, currentIds, memberById, allMembers, membe
 
 function Avatar({ member, pending }: { member: Member | undefined; pending?: boolean }) {
   if (pending && !member) {
-    return <div className="h-6 w-6 shrink-0 animate-pulse rounded-full bg-gray-200 dark:bg-gray-700" aria-hidden="true" />
+    return <div className="h-6 w-6 shrink-0 animate-pulse rounded-full bg-stone-200/80 dark:bg-muted" aria-hidden="true" />
   }
   if (member?.photo) {
     return (
@@ -282,7 +282,7 @@ function Avatar({ member, pending }: { member: Member | undefined; pending?: boo
     )
   }
   return (
-    <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gray-200 text-xs text-gray-600 dark:bg-gray-600 dark:text-gray-300">
+    <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-stone-200 text-xs text-muted-foreground dark:bg-gray-600">
       {member ? `${memberFirstName(member)[0] ?? ''}${member.last_name?.[0] ?? ''}` : '?'}
     </div>
   )

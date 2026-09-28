@@ -109,17 +109,17 @@ export default function SchedulingLayout() {
       .sort((a, b) => itemPath(b.to).length - itemPath(a.to).length)[0] ?? navItems[0]
 
   const linkClass = ({ isActive }: { isActive: boolean }) =>
-    `flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+    `flex h-9 items-center gap-2 rounded-xl px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
       isActive
-        ? 'bg-brand-50 text-brand-700 dark:bg-brand-900/50 dark:text-gold-400'
-        : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'
+        ? 'bg-selected text-selected-foreground'
+        : 'text-muted-foreground hover:bg-accent hover:text-foreground'
     }`
 
   const sportPillClass = (active: boolean) =>
-    `flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors ${
+    `flex h-full items-center gap-1.5 rounded-md px-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
       active
-        ? 'bg-brand-600 text-white shadow-sm'
-        : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'
+        ? 'bg-selected text-selected-foreground'
+        : 'text-muted-foreground hover:text-foreground'
     }`
 
   async function handleLogout() {
@@ -129,21 +129,21 @@ export default function SchedulingLayout() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <header className="sticky top-0 z-30 border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80">
+      <header className="sticky top-0 z-30 border-b border-hairline bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80">
         <div className="mx-auto flex h-14 max-w-7xl items-center gap-3 px-4 sm:px-6">
           <NavLink to="/admin/terminplanung" className="flex shrink-0 items-center gap-2">
             <img
               src={theme === 'light' ? '/wiedisync_blau.png' : '/wiedisync_weiss.png'}
               alt="KSC Wiedikon"
-              className="h-8 w-auto"
+              className="h-7 w-auto"
             />
-            <span className="hidden text-sm font-bold sm:inline">Spielplanung</span>
+            <span className="hidden text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground sm:inline">Spielplanung</span>
           </NavLink>
 
           {/* Sport toggle — Volleyball ↔ Basketball. Only shown to users with
               basketball access; volleyball-only admins see the app unchanged. */}
           {canBasketball && (
-            <div className="flex shrink-0 items-center gap-0.5 rounded-lg border border-border bg-muted/40 p-0.5">
+            <div className="inline-flex h-11 shrink-0 items-center gap-0.5 rounded-lg border border-border bg-card p-0.5 sm:h-8">
               <button
                 type="button"
                 onClick={() => navigate(volleyballHome)}
@@ -175,7 +175,7 @@ export default function SchedulingLayout() {
             ))}
             <a
               href={WIEDISYNC_URL}
-              className="ml-auto flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+              className="ml-auto flex h-9 items-center gap-2 rounded-xl px-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
             >
               <ExternalLink className="h-4 w-4" />
               <span className="whitespace-nowrap">Wiedisync</span>
@@ -186,9 +186,9 @@ export default function SchedulingLayout() {
             <div className="flex min-w-0 flex-1 sm:hidden">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" aria-label={activeItem.label} title={activeItem.label} className="gap-1.5 px-2.5 text-gray-600 dark:text-gray-300">
+                  <Button variant="ghost" aria-label={activeItem.label} title={activeItem.label} className="gap-1.5 rounded-xl px-2.5">
                     <activeItem.Icon className="!size-5" />
-                    <ChevronDown className="!size-3.5 text-gray-400" />
+                    <ChevronDown className="!size-3.5 text-muted-foreground/80" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="min-w-[200px]">
@@ -201,7 +201,7 @@ export default function SchedulingLayout() {
                       <item.Icon className="h-4 w-4" />
                       <span className="flex-1">{item.label}</span>
                       {activeItem.to === item.to && (
-                        <Check className="h-4 w-4 text-brand-600 dark:text-gold-400" />
+                        <Check className="h-4 w-4 text-primary dark:text-gold-400" />
                       )}
                     </DropdownMenuItem>
                   ))}
@@ -223,7 +223,7 @@ export default function SchedulingLayout() {
             <IconButton
               onClick={toggleTheme}
               label={theme === 'dark' ? t('switchToLight') : t('switchToDark')}
-              className="text-gray-600 dark:text-gray-300"
+              className="rounded-xl"
             >
               {theme === 'dark' ? <Sun /> : <Moon />}
             </IconButton>
@@ -231,7 +231,7 @@ export default function SchedulingLayout() {
               <IconButton
                 onClick={handleLogout}
                 label={t('logout')}
-                className="text-gray-600 dark:text-gray-300"
+                className="rounded-xl"
               >
                 <LogOut />
               </IconButton>

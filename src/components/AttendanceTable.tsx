@@ -47,10 +47,10 @@ export default function AttendanceTable({
   const isClickable = !!onPlayerClick
 
   return (
-    <div className="overflow-hidden rounded-lg border bg-white dark:border-gray-700 dark:bg-gray-800">
+    <div className="overflow-hidden rounded-2xl border border-hairline bg-card shadow-card">
       <Table>
         <TableHeader>
-          <TableRow className="bg-gray-50 text-xs uppercase tracking-wider text-gray-600 dark:bg-gray-900 dark:text-gray-400">
+          <TableRow className="bg-surface-sunken">
             <TableHead className="min-w-[140px]">{t('playerCol')}</TableHead>
             <TableHead className="hidden text-center sm:table-cell">{t('numberCol')}</TableHead>
             <TableHead className="text-center">{t(countColKey)}</TableHead>
@@ -70,24 +70,24 @@ export default function AttendanceTable({
                   aria-expanded={renderDrilldown ? expanded : undefined}
                   className={cn('[&>td]:h-11', isClickable && 'cursor-pointer', expanded && 'bg-muted/50')}
                 >
-                  <TableCell className="font-medium text-gray-900 dark:text-gray-100">
+                  <TableCell className="font-medium text-foreground">
                     {player.memberName || '—'}
                     {/* Last-response timestamp only shown on mobile (the Trend
                         column that carries this context is hidden there). */}
                     {player.lastResponseAt && (
-                      <span className="mt-0.5 block text-[11px] font-normal text-gray-400 dark:text-gray-500 sm:hidden">
+                      <span className="mt-0.5 block text-[11px] font-normal text-muted-foreground/80 sm:hidden">
                         {formatDateZurich(player.lastResponseAt)} {formatTimeZurich(player.lastResponseAt)}
                       </span>
                     )}
                   </TableCell>
-                  <TableCell className="hidden text-center text-gray-600 dark:text-gray-400 sm:table-cell">
+                  <TableCell className="hidden text-center tabular-nums text-muted-foreground sm:table-cell">
                     {player.jerseyNumber || '—'}
                   </TableCell>
-                  <TableCell className="text-center text-gray-600 dark:text-gray-400">{player.total}</TableCell>
-                  <TableCell className="text-center text-green-600 dark:text-green-400">{player.present}</TableCell>
-                  <TableCell className="text-center text-red-600 dark:text-red-400">{player.absent}</TableCell>
+                  <TableCell className="text-center tabular-nums text-muted-foreground">{player.total}</TableCell>
+                  <TableCell className="text-center tabular-nums text-green-600 dark:text-green-400">{player.present}</TableCell>
+                  <TableCell className="text-center tabular-nums text-red-600 dark:text-red-400">{player.absent}</TableCell>
                   <TableCell className="text-center">
-                    <span className={cn('inline-block rounded-full px-2 py-0.5 text-xs font-bold', rateBadgeClass(player.percentage))}>
+                    <span className={cn('inline-block rounded-full px-2 py-0.5 text-xs font-bold tabular-nums', rateBadgeClass(player.percentage))}>
                       {player.percentage}%
                     </span>
                   </TableCell>
@@ -96,7 +96,7 @@ export default function AttendanceTable({
                       {player.trend.map((status, i) => (
                         <div
                           key={i}
-                          className={cn('h-3 w-3 rounded-full', trendColors[status] ?? 'bg-gray-300 dark:bg-gray-600')}
+                          className={cn('h-3 w-3 rounded-full', trendColors[status] ?? 'bg-stone-300 dark:bg-gray-600')}
                           title={tc(status, { defaultValue: status })}
                         />
                       ))}
@@ -105,7 +105,7 @@ export default function AttendanceTable({
                 </TableRow>
                 {expanded && renderDrilldown && (
                   <TableRow className="hover:bg-transparent">
-                    <TableCell colSpan={COL_COUNT} className="bg-gray-50 dark:bg-gray-900">
+                    <TableCell colSpan={COL_COUNT} className="bg-surface-sunken">
                       {renderDrilldown(player.memberId)}
                     </TableCell>
                   </TableRow>

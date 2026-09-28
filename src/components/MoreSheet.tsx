@@ -113,7 +113,7 @@ function OptionsAccordion({ theme, toggleTheme, onClose }: { theme: string; togg
     <div className="px-4 py-2">
       <button
         onClick={() => setOpen(!open)}
-        className="flex w-full min-h-[44px] items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
+        className="flex w-full min-h-[44px] items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
       >
         <Settings className="h-5 w-5" />
         <span className="flex-1 text-left">{t('options', 'Options')}</span>
@@ -125,8 +125,8 @@ function OptionsAccordion({ theme, toggleTheme, onClose }: { theme: string; togg
         <div className="overflow-hidden">
           <div className="py-1">
             {/* Dark mode row */}
-            <div className="flex min-h-[48px] items-center justify-between rounded-lg px-4 py-3">
-              <span className="text-base font-medium text-gray-700 dark:text-gray-300">{t('darkMode', 'Dark mode')}</span>
+            <div className="flex min-h-12 items-center justify-between rounded-xl px-4 py-3">
+              <span className="text-sm font-medium text-foreground/85">{t('darkMode', 'Dark mode')}</span>
               <SwitchToggle
                 enabled={theme === 'dark'}
                 onChange={toggleTheme}
@@ -145,13 +145,13 @@ function OptionsAccordion({ theme, toggleTheme, onClose }: { theme: string; togg
               />
             </div>
             {/* Language row */}
-            <div className="flex min-h-[48px] items-center justify-between rounded-lg px-4 py-3">
-              <span className="text-base font-medium text-gray-700 dark:text-gray-300">{t('language', 'Language')}</span>
+            <div className="flex min-h-12 items-center justify-between rounded-xl px-4 py-3">
+              <span className="text-sm font-medium text-foreground/85">{t('language', 'Language')}</span>
               <LanguageDropdown size="sm" />
             </div>
             {/* Admin toggle row */}
-            <div className="flex min-h-[48px] items-center justify-between rounded-lg px-4 py-3">
-              <span className="text-base font-medium text-gray-700 dark:text-gray-300">{t('adminMode', 'Admin mode')}</span>
+            <div className="flex min-h-12 items-center justify-between rounded-xl px-4 py-3">
+              <span className="text-sm font-medium text-foreground/85">{t('adminMode', 'Admin mode')}</span>
               <AdminToggle size="sm" onAfterToggle={onClose} />
             </div>
             {/* Feedback row */}
@@ -159,53 +159,53 @@ function OptionsAccordion({ theme, toggleTheme, onClose }: { theme: string; togg
               to="/feedback"
               onClick={onClose}
               className={({ isActive }) =>
-                `flex min-h-[48px] items-center gap-3 rounded-lg px-4 py-3 transition-colors ${
+                `flex min-h-12 items-center gap-3 rounded-xl px-4 py-3 transition-colors ${
                   isActive
-                    ? 'bg-brand-50 text-brand-700 dark:bg-brand-900/50 dark:text-gold-400'
-                    : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
+                    ? 'bg-selected text-selected-foreground'
+                    : 'text-foreground/85 hover:bg-accent hover:text-foreground'
                 }`
               }
             >
               <MessageSquare className="h-4 w-4" />
-              <span className="text-base font-medium">{t('feedback')}</span>
+              <span className="text-sm font-medium">{t('feedback')}</span>
             </NavLink>
             {/* Status page row */}
             <NavLink
               to="/status"
               onClick={onClose}
               className={({ isActive }) =>
-                `flex min-h-[48px] items-center gap-3 rounded-lg px-4 py-3 transition-colors ${
+                `flex min-h-12 items-center gap-3 rounded-xl px-4 py-3 transition-colors ${
                   isActive
-                    ? 'bg-brand-50 text-brand-700 dark:bg-brand-900/50 dark:text-gold-400'
-                    : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
+                    ? 'bg-selected text-selected-foreground'
+                    : 'text-foreground/85 hover:bg-accent hover:text-foreground'
                 }`
               }
             >
               <Activity className="h-4 w-4" />
-              <span className="text-base font-medium">{t('status', 'Status')}</span>
+              <span className="text-sm font-medium">{t('status', 'Status')}</span>
             </NavLink>
             {/* Version / Changelog row */}
             <NavLink
               to="/changelog"
               onClick={onClose}
-              className="flex min-h-[48px] items-center justify-between rounded-lg px-4 py-3 transition-colors hover:bg-gray-100 dark:hover:bg-gray-700"
+              className="flex min-h-12 items-center justify-between rounded-xl px-4 py-3 transition-colors hover:bg-accent"
             >
-              <span className="flex items-center gap-2 text-base font-medium text-gray-700 dark:text-gray-300">
+              <span className="flex items-center gap-3 text-sm font-medium text-foreground/85">
                 <ScrollText className="h-4 w-4" />
                 {t('whatsNew', "What's New")}
               </span>
-              <span className="text-xs font-mono text-gray-400 dark:text-gray-500">v{APP_VERSION}</span>
+              <span className="font-mono text-xs font-semibold tabular-nums text-muted-foreground">v{APP_VERSION}</span>
             </NavLink>
             {/* Guide row */}
             <NavLink
               to="/guide"
               onClick={onClose}
-              className={({ isActive }) => `flex min-h-[48px] items-center gap-2 rounded-lg px-4 py-3 transition-colors ${
-                isActive ? 'bg-brand-50 text-brand-700 dark:bg-brand-900/50 dark:text-gold-400' : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
+              className={({ isActive }) => `flex min-h-12 items-center gap-3 rounded-xl px-4 py-3 transition-colors ${
+                isActive ? 'bg-selected text-selected-foreground' : 'text-foreground/85 hover:bg-accent hover:text-foreground'
               }`}
             >
               <GraduationCap className="h-4 w-4" />
-              <span className="text-base font-medium">{t('guide')}</span>
+              <span className="text-sm font-medium">{t('guide')}</span>
             </NavLink>
           </div>
         </div>
@@ -259,10 +259,10 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
       to={item.to}
       onClick={startClose}
       className={({ isActive }) =>
-        `flex min-h-[48px] items-center gap-4 rounded-lg px-4 py-3 text-base font-medium transition-colors ${
+        `flex min-h-12 items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-colors ${
           isActive
-            ? 'bg-brand-50 text-brand-700 dark:bg-brand-900/50 dark:text-gold-400'
-            : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
+            ? 'bg-selected text-selected-foreground'
+            : 'text-foreground/85 hover:bg-accent hover:text-foreground'
         }`
       }
     >
@@ -313,13 +313,13 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
   return (
     <div className="fixed inset-0 z-50" onClick={startClose}>
       {/* Backdrop */}
-      <div className={`absolute inset-0 bg-black/50 ${closing ? 'animate-fade-out' : 'animate-fade-in'}`} />
+      <div className={`absolute inset-0 bg-stone-900/60 backdrop-blur-sm dark:bg-black/70 ${closing ? 'animate-fade-out' : 'animate-fade-in'}`} />
 
       {/* Sheet — animation lives on this wrapper; scrolling lives on the inner
           container so iOS Safari doesn't lose touch-scroll when the parent
           carries an active transform from the slide-up keyframes. */}
       <div
-        className={`absolute bottom-0 left-0 right-0 flex max-h-[85vh] flex-col rounded-t-2xl bg-white dark:bg-gray-800 ${closing ? 'animate-sheet-down' : 'animate-sheet-up'}`}
+        className={`absolute bottom-0 left-0 right-0 flex max-h-[85vh] flex-col rounded-t-2xl border border-b-0 border-border bg-card shadow-xl ${closing ? 'animate-sheet-down' : 'animate-sheet-up'}`}
         style={dragY > 0 ? { transform: `translateY(${dragY}px)`, transition: 'none' } : undefined}
         onClick={(e) => e.stopPropagation()}
         onAnimationEnd={(e) => { if (e.target === e.currentTarget) onAnimEnd() }}
@@ -334,10 +334,10 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
           type="button"
           onClick={startClose}
           aria-label={t('close', { defaultValue: 'Close' })}
-          className="relative flex shrink-0 items-center justify-center rounded-t-2xl bg-white pb-2 pt-3 transition-colors hover:bg-gray-50 active:bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700/60 dark:active:bg-gray-700"
+          className="relative flex shrink-0 items-center justify-center rounded-t-2xl bg-card pb-2 pt-3 transition-colors hover:bg-muted active:bg-accent"
         >
-          <span className="h-1 w-10 rounded-full bg-gray-300 dark:bg-gray-600" />
-          <span className="absolute right-3 top-1.5 inline-flex h-9 w-9 items-center justify-center rounded-lg text-gray-400 dark:text-gray-500">
+          <span className="h-1.5 w-12 rounded-full bg-border" />
+          <span className="absolute right-3 top-1.5 inline-flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground">
             <ChevronDown className="h-5 w-5" />
           </span>
         </button>
@@ -352,12 +352,12 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
             <>
               <button
                 onClick={onOpenNotifications}
-                className="flex min-h-[48px] w-full items-center gap-4 rounded-lg px-4 py-3 text-base font-medium text-gray-700 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+                className="flex min-h-12 w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-foreground/85 transition-colors hover:bg-accent hover:text-foreground"
               >
                 <div className="relative">
                   <Bell className={iconClass} />
                   {unreadNotifications > 0 && (
-                    <span className="absolute -right-1 -top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-red-500 px-0.5 text-[9px] font-bold text-white">
+                    <span className="absolute -right-1 -top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-red-500 px-0.5 text-[9px] font-bold tabular-nums text-white ring-2 ring-card">
                       <span aria-hidden="true">{unreadNotifications > 99 ? '99+' : unreadNotifications}</span>
                       <span className="sr-only">{tn('unreadBadge', { count: unreadNotifications })}</span>
                     </span>
@@ -365,7 +365,7 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
                 </div>
                 {t('notifications')}
               </button>
-              <div className="my-2 border-t border-gray-200 dark:border-gray-700" />
+              <div className="my-2 border-t border-border" />
             </>
           )}
           {/* Live scoreboard — public like on desktop (spectators follow it
@@ -380,7 +380,7 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
                   key={item.to}
                   href={item.href}
                   onClick={(e) => { handlePWAExternalClick(e, item.href!); startClose() }}
-                  className="flex min-h-[48px] items-center gap-4 rounded-lg px-4 py-3 text-base font-medium text-gray-700 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+                  className="flex min-h-12 items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-foreground/85 transition-colors hover:bg-accent hover:text-foreground"
                 >
                   {item.icon}
                   {t(item.labelKey)}
@@ -391,10 +391,10 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
                   to={item.to}
                   onClick={startClose}
                   className={({ isActive }) =>
-                    `flex min-h-[48px] items-center gap-4 rounded-lg px-4 py-3 text-base font-medium transition-colors ${
+                    `flex min-h-12 items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-colors ${
                       (item.to.includes('?') ? navItemActive(location, item.to) : isActive)
-                        ? 'bg-brand-50 text-brand-700 dark:bg-brand-900/50 dark:text-gold-400'
-                        : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
+                        ? 'bg-selected text-selected-foreground'
+                        : 'text-foreground/85 hover:bg-accent hover:text-foreground'
                     }`
                   }
                 >
@@ -408,8 +408,8 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
                 {groups.primary.map(renderItem)}
                 {groups.memberTools.length > 0 && (
                   <>
-                    <div className="my-2 border-t border-gray-200 dark:border-gray-700" />
-                    <p className="mb-1 px-4 text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+                    <div className="my-2 border-t border-border" />
+                    <p className="mb-1 px-4 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                       {t('memberTools')}
                     </p>
                     {groups.memberTools.map(renderItem)}
@@ -417,14 +417,14 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
                 )}
                 {groups.finance.length > 0 && (
                   <>
-                    <div className="my-2 border-t border-gray-200 dark:border-gray-700" />
-                    <p className="mb-1 px-4 text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+                    <div className="my-2 border-t border-border" />
+                    <p className="mb-1 px-4 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                       {t('finance')}
                     </p>
                     {/* Sub-headers use the same markup as the admin groups below. */}
                     {groups.finance.map((g) => (
                       <div key={g.labelKey}>
-                        <p className="mb-0.5 mt-2 px-4 text-[10px] font-semibold uppercase tracking-wider text-gray-400/80 dark:text-gray-500/80">
+                        <p className="mb-0.5 mt-2 px-4 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/80">
                           {t(g.labelKey)}
                         </p>
                         {g.items.map(renderItem)}
@@ -436,7 +436,7 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
                   <>
                     {/* No section header — the single "Planning" item is already
                         self-describing (a "Planning" header would just repeat it). */}
-                    <div className="my-2 border-t border-gray-200 dark:border-gray-700" />
+                    <div className="my-2 border-t border-border" />
                     {groups.spielplaner.map(renderItem)}
                   </>
                 )}
@@ -451,8 +451,8 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
               gets the section for the club mailbox alone. */}
           {adminGroups.length > 0 && (
             <>
-              <div className="my-2 border-t border-gray-200 dark:border-gray-700" />
-              <p className="mb-1 px-4 text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+              <div className="my-2 border-t border-border" />
+              <p className="mb-1 px-4 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                 {t('admin')}
               </p>
               {/* Hub first: the searchable /admin table is the fastest way to a
@@ -460,7 +460,7 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
               {renderNavItem({ to: '/admin', labelKey: 'allAdminTools', icon: <LayoutGrid className={iconClass} /> })}
               {adminGroups.map((g) => (
                 <div key={g.labelKey}>
-                  <p className="mb-0.5 mt-2 px-4 text-[10px] font-semibold uppercase tracking-wider text-gray-400/80 dark:text-gray-500/80">
+                  <p className="mb-0.5 mt-2 px-4 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/80">
                     {t(g.labelKey)}
                   </p>
                   {g.items.map(renderNavItem)}
@@ -471,8 +471,8 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
 
           {isSuperAdmin && (
             <>
-              <div className="my-2 border-t border-gray-200 dark:border-gray-700" />
-              <p className="mb-1 px-4 text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+              <div className="my-2 border-t border-border" />
+              <p className="mb-1 px-4 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                 {t('superadmin')}
               </p>
               {superAdminItems.map(renderNavItem)}
@@ -481,7 +481,7 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
         </nav>
 
         {/* Divider */}
-        <div className="mx-4 border-t border-gray-200 dark:border-gray-700" />
+        <div className="mx-4 border-t border-border" />
 
         {/* User section */}
         {user ? (
@@ -492,10 +492,10 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
                 <NavLink
                   to="/profile"
                   onClick={startClose}
-                  className="flex min-w-0 flex-1 items-center gap-3 rounded-lg -mx-2 px-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  className="flex min-w-0 flex-1 items-center gap-3 rounded-xl -mx-2 px-2 py-1 hover:bg-accent"
                   aria-label={t('myProfile')}
                 >
-                  <div className={cn('flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-brand-50 text-brand-600 dark:bg-brand-900/30 dark:text-brand-400', actingAccent && ['ring-2 ring-offset-2 ring-offset-background', actingAccent.ring])}>
+                  <div className={cn('flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-muted-foreground', actingAccent && ['ring-2 ring-offset-2 ring-offset-background', actingAccent.ring])}>
                     {user.photo ? (
                       <img
                         src={getFileUrl('members', user.id, user.photo)}
@@ -507,7 +507,7 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <span className="block break-words text-sm font-medium leading-snug text-gray-900 dark:text-gray-100">
+                    <span className="block break-words text-sm font-semibold leading-snug text-foreground">
                       {memberDisplayName(user)}
                     </span>
                     {memberTeams.length > 0 && (
@@ -526,7 +526,7 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
                     logout()
                     startClose()
                   }}
-                  className="shrink-0 text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-900/20 dark:hover:text-red-300"
+                  className="shrink-0 text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-950/40 dark:hover:text-red-300"
                 >
                   {t('logout')}
                 </Button>
@@ -540,7 +540,7 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
                     startClose()
                     openSwitcher()
                   }}
-                  className="mt-2 flex min-h-[44px] w-full items-center gap-3 rounded-lg -mx-2 px-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+                  className="mt-2 flex min-h-[44px] w-full items-center gap-3 rounded-xl -mx-2 px-2 text-left text-sm font-medium text-foreground/85 hover:bg-accent hover:text-foreground"
                 >
                   <ArrowLeftRight className="h-5 w-5 shrink-0" />
                   {tCommon('switchAccount')}
@@ -553,26 +553,26 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
                 Hidden for under-18s and while impersonating (useDonateVisible). */}
             {donateVisible && (
               <>
-                <div className="mx-4 border-t border-gray-200 dark:border-gray-700" />
+                <div className="mx-4 border-t border-border" />
                 <NavLink
                   to="/support"
                   onClick={startClose}
                   className={({ isActive }) =>
-                    `mx-4 flex min-h-[48px] items-center gap-3 rounded-lg px-2 py-3 transition-colors ${
+                    `mx-4 flex min-h-12 items-center gap-3 rounded-xl px-2 py-3 transition-colors ${
                       isActive
-                        ? 'bg-brand-50 text-brand-700 dark:bg-brand-900/50 dark:text-gold-400'
-                        : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
+                        ? 'bg-selected text-selected-foreground'
+                        : 'text-foreground/85 hover:bg-accent hover:text-foreground'
                     }`
                   }
                 >
                   <Coffee className="h-5 w-5" />
-                  <span className="text-base font-medium">{tSupport('menuLabel')}</span>
+                  <span className="text-sm font-medium">{tSupport('menuLabel')}</span>
                 </NavLink>
               </>
             )}
 
             {/* Options section — expandable */}
-            <div className="mx-4 border-t border-gray-200 dark:border-gray-700" />
+            <div className="mx-4 border-t border-border" />
             <OptionsAccordion theme={theme} toggleTheme={toggleTheme} onClose={startClose} />
           </>
         ) : (
@@ -582,7 +582,7 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
               <NavLink
                 to="/login"
                 onClick={startClose}
-                className="flex min-h-[44px] items-center gap-3 rounded-lg px-3 py-2 text-base font-medium text-brand-600 transition-colors hover:bg-gray-100 dark:text-gold-400 dark:hover:bg-gray-700"
+                className="flex min-h-[44px] items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-accent dark:text-gold-400"
               >
                 <LogIn className={iconClass} />
                 {t('signIn')}
@@ -595,13 +595,13 @@ export default function MoreSheet({ onClose, unreadNotifications = 0, onOpenNoti
         )}
 
         {/* Legal links */}
-        <div className="mx-4 border-t border-gray-200 dark:border-gray-700" />
-        <div className="flex items-center justify-center gap-3 px-4 py-3 text-xs text-gray-400 dark:text-gray-500">
-          <NavLink to="/datenschutz" onClick={startClose} className="hover:text-gray-600 dark:hover:text-gray-300">
+        <div className="mx-4 border-t border-border" />
+        <div className="flex items-center justify-center gap-3 px-4 py-3 text-xs text-muted-foreground/80">
+          <NavLink to="/datenschutz" onClick={startClose} className="hover:text-foreground">
             {t('privacy')}
           </NavLink>
           <span>·</span>
-          <NavLink to="/impressum" onClick={startClose} className="hover:text-gray-600 dark:hover:text-gray-300">
+          <NavLink to="/impressum" onClick={startClose} className="hover:text-foreground">
             {t('impressum')}
           </NavLink>
         </div>

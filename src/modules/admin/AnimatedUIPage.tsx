@@ -113,8 +113,8 @@ function Demo({ title, lib, importPath, children }: {
   children: ReactNode
 }) {
   return (
-    <div className="group relative flex flex-col rounded-lg border bg-card overflow-hidden">
-      <div className="flex items-center justify-between px-3 py-2 border-b bg-muted/30">
+    <div className="group relative flex flex-col overflow-hidden rounded-2xl border border-hairline bg-card shadow-card">
+      <div className="flex items-center justify-between border-b border-hairline bg-surface-sunken px-3 py-2">
         <div className="flex items-center gap-2 min-w-0">
           <span className="font-mono text-xs font-medium truncate" title={title}>{title}</span>
           <span className={
@@ -151,7 +151,7 @@ export default function AnimatedUIPage() {
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-primary" />
-            <h1 className="text-xl font-bold">Animated UI library</h1>
+            <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">Animated UI library</h1>
             <span className="text-sm text-muted-foreground">
               {MAGIC_UI_ALL.length + ACETERNITY_ALL.length} components
             </span>

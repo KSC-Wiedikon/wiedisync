@@ -1808,13 +1808,13 @@ export default function ExplorerGrid({
         {/* Toolbar */}
         <div className="flex flex-wrap items-center gap-2 border-b border-border bg-card px-3 py-1.5">
           {/* Member / team view toggle */}
-          <div className="flex overflow-hidden rounded-md border border-border" role="group" aria-label={t('admin:explorerViewToggle')}>
+          <div className="flex overflow-hidden rounded-lg border border-border" role="group" aria-label={t('admin:explorerViewToggle')}>
             <Button
               type="button"
               size="sm"
               variant={view === 'members' ? 'default' : 'ghost'}
               onClick={() => changeView('members')}
-              className="rounded-none shadow-none"
+              className={view === 'members' ? 'rounded-none bg-selected text-selected-foreground shadow-none hover:bg-selected/90' : 'rounded-none shadow-none'}
               aria-pressed={view === 'members'}
             >
               {t('admin:explorerGridViewMembers')}
@@ -1824,7 +1824,7 @@ export default function ExplorerGrid({
               size="sm"
               variant={view === 'teams' ? 'default' : 'ghost'}
               onClick={() => changeView('teams')}
-              className="rounded-none shadow-none"
+              className={view === 'teams' ? 'rounded-none bg-selected text-selected-foreground shadow-none hover:bg-selected/90' : 'rounded-none shadow-none'}
               aria-pressed={view === 'teams'}
             >
               {t('admin:explorerGridViewTeams')}
@@ -1835,7 +1835,7 @@ export default function ExplorerGrid({
           <select
             value={selectedGroup}
             onChange={(e) => setSelectedGroup(e.target.value)}
-            className="h-9 max-w-[35%] rounded-md border border-border bg-background px-2 text-xs text-foreground sm:h-8 dark:bg-gray-800 md:hidden"
+            className="h-9 max-w-[35%] rounded-lg border border-input bg-card px-2 text-xs text-foreground sm:h-8 dark:bg-gray-800 md:hidden"
             aria-label={t('admin:explorerGridGroups')}
           >
             <option value="all">{view === 'teams' ? t('admin:explorerGridAllTeams') : t('admin:explorerGridAllMembers')}</option>
@@ -1900,7 +1900,7 @@ export default function ExplorerGrid({
                 <select
                   value={groupBy}
                   onChange={(e) => setGroupBy(e.target.value as ColKey | 'none')}
-                  className="h-9 rounded-md border border-border bg-background px-1.5 text-xs text-foreground sm:h-8 dark:bg-gray-800"
+                  className="h-9 rounded-lg border border-input bg-card px-1.5 text-xs text-foreground sm:h-8 dark:bg-gray-800"
                   aria-label={t('admin:explorerGridGroupBy')}
                 >
                   <option value="none">{t('admin:explorerGridGroupNone')}</option>
@@ -2028,7 +2028,7 @@ export default function ExplorerGrid({
                 {/* Leading actions column — sticky with the first data column.
                     Sticky lives on the th cells (not thead) for cross-browser
                     reliability. */}
-                <TableHead className={`sticky left-0 top-0 z-30 ${leadWidth} bg-card px-1`}>
+                <TableHead className={`sticky left-0 top-0 z-30 ${leadWidth} bg-surface-sunken px-1`}>
                   {selectable && (
                     <span
                       role="presentation"
@@ -2049,7 +2049,7 @@ export default function ExplorerGrid({
                 {(view === 'teams' ? teamVisibleCols : visibleCols).map((c, i) => (
                   <TableHead
                     key={c.key}
-                    className={`${c.minW} sticky top-0 whitespace-nowrap bg-card ${i === 0 ? `${leadOffset} z-30` : 'z-20'}`
+                    className={`${c.minW} sticky top-0 whitespace-nowrap bg-surface-sunken ${i === 0 ? `${leadOffset} z-30` : 'z-20'}`
                       // Focused columns are marked with a rule under the header,
                       // never a tinted background: this cell is sticky and has to
                       // stay opaque or the rows scroll through it.
@@ -2291,7 +2291,7 @@ function RailNode({
         style={{ paddingLeft: depth * 10 }}
         className={
           'flex w-full min-h-8 items-center rounded-md py-1 pr-2 text-left text-sm ' +
-          (active ? 'bg-primary text-primary-foreground' : 'text-foreground hover:bg-muted')
+          (active ? 'bg-selected text-selected-foreground' : 'text-foreground hover:bg-muted')
         }
       >
         <span className="flex h-4 w-5 shrink-0 items-center justify-center">
@@ -2300,7 +2300,7 @@ function RailNode({
             : null}
         </span>
         <span className="truncate" title={label(node)}>{label(node)}</span>
-        <span className={'ml-auto pl-1 text-xs ' + (active ? 'text-primary-foreground/80' : 'text-muted-foreground')}>
+        <span className={'ml-auto pl-1 text-xs tabular-nums ' + (active ? 'text-selected-foreground/80' : 'text-muted-foreground')}>
           {countMembers(node)}
         </span>
       </button>
@@ -2335,12 +2335,12 @@ function GroupButton({
       onClick={onClick}
       className={
         'flex w-full min-h-8 items-center gap-1.5 rounded-md px-2 py-1 text-left text-sm ' +
-        (active ? 'bg-primary text-primary-foreground' : 'text-foreground hover:bg-muted')
+        (active ? 'bg-selected text-selected-foreground' : 'text-foreground hover:bg-muted')
       }
     >
       {icon}
       <span className="truncate" title={label}>{label}</span>
-      <span className={'ml-auto text-xs ' + (active ? 'text-primary-foreground/80' : 'text-muted-foreground')}>
+      <span className={'ml-auto text-xs tabular-nums ' + (active ? 'text-selected-foreground/80' : 'text-muted-foreground')}>
         {count}
       </span>
     </button>
@@ -2594,7 +2594,7 @@ function EditableCell({
           if (e.key === 'Enter') { e.preventDefault(); void commit() }
           if (e.key === 'Escape') { e.preventDefault(); doneRef.current = true; setEditing(false) }
         }}
-        className="w-full min-w-24 rounded border border-primary bg-background px-1.5 py-0.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary dark:bg-gray-800"
+        className="w-full min-w-24 rounded border border-primary bg-card px-1.5 py-0.5 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-gray-800"
       />
     )
   }
@@ -2829,7 +2829,7 @@ function EditableSelectCell({
         value={value ?? ''}
         onChange={(e) => { void commit(e.target.value === '' ? null : e.target.value) }}
         onBlur={() => setEditing(false)}
-        className="w-full min-w-16 rounded border border-primary bg-background px-1 py-0.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary dark:bg-gray-800"
+        className="w-full min-w-16 rounded border border-primary bg-card px-1 py-0.5 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-gray-800"
       >
         <option value="">—</option>
         {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}

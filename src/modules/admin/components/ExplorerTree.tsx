@@ -238,7 +238,7 @@ export default function ExplorerTree({
             // block + break-words: long game/training labels wrap instead of
             // overflowing the clipped sidebar on mobile.
             'block w-full break-words rounded-md px-2 py-1 text-left ' +
-            (isActive ? 'bg-primary text-primary-foreground' : 'text-foreground hover:bg-muted')
+            (isActive ? 'bg-selected text-selected-foreground' : 'text-foreground hover:bg-muted')
           }
         >
           {highlightMatch(e.label, query).map((seg, i) =>

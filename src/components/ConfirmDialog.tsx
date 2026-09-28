@@ -33,7 +33,7 @@ export default function ConfirmDialog({
   const { t } = useTranslation()
   return (
     <AlertDialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <AlertDialogContent>
+      <AlertDialogContent className="w-[calc(100%-2rem)] max-w-sm rounded-xl p-6 sm:p-6">
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>
           <AlertDialogDescription className="whitespace-pre-line break-words">{message}</AlertDialogDescription>

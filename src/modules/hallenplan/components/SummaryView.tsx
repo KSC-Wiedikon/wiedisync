@@ -153,7 +153,7 @@ export default function SummaryView({ slots, closures, weekDays, halls, teams }:
 
   if (visibleHalls.length === 0) {
     return (
-      <div className="rounded-lg bg-white p-8 text-center text-sm text-gray-500 shadow-card dark:bg-gray-800 dark:text-gray-400">
+      <div className="rounded-2xl border border-hairline bg-card p-8 text-center text-sm text-muted-foreground shadow-card">
         {t('noDataToDisplay')}
       </div>
     )
@@ -174,18 +174,18 @@ export default function SummaryView({ slots, closures, weekDays, halls, teams }:
 
 
   return (
-    <div className="overflow-x-auto rounded-lg bg-white shadow-card dark:bg-gray-800" style={{ touchAction: 'pan-x pinch-zoom' }}>
+    <div className="overflow-x-auto rounded-2xl border border-hairline bg-card shadow-card" style={{ touchAction: 'pan-x pinch-zoom' }}>
       {/* Day headers */}
-      <div className="grid border-b border-gray-200 dark:border-gray-700" style={{ gridTemplateColumns: gridCols }}>
-        <div className="border-r border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900" />
+      <div className="grid border-b border-border" style={{ gridTemplateColumns: gridCols }}>
+        <div className="border-r border-border bg-surface-sunken" />
         {visibleDays.map((dayIndex) => {
           const day = weekDays[dayIndex]
           const dateStr = `${String(day.getDate()).padStart(2, '0')}.${String(day.getMonth() + 1).padStart(2, '0')}`
           return (
             <div
               key={dayIndex}
-              className={`border-r border-gray-200 py-1 text-center last:border-r-0 dark:border-gray-700 ${
-                dayIndex === todayIndex ? 'bg-brand-50 font-bold text-brand-700 dark:bg-brand-900/30 dark:text-brand-300' : 'text-gray-700 dark:text-gray-300'
+              className={`border-r border-border py-1 text-center last:border-r-0 ${
+                dayIndex === todayIndex ? 'bg-brand-50 font-bold text-brand-700 dark:bg-brand-900/30 dark:text-brand-300' : 'text-foreground/85'
               }`}
               style={{ gridColumn: `span ${visibleHalls.length}` }}
             >
@@ -196,14 +196,14 @@ export default function SummaryView({ slots, closures, weekDays, halls, teams }:
       </div>
 
       {/* Hall sub-headers */}
-      <div className="grid border-b border-gray-200 dark:border-gray-700" style={{ gridTemplateColumns: gridCols }}>
-        <div className="border-r border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900" />
+      <div className="grid border-b border-border" style={{ gridTemplateColumns: gridCols }}>
+        <div className="border-r border-border bg-surface-sunken" />
         {visibleDays.map((dayIndex) =>
           visibleHalls.map((hall, hi) => (
             <div
               key={`${dayIndex}-${hall.id}`}
-              className={`border-r px-0.5 py-0.5 text-center text-[10px] font-medium text-gray-500 dark:text-gray-400 ${
-                hi === visibleHalls.length - 1 ? 'border-r-gray-200 dark:border-r-gray-700' : 'border-r-gray-100 dark:border-r-gray-800'
+              className={`border-r px-0.5 py-0.5 text-center text-[10px] font-medium text-muted-foreground ${
+                hi === visibleHalls.length - 1 ? 'border-r-border' : 'border-r-border/60'
               }`}
             >
               {hall.name}
@@ -222,8 +222,8 @@ export default function SummaryView({ slots, closures, weekDays, halls, teams }:
             style={{ gridTemplateColumns: gridCols, height: SUMMARY_ROW_HEIGHT }}
           >
             <div
-              className={`flex items-center justify-end border-r border-gray-200 bg-gray-50 pr-1 dark:border-gray-700 dark:bg-gray-900 ${
-                isFullHour ? 'text-[10px] font-medium text-gray-500 dark:text-gray-400' : ''
+              className={`flex items-center justify-end border-r border-border bg-surface-sunken pr-1 ${
+                isFullHour ? 'text-[10px] font-medium text-muted-foreground' : ''
               }`}
             >
               {isFullHour ? time : ''}
@@ -236,14 +236,14 @@ export default function SummaryView({ slots, closures, weekDays, halls, teams }:
                 const isClosed = closureMap.has(`${dayIndex}:${hall.id}`)
                 const isLastInDay = hi === visibleHalls.length - 1
                 const borderClass = isLastInDay
-                  ? 'border-r border-r-gray-200 dark:border-r-gray-700'
-                  : 'border-r border-r-gray-100 dark:border-r-gray-800'
+                  ? 'border-r border-r-border'
+                  : 'border-r border-r-border/60'
 
                 if (isClosed && !cell) {
                   return (
                     <div
                       key={`${dayIndex}-${hall.id}`}
-                      className={`${borderClass} ${isFullHour ? 'border-t border-t-gray-200 dark:border-t-gray-700' : ''}`}
+                      className={`${borderClass} ${isFullHour ? 'border-t border-t-border' : ''}`}
                       style={{
                         backgroundColor: 'rgba(156, 163, 175, 0.15)',
                         backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 3px, rgba(156,163,175,0.15) 3px, rgba(156,163,175,0.15) 6px)',
@@ -270,7 +270,7 @@ export default function SummaryView({ slots, closures, weekDays, halls, teams }:
                   // Suppress horizontal borders within a merged block
                   const topBorder = isContinuation
                     ? ''
-                    : isFullHour ? 'border-t border-t-gray-200 dark:border-t-gray-700' : ''
+                    : isFullHour ? 'border-t border-t-border' : ''
 
                   return (
                     <div
@@ -292,7 +292,7 @@ export default function SummaryView({ slots, closures, weekDays, halls, teams }:
                   <div
                     key={`${dayIndex}-${hall.id}`}
                     className={`${borderClass} ${
-                      isFullHour ? 'border-t border-t-gray-200 dark:border-t-gray-700' : ''
+                      isFullHour ? 'border-t border-t-border' : ''
                     }`}
                   />
                 )

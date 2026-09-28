@@ -127,11 +127,11 @@ export default function DutyOverview({ games, teams, members, hallNameById, spor
   return (
     <div className="mt-4">
       <div className="flex flex-wrap items-center gap-4">
-        <label className="flex min-h-9 cursor-pointer sm:min-h-8 items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+        <label className="flex min-h-9 cursor-pointer sm:min-h-8 items-center gap-2 text-sm text-foreground/85">
           <Checkbox checked={onlyEmpty} onCheckedChange={(v) => setOnlyEmpty(v === true)} />
           {t('overviewOnlyEmpty')}
         </label>
-        <label className="flex min-h-9 cursor-pointer sm:min-h-8 items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+        <label className="flex min-h-9 cursor-pointer sm:min-h-8 items-center gap-2 text-sm text-foreground/85">
           <Checkbox checked={showPast} onCheckedChange={(v) => setShowPast(v === true)} />
           {t('overviewShowPast')}
         </label>
@@ -151,14 +151,14 @@ export default function DutyOverview({ games, teams, members, hallNameById, spor
       </div>
 
       {visible.length === 0 ? (
-        <div className="mt-8 py-12 text-center text-gray-500 dark:text-gray-400">
+        <div className="mt-8 py-12 text-center text-muted-foreground">
           <p>{spots.length === 0 ? t('overviewEmpty') : t('overviewAllFilled')}</p>
         </div>
       ) : (
-        <div className="mt-4 overflow-x-auto">
+        <div className="mt-4 overflow-x-auto rounded-2xl border border-hairline bg-card shadow-card">
           <Table className="w-full text-left text-sm">
             <TableHeader>
-              <TableRow className="border-b border-gray-200 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:border-gray-700 dark:text-gray-400">
+              <TableRow className="border-b border-border text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                 <TableHead className="px-2 py-2">{t('date')}</TableHead>
                 {/* Phones fold the matchup into the date cell — three columns
                     (when · what · who) is all that fits without side-scrolling
@@ -181,39 +181,39 @@ export default function DutyOverview({ games, teams, members, hallNameById, spor
                   <TableRow
                     key={`${s.game.id}-${s.role}`}
                     // Blue, not red — same signal the plan tab gives a cup row.
-                    className={`border-b border-gray-100 dark:border-gray-700/50 ${
+                    className={`border-b border-border/60 ${
                       s.onCall ? 'bg-blue-50/50 dark:bg-blue-900/10' : isOpen ? 'bg-red-50 dark:bg-red-900/10' : ''
                     }`}
                   >
-                    <TableCell className="px-2 py-2 align-top text-gray-700 whitespace-normal dark:text-gray-300">
-                      <div className="whitespace-nowrap"><span className="text-gray-400 dark:text-gray-500">{weekdayShort(s.game.date)}</span> {formatDateCompact(s.game.date)}</div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400">{s.game.time ? formatTime(s.game.time) : ''}</div>
-                      <div className="mt-1 break-words text-xs text-gray-600 sm:hidden dark:text-gray-400">
-                        <div className="font-medium text-gray-900 dark:text-gray-100">{s.game.home_team}</div>
+                    <TableCell className="px-2 py-2 align-top text-foreground/85 whitespace-normal">
+                      <div className="whitespace-nowrap tabular-nums"><span className="text-muted-foreground/80">{weekdayShort(s.game.date)}</span> {formatDateCompact(s.game.date)}</div>
+                      <div className="text-xs text-muted-foreground">{s.game.time ? formatTime(s.game.time) : ''}</div>
+                      <div className="mt-1 break-words text-xs text-muted-foreground sm:hidden">
+                        <div className="font-medium text-foreground">{s.game.home_team}</div>
                         <div>{s.game.away_team}</div>
                       </div>
                     </TableCell>
                     <TableCell className="hidden px-2 py-2 align-top whitespace-normal break-words sm:table-cell">
-                      <div className="font-medium text-gray-900 dark:text-gray-100">{s.game.home_team}</div>
-                      <div className="text-xs text-gray-600 dark:text-gray-400">{s.game.away_team}</div>
+                      <div className="font-medium text-foreground">{s.game.home_team}</div>
+                      <div className="text-xs text-muted-foreground">{s.game.away_team}</div>
                     </TableCell>
-                    <TableCell className="hidden px-2 py-2 align-top text-gray-500 lg:table-cell dark:text-gray-400">
-                      <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs dark:bg-gray-700">{s.game.league}</span>
+                    <TableCell className="hidden px-2 py-2 align-top text-muted-foreground lg:table-cell">
+                      <span className="rounded bg-muted px-1.5 py-0.5 text-xs">{s.game.league}</span>
                     </TableCell>
-                    <TableCell className="hidden whitespace-normal break-words px-2 py-2 align-top text-gray-600 md:table-cell dark:text-gray-400">
+                    <TableCell className="hidden whitespace-normal break-words px-2 py-2 align-top text-muted-foreground md:table-cell">
                       {hallNameById.get(String(s.game.hall)) ?? ''}
                     </TableCell>
-                    <TableCell className="whitespace-normal break-words px-2 py-2 align-top text-gray-600 dark:text-gray-400">
+                    <TableCell className="whitespace-normal break-words px-2 py-2 align-top text-muted-foreground">
                       {roleLabel(t, s.role)}
                       {s.teamName && <div className="mt-1 sm:hidden"><TeamChip team={s.teamName} size="sm" /></div>}
                     </TableCell>
                     <TableCell className="hidden px-2 py-2 align-top sm:table-cell">
-                      {s.teamName ? <TeamChip team={s.teamName} size="sm" /> : <span className="text-gray-400 dark:text-gray-500">—</span>}
+                      {s.teamName ? <TeamChip team={s.teamName} size="sm" /> : <span className="text-muted-foreground/80">—</span>}
                     </TableCell>
                     <TableCell className={`whitespace-normal break-words px-2 py-2 align-top ${
-                      s.onCall ? 'text-gray-500 dark:text-gray-400'
+                      s.onCall ? 'text-muted-foreground'
                         : isOpen ? 'font-medium text-red-600 dark:text-red-400'
-                          : 'text-gray-900 dark:text-gray-100'
+                          : 'text-foreground'
                     }`}>
                       {personLabel(t, s)}
                     </TableCell>

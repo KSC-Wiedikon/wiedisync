@@ -219,16 +219,16 @@ export default function GameGuestSection({ game, kscwTeamId, canEdit }: Props) {
   if (!canEdit && guestCount === 0) return null
 
   return (
-    <div className="space-y-3 border-t px-6 py-4 dark:border-gray-700">
+    <div className="space-y-3 border-t border-hairline px-6 py-4">
       <div className="flex items-center justify-between gap-2">
-        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('guestSectionTitle')}</h4>
+        <h4 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{t('guestSectionTitle')}</h4>
         {guestCount > 0 && (
-          <span className="text-xs text-gray-500 dark:text-gray-400">{t('guestCount', { count: guestCount })}</span>
+          <span className="text-xs text-muted-foreground">{t('guestCount', { count: guestCount })}</span>
         )}
       </div>
 
       {guestCount === 0 && canEdit && (
-        <p className="text-xs text-gray-500 dark:text-gray-400">{t('guestSectionHint')}</p>
+        <p className="text-xs text-muted-foreground">{t('guestSectionHint')}</p>
       )}
 
       {(openings.length > 0 || individualGuests.length > 0) && (
@@ -236,7 +236,7 @@ export default function GameGuestSection({ game, kscwTeamId, canEdit }: Props) {
           {openings.map(o => {
             const team = asObj<Team>(o.team)
             return (
-              <span key={`t-${o.id}`} className="inline-flex items-center gap-1 rounded-full bg-sky-100 px-2.5 py-0.5 text-xs font-medium text-sky-700 dark:bg-sky-900/40 dark:text-sky-300">
+              <span key={`t-${o.id}`} className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2.5 py-0.5 text-xs font-medium text-sky-700 dark:border-sky-800/60 dark:bg-sky-900/40 dark:text-sky-300">
                 {team?.name ?? '—'}
                 {canEdit && (
                   <button type="button" onClick={() => closeOpening(o)} aria-label={t('guestTeamClose', { team: team?.name ?? '' })} className="hover:text-sky-900 dark:hover:text-sky-100">
@@ -249,7 +249,7 @@ export default function GameGuestSection({ game, kscwTeamId, canEdit }: Props) {
           {individualGuests.map(g => {
             const m = asObj<Member>(g.member)
             return (
-              <span key={`m-${g.id}`} className="inline-flex items-center gap-1 rounded-full bg-brand-100 px-2.5 py-0.5 text-xs font-medium text-brand-700 dark:bg-brand-900/40 dark:text-brand-300">
+              <span key={`m-${g.id}`} className="inline-flex items-center gap-1 rounded-full border border-brand-200 bg-brand-50 px-2.5 py-0.5 text-xs font-medium text-brand-700 dark:border-brand-800 dark:bg-brand-900/40 dark:text-brand-300">
                 {m ? memberDisplayName(m) : '—'}
                 {canEdit && (
                   <button type="button" onClick={() => uninvite(g)} aria-label={t('guestRemove', { name: m ? memberDisplayName(m) : '' })} className="hover:text-brand-900 dark:hover:text-brand-100">
@@ -277,10 +277,10 @@ export default function GameGuestSection({ game, kscwTeamId, canEdit }: Props) {
       )}
 
       {canEdit && picking && (
-        <div className="space-y-3 rounded-lg border border-gray-200 p-3 dark:border-gray-700">
+        <div className="space-y-3 rounded-xl border border-hairline bg-surface-sunken p-3">
           {availableTeams.length > 0 && (
             <div>
-              <p className="mb-1.5 text-xs font-medium text-gray-600 dark:text-gray-400">{t('guestOpenToTeam')}</p>
+              <p className="mb-1.5 text-xs font-medium text-muted-foreground">{t('guestOpenToTeam')}</p>
               <div className="flex flex-wrap gap-1.5">
                 {availableTeams.map(tm => (
                   <Button
@@ -299,7 +299,7 @@ export default function GameGuestSection({ game, kscwTeamId, canEdit }: Props) {
           )}
 
           <div>
-            <p className="mb-1.5 text-xs font-medium text-gray-600 dark:text-gray-400">{t('guestOpenToMembers')}</p>
+            <p className="mb-1.5 text-xs font-medium text-muted-foreground">{t('guestOpenToMembers')}</p>
             <MemberMultiSelect
               selected={pendingMembers}
               onChange={setPendingMembers}

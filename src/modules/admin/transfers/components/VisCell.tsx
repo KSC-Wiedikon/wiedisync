@@ -82,7 +82,7 @@ export function VisCell({
       {t('trInVisNo')}
     </Badge>
   ) : (
-    <span className="text-xs text-gray-400 dark:text-gray-500" title={hint}>
+    <span className="text-xs text-muted-foreground/80" title={hint}>
       {t('trInVisUnknown')}
     </span>
   )
@@ -101,7 +101,7 @@ export function VisCell({
 
       {/* A stale check is worth seeing: the answer only holds as of this date. */}
       {member.in_vis_checked_at && (
-        <span className="block text-xs text-gray-400 dark:text-gray-500">
+        <span className="block text-xs text-muted-foreground/80">
           {t('trInVisCheckedAt', { date: formatDateZurich(member.in_vis_checked_at) })}
         </span>
       )}
@@ -112,7 +112,7 @@ export function VisCell({
             <>
               <span
                 title={t('trVisPlayerNo')}
-                className="font-mono text-xs font-medium text-gray-900 dark:text-white"
+                className="font-mono text-xs font-medium text-foreground"
               >
                 #{visNo}
               </span>
@@ -129,7 +129,7 @@ export function VisCell({
                 target="_blank"
                 rel="noopener noreferrer"
                 title={t('trOpenInVisHint')}
-                className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-brand-300 px-2 py-1 text-xs font-medium text-brand-700 hover:bg-brand-50 sm:min-h-0 dark:border-brand-700 dark:text-brand-200 dark:hover:bg-brand-900/30"
+                className="inline-flex min-h-[44px] items-center gap-1 rounded-lg border border-brand-300 px-2 py-1 text-xs font-medium text-brand-700 hover:bg-brand-50 sm:min-h-0 dark:border-brand-700 dark:text-brand-200 dark:hover:bg-brand-900/30"
               >
                 <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
                 {t('trOpenInVis')}
@@ -150,7 +150,7 @@ export function VisCell({
           <span className="flex flex-wrap items-center gap-1">
             <span
               title={t('trManualLinkHint')}
-              className="inline-flex items-center gap-1 font-mono text-xs text-gray-600 dark:text-gray-300"
+              className="inline-flex items-center gap-1 font-mono text-xs text-muted-foreground"
             >
               <Link2 className="h-3 w-3 shrink-0" aria-hidden="true" />
               #{manualNo}

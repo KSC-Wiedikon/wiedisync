@@ -37,7 +37,7 @@ export function CopyButton({ value, title, label }: { value: string; title: stri
       aria-label={title}
       // Dense `sm` tier (it sits in table cells). Icon-only it would be ~30px
       // wide, so the min-width keeps it square on the same scale (36 → 32).
-      className="min-w-9 shrink-0 gap-1 px-2 text-gray-600 sm:min-w-8 dark:text-gray-300"
+      className="min-w-9 shrink-0 gap-1 px-2 text-muted-foreground sm:min-w-8"
     >
       {copied
         ? <Check className="h-3.5 w-3.5 text-green-600 dark:text-green-400" aria-hidden="true" />

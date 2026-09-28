@@ -118,7 +118,7 @@ export function ImagesBadge({
           return (
             <motion.div
               key={index}
-              className="absolute top-0.5 left-1/2 origin-bottom overflow-hidden rounded-[3px] bg-white shadow-sm ring-1 shadow-black/10 ring-black/10 dark:bg-neutral-800 dark:shadow-white/10 dark:ring-white/10"
+              className="absolute top-0.5 left-1/2 origin-bottom overflow-hidden rounded-[3px] bg-card shadow-sm ring-1 shadow-black/10 ring-black/10 dark:shadow-white/10 dark:ring-white/10"
               animate={{
                 x: `calc(-50% + ${isHovered ? hoverX : 0}px)`,
                 y: isHovered ? hoverY : teaseY,
@@ -170,7 +170,7 @@ export function ImagesBadge({
       </motion.div>
 
       {/* Text */}
-      <span className="text-sm font-medium text-neutral-700 dark:text-neutral-200">
+      <span className="text-sm font-medium text-foreground/85">
         {text}
       </span>
     </Component>

@@ -210,17 +210,17 @@ export default function VmTeamRostersPage() {
 
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-6">
-      <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{t('vmtTitle')}</h1>
-      <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t('vmtSubtitle')}</p>
+      <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">{t('vmtTitle')}</h1>
+      <p className="mt-1 text-sm text-muted-foreground">{t('vmtSubtitle')}</p>
 
       {loading || !data ? (
         <div className="py-12"><LoadingSpinner /></div>
       ) : (
         <>
           {/* ── Actions ─────────────────────────────────────────────── */}
-          <div className="mt-5 rounded-lg border bg-card p-4 dark:border-gray-700">
+          <div className="mt-5 rounded-2xl border border-hairline bg-card p-4 shadow-card">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="text-sm text-gray-600 dark:text-gray-300">
+              <div className="text-sm text-muted-foreground">
                 {data.vmSyncedAt
                   ? t('vmtPlanBasis', { date: formatDateTimeCompactZurich(data.vmSyncedAt) })
                   : t('vmtPlanBasisNoSync')}
@@ -244,7 +244,7 @@ export default function VmTeamRostersPage() {
               <p className="mt-3 text-sm text-amber-700 dark:text-amber-400">{t('vmtDevDry')}</p>
             )}
             {running && data.running && (
-              <p className="mt-3 flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+              <p className="mt-3 flex items-center gap-2 text-sm text-foreground/85">
                 <RefreshCw className="h-4 w-4 animate-spin motion-reduce:animate-none" />
                 {t('vmtRunning', { done: data.running.progress.done, total: data.running.progress.total, team: data.running.progress.team })}
               </p>
@@ -253,11 +253,11 @@ export default function VmTeamRostersPage() {
 
           {/* ── Last run ────────────────────────────────────────────── */}
           {run && run.status !== 'running' && (
-            <div className="mt-4 rounded-lg border bg-card p-4 dark:border-gray-700">
+            <div className="mt-4 rounded-2xl border border-hairline bg-card p-4 shadow-card">
               <div className="flex flex-wrap items-baseline gap-2">
-                <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 min-w-0 flex-1">
+                <h2 className="text-base font-semibold text-foreground min-w-0 flex-1">
                   {run.dryRun ? t('vmtLastPreview') : t('vmtLastRun')}
-                  <span className="ml-2 text-sm font-normal text-gray-500 dark:text-gray-400">
+                  <span className="ml-2 text-sm font-normal text-muted-foreground">
                     {formatDateTimeCompactZurich(run.finishedAt ?? run.startedAt)}
                     {run.actor ? ` · ${t('vmtBy', { name: run.actor })}` : ''}
                   </span>
@@ -275,7 +275,7 @@ export default function VmTeamRostersPage() {
                     <Badge variant="success">{t('vmtResultAlready')}: {run.result.totals.already}</Badge>
                     {run.result.totals.failed > 0 && <Badge variant="danger">{t('vmtResultFailed')}: {run.result.totals.failed}</Badge>}
                   </div>
-                  <div className="mt-3 overflow-x-auto rounded-lg border dark:border-gray-700">
+                  <div className="mt-3 overflow-x-auto rounded-xl border border-hairline">
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -292,27 +292,27 @@ export default function VmTeamRostersPage() {
                               <div className="flex flex-col items-start gap-0.5">
                                 <TeamChip team={rt.teamName} size="sm" />
                                 {/* VM player count before → after the write (before only on a preview). */}
-                                <span className="whitespace-nowrap text-xs tabular-nums text-gray-500 dark:text-gray-400">
+                                <span className="whitespace-nowrap text-xs tabular-nums text-muted-foreground">
                                   {rt.vmPlayersAfter != null ? `${rt.vmPlayersBefore} → ${rt.vmPlayersAfter}` : rt.vmPlayersBefore}
                                 </span>
                               </div>
                               {rt.error && <p className="mt-1 whitespace-normal text-xs text-red-600 dark:text-red-400">{rt.error}</p>}
                             </TableCell>
                             <TableCell className="whitespace-normal align-top text-sm">
-                              {rt.assigned.length ? rt.assigned.map((p) => p.name).join(', ') : <span className="text-gray-400">—</span>}
+                              {rt.assigned.length ? rt.assigned.map((p) => p.name).join(', ') : <span className="text-muted-foreground/80">—</span>}
                             </TableCell>
                             <TableCell className="whitespace-normal align-top text-sm">
-                              {rt.licencePending.length ? rt.licencePending.map((p) => p.name).join(', ') : <span className="text-gray-400">—</span>}
+                              {rt.licencePending.length ? rt.licencePending.map((p) => p.name).join(', ') : <span className="text-muted-foreground/80">—</span>}
                             </TableCell>
                             <TableCell className="hidden whitespace-normal align-top text-sm sm:table-cell">
-                              {rt.extraOnVm.length ? rt.extraOnVm.map((p) => `${p.name} (${p.licenseNr})`).join(', ') : <span className="text-gray-400">—</span>}
+                              {rt.extraOnVm.length ? rt.extraOnVm.map((p) => `${p.name} (${p.licenseNr})`).join(', ') : <span className="text-muted-foreground/80">—</span>}
                             </TableCell>
                           </TableRow>
                         ))}
                         {run.result.skipped.map((s) => (
                           <TableRow key={`skip-${s.teamName}`}>
                             <TableCell><TeamChip team={s.teamName} size="sm" /></TableCell>
-                            <TableCell colSpan={3} className="text-sm text-gray-500 dark:text-gray-400">{t('vmtNoVmTeam')}</TableCell>
+                            <TableCell colSpan={3} className="text-sm text-muted-foreground">{t('vmtNoVmTeam')}</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -326,7 +326,7 @@ export default function VmTeamRostersPage() {
                     {showLog ? t('vmtHideLog') : t('vmtShowLog')}
                   </Button>
                   {showLog && (
-                    <pre className="mt-2 max-h-72 overflow-auto rounded-md bg-gray-100 p-3 text-[11px] leading-snug text-gray-800 dark:bg-gray-900 dark:text-gray-200">
+                    <pre className="mt-2 max-h-72 overflow-auto rounded-xl border border-hairline bg-surface-sunken p-3 text-[11px] leading-snug text-foreground">
                       {run.log.join('\n')}
                     </pre>
                   )}
@@ -349,11 +349,11 @@ export default function VmTeamRostersPage() {
           </div>
 
           {rows.length === 0 ? (
-            <p className="mt-4 rounded-lg border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+            <p className="mt-4 rounded-2xl border border-dashed border-input p-6 text-center text-sm text-muted-foreground">
               {openOnly ? t('vmtNothingOpen') : t('vmtEmpty')}
             </p>
           ) : (
-            <div className="mt-3 overflow-x-auto rounded-lg border bg-card dark:border-gray-700">
+            <div className="mt-3 overflow-x-auto rounded-2xl border border-hairline bg-card shadow-card">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -369,9 +369,9 @@ export default function VmTeamRostersPage() {
                       <TableCell className="align-top"><TeamChip team={team.teamName} size="sm" /></TableCell>
                       <TableCell className="whitespace-normal align-top leading-tight">
                         {player.name}
-                        <span className="block text-xs text-gray-400 sm:hidden">{player.licenseNr ?? '—'}</span>
+                        <span className="block text-xs text-muted-foreground/80 sm:hidden">{player.licenseNr ?? '—'}</span>
                       </TableCell>
-                      <TableCell className="hidden align-top tabular-nums sm:table-cell">{player.licenseNr ?? <span className="text-gray-400">—</span>}</TableCell>
+                      <TableCell className="hidden align-top tabular-nums sm:table-cell">{player.licenseNr ?? <span className="text-muted-foreground/80">—</span>}</TableCell>
                       <TableCell className="align-top">
                         <Badge
                           variant={STATUS_BADGE[player.status]}

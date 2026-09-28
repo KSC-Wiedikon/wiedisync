@@ -642,7 +642,7 @@ function VolleyballDashboardBody() {
 
   if (!season) {
     return (
-      <div className="text-center text-gray-500 dark:text-gray-400">
+      <div className="text-center text-muted-foreground">
         <p>{t('noSeasonConfigured')}</p>
       </div>
     )
@@ -791,8 +791,8 @@ function VolleyballDashboardBody() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-bold text-gray-900 sm:text-2xl dark:text-gray-100">{t('dashboardTitle')}</h1>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{formatSeasonShort(season.season)}</p>
+          <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">{t('dashboardTitle')}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{formatSeasonShort(season.season)}</p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <SyncNowButton seasonName={season.season} onDone={refetch} />
@@ -812,32 +812,32 @@ function VolleyballDashboardBody() {
           has settled without an answer we do fall back — prefixed `~` so the
           estimate is never mistaken for the fixture-aware count. */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800">
-          <p className="text-xs font-medium text-gray-500 dark:text-gray-400">{t('summaryHome')}</p>
+        <div className="rounded-2xl border border-hairline bg-card p-3 shadow-card">
+          <p className="text-xs font-medium text-muted-foreground">{t('summaryHome')}</p>
           {summaryLoading ? (
-            <span className="mt-1 block h-8 w-20 animate-pulse rounded bg-gray-200 dark:bg-gray-700" aria-hidden />
+            <span className="mt-1 block h-8 w-20 animate-pulse rounded bg-stone-200/80 dark:bg-muted" aria-hidden />
           ) : (
             <p className="mt-1 text-2xl font-bold text-green-600 dark:text-green-400 tabular-nums">
-              {summaryTally ? '' : '~'}{summaryTally?.totals.homeConfirmed ?? summary.homeConfirmed}<span className="text-base font-medium text-gray-400 dark:text-gray-500">/{summaryTally?.totals.homeTotal ?? summary.gamesTotal}</span>
+              {summaryTally ? '' : '~'}{summaryTally?.totals.homeConfirmed ?? summary.homeConfirmed}<span className="text-base font-medium text-muted-foreground/80">/{summaryTally?.totals.homeTotal ?? summary.gamesTotal}</span>
             </p>
           )}
         </div>
-        <div className="rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800">
-          <p className="text-xs font-medium text-gray-500 dark:text-gray-400">{t('summaryAway')}</p>
+        <div className="rounded-2xl border border-hairline bg-card p-3 shadow-card">
+          <p className="text-xs font-medium text-muted-foreground">{t('summaryAway')}</p>
           {summaryLoading ? (
-            <span className="mt-1 block h-8 w-20 animate-pulse rounded bg-gray-200 dark:bg-gray-700" aria-hidden />
+            <span className="mt-1 block h-8 w-20 animate-pulse rounded bg-stone-200/80 dark:bg-muted" aria-hidden />
           ) : (
             <p className="mt-1 text-2xl font-bold text-green-600 dark:text-green-400 tabular-nums">
-              {summaryTally ? '' : '~'}{summaryTally?.totals.awayConfirmed ?? summary.awayConfirmed}<span className="text-base font-medium text-gray-400 dark:text-gray-500">/{summaryTally?.totals.awayTotal ?? summary.gamesTotal}</span>
+              {summaryTally ? '' : '~'}{summaryTally?.totals.awayConfirmed ?? summary.awayConfirmed}<span className="text-base font-medium text-muted-foreground/80">/{summaryTally?.totals.awayTotal ?? summary.gamesTotal}</span>
             </p>
           )}
         </div>
-        <div className="rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800">
-          <p className="text-xs font-medium text-gray-500 dark:text-gray-400">{t('summaryToConfirm')}</p>
+        <div className="rounded-2xl border border-hairline bg-card p-3 shadow-card">
+          <p className="text-xs font-medium text-muted-foreground">{t('summaryToConfirm')}</p>
           <p className="mt-1 text-2xl font-bold text-amber-600 dark:text-amber-400 tabular-nums">{summary.toConfirm}</p>
         </div>
-        <div className="rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800">
-          <p className="text-xs font-medium text-gray-500 dark:text-gray-400">{t('summaryAwaiting')}</p>
+        <div className="rounded-2xl border border-hairline bg-card p-3 shadow-card">
+          <p className="text-xs font-medium text-muted-foreground">{t('summaryAwaiting')}</p>
           <p className="mt-1 text-2xl font-bold text-blue-600 dark:text-blue-400 tabular-nums">{summary.notProposed}</p>
         </div>
       </div>
@@ -846,7 +846,7 @@ function VolleyballDashboardBody() {
           but we never booked (amber) — each with a one-click "Sync with VM".
           "VM not updated yet" (unset/placeholder) is intentionally NOT flagged. */}
       {(awayMismatches.length > 0 || awayUnbooked.length > 0) && (
-        <div className="rounded-lg border border-red-300 bg-red-50 p-3 dark:border-red-800 dark:bg-red-900/30">
+        <div className="rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-900/60 dark:bg-red-950/40">
           <p className="flex items-center gap-2 text-sm font-semibold text-red-700 dark:text-red-300">
             <span aria-hidden>⚠</span>
             {t('awayVmMismatchAlert', { count: awayMismatches.length + awayUnbooked.length })}
@@ -862,7 +862,7 @@ function VolleyballDashboardBody() {
                   disabled={vmSyncing === `b:${m.bid}`}
                   variant="outline"
                   size="sm"
-                  className="border-red-300 text-red-700 hover:bg-red-50 hover:text-red-700 dark:border-red-700 dark:bg-gray-800 dark:text-red-300 dark:hover:bg-gray-700"
+                  className="border-red-300 text-red-700 hover:bg-red-50 hover:text-red-700 dark:border-red-700 dark:text-red-300 dark:hover:bg-red-950/40"
                 >
                   {vmSyncing === `b:${m.bid}` ? <InlineSpinner /> : t('syncWithVm')}
                 </Button>
@@ -878,7 +878,7 @@ function VolleyballDashboardBody() {
                   disabled={vmSyncing === `u:${u.key}`}
                   variant="outline"
                   size="sm"
-                  className="border-red-300 text-red-700 hover:bg-red-50 hover:text-red-700 dark:border-red-700 dark:bg-gray-800 dark:text-red-300 dark:hover:bg-gray-700"
+                  className="border-red-300 text-red-700 hover:bg-red-50 hover:text-red-700 dark:border-red-700 dark:text-red-300 dark:hover:bg-red-950/40"
                 >
                   {vmSyncing === `u:${u.key}` ? <InlineSpinner /> : t('syncWithVm')}
                 </Button>
@@ -892,7 +892,7 @@ function VolleyballDashboardBody() {
           whose VM date drifted from our slot after we pushed — each with a
           one-click "Re-push to VM". WE own the home hall, so WE push the date. */}
       {homeVmAlerts.length > 0 && (
-        <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/30">
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-900/60 dark:bg-amber-950/40">
           <p className="flex items-center gap-2 text-sm font-semibold text-amber-700 dark:text-amber-300">
             <span aria-hidden>⚠</span>
             {t('homeVmAlert', { count: homeVmAlerts.length })}
@@ -912,7 +912,7 @@ function VolleyballDashboardBody() {
                   disabled={vmRepushing === m.bid}
                   variant="outline"
                   size="sm"
-                  className="border-amber-300 text-amber-700 hover:bg-amber-50 hover:text-amber-700 dark:border-amber-700 dark:bg-gray-800 dark:text-amber-300 dark:hover:bg-gray-700"
+                  className="border-amber-300 text-amber-700 hover:bg-amber-50 hover:text-amber-700 dark:border-amber-700 dark:text-amber-300 dark:hover:bg-amber-950/40"
                 >
                   {vmRepushing === m.bid ? <InlineSpinner /> : t('repushVm')}
                 </Button>
@@ -935,10 +935,10 @@ function VolleyballDashboardBody() {
           onChange={(e) => setSearch(e.target.value)}
           placeholder={t('searchPlaceholder')}
           aria-label={t('searchPlaceholder')}
-          className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-500 focus:outline-none sm:max-w-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder:text-gray-500"
+          className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/70 focus-visible:border-primary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:max-w-sm dark:bg-input/20"
         />
         {searchQuery && (
-          <span className="text-xs text-gray-500 dark:text-gray-400">
+          <span className="text-xs text-muted-foreground">
             {t('searchMatchCount', { count: visibleTeams.reduce((n, team) => n + teamMatchedOpponents(team.id).length, 0) })}
           </span>
         )}
@@ -947,7 +947,7 @@ function VolleyballDashboardBody() {
       {/* Team overview accordion */}
       <div className="space-y-3">
         {searchQuery && visibleTeams.length === 0 && (
-          <p className="text-sm text-gray-500 dark:text-gray-400">{t('searchNoResults')}</p>
+          <p className="text-sm text-muted-foreground">{t('searchNoResults')}</p>
         )}
         {visibleTeams.map(team => {
           const stats = teamStats(team.id)
@@ -962,10 +962,10 @@ function VolleyballDashboardBody() {
           return (
             <div
               key={team.id}
-              className={`overflow-hidden rounded-lg border ${
+              className={`overflow-hidden rounded-2xl border shadow-card ${
                 finished
                   ? 'border-green-300 bg-green-50 dark:border-green-900 dark:bg-green-900/20'
-                  : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800'
+                  : 'border-hairline bg-card'
               }`}
             >
               {/* Team header */}
@@ -974,7 +974,7 @@ function VolleyballDashboardBody() {
                 className={`flex w-full items-center justify-between px-4 py-3 text-left ${
                   finished
                     ? 'hover:bg-green-100 dark:hover:bg-green-900/30'
-                    : 'hover:bg-gray-50 dark:hover:bg-gray-700'
+                    : 'hover:bg-accent'
                 }`}
               >
                 <div className="flex min-w-0 items-center gap-3">
@@ -982,14 +982,14 @@ function VolleyballDashboardBody() {
                     className="inline-block h-3 w-3 flex-shrink-0 rounded-full"
                     style={{ backgroundColor: team.color || '#6b7280' }}
                   />
-                  <span className="truncate font-semibold text-gray-900 dark:text-gray-100" title={team.name}>{team.name}</span>
+                  <span className="truncate font-semibold text-foreground" title={team.name}>{team.name}</span>
                   {team.full_name && (
-                    <span className="hidden truncate text-sm text-gray-500 sm:inline dark:text-gray-400" title={team.full_name}>
+                    <span className="hidden truncate text-sm text-muted-foreground sm:inline" title={team.full_name}>
                       {team.full_name}
                     </span>
                   )}
                 </div>
-                <div className="flex flex-shrink-0 items-center gap-3 text-xs text-gray-600 sm:text-sm dark:text-gray-400">
+                <div className="flex flex-shrink-0 items-center gap-3 text-xs text-muted-foreground sm:text-sm">
                   {stats.gamesTotal > 0 && (() => {
                     // Fixture-aware per-side totals (multi-game pairings). A
                     // skeleton holds the slot until the server tally lands —
@@ -999,7 +999,7 @@ function VolleyballDashboardBody() {
                     // fetch has settled without an answer for this team.
                     const tally = summaryTally?.byTeam[String(team.id)]
                     if (summaryLoading) {
-                      return <span className="hidden h-4 w-28 animate-pulse rounded bg-gray-200 sm:inline-block dark:bg-gray-700" aria-hidden />
+                      return <span className="hidden h-4 w-28 animate-pulse rounded bg-stone-200/80 sm:inline-block dark:bg-muted" aria-hidden />
                     }
                     return (
                       <span className="hidden whitespace-nowrap sm:inline" title={t('homeAwayCounterHint')}>
@@ -1041,10 +1041,10 @@ function VolleyballDashboardBody() {
               {/* Expanded content — while searching, skip the calendar +
                   finalize row so the matching opponent cards stand alone. */}
               {isExpanded && (
-                <div className="border-t border-gray-200 px-4 py-4 dark:border-gray-700">
+                <div className="border-t border-border px-4 py-4">
                   {!searchQuery && (
                   <div className="mb-4 space-y-2">
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                    <p className="text-xs text-muted-foreground">
                       {teamPending(team.id) > 0
                         ? t('finalizeNotifyPending', { count: teamPending(team.id) })
                         : t('finalizeNotifyReady')}
@@ -1336,7 +1336,7 @@ function TeamBookingsContent({
     : []
 
   if (teamOpponents.length === 0) {
-    return <p className="text-sm text-gray-500 dark:text-gray-400">{t('noBookingsYet')}</p>
+    return <p className="text-sm text-muted-foreground">{t('noBookingsYet')}</p>
   }
 
   return (
@@ -1345,7 +1345,7 @@ function TeamBookingsContent({
         no SVRZ fixture (leftover after an SVRZ rename) — flagged so the games get
         re-homed onto the real fixtured record. */}
     {orphanAlerts.length > 0 && (
-      <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/30">
+      <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-900/60 dark:bg-amber-950/40">
         <p className="flex items-center gap-2 text-sm font-semibold text-amber-700 dark:text-amber-300">
           <span aria-hidden>⚠</span>
           {t('orphanFixtureAlert', { count: orphanAlerts.length })}
@@ -1391,7 +1391,7 @@ function TeamBookingsContent({
         const allLegs = [...homeLegs, ...awayLegs]
         const confirmedCount = allLegs.filter(l => l.booking?.status === 'confirmed').length
         const cardClass = !fixturesSettled
-          ? 'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800/30'
+          ? 'border-hairline bg-surface-sunken'
           : confirmedCount === allLegs.length
             ? 'border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-900/20'
             : confirmedCount >= 1
@@ -1401,12 +1401,12 @@ function TeamBookingsContent({
         return (
           <div
             key={opp.id}
-            className={`rounded-md border p-3 ${cardClass}`}
+            className={`rounded-xl border p-3 ${cardClass}`}
           >
             <div className="mb-2 flex items-center gap-2">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-medium text-gray-900 dark:text-gray-100">{opp.club_name || opp.team_name}</span>
+                  <span className="font-medium text-foreground">{opp.club_name || opp.team_name}</span>
                   <Badge variant={INVITE_STATUS_VARIANT[inviteStatus]} size="sm">
                     {t(inviteStatusKey(inviteStatus))}
                   </Badge>
@@ -1449,7 +1449,7 @@ function TeamBookingsContent({
                           type="button"
                           onClick={() => onOpenMailbox(opp)}
                           title={t('openInMailbox')}
-                          variant="link" size="sm" className="px-1 text-xs text-gray-500 dark:text-gray-400"
+                          variant="link" size="sm" className="px-1 text-xs text-muted-foreground"
                         >
                           {t('openInMailbox')} ↗
                         </Button>
@@ -1478,14 +1478,14 @@ function TeamBookingsContent({
                     if (!e) return null
                     return (
                       <div className="break-words">
-                        <span className="font-medium text-gray-600 dark:text-gray-300">{label}:</span>{' '}
+                        <span className="font-medium text-muted-foreground">{label}:</span>{' '}
                         {names && <span>{names} </span>}
                         <a href={buildMailtoHref(e)} className="hover:underline">({e})</a>
                       </div>
                     )
                   }
                   return (
-                    <div className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                    <div className="mt-1 text-sm text-muted-foreground">
                       {collapsible && (
                         <Button
                           type="button"
@@ -1518,13 +1518,13 @@ function TeamBookingsContent({
                   )
                 })()}
                 {opp.team_name && opp.team_name !== opp.club_name && (
-                  <div className="text-xs text-gray-400 dark:text-gray-500">{opp.team_name}</div>
+                  <div className="text-xs text-muted-foreground/80">{opp.team_name}</div>
                 )}
               </div>
             </div>
 
             {mailboxConfigured && openEmails.has(String(opp.id)) && emailsFor(opp).length > 0 && (
-              <div className="mb-3 divide-y divide-gray-100 rounded-md border border-gray-200 dark:divide-gray-700 dark:border-gray-700">
+              <div className="mb-3 divide-y divide-border/60 rounded-lg border border-border">
                 {emailsFor(opp).map((m) => {
                   const unread = m.direction === 'in' && !m.read_at
                   return (
@@ -1532,12 +1532,12 @@ function TeamBookingsContent({
                       key={m.id}
                       type="button"
                       onClick={() => onOpenMailbox(opp)}
-                      className="flex w-full items-start gap-2 px-2 py-1.5 text-left hover:bg-gray-50 dark:hover:bg-gray-800/50"
+                      className="flex w-full items-start gap-2 px-2 py-1.5 text-left hover:bg-accent"
                     >
-                      <span className="whitespace-nowrap text-xs text-gray-400 dark:text-gray-500">
+                      <span className="whitespace-nowrap text-xs text-muted-foreground/80">
                         {m.date_sent ? formatDateTimeCompact(m.date_sent) : ''}
                       </span>
-                      <span title={m.subject || t('mailboxNoSubject')} className={`min-w-0 flex-1 truncate text-xs ${unread ? 'font-semibold text-gray-900 dark:text-gray-100' : 'text-gray-600 dark:text-gray-400'}`}>
+                      <span title={m.subject || t('mailboxNoSubject')} className={`min-w-0 flex-1 truncate text-xs ${unread ? 'font-semibold text-foreground' : 'text-muted-foreground'}`}>
                         {m.direction === 'out' ? '→ ' : ''}{m.subject || t('mailboxNoSubject')}
                       </span>
                       {unread && <span aria-hidden className="mt-1 inline-block h-1.5 w-1.5 flex-shrink-0 rounded-full bg-brand-600" />}
@@ -1550,15 +1550,15 @@ function TeamBookingsContent({
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {/* Home game bookings — one block per fixture */}
               <div className="flex flex-col">
-                <h4 className="mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">{t('homeBookings')}</h4>
+                <h4 className="mb-1 text-sm font-medium text-foreground/85">{t('homeBookings')}</h4>
                 <div className="flex flex-1 flex-col gap-3">
                   {homeLegs.length === 0 && (
-                    <span className="text-sm text-gray-400">{t('noGameThisSide')}</span>
+                    <span className="text-sm text-muted-foreground/80">{t('noGameThisSide')}</span>
                   )}
                   {homeLegs.map((leg) => (
                     <div key={leg.key} className="flex flex-1 flex-col">
                       {(leg.sideCount > 1 || leg.number != null) && (
-                        <p className="mb-0.5 text-xs font-medium text-gray-500 dark:text-gray-400">
+                        <p className="mb-0.5 text-xs font-medium text-muted-foreground">
                           {leg.sideCount > 1 ? t('gameN', { number: leg.seq }) : t('manualHomeGame')}
                           {leg.number != null && <span className="font-normal"> · #{leg.number}</span>}
                         </p>
@@ -1584,9 +1584,9 @@ function TeamBookingsContent({
                         // awaiting a proposal — but until the fixtures land the
                         // leg under it is synthetic, and a single-round pairing
                         // resolves to "No game this side" instead.
-                        <span className="inline-block h-5 w-20 animate-pulse rounded bg-gray-200 dark:bg-gray-700" aria-hidden />
+                        <span className="inline-block h-5 w-20 animate-pulse rounded bg-stone-200/80 dark:bg-muted" aria-hidden />
                       ) : (
-                        <span className="text-sm text-gray-400">{t('pending')}</span>
+                        <span className="text-sm text-muted-foreground/80">{t('pending')}</span>
                       )}
                     </div>
                   ))}
@@ -1595,15 +1595,15 @@ function TeamBookingsContent({
 
               {/* Away game proposals — one block per fixture */}
               <div className="flex flex-col">
-                <h4 className="mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">{t('awayProposals')}</h4>
+                <h4 className="mb-1 text-sm font-medium text-foreground/85">{t('awayProposals')}</h4>
                 <div className="flex flex-1 flex-col gap-3">
                   {awayLegs.length === 0 && (
-                    <span className="text-sm text-gray-400">{t('noGameThisSide')}</span>
+                    <span className="text-sm text-muted-foreground/80">{t('noGameThisSide')}</span>
                   )}
                   {awayLegs.map((leg) => (
                     <div key={leg.key} className="flex flex-1 flex-col">
                       {(leg.sideCount > 1 || leg.number != null) && (
-                        <p className="mb-0.5 text-xs font-medium text-gray-500 dark:text-gray-400">
+                        <p className="mb-0.5 text-xs font-medium text-muted-foreground">
                           {leg.sideCount > 1 ? t('gameN', { number: leg.seq }) : t('manualAwayGame')}
                           {leg.number != null && <span className="font-normal"> · #{leg.number}</span>}
                         </p>
@@ -1627,7 +1627,7 @@ function TeamBookingsContent({
                             type="button"
                             onClick={() => onSyncVm({ key: `u:${opp.id}:${leg.svrzGameId}`, opponentId: String(opp.id), svrzGameId: leg.svrzGameId })}
                             disabled={vmSyncing === `u:${opp.id}:${leg.svrzGameId}`}
-                            variant="outline" size="sm" className="border-amber-300 text-amber-700 hover:bg-amber-50 hover:text-amber-700 dark:border-amber-700 dark:bg-gray-800 dark:text-amber-300 dark:hover:bg-gray-700"
+                            variant="outline" size="sm" className="border-amber-300 text-amber-700 hover:bg-amber-50 hover:text-amber-700 dark:border-amber-700 dark:text-amber-300 dark:hover:bg-amber-950/40"
                           >
                             {vmSyncing === `u:${opp.id}:${leg.svrzGameId}` ? '…' : t('syncWithVm')}
                           </Button>
@@ -1637,9 +1637,9 @@ function TeamBookingsContent({
                         // awaiting a proposal — but until the fixtures land the
                         // leg under it is synthetic, and a single-round pairing
                         // resolves to "No game this side" instead.
-                        <span className="inline-block h-5 w-20 animate-pulse rounded bg-gray-200 dark:bg-gray-700" aria-hidden />
+                        <span className="inline-block h-5 w-20 animate-pulse rounded bg-stone-200/80 dark:bg-muted" aria-hidden />
                       ) : (
-                        <span className="text-sm text-gray-400">{t('pending')}</span>
+                        <span className="text-sm text-muted-foreground/80">{t('pending')}</span>
                       )}
                     </div>
                   ))}
@@ -1706,12 +1706,12 @@ function TeamBookingsContent({
                     <p className="font-medium">
                       {g._realDate || (g.date ? formatDateTimeCompact(g.date) : '—')}
                       {g.number != null && (
-                        <span className="ml-2 font-normal text-gray-400 dark:text-gray-500" title={t('gameNumberHint')}>
+                        <span className="ml-2 font-normal text-muted-foreground/80" title={t('gameNumberHint')}>
                           #{g.number}
                         </span>
                       )}
                     </p>
-                    <p className="break-words whitespace-normal text-gray-600 dark:text-gray-400">
+                    <p className="break-words whitespace-normal text-muted-foreground">
                       {g.is_home_kscw
                         ? `KSCW ${kscwTeamName} vs ${gamesFor?.label ?? ''}`
                         : `${gamesFor?.label ?? ''} vs KSCW ${kscwTeamName}`}
@@ -1813,16 +1813,16 @@ function BasketballDashboardBody() {
 
   if (isInitialLoading) return null
   if (!season) {
-    return <div className="text-center text-gray-500 dark:text-gray-400">{t('noSeason')}</div>
+    return <div className="text-center text-muted-foreground">{t('noSeason')}</div>
   }
 
-  const tile = 'rounded-lg border border-border bg-card px-4 py-3'
+  const tile = 'rounded-2xl border border-hairline bg-card px-4 py-3 shadow-card'
   const tileNum = 'text-2xl font-bold tabular-nums'
 
   return (
     <div className="space-y-6">
       <header className="flex flex-col gap-1">
-        <h1 className="text-xl font-bold sm:text-2xl">{t('dashboardTitle')}</h1>
+        <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">{t('dashboardTitle')}</h1>
         <p className="text-sm text-muted-foreground">{formatSeasonShort(season.season)}</p>
       </header>
 
@@ -1867,18 +1867,18 @@ function BasketballDashboardBody() {
       </div>
 
       {totals.unassigned > 0 && (
-        <p className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+        <p className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-300">
           ⚠ {t('dashUnassignedWarning', { count: totals.unassigned })}
         </p>
       )}
 
       {/* Per-team status — a record list, so a table (CLAUDE.md). */}
       <section className="space-y-2">
-        <h2 className="text-lg font-semibold">{t('dashPerTeam')}</h2>
-        <div className="overflow-x-auto rounded-lg border border-border">
+        <h2 className="text-base font-semibold text-foreground">{t('dashPerTeam')}</h2>
+        <div className="overflow-x-auto rounded-2xl border border-hairline bg-card shadow-card">
           <Table>
             <TableBody>
-              <TableRow className="bg-muted/50 font-medium">
+              <TableRow className="bg-surface-sunken font-medium">
                 <TableCell className="whitespace-normal break-words">{t('dashTeam')}</TableCell>
                 <TableCell className="text-right">{t('dashPlacedGames')}</TableCell>
                 <TableCell className="text-right">{t('dashCandidateSlots')}</TableCell>

@@ -379,7 +379,7 @@ export default function PreGameRosterModal({ gameId, onClose }: PreGameRosterMod
       aria-label={t('pregameColRole')}
       value={c.role ?? ''}
       onChange={(e) => setOfficialRole(c.ref, (e.target.value || null) as OfficialRole | null)}
-      className="h-11 max-w-full rounded-md border bg-background px-2 sm:h-9 text-sm font-bold text-foreground dark:bg-gray-800"
+      className="h-11 max-w-full rounded-lg border border-input bg-card px-2 sm:h-9 text-sm font-bold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-gray-800"
     >
       <option value="">{t('pregameRoleUnassigned')}</option>
       {OFFICIAL_ROLES.map((r) => (
@@ -414,7 +414,7 @@ export default function PreGameRosterModal({ gameId, onClose }: PreGameRosterMod
         className={[
           'rounded-full font-bold',
           r.is_captain
-            ? 'border-foreground bg-foreground text-background hover:bg-foreground/90 hover:text-background'
+            ? 'border-transparent bg-selected text-selected-foreground hover:bg-selected/90 hover:text-selected-foreground'
             : 'text-muted-foreground',
         ].join(' ')}
       >
@@ -430,7 +430,7 @@ export default function PreGameRosterModal({ gameId, onClose }: PreGameRosterMod
         className={[
           'rounded-full font-bold',
           r.is_libero
-            ? 'border-foreground bg-foreground text-background hover:bg-foreground/90 hover:text-background'
+            ? 'border-transparent bg-selected text-selected-foreground hover:bg-selected/90 hover:text-selected-foreground'
             : 'text-muted-foreground',
         ].join(' ')}
       >
@@ -489,7 +489,7 @@ export default function PreGameRosterModal({ gameId, onClose }: PreGameRosterMod
                   onChange={(e) => setRow(r.member, {
                     number: e.target.value === '' ? null : Number(e.target.value),
                   })}
-                  className="h-11 w-14 rounded-md border bg-background sm:h-9 text-center text-base font-bold tabular-nums"
+                  className="h-11 w-14 rounded-lg border border-input bg-card sm:h-9 text-center text-base font-bold tabular-nums focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-input/20"
                 />
               ) : jerseyCell(r)}
             </TableCell>
@@ -529,7 +529,7 @@ export default function PreGameRosterModal({ gameId, onClose }: PreGameRosterMod
   )
 
   const sectionTitle = (label: string) => (
-    <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+    <h4 className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
       {label}
     </h4>
   )
@@ -703,7 +703,7 @@ export default function PreGameRosterModal({ gameId, onClose }: PreGameRosterMod
                     onChange={(e) => onSearch(e.target.value)}
                     placeholder={t('pregameOfficialSearch')}
                     aria-label={t('pregameAddOfficial')}
-                    className="h-11 w-full rounded-md border bg-background px-3 text-sm sm:h-9"
+                    className="h-11 w-full rounded-lg border border-input bg-card px-3 text-sm placeholder:text-muted-foreground/70 sm:h-9 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-input/20"
                   />
                   {search.trim().length >= 2 && !searching && (
                     candidates.filter((c) => !officials.some((o) => o.ref === c.ref)).length > 0 ? (

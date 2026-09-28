@@ -73,7 +73,7 @@ export function FederationGroupHeader({
 
   const title = (
     <>
-      <span className="text-sm font-semibold text-gray-900 dark:text-white">
+      <span className="text-sm font-semibold text-foreground">
         {group.label || t('trUnknownFederation')}
       </span>
       <Badge variant="neutral">{t('trMemberCount', { count: group.rows.length })}</Badge>
@@ -96,11 +96,11 @@ export function FederationGroupHeader({
             className="flex min-h-[44px] items-center gap-3 text-left sm:min-h-0"
           >
             {/* ⚠ This arrow is the ONLY affordance saying the collapsed cohorts
-                open, and it had no dark variant — `text-gray-400` on a
-                `dark:bg-gray-800/50` card. Every other de-emphasised element on
+                open, and it had no dark variant — `text-muted-foreground/80` on a
+                dark card. Every other de-emphasised element on
                 this page pairs its gray with an explicit dark one. */}
             <ChevronRight
-              className={`h-4 w-4 shrink-0 text-gray-400 transition-transform dark:text-gray-300 ${open ? 'rotate-90' : ''}`}
+              className={`h-4 w-4 shrink-0 text-muted-foreground/80 transition-transform ${open ? 'rotate-90' : ''}`}
               aria-hidden="true"
             />
             {title}
@@ -111,12 +111,12 @@ export function FederationGroupHeader({
 
         {columns.vis && (
           <span className="flex items-center gap-2" title={visBreakdown}>
-            <span className="text-xs font-medium text-gray-600 dark:text-gray-300">
+            <span className="text-xs font-medium text-muted-foreground">
               {t('trInVisOfTotal', { inVis: visCounts.inVis, total })}
             </span>
             <span
               aria-hidden="true"
-              className="flex h-1 w-16 shrink-0 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700"
+              className="flex h-1 w-16 shrink-0 overflow-hidden rounded-full bg-stone-200/80 dark:bg-muted"
             >
               <span className="bg-green-500 dark:bg-green-400" style={{ width: width(visCounts.inVis) }} />
               <span className="bg-amber-500 dark:bg-amber-400" style={{ width: width(visCounts.notFound) }} />
@@ -133,14 +133,14 @@ export function FederationGroupHeader({
             {!federation ? (
               // No directory row for this ISO — say so plainly. An empty mailto:
               // would look like a working contact and silently go nowhere.
-              <span className="text-xs text-gray-500 dark:text-gray-400">
+              <span className="text-xs text-muted-foreground">
                 {t('trVisFederationMissing', { code: group.key || '—' })}
               </span>
             ) : (
               <>
-                <span className="text-xs font-medium text-gray-700 dark:text-gray-200">{federationName}</span>
+                <span className="text-xs font-medium text-foreground/85">{federationName}</span>
                 {emails.length === 0 ? (
-                  <span className="text-xs text-gray-500 dark:text-gray-400">{t('trVisNoEmail')}</span>
+                  <span className="text-xs text-muted-foreground">{t('trVisNoEmail')}</span>
                 ) : (
                   <span className="inline-flex flex-wrap items-center gap-1">
                     {/* mailto on the FIRST address only — VIS lists several for
@@ -159,7 +159,7 @@ export function FederationGroupHeader({
                     />
                     {emails.length > 1 && (
                       <span
-                        className="text-xs text-gray-400 dark:text-gray-500"
+                        className="text-xs text-muted-foreground/80"
                         title={emails.slice(1).join('; ')}
                       >
                         {t('trVisMoreAddresses', { count: emails.length - 1 })}

@@ -84,7 +84,7 @@ function TokenReadout({ text }: { text: string }) {
           {tok.raw}
         </span>
       ))}
-      <span className="text-xs text-gray-500 dark:text-gray-400">
+      <span className="text-xs text-muted-foreground">
         {unique.every((tok) => tok.field) ? t('mailboxTokenAllKnown') : t('mailboxTokenSomeUnknown')}
       </span>
     </div>
@@ -792,21 +792,21 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
               className="cursor-pointer"
             >
               {/* Date — own column on ≥sm; folded into the content cell on mobile so it can't eat the subject's width */}
-              <TableCell className="hidden whitespace-nowrap align-top text-xs text-gray-500 sm:table-cell dark:text-gray-400">
+              <TableCell className="hidden whitespace-nowrap align-top text-xs text-muted-foreground sm:table-cell">
                 {when}
               </TableCell>
-              <TableCell title={who} className={`hidden max-w-44 truncate align-top sm:table-cell ${isUnread ? 'font-semibold text-gray-900 dark:text-gray-100' : 'text-gray-600 dark:text-gray-400'}`}>
+              <TableCell title={who} className={`hidden max-w-44 truncate align-top sm:table-cell ${isUnread ? 'font-semibold text-foreground' : 'text-muted-foreground'}`}>
                 {who}
               </TableCell>
               {/* whitespace-normal overrides the cell default (nowrap) so the subject wraps instead of overflowing the viewport */}
               <TableCell className="whitespace-normal align-top">
                 {/* Mobile header line: sender (truncates) + date (right, never overflows) — mail-client style */}
                 <div className="mb-0.5 flex items-baseline gap-2 sm:hidden">
-                  <span title={who} className={`min-w-0 flex-1 truncate text-xs ${isUnread ? 'font-semibold text-gray-700 dark:text-gray-200' : 'text-gray-500 dark:text-gray-400'}`}>{who}</span>
-                  <span className="flex-shrink-0 whitespace-nowrap text-xs text-gray-400 dark:text-gray-500">{when}</span>
+                  <span title={who} className={`min-w-0 flex-1 truncate text-xs ${isUnread ? 'font-semibold text-foreground/85' : 'text-muted-foreground'}`}>{who}</span>
+                  <span className="flex-shrink-0 whitespace-nowrap text-xs text-muted-foreground/80">{when}</span>
                 </div>
-                <div className={`flex flex-wrap items-center gap-1.5 ${isUnread ? 'font-semibold text-gray-900 dark:text-gray-100' : 'text-gray-700 dark:text-gray-300'}`}>
-                  {isUnread && <span aria-hidden className="mt-1.5 inline-block h-2 w-2 flex-shrink-0 self-start rounded-full bg-brand-600 sm:mt-0 sm:self-auto" />}
+                <div className={`flex flex-wrap items-center gap-1.5 ${isUnread ? 'font-semibold text-foreground' : 'text-foreground/85'}`}>
+                  {isUnread && <span aria-hidden className="mt-1.5 inline-block h-2 w-2 flex-shrink-0 self-start rounded-full bg-primary sm:mt-0 sm:self-auto" />}
                   <span className="min-w-0 break-words">{msg.subject || t('mailboxNoSubject')}</span>
                   {msg.has_attachments && <span aria-hidden title={t('mailboxAttachments')} className="inline-flex flex-shrink-0"><Paperclip className="h-3.5 w-3.5" /></span>}
                   {chipOpp && (
@@ -814,7 +814,7 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
                   )}
                 </div>
                 {msg.snippet && (
-                  <TruncatedText as="div" text={msg.snippet} className="mt-0.5 text-xs text-gray-400 dark:text-gray-500" />
+                  <TruncatedText as="div" text={msg.snippet} className="mt-0.5 text-xs text-muted-foreground/80" />
                 )}
               </TableCell>
             </TableRow>
@@ -830,7 +830,7 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
   // snippet cell is nowrap — stacking keeps everything wide and wrap-friendly, no
   // horizontal scroll.
   const renderThread = (list: MailboxMessage[]) => (
-    <ul className="divide-y divide-gray-100 dark:divide-gray-800">
+    <ul className="divide-y divide-border/60">
       {list.map((msg) => {
         const isUnread = msg.direction === 'in' && !msg.read_at
         const when = msg.date_sent ? formatDateTimeCompact(msg.date_sent) : '—'
@@ -840,22 +840,22 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
             <button
               type="button"
               onClick={() => void openMessage(msg.id)}
-              className="flex w-full flex-col gap-0.5 px-1 py-2 text-left hover:bg-gray-50 dark:hover:bg-gray-800/50"
+              className="flex w-full flex-col gap-0.5 px-1 py-2 text-left hover:bg-accent"
             >
               {/* Line 1: date + correspondent */}
-              <div className="flex items-baseline gap-2 text-xs text-gray-500 dark:text-gray-400">
+              <div className="flex items-baseline gap-2 text-xs text-muted-foreground">
                 <span className="whitespace-nowrap">{when}</span>
                 <span className="min-w-0 flex-1 truncate" title={who}>{who}</span>
-                {isUnread && <span aria-hidden className="h-2 w-2 flex-shrink-0 self-center rounded-full bg-brand-600" />}
+                {isUnread && <span aria-hidden className="h-2 w-2 flex-shrink-0 self-center rounded-full bg-primary" />}
               </div>
               {/* Line 2: subject — full width, wraps */}
-              <div className={`flex items-center gap-1.5 text-sm ${isUnread ? 'font-semibold text-gray-900 dark:text-gray-100' : 'text-gray-700 dark:text-gray-300'}`}>
+              <div className={`flex items-center gap-1.5 text-sm ${isUnread ? 'font-semibold text-foreground' : 'text-foreground/85'}`}>
                 <span className="min-w-0 break-words">{msg.subject || t('mailboxNoSubject')}</span>
                 {msg.has_attachments && <span aria-hidden title={t('mailboxAttachments')} className="inline-flex flex-shrink-0"><Paperclip className="h-3.5 w-3.5" /></span>}
               </div>
               {/* Line 3: preview — full width, clamped to 2 lines */}
               {msg.snippet && (
-                <div className="line-clamp-2 break-words text-xs text-gray-400 dark:text-gray-500">{msg.snippet}</div>
+                <div className="line-clamp-2 break-words text-xs text-muted-foreground/80">{msg.snippet}</div>
               )}
             </button>
           </li>
@@ -885,12 +885,12 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
       size="sm"
       className={`gap-1.5 text-sm ${
         folder === key
-          ? 'bg-brand-50 text-brand-700 hover:bg-brand-50 hover:text-brand-700 dark:bg-brand-900/40 dark:text-gold-400 dark:hover:bg-brand-900/40 dark:hover:text-gold-400'
-          : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'
+          ? 'bg-selected text-selected-foreground hover:bg-selected/90 hover:text-selected-foreground'
+          : 'text-muted-foreground hover:bg-accent'
       }`}
     >
       <span>{label}</span>
-      <span className="text-xs text-gray-400 tabular-nums dark:text-gray-500">{count}</span>
+      <span className="text-xs text-muted-foreground/80 tabular-nums">{count}</span>
     </Button>
   )
 
@@ -926,25 +926,25 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
     c.mode === 'group' ? (
       <div className="space-y-3">
         <div>
-          <label className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('mailboxTo')}</label>
+          <label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t('mailboxTo')}</label>
           {/* The To box holds whole audiences AND individual people side by
               side. An audience chip can be unfolded into its members, which is
               the only way to drop one person from an otherwise-right group. */}
-          <div className="mt-1 flex min-h-11 flex-wrap items-center gap-1.5 rounded-md border border-gray-300 bg-white p-2 dark:border-gray-600 dark:bg-gray-900">
+          <div className="mt-1 flex min-h-11 flex-wrap items-center gap-1.5 rounded-lg border border-input bg-card p-2 dark:bg-input/20">
             {(c.clauses ?? []).length === 0 && (c.picked ?? []).length === 0 && (
-              <span className="px-1 text-sm text-gray-400 dark:text-gray-500">{t('mailboxRecipientsEmpty')}</span>
+              <span className="px-1 text-sm text-muted-foreground/80">{t('mailboxRecipientsEmpty')}</span>
             )}
             {(c.clauses ?? []).map((clause, ci) => (
               <span
                 key={clause.join('|')}
-                className="inline-flex min-h-8 items-center gap-1 rounded-full border border-brand-500 bg-brand-500 px-2.5 py-0.5 text-xs text-white"
+                className="inline-flex min-h-8 items-center gap-1 rounded-full border border-primary bg-primary px-2.5 py-0.5 text-xs text-primary-foreground"
               >
                 <Users className="h-3 w-3 flex-shrink-0" />
                 {/* The whole drilled path, so a narrowed filter never reads as
                     the broad audience it was narrowed from. */}
                 <span>{clause.map(keyLabel).join(' · ')}</span>
                 {clause.length === 1 && keyCount(clause[0]) != null && (
-                  <span className="text-white/80">{keyCount(clause[0])}</span>
+                  <span className="text-primary-foreground/80">{keyCount(clause[0])}</span>
                 )}
                 <button
                   type="button"
@@ -974,7 +974,7 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
               <span
                 key={String(r.id)}
                 title={r.email}
-                className="inline-flex min-h-8 items-center gap-1 rounded-full border border-gray-300 bg-gray-100 px-2.5 py-0.5 text-xs text-gray-700 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+                className="inline-flex min-h-8 items-center gap-1 rounded-full border border-border bg-muted px-2.5 py-0.5 text-xs text-foreground/85"
               >
                 <span>{recipientLabel(r)}</span>
                 <button
@@ -982,7 +982,7 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
                   onClick={() => setCompose({ ...c, picked: (c.picked ?? []).filter((p) => String(p.id) !== String(r.id)) })}
                   aria-label={t('mailboxRemoveRecipient')}
                   title={t('mailboxRemoveRecipient')}
-                  className="rounded p-0.5 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+                  className="rounded p-0.5 text-muted-foreground/80 hover:bg-accent hover:text-foreground"
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>
@@ -1012,8 +1012,8 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
               {t('mailboxPasteOpen')}
             </Button>
           ) : (
-            <div className="mt-2 rounded-md border border-gray-200 p-3 dark:border-gray-700">
-              <label className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+            <div className="mt-2 rounded-xl border border-hairline bg-surface-sunken p-3">
+              <label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                 {t('mailboxPasteTargetLabel')}
               </label>
               {/* Stated as three consequences, not three field names: the
@@ -1033,13 +1033,13 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
                   </Button>
                 ))}
               </div>
-              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              <p className="mt-1 text-xs text-muted-foreground">
                 {t(pasteTarget === 'to' ? 'mailboxPasteTargetToHint' : 'mailboxPasteTargetCopyHint', {
                   max: SES_MAX_PER_MESSAGE,
                 })}
               </p>
 
-              <label className="mt-3 block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+              <label className="mt-3 block text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                 {t('mailboxPasteLabel')}
               </label>
               <textarea
@@ -1047,10 +1047,10 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
                 onChange={(e) => setPasteText(e.target.value)}
                 rows={5}
                 placeholder={t('mailboxPastePlaceholder')}
-                className="mt-1 w-full rounded-md border border-gray-300 bg-white px-2.5 py-1.5 font-mono text-xs text-gray-900 placeholder:text-gray-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500"
+                className="mt-1 w-full rounded-lg border border-input bg-card px-2.5 py-1.5 font-mono text-xs text-foreground placeholder:text-muted-foreground/70 focus-visible:border-primary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-input/20"
               />
               <div className="mt-2 flex flex-wrap items-center gap-2">
-                <span className="text-xs text-gray-500 dark:text-gray-400">
+                <span className="text-xs text-muted-foreground">
                   {t('mailboxPasteCount', { count: parseAddressList(pasteText).length })}
                 </span>
                 <div className="ml-auto flex shrink-0 gap-2">
@@ -1077,7 +1077,7 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
 
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('mailboxCc')}</label>
+            <label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t('mailboxCc')}</label>
             <EmailChipsInput
               value={c.cc}
               onChange={(cc) => setCompose({ ...c, cc })}
@@ -1086,7 +1086,7 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
             />
           </div>
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('mailboxBcc')}</label>
+            <label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t('mailboxBcc')}</label>
             <EmailChipsInput
               value={c.bcc ?? ''}
               onChange={(bcc) => setCompose({ ...c, bcc })}
@@ -1099,7 +1099,7 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
             behaves like Cc on a normal mail, and here it cannot — one copy is
             the whole point, and getting it wrong means N copies to one person. */}
         {((c.cc ?? '').trim() || (c.bcc ?? '').trim()) && (
-          <p className="text-xs text-gray-500 dark:text-gray-400">{t('mailboxCcOnceHint')}</p>
+          <p className="text-xs text-muted-foreground">{t('mailboxCcOnceHint')}</p>
         )}
         {/* The other half of "one copy": one copy is one message, and a message
             has a recipient ceiling. Said here rather than left to a send-time
@@ -1115,24 +1115,24 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
             adding a separate audience — "Volleyball" then "All coaches" is the
             20 volleyball coaches, not 309 people. Committing it as one chip is
             what lets several narrowed filters be mixed in one message. */}
-        <div className="rounded-md border border-gray-200 p-3 dark:border-gray-700">
-          <label className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('mailboxGroupLabel')}</label>
+        <div className="rounded-xl border border-hairline bg-surface-sunken p-3">
+          <label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t('mailboxGroupLabel')}</label>
 
           <div className="mt-1 flex flex-wrap items-center gap-1.5">
             {(c.draft ?? []).length === 0 ? (
-              <span className="text-xs text-gray-400 dark:text-gray-500">{t('mailboxDrillStart')}</span>
+              <span className="text-xs text-muted-foreground/80">{t('mailboxDrillStart')}</span>
             ) : (
               (c.draft ?? []).map((key, i) => (
                 <span key={key} className="inline-flex items-center gap-1">
-                  {i > 0 && <span className="text-gray-400 dark:text-gray-500">›</span>}
-                  <span className="inline-flex min-h-8 items-center gap-1 rounded-full border border-gray-300 bg-gray-100 px-2.5 py-0.5 text-xs text-gray-700 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
+                  {i > 0 && <span className="text-muted-foreground/80">›</span>}
+                  <span className="inline-flex min-h-8 items-center gap-1 rounded-full border border-border bg-muted px-2.5 py-0.5 text-xs text-foreground/85">
                     {keyLabel(key)}
                     <button
                       type="button"
                       onClick={() => setCompose({ ...c, draft: (c.draft ?? []).filter((k) => k !== key) })}
                       aria-label={t('mailboxRemoveRecipient')}
                       title={t('mailboxRemoveRecipient')}
-                      className="rounded p-0.5 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+                      className="rounded p-0.5 text-muted-foreground/80 hover:bg-accent hover:text-foreground"
                     >
                       <X className="h-3.5 w-3.5" />
                     </button>
@@ -1147,8 +1147,8 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
               resolves to nothing — so this row would sit on a spinner that never
               finishes before the operator had picked anything. */}
           {draftAudienceKeys.length > 0 && (
-            <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-gray-200 pt-2 dark:border-gray-700">
-              <span className="text-xs text-gray-500 dark:text-gray-400">
+            <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-border pt-2">
+              <span className="text-xs text-muted-foreground">
                 {draftCount == null
                   ? <span className="inline-flex items-center gap-1.5"><InlineSpinner /> {t('mailboxPreviewLoading')}</span>
                   : t('mailboxDrillCount', { count: draftCount })}
@@ -1217,7 +1217,7 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
     ) : (
       <>
         <div>
-          <label className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('mailboxTo')}</label>
+          <label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t('mailboxTo')}</label>
           <EmailChipsInput
             value={c.to}
             onChange={(to) => setCompose({ ...c, to })}
@@ -1225,7 +1225,7 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
           />
         </div>
         <div>
-          <label className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('mailboxCc')}</label>
+          <label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t('mailboxCc')}</label>
           <EmailChipsInput
             value={c.cc}
             onChange={(cc) => setCompose({ ...c, cc })}
@@ -1250,19 +1250,19 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
   const composeMessage = (c: ComposeState) => (
     <>
       {c.mode === 'forward' && (c.forwardAttachCount ?? 0) > 0 && (
-        <p className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <Paperclip className="h-3.5 w-3.5" />
           {t('mailboxForwardAttachments', { count: c.forwardAttachCount })}
         </p>
       )}
       <div>
-        <label className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('mailboxSubject')}</label>
+        <label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t('mailboxSubject')}</label>
         <input
           type="text"
           value={c.subject}
           onChange={(e) => setCompose({ ...c, subject: e.target.value })}
           maxLength={300}
-          className="mt-1 w-full rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+          className="mt-1 w-full rounded-lg border border-input bg-card px-2.5 py-1.5 text-sm text-foreground focus-visible:border-primary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-input/20"
         />
         {/* A text input cannot colour part of its own value, so the subject's
             tokens are echoed underneath instead — same blue/red meaning as the
@@ -1270,7 +1270,7 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
         {c.mode === 'group' && <TokenReadout text={c.subject} />}
       </div>
       <div>
-        <label className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('mailboxBody')}</label>
+        <label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t('mailboxBody')}</label>
         <div className="mt-1">
           <RichTextEditor
             value={c.html}
@@ -1289,10 +1289,10 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
                 German and an English name for every field, and hardcoding the
                 German pair here is what made the feature look German-only to
                 an English-speaking operator. */}
-            <p className="text-xs text-gray-500 dark:text-gray-400">
+            <p className="text-xs text-muted-foreground">
               {t('mailboxGroupMergeHint', { first: mergeToken('first'), last: mergeToken('last') })}
             </p>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
+            <p className="text-xs text-muted-foreground">
               {t('mailboxMergeMoreHint', {
                 fields: MERGE_TOKEN_KEYS.map((k) => mergeToken(k)).join(' · '),
               })}
@@ -1317,7 +1317,7 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
               >
                 {mergePreviewLoading ? <InlineSpinner /> : t('mailboxMergePreviewOpen')}
               </Button>
-              <span className="text-xs text-gray-500 dark:text-gray-400">{t('mailboxMergePreviewHint')}</span>
+              <span className="text-xs text-muted-foreground">{t('mailboxMergePreviewHint')}</span>
             </div>
           </div>
         )}
@@ -1331,19 +1331,19 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
           constant from scheduling-signature.js, never user input. */}
       {signatureHtml && (
         <div>
-          <label className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('mailboxSignatureLabel')}</label>
-          <div className="mt-1 rounded-md border border-dashed border-gray-300 bg-gray-50 p-3 dark:border-gray-600 dark:bg-gray-900/50">
+          <label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t('mailboxSignatureLabel')}</label>
+          <div className="mt-1 rounded-lg border border-dashed border-input bg-surface-sunken p-3">
             {/* Emails render on white in every client; pinning it here keeps
                 the crest and the blue text legible in the app's dark theme. */}
             <div className="overflow-x-auto rounded bg-white p-2">
               <div dangerouslySetInnerHTML={{ __html: signatureHtml }} />
             </div>
-            <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{t('mailboxSignatureHint')}</p>
+            <p className="mt-2 text-xs text-muted-foreground">{t('mailboxSignatureHint')}</p>
           </div>
         </div>
       )}
       <div>
-        <label className="inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-700 hover:bg-gray-50 sm:min-h-9 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">
+        <label className="inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-lg border border-border bg-card px-3 text-sm text-foreground/85 hover:bg-accent hover:text-foreground sm:min-h-9 dark:bg-transparent">
           <Paperclip className="h-4 w-4" />
           {t('mailboxAttach')}
           <input
@@ -1356,16 +1356,16 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
         {c.attachments.length > 0 && (
           <ul className="mt-2 space-y-1">
             {c.attachments.map((f, i) => (
-              <li key={`${f.name}-${f.size}-${i}`} className="flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-xs dark:border-gray-700 dark:bg-gray-900">
-                <Paperclip className="h-3.5 w-3.5 flex-shrink-0 text-gray-400" />
-                <TruncatedText text={f.name} className="flex-1 text-gray-700 dark:text-gray-200" />
-                <span className="flex-shrink-0 text-gray-400 dark:text-gray-500">{formatBytes(f.size)}</span>
+              <li key={`${f.name}-${f.size}-${i}`} className="flex items-center gap-2 rounded-lg border border-hairline bg-surface-sunken px-2 py-1 text-xs">
+                <Paperclip className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground/80" />
+                <TruncatedText text={f.name} className="flex-1 text-foreground/85" />
+                <span className="flex-shrink-0 text-muted-foreground/80">{formatBytes(f.size)}</span>
                 <button
                   type="button"
                   onClick={() => removeAttachment(i)}
                   aria-label={t('mailboxRemoveAttachment')}
                   title={t('mailboxRemoveAttachment')}
-                  className="flex-shrink-0 rounded p-0.5 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+                  className="flex-shrink-0 rounded p-0.5 text-muted-foreground/80 hover:bg-accent hover:text-foreground"
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>
@@ -1395,7 +1395,7 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
           </DialogHeader>
 
           {gaps.length > 0 && (
-            <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200">
+            <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200">
               <p className="font-medium">{t('mailboxMergeGapsTitle')}</p>
               <ul className="mt-1 list-inside list-disc space-y-0.5">
                 {gaps.map(([key, n]) => (
@@ -1407,9 +1407,9 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
 
           <div className="max-h-[55vh] space-y-3 overflow-y-auto">
             {(mergePreview?.merge_samples ?? []).map((s, i) => (
-              <div key={i} className="rounded-md border border-gray-200 p-3 dark:border-gray-700">
-                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{s.name}</p>
-                <p className="mt-1 text-sm font-medium text-gray-900 dark:text-gray-100">{s.subject}</p>
+              <div key={i} className="rounded-xl border border-hairline bg-surface-sunken p-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{s.name}</p>
+                <p className="mt-1 text-sm font-medium text-foreground">{s.subject}</p>
                 {/* The server already runs sanitizeOutgoingHtml and escapes
                     merge values, but this renders in the app's own origin —
                     DOMPurify again client-side so a server-side regression
@@ -1421,7 +1421,7 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
               </div>
             ))}
             {(mergePreview?.merge_samples ?? []).length === 0 && (
-              <p className="text-sm text-gray-500 dark:text-gray-400">{t('mailboxMergePreviewEmpty')}</p>
+              <p className="text-sm text-muted-foreground">{t('mailboxMergePreviewEmpty')}</p>
             )}
           </div>
         </DialogContent>
@@ -1504,7 +1504,7 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
               floating bar belonging to the page rather than to this card. The
               composer is its own full-height screen, so scrolling to the end
               reaches Send anyway. */}
-          <div className="-mx-6 -mb-6 mt-6 flex items-center justify-end gap-2 rounded-b-lg border-t border-gray-200 bg-card px-6 py-3 dark:border-gray-700">
+          <div className="-mx-6 -mb-6 mt-6 flex items-center justify-end gap-2 rounded-b-2xl border-t border-hairline bg-surface-sunken/70 px-6 py-3">
             {composeActions(compose)}
           </div>
         </CardContent>
@@ -1524,7 +1524,7 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
           {configured && (
             <div className="ml-auto flex flex-wrap items-center gap-2">
               {lastSync && (
-                <span className="hidden text-xs text-gray-400 sm:inline dark:text-gray-500">
+                <span className="hidden text-xs text-muted-foreground/80 sm:inline">
                   {t('mailboxLastSync', { time: formatDateTimeCompact(lastSync) })}
                 </span>
               )}
@@ -1556,13 +1556,13 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
         </CardHeader>
         <CardContent>
           {configured === false ? (
-            <p className="text-sm text-gray-500 dark:text-gray-400">{t('mailboxNotConfigured')}</p>
+            <p className="text-sm text-muted-foreground">{t('mailboxNotConfigured')}</p>
           ) : messages.length === 0 ? (
-            <p className="text-sm text-gray-500 dark:text-gray-400">{t('mailboxEmpty')}</p>
+            <p className="text-sm text-muted-foreground">{t('mailboxEmpty')}</p>
           ) : (
             <>
               {/* Inbox / Sent folder tabs + (volleyball) KSCW-team filter */}
-              <div className="mb-3 flex flex-wrap items-center gap-2 border-b border-gray-200 pb-2 dark:border-gray-700">
+              <div className="mb-3 flex flex-wrap items-center gap-2 border-b border-border pb-2">
                 <div className="flex items-center gap-1">
                   {folderTab('inbox', t('mailboxFolderInbox'), inboxCount)}
                   {folderTab('sent', t('mailboxFolderSent'), sentCount)}
@@ -1572,7 +1572,7 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
                     value={effectiveTeamFilter}
                     onChange={(e) => setTeamFilter(e.target.value)}
                     aria-label={t('mailboxTeamFilterLabel')}
-                    className="ml-auto h-11 rounded-md border border-gray-300 bg-white px-2 py-1 text-sm text-gray-900 sm:h-9 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                    className="ml-auto h-11 rounded-lg border border-input bg-card px-2 py-1 text-sm text-foreground sm:h-9 focus-visible:border-primary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-gray-800"
                   >
                     <option value="">{t('mailboxTeamFilterAll')}</option>
                     {teamOptions.map((tm) => (
@@ -1587,16 +1587,16 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
                   value={search}
                   onChange={(e) => onSearchChange(e.target.value)}
                   placeholder={t('mailboxSearchPlaceholder')}
-                  className="h-11 w-full rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm sm:h-9 text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+                  className="h-11 w-full rounded-lg border border-input bg-card px-2.5 py-1.5 text-sm sm:h-9 text-foreground focus-visible:border-primary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-input/20"
                 />
                 {(searching || searchActive) && (
-                  <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                  <p className="mt-1 text-xs text-muted-foreground/80">
                     {searching ? t('mailboxSearching') : t('mailboxSearchCount', { count: list.length })}
                   </p>
                 )}
               </div>
               {!searching && list.length === 0 ? (
-                <p className="text-sm text-gray-500 dark:text-gray-400">{searchActive ? t('mailboxSearchEmpty') : t('mailboxFolderEmpty')}</p>
+                <p className="text-sm text-muted-foreground">{searchActive ? t('mailboxSearchEmpty') : t('mailboxFolderEmpty')}</p>
               ) : (
                 <>
                   {renderRows(visible, true)}
@@ -1626,12 +1626,12 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
             <DialogDescription className="break-words">{focusOpponent?.contact_email}</DialogDescription>
           </DialogHeader>
           {configured === false ? (
-            <p className="text-sm text-gray-500 dark:text-gray-400">{t('mailboxNotConfigured')}</p>
+            <p className="text-sm text-muted-foreground">{t('mailboxNotConfigured')}</p>
           ) : (
             <>
               <div className="max-h-[50vh] overflow-y-auto">
                 {focusMessages.length === 0
-                  ? <p className="text-sm text-gray-500 dark:text-gray-400">{t('mailboxEmpty')}</p>
+                  ? <p className="text-sm text-muted-foreground">{t('mailboxEmpty')}</p>
                   : renderThread(focusMessages)}
               </div>
               <div>
@@ -1664,10 +1664,10 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
                   title={detail.subject || t('mailboxNoSubject')}
                   srcDoc={emailSrcDoc(detail.body_html)}
                   sandbox=""
-                  className="h-96 w-full rounded-md border border-gray-200 bg-white dark:border-gray-700"
+                  className="h-96 w-full rounded-lg border border-border bg-white"
                 />
               ) : (
-                <div className="max-h-96 overflow-y-auto whitespace-pre-wrap rounded-md border border-gray-200 bg-gray-50 p-3 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
+                <div className="max-h-96 overflow-y-auto whitespace-pre-wrap rounded-lg border border-border bg-surface-sunken p-3 text-sm text-foreground">
                   {detail.body_text || ''}
                 </div>
               )}
@@ -1807,7 +1807,7 @@ function AudiencePicker({
 
   if (!groups) {
     return (
-      <p className="mt-2 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+      <p className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
         <InlineSpinner /> {t('mailboxGroupsLoading')}
       </p>
     )
@@ -1845,14 +1845,14 @@ function AudiencePicker({
         // min-h-11 on mobile keeps the touch target at 44px.
         className={`inline-flex min-h-11 items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition-colors sm:min-h-8 ${
           on
-            ? 'border-brand-500 bg-brand-500 text-white'
+            ? 'border-transparent bg-selected text-selected-foreground'
             : empty
-              ? 'cursor-not-allowed border-gray-200 bg-gray-50 text-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-600'
-              : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700'
+              ? 'cursor-not-allowed border-border bg-background text-muted-foreground/50'
+              : 'border-border bg-card text-foreground/85 hover:bg-accent dark:bg-transparent'
         }`}
       >
         <span>{labelFor(g)}</span>
-        {shown != null && <span className={on ? 'text-white/80' : 'text-gray-400 dark:text-gray-500'}>{shown}</span>}
+        {shown != null && <span className={on ? 'text-selected-foreground/80' : 'text-muted-foreground/80'}>{shown}</span>}
       </button>
     )
   }
@@ -1861,7 +1861,7 @@ function AudiencePicker({
     <div className="mt-1 space-y-2">
       {AUDIENCE_SECTIONS.filter((s) => bySection.has(s)).map((section) => (
         <div key={section}>
-          <p className="mb-1 text-[11px] font-medium text-gray-400 dark:text-gray-500">
+          <p className="mb-1 text-[11px] font-medium text-muted-foreground/80">
             {t(`mailboxSection_${section}`)}
             {/* Says what the chip reaches, so its disappearance when an
                 incompatible audience is picked is expected rather than a bug. */}
@@ -1873,7 +1873,7 @@ function AudiencePicker({
             <div className="space-y-1.5">
               {teamBuckets.map((bucket) => (
                 <div key={bucket.key}>
-                  <p className="mb-1 pl-0.5 text-[11px] text-gray-400 dark:text-gray-500">{bucketLabel(bucket.key)}</p>
+                  <p className="mb-1 pl-0.5 text-[11px] text-muted-foreground/80">{bucketLabel(bucket.key)}</p>
                   <div className="flex flex-wrap gap-1.5">{bucket.teams.map(chip)}</div>
                 </div>
               ))}
@@ -1889,7 +1889,7 @@ function AudiencePicker({
           onClick={onClear}
           variant="link"
           size="sm"
-          className="px-0 text-xs text-gray-500 underline dark:text-gray-400"
+          className="px-0 text-xs text-muted-foreground underline"
         >
           {t('mailboxGroupClear', { count: selected.length })}
         </Button>
@@ -1914,7 +1914,7 @@ function GroupPreview({ preview, loading, selected }: { preview: MailboxBulkPrev
   if (!selected) return null
   if (loading) {
     return (
-      <p className="mt-2 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+      <p className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
         <InlineSpinner /> {t('mailboxPreviewLoading')}
       </p>
     )
@@ -1923,12 +1923,12 @@ function GroupPreview({ preview, loading, selected }: { preview: MailboxBulkPrev
   const { skipped } = preview
   const excluded = skipped.noEmail + skipped.optedOut + skipped.duplicate + (skipped.suppressed ?? 0)
   return (
-    <div className="mt-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-xs dark:border-gray-700 dark:bg-gray-900">
-      <p className="font-semibold text-gray-900 dark:text-gray-100">
+    <div className="mt-2 rounded-lg border border-hairline bg-surface-sunken px-3 py-2 text-xs">
+      <p className="font-semibold text-foreground">
         {t('mailboxPreviewCount', { count: preview.recipient_count })}
       </p>
       {excluded > 0 && (
-        <p className="mt-1 text-gray-500 dark:text-gray-400">
+        <p className="mt-1 text-muted-foreground">
           {t('mailboxPreviewExcluded', {
             audience: preview.audience_size,
             noEmail: skipped.noEmail,
@@ -1943,7 +1943,7 @@ function GroupPreview({ preview, loading, selected }: { preview: MailboxBulkPrev
         </p>
       )}
       {preview.sample.length > 0 && (
-        <p className="mt-1 text-gray-500 dark:text-gray-400">
+        <p className="mt-1 text-muted-foreground">
           {t('mailboxPreviewSample', { names: preview.sample.join(', ') })}
         </p>
       )}
@@ -1999,13 +1999,13 @@ function MailboxAssign({
   if (opponentContacts.length === 0) return null
 
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-700 dark:bg-gray-900/50">
-      <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('mailboxAssignLabel')}</span>
+    <div className="flex flex-wrap items-center gap-2 rounded-xl border border-hairline bg-surface-sunken px-3 py-2">
+      <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t('mailboxAssignLabel')}</span>
       <select
         value={String(message.assigned_opponent ?? '')}
         disabled={saving}
         onChange={(e) => { setSaving(true); void onAssign(e.target.value ? Number(e.target.value) : null).finally(() => setSaving(false)) }}
-        className="h-11 min-w-[12rem] flex-1 rounded-md border border-gray-300 bg-white px-2 py-1 text-sm sm:h-9 text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+        className="h-11 min-w-[12rem] flex-1 rounded-lg border border-input bg-card px-2 py-1 text-sm sm:h-9 text-foreground focus-visible:border-primary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 dark:bg-gray-800"
       >
         <option value="">{t('mailboxAssignAuto')}</option>
         {groups.map(([team, list]) => (
@@ -2023,7 +2023,7 @@ function MailboxAssign({
       ) : ownerLabel ? (
         <Badge variant="info" size="sm" title={t('mailboxAssignAutoDetectedHint')}>{ownerLabel}</Badge>
       ) : (
-        <span className="text-xs italic text-gray-400 dark:text-gray-500">{t('mailboxAssignNotDetected')}</span>
+        <span className="text-xs italic text-muted-foreground/80">{t('mailboxAssignNotDetected')}</span>
       )}
     </div>
   )
@@ -2045,7 +2045,7 @@ function MailboxAttachments({ message, sport }: { message: MailboxMessageFull; s
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('mailboxAttachments')}:</span>
+      <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t('mailboxAttachments')}:</span>
       {attachments.map((a, i) => (
         <Button
           key={i}

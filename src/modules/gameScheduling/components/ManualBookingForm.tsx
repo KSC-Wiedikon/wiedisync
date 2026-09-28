@@ -205,11 +205,12 @@ export default function ManualBookingForm({ halls, defaultHomeHall, homeFixtures
     }
   }
 
-  const inputCls = 'w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 h-11 sm:h-9'
+  const fieldCls = 'w-full rounded-lg border border-input bg-card px-2 py-1.5 text-sm text-foreground focus-visible:border-primary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring h-11 sm:h-9'
+  const inputCls = `${fieldCls} dark:bg-input/20`
 
   if (!open) {
     return (
-      <div className="mt-3 border-t border-gray-200/70 pt-3 dark:border-gray-700/70">
+      <div className="mt-3 border-t border-border/70 pt-3">
         <Button
           type="button"
           onClick={() => setOpen(true)}
@@ -224,12 +225,12 @@ export default function ManualBookingForm({ halls, defaultHomeHall, homeFixtures
   }
 
   return (
-    <div className="mt-3 space-y-3 border-t border-gray-200/70 pt-3 dark:border-gray-700/70">
-      <p className="text-xs text-gray-500 dark:text-gray-400">{t('manualBookingHint')}</p>
+    <div className="mt-3 space-y-3 border-t border-border/70 pt-3">
+      <p className="text-xs text-muted-foreground">{t('manualBookingHint')}</p>
 
       {/* Home leg */}
-      <div className="rounded-md border border-gray-200 p-2 dark:border-gray-700">
-        <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-200">
+      <div className="rounded-xl border border-hairline bg-surface-sunken p-2">
+        <label className="flex items-center gap-2 text-sm font-medium text-foreground/85">
           <input
             type="checkbox" checked={homeOn}
             onChange={(e) => { setHomeOn(e.target.checked); if (e.target.checked) applyHomePrefill(selectedHome) }}
@@ -238,12 +239,12 @@ export default function ManualBookingForm({ halls, defaultHomeHall, homeFixtures
         </label>
         {homeOn && homeFixtures.length > 1 && (
           <label htmlFor="mbf-home-fixture" className="mt-2 block">
-            <span className="mb-0.5 block text-xs text-gray-500 dark:text-gray-400">{t('manualWhichGame')}</span>
+            <span className="mb-0.5 block text-xs text-muted-foreground">{t('manualWhichGame')}</span>
             <select
               id="mbf-home-fixture"
               value={homeFixtureId}
               onChange={(e) => { setHomeFixtureId(e.target.value); applyHomePrefill(homeFixtures.find((o) => String(o.id ?? '') === e.target.value)) }}
-              className={`${inputCls} dark:bg-gray-800`}
+              className={`${fieldCls} dark:bg-gray-800`}
             >
               {homeFixtures.map((o) => (
                 <option key={String(o.id ?? '')} value={String(o.id ?? '')}>
@@ -267,11 +268,11 @@ export default function ManualBookingForm({ halls, defaultHomeHall, homeFixtures
               <WeekdayHint date={homeDate} className="mt-0.5 block" />
             </div>
             <label htmlFor="mbf-home-start">
-              <span className="mb-0.5 block text-xs text-gray-500 dark:text-gray-400">{t('manualStart')}</span>
+              <span className="mb-0.5 block text-xs text-muted-foreground">{t('manualStart')}</span>
               <input id="mbf-home-start" type="time" value={homeStart} onChange={(e) => setHomeStart(e.target.value)} className={inputCls} />
             </label>
             <label htmlFor="mbf-home-hall" className="col-span-2 sm:col-span-1">
-              <span className="mb-0.5 block text-xs text-gray-500 dark:text-gray-400">{t('manualHall')}</span>
+              <span className="mb-0.5 block text-xs text-muted-foreground">{t('manualHall')}</span>
               <select
                 id="mbf-home-hall"
                 value={homeHall}
@@ -281,7 +282,7 @@ export default function ManualBookingForm({ halls, defaultHomeHall, homeFixtures
                   // The new primary can't also be an "also uses" court.
                   setHomeExtraHalls((prev) => prev.filter((x) => x !== next))
                 }}
-                className={`${inputCls} dark:bg-gray-800`}
+                className={`${fieldCls} dark:bg-gray-800`}
               >
                 <option value="">{t('manualSelectHall')}</option>
                 {orderedHalls.map((h) => (
@@ -295,7 +296,7 @@ export default function ManualBookingForm({ halls, defaultHomeHall, homeFixtures
                 "also uses" list with nothing to add to would be meaningless. */}
             {homeHall && orderedHalls.length > 1 && (
               <fieldset className="col-span-2">
-                <legend className="mb-0.5 block text-xs text-gray-500 dark:text-gray-400">{t('manualAlsoUses')}</legend>
+                <legend className="mb-0.5 block text-xs text-muted-foreground">{t('manualAlsoUses')}</legend>
                 <div className="flex flex-wrap gap-x-3 gap-y-1.5">
                   {orderedHalls.filter((h) => String(h.id) !== homeHall).map((h) => (
                     <label key={h.id} htmlFor={`mbf-extra-${h.id}`} className="flex min-h-[44px] items-center gap-1.5 text-sm sm:min-h-0">
@@ -312,7 +313,7 @@ export default function ManualBookingForm({ halls, defaultHomeHall, homeFixtures
                     </label>
                   ))}
                 </div>
-                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('manualAlsoUsesHint')}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{t('manualAlsoUsesHint')}</p>
               </fieldset>
             )}
           </div>
@@ -321,15 +322,15 @@ export default function ManualBookingForm({ halls, defaultHomeHall, homeFixtures
           <div className="mt-1.5"><ProposalContextHints hp={homeCtx} /></div>
         )}
         {homeHallMismatch && (
-          <p className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-700 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+          <p className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-700 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
             ⚠ {t('manualHallMismatchWarn')}
           </p>
         )}
       </div>
 
       {/* Away leg */}
-      <div className="rounded-md border border-gray-200 p-2 dark:border-gray-700">
-        <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-200">
+      <div className="rounded-xl border border-hairline bg-surface-sunken p-2">
+        <label className="flex items-center gap-2 text-sm font-medium text-foreground/85">
           <input
             type="checkbox" checked={awayOn}
             onChange={(e) => { setAwayOn(e.target.checked); if (e.target.checked) applyAwayPrefill(selectedAway) }}
@@ -338,12 +339,12 @@ export default function ManualBookingForm({ halls, defaultHomeHall, homeFixtures
         </label>
         {awayOn && awayFixtures.length > 1 && (
           <label htmlFor="mbf-away-fixture" className="mt-2 block">
-            <span className="mb-0.5 block text-xs text-gray-500 dark:text-gray-400">{t('manualWhichGame')}</span>
+            <span className="mb-0.5 block text-xs text-muted-foreground">{t('manualWhichGame')}</span>
             <select
               id="mbf-away-fixture"
               value={awayFixtureId}
               onChange={(e) => { setAwayFixtureId(e.target.value); applyAwayPrefill(awayFixtures.find((o) => String(o.id ?? '') === e.target.value)) }}
-              className={`${inputCls} dark:bg-gray-800`}
+              className={`${fieldCls} dark:bg-gray-800`}
             >
               {awayFixtures.map((o) => (
                 <option key={String(o.id ?? '')} value={String(o.id ?? '')}>
@@ -367,11 +368,11 @@ export default function ManualBookingForm({ halls, defaultHomeHall, homeFixtures
               <WeekdayHint date={awayDate} className="mt-0.5 block" />
             </div>
             <label htmlFor="mbf-away-start">
-              <span className="mb-0.5 block text-xs text-gray-500 dark:text-gray-400">{t('manualStart')}</span>
+              <span className="mb-0.5 block text-xs text-muted-foreground">{t('manualStart')}</span>
               <input id="mbf-away-start" type="time" value={awayStart} onChange={(e) => setAwayStart(e.target.value)} className={inputCls} />
             </label>
             <label htmlFor="mbf-away-place" className="col-span-2">
-              <span className="mb-0.5 block text-xs text-gray-500 dark:text-gray-400">{t('manualPlace')}</span>
+              <span className="mb-0.5 block text-xs text-muted-foreground">{t('manualPlace')}</span>
               <input id="mbf-away-place" type="text" value={awayPlace} onChange={(e) => setAwayPlace(e.target.value)} placeholder={t('manualPlacePlaceholder')} className={inputCls} />
             </label>
           </div>

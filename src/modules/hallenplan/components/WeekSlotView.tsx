@@ -293,14 +293,14 @@ export default function WeekSlotView({
   const { getTeamName, getTeamSport } = useTeamResolver(teams)
 
   return (
-    <div className="rounded-lg bg-white shadow-card dark:bg-gray-800">
+    <div className="rounded-2xl border border-hairline bg-card shadow-card">
       <div className="min-w-[700px] overflow-x-auto">
         {/* Day headers row */}
         <div
-          className="grid border-b border-gray-200 dark:border-gray-700"
+          className="grid border-b border-border"
           style={{ gridTemplateColumns: `60px repeat(${totalDataCols}, 1fr)` }}
         >
-          <div className="border-r border-gray-200 bg-gray-50 p-2 dark:border-gray-700 dark:bg-gray-900" />
+          <div className="border-r border-border bg-surface-sunken p-2" />
           {visibleDays.map((dayIndex) => {
             if (mergedSkipDays.has(dayIndex)) return null
             const mergedRun = mergedClosureRuns.get(dayIndex)
@@ -313,7 +313,7 @@ export default function WeekSlotView({
               return (
                 <div
                   key={dayIndex}
-                  className="border-r-2 border-gray-300 p-1 text-center text-sm last:border-r-0 dark:border-gray-600 text-gray-700 dark:text-gray-300"
+                  className="border-r-2 border-input p-1 text-center text-sm last:border-r-0 text-foreground/85"
                 >
                   <div className="font-medium">{DAY_HEADERS[dayIndex]} – {DAY_HEADERS[visibleDays[visibleDays.indexOf(dayIndex) + mergedRun.span - 1]]}</div>
                   <div className="text-xs">{firstStr} – {lastStr}</div>
@@ -326,8 +326,8 @@ export default function WeekSlotView({
             return (
               <div
                 key={dayIndex}
-                className={`border-r-2 border-gray-300 p-1 text-center text-sm last:border-r-0 dark:border-gray-600 ${
-                  dayIndex === todayIndex ? 'bg-brand-50 font-bold text-brand-700 dark:bg-brand-900/30 dark:text-brand-300' : 'text-gray-700 dark:text-gray-300'
+                className={`border-r-2 border-input p-1 text-center text-sm last:border-r-0 ${
+                  dayIndex === todayIndex ? 'bg-brand-50 font-bold text-brand-700 dark:bg-brand-900/30 dark:text-brand-300' : 'text-foreground/85'
                 }`}
                 style={{ gridColumn: `span ${colSpan}` }}
               >
@@ -351,17 +351,17 @@ export default function WeekSlotView({
         {/* Hall sub-headers (only when multi-hall) */}
         {multiHall && (
           <div
-            className="grid border-b border-gray-200 dark:border-gray-700"
+            className="grid border-b border-border"
             style={{ gridTemplateColumns: `60px repeat(${totalDataCols}, 1fr)` }}
           >
-            <div className="border-r border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900" />
+            <div className="border-r border-border bg-surface-sunken" />
             {visibleDays.map((dayIndex) => {
               if (mergedSkipDays.has(dayIndex)) return null
               if (allClosedDays.has(dayIndex)) {
                 return (
                   <div
                     key={`${dayIndex}-allclosed`}
-                    className="border-r-2 border-gray-300 px-0.5 py-0.5 text-center text-[10px] font-medium text-gray-500 dark:border-gray-600 dark:text-gray-400"
+                    className="border-r-2 border-input px-0.5 py-0.5 text-center text-[10px] font-medium text-muted-foreground"
                   >
                     {t('allHalls')}
                   </div>
@@ -371,8 +371,8 @@ export default function WeekSlotView({
               return dayHalls.map((hall, hi) => (
                 <div
                   key={`${dayIndex}-${hall.id}`}
-                  className={`flex min-w-0 flex-col items-center border-r px-0.5 py-0.5 text-center text-[10px] font-medium text-gray-500 dark:text-gray-400 ${
-                    hi === dayHalls.length - 1 ? 'border-r-2 border-gray-300 dark:border-gray-600' : 'border-gray-100 dark:border-gray-800'
+                  className={`flex min-w-0 flex-col items-center border-r px-0.5 py-0.5 text-center text-[10px] font-medium text-muted-foreground ${
+                    hi === dayHalls.length - 1 ? 'border-r-2 border-input' : 'border-border/60'
                   }`}
                 >
                   <span className="max-w-full break-words">{hall.name}</span>
@@ -397,7 +397,7 @@ export default function WeekSlotView({
           style={{ gridTemplateColumns: `60px repeat(${totalDataCols}, 1fr)` }}
         >
           {/* Time labels column */}
-          <div className="sticky left-0 z-30 border-r border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900">
+          <div className="sticky left-0 z-30 border-r border-border bg-surface-sunken">
             {timeLabels.map((row) => (
               row.isBreak ? (
                 <button
@@ -405,7 +405,7 @@ export default function WeekSlotView({
                   type="button"
                   onClick={() => row.breakKey && toggleBreak(row.breakKey)}
                   title={t('breakExpand', { from: row.time, to: row.breakEndTime })}
-                  className="flex w-full items-center justify-end gap-1 pr-2 text-[10px] text-gray-400 hover:text-brand-600 dark:text-gray-500 dark:hover:text-brand-400"
+                  className="flex w-full items-center justify-end gap-1 pr-2 text-[10px] text-muted-foreground/80 hover:text-primary dark:hover:text-brand-300"
                   style={{ height: row.height }}
                 >
                   <span className="tabular-nums">{row.time}–{row.breakEndTime}</span>
@@ -414,7 +414,7 @@ export default function WeekSlotView({
                 <div
                   key={row.time}
                   className={`flex items-start justify-end pr-2 text-xs ${
-                    row.isFullHour ? 'font-medium text-gray-500 dark:text-gray-400' : 'text-gray-300'
+                    row.isFullHour ? 'font-medium text-muted-foreground' : 'text-muted-foreground/50'
                   }`}
                   style={{ height: row.height }}
                 >
@@ -441,14 +441,14 @@ export default function WeekSlotView({
                 return (
                   <div
                     key={`${dayIndex}-allclosed`}
-                    className="relative border-r-2 border-gray-300 dark:border-gray-600"
+                    className="relative border-r-2 border-input"
                     style={{ height: gridHeight }}
                   >
                     {timeLabels.map((row) => (
                       row.isBreak ? (
                         <div
                           key={row.time}
-                          className="absolute inset-x-0 z-10 border-y border-dashed border-gray-300 bg-[repeating-linear-gradient(45deg,transparent,transparent_4px,rgba(148,163,184,0.18)_4px,rgba(148,163,184,0.18)_8px)] dark:border-gray-600"
+                          className="absolute inset-x-0 z-10 border-y border-dashed border-input bg-[repeating-linear-gradient(45deg,transparent,transparent_4px,rgba(148,163,184,0.18)_4px,rgba(148,163,184,0.18)_8px)]"
                           style={{ top: row.top, height: row.height }}
                         />
                       ) : (
@@ -456,8 +456,8 @@ export default function WeekSlotView({
                           key={row.time}
                           className={`absolute inset-x-0 ${
                             row.isFullHour
-                              ? 'border-b border-gray-200 dark:border-gray-700'
-                              : 'border-b border-dashed border-gray-100 dark:border-gray-800'
+                              ? 'border-b border-border'
+                              : 'border-b border-dashed border-border/60'
                           }`}
                           style={{ top: row.top }}
                         />
@@ -478,22 +478,22 @@ export default function WeekSlotView({
                 return (
                   <div
                     key={dayHallKey}
-                    className={`relative overflow-visible ${isLastInDay ? 'border-r-2 border-gray-300 dark:border-gray-600' : 'border-r border-gray-100 dark:border-r-gray-800'} ${(isAdmin || isCoach) ? 'cursor-cell' : ''}`}
+                    className={`relative overflow-visible ${isLastInDay ? 'border-r-2 border-input' : 'border-r border-border/60'} ${(isAdmin || isCoach) ? 'cursor-cell' : ''}`}
                     style={{ height: gridHeight }}
                     onClick={(e) => handleCellClick(dayIndex, hall.id, e)}
                   >
                     {inactiveTopH > 0 && (
-                      <div className="absolute inset-x-0 top-0 z-10 bg-gray-100/60 dark:bg-gray-900/40" style={{ height: inactiveTopH }} />
+                      <div className="absolute inset-x-0 top-0 z-10 bg-stone-100/60 dark:bg-gray-900/40" style={{ height: inactiveTopH }} />
                     )}
                     {inactiveBottomH > 0 && (
-                      <div className="absolute inset-x-0 bottom-0 z-10 bg-gray-100/60 dark:bg-gray-900/40" style={{ height: inactiveBottomH }} />
+                      <div className="absolute inset-x-0 bottom-0 z-10 bg-stone-100/60 dark:bg-gray-900/40" style={{ height: inactiveBottomH }} />
                     )}
 
                     {timeLabels.map((row) => (
                       row.isBreak ? (
                         <div
                           key={row.time}
-                          className="absolute inset-x-0 z-10 border-y border-dashed border-gray-300 bg-[repeating-linear-gradient(45deg,transparent,transparent_4px,rgba(148,163,184,0.18)_4px,rgba(148,163,184,0.18)_8px)] dark:border-gray-600"
+                          className="absolute inset-x-0 z-10 border-y border-dashed border-input bg-[repeating-linear-gradient(45deg,transparent,transparent_4px,rgba(148,163,184,0.18)_4px,rgba(148,163,184,0.18)_8px)]"
                           style={{ top: row.top, height: row.height }}
                         />
                       ) : (
@@ -501,8 +501,8 @@ export default function WeekSlotView({
                           key={row.time}
                           className={`absolute inset-x-0 ${
                             row.isFullHour
-                              ? 'border-b border-gray-200 dark:border-gray-700'
-                              : 'border-b border-dashed border-gray-100 dark:border-gray-800'
+                              ? 'border-b border-border'
+                              : 'border-b border-dashed border-border/60'
                           }`}
                           style={{ top: row.top }}
                         />
@@ -549,22 +549,22 @@ export default function WeekSlotView({
             return (
               <div
                 key={dayIndex}
-                className={`relative border-r-2 border-gray-300 last:border-r-0 dark:border-gray-600 ${(isAdmin || isCoach) ? 'cursor-cell' : ''}`}
+                className={`relative border-r-2 border-input last:border-r-0 ${(isAdmin || isCoach) ? 'cursor-cell' : ''}`}
                 style={{ height: gridHeight }}
                 onClick={(e) => handleCellClick(dayIndex, visibleHalls[0]?.id ?? '', e)}
               >
                 {inactiveTopH > 0 && (
-                  <div className="absolute inset-x-0 top-0 z-10 bg-gray-100/60 dark:bg-gray-900/40" style={{ height: inactiveTopH }} />
+                  <div className="absolute inset-x-0 top-0 z-10 bg-stone-100/60 dark:bg-gray-900/40" style={{ height: inactiveTopH }} />
                 )}
                 {inactiveBottomH > 0 && (
-                  <div className="absolute inset-x-0 bottom-0 z-10 bg-gray-100/60 dark:bg-gray-900/40" style={{ height: inactiveBottomH }} />
+                  <div className="absolute inset-x-0 bottom-0 z-10 bg-stone-100/60 dark:bg-gray-900/40" style={{ height: inactiveBottomH }} />
                 )}
 
                 {timeLabels.map((row) => (
                   row.isBreak ? (
                     <div
                       key={row.time}
-                      className="absolute inset-x-0 z-10 border-y border-dashed border-gray-300 bg-[repeating-linear-gradient(45deg,transparent,transparent_4px,rgba(148,163,184,0.18)_4px,rgba(148,163,184,0.18)_8px)] dark:border-gray-600"
+                      className="absolute inset-x-0 z-10 border-y border-dashed border-input bg-[repeating-linear-gradient(45deg,transparent,transparent_4px,rgba(148,163,184,0.18)_4px,rgba(148,163,184,0.18)_8px)]"
                       style={{ top: row.top, height: row.height }}
                     />
                   ) : (
@@ -572,8 +572,8 @@ export default function WeekSlotView({
                       key={row.time}
                       className={`absolute inset-x-0 ${
                         row.isFullHour
-                          ? 'border-b border-gray-200 dark:border-gray-700'
-                          : 'border-b border-dashed border-gray-100 dark:border-gray-800'
+                          ? 'border-b border-border'
+                          : 'border-b border-dashed border-border/60'
                       }`}
                       style={{ top: row.top }}
                     />

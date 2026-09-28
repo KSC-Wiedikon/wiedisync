@@ -195,8 +195,8 @@ export default function VolleyRefereesPage() {
 
   return (
     <div className="mx-auto w-full max-w-4xl px-4 py-6">
-      <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{t('vbRefTitle', { defaultValue: 'Volley referees' })}</h1>
-      <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+      <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">{t('vbRefTitle', { defaultValue: 'Volley referees' })}</h1>
+      <p className="mt-1 text-sm text-muted-foreground">
         {t('vbRefSubtitle', { defaultValue: 'Assign each referee to the team(s) they cover. “External” = duty outside Wiedikon.' })}
       </p>
 
@@ -211,12 +211,12 @@ export default function VolleyRefereesPage() {
             placeholder={t('vbRefAddPlaceholder', { defaultValue: 'Add a referee…' })}
           />
           {referees.length === 0 ? (
-            <p className="mt-6 rounded-lg border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+            <p className="mt-6 rounded-2xl border border-dashed border-input p-6 text-center text-sm text-muted-foreground">
               {t('vbRefNoReferees', { defaultValue: 'No VB referees yet. Add one with the search above.' })}
             </p>
           ) : (
             <>
-          <div className="mt-5 overflow-x-auto rounded-lg border dark:border-gray-700">
+          <div className="mt-5 overflow-x-auto rounded-2xl border border-hairline bg-card shadow-card">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -252,7 +252,7 @@ export default function VolleyRefereesPage() {
                       </TableCell>
                       <TableCell className="align-top">
                         <div className="flex flex-col gap-2">
-                          <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                          <label className="flex items-center gap-2 text-sm text-foreground/85">
                             <Switch checked={!!ext} onCheckedChange={(v) => toggleExternal(rid, v)} disabled={busy} />
                             {t('vbRefColExternal', { defaultValue: 'External' })}
                           </label>
@@ -263,7 +263,7 @@ export default function VolleyRefereesPage() {
                               onBlur={(e) => saveExternalLabel(rid, e.target.value)}
                               onKeyDown={(e) => { if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur() }}
                               placeholder={t('vbRefExternalPlaceholder', { defaultValue: 'Which club / pool (optional)' })}
-                              className="w-full rounded-md border border-gray-300 bg-white px-2 py-1 text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+                              className="w-full rounded-lg border border-input bg-card px-2 py-1 text-xs text-foreground placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-input/20"
                             />
                           )}
                         </div>
@@ -274,7 +274,7 @@ export default function VolleyRefereesPage() {
                           onClick={() => removeReferee(r)}
                           disabled={busy}
                           label={t('vbRefRemove', { defaultValue: 'Remove referee' })}
-                          className="text-gray-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+                          className="text-muted-foreground/80 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
                         >
                           <Trash2 />
                         </IconButton>
@@ -288,8 +288,8 @@ export default function VolleyRefereesPage() {
 
           {/* Coverage check */}
           <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
-              <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+            <div className="rounded-2xl border border-hairline bg-card p-4 shadow-card">
+              <h2 className="text-sm font-semibold text-foreground">
                 {t('vbRefTeamsWithoutReferee', { defaultValue: 'Teams with no referee' })}
               </h2>
               {teamsWithoutReferee.length === 0 ? (
@@ -302,14 +302,14 @@ export default function VolleyRefereesPage() {
                 </div>
               )}
             </div>
-            <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
-              <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+            <div className="rounded-2xl border border-hairline bg-card p-4 shadow-card">
+              <h2 className="text-sm font-semibold text-foreground">
                 {t('vbRefRefereesWithoutDuty', { defaultValue: 'Referees with no assignment' })}
               </h2>
               {refereesWithoutDuty.length === 0 ? (
                 <p className="mt-2 text-sm text-green-600 dark:text-green-400">{t('vbRefAllAssigned', { defaultValue: 'Every referee has a duty.' })}</p>
               ) : (
-                <ul className="mt-2 space-y-0.5 text-sm text-gray-600 dark:text-gray-300">
+                <ul className="mt-2 space-y-0.5 text-sm text-muted-foreground">
                   {refereesWithoutDuty.map((r) => (
                     <li key={r.id}>{`${r.nickname || r.first_name || ''} ${r.last_name ?? ''}`.trim() || `#${r.id}`}</li>
                   ))}
@@ -345,7 +345,7 @@ function AddRefereePicker({ options, onAdd, busy, placeholder }: {
 
   return (
     <div className="relative mt-4 max-w-sm">
-      <div className={`flex items-center gap-2 rounded-md border border-gray-200 bg-transparent px-3 py-2 dark:border-gray-600 ${busy ? 'opacity-60' : ''}`}>
+      <div className={`flex items-center gap-2 rounded-lg border border-input bg-card px-3 py-2 focus-within:ring-2 focus-within:ring-ring dark:bg-input/20 ${busy ? 'opacity-60' : ''}`}>
         <Search className="h-4 w-4 text-muted-foreground" />
         <input
           type="text"
@@ -359,14 +359,14 @@ function AddRefereePicker({ options, onAdd, busy, placeholder }: {
           onChange={(e) => { setSearch(e.target.value); setOpen(true) }}
           onFocus={() => setOpen(true)}
           placeholder={placeholder}
-          className="flex-1 bg-transparent text-sm outline-none dark:text-gray-100"
+          className="flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground/70"
         />
       </div>
 
       {open && filtered.length > 0 && (
-        <div id={listboxId} role="listbox" className="absolute z-50 mt-1 max-h-48 w-full overflow-y-auto rounded-md border border-gray-200 bg-white shadow-lg dark:border-gray-600 dark:bg-gray-800">
+        <div id={listboxId} role="listbox" className="absolute z-50 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border bg-popover p-1 text-popover-foreground shadow-xl">
           {filtered.length > 50 && (
-            <div className="sticky top-0 border-b border-gray-100 bg-gray-50 px-3 py-1.5 text-xs text-muted-foreground dark:border-gray-700 dark:bg-gray-900">
+            <div className="sticky top-0 border-b border-border/60 bg-popover px-3 py-1.5 text-xs text-muted-foreground">
               {t('showingFirstOf', { shown: 50, total: filtered.length })}
             </div>
           )}
@@ -377,7 +377,7 @@ function AddRefereePicker({ options, onAdd, busy, placeholder }: {
               role="option"
               aria-selected={false}
               onClick={() => { onAdd(o.id); setSearch(''); setOpen(false) }}
-              className="flex w-full items-center px-3 py-2 text-left text-sm hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-700"
+              className="flex w-full items-center rounded-md px-3 py-2 text-left text-sm text-foreground hover:bg-accent"
             >
               {o.label}
             </button>

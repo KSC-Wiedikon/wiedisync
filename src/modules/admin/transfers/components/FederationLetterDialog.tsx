@@ -74,7 +74,7 @@ export function FederationLetterDialog({ group, federationName, emails, open, on
             email address as ONE unbreakable token, and this box used to sit
             inside an `overflow-hidden` card with no scrollbar — so the very text
             the admin is told to copy was silently CLIPPED. */}
-        <p className="max-h-[50vh] overflow-y-auto rounded-md border border-gray-200 bg-white px-2 py-1.5 text-xs break-words whitespace-pre-line text-gray-600 dark:border-gray-700 dark:bg-gray-900/40 dark:text-gray-300">
+        <p className="max-h-[50vh] overflow-y-auto rounded-xl border border-hairline bg-surface-sunken px-2.5 py-2 text-xs break-words whitespace-pre-line text-muted-foreground">
           {body}
         </p>
 
@@ -83,7 +83,7 @@ export function FederationLetterDialog({ group, federationName, emails, open, on
           {mailto.href && (
             <a
               href={mailto.href}
-              className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-brand-300 px-2 py-1 text-xs font-medium text-brand-700 hover:bg-brand-50 sm:min-h-0 dark:border-brand-700 dark:text-brand-200 dark:hover:bg-brand-900/30"
+              className="inline-flex min-h-[44px] items-center gap-1 rounded-lg border border-brand-300 px-2 py-1 text-xs font-medium text-brand-700 hover:bg-brand-50 sm:min-h-0 dark:border-brand-700 dark:text-brand-200 dark:hover:bg-brand-900/30"
             >
               <Mail className="h-3.5 w-3.5" aria-hidden="true" />
               {t('trBulkCompose')}
@@ -91,7 +91,7 @@ export function FederationLetterDialog({ group, federationName, emails, open, on
           )}
         </div>
 
-        <p className="text-xs text-gray-400 dark:text-gray-500">{t(footerKey)}</p>
+        <p className="text-xs text-muted-foreground/80">{t(footerKey)}</p>
       </DialogContent>
     </Dialog>
   )

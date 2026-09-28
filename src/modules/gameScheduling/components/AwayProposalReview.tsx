@@ -40,7 +40,7 @@ const VM_CHECK_STYLE: Record<string, string> = {
   match: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
   unset: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200',
   mismatch: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
-  no_vm: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300',
+  no_vm: 'bg-muted text-muted-foreground',
 }
 
 // Proposals are stored as a naive wall-clock (`${date}T${start_time}`) but come
@@ -91,14 +91,14 @@ export default function AwayProposalReview({ booking, onConfirm, vmCheck, onSync
 
   // Who at the opponent club submitted this proposal (captured at confirm time).
   const proposedBy = (booking.proposed_by_name || booking.proposed_by_email) ? (
-    <p className="text-xs text-gray-500 dark:text-gray-400">
+    <p className="text-xs text-muted-foreground">
       {t('proposedBy')}: {[booking.proposed_by_name, booking.proposed_by_email].filter(Boolean).join(' · ')}
     </p>
   ) : null
 
   // Who on the KSCW side confirmed / manually entered this game, and when.
   const confirmedBy = (booking.confirmed_by_name || booking.confirmed_by_email || booking.confirmed_at) ? (
-    <p className="text-xs text-gray-500 dark:text-gray-400">
+    <p className="text-xs text-muted-foreground">
       {t('confirmedBy')}: {[booking.confirmed_by_name, booking.confirmed_by_email, booking.confirmed_at ? formatDateTimeCompact(booking.confirmed_at) : null].filter(Boolean).join(' · ')}
     </p>
   ) : null
@@ -110,7 +110,7 @@ export default function AwayProposalReview({ booking, onConfirm, vmCheck, onSync
         <div className="flex min-h-7 flex-wrap items-center gap-2">
           <BookingStatusBadge status="confirmed" />
           {confirmed && (
-            <span className="text-sm text-gray-600 dark:text-gray-400">
+            <span className="text-sm text-muted-foreground">
               {fmtProposal(confirmed.datetime)}
               {confirmed.place ? ` — ${confirmed.place}` : ''}
             </span>
@@ -142,7 +142,7 @@ export default function AwayProposalReview({ booking, onConfirm, vmCheck, onSync
               disabled={vmSyncing}
               variant="outline"
               size="sm"
-              className="border-red-300 text-red-700 hover:bg-red-50 hover:text-red-700 dark:border-red-700 dark:bg-gray-800 dark:text-red-300 dark:hover:bg-gray-700"
+              className="border-red-300 text-red-700 hover:bg-red-50 hover:text-red-700 dark:border-red-900/60 dark:text-red-300 dark:hover:bg-red-950/40"
             >
               {vmSyncing ? '…' : t('syncWithVm')}
             </Button>
@@ -172,15 +172,15 @@ export default function AwayProposalReview({ booking, onConfirm, vmCheck, onSync
       {proposals.map(p => (
         <div
           key={p.num}
-          className="flex items-center justify-between gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 dark:border-gray-600 dark:bg-gray-800"
+          className="flex items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2"
         >
           <div className="min-w-0">
-            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+            <span className="text-xs font-medium text-muted-foreground">
               {t('proposalNumber', { number: p.num })}
               {p.num === 1 && <span className="ml-1 text-green-700 dark:text-green-300">· {t('slotReserved')}</span>}
             </span>
-            <p className="text-sm text-gray-900 dark:text-gray-100">{fmtProposal(p.datetime)}</p>
-            {p.place && <p className="text-xs text-gray-500 dark:text-gray-400 break-words">{p.place}</p>}
+            <p className="text-sm text-foreground">{fmtProposal(p.datetime)}</p>
+            {p.place && <p className="text-xs text-muted-foreground break-words">{p.place}</p>}
             <ProposalContextHints hp={healthByNum.get(p.num)} />
           </div>
           {booking.status === 'pending' && (

@@ -238,10 +238,10 @@ export default function HallenplanPage() {
     <div>
       <div className="mb-4">
         <div className="flex items-center gap-2">
-          <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100 sm:text-2xl">{t('title')}</h1>
+          <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">{t('title')}</h1>
           <GuideHelpButton />
         </div>
-        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+        <p className="mt-1 text-sm text-muted-foreground">
           {isMobile
             ? t('subtitleDay')
             : t('subtitleWeek')}

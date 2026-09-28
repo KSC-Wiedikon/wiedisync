@@ -10,53 +10,64 @@
    and user agent of every member on every visit, while the privacy policy's Google
    entry claimed no personal data was transmitted. kscw-website solved this in f0550cb;
    these are the same two subset files.
-   `latin-ext` is fetched on demand via unicode-range; most views never need it. */
+   `latin-ext` is fetched on demand via unicode-range; most views never need it.
+   Since the 2026-09-28 restyle these are the optical-size ("opsz") variable builds
+   (@fontsource-variable/inter opsz, same filenames) so the body can pin "opsz" 32 —
+   Inter Display at every size, matching svrz_rc. */
 @font-face {
   font-family: 'Inter';
   font-style: normal;
-  font-weight: 300 800;
+  font-weight: 100 900;
   font-display: swap;
-  src: url('/fonts/inter-latin.woff2') format('woff2');
+  src: url('/fonts/inter-latin.woff2') format('woff2-variations'), url('/fonts/inter-latin.woff2') format('woff2');
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 @font-face {
   font-family: 'Inter';
   font-style: normal;
-  font-weight: 300 800;
+  font-weight: 100 900;
   font-display: swap;
-  src: url('/fonts/inter-latin-ext.woff2') format('woff2');
+  src: url('/fonts/inter-latin-ext.woff2') format('woff2-variations'), url('/fonts/inter-latin-ext.woff2') format('woff2');
   unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
 
 /* shadcn semantic tokens — mapped to KSCW brand colors */
 :root {
-  --background: hsl(0 0% 100%);
-  --foreground: hsl(222 47% 11%);
+  /* Light neutrals are warm stone (svrz_rc look, 2026-09-28); brand hues unchanged. */
+  --background: hsl(60 5% 96%);          /* stone-100 — page */
+  --foreground: hsl(24 10% 10%);         /* stone-900 */
   --card: hsl(0 0% 100%);
-  --card-foreground: hsl(222 47% 11%);
+  --card-foreground: hsl(24 10% 10%);
   --popover: hsl(0 0% 100%);
-  --popover-foreground: hsl(222 47% 11%);
+  --popover-foreground: hsl(24 10% 10%);
   --primary: hsl(231 38% 46%);
   --primary-foreground: hsl(0 0% 100%);
   --secondary: hsl(44 100% 60%);
   --secondary-foreground: hsl(0 0% 9%);
-  --muted: hsl(220 14% 96%);
-  --muted-foreground: hsl(220 9% 46%);
-  --accent: hsl(231 68% 96%);
-  --accent-foreground: hsl(231 38% 32%);
+  --muted: hsl(60 9% 98%);               /* stone-50 — tinted panels, table head, row hover */
+  --muted-foreground: hsl(25 5% 45%);    /* stone-500 */
+  --accent: hsl(60 5% 96%);              /* stone-100 — neutral ghost/outline hover */
+  --accent-foreground: hsl(24 10% 10%);
   --destructive: hsl(0 72% 51%);
   --destructive-foreground: hsl(0 0% 100%);
-  --border: hsl(220 13% 91%);
-  --input: hsl(220 13% 78%);
-  --ring: hsl(231 38% 46% / 0.4);
+  --border: hsl(20 6% 90%);              /* stone-200 */
+  --input: hsl(24 6% 83%);               /* stone-300 — control borders */
+  --ring: hsl(231 38% 46% / 0.5);
   --radius: 0.5rem;
-  --sidebar-background: hsl(0 0% 98%);
+  /* Inverted neutral for selection/active (nav, segmented, pills) — never primary. */
+  --selected: hsl(222 47% 11%);
+  --selected-foreground: hsl(0 0% 100%);
+  --surface-sunken: hsl(60 9% 98%);      /* stone-50 — inner blocks */
+  --hairline: hsl(20 6% 90% / 0.7);      /* stone-200/70 — card hairline */
+  --shadow-card-value: 0 1px 2px -1px rgb(28 25 23 / 0.06), 0 6px 20px -8px rgb(28 25 23 / 0.12);
+  --shadow-card-lg-value: 0 2px 4px -2px rgb(28 25 23 / 0.08), 0 16px 40px -12px rgb(28 25 23 / 0.16);
+  --sidebar-background: hsl(0 0% 100%);
   --sidebar-foreground: hsl(240 5.3% 26.1%);
   --sidebar-primary: hsl(231 38% 46%);
   --sidebar-primary-foreground: hsl(0 0% 100%);
-  --sidebar-accent: hsl(240 4.8% 95.9%);
-  --sidebar-accent-foreground: hsl(240 5.9% 10%);
-  --sidebar-border: hsl(220 13% 91%);
+  --sidebar-accent: hsl(60 5% 96%);
+  --sidebar-accent-foreground: hsl(24 10% 10%);
+  --sidebar-border: hsl(20 6% 90%);
   --sidebar-ring: hsl(231 38% 46% / 0.4);
 }
 
@@ -71,9 +82,16 @@
   --primary-foreground: hsl(0 0% 100%);
   --secondary: hsl(44 100% 60%);
   --secondary-foreground: hsl(0 0% 9%);
-  --muted: hsl(217 33% 17%);
-  --muted-foreground: hsl(215 14% 60%);
-  --accent: hsl(231 38% 15% / 0.5);
+  /* Restyle (2026-09-28): muted was identical to --card, so the sweep's
+     `bg-muted` chips/hovers/table heads (formerly dark:bg-gray-700) vanished on
+     cards; lifted to sit between card and border. muted-foreground = gray-400,
+     the value the sweep's ~1100 `dark:text-gray-400` conversions had before. */
+  --muted: hsl(217 25% 22%);
+  --muted-foreground: hsl(218 11% 65%);
+  /* Restyle (2026-09-28): was hsl(231 38% 15% / 0.5) — darker than --card, so the
+     ~130 `hover:bg-accent` the sweep mapped from dark:hover:bg-gray-700 were
+     invisible on cards. Now a lifted navy-neutral, like gray-700 hover was. */
+  --accent: hsl(221 28% 25%);
   --accent-foreground: hsl(44 100% 60%);
   --destructive: hsl(0 62% 44%);
   --destructive-foreground: hsl(0 0% 100%);
@@ -88,10 +106,17 @@
   --sidebar-accent-foreground: hsl(210 40% 96%);
   --sidebar-border: hsl(217 19% 27%);
   --sidebar-ring: hsl(231 38% 46% / 0.4);
+  /* Restyle additions (2026-09-28); existing dark values above unchanged. */
+  --selected: hsl(210 40% 96%);           /* inverted neutral: light pill on navy */
+  --selected-foreground: hsl(222 47% 11%);
+  --surface-sunken: hsl(222 47% 9%);
+  --hairline: hsl(217 19% 27% / 0.7);
+  --shadow-card-value: 0 1px 2px -1px rgb(0 0 0 / 0.4), 0 6px 20px -8px rgb(0 0 0 / 0.55);
+  --shadow-card-lg-value: 0 2px 4px -2px rgb(0 0 0 / 0.45), 0 16px 40px -12px rgb(0 0 0 / 0.6);
 }
 
 @theme inline {
-  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 
   /* shadcn semantic tokens → Tailwind utilities */
   --color-background: var(--background);
@@ -113,6 +138,10 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-selected: var(--selected);
+  --color-selected-foreground: var(--selected-foreground);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-hairline: var(--hairline);
   --color-sidebar-background: var(--sidebar-background);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -150,15 +179,38 @@
   --color-gold-800: #664d05;
   --color-gold-900: #332602;
 
-  /* Design tokens — shadows */
-  --shadow-card: 0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.06);
-  --shadow-card-hover: 0 4px 6px -1px rgb(0 0 0 / 0.07), 0 2px 4px -2px rgb(0 0 0 / 0.07);
+  /* Design tokens — shadows. Values live in :root / .dark (`--shadow-card-value`)
+     so `shadow-card` / `shadow-card-lg` theme-switch; `shadow-card-hover` is kept
+     as an alias of the large one so existing uses keep compiling. */
+  --shadow-card: var(--shadow-card-value);
+  --shadow-card-lg: var(--shadow-card-lg-value);
+  --shadow-card-hover: var(--shadow-card-lg-value);
 }
 
 @layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
   body {
     background-color: var(--background);
     color: var(--foreground);
+    /* Inter Display at every size (svrz_rc): the opsz axis pinned at 32 rather than
+       left to font-optical-sizing, which would hand small text the Text cut. */
+    font-variation-settings: "opsz" 32;
+    font-optical-sizing: none;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  ::selection {
+    background-color: color-mix(in oklab, var(--primary) 18%, transparent);
+  }
+  /* Tailwind v4 preflight leaves an uncoloured `border` at currentColor; the
+     neutral hairline is the right default for a bare `border` / `divide-*`. */
+  *,
+  ::before,
+  ::after {
+    border-color: var(--border);
   }
 }
 
@@ -209,22 +261,22 @@
   to { transform: translateX(-100%); }
 }
 @keyframes modal-enter {
-  from { opacity: 0; transform: translateY(16px) scale(0.97); }
+  from { opacity: 0; transform: translateY(4px) scale(0.98); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 @keyframes modal-exit {
   from { opacity: 1; transform: translateY(0) scale(1); }
-  to { opacity: 0; transform: translateY(16px) scale(0.97); }
+  to { opacity: 0; transform: translateY(4px) scale(0.98); }
 }
 
-.animate-sheet-up { animation: sheet-slide-up 250ms ease-out both; }
+.animate-sheet-up { animation: sheet-slide-up 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 .animate-sheet-down { animation: sheet-slide-down 200ms ease-in both; }
 .animate-fade-in { animation: fade-in 200ms ease-out both; }
 .animate-fade-out { animation: fade-out 150ms ease-in both; }
 .animate-slide-in-left { animation: slide-in-left 200ms ease-out both; }
 .animate-slide-out-left { animation: slide-out-left 150ms ease-in both; }
-.animate-modal-enter { animation: modal-enter 250ms ease-out both; }
-.animate-modal-exit { animation: modal-exit 200ms ease-in both; }
+.animate-modal-enter { animation: modal-enter 160ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.animate-modal-exit { animation: modal-exit 140ms ease-in both; }
 
 /* Marquee (Magic UI) — horizontal/vertical ticker. The component sets
    --duration and --gap inline; the keyframe shifts one full content copy plus a
@@ -250,10 +302,10 @@ input[type="number"] {
   -moz-appearance: textfield;
 }
 
-/* Custom scrollbar — slim, brand-themed, light/dark aware */
+/* Custom scrollbar — slim; neutral stone in light, brand in dark */
 * {
   scrollbar-width: thin;
-  scrollbar-color: var(--color-brand-300) transparent;
+  scrollbar-color: #d6d3d1 transparent; /* stone-300 */
 }
 .dark * {
   scrollbar-color: var(--color-brand-600) transparent;
@@ -268,11 +320,11 @@ input[type="number"] {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--color-brand-300);
+  background: #d6d3d1; /* stone-300 */
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-brand-400);
+  background: #a8a29e; /* stone-400 */
 }
 .dark ::-webkit-scrollbar-thumb {
   background: var(--color-brand-600);

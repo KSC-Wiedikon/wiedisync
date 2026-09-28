@@ -249,7 +249,7 @@ export default function MonthGrid({
     <div className="flex flex-1 flex-col">
       {/* Month header */}
       <div className="mb-3 flex items-center justify-between gap-3">
-        <h2 className="text-xl font-semibold tracking-tight text-gray-900 dark:text-gray-100">
+        <h2 className="text-xl font-semibold tracking-tight text-foreground">
           {formatDate(month, 'MMMM yyyy')}
         </h2>
         <div className="flex shrink-0 items-center gap-1.5">
@@ -265,11 +265,11 @@ export default function MonthGrid({
         </div>
       </div>
 
-      <div className="flex flex-1 flex-col overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
+      <div className="flex flex-1 flex-col overflow-hidden rounded-2xl border border-hairline bg-card shadow-card">
         {/* Day-of-week headers */}
-        <div className="grid grid-cols-7 border-b border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800/60">
+        <div className="grid grid-cols-7 border-b border-border bg-surface-sunken">
           {dayHeaders().map((d) => (
-            <div key={d} className="py-2 text-center text-[11px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+            <div key={d} className="py-2 text-center text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
               {d}
             </div>
           ))}
@@ -287,7 +287,7 @@ export default function MonthGrid({
             return (
               <div
                 key={wi}
-                className={`relative flex flex-1 flex-col ${wi < weekRows.length - 1 ? 'border-b border-gray-200 dark:border-gray-700' : ''}`}
+                className={`relative flex flex-1 flex-col ${wi < weekRows.length - 1 ? 'border-b border-border' : ''}`}
               >
                 {/* Day cells row */}
                 <div className="grid flex-1 grid-cols-7">
@@ -309,13 +309,13 @@ export default function MonthGrid({
                       <div
                         key={key}
                         className={`relative flex min-h-[5.5rem] min-w-0 flex-col p-1 lg:min-h-[7rem] ${
-                          ci < 6 ? 'border-r border-gray-200 dark:border-gray-700' : ''
+                          ci < 6 ? 'border-r border-border' : ''
                         } ${
                           !inMonth
-                            ? 'bg-gray-50/70 dark:bg-gray-900/60'
+                            ? 'bg-surface-sunken/70'
                             : isClosed
                               ? closedClassName
-                              : 'bg-white dark:bg-gray-800'
+                              : 'bg-card'
                         }`}
                         title={isClosed ? closedReasons?.get(key) : undefined}
                       >
@@ -326,8 +326,8 @@ export default function MonthGrid({
                               isToday
                                 ? 'bg-primary font-semibold text-primary-foreground'
                                 : !inMonth
-                                  ? 'text-gray-400 dark:text-gray-600'
-                                  : 'font-medium text-gray-700 dark:text-gray-300'
+                                  ? 'text-muted-foreground/80'
+                                  : 'font-medium text-foreground/85'
                             }`}
                           >
                             {date.getDate()}
@@ -357,14 +357,14 @@ export default function MonthGrid({
                                   className={`flex h-5 w-full shrink-0 items-center gap-1.5 overflow-hidden rounded px-1.5 text-left text-[11px] leading-none transition-colors lg:h-[22px] lg:text-xs ${
                                     isChip
                                       ? `border-l-2 font-medium hover:brightness-95 dark:hover:brightness-110 ${tint}`
-                                      : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700/60'
+                                      : 'text-foreground/85 hover:bg-muted'
                                   } ${cancelledClasses(entry)}`}
                                 >
                                   {!isChip && (
                                     <CalendarTypeIcon type={colorKey(entry)} sport={entry.sport} size="sm" className={iconColor} />
                                   )}
                                   {entry.startTime && (
-                                    <span className={`shrink-0 tabular-nums ${isChip ? 'font-semibold' : 'text-gray-500 dark:text-gray-400'}`}>
+                                    <span className={`shrink-0 tabular-nums ${isChip ? 'font-semibold' : 'text-muted-foreground'}`}>
                                       {entry.startTime}
                                     </span>
                                   )}
@@ -402,7 +402,7 @@ export default function MonthGrid({
                                   })
                                   onOverflowClick?.(allForDay, date)
                                 }}
-                                className="shrink-0 self-start rounded px-1.5 py-0.5 text-[11px] font-medium text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 lg:text-xs dark:text-gray-400 dark:hover:bg-gray-700/60 dark:hover:text-gray-100"
+                                className="shrink-0 self-start rounded px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground lg:text-xs"
                               >
                                 {t('calendar:moreCount', { count: overflow })}
                               </button>

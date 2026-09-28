@@ -132,12 +132,12 @@ export function FilePreview({
   return (
     <div className="flex flex-col items-center gap-3">
       {failed ? (
-        <div className="flex flex-col items-center gap-3 py-8 text-gray-500 dark:text-gray-400">
+        <div className="flex flex-col items-center gap-3 py-8 text-muted-foreground">
           <CircleAlert className="h-12 w-12" />
           <p className="text-sm">{t('filePreviewFailed')}</p>
         </div>
       ) : !preview ? (
-        <div className="flex flex-col items-center gap-3 py-8 text-gray-500 dark:text-gray-400">
+        <div className="flex flex-col items-center gap-3 py-8 text-muted-foreground">
           <Loader2 className="h-8 w-8 animate-spin" />
           <p className="text-sm">{t('filePreviewLoading')}</p>
         </div>
@@ -145,16 +145,16 @@ export function FilePreview({
         <img
           src={preview.url}
           alt={label || t('filePreviewAlt')}
-          className="max-h-[70vh] w-auto rounded-md border border-gray-200 dark:border-gray-700"
+          className="max-h-[70vh] w-auto rounded-lg border border-border"
         />
       ) : preview.kind === 'pdf' ? (
         <iframe
           src={preview.url}
           title={label || t('filePreviewAlt')}
-          className={`w-full rounded-md border border-gray-200 bg-white dark:border-gray-700 ${frameClassName}`}
+          className={`w-full rounded-lg border border-border bg-card ${frameClassName}`}
         />
       ) : (
-        <div className="flex flex-col items-center gap-3 py-8 text-gray-500 dark:text-gray-400">
+        <div className="flex flex-col items-center gap-3 py-8 text-muted-foreground">
           <FileText className="h-12 w-12" />
           <p className="text-sm">{t('filePreviewNone')}</p>
         </div>
@@ -166,7 +166,7 @@ export function FilePreview({
             href={preview?.url || src}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex min-h-11 items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400"
+            className="inline-flex min-h-11 items-center gap-1.5 text-sm text-primary underline decoration-primary/40 hover:decoration-primary dark:text-brand-300"
           >
             <ExternalLink className="h-3.5 w-3.5" />
             {t('filePreviewOpenTab')}
@@ -175,7 +175,7 @@ export function FilePreview({
             <a
               href={preview.url}
               download={filename.includes('.') ? filename : `${filename}.${preview.ext}`}
-              className="inline-flex min-h-11 items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400"
+              className="inline-flex min-h-11 items-center gap-1.5 text-sm text-primary underline decoration-primary/40 hover:decoration-primary dark:text-brand-300"
             >
               <Download className="h-3.5 w-3.5" />
               {t('filePreviewDownload')}

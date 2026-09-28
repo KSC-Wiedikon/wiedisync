@@ -156,7 +156,7 @@ export default function ExplorerDetail({
       )}
 
       {/* Title + directus link */}
-      <h1 className="text-xl font-bold text-primary">{title}</h1>
+      <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">{title}</h1>
       <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-muted-foreground">
         <span>{t(`explorerBucket${type.charAt(0).toUpperCase()}${type.slice(1)}` as never)} · #{id}</span>
         <Button asChild size="sm" variant="outline" className="border-primary text-primary hover:bg-primary hover:text-primary-foreground">
@@ -228,7 +228,7 @@ function RecordDangerZone({
   const [open, setOpen] = useState(false)
 
   return (
-    <section className="mt-8 rounded-lg border border-destructive/40 bg-destructive/5 p-4">
+    <section className="mt-8 rounded-2xl border border-destructive/40 bg-destructive/5 p-4">
       <h2 className="text-base font-semibold text-destructive">{t('explorerDangerTitle')}</h2>
       <p className="mb-3 text-xs text-muted-foreground">{t('explorerDangerRecordDescription')}</p>
       <Button type="button" variant="destructive" icon={<Trash2 />} onClick={() => setOpen(true)}>

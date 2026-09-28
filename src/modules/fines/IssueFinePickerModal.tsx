@@ -97,17 +97,17 @@ export default function IssueFinePickerModal({ open, onClose, teams, onPicked }:
       <div className="space-y-4">
         {/* Who owes it: a member, or the team as a whole (forfait, missing scorer…). */}
         <fieldset>
-          <legend className="text-sm font-medium text-gray-700 dark:text-gray-300">
+          <legend className="text-xs font-medium text-muted-foreground">
             {t('fines:targetLabel')}
           </legend>
           <div className="mt-1 flex flex-col gap-2 sm:flex-row">
             {(['member', 'team'] as const).map((opt) => (
               <label
                 key={opt}
-                className={`flex min-h-[44px] flex-1 cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm ${
+                className={`flex min-h-[44px] flex-1 cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${
                   target === opt
-                    ? 'border-amber-500 bg-amber-50 text-amber-900 dark:border-amber-600 dark:bg-amber-900/20 dark:text-amber-200'
-                    : 'border-gray-300 text-gray-700 dark:border-gray-700 dark:text-gray-300'
+                    ? 'border-amber-500 bg-amber-50 text-amber-900 dark:border-amber-600 dark:bg-amber-950/40 dark:text-amber-200'
+                    : 'border-input bg-card text-foreground/85 hover:bg-accent'
                 }`}
               >
                 <input
@@ -124,12 +124,12 @@ export default function IssueFinePickerModal({ open, onClose, teams, onPicked }:
           </div>
         </fieldset>
 
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+        <label className="block text-xs font-medium text-muted-foreground">
           {t('fines:colTeam')}
           <select
             value={teamId}
             onChange={(e) => { setTeamId(e.target.value); setMemberId('') }}
-            className="mt-1 h-11 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm sm:h-9 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+            className="mt-1 h-11 w-full sm:h-9 rounded-lg border border-input bg-card px-3 text-sm text-foreground dark:bg-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <option value="">{t('fines:pickTeamPlaceholder')}</option>
             {teamGroups.map((g) => (
@@ -143,13 +143,13 @@ export default function IssueFinePickerModal({ open, onClose, teams, onPicked }:
         </label>
 
         {target === 'member' ? (
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+          <label className="block text-xs font-medium text-muted-foreground">
             {t('fines:colMember')}
             <select
               value={memberId}
               onChange={(e) => setMemberId(e.target.value)}
               disabled={!teamId || isLoading}
-              className="mt-1 h-11 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm disabled:opacity-50 sm:h-9 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+              className="mt-1 h-11 w-full disabled:opacity-50 sm:h-9 rounded-lg border border-input bg-card px-3 text-sm text-foreground dark:bg-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <option value="">
                 {!teamId ? t('fines:pickTeamFirst') : isLoading ? t('common:loading') : t('fines:pickMemberPlaceholder')}
@@ -160,7 +160,7 @@ export default function IssueFinePickerModal({ open, onClose, teams, onPicked }:
             </select>
           </label>
         ) : (
-          <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
+          <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-300">
             {t('fines:targetTeamHint')}
           </p>
         )}

@@ -72,7 +72,7 @@ export default function CalendarEntryModal({ entry, onClose, onRefresh }: Calend
     closure: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300',
     event: 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300',
     hall: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/40 dark:text-cyan-300',
-    absence: 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900',
+    absence: 'bg-selected text-selected-foreground',
     'scorer-duty': 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300',
     birthday: 'bg-pink-100 text-pink-800 dark:bg-pink-900/40 dark:text-pink-300',
   }
@@ -87,26 +87,26 @@ export default function CalendarEntryModal({ entry, onClose, onRefresh }: Calend
         role="dialog"
         aria-modal="true"
         aria-label={entry.title}
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+        className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/60 p-4 backdrop-blur-sm dark:bg-black/70"
         onClick={onClose}
       >
         <div
-          className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-t-2xl bg-white shadow-xl sm:rounded-2xl dark:bg-gray-800"
+          className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-t-2xl border border-hairline bg-card shadow-2xl sm:rounded-2xl"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="flex items-center justify-between border-b dark:border-gray-700 px-6 py-4">
+          <div className="flex items-center justify-between border-b border-border px-6 py-4">
             <span className={`rounded px-2 py-0.5 text-xs font-medium ${typeBadgeStyles[entry.type]}`}>
               {typeLabels[entry.type]}
             </span>
-            <IconButton label={t('common:close')} onClick={onClose} className="-mr-2 shrink-0 text-gray-400 sm:-mr-1">
+            <IconButton label={t('common:close')} onClick={onClose} className="-mr-2 shrink-0 text-muted-foreground/80 sm:-mr-1">
               <X className="!size-5" />
             </IconButton>
           </div>
 
           {/* Title */}
           <div className="px-6 py-5">
-            <h3 className="break-words text-lg font-semibold leading-snug text-gray-900 dark:text-gray-100">
+            <h3 className="break-words text-lg font-bold leading-snug tracking-tight text-foreground">
               {entry.title}
             </h3>
             {entry.teamNames.length > 0 && (
@@ -119,7 +119,7 @@ export default function CalendarEntryModal({ entry, onClose, onRefresh }: Calend
           </div>
 
           {/* Details */}
-          <div className="space-y-3 border-t dark:border-gray-700 px-6 py-4">
+          <div className="space-y-3 border-t border-border px-6 py-4">
             <DetailRow label={entry.endDate ? t('common:from') : t('common:date')} value={dateStr} />
             {entry.endDate && (
               <DetailRow label={t('common:to')} value={formatDate(entry.endDate, 'EEEE, d. MMMM yyyy')} />
@@ -178,10 +178,10 @@ export default function CalendarEntryModal({ entry, onClose, onRefresh }: Calend
             const excluded = Array.isArray(tr.excluded_guest_levels) ? tr.excluded_guest_levels : []
             const guestExcluded = myGuestLevel > 0 && excluded.map((n) => Number(n)).includes(myGuestLevel)
             return (
-              <div className="border-t dark:border-gray-700 px-6 py-4 space-y-3">
+              <div className="border-t border-border px-6 py-4 space-y-3">
                 {guestExcluded ? (
                   <>
-                    <p className="text-sm italic text-gray-500 dark:text-gray-400">{tTrainings('guestExcluded')}</p>
+                    <p className="text-sm italic text-muted-foreground">{tTrainings('guestExcluded')}</p>
                     <ParticipationSummary activityType="training" activityId={tr.id} bars />
                   </>
                 ) : (
@@ -206,10 +206,10 @@ export default function CalendarEntryModal({ entry, onClose, onRefresh }: Calend
             // Migration 324 — same gate as the event card / detail modal.
             const guestExcluded = isGuestExcludedFromEvent(ev, { memberId: user.id, memberTeamIds, getGuestLevel })
             return (
-            <div className="border-t dark:border-gray-700 px-6 py-4 space-y-3">
+            <div className="border-t border-border px-6 py-4 space-y-3">
               {guestExcluded ? (
                 <>
-                  <p className="text-sm italic text-gray-500 dark:text-gray-400">{tEvents('guestNotInvited')}</p>
+                  <p className="text-sm italic text-muted-foreground">{tEvents('guestNotInvited')}</p>
                   <ParticipationSummary activityType="event" activityId={ev.id} bars hideExtras />
                 </>
               ) : (
@@ -229,7 +229,7 @@ export default function CalendarEntryModal({ entry, onClose, onRefresh }: Calend
 
           {/* Edit button for own absences */}
           {isOwnAbsence && (
-            <div className="border-t dark:border-gray-700 px-6 py-4">
+            <div className="border-t border-border px-6 py-4">
               <Button type="button" variant="outline" onClick={() => setEditingAbsence(true)}>
                 <Pencil aria-hidden />
                 {t('common:edit')}
@@ -317,10 +317,10 @@ function renderEventDetails(event: KscwEvent, t: (key: string) => string) {
       {typeKey && <DetailRow label={t('common:type')} value={t(typeKey)} />}
       {event.description && (
         <div className="flex items-start gap-3 text-sm">
-          <span className="w-20 shrink-0 text-gray-500 dark:text-gray-400">{t('common:details')}</span>
+          <span className="w-20 shrink-0 text-muted-foreground">{t('common:details')}</span>
           {/<[a-z][\s\S]*>/i.test(event.description)
-            ? <RichText html={event.description} className="min-w-0 flex-1 break-words text-gray-900 dark:text-gray-100" />
-            : <span className="min-w-0 flex-1 break-words text-gray-900 dark:text-gray-100">{event.description}</span>
+            ? <RichText html={event.description} className="min-w-0 flex-1 break-words text-foreground" />
+            : <span className="min-w-0 flex-1 break-words text-foreground">{event.description}</span>
           }
         </div>
       )}
@@ -331,8 +331,8 @@ function renderEventDetails(event: KscwEvent, t: (key: string) => string) {
 function DetailRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-start gap-3 text-sm">
-      <span className="w-20 shrink-0 text-gray-500 dark:text-gray-400">{label}</span>
-      <span className="min-w-0 flex-1 break-words text-gray-900 dark:text-gray-100">{value}</span>
+      <span className="w-20 shrink-0 text-muted-foreground">{label}</span>
+      <span className="min-w-0 flex-1 break-words text-foreground">{value}</span>
     </div>
   )
 }
@@ -477,7 +477,7 @@ function CalendarRsvp({
   return (
     <div className="space-y-2">
       {hasAbsence && (
-        <p className="text-xs italic text-gray-500 dark:text-gray-400">{t(absenceLabel)}</p>
+        <p className="text-xs italic text-muted-foreground">{t(absenceLabel)}</p>
       )}
       <RsvpAnswerButtons
         activityType={activityType}
@@ -492,8 +492,8 @@ function CalendarRsvp({
       />
       {/* "Note required" — asked before a No/Maybe is saved. */}
       {pendingStatus && !deadlinePassed && (
-        <div className="space-y-2 rounded-lg border border-gray-200 p-3 dark:border-gray-700">
-          <p className="text-xs font-medium text-gray-700 dark:text-gray-300">
+        <div className="space-y-2 rounded-xl border border-hairline bg-surface-sunken p-3">
+          <p className="text-xs font-medium text-foreground/85">
             {statusLabels[pendingStatus]} — {t('requireNoteIfAbsentHint')}
           </p>
           <textarea
@@ -508,8 +508,8 @@ function CalendarRsvp({
             placeholder={t('notePlaceholder')}
             rows={2}
             ref={noteInputRef}
-            className={`w-full rounded-md border bg-transparent px-2 py-1.5 text-sm text-gray-900 placeholder:text-gray-400 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 ${
-              noteError ? 'border-red-400 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
+            className={`w-full rounded-lg border bg-card px-2 py-1.5 text-sm leading-relaxed text-foreground placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-input/20 ${
+              noteError ? 'border-red-400 dark:border-red-500' : 'border-input'
             }`}
           />
           {noteError && (
@@ -528,8 +528,8 @@ function CalendarRsvp({
       {/* Guest counter — shown when coming or maybe (as in the old dropdown). */}
       {!deadlinePassed && effectiveStatus && effectiveStatus !== 'declined' && (
         <div className="flex items-center gap-2">
-          <UserPlus className="h-4 w-4 shrink-0 text-gray-400" aria-hidden />
-          <span className="text-sm text-gray-500 dark:text-gray-400">{t('guests')}</span>
+          <UserPlus className="h-4 w-4 shrink-0 text-muted-foreground/80" aria-hidden />
+          <span className="text-sm text-muted-foreground">{t('guests')}</span>
           <div className="ml-auto flex shrink-0 items-center gap-1.5">
             <IconButton
               label={t('decreaseGuests', { defaultValue: 'Remove guest' })}
@@ -539,7 +539,7 @@ function CalendarRsvp({
             >
               <Minus />
             </IconButton>
-            <span className="min-w-[1.5rem] text-center text-sm font-medium tabular-nums text-gray-900 dark:text-gray-100" aria-live="polite">
+            <span className="min-w-[1.5rem] text-center text-sm font-medium tabular-nums text-foreground" aria-live="polite">
               {guestCount}
             </span>
             <IconButton

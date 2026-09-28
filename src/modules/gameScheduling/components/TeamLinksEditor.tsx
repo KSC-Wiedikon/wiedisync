@@ -34,7 +34,7 @@ export default function TeamLinksEditor({ teams, links, addLink, updateLink, rem
   const [linkType, setLinkType] = useState<LinkType>('diff')
 
   const teamName = (id: string | number) => teams.find((tm) => String(tm.id) === String(id))?.name ?? `#${id}`
-  const selectClass = 'h-11 rounded-md border border-border bg-transparent px-3 py-2 text-sm sm:h-9 dark:bg-gray-800'
+  const selectClass = 'h-11 rounded-lg border border-input bg-card px-3 py-2 text-sm sm:h-9 dark:bg-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
   const badge = (lt: string) =>
     lt === 'same'
       ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
@@ -56,7 +56,7 @@ export default function TeamLinksEditor({ teams, links, addLink, updateLink, rem
   return (
     <section className="space-y-3">
       <div>
-        <h2 className="text-lg font-semibold">{t('title')}</h2>
+        <h2 className="text-base font-semibold tracking-tight text-foreground">{t('title')}</h2>
         <p className="max-w-2xl text-sm text-muted-foreground">{t('hint')}</p>
       </div>
 

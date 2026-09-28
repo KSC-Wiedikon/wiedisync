@@ -29,7 +29,7 @@ function resolveColor(color: string): string {
 export function CanvasText({
   text,
   className = "",
-  backgroundClassName = "bg-white dark:bg-neutral-950",
+  backgroundClassName = "bg-card",
   colors = ["#ff6b6b", "#4ecdc4", "#45b7d1", "#96ceb4", "#ffeaa7", "#dfe6e9"],
   animationDuration = 5,
   lineWidth = 1.5,

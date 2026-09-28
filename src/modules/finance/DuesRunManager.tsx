@@ -15,9 +15,9 @@ import { downloadInvoiceBillsPdf } from './qrBillPdf'
 import { DuesEmailSettings, SendDuesEmailModal } from './DuesEmail'
 import { useConfirm } from '../../components/ConfirmProvider'
 
-const labelCls = 'block text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400'
-const inputCls = 'mt-1 h-11 w-full rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm sm:h-9 outline-none focus:border-brand-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100'
-const skelBar = 'animate-pulse bg-gray-200 dark:bg-gray-700'
+const labelCls = 'block text-[11px] font-semibold uppercase tracking-wide text-muted-foreground'
+const inputCls = 'mt-1 h-11 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm sm:h-9 dark:bg-gray-800 text-foreground placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+const skelBar = 'animate-pulse bg-stone-200/80 dark:bg-muted'
 const apiErr = (e: unknown, fallback: string) => (e as { body?: { error?: string } })?.body?.error || fallback
 
 /** Per-member row status badge in the preview.
@@ -49,7 +49,7 @@ const STATUS_TONE: Record<string, string> = {
   alreadyBilled: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
   clubdeskBilled: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300',
   noRate: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
-  zeroRate: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300',
+  zeroRate: 'bg-muted text-muted-foreground',
   waived: 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300',
 }
 
@@ -234,35 +234,35 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
   const sortedRates = useMemo(() => [...(ratesData?.rates ?? [])].sort((a, b) => a.category.localeCompare(b.category) || (a.sektion || '').localeCompare(b.sektion || '')), [ratesData])
 
   if (!fiscalYearId) {
-    return <p className="rounded-lg border border-dashed border-gray-300 py-8 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">{t('duesNeedFiscalYear')}</p>
+    return <p className="rounded-2xl border border-dashed border-border py-8 text-center text-sm text-muted-foreground">{t('duesNeedFiscalYear')}</p>
   }
 
   return (
     <div className="space-y-8">
-      <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-300">
+      <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-300">
         {t('duesBookNote')}
       </p>
 
       {/* ── Rate schedule ──────────────────────────────────────── */}
       <section>
-        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t('duesRatesTitle')}</h2>
-        <p className="mb-3 mt-0.5 text-xs text-gray-500 dark:text-gray-400">{t('duesRatesHint', { year: fiscalYearLabel })}</p>
+        <h2 className="text-sm font-semibold text-foreground">{t('duesRatesTitle')}</h2>
+        <p className="mb-3 mt-0.5 text-xs text-muted-foreground">{t('duesRatesHint', { year: fiscalYearLabel })}</p>
 
-        <div className="rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+        <div className="rounded-2xl border border-hairline bg-card shadow-card overflow-hidden">
           <Table>
             <TableHeader>
-              <TableRow className="border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/40">
-                <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('duesColCategory')}</TableHead>
-                <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('duesColSektion')}</TableHead>
-                <TableHead className="text-right text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('duesColAmount')}</TableHead>
-                <TableHead className="text-right text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('duesColLicence')}</TableHead>
-                <TableHead className="hidden sm:table-cell text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('duesColSubject')}</TableHead>
-                <TableHead className="text-right text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400"></TableHead>
+              <TableRow>
+                <TableHead>{t('duesColCategory')}</TableHead>
+                <TableHead>{t('duesColSektion')}</TableHead>
+                <TableHead className="text-right">{t('duesColAmount')}</TableHead>
+                <TableHead className="text-right">{t('duesColLicence')}</TableHead>
+                <TableHead className="hidden sm:table-cell">{t('duesColSubject')}</TableHead>
+                <TableHead className="text-right"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {ratesPending ? [0, 1, 2].map((i) => (
-                <TableRow key={`rate-skeleton-${i}`} className="border-gray-200 dark:border-gray-700" aria-hidden="true">
+                <TableRow key={`rate-skeleton-${i}`} aria-hidden="true">
                   <TableCell><div className={`${skelBar} h-4 w-24 rounded`} /></TableCell>
                   <TableCell><div className={`${skelBar} h-4 w-20 rounded`} /></TableCell>
                   <TableCell><div className={`${skelBar} ml-auto h-4 w-16 rounded`} /></TableCell>
@@ -271,31 +271,31 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
                   <TableCell><div className={`${skelBar} ml-auto h-6 w-6 rounded-md`} /></TableCell>
                 </TableRow>
               )) : sortedRates.map((r) => (
-                <TableRow key={r.id} className="border-gray-200 dark:border-gray-700">
-                  <TableCell className="whitespace-normal break-words text-gray-900 dark:text-gray-100">{r.category}</TableCell>
-                  <TableCell className="whitespace-normal break-words text-gray-600 dark:text-gray-400">{sektionLabel(r.sektion)}</TableCell>
-                  <TableCell className="text-right tabular-nums text-gray-900 dark:text-gray-100">{formatChf(r.amount_chf)}</TableCell>
+                <TableRow key={r.id}>
+                  <TableCell className="whitespace-normal break-words text-foreground">{r.category}</TableCell>
+                  <TableCell className="whitespace-normal break-words text-muted-foreground">{sektionLabel(r.sektion)}</TableCell>
+                  <TableCell className="text-right tabular-nums text-foreground">{formatChf(r.amount_chf)}</TableCell>
                   {/* Contained in the amount, so the club's own share is shown
                       beneath it — otherwise "440 and 110" reads as 550. */}
-                  <TableCell className="text-right tabular-nums text-gray-600 dark:text-gray-400">
+                  <TableCell className="text-right tabular-nums text-muted-foreground">
                     {toNum(r.licence_chf) > 0 ? (
                       <>
                         {formatChf(r.licence_chf)}
-                        <span className="mt-0.5 block text-xs text-gray-400">{t('duesLicenceOfWhich', { amount: formatChf(toNum(r.amount_chf) - toNum(r.licence_chf)) })}</span>
+                        <span className="mt-0.5 block text-xs text-muted-foreground/80">{t('duesLicenceOfWhich', { amount: formatChf(toNum(r.amount_chf) - toNum(r.licence_chf)) })}</span>
                       </>
                     ) : '–'}
                   </TableCell>
-                  <TableCell className="hidden sm:table-cell whitespace-normal break-words text-xs text-gray-500 dark:text-gray-400">{r.subject_template || '–'}</TableCell>
+                  <TableCell className="hidden sm:table-cell whitespace-normal break-words text-xs text-muted-foreground">{r.subject_template || '–'}</TableCell>
                   <TableCell className="text-right">
                     <IconButton size="sm" variant="outline" onClick={() => removeRate(r.id)} label={t('duesRateDelete')}
-                      className="text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400">
+                      className="text-muted-foreground hover:text-red-600 dark:hover:text-red-400">
                       <Trash2 />
                     </IconButton>
                   </TableCell>
                 </TableRow>
               ))}
               {/* Add-rate row */}
-              <TableRow className="border-gray-200 bg-gray-50/60 dark:border-gray-700 dark:bg-gray-900/20">
+              <TableRow className="bg-surface-sunken/60 hover:bg-surface-sunken/60">
                 <TableCell>
                   <select value={rCat} onChange={(e) => setRCat(e.target.value)} disabled={ratesPending} className={`${inputCls} mt-0 disabled:opacity-60`} aria-label={t('duesColCategory')}>
                     <option value="">{t('duesPickCategory')}</option>
@@ -331,10 +331,10 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
 
       {/* ── Run wizard ─────────────────────────────────────────── */}
       <section>
-        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t('duesRunTitle')}</h2>
-        <p className="mb-3 mt-0.5 text-xs text-gray-500 dark:text-gray-400">{t('duesRunHint', { year: fiscalYearLabel })}</p>
+        <h2 className="text-sm font-semibold text-foreground">{t('duesRunTitle')}</h2>
+        <p className="mb-3 mt-0.5 text-xs text-muted-foreground">{t('duesRunHint', { year: fiscalYearLabel })}</p>
 
-        <div className="space-y-4 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+        <div className="space-y-4 rounded-2xl border border-hairline bg-card shadow-card p-4">
           <div>
             <span id="dues-pick-categories-label" className={labelCls}>{t('duesPickCategories')}</span>
             {ratesPending ? (
@@ -344,14 +344,14 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
                 ))}
               </div>
             ) : categories.length === 0 ? (
-              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t('duesNoActiveCategories')}</p>
+              <p className="mt-1 text-sm text-muted-foreground">{t('duesNoActiveCategories')}</p>
             ) : (
               <div role="group" aria-labelledby="dues-pick-categories-label" className="mt-1.5 flex flex-wrap gap-1.5">
                 {categories.map((c) => (
                   <Button key={c} type="button" size="sm" variant="outline" onClick={() => toggleCat(c)} aria-pressed={selected.includes(c)}
                     className={`rounded-full ${selected.includes(c)
-                      ? 'border-brand-500 bg-brand-50 text-brand-700 hover:bg-brand-50 dark:border-brand-400 dark:bg-brand-900/30 dark:text-brand-300 dark:hover:bg-brand-900/30'
-                      : 'text-gray-600 dark:text-gray-300'}`}>
+                      ? 'border-selected bg-selected text-selected-foreground hover:bg-selected/90 hover:text-selected-foreground'
+                      : 'text-muted-foreground'}`}>
                     {c}
                   </Button>
                 ))}
@@ -359,8 +359,8 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
             )}
           </div>
           <div className="flex flex-wrap items-end gap-4">
-            <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-              <input type="checkbox" checked={onlyActive} onChange={(e) => { setOnlyActive(e.target.checked); setPreview(null) }} />
+            <label className="flex items-center gap-2 text-sm text-foreground/85">
+              <input type="checkbox" className="h-4 w-4 rounded border-input accent-[var(--primary)]" checked={onlyActive} onChange={(e) => { setOnlyActive(e.target.checked); setPreview(null) }} />
               {t('duesOnlyActive')}
             </label>
             <div>
@@ -375,8 +375,8 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
           {runMsg && <p className="text-sm text-green-700 dark:text-green-400">{runMsg}</p>}
 
           {preview && (
-            <div className="space-y-3 border-t border-gray-200 pt-4 dark:border-gray-700">
-              <p className="text-sm text-gray-700 dark:text-gray-300">
+            <div className="space-y-3 border-t border-border pt-4">
+              <p className="text-sm text-foreground/85">
                 {t('duesPreviewSummary', {
                   billable: preview.totals.billable,
                   amount: formatChf(preview.totals.billable_amount),
@@ -384,8 +384,8 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
                   noRate: preview.totals.missing_rate,
                 })}
                 {preview.totals.clubdesk_billed > 0 && <span className="text-purple-700 dark:text-purple-400"> · {t('duesClubdeskBilledNote', { count: preview.totals.clubdesk_billed })}</span>}
-                {preview.totals.zero_rate > 0 && <span className="text-gray-500 dark:text-gray-400"> · {t('duesZeroRateNote', { count: preview.totals.zero_rate })}</span>}
-                {preview.totals.waived > 0 && <span className="text-gray-500 dark:text-gray-400"> · {t('duesWaivedNote', { count: preview.totals.waived, amount: formatChf(preview.totals.waived_amount) })}</span>}
+                {preview.totals.zero_rate > 0 && <span className="text-muted-foreground"> · {t('duesZeroRateNote', { count: preview.totals.zero_rate })}</span>}
+                {preview.totals.waived > 0 && <span className="text-muted-foreground"> · {t('duesWaivedNote', { count: preview.totals.waived, amount: formatChf(preview.totals.waived_amount) })}</span>}
                 {/* A run that silently omits people must say so — the preview only
                     describes the categories that were picked. */}
                 {preview.totals.no_email > 0 && <span className="text-amber-700 dark:text-amber-400"> · {t('duesNoEmailNote', { count: preview.totals.no_email })}</span>}
@@ -399,7 +399,7 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
               )}
 
               {!!preview.uncovered && (preview.uncovered.no_category > 0 || preview.uncovered.category_not_selected > 0) && (
-                <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-700/60 dark:bg-amber-900/20 dark:text-amber-200">
+                <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-700/60 dark:bg-amber-900/20 dark:text-amber-200">
                   <p className="font-semibold">{t('duesUncoveredTitle')}</p>
                   <p className="mt-0.5">
                     {preview.uncovered.no_category > 0 && t('duesUncoveredNoCategory', { count: preview.uncovered.no_category })}
@@ -417,7 +417,7 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
               {/* The total is NOT the sum of the rate schedule — say so, with the
                   two adjustments spelled out, so it reconciles on sight. */}
               {(preview.totals.surcharged > 0 || preview.totals.guests > 0) && (
-                <p className="text-xs text-gray-600 dark:text-gray-400">
+                <p className="text-xs text-muted-foreground">
                   {t('duesAdjustmentsNote', { base: formatChf(preview.totals.base_amount) })}
                   {preview.totals.surcharged > 0 && <span className="text-amber-700 dark:text-amber-400"> · {t('duesSurchargeNote', { count: preview.totals.surcharged, amount: formatChf(preview.totals.surcharge_amount) })}</span>}
                   {preview.totals.guests > 0 && <span className="text-emerald-700 dark:text-emerald-400"> · {t('duesGuestNote', { count: preview.totals.guests, amount: formatChf(preview.totals.guest_discount_amount) })}</span>}
@@ -428,40 +428,40 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
                   the federation, so the treasurer can read its own income off
                   the difference without opening a single invoice. */}
               {preview.totals.licence_amount > 0 && (
-                <p className="text-xs text-gray-600 dark:text-gray-400">
+                <p className="text-xs text-muted-foreground">
                   {t('duesLicenceNote', { count: preview.totals.licensed, amount: formatChf(preview.totals.licence_amount) })}
                 </p>
               )}
-              <div className="rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+              <div className="rounded-xl border border-hairline bg-card overflow-hidden">
                 <Table>
                   <TableHeader>
-                    <TableRow className="border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/40">
-                      <TableHead className="w-10 text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400"><span className="sr-only">{t('duesColPick')}</span></TableHead>
-                      <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('duesColMember')}</TableHead>
-                      <TableHead className="hidden sm:table-cell text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('duesColCategory')}</TableHead>
-                      <TableHead className="hidden md:table-cell text-right text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('duesColDiscount')}</TableHead>
-                      <TableHead className="text-right text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('duesColAmount')}</TableHead>
-                      <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colStatus')}</TableHead>
+                    <TableRow>
+                      <TableHead className="w-10"><span className="sr-only">{t('duesColPick')}</span></TableHead>
+                      <TableHead>{t('duesColMember')}</TableHead>
+                      <TableHead className="hidden sm:table-cell">{t('duesColCategory')}</TableHead>
+                      <TableHead className="hidden md:table-cell text-right">{t('duesColDiscount')}</TableHead>
+                      <TableHead className="text-right">{t('duesColAmount')}</TableHead>
+                      <TableHead>{t('colStatus')}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {preview.rows.map((r) => {
                       const s = rowStatus(r)
                       return (
-                        <TableRow key={r.member} className="border-gray-200 dark:border-gray-700">
+                        <TableRow key={r.member}>
                           {/* Only a row that would actually be billed can be picked. */}
                           <TableCell className="align-top">
                             {s === 'willBill' && (
                               <input type="checkbox" checked={picked.has(r.member)} onChange={() => togglePick(r.member)}
                                 aria-label={t('duesPickMember', { name: r.name || String(r.member) })}
-                                className="mt-1 h-4 w-4 cursor-pointer rounded border-gray-300 text-brand-600 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-700" />
+                                className="mt-1 h-4 w-4 cursor-pointer rounded border-input accent-[var(--primary)] focus-visible:ring-2 focus-visible:ring-ring" />
                             )}
                           </TableCell>
-                          <TableCell className="whitespace-normal break-words text-gray-900 dark:text-gray-100">
+                          <TableCell className="whitespace-normal break-words text-foreground">
                             {r.name || '–'}
                             {r.missing_email && <span className="mt-0.5 block text-xs text-amber-600 dark:text-amber-400">{t('duesStatusNoEmail')}</span>}
                           </TableCell>
-                          <TableCell className="hidden sm:table-cell whitespace-normal break-words text-gray-600 dark:text-gray-400">{r.category || '–'}{r.sektion ? ` · ${r.sektion}` : ''}</TableCell>
+                          <TableCell className="hidden sm:table-cell whitespace-normal break-words text-muted-foreground">{r.category || '–'}{r.sektion ? ` · ${r.sektion}` : ''}</TableCell>
                           {/* Grant a reduction on this one bill. Re-preview applies it —
                               the club's habit of billing full and writing off later leaves
                               the member holding an invoice that overstates what they owe. */}
@@ -472,16 +472,16 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
                                 onChange={(e) => setDiscounts((p) => ({ ...p, [r.member]: e.target.value }))}
                                 inputMode="decimal" placeholder="0.00"
                                 aria-label={t('duesColDiscount')}
-                                className="w-20 rounded border border-gray-200 bg-transparent px-2 py-1 text-right text-xs tabular-nums outline-none focus:border-brand-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                                className="w-20 rounded border border-input bg-card px-2 py-1 text-right text-xs tabular-nums dark:bg-gray-800 text-foreground placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                               />
                             ) : null}
                           </TableCell>
-                          <TableCell className="text-right tabular-nums text-gray-900 dark:text-gray-100">
+                          <TableCell className="text-right tabular-nums text-foreground">
                             {r.amount != null ? formatChf(r.amount) : '–'}
                             {/* Why it isn't the plain category rate. Without this the
                                 treasurer has no way to answer "why does she pay 540?". */}
                             {r.amount != null && (r.surcharge > 0 || r.guest_discount > 0 || (r.discount ?? 0) > 0 || (r.waiver ?? 0) > 0) && (
-                              <span className="mt-0.5 block text-xs font-normal text-gray-500 dark:text-gray-400">
+                              <span className="mt-0.5 block text-xs font-normal text-muted-foreground">
                                 {formatChf(r.base_amount ?? 0)}
                                 {r.surcharge > 0 && <span className="text-amber-600 dark:text-amber-400"> + {formatChf(r.surcharge)}</span>}
                                 {r.guest_discount > 0 && <span className="text-emerald-600 dark:text-emerald-400"> − {formatChf(r.guest_discount)}</span>}
@@ -525,23 +525,23 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
 
       {/* ── Past runs ──────────────────────────────────────────── */}
       <section>
-        <h2 className="mb-3 text-sm font-semibold text-gray-900 dark:text-gray-100">{t('duesRunsTitle')}</h2>
+        <h2 className="mb-3 text-sm font-semibold text-foreground">{t('duesRunsTitle')}</h2>
         {runsPending || (runs ?? []).length > 0 ? (
-          <div className="rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800" aria-busy={runsPending}>
+          <div className="rounded-2xl border border-hairline bg-card shadow-card overflow-hidden" aria-busy={runsPending}>
             <Table>
               <TableHeader>
-                <TableRow className="border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/40">
-                  <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('duesColRunLabel')}</TableHead>
-                  <TableHead className="hidden sm:table-cell text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('duesColRunDate')}</TableHead>
-                  <TableHead className="text-right text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('duesColRunCount')}</TableHead>
-                  <TableHead className="text-right text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('duesColRunTotal')}</TableHead>
-                  <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colStatus')}</TableHead>
-                  <TableHead className="text-right text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400"></TableHead>
+                <TableRow>
+                  <TableHead>{t('duesColRunLabel')}</TableHead>
+                  <TableHead className="hidden sm:table-cell">{t('duesColRunDate')}</TableHead>
+                  <TableHead className="text-right">{t('duesColRunCount')}</TableHead>
+                  <TableHead className="text-right">{t('duesColRunTotal')}</TableHead>
+                  <TableHead>{t('colStatus')}</TableHead>
+                  <TableHead className="text-right"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {runsPending ? [0, 1, 2].map((i) => (
-                  <TableRow key={`run-skeleton-${i}`} className="border-gray-200 dark:border-gray-700" aria-hidden="true">
+                  <TableRow key={`run-skeleton-${i}`} aria-hidden="true">
                     <TableCell><div className={`${skelBar} h-4 w-32 rounded`} /></TableCell>
                     <TableCell className="hidden sm:table-cell"><div className={`${skelBar} h-4 w-20 rounded`} /></TableCell>
                     <TableCell><div className={`${skelBar} ml-auto h-4 w-8 rounded`} /></TableCell>
@@ -550,12 +550,12 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
                     <TableCell><div className={`${skelBar} ml-auto h-6 w-24 rounded-md`} /></TableCell>
                   </TableRow>
                 )) : (runs ?? []).map((run) => (
-                  <TableRow key={run.id} className="border-gray-200 dark:border-gray-700">
-                    <TableCell className="whitespace-normal break-words text-gray-900 dark:text-gray-100">{run.label || `#${run.id}`}</TableCell>
-                    <TableCell className="hidden sm:table-cell whitespace-nowrap text-gray-600 dark:text-gray-400">{run.date_created ? formatDateCompactZurich(run.date_created) : '–'}</TableCell>
-                    <TableCell className="text-right tabular-nums text-gray-900 dark:text-gray-100">{run.total_count}</TableCell>
-                    <TableCell className="text-right tabular-nums text-gray-900 dark:text-gray-100">{formatChf(toNum(run.total_amount))}</TableCell>
-                    <TableCell className="whitespace-nowrap text-xs text-gray-600 dark:text-gray-300">{run.status === 'cancelled' ? t('duesRunStatusCancelled') : t('duesRunStatusIssued')}</TableCell>
+                  <TableRow key={run.id}>
+                    <TableCell className="whitespace-normal break-words text-foreground">{run.label || `#${run.id}`}</TableCell>
+                    <TableCell className="hidden sm:table-cell whitespace-nowrap text-muted-foreground">{run.date_created ? formatDateCompactZurich(run.date_created) : '–'}</TableCell>
+                    <TableCell className="text-right tabular-nums text-foreground">{run.total_count}</TableCell>
+                    <TableCell className="text-right tabular-nums text-foreground">{formatChf(toNum(run.total_amount))}</TableCell>
+                    <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{run.status === 'cancelled' ? t('duesRunStatusCancelled') : t('duesRunStatusIssued')}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex flex-col items-end gap-1.5 sm:flex-row sm:justify-end">
                         {run.status !== 'cancelled' && run.total_count > 0 && (
@@ -581,7 +581,7 @@ export default function DuesRunManager({ fiscalYearId, fiscalYearLabel }: { fisc
             </Table>
           </div>
         ) : (
-          <p className="rounded-lg border border-dashed border-gray-300 py-8 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">{t('duesNoRuns')}</p>
+          <p className="rounded-2xl border border-dashed border-border py-8 text-center text-sm text-muted-foreground">{t('duesNoRuns')}</p>
         )}
       </section>
 

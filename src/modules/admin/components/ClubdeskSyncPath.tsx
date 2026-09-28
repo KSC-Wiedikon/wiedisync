@@ -522,11 +522,11 @@ export default function ClubdeskSyncPath({
   const isDownStep = openStep === 'down1' || openStep === 'down2'
 
   return (
-    <div className="rounded-lg border border-gray-200 px-4 py-3 dark:border-gray-700">
+    <div className="rounded-2xl border border-hairline bg-card shadow-card px-4 py-3">
       <div className="flex flex-wrap items-start gap-3">
         <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-medium text-gray-900 dark:text-white">{t('dhPathTitle')}</h3>
-          <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{t('dhPathHint')}</p>
+          <h3 className="text-sm font-medium text-foreground">{t('dhPathTitle')}</h3>
+          <p className="mt-0.5 text-xs text-muted-foreground">{t('dhPathHint')}</p>
         </div>
         {current === 'done' ? (
           <Button
@@ -572,10 +572,10 @@ export default function ClubdeskSyncPath({
               aria-current={isCurrent ? 'step' : undefined}
               className={`flex min-h-11 items-center gap-1.5 text-xs sm:min-h-0 ${
                 isCurrent
-                  ? 'font-medium text-gray-900 dark:text-white'
+                  ? 'font-medium text-foreground'
                   : done
                     ? 'text-green-600 dark:text-green-400'
-                    : 'text-gray-400 dark:text-gray-500'
+                    : 'text-muted-foreground/80'
               }`}
             >
               {done
@@ -601,7 +601,7 @@ export default function ClubdeskSyncPath({
         ) : (
           <>
             <div
-              className="h-1.5 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700"
+              className="h-1.5 overflow-hidden rounded-full bg-stone-200/80 dark:bg-muted"
               role="progressbar"
               aria-valuemin={0}
               aria-valuemax={STEPS.length}
@@ -610,7 +610,7 @@ export default function ClubdeskSyncPath({
             >
               <div
                 className={`h-full rounded-full transition-[width] duration-500 ${
-                  current === 'done' ? 'bg-green-500' : 'bg-gray-400 dark:bg-gray-500'
+                  current === 'done' ? 'bg-green-500' : 'bg-stone-400 dark:bg-gray-500'
                 }`}
                 style={{ width: `${pathPct}%` }}
               />
@@ -620,7 +620,7 @@ export default function ClubdeskSyncPath({
                   is not: ClubDesk has been written, and the group findings keep
                   showing the old allocations until a sync down re-reads them. */}
               {groupsCommitted && fixableCount > 0 ? (
-                <span className="text-gray-500 dark:text-gray-400">{t('dhPathGroupsWritten')}</span>
+                <span className="text-muted-foreground">{t('dhPathGroupsWritten')}</span>
               ) : upHolding ? (
                 <span className="text-amber-700 dark:text-amber-300">{t('clubdeskSyncBlockedByUp')}</span>
               ) : lock.message ? (
@@ -628,12 +628,12 @@ export default function ClubdeskSyncPath({
                 // original would be a prettier version of the problem it exists to fix.
                 <span className="text-red-600 dark:text-red-400">
                   {t(SYNC_FAILURE_KEY[classifySyncFailure(lock.message)])}
-                  <span className="ml-1 break-words text-[11px] text-gray-500 dark:text-gray-400" title={lock.message}>
+                  <span className="ml-1 break-words text-[11px] text-muted-foreground" title={lock.message}>
                     {lock.message}
                   </span>
                 </span>
               ) : (
-                <span className="text-gray-500 dark:text-gray-400">
+                <span className="text-muted-foreground">
                   {progressText}
                   {lock.lastSuccess ? ` · ${t('clubdeskLastSync', { time: formatDateTimeCompact(lock.lastSuccess) })}` : ''}
                 </span>
@@ -654,7 +654,7 @@ export default function ClubdeskSyncPath({
         icon={ArrowDownToLine}
         job={downJob}
       >
-        <p className="text-xs text-gray-500 dark:text-gray-400">{t('dhStepCloseHint')}</p>
+        <p className="text-xs text-muted-foreground">{t('dhStepCloseHint')}</p>
         <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
           <Button type="button" variant="outline" onClick={() => setOpenStep(null)}>
             {t('dhStepClose')}

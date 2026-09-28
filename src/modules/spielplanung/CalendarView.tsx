@@ -76,8 +76,8 @@ export default function CalendarView({ entries, closedDates, blockedDates, month
               size="sm"
               className={`px-2.5 sm:px-2 ${
                 isActive
-                  ? 'bg-gold-400 text-brand-900 hover:bg-gold-400 hover:text-brand-900'
-                  : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-300 dark:hover:bg-gray-700'
+                  ? 'bg-selected text-selected-foreground hover:bg-selected hover:text-selected-foreground'
+                  : 'text-muted-foreground hover:bg-accent hover:text-foreground'
               }`}
             >
               {formatDate(m, 'MMM')}

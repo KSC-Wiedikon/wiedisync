@@ -223,19 +223,19 @@ export default function TeamScheduleList({ slots, bookings, team, games = [], co
   )
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+    <div className="rounded-2xl border border-hairline bg-card shadow-card p-4">
       {showHeading && (
-        <h2 className="mb-3 text-lg font-semibold text-gray-900 dark:text-gray-100">{team.name}</h2>
+        <h2 className="mb-3 text-base font-semibold tracking-tight text-foreground">{team.name}</h2>
       )}
 
       {(hideConfirmed ? proposed.length === 0 : confirmed.length === 0 && proposed.length === 0) ? (
-        <p className="text-sm text-gray-500 dark:text-gray-400">{t('listEmpty')}</p>
+        <p className="text-sm text-muted-foreground">{t('listEmpty')}</p>
       ) : (
         <div className="space-y-6">
           {/* Confirmed games */}
           {!hideConfirmed && confirmed.length > 0 && (
             <div>
-              <h3 className="mb-2 text-sm font-semibold text-gray-700 dark:text-gray-300">{t('listConfirmedHeading')}</h3>
+              <h3 className="mb-2 text-sm font-semibold text-foreground/85">{t('listConfirmedHeading')}</h3>
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -253,7 +253,7 @@ export default function TeamScheduleList({ slots, bookings, team, games = [], co
                       <TableCell><MatchCell isHome={r.isHome} opponent={r.opponent} /></TableCell>
                       <TableCell className="hidden sm:table-cell">
                         {r.venue ?? (hallsPending
-                          ? <span className="inline-block h-3 w-20 animate-pulse rounded bg-gray-200 align-middle dark:bg-gray-700" aria-hidden />
+                          ? <span className="inline-block h-3 w-20 animate-pulse rounded bg-stone-200/80 align-middle dark:bg-muted" aria-hidden />
                           : '—')}
                       </TableCell>
                     </TableRow>
@@ -266,7 +266,7 @@ export default function TeamScheduleList({ slots, bookings, team, games = [], co
           {/* Pending proposals — still being negotiated, dates not yet fixed. */}
           {proposed.length > 0 && (
             <div>
-              <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300">
+              <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold text-foreground/85">
                 {t('listProposedHeading')}
                 <span className="rounded-full border border-dashed border-amber-500 bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
                   {t('statusProposed')}
@@ -283,7 +283,7 @@ export default function TeamScheduleList({ slots, bookings, team, games = [], co
                   {proposed.map((r) => (
                     <TableRow key={r.id}>
                       <TableCell><MatchCell isHome={r.isHome} opponent={r.opponent} /></TableCell>
-                      <TableCell className="whitespace-normal break-words text-sm text-gray-600 dark:text-gray-300">
+                      <TableCell className="whitespace-normal break-words text-sm text-muted-foreground">
                         {r.dates.join(' · ')}
                       </TableCell>
                     </TableRow>

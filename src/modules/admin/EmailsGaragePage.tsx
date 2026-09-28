@@ -189,17 +189,17 @@ export default function EmailsGaragePage() {
   return (
     <div className="mx-auto max-w-6xl space-y-6 p-4 sm:p-6">
       <div>
-        <h1 className="flex items-center gap-2 text-xl font-bold text-gray-900 dark:text-gray-100">
+        <h1 className="flex items-center gap-2 text-xl font-bold tracking-tight text-foreground sm:text-2xl">
           <KeyRound className="h-5 w-5" />
           {t('egTitle')}
         </h1>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t('egDescription')}</p>
+        <p className="mt-1 text-sm text-muted-foreground">{t('egDescription')}</p>
       </div>
 
       {/* The vault key is a deploy step, not a bug — say so rather than letting
           every reveal fail with a 503 the reader has to interpret. */}
       {data && !data.vault_configured && (
-        <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
+        <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-300">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           <span>{t('egVaultMissing')}</span>
         </div>
@@ -212,12 +212,12 @@ export default function EmailsGaragePage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder={t('egSearchPlaceholder')}
-          className="h-11 min-w-[12rem] flex-1 rounded-md border border-gray-200 bg-transparent px-3 text-sm sm:h-9 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+          className="h-11 min-w-[12rem] flex-1 rounded-lg border border-input bg-card px-3 text-sm text-foreground placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-9 dark:bg-input/20"
         />
         <select
           value={sportFilter}
           onChange={(e) => setSportFilter(e.target.value as '' | Sport)}
-          className="h-11 rounded-md border border-gray-200 bg-transparent px-3 text-sm sm:h-9 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+          className="h-11 rounded-lg border border-input bg-card px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-9 dark:bg-gray-800"
         >
           <option value="">{t('egAllSports')}</option>
           {SPORTS.filter((s) => data?.scope?.includes(s) ?? true).map((s) => (
@@ -225,8 +225,8 @@ export default function EmailsGaragePage() {
           ))}
         </select>
 
-        <label className="flex min-h-[44px] cursor-pointer items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-          <input type="checkbox" checked={broadOnly} onChange={(e) => setBroadOnly(e.target.checked)} />
+        <label className="flex min-h-[44px] cursor-pointer items-center gap-2 text-sm text-muted-foreground">
+          <input type="checkbox" className="h-4 w-4 accent-[var(--primary)]" checked={broadOnly} onChange={(e) => setBroadOnly(e.target.checked)} />
           {t('egBroadOnly')}
         </label>
 
@@ -252,32 +252,32 @@ export default function EmailsGaragePage() {
 
       {/* Table */}
       {loading ? (
-        <div className="py-12 text-center text-sm text-gray-500 dark:text-gray-400">…</div>
+        <div className="py-12 text-center text-sm text-muted-foreground">…</div>
       ) : filtered.length === 0 ? (
-        <div className="py-12 text-center text-sm text-gray-500 dark:text-gray-400">{t('egEmpty')}</div>
+        <div className="py-12 text-center text-sm text-muted-foreground">{t('egEmpty')}</div>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+        <div className="overflow-x-auto rounded-2xl border border-hairline bg-card shadow-card">
           <Table>
             <TableHeader>
-              <TableRow className="border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/40">
-                <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('egColAddress')}</TableHead>
-                <TableHead className="hidden md:table-cell text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('egColSport')}</TableHead>
-                <TableHead className="hidden lg:table-cell text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('egColProvider')}</TableHead>
-                <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('egColPassword')}</TableHead>
-                <TableHead className="hidden xl:table-cell text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('egColNotes')}</TableHead>
-                {canEdit && <TableHead className="text-right text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('egColActions')}</TableHead>}
+              <TableRow className="border-border">
+                <TableHead>{t('egColAddress')}</TableHead>
+                <TableHead className="hidden md:table-cell">{t('egColSport')}</TableHead>
+                <TableHead className="hidden lg:table-cell">{t('egColProvider')}</TableHead>
+                <TableHead>{t('egColPassword')}</TableHead>
+                <TableHead className="hidden xl:table-cell">{t('egColNotes')}</TableHead>
+                {canEdit && <TableHead className="text-right">{t('egColActions')}</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
               {filtered.map((a) => {
                 const plain = revealed[a.id]
                 return (
-                  <TableRow key={a.id} className={`border-gray-200 dark:border-gray-700 ${a.is_active ? '' : 'opacity-50'}`}>
+                  <TableRow key={a.id} className={`border-border ${a.is_active ? '' : 'opacity-50'}`}>
                     <TableCell className="min-h-[44px] min-w-[10rem] whitespace-normal align-top sm:min-w-[16rem]">
                       <button
                         type="button"
                         onClick={() => copy(a, a.address)}
-                        className="break-all text-left font-medium text-gray-900 hover:underline sm:break-words dark:text-gray-100"
+                        className="break-all text-left font-medium text-foreground hover:underline sm:break-words"
                         title={t('egCopyAddress')}
                       >
                         {a.address}
@@ -294,11 +294,11 @@ export default function EmailsGaragePage() {
                           {t('egBroadBadge')}
                         </span>
                       )}
-                      {a.label && <span className="block text-xs text-gray-500 dark:text-gray-400">{a.label}</span>}
+                      {a.label && <span className="block text-xs text-muted-foreground">{a.label}</span>}
                       {/* The columns hidden on narrow screens fold in here rather
                           than truncating — a sport admin on a phone still needs
                           to know which section an address belongs to. */}
-                      <span className="mt-0.5 block text-xs text-gray-500 md:hidden dark:text-gray-400">
+                      <span className="mt-0.5 block text-xs text-muted-foreground md:hidden">
                         {t(`egSport_${a.sport}`)} · {t(`egProvider_${a.provider}`)}
                         {a.sends_via !== 'none' && ` · ${t(`egSendPath_${a.sends_via}`)}`}
                       </span>
@@ -307,20 +307,20 @@ export default function EmailsGaragePage() {
                       )}
                     </TableCell>
 
-                    <TableCell className="hidden md:table-cell whitespace-normal align-top text-gray-700 dark:text-gray-300">
+                    <TableCell className="hidden md:table-cell whitespace-normal align-top text-foreground/85">
                       {t(`egSport_${a.sport}`)}
                     </TableCell>
 
-                    <TableCell className="hidden lg:table-cell whitespace-normal align-top text-gray-700 dark:text-gray-300">
+                    <TableCell className="hidden lg:table-cell whitespace-normal align-top text-foreground/85">
                       {t(`egProvider_${a.provider}`)}
                       {/* Inbound host and outbound path are different questions —
                           a Migadu inbox that sends through SES reads "Migadu →
                           Sends via AWS SES" rather than picking one and lying. */}
-                      <span className="block text-xs text-gray-500 dark:text-gray-400">
+                      <span className="block text-xs text-muted-foreground">
                         {a.sends_via === 'none' ? t('egSendsNone') : t('egSendsVia', { path: t(`egSendPath_${a.sends_via}`) })}
                       </span>
                       {a.migadu_managed && (
-                        <span className="block text-xs text-gray-400 dark:text-gray-500">
+                        <span className="block text-xs text-muted-foreground/80">
                           {a.last_seen_at ? t('egSeen', { when: formatDateTimeCompact(a.last_seen_at) }) : t('egSynced')}
                         </span>
                       )}
@@ -328,7 +328,7 @@ export default function EmailsGaragePage() {
 
                     <TableCell className="align-top sm:min-w-[13rem]">
                       {!a.has_password ? (
-                        <span className="text-sm text-gray-400 dark:text-gray-500">{t('egNoPassword')}</span>
+                        <span className="text-sm text-muted-foreground/80">{t('egNoPassword')}</span>
                       ) : (
                         // The password sits on its own line under the buttons, not
                         // beside them: sharing the row left a 16-character password
@@ -356,7 +356,7 @@ export default function EmailsGaragePage() {
                             )}
                           </div>
                           {plain !== undefined && (
-                            <code className="select-all break-all rounded bg-gray-100 px-2 py-1 font-mono text-sm text-gray-900 dark:bg-gray-900 dark:text-gray-100">
+                            <code className="select-all break-all rounded bg-muted px-2 py-1 font-mono text-sm text-foreground">
                               {plain}
                             </code>
                           )}
@@ -364,7 +364,7 @@ export default function EmailsGaragePage() {
                       )}
                     </TableCell>
 
-                    <TableCell className="hidden xl:table-cell whitespace-normal break-words align-top text-gray-500 dark:text-gray-400">
+                    <TableCell className="hidden xl:table-cell whitespace-normal break-words align-top text-muted-foreground">
                       {a.notes || '–'}
                     </TableCell>
 
@@ -375,7 +375,7 @@ export default function EmailsGaragePage() {
                             type="button"
                             onClick={() => setEditing(a)}
                             label={t('egEdit')}
-                            className="text-gray-500 dark:text-gray-400"
+                            className="text-muted-foreground"
                           >
                             <Pencil className="h-4 w-4" />
                           </IconButton>
@@ -470,8 +470,8 @@ function AccountDialog({ account, vaultConfigured, onClose, onSaved }: {
     }
   }
 
-  const field = 'w-full rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100'
-  const labelCls = 'block text-sm font-medium text-gray-700 dark:text-gray-300'
+  const field = 'w-full rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-gray-800'
+  const labelCls = 'mb-1 block text-xs font-medium text-muted-foreground'
 
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
@@ -497,7 +497,7 @@ function AccountDialog({ account, vaultConfigured, onClose, onSaved }: {
               <select id="eg-sport" value={sport} onChange={(e) => setSport(e.target.value as Sport)} className={field}>
                 {SPORTS.map((s) => <option key={s} value={s}>{t(`egSport_${s}`)}</option>)}
               </select>
-              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('egFieldSportHint')}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{t('egFieldSportHint')}</p>
             </div>
             <div>
               <label className={labelCls} htmlFor="eg-provider">{t('egFieldProvider')}</label>
@@ -512,19 +512,19 @@ function AccountDialog({ account, vaultConfigured, onClose, onSaved }: {
             <select id="eg-sends" value={sendsVia} onChange={(e) => setSendsVia(e.target.value as SendPath)} className={field}>
               {SEND_PATHS.map((sp) => <option key={sp} value={sp}>{t(`egSendPath_${sp}`)}</option>)}
             </select>
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('egFieldSendsViaHint')}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{t('egFieldSendsViaHint')}</p>
           </div>
 
-          <div className="rounded-md border border-amber-300 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950/30">
-            <label className="flex items-start gap-2 text-sm text-gray-800 dark:text-gray-200">
-              <input type="checkbox" className="mt-1" checked={broadAudience} onChange={(e) => setBroadAudience(e.target.checked)} />
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 dark:border-amber-900/60 dark:bg-amber-950/40">
+            <label className="flex items-start gap-2 text-sm text-foreground">
+              <input type="checkbox" className="mt-1 h-4 w-4 accent-[var(--primary)]" checked={broadAudience} onChange={(e) => setBroadAudience(e.target.checked)} />
               <span>
                 {t('egFieldBroad')}
-                <span className="block text-xs text-gray-600 dark:text-gray-400">{t('egFieldBroadHint')}</span>
+                <span className="block text-xs text-muted-foreground">{t('egFieldBroadHint')}</span>
               </span>
             </label>
             <div className="mt-2">
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300" htmlFor="eg-reach">{t('egFieldReachNote')}</label>
+              <label className="block text-xs font-medium text-foreground/85" htmlFor="eg-reach">{t('egFieldReachNote')}</label>
               <textarea id="eg-reach" rows={2} value={reachNote} onChange={(e) => setReachNote(e.target.value)}
                 placeholder={t('egFieldReachNotePlaceholder')} className={field} />
             </div>
@@ -547,15 +547,15 @@ function AccountDialog({ account, vaultConfigured, onClose, onSaved }: {
                 type="button"
                 onClick={() => setShowPassword((v) => !v)}
                 label={showPassword ? t('egHide') : t('egReveal')}
-                className="shrink-0 text-gray-500 dark:text-gray-400"
+                className="shrink-0 text-muted-foreground"
               >
                 {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </IconButton>
             </div>
             {!vaultConfigured && <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">{t('egVaultMissing')}</p>}
             {!isNew && account.has_password && (
-              <label className="mt-2 flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                <input type="checkbox" checked={clearPassword} onChange={(e) => setClearPassword(e.target.checked)} />
+              <label className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
+                <input type="checkbox" className="h-4 w-4 accent-[var(--primary)]" checked={clearPassword} onChange={(e) => setClearPassword(e.target.checked)} />
                 {t('egFieldPasswordClear')}
               </label>
             )}
@@ -566,8 +566,8 @@ function AccountDialog({ account, vaultConfigured, onClose, onSaved }: {
             <textarea id="eg-notes" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} className={field} />
           </div>
 
-          <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-            <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
+          <label className="flex items-center gap-2 text-sm text-muted-foreground">
+            <input type="checkbox" className="h-4 w-4 accent-[var(--primary)]" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
             {t('egFieldActive')}
           </label>
         </div>

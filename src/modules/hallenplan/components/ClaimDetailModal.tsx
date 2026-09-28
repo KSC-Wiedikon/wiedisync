@@ -22,8 +22,8 @@ function DetailRow({ label, value }: { label: string; value: string }) {
   if (!value) return null
   return (
     <div className="flex gap-3 py-1.5">
-      <span className="w-28 shrink-0 text-sm font-medium text-gray-500 dark:text-gray-400">{label}</span>
-      <span className="text-sm text-gray-900 dark:text-gray-100">{value}</span>
+      <span className="w-28 shrink-0 text-sm font-medium text-muted-foreground">{label}</span>
+      <span className="text-sm text-foreground">{value}</span>
     </div>
   )
 }
@@ -70,7 +70,7 @@ export default function ClaimDetailModal({ slot, claim, halls, teams, onClose, o
 
         {originalTeams.length > 0 && (
           <div className="flex gap-3 py-1.5">
-            <span className="w-28 shrink-0 text-sm font-medium text-gray-500 dark:text-gray-400">
+            <span className="w-28 shrink-0 text-sm font-medium text-muted-foreground">
               {t('claimOriginalTeam')}
             </span>
             <span className="flex flex-wrap items-center gap-1">
@@ -93,16 +93,16 @@ export default function ClaimDetailModal({ slot, claim, halls, teams, onClose, o
         />
       </div>
 
-      <div className="mt-4 space-y-1 border-t border-gray-200 pt-4 dark:border-gray-700">
+      <div className="mt-4 space-y-1 border-t border-border pt-4">
         {claimingTeam && (
           <div className="flex gap-3 py-1.5">
-            <span className="w-28 shrink-0 text-sm font-medium text-gray-500 dark:text-gray-400">
+            <span className="w-28 shrink-0 text-sm font-medium text-muted-foreground">
               {t('claimClaimedBy')}
             </span>
             <div className="flex items-center gap-2">
               <TeamChip team={claimingTeam.name} size="sm" />
               {memberName && (
-                <span className="text-xs text-gray-500 dark:text-gray-400">({memberName})</span>
+                <span className="text-xs text-muted-foreground">({memberName})</span>
               )}
             </div>
           </div>
@@ -112,10 +112,10 @@ export default function ClaimDetailModal({ slot, claim, halls, teams, onClose, o
       </div>
 
       {canRelease && (
-        <div className="mt-4 border-t border-gray-200 pt-4 dark:border-gray-700">
+        <div className="mt-4 border-t border-border pt-4">
           {confirmRelease ? (
             <div className="space-y-2">
-              <p className="text-sm text-gray-600 dark:text-gray-400">{t('claimReleaseConfirm')}</p>
+              <p className="text-sm text-muted-foreground">{t('claimReleaseConfirm')}</p>
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setConfirmRelease(false)}>
                   {t('common:cancel')}

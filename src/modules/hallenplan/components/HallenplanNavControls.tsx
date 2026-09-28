@@ -18,7 +18,7 @@ export function SportFilterToggle({
   allLabel: string
 }) {
   return (
-    <div className="flex shrink-0 overflow-hidden rounded-md border border-gray-300 dark:border-gray-600">
+    <div className="flex shrink-0 overflow-hidden rounded-lg border border-input bg-card">
       {(['vb', 'bb', 'all'] as const).map((f) => (
         <Button
           key={f}
@@ -28,9 +28,9 @@ export function SportFilterToggle({
           className={cn(
             'rounded-none shadow-none',
             value === f
-              ? 'bg-brand-100 text-brand-800 hover:bg-brand-100 dark:bg-brand-700 dark:text-white dark:hover:bg-brand-700'
-              : 'text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700',
-            f !== 'vb' && 'border-l border-gray-300 dark:border-gray-600',
+              ? 'bg-selected text-selected-foreground hover:bg-selected hover:text-selected-foreground'
+              : 'text-foreground/85 hover:bg-accent',
+            f !== 'vb' && 'border-l border-input',
           )}
         >
           {f === 'vb' ? 'VB' : f === 'bb' ? 'BB' : allLabel}
@@ -53,7 +53,7 @@ export function FreedSlotsBar({
   if (freedSlots.length === 0) return null
   return (
     <>
-      <div className="border-t border-gray-200 pt-3 dark:border-gray-700">
+      <div className="border-t border-border pt-3">
         <Button
           size="sm"
           variant="ghost"

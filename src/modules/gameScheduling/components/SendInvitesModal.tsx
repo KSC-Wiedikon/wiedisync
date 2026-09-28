@@ -110,7 +110,7 @@ export default function SendInvitesModal({ open, onOpenChange, ids, ctx, api }: 
 
         {/* Recipient group — union (default) / calendar / team responsibles. */}
         <div className="flex flex-wrap items-center gap-1.5 text-xs">
-          <span className="font-medium text-gray-600 dark:text-gray-400">{t('sendToLabel')}:</span>
+          <span className="font-medium text-muted-foreground">{t('sendToLabel')}:</span>
           {(['all', 'calendar', 'team'] as const).map((g) => (
             <Button
               key={g}
@@ -121,8 +121,8 @@ export default function SendInvitesModal({ open, onOpenChange, ids, ctx, api }: 
               size="sm"
               className={`rounded-full px-2.5 ${
                 group === g
-                  ? 'border-brand-500 bg-brand-50 font-medium text-brand-700 hover:bg-brand-50 hover:text-brand-700 dark:border-brand-400 dark:bg-brand-900/40 dark:text-brand-300 dark:hover:bg-brand-900/40'
-                  : 'text-gray-600 dark:text-gray-300'
+                  ? 'border-transparent font-medium bg-selected text-selected-foreground hover:bg-selected/90 hover:text-selected-foreground'
+                  : 'text-muted-foreground'
               }`}
             >
               {t(g === 'all' ? 'sendGroupAll' : g === 'calendar' ? 'calendarResponsibles' : 'teamResponsibles')}
@@ -131,22 +131,22 @@ export default function SendInvitesModal({ open, onOpenChange, ids, ctx, api }: 
         </div>
 
         {loading ? (
-          <div className="py-10 text-center text-sm text-gray-500">{t('previewLoading')}</div>
+          <div className="py-10 text-center text-sm text-muted-foreground">{t('previewLoading')}</div>
         ) : error ? (
-          <div className="rounded border border-red-300 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300">
+          <div className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300">
             {error}
           </div>
         ) : previews.length === 0 ? (
-          <div className="py-10 text-center text-sm text-gray-500">{t('noSendableInvites')}</div>
+          <div className="py-10 text-center text-sm text-muted-foreground">{t('noSendableInvites')}</div>
         ) : (
           <div className="flex min-h-0 flex-col gap-2">
             {/* Recipient picker — drives the preview pane */}
-            <label className="text-xs font-medium text-gray-600 dark:text-gray-400">
+            <label className="text-xs font-medium text-muted-foreground">
               {t('previewRecipientLabel')}
               <select
                 value={selected}
                 onChange={(e) => setSelected(Number(e.target.value))}
-                className="mt-1 block h-11 w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm sm:h-9 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+                className="mt-1 block h-11 w-full rounded-lg border border-input bg-card px-2 py-1.5 text-sm sm:h-9 text-foreground dark:bg-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 {previews.map((p, i) => {
                   // Native <option> can't wrap — truncate the (often multi-)email
@@ -165,12 +165,12 @@ export default function SendInvitesModal({ open, onOpenChange, ids, ctx, api }: 
             </label>
 
             {current && (
-              <div className="min-h-0 overflow-y-auto rounded border border-gray-200 dark:border-gray-700">
-                <div className="space-y-0.5 border-b border-gray-200 bg-gray-50 px-3 py-2 text-xs dark:border-gray-700 dark:bg-gray-800/60">
-                  <div className="break-words text-gray-500 dark:text-gray-400">
+              <div className="min-h-0 overflow-y-auto rounded-lg border border-border">
+                <div className="space-y-0.5 border-b border-border bg-surface-sunken px-3 py-2 text-xs">
+                  <div className="break-words text-muted-foreground">
                     <span className="font-medium">{t('previewToLabel')}:</span> {current.to}
                   </div>
-                  <div className="text-gray-500 dark:text-gray-400">
+                  <div className="text-muted-foreground">
                     <span className="font-medium">{t('previewSubjectLabel')}:</span> {current.subject}
                   </div>
                 </div>

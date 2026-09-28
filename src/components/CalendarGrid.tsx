@@ -101,12 +101,12 @@ export default function CalendarGrid<T>({
           onClick={() => onMonthChange(addMonths(month, -1))}
           disabled={!canGoPrev}
           label={t('prevMonth')}
-          className="text-gray-600 dark:text-gray-400"
+          className="text-muted-foreground"
         >
           <ChevronLeft className="!size-5" />
         </IconButton>
         <div className="flex items-center gap-2">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+          <h2 className="text-lg font-semibold text-foreground">
             {formatDate(month, 'MMMM yyyy')}
           </h2>
           <Button
@@ -121,18 +121,18 @@ export default function CalendarGrid<T>({
           onClick={() => onMonthChange(addMonths(month, 1))}
           disabled={!canGoNext}
           label={t('nextMonth')}
-          className="text-gray-600 dark:text-gray-400"
+          className="text-muted-foreground"
         >
           <ChevronRight className="!size-5" />
         </IconButton>
       </div>
 
       {/* Day-of-week headers */}
-      <div className="grid grid-cols-7 border-b border-gray-200 dark:border-gray-700">
+      <div className="grid grid-cols-7 border-b border-border">
         {dayHeaders().map((d) => (
           <div
             key={d}
-            className="py-2 text-center text-xs font-medium text-gray-500 sm:text-sm dark:text-gray-400"
+            className="py-2 text-center text-xs font-medium text-muted-foreground sm:text-sm"
           >
             {d}
           </div>
@@ -140,7 +140,7 @@ export default function CalendarGrid<T>({
       </div>
 
       {/* Day grid */}
-      <div className="grid flex-1 grid-cols-7 border-l border-gray-200 dark:border-gray-700" style={{ gridAutoRows: '1fr' }}>
+      <div className="grid flex-1 grid-cols-7 border-l border-border" style={{ gridAutoRows: '1fr' }}>
         {days.map((date, i) => {
           const key = toDateKey(date)
           // A multi-day closure / block / off-season stretch is ONE thing, not one
@@ -180,12 +180,12 @@ export default function CalendarGrid<T>({
                     },
                   }
                 : {})}
-              className={`group relative min-h-[3rem] border-b border-r border-gray-200 p-0.5 sm:min-h-[5rem] sm:p-1 lg:min-h-[6.5rem] lg:p-2 dark:border-gray-700 ${
-                clickable ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50' : ''
+              className={`group relative min-h-[3rem] border-b border-r border-border p-0.5 sm:min-h-[5rem] sm:p-1 lg:min-h-[6.5rem] lg:p-2 ${
+                clickable ? 'cursor-pointer hover:bg-accent' : ''
               } ${
                 isToday ? 'ring-2 ring-inset ring-gold-400 dark:ring-gold-500' : ''
               } ${
-                !inMonth ? 'bg-gray-50 dark:bg-gray-900' : isOutOfSeason ? 'bg-black' : isHighlighted ? highlightClassName : 'bg-white dark:bg-gray-800'
+                !inMonth ? 'bg-surface-sunken' : isOutOfSeason ? 'bg-black' : isHighlighted ? highlightClassName : 'bg-card'
               }`}
             >
               {/* Closure overlay (red — visible in both light and dark mode) */}
@@ -206,10 +206,10 @@ export default function CalendarGrid<T>({
                     isToday
                       ? 'font-bold text-gold-600 dark:text-gold-400'
                       : !inMonth
-                        ? 'text-gray-300 dark:text-gray-600'
+                        ? 'text-muted-foreground/50'
                         : isOutOfSeason
                           ? 'text-white/60'
-                          : 'text-gray-700 dark:text-gray-300'
+                          : 'text-foreground/85'
                   }`}
                 >
                   {date.getDate()}

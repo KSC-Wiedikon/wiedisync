@@ -227,7 +227,7 @@ export default function NotificationPanel({
   return (
     <div className="fixed inset-0 z-50" onClick={startClose}>
       {/* Backdrop */}
-      <div className={`absolute inset-0 bg-black/50 ${closing ? 'animate-fade-out' : 'animate-fade-in'}`} />
+      <div className={`absolute inset-0 bg-stone-900/60 backdrop-blur-sm dark:bg-black/70 ${closing ? 'animate-fade-out' : 'animate-fade-in'}`} />
 
       {/* Panel — animation/drag transform on this wrapper; scrolling on inner
           container so iOS Safari keeps touch-scroll while transform is active. */}
@@ -237,7 +237,7 @@ export default function NotificationPanel({
         aria-modal="true"
         aria-labelledby="notification-panel-title"
         tabIndex={-1}
-        className={`absolute bottom-0 left-0 right-0 flex max-h-[85vh] flex-col rounded-t-2xl bg-white outline-none dark:bg-gray-800 lg:bottom-auto lg:left-auto lg:right-4 lg:top-4 lg:max-h-[80vh] lg:w-96 lg:rounded-2xl lg:shadow-2xl ${closing ? 'animate-sheet-down lg:animate-fade-out' : 'animate-sheet-up lg:animate-modal-enter'}`}
+        className={`absolute bottom-0 left-0 right-0 flex max-h-[85vh] flex-col rounded-t-2xl border border-hairline bg-card shadow-xl outline-none lg:bottom-auto lg:left-auto lg:right-4 lg:top-4 lg:max-h-[80vh] lg:w-96 lg:rounded-2xl lg:shadow-2xl ${closing ? 'animate-sheet-down lg:animate-fade-out' : 'animate-sheet-up lg:animate-modal-enter'}`}
         style={dragY > 0 ? { transform: `translateY(${dragY}px)`, transition: 'none' } : undefined}
         onClick={(e) => e.stopPropagation()}
         onAnimationEnd={(e) => { if (e.target === e.currentTarget) onAnimEnd() }}
@@ -248,22 +248,22 @@ export default function NotificationPanel({
         {/* Scrollable body — panelRef points here so onTouchStart can read scrollTop */}
         <div ref={panelRef} className="pb-safe flex-1 overflow-y-auto overscroll-contain">
         {/* Handle (mobile) + close button */}
-        <div className="sticky top-0 z-10 rounded-t-2xl bg-white dark:bg-gray-800 lg:rounded-t-2xl">
+        <div className="sticky top-0 z-10 rounded-t-2xl bg-card lg:rounded-t-2xl">
           <button
             type="button"
             onClick={startClose}
             aria-label={t('close', { defaultValue: 'Close' })}
-            className="relative flex w-full items-center justify-center rounded-t-2xl pb-1 pt-3 transition-colors hover:bg-gray-50 active:bg-gray-100 dark:hover:bg-gray-700/60 dark:active:bg-gray-700 lg:hidden"
+            className="relative flex w-full items-center justify-center rounded-t-2xl pb-1 pt-3 transition-colors hover:bg-accent active:bg-stone-200/60 dark:active:bg-white/5 lg:hidden"
           >
-            <span className="h-1 w-10 rounded-full bg-gray-300 dark:bg-gray-600" />
-            <span className="absolute right-3 top-1.5 inline-flex h-9 w-9 items-center justify-center rounded-lg text-gray-400 dark:text-gray-500">
+            <span className="h-1.5 w-12 rounded-full bg-border" />
+            <span className="absolute right-3 top-1.5 inline-flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground/80">
               <ChevronDown className="h-5 w-5" />
             </span>
           </button>
 
           {/* Header */}
-          <div className="flex items-center justify-between gap-2 border-b border-gray-200 px-4 pb-3 pt-2 dark:border-gray-700 lg:pt-4">
-            <h2 id="notification-panel-title" className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+          <div className="flex items-center justify-between gap-2 border-b border-border px-4 pb-3 pt-2 lg:pt-4">
+            <h2 id="notification-panel-title" className="text-lg font-bold tracking-tight text-foreground">
               {t('title')}
             </h2>
             <div className="flex shrink-0 items-center gap-1">
@@ -273,7 +273,7 @@ export default function NotificationPanel({
                   variant="ghost"
                   size="sm"
                   onClick={onMarkAllAsRead}
-                  className="text-sm text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300"
+                  className="text-sm text-primary hover:text-primary/80 dark:text-brand-300 dark:hover:text-brand-200"
                 >
                   {t('markAllRead')}
                 </Button>
@@ -284,7 +284,7 @@ export default function NotificationPanel({
                   variant="ghost"
                   size="sm"
                   onClick={onClearRead}
-                  className="text-sm text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400"
+                  className="text-sm text-muted-foreground hover:text-red-600 dark:hover:text-red-400"
                 >
                   {t('clearRead')}
                 </Button>
@@ -295,7 +295,7 @@ export default function NotificationPanel({
                 size="sm"
                 onClick={startClose}
                 label={t('close', { defaultValue: 'Close' })}
-                className="hidden text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 lg:inline-flex"
+                className="hidden text-muted-foreground/80 hover:text-muted-foreground lg:inline-flex"
               >
                 <X />
               </IconButton>
@@ -305,7 +305,7 @@ export default function NotificationPanel({
 
         {/* Notification list */}
         {notifications.length === 0 ? (
-          <p className="px-4 py-8 text-center text-sm text-gray-400 dark:text-gray-500">
+          <p className="px-4 py-8 text-center text-sm text-muted-foreground/80">
             {t('noNotifications')}
           </p>
         ) : (
@@ -313,32 +313,32 @@ export default function NotificationPanel({
             {notifications.map((n) => (
               <div
                 key={n.id}
-                className={`flex w-full items-start border-b border-gray-100 transition-colors last:border-b-0 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-700/50 ${
+                className={`flex w-full items-start border-b border-border/60 transition-colors last:border-b-0 hover:bg-muted dark:hover:bg-white/5 ${
                   !n.read ? 'bg-brand-50/50 dark:bg-brand-900/20' : ''
                 }`}
               >
                 <button
                   onClick={() => handleClick(n)}
-                  className="flex min-w-0 flex-1 items-start gap-3 px-4 py-3 text-left active:bg-gray-100 dark:active:bg-gray-700"
+                  className="flex min-w-0 flex-1 items-start gap-3 px-4 py-3 text-left active:bg-stone-200/60 dark:active:bg-white/5"
                 >
                   {/* Unread dot */}
                   <div className="flex shrink-0 items-center pt-1.5">
                     {!n.read ? (
-                      <div className="h-2 w-2 rounded-full bg-brand-500" />
+                      <div className="h-2 w-2 rounded-full bg-primary" />
                     ) : (
                       <div className="h-2 w-2" />
                     )}
                   </div>
 
                   {/* Icon */}
-                  <span className="shrink-0 pt-0.5 text-gray-500 dark:text-gray-400">{typeIcons[n.type] ?? <Bell className="h-4 w-4" />}</span>
+                  <span className="shrink-0 pt-0.5 text-muted-foreground">{typeIcons[n.type] ?? <Bell className="h-4 w-4" />}</span>
 
                   {/* Content */}
                   <div className="min-w-0 flex-1 pr-px">
-                    <p className={`break-words text-sm text-gray-900 dark:text-gray-100 ${!n.read ? 'font-medium' : ''}`}>
+                    <p className={`break-words text-sm text-foreground ${!n.read ? 'font-medium' : ''}`}>
                       {renderedMessages.get(n.id) ?? ''}
                     </p>
-                    <div className="mt-0.5 flex items-center gap-2 text-xs text-gray-400 dark:text-gray-500">
+                    <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground/80">
                       <span>{t(typeLabels[n.type] ?? 'activityChange')}</span>
                       <span>·</span>
                       <span>{timeAgo(n.created ?? n.date_created ?? '', t)}</span>
@@ -349,7 +349,7 @@ export default function NotificationPanel({
                   <IconButton
                     type="button"
                     onClick={(e) => { e.stopPropagation(); onDelete(n.id) }}
-                    className="mr-1 mt-1 shrink-0 text-gray-400 hover:text-red-600 dark:text-gray-500 dark:hover:text-red-400"
+                    className="mr-1 mt-1 shrink-0 text-muted-foreground/80 hover:text-red-600 dark:hover:text-red-400"
                     label={t('delete')}
                   >
                     <Trash2 />
@@ -362,9 +362,9 @@ export default function NotificationPanel({
 
         {/* Push notification toggle */}
         {push.supported && (
-          <div className="border-t border-gray-200 px-4 py-3 dark:border-gray-700">
+          <div className="border-t border-border px-4 py-3">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 {/* While the SW probe runs, `subscribed: false` only means "not
                     known yet" — show a neutral bell instead of asserting either
                     state, and keep the button dimmed + inert (see below). */}

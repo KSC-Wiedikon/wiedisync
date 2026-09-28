@@ -156,17 +156,17 @@ export default function WeekView({
           >
             <ChevronRight className="h-4 w-4" aria-hidden />
           </IconButton>
-          <span className="ml-2 text-sm font-medium text-gray-700 dark:text-gray-200">{rangeLabel}</span>
+          <span className="ml-2 text-sm font-medium text-foreground/85">{rangeLabel}</span>
         </div>
 
         {/* Week grid */}
-        <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+        <div className="overflow-x-auto rounded-2xl border border-hairline bg-card shadow-card">
           <div
             className="grid min-w-[700px]"
             style={{ gridTemplateColumns: '50px repeat(7, 1fr)' }}
           >
             {/* Header row */}
-            <div className="border-b border-r border-gray-200 bg-muted/30 dark:border-gray-700" />
+            <div className="border-b border-r border-border bg-muted/30" />
             {days.map((d) => {
               const isToday = isSameDay(d, today)
               const absent = absencesByDate?.get(toDateKey(d)) ?? []
@@ -175,14 +175,14 @@ export default function WeekView({
                 <div
                   key={d.toISOString()}
                   className={cn(
-                    'border-b border-r border-gray-200 p-2 text-center dark:border-gray-700',
-                    isToday && 'bg-accent',
+                    'border-b border-r border-border p-2 text-center',
+                    isToday && 'bg-primary/10 dark:bg-accent',
                   )}
                 >
                   <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
                     {formatDate(d, 'EEE')}
                   </div>
-                  <div className={cn('text-sm font-semibold', isToday && 'text-accent-foreground')}>
+                  <div className={cn('text-sm font-semibold', isToday && 'text-primary dark:text-accent-foreground')}>
                     {formatDate(d, 'd')}
                   </div>
                   {/* Mounted while an overlay is pending too — an unknown count
@@ -211,7 +211,7 @@ export default function WeekView({
 
             {/* Time rail */}
             <div
-              className="relative border-r border-gray-200 dark:border-gray-700"
+              className="relative border-r border-border"
               style={{ height: railHeight }}
             >
               {rows.map((h, idx) => (
@@ -278,16 +278,16 @@ function DayColumn({
     <div
       ref={setNodeRef}
       className={cn(
-        'relative border-r border-gray-200 dark:border-gray-700',
-        isToday && 'bg-accent/30',
-        isOver && 'bg-accent/50 dark:bg-accent/40',
+        'relative border-r border-border',
+        isToday && 'bg-primary/5 dark:bg-accent/30',
+        isOver && 'bg-primary/10 dark:bg-accent/40',
       )}
       style={{ height: railHeight }}
     >
       {rows.map((_h, idx) => (
         <div
           key={idx}
-          className="absolute left-0 right-0 border-t border-gray-100 dark:border-gray-800"
+          className="absolute left-0 right-0 border-t border-border/60"
           style={{ top: idx * PX_PER_HOUR }}
         />
       ))}

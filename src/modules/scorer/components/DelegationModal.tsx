@@ -194,44 +194,44 @@ export default function DelegationModal({
         onClick={() => handleSelect(member, sameTeam)}
         className={`flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left transition-colors ${
           isSelected
-            ? 'bg-brand-50 ring-2 ring-brand-500 dark:bg-brand-900/30 dark:ring-brand-400'
-            : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'
+            ? 'bg-primary/10 ring-2 ring-primary dark:bg-primary/25 dark:ring-brand-400'
+            : 'hover:bg-accent'
         }`}
       >
         <div className="min-w-0 flex-1">
-          <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
+          <div className="text-sm font-medium text-foreground">
             {memberDisplayName(member)}
           </div>
           {teamNames.length > 0 && (
-            <div className="text-xs text-gray-500 dark:text-gray-400">{teamNames.join(', ')}</div>
+            <div className="text-xs text-muted-foreground">{teamNames.join(', ')}</div>
           )}
         </div>
         {/* No per-row "needs confirmation" pill: every delegation (teammate or
             external) must be accepted by the recipient (migration 121), so it
             conveyed nothing. The confirm step states the request is pending. */}
-        <ArrowRight className="h-4 w-4 shrink-0 text-gray-300 dark:text-gray-600" />
+        <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground/50" />
       </button>
     )
   }
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/40" />
+      <div className="absolute inset-0 bg-stone-900/60 backdrop-blur-sm dark:bg-black/70" />
       <div
-        className="relative max-h-[90vh] w-full overflow-hidden rounded-t-2xl bg-white shadow-xl dark:bg-gray-800 sm:max-w-md sm:rounded-2xl"
+        className="relative max-h-[90vh] w-full overflow-hidden rounded-t-2xl border border-hairline bg-card shadow-2xl sm:max-w-md sm:rounded-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between gap-2 border-b border-gray-200 px-4 py-3 dark:border-gray-700">
+        <div className="flex items-center justify-between gap-2 border-b border-hairline px-4 py-3">
           <div className="min-w-0">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+            <h3 className="text-lg font-bold tracking-tight text-foreground">
               {t('delegateTitle')}
             </h3>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
+            <p className="text-xs text-muted-foreground">
               {roleLabel} · {gameLabel}
             </p>
           </div>
-          <IconButton label={t('cancelAction')} onClick={onClose} className="shrink-0 text-gray-400">
+          <IconButton label={t('cancelAction')} onClick={onClose} className="shrink-0 text-muted-foreground/80">
             <X className="!size-5" />
           </IconButton>
         </div>
@@ -239,10 +239,10 @@ export default function DelegationModal({
         {/* Confirmation step */}
         {selected ? (
           <div className="p-4">
-            <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+            <h4 className="text-sm font-semibold text-foreground">
               {t('delegateConfirmTitle')}
             </h4>
-            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+            <p className="mt-2 text-sm text-muted-foreground">
               {t('delegateConfirmPending', { name: selectedName })}
             </p>
             <div className="mt-4 flex gap-3">
@@ -257,15 +257,15 @@ export default function DelegationModal({
         ) : (
           <>
             {/* Search */}
-            <div className="border-b border-gray-200 px-4 py-3 dark:border-gray-700">
+            <div className="border-b border-hairline px-4 py-3">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/80" />
                 <input
                   type="text"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder={t('searchMember')}
-                  className="h-11 w-full rounded-lg border border-gray-300 bg-white pl-10 pr-3 text-sm sm:h-9 text-gray-900 placeholder-gray-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-500"
+                  className="h-11 w-full rounded-lg border border-input bg-card pl-10 pr-3 text-sm sm:h-9 text-foreground placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-input/20"
                   autoFocus
                 />
               </div>
@@ -274,14 +274,14 @@ export default function DelegationModal({
             {/* Member list */}
             <div className="max-h-[50vh] overflow-y-auto overscroll-contain p-2">
               {!hasResults && (
-                <p className="py-8 text-center text-sm text-gray-400 dark:text-gray-500">
+                <p className="py-8 text-center text-sm text-muted-foreground/80">
                   {t('noMembersFound')}
                 </p>
               )}
 
               {filteredSame.length > 0 && (
                 <div className="mb-2">
-                  <p className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                  <p className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                     {t('delegateSameTeam')}
                   </p>
                   {filteredSame.map((m) => renderMemberRow(m, true))}
@@ -290,7 +290,7 @@ export default function DelegationModal({
 
               {filteredCross.length > 0 && (
                 <div>
-                  <p className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                  <p className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                     {t('delegateCrossTeam')}
                   </p>
                   {filteredCross.map((m) => renderMemberRow(m, false))}

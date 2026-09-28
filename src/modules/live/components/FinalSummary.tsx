@@ -48,7 +48,7 @@ export default function FinalSummary({ state }: { state: BoardState }) {
 
   return (
     // No "Final" label here: the header's status pill already says it, right above this card.
-    <div className="rounded-xl border bg-card p-4 shadow-sm sm:p-6">
+    <div className="rounded-2xl border border-hairline bg-card p-4 shadow-card sm:p-6">
       {winner ? (
         <p className="flex flex-wrap items-center justify-center gap-2 text-base font-bold text-foreground sm:text-lg">
           <Trophy className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
@@ -89,7 +89,7 @@ export default function FinalSummary({ state }: { state: BoardState }) {
       )}
 
       {view.sets.length > 0 && (
-        <div className="mt-4 overflow-x-auto rounded-lg border bg-card">
+        <div className="mt-4 overflow-x-auto rounded-xl border border-hairline bg-card">
           <Table>
             <TableHeader>
               <TableRow>

@@ -12,7 +12,7 @@ const AFFECTS_COLORS: Record<string, string> = {
   trainings: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
   games: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300',
   events: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300',
-  all: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400',
+  all: 'bg-muted text-muted-foreground',
 }
 
 interface WeeklyUnavailabilityCardProps {
@@ -52,10 +52,10 @@ export default function WeeklyUnavailabilityCard({ absence, onEdit, onDelete, sh
   return (
     <TableRow className="align-top">
       {showMemberName && (
-        <TableCell className="whitespace-normal text-sm font-medium text-gray-900 dark:text-gray-100">
+        <TableCell className="whitespace-normal text-sm font-medium text-foreground">
           <div>{memberName ?? '—'}</div>
           {!absence.indefinite && absence.end_date && (
-            <div className="mt-0.5 flex items-center gap-1 text-[11px] font-normal text-gray-500 dark:text-gray-400">
+            <div className="mt-0.5 flex items-center gap-1 text-[11px] font-normal text-muted-foreground">
               <CalendarClock className="h-3 w-3 shrink-0" aria-hidden="true" />
               <span>
                 {t('untilShort', {
@@ -74,8 +74,8 @@ export default function WeeklyUnavailabilityCard({ absence, onEdit, onDelete, sh
             key={key}
             className={
               `w-7 px-0.5 sm:w-10 sm:px-1 text-center align-middle ` +
-              (dow === 0 ? 'border-l border-gray-200 dark:border-gray-700 ' : '') +
-              `border-r border-gray-200 dark:border-gray-700`
+              (dow === 0 ? 'border-l border-border ' : '') +
+              `border-r border-border`
             }
             title={active ? label : undefined}
           >
@@ -84,8 +84,8 @@ export default function WeeklyUnavailabilityCard({ absence, onEdit, onDelete, sh
               aria-hidden={!active}
               className={
                 active
-                  ? 'inline-flex h-5 w-5 sm:h-7 sm:w-7 items-center justify-center rounded-sm sm:rounded-full bg-brand-500 text-[10px] sm:text-[11px] font-semibold text-white'
-                  : 'inline-flex h-5 w-5 sm:h-7 sm:w-7 items-center justify-center rounded-sm sm:rounded-full text-[10px] sm:text-[11px] text-gray-300 dark:text-gray-600'
+                  ? 'inline-flex h-5 w-5 sm:h-7 sm:w-7 items-center justify-center rounded-sm sm:rounded-full bg-primary text-[10px] sm:text-[11px] font-semibold text-primary-foreground'
+                  : 'inline-flex h-5 w-5 sm:h-7 sm:w-7 items-center justify-center rounded-sm sm:rounded-full text-[10px] sm:text-[11px] text-muted-foreground/50'
               }
             >
               {active ? '•' : ''}
@@ -93,7 +93,7 @@ export default function WeeklyUnavailabilityCard({ absence, onEdit, onDelete, sh
           </TableCell>
         )
       })}
-      <TableCell className="hidden md:table-cell whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
+      <TableCell className="hidden md:table-cell whitespace-nowrap text-sm text-foreground/85">
         {dateRange}
       </TableCell>
       <TableCell className="hidden sm:table-cell whitespace-normal">
@@ -107,7 +107,7 @@ export default function WeeklyUnavailabilityCard({ absence, onEdit, onDelete, sh
           </div>
         )}
         {absence.reason_detail && (
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{absence.reason_detail}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{absence.reason_detail}</p>
         )}
         {(() => {
           // Third-party edit attribution (migration 051 + role/name from 053).
@@ -124,7 +124,7 @@ export default function WeeklyUnavailabilityCard({ absence, onEdit, onDelete, sh
             role === 'admin' && name ? 'editedByAdminOn' :
             'editedByStaffOn'
           return (
-            <p className="mt-1 break-words text-xs italic text-gray-400 dark:text-gray-500">
+            <p className="mt-1 break-words text-xs italic text-muted-foreground/80">
               {t(key, { at, name: name ?? '' })}
             </p>
           )
@@ -138,7 +138,7 @@ export default function WeeklyUnavailabilityCard({ absence, onEdit, onDelete, sh
               type="button"
               onClick={() => onEdit(absence)}
               label={t('common:edit')}
-              className="text-brand-600 hover:bg-brand-50 hover:text-brand-700 dark:text-brand-400 dark:hover:bg-brand-900/30"
+              className="text-primary hover:bg-primary/10 hover:text-primary dark:text-brand-300 dark:hover:bg-brand-900/30 dark:hover:text-brand-200"
             >
               <Pencil />
             </IconButton>

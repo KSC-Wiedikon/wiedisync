@@ -38,7 +38,7 @@ export default function ProposalContextHints({ hp, showAbsences = true }: Props)
   return (
     <>
       {absenceLine}
-      {gap.length > 0 && <p className="text-xs text-gray-500 dark:text-gray-400">{gap.join(' · ')}</p>}
+      {gap.length > 0 && <p className="text-xs text-muted-foreground">{gap.join(' · ')}</p>}
     </>
   )
 }

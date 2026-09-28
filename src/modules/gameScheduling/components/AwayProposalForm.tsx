@@ -93,8 +93,8 @@ export default function AwayProposalForm({ existingProposal, blockedStrict, bloc
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {slots.map((s, i) => (
-        <div key={i} className="rounded-md border border-gray-200 bg-gray-50 p-3 dark:border-gray-600 dark:bg-gray-700">
-          <span className="mb-2 block text-xs font-medium text-gray-500 dark:text-gray-400">
+        <div key={i} className="rounded-xl border border-hairline bg-surface-sunken p-3">
+          <span className="mb-2 block text-xs font-medium text-muted-foreground">
             {t('proposalNumber', { number: i + 1 })}
             {i === 0 && <span className="ml-1 text-green-700 dark:text-green-300">· {t('slotReserved')}</span>}
           </span>
@@ -122,7 +122,7 @@ export default function AwayProposalForm({ existingProposal, blockedStrict, bloc
                   modifiers={{ outOfSeason: (date) => (!!winStart && isBefore(date, winStart)) || (!!winEnd && isAfter(date, winEnd)) }}
                   modifiersClassNames={{ outOfSeason: '!bg-black !text-white/40' }}
                 />
-                <p className="flex items-center gap-1.5 border-t border-gray-100 px-3 py-2 text-[11px] text-gray-500 dark:border-gray-700 dark:text-gray-400">
+                <p className="flex items-center gap-1.5 border-t border-border/60 px-3 py-2 text-[11px] text-muted-foreground">
                   <span className="inline-block h-3 w-3 rounded-sm bg-black" />
                   {t('outsideSeasonLabel')}
                 </p>
@@ -132,10 +132,10 @@ export default function AwayProposalForm({ existingProposal, blockedStrict, bloc
               type="time"
               value={s.time}
               onChange={(e) => update(i, { time: e.target.value })}
-              className={`h-11 sm:h-9 w-full rounded-md border px-3 text-sm dark:bg-gray-600 dark:text-gray-100 sm:w-36 ${
+              className={`h-11 sm:h-9 w-full rounded-lg border bg-card px-3 text-sm text-foreground dark:bg-input/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:w-36 ${
                 s.date && !s.time
                   ? 'border-amber-500 dark:border-amber-500'
-                  : 'border-gray-300 dark:border-gray-500'
+                  : 'border-input'
               }`}
               required
             />
@@ -146,7 +146,7 @@ export default function AwayProposalForm({ existingProposal, blockedStrict, bloc
         </div>
       ))}
 
-      <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+      <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900/60 dark:bg-amber-900/20 dark:text-amber-200">
         {t('firstChoiceReservedNote')}
       </p>
       {existingProposal && existingProposal.status === 'pending' && (

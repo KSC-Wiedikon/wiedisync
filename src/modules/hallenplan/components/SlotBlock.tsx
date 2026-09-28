@@ -208,10 +208,10 @@ export default function SlotBlock({ positioned, teamName, teamSport, hasConflict
         {/* Auto indicator for regular virtual slots */}
         {isVirtual && !isFreed && !isClaimed && (
           <span
-            className="absolute -right-0.5 -top-0.5 z-30 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-white/80 dark:bg-gray-800/80"
+            className="absolute -right-0.5 -top-0.5 z-30 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-card/80"
             title="Auto"
           >
-            <Link2 className="h-2.5 w-2.5 text-gray-400" aria-hidden />
+            <Link2 className="h-2.5 w-2.5 text-muted-foreground/80" aria-hidden />
           </span>
         )}
         <SlotIcon sport={teamSport} />

@@ -28,7 +28,7 @@ const ACCESS_LABEL: Record<AdminAccess, string> = {
 }
 
 const ACCESS_STYLE: Record<AdminAccess, string> = {
-  admin: 'bg-gray-100 text-gray-600 dark:bg-brand-800 dark:text-gray-300',
+  admin: 'bg-muted text-muted-foreground dark:bg-brand-800',
   globalAdmin: 'bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
   superadmin: 'bg-amber-50 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
 }
@@ -89,23 +89,23 @@ export default function AdminHubPage() {
       <div className="flex flex-wrap items-center gap-3">
         <LayoutGrid className="h-6 w-6 text-primary" />
         <div className="flex-1">
-          <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{t('hubTitle')}</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400">{t('hubSubtitle')}</p>
+          <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">{t('hubTitle')}</h1>
+          <p className="text-sm text-muted-foreground">{t('hubSubtitle')}</p>
         </div>
       </div>
 
       <div className="relative">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/80" />
         <Input
           value={query}
           onChange={(ev) => setQuery(ev.target.value)}
           placeholder={t('hubSearch')}
           aria-label={t('hubSearch')}
-          className="pl-9 dark:bg-brand-900/40"
+          className="pl-9"
         />
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+      <div className="overflow-hidden rounded-2xl border border-hairline bg-card shadow-card">
         <Table>
           <TableHeader>
             <TableRow>
@@ -128,13 +128,13 @@ export default function AdminHubPage() {
                 }}
                 className="cursor-pointer"
               >
-                <TableCell className="min-h-[44px] whitespace-normal break-words font-medium text-gray-900 dark:text-gray-100">
+                <TableCell className="min-h-[44px] whitespace-normal break-words font-medium text-foreground">
                   <span className="flex items-center gap-2.5">
-                    <entry.icon className="h-4 w-4 shrink-0 text-gray-400 dark:text-gray-500" />
+                    <entry.icon className="h-4 w-4 shrink-0 text-muted-foreground/80" />
                     {label}
                   </span>
                 </TableCell>
-                <TableCell className="whitespace-normal break-words text-sm text-gray-500 dark:text-gray-400">
+                <TableCell className="whitespace-normal break-words text-sm text-muted-foreground">
                   {section}
                 </TableCell>
                 <TableCell className="hidden whitespace-normal sm:table-cell">
@@ -146,7 +146,7 @@ export default function AdminHubPage() {
             ))}
             {filtered.length === 0 && (
               <TableRow>
-                <TableCell colSpan={3} className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                <TableCell colSpan={3} className="py-8 text-center text-sm text-muted-foreground">
                   {t('hubNone')}
                 </TableCell>
               </TableRow>

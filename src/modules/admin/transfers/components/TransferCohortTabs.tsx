@@ -167,7 +167,7 @@ export function TransferCohortTabs({
   const searchBox = (
     <div className="relative min-w-0 flex-1 sm:max-w-xs">
       <Search
-        className="pointer-events-none absolute top-1/2 left-2 h-4 w-4 -translate-y-1/2 text-gray-400 dark:text-gray-500"
+        className="pointer-events-none absolute top-1/2 left-2 h-4 w-4 -translate-y-1/2 text-muted-foreground/80"
         aria-hidden="true"
       />
       <Input
@@ -183,7 +183,7 @@ export function TransferCohortTabs({
 
   /** The lead line every tab opens with: what this cohort IS, in one sentence. */
   const lead = (icon: ReactNode, text: string) => (
-    <p className="mb-3 flex items-start gap-2 text-sm text-gray-500 dark:text-gray-400">
+    <p className="mb-3 flex items-start gap-2 text-sm text-muted-foreground">
       {icon}
       <span>{text}</span>
     </p>
@@ -229,7 +229,7 @@ export function TransferCohortTabs({
             <div className="mb-3 flex flex-wrap items-center gap-2">
               {searchBox}
               <div className="flex items-center gap-1.5">
-                <span className="text-xs font-medium text-gray-600 dark:text-gray-300">{t('trGroupBy')}</span>
+                <span className="text-xs font-medium text-muted-foreground">{t('trGroupBy')}</span>
                 <Select value={groupBy} onValueChange={(v) => { onGroupByChange(v as GroupBy) }}>
                   <SelectTrigger aria-label={t('trGroupBy')} className="w-[11rem]">
                     <SelectValue />
@@ -270,11 +270,11 @@ export function TransferCohortTabs({
              different answers — the reason the original rendered the ruled-out
              section outside this branch. */
           <div className="flex flex-col items-center justify-center py-16 text-center">
-            <div className="mb-4 rounded-full bg-gray-100 p-4 dark:bg-gray-800">
+            <div className="mb-4 rounded-full bg-muted p-4">
               <CheckCircle2 className="h-8 w-8 text-green-500 dark:text-green-400" aria-hidden="true" />
             </div>
-            <p className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('trEmptyTitle')}</p>
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('trEmptyDescription')}</p>
+            <p className="text-sm font-medium text-foreground/85">{t('trEmptyTitle')}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{t('trEmptyDescription')}</p>
           </div>
         ) : (
           <TransferGroupTable
@@ -313,7 +313,7 @@ export function TransferCohortTabs({
 
       <TabsContent value="notNeeded">
         {lead(
-          <Ban className="mt-0.5 h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" aria-hidden="true" />,
+          <Ban className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />,
           t('trNotNeededDescription'),
         )}
         <div className="mb-3 flex flex-wrap items-center gap-2">{searchBox}</div>
@@ -337,16 +337,16 @@ export function TransferCohortTabs({
           {!swissFederation ? (
             // No directory row for CH — say so plainly. An empty mailto: would
             // look like a working contact and silently go nowhere.
-            <span className="text-xs text-gray-500 dark:text-gray-400">
+            <span className="text-xs text-muted-foreground">
               {t('trVisFederationMissing', { code: swissGroups[0]?.key || 'CH' })}
             </span>
           ) : (
             <span className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-              <span className="text-xs font-medium text-gray-700 dark:text-gray-200">
+              <span className="text-xs font-medium text-foreground/85">
                 {prettyFederationName(swissFederation.name)}
               </span>
               {swissEmails.length === 0 ? (
-                <span className="text-xs text-gray-500 dark:text-gray-400">{t('trVisNoEmail')}</span>
+                <span className="text-xs text-muted-foreground">{t('trVisNoEmail')}</span>
               ) : (
                 <span className="inline-flex flex-wrap items-center gap-1">
                   {/* mailto on the FIRST address only — VIS lists several for
@@ -364,7 +364,7 @@ export function TransferCohortTabs({
                   />
                   {swissEmails.length > 1 && (
                     <span
-                      className="text-xs text-gray-400 dark:text-gray-500"
+                      className="text-xs text-muted-foreground/80"
                       title={swissEmails.slice(1).join('; ')}
                     >
                       {t('trVisMoreAddresses', { count: swissEmails.length - 1 })}

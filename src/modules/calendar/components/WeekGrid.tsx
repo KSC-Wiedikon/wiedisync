@@ -113,35 +113,35 @@ export default function WeekGrid({
     <div className="flex flex-1 flex-col">
       {/* Week header */}
       <div className="mb-3 flex items-center justify-between gap-2">
-        <IconButton label={t('common:prevWeek')} onClick={() => onWeekChange(addWeeks(weekMonday, -1))} className="text-gray-600 dark:text-gray-400">
+        <IconButton label={t('common:prevWeek')} onClick={() => onWeekChange(addWeeks(weekMonday, -1))} className="text-muted-foreground">
           <ChevronLeft className="!size-5" />
         </IconButton>
         <div className="flex min-w-0 items-center gap-2">
-          <h2 className="text-sm font-semibold tabular-nums text-gray-900 sm:text-lg dark:text-gray-100">{weekLabel}</h2>
+          <h2 className="text-sm font-semibold tabular-nums text-foreground sm:text-lg">{weekLabel}</h2>
           <Button variant="secondary" size="sm" onClick={() => onWeekChange(startOfWeek(new Date()))} className="shrink-0">
             {t('common:today')}
           </Button>
         </div>
-        <IconButton label={t('common:nextWeek')} onClick={() => onWeekChange(addWeeks(weekMonday, 1))} className="text-gray-600 dark:text-gray-400">
+        <IconButton label={t('common:nextWeek')} onClick={() => onWeekChange(addWeeks(weekMonday, 1))} className="text-muted-foreground">
           <ChevronRight className="!size-5" />
         </IconButton>
       </div>
 
       {/* Day headers */}
-      <div className="grid grid-cols-[3rem_repeat(7,1fr)] border-b border-gray-200 dark:border-gray-700">
+      <div className="grid grid-cols-[3rem_repeat(7,1fr)] border-b border-border">
         <div /> {/* gutter */}
         {weekDays.map((date, i) => {
           const isToday = isSameDay(date, today)
           return (
             <div key={i} className="flex flex-col items-center py-1.5">
-              <span className="text-[10px] font-medium text-gray-600 dark:text-gray-400">
+              <span className="text-[10px] font-medium text-muted-foreground">
                 {dayHeaders()[i]}
               </span>
               <span
                 className={`mt-0.5 flex h-7 w-7 items-center justify-center rounded-full text-sm font-bold ${
                   isToday
                     ? 'bg-gold-400 text-brand-900'
-                    : 'text-gray-900 dark:text-gray-100'
+                    : 'text-foreground'
                 }`}
               >
                 {date.getDate()}
@@ -153,8 +153,8 @@ export default function WeekGrid({
 
       {/* All-day section */}
       {allDayEntries.length > 0 && (
-        <div className="grid grid-cols-[3rem_repeat(7,1fr)] border-b border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-center text-[10px] text-gray-400">
+        <div className="grid grid-cols-[3rem_repeat(7,1fr)] border-b border-border">
+          <div className="flex items-center justify-center text-[10px] text-muted-foreground/80">
             {t('common:allDay')}
           </div>
           {weekDays.map((date, ci) => {
@@ -164,7 +164,7 @@ export default function WeekGrid({
               return toDateKey(e.date) <= key && eEnd >= key
             })
             return (
-              <div key={ci} className="space-y-px border-l border-gray-200 px-0.5 py-1 dark:border-gray-700">
+              <div key={ci} className="space-y-px border-l border-border px-0.5 py-1">
                 {dayAllDay.slice(0, 2).map((e) => (
                   <button
                     key={e.id}
@@ -177,7 +177,7 @@ export default function WeekGrid({
                   </button>
                 ))}
                 {dayAllDay.length > 2 && (
-                  <div className="text-[9px] text-gray-400">+{dayAllDay.length - 2}</div>
+                  <div className="text-[9px] text-muted-foreground/80">+{dayAllDay.length - 2}</div>
                 )}
               </div>
             )
@@ -197,7 +197,7 @@ export default function WeekGrid({
             {hourLabels.map((hl) => (
               <div
                 key={hl.minutes}
-                className="absolute right-1 text-[10px] text-gray-400"
+                className="absolute right-1 text-[10px] text-muted-foreground/80"
                 style={{ top: minutesToOffset(hl.minutes, timeRange.startMin) - 6 }}
               >
                 {hl.label}
@@ -215,7 +215,7 @@ export default function WeekGrid({
             return (
               <div
                 key={ci}
-                className={`relative border-l border-gray-200 dark:border-gray-700 ${
+                className={`relative border-l border-border ${
                   isClosed ? 'bg-red-50/30 dark:bg-red-950/10' : ''
                 }`}
               >
@@ -223,7 +223,7 @@ export default function WeekGrid({
                 {hourLabels.map((hl) => (
                   <div
                     key={hl.minutes}
-                    className="absolute inset-x-0 border-t border-gray-100 dark:border-gray-700/50"
+                    className="absolute inset-x-0 border-t border-border/60"
                     style={{ top: minutesToOffset(hl.minutes, timeRange.startMin) }}
                   />
                 ))}

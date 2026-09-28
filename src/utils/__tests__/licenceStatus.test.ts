@@ -80,8 +80,9 @@ describe('the closed set', () => {
   it('gives every state a badge — a missing one renders as unstyled text', () => {
     for (const s of LICENCE_STATUSES) {
       expect(LICENCE_STATUS_BADGE[s], `${s} has no badge`).toBeTruthy()
-      // Both themes, or the chip vanishes into the background in one of them.
-      expect(LICENCE_STATUS_BADGE[s]).toMatch(/dark:/)
+      // Both themes, or the chip vanishes into the background in one of them:
+      // either an explicit dark: pair or a semantic token that switches itself.
+      expect(LICENCE_STATUS_BADGE[s]).toMatch(/dark:|\bbg-muted\b/)
     }
   })
 })

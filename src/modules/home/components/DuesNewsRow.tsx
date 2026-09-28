@@ -20,7 +20,7 @@ export default function DuesNewsRow({ news }: { news: DuesNews }) {
   return (
     <div
       onClick={() => navigate('/finance/dues')}
-      className="flex min-h-[44px] cursor-pointer items-center gap-3 border-b border-gray-100 bg-amber-50/50 px-4 py-2.5 last:border-b-0 hover:bg-amber-50 active:bg-amber-100 dark:border-gray-700 dark:bg-amber-900/15 dark:hover:bg-amber-900/25 dark:active:bg-amber-900/40"
+      className="flex min-h-[44px] cursor-pointer items-center gap-3 border-b border-border/60 bg-amber-50/50 px-4 py-2.5 last:border-b-0 hover:bg-amber-50 active:bg-amber-100 dark:bg-amber-900/15 dark:hover:bg-amber-900/25 dark:active:bg-amber-900/40"
     >
       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
         <Wallet className="h-4 w-4" />
@@ -29,11 +29,11 @@ export default function DuesNewsRow({ news }: { news: DuesNews }) {
         <TruncatedText
           as="p"
           text={t('newsTitle', { count: news.count, amount: formatChf(news.total) })}
-          className="text-sm font-medium text-gray-900 dark:text-gray-100"
+          className="text-sm font-medium text-foreground"
         />
         <TruncatedText as="p" text={t('newsHint')} className="text-xs text-amber-700 dark:text-amber-300" />
       </div>
-      <span className={`shrink-0 whitespace-nowrap text-xs font-medium ${overdue ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'}`}>
+      <span className={`shrink-0 whitespace-nowrap text-xs font-medium ${overdue ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'}`}>
         {news.dueDate
           ? (overdue ? t('newsOverdue') : t('newsDue', { date: formatDateCompactZurich(news.dueDate) }))
           : ''}

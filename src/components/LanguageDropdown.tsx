@@ -71,10 +71,10 @@ export default function LanguageDropdown({ size = 'sm' }: LanguageDropdownProps)
             alt=""
             className={`${currentLang.flag === 'ch' ? squareFlagSize : flagSize} rounded-[3px] object-cover`}
           />
-          <span className={`${textSize} text-gray-700 dark:text-gray-200`}>
+          <span className={`${textSize} text-foreground/85`}>
             {currentLang.nativeName}
           </span>
-          <ChevronDown className="!size-3.5 text-gray-400" />
+          <ChevronDown className="!size-3.5 text-muted-foreground/80" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="min-w-[180px]">
@@ -91,7 +91,7 @@ export default function LanguageDropdown({ size = 'sm' }: LanguageDropdownProps)
             />
             <span className="flex-1">{lang.nativeName}</span>
             {i18n.language === lang.code && (
-              <Check className="h-4 w-4 text-brand-600 dark:text-gold-400" />
+              <Check className="h-4 w-4 text-primary dark:text-gold-400" />
             )}
           </DropdownMenuItem>
         ))}
@@ -111,9 +111,9 @@ export default function LanguageDropdown({ size = 'sm' }: LanguageDropdownProps)
                 />
                 <span className="flex-1">{lang.nativeName}</span>
                 {i18n.language === lang.code ? (
-                  <Check className="h-4 w-4 text-brand-600 dark:text-gold-400" />
+                  <Check className="h-4 w-4 text-primary dark:text-gold-400" />
                 ) : (
-                  <Glasses className="h-4 w-4 text-gray-400 dark:text-gray-500" aria-hidden="true" />
+                  <Glasses className="h-4 w-4 text-muted-foreground/80" aria-hidden="true" />
                 )}
               </DropdownMenuItem>
             ))}

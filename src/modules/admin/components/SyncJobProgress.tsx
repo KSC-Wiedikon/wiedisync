@@ -80,12 +80,12 @@ export default function SyncJobProgress({
               ? 'text-red-600 dark:text-red-400'
               : running
                 ? 'text-blue-700 dark:text-blue-300'
-                : 'text-gray-600 dark:text-gray-300'
+                : 'text-muted-foreground'
           }`}>
             {error || phase || (running ? t('dhJobStarting') : idleText || t('dhJobIdle'))}
           </span>
         </span>
-        <span className="shrink-0 tabular-nums text-gray-500 dark:text-gray-400">
+        <span className="shrink-0 tabular-nums text-muted-foreground">
           {pct != null && `${pct}%`}
           {pct != null && clock && ' · '}
           {clock}
@@ -93,7 +93,7 @@ export default function SyncJobProgress({
       </div>
 
       <div
-        className="h-1.5 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700"
+        className="h-1.5 overflow-hidden rounded-full bg-stone-200/80 dark:bg-muted"
         role="progressbar"
         aria-valuemin={0}
         aria-valuemax={100}
@@ -110,7 +110,7 @@ export default function SyncJobProgress({
                 ? 'bg-green-500'
                 : running
                   ? 'animate-pulse bg-blue-500'
-                  : 'bg-gray-400 dark:bg-gray-500'
+                  : 'bg-stone-400 dark:bg-gray-500'
           }`}
           // An unreported percentage while running shows a third of the track
           // pulsing: honest about "something is happening, we cannot say how far".
@@ -123,7 +123,7 @@ export default function SyncJobProgress({
           ref={logRef}
           aria-live="polite"
           aria-label={t('dhJobLogLabel')}
-          className="max-h-72 overflow-auto rounded-md bg-gray-900 px-3 py-2 font-mono text-[11px] leading-relaxed whitespace-pre-wrap break-words text-gray-100 dark:bg-gray-950"
+          className="max-h-72 overflow-auto rounded-lg bg-stone-900 px-3 py-2 font-mono text-[11px] leading-relaxed whitespace-pre-wrap break-words text-stone-100 dark:bg-gray-950 dark:text-gray-100"
         >
           {log}
         </pre>

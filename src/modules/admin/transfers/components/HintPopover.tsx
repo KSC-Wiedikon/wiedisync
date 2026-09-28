@@ -35,7 +35,7 @@ export function HintPopover({ text, label }: { text: string; label?: string }) {
           // trigger it sits inside. Radix still receives its own click — this
           // does not preventDefault.
           onClick={(e) => { e.stopPropagation() }}
-          className="shrink-0 text-gray-400 hover:bg-transparent hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+          className="shrink-0 text-muted-foreground/80 hover:bg-transparent hover:text-muted-foreground"
         >
           <Info className="h-3.5 w-3.5" aria-hidden="true" />
         </IconButton>

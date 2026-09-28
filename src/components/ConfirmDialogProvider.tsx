@@ -78,7 +78,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
         />
 
         <Dialog open={promptState !== null} onOpenChange={(o) => { if (!o) settlePrompt(null) }}>
-          <DialogContent className="sm:max-w-md">
+          <DialogContent className="w-[calc(100%-2rem)] rounded-xl sm:max-w-md">
             <DialogHeader>
               <DialogTitle>{promptState?.title ?? t('confirmTitle')}</DialogTitle>
               <DialogDescription className="whitespace-pre-line break-words">
@@ -95,7 +95,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
                 value={promptValue}
                 placeholder={promptState?.placeholder}
                 onChange={(e) => setPromptValue(e.target.value)}
-                className="w-full rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+                className="flex h-11 w-full rounded-lg border border-input bg-card px-3 text-base text-foreground transition-colors placeholder:text-muted-foreground/70 focus-visible:border-primary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-input/20 sm:h-9 md:text-sm"
               />
               <DialogFooter className="mt-4">
                 <Button type="button" variant="outline" size="sm" onClick={() => settlePrompt(null)}>

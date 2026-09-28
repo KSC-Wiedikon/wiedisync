@@ -93,22 +93,22 @@ export default function TeamMultiSelect({ options, selected, onChange, placehold
         onClick={() => setOpen(!open)}
         aria-haspopup="listbox"
         aria-expanded={open}
-        className="flex min-h-11 w-full items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-left text-sm shadow-sm transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:hover:bg-gray-700 sm:min-h-9"
+        className="flex min-h-11 w-full items-center gap-2 rounded-lg border border-input bg-card px-3 py-1.5 text-left text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:min-h-9"
       >
         <div className="flex flex-1 flex-wrap items-center gap-1.5 overflow-hidden">
           {allSelected ? (
-            <span className="text-gray-500 dark:text-gray-400">{placeholder ?? t('all')}</span>
+            <span className="text-muted-foreground">{placeholder ?? t('all')}</span>
           ) : selectedOptions.length <= 5 ? (
             selectedOptions.map((o) => (
               <TeamChip key={o.value} team={o.colorKey ?? o.label} label={o.label} size="xs" />
             ))
           ) : (
-            <span className="text-gray-700 dark:text-gray-300">
+            <span className="text-foreground/85">
               {t('teamCount', { count: selectedOptions.length })}
             </span>
           )}
         </div>
-        <ChevronDown className={`h-4 w-4 shrink-0 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground/80 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
 
       {!allSelected && selected.length > 0 && (
@@ -118,7 +118,7 @@ export default function TeamMultiSelect({ options, selected, onChange, placehold
             e.stopPropagation()
             handleSelectAll()
           }}
-          className="absolute right-8 top-1/2 z-10 -translate-y-1/2 rounded-full p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
+          className="absolute right-8 top-1/2 z-10 -translate-y-1/2 rounded-full p-0.5 text-muted-foreground/80 hover:bg-accent hover:text-muted-foreground"
           title={t('selectNone')}
           aria-label={t('selectNone')}
         >
@@ -128,22 +128,22 @@ export default function TeamMultiSelect({ options, selected, onChange, placehold
 
       {/* Dropdown */}
       {open && (
-        <div role="listbox" aria-multiselectable="true" className="absolute left-0 z-50 mt-1 max-h-72 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-600 dark:bg-gray-800">
+        <div role="listbox" aria-multiselectable="true" className="absolute left-0 z-50 mt-1 max-h-72 w-full overflow-y-auto rounded-lg border bg-popover text-popover-foreground shadow-xl">
           {/* All option */}
           <button
             type="button"
             role="option"
             aria-selected={allSelected}
             onClick={handleSelectAll}
-            className={`flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors hover:bg-gray-100 dark:hover:bg-gray-700 ${
-              allSelected ? 'bg-brand-50 font-semibold text-brand-700 dark:bg-brand-900/30 dark:text-brand-300' : 'text-gray-700 dark:text-gray-300'
+            className={`flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors hover:bg-accent ${
+              allSelected ? 'bg-brand-50 font-semibold text-brand-700 dark:bg-brand-900/30 dark:text-brand-300' : 'text-foreground/85'
             }`}
           >
             <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border-2 transition-colors ${
-              allSelected ? 'border-brand-500 bg-brand-500' : 'border-gray-300 dark:border-gray-500'
+              allSelected ? 'border-primary bg-primary' : 'border-input'
             }`}>
               {allSelected && (
-                <Check className="h-2.5 w-2.5 text-white" strokeWidth={3} />
+                <Check className="h-2.5 w-2.5 text-primary-foreground" strokeWidth={3} />
               )}
             </span>
             {placeholder ?? t('all')}
@@ -171,16 +171,16 @@ export default function TeamMultiSelect({ options, selected, onChange, placehold
                   <button
                     type="button"
                     onClick={toggleGroup}
-                    className="sticky top-0 flex w-full items-center gap-2.5 bg-gray-50 px-3 py-1.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 hover:bg-gray-100 dark:bg-gray-900 dark:text-gray-400 dark:hover:bg-gray-800"
+                    className="sticky top-0 flex w-full items-center gap-2.5 bg-surface-sunken px-3 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground hover:bg-accent"
                   >
                     <span className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border-2 transition-colors ${
-                      allGroupSelected ? 'border-brand-500 bg-brand-500' : someGroupSelected ? 'border-brand-400 bg-brand-200 dark:bg-brand-800' : 'border-gray-300 dark:border-gray-500'
+                      allGroupSelected ? 'border-primary bg-primary' : someGroupSelected ? 'border-brand-400 bg-brand-200 dark:bg-brand-800' : 'border-input'
                     }`}>
                       {allGroupSelected && (
-                        <Check className="h-2 w-2 text-white" strokeWidth={3} />
+                        <Check className="h-2 w-2 text-primary-foreground" strokeWidth={3} />
                       )}
                       {someGroupSelected && !allGroupSelected && (
-                        <span className="block h-1.5 w-1.5 rounded-sm bg-brand-500" />
+                        <span className="block h-1.5 w-1.5 rounded-sm bg-primary" />
                       )}
                     </span>
                     {group}
@@ -219,19 +219,19 @@ function DropdownOption({ option, isSelected, onToggle }: { option: TeamOption; 
       role="option"
       aria-selected={isSelected}
       onClick={onToggle}
-      className={`flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors hover:bg-gray-100 dark:hover:bg-gray-700 ${
-        isSelected ? 'bg-gray-100 dark:bg-gray-700/50' : ''
+      className={`flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors hover:bg-accent ${
+        isSelected ? 'bg-accent' : ''
       }`}
     >
       <span
         className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border-2 transition-colors ${
           isSelected
-            ? 'border-brand-500 bg-brand-500'
-            : 'border-gray-300 dark:border-gray-500'
+            ? 'border-primary bg-primary'
+            : 'border-input'
         }`}
       >
         {isSelected && (
-          <Check className="h-2.5 w-2.5 text-white" strokeWidth={3} />
+          <Check className="h-2.5 w-2.5 text-primary-foreground" strokeWidth={3} />
         )}
       </span>
       <TeamChip team={option.colorKey ?? option.label} label={option.label} size="xs" />

@@ -94,7 +94,7 @@ export default function TypedConfirmDialog({
         if (!next && !busy) onCancel()
       }}
     >
-      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+      <DialogContent className="max-h-[90vh] w-[calc(100%-2rem)] max-w-2xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-destructive">{title}</DialogTitle>
           <DialogDescription>{message}</DialogDescription>
@@ -126,7 +126,7 @@ export default function TypedConfirmDialog({
             aria-describedby={typed.length > 0 && !matches ? `${inputId}-hint` : undefined}
           />
           {typed.length > 0 && !matches && (
-            <p id={`${inputId}-hint`} className="text-xs text-destructive">
+            <p id={`${inputId}-hint`} className="text-xs font-medium text-destructive">
               {mismatchHint}
             </p>
           )}

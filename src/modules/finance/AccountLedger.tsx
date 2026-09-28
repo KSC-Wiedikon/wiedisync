@@ -38,37 +38,37 @@ export default function AccountLedger({ account, transactions, nameByNum }: {
   }, [account, transactions, debitNormal])
 
   if (ledger.length === 0) {
-    return <div className="rounded-lg border border-dashed border-gray-300 py-8 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">{t('noBookings')}</div>
+    return <div className="rounded-2xl border border-dashed border-border py-8 text-center text-sm text-muted-foreground">{t('noBookings')}</div>
   }
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+    <div className="rounded-xl border border-hairline bg-card overflow-hidden">
       <Table>
         <TableHeader>
-          <TableRow className="border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/40">
-            <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colDate')}</TableHead>
-            <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colText')}</TableHead>
-            <TableHead className="hidden md:table-cell text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colGegenkonto')}</TableHead>
-            <TableHead className="text-right text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colDebit')}</TableHead>
-            <TableHead className="text-right text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colCredit')}</TableHead>
-            <TableHead className="hidden sm:table-cell text-right text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colSaldo')}</TableHead>
+          <TableRow>
+            <TableHead>{t('colDate')}</TableHead>
+            <TableHead>{t('colText')}</TableHead>
+            <TableHead className="hidden md:table-cell">{t('colGegenkonto')}</TableHead>
+            <TableHead className="text-right">{t('colDebit')}</TableHead>
+            <TableHead className="text-right">{t('colCredit')}</TableHead>
+            <TableHead className="hidden sm:table-cell text-right">{t('colSaldo')}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {ledger.map((r) => (
-            <TableRow key={r.tx.id} className="border-gray-200 dark:border-gray-700">
-              <TableCell className="whitespace-nowrap text-gray-900 dark:text-gray-100">{r.tx.booking_date ? formatDateCompactZurich(r.tx.booking_date) : '–'}</TableCell>
-              <TableCell className="whitespace-normal break-words text-gray-700 dark:text-gray-300">
+            <TableRow key={r.tx.id}>
+              <TableCell className="whitespace-nowrap text-foreground">{r.tx.booking_date ? formatDateCompactZurich(r.tx.booking_date) : '–'}</TableCell>
+              <TableCell className="whitespace-normal break-words text-foreground/85">
                 {r.tx.text || '–'}
-                {r.tx.beleg && <span className="ml-1 text-xs text-gray-400">({r.tx.beleg})</span>}
-                <span className="mt-0.5 block text-xs text-gray-400 md:hidden">{r.gegen} {nameByNum.get(r.gegen ?? '') ?? ''}</span>
+                {r.tx.beleg && <span className="ml-1 text-xs text-muted-foreground/80">({r.tx.beleg})</span>}
+                <span className="mt-0.5 block text-xs text-muted-foreground/80 md:hidden">{r.gegen} {nameByNum.get(r.gegen ?? '') ?? ''}</span>
               </TableCell>
-              <TableCell className="hidden md:table-cell whitespace-normal break-words text-gray-600 dark:text-gray-400">
-                <span className="tabular-nums text-gray-400">{r.gegen || '–'}</span> {nameByNum.get(r.gegen ?? '') ?? ''}
+              <TableCell className="hidden md:table-cell whitespace-normal break-words text-muted-foreground">
+                <span className="tabular-nums text-muted-foreground/80">{r.gegen || '–'}</span> {nameByNum.get(r.gegen ?? '') ?? ''}
               </TableCell>
-              <TableCell className="text-right tabular-nums text-gray-900 dark:text-gray-100">{r.soll ? formatChf(r.soll) : ''}</TableCell>
-              <TableCell className="text-right tabular-nums text-gray-900 dark:text-gray-100">{r.haben ? formatChf(r.haben) : ''}</TableCell>
-              <TableCell className="hidden sm:table-cell text-right tabular-nums text-gray-600 dark:text-gray-400">{formatChf(r.saldo)}</TableCell>
+              <TableCell className="text-right tabular-nums text-foreground">{r.soll ? formatChf(r.soll) : ''}</TableCell>
+              <TableCell className="text-right tabular-nums text-foreground">{r.haben ? formatChf(r.haben) : ''}</TableCell>
+              <TableCell className="hidden sm:table-cell text-right tabular-nums text-muted-foreground">{formatChf(r.saldo)}</TableCell>
             </TableRow>
           ))}
         </TableBody>

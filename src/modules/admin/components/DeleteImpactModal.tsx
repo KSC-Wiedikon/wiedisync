@@ -198,14 +198,14 @@ export default function DeleteImpactModal({
           </p>
         )}
         {error && (
-          <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+          <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
             {t('explorerDangerImpactError')}
           </div>
         )}
 
         {/* A delete that failed after the preview said it would work. */}
         {failure && (
-          <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+          <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
             <p className="font-medium">{t('explorerDangerBlockedTitle')}</p>
             <p>{failure}</p>
           </div>
@@ -220,7 +220,7 @@ export default function DeleteImpactModal({
                 simply left the club, "Member left" is the correct action and
                 this one throws away their wiedisync history for nothing. */}
             {data.clubdesk && (
-              <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-300">
+              <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-300">
                 <Building2 className="mt-0.5 h-4 w-4 shrink-0" />
                 <span>
                   <span className="font-medium">{t('explorerDangerClubdeskTitle')}</span>{' '}
@@ -232,13 +232,13 @@ export default function DeleteImpactModal({
               </div>
             )}
             {data.linkedUser && (
-              <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-300">
+              <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-300">
                 <UserX className="mt-0.5 h-4 w-4 shrink-0" />
                 <span>{t('explorerDangerLinkedUser', { email: data.linkedUser.email ?? data.linkedUser.id })}</span>
               </div>
             )}
             {data.derbySiblings > 0 && (
-              <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-300">
+              <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-300">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                 <span>{t('explorerDangerDerbySibling', { count: data.derbySiblings })}</span>
               </div>

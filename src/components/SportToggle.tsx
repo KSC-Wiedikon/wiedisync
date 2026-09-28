@@ -30,18 +30,17 @@ export default function SportToggle({ value, onChange, showAll = true, className
   const items = showAll ? OPTIONS : OPTIONS.filter((o) => o.value !== 'all')
 
   return (
-    <div className={cn('flex overflow-hidden rounded-md border border-gray-300 dark:border-gray-600', className)}>
-      {items.map((opt, i) => (
+    <div className={cn('inline-flex h-11 items-center gap-0.5 rounded-lg border border-border bg-card p-0.5 sm:h-8', className)}>
+      {items.map((opt) => (
         <button
           key={opt.value}
           onClick={() => onChange(opt.value)}
           aria-label={opt.value === 'all' ? t('allSports') : opt.label}
           className={cn(
-            'flex items-center justify-center px-3 py-3.5 text-sm font-medium transition-colors',
+            'flex h-full min-w-11 items-center justify-center rounded-md px-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:min-w-9',
             value === opt.value
-              ? 'bg-brand-100 text-brand-800 dark:bg-brand-700 dark:text-white'
-              : 'text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700',
-            i > 0 && 'border-l border-gray-300 dark:border-gray-600',
+              ? 'bg-selected text-selected-foreground'
+              : 'text-muted-foreground hover:text-foreground',
           )}
         >
           {opt.value === 'all' ? (

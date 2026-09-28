@@ -304,40 +304,40 @@ export default function BasketballOffersPanel({
   }
 
   const selectClass =
-    'h-11 sm:h-9 w-full max-w-[16rem] rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100'
+    'h-11 sm:h-9 w-full max-w-[16rem] rounded-lg border border-input bg-card px-2 py-1.5 text-sm text-foreground dark:bg-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
   const inputClass =
-    'min-h-11 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100'
+    'min-h-11 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/70 dark:bg-input/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-4 sm:p-6 dark:border-gray-700 dark:bg-gray-800">
+    <div className="rounded-2xl border border-hairline bg-card shadow-card p-4 sm:p-6">
       <div className="flex flex-wrap items-start gap-3">
         <div className="min-w-0 flex-1">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('offersTitle')}</h2>
-          <p className="mt-1 max-w-3xl text-xs text-gray-500 dark:text-gray-400">{t('offersHint')}</p>
+          <h2 className="text-base font-semibold tracking-tight text-foreground">{t('offersTitle')}</h2>
+          <p className="mt-1 max-w-3xl text-xs text-muted-foreground">{t('offersHint')}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button disabled={busy || offerable.length === 0} onClick={handleOffer}>
-            <Send className="h-4 w-4" aria-hidden /> {t('offerSelected', { count: offerable.length })}
+            <Send className="h-4 w-4 accent-primary" aria-hidden /> {t('offerSelected', { count: offerable.length })}
           </Button>
           <Button
             variant="outline"
             disabled={busy || withdrawable.length === 0}
             onClick={handleWithdraw}
           >
-            <Undo2 className="h-4 w-4" aria-hidden /> {t('unofferSelected', { count: withdrawable.length })}
+            <Undo2 className="h-4 w-4 accent-primary" aria-hidden /> {t('unofferSelected', { count: withdrawable.length })}
           </Button>
           <Button
             variant="outline"
             disabled={busy || agreeTargets.length === 0}
             onClick={openAgree}
           >
-            <Handshake className="h-4 w-4" aria-hidden /> {t('agreedSelected', { count: agreeTargets.length })}
+            <Handshake className="h-4 w-4 accent-primary" aria-hidden /> {t('agreedSelected', { count: agreeTargets.length })}
           </Button>
           <Button
             disabled={busy || clubProposed.length === 0}
             onClick={handleAcceptPicks}
           >
-            <Check className="h-4 w-4" aria-hidden /> {t('clubPicksAccept', { count: clubProposed.length })}
+            <Check className="h-4 w-4 accent-primary" aria-hidden /> {t('clubPicksAccept', { count: clubProposed.length })}
           </Button>
           <Button
             variant="outline"
@@ -345,13 +345,13 @@ export default function BasketballOffersPanel({
             disabled={busy || clubProposed.length === 0}
             onClick={handleReleasePicks}
           >
-            <Trash2 className="h-4 w-4" aria-hidden /> {t('clubPicksRelease', { count: clubProposed.length })}
+            <Trash2 className="h-4 w-4 accent-primary" aria-hidden /> {t('clubPicksRelease', { count: clubProposed.length })}
           </Button>
         </div>
       </div>
 
       {nothingActionable && (
-        <p className="mt-3 rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-xs text-gray-700 dark:border-gray-600 dark:bg-gray-900/40 dark:text-gray-300">
+        <p className="mt-3 rounded-lg border border-input bg-surface-sunken px-3 py-2 text-xs text-foreground/85">
           {selectedNoClub.length > 0
             ? t('selectionNeedsClub', { count: selectedNoClub.length })
             : t('selectionNothingToDo')}
@@ -360,17 +360,17 @@ export default function BasketballOffersPanel({
 
       {/* The one state waiting on us — easy to miss in a long table, so name it up front. */}
       {pendingClubPicks > 0 && (
-        <p className="mt-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+        <p className="mt-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
           {t('clubPicksPending', { count: pendingClubPicks })}
         </p>
       )}
 
       {isLoading ? (
-        <div className="py-8 text-center text-sm text-gray-400">
+        <div className="py-8 text-center text-sm text-muted-foreground/80">
           <Loader2 className="mx-auto h-4 w-4 animate-spin" aria-hidden />
         </div>
       ) : games.length === 0 ? (
-        <p className="py-6 text-center text-sm text-gray-400 dark:text-gray-500">{t('offersEmpty')}</p>
+        <p className="py-6 text-center text-sm text-muted-foreground/80">{t('offersEmpty')}</p>
       ) : (
         <div className="mt-4">
           <Table>
@@ -396,7 +396,7 @@ export default function BasketballOffersPanel({
                     <TableCell>
                       <input
                         type="checkbox"
-                        className="h-4 w-4"
+                        className="h-4 w-4 accent-primary"
                         aria-label={t('colSelect')}
                         checked={checked.has(id)}
                         onChange={() => toggle(id)}
@@ -404,14 +404,14 @@ export default function BasketballOffersPanel({
                     </TableCell>
                     <TableCell className="whitespace-normal break-words tabular-nums">
                       <div className="font-medium">{formatDateZurich(g.date)}</div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400">{g.time}</div>
+                      <div className="text-xs text-muted-foreground">{g.time}</div>
                     </TableCell>
-                    <TableCell className="hidden whitespace-normal break-words text-xs text-gray-500 sm:table-cell dark:text-gray-400">
+                    <TableCell className="hidden whitespace-normal break-words text-xs text-muted-foreground sm:table-cell">
                       {g.hall}
                     </TableCell>
                     <TableCell className="whitespace-normal break-words">
                       <div className="font-medium">{kscw || g.kscw_team_label || '—'}</div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400">{g.opponent || '—'}</div>
+                      <div className="text-xs text-muted-foreground">{g.opponent || '—'}</div>
                     </TableCell>
                     <TableCell className="whitespace-normal break-words">
                       <select
@@ -439,24 +439,24 @@ export default function BasketballOffersPanel({
                     <TableCell className="hidden whitespace-normal break-words text-xs lg:table-cell">
                       {g.responded_at ? (
                         <div className="space-y-0.5">
-                          <div className="text-gray-500 dark:text-gray-400">
+                          <div className="text-muted-foreground">
                             {g.responded_by_name || ''} · {formatDateZurich(g.responded_at)}
                           </div>
                           {g.agreed_offline && (
-                            <div className="text-gray-500 dark:text-gray-400">
+                            <div className="text-muted-foreground">
                               {t('agreedRecordedBy', { name: g.agreed_offline_by_name || '—' })}
                             </div>
                           )}
                           {counters.length > 0 && (
-                            <div className="text-gray-700 dark:text-gray-300">
+                            <div className="text-foreground/85">
                               {t('counterProposals')}:{' '}
                               {counters.map((c) => `${formatDateZurich(c.date)} ${c.time}`).join(', ')}
                             </div>
                           )}
-                          {g.opponent_note && <div className="text-gray-500 dark:text-gray-400">“{g.opponent_note}”</div>}
+                          {g.opponent_note && <div className="text-muted-foreground">“{g.opponent_note}”</div>}
                         </div>
                       ) : (
-                        <span className="text-gray-400 dark:text-gray-500">—</span>
+                        <span className="text-muted-foreground/80">—</span>
                       )}
                     </TableCell>
                   </TableRow>
@@ -474,24 +474,24 @@ export default function BasketballOffersPanel({
           — "agreed with nobody" is a note to self, not an agreement. */}
       <Modal open={agreeOpen} onClose={closeAgree} title={t('agreedTitle')} size="lg">
         <div className="space-y-4">
-          <p className="text-sm text-gray-600 dark:text-gray-300">{t('agreedHint')}</p>
+          <p className="text-sm text-muted-foreground">{t('agreedHint')}</p>
 
           {agreeMultiClub ? (
             // Hard stop, not a warning: one name cannot speak for two clubs.
-            <p className="rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-sm text-rose-900 dark:border-rose-800 dark:bg-rose-900/20 dark:text-rose-200">
+            <p className="rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-sm text-rose-900 dark:border-rose-800 dark:bg-rose-900/20 dark:text-rose-200">
               {t('agreedOneClubOnly', { count: agreeClubIds.length })}
             </p>
           ) : (
             <>
               <div>
-                <h3 className="mb-2 text-sm font-semibold text-gray-700 dark:text-gray-300">
+                <h3 className="mb-2 text-sm font-semibold text-foreground/85">
                   {t('agreedGamesHeading', { count: agreeTargets.length, club: agreeClub?.name ?? '—' })}
                 </h3>
-                <ul className="space-y-1 text-sm text-gray-700 dark:text-gray-200">
+                <ul className="space-y-1 text-sm text-foreground/85">
                   {agreeTargets.map((g) => (
                     <li key={String(g.id)} className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                       <span className="tabular-nums font-medium">{formatDateZurich(g.date)} {g.time}</span>
-                      <span className="text-gray-500 dark:text-gray-400">
+                      <span className="text-muted-foreground">
                         {(g.kscw_team != null ? teamName.get(String(g.kscw_team)) : null) || g.kscw_team_label || '—'}
                         {' – '}
                         {g.opponent || '—'}
@@ -508,7 +508,7 @@ export default function BasketballOffersPanel({
                   the planner has to find — replacing a third party's answer is not
                   something to do by momentum. */}
               {agreeOverwrite.length > 0 && (
-                <div className="rounded-md border border-rose-300 bg-rose-50 px-3 py-2 dark:border-rose-800 dark:bg-rose-900/20">
+                <div className="rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 dark:border-rose-800 dark:bg-rose-900/20">
                   <p className="flex items-start gap-2 text-sm font-medium text-rose-900 dark:text-rose-200">
                     <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
                     {t('agreedOverwriteWarning', { count: agreeOverwrite.length })}
@@ -524,7 +524,7 @@ export default function BasketballOffersPanel({
                   <label className="mt-2 flex items-start gap-2 text-sm text-rose-900 dark:text-rose-200">
                     <input
                       type="checkbox"
-                      className="mt-0.5 h-4 w-4"
+                      className="mt-0.5 h-4 w-4 accent-primary"
                       checked={agreeOverride}
                       onChange={(e) => setAgreeOverride(e.target.checked)}
                     />
@@ -537,18 +537,18 @@ export default function BasketballOffersPanel({
                   a silently shorter batch is how a planner comes to believe a game is
                   settled when it is not. */}
               {agreeBlocked.length > 0 && (
-                <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+                <p className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
                   {t('agreedBlocked', { count: agreeBlocked.length })}
                 </p>
               )}
               {agreeAlready.length > 0 && (
-                <p className="text-xs text-gray-500 dark:text-gray-400">
+                <p className="text-xs text-muted-foreground">
                   {t('agreedAlready', { count: agreeAlready.length })}
                 </p>
               )}
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300" htmlFor="bb-agreed-with">
+                <label className="mb-1 block text-sm font-medium text-foreground/85" htmlFor="bb-agreed-with">
                   {t('agreedWithLabel')}
                 </label>
                 <input
@@ -559,11 +559,11 @@ export default function BasketballOffersPanel({
                   onChange={(e) => setAgreeWith(e.target.value)}
                   placeholder={t('agreedWithPlaceholder')}
                 />
-                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('agreedWithHint')}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{t('agreedWithHint')}</p>
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300" htmlFor="bb-agreed-note">
+                <label className="mb-1 block text-sm font-medium text-foreground/85" htmlFor="bb-agreed-note">
                   {t('agreedNoteLabel')}
                 </label>
                 <textarea
@@ -586,7 +586,7 @@ export default function BasketballOffersPanel({
             <Button onClick={handleMarkAgreed} disabled={!agreeCanSubmit || agreeSubmitting}>
               {agreeSubmitting
                 ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                : <Handshake className="h-4 w-4" aria-hidden />}
+                : <Handshake className="h-4 w-4 accent-primary" aria-hidden />}
               {t('agreedSubmit', { count: agreeTargets.length })}
             </Button>
           </div>

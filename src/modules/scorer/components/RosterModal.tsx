@@ -93,10 +93,10 @@ export default function RosterModal({ gameId, onClose }: RosterModalProps) {
     <Modal open onClose={onClose} title={t('rosterTitle')} size="md" disableAutoFocus>
       {data && (
         <>
-          <p className="mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">
+          <p className="mb-1 text-sm font-medium text-foreground/85">
             {data.game.home_team} – {data.game.away_team}
           </p>
-          <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">
+          <p className="mb-3 text-xs text-muted-foreground">
             {data.source === 'vm' ? t('rosterSourceVm') : t('rosterSourceRsvp')}
           </p>
         </>
@@ -105,7 +105,7 @@ export default function RosterModal({ gameId, onClose }: RosterModalProps) {
       {loading && <div className="py-8"><LoadingSpinner /></div>}
 
       {!loading && errorCode && (
-        <p className="py-6 text-center text-sm text-gray-500 dark:text-gray-400">
+        <p className="py-6 text-center text-sm text-muted-foreground">
           {errorMessage(errorCode)}
         </p>
       )}
@@ -114,7 +114,7 @@ export default function RosterModal({ gameId, onClose }: RosterModalProps) {
         const coaches = data.coaches ?? []
         const showLicence = data.roster.some((r) => r.licence)
         if (data.roster.length === 0 && coaches.length === 0) {
-          return <p className="py-6 text-center text-sm text-gray-500 dark:text-gray-400">{t('rosterEmpty')}</p>
+          return <p className="py-6 text-center text-sm text-muted-foreground">{t('rosterEmpty')}</p>
         }
         return (
           <div className="space-y-5">
@@ -146,7 +146,7 @@ export default function RosterModal({ gameId, onClose }: RosterModalProps) {
                         {r.is_captain && (
                           <span
                             title={t('rosterCaptain')}
-                            className="ml-1.5 inline-flex h-4 w-4 items-center justify-center rounded-full bg-brand-600 align-middle text-[10px] font-bold text-white dark:bg-brand-500"
+                            className="ml-1.5 inline-flex h-4 w-4 items-center justify-center rounded-full bg-primary align-middle text-[10px] font-bold text-primary-foreground"
                           >
                             {t('rosterCaptainShort')}
                           </span>
@@ -161,7 +161,7 @@ export default function RosterModal({ gameId, onClose }: RosterModalProps) {
                         )}
                       </TableCell>
                       {showLicence && (
-                        <TableCell className="text-right text-xs text-gray-500 dark:text-gray-400">
+                        <TableCell className="text-right text-xs text-muted-foreground">
                           {r.licence ?? '—'}
                         </TableCell>
                       )}
@@ -170,12 +170,12 @@ export default function RosterModal({ gameId, onClose }: RosterModalProps) {
                 </TableBody>
               </Table>
             ) : (
-              <p className="text-center text-sm text-gray-500 dark:text-gray-400">{t('rosterNoConfirmed')}</p>
+              <p className="text-center text-sm text-muted-foreground">{t('rosterNoConfirmed')}</p>
             )}
 
             {coaches.length > 0 && (
               <div>
-                <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                <h4 className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                   {t('rosterCoaches')}
                 </h4>
                 <Table>

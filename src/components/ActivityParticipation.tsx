@@ -178,7 +178,7 @@ export default function ActivityParticipation({
 
   if (guestExcluded) {
     const text = kind === 'game' ? tKind('guestsCannotParticipate') : tKind('guestExcluded')
-    return <p className="text-xs italic text-gray-500 dark:text-gray-400">{text}</p>
+    return <p className="text-xs italic text-muted-foreground">{text}</p>
   }
 
   // The answer buttons carry the team totals (RsvpAnswerButtons, compact card
@@ -191,7 +191,7 @@ export default function ActivityParticipation({
       onClick={stopProp ? (e) => e.stopPropagation() : undefined}
     >
       {hasAbsence && (
-        <p className="text-xs italic text-gray-500 dark:text-gray-400">{t(absenceLabel)}</p>
+        <p className="text-xs italic text-muted-foreground">{t(absenceLabel)}</p>
       )}
       <RsvpAnswerButtons
         compact
@@ -208,24 +208,24 @@ export default function ActivityParticipation({
       {/* Guest counter — coaches/TR only. Steppers on the IconButton scale. */}
       {displayStatus && isStaff && (
         <div className="flex items-center gap-1">
-          <span className="mr-1 text-xs text-gray-500 dark:text-gray-400">{t('guests')}</span>
+          <span className="mr-1 text-xs text-muted-foreground">{t('guests')}</span>
           <IconButton
             size="sm"
             label={t('decreaseGuests', { defaultValue: 'Remove guest' })}
             onClick={() => handleGuestChange(-1)}
             disabled={guestCount <= 0}
-            className="text-gray-500 dark:text-gray-400"
+            className="text-muted-foreground"
           >
             <Minus />
           </IconButton>
-          <span className="min-w-[1rem] text-center text-xs font-medium tabular-nums text-gray-700 dark:text-gray-300" aria-live="polite">
+          <span className="min-w-[1rem] text-center text-xs font-medium tabular-nums text-foreground/85" aria-live="polite">
             {guestCount}
           </span>
           <IconButton
             size="sm"
             label={t('increaseGuests', { defaultValue: 'Add guest' })}
             onClick={() => handleGuestChange(1)}
-            className="text-gray-500 dark:text-gray-400"
+            className="text-muted-foreground"
           >
             <Plus />
           </IconButton>
@@ -234,7 +234,7 @@ export default function ActivityParticipation({
 
       {/* Respond-by hint (the locked state is announced by the buttons). */}
       {respondBy && !deadlinePassed && (
-        <p className="text-[10px] leading-tight text-gray-400 dark:text-gray-500">
+        <p className="text-[10px] leading-tight text-muted-foreground/80">
           {tKind('respondBy')}: {formatDate(respondBy)}, {formatTime(respondBy) || formatTime(activityTime)}
         </p>
       )}
@@ -242,7 +242,7 @@ export default function ActivityParticipation({
       {/* Note input */}
       {displayStatus && (
         <div className="relative flex items-center gap-1.5">
-          <MessageSquare className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+          <MessageSquare className="h-3.5 w-3.5 shrink-0 text-muted-foreground/80" />
           <input
             type="text"
             value={noteText}
@@ -252,14 +252,14 @@ export default function ActivityParticipation({
               if (e.key === 'Enter') saveNote()
             }}
             placeholder={t('notePlaceholder')}
-            className="h-9 min-w-0 flex-1 rounded-md border border-gray-200 bg-transparent px-2 text-xs sm:h-8 text-gray-700 placeholder:text-gray-400 focus:border-brand-400 focus:outline-none dark:border-gray-600 dark:text-gray-300 dark:placeholder:text-gray-500 dark:focus:border-brand-500"
+            className="h-9 min-w-0 flex-1 rounded-lg border border-input bg-transparent px-2 text-xs sm:h-8 text-foreground/85 placeholder:text-muted-foreground/70 focus-visible:border-primary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
           <IconButton
             size="sm"
             label={t('save', { ns: 'common' })}
             onClick={saveNote}
             disabled={noteText === serverNote}
-            className="text-gray-400 hover:text-green-600 dark:hover:text-green-400"
+            className="text-muted-foreground/80 hover:text-green-600 dark:hover:text-green-400"
           >
             <Check />
           </IconButton>

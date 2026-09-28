@@ -175,7 +175,7 @@ export default function WeeklyUnavailabilityForm({ open, absence, onSave, onCanc
 
         {/* Days of week selector */}
         <div>
-          <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">{t('daysOfWeek')}</label>
+          <label className="mb-2 block text-xs font-medium text-muted-foreground">{t('daysOfWeek')}</label>
           <div className="flex flex-wrap gap-2">
             {DAY_KEYS.map((key, index) => {
               const isSelected = daysOfWeek.includes(index)
@@ -187,8 +187,8 @@ export default function WeeklyUnavailabilityForm({ open, absence, onSave, onCanc
                   aria-pressed={isSelected}
                   onClick={() => toggleDay(index)}
                   className={cn('rounded-full', isSelected
-                    ? 'border-brand-500 bg-brand-500 text-white shadow-sm hover:bg-brand-500 hover:text-white'
-                    : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700')}
+                    ? 'border-selected bg-selected text-selected-foreground hover:bg-selected/90 hover:text-selected-foreground'
+                    : 'border-border bg-card text-muted-foreground hover:bg-accent')}
                 >
                   {t(key)}
                 </Button>
@@ -221,13 +221,13 @@ export default function WeeklyUnavailabilityForm({ open, absence, onSave, onCanc
             />
           )}
         </div>
-        <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+        <label className="flex items-center gap-2 text-sm text-foreground/85 cursor-pointer">
           <Checkbox
             checked={indefinite}
             onCheckedChange={(checked) => setIndefinite(checked === true)}
           />
           {t('indefinite')}
-          <span className="text-gray-400 dark:text-gray-500">({t('indefiniteHint')})</span>
+          <span className="text-muted-foreground/80">({t('indefiniteHint')})</span>
         </label>
 
         <FormTextarea
@@ -246,7 +246,7 @@ export default function WeeklyUnavailabilityForm({ open, absence, onSave, onCanc
         )}
 
         {validationError && (
-          <p className="text-sm text-red-600">{validationError}</p>
+          <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">{validationError}</p>
         )}
 
         <div className="flex justify-end gap-3 pt-2">

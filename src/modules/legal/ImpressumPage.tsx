@@ -4,16 +4,16 @@ export default function ImpressumPage() {
   const { t } = useTranslation('legal')
 
   return (
-    <div className="mx-auto max-w-3xl">
-      <h1 className="mb-8 text-2xl font-bold text-gray-900 dark:text-white">
+    <div className="mx-auto max-w-3xl rounded-2xl border border-hairline bg-card p-5 shadow-card sm:p-8">
+      <h1 className="mb-8 text-xl font-bold tracking-tight text-foreground sm:text-2xl">
         {t('impressumTitle')}
       </h1>
 
       <Section>
-        <p className="text-lg font-semibold text-gray-900 dark:text-white">
+        <p className="text-lg font-semibold text-foreground">
           {t('impressumClubName')}
         </p>
-        <p className="text-sm text-gray-500 dark:text-gray-400">
+        <p className="text-sm text-muted-foreground">
           {t('impressumFullName')}
         </p>
         <Whitespace text={t('impressumAddress')} />
@@ -23,7 +23,7 @@ export default function ImpressumPage() {
             href="https://kscw.ch"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-brand-600 hover:underline dark:text-brand-400"
+            className="font-medium text-primary hover:underline dark:text-brand-300"
           >
             {t('impressumWebsite')}
           </a>
@@ -42,7 +42,7 @@ export default function ImpressumPage() {
               href="https://www.facebook.com/KSC-Wiedikon-103576793063334"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-brand-600 hover:underline dark:text-brand-400"
+              className="font-medium text-primary hover:underline dark:text-brand-300"
             >
               {t('impressumFacebook')}
             </a>
@@ -52,7 +52,7 @@ export default function ImpressumPage() {
               href="https://www.instagram.com/ksc_wiedikon"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-brand-600 hover:underline dark:text-brand-400"
+              className="font-medium text-primary hover:underline dark:text-brand-300"
             >
               {t('impressumInstagram')}
             </a>
@@ -79,11 +79,11 @@ function Section({ title, children }: { title?: string; children: React.ReactNod
   return (
     <section className="mb-8">
       {title && (
-        <h2 className="mb-3 text-lg font-semibold text-gray-900 dark:text-white">
+        <h2 className="mb-3 text-base font-semibold tracking-tight text-foreground">
           {title}
         </h2>
       )}
-      <div className="text-sm leading-relaxed text-gray-700 dark:text-gray-300">
+      <div className="text-sm leading-relaxed text-foreground/85">
         {children}
       </div>
     </section>

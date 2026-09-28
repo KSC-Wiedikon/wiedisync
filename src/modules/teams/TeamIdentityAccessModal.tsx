@@ -31,7 +31,7 @@ const STATE_CLASS: Record<ReaderState, string> = {
   holds: 'bg-emerald-100 text-emerald-900 dark:bg-emerald-900/50 dark:text-emerald-200',
   stale: 'bg-red-100 text-red-900 dark:bg-red-900/50 dark:text-red-200',
   missing: 'bg-amber-100 text-amber-900 dark:bg-amber-900/50 dark:text-amber-200',
-  no_key: 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
+  no_key: 'bg-stone-200 text-foreground/85 dark:bg-gray-700',
   former: 'bg-purple-100 text-purple-900 dark:bg-purple-900/50 dark:text-purple-200',
 }
 
@@ -86,10 +86,10 @@ export default function TeamIdentityAccessModal({
         ) : docs.length === 0 ? (
           <p className="py-6 text-center text-sm text-muted-foreground">{t('identityAccessEmpty')}</p>
         ) : (
-          <div className="max-h-[60vh] overflow-y-auto rounded-lg border">
+          <div className="max-h-[60vh] overflow-y-auto rounded-xl border border-hairline">
             <Table>
               <TableHeader>
-                <TableRow className="bg-gray-50 text-xs uppercase tracking-wider text-gray-500 dark:bg-gray-900 dark:text-gray-400">
+                <TableRow className="bg-surface-sunken">
                   <TableHead>{t('identityAccessPlayer')}</TableHead>
                   <TableHead className="hidden sm:table-cell">{t('identityAccessUploaded')}</TableHead>
                   <TableHead>{t('identityAccessReaders')}</TableHead>

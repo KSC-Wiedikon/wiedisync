@@ -429,7 +429,7 @@ function PieChart({ data, colMeta }: ChartProps) {
 function NoData() {
   const { t } = useTranslation('admin')
   return (
-    <div className="flex h-40 items-center justify-center text-sm text-gray-400 dark:text-gray-500">
+    <div className="flex h-40 items-center justify-center text-sm text-muted-foreground/80">
       {t('chartNoNumericData')}
     </div>
   )
@@ -445,17 +445,17 @@ export default function ChartView({ data, columns }: ChartViewProps) {
   const chartType = detectChartType(colMeta, data.length)
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
+    <div className="rounded-2xl border border-hairline bg-card shadow-card p-3">
       <div className="mb-1 flex items-center gap-2">
-        <span className="text-xs font-medium tracking-wide text-gray-400 dark:text-gray-500">
+        <span className="text-xs font-medium tracking-wide text-muted-foreground/80">
           {chartType === 'bar' ? t('chartTypeBar') : chartType === 'line' ? t('chartTypeLine') : t('chartTypePie')}
         </span>
-        <span className="text-xs text-gray-300 dark:text-gray-600">
+        <span className="text-xs text-muted-foreground/50">
           {t('chartRows', { count: data.length })}
         </span>
       </div>
 
-      <div className="text-gray-800 dark:text-gray-200">
+      <div className="text-foreground">
         {chartType === 'bar' && <BarChart data={data} colMeta={colMeta} />}
         {chartType === 'line' && <LineChart data={data} colMeta={colMeta} />}
         {chartType === 'pie' && <PieChart data={data} colMeta={colMeta} />}

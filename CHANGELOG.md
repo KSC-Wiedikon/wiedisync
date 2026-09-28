@@ -2,6 +2,12 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.24.0 — 2026-09-29
+
+### New
+
+- **A new look.** The app now uses a calmer, cleaner design: a new typeface, softer cards on a warm background, clearer buttons, tabs and forms, and a quieter menu and login screen. Colours, dark mode and where everything is stay the same.
+
 ## v2.23.1 — 2026-09-29
 
 ### Fixed

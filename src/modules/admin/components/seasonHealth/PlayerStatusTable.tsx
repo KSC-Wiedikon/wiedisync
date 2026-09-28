@@ -21,7 +21,7 @@ import {
   type TeamSummaryRow,
 } from '../../utils/seasonHealth'
 
-const SELECT = 'h-11 rounded-md border border-input bg-background px-2 text-sm text-foreground sm:h-9 dark:bg-gray-800'
+const SELECT = 'h-11 rounded-lg border border-input bg-card px-2 text-sm text-foreground sm:h-9 dark:bg-gray-800'
 
 const EXPORT_KEYS = [
   'member_id', 'last_name', 'first_name', 'team', 'licence_state', 'license_nr',
@@ -80,7 +80,7 @@ export default function PlayerStatusTable({ players, teams, sport }: {
   const td = 'py-2.5 pr-3'
 
   return (
-    <section className="rounded-xl border border-border bg-card" aria-labelledby="sh-players-title">
+    <section className="rounded-2xl border border-hairline bg-card shadow-card" aria-labelledby="sh-players-title">
       <div className="flex flex-wrap items-center gap-2 px-4 pt-3">
         <h2 id="sh-players-title" className="text-sm font-semibold text-foreground min-w-0 flex-1">
           {t('playersTitle')} <span className="font-normal text-muted-foreground">({players.length})</span>

@@ -19,7 +19,7 @@ export default function ImpersonationBanner({ topInset = false }: { topInset?: b
   const name = [user.first_name, user.last_name].filter(Boolean).join(' ').trim()
   return (
     <div
-      className="relative z-30 flex shrink-0 items-center justify-center gap-3 bg-orange-500 px-4 py-1.5 text-sm font-medium text-white shadow-md"
+      className="relative z-30 flex shrink-0 items-center justify-center gap-3 border-b border-orange-300 bg-orange-50 px-4 py-1.5 text-xs font-medium text-orange-800 dark:border-orange-800/60 dark:bg-orange-950/60 dark:text-orange-200"
       style={topInset ? { paddingTop: 'calc(0.375rem + env(safe-area-inset-top, 0px))' } : undefined}
     >
       <Eye className="h-4 w-4 shrink-0" />
@@ -29,7 +29,7 @@ export default function ImpersonationBanner({ topInset = false }: { topInset?: b
         size="sm"
         variant="ghost"
         onClick={() => { void stopImpersonation() }}
-        className="shrink-0 bg-white/20 font-semibold text-white hover:bg-white/30 hover:text-white"
+        className="shrink-0 border border-orange-300 bg-card font-semibold text-orange-800 hover:bg-orange-100 hover:text-orange-900 dark:border-orange-800/60 dark:bg-orange-900/40 dark:text-orange-100 dark:hover:bg-orange-900/60 dark:hover:text-orange-50"
       >
         {t('impersonationExit')}
       </Button>

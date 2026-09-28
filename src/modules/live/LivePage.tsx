@@ -60,7 +60,7 @@ export default function LivePage() {
     <div className="mx-auto w-full max-w-2xl p-4 sm:p-6">
       <header className="mb-4 flex flex-wrap items-center gap-3">
         <div className="min-w-0">
-          <h1 className="text-xl font-bold text-foreground sm:text-2xl">{t('title')}</h1>
+          <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">{t('title')}</h1>
           <p className="text-sm text-muted-foreground">{t('subtitle')}</p>
         </div>
         <div className="ml-auto flex shrink-0 flex-wrap items-center gap-2">
@@ -98,7 +98,7 @@ export default function LivePage() {
           </div>
         </>
       ) : (
-        <div className="rounded-xl border border-dashed bg-card p-10 text-center">
+        <div className="rounded-2xl border border-dashed bg-card p-10 text-center">
           <p className="text-base font-semibold text-foreground">{t('noMatch')}</p>
           <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">{t('noMatchHint')}</p>
         </div>

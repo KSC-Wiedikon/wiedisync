@@ -56,30 +56,30 @@ export default function AccountExplorer({ accounts, transactions }: {
   return (
     <div className="grid gap-4 lg:grid-cols-[20rem_minmax(0,1fr)]">
       {/* Tree */}
-      <div className="rounded-lg border border-gray-200 bg-white p-2 dark:border-gray-700 dark:bg-gray-800">
+      <div className="rounded-2xl border border-hairline bg-card shadow-card p-2">
         {grouped.map((g) => (
           <div key={g.digit} className="mb-1">
             <button
               onClick={() => toggle(g.digit)}
-              className="flex w-full items-center gap-1 rounded px-2 py-1.5 text-left text-sm font-semibold text-gray-900 hover:bg-gray-100 dark:text-gray-100 dark:hover:bg-gray-700"
+              className="flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-left text-sm font-semibold text-foreground hover:bg-accent"
             >
               {collapsed.has(g.digit) ? <ChevronRight className="h-4 w-4 shrink-0" /> : <ChevronDown className="h-4 w-4 shrink-0" />}
-              <span className="tabular-nums text-gray-400">{g.digit}</span> {g.label}
+              <span className="tabular-nums text-muted-foreground/80">{g.digit}</span> {g.label}
             </button>
             {!collapsed.has(g.digit) && (
-              <ul className="ml-2 border-l border-gray-200 dark:border-gray-700">
+              <ul className="ml-2 border-l border-border">
                 {g.accounts.map((a) => (
                   <li key={a.number}>
                     <button
                       onClick={() => setSelected(a.number)}
-                      className={`flex w-full items-center justify-between gap-2 rounded px-2 py-1.5 text-left text-sm transition-colors ${
+                      className={`flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors ${
                         selected === a.number
-                          ? 'bg-brand-100 text-brand-800 dark:bg-brand-900/40 dark:text-brand-200'
-                          : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
+                          ? 'bg-selected text-selected-foreground'
+                          : 'text-foreground/85 hover:bg-accent'
                       }`}
                     >
-                      <span className="min-w-0 truncate" title={`${a.number} ${a.name}`}><span className="tabular-nums text-gray-400">{a.number}</span> {a.name}</span>
-                      <span className="shrink-0 tabular-nums text-xs text-gray-500 dark:text-gray-400">{formatChf(balByNum.get(a.number) ?? 0)}</span>
+                      <span className="min-w-0 truncate" title={`${a.number} ${a.name}`}><span className="tabular-nums text-muted-foreground/80">{a.number}</span> {a.name}</span>
+                      <span className="shrink-0 tabular-nums text-xs text-muted-foreground">{formatChf(balByNum.get(a.number) ?? 0)}</span>
                     </button>
                   </li>
                 ))}
@@ -92,16 +92,16 @@ export default function AccountExplorer({ accounts, transactions }: {
       {/* Ledger detail */}
       <div className="min-w-0">
         {!selAccount ? (
-          <div className="flex h-full min-h-40 items-center justify-center rounded-lg border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+          <div className="flex h-full min-h-40 items-center justify-center rounded-2xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
             {t('selectAccount')}
           </div>
         ) : (
           <div className="space-y-3">
             <div className="flex items-baseline gap-2">
-              <h3 className="min-w-0 flex-1 break-words text-base font-semibold text-gray-900 dark:text-gray-100">
-                <span className="tabular-nums text-gray-400">{selAccount.number}</span> {selAccount.name}
+              <h3 className="min-w-0 flex-1 break-words text-base font-semibold text-foreground">
+                <span className="tabular-nums text-muted-foreground/80">{selAccount.number}</span> {selAccount.name}
               </h3>
-              <span className="shrink-0 text-right tabular-nums text-sm font-semibold text-gray-900 dark:text-gray-100">{formatChf(balByNum.get(selAccount.number) ?? 0)}</span>
+              <span className="shrink-0 text-right tabular-nums text-sm font-semibold text-foreground">{formatChf(balByNum.get(selAccount.number) ?? 0)}</span>
             </div>
             <AccountLedger account={selAccount} transactions={transactions} nameByNum={nameByNum} />
           </div>

@@ -25,7 +25,7 @@ export default function RoleChipPicker({ selected, onChange }: RoleChipPickerPro
     <div className="space-y-3">
       {ROLE_GROUPS.map(group => (
         <div key={group.key}>
-          <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
             {t(group.key)}
           </p>
           <div className="flex flex-wrap gap-1.5">
@@ -39,8 +39,8 @@ export default function RoleChipPicker({ selected, onChange }: RoleChipPickerPro
                   onClick={() => toggle(role)}
                   className={`inline-flex h-9 items-center rounded-full px-3 text-xs font-medium transition-colors sm:h-8 ${
                     active
-                      ? 'bg-brand-500 text-white'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
+                      ? 'bg-selected text-selected-foreground'
+                      : 'bg-stone-100 text-muted-foreground hover:bg-stone-200 dark:bg-gray-700 dark:hover:bg-gray-600'
                   }`}
                 >
                   {t(`role_${role}`)}

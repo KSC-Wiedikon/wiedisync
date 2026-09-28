@@ -145,7 +145,7 @@ const CarouselControl = ({
       title={title}
       onClick={handleClick}
     >
-      <IconArrowNarrowRight className="text-neutral-600 dark:text-neutral-200" />
+      <IconArrowNarrowRight className="text-stone-600 dark:text-neutral-200" />
     </button>
   );
 };

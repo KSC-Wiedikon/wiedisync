@@ -163,7 +163,7 @@ export default function DatePicker({
             // `min-h-7 px-1 py-0` to compress a cell, and tailwind-merge can
             // only override what it can see on this element.
             className={cn(
-              'flex min-h-[44px] min-w-[140px] w-full items-center gap-1 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm focus-within:ring-1 focus-within:ring-ring',
+              'flex min-h-[44px] min-w-[140px] w-full items-center gap-1 rounded-lg border border-input bg-card px-3 py-2 text-sm transition-colors focus-within:border-primary/60 focus-within:ring-2 focus-within:ring-ring dark:bg-input/20',
               (error || typedInvalid) && 'border-destructive',
               disabled && 'cursor-not-allowed opacity-50',
               className,
@@ -209,7 +209,7 @@ export default function DatePicker({
                 disabled={disabled}
                 aria-label={t('selectDate')}
                 data-testid="datepicker-trigger"
-                className="flex w-10 shrink-0 cursor-pointer items-center justify-center self-stretch rounded-md ring-offset-background focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed"
+                className="flex w-10 shrink-0 cursor-pointer items-center justify-center self-stretch rounded-md ring-offset-background focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed"
               >
                 <CalendarIcon className="h-4 w-4 opacity-50" />
               </button>

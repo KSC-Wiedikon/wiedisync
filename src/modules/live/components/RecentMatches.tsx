@@ -72,7 +72,7 @@ export default function RecentMatches({ channel }: { channel: string }) {
     <section className="mt-6">
       <h2 className="mb-2 text-sm font-semibold text-foreground">{t('recentTitle')}</h2>
       {/* Wide content scrolls inside its own container, never the page body. */}
-      <div className="overflow-x-auto rounded-xl border bg-card">
+      <div className="overflow-x-auto rounded-2xl border border-hairline bg-card shadow-card">
         <Table>
           <TableHeader>
             <TableRow>

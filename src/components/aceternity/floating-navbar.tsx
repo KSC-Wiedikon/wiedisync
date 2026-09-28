@@ -61,7 +61,7 @@ export const FloatingNav = ({
                 key={`link-${idx}`}
                 href={navItem.link}
                 className={cn(
-                  "relative flex items-center gap-1 rounded-full px-4 py-2 text-sm font-medium text-neutral-600 transition-colors hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-white/10 dark:hover:text-white"
+                  "relative flex items-center gap-1 rounded-full px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-stone-100 hover:text-foreground dark:hover:bg-white/10"
                 )}
               >
                 <span className="block sm:hidden">{navItem.icon}</span>
@@ -71,10 +71,10 @@ export const FloatingNav = ({
           </div>
 
           {/* Divider */}
-          <div className="h-5 w-px bg-neutral-200 dark:bg-white/10" />
+          <div className="h-5 w-px bg-stone-200 dark:bg-white/10" />
 
           {/* CTA Button */}
-          <button className="relative rounded-full bg-neutral-900 px-4 py-2 text-sm font-medium text-white transition-all hover:bg-neutral-800 hover:shadow-lg hover:shadow-neutral-900/20 dark:bg-white dark:text-black dark:hover:bg-neutral-100 dark:hover:shadow-white/20">
+          <button className="relative rounded-full bg-stone-900 px-4 py-2 text-sm font-medium text-white transition-all hover:bg-stone-800 hover:shadow-lg hover:shadow-stone-900/20 dark:bg-white dark:text-black dark:hover:bg-neutral-100 dark:hover:shadow-white/20">
             <span>Login</span>
           </button>
         </div>

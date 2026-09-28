@@ -19,13 +19,13 @@ import {
   ACCOUNT_TYPES, type LedgerAccount, type LedgerSettings,
 } from '../../hooks/useFinance'
 
-const labelCls = 'block text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400'
-const inputCls = 'mt-1 h-11 w-full rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm sm:h-9 outline-none focus:border-brand-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100'
+const labelCls = 'block text-[11px] font-semibold uppercase tracking-wide text-muted-foreground'
+const inputCls = 'mt-1 h-11 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm sm:h-9 dark:bg-gray-800 text-foreground placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
 const selectCls = `${inputCls} dark:bg-gray-800`
 const apiErr = (e: unknown, fb: string) => (e as { body?: { error?: string } })?.body?.error || fb
 // Stand-in for a table that has not been read yet — same shape as ExpensesTab /
 // TkExpensesPage, so "still loading" never looks like "the books are empty".
-const Spinner = () => <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-gray-400" /></div>
+const Spinner = () => <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground/80" /></div>
 
 type Section = 'journal' | 'accounts' | 'trial' | 'close' | 'settings'
 
@@ -49,12 +49,12 @@ export default function LedgerTab({ fiscalYearId }: { fiscalYearId?: string | nu
 
   return (
     <div className="space-y-4">
-      <p className="text-xs text-gray-500 dark:text-gray-400">{t('ledIntro')}</p>
+      <p className="text-xs text-muted-foreground">{t('ledIntro')}</p>
       <div className="flex flex-wrap items-center gap-2">
         {SECTIONS.map((s) => (
           <Button key={s.key} type="button" onClick={() => setSection(s.key)}
             variant={section === s.key ? 'default' : 'ghost'} aria-pressed={section === s.key}
-            className={section === s.key ? '' : 'text-gray-600 dark:text-gray-300'}>
+            className={section === s.key ? 'bg-selected text-selected-foreground hover:bg-selected/90' : 'text-muted-foreground'}>
             <s.icon className="h-4 w-4" />{s.label}
           </Button>
         ))}
@@ -99,36 +99,36 @@ function Journal({ fyId, fyClosed, fyLoading }: { fyId: string; fyClosed?: boole
       {loading ? (
         <Spinner />
       ) : rows.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-gray-300 py-10 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">{t('ledNoEntries')}</p>
+        <p className="rounded-2xl border border-dashed border-border py-10 text-center text-sm text-muted-foreground">{t('ledNoEntries')}</p>
       ) : (
-        <div className="rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+        <div className="rounded-2xl border border-hairline bg-card shadow-card overflow-hidden">
           <Table>
             <TableHeader>
-              <TableRow className="bg-gray-50 dark:bg-gray-900/40">
-                <TableHead className="text-xs uppercase text-gray-500 dark:text-gray-400">{t('ledColDate')}</TableHead>
-                <TableHead className="text-xs uppercase text-gray-500 dark:text-gray-400">{t('ledColBeleg')}</TableHead>
-                <TableHead className="text-xs uppercase text-gray-500 dark:text-gray-400">{t('ledColText')}</TableHead>
-                <TableHead className="hidden sm:table-cell text-xs uppercase text-gray-500 dark:text-gray-400">{t('ledColDebit')}</TableHead>
-                <TableHead className="hidden sm:table-cell text-xs uppercase text-gray-500 dark:text-gray-400">{t('ledColCredit')}</TableHead>
-                <TableHead className="text-right text-xs uppercase text-gray-500 dark:text-gray-400">{t('colAmount')}</TableHead>
-                <TableHead className="text-right text-xs uppercase text-gray-500 dark:text-gray-400"></TableHead>
+              <TableRow>
+                <TableHead>{t('ledColDate')}</TableHead>
+                <TableHead>{t('ledColBeleg')}</TableHead>
+                <TableHead>{t('ledColText')}</TableHead>
+                <TableHead className="hidden sm:table-cell">{t('ledColDebit')}</TableHead>
+                <TableHead className="hidden sm:table-cell">{t('ledColCredit')}</TableHead>
+                <TableHead className="text-right">{t('colAmount')}</TableHead>
+                <TableHead className="text-right"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {rows.map((e) => (
-                <TableRow key={e.id} className="border-gray-200 dark:border-gray-700">
-                  <TableCell className="whitespace-nowrap text-gray-600 dark:text-gray-400">{e.booking_date ? formatDateCompactZurich(e.booking_date) : '–'}</TableCell>
-                  <TableCell className="whitespace-nowrap text-xs text-gray-500 dark:text-gray-400">{e.beleg || '–'}{e.typ && e.typ !== 'Standard' ? <span className="ml-1 rounded bg-gray-100 px-1 text-[10px] dark:bg-gray-700">{e.typ}</span> : null}{e.source === 'clubdesk' ? <span className="ml-1 rounded bg-blue-50 px-1 text-[10px] text-blue-600 dark:bg-blue-900/30 dark:text-blue-300">ClubDesk</span> : null}</TableCell>
-                  <TableCell className="whitespace-normal break-words text-gray-900 dark:text-gray-100">{e.text || '–'}
-                    <span className="block text-[11px] text-gray-400 sm:hidden">{e.debit_account_number} → {e.credit_account_number}</span></TableCell>
-                  <TableCell className="hidden sm:table-cell whitespace-nowrap text-xs text-gray-600 dark:text-gray-300">{e.debit_account_number} {e.debit_account_name}</TableCell>
-                  <TableCell className="hidden sm:table-cell whitespace-nowrap text-xs text-gray-600 dark:text-gray-300">{e.credit_account_number} {e.credit_account_name}</TableCell>
-                  <TableCell className="text-right tabular-nums text-gray-900 dark:text-gray-100">{formatChf(toNum(e.amount_chf))}</TableCell>
+                <TableRow key={e.id}>
+                  <TableCell className="whitespace-nowrap text-muted-foreground">{e.booking_date ? formatDateCompactZurich(e.booking_date) : '–'}</TableCell>
+                  <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{e.beleg || '–'}{e.typ && e.typ !== 'Standard' ? <span className="ml-1 rounded bg-muted px-1 text-[10px]">{e.typ}</span> : null}{e.source === 'clubdesk' ? <span className="ml-1 rounded bg-blue-50 px-1 text-[10px] text-blue-600 dark:bg-blue-900/30 dark:text-blue-300">ClubDesk</span> : null}</TableCell>
+                  <TableCell className="whitespace-normal break-words text-foreground">{e.text || '–'}
+                    <span className="block text-[11px] text-muted-foreground/80 sm:hidden">{e.debit_account_number} → {e.credit_account_number}</span></TableCell>
+                  <TableCell className="hidden sm:table-cell whitespace-nowrap text-xs text-muted-foreground">{e.debit_account_number} {e.debit_account_name}</TableCell>
+                  <TableCell className="hidden sm:table-cell whitespace-nowrap text-xs text-muted-foreground">{e.credit_account_number} {e.credit_account_name}</TableCell>
+                  <TableCell className="text-right tabular-nums text-foreground">{formatChf(toNum(e.amount_chf))}</TableCell>
                   <TableCell className="text-right">
                     {!fyClosed && e.source === 'native' && (
                       <div className="flex justify-end gap-1">
-                        <IconButton size="sm" variant="outline" label={t('ledReverse')} disabled={busy === e.id} onClick={() => reverse(e.id)} className="text-gray-500">{busy === e.id ? <Loader2 className="animate-spin" /> : <Undo2 />}</IconButton>
-                        {!e.beleg?.startsWith('AP-') && <IconButton size="sm" variant="outline" label={t('delete')} disabled={busy === e.id} onClick={() => remove(e.id)} className="text-gray-500 hover:text-red-600 dark:hover:text-red-400"><Trash2 /></IconButton>}
+                        <IconButton size="sm" variant="outline" label={t('ledReverse')} disabled={busy === e.id} onClick={() => reverse(e.id)} className="text-muted-foreground">{busy === e.id ? <Loader2 className="animate-spin" /> : <Undo2 />}</IconButton>
+                        {!e.beleg?.startsWith('AP-') && <IconButton size="sm" variant="outline" label={t('delete')} disabled={busy === e.id} onClick={() => remove(e.id)} className="text-muted-foreground hover:text-red-600 dark:hover:text-red-400"><Trash2 /></IconButton>}
                       </div>
                     )}
                   </TableCell>
@@ -198,34 +198,34 @@ function Accounts() {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-xs text-gray-500 dark:text-gray-400">{t('ledAccountsHint')}</p>
+        <p className="text-xs text-muted-foreground">{t('ledAccountsHint')}</p>
         <Button type="button" onClick={() => setOpen(true)}><Plus className="h-4 w-4" />{t('ledNewAccount')}</Button>
       </div>
       {isLoading ? (
         <Spinner />
       ) : rows.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-gray-300 py-10 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">{t('ledNoAccounts')}</p>
+        <p className="rounded-2xl border border-dashed border-border py-10 text-center text-sm text-muted-foreground">{t('ledNoAccounts')}</p>
       ) : (
-        <div className="rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+        <div className="rounded-2xl border border-hairline bg-card shadow-card overflow-hidden">
           <Table>
-            <TableHeader><TableRow className="bg-gray-50 dark:bg-gray-900/40">
-              <TableHead className="text-xs uppercase text-gray-500 dark:text-gray-400">{t('ledColNumber')}</TableHead>
-              <TableHead className="text-xs uppercase text-gray-500 dark:text-gray-400">{t('ledColName')}</TableHead>
-              <TableHead className="text-xs uppercase text-gray-500 dark:text-gray-400">{t('ledColType')}</TableHead>
-              <TableHead className="hidden sm:table-cell text-xs uppercase text-gray-500 dark:text-gray-400">{t('ledColSource')}</TableHead>
-              <TableHead className="text-right text-xs uppercase text-gray-500 dark:text-gray-400"></TableHead>
+            <TableHeader><TableRow>
+              <TableHead>{t('ledColNumber')}</TableHead>
+              <TableHead>{t('ledColName')}</TableHead>
+              <TableHead>{t('ledColType')}</TableHead>
+              <TableHead className="hidden sm:table-cell">{t('ledColSource')}</TableHead>
+              <TableHead className="text-right"></TableHead>
             </TableRow></TableHeader>
             <TableBody>
               {rows.map((a) => (
-                <TableRow key={a.id} className={`border-gray-200 dark:border-gray-700 ${a.active ? '' : 'opacity-50'}`}>
-                  <TableCell className="whitespace-nowrap tabular-nums text-gray-900 dark:text-gray-100">{a.number}</TableCell>
-                  <TableCell className="whitespace-normal break-words text-gray-900 dark:text-gray-100">{a.name}</TableCell>
-                  <TableCell className="whitespace-nowrap text-xs text-gray-600 dark:text-gray-300">{typeLabel(a.type)}</TableCell>
-                  <TableCell className="hidden sm:table-cell whitespace-nowrap text-xs text-gray-500 dark:text-gray-400">{a.source === 'native' ? t('ledSourceNative') : t('ledSourceClubdesk')}</TableCell>
+                <TableRow key={a.id} className={`${a.active ? '' : 'opacity-50'}`}>
+                  <TableCell className="whitespace-nowrap tabular-nums text-foreground">{a.number}</TableCell>
+                  <TableCell className="whitespace-normal break-words text-foreground">{a.name}</TableCell>
+                  <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{typeLabel(a.type)}</TableCell>
+                  <TableCell className="hidden sm:table-cell whitespace-nowrap text-xs text-muted-foreground">{a.source === 'native' ? t('ledSourceNative') : t('ledSourceClubdesk')}</TableCell>
                   <TableCell className="text-right">
                     {a.source === 'native'
                       ? <Button variant="outline" size="sm" type="button" onClick={() => toggle(a)}>{a.active ? t('ledDeactivate') : t('ledActivate')}</Button>
-                      : <span className="text-xs text-gray-400">{t('ledFromClubdesk')}</span>}
+                      : <span className="text-xs text-muted-foreground/80">{t('ledFromClubdesk')}</span>}
                   </TableCell>
                 </TableRow>
               ))}
@@ -284,7 +284,7 @@ function TrialBalance({ fyId, period, fyLoading }: { fyId: string; period: strin
     <div className="space-y-3">
       {data && (
         <div className="flex flex-wrap items-center gap-2">
-          <div className={`rounded-md px-3 py-2 text-sm ${data.totals.balanced ? 'bg-green-50 text-green-800 dark:bg-green-900/20 dark:text-green-300' : 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-300'}`}>
+          <div className={`rounded-lg border px-3 py-2 text-sm ${data.totals.balanced ? 'border-green-200 bg-green-50 text-green-800 dark:border-green-900/50 dark:bg-green-900/20 dark:text-green-300' : 'border-red-200 bg-red-50 text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300'}`}>
             {t('ledColDebit')} {formatChf(data.totals.debit)} · {t('ledColCredit')} {formatChf(data.totals.credit)} · {data.totals.balanced ? t('ledBalanced') : t('ledUnbalanced')}
           </div>
           {rows.length > 0 && <div className="ml-auto shrink-0"><ReportExportMenu build={report} filename={`trial-balance-${period}`} /></div>}
@@ -293,25 +293,25 @@ function TrialBalance({ fyId, period, fyLoading }: { fyId: string; period: strin
       {loading ? (
         <Spinner />
       ) : rows.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-gray-300 py-10 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">{t('ledNoEntries')}</p>
+        <p className="rounded-2xl border border-dashed border-border py-10 text-center text-sm text-muted-foreground">{t('ledNoEntries')}</p>
       ) : (
-        <div className="rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+        <div className="rounded-2xl border border-hairline bg-card shadow-card overflow-hidden">
           <Table>
-            <TableHeader><TableRow className="bg-gray-50 dark:bg-gray-900/40">
-              <TableHead className="text-xs uppercase text-gray-500 dark:text-gray-400">{t('ledColNumber')}</TableHead>
-              <TableHead className="text-xs uppercase text-gray-500 dark:text-gray-400">{t('ledColName')}</TableHead>
-              <TableHead className="text-right text-xs uppercase text-gray-500 dark:text-gray-400">{t('ledColDebit')}</TableHead>
-              <TableHead className="text-right text-xs uppercase text-gray-500 dark:text-gray-400">{t('ledColCredit')}</TableHead>
-              <TableHead className="text-right text-xs uppercase text-gray-500 dark:text-gray-400">{t('ledColBalance')}</TableHead>
+            <TableHeader><TableRow>
+              <TableHead>{t('ledColNumber')}</TableHead>
+              <TableHead>{t('ledColName')}</TableHead>
+              <TableHead className="text-right">{t('ledColDebit')}</TableHead>
+              <TableHead className="text-right">{t('ledColCredit')}</TableHead>
+              <TableHead className="text-right">{t('ledColBalance')}</TableHead>
             </TableRow></TableHeader>
             <TableBody>
               {rows.map((r) => (
-                <TableRow key={r.account} className="border-gray-200 dark:border-gray-700">
-                  <TableCell className="whitespace-nowrap tabular-nums text-gray-900 dark:text-gray-100">{r.number}</TableCell>
-                  <TableCell className="whitespace-normal break-words text-gray-700 dark:text-gray-300">{r.name}</TableCell>
-                  <TableCell className="text-right tabular-nums text-gray-600 dark:text-gray-300">{r.debit ? formatChf(r.debit) : '–'}</TableCell>
-                  <TableCell className="text-right tabular-nums text-gray-600 dark:text-gray-300">{r.credit ? formatChf(r.credit) : '–'}</TableCell>
-                  <TableCell className="text-right tabular-nums font-medium text-gray-900 dark:text-gray-100">{formatChf(r.balance)}</TableCell>
+                <TableRow key={r.account}>
+                  <TableCell className="whitespace-nowrap tabular-nums text-foreground">{r.number}</TableCell>
+                  <TableCell className="whitespace-normal break-words text-foreground/85">{r.name}</TableCell>
+                  <TableCell className="text-right tabular-nums text-muted-foreground">{r.debit ? formatChf(r.debit) : '–'}</TableCell>
+                  <TableCell className="text-right tabular-nums text-muted-foreground">{r.credit ? formatChf(r.credit) : '–'}</TableCell>
+                  <TableCell className="text-right tabular-nums font-medium text-foreground">{formatChf(r.balance)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -344,23 +344,23 @@ function CloseYear({ fy, fyLoading }: { fy?: { id: number; label: string | null;
     } catch (e) { setError(apiErr(e, t('ledActionError'))) } finally { setBusy(false) }
   }
 
-  if (!fy) return fyLoading ? <Spinner /> : <p className="text-sm text-gray-500">{t('ledNoYear')}</p>
+  if (!fy) return fyLoading ? <Spinner /> : <p className="text-sm text-muted-foreground">{t('ledNoYear')}</p>
   return (
     <div className="max-w-xl space-y-4">
-      <div className="rounded-md bg-gray-50 p-3 text-sm dark:bg-gray-800">
-        <div className="font-medium text-gray-900 dark:text-gray-100">{fy.label || `#${fy.id}`}</div>
-        <div className="text-xs text-gray-500 dark:text-gray-400">{closed ? t('ledAlreadyClosed') : t('ledCloseHint')}</div>
+      <div className="rounded-xl border border-hairline bg-surface-sunken p-3 text-sm">
+        <div className="font-medium text-foreground">{fy.label || `#${fy.id}`}</div>
+        <div className="text-xs text-muted-foreground">{closed ? t('ledAlreadyClosed') : t('ledCloseHint')}</div>
       </div>
       {!closed && (
         <>
           <div><label htmlFor="cl-eq" className={labelCls}>{t('ledEquityAccount')}</label>
             <select id="cl-eq" value={equity} onChange={(e) => setEquity(e.target.value)} className={selectCls}><option value="">{t('ledSelectAccount')}</option>{equityAccts.map((a) => <option key={a.id} value={a.id}>{a.number} · {a.name}</option>)}</select>
-            <p className="mt-1 text-xs text-gray-400">{t('ledEquityHint')}</p></div>
+            <p className="mt-1 text-xs text-muted-foreground/80">{t('ledEquityHint')}</p></div>
           <div><label htmlFor="cl-op" className={labelCls}>{t('ledOpeningAccount')}</label>
             <select id="cl-op" value={opening} onChange={(e) => setOpening(e.target.value)} className={selectCls}><option value="">{t('ledSelectAccount')}</option>{equityAccts.map((a) => <option key={a.id} value={a.id}>{a.number} · {a.name}</option>)}</select>
-            <p className="mt-1 text-xs text-gray-400">{t('ledOpeningHint')}</p></div>
+            <p className="mt-1 text-xs text-muted-foreground/80">{t('ledOpeningHint')}</p></div>
           {preview && (
-            <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm dark:border-amber-900/40 dark:bg-amber-900/20">
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm dark:border-amber-900/40 dark:bg-amber-900/20">
               <div className="font-medium text-amber-900 dark:text-amber-200">{t('ledPreview')}</div>
               <div className="mt-1 text-amber-800 dark:text-amber-300">{t('ledColIncome')}: {formatChf(preview.income)} · {t('ledColExpense')}: {formatChf(preview.expense)} · {t('ledNet')}: <strong>{formatChf(preview.net)}</strong></div>
               <div className="text-xs text-amber-700 dark:text-amber-400">{t('ledEntriesPlanned', { close: preview.closing_entries, open: preview.opening_entries })}</div>
@@ -373,7 +373,7 @@ function CloseYear({ fy, fyLoading }: { fy?: { id: number; label: string | null;
           </div>
         </>
       )}
-      {done && <p className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800 dark:border-green-900/50 dark:bg-green-900/20 dark:text-green-300">{done}</p>}
+      {done && <p className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800 dark:border-green-900/50 dark:bg-green-900/20 dark:text-green-300">{done}</p>}
     </div>
   )
 }
@@ -393,7 +393,7 @@ function AutopostSettings() {
   const qc = useQueryClient()
   const { data: settings } = useLedgerSettings()
   const { data: accounts } = useLedgerAccounts()
-  if (!settings) return <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+  if (!settings) return <Loader2 className="h-5 w-5 animate-spin text-muted-foreground/80" />
   return (
     <div className="space-y-6">
       <AutopostForm key={settings.id + ':' + settings.autopost_enabled} settings={settings} accounts={accounts ?? []} onSaved={() => qc.invalidateQueries({ queryKey: ['finance'] })} />
@@ -426,18 +426,18 @@ function IncomeByCategoryForm({ categories, map, accounts, onSaved }: { categori
     try { const r = await autoMapIncome(); setMsg(t('ledAutoMapped', { matched: r.matched, total: r.total })); onSaved() } catch (e) { setError(apiErr(e, t('ledActionError'))) } finally { setBusy(false) }
   }
   return (
-    <div className="max-w-xl space-y-3 border-t border-gray-200 pt-5 dark:border-gray-700">
+    <div className="max-w-xl space-y-3 border-t border-border pt-5">
       <div className="flex items-start justify-between gap-2">
         <div>
-          <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{t('ledIncomeByCategory')}</p>
-          <p className="text-xs text-gray-500 dark:text-gray-400">{t('ledIncomeByCategoryHint')}</p>
+          <p className="text-sm font-medium text-foreground">{t('ledIncomeByCategory')}</p>
+          <p className="text-xs text-muted-foreground">{t('ledIncomeByCategoryHint')}</p>
         </div>
         <Button variant="outline" type="button" disabled={busy} onClick={auto} className="shrink-0">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}{t('ledAutoMap')}</Button>
       </div>
       <div className="space-y-2">
         {categories.map((c) => (
           <div key={c} className="grid grid-cols-2 items-center gap-2">
-            <span className="text-sm text-gray-700 dark:text-gray-300">{c}</span>
+            <span className="text-sm text-foreground/85">{c}</span>
             <select value={sel[c] || ''} onChange={(e) => setSel((s) => ({ ...s, [c]: e.target.value }))} className={selectCls}>
               <option value="">{t('ledDefaultIncome')}</option>
               {incomeAccts.map((a) => <option key={a.id} value={a.id}>{a.number} · {a.name}</option>)}
@@ -472,7 +472,7 @@ function AutopostForm({ settings, accounts, onSaved }: { settings: LedgerSetting
 
   return (
     <div className="max-w-xl space-y-4">
-      <p className="text-xs text-gray-500 dark:text-gray-400">{t('ledAutopostHint')}</p>
+      <p className="text-xs text-muted-foreground">{t('ledAutopostHint')}</p>
       <div className="flex flex-wrap gap-2">
         <Button variant="outline" type="button" disabled={!!busy} onClick={reconcile}>{busy === 'recon' ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}{t('ledReconcile')}</Button>
       </div>
@@ -484,8 +484,8 @@ function AutopostForm({ settings, accounts, onSaved }: { settings: LedgerSetting
             </select></div>
         ))}
       </div>
-      <label className="flex items-center gap-2 text-sm text-gray-800 dark:text-gray-200">
-        <input type="checkbox" checked={enabled && ready} disabled={!ready} onChange={(e) => setEnabled(e.target.checked)} />{t('ledAutopostEnable')}
+      <label className="flex items-center gap-2 text-sm text-foreground">
+        <input type="checkbox" className="h-4 w-4 rounded border-input accent-[var(--primary)]" checked={enabled && ready} disabled={!ready} onChange={(e) => setEnabled(e.target.checked)} />{t('ledAutopostEnable')}
       </label>
       {!ready && <p className="text-xs text-amber-600 dark:text-amber-400">{t('ledAutopostNeedsAccounts')}</p>}
       {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}

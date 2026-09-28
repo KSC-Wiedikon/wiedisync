@@ -54,7 +54,7 @@ export default function ClubdeskStepDialog({
     <Dialog open={open} onOpenChange={(v) => { if (dismissible || v) onOpenChange(v) }}>
       <DialogContent className="max-h-[88vh] max-w-3xl overflow-y-auto">
         <DialogHeader>
-          <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
             {t('dhPathProgress', { step, total })}
           </p>
           <DialogTitle className="flex items-center gap-2">

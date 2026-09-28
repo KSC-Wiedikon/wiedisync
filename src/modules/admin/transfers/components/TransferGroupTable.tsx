@@ -11,7 +11,7 @@ import type {
 } from '../types'
 
 /** The card every group sits in. One silhouette for all four cohorts. */
-const CARD_CLASS = 'overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800/50'
+const CARD_CLASS = 'overflow-hidden rounded-2xl border border-hairline bg-card shadow-card'
 
 /**
  * One card + data table per group, for all four cohorts.
@@ -151,7 +151,7 @@ export function TransferGroupTable({
         const groupKey = `${mode}:${g.key}`
         const open = openGroups.has(groupKey)
         const setOpen = (next: boolean) => { onGroupOpenChange(groupKey, next) }
-        const body = <div className="border-t border-gray-100 dark:border-gray-700">{tableFor(g)}</div>
+        const body = <div className="border-t border-border/60">{tableFor(g)}</div>
 
         const header = groupBy === 'state' ? (
           /**
@@ -164,7 +164,7 @@ export function TransferGroupTable({
            * every row carries its own State badge.
            */
           <div className={GROUP_HEADER_CLASS}>
-            <span className="text-sm font-semibold text-gray-900 dark:text-white">{g.label}</span>
+            <span className="text-sm font-semibold text-foreground">{g.label}</span>
             <Badge variant="neutral">{t('trMemberCount', { count: g.rows.length })}</Badge>
           </div>
         ) : (

@@ -35,7 +35,7 @@ function TkConfirmCell({ e }: { e: FinanceExpense }) {
         </span>
       )}
       {e.tk_confirmed_at && e.tk_confirmed_by_name && (
-        <span className="text-[11px] text-gray-400 dark:text-gray-500">
+        <span className="text-[11px] text-muted-foreground/80">
           {e.tk_confirmed_by_name} · {formatDateCompactZurich(e.tk_confirmed_at)}
         </span>
       )}
@@ -46,10 +46,10 @@ function TkConfirmCell({ e }: { e: FinanceExpense }) {
         </span>
       )}
       {e.member_already_paid && (
-        <span className="text-[11px] italic text-gray-400 dark:text-gray-500">{t('expenseMemberAlreadyPaid')}</span>
+        <span className="text-[11px] italic text-muted-foreground/80">{t('expenseMemberAlreadyPaid')}</span>
       )}
       {e.tk_note && (
-        <span className="whitespace-normal break-words text-[11px] italic text-gray-500 dark:text-gray-400">«{e.tk_note}»</span>
+        <span className="whitespace-normal break-words text-[11px] italic text-muted-foreground">«{e.tk_note}»</span>
       )}
       {e.internal_note && (
         <span className="mt-0.5 block whitespace-normal break-words rounded-md bg-amber-50 px-1.5 py-1 text-[11px] text-amber-900 dark:bg-amber-900/20 dark:text-amber-200">
@@ -183,26 +183,26 @@ export default function ExpensesTab() {
   }
 
   if (isLoading) {
-    return <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-gray-400" /></div>
+    return <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground/80" /></div>
   }
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
-      <h3 className="mb-1 text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('tabExpenses')}</h3>
-      <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">{t('expensesTabHint')}</p>
+    <div className="rounded-2xl border border-hairline bg-card shadow-card p-4">
+      <h3 className="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{t('tabExpenses')}</h3>
+      <p className="mb-3 text-xs text-muted-foreground">{t('expensesTabHint')}</p>
       {rows.length === 0 ? (
-        <p className="py-6 text-center text-sm text-gray-400 dark:text-gray-500">{t('expensesEmpty')}</p>
+        <p className="py-6 text-center text-sm text-muted-foreground/80">{t('expensesEmpty')}</p>
       ) : (
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colDate')}</TableHead>
-                <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('expenseMember')}</TableHead>
-                <TableHead className="text-right text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('expenseAmount')}</TableHead>
-                <TableHead className="hidden sm:table-cell text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('expenseVendor')}</TableHead>
-                <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('expenseStatusCol')}</TableHead>
-                <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('expenseTkCol')}</TableHead>
+                <TableHead>{t('colDate')}</TableHead>
+                <TableHead>{t('expenseMember')}</TableHead>
+                <TableHead className="text-right">{t('expenseAmount')}</TableHead>
+                <TableHead className="hidden sm:table-cell">{t('expenseVendor')}</TableHead>
+                <TableHead>{t('expenseStatusCol')}</TableHead>
+                <TableHead>{t('expenseTkCol')}</TableHead>
                 <TableHead />
               </TableRow>
             </TableHeader>
@@ -210,19 +210,19 @@ export default function ExpensesTab() {
               {rows.map((e) => (
                 <Fragment key={e.id}>
                   <TableRow className="min-h-[44px]">
-                    <TableCell className="text-sm text-gray-500 dark:text-gray-400">
+                    <TableCell className="text-sm text-muted-foreground">
                       {e.date_created ? formatDateCompactZurich(e.date_created) : '—'}
                     </TableCell>
-                    <TableCell className="whitespace-normal break-words text-sm font-medium text-gray-900 dark:text-gray-100">
+                    <TableCell className="whitespace-normal break-words text-sm font-medium text-foreground">
                       {memberDisplayName(e)}
                     </TableCell>
-                    <TableCell className="text-right text-sm font-medium tabular-nums text-gray-900 dark:text-gray-100">
+                    <TableCell className="text-right text-sm font-medium tabular-nums text-foreground">
                       {formatExpenseAmount(e)}
                     </TableCell>
-                    <TableCell className="hidden sm:table-cell whitespace-normal break-words text-sm text-gray-700 dark:text-gray-300">
+                    <TableCell className="hidden sm:table-cell whitespace-normal break-words text-sm text-foreground/85">
                       {e.vendor || '—'}
-                      {e.description && <span className="block text-xs text-gray-400 dark:text-gray-500">{e.description}</span>}
-                      {e.member_note && <span className="mt-0.5 block text-xs italic text-gray-400 dark:text-gray-500">«{e.member_note}»</span>}
+                      {e.description && <span className="block text-xs text-muted-foreground/80">{e.description}</span>}
+                      {e.member_note && <span className="mt-0.5 block text-xs italic text-muted-foreground/80">«{e.member_note}»</span>}
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-col items-start gap-1">
@@ -231,7 +231,7 @@ export default function ExpensesTab() {
                           value={e.status || 'pending'}
                           disabled={busyId === e.id}
                           onChange={(ev) => void changeStatus(e, ev.target.value)}
-                          className="rounded-md border border-gray-300 bg-transparent px-1.5 py-1 text-xs text-gray-700 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300"
+                          className="rounded-lg border border-input bg-card px-1.5 py-1 text-xs text-foreground/85 dark:bg-gray-800 placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                           aria-label={t('expenseStatusCol')}
                         >
                           <option value="pending">{t('expenseStatus_pending')}</option>
@@ -240,7 +240,7 @@ export default function ExpensesTab() {
                         </select>
                       </div>
                       {e.status_changed_by_name && (
-                        <p className="mt-1 text-[11px] text-gray-400 dark:text-gray-500">{e.status_changed_by_name}</p>
+                        <p className="mt-1 text-[11px] text-muted-foreground/80">{e.status_changed_by_name}</p>
                       )}
                     </TableCell>
                     <TableCell className="align-top">
@@ -255,7 +255,7 @@ export default function ExpensesTab() {
                           size="sm"
                           type="button"
                           onClick={() => (editingId === e.id ? (setEditingId(null), setEdit(null)) : startEdit(e))}
-                          className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                          className="text-muted-foreground hover:text-foreground/85"
                           label={t('expenseEdit')}
                           aria-expanded={editingId === e.id}
                         >
@@ -266,7 +266,7 @@ export default function ExpensesTab() {
                   </TableRow>
                   {editingId === e.id && edit && (
                     <TableRow>
-                      <TableCell colSpan={7} className="bg-gray-50 dark:bg-gray-900/40">
+                      <TableCell colSpan={7} className="bg-surface-sunken">
                         <div className="grid grid-cols-1 gap-3 py-2 sm:grid-cols-2">
                           <FormInput label={t('expenseAmount')} type="text" inputMode="decimal" value={edit.amount}
                             onChange={(ev) => setEdit({ ...edit, amount: ev.target.value })} />
@@ -285,13 +285,13 @@ export default function ExpensesTab() {
                           <div className="sm:col-span-2">
                             <FormTextarea label={t('expenseFinanceNote')} value={edit.finance_note} rows={2}
                               onChange={(ev) => setEdit({ ...edit, finance_note: ev.target.value })} />
-                            <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">{t('expenseFinanceNoteHint')}</p>
+                            <p className="mt-1 text-xs text-muted-foreground/80">{t('expenseFinanceNoteHint')}</p>
                           </div>
                           <div className="sm:col-span-2">
                             <FormTextarea label={t('expenseInternalNote')} value={edit.internal_note} rows={2}
                               placeholder={t('expenseInternalNotePlaceholder')}
                               onChange={(ev) => setEdit({ ...edit, internal_note: ev.target.value })} />
-                            <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">{t('expenseInternalNoteHint')}</p>
+                            <p className="mt-1 text-xs text-muted-foreground/80">{t('expenseInternalNoteHint')}</p>
                           </div>
                         </div>
                         <div className="flex justify-end gap-2 pb-2">

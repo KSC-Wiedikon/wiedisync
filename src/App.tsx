@@ -2,7 +2,8 @@ import { lazy, Suspense, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { SCHEDULING_ORIGIN } from './lib/api'
-import { Toaster, toast } from 'sonner'
+import { toast } from 'sonner'
+import { Toaster } from './components/ui/sonner'
 import { QueryProvider } from './lib/QueryProvider'
 import { AuthProvider } from './hooks/AuthProvider'
 import { ThemeProvider } from './hooks/ThemeProvider'
@@ -125,10 +126,10 @@ function SentryFallback({ error }: { error?: unknown } = {}) {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background text-foreground">
       <div className="text-center space-y-4 p-8">
-        <h1 className="text-2xl font-bold">Something went wrong</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Something went wrong</h1>
         <p className="text-muted-foreground">An unexpected error occurred. Etwas ist schiefgelaufen.</p>
         <button
-          className="rounded-md bg-brand-600 px-4 py-2 text-white hover:bg-brand-700"
+          className="inline-flex h-11 items-center rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-9"
           onClick={() => reloadNow()}
         >
           Reload page
@@ -323,7 +324,7 @@ export default function App() {
         </Routes>
       </PageReadyProvider>
       </BrowserRouter>
-      <Toaster richColors position="top-center" />
+      <Toaster />
       </ConfirmProvider>
       </AdminModeProvider>
     </AuthProvider>

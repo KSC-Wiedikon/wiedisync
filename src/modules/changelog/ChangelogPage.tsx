@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.23.1'
+const APP_VERSION = '2.24.0'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,18 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.24.0',
+    date: '29.09.2026',
+    sections: [
+      {
+        title: 'New',
+        items: [
+          "A new look. The app now uses a calmer, cleaner design: a new typeface, softer cards on a warm background, clearer buttons, tabs and forms, and a quieter menu and login screen. Colours, dark mode and where everything is stay the same.",
+        ],
+      },
+    ],
+  },
   {
     version: '2.23.1',
     date: '29.09.2026',
@@ -2820,10 +2832,10 @@ export default function ChangelogPage() {
     <div className="mx-auto max-w-2xl">
       <div className="mb-6">
         <div className="flex items-center gap-3">
-          <ScrollText className="h-6 w-6 text-brand-600 dark:text-gold-400" />
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('changelog')}</h1>
+          <ScrollText className="h-6 w-6 text-primary dark:text-gold-400" />
+          <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">{t('changelog')}</h1>
         </div>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Wiedisync v{APP_VERSION}</p>
+        <p className="mt-1 text-sm text-muted-foreground">Wiedisync v{APP_VERSION}</p>
       </div>
 
       <div className="space-y-8">
@@ -2831,18 +2843,18 @@ export default function ChangelogPage() {
           <div key={entry.version}>
             <div className="mb-4 flex items-center gap-3">
               <Badge variant="default" className="font-mono">v{entry.version}</Badge>
-              <span className="text-sm text-gray-500 dark:text-gray-400">{entry.date}</span>
+              <span className="text-sm text-muted-foreground">{entry.date}</span>
             </div>
 
             <div className="space-y-4">
               {entry.sections.map((section) => (
                 <div key={section.title}>
-                  <h3 className="mb-2 text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                  <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                     {section.title}
                   </h3>
                   <ul className="space-y-1">
                     {section.items.map((item, i) => (
-                      <li key={i} className="flex items-start gap-2 text-sm leading-relaxed text-gray-700 dark:text-gray-300">
+                      <li key={i} className="flex items-start gap-2 text-sm leading-relaxed text-foreground/85">
                         <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-brand-500 dark:bg-gold-400" />
                         <span className="text-justify hyphens-auto">{item}</span>
                       </li>
@@ -2860,7 +2872,7 @@ export default function ChangelogPage() {
       {donateVisible && (
         <Link
           to="/support"
-          className="mt-8 flex min-h-[44px] items-center justify-center gap-2 rounded-lg border border-gray-200 px-4 py-3 text-sm text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-700 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+          className="mt-8 flex min-h-[44px] items-center justify-center gap-2 rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
         >
           <Coffee className="h-4 w-4" />
           {tSupport('menuLabel')}

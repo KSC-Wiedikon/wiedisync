@@ -140,7 +140,7 @@ function RsvpTimestamp({ datetime, locale }: { datetime: string; locale: string 
       type="button"
       onClick={() => setShowAbsolute(v => !v)}
       title={formatDateTimeCompact(datetime)}
-      className="truncate text-[11px] text-gray-400 hover:text-gray-500 dark:text-gray-500 dark:hover:text-gray-400"
+      className="truncate text-[11px] text-muted-foreground/80 hover:text-muted-foreground"
     >
       {showAbsolute ? formatDateTimeCompact(datetime) : capitalizeFirst(formatRelativeTime(datetime, locale))}
     </button>
@@ -165,7 +165,7 @@ function RsvpBrick({ status, label }: { status: Participation['status'] | null; 
       <span
         title={label}
         aria-label={label}
-        className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gray-200 text-gray-400 dark:bg-gray-700 dark:text-gray-500"
+        className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-stone-200 text-muted-foreground/80 dark:bg-gray-700"
       >
         <Minus className="h-3.5 w-3.5" />
       </span>
@@ -192,7 +192,7 @@ function statusBarClass(status: Participation['status'] | null): string {
     case 'tentative': return 'border-l-yellow-500'
     case 'declined': return 'border-l-red-500'
     case 'waitlisted': return 'border-l-orange-500'
-    default: return 'border-l-gray-300 dark:border-l-gray-600'
+    default: return 'border-l-stone-300 dark:border-l-gray-600'
   }
 }
 
@@ -1661,13 +1661,13 @@ export default function ParticipationRosterModal({
     <Modal open={open} onClose={onClose} title={title} size="lg">
       {/* Session tabs */}
       {hasSessionMode && (
-        <div className="mb-4 flex gap-1 overflow-x-auto rounded-lg border border-gray-200 bg-gray-50 p-1 dark:border-gray-600 dark:bg-gray-800">
+        <div className="mb-4 flex gap-1 overflow-x-auto rounded-lg border border-border bg-surface-sunken p-1">
           <button
             onClick={() => setActiveSessionTab(null)}
             className={`shrink-0 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
               activeSessionTab === null
-                ? 'bg-brand-500 text-white shadow-sm'
-                : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
+                ? 'bg-selected text-selected-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
             }`}
           >
             {te('overallView')}
@@ -1678,8 +1678,8 @@ export default function ParticipationRosterModal({
               onClick={() => setActiveSessionTab(session.id)}
               className={`shrink-0 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
                 activeSessionTab === session.id
-                  ? 'bg-brand-500 text-white shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
+                  ? 'bg-selected text-selected-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
               }`}
             >
               {formatSessionLabel(session)}
@@ -1696,27 +1696,27 @@ export default function ParticipationRosterModal({
         <div aria-busy="true">
           <div className="mb-4 flex flex-wrap gap-3" aria-hidden="true">
             {['w-20', 'w-16', 'w-14', 'w-24'].map((w, i) => (
-              <span key={i} className={`h-4 ${w} animate-pulse rounded bg-gray-100 dark:bg-gray-800`} />
+              <span key={i} className={`h-4 ${w} animate-pulse rounded bg-stone-200/80 dark:bg-gray-700`} />
             ))}
           </div>
-          <div className="rounded-lg border dark:border-gray-700" aria-hidden="true">
+          <div className="rounded-xl border border-border" aria-hidden="true">
             {Array.from({ length: 6 }).map((_, i) => (
               <div
                 key={i}
-                className="flex min-h-[44px] items-center gap-3 border-b border-b-gray-200 border-l-4 border-l-gray-300 px-3 py-2 last:border-b-0 dark:border-b-gray-700 dark:border-l-gray-600 sm:min-h-0"
+                className="flex min-h-[44px] items-center gap-3 border-b border-b-border border-l-4 border-l-stone-300 px-3 py-2 last:border-b-0 dark:border-l-gray-600 sm:min-h-0"
               >
-                <span className="h-8 w-8 shrink-0 animate-pulse rounded-full bg-gray-100 dark:bg-gray-800" />
+                <span className="h-8 w-8 shrink-0 animate-pulse rounded-full bg-stone-200/80 dark:bg-gray-700" />
                 <div className="min-w-0 flex-1">
-                  <span className="block h-4 w-32 max-w-full animate-pulse rounded bg-gray-100 dark:bg-gray-800" />
+                  <span className="block h-4 w-32 max-w-full animate-pulse rounded bg-stone-200/80 dark:bg-gray-700" />
                 </div>
-                <span className="h-6 w-6 shrink-0 animate-pulse rounded-full bg-gray-100 dark:bg-gray-800" />
+                <span className="h-6 w-6 shrink-0 animate-pulse rounded-full bg-stone-200/80 dark:bg-gray-700" />
               </div>
             ))}
           </div>
         </div>
       ) : (<>
       {/* Summary header */}
-      <div className="mb-4 flex flex-wrap gap-3 text-sm">
+      <div className="mb-4 flex flex-wrap gap-3 text-sm tabular-nums">
         <span className="text-green-600 dark:text-green-400">
           {confirmed}{confirmedGuests > 0 && `+${confirmedGuests}`} {t('confirmed')}
         </span>
@@ -1727,14 +1727,14 @@ export default function ParticipationRosterModal({
         {waitlisted > 0 && (
           <span className="text-orange-600 dark:text-orange-400">{waitlisted} {t('waitlisted')}</span>
         )}
-        <span className="text-gray-500 dark:text-gray-400">{notResponded} {t('notResponded')}</span>
+        <span className="text-muted-foreground">{notResponded} {t('notResponded')}</span>
         {totalGuests > 0 && (
-          <span className="text-brand-600 dark:text-brand-400">
+          <span className="text-primary dark:text-brand-300">
             {totalGuests} {t('guests')}
           </span>
         )}
         {staffConfirmed > 0 && (
-          <span className="text-brand-600 dark:text-brand-400">
+          <span className="text-primary dark:text-brand-300">
             {staffConfirmed} {t('staffPresent')}
           </span>
         )}
@@ -1745,11 +1745,11 @@ export default function ParticipationRosterModal({
           reachable even when a selected team happens to have zero members. */}
       {rosterMembers.length > 0 && (() => {
         const filterOptions = [
-          { key: null, label: t('all'), count: memberList.length, dotClass: 'bg-gray-400 dark:bg-gray-500' },
+          { key: null, label: t('all'), count: memberList.length, dotClass: 'bg-stone-400 dark:bg-gray-500' },
           { key: 'confirmed', label: t('confirmed'), count: confirmed, dotClass: 'bg-green-500' },
           { key: 'tentative', label: t('tentative'), count: tentative, dotClass: 'bg-yellow-500' },
           { key: 'declined', label: t('declined'), count: declined, dotClass: 'bg-red-500' },
-          { key: 'no_response', label: t('notResponded'), count: notResponded, dotClass: 'bg-gray-400 dark:bg-gray-500' },
+          { key: 'no_response', label: t('notResponded'), count: notResponded, dotClass: 'bg-stone-400 dark:bg-gray-500' },
         ] as const
         const active = filterOptions.find((o) => o.key === statusFilter) ?? filterOptions[0]
         // Per-team roster counts for the team-filter dropdown (a shared player
@@ -1817,11 +1817,11 @@ export default function ParticipationRosterModal({
                   <Button
                     type="button"
                     variant="outline"
-                    className="px-3 text-gray-700 dark:text-gray-200"
+                    className="px-3 text-foreground/85"
                   >
-                    <Users className="h-4 w-4 text-gray-400" />
+                    <Users className="h-4 w-4 text-muted-foreground/80" />
                     <span>{teamTriggerLabel}</span>
-                    <ChevronDown className="!size-3.5 text-gray-400" />
+                    <ChevronDown className="!size-3.5 text-muted-foreground/80" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="min-w-[220px]">
@@ -1832,7 +1832,7 @@ export default function ParticipationRosterModal({
                     className="cursor-pointer"
                   >
                     <span className="flex-1">{t('allTeams', { defaultValue: 'All teams' })}</span>
-                    <span className="text-xs text-gray-400 dark:text-gray-500">{rosterMembers.length}</span>
+                    <span className="text-xs text-muted-foreground/80">{rosterMembers.length}</span>
                   </DropdownMenuCheckboxItem>
                   <DropdownMenuSeparator />
                   {filterTeamIds.map((tid) => {
@@ -1845,7 +1845,7 @@ export default function ParticipationRosterModal({
                         className="cursor-pointer"
                       >
                         <span className="flex-1 break-words">{effectiveTeamNameById.get(id) ?? id}</span>
-                        <span className="text-xs text-gray-400 dark:text-gray-500">{teamMemberCounts.get(id) ?? 0}</span>
+                        <span className="text-xs text-muted-foreground/80">{teamMemberCounts.get(id) ?? 0}</span>
                       </DropdownMenuCheckboxItem>
                     )
                   })}
@@ -1858,7 +1858,7 @@ export default function ParticipationRosterModal({
                         className="cursor-pointer"
                       >
                         <span className="flex-1">{t('guestsFilterLabel', { defaultValue: 'Guests' })}</span>
-                        <span className="text-xs text-gray-400 dark:text-gray-500">{guestMemberIds.size}</span>
+                        <span className="text-xs text-muted-foreground/80">{guestMemberIds.size}</span>
                       </DropdownMenuCheckboxItem>
                     </>
                   )}
@@ -1871,11 +1871,11 @@ export default function ParticipationRosterModal({
                   <Button
                     type="button"
                     variant="outline"
-                    className="px-3 text-gray-700 dark:text-gray-200"
+                    className="px-3 text-foreground/85"
                   >
-                    <UserCog className="h-4 w-4 text-gray-400" />
+                    <UserCog className="h-4 w-4 text-muted-foreground/80" />
                     <span>{roleTriggerLabel}</span>
-                    <ChevronDown className="!size-3.5 text-gray-400" />
+                    <ChevronDown className="!size-3.5 text-muted-foreground/80" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="min-w-[220px]">
@@ -1886,7 +1886,7 @@ export default function ParticipationRosterModal({
                     className="cursor-pointer"
                   >
                     <span className="flex-1">{t('allRoles', { defaultValue: 'All roles' })}</span>
-                    <span className="text-xs text-gray-400 dark:text-gray-500">{rosterMembers.length}</span>
+                    <span className="text-xs text-muted-foreground/80">{rosterMembers.length}</span>
                   </DropdownMenuCheckboxItem>
                   <DropdownMenuSeparator />
                   {roleOptions.map((role) => (
@@ -1897,7 +1897,7 @@ export default function ParticipationRosterModal({
                       className="cursor-pointer"
                     >
                       <span className="flex-1 break-words">{tv(`role_${role}`, { ns: 'invitations' })}</span>
-                      <span className="text-xs text-gray-400 dark:text-gray-500">{roleMemberCounts.get(role) ?? 0}</span>
+                      <span className="text-xs text-muted-foreground/80">{roleMemberCounts.get(role) ?? 0}</span>
                     </DropdownMenuCheckboxItem>
                   ))}
                 </DropdownMenuContent>
@@ -1908,12 +1908,12 @@ export default function ParticipationRosterModal({
                 <Button
                   type="button"
                   variant="outline"
-                  className="px-3 text-gray-700 dark:text-gray-200"
+                  className="px-3 text-foreground/85"
                 >
                   <span className={`h-2 w-2 shrink-0 rounded-full ${active.dotClass}`} />
                   <span>{active.label}</span>
-                  <span className="text-gray-400 dark:text-gray-500">({active.count})</span>
-                  <ChevronDown className="!size-3.5 text-gray-400" />
+                  <span className="text-muted-foreground/80">({active.count})</span>
+                  <ChevronDown className="!size-3.5 text-muted-foreground/80" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="min-w-[200px]">
@@ -1925,8 +1925,8 @@ export default function ParticipationRosterModal({
                   >
                     <span className={`h-2 w-2 shrink-0 rounded-full ${opt.dotClass}`} />
                     <span className="flex-1">{opt.label}</span>
-                    <span className="text-xs text-gray-400 dark:text-gray-500">{opt.count}</span>
-                    {statusFilter === opt.key && <Check className="h-4 w-4 text-brand-600 dark:text-gold-400" />}
+                    <span className="text-xs text-muted-foreground/80">{opt.count}</span>
+                    {statusFilter === opt.key && <Check className="h-4 w-4 text-primary dark:text-gold-400" />}
                   </DropdownMenuItem>
                 ))}
               </DropdownMenuContent>
@@ -1940,28 +1940,28 @@ export default function ParticipationRosterModal({
                     type="button"
                     disabled={exporting !== null || exportRows.length === 0}
                     variant="outline"
-                    className="px-3 text-gray-700 dark:text-gray-200"
+                    className="px-3 text-foreground/85"
                   >
                     {exporting !== null ? (
-                      <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-300 border-t-brand-500" />
+                      <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-input border-t-primary" />
                     ) : (
                       <Download className="h-4 w-4" />
                     )}
                     <span>{t('export', { defaultValue: 'Export' })}</span>
-                    <ChevronDown className="!size-3.5 text-gray-400" />
+                    <ChevronDown className="!size-3.5 text-muted-foreground/80" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="min-w-[180px]">
                   <DropdownMenuItem onClick={() => handleExport('csv')} className="flex cursor-pointer items-center gap-2">
-                    <FileText className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+                    <FileText className="h-4 w-4 text-muted-foreground" />
                     <span className="flex-1">{t('exportCsv', { defaultValue: 'CSV' })}</span>
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => handleExport('png')} className="flex cursor-pointer items-center gap-2">
-                    <ImageIcon className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+                    <ImageIcon className="h-4 w-4 text-muted-foreground" />
                     <span className="flex-1">{t('exportPng', { defaultValue: 'PNG image' })}</span>
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => handleExport('pdf')} className="flex cursor-pointer items-center gap-2">
-                    <FileType className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+                    <FileType className="h-4 w-4 text-muted-foreground" />
                     <span className="flex-1">{t('exportPdf', { defaultValue: 'PDF' })}</span>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
@@ -2139,10 +2139,10 @@ export default function ParticipationRosterModal({
 
       {/* Deadline banner */}
       {respondBy && (
-        <div className={`mb-4 rounded-lg px-3 py-2 text-sm ${
+        <div className={`mb-4 rounded-lg border px-3 py-2 text-xs font-medium ${
           deadlinePassed
-            ? 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400'
-            : 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
+            ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300'
+            : 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900/60 dark:bg-sky-950/40 dark:text-sky-300'
         }`}>
           {t('respondBy')}: {formatDate(respondBy.split(' ')[0])}{(() => {
             const [, rbTime] = (respondBy || '').split(' ')
@@ -2156,10 +2156,10 @@ export default function ParticipationRosterModal({
       {maxPlayers != null && maxPlayers > 0 && (() => {
         const totalConfirmed = confirmed + confirmedGuests
         return (
-          <div className={`mb-4 rounded-lg px-3 py-2 text-sm ${
+          <div className={`mb-4 rounded-lg border px-3 py-2 text-xs font-medium tabular-nums ${
             totalConfirmed >= maxPlayers
-              ? 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400'
-              : 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400'
+              ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300'
+              : 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-300'
           }`}>
             {totalConfirmed >= maxPlayers
               ? t('full')
@@ -2171,9 +2171,9 @@ export default function ParticipationRosterModal({
 
       {/* Member list */}
       {memberList.length === 0 ? (
-        <div className="py-8 text-center text-gray-500 dark:text-gray-400">{t('noResponses')}</div>
+        <div className="py-8 text-center text-muted-foreground">{t('noResponses')}</div>
       ) : (
-        <div className="rounded-lg border dark:border-gray-700">
+        <div className="rounded-xl border border-border">
           {filteredMemberList.map((member) => {
             const status = getMemberStatus(member.id)
             const participation = participationByMember.first.get(member.id)
@@ -2181,7 +2181,7 @@ export default function ParticipationRosterModal({
             return (
               <div
                 key={member.id}
-                className={`border-b border-b-gray-200 border-l-4 last:border-b-0 dark:border-b-gray-700 ${statusBarClass(status)}`}
+                className={`border-b border-b-border border-l-4 last:border-b-0 ${statusBarClass(status)}`}
               >
                 <div className="flex min-h-[44px] items-center gap-3 px-3 py-2 sm:min-h-0">
                 {/* Avatar */}
@@ -2192,17 +2192,17 @@ export default function ParticipationRosterModal({
                     className="h-8 w-8 shrink-0 rounded-full object-cover"
                   />
                 ) : (
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-200 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-400">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-stone-200 text-xs font-medium text-muted-foreground dark:bg-gray-700">
                     {getInitials(member)}
                   </div>
                 )}
 
                 {/* Name */}
                 <div className="min-w-0 flex-1">
-                  <p className="break-words text-sm text-gray-900 dark:text-gray-100">
+                  <p className="break-words text-sm text-foreground">
                     {displayNames.get(String(member.id)) ?? memberFirstName(member)}
                     {participation && (participation.guest_count ?? 0) > 0 && (
-                      <span className="ml-1 text-xs text-brand-600 dark:text-brand-400">
+                      <span className="ml-1 text-xs text-primary dark:text-brand-300">
                         +{participation.guest_count} {t('guests')}
                       </span>
                     )}
@@ -2211,7 +2211,7 @@ export default function ParticipationRosterModal({
                     <RsvpTimestamp datetime={participation.date_updated ?? participation.date_created!} locale={i18n.language} />
                   )}
                   {participation?.position_1 && (
-                    <p className="truncate text-xs text-gray-400 dark:text-gray-500" title={[participation.position_1, participation.position_2, participation.position_3].filter(Boolean).join(' > ')}>
+                    <p className="truncate text-xs text-muted-foreground/80" title={[participation.position_1, participation.position_2, participation.position_3].filter(Boolean).join(' > ')}>
                       {[participation.position_1, participation.position_2, participation.position_3].filter(Boolean).join(' > ')}
                     </p>
                   )}
@@ -2261,14 +2261,14 @@ export default function ParticipationRosterModal({
                   <div className="flex shrink-0 items-center justify-end gap-1">
                     {(() => {
                       const counts = memberSessionCounts.get(member.id)
-                      if (!counts) return <span className="text-xs text-gray-400 dark:text-gray-500">{t('notResponded')}</span>
+                      if (!counts) return <span className="text-xs text-muted-foreground/80">{t('notResponded')}</span>
                       return (
                         <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
                           counts.confirmed === counts.total
                             ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
                             : counts.confirmed > 0
                               ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
-                              : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
+                              : 'bg-stone-100 text-muted-foreground dark:bg-gray-700'
                         }`}>
                           {te('sessionsConfirmed', { confirmed: counts.confirmed, total: counts.total })}
                         </span>
@@ -2280,13 +2280,13 @@ export default function ParticipationRosterModal({
                         size="sm"
                         onClick={() => setEditingMemberId(member.id)}
                         label={t('editAllDays')}
-                        className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+                        className="text-muted-foreground/80 hover:text-muted-foreground"
                       >
                         <Pencil className="!size-3.5" />
                       </IconButton>
                     )}
                     {savingMemberIds.has(member.id) && (
-                      <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-300 border-t-brand-500" />
+                      <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-input border-t-primary" />
                     )}
                   </div>
                 ) : (
@@ -2303,13 +2303,13 @@ export default function ParticipationRosterModal({
                         size="sm"
                         onClick={() => setEditingMemberId(member.id)}
                         label={t('edit', { ns: 'common' })}
-                        className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+                        className="text-muted-foreground/80 hover:text-muted-foreground"
                       >
                         <Pencil className="!size-3.5" />
                       </IconButton>
                     )}
                     {savingMemberIds.has(member.id) && (
-                      <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-300 border-t-brand-500" />
+                      <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-input border-t-primary" />
                     )}
                   </div>
                 )}
@@ -2342,7 +2342,7 @@ export default function ParticipationRosterModal({
                         ? uniformValue(sessionTargets(member.id), 'status')
                         : participationByMember.preferred.get(member.id)?.status ?? participationByMember.first.get(member.id)?.status ?? ''}
                       onChange={(e) => handleStatusChange(member.id, e.target.value)}
-                      className="h-11 shrink-0 rounded-md border border-gray-300 bg-white px-1.5 text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 sm:h-9"
+                      className="h-11 shrink-0 rounded-lg border border-input bg-card px-1.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-gray-800 sm:h-9"
                     >
                       <option value="">{t('clearStatus')}</option>
                       <option value="confirmed">{t('confirmed')}</option>
@@ -2362,7 +2362,7 @@ export default function ParticipationRosterModal({
                       // every day's note.
                       onBlur={(e) => { if (e.target.value !== e.target.defaultValue) handleNoteChange(member.id, e.target.value) }}
                       onKeyDown={(e) => { if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur() }}
-                      className="h-11 min-w-0 flex-1 rounded-md border border-gray-300 bg-white px-2 text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 sm:h-9"
+                      className="h-11 min-w-0 flex-1 rounded-lg border border-input bg-card px-2 text-xs text-foreground placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-input/20 sm:h-9"
                     />
                   </div>
                 )}
@@ -2389,7 +2389,7 @@ export default function ParticipationRosterModal({
                     ? `${absenceReason}: ${noteText}`
                     : (absenceReason ?? noteText)
                   if (!body) return null
-                  return <p className="break-words px-3 pb-2 pl-14 text-xs italic text-gray-400">{body}</p>
+                  return <p className="break-words px-3 pb-2 pl-14 text-xs italic text-muted-foreground/80">{body}</p>
                 })()}
                 {/* Staff edit attribution (migration 047) — independent lines
                     for status and note edits. Each surfaces only when its
@@ -2400,7 +2400,7 @@ export default function ParticipationRosterModal({
                   const { status: statusAttr, note: noteAttr } = getEditAttribution(member, participation ?? null)
                   if (!statusAttr && !noteAttr) return null
                   return (
-                    <div className="px-3 pb-2 pl-14 text-[11px] italic text-gray-400 dark:text-gray-500">
+                    <div className="px-3 pb-2 pl-14 text-[11px] italic text-muted-foreground/80">
                       {statusAttr && (
                         <p className="break-words">
                           {t('editedByOn', { defaultValue: 'Edited to {{status}} by {{name}} on {{at}}', ...statusAttr })}
@@ -2421,7 +2421,7 @@ export default function ParticipationRosterModal({
           {/* Waitlist section */}
           {filteredWaitlistedParts.length > 0 && (
             <>
-              <div className="border-b bg-orange-50 px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-orange-600 dark:border-gray-700 dark:bg-orange-900/20 dark:text-orange-400">
+              <div className="border-b bg-orange-50 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-orange-600 dark:bg-orange-900/20 dark:text-orange-400">
                 {t('waitlisted')} ({filteredWaitlistedParts.length})
               </div>
               {filteredWaitlistedParts.map((wp, idx) => {
@@ -2430,7 +2430,7 @@ export default function ParticipationRosterModal({
                 return (
                   <div
                     key={wp.id}
-                    className="flex min-h-[44px] items-center gap-3 border-b border-b-gray-200 border-l-4 border-l-orange-500 px-3 py-2 last:border-b-0 dark:border-b-gray-700 sm:min-h-0"
+                    className="flex min-h-[44px] items-center gap-3 border-b border-b-border border-l-4 border-l-orange-500 px-3 py-2 last:border-b-0 sm:min-h-0"
                   >
                     <span className="w-5 shrink-0 text-center text-xs font-medium text-orange-500 dark:text-orange-400">
                       #{idx + 1}
@@ -2447,7 +2447,7 @@ export default function ParticipationRosterModal({
                       </div>
                     )}
                     <div className="min-w-0 flex-1">
-                      <p className="break-words text-sm text-gray-900 dark:text-gray-100">
+                      <p className="break-words text-sm text-foreground">
                         {displayNames.get(String(member.id)) ?? memberFirstName(member)}
                       </p>
                     </div>
@@ -2458,7 +2458,7 @@ export default function ParticipationRosterModal({
                           defaultValue={wp.status}
                           onChange={(e) => handleStatusChange(wp.member, e.target.value)}
                           onBlur={() => setTimeout(() => setEditingMemberId(prev => prev === wp.member ? null : prev), 150)}
-                          className="h-11 rounded-md border border-gray-300 bg-white px-1.5 text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 sm:h-9"
+                          className="h-11 rounded-lg border border-input bg-card px-1.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-gray-800 sm:h-9"
                         >
                           <option value="">{t('clearStatus')}</option>
                           <option value="confirmed">{t('confirmed')}</option>
@@ -2474,13 +2474,13 @@ export default function ParticipationRosterModal({
                               size="sm"
                               onClick={() => setEditingMemberId(wp.member)}
                               label={t('edit', { ns: 'common' })}
-                              className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+                              className="text-muted-foreground/80 hover:text-muted-foreground"
                             >
                               <Pencil className="!size-3.5" />
                             </IconButton>
                           )}
                           {savingMemberIds.has(wp.member) && (
-                            <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-300 border-t-brand-500" />
+                            <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-input border-t-primary" />
                           )}
                         </>
                       )}
@@ -2494,7 +2494,7 @@ export default function ParticipationRosterModal({
           {/* Staff section — coaches/team_responsible not in roster */}
           {filteredStaffMembers.length > 0 && (
             <>
-              <div className="border-b bg-gray-50 px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">
+              <div className="border-b bg-surface-sunken px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                 {t('staff')}
               </div>
               {filteredStaffMembers.map((member) => {
@@ -2509,7 +2509,7 @@ export default function ParticipationRosterModal({
                 return (
                   <div
                     key={member.id}
-                    className={`border-b border-b-gray-200 border-l-4 last:border-b-0 dark:border-b-gray-700 ${statusBarClass(status)}`}
+                    className={`border-b border-b-border border-l-4 last:border-b-0 ${statusBarClass(status)}`}
                   >
                     <div className="flex min-h-[44px] items-center gap-3 px-3 py-2 sm:min-h-0">
                       {member.photo ? (
@@ -2524,7 +2524,7 @@ export default function ParticipationRosterModal({
                         </div>
                       )}
                       <div className="min-w-0 flex-1">
-                        <p className="break-words text-sm text-gray-900 dark:text-gray-100">
+                        <p className="break-words text-sm text-foreground">
                           {displayNames.get(String(member.id)) ?? memberFirstName(member)}
                         </p>
                         {showRsvpTime && ts && (
@@ -2535,14 +2535,14 @@ export default function ParticipationRosterModal({
                         <div className="flex shrink-0 items-center justify-end gap-1">
                           {(() => {
                             const counts = memberSessionCounts.get(String(member.id))
-                            if (!counts) return <span className="text-xs text-gray-400 dark:text-gray-500">{t('notResponded')}</span>
+                            if (!counts) return <span className="text-xs text-muted-foreground/80">{t('notResponded')}</span>
                             return (
                               <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
                                 counts.confirmed === counts.total
                                   ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
                                   : counts.confirmed > 0
                                     ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
-                                    : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
+                                    : 'bg-stone-100 text-muted-foreground dark:bg-gray-700'
                               }`}>
                                 {te('sessionsConfirmed', { confirmed: counts.confirmed, total: counts.total })}
                               </span>
@@ -2554,13 +2554,13 @@ export default function ParticipationRosterModal({
                               size="sm"
                               onClick={() => setEditingMemberId(member.id)}
                               label={t('editAllDays')}
-                              className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+                              className="text-muted-foreground/80 hover:text-muted-foreground"
                             >
                               <Pencil className="!size-3.5" />
                             </IconButton>
                           )}
                           {savingMemberIds.has(member.id) && (
-                            <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-300 border-t-brand-500" />
+                            <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-input border-t-primary" />
                           )}
                         </div>
                       ) : (
@@ -2572,13 +2572,13 @@ export default function ParticipationRosterModal({
                               size="sm"
                               onClick={() => setEditingMemberId(member.id)}
                               label={t('edit', { ns: 'common' })}
-                              className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+                              className="text-muted-foreground/80 hover:text-muted-foreground"
                             >
                               <Pencil className="!size-3.5" />
                             </IconButton>
                           )}
                           {savingMemberIds.has(member.id) && (
-                            <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-300 border-t-brand-500" />
+                            <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-input border-t-primary" />
                           )}
                         </div>
                       )}
@@ -2601,7 +2601,7 @@ export default function ParticipationRosterModal({
                           autoFocus
                           defaultValue={isOverallSessionTab ? uniformValue(targets, 'status') : (targets[0]?.row?.status ?? '')}
                           onChange={(e) => handleStatusChange(member.id, e.target.value)}
-                          className="h-11 shrink-0 rounded-md border border-gray-300 bg-white px-1.5 text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 sm:h-9"
+                          className="h-11 shrink-0 rounded-lg border border-input bg-card px-1.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-gray-800 sm:h-9"
                         >
                           <option value="">{t('clearStatus')}</option>
                           <option value="confirmed">{t('confirmed')}</option>
@@ -2614,14 +2614,14 @@ export default function ParticipationRosterModal({
                           defaultValue={isOverallSessionTab ? uniformValue(targets, 'note') : (targets[0]?.row?.note ?? '')}
                           onBlur={(e) => { if (e.target.value !== e.target.defaultValue) handleNoteChange(member.id, e.target.value) }}
                           onKeyDown={(e) => { if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur() }}
-                          className="h-11 min-w-0 flex-1 rounded-md border border-gray-300 bg-white px-2 text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 sm:h-9"
+                          className="h-11 min-w-0 flex-1 rounded-lg border border-input bg-card px-2 text-xs text-foreground placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-input/20 sm:h-9"
                         />
                       </div>
                     )}
                     {(() => {
                       const note = isOverallSessionTab ? uniformValue(targets, 'note') : (targets[0]?.row?.note ?? '')
                       if (!note) return null
-                      return <p className="break-words px-3 pb-2 pl-14 text-xs italic text-gray-400">{note}</p>
+                      return <p className="break-words px-3 pb-2 pl-14 text-xs italic text-muted-foreground/80">{note}</p>
                     })()}
                   </div>
                 )

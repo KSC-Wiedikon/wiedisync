@@ -31,7 +31,7 @@ const TYPE_COLORS: Record<string, string> = {
 function TypeBadge({ type }: { type: string }) {
   return (
     <span
-      className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold ${TYPE_COLORS[type] || 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'}`}
+      className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold ${TYPE_COLORS[type] || 'bg-muted text-muted-foreground'}`}
     >
       {type}
     </span>
@@ -66,31 +66,31 @@ export default function SchemaViewer({ schema, collectionType }: SchemaViewerPro
   }
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+    <div className="overflow-x-auto rounded-xl border border-hairline bg-card">
       <table className="w-full text-left text-xs">
-        <thead className="bg-gray-50 dark:bg-gray-800">
+        <thead className="border-b border-border bg-surface-sunken">
           <tr>
-            <th className="px-3 py-2 font-semibold text-gray-700 dark:text-gray-300">{t('columnName')}</th>
-            <th className="px-3 py-2 font-semibold text-gray-700 dark:text-gray-300">{t('type')}</th>
-            <th className="px-3 py-2 font-semibold text-gray-700 dark:text-gray-300">{t('required')}</th>
-            <th className="px-3 py-2 font-semibold text-gray-700 dark:text-gray-300">{t('options')}</th>
+            <th className="h-9 px-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t('columnName')}</th>
+            <th className="h-9 px-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t('type')}</th>
+            <th className="h-9 px-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t('required')}</th>
+            <th className="h-9 px-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t('options')}</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+        <tbody className="divide-y divide-border/60">
           {systemFields.map((f) => (
-            <tr key={f.name} className="text-gray-500 dark:text-gray-400">
+            <tr key={f.name} className="text-muted-foreground">
               <td className="px-3 py-1.5 font-mono">{f.name}</td>
               <td className="px-3 py-1.5"><TypeBadge type={f.type} /></td>
               <td className="px-3 py-1.5">–</td>
-              <td className="px-3 py-1.5 text-gray-400">{f.note}</td>
+              <td className="px-3 py-1.5 text-muted-foreground/80">{f.note}</td>
             </tr>
           ))}
           {schema.map((field) => (
             <tr key={field.id}>
-              <td className="px-3 py-1.5 font-mono text-gray-900 dark:text-gray-100">{field.name}</td>
+              <td className="px-3 py-1.5 font-mono text-foreground">{field.name}</td>
               <td className="px-3 py-1.5"><TypeBadge type={field.type} /></td>
-              <td className="px-3 py-1.5 text-gray-700 dark:text-gray-300">{field.required ? 'Yes' : '–'}</td>
-              <td className="px-3 py-1.5 text-gray-500 dark:text-gray-400">{formatOptions(field)}</td>
+              <td className="px-3 py-1.5 text-foreground/85">{field.required ? 'Yes' : '–'}</td>
+              <td className="px-3 py-1.5 text-muted-foreground">{formatOptions(field)}</td>
             </tr>
           ))}
         </tbody>

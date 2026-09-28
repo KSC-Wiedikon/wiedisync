@@ -11,13 +11,13 @@ interface AffectsMultiSelectProps {
 
 // Inactive pill styling is identical for every value — keep it in one place and
 // only vary the active (selected) colour per value.
-const INACTIVE_PILL = 'bg-transparent text-gray-500 dark:text-gray-400 border-gray-300 dark:border-gray-600'
+const INACTIVE_PILL = 'bg-transparent text-muted-foreground border-input'
 
 const AFFECTS_ACTIVE: Record<string, string> = {
   trainings: 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700',
   games: 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 border-green-300 dark:border-green-700',
   events: 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-700',
-  all: 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100 border-gray-400 dark:border-gray-500',
+  all: 'bg-selected text-selected-foreground border-selected',
 }
 
 export default function AffectsMultiSelect({ selected, onChange, label }: AffectsMultiSelectProps) {
@@ -53,13 +53,13 @@ export default function AffectsMultiSelect({ selected, onChange, label }: Affect
     const base = 'inline-flex h-9 items-center rounded-full border px-3 text-sm font-medium transition-colors sm:h-8'
     return active
       ? `${base} ${AFFECTS_ACTIVE[value]}`
-      : `${base} ${INACTIVE_PILL} hover:bg-gray-50 dark:hover:bg-gray-700/50`
+      : `${base} ${INACTIVE_PILL} hover:bg-accent`
   }
 
   return (
     <div>
       {label && (
-        <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">{label}</label>
+        <label className="mb-1.5 block text-xs font-medium text-muted-foreground">{label}</label>
       )}
       <div className="flex flex-wrap gap-2">
         <button

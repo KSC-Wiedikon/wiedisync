@@ -61,7 +61,7 @@ export function licenceStatusKey(status: LicenceStatus): string {
  */
 export const LICENCE_STATUS_BADGE: Record<LicenceStatus, string> = {
   none:
-    'bg-gray-100 text-gray-700 dark:bg-gray-700/50 dark:text-gray-300',
+    'bg-muted text-muted-foreground',
   to_be_ordered:
     'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300',
   ordered:

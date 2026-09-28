@@ -97,9 +97,9 @@ export default function EmbedGamesPage() {
   const isLoading = activeTab === 'rankings' ? rankingsLoading : gamesLoading
 
   return (
-    <div className="min-h-screen bg-white dark:bg-gray-800 p-4">
+    <div className="min-h-screen bg-card p-4">
       {teamParam && (
-        <h2 className="mb-4 text-lg font-bold text-gray-900 dark:text-gray-100">{t('embedTeamGames', { team: teamParam })}</h2>
+        <h2 className="mb-4 text-lg font-bold tracking-tight text-foreground">{t('embedTeamGames', { team: teamParam })}</h2>
       )}
 
       <GameTabs activeTab={activeTab} onChange={setActiveTab} />
@@ -110,7 +110,7 @@ export default function EmbedGamesPage() {
         {!isLoading && activeTab !== 'rankings' && (
           <>
             {games.length === 0 ? (
-              <p className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">{t('embedNoGames')}</p>
+              <p className="py-8 text-center text-sm text-muted-foreground">{t('embedNoGames')}</p>
             ) : (
               <RowList>
                 {games.map((g) => (
@@ -124,7 +124,7 @@ export default function EmbedGamesPage() {
         {!isLoading && activeTab === 'rankings' && (
           <>
             {leagueGroups.size === 0 ? (
-              <p className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">{t('embedNoRankings')}</p>
+              <p className="py-8 text-center text-sm text-muted-foreground">{t('embedNoRankings')}</p>
             ) : (
               <div className="space-y-6">
                 {[...leagueGroups.entries()].map(([league, rows]) => (

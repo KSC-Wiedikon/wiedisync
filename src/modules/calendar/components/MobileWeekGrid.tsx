@@ -110,7 +110,7 @@ export default function MobileWeekGrid({
           <ChevronLeft className="!size-5" />
         </IconButton>
         <div className="flex min-w-0 items-center gap-2">
-          <h2 className="min-w-0 text-sm font-semibold text-gray-900 dark:text-gray-100">
+          <h2 className="min-w-0 text-sm font-semibold text-foreground">
             {formatDateCompactZurich(days[0])} – {formatDateCompactZurich(days[2])}
           </h2>
           <Button size="sm" variant="outline" onClick={() => onDayChange(today)} className="shrink-0">
@@ -123,18 +123,18 @@ export default function MobileWeekGrid({
       </div>
 
       {/* Day headers */}
-      <div className="grid grid-cols-[3rem_repeat(3,1fr)] border-b border-gray-200 dark:border-gray-700">
+      <div className="grid grid-cols-[3rem_repeat(3,1fr)] border-b border-border">
         <div />
         {days.map((date, i) => {
           const isToday = isSameDay(date, today)
           return (
             <div key={i} className="flex flex-col items-center py-1">
-              <span className="text-[10px] font-medium text-gray-500 dark:text-gray-400">
+              <span className="text-[10px] font-medium text-muted-foreground">
                 {formatDate(date, 'EEE')}
               </span>
               <span
                 className={`mt-0.5 flex h-7 w-7 items-center justify-center rounded-full text-sm font-bold ${
-                  isToday ? 'bg-gold-400 text-brand-900' : 'text-gray-900 dark:text-gray-100'
+                  isToday ? 'bg-gold-400 text-brand-900' : 'text-foreground'
                 }`}
               >
                 {date.getDate()}
@@ -149,15 +149,15 @@ export default function MobileWeekGrid({
         const hasAllDay = days.some((d) => (allDayByDay.get(toDateKey(d)) ?? []).length > 0)
         if (!hasAllDay) return null
         return (
-          <div className="grid grid-cols-[3rem_repeat(3,1fr)] border-b border-gray-200 dark:border-gray-700">
-            <div className="flex items-center justify-center text-[9px] text-gray-400">
+          <div className="grid grid-cols-[3rem_repeat(3,1fr)] border-b border-border">
+            <div className="flex items-center justify-center text-[9px] text-muted-foreground/80">
               {t('common:allDay')}
             </div>
             {days.map((date, ci) => {
               const key = toDateKey(date)
               const dayAllDay = allDayByDay.get(key) ?? []
               return (
-                <div key={ci} className="space-y-px border-l border-gray-200 px-0.5 py-1 dark:border-gray-700">
+                <div key={ci} className="space-y-px border-l border-border px-0.5 py-1">
                   {dayAllDay.slice(0, 2).map((e) => (
                     <button
                       key={e.id}
@@ -170,7 +170,7 @@ export default function MobileWeekGrid({
                     </button>
                   ))}
                   {dayAllDay.length > 2 && (
-                    <div className="text-[8px] text-gray-400">+{dayAllDay.length - 2}</div>
+                    <div className="text-[8px] text-muted-foreground/80">+{dayAllDay.length - 2}</div>
                   )}
                 </div>
               )
@@ -187,11 +187,11 @@ export default function MobileWeekGrid({
       >
         <div className="grid grid-cols-[3rem_repeat(3,1fr)]" style={{ height: totalHeight }}>
           {/* Hour labels */}
-          <div className="relative border-r border-gray-200 dark:border-gray-700">
+          <div className="relative border-r border-border">
             {hourLabels.map((hl) => (
               <div
                 key={hl.minutes}
-                className="absolute right-1 text-[10px] leading-none text-gray-400"
+                className="absolute right-1 text-[10px] leading-none text-muted-foreground/80"
                 style={{ top: Math.max(0, minutesToOffset(hl.minutes, timeRange.startMin) - 5) }}
               >
                 {hl.label}
@@ -209,7 +209,7 @@ export default function MobileWeekGrid({
             return (
               <div
                 key={ci}
-                className={`relative border-l border-gray-200 dark:border-gray-700 ${
+                className={`relative border-l border-border ${
                   isClosed ? 'bg-red-50/30 dark:bg-red-950/10' : ''
                 }`}
               >
@@ -217,7 +217,7 @@ export default function MobileWeekGrid({
                 {hourLabels.map((hl) => (
                   <div
                     key={hl.minutes}
-                    className="absolute inset-x-0 border-t border-gray-100 dark:border-gray-700/50"
+                    className="absolute inset-x-0 border-t border-border/60"
                     style={{ top: minutesToOffset(hl.minutes, timeRange.startMin) }}
                   />
                 ))}

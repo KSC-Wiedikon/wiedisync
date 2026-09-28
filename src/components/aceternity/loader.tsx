@@ -23,7 +23,7 @@ export const LoaderOne = () => {
           y: [0, 10, 0],
         }}
         transition={transition(0)}
-        className="h-4 w-4 rounded-full border border-neutral-300 bg-gradient-to-b from-neutral-400 to-neutral-300"
+        className="h-4 w-4 rounded-full border border-stone-300 bg-gradient-to-b from-stone-400 to-stone-300"
       />
       <motion.div
         initial={{
@@ -33,7 +33,7 @@ export const LoaderOne = () => {
           y: [0, 10, 0],
         }}
         transition={transition(1)}
-        className="h-4 w-4 rounded-full border border-neutral-300 bg-gradient-to-b from-neutral-400 to-neutral-300"
+        className="h-4 w-4 rounded-full border border-stone-300 bg-gradient-to-b from-stone-400 to-stone-300"
       />
       <motion.div
         initial={{
@@ -43,7 +43,7 @@ export const LoaderOne = () => {
           y: [0, 10, 0],
         }}
         transition={transition(2)}
-        className="h-4 w-4 rounded-full border border-neutral-300 bg-gradient-to-b from-neutral-400 to-neutral-300"
+        className="h-4 w-4 rounded-full border border-stone-300 bg-gradient-to-b from-stone-400 to-stone-300"
       />
     </div>
   );
@@ -69,7 +69,7 @@ export const LoaderTwo = () => {
         animate={{
           x: [0, 20, 0],
         }}
-        className="h-4 w-4 rounded-full bg-neutral-200 shadow-md dark:bg-neutral-500"
+        className="h-4 w-4 rounded-full bg-stone-200 shadow-md dark:bg-neutral-500"
       />
       <motion.div
         initial={{
@@ -79,7 +79,7 @@ export const LoaderTwo = () => {
           x: [0, 20, 0],
         }}
         transition={transition(0.4)}
-        className="h-4 w-4 -translate-x-2 rounded-full bg-neutral-200 shadow-md dark:bg-neutral-500"
+        className="h-4 w-4 -translate-x-2 rounded-full bg-stone-200 shadow-md dark:bg-neutral-500"
       />
       <motion.div
         initial={{
@@ -89,7 +89,7 @@ export const LoaderTwo = () => {
           x: [0, 20, 0],
         }}
         transition={transition(0.8)}
-        className="h-4 w-4 -translate-x-4 rounded-full bg-neutral-200 shadow-md dark:bg-neutral-500"
+        className="h-4 w-4 -translate-x-4 rounded-full bg-stone-200 shadow-md dark:bg-neutral-500"
       />
     </div>
   );
@@ -107,7 +107,7 @@ export const LoaderThree = () => {
       strokeWidth="1"
       strokeLinecap="round"
       strokeLinejoin="round"
-      className="h-20 w-20 stroke-neutral-500 [--fill-final:var(--color-yellow-300)] [--fill-initial:var(--color-neutral-50)] dark:stroke-neutral-100 dark:[--fill-final:var(--color-yellow-500)] dark:[--fill-initial:var(--color-neutral-800)]"
+      className="h-20 w-20 stroke-stone-500 [--fill-final:var(--color-yellow-300)] [--fill-initial:var(--color-neutral-50)] dark:stroke-neutral-100 dark:[--fill-final:var(--color-yellow-500)] dark:[--fill-initial:var(--color-neutral-800)]"
     >
       <motion.path stroke="none" d="M0 0h24v24H0z" fill="none" />
       <motion.path

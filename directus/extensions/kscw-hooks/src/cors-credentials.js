@@ -21,6 +21,12 @@ const DEFAULT_CREDENTIALED_ORIGINS = [
   'https://wiedisync.kscw.ch',
   'https://spielplanung.wiedisync.kscw.ch',
   'https://spielplanung-dev.kscw.ch',
+  // Member-app dev preview (CF Pages `kscw-wiedisync`, dev branch alias) —
+  // talks to directus-dev with the cookie session like wiedisync.kscw.ch.
+  'https://dev.kscw-wiedisync.pages.dev',
+  // Member-app dev on .kscw.ch (CF Pages `kscw-wiedisync-dev`) — the only dev
+  // host where the Lax session cookie is same-site, i.e. where login sticks.
+  'https://wiedisync-dev.kscw.ch',
 ]
 
 // Local dev servers (Vite on localhost, the Tailscale dev box).

@@ -30,12 +30,12 @@ function StatusBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
     scheduled: 'bg-brand-50 text-brand-700 dark:bg-brand-900/30 dark:text-brand-300',
     live: 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-300',
-    completed: 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400',
+    completed: 'bg-muted text-muted-foreground',
     postponed: 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
   }
   const labelKey = `status.${status}`
   return (
-    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${styles[status] ?? 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'}`}>
+    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${styles[status] ?? 'bg-muted text-muted-foreground'}`}>
       {t(labelKey, status)}
     </span>
   )
@@ -63,11 +63,11 @@ function GameTableRow({ game, teams, showTeam, showDate }: { game: Game; teams: 
   return (
     <TableRow className="align-top">
       {showDate && (
-        <TableCell className="whitespace-nowrap text-xs text-gray-500 dark:text-gray-400">
+        <TableCell className="whitespace-nowrap text-xs tabular-nums text-muted-foreground">
           {formatDate(parseDate(dateStr), 'dd.MM.yyyy')}
         </TableCell>
       )}
-      <TableCell className="whitespace-nowrap text-sm font-medium text-gray-700 dark:text-gray-300 w-14">
+      <TableCell className="whitespace-nowrap text-sm font-medium tabular-nums text-foreground/85 w-14">
         {game.time ? formatTime(game.time) : '–'}
       </TableCell>
       {showTeam && (
@@ -75,7 +75,7 @@ function GameTableRow({ game, teams, showTeam, showDate }: { game: Game; teams: 
           <TeamChip team={teamName} size="sm" />
         </TableCell>
       )}
-      <TableCell className="whitespace-normal text-sm text-gray-900 dark:text-gray-100">
+      <TableCell className="whitespace-normal text-sm text-foreground">
         <div className="flex flex-col sm:flex-row sm:items-center sm:gap-1">
           <span>{game.home_team}</span>
           <span className="hidden sm:inline">–</span>
@@ -86,7 +86,7 @@ function GameTableRow({ game, teams, showTeam, showDate }: { game: Game; teams: 
         )}
       </TableCell>
       <TableCell className="whitespace-nowrap"><TypeBadge type={game.type} /></TableCell>
-      <TableCell className="hidden md:table-cell whitespace-nowrap text-xs text-gray-500 truncate max-w-[10rem]" title={hallName}>
+      <TableCell className="hidden md:table-cell whitespace-nowrap text-xs text-muted-foreground truncate max-w-[10rem]" title={hallName}>
         {hallName}
       </TableCell>
       <TableCell className="whitespace-nowrap"><StatusBadge status={game.status} /></TableCell>
@@ -122,25 +122,25 @@ function ByDateView({ games, teams }: { games: Game[]; teams: Team[] }) {
   }, [games])
 
   if (games.length === 0) {
-    return <div className="py-8 text-center text-gray-500 dark:text-gray-400">{t('emptyState')}</div>
+    return <div className="py-8 text-center text-muted-foreground">{t('emptyState')}</div>
   }
 
   return (
     <div className="space-y-4">
       {grouped.map((group) => (
-        <div key={group.date} className="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-          <div className="border-b border-gray-100 bg-gray-50 dark:bg-gray-900 px-4 py-2">
-            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">{group.label}</h3>
+        <div key={group.date} className="overflow-hidden rounded-2xl border border-hairline bg-card shadow-card">
+          <div className="border-b border-border/60 bg-surface-sunken px-4 py-2">
+            <h3 className="text-sm font-semibold text-foreground/85">{group.label}</h3>
           </div>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-14 text-xs uppercase text-gray-400">{t('colTime')}</TableHead>
-                <TableHead className="hidden sm:table-cell text-xs uppercase text-gray-400">{t('colTeam')}</TableHead>
-                <TableHead className="text-xs uppercase text-gray-400">{t('colMatchup')}</TableHead>
-                <TableHead className="text-xs uppercase text-gray-400">{t('colType')}</TableHead>
-                <TableHead className="hidden md:table-cell text-xs uppercase text-gray-400">{t('colHall')}</TableHead>
-                <TableHead className="text-xs uppercase text-gray-400">{t('colStatus')}</TableHead>
+                <TableHead className="w-14">{t('colTime')}</TableHead>
+                <TableHead className="hidden sm:table-cell">{t('colTeam')}</TableHead>
+                <TableHead>{t('colMatchup')}</TableHead>
+                <TableHead>{t('colType')}</TableHead>
+                <TableHead className="hidden md:table-cell">{t('colHall')}</TableHead>
+                <TableHead>{t('colStatus')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -182,27 +182,27 @@ function ByTeamView({ games, teams }: { games: Game[]; teams: Team[] }) {
   }, [games, teams])
 
   if (games.length === 0) {
-    return <div className="py-8 text-center text-gray-500 dark:text-gray-400">{t('emptyState')}</div>
+    return <div className="py-8 text-center text-muted-foreground">{t('emptyState')}</div>
   }
 
   return (
     <div className="space-y-4">
       {grouped.map((group) => (
-        <div key={group.team.id} className="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-          <div className="flex items-center gap-3 border-b border-gray-100 bg-gray-50 dark:bg-gray-900 px-4 py-2">
+        <div key={group.team.id} className="overflow-hidden rounded-2xl border border-hairline bg-card shadow-card">
+          <div className="flex items-center gap-3 border-b border-border/60 bg-surface-sunken px-4 py-2">
             <TeamChip team={group.team.name} />
-            <span className="text-sm text-gray-500 dark:text-gray-400">{group.team.league}</span>
-            <span className="text-xs text-gray-400">({t('gamesCount', { count: group.games.length })})</span>
+            <span className="text-sm text-muted-foreground">{group.team.league}</span>
+            <span className="text-xs text-muted-foreground/80">({t('gamesCount', { count: group.games.length })})</span>
           </div>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="text-xs uppercase text-gray-400">{t('colDate')}</TableHead>
-                <TableHead className="w-14 text-xs uppercase text-gray-400">{t('colTime')}</TableHead>
-                <TableHead className="text-xs uppercase text-gray-400">{t('colMatchup')}</TableHead>
-                <TableHead className="text-xs uppercase text-gray-400">{t('colType')}</TableHead>
-                <TableHead className="hidden md:table-cell text-xs uppercase text-gray-400">{t('colHall')}</TableHead>
-                <TableHead className="text-xs uppercase text-gray-400">{t('colStatus')}</TableHead>
+                <TableHead>{t('colDate')}</TableHead>
+                <TableHead className="w-14">{t('colTime')}</TableHead>
+                <TableHead>{t('colMatchup')}</TableHead>
+                <TableHead>{t('colType')}</TableHead>
+                <TableHead className="hidden md:table-cell">{t('colHall')}</TableHead>
+                <TableHead>{t('colStatus')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

@@ -55,17 +55,17 @@ export default function PendingPage() {
     <>
     <ImpersonationBanner topInset={isImpersonating} />
     <ActingBanner topInset={!isImpersonating} />
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 dark:bg-gray-900">
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-stone-100 via-stone-50 to-stone-100 p-4 dark:from-background dark:via-background dark:to-card/40">
       <div className="w-full max-w-sm">
-        <div className="mb-8 flex justify-center">
-          <img
-            src={theme === 'light' ? '/wiedisync_blau.png' : '/wiedisync_weiss.png'}
-            alt="KSC Wiedikon"
-            className="h-16 w-auto"
-          />
-        </div>
-
-        <div className="rounded-xl bg-white p-6 shadow-lg sm:p-8 dark:bg-gray-800">
+        <div className="relative w-full overflow-hidden rounded-3xl border border-hairline bg-card p-6 shadow-card-lg sm:p-8">
+          <div aria-hidden="true" className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-brand-600 to-brand-400" />
+          <div className="mb-6 flex justify-center">
+            <img
+              src={theme === 'light' ? '/wiedisync_blau.png' : '/wiedisync_weiss.png'}
+              alt="KSC Wiedikon"
+              className="h-11 w-auto"
+            />
+          </div>
           {/* Hourglass icon */}
           <div className="mb-4 flex justify-center">
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/30">
@@ -73,28 +73,28 @@ export default function PendingPage() {
             </div>
           </div>
 
-          <h1 className="mb-2 text-center text-xl font-bold text-gray-900 dark:text-gray-100">
+          <h1 className="mb-2 text-center text-xl font-bold tracking-tight text-foreground">
             {t('pendingApproval')}
           </h1>
 
-          <p className="mb-6 text-center text-sm text-gray-500 dark:text-gray-400">
+          <p className="mb-6 text-center text-sm text-muted-foreground">
             {t('pendingDescription')}
           </p>
 
           {/* User info */}
-          <div className="mb-6 space-y-2 rounded-lg bg-gray-50 p-4 dark:bg-gray-700/50">
+          <div className="mb-6 space-y-2 rounded-xl border border-hairline bg-surface-sunken p-4">
             <div className="flex justify-between text-sm">
-              <span className="text-gray-500 dark:text-gray-400">{t('firstName')}</span>
-              <span className="font-medium text-gray-900 dark:text-gray-100">{user.first_name} {user.last_name}</span>
+              <span className="text-muted-foreground">{t('firstName')}</span>
+              <span className="font-medium text-foreground">{user.first_name} {user.last_name}</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-gray-500 dark:text-gray-400">{t('email')}</span>
-              <span className="font-medium text-gray-900 dark:text-gray-100">{user.email}</span>
+              <span className="text-muted-foreground">{t('email')}</span>
+              <span className="font-medium text-foreground">{user.email}</span>
             </div>
             {team && (
               <div className="flex justify-between text-sm">
-                <span className="text-gray-500 dark:text-gray-400">{t('requestedTeam')}</span>
-                <span className="font-medium text-gray-900 dark:text-gray-100">{team.name}</span>
+                <span className="text-muted-foreground">{t('requestedTeam')}</span>
+                <span className="font-medium text-foreground">{team.name}</span>
               </div>
             )}
           </div>

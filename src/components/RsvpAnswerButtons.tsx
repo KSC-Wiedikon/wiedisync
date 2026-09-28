@@ -10,16 +10,16 @@ import type { Participation } from '../types'
 const ICON: Record<RsvpStatus, typeof Check> = { confirmed: Check, tentative: HelpCircle, declined: X }
 
 const TINT: Record<RsvpStatus, string> = {
-  confirmed: 'bg-green-50 text-green-700 hover:bg-green-100 dark:bg-green-900/25 dark:text-green-300 dark:hover:bg-green-900/40',
-  tentative: 'bg-yellow-50 text-yellow-700 hover:bg-yellow-100 dark:bg-yellow-900/25 dark:text-yellow-300 dark:hover:bg-yellow-900/40',
-  declined: 'bg-red-50 text-red-700 hover:bg-red-100 dark:bg-red-900/25 dark:text-red-300 dark:hover:bg-red-900/40',
+  confirmed: 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100 dark:border-green-800/60 dark:bg-green-900/25 dark:text-green-300 dark:hover:bg-green-900/40',
+  tentative: 'border-yellow-200 bg-yellow-50 text-yellow-700 hover:bg-yellow-100 dark:border-yellow-800/60 dark:bg-yellow-900/25 dark:text-yellow-300 dark:hover:bg-yellow-900/40',
+  declined: 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100 dark:border-red-800/60 dark:bg-red-900/25 dark:text-red-300 dark:hover:bg-red-900/40',
 }
 // Selected = solid fill + a ring offset from the card, so the choice reads
 // without relying on colour alone (plus aria-checked).
 const FILL: Record<RsvpStatus, string> = {
-  confirmed: 'bg-green-600 text-white ring-2 ring-green-400 ring-offset-1 ring-offset-background dark:bg-green-600',
-  tentative: 'bg-yellow-600 text-white ring-2 ring-yellow-400 ring-offset-1 ring-offset-background dark:bg-yellow-600',
-  declined: 'bg-red-600 text-white ring-2 ring-red-400 ring-offset-1 ring-offset-background dark:bg-red-600',
+  confirmed: 'border-green-600 bg-green-600 text-white ring-2 ring-green-400/60 ring-offset-1 ring-offset-background',
+  tentative: 'border-yellow-600 bg-yellow-600 text-white ring-2 ring-yellow-400/60 ring-offset-1 ring-offset-background',
+  declined: 'border-red-600 bg-red-600 text-white ring-2 ring-red-400/60 ring-offset-1 ring-offset-background',
 }
 
 export interface RsvpAnswerButtonsProps {
@@ -85,13 +85,13 @@ export default function RsvpAnswerButtons({
 
   const labelId = `rsvp-label-${activityType}-${activityId}`
   const coachPresent = !hideCoachPresent && !counts.pending && counts.staffConfirmed > 0 ? (
-    <span className="flex items-center gap-1 text-[11px] text-brand-600 dark:text-brand-400">
+    <span className="flex items-center gap-1 text-[11px] text-primary dark:text-brand-300">
       <Award className="h-3 w-3" aria-hidden />
       {t('coachPresent')}
     </span>
   ) : null
   const waitlist = !counts.pending && counts.waitlisted > 0 ? (
-    <span className="flex items-center gap-1 rounded-md bg-orange-50 px-2 py-1 text-xs font-semibold tabular-nums text-orange-700 dark:bg-orange-900/20 dark:text-orange-300" title={t('waitlisted')}>
+    <span className="flex items-center gap-1 rounded-md border border-orange-200 bg-orange-50 px-2 py-1 text-xs font-semibold tabular-nums text-orange-700 dark:border-orange-800/60 dark:bg-orange-900/20 dark:text-orange-300" title={t('waitlisted')}>
       <Hourglass className="h-3 w-3" aria-hidden />
       {counts.waitlisted}
     </span>
@@ -104,7 +104,7 @@ export default function RsvpAnswerButtons({
     <div className={cn('space-y-1.5', className)}>
       {!compact && (
         <div className="flex min-h-9 items-center justify-between gap-2">
-          <span id={labelId} className="min-w-0 break-words text-sm font-medium text-gray-700 dark:text-gray-300">
+          <span id={labelId} className="min-w-0 break-words text-xs font-medium text-muted-foreground">
             {label ?? (answeringFor || t('yourStatus'))}
           </span>
           <span className="flex shrink-0 items-center gap-2">
@@ -140,7 +140,7 @@ export default function RsvpAnswerButtons({
                   // Deliberately below the 44px button scale (user call, 2026-09-28): three
                   // side-by-side answers are a wide target, and 44px read as oversized.
                   // Modal 40/36, card (compact) 36/32; the narrow two-line mode 44.
-                  'flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-2 font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none',
+                  'flex items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border px-2 font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none',
                   compact ? 'min-h-9 text-[13px] sm:min-h-8' : 'min-h-10 text-sm sm:min-h-9',
                   !stacked && '@max-3xs:min-h-11 @max-3xs:flex-col @max-3xs:gap-0 @max-3xs:px-1',
                   on ? FILL[status] : TINT[status],
@@ -180,7 +180,7 @@ export default function RsvpAnswerButtons({
         // never do (shrink-0) — no justify-between around anything tappable.
         <div className="flex items-center gap-2">
           {compactCaption && (
-            <span className="min-w-0 flex-1 break-words text-[11px] font-medium leading-tight text-gray-600 dark:text-gray-300">{compactCaption}</span>
+            <span className="min-w-0 flex-1 break-words text-[11px] font-medium leading-tight text-muted-foreground">{compactCaption}</span>
           )}
           <span className={cn('flex shrink-0 items-center gap-2', !compactCaption && 'flex-1')}>
             {coachPresent}

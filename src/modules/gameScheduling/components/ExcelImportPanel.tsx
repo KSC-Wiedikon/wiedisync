@@ -123,10 +123,10 @@ export default function ExcelImportPanel() {
   }
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
-      <h2 className="mb-4 text-lg font-semibold text-gray-900 dark:text-gray-100">{t('excelImport')}</h2>
+    <div className="rounded-2xl border border-hairline bg-card shadow-card p-4">
+      <h2 className="mb-4 text-base font-semibold tracking-tight text-foreground">{t('excelImport')}</h2>
 
-      <p className="mb-3 text-sm text-gray-600 dark:text-gray-400">
+      <p className="mb-3 text-sm text-muted-foreground">
         {t('importColumnsHint')}
       </p>
 
@@ -136,7 +136,7 @@ export default function ExcelImportPanel() {
           type="file"
           accept=".xlsx,.xls"
           onChange={handleFileChange}
-          className="text-sm text-gray-700 dark:text-gray-300 file:mr-3 file:rounded-md file:border-0 file:bg-gray-100 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-gray-700 dark:file:bg-gray-700 dark:file:text-gray-300"
+          className="text-sm text-foreground/85 file:mr-3 file:rounded-md file:border-0 file:bg-muted file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-foreground"
         />
         <Button
           type="button"
@@ -151,23 +151,23 @@ export default function ExcelImportPanel() {
 
       {preview.length > 0 && (
         <>
-          <div className="mb-3 max-h-60 overflow-auto rounded-md border border-gray-200 dark:border-gray-600">
+          <div className="mb-3 max-h-60 overflow-auto rounded-xl border border-hairline">
             <Table>
-              <TableHeader className="bg-gray-50 dark:bg-gray-700">
+              <TableHeader className="bg-surface-sunken">
                 <TableRow>
-                  <TableHead className="text-gray-700 dark:text-gray-300">Datum</TableHead>
-                  <TableHead className="text-gray-700 dark:text-gray-300">Heim</TableHead>
-                  <TableHead className="text-gray-700 dark:text-gray-300">Gast</TableHead>
-                  <TableHead className="text-gray-700 dark:text-gray-300">Liga</TableHead>
+                  <TableHead className="text-foreground/85">Datum</TableHead>
+                  <TableHead className="text-foreground/85">Heim</TableHead>
+                  <TableHead className="text-foreground/85">Gast</TableHead>
+                  <TableHead className="text-foreground/85">Liga</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {preview.map((row, i) => (
                   <TableRow key={i}>
-                    <TableCell className="text-gray-900 dark:text-gray-100">{row.Datum}</TableCell>
-                    <TableCell className="text-gray-900 dark:text-gray-100">{row.Heimteam}</TableCell>
-                    <TableCell className="text-gray-900 dark:text-gray-100">{row.Gastteam}</TableCell>
-                    <TableCell className="text-gray-500 dark:text-gray-400">{row.Liga}</TableCell>
+                    <TableCell className="text-foreground">{row.Datum}</TableCell>
+                    <TableCell className="text-foreground">{row.Heimteam}</TableCell>
+                    <TableCell className="text-foreground">{row.Gastteam}</TableCell>
+                    <TableCell className="text-muted-foreground">{row.Liga}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -185,7 +185,7 @@ export default function ExcelImportPanel() {
       )}
 
       {result && (
-        <div className="mt-3 rounded-md bg-green-50 p-3 text-sm text-green-800 dark:bg-green-900/30 dark:text-green-300">
+        <div className="mt-3 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800 dark:border-green-900/60 dark:bg-green-900/30 dark:text-green-300">
           {result}
         </div>
       )}

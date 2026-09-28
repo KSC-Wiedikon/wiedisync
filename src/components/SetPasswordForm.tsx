@@ -69,8 +69,8 @@ export function SetPasswordForm({ title, description, email, onSuccess }: SetPas
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <h2 className="text-xl font-semibold text-foreground">{title}</h2>
-        {description && <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{description}</p>}
+        <h2 className="text-xl font-bold tracking-tight text-foreground">{title}</h2>
+        {description && <p className="text-sm text-muted-foreground mt-1">{description}</p>}
       </div>
 
       <FormInput
@@ -95,7 +95,7 @@ export function SetPasswordForm({ title, description, email, onSuccess }: SetPas
         autoComplete="new-password"
       />
 
-      <p className="text-xs text-gray-500 dark:text-gray-400">{t('passwordRequirements')}</p>
+      <p className="text-xs text-muted-foreground">{t('passwordRequirements')}</p>
 
       {error && (
         <p className="text-sm text-destructive">{error}</p>

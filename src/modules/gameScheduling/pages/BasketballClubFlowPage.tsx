@@ -150,13 +150,13 @@ export default function BasketballClubFlowPage() {
 
   if (error || !portal) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 dark:bg-gray-900">
+      <div className="flex min-h-screen items-center justify-center bg-background px-4">
         <div className="text-center">
-          <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">{t('bbPortalInvalidTitle')}</h1>
-          <p className="mt-2 text-gray-600 dark:text-gray-400">
+          <h1 className="text-xl font-bold tracking-tight text-foreground">{t('bbPortalInvalidTitle')}</h1>
+          <p className="mt-2 text-muted-foreground">
             {error === 'Link expired' ? t('bbPortalExpired') : t('bbPortalInvalidHint')}
           </p>
-          <p className="mt-4 text-xs text-gray-400 dark:text-gray-500">
+          <p className="mt-4 text-xs text-muted-foreground/80">
             {t('bbPortalHelp')}{' '}
             <a href={`mailto:${SUPPORT_EMAIL}`} className="underline">{SUPPORT_EMAIL}</a>
           </p>
@@ -335,20 +335,20 @@ export default function BasketballClubFlowPage() {
 
   const noteChanged = note.trim() !== (portal.club_note || '').trim()
   const inputClass =
-    'min-h-11 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100'
+    'min-h-11 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground focus-visible:border-primary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-input/20'
 
   const renderGame = (g: BbPortalGame) => {
     const draft = drafts[String(g.id)]
     const chosen = draft?.response ?? null
     return (
-      <div key={g.id} className="rounded-xl border border-gray-200 bg-white p-4 sm:p-6 dark:border-gray-700 dark:bg-gray-800">
+      <div key={g.id} className="rounded-2xl border border-hairline bg-card shadow-card p-4 sm:p-6">
         <div className="flex items-start gap-2">
           <div className="min-w-0 flex-1">
-            <h3 className="break-words text-base font-semibold text-gray-900 dark:text-gray-100">
+            <h3 className="break-words text-base font-semibold text-foreground">
               KSC Wiedikon {g.kscw_team}
               {g.opponent ? ` – ${g.opponent}` : ''}
             </h3>
-            <p className="mt-1 text-sm text-gray-700 dark:text-gray-300">
+            <p className="mt-1 text-sm text-foreground/85">
               {formatDateZurich(g.date)} · {g.time}
               {g.hall ? ` · ${g.hall}` : ''}
             </p>
@@ -357,13 +357,13 @@ export default function BasketballClubFlowPage() {
         </div>
 
         {g.kscw_note && (
-          <p className="mt-2 rounded-md bg-gray-50 px-3 py-2 text-xs text-gray-600 dark:bg-gray-900/40 dark:text-gray-400">
+          <p className="mt-2 rounded-lg bg-surface-sunken px-3 py-2 text-xs text-muted-foreground">
             {g.kscw_note}
           </p>
         )}
 
         {g.responded_at && (
-          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+          <p className="mt-2 text-xs text-muted-foreground">
             {t('bbPortalAlreadyAnswered', { date: formatDateZurich(g.responded_at) })}
           </p>
         )}
@@ -398,8 +398,8 @@ export default function BasketballClubFlowPage() {
         </div>
 
         {chosen === 'declined' && (
-          <div className="mt-3 space-y-3 rounded-md border border-gray-200 p-3 dark:border-gray-700">
-            <p className="text-xs text-gray-500 dark:text-gray-400">{t('bbPortalAlternativesHint')}</p>
+          <div className="mt-3 space-y-3 rounded-xl border border-hairline bg-surface-sunken p-3">
+            <p className="text-xs text-muted-foreground">{t('bbPortalAlternativesHint')}</p>
             {(draft?.alternatives ?? []).map((a, idx) => (
               <div key={idx} className="flex flex-col gap-2 sm:flex-row sm:items-center">
                 {/* Not a native date input: it draws in the BROWSER's locale, so
@@ -443,7 +443,7 @@ export default function BasketballClubFlowPage() {
         )}
 
         {chosen && (
-          <label className="mt-3 block text-xs font-medium text-gray-500 dark:text-gray-400">
+          <label className="mt-3 block text-xs font-medium text-muted-foreground">
             {t('bbPortalGameNote')}
             <textarea
               value={draft?.note ?? ''}
@@ -460,48 +460,48 @@ export default function BasketballClubFlowPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 px-4 py-8 dark:bg-gray-900">
+    <div className="min-h-screen bg-background px-4 py-8">
       <div className="mx-auto max-w-3xl">
         <div className="mb-2 flex justify-end">
           <LanguageDropdown size="sm" />
         </div>
 
         <div className="mb-6 text-center">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{t('bbPortalTitle')}</h1>
-          <p className="mt-2 text-gray-600 dark:text-gray-400">
+          <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">{t('bbPortalTitle')}</h1>
+          <p className="mt-2 text-muted-foreground">
             {portal.club_name} · KSC Wiedikon
             {portal.season_name ? ` · ${portal.season_name}` : ''}
           </p>
         </div>
 
-        <div className="mb-6 rounded-xl border border-brand-200 bg-brand-50 p-5 dark:border-brand-900 dark:bg-brand-900/20">
-          <p className="text-sm text-gray-800 dark:text-gray-200">{t('bbPortalWelcome', { club: portal.club_name })}</p>
+        <div className="mb-6 rounded-2xl border border-brand-200 bg-brand-50 p-5 dark:border-brand-900 dark:bg-brand-900/20">
+          <p className="text-sm text-foreground">{t('bbPortalWelcome', { club: portal.club_name })}</p>
           {keyDates?.spielplansitzung && (
-            <p className="mt-2 text-sm text-gray-700 dark:text-gray-300">
+            <p className="mt-2 text-sm text-foreground/85">
               {t('bbPortalArt18', { date: formatDateZurich(keyDates.spielplansitzung) })}
             </p>
           )}
-          <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-gray-700 dark:text-gray-300">
+          <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-foreground/85">
             <li>{t('bbPortalStep1')}</li>
             <li>{t('bbPortalStep2')}</li>
             <li>{t('bbPortalStep3')}</li>
           </ul>
           {portal.expires_at && (
-            <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
+            <p className="mt-3 text-xs text-muted-foreground">
               {t('bbPortalExpiresOn', { date: formatExpiryUtc(portal.expires_at) })}
             </p>
           )}
         </div>
 
         {formError && (
-          <div className="mb-4 rounded-md bg-red-50 p-4 text-sm text-red-800 dark:bg-red-900/30 dark:text-red-300">{formError}</div>
+          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">{formError}</div>
         )}
         {success && (
-          <div className="mb-4 rounded-md bg-green-50 p-4 text-sm text-green-800 dark:bg-green-900/30 dark:text-green-300">{success}</div>
+          <div className="mb-4 rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-700 dark:border-green-900/60 dark:bg-green-950/40 dark:text-green-300">{success}</div>
         )}
 
         {games.length === 0 ? (
-          <div className="mb-6 rounded-xl border border-gray-200 bg-white p-6 text-center text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
+          <div className="mb-6 rounded-2xl border border-hairline bg-card shadow-card p-6 text-center text-sm text-muted-foreground">
             {t('bbPortalNoGames')}
           </div>
         ) : (
@@ -523,15 +523,15 @@ export default function BasketballClubFlowPage() {
         {/* Pick free dates. A record list you scan and select → <Table> per CLAUDE.md, unlike
             the game cards above, which are proposals you act on individually. */}
         {pairings.length > 0 && (
-          <div className="mb-6 rounded-xl border border-gray-200 bg-white p-4 sm:p-6 dark:border-gray-700 dark:bg-gray-800">
-            <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{t('bbPortalPickTitle')}</h2>
-            <p className="mb-4 text-xs text-gray-500 dark:text-gray-400">{t('bbPortalPickHint')}</p>
+          <div className="mb-6 rounded-2xl border border-hairline bg-card shadow-card p-4 sm:p-6">
+            <h2 className="text-base font-semibold text-foreground">{t('bbPortalPickTitle')}</h2>
+            <p className="mb-4 text-xs text-muted-foreground">{t('bbPortalPickHint')}</p>
 
             {pairings.map((p) => (
               <div key={p.kscw_team} className="mb-5 last:mb-0">
                 <div className="mb-2 flex flex-wrap items-baseline gap-2">
-                  <span className="font-semibold text-gray-900 dark:text-gray-100">{p.kscw_team_name}</span>
-                  <span className="text-xs text-gray-500 dark:text-gray-400">{p.group_label || p.group}</span>
+                  <span className="font-semibold text-foreground">{p.kscw_team_name}</span>
+                  <span className="text-xs text-muted-foreground">{p.group_label || p.group}</span>
                   {/* null means ProBasket has stated no count — never render it as 0. */}
                   {p.home_games !== null && (
                     <Badge variant="secondary">{t('bbPortalHomeGames', { count: p.home_games })}</Badge>
@@ -539,9 +539,9 @@ export default function BasketballClubFlowPage() {
                 </div>
 
                 {p.dates.length === 0 ? (
-                  <p className="text-sm text-gray-500 dark:text-gray-400">{t('bbPortalNoFreeSlots')}</p>
+                  <p className="text-sm text-muted-foreground">{t('bbPortalNoFreeSlots')}</p>
                 ) : (
-                  <div className="overflow-x-auto">
+                  <div className="overflow-x-auto rounded-xl border border-hairline">
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -559,7 +559,7 @@ export default function BasketballClubFlowPage() {
                                 aria-label={formatDateZurich(d.date)}
                                 checked={!!picked?.has(`${p.kscw_team}|${d.date}`)}
                                 onChange={() => togglePick(p.kscw_team, d.date)}
-                                className="h-5 w-5 accent-blue-600"
+                                className="h-5 w-5 rounded border-input accent-[var(--primary)]"
                               />
                             </TableCell>
                             <TableCell className="whitespace-normal break-words font-medium">
@@ -567,7 +567,7 @@ export default function BasketballClubFlowPage() {
                             </TableCell>
                             {/* Informational only — the club commits to the day, we allocate
                                 the tip-off and hall once every answer is in. */}
-                            <TableCell className="whitespace-normal break-words text-sm text-gray-600 tabular-nums dark:text-gray-300">
+                            <TableCell className="whitespace-normal break-words text-sm text-muted-foreground tabular-nums">
                               {d.times.join(' · ')}
                             </TableCell>
                           </TableRow>
@@ -591,11 +591,11 @@ export default function BasketballClubFlowPage() {
           </div>
         )}
 
-        <div className="mb-6 rounded-xl border border-gray-200 bg-white p-4 sm:p-6 dark:border-gray-700 dark:bg-gray-800">
-          <label htmlFor="bb-club-note" className="block text-base font-semibold text-gray-900 dark:text-gray-100">
+        <div className="mb-6 rounded-2xl border border-hairline bg-card shadow-card p-4 sm:p-6">
+          <label htmlFor="bb-club-note" className="block text-base font-semibold text-foreground">
             {t('bbPortalNoteTitle')}
           </label>
-          <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">{t('bbPortalNoteHint')}</p>
+          <p className="mb-2 text-xs text-muted-foreground">{t('bbPortalNoteHint')}</p>
           <textarea
             id="bb-club-note"
             value={note}
@@ -620,9 +620,9 @@ export default function BasketballClubFlowPage() {
 
         <Modal open={responderOpen} onClose={() => setResponderOpen(false)} title={t('bbPortalResponderTitle')} size="sm">
           <div className="space-y-3">
-            <p className="text-sm text-gray-600 dark:text-gray-400">{t('bbPortalResponderHint')}</p>
+            <p className="text-sm text-muted-foreground">{t('bbPortalResponderHint')}</p>
             <div>
-              <label htmlFor="bb-responder-name" className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">
+              <label htmlFor="bb-responder-name" className="mb-1 block text-xs font-medium text-muted-foreground">
                 {t('bbPortalResponderName')}
               </label>
               <input
@@ -635,7 +635,7 @@ export default function BasketballClubFlowPage() {
               />
             </div>
             <div>
-              <label htmlFor="bb-responder-email" className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">
+              <label htmlFor="bb-responder-email" className="mb-1 block text-xs font-medium text-muted-foreground">
                 {t('bbPortalResponderEmail')}
               </label>
               <input
@@ -667,9 +667,9 @@ export default function BasketballClubFlowPage() {
           </div>
         </Modal>
 
-        <p className="mt-8 text-center text-xs text-gray-400 dark:text-gray-500">
+        <p className="mt-8 text-center text-xs text-muted-foreground/80">
           {t('bbPortalHelp')}{' '}
-          <a href={`mailto:${SUPPORT_EMAIL}`} className="underline hover:text-gray-600 dark:hover:text-gray-300">{SUPPORT_EMAIL}</a>
+          <a href={`mailto:${SUPPORT_EMAIL}`} className="underline hover:text-foreground">{SUPPORT_EMAIL}</a>
         </p>
       </div>
     </div>

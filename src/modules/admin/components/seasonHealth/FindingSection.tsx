@@ -120,7 +120,7 @@ export default function FindingSection({ section, items, tab }: {
   const panelId = `sh-section-${section}-${tab}`
 
   return (
-    <section className="rounded-xl border border-border bg-card">
+    <section className="rounded-2xl border border-hairline bg-card shadow-card">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}

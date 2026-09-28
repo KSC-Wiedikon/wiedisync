@@ -93,8 +93,8 @@ export default function CategoryMultiSelect({ options, selected, onChange, place
         role="option"
         aria-selected={allSelected}
         onClick={allSelected ? handleSelectNone : handleSelectAll}
-        className={`flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors hover:bg-gray-100 dark:hover:bg-gray-700 ${
-          allSelected ? 'bg-brand-50 font-semibold text-brand-700 dark:bg-brand-900/30 dark:text-brand-300' : 'text-gray-700 dark:text-gray-300'
+        className={`flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors hover:bg-accent ${
+          allSelected ? 'bg-brand-50 font-semibold text-brand-700 dark:bg-brand-900/30 dark:text-brand-300' : 'text-foreground/85'
         }`}
       >
         <Checkbox checked={allSelected} indeterminate={!allSelected && !noneSelected} />
@@ -120,7 +120,7 @@ export default function CategoryMultiSelect({ options, selected, onChange, place
                 type="button"
                 onClick={toggleGroup}
                 aria-pressed={allGroupSelected}
-                className="sticky top-0 flex w-full items-center gap-2.5 bg-gray-50 px-3 py-1.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 hover:bg-gray-100 dark:bg-gray-900 dark:text-gray-400 dark:hover:bg-gray-800"
+                className="sticky top-0 flex w-full items-center gap-2.5 bg-surface-sunken px-3 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground hover:bg-accent"
               >
                 <Checkbox checked={allGroupSelected} indeterminate={someGroupSelected && !allGroupSelected} size="sm" />
                 {group}
@@ -141,7 +141,7 @@ export default function CategoryMultiSelect({ options, selected, onChange, place
 
   if (inline) {
     return (
-      <div role="listbox" aria-multiselectable="true" className="w-full overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-600 dark:bg-gray-800">
+      <div role="listbox" aria-multiselectable="true" className="w-full overflow-hidden rounded-lg border border-border bg-card">
         {list}
       </div>
     )
@@ -156,24 +156,24 @@ export default function CategoryMultiSelect({ options, selected, onChange, place
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={open ? listboxId : undefined}
-        className="flex min-h-11 w-full items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-left text-sm shadow-sm transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:hover:bg-gray-700 sm:min-h-9"
+        className="flex min-h-11 w-full items-center gap-2 rounded-lg border border-input bg-card px-3 py-1.5 text-left text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:min-h-9"
       >
         <div className="flex flex-1 flex-wrap items-center gap-1.5 overflow-hidden">
           {allSelected ? (
-            <span className="text-gray-500 dark:text-gray-400">{placeholder ?? t('all')}</span>
+            <span className="text-muted-foreground">{placeholder ?? t('all')}</span>
           ) : noneSelected ? (
-            <span className="text-gray-500 dark:text-gray-400">{t('none')}</span>
+            <span className="text-muted-foreground">{t('none')}</span>
           ) : selectedOptions.length <= 4 ? (
             selectedOptions.map((o) => (
               <ColorChip key={o.value} label={o.label} color={o.color} />
             ))
           ) : (
-            <span className="text-gray-700 dark:text-gray-300">
+            <span className="text-foreground/85">
               {selectedOptions.length}/{options.length}
             </span>
           )}
         </div>
-        <ChevronDown className={`h-4 w-4 shrink-0 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground/80 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
 
       {/* Clear / Select all button */}
@@ -184,7 +184,7 @@ export default function CategoryMultiSelect({ options, selected, onChange, place
             e.stopPropagation()
             handleSelectAll()
           }}
-          className="absolute right-8 top-1/2 z-10 -translate-y-1/2 rounded-full p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
+          className="absolute right-8 top-1/2 z-10 -translate-y-1/2 rounded-full p-0.5 text-muted-foreground/80 hover:bg-accent hover:text-muted-foreground"
           title={t('selectAll')}
           aria-label={t('selectAll')}
         >
@@ -194,7 +194,7 @@ export default function CategoryMultiSelect({ options, selected, onChange, place
 
       {/* Dropdown */}
       {open && (
-        <div id={listboxId} role="listbox" aria-multiselectable="true" className="absolute left-0 z-50 mt-1 max-h-72 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-600 dark:bg-gray-800">
+        <div id={listboxId} role="listbox" aria-multiselectable="true" className="absolute left-0 z-50 mt-1 max-h-72 w-full overflow-y-auto rounded-lg border bg-popover text-popover-foreground shadow-xl">
           {list}
         </div>
       )}
@@ -220,8 +220,8 @@ function OptionRow({ option, isSelected, onToggle }: { option: CategoryOption; i
       role="option"
       aria-selected={isSelected}
       onClick={onToggle}
-      className={`flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors hover:bg-gray-100 dark:hover:bg-gray-700 ${
-        isSelected ? 'bg-gray-100 dark:bg-gray-700/50' : ''
+      className={`flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors hover:bg-accent ${
+        isSelected ? 'bg-accent' : ''
       }`}
     >
       <Checkbox checked={isSelected} />
@@ -234,13 +234,13 @@ function Checkbox({ checked, indeterminate, size = 'md' }: { checked: boolean; i
   const sizeClass = size === 'sm' ? 'h-3.5 w-3.5' : 'h-4 w-4'
   return (
     <span aria-hidden="true" className={`flex ${sizeClass} shrink-0 items-center justify-center rounded border-2 transition-colors ${
-      checked ? 'border-brand-500 bg-brand-500' : indeterminate ? 'border-brand-400 bg-brand-200 dark:bg-brand-800' : 'border-gray-300 dark:border-gray-500'
+      checked ? 'border-primary bg-primary' : indeterminate ? 'border-brand-400 bg-brand-200 dark:bg-brand-800' : 'border-input'
     }`}>
       {checked && (
-        <Check className={size === 'sm' ? 'h-2 w-2 text-white' : 'h-2.5 w-2.5 text-white'} strokeWidth={3} />
+        <Check className={size === 'sm' ? 'h-2 w-2 text-primary-foreground' : 'h-2.5 w-2.5 text-primary-foreground'} strokeWidth={3} />
       )}
       {indeterminate && !checked && (
-        <span className="block h-1.5 w-1.5 rounded-sm bg-brand-500" />
+        <span className="block h-1.5 w-1.5 rounded-sm bg-primary" />
       )}
     </span>
   )

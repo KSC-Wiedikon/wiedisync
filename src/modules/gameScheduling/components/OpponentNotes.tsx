@@ -33,22 +33,22 @@ export default function OpponentNotes({ opponentNote, kscwNote, onSave }: Props)
   const hasKscwNote = !!(kscwNote && kscwNote.trim())
 
   return (
-    <div className="mt-3 space-y-2 border-t border-gray-200/70 pt-3 dark:border-gray-700/70">
+    <div className="mt-3 space-y-2 border-t border-border/70 pt-3">
       {/* Opponent's remark (read-only) */}
       {opponentNote && opponentNote.trim() && (
-        <div className="rounded-md bg-gray-50 px-3 py-2 dark:bg-gray-700/40">
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('opponentRemark')}</p>
-          <p className="mt-0.5 whitespace-pre-wrap text-sm text-gray-800 dark:text-gray-200">{opponentNote}</p>
+        <div className="rounded-lg border border-hairline bg-surface-sunken px-3 py-2">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t('opponentRemark')}</p>
+          <p className="mt-0.5 whitespace-pre-wrap text-sm text-foreground">{opponentNote}</p>
         </div>
       )}
 
       {/* KSCW note to the opponent (editable) */}
       {!open ? (
         <div className="flex flex-wrap items-start gap-x-2 gap-y-1 text-sm">
-          <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('noteToOpponent')}:</span>
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t('noteToOpponent')}:</span>
           {hasKscwNote
-            ? <span className="whitespace-pre-wrap text-gray-800 dark:text-gray-200">{kscwNote}</span>
-            : <span className="italic text-gray-400 dark:text-gray-500">{t('noteToOpponentNone')}</span>}
+            ? <span className="whitespace-pre-wrap text-foreground">{kscwNote}</span>
+            : <span className="italic text-muted-foreground/80">{t('noteToOpponentNone')}</span>}
           <Button
             type="button"
             onClick={() => { setDraft(kscwNote || ''); setOpen(true); setSaved(false) }}
@@ -62,15 +62,15 @@ export default function OpponentNotes({ opponentNote, kscwNote, onSave }: Props)
         </div>
       ) : (
         <div>
-          <label className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('noteToOpponent')}</label>
-          <p className="mb-1 text-xs text-gray-400 dark:text-gray-500">{t('noteToOpponentHint')}</p>
+          <label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t('noteToOpponent')}</label>
+          <p className="mb-1 text-xs text-muted-foreground/80">{t('noteToOpponentHint')}</p>
           <textarea
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             rows={2}
             maxLength={2000}
             placeholder={t('noteToOpponentPlaceholder')}
-            className="w-full rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+            className="w-full rounded-lg border border-input bg-card px-2.5 py-1.5 text-sm text-foreground focus-visible:border-primary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring placeholder:text-muted-foreground/70 dark:bg-input/20"
           />
           <div className="mt-1.5 flex items-center gap-2">
             <Button

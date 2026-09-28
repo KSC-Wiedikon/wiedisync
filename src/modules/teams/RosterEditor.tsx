@@ -270,33 +270,33 @@ export default function RosterEditor() {
 
   return (
     <div className="mx-auto max-w-3xl">
-      <div className="mb-6 flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-        <Link to="/teams" className="hover:text-gray-700 dark:text-gray-300">{t('title')}</Link>
+      <div className="mb-6 flex items-center gap-2 text-sm text-muted-foreground">
+        <Link to="/teams" className="transition-colors hover:text-foreground">{t('title')}</Link>
         <span>/</span>
-        <Link to={`/teams/${teamSlug}`} className="hover:text-gray-700 dark:text-gray-300">
+        <Link to={`/teams/${teamSlug}`} className="transition-colors hover:text-foreground">
           {team?.full_name ?? 'Team'}
         </Link>
         <span>/</span>
-        <span className="text-gray-900 dark:text-gray-100">{t('editRoster')}</span>
+        <span className="text-foreground">{t('editRoster')}</span>
       </div>
 
       <div className="flex items-center gap-3">
         {team && <TeamChip team={team.name} />}
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{t('editRoster')}</h1>
+        <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">{t('editRoster')}</h1>
       </div>
 
       {/* Team picture */}
       <div className="mt-6">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('teamPicture')}</h2>
+        <h2 className="text-lg font-semibold tracking-tight text-foreground">{t('teamPicture')}</h2>
         <div className="mt-3 flex items-center gap-4">
           {team?.team_picture ? (
             <img
               src={getFileUrl('teams', team.id, team.team_picture)}
               alt={team.full_name}
-              className="h-24 w-36 rounded-lg object-cover border dark:border-gray-700"
+              className="h-24 w-36 rounded-lg border border-border object-cover"
             />
           ) : (
-            <div className="flex h-24 w-36 items-center justify-center rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 text-gray-400 dark:text-gray-500 text-sm">
+            <div className="flex h-24 w-36 items-center justify-center rounded-lg border-2 border-dashed border-input text-muted-foreground/80 text-sm">
               {t('teamPicture')}
             </div>
           )}
@@ -323,29 +323,29 @@ export default function RosterEditor() {
                 {t('removePicture')}
               </Button>
             )}
-            <span className="text-xs text-gray-400 dark:text-gray-500">{t('pictureHint')}</span>
+            <span className="text-xs text-muted-foreground/80">{t('pictureHint')}</span>
           </div>
         </div>
       </div>
 
       {/* Current roster */}
       <div className="mt-8">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+        <h2 className="text-lg font-semibold tracking-tight text-foreground">
           {t('currentRoster', { count: members.length })}
         </h2>
 
         {members.length === 0 ? (
           <EmptyState icon={<User className="h-10 w-10" />} title={t('noMembers')} description={t('noMembersDescription')} />
         ) : (
-          <div className="mt-4 rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+          <div className="mt-4 overflow-hidden rounded-2xl border border-hairline bg-card shadow-card">
             <Table>
               <TableHeader>
-                <TableRow className="border-gray-200 dark:border-gray-700">
+                <TableRow className="border-border">
                   <TableHead className="w-10 hidden sm:table-cell" />
-                  <TableHead className="text-gray-500 dark:text-gray-400">{t('common:name')}</TableHead>
-                  <TableHead className="w-12 text-center text-gray-500 dark:text-gray-400">#</TableHead>
-                  <TableHead className="text-gray-500 dark:text-gray-400">{t('positionCol')}</TableHead>
-                  <TableHead className="w-16 text-center text-gray-500 dark:text-gray-400">K&nbsp;/&nbsp;G</TableHead>
+                  <TableHead className="text-muted-foreground">{t('common:name')}</TableHead>
+                  <TableHead className="w-12 text-center text-muted-foreground">#</TableHead>
+                  <TableHead className="text-muted-foreground">{t('positionCol')}</TableHead>
+                  <TableHead className="w-16 text-center text-muted-foreground">K&nbsp;/&nbsp;G</TableHead>
                   <TableHead className="w-8" />
                 </TableRow>
               </TableHeader>
@@ -364,7 +364,7 @@ export default function RosterEditor() {
                   const guestLevel = guestOverrides[mtId] ?? (mt.guest_level as number) ?? 0
 
                   const numberEl = nonPlaying ? (
-                    <span className="mx-auto flex h-9 w-10 items-center justify-center text-sm text-gray-400 sm:h-8 dark:text-gray-500">—</span>
+                    <span className="mx-auto flex h-9 w-10 items-center justify-center text-sm text-muted-foreground/80 sm:h-8">—</span>
                   ) : editingNumber === member.id ? (
                     <input
                       type="number"
@@ -375,7 +375,7 @@ export default function RosterEditor() {
                         else if (e.key === 'Escape') setEditingNumber(null)
                       }}
                       onBlur={() => saveNumber(member.id)}
-                      className="mx-auto block h-9 w-12 rounded-md border border-brand-400 bg-white px-1 text-center sm:h-8 text-sm font-medium text-gray-900 shadow-sm ring-1 ring-brand-400/30 focus:outline-none dark:border-brand-500 dark:bg-gray-700 dark:text-gray-100 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                      className="mx-auto block h-9 w-12 rounded-md border border-brand-400 bg-card px-1 text-center sm:h-8 text-sm font-medium text-foreground ring-1 ring-brand-400/30 focus:outline-none dark:border-brand-500 dark:bg-input/20 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                       autoFocus
                     />
                   ) : (
@@ -383,7 +383,7 @@ export default function RosterEditor() {
                       size="sm"
                       variant="outline"
                       onClick={() => { setEditingNumber(member.id); setNumberValue(String(memberNumber || '')) }}
-                      className="mx-auto flex w-10 px-0 text-sm text-gray-500 hover:border-brand-400 hover:text-brand-600 dark:text-gray-400 dark:hover:border-brand-500 dark:hover:text-brand-400"
+                      className="mx-auto flex w-10 px-0 text-sm text-muted-foreground hover:border-brand-400 hover:text-primary dark:hover:border-brand-500 dark:hover:text-brand-300"
                       title={t('numberCol')}
                     >
                       {memberNumber || '—'}
@@ -400,7 +400,7 @@ export default function RosterEditor() {
                       aria-pressed={isCaptain}
                       className={cn('min-w-9 px-2', isCaptain
                         ? ROLE_COLORS.captain
-                        : 'bg-gray-100 text-gray-400 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-500 dark:hover:bg-gray-600')}
+                        : 'bg-muted text-muted-foreground/80 hover:bg-stone-200 dark:hover:bg-gray-600')}
                     >
                       K
                     </Button>
@@ -423,7 +423,7 @@ export default function RosterEditor() {
                       }}
                       title={guestLevel === 0 ? t('guestLevel0') : t('guestLevelTooltip', { level: guestLevel })}
                       className={cn('min-w-9 px-2', guestLevel === 0
-                        ? 'bg-gray-100 text-gray-400 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-500 dark:hover:bg-gray-600'
+                        ? 'bg-muted text-muted-foreground/80 hover:bg-stone-200 dark:hover:bg-gray-600'
                         : guestLevel === 1
                           ? 'bg-orange-100 text-orange-700 hover:bg-orange-100 hover:text-orange-700 dark:bg-orange-900 dark:text-orange-300'
                           : guestLevel === 2
@@ -446,7 +446,7 @@ export default function RosterEditor() {
                         size="sm"
                         variant="outline"
                         onClick={() => setEditingPosition(editingPosition === member.id ? null : member.id)}
-                        className="w-12 justify-start px-2 font-normal text-gray-700 hover:border-brand-400 sm:w-40 dark:text-gray-100 dark:hover:border-brand-500"
+                        className="w-12 justify-start px-2 font-normal text-foreground/85 hover:border-brand-400 sm:w-40 dark:hover:border-brand-500"
                         title={positionLabelFull}
                       >
                         <span className="font-semibold tracking-wide sm:hidden">{positionLabelShort}</span>
@@ -455,7 +455,7 @@ export default function RosterEditor() {
                       {editingPosition === member.id && (
                         <>
                           <div className="fixed inset-0 z-10" onClick={() => setEditingPosition(null)} />
-                          <div className="absolute left-0 z-20 mt-1 w-48 rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-600 dark:bg-gray-800">
+                          <div className="absolute left-0 z-20 mt-1 w-48 rounded-lg border border-border bg-popover p-1 shadow-xl">
                             {selectablePositions.map((p) => {
                               const active = memberPositions.includes(p)
                               return (
@@ -467,9 +467,9 @@ export default function RosterEditor() {
                                       : [...memberPositions, p]) as MemberPosition[]
                                     savePosition(member.id, next.length > 0 ? next : ['other'])
                                   }}
-                                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700"
+                                  className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-foreground/85 hover:bg-accent"
                                 >
-                                  <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${active ? 'border-brand-500 bg-brand-500 text-white' : 'border-gray-300 dark:border-gray-500'}`}>
+                                  <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${active ? 'border-primary bg-primary text-primary-foreground' : 'border-input'}`}>
                                     {active && (
                                       <Check className="h-3 w-3" strokeWidth={3} aria-hidden />
                                     )}
@@ -485,17 +485,17 @@ export default function RosterEditor() {
                   )
 
                   return (
-                    <TableRow key={mt.id as string} className="border-gray-200 dark:border-gray-700">
+                    <TableRow key={mt.id as string} className="border-border">
                       <TableCell className="hidden sm:table-cell">
                         {member.photo ? (
                           <img src={getFileUrl('members', member.id, member.photo)} alt="" className="h-8 w-8 rounded-full object-cover" />
                         ) : (
-                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200 dark:bg-gray-600 text-xs font-medium text-gray-600 dark:text-gray-300">{initials}</div>
+                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-stone-200 text-xs font-medium text-muted-foreground dark:bg-gray-600">{initials}</div>
                         )}
                       </TableCell>
-                      <TableCell className="whitespace-normal text-sm font-medium text-gray-900 dark:text-gray-100 leading-tight">
+                      <TableCell className="whitespace-normal text-sm font-medium text-foreground leading-tight">
                         <span className="block sm:inline">{member.last_name}</span>
-                        <span className="block sm:inline sm:ml-1 text-gray-600 dark:text-gray-400 sm:text-gray-900 sm:dark:text-gray-100">{memberFirstName(member)}</span>
+                        <span className="block sm:inline sm:ml-1 text-muted-foreground sm:text-foreground">{memberFirstName(member)}</span>
                       </TableCell>
                       <TableCell className="text-center">{numberEl}</TableCell>
                       <TableCell>{positionEl}</TableCell>
@@ -528,25 +528,25 @@ export default function RosterEditor() {
 
       {/* Add member */}
       <div className="mt-8">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('addPlayer')}</h2>
+        <h2 className="text-lg font-semibold tracking-tight text-foreground">{t('addPlayer')}</h2>
         <input
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder={t('searchPlaceholder')}
-          className="mt-2 w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 focus:outline-none"
+          className="mt-2 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary/60 dark:bg-input/20"
         />
         {search.length >= 2 && (
-          <div className="mt-2 max-h-48 overflow-y-auto rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
+          <div className="mt-2 max-h-48 overflow-y-auto rounded-lg border border-border bg-card">
             {availableMembers.length === 0 ? (
-              <p className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{t('noSearchResults')}</p>
+              <p className="px-4 py-3 text-sm text-muted-foreground">{t('noSearchResults')}</p>
             ) : (
               availableMembers.slice(0, 10).map((m) => (
                 <button
                   key={m.id}
                   onClick={() => handleAdd(m.id)}
                   disabled={addingId === m.id}
-                  className="flex w-full items-center gap-3 px-4 py-2 text-left text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:pointer-events-none"
+                  className="flex w-full items-center gap-3 px-4 py-2 text-left text-sm text-foreground hover:bg-accent disabled:opacity-50 disabled:pointer-events-none"
                 >
                   {m.photo ? (
                     <img
@@ -555,7 +555,7 @@ export default function RosterEditor() {
                       className="h-6 w-6 shrink-0 rounded-full object-cover"
                     />
                   ) : (
-                    <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gray-200 dark:bg-gray-600 text-xs text-gray-600 dark:text-gray-300">
+                    <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-stone-200 text-xs text-muted-foreground dark:bg-gray-600">
                       {memberFirstName(m)[0]}{m.last_name?.[0]}
                     </div>
                   )}
@@ -598,7 +598,7 @@ function SwitchToggle({ checked, onChange }: { checked: boolean; onChange: (v: b
   return (
     <label className="relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center" style={{ minWidth: 44, minHeight: 44 }}>
       <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="peer sr-only" />
-      <span className="absolute inset-0 m-auto h-6 w-11 rounded-full bg-gray-300 transition-colors peer-checked:bg-brand-600 dark:bg-gray-600 dark:peer-checked:bg-brand-600" />
+      <span className="absolute inset-0 m-auto h-6 w-11 rounded-full bg-stone-300 transition-colors peer-checked:bg-primary peer-focus-visible:ring-2 peer-focus-visible:ring-ring dark:bg-gray-600 dark:peer-checked:bg-primary" />
       <span className="absolute left-0.5 top-1/2 h-5 w-5 -translate-y-1/2 rounded-full bg-white shadow transition-transform peer-checked:translate-x-5" />
     </label>
   )
@@ -609,8 +609,8 @@ function SettingRow({ label, hint, children }: { label: string; hint: string; ch
   return (
     <div className="flex items-center justify-between gap-4 px-4 py-3">
       <div className="min-w-0 flex-1">
-        <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{label}</div>
-        <div className="text-xs italic text-gray-500 dark:text-gray-400">{hint}</div>
+        <div className="text-sm font-medium text-foreground">{label}</div>
+        <div className="text-xs italic text-muted-foreground">{hint}</div>
       </div>
       <div className="shrink-0">{children}</div>
     </div>
@@ -622,14 +622,14 @@ function SocialLinkRow({ label, hint, value, onChange, placeholder }: {
 }) {
   return (
     <div className="px-4 py-3">
-      <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{label}</div>
-      <div className="text-xs italic text-gray-500 dark:text-gray-400">{hint}</div>
+      <div className="text-sm font-medium text-foreground">{label}</div>
+      <div className="text-xs italic text-muted-foreground">{hint}</div>
       <input
         type="url"
         value={value}
         onChange={onChange}
         placeholder={placeholder}
-        className="mt-2 w-full rounded-md border border-gray-300 bg-white px-2 py-1 text-sm text-gray-900 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+        className="mt-2 w-full rounded-md border border-input bg-card px-2 py-1 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-input/20"
         style={{ minHeight: 44 }}
       />
     </div>
@@ -640,16 +640,16 @@ function SocialLinkRow({ label, hint, value, onChange, placeholder }: {
 function SettingsGroup({ title, defaultOpen = false, children }: { title: string; defaultOpen?: boolean; children: React.ReactNode }) {
   const [open, setOpen] = useState(defaultOpen)
   return (
-    <div className="rounded-lg border border-gray-200 dark:border-gray-700">
+    <div className="overflow-hidden rounded-2xl border border-hairline bg-card shadow-card">
       <button
         onClick={() => setOpen(!open)}
-        className="flex w-full items-center justify-between px-4 py-3 text-sm font-semibold text-gray-900 dark:text-gray-100"
+        className="flex w-full items-center justify-between px-4 py-3 text-sm font-semibold text-foreground transition-colors hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
         style={{ minHeight: 44 }}
       >
         <span>{title}</span>
-        <span className="text-gray-400 dark:text-gray-500">{open ? '\u25BC' : '\u25B6'}</span>
+        <span className="text-muted-foreground/80">{open ? '\u25BC' : '\u25B6'}</span>
       </button>
-      {open && <div className="divide-y divide-gray-100 border-t border-gray-200 dark:divide-gray-700 dark:border-gray-700">{children}</div>}
+      {open && <div className="divide-y divide-border/60 border-t border-border">{children}</div>}
     </div>
   )
 }
@@ -686,10 +686,10 @@ function DebouncedNumberInput({ value, onChange, suffix }: { value: number | und
         inputMode="numeric"
         value={local}
         onChange={handleChange}
-        className="w-14 rounded-md border border-gray-300 bg-white px-1 py-1 text-center text-sm text-gray-900 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+        className="w-14 rounded-md border border-input bg-card px-1 py-1 text-center text-sm tabular-nums text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-input/20 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
         style={{ minHeight: 44 }}
       />
-      {suffix && <span className="text-xs text-gray-500 dark:text-gray-400">{suffix}</span>}
+      {suffix && <span className="text-xs text-muted-foreground">{suffix}</span>}
     </div>
   )
 }
@@ -815,8 +815,8 @@ function TeamSettingsSection({ team, onUpdate }: { team: Team; onUpdate: (s: Tea
 
   return (
     <div className="mt-8">
-      <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('teamSettings')}</h2>
-      <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t('teamSettingsDescription')}</p>
+      <h2 className="text-lg font-semibold tracking-tight text-foreground">{t('teamSettings')}</h2>
+      <p className="mt-1 text-sm text-muted-foreground">{t('teamSettingsDescription')}</p>
 
       <div className="mt-3 space-y-3">
         {/* Website */}
@@ -827,8 +827,8 @@ function TeamSettingsSection({ team, onUpdate }: { team: Team; onUpdate: (s: Tea
           {openForPlayers && (
             <div className="space-y-1.5 px-4 py-3">
               <div>
-                <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{t('recruitingPositionsLabel')}</div>
-                <div className="text-xs italic text-gray-500 dark:text-gray-400">{t('recruitingPositionsHint')}</div>
+                <div className="text-sm font-medium text-foreground">{t('recruitingPositionsLabel')}</div>
+                <div className="text-xs italic text-muted-foreground">{t('recruitingPositionsHint')}</div>
               </div>
               <div className="flex flex-wrap gap-2 pt-1">
                 {getPositionsForSport(team.sport)
@@ -844,8 +844,8 @@ function TeamSettingsSection({ team, onUpdate }: { team: Team; onUpdate: (s: Tea
                         aria-pressed={active}
                         onClick={() => toggleRecruitingPosition(p)}
                         className={cn('rounded-full', active
-                          ? 'border-brand-500 bg-brand-500 text-white hover:bg-brand-500 hover:text-white'
-                          : 'border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-gray-500 dark:text-gray-300 dark:hover:bg-gray-700')}
+                          ? 'border-transparent bg-selected text-selected-foreground hover:bg-selected hover:text-selected-foreground dark:bg-selected'
+                          : 'border-input text-foreground/85 hover:bg-accent')}
                       >
                         {getPositionI18nKey(p) ? t(getPositionI18nKey(p)!) : p}
                       </Button>
@@ -872,8 +872,8 @@ function TeamSettingsSection({ team, onUpdate }: { team: Team; onUpdate: (s: Tea
           {openForPlayers && (
             <div className="flex items-center justify-between gap-4 px-4 py-3">
               <div className="min-w-0 flex-1">
-                <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{t('trialTrainingLabel')}</div>
-                <div className="text-xs italic text-gray-500 dark:text-gray-400">{t('trialTrainingHint')}</div>
+                <div className="text-sm font-medium text-foreground">{t('trialTrainingLabel')}</div>
+                <div className="text-xs italic text-muted-foreground">{t('trialTrainingHint')}</div>
               </div>
               <div className="shrink-0">
                 <Button type="button" variant="outline" size="sm" onClick={() => setTrialFormOpen(true)}>

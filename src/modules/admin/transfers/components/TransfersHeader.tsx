@@ -51,10 +51,10 @@ export function TransfersHeader({ isFetching, onRefresh, hidden, u20Count }: {
   return (
     <div className="mb-4 flex flex-wrap items-start gap-3">
       <div className="min-w-0 flex-1">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('trTitle')}</h1>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t('trDescription')}</p>
+        <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">{t('trTitle')}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{t('trDescription')}</p>
         {hiddenTotal > 0 && (
-          <p className="mt-1 flex flex-wrap items-center gap-1 text-xs text-gray-400 dark:text-gray-500">
+          <p className="mt-1 flex flex-wrap items-center gap-1 text-xs text-muted-foreground/80">
             {t('trHiddenSummary', { count: hiddenTotal })}
             <HintPopover text={hiddenReasons} />
           </p>

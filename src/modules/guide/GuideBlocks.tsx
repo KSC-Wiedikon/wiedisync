@@ -30,14 +30,14 @@ function Block({ block, query }: { block: GuideBlock; query?: string }) {
       )
     case 'tip':
       return (
-        <div className="flex items-start gap-2 rounded-md border border-primary/30 bg-primary/5 p-3">
+        <div className="flex items-start gap-2 rounded-lg border border-primary/30 bg-primary/5 p-3 dark:bg-primary/15">
           <Lightbulb className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
           <p className="leading-relaxed">{inline(block.text, query)}</p>
         </div>
       )
     case 'note':
       return (
-        <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-amber-900 dark:text-amber-200">
+        <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
           <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
           <p className="leading-relaxed">{inline(block.text, query)}</p>
         </div>

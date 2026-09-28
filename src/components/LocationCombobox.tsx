@@ -89,19 +89,19 @@ export default function LocationCombobox({
           placeholder={placeholder || t('locationPlaceholder')}
           disabled={disabled}
           className={cn(
-            'flex h-11 w-full rounded-md border border-input bg-transparent px-3 py-2 pr-10 text-sm sm:h-9 shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50',
+            'flex h-11 w-full rounded-lg border border-input bg-card px-3 py-2 pr-10 text-sm text-foreground sm:h-9 placeholder:text-muted-foreground/70 focus-visible:border-primary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 dark:bg-input/20',
             className,
           )}
         />
-        <MapPin className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 opacity-50" />
+        <MapPin className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
       </div>
 
       {open && hasResults && (
-        <div className="absolute z-50 mt-1 w-full rounded-md border border-border bg-popover shadow-md">
+        <div className="absolute z-50 mt-1 w-full rounded-lg border bg-popover text-popover-foreground shadow-xl">
           <div id={listboxId} role="listbox" className="max-h-[200px] overflow-y-auto p-1">
             {hallResults.length > 0 && (
               <div>
-                <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">{t('clubHalls')}</div>
+                <div className="px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t('clubHalls')}</div>
                 {hallResults.map((r) => (
                   <button
                     key={`hall-${r.name}-${r.address}`}
@@ -109,7 +109,7 @@ export default function LocationCombobox({
                     role="option"
                     aria-selected={false}
                     onClick={() => handleSelect(r)}
-                    className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent hover:text-accent-foreground"
+                    className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-sm hover:bg-accent hover:text-accent-foreground"
                   >
                     <div className="h-full w-0.5 min-h-[24px] self-stretch rounded bg-gold-400" />
                     <div className="min-w-0 flex-1">
@@ -127,7 +127,7 @@ export default function LocationCombobox({
 
             {(placesResults.length > 0 || placesLoading) && (
               <div>
-                <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">{t('searchResults')}</div>
+                <div className="px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t('searchResults')}</div>
                 {placesLoading && (
                   <div className="px-2 py-1.5 text-xs text-muted-foreground">{t('searching')}</div>
                 )}
@@ -138,7 +138,7 @@ export default function LocationCombobox({
                     role="option"
                     aria-selected={false}
                     onClick={() => handleSelect(r)}
-                    className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent hover:text-accent-foreground"
+                    className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-sm hover:bg-accent hover:text-accent-foreground"
                   >
                     <div className="min-w-0 flex-1">
                       <div className="truncate font-medium" title={r.name}>{r.name}</div>
@@ -157,7 +157,7 @@ export default function LocationCombobox({
       )}
 
       {open && search.length > 0 && !hasResults && (
-        <div className="absolute z-50 mt-1 w-full rounded-md border border-border bg-popover p-2 shadow-md">
+        <div className="absolute z-50 mt-1 w-full rounded-lg border bg-popover p-2 text-popover-foreground shadow-xl">
           <div className="text-sm text-muted-foreground">{t('noResults')}</div>
         </div>
       )}

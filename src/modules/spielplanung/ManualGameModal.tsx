@@ -475,7 +475,7 @@ export default function ManualGameModal({
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <Label>{t('manualGame.homeAway')} *</Label>
-            <div className="mt-1 grid grid-cols-2 gap-1 rounded-md border bg-muted/30 p-1">
+            <div className="mt-1 grid grid-cols-2 gap-0.5 rounded-lg border border-border bg-card p-0.5">
               <Button
                 type="button"
                 onClick={() => setType('home')}
@@ -484,8 +484,8 @@ export default function ManualGameModal({
                 className={cn(
                   'gap-1.5 text-sm',
                   type === 'home'
-                    ? 'bg-gold-400 text-brand-900 hover:bg-gold-400 hover:text-brand-900'
-                    : 'text-muted-foreground hover:bg-muted',
+                    ? 'bg-selected text-selected-foreground hover:bg-selected hover:text-selected-foreground'
+                    : 'text-muted-foreground hover:bg-accent hover:text-foreground',
                 )}
               >
                 <HomeIcon className="h-4 w-4" aria-hidden /> {t('manualGame.home')}
@@ -498,8 +498,8 @@ export default function ManualGameModal({
                 className={cn(
                   'gap-1.5 text-sm',
                   type === 'away'
-                    ? 'bg-gold-400 text-brand-900 hover:bg-gold-400 hover:text-brand-900'
-                    : 'text-muted-foreground hover:bg-muted',
+                    ? 'bg-selected text-selected-foreground hover:bg-selected hover:text-selected-foreground'
+                    : 'text-muted-foreground hover:bg-accent hover:text-foreground',
                 )}
               >
                 <Plane className="h-4 w-4" aria-hidden /> {t('manualGame.away')}
@@ -569,8 +569,8 @@ export default function ManualGameModal({
             )}
           </div>
         ) : (
-          <div className="space-y-2 rounded-md border p-3">
-            <Label className="text-xs uppercase text-muted-foreground">
+          <div className="space-y-2 rounded-xl border border-hairline bg-surface-sunken p-3">
+            <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
               {t('manualGame.awayVenue')}
             </Label>
             <Input
@@ -643,8 +643,8 @@ export default function ManualGameModal({
                   className={cn(
                     'rounded-full',
                     active
-                      ? 'border-brand-500 bg-brand-100 text-brand-700 hover:bg-brand-100 hover:text-brand-700 dark:border-brand-600 dark:bg-brand-900/30 dark:text-brand-300 dark:hover:bg-brand-900/30'
-                      : 'bg-transparent text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800',
+                      ? 'border-transparent bg-selected text-selected-foreground hover:bg-selected/90 hover:text-selected-foreground'
+                      : 'bg-transparent text-muted-foreground hover:bg-accent',
                   )}
                 >
                   {opt.label}
@@ -682,8 +682,8 @@ export default function ManualGameModal({
                     className={cn(
                       'rounded-full',
                       active
-                        ? 'border-brand-500 bg-brand-100 text-brand-700 hover:bg-brand-100 hover:text-brand-700 dark:border-brand-600 dark:bg-brand-900/30 dark:text-brand-300 dark:hover:bg-brand-900/30'
-                        : 'bg-transparent text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800',
+                        ? 'border-transparent bg-selected text-selected-foreground hover:bg-selected/90 hover:text-selected-foreground'
+                        : 'bg-transparent text-muted-foreground hover:bg-accent',
                     )}
                   >
                     {opt.label}
@@ -696,7 +696,7 @@ export default function ManualGameModal({
 
         {/* Conflict banner */}
         {errors.length > 0 && (
-          <div className="rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200">
+          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">
             <div className="flex items-start gap-2">
               <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
               <div className="space-y-1">
@@ -708,7 +708,7 @@ export default function ManualGameModal({
           </div>
         )}
         {warnings.length > 0 && (
-          <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-300">
             <div className="flex items-start gap-2">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
               <div className="space-y-1">
@@ -720,7 +720,7 @@ export default function ManualGameModal({
           </div>
         )}
         {submitError && (
-          <div className="rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200">
+          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">
             {submitError}
           </div>
         )}

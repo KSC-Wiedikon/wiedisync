@@ -121,7 +121,7 @@ export default function GuidePage() {
       <div className="flex items-center gap-3">
         <CircleHelp className="h-7 w-7 text-primary shrink-0" />
         <div>
-          <h1 className="text-2xl font-bold text-foreground">{t('page.title')}</h1>
+          <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">{t('page.title')}</h1>
           <p className="text-sm text-muted-foreground">{t('page.subtitle')}</p>
         </div>
       </div>
@@ -151,7 +151,7 @@ export default function GuidePage() {
       </div>
 
       {error && (
-        <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-900 dark:text-amber-200">
+        <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
           <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
           <p>{t('page.loadError')}</p>
         </div>
@@ -164,7 +164,7 @@ export default function GuidePage() {
       {!q && (
         <button
           onClick={() => setInstallOpen(true)}
-          className="w-full flex items-center gap-3 rounded-xl border border-border px-4 py-3.5 text-left hover:bg-muted/50 transition-colors min-h-[56px]"
+          className="w-full flex items-center gap-3 rounded-2xl border border-hairline bg-card shadow-card px-4 py-3.5 text-left hover:bg-muted/70 transition-colors min-h-[56px]"
         >
           <Smartphone className="h-5 w-5 text-primary shrink-0" />
           <div className="flex-1 min-w-0">
@@ -185,8 +185,8 @@ export default function GuidePage() {
 
       {/* Table of contents */}
       {!q && (
-        <nav aria-label={t('page.contents')} className="rounded-xl border border-border p-4">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+        <nav aria-label={t('page.contents')} className="rounded-2xl border border-hairline bg-card p-4 shadow-card">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground mb-3">
             {t('page.contents')}
           </p>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -202,7 +202,7 @@ export default function GuidePage() {
                         <button
                           type="button"
                           onClick={() => jumpTo(def.id)}
-                          className="flex min-h-11 w-full items-center gap-2 rounded-md px-1.5 py-1.5 text-left text-sm text-foreground hover:bg-muted/60 sm:min-h-9"
+                          className="flex min-h-11 w-full items-center gap-2 rounded-md px-1.5 py-1.5 text-left text-sm text-foreground hover:bg-muted sm:min-h-9"
                         >
                           <def.icon className="h-4 w-4 shrink-0 text-muted-foreground" />
                           <span className="min-w-0 flex-1 break-words">{content.title}</span>
@@ -226,10 +226,10 @@ export default function GuidePage() {
           if (items.length === 0) return null
           return (
             <div key={group} className="space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-1">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground px-1">
                 {t(`page.groups.${group}`)}
               </p>
-              <div className="rounded-xl border border-border divide-y divide-border">
+              <div className="overflow-hidden rounded-2xl border border-hairline bg-card shadow-card divide-y divide-border">
                 {items.map(({ def, content }) => (
                   <GuideSection
                     key={def.id}
@@ -294,7 +294,7 @@ function GuideSection({
           onClick={onToggle}
           aria-expanded={open}
           aria-controls={`guide-${def.id}-body`}
-          className="w-full flex items-start gap-3 px-4 py-3.5 text-left hover:bg-muted/50 transition-colors min-h-[56px]"
+          className="w-full flex items-start gap-3 px-4 py-3.5 text-left hover:bg-muted/70 transition-colors min-h-[56px]"
         >
           <Icon className="mt-0.5 h-5 w-5 text-muted-foreground shrink-0" />
           <span className="flex-1 min-w-0 block">

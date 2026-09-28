@@ -147,7 +147,7 @@ function MemberSearchDialog({ adding, pending, error, onClose, onPick }: {
           <DialogDescription>{t('admin:householdMemberSearchHint')}</DialogDescription>
         </DialogHeader>
         {error && (
-          <p role="alert" className="mx-4 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive dark:text-red-400">
+          <p role="alert" className="mx-4 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive dark:text-red-400">
             {error}
           </p>
         )}
@@ -328,7 +328,7 @@ export default function HouseholdsPage() {
     <div className="mx-auto max-w-5xl space-y-6 p-4">
       <div className="flex flex-wrap items-center gap-3">
         <div className="min-w-0 flex-1">
-          <h1 className="text-2xl font-bold text-foreground">{t('admin:householdsTitle')}</h1>
+          <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">{t('admin:householdsTitle')}</h1>
           <p className="mt-1 max-w-prose text-sm text-muted-foreground">{t('admin:householdsIntro')}</p>
         </div>
         <Button onClick={() => { void createHousehold() }} disabled={busy}>
@@ -347,11 +347,11 @@ export default function HouseholdsPage() {
         // delete would CASCADE away the history of who could act for a minor).
         const neverUsed = h.members.length === 0
         return (
-        <section key={h.id} className="rounded-lg border border-border bg-card p-4">
+        <section key={h.id} className="rounded-2xl border border-hairline bg-card p-4 shadow-card">
           <div className="mb-3 flex flex-wrap items-start gap-2">
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1">
-                <h2 className="break-words text-lg font-semibold text-foreground">{h.name}</h2>
+                <h2 className="break-words text-base font-semibold text-foreground">{h.name}</h2>
                 <IconButton size="sm" disabled={busy}
                   label={t('admin:householdRename')}
                   onClick={() => { void renameHousehold(h) }}>

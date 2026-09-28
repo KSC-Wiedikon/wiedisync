@@ -62,7 +62,7 @@ export default function BasketballBoard({ state }: { state: BoardState }) {
   const possession = state.serving_team
 
   return (
-    <div className="rounded-xl border bg-card p-4 shadow-sm sm:p-6">
+    <div className="rounded-2xl border border-hairline bg-card p-4 shadow-card sm:p-6">
       <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-4">
         <TeamColumn team={a} align="start" />
 

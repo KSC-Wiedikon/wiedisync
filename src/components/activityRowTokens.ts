@@ -10,7 +10,7 @@ export const ROW_TONE_TEXT: Record<RowTone, string> = {
   red: 'text-red-600 dark:text-red-400',
   sky: 'text-sky-700 dark:text-sky-300',
   violet: 'text-violet-700 dark:text-violet-300',
-  gray: 'text-gray-700 dark:text-gray-300',
+  gray: 'text-foreground/85',
 }
 
 export const ROW_TONE_STRIPE: Record<RowTone, string> = {
@@ -20,7 +20,7 @@ export const ROW_TONE_STRIPE: Record<RowTone, string> = {
   red: 'bg-red-500 dark:bg-red-500',
   sky: 'bg-sky-500 dark:bg-sky-400',
   violet: 'bg-violet-500 dark:bg-violet-400',
-  gray: 'bg-gray-200 dark:bg-gray-700',
+  gray: 'bg-border',
 }
 
 /** Rail width — ONE value for every row in the app. */

@@ -22,20 +22,20 @@ export function NameCell({ m, teamNames, unrostered }: {
     // ⚠ It lives on THIS div and not on the <td>: min-height on a
     // `display: table-cell` box is unreliable, the row box governs the height.
     <div className="flex min-h-[44px] min-w-0 flex-col justify-center">
-      <span className="block text-sm font-medium whitespace-normal break-words text-gray-900 dark:text-white">
+      <span className="block text-sm font-medium whitespace-normal break-words text-foreground">
         {m.last_name}
       </span>
-      <span className="block text-sm whitespace-normal break-words text-gray-700 dark:text-gray-300">
+      <span className="block text-sm whitespace-normal break-words text-foreground/85">
         {display}
       </span>
       {dob && (
-        <span className="text-xs text-gray-500 dark:text-gray-400" title={t('trColBirthdate')}>
+        <span className="text-xs text-muted-foreground" title={t('trColBirthdate')}>
           {dob}
         </span>
       )}
       {teamNames && teamNames.length > 0 && (
         <span
-          className="text-xs whitespace-normal text-brand-600 dark:text-brand-400"
+          className="text-xs whitespace-normal text-primary dark:text-brand-300"
           title={t('trColTeams')}
         >
           {teamNames.join(', ')}
@@ -59,7 +59,7 @@ export function NameCell({ m, teamNames, unrostered }: {
         </span>
       )}
       {m.email && (
-        <span className="hidden text-xs break-all text-gray-400 sm:block dark:text-gray-500">
+        <span className="hidden text-xs break-all text-muted-foreground/80 sm:block">
           {m.email}
         </span>
       )}

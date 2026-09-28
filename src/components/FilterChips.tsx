@@ -43,11 +43,11 @@ export default function FilterChips({
   }
 
   const sizeClasses = compact
-    ? 'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium transition-all'
+    ? 'inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
     // Tool tier of the control scale: 44px touch on a phone, 32px from sm.
-    : 'inline-flex h-11 items-center gap-1.5 rounded-full border px-3 text-sm font-medium transition-all active:scale-95 sm:h-8 sm:text-xs'
+    : 'inline-flex h-11 items-center gap-1.5 rounded-lg border px-2.5 text-sm font-medium transition-colors active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-8 sm:text-xs'
 
-  const unselectedClasses = 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50 hover:shadow-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-gray-600 dark:hover:bg-gray-700/70'
+  const unselectedClasses = 'border-border bg-card text-muted-foreground hover:bg-accent hover:text-foreground dark:bg-transparent'
   const dotSize = compact ? 'h-1.5 w-1.5' : 'h-2 w-2'
 
   const allSelected = options.every((o) => selected.includes(o.value))
@@ -71,7 +71,7 @@ export default function FilterChips({
             allSelected
               ? 'border-gold-400 bg-gold-100 text-gold-900 dark:border-gold-400/50 dark:bg-gold-400/20 dark:text-gold-300'
               : noneSelected
-                ? 'border-red-200 bg-red-50 text-red-600 dark:border-red-700 dark:bg-red-900/30 dark:text-red-400'
+                ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300'
                 : unselectedClasses,
           )}
           title={allSelected ? t('selectNone') : t('selectAll')}
@@ -89,7 +89,7 @@ export default function FilterChips({
               type="button"
               onClick={() => handleClick(option.value)}
               aria-pressed={isSelected}
-              className={cn(sizeClasses, isSelected ? cn(option.colorClasses, 'shadow-sm') : unselectedClasses)}
+              className={cn(sizeClasses, isSelected ? option.colorClasses : unselectedClasses)}
             >
               {option.label}
             </button>
@@ -103,7 +103,7 @@ export default function FilterChips({
             type="button"
             onClick={() => handleClick(option.value)}
             aria-pressed={isSelected}
-            className={cn(sizeClasses, isSelected ? 'shadow-sm ring-1 ring-inset ring-white/25' : unselectedClasses)}
+            className={cn(sizeClasses, isSelected ? 'ring-1 ring-inset ring-white/25' : unselectedClasses)}
             style={
               isSelected
                 ? {

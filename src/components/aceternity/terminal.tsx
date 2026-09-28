@@ -253,8 +253,8 @@ const tokenColors: Record<TokenType, string> = {
   operator: "text-red-400",
   path: "text-cyan-300",
   variable: "text-pink-400",
-  comment: "text-neutral-500",
-  default: "text-neutral-300",
+  comment: "text-stone-500",
+  default: "text-stone-300",
 };
 
 function SyntaxHighlightedText({ text }: { text: string }) {
@@ -413,11 +413,11 @@ export function Terminal({
   }, [lines, phase]);
 
   const prompt = (
-    <span className="text-neutral-500">
+    <span className="text-stone-500">
       <span className="text-sky-500">{username}</span>
       <span className="text-emerald-600">:</span>
       <span className="text-sky-400">~</span>
-      <span className="text-neutral-500">$</span>{" "}
+      <span className="text-stone-500">$</span>{" "}
     </span>
   );
 
@@ -429,16 +429,16 @@ export function Terminal({
         className,
       )}
     >
-      <div className="overflow-hidden rounded-lg border border-neutral-800 bg-neutral-900 shadow-2xl">
+      <div className="overflow-hidden rounded-lg border border-stone-800 bg-stone-900 shadow-2xl">
         {/* Title Bar */}
-        <div className="flex items-center gap-2 bg-neutral-800 px-4 py-3">
+        <div className="flex items-center gap-2 bg-stone-800 px-4 py-3">
           <div className="flex items-center gap-1.5">
             <div className="h-3 w-3 rounded-full bg-red-500 transition-colors hover:bg-red-600" />
             <div className="h-3 w-3 rounded-full bg-yellow-500 transition-colors hover:bg-yellow-600" />
             <div className="h-3 w-3 rounded-full bg-green-500 transition-colors hover:bg-green-600" />
           </div>
           <div className="flex-1 text-center">
-            <span className="truncate text-xs text-neutral-400">
+            <span className="truncate text-xs text-stone-400">
               {username} — bash
             </span>
           </div>
@@ -458,7 +458,7 @@ export function Terminal({
                   <SyntaxHighlightedText text={line.content} />
                 </span>
               ) : (
-                <span className="text-neutral-400">{line.content}</span>
+                <span className="text-stone-400">{line.content}</span>
               )}
             </div>
           ))}
@@ -467,7 +467,7 @@ export function Terminal({
             <div className="leading-relaxed whitespace-pre-wrap">
               {prompt}
               <SyntaxHighlightedText text={currentText} />
-              <span className="ml-0.5 inline-block h-4 w-2 bg-neutral-300 align-middle" />
+              <span className="ml-0.5 inline-block h-4 w-2 bg-stone-300 align-middle" />
             </div>
           )}
 
@@ -478,7 +478,7 @@ export function Terminal({
               {prompt}
               <span
                 className={cn(
-                  "inline-block h-4 w-2 bg-neutral-300 align-middle transition-opacity duration-100",
+                  "inline-block h-4 w-2 bg-stone-300 align-middle transition-opacity duration-100",
                   !cursorVisible && "opacity-0",
                 )}
               />

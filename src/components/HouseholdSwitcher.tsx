@@ -45,7 +45,7 @@ export default function HouseholdSwitcher({ open, onClose }: { open: boolean; on
           type="button"
           onClick={() => { void choose(null) }}
           aria-current={!actingMember ? 'true' : undefined}
-          className={cn('flex min-h-[56px] items-center gap-3 rounded-md px-2 text-left transition-colors hover:bg-muted', !actingMember && 'bg-muted')}
+          className={cn('flex min-h-[56px] items-center gap-3 rounded-xl px-2 text-left transition-colors hover:bg-accent', !actingMember && 'bg-accent')}
         >
           <HouseholdAvatar photo={realUser.photo} name={selfName} />
           <span className="min-w-0 flex-1">
@@ -64,7 +64,7 @@ export default function HouseholdSwitcher({ open, onClose }: { open: boolean; on
               type="button"
               onClick={() => { void choose(Number(m.id)) }}
               aria-current={active ? 'true' : undefined}
-              className={cn('flex min-h-[56px] items-center gap-3 rounded-md px-2 text-left transition-colors hover:bg-muted', active && 'bg-muted')}
+              className={cn('flex min-h-[56px] items-center gap-3 rounded-xl px-2 text-left transition-colors hover:bg-accent', active && 'bg-accent')}
             >
               <HouseholdAvatar photo={m.photo} name={m.first_name || name} accent={accentOf(m.accent)} />
               <span className="min-w-0 flex-1">

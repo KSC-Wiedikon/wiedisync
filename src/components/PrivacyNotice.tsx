@@ -31,10 +31,10 @@ export default function PrivacyNotice() {
 
   return (
     <div className="fixed bottom-16 left-0 right-0 z-50 flex items-center justify-center px-4 sm:bottom-4">
-      <div className="flex max-w-lg items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm shadow-lg dark:border-gray-700 dark:bg-gray-800">
-        <p className="text-gray-600 dark:text-gray-300">
+      <div className="flex max-w-lg items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 text-sm shadow-lg">
+        <p className="text-muted-foreground">
           {t('noticeCookies')}{' '}
-          <Link to="/datenschutz" className="underline hover:text-gray-900 dark:hover:text-white">
+          <Link to="/datenschutz" className="underline hover:text-foreground">
             {t('noticeLink')}
           </Link>
         </p>

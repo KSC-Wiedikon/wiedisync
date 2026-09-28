@@ -88,10 +88,10 @@ export default function MailboxPage() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-xl font-bold text-gray-900 sm:text-2xl dark:text-gray-100">{t('mailboxPageTitle')}</h1>
+        <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">{t('mailboxPageTitle')}</h1>
         {/* Volleyball / Basketball toggle — only when the user can access both. */}
         {canVB && canBB && (
-          <div className="inline-flex self-start rounded-lg border border-gray-200 bg-gray-50 p-0.5 dark:border-gray-700 dark:bg-gray-800">
+          <div className="inline-flex self-start rounded-lg border border-border bg-card p-0.5">
             {(['volleyball', 'basketball'] as const).map((s) => (
               <Button
                 key={s}
@@ -100,8 +100,8 @@ export default function MailboxPage() {
                 variant="ghost"
                 className={`px-4 ${
                   sport === s
-                    ? 'bg-white text-brand-700 shadow-sm hover:bg-white hover:text-brand-700 dark:bg-gray-900 dark:text-gold-400 dark:hover:bg-gray-900 dark:hover:text-gold-400'
-                    : 'text-gray-600 hover:bg-transparent hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100'
+                    ? 'bg-selected text-selected-foreground hover:bg-selected hover:text-selected-foreground'
+                    : 'text-muted-foreground hover:bg-transparent hover:text-foreground'
                 }`}
                 aria-pressed={sport === s}
               >

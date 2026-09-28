@@ -63,13 +63,13 @@ export default function SpielplanungFilters({ filters, onChange }: SpielplanungF
 
       <ViewToggle options={typeOptions} value={filters.gameType} onChange={handleTypeChange} />
 
-      <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <Switch checked={filters.showAbsences} onCheckedChange={(checked) => onChange({ ...filters, showAbsences: checked })} />
         {t('showAbsences')}
       </div>
 
       <div
-        className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400"
+        className="flex items-center gap-2 text-sm text-muted-foreground"
         title={filters.selectedTeamIds.length === 0 ? t('crossTeamNeedsTeam') : undefined}
       >
         <Switch

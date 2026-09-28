@@ -50,7 +50,7 @@ export default function RefereeExpenseNudge({ onOpenGame }: RefereeExpenseNudgeP
 
   return (
     <div className="mb-6 lg:flex lg:flex-col lg:items-center">
-      <div className="w-full rounded-xl border border-amber-300 bg-amber-50 p-4 lg:max-w-2xl dark:border-amber-700/60 dark:bg-amber-900/20">
+      <div className="w-full rounded-2xl border border-amber-300 bg-amber-50 p-4 shadow-card lg:max-w-2xl dark:border-amber-700/60 dark:bg-amber-950/40">
         <div className="flex items-start gap-3">
           <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
           <div className="min-w-0 flex-1">
@@ -77,7 +77,7 @@ export default function RefereeExpenseNudge({ onOpenGame }: RefereeExpenseNudgeP
                     <div className="flex shrink-0 flex-wrap items-center gap-2 sm:ml-auto">
                       <Button
                         onClick={() => onOpenGame(g)}
-                        className="bg-amber-600 text-white shadow-sm hover:bg-amber-700 dark:bg-amber-500 dark:text-amber-950 dark:hover:bg-amber-400"
+                        className="bg-amber-600 text-white hover:bg-amber-700 dark:bg-amber-500 dark:text-amber-950 dark:hover:bg-amber-400"
                       >
                         {t('refExpenseNudgeCta')}
                       </Button>

@@ -232,7 +232,7 @@ export default function InvitesDrawer({ open, onOpenChange, kscwTeam, api }: Pro
       <DrawerContent className="max-h-[92vh]">
         <DrawerHeader>
           <DrawerTitle>
-            {t('invitesTitle')} — {kscwTeam?.name} <span className="text-sm font-normal text-gray-500">({kscwTeam?.league})</span>
+            {t('invitesTitle')} — {kscwTeam?.name} <span className="text-sm font-normal text-muted-foreground">({kscwTeam?.league})</span>
           </DrawerTitle>
           <DrawerDescription>{t('createInvites')}</DrawerDescription>
         </DrawerHeader>
@@ -243,7 +243,7 @@ export default function InvitesDrawer({ open, onOpenChange, kscwTeam, api }: Pro
               re-fetch for the freshest contacts. */}
           <div>
             <div className="mb-2 flex flex-wrap items-center gap-2">
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t('opponentContacts')}</h3>
+              <h3 className="text-sm font-semibold text-foreground">{t('opponentContacts')}</h3>
               <div className="ml-auto flex shrink-0 gap-2">
                 <Button size="sm" variant="secondary" onClick={() => loadLeagueClubs()} disabled={loadingClubs || !kscwTeam}>
                   {loadingClubs ? t('loadingClubs') : t('reloadSynced')}
@@ -253,12 +253,12 @@ export default function InvitesDrawer({ open, onOpenChange, kscwTeam, api }: Pro
                 </Button>
               </div>
             </div>
-            <p className="text-xs text-gray-500 dark:text-gray-400">{t('autoFillHint')}</p>
+            <p className="text-xs text-muted-foreground">{t('autoFillHint')}</p>
           </div>
 
           {/* Manual CSV paste */}
           <div>
-            <h3 className="mb-2 text-sm font-semibold text-gray-900 dark:text-gray-100">{t('addManually')}</h3>
+            <h3 className="mb-2 text-sm font-semibold text-foreground">{t('addManually')}</h3>
             <Textarea
               value={csvText}
               onChange={(e) => setCsvText(e.target.value)}
@@ -273,10 +273,10 @@ export default function InvitesDrawer({ open, onOpenChange, kscwTeam, api }: Pro
 
           {/* Draft rows */}
           {drafts.length > 0 && (
-            <div className="rounded border border-gray-200 dark:border-gray-700">
+            <div className="overflow-hidden rounded-xl border border-hairline">
               <table className="w-full table-fixed text-sm">
                 <thead>
-                  <tr className="border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
+                  <tr className="border-b border-border bg-surface-sunken text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                     <th className="w-10 py-2 pl-3"></th>
                     <th className="py-2 pr-2">{t('inviteTeam')}</th>
                     <th className="py-2 pr-2">{t('inviteEmail')}</th>
@@ -287,7 +287,7 @@ export default function InvitesDrawer({ open, onOpenChange, kscwTeam, api }: Pro
                 </thead>
                 <tbody>
                   {drafts.map((d) => (
-                    <tr key={d.id} className="border-b border-gray-200 last:border-0 dark:border-gray-800 [&>td]:align-top">
+                    <tr key={d.id} className="border-b border-border last:border-0 [&>td]:align-top">
                       <td className="py-1.5 pl-3">
                         <Checkbox checked={d.selected} onCheckedChange={(v) => updateDraft(d.id, { selected: !!v })} />
                       </td>
@@ -307,7 +307,7 @@ export default function InvitesDrawer({ open, onOpenChange, kscwTeam, api }: Pro
                               {t('gameCount', { count: d.game_count })}
                             </button>
                           ) : (
-                            <div className="mt-0.5 text-[10px] text-gray-500">
+                            <div className="mt-0.5 text-[10px] text-muted-foreground">
                               {t('gameCount', { count: d.game_count })}
                             </div>
                           ))}
@@ -341,7 +341,7 @@ export default function InvitesDrawer({ open, onOpenChange, kscwTeam, api }: Pro
                           type="button"
                           onClick={() => removeDraft(d.id)}
                           label="Remove"
-                          className="text-gray-400 hover:text-red-600 dark:hover:text-red-400"
+                          className="text-muted-foreground/80 hover:text-red-600 dark:hover:text-red-400"
                         >
                           <X />
                         </IconButton>
@@ -354,9 +354,9 @@ export default function InvitesDrawer({ open, onOpenChange, kscwTeam, api }: Pro
           )}
         </div>
 
-        <DrawerFooter className="border-t border-gray-200 dark:border-gray-800">
+        <DrawerFooter className="border-t border-border">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-gray-500 dark:text-gray-400">
+            <span className="text-xs text-muted-foreground">
               {selectedCount} / {drafts.length}
             </span>
             <div className="flex gap-2">
@@ -389,7 +389,7 @@ export default function InvitesDrawer({ open, onOpenChange, kscwTeam, api }: Pro
                   <TableCell className="whitespace-nowrap font-medium">
                     {g.date ? formatDateTimeCompact(g.date) : '—'}
                   </TableCell>
-                  <TableCell className="text-gray-600 dark:text-gray-400 whitespace-normal break-words">
+                  <TableCell className="text-muted-foreground whitespace-normal break-words">
                     {g.is_home_kscw
                       ? `KSCW ${kscwTeam?.name ?? ''} vs ${gamesFor?.team_name ?? ''}`
                       : `${gamesFor?.team_name ?? ''} vs KSCW ${kscwTeam?.name ?? ''}`}

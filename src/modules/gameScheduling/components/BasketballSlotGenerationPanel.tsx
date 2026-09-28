@@ -159,9 +159,9 @@ export default function BasketballSlotGenerationPanel({
       .slice(0, 3)
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-4 sm:p-6 dark:border-gray-700 dark:bg-gray-800">
-      <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('generateTitle')}</h2>
-      <p className="mt-1 mb-4 max-w-3xl text-xs text-gray-500 dark:text-gray-400">{t('generateHint')}</p>
+    <div className="rounded-2xl border border-hairline bg-card shadow-card p-4 sm:p-6">
+      <h2 className="text-base font-semibold tracking-tight text-foreground">{t('generateTitle')}</h2>
+      <p className="mt-1 mb-4 max-w-3xl text-xs text-muted-foreground">{t('generateHint')}</p>
 
       <div className="flex flex-wrap items-center gap-3">
         <Button
@@ -195,33 +195,33 @@ export default function BasketballSlotGenerationPanel({
         )}
 
         {hasSlots && (
-          <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+          <span className="text-sm font-semibold text-foreground/85">
             {t('slotsTotal', { count: totalAvailable })}
           </span>
         )}
       </div>
 
       {plannedTeams.length === 0 && (
-        <p className="mt-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+        <p className="mt-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
           {t('generateNoEnabledTeams')}
         </p>
       )}
       {/* Informational, not a warning: an open team is a planned team. */}
       {openTeams.length > 0 && (
-        <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
+        <p className="mt-3 text-xs text-muted-foreground">
           {t('generateOpenTeams', { teams: openTeams.map((tm) => tm.name).join(', ') })}
         </p>
       )}
 
       {result && (
-        <div className="mt-3 rounded-md bg-green-50 p-3 text-sm text-green-800 dark:bg-green-900/30 dark:text-green-300">
+        <div className="mt-3 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800 dark:border-green-900/60 dark:bg-green-900/30 dark:text-green-300">
           {t('slotsGenerated', { created: result.created, updated: result.updated, deleted: result.deleted })}
         </div>
       )}
 
       {rows.length > 0 && (
         <div className="mt-4">
-          <h3 className="mb-2 text-sm font-semibold text-gray-700 dark:text-gray-200">{t('perTeamTitle')}</h3>
+          <h3 className="mb-2 text-sm font-semibold text-foreground/85">{t('perTeamTitle')}</h3>
           <Table>
             <TableHeader>
               <TableRow>
@@ -243,7 +243,7 @@ export default function BasketballSlotGenerationPanel({
                       </span>
                     )}
                     {rule && !rule.enabled && (
-                      <span className="ml-2 rounded bg-gray-100 px-1.5 py-0.5 text-[11px] text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+                      <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
                         {t('ruleOff')}
                       </span>
                     )}
@@ -258,7 +258,7 @@ export default function BasketballSlotGenerationPanel({
                       </span>
                     ) : (
                       <span
-                        className="text-gray-400 dark:text-gray-500"
+                        className="text-muted-foreground/80"
                         title={t(`homeGamesUnknown_${home.reason ?? 'no_group'}`)}
                       >
                         –
@@ -272,13 +272,13 @@ export default function BasketballSlotGenerationPanel({
                     {run ? (
                       <span className="flex flex-wrap gap-1">
                         {topRejects(run.rejects).map((r) => (
-                          <span key={r.code} className="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-700">
+                          <span key={r.code} className="rounded bg-muted px-1.5 py-0.5">
                             {t(`reject_${r.code}`)} · {r.n}
                           </span>
                         ))}
                       </span>
                     ) : (
-                      <span className="text-gray-400 dark:text-gray-500">{t('rejectsAfterRun')}</span>
+                      <span className="text-muted-foreground/80">{t('rejectsAfterRun')}</span>
                     )}
                   </TableCell>
                 </TableRow>

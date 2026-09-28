@@ -40,12 +40,12 @@ export default function SaturdayHallPanel({ seasonId }: { seasonId: string }) {
   }
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-4 sm:p-6 dark:border-gray-700 dark:bg-gray-800">
+    <div className="rounded-2xl border border-hairline bg-card shadow-card p-4 sm:p-6">
       <div className="mb-1 flex items-center gap-2">
-        <Wand2 className="h-5 w-5 text-gray-500 dark:text-gray-400" />
-        <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{t('saturdayHallTitle')}</h2>
+        <Wand2 className="h-5 w-5 text-muted-foreground" />
+        <h2 className="text-base font-semibold tracking-tight text-foreground">{t('saturdayHallTitle')}</h2>
       </div>
-      <p className="mb-4 text-xs text-gray-500 dark:text-gray-400">{t('saturdayHallDescription')}</p>
+      <p className="mb-4 text-xs text-muted-foreground">{t('saturdayHallDescription')}</p>
       <Button type="button" size="sm" onClick={optimize} disabled={running} className="gap-1.5">
         {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
         {t('saturdayHallButton')}

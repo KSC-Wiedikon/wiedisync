@@ -159,21 +159,21 @@ export default function EmailTemplatesPage() {
       <div className="flex flex-wrap items-center gap-3">
         <Mail className="h-6 w-6 text-primary" />
         <div className="flex-1">
-          <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{t('etTitle')}</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400">{t('etSubtitle')}</p>
+          <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">{t('etTitle')}</h1>
+          <p className="text-sm text-muted-foreground">{t('etSubtitle')}</p>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 border-b border-gray-200 dark:border-gray-700">
+      <div className="flex gap-1 border-b border-border">
         {(['edit', 'sent'] as const).map((tb) => (
           <button
             key={tb}
             onClick={() => setTab(tb)}
             className={`min-h-[44px] px-4 text-sm font-medium transition-colors ${
               tab === tb
-                ? 'border-b-2 border-primary text-primary'
-                : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
+                ? 'border-b-2 border-foreground font-semibold text-foreground'
+                : 'text-muted-foreground hover:text-foreground'
             }`}
           >
             {tb === 'edit' ? t('etTabEdit') : t('etTabSent')}
@@ -183,7 +183,7 @@ export default function EmailTemplatesPage() {
 
       {tab === 'edit' ? (
         <>
-          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-300">
             <AlertTriangle className="mr-1.5 inline h-4 w-4 align-text-bottom" />
             {t('etFallbackNote')}
           </div>
@@ -196,7 +196,7 @@ export default function EmailTemplatesPage() {
                 variant={locale === l ? 'default' : 'outline'}
                 aria-pressed={locale === l}
                 onClick={() => switchLocale(l)}
-                className="uppercase"
+                className="uppercase aria-pressed:bg-selected aria-pressed:text-selected-foreground aria-pressed:hover:bg-selected/90"
               >
                 {l}
               </Button>
@@ -204,14 +204,14 @@ export default function EmailTemplatesPage() {
           </div>
 
           {isLoading ? (
-            <p className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">…</p>
+            <p className="py-8 text-center text-sm text-muted-foreground">…</p>
           ) : !current ? (
-            <p className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">{t('etNoTemplate')}</p>
+            <p className="py-8 text-center text-sm text-muted-foreground">{t('etNoTemplate')}</p>
           ) : (
             <div className="space-y-4">
               {FIELDS.map((f) => (
                 <div key={f} className="space-y-1">
-                  <label htmlFor={f === 'body_html' ? 'et-body' : `et-${f}`} className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  <label htmlFor={f === 'body_html' ? 'et-body' : `et-${f}`} className="block text-sm font-medium text-foreground/85">
                     {label(f)}
                   </label>
                   {f === 'body_html' ? (
@@ -222,7 +222,7 @@ export default function EmailTemplatesPage() {
                             key={p}
                             type="button"
                             onClick={() => insertPlaceholder(p)}
-                            className="font-mono text-gray-600 dark:text-gray-300"
+                            className="font-mono text-muted-foreground"
                           >
                             {`{{${p}}}`}
                           </Button>
@@ -233,7 +233,7 @@ export default function EmailTemplatesPage() {
                         rows={12}
                         value={value(f)}
                         onChange={(e) => setDraft((d) => ({ ...d, body_html: e.target.value }))}
-                        className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 font-mono text-xs text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                        className="w-full rounded-lg border border-input bg-card px-3 py-2 font-mono text-xs leading-relaxed text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-input/20"
                       />
                     </>
                   ) : (
@@ -242,10 +242,10 @@ export default function EmailTemplatesPage() {
                       type="text"
                       value={value(f)}
                       onChange={(e) => setDraft((d) => ({ ...d, [f]: e.target.value }))}
-                      className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                      className="h-11 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-9 dark:bg-input/20"
                     />
                   )}
-                  <p className="text-xs text-gray-500 dark:text-gray-400">{hint(f)}</p>
+                  <p className="text-xs text-muted-foreground">{hint(f)}</p>
                 </div>
               ))}
 
@@ -275,15 +275,15 @@ export default function EmailTemplatesPage() {
 
               {preview && (
                 <div className="space-y-2 pt-2">
-                  <p className="text-sm text-gray-600 dark:text-gray-300">
-                    <span className="text-gray-400 dark:text-gray-500">{t('etPreviewSubject')} </span>
+                  <p className="text-sm text-muted-foreground">
+                    <span className="text-muted-foreground/80">{t('etPreviewSubject')} </span>
                     {preview.subject}
                   </p>
                   <iframe
                     title={t('etPreview')}
                     srcDoc={preview.html}
                     sandbox=""
-                    className="h-[640px] w-full rounded-lg border border-gray-200 dark:border-gray-700"
+                    className="h-[640px] w-full rounded-xl border border-hairline"
                   />
                 </div>
               )}
@@ -307,13 +307,13 @@ function SentTab({
 }) {
   const [open, setOpen] = useState<EmailSend | null>(null)
 
-  if (isLoading) return <p className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">…</p>
-  if (!sends.length) return <p className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">{t('etNoSends')}</p>
+  if (isLoading) return <p className="py-8 text-center text-sm text-muted-foreground">…</p>
+  if (!sends.length) return <p className="py-8 text-center text-sm text-muted-foreground">{t('etNoSends')}</p>
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-gray-500 dark:text-gray-400">{t('etSentNote')}</p>
-      <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+      <p className="text-sm text-muted-foreground">{t('etSentNote')}</p>
+      <div className="overflow-x-auto rounded-2xl border border-hairline bg-card shadow-card">
         <Table>
           <TableHeader>
             <TableRow>
@@ -332,7 +332,7 @@ function SentTab({
                 </TableCell>
                 <TableCell className="whitespace-normal break-words text-sm">
                   {s.to_email}
-                  <span className="ml-1.5 text-xs uppercase text-gray-400 dark:text-gray-500">{s.locale}</span>
+                  <span className="ml-1.5 text-xs uppercase text-muted-foreground/80">{s.locale}</span>
                 </TableCell>
                 <TableCell className="hidden whitespace-normal break-words text-sm sm:table-cell">{s.subject}</TableCell>
                 <TableCell className="hidden whitespace-normal break-words text-sm sm:table-cell">{s.sent_by_name || '—'}</TableCell>
@@ -353,8 +353,8 @@ function SentTab({
       {open && (
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-3">
-            <p className="text-sm text-gray-600 dark:text-gray-300">
-              <span className="text-gray-400 dark:text-gray-500">{t('etColTo')}: </span>{open.to_email}
+            <p className="text-sm text-muted-foreground">
+              <span className="text-muted-foreground/80">{t('etColTo')}: </span>{open.to_email}
             </p>
             <Button variant="outline"
               onClick={() => setOpen(null)}
@@ -366,7 +366,7 @@ function SentTab({
             title={t('etViewSent')}
             srcDoc={open.body_html ?? ''}
             sandbox=""
-            className="h-[640px] w-full rounded-lg border border-gray-200 dark:border-gray-700"
+            className="h-[640px] w-full rounded-xl border border-hairline"
           />
         </div>
       )}

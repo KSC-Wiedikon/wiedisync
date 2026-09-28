@@ -43,7 +43,7 @@ function initialsFrom(alt: string): string {
 }
 
 const BUTTON_CLASS =
-  'inline-flex min-h-[44px] items-center gap-2 rounded-md border border-input bg-transparent px-3 text-sm font-medium shadow-sm transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50'
+  'inline-flex min-h-[44px] items-center gap-2 rounded-lg border border-border bg-card px-3 text-sm font-medium text-foreground/80 transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 dark:bg-transparent'
 
 export default function PhotoPicker({
   value,

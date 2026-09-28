@@ -138,7 +138,7 @@ export default function TeamOverview({ games, members, teams, sport, groupBy = '
   const isEmpty = groupBy === 'game' ? gameGroups.length === 0 : teamGroups.length === 0
   if (isEmpty) {
     return (
-      <div className="py-12 text-center text-gray-500 dark:text-gray-400">
+      <div className="py-12 text-center text-muted-foreground">
         <p>{t('overviewEmpty')}</p>
       </div>
     )
@@ -148,29 +148,29 @@ export default function TeamOverview({ games, members, teams, sport, groupBy = '
     return (
       <div className="mt-6 grid gap-4 sm:gap-6 md:grid-cols-2">
         {gameGroups.map(({ game, list }) => (
-          <div key={game.id} className="min-w-0 overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
-            <div className="flex items-center gap-3 border-b border-gray-200 px-4 py-3 dark:border-gray-700">
+          <div key={game.id} className="min-w-0 overflow-hidden rounded-2xl border border-hairline bg-card shadow-card">
+            <div className="flex items-center gap-3 border-b border-hairline px-4 py-3">
               <div className="min-w-0 flex-1">
-                <div className="text-xs text-gray-500 dark:text-gray-400">
+                <div className="text-xs tabular-nums text-muted-foreground">
                   {formatDateZurich(game.date)} · {game.time ? formatTime(game.time) : ''}
                 </div>
-                <div className="break-words text-sm font-semibold leading-snug dark:text-gray-200">
+                <div className="break-words text-sm font-semibold leading-snug text-foreground">
                   {game.home_team} – {game.away_team}
                 </div>
               </div>
               <DutyStatus game={game} sport={sport} />
             </div>
-            <div className="divide-y divide-gray-100 dark:divide-gray-700">
+            <div className="divide-y divide-border/60">
               {list.map((entry, i) => (
                 <div key={`${entry.dutyType}-${i}`} className="flex items-center gap-2 px-4 py-2.5">
                   {/* Fixed narrow, truncating so a long "Scorer/Scoreboard" can't
                       overflow into the team chip. */}
-                  <span className="w-20 shrink-0 truncate text-xs text-gray-500 dark:text-gray-400" title={dutyLabel[entry.dutyType]}>
+                  <span className="w-20 shrink-0 truncate text-xs text-muted-foreground" title={dutyLabel[entry.dutyType]}>
                     {dutyLabel[entry.dutyType]}
                   </span>
                   <div className="shrink-0"><TeamChip team={entry.teamName} size="sm" /></div>
                   {/* Person name is primary text: wraps, never truncates. */}
-                  <span className={`ml-auto min-w-0 break-words pl-2 text-right text-sm leading-snug ${entry.memberName ? 'font-medium dark:text-gray-200' : 'text-red-500'}`}>
+                  <span className={`ml-auto min-w-0 break-words pl-2 text-right text-sm leading-snug ${entry.memberName ? 'font-medium text-foreground' : 'text-red-500 dark:text-red-400'}`}>
                     {entry.memberName ?? t('unassigned')}
                   </span>
                 </div>
@@ -189,10 +189,10 @@ export default function TeamOverview({ games, members, teams, sport, groupBy = '
     .sort((a, b) => b.open - a.open || b.total - a.total || a.teamName.localeCompare(b.teamName, i18n.language))
 
   return (
-    <div className="mt-6 overflow-x-auto">
+    <div className="mt-6 overflow-x-auto rounded-2xl border border-hairline bg-card shadow-card">
       <Table className="w-full text-left text-sm">
         <TableHeader>
-          <TableRow className="border-b border-gray-200 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:border-gray-700 dark:text-gray-400">
+          <TableRow className="border-b border-border text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
             <TableHead className="px-3 py-2">{t('overviewColTeam')}</TableHead>
             <TableHead className="px-3 py-2 text-center">{t('overviewColDuties')}</TableHead>
             <TableHead className="px-3 py-2 text-center">{t('overviewColOpen')}</TableHead>
@@ -204,37 +204,37 @@ export default function TeamOverview({ games, members, teams, sport, groupBy = '
             return (
               <Fragment key={r.teamName}>
                 <TableRow
-                  className="cursor-pointer border-b border-gray-100 hover:bg-gray-50 dark:border-gray-700/50 dark:hover:bg-gray-800/50"
+                  className="cursor-pointer border-b border-border/60 hover:bg-muted/70"
                   onClick={() => toggle(r.teamName)}
                 >
                   <TableCell className="px-3 py-2">
                     <div className="flex items-center gap-2">
-                      {isOpen ? <ChevronDown className="h-4 w-4 shrink-0 text-gray-400" /> : <ChevronRight className="h-4 w-4 shrink-0 text-gray-400" />}
+                      {isOpen ? <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground/80" /> : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/80" />}
                       <TeamChip team={r.teamName} size="sm" />
                     </div>
                   </TableCell>
-                  <TableCell className="px-3 py-2 text-center font-medium text-gray-900 dark:text-gray-100">{r.total}</TableCell>
-                  <TableCell className={`px-3 py-2 text-center ${r.open ? 'font-semibold text-red-500' : 'text-gray-400 dark:text-gray-500'}`}>
+                  <TableCell className="px-3 py-2 text-center font-medium text-foreground">{r.total}</TableCell>
+                  <TableCell className={`px-3 py-2 text-center ${r.open ? 'font-semibold text-red-500' : 'text-muted-foreground/80'}`}>
                     {r.open || '—'}
                   </TableCell>
                 </TableRow>
                 {isOpen && (
-                  <TableRow className="border-b border-gray-100 dark:border-gray-700/50">
-                    <TableCell colSpan={3} className="bg-gray-50/60 px-3 py-2 dark:bg-gray-800/40">
-                      <div className="divide-y divide-gray-100 dark:divide-gray-700/60">
+                  <TableRow className="border-b border-border/60">
+                    <TableCell colSpan={3} className="bg-surface-sunken/60 px-3 py-2">
+                      <div className="divide-y divide-border/60">
                         {r.list.map((entry, i) => (
                           <div key={`${entry.game.id}-${entry.dutyType}-${i}`} className="py-1.5">
                             {/* Two lines so it never overflows a narrow phone: the
                                 game on top, duty + assignee below. */}
                             <div className="flex items-start gap-2 text-xs">
-                              <span className="shrink-0 text-gray-500 dark:text-gray-400">{formatDateZurich(entry.game.date)}</span>
-                              <span className="min-w-0 flex-1 break-words text-gray-700 dark:text-gray-300">
+                              <span className="shrink-0 text-muted-foreground">{formatDateZurich(entry.game.date)}</span>
+                              <span className="min-w-0 flex-1 break-words text-foreground/85">
                                 {entry.game.home_team} – {entry.game.away_team}
                               </span>
                             </div>
                             <div className="mt-0.5 flex items-center gap-2 text-xs">
-                              <span className="shrink-0 text-gray-400 dark:text-gray-500">{dutyLabel[entry.dutyType]}:</span>
-                              <span className={`min-w-0 break-words ${entry.memberName ? 'font-medium text-gray-800 dark:text-gray-200' : 'text-red-500'}`}>
+                              <span className="shrink-0 text-muted-foreground/80">{dutyLabel[entry.dutyType]}:</span>
+                              <span className={`min-w-0 break-words ${entry.memberName ? 'font-medium text-foreground' : 'text-red-500'}`}>
                                 {entry.memberName ?? t('unassigned')}
                               </span>
                             </div>

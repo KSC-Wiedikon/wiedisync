@@ -48,7 +48,7 @@ export default function GameChip({ game, teamName, onClick }: GameChipProps) {
       {time && <span className="shrink-0 font-semibold text-foreground">{time}</span>}
       <span className="min-w-0 flex-1 truncate text-muted-foreground" title={opponent}>{opponent}</span>
       {cup === 'gold' && <Trophy className="h-3 w-3 shrink-0 text-yellow-500" aria-hidden />}
-      {cup === 'silver' && <Medal className="h-3 w-3 shrink-0 text-gray-400" aria-hidden />}
+      {cup === 'silver' && <Medal className="h-3 w-3 shrink-0 text-muted-foreground/80" aria-hidden />}
     </button>
   )
 }

@@ -48,7 +48,7 @@ export function useNavItems(isLoggedIn: boolean, isApproved: boolean) {
     // without an account (the `live_scores` read is on the Public policy).
     // Listed only while a match is actually live (or while you're on /live, so
     // the current page never vanishes from under you); a pulsing icon marks it.
-    ...(showLive ? [{ to: '/live', label: t('live'), icon: <Radio className={cn(iconClass, liveNow.live && 'text-red-500 motion-safe:animate-pulse')} /> }] : []),
+    ...(showLive ? [{ to: '/live', label: t('live'), icon: <Radio className={cn(iconClass, liveNow.live && '!text-red-500 motion-safe:animate-pulse')} /> }] : []),
   ]
   // Primary = the daily "what's happening" views (these mirror the mobile bottom
   // tab bar). In the desktop top navbar Home stays a direct link and the rest are

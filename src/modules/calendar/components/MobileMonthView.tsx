@@ -105,7 +105,7 @@ export default function MobileMonthView({
     const dayEntries = entriesByDate.get(dateKey) ?? []
     const uniqueColors = new Set<string>()
     for (const e of dayEntries) {
-      uniqueColors.add(dotColors[colorKey(e)] ?? 'bg-gray-400')
+      uniqueColors.add(dotColors[colorKey(e)] ?? 'bg-muted-foreground')
       if (uniqueColors.size >= 3) break
     }
     return [...uniqueColors]
@@ -127,18 +127,18 @@ export default function MobileMonthView({
     <div className="flex flex-col">
       {/* Month header */}
       <div className="mb-2 flex items-center justify-between gap-2">
-        <IconButton label={t('common:prevMonth')} onClick={() => onMonthChange(addMonths(month, -1))} className="text-gray-600 dark:text-gray-400">
+        <IconButton label={t('common:prevMonth')} onClick={() => onMonthChange(addMonths(month, -1))} className="text-muted-foreground">
           <ChevronLeft className="!size-5" />
         </IconButton>
         <div className="flex min-w-0 items-center gap-2">
-          <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+          <h2 className="text-base font-semibold text-foreground">
             {formatDate(month, 'MMMM yyyy')}
           </h2>
           <Button variant="secondary" size="sm" onClick={() => onMonthChange(startOfMonth(new Date()))} className="shrink-0">
             {t('common:today')}
           </Button>
         </div>
-        <IconButton label={t('common:nextMonth')} onClick={() => onMonthChange(addMonths(month, 1))} className="text-gray-600 dark:text-gray-400">
+        <IconButton label={t('common:nextMonth')} onClick={() => onMonthChange(addMonths(month, 1))} className="text-muted-foreground">
           <ChevronRight className="!size-5" />
         </IconButton>
       </div>
@@ -146,14 +146,14 @@ export default function MobileMonthView({
       {/* Day-of-week headers */}
       <div className="grid grid-cols-7">
         {dayHeaders().map((d) => (
-          <div key={d} className="py-1 text-center text-[10px] font-medium text-gray-600 dark:text-gray-400">
+          <div key={d} className="py-1 text-center text-[10px] font-medium text-muted-foreground">
             {d}
           </div>
         ))}
       </div>
 
       {/* Day grid — compact */}
-      <div className="grid grid-cols-7 overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+      <div className="grid grid-cols-7 overflow-hidden rounded-2xl border border-hairline bg-card shadow-card">
         {allDays.map((date) => {
           const key = toDateKey(date)
           const inMonth = isSameMonth(date, month)
@@ -167,13 +167,13 @@ export default function MobileMonthView({
               key={key}
               type="button"
               onClick={() => inMonth && handleDayTap(key)}
-              className={`flex h-11 flex-col items-center justify-center border-b border-r border-gray-100 dark:border-gray-700 ${
+              className={`flex h-11 flex-col items-center justify-center border-b border-r border-border/60 ${
                 !inMonth
-                  ? 'bg-gray-50 dark:bg-gray-900'
+                  ? 'bg-surface-sunken'
                   : isClosed
                     ? 'bg-red-50/40 dark:bg-red-950/20'
                     : isSelected
-                      ? 'bg-gray-100 dark:bg-gray-700'
+                      ? 'bg-stone-100 dark:bg-gray-700'
                       : ''
               }`}
             >
@@ -182,8 +182,8 @@ export default function MobileMonthView({
                   isToday
                     ? 'bg-gold-400 font-bold text-brand-900'
                     : !inMonth
-                      ? 'text-gray-300 dark:text-gray-600'
-                      : 'text-gray-800 dark:text-gray-200'
+                      ? 'text-muted-foreground/50'
+                      : 'text-foreground'
                 }`}
               >
                 {date.getDate()}
@@ -203,9 +203,9 @@ export default function MobileMonthView({
 
       {/* Expanded day panel */}
       {selectedDay && selectedEntries.length > 0 && (
-        <div className="mt-2 overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
-          <div className="border-b border-gray-100 bg-gray-50 px-3 py-2 dark:border-gray-700 dark:bg-gray-900">
-            <h3 className="text-xs font-semibold text-gray-700 dark:text-gray-300">
+        <div className="mt-2 overflow-hidden rounded-2xl border border-hairline bg-card shadow-card">
+          <div className="border-b border-border/60 bg-surface-sunken px-3 py-2">
+            <h3 className="text-xs font-semibold text-foreground/85">
               {formatDate(new Date(selectedDay + 'T00:00:00'), 'EEEE, d. MMMM')}
             </h3>
           </div>
@@ -228,7 +228,7 @@ export default function MobileMonthView({
                   title={
                     <div className={`flex min-w-0 items-start gap-2 ${cancelledClasses(entry)}`}>
                       <span className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${dotColors[colorKey(entry)]}`} />
-                      <p className="min-w-0 break-words text-sm font-medium leading-snug text-gray-900 dark:text-gray-100">
+                      <p className="min-w-0 break-words text-sm font-medium leading-snug text-foreground">
                         {entry.title}
                       </p>
                     </div>
@@ -237,7 +237,7 @@ export default function MobileMonthView({
                   {entry.location && (
                     <TruncatedText
                       text={entry.location}
-                      className={`mt-0.5 text-xs text-gray-500 dark:text-gray-400 ${cancelledClasses(entry)}`}
+                      className={`mt-0.5 text-xs text-muted-foreground ${cancelledClasses(entry)}`}
                     />
                   )}
                 </ActivityRow>
@@ -249,7 +249,7 @@ export default function MobileMonthView({
 
       {/* Empty state for selected day with no entries */}
       {selectedDay && selectedEntries.length === 0 && (
-        <div className="mt-2 rounded-lg border border-gray-200 bg-white p-4 text-center text-sm text-gray-400 dark:border-gray-700 dark:bg-gray-800">
+        <div className="mt-2 rounded-2xl border border-hairline bg-card p-4 shadow-card text-center text-sm text-muted-foreground/80">
           {t('noEntries')}
         </div>
       )}

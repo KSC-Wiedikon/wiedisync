@@ -59,7 +59,7 @@ export default function AbsenceCard({ absence, onEdit, onDelete, memberName, can
   return (
     <TableRow className="align-top">
       {memberName !== undefined && (
-        <TableCell className="whitespace-normal text-sm font-medium text-gray-900 dark:text-gray-100">
+        <TableCell className="whitespace-normal text-sm font-medium text-foreground">
           {memberName}
         </TableCell>
       )}
@@ -74,13 +74,13 @@ export default function AbsenceCard({ absence, onEdit, onDelete, memberName, can
               {t('nonBlocking')}
             </span>
           )}
-          <span className="sm:hidden text-sm text-gray-600 dark:text-gray-400">
+          <span className="sm:hidden text-sm text-muted-foreground">
             {dateRange}
-            {dayCount != null && <span className="text-gray-400 dark:text-gray-500"> · {t('dayCount', { count: dayCount })}</span>}
+            {dayCount != null && <span className="text-muted-foreground/80"> · {t('dayCount', { count: dayCount })}</span>}
           </span>
         </div>
         {absence.reason_detail && (
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{absence.reason_detail}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{absence.reason_detail}</p>
         )}
         {(() => {
           // Third-party edit attribution (migration 051 + role/name from 053).
@@ -100,23 +100,23 @@ export default function AbsenceCard({ absence, onEdit, onDelete, memberName, can
             role === 'admin' && name ? 'editedByAdminOn' :
             'editedByStaffOn'
           return (
-            <p className="mt-1 break-words text-xs italic text-gray-400 dark:text-gray-500">
+            <p className="mt-1 break-words text-xs italic text-muted-foreground/80">
               {t(key, { at, name: name ?? '' })}
             </p>
           )
         })()}
       </TableCell>
-      <TableCell className="hidden md:table-cell whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">
+      <TableCell className="hidden md:table-cell whitespace-nowrap text-sm text-muted-foreground">
         {dateRange}
         {dayCount != null && (
-          <span className="ml-2 text-xs text-gray-400 dark:text-gray-500">· {t('dayCount', { count: dayCount })}</span>
+          <span className="ml-2 text-xs text-muted-foreground/80">· {t('dayCount', { count: dayCount })}</span>
         )}
       </TableCell>
       <TableCell className="hidden sm:table-cell whitespace-normal">
         {absence.affects && absence.affects.length > 0 && (
           <div className="flex flex-wrap gap-1">
             {absence.affects.map((a) => (
-              <span key={a} className="rounded bg-gray-100 dark:bg-gray-700 px-2 py-0.5 text-xs text-gray-600 dark:text-gray-400">
+              <span key={a} className="rounded bg-muted px-2 py-0.5 text-xs text-muted-foreground">
                 {affectsLabels[a] ?? a}
               </span>
             ))}
@@ -130,7 +130,7 @@ export default function AbsenceCard({ absence, onEdit, onDelete, memberName, can
               size="sm"
               variant="ghost"
               onClick={() => onEdit(absence)}
-              className="text-brand-600 hover:bg-brand-50 hover:text-brand-700 dark:text-brand-400 dark:hover:bg-brand-900/30 dark:hover:text-brand-300"
+              className="text-primary hover:bg-primary/10 hover:text-primary dark:text-brand-300 dark:hover:bg-brand-900/30 dark:hover:text-brand-200"
             >
               {t('common:edit')}
             </Button>

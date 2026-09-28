@@ -95,12 +95,12 @@ function AutoSignInCard() {
 
   return (
     <div className="mt-8">
-      <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('autoSignInTitle')}</h2>
-      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('autoSignInHint')}</p>
-      <div className="mt-3 divide-y divide-gray-100 rounded-lg border bg-white dark:divide-gray-700 dark:border-gray-700 dark:bg-gray-800">
+      <h2 className="text-base font-semibold tracking-tight text-foreground">{t('autoSignInTitle')}</h2>
+      <p className="mt-1 text-xs text-muted-foreground">{t('autoSignInHint')}</p>
+      <div className="mt-3 divide-y divide-border/60 rounded-2xl border border-hairline bg-card shadow-card">
         {rows.map((r) => (
           <div key={r.key} className="flex items-center justify-between gap-3 px-4 py-3">
-            <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{r.label}</span>
+            <span className="text-sm font-medium text-foreground">{r.label}</span>
             <Switch
               checked={state[r.key]}
               disabled={saving === r.key}
@@ -190,12 +190,12 @@ function EmailNotificationCard() {
 
   return (
     <div className="mt-8">
-      <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('emailNotifyTitle')}</h2>
-      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('emailNotifyHint')}</p>
-      <div className="mt-3 divide-y divide-gray-100 rounded-lg border bg-white dark:divide-gray-700 dark:border-gray-700 dark:bg-gray-800">
+      <h2 className="text-base font-semibold tracking-tight text-foreground">{t('emailNotifyTitle')}</h2>
+      <p className="mt-1 text-xs text-muted-foreground">{t('emailNotifyHint')}</p>
+      <div className="mt-3 divide-y divide-border/60 rounded-2xl border border-hairline bg-card shadow-card">
         {rows.map((r) => (
           <div key={r.key} className="flex min-h-[44px] items-center justify-between gap-3 px-4 py-3">
-            <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{r.label}</span>
+            <span className="text-sm font-medium text-foreground">{r.label}</span>
             <Switch
               checked={state[r.key]}
               disabled={saving === r.key}
@@ -330,7 +330,7 @@ export default function ProfilePage() {
   return (
     <div>
       {/* Header card */}
-      <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-800">
+      <div className="rounded-2xl border border-hairline bg-card p-5 shadow-card">
         {/* Top: avatar + name + edit */}
         <div className="flex items-center gap-4">
           {user.photo ? (
@@ -346,7 +346,7 @@ export default function ProfilePage() {
           )}
           <div className="min-w-0 flex-1">
             {/* First/last name on their own lines on mobile — never ellipsized. */}
-            <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+            <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">
               {user.first_name || user.last_name ? (
                 <>
                   <span className="block break-words sm:inline">{memberFirstName(user)}</span>
@@ -357,9 +357,9 @@ export default function ProfilePage() {
               )}
             </h1>
             {(user.number > 0 || positions.length > 0) && (
-              <div className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
+              <div className="mt-0.5 text-sm text-muted-foreground">
                 {user.number > 0 && (
-                  <p className="font-semibold text-gray-700 dark:text-gray-300">#{user.number}</p>
+                  <p className="font-semibold text-foreground/85">#{user.number}</p>
                 )}
                 {positions.length > 0 && (
                   <p>{positions.map((p) => (getPositionI18nKey(p) ? tt(getPositionI18nKey(p)!) : p)).join(', ')}</p>
@@ -379,10 +379,10 @@ export default function ProfilePage() {
 
         {/* Teams & Roles */}
         {(memberTeams.length > 0 || user.role.length > 0) && (
-          <div className="mt-3 border-t border-gray-100 pt-3 dark:border-gray-700">
+          <div className="mt-3 border-t border-border/60 pt-3">
             {memberTeams.length > 0 && (
               <div className="flex flex-col">
-                <span className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('teams')}</span>
+                <span className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{t('teams')}</span>
                 {memberTeams.map((mt, i) => {
                   const team = asObj<Team>(mt.team)
                   const teamRoles: string[] = [tt('rolePlayer')]
@@ -396,24 +396,24 @@ export default function ProfilePage() {
                     <div key={mt.id} className="flex items-stretch">
                       {/* Vertical connector line */}
                       <div className="flex w-5 flex-col items-center">
-                        <div className={`w-px flex-1 ${i === 0 ? 'bg-transparent' : 'bg-gray-300 dark:bg-gray-600'}`} />
-                        <div className="h-2 w-2 shrink-0 rounded-full bg-gray-300 dark:bg-gray-500" />
-                        <div className={`w-px flex-1 ${isLast ? 'bg-transparent' : 'bg-gray-300 dark:bg-gray-600'}`} />
+                        <div className={`w-px flex-1 ${i === 0 ? 'bg-transparent' : 'bg-stone-300 dark:bg-gray-600'}`} />
+                        <div className="h-2 w-2 shrink-0 rounded-full bg-stone-300 dark:bg-gray-500" />
+                        <div className={`w-px flex-1 ${isLast ? 'bg-transparent' : 'bg-stone-300 dark:bg-gray-600'}`} />
                       </div>
                       {/* Horizontal connector + content */}
                       <div className="flex flex-1 items-center gap-2.5 py-1.5">
-                        <div className="w-4 border-t border-gray-300 dark:border-gray-600" />
+                        <div className="w-4 border-t border-input" />
                         <Link to={`/teams/${team?.name ?? mt.team}`} className="flex shrink-0">
                           <TeamChip team={team?.name ?? '?'} size="sm" />
                         </Link>
-                        <span className="min-w-0 flex-1 break-words text-xs text-gray-600 dark:text-gray-400">
+                        <span className="min-w-0 flex-1 break-words text-xs text-muted-foreground">
                           {teamRoles.join(' · ')}
                         </span>
                         <IconButton
                           size="sm"
                           label={t('leaveTeam')}
                           onClick={() => setLeavingTeam({ id: mt.id, name: team?.name ?? String(mt.team) })}
-                          className="ml-auto shrink-0 rounded-full text-gray-400 hover:text-red-500 dark:hover:text-red-400"
+                          className="ml-auto shrink-0 rounded-full text-muted-foreground/80 hover:text-red-500 dark:hover:text-red-400"
                         >
                           <X />
                         </IconButton>
@@ -436,7 +436,7 @@ export default function ProfilePage() {
                       size="sm"
                       label={t('common:cancel')}
                       onClick={() => handleCancelRequest(req.id)}
-                      className="ml-auto shrink-0 rounded-full text-gray-400 hover:text-red-500 dark:hover:text-red-400"
+                      className="ml-auto shrink-0 rounded-full text-muted-foreground/80 hover:text-red-500 dark:hover:text-red-400"
                     >
                       <X />
                     </IconButton>
@@ -451,21 +451,21 @@ export default function ProfilePage() {
               size="sm"
               onClick={() => setTeamRequestOpen(true)}
               icon={<Plus />}
-              className="ml-3 mt-1 gap-1.5 px-2 text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300"
+              className="ml-3 mt-1 gap-1.5 px-2 text-primary hover:text-primary/80 dark:text-brand-300 dark:hover:text-brand-200"
             >
               {t('addTeam')}
             </Button>
 
             {user.role.length > 0 && (
-              <div className={memberTeams.length > 0 ? 'mt-2 border-t border-gray-100 pt-2 dark:border-gray-700' : ''}>
-                <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('roles')}</span>
-                <div className="flex flex-col border-l-2 border-gray-300 pl-3 dark:border-gray-600">
+              <div className={memberTeams.length > 0 ? 'mt-2 border-t border-border/60 pt-2' : ''}>
+                <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{t('roles')}</span>
+                <div className="flex flex-col border-l-2 border-input pl-3">
                   {[...user.role].sort((a, b) => {
                     const order = ['user', 'coach', 'team_responsible', 'finance', 'vb_admin', 'bb_admin', 'vorstand', 'admin', 'superuser', 'superadmin']
                     return (order.indexOf(a) === -1 ? 99 : order.indexOf(a)) - (order.indexOf(b) === -1 ? 99 : order.indexOf(b))
                   }).map((r) => (
                     <div key={r} className="flex items-center gap-2.5 py-1">
-                      <div className="w-4 border-t border-gray-300 dark:border-gray-600" />
+                      <div className="w-4 border-t border-input" />
                       <StatusBadge status={r} />
                     </div>
                   ))}
@@ -484,30 +484,30 @@ export default function ProfilePage() {
 
       {/* Contact Info */}
       <div className="mt-8">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('contact')}</h2>
-        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('contactPrivacyNotice')}</p>
+        <h2 className="text-base font-semibold tracking-tight text-foreground">{t('contact')}</h2>
+        <p className="mt-1 text-xs text-muted-foreground">{t('contactPrivacyNotice')}</p>
         <div className="mt-3 grid gap-4 sm:grid-cols-2">
-          <div className="rounded-lg border bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+          <div className="rounded-2xl border border-hairline bg-card p-4 shadow-card">
             <div className="flex items-center gap-2">
-              <p className="text-sm text-gray-500 dark:text-gray-400">{t('email')}</p>
+              <p className="text-sm text-muted-foreground">{t('email')}</p>
               {user.hide_email && (
                 <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">{t('hidden')}</span>
               )}
             </div>
-            <p className="mt-1 text-sm font-medium text-gray-900 dark:text-gray-100">{user.email || '—'}</p>
+            <p className="mt-1 text-sm font-medium text-foreground">{user.email || '—'}</p>
           </div>
-          <div className="rounded-lg border bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+          <div className="rounded-2xl border border-hairline bg-card p-4 shadow-card">
             <div className="flex items-center gap-2">
-              <p className="text-sm text-gray-500 dark:text-gray-400">{t('phone')}</p>
+              <p className="text-sm text-muted-foreground">{t('phone')}</p>
               {user.hide_phone && (
                 <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">{t('hidden')}</span>
               )}
             </div>
-            <p className="mt-1 text-sm font-medium text-gray-900 dark:text-gray-100">{user.phone || '—'}</p>
+            <p className="mt-1 text-sm font-medium text-foreground">{user.phone || '—'}</p>
           </div>
-          <div className="rounded-lg border bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+          <div className="rounded-2xl border border-hairline bg-card p-4 shadow-card">
             <div className="flex items-center gap-2">
-              <p className="text-sm text-gray-500 dark:text-gray-400">{t('birthdate')}</p>
+              <p className="text-sm text-muted-foreground">{t('birthdate')}</p>
               {user.birthdate_visibility === 'hidden' && (
                 <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">{t('hidden')}</span>
               )}
@@ -515,12 +515,12 @@ export default function ProfilePage() {
                 <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">{t('yearOnly')}</span>
               )}
             </div>
-            <p className="mt-1 text-sm font-medium text-gray-900 dark:text-gray-100">
+            <p className="mt-1 text-sm font-medium text-foreground">
               {user.birthdate ? formatDate(user.birthdate) : '—'}
             </p>
           </div>
-          <div className="rounded-lg border bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
-            <p className="text-sm text-gray-500 dark:text-gray-400">{t('licences')}</p>
+          <div className="rounded-2xl border border-hairline bg-card p-4 shadow-card">
+            <p className="text-sm text-muted-foreground">{t('licences')}</p>
             {(() => {
               const lics = licencesOf(user)
               return lics.length > 0 ? (
@@ -532,15 +532,15 @@ export default function ProfilePage() {
                   ))}
                 </div>
               ) : (
-                <p className="mt-1 text-sm font-medium text-gray-900 dark:text-gray-100">—</p>
+                <p className="mt-1 text-sm font-medium text-foreground">—</p>
               )
             })()}
           </div>
           {/* Coaching education (migration 274) — its own card rather than more
               chips in the licences one: J+S / C / B / A is a different kind of
               credential from the scorer/referee flags and reads as noise mixed in. */}
-          <div className="rounded-lg border bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
-            <p className="text-sm text-gray-500 dark:text-gray-400">{t('trainerLicences')}</p>
+          <div className="rounded-2xl border border-hairline bg-card p-4 shadow-card">
+            <p className="text-sm text-muted-foreground">{t('trainerLicences')}</p>
             {(() => {
               const codes = parseTrainerLicences(user.trainer_licences)
               return codes.length > 0 ? (
@@ -552,7 +552,7 @@ export default function ProfilePage() {
                   ))}
                 </div>
               ) : (
-                <p className="mt-1 text-sm font-medium text-gray-900 dark:text-gray-100">—</p>
+                <p className="mt-1 text-sm font-medium text-foreground">—</p>
               )
             })()}
           </div>
@@ -562,10 +562,10 @@ export default function ProfilePage() {
               write lives with admins and with the federation sync. Shown to
               everyone, both sports, because "No licence" is a real and useful
               answer for a coach or a passive member, not an empty state. */}
-          <div className="rounded-lg border bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+          <div className="rounded-2xl border border-hairline bg-card p-4 shadow-card">
             <div className="flex items-center gap-2">
-              <p className="text-sm text-gray-500 dark:text-gray-400">{t('licenceStatusTitle')}</p>
-              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+              <p className="text-sm text-muted-foreground">{t('licenceStatusTitle')}</p>
+              <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
                 {currentSeasonShort()}
               </span>
             </div>
@@ -574,10 +574,10 @@ export default function ProfilePage() {
                 {tCommon(`licenceStatus_${licenceStatus.status}`)}
               </span>
               {licenceStatus.status === 'licenced' && user.licence_status_by_name && (
-                <span className="text-xs text-gray-500 dark:text-gray-400">{user.licence_status_by_name}</span>
+                <span className="text-xs text-muted-foreground">{user.licence_status_by_name}</span>
               )}
             </div>
-            <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{t('licenceStatusHelp')}</p>
+            <p className="mt-2 text-xs text-muted-foreground">{t('licenceStatusHelp')}</p>
           </div>
         </div>
       </div>
@@ -585,13 +585,13 @@ export default function ProfilePage() {
       {/* Swiss Volley Licence Info — volleyball members only */}
       {(primarySport === 'volleyball' || primarySport === 'both') && user.license_nr && (
         <div className="mt-8">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Swiss Volley</h2>
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('svSyncInfo')}</p>
+          <h2 className="text-base font-semibold tracking-tight text-foreground">Swiss Volley</h2>
+          <p className="mt-1 text-xs text-muted-foreground">{t('svSyncInfo')}</p>
           <div className="mt-3">
-            <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('licence')}</span>
+            <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{t('licence')}</span>
             <div className="space-y-2.5">
               {/* Licence card — absence-card style */}
-              <div className="rounded-lg border bg-white dark:border-gray-700 dark:bg-gray-800">
+              <div className="rounded-2xl border border-hairline bg-card shadow-card">
                 {/* Top row: badge + licence nr + status checks */}
                 <div className="flex flex-wrap items-center gap-2 px-4 py-3">
                   {vmCheck?.licence_category && (
@@ -599,7 +599,7 @@ export default function ProfilePage() {
                       {vmCheck.licence_category}
                     </span>
                   )}
-                  <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                  <span className="text-sm font-medium text-foreground">
                     {t('licenseNr')}: {user.license_nr}
                   </span>
                   {/* LAS / Foreigner / FdO badges */}
@@ -620,20 +620,20 @@ export default function ProfilePage() {
                   )}
                   <div className="ml-auto flex items-center gap-3">
                     {vmCheck?.federation && (
-                      <span className="text-xs text-gray-500 dark:text-gray-400">{vmCheck.federation}</span>
+                      <span className="text-xs text-muted-foreground">{vmCheck.federation}</span>
                     )}
                     <div className="flex items-center gap-1">
-                      <span className="text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('activated')}</span>
+                      <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t('activated')}</span>
                       {vmCheck?.licence_activated == null
-                        ? <span className="text-sm text-gray-400">—</span>
+                        ? <span className="text-sm text-muted-foreground/80">—</span>
                         : vmCheck.licence_activated
                           ? <span className="text-sm text-green-600 dark:text-green-400">&#10003;</span>
                           : <span className="text-sm text-red-500 dark:text-red-400">&#10007;</span>}
                     </div>
                     <div className="flex items-center gap-1">
-                      <span className="text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('validated')}</span>
+                      <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t('validated')}</span>
                       {vmCheck?.licence_validated == null
-                        ? <span className="text-sm text-gray-400">—</span>
+                        ? <span className="text-sm text-muted-foreground/80">—</span>
                         : vmCheck.licence_validated
                           ? <span className="text-sm text-green-600 dark:text-green-400">&#10003;</span>
                           : <span className="text-sm text-red-500 dark:text-red-400">&#10007;</span>}
@@ -654,7 +654,7 @@ export default function ProfilePage() {
         <div className="mt-6">
           <Link
             to="/fines"
-            className="flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 hover:bg-amber-100 dark:border-amber-900/40 dark:bg-amber-900/20 dark:hover:bg-amber-900/30"
+            className="flex items-center justify-between rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 hover:bg-amber-100 dark:border-amber-900/40 dark:bg-amber-900/20 dark:hover:bg-amber-900/30"
           >
             <div>
               <div className="text-sm font-medium text-amber-900 dark:text-amber-200">
@@ -672,10 +672,10 @@ export default function ProfilePage() {
       {/* Active Absences */}
       <div className="mt-8">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('activeAbsences')}</h2>
+          <h2 className="text-base font-semibold tracking-tight text-foreground">{t('activeAbsences')}</h2>
           <Link
             to="/absences"
-            className="text-sm text-brand-600 hover:text-brand-800 dark:text-gold-400 dark:hover:text-gold-300"
+            className="text-sm font-medium text-primary hover:text-primary/80 dark:text-gold-400 dark:hover:text-gold-300"
           >
             {t('showAll')}
           </Link>
@@ -684,19 +684,19 @@ export default function ProfilePage() {
           // `activeAbsences` is `?? []` while the query is in flight, so without
           // this the empty-state paragraph below asserts "nothing on file" before
           // the answer has arrived.
-          <div className="mt-3 h-16 animate-pulse rounded-lg bg-gray-100 dark:bg-gray-800" />
+          <div className="mt-3 h-16 animate-pulse rounded-2xl bg-stone-200/80 dark:bg-muted" />
         ) : activeAbsences.length > 0 ? (
           <div className="mt-3 space-y-2">
             {activeAbsences.slice(0, 5).map((a) => (
-              <div key={a.id} className="rounded-lg border bg-white dark:border-gray-700 dark:bg-gray-800">
+              <div key={a.id} className="rounded-2xl border border-hairline bg-card shadow-card">
                 <div className="flex items-center gap-3 px-4 py-3">
                   <StatusBadge status={a.reason} />
                   {a.reason_detail && (
-                    <span className="text-sm text-gray-500 dark:text-gray-400">{a.reason_detail}</span>
+                    <span className="text-sm text-muted-foreground">{a.reason_detail}</span>
                   )}
                 </div>
-                <div className="border-t border-gray-100 px-4 py-2 dark:border-gray-700">
-                  <span className="text-sm text-gray-700 dark:text-gray-300">
+                <div className="border-t border-border/60 px-4 py-2">
+                  <span className="text-sm text-foreground/85">
                     {formatDate(a.start_date)}
                     {a.start_date !== a.end_date && ` — ${formatDate(a.end_date)}`}
                   </span>
@@ -705,14 +705,14 @@ export default function ProfilePage() {
             ))}
           </div>
         ) : (
-          <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">{t('noActiveAbsences')}</p>
+          <p className="mt-3 text-sm text-muted-foreground">{t('noActiveAbsences')}</p>
         )}
       </div>
 
       {/* Danger Zone */}
       <div className="mt-8 rounded-2xl border border-red-200 bg-red-50/30 p-5 dark:border-red-900/40 dark:bg-red-950/10">
         <h2 className="text-base font-semibold text-red-600 dark:text-red-400">{t('dangerZone')}</h2>
-        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{t('deleteAccountDescription')}</p>
+        <p className="mt-1 text-sm text-muted-foreground">{t('deleteAccountDescription')}</p>
         <div className="mt-4">
           <Button variant="destructive" size="sm" onClick={() => setDeleteOpen(true)}>
             {t('deleteAccount')}
@@ -737,7 +737,7 @@ export default function ProfilePage() {
       />
       <Modal open={!!leavingTeam} onClose={() => setLeavingTeam(null)} title={t('leaveTeamTitle')}>
         <div className="space-y-4">
-          <p className="text-sm text-gray-600 dark:text-gray-400">
+          <p className="text-sm text-muted-foreground">
             {t('leaveTeamConfirm', { team: leavingTeam?.name ?? '' })}
           </p>
           <div className="flex justify-end gap-3 pt-2">

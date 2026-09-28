@@ -60,7 +60,7 @@ export default function InstallInstructions({ onInstalled }: { onInstalled?: () 
   return (
     <div className="space-y-3">
       {platform === 'ios-other' && (
-        <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+        <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
           {t('install.iosOther.notice')}
         </p>
       )}

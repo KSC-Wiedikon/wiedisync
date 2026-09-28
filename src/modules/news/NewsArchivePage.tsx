@@ -65,7 +65,7 @@ export default function NewsArchivePage() {
 
   if (!user || !isApproved) {
     return (
-      <div className="mx-auto max-w-2xl py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+      <div className="mx-auto max-w-2xl py-8 text-center text-sm text-muted-foreground">
         {t('signInRequired')}
       </div>
     )
@@ -76,22 +76,22 @@ export default function NewsArchivePage() {
       <div className="mb-4 flex items-center gap-3">
         <IconButton
           onClick={() => navigate(-1)}
-          className="shrink-0 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+          className="shrink-0 text-muted-foreground hover:bg-accent hover:text-foreground"
           label={t('common:back')}
         >
           <ArrowLeft className="!size-5" />
         </IconButton>
-        <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{tn('news')}</h1>
+        <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">{tn('news')}</h1>
       </div>
 
       <div>
       {isLoading && items.length === 0 ? null : items.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-gray-300 px-6 py-10 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+        <div className="rounded-2xl border border-dashed border-input px-6 py-10 text-center text-sm text-muted-foreground">
           {tn('noNotifications')}
         </div>
       ) : (
         <>
-          <div className="rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+          <div className="overflow-hidden rounded-2xl border border-hairline bg-card shadow-card">
             <Table>
               <TableBody>
                 {visible.map((item) =>
@@ -171,13 +171,13 @@ function AnnouncementTableRow({
           {announcement.pinned && (
             <Pin className="h-3 w-3 shrink-0 text-gold-500 dark:text-gold-400" aria-label="Pinned" />
           )}
-          <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{tr.title}</span>
+          <span className="text-sm font-medium text-foreground">{tr.title}</span>
         </div>
         {excerpt && (
-          <p className="mt-0.5 line-clamp-2 text-xs text-gray-500 dark:text-gray-400">{excerpt}</p>
+          <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{excerpt}</p>
         )}
       </TableCell>
-      <TableCell className="text-right text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+      <TableCell className="text-right text-xs text-muted-foreground whitespace-nowrap">
         {timeAgo}
       </TableCell>
     </TableRow>
@@ -238,10 +238,10 @@ function NotificationTableRow({
       className="cursor-pointer align-top"
     >
       <TableCell className="hidden sm:table-cell w-12" />
-      <TableCell className="whitespace-normal text-sm text-gray-900 dark:text-gray-100">
+      <TableCell className="whitespace-normal text-sm text-foreground">
         {message}
       </TableCell>
-      <TableCell className="text-right text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+      <TableCell className="text-right text-xs text-muted-foreground whitespace-nowrap">
         {timeAgo}
       </TableCell>
     </TableRow>

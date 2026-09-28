@@ -16,7 +16,7 @@ export default function TeamCard({ team, playerCount, guestCount }: TeamCardProp
   return (
     <Link
       to={`/teams/${team.name}`}
-      className="relative block overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5 shadow-card transition-shadow hover:shadow-card-hover"
+      className="relative block overflow-hidden rounded-2xl border border-hairline bg-card p-5 shadow-card transition-shadow hover:shadow-card-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       style={{ borderLeftWidth: '4px', borderLeftColor: getTeamColor(team.name).bg }}
     >
       {team.team_picture && (() => {
@@ -41,10 +41,10 @@ export default function TeamCard({ team, playerCount, guestCount }: TeamCardProp
         <div className="flex items-start justify-between">
           <div>
             <TeamChip team={team.name} />
-            <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">{trimBBTeamName(team.full_name)}</p>
+            <p className="mt-2 text-sm text-muted-foreground">{trimBBTeamName(team.full_name)}</p>
           </div>
         </div>
-        <div className="mt-4 flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
+        <div className="mt-4 flex items-center gap-4 text-xs text-muted-foreground">
           <span>{team.league}</span>
           <span>{team.season}</span>
           <span>{t('players', { count: playerCount })}</span>

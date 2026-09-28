@@ -45,9 +45,9 @@ export function TransferNumbersBar({ stateCounts, needsCount, stateFilter, onSta
   )
 
   return (
-    <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-800/30">
+    <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-hairline bg-surface-sunken px-4 py-3">
       {/* ONE stated scope for every number on this row. */}
-      <span className="text-xs font-semibold text-gray-700 dark:text-gray-200">
+      <span className="text-xs font-semibold text-foreground/85">
         {t('trNumbersScope')}
       </span>
 
@@ -69,7 +69,7 @@ export function TransferNumbersBar({ stateCounts, needsCount, stateFilter, onSta
                 badgeVariants({ variant: ROW_STATE_BADGE_VARIANT[state] }),
                 'min-h-[44px] gap-1.5 whitespace-normal break-words sm:min-h-0',
                 active
-                  ? 'ring-2 ring-brand-500 ring-offset-1 dark:ring-offset-gray-900'
+                  ? 'ring-2 ring-selected ring-offset-1 ring-offset-surface-sunken'
                   : 'opacity-90 hover:opacity-100',
               )}
             >
@@ -82,7 +82,7 @@ export function TransferNumbersBar({ stateCounts, needsCount, stateFilter, onSta
 
       {/* Dating the numbers where they are read. Without it the chips look live,
           and the page silently asserts a month-old answer as today's. */}
-      <span className="ml-auto flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+      <span className="ml-auto flex items-center gap-1 text-xs text-muted-foreground">
         {lastVisCheck
           ? t('trVisLastChecked', { date: formatDateTimeCompact(lastVisCheck) })
           : t('trVisNeverChecked')}

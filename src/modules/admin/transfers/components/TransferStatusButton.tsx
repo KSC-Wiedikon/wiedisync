@@ -9,7 +9,7 @@ const STATUS_ON_CLASS: Record<TransferStatus, string> = {
   pending: 'border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-300',
   // Slate, not green: "we decided there is nothing to do" must not look like
   // "the certificate arrived". One is a conclusion, the other is evidence.
-  not_needed: 'border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-600 dark:bg-slate-700/50 dark:text-slate-200',
+  not_needed: 'border-input bg-muted text-foreground/85',
 }
 
 /**
@@ -48,7 +48,7 @@ export function TransferStatusButton({ member, value, label, icon: Icon, disable
       className={`min-w-9 gap-1 px-2.5 sm:min-w-0 ${
         on
           ? `${STATUS_ON_CLASS[value]} hover:opacity-90`
-          : 'text-gray-600 dark:text-gray-300'
+          : 'text-muted-foreground'
       }`}
     >
       <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
@@ -77,7 +77,7 @@ export function ClearStatusButton({ disabled, onClear }: { disabled: boolean; on
       onClick={() => { onClear() }}
       disabled={disabled}
       label={t('trClearStatus')}
-      className="text-gray-500 dark:text-gray-400"
+      className="text-muted-foreground"
     >
       <X className="h-3.5 w-3.5" aria-hidden="true" />
     </IconButton>

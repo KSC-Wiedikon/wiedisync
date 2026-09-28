@@ -23,8 +23,8 @@ export default function NotFoundPage() {
       <p className="text-6xl font-bold text-muted-foreground/40" aria-hidden="true">
         404
       </p>
-      <h1 className="text-2xl font-bold text-foreground">{t('notFoundTitle')}</h1>
-      <p className="max-w-prose text-muted-foreground">{t('notFoundText')}</p>
+      <h1 className="text-2xl font-bold tracking-tight text-foreground">{t('notFoundTitle')}</h1>
+      <p className="max-w-prose text-sm text-muted-foreground">{t('notFoundText')}</p>
       <div className="mt-2 flex flex-wrap items-center justify-center gap-3">
         <Button asChild>
           <Link to="/">{t('notFoundHome')}</Link>

@@ -66,7 +66,7 @@ export default function CalendarFilters({ open, onClose, filters, onChange, allo
       <div className="min-h-[14rem] space-y-5">
         {/* Source type dropdown */}
         <div>
-          <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+          <label className="mb-2 block text-xs font-medium text-muted-foreground">
             {t('filterCategories')}
           </label>
           <CategoryMultiSelect
@@ -81,7 +81,7 @@ export default function CalendarFilters({ open, onClose, filters, onChange, allo
         {/* Team filter */}
         {showTeamFilter !== false && teamOptions.length > 0 && (
           <div>
-            <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label className="mb-2 block text-xs font-medium text-muted-foreground">
               {tc('team')}
             </label>
             <TeamMultiSelect
@@ -102,10 +102,10 @@ export default function CalendarFilters({ open, onClose, filters, onChange, allo
               onCheckedChange={(checked) => onChange({ ...filters, showHiddenAbsences: checked })}
             />
             <label htmlFor="cal-show-hidden-absences" className="cursor-pointer">
-              <span className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              <span className="block text-sm font-medium text-foreground/85">
                 {t('showHiddenAbsences')}
               </span>
-              <span className="block text-xs text-gray-500 dark:text-gray-400">
+              <span className="block text-xs text-muted-foreground">
                 {t('showHiddenAbsencesHint')}
               </span>
             </label>

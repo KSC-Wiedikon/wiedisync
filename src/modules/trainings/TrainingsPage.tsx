@@ -199,10 +199,10 @@ export default function TrainingsPage() {
       <div className="flex items-start gap-4">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold text-gray-900 sm:text-2xl dark:text-gray-100">{t('title')}</h1>
+            <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">{t('title')}</h1>
             <GuideHelpButton />
           </div>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t('subtitle')}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{t('subtitle')}</p>
         </div>
         {(isCoach || effectiveIsAdmin) && (
           <DropdownMenu>
@@ -262,7 +262,7 @@ export default function TrainingsPage() {
             {!showPast && (
               <button
                 onClick={() => setShowPast(true)}
-                className="w-full rounded-md border border-gray-200 bg-gray-50 px-4 py-2 text-sm font-medium text-gray-500 transition-colors hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"
+                className="w-full rounded-lg border border-hairline bg-surface-sunken px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 {t('showPast')}
               </button>
@@ -270,7 +270,7 @@ export default function TrainingsPage() {
             {showPast && (
               <button
                 onClick={() => setShowPast(false)}
-                className="w-full rounded-md border border-brand-200 bg-brand-50 px-4 py-2 text-sm font-medium text-brand-700 transition-colors hover:bg-brand-100 dark:border-brand-700 dark:bg-brand-900/40 dark:text-brand-300 dark:hover:bg-brand-900/60"
+                className="w-full rounded-lg border border-brand-200 bg-brand-50 px-4 py-2 text-sm font-medium text-brand-700 transition-colors hover:bg-brand-100 dark:border-brand-700 dark:bg-brand-900/40 dark:text-brand-300 dark:hover:bg-brand-900/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 {t('hidePast')}
               </button>

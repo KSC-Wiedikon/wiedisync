@@ -37,6 +37,12 @@ jobs:
           - project: kscw-spielplanung-dev
             script: build:scheduling
             dev_only: true
+          # Same reason for the member app: wiedisync-dev.kscw.ch. The dev session
+          # cookie is SameSite=Lax on directus-dev.kscw.ch, so a *.pages.dev origin can
+          # never stay logged in — only a .kscw.ch host can.
+          - project: kscw-wiedisync-dev
+            script: build
+            dev_only: true
     name: ${{ matrix.project }} (${{ github.ref_name }})
     steps:
       - uses: actions/checkout@v4
@@ -66,7 +72,7 @@ jobs:
           # (no runtime Sentry, no Maps key).
           # Both ship inside the client bundle, so they are public either way — but
           # kept out of this public repo so key-scraping bots do not harvest them.
-          VITE_GOOGLE_MAPS_API_KEY: ${{ matrix.project == 'kscw-wiedisync' && secrets.VITE_GOOGLE_MAPS_API_KEY || '' }}
+          VITE_GOOGLE_MAPS_API_KEY: ${{ startsWith(matrix.project, 'kscw-wiedisync') && secrets.VITE_GOOGLE_MAPS_API_KEY || '' }}
           VITE_SENTRY_DSN: ${{ matrix.project == 'kscw-wiedisync' && secrets.VITE_SENTRY_DSN || '' }}
           # Inline on purpose. GitHub redacts every secret VALUE from the logs, so
           # SENTRY_PROJECT as a secret would replace the literal string "wiedisync"

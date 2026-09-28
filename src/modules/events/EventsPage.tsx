@@ -259,7 +259,7 @@ export default function EventsPage() {
           "New event" action stays top-right (shrink-0). */}
       <div className="flex items-start gap-4">
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-2">
-          <h1 className="text-xl font-bold text-gray-900 sm:text-2xl dark:text-gray-100">{t('title')}</h1>
+          <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">{t('title')}</h1>
           <GuideHelpButton />
           <Button
             type="button"
@@ -269,8 +269,8 @@ export default function EventsPage() {
             onClick={() => setShowPast((v) => !v)}
             className={`rounded-full ${
               showPast
-                ? 'bg-brand-100 text-brand-700 hover:bg-brand-200 dark:bg-brand-900/40 dark:text-brand-300 dark:hover:bg-brand-900/60'
-                : 'bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600'
+                ? 'border border-transparent bg-selected text-selected-foreground hover:bg-selected/90 hover:text-selected-foreground'
+                : 'border border-border bg-card text-muted-foreground hover:bg-accent hover:text-foreground'
             }`}
           >
             {t('showPast')}

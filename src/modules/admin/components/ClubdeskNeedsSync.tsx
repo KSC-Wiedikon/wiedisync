@@ -112,7 +112,7 @@ const STATUS_ORDER: SyncStatus[] = ['pending', 'not_linked', 'awaiting_link', 's
 // deploys this page on push; ext:deploy is run by hand). Neutral rather than
 // absent: an unstyled chip with a readable label degrades quietly, where
 // `TONE[unknown]` renders `className={undefined}` and the row loses its badge.
-const TONE_UNKNOWN = 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
+const TONE_UNKNOWN = 'bg-muted text-foreground/85'
 
 const TONE: Record<SyncStatus, string> = {
   not_linked: 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300',
@@ -120,7 +120,7 @@ const TONE: Record<SyncStatus, string> = {
   stale: 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300',
   departed: 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300',
   pending: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
-  name_drift: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300',
+  name_drift: 'bg-muted text-foreground/85',
 }
 
 // Presentational — the page owns the fetch and the single Rescan button in the
@@ -275,7 +275,7 @@ export default function ClubdeskNeedsSync({
                 like, states the explanation once, and gives the table its width
                 back. */}
             {manualCount > 0 && (
-              <p className="mb-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
+              <p className="mb-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
                 {manualCount === rows.length
                   ? t('cdNeedsSyncManualOnly', { count: manualCount })
                   : t('cdNeedsSyncManualSome', { count: manualCount })}
@@ -408,7 +408,7 @@ export default function ClubdeskNeedsSync({
                           {/* ⚠ Three cells rather than one "ours → theirs" string:
                               an arrow does not say which end is which, and knowing
                               which side to trust is the whole point of the row. */}
-                          <TableCell className="whitespace-normal break-words align-top text-xs font-medium text-gray-700 dark:text-gray-300">
+                          <TableCell className="whitespace-normal break-words align-top text-xs font-medium text-foreground/85">
                             {contactOnly && (
                               <div className="py-0.5 font-normal text-muted-foreground">{t('clubdeskUpContactSync')}</div>
                             )}

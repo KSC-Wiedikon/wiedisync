@@ -161,7 +161,7 @@ export default function AdminSetupPage() {
     <div className="space-y-6">
       {/* Header — Dashboard ↔ Settings navigation lives in the shell nav. */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-xl font-bold text-gray-900 sm:text-2xl dark:text-gray-100">
+        <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">
           {t('setupTitle')}
         </h1>
       </div>
@@ -238,7 +238,7 @@ export default function AdminSetupPage() {
           {/* Coach/player-sharing team links — VB admins only (they hold the write
               policy; a plain spielplaner would 403). Same editor as basketball. */}
           {hasAdminAccessToSport('volleyball') && (
-            <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+            <div className="rounded-2xl border border-hairline bg-card p-4 shadow-card">
               <TeamLinksEditor
                 teams={volleyballTeams}
                 links={teamLinks}

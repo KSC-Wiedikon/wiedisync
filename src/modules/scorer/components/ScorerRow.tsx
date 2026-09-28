@@ -66,14 +66,14 @@ export function DutyStatus({ game, sport }: { game: Game; sport: 'volleyball' | 
   // when every applicable duty is filled, otherwise "Open". No "Assigned" state.
   if (isFullyAssigned(game, sport)) {
     return (
-      <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400">
+      <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full border border-green-200 bg-green-50 px-2 py-0.5 text-[11px] font-medium text-green-700 dark:border-green-800/60 dark:bg-green-900/30 dark:text-green-300">
         <Check className="h-3 w-3" strokeWidth={3} aria-hidden />
         {t('statusConfirmed')}
       </span>
     )
   }
   return (
-    <span className="whitespace-nowrap rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700 dark:bg-red-900/30 dark:text-red-400">
+    <span className="whitespace-nowrap rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[11px] font-medium text-red-700 dark:border-red-800/60 dark:bg-red-900/30 dark:text-red-300">
       {t('statusOpen')}
     </span>
   )
@@ -397,7 +397,7 @@ export default function ScorerRow({
             <RowChip wrap title={hall.name}>
               <MapPin aria-hidden />
               {hall.maps_url && sanitizeUrl(hall.maps_url) ? (
-                <a href={sanitizeUrl(hall.maps_url)} target="_blank" rel="noopener noreferrer" className="underline hover:text-brand-600 dark:hover:text-brand-400">
+                <a href={sanitizeUrl(hall.maps_url)} target="_blank" rel="noopener noreferrer" className="underline hover:text-primary dark:hover:text-brand-300">
                   {hall.name}
                 </a>
               ) : (
@@ -435,7 +435,7 @@ export default function ScorerRow({
         </>}
       >
         {/* Arrival reminder — how early each duty must be in the hall */}
-        <p className="mt-1.5 flex items-start gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+        <p className="mt-1.5 flex items-start gap-1.5 text-xs text-muted-foreground">
           <Clock className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden />
           <span className="min-w-0">
             {sport === 'basketball'
@@ -467,7 +467,7 @@ export default function ScorerRow({
         ) : (
           <>
             <div className="space-y-1.5 sm:col-span-2 xl:col-span-3">
-              <span className="text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">{t('bbDutyTeams')}</span>
+              <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{t('bbDutyTeams')}</span>
               {effectiveCanEdit ? (
                 <TeamPickerMulti
                   value={bbGameTeams}
@@ -482,7 +482,7 @@ export default function ScorerRow({
                   ))}
                 </div>
               ) : (
-                <div className="text-sm text-gray-400 dark:text-gray-500">{t('unassigned')}</div>
+                <div className="text-sm text-muted-foreground/80">{t('unassigned')}</div>
               )}
             </div>
             <AssignmentEditor
@@ -575,7 +575,7 @@ export default function ScorerRow({
                 size="sm"
                 onClick={() => setShow24s(true)}
                 icon={<Plus aria-hidden />}
-                className="justify-self-start text-gray-500 dark:text-gray-400"
+                className="justify-self-start text-muted-foreground"
               >
                 {t('bb24sOfficial')}
               </Button>
@@ -594,11 +594,11 @@ export default function ScorerRow({
           ? 'confirmSelfAssignArrival_bb'
           : `confirmSelfAssignArrival_${confirmRole}` as const
         return (
-          <div role="dialog" aria-modal="true" aria-label={t('confirmSelfAssignTitle')} className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setConfirmRole(null)}>
-            <div className="mx-4 w-full max-w-sm rounded-xl bg-white shadow-2xl dark:bg-gray-800" onClick={(e) => e.stopPropagation()}>
+          <div role="dialog" aria-modal="true" aria-label={t('confirmSelfAssignTitle')} className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/60 backdrop-blur-sm dark:bg-black/70" onClick={() => setConfirmRole(null)}>
+            <div className="mx-4 w-full max-w-sm rounded-xl border border-hairline bg-card shadow-2xl" onClick={(e) => e.stopPropagation()}>
               {/* Header */}
-              <div className="border-b border-gray-100 px-5 pb-4 pt-5 dark:border-gray-700">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+              <div className="border-b border-hairline px-5 pb-4 pt-5">
+                <h3 className="text-lg font-bold tracking-tight text-foreground">
                   {t('confirmSelfAssignTitle')}
                 </h3>
                 {/* i18n string with markup; the interpolated team names come from
@@ -606,7 +606,7 @@ export default function ScorerRow({
                     true overrides the app-wide false) and DOMPurify is limited to
                     the inline tags the translations actually use. */}
                 <p
-                  className="mt-1.5 text-sm leading-relaxed text-gray-600 dark:text-gray-400 [&_strong]:font-semibold [&_strong]:text-gray-900 dark:[&_strong]:text-gray-100"
+                  className="mt-1.5 text-sm leading-relaxed text-muted-foreground [&_strong]:font-semibold [&_strong]:text-foreground"
                   dangerouslySetInnerHTML={{
                     __html: DOMPurify.sanitize(t('confirmSelfAssignMessage', {
                       role: roleLabel(confirmRole),
@@ -624,7 +624,7 @@ export default function ScorerRow({
                 <div className="flex gap-3 rounded-lg px-1 py-2.5">
                   <Clock className="mt-0.5 h-4 w-4 shrink-0 text-brand-500 dark:text-brand-400" />
                   <p
-                    className="text-sm leading-relaxed text-gray-600 dark:text-gray-400 [&_strong]:font-semibold [&_strong]:text-gray-900 dark:[&_strong]:text-gray-100"
+                    className="text-sm leading-relaxed text-muted-foreground [&_strong]:font-semibold [&_strong]:text-foreground"
                     dangerouslySetInnerHTML={{
                       __html: DOMPurify.sanitize(t(arrivalKey, { interpolation: { escapeValue: false } })),
                     }}
@@ -634,7 +634,7 @@ export default function ScorerRow({
                 {/* Absence alert — the user is marked absent on this date. Does
                     NOT block the claim, just warns. */}
                 {hasAbsenceOnGameDate && (
-                  <div className="flex gap-3 rounded-lg bg-red-50/80 px-3 py-2.5 dark:bg-red-900/10">
+                  <div className="flex gap-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 dark:border-red-900/60 dark:bg-red-950/40">
                     <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-500 dark:text-red-400" />
                     <p className="text-sm leading-relaxed text-red-700 dark:text-red-400">
                       {t('confirmSelfAssignAbsence')}
@@ -643,7 +643,7 @@ export default function ScorerRow({
                 )}
 
                 {/* Warning: final — delegation only */}
-                <div className="flex gap-3 rounded-lg bg-amber-50/80 px-3 py-2.5 dark:bg-amber-900/10">
+                <div className="flex gap-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 dark:border-amber-900/60 dark:bg-amber-950/40">
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500 dark:text-amber-400" />
                   {/* Hardcoded i18n string, DOMPurify-sanitized before injection */}
                   <p
@@ -654,7 +654,7 @@ export default function ScorerRow({
               </div>
 
               {/* Actions */}
-              <div className="flex flex-wrap items-center justify-end gap-2 border-t border-gray-100 px-5 pb-5 pt-4 dark:border-gray-700">
+              <div className="flex flex-wrap items-center justify-end gap-2 rounded-b-xl border-t border-hairline bg-surface-sunken/60 px-5 pb-5 pt-4">
                 <Button type="button" variant="ghost" onClick={() => setConfirmRole(null)}>
                   {t('cancelAction')}
                 </Button>

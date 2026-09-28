@@ -75,7 +75,7 @@ export default function PlaceGameModal({
     }
   }
 
-  const selectClass = 'h-11 w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm sm:h-9 dark:bg-gray-800'
+  const selectClass = 'h-11 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm sm:h-9 dark:bg-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
 
   return (
     <Modal open={open} onClose={onClose} title={`${t('placeGame')} — ${formatDateZurich(date)} · ${time} · ${targetHall}`}>
@@ -156,7 +156,7 @@ export default function PlaceGameModal({
         </div>
 
         {nearbyGames && nearbyGames.length > 0 && (
-          <div className="rounded-md border border-border bg-muted/30 p-2 text-xs">
+          <div className="rounded-lg border border-hairline bg-surface-sunken p-2 text-xs">
             <p className="mb-1 font-medium text-muted-foreground">{t('nearbyGames')}</p>
             <ul className="space-y-0.5">
               {nearbyGames.map((g, i) => (

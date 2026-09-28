@@ -25,7 +25,7 @@ const DISTRICTS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'
 const HALL_TYPES = ['sporthalle', 'gymnastikraum', 'dreifachhalle', 'doppelhalle']
 
 const selectClass =
-  'h-11 rounded-md border border-input bg-transparent px-2 text-sm sm:h-9 dark:bg-gray-800'
+  'h-11 rounded-lg border border-input bg-card px-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-9 dark:bg-gray-800'
 
 // The size column prints the city's own string verbatim (L x B x H, Swiss
 // decimal comma) — no reformatting and no derived "fits a court" verdict.
@@ -117,7 +117,7 @@ export default function HallenfinderPage() {
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-6">
       <header className="mb-4">
-        <h1 className="text-2xl font-bold text-foreground">{t('title')}</h1>
+        <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">{t('title')}</h1>
         <p className="text-sm text-muted-foreground">{t('subtitle')}</p>
         <p className="mt-2 max-w-2xl text-sm text-muted-foreground">{t('intro')}</p>
         {data?.lastUpdated && (
@@ -128,7 +128,7 @@ export default function HallenfinderPage() {
       </header>
 
       {/* Filters */}
-      <div className="mb-4 flex flex-col gap-3 rounded-lg border border-border bg-card p-3">
+      <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-hairline bg-card p-3 shadow-card sm:p-4">
         <div className="flex flex-wrap items-center gap-1">
           <span className="mr-1 text-sm text-muted-foreground">{t('filters.weekday')}:</span>
           {WEEKDAYS.map((d) => (
@@ -136,7 +136,7 @@ export default function HallenfinderPage() {
               key={d}
               type="button"
               size="sm"
-              variant={weekdays.includes(d) ? 'default' : 'outline'}
+              variant={weekdays.includes(d) ? 'dark' : 'outline'}
               onClick={() => toggleWeekday(d)}
               aria-pressed={weekdays.includes(d)}
             >
@@ -209,7 +209,7 @@ export default function HallenfinderPage() {
               {exporting ? t('exporting') : t('exportXlsx')}
             </Button>
           </div>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto rounded-2xl border border-hairline bg-card shadow-card">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -268,7 +268,7 @@ export default function HallenfinderPage() {
                         </span>
                       )}
                     </TableCell>
-                    <TableCell className="whitespace-nowrap">{r.sampleWindow ?? '—'}</TableCell>
+                    <TableCell className="whitespace-nowrap tabular-nums">{r.sampleWindow ?? '—'}</TableCell>
                     <TableCell>
                       {r.freeAllNonHolidayWeeks
                         ? <Badge variant="default">{t('allWeeks', { total: r.weeksTotal })}</Badge>
@@ -289,7 +289,7 @@ export default function HallenfinderPage() {
                         )}
                         {sanitizeUrl(r.reservationUrl) && (
                           <a href={sanitizeUrl(r.reservationUrl)} target="_blank" rel="noopener noreferrer"
-                            className="text-xs font-medium text-primary underline">
+                            className="text-xs font-medium text-primary underline dark:text-brand-300">
                             {t('book')}
                           </a>
                         )}

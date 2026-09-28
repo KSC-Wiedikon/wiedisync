@@ -91,7 +91,7 @@ export default function CountryMultiSelect({
       <div
         onClick={() => { if (!disabled) { inputRef.current?.focus(); setOpen(true) } }}
         className={cn(
-          'flex min-h-11 w-full flex-wrap items-center gap-1.5 rounded-md border sm:min-h-9 border-input bg-transparent px-2 py-1.5 text-sm shadow-sm transition-colors focus-within:ring-1 focus-within:ring-ring',
+          'flex min-h-11 w-full flex-wrap items-center gap-1.5 rounded-lg border sm:min-h-9 border-input bg-card px-2 py-1.5 text-sm transition-colors focus-within:ring-2 focus-within:ring-ring dark:bg-input/20',
           disabled ? 'cursor-not-allowed opacity-50' : 'cursor-text',
         )}
       >
@@ -106,7 +106,7 @@ export default function CountryMultiSelect({
               // tinting the non-primary ones differently made them read as "not
               // really selected", which is the opposite of the point. Primary-ness
               // is carried by the ordinal badge instead.
-              className="inline-flex items-center gap-1.5 rounded-full bg-primary py-1 pl-2 pr-1 text-xs font-semibold text-primary-foreground shadow-sm"
+              className="inline-flex items-center gap-1.5 rounded-full bg-primary py-1 pl-2 pr-1 text-xs font-semibold text-primary-foreground"
               title={selected.length > 1 && i === 0 ? t('primaryNationality') : undefined}
             >
               {/* Order is meaningful — the first code is the one ClubDesk
@@ -145,7 +145,7 @@ export default function CountryMultiSelect({
           disabled={disabled}
           // Shrinks to a caret beside the chips; only claims the full row when
           // nothing is selected yet.
-          className="min-w-[6rem] flex-1 bg-transparent px-1 outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed"
+          className="min-w-[6rem] flex-1 bg-transparent px-1 outline-none placeholder:text-muted-foreground/70 disabled:cursor-not-allowed"
           placeholder={selected.length ? t('addCountry') : t('searchCountry')}
           value={search}
           onFocus={() => setOpen(true)}
@@ -166,7 +166,7 @@ export default function CountryMultiSelect({
           id={listboxId}
           role="listbox"
           aria-multiselectable="true"
-          className="absolute z-50 mt-1 max-h-60 w-full overflow-y-auto overscroll-contain rounded-md border bg-popover shadow-lg [touch-action:pan-y] [-webkit-overflow-scrolling:touch]"
+          className="absolute z-50 mt-1 max-h-60 w-full overflow-y-auto overscroll-contain rounded-lg border bg-popover text-popover-foreground shadow-xl [touch-action:pan-y] [-webkit-overflow-scrolling:touch]"
         >
           {filtered.length === 0 && (
             <div className="px-3 py-2 text-sm text-muted-foreground">{t('noResults')}</div>
@@ -184,7 +184,7 @@ export default function CountryMultiSelect({
                 onClick={() => toggle(o.value)}
                 className={cn(
                   // A chosen row must not look like a merely hovered one: hover
-                  // is `bg-accent` (brand-50 / brand-900-50), so selection uses a
+                  // is `bg-accent` (stone-100 / brand-900-50), so selection uses a
                   // stronger brand wash + bold brand text + a left brand bar, and
                   // keeps winning on hover.
                   'flex min-h-[44px] w-full items-center border-l-2 px-3 py-2 text-left text-sm transition-colors',

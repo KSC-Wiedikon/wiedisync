@@ -11,7 +11,7 @@ interface TabItem {
   requiresAuth?: boolean
 }
 
-const iconClass = 'h-6 w-6'
+const iconClass = 'h-5 w-5'
 
 /** Trainings tab glyph — kept as a named component (like WhistleIcon) so the tab
  * config stays free of inline path markup. */
@@ -45,18 +45,18 @@ export default function BottomTabBar({ onMoreTap, moreActive, unreadNotification
   const { user, isApproved } = useAuth()
   const visibleTabs = primaryTabs.filter((tab) => !tab.requiresAuth || (user && isApproved))
   return (
-    <nav className="pb-safe fixed bottom-0 left-0 right-0 z-40 border-t border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
-      <div className="flex h-16 items-stretch">
+    <nav className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 backdrop-blur">
+      <div className="mx-auto flex max-w-5xl items-stretch gap-1.5 px-2 py-2">
         {visibleTabs.map((tab) => (
           <NavLink
             key={tab.to}
             to={tab.to}
             end={tab.to === '/'}
             className={({ isActive }) =>
-              `flex flex-1 flex-col items-center justify-center gap-0.5 text-[10px] font-medium transition-colors ${
+              `flex h-14 min-w-0 flex-1 basis-0 flex-col items-center justify-center gap-1 rounded-xl text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                 isActive
-                  ? 'text-gold-500 dark:text-gold-400'
-                  : 'text-gray-500 dark:text-gray-400'
+                  ? 'bg-selected text-selected-foreground'
+                  : 'text-muted-foreground hover:bg-accent hover:text-foreground'
               }`
             }
           >
@@ -68,15 +68,15 @@ export default function BottomTabBar({ onMoreTap, moreActive, unreadNotification
         {/* More tab */}
         <button
           onClick={onMoreTap}
-          className={`relative flex flex-1 flex-col items-center justify-center gap-0.5 text-[10px] font-medium transition-colors ${
+          className={`relative flex h-14 min-w-0 flex-1 basis-0 flex-col items-center justify-center gap-1 rounded-xl text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
             moreActive
-              ? 'text-gold-500 dark:text-gold-400'
-              : 'text-gray-500 dark:text-gray-400'
+              ? 'bg-accent text-foreground'
+              : 'text-muted-foreground hover:bg-accent hover:text-foreground'
           }`}
         >
           <Menu className={iconClass} />
           {unreadNotifications > 0 && (
-            <span className="absolute right-2.5 top-1 h-2 w-2 rounded-full bg-red-500">
+            <span className="absolute left-1/2 top-2 ml-2 h-2 w-2 rounded-full bg-red-500 ring-2 ring-card">
               <span className="sr-only">{tn('unreadBadge', { count: unreadNotifications })}</span>
             </span>
           )}

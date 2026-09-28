@@ -39,7 +39,7 @@ export default function BootOverlay() {
   if (!mounted) return null
   return (
     <div
-      className={`fixed inset-0 z-[60] flex items-center justify-center bg-gray-50 transition-opacity duration-200 dark:bg-gray-900 ${
+      className={`fixed inset-0 z-[60] flex items-center justify-center bg-background transition-opacity duration-200 ${
         booting ? 'opacity-100' : 'pointer-events-none opacity-0'
       }`}
     >

@@ -156,14 +156,14 @@ export default function ExplorerBulkDepartModal({ open, onClose, members, onMuta
       size="md"
     >
       <div className="space-y-4">
-        <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3">
+        <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-3">
           <p className="flex items-start gap-2 text-sm text-destructive">
             <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
             {t('explorerBulkDepartWarning')}
           </p>
         </div>
 
-        <div className="rounded-lg border border-border bg-muted/40 p-3">
+        <div className="rounded-xl border border-hairline bg-surface-sunken p-3">
           <p className="text-xs font-medium text-muted-foreground">
             {t('explorerBulkSelected', { count: members.length })}
           </p>
@@ -193,7 +193,7 @@ export default function ExplorerBulkDepartModal({ open, onClose, members, onMuta
           <p className="text-xs text-muted-foreground">{t('explorerBulkDepartDateHint')}</p>
         </div>
 
-        <div className="rounded-lg border border-border bg-card p-3 text-sm">
+        <div className="rounded-xl border border-hairline bg-surface-sunken p-3 text-sm">
           {running ? (
             <p className="flex items-center gap-2 text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -213,7 +213,7 @@ export default function ExplorerBulkDepartModal({ open, onClose, members, onMuta
         </div>
 
         {summary && summary.failed.length > 0 && (
-          <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3">
+          <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-3">
             <p className="text-sm font-medium text-destructive">
               {t('explorerBulkFailed', { count: summary.failed.length })}
             </p>

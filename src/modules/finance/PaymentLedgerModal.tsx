@@ -14,8 +14,10 @@ import {
 } from '../../hooks/useFinance'
 import type { FinanceInvoice } from './types'
 
-const labelCls = 'block text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400'
-const inputCls = 'mt-1 h-11 w-full rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm sm:h-9 outline-none focus:border-brand-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100'
+const labelCls = 'block text-[11px] font-semibold uppercase tracking-wide text-muted-foreground'
+const inputCls = 'mt-1 h-11 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground sm:h-9 outline-none placeholder:text-muted-foreground/70 focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary/60 dark:bg-input/20'
+// Native <select>: dark:bg-gray-800 is mandatory so the <option> list is dark too.
+const selectCls = 'mt-1 h-11 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground sm:h-9 outline-none placeholder:text-muted-foreground/70 focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary/60 dark:bg-gray-800'
 const apiErr = (e: unknown, fb: string) => (e as { body?: { error?: string } })?.body?.error || fb
 
 const ENTRY_TYPES: PaymentEntryType[] = ['payment', 'credit_note', 'refund', 'writeoff']
@@ -74,21 +76,21 @@ export default function PaymentLedgerModal({ invoice, onClose, onChanged }: {
     <Modal open={!!invoice} onClose={onClose} title={t('payLedgerTitle')}>
       {invoice && (
         <div className="space-y-4">
-          <div className="rounded-md bg-gray-50 p-3 text-sm dark:bg-gray-800">
-            <div className="font-medium text-gray-900 dark:text-gray-100">{invoice.number} · {invoice.recipient_name || '–'}</div>
-            <div className="mt-0.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+          <div className="rounded-xl border border-hairline bg-surface-sunken p-3 text-sm">
+            <div className="font-medium text-foreground">{invoice.number} · {invoice.recipient_name || '–'}</div>
+            <div className="mt-0.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
               <span>{t('colAmount')}: {formatChf(invoice.amount)}</span>
-              <span>{t('colOpen')}: <span className="font-semibold text-gray-700 dark:text-gray-200">{formatChf(invoice.open_amount)}</span></span>
+              <span>{t('colOpen')}: <span className="font-semibold text-foreground/85">{formatChf(invoice.open_amount)}</span></span>
               <span>{t('colStatus')}: {invoice.status}</span>
             </div>
           </div>
 
           {/* Record an entry */}
-          <div className="space-y-3 rounded-lg border border-gray-200 p-3 dark:border-gray-700">
+          <div className="space-y-3 rounded-xl border border-hairline p-3">
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label htmlFor="pay-entry-type" className={labelCls}>{t('payEntryType')}</label>
-                <select id="pay-entry-type" value={entryType} onChange={(e) => setEntryType(e.target.value as PaymentEntryType)} className={`${inputCls} dark:bg-gray-800`}>
+                <select id="pay-entry-type" value={entryType} onChange={(e) => setEntryType(e.target.value as PaymentEntryType)} className={selectCls}>
                   {ENTRY_TYPES.map((x) => <option key={x} value={x}>{typeLabel(x)}</option>)}
                 </select>
               </div>
@@ -101,7 +103,7 @@ export default function PaymentLedgerModal({ invoice, onClose, onChanged }: {
               {hasMethod(entryType) && (
                 <div>
                   <label htmlFor="pay-method" className={labelCls}>{t('payMethod')}</label>
-                  <select id="pay-method" value={method} onChange={(e) => setMethod(e.target.value)} className={`${inputCls} dark:bg-gray-800`}>
+                  <select id="pay-method" value={method} onChange={(e) => setMethod(e.target.value)} className={selectCls}>
                     {METHODS.map((m) => <option key={m} value={m}>{t(`payMethod_${m}`)}</option>)}
                   </select>
                 </div>
@@ -125,43 +127,43 @@ export default function PaymentLedgerModal({ invoice, onClose, onChanged }: {
 
           {/* Ledger */}
           {rows.length === 0 && !ledgerPending ? (
-            <p className="py-4 text-center text-sm text-gray-500 dark:text-gray-400">{t('payNoEntries')}</p>
+            <p className="py-4 text-center text-sm text-muted-foreground">{t('payNoEntries')}</p>
           ) : (
-            <div className="rounded-lg border border-gray-200 dark:border-gray-700" aria-busy={ledgerPending}>
+            <div className="overflow-hidden rounded-xl border border-hairline" aria-busy={ledgerPending}>
               <Table>
                 <TableHeader>
-                  <TableRow className="border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/40">
-                    <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colDate')}</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('payColType')}</TableHead>
-                    <TableHead className="text-right text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colAmount')}</TableHead>
-                    <TableHead className="text-right text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400"></TableHead>
+                  <TableRow>
+                    <TableHead>{t('colDate')}</TableHead>
+                    <TableHead>{t('payColType')}</TableHead>
+                    <TableHead className="text-right">{t('colAmount')}</TableHead>
+                    <TableHead className="text-right"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {ledgerPending && [0, 1].map((i) => (
-                    <TableRow key={`sk-${i}`} className="border-gray-200 dark:border-gray-700">
-                      <TableCell><div className="h-4 w-16 animate-pulse rounded bg-gray-200 dark:bg-gray-700" /></TableCell>
-                      <TableCell><div className="h-4 w-24 animate-pulse rounded bg-gray-200 dark:bg-gray-700" /></TableCell>
-                      <TableCell><div className="ml-auto h-4 w-16 animate-pulse rounded bg-gray-200 dark:bg-gray-700" /></TableCell>
-                      <TableCell><div className="ml-auto h-7 w-7 animate-pulse rounded-md bg-gray-200 dark:bg-gray-700" /></TableCell>
+                    <TableRow key={`sk-${i}`}>
+                      <TableCell><div className="h-4 w-16 animate-pulse rounded bg-stone-200/80 dark:bg-muted" /></TableCell>
+                      <TableCell><div className="h-4 w-24 animate-pulse rounded bg-stone-200/80 dark:bg-muted" /></TableCell>
+                      <TableCell><div className="ml-auto h-4 w-16 animate-pulse rounded bg-stone-200/80 dark:bg-muted" /></TableCell>
+                      <TableCell><div className="ml-auto h-7 w-7 animate-pulse rounded-md bg-stone-200/80 dark:bg-muted" /></TableCell>
                     </TableRow>
                   ))}
                   {rows.map((p) => (
-                    <TableRow key={p.id} className="border-gray-200 dark:border-gray-700">
-                      <TableCell className="whitespace-nowrap text-gray-900 dark:text-gray-100">{p.payment_date ? formatDateCompactZurich(p.payment_date) : '–'}</TableCell>
-                      <TableCell className="whitespace-normal break-words text-gray-700 dark:text-gray-300">
+                    <TableRow key={p.id}>
+                      <TableCell className="whitespace-nowrap tabular-nums text-foreground">{p.payment_date ? formatDateCompactZurich(p.payment_date) : '–'}</TableCell>
+                      <TableCell className="whitespace-normal break-words text-foreground/85">
                         {typeLabel(p.entry_type)}
                         {p.method && p.entry_type !== 'credit_note' && p.entry_type !== 'writeoff' ? ` · ${t(`payMethod_${p.method}`, p.method)}` : ''}
-                        {p.note ? <span className="mt-0.5 block text-xs text-gray-400">{p.note}</span> : null}
+                        {p.note ? <span className="mt-0.5 block text-xs text-muted-foreground/80">{p.note}</span> : null}
                       </TableCell>
-                      <TableCell className="text-right tabular-nums text-gray-900 dark:text-gray-100">{formatChf(toNum(p.amount))}</TableCell>
+                      <TableCell className="text-right tabular-nums text-foreground">{formatChf(toNum(p.amount))}</TableCell>
                       <TableCell className="text-right">
                         {p.source === 'native' && p.method !== 'camt' ? (
                           <IconButton size="sm" variant="outline" disabled={busyDel === p.id} onClick={() => remove(p.id)} label={t('payDelete')}
-                            className="text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400">
+                            className="text-muted-foreground hover:text-red-600 dark:hover:text-red-400">
                             {busyDel === p.id ? <Loader2 className="animate-spin" /> : <Trash2 />}
                           </IconButton>
-                        ) : <span className="text-xs text-gray-400">{p.camt_reference ? t('payViaCamt') : ''}</span>}
+                        ) : <span className="text-xs text-muted-foreground/80">{p.camt_reference ? t('payViaCamt') : ''}</span>}
                       </TableCell>
                     </TableRow>
                   ))}

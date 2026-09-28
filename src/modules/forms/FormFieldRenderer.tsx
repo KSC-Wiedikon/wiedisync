@@ -94,8 +94,8 @@ export default function FormFieldRenderer({ field, value, onChange, disabled, pr
                 aria-label={`${n}`}
                 className={
                   n <= current
-                    ? 'border-brand-500 bg-brand-500 text-white hover:bg-brand-600 hover:text-white'
-                    : 'border-gray-200 text-gray-600 dark:border-gray-600 dark:text-gray-300'
+                    ? 'border-transparent bg-selected text-selected-foreground hover:bg-selected/90 hover:text-selected-foreground'
+                    : 'border-border text-muted-foreground'
                 }
               >
                 {n}
@@ -148,7 +148,7 @@ export default function FormFieldRenderer({ field, value, onChange, disabled, pr
                   checked={arr.includes(o)}
                   onChange={() => toggle(o)}
                   disabled={disabled}
-                  className="h-4 w-4 accent-brand-500"
+                  className="h-4 w-4 accent-[var(--primary)]"
                 />
                 <span className="text-sm">{o}</span>
               </label>
@@ -179,7 +179,7 @@ export default function FormFieldRenderer({ field, value, onChange, disabled, pr
       return (
         <FormField label={label}>
           {file ? (
-            <div className="flex min-h-11 items-center gap-2 rounded-md border border-gray-200 py-1 pl-3 pr-1 text-sm dark:border-gray-600 sm:min-h-9">
+            <div className="flex min-h-11 items-center gap-2 rounded-lg border border-border bg-surface-sunken py-1 pl-3 pr-1 text-sm sm:min-h-9">
               <Paperclip size={15} className="shrink-0 text-muted-foreground" />
               <TruncatedText text={file.name} className="flex-1" />
               {!disabled && (
@@ -189,7 +189,7 @@ export default function FormFieldRenderer({ field, value, onChange, disabled, pr
               )}
             </div>
           ) : (
-            <label className={`flex min-h-11 cursor-pointer items-center gap-2 rounded-md border border-dashed sm:min-h-9 border-gray-300 px-3 py-2 text-sm text-muted-foreground hover:bg-muted dark:border-gray-600 ${disabled || uploading ? 'pointer-events-none opacity-60' : ''}`}>
+            <label className={`flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-dashed sm:min-h-9 border-input px-3 py-2 text-sm text-muted-foreground hover:bg-accent ${disabled || uploading ? 'pointer-events-none opacity-60' : ''}`}>
               {uploading ? <Loader2 size={15} className="animate-spin" /> : <Paperclip size={15} />}
               <span>{uploading ? t('uploading') : t('chooseFile')}</span>
               <input type="file" className="hidden" onChange={onPick} disabled={disabled || uploading} />

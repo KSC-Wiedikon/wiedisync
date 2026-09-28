@@ -21,17 +21,17 @@ export default function GameAttendanceDrilldown({ memberId, stats, gamesById }: 
     .sort((a, b) => a.gs.dateKey.localeCompare(b.gs.dateKey))
 
   if (rows.length === 0) {
-    return <p className="text-xs text-gray-500 dark:text-gray-400">{t('drilldownEmpty')}</p>
+    return <p className="text-xs text-muted-foreground">{t('drilldownEmpty')}</p>
   }
 
   return (
     <Table className="text-xs">
       <TableHeader>
-        <TableRow className="border-gray-200 dark:border-gray-700">
-          <TableHead className="text-gray-500 dark:text-gray-400">{t('date')}</TableHead>
-          <TableHead className="text-gray-500 dark:text-gray-400">{t('drilldownColOpponent')}</TableHead>
-          <TableHead className="hidden text-gray-500 sm:table-cell dark:text-gray-400">{t('hallLabel')}</TableHead>
-          <TableHead className="text-gray-500 dark:text-gray-400">{t('drilldownColStatus')}</TableHead>
+        <TableRow className="border-border">
+          <TableHead className="text-muted-foreground">{t('date')}</TableHead>
+          <TableHead className="text-muted-foreground">{t('drilldownColOpponent')}</TableHead>
+          <TableHead className="hidden text-muted-foreground sm:table-cell">{t('hallLabel')}</TableHead>
+          <TableHead className="text-muted-foreground">{t('drilldownColStatus')}</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -43,10 +43,10 @@ export default function GameAttendanceDrilldown({ memberId, stats, gamesById }: 
             ? 'text-green-700 dark:text-green-400'
             : 'text-red-700 dark:text-red-400'
           return (
-            <TableRow key={gs.gameId} className="border-gray-100 dark:border-gray-700/50">
-              <TableCell className="font-medium text-gray-600 dark:text-gray-300">{formatDate(gs.dateKey)}</TableCell>
-              <TableCell className="text-gray-600 dark:text-gray-300">{opponent || '?'}</TableCell>
-              <TableCell className="hidden text-gray-600 sm:table-cell dark:text-gray-300">{hall || '–'}</TableCell>
+            <TableRow key={gs.gameId} className="border-border/60">
+              <TableCell className="font-medium tabular-nums text-muted-foreground">{formatDate(gs.dateKey)}</TableCell>
+              <TableCell className="text-muted-foreground">{opponent || '?'}</TableCell>
+              <TableCell className="hidden text-muted-foreground sm:table-cell">{hall || '–'}</TableCell>
               <TableCell className={`font-medium ${statusColor}`}>{statusLabel}</TableCell>
             </TableRow>
           )

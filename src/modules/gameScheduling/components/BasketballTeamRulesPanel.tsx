@@ -58,7 +58,7 @@ const ALL_TIMES = [...new Set([...FRIDAY_SLOTS, ...SATURDAY_SLOTS, ...SUNDAY_SLO
 const DAY_KEY: Record<number, string> = { 5: 'day_fri', 6: 'day_sat', 0: 'day_sun' }
 
 const selectClass =
-  'h-11 w-full rounded-md border border-border bg-transparent px-2 py-1 text-xs sm:h-9 dark:bg-gray-800'
+  'h-11 w-full rounded-lg border border-input bg-card px-2 py-1 text-xs sm:h-9 dark:bg-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
 export default function BasketballTeamRulesPanel({
   teams,
   byTeam,
@@ -108,22 +108,22 @@ export default function BasketballTeamRulesPanel({
   }
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-4 sm:p-6 dark:border-gray-700 dark:bg-gray-800">
-      <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('teamRules')}</h2>
-      <p className="mt-1 mb-4 max-w-3xl text-xs text-gray-500 dark:text-gray-400">{t('teamRulesHint')}</p>
+    <div className="rounded-2xl border border-hairline bg-card shadow-card p-4 sm:p-6">
+      <h2 className="text-base font-semibold tracking-tight text-foreground">{t('teamRules')}</h2>
+      <p className="mt-1 mb-4 max-w-3xl text-xs text-muted-foreground">{t('teamRulesHint')}</p>
 
       {/* Informational, not a warning — a team with no rules is offered every slot. */}
       {missing.length > 0 && (
-        <div className="mb-4 flex items-start gap-2 rounded-md border border-sky-300 bg-sky-50 px-3 py-2 text-xs text-sky-900 dark:border-sky-800 dark:bg-sky-900/20 dark:text-sky-200">
+        <div className="mb-4 flex items-start gap-2 rounded-lg border border-sky-300 bg-sky-50 px-3 py-2 text-xs text-sky-900 dark:border-sky-800 dark:bg-sky-900/20 dark:text-sky-200">
           <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
           <span>{t('teamRulesMissing', { teams: missing.map((m) => m.name).join(', ') })}</span>
         </div>
       )}
 
       {isLoading ? (
-        <p className="py-4 text-sm text-gray-500 dark:text-gray-400">{t('loading')}</p>
+        <p className="py-4 text-sm text-muted-foreground">{t('loading')}</p>
       ) : teams.length === 0 ? (
-        <p className="py-4 text-sm text-gray-500 dark:text-gray-400">{t('teamRulesNoTeams')}</p>
+        <p className="py-4 text-sm text-muted-foreground">{t('teamRulesNoTeams')}</p>
       ) : (
         <Table>
           <TableHeader>
@@ -159,7 +159,7 @@ export default function BasketballTeamRulesPanel({
                       <span className="mr-2 rounded bg-sky-100 px-2 py-0.5 font-medium text-sky-900 dark:bg-sky-900/40 dark:text-sky-200">
                         {t('openToAll')}
                       </span>
-                      <span className="text-gray-600 dark:text-gray-300">{t('openToAllHint')}</span>
+                      <span className="text-muted-foreground">{t('openToAllHint')}</span>
                     </TableCell>
                     <TableCell className="hidden sm:table-cell" />
                     <TableCell className="hidden sm:table-cell" />
@@ -184,7 +184,7 @@ export default function BasketballTeamRulesPanel({
                 <TableRow key={key} className={rule.enabled ? undefined : 'opacity-60'}>
                   <TableCell className="whitespace-normal break-words font-medium">
                     {team.name}
-                    <span className="block text-[11px] font-normal text-gray-500 dark:text-gray-400">
+                    <span className="block text-[11px] font-normal text-muted-foreground">
                       {rule.league}
                     </span>
                   </TableCell>
@@ -223,7 +223,7 @@ export default function BasketballTeamRulesPanel({
                   <TableCell>
                     <div className="flex flex-col gap-1">
                       <div className="flex flex-col gap-1 sm:flex-row sm:items-center">
-                        <span className="text-[11px] text-gray-500 dark:text-gray-400">{t('daysAllowed')}</span>
+                        <span className="text-[11px] text-muted-foreground">{t('daysAllowed')}</span>
                         <div className="flex gap-1">
                           {PLAY_DOWS.map((d) => {
                             const on = rule.allowed_dows.includes(d)
@@ -252,7 +252,7 @@ export default function BasketballTeamRulesPanel({
                         </div>
                       </div>
                       <div className="flex flex-col gap-1 sm:flex-row sm:items-center">
-                        <span className="text-[11px] text-gray-500 dark:text-gray-400">{t('daysPreferred')}</span>
+                        <span className="text-[11px] text-muted-foreground">{t('daysPreferred')}</span>
                         <div className="flex gap-1">
                           {PLAY_DOWS.map((d) => {
                             const allowed = rule.allowed_dows.includes(d)
@@ -285,7 +285,7 @@ export default function BasketballTeamRulesPanel({
                   {/* Start window — both bounds inclusive */}
                   <TableCell>
                     <div className="flex flex-col gap-1">
-                      <label className="flex items-center gap-1 text-[11px] text-gray-500 dark:text-gray-400">
+                      <label className="flex items-center gap-1 text-[11px] text-muted-foreground">
                         {t('startFrom')}
                         <select
                           className={selectClass}
@@ -301,7 +301,7 @@ export default function BasketballTeamRulesPanel({
                           ))}
                         </select>
                       </label>
-                      <label className="flex items-center gap-1 text-[11px] text-gray-500 dark:text-gray-400">
+                      <label className="flex items-center gap-1 text-[11px] text-muted-foreground">
                         {t('startUntil')}
                         <select
                           className={selectClass}
@@ -373,11 +373,11 @@ export default function BasketballTeamRulesPanel({
                   {/* Blocked-date rules — summary only; edited in the detail row */}
                   <TableCell className="hidden whitespace-normal break-words text-xs lg:table-cell">
                     {rule.blocked.length === 0 ? (
-                      <span className="text-gray-400 dark:text-gray-500">{t('blockedNone')}</span>
+                      <span className="text-muted-foreground/80">{t('blockedNone')}</span>
                     ) : (
                       <span className="flex flex-wrap gap-1">
                         {rule.blocked.map((b, i) => (
-                          <span key={i} className="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-700">
+                          <span key={i} className="rounded bg-muted px-1.5 py-0.5">
                             {blockedLabel(b)}
                           </span>
                         ))}
@@ -400,7 +400,7 @@ export default function BasketballTeamRulesPanel({
                 </TableRow>,
 
                 isOpen ? (
-                  <TableRow key={`${key}-detail`} className="bg-gray-50 dark:bg-gray-900/40">
+                  <TableRow key={`${key}-detail`} className="bg-surface-sunken">
                     <TableCell colSpan={9} className="whitespace-normal break-words">
                       <RuleDetail
                         rule={rule}
@@ -462,7 +462,7 @@ function RuleDetail({ rule, disabled, blockedLabel, onPatch, onDelete }: DetailP
       {/* League window + Ferien hardness */}
       <div className="space-y-2">
         <label className="flex flex-col gap-1 text-xs">
-          <span className="font-medium text-gray-700 dark:text-gray-200">{t('leagueLabel')}</span>
+          <span className="font-medium text-foreground/85">{t('leagueLabel')}</span>
           <select
             className={`${selectClass} max-w-sm`}
             value={rule.league}
@@ -475,11 +475,11 @@ function RuleDetail({ rule, disabled, blockedLabel, onPatch, onDelete }: DetailP
               </option>
             ))}
           </select>
-          <span className="text-gray-500 dark:text-gray-400">{t('leagueHint')}</span>
+          <span className="text-muted-foreground">{t('leagueHint')}</span>
         </label>
 
         <div className="flex flex-col gap-1 text-xs">
-          <span className="font-medium text-gray-700 dark:text-gray-200">{t('ferienLabel')}</span>
+          <span className="font-medium text-foreground/85">{t('ferienLabel')}</span>
           <Button
             variant={rule.ferien_hard ? 'default' : 'outline'}
             aria-pressed={rule.ferien_hard}
@@ -489,19 +489,19 @@ function RuleDetail({ rule, disabled, blockedLabel, onPatch, onDelete }: DetailP
           >
             {rule.ferien_hard ? t('ferienHard') : t('ferienSoft')}
           </Button>
-          <span className="text-gray-500 dark:text-gray-400">{t('ferienHint')}</span>
+          <span className="text-muted-foreground">{t('ferienHint')}</span>
         </div>
       </div>
 
       {/* Blocked-date rules */}
       <div className="space-y-2">
-        <span className="text-xs font-medium text-gray-700 dark:text-gray-200">{t('blockedRules')}</span>
+        <span className="text-xs font-medium text-foreground/85">{t('blockedRules')}</span>
         {rule.blocked.length === 0 ? (
-          <p className="text-xs text-gray-400 dark:text-gray-500">{t('blockedNone')}</p>
+          <p className="text-xs text-muted-foreground/80">{t('blockedNone')}</p>
         ) : (
           <ul className="space-y-1">
             {rule.blocked.map((b, i) => (
-              <li key={i} className="flex items-center justify-between gap-2 rounded bg-white px-2 py-1 text-xs dark:bg-gray-800">
+              <li key={i} className="flex items-center justify-between gap-2 rounded bg-card px-2 py-1 text-xs">
                 <span className="whitespace-normal break-words">{blockedLabel(b)}</span>
                 <Button
                   size="sm"
@@ -519,7 +519,7 @@ function RuleDetail({ rule, disabled, blockedLabel, onPatch, onDelete }: DetailP
         )}
 
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end">
-          <label className="flex flex-col gap-1 text-[11px] text-gray-500 dark:text-gray-400">
+          <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
             {t('ruleKind')}
             <select
               className={`${selectClass} sm:w-48`}
@@ -536,19 +536,19 @@ function RuleDetail({ rule, disabled, blockedLabel, onPatch, onDelete }: DetailP
               browser's locale, so a scheduling rule's boundary date read
               mm/dd/yyyy on an English machine. */}
           {kind !== 'school_holidays' && (
-            <div className="flex flex-col gap-1 text-[11px] text-gray-500 dark:text-gray-400">
+            <div className="flex flex-col gap-1 text-[11px] text-muted-foreground">
               {kind === 'date_range' ? t('ruleRangeStart') : t('ruleBeforeDateValue')}
               <DatePicker value={date} onChange={setDate} disabled={disabled} />
             </div>
           )}
           {kind === 'date_range' && (
-            <div className="flex flex-col gap-1 text-[11px] text-gray-500 dark:text-gray-400">
+            <div className="flex flex-col gap-1 text-[11px] text-muted-foreground">
               {t('ruleRangeEnd')}
               <DatePicker value={rangeEnd} onChange={setRangeEnd} disabled={disabled} />
             </div>
           )}
           {kind === 'school_holidays' && (
-            <label className="flex min-h-11 items-center gap-2 text-[11px] text-gray-500 dark:text-gray-400">
+            <label className="flex min-h-11 items-center gap-2 text-[11px] text-muted-foreground">
               <input
                 type="checkbox"
                 checked={weekendBefore}
@@ -567,9 +567,9 @@ function RuleDetail({ rule, disabled, blockedLabel, onPatch, onDelete }: DetailP
       {/* Note + delete */}
       <div className="space-y-1 lg:col-span-2">
         <label className="flex flex-col gap-1 text-xs">
-          <span className="font-medium text-gray-700 dark:text-gray-200">{t('noteLabel')}</span>
+          <span className="font-medium text-foreground/85">{t('noteLabel')}</span>
           <textarea
-            className="min-h-11 w-full rounded-md border border-border bg-transparent px-2 py-1 text-xs dark:bg-gray-800"
+            className="min-h-11 w-full rounded-lg border border-input bg-card px-2 py-1 text-xs placeholder:text-muted-foreground/70 dark:bg-input/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             rows={2}
             value={note}
             disabled={disabled}

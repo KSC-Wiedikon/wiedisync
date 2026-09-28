@@ -405,10 +405,10 @@ export default function RecurringTrainingModal({ open, onClose, onGenerated, sel
     }
   }
 
-  const fieldCls = 'mt-1 w-full rounded-lg border px-3 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500 focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none'
+  const fieldCls = 'mt-1 w-full rounded-lg border border-input bg-card px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary/60 dark:bg-gray-800 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none'
   const inputCls = `${fieldCls} h-11 sm:h-9`
   const textareaCls = `${fieldCls} py-2`
-  const labelCls = 'block text-sm font-medium text-gray-700 dark:text-gray-300'
+  const labelCls = 'block text-xs font-medium text-muted-foreground'
 
   if (done) {
     // `slot.team` is flattened to bare ids by `flattenM2MTeams`, so this has to
@@ -423,10 +423,10 @@ export default function RecurringTrainingModal({ open, onClose, onGenerated, sel
               <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
             </svg>
           </div>
-          <p className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+          <p className="text-lg font-semibold text-foreground">
             {t('trainingsGenerated', { count: generated })}
           </p>
-          <div className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
+          <div className="space-y-1 text-sm text-muted-foreground">
             {teamName && <div className="flex justify-center"><TeamChip team={teamName} size="sm" /></div>}
             {hallName && <p>{hallName}</p>}
             {previewDates.length > 0 && (
@@ -487,7 +487,7 @@ export default function RecurringTrainingModal({ open, onClose, onGenerated, sel
           )
         })()}
 
-        <div className="inline-flex w-full rounded-lg bg-gray-100 p-1 dark:bg-gray-800">
+        <div className="inline-flex w-full rounded-xl bg-muted p-1">
           {([
             ['slot', t('useSlot')],
             ['manual', t('enterManually')],
@@ -505,8 +505,8 @@ export default function RecurringTrainingModal({ open, onClose, onGenerated, sel
               }}
               className={`flex-1 text-sm ${
                 mode === value
-                  ? 'bg-white text-gray-900 shadow-sm hover:bg-white dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-700'
-                  : 'text-gray-600 hover:bg-transparent hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
+                  ? 'bg-card text-foreground shadow-sm hover:bg-card dark:bg-input dark:hover:bg-input'
+                  : 'text-muted-foreground hover:bg-transparent hover:text-foreground'
               }`}
             >
               {label}
@@ -516,7 +516,7 @@ export default function RecurringTrainingModal({ open, onClose, onGenerated, sel
 
         {mode === 'manual' && (
           <>
-            <p className="rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-600 dark:bg-gray-800 dark:text-gray-400">
+            <p className="rounded-lg border border-hairline bg-surface-sunken px-3 py-2 text-sm text-muted-foreground">
               {t('manualHint')}
             </p>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -641,7 +641,7 @@ export default function RecurringTrainingModal({ open, onClose, onGenerated, sel
             />
           )}
           <div className="flex items-end">
-            <div className="flex min-h-11 w-full items-center gap-2 rounded-lg border border-gray-300 px-3 py-1 text-sm sm:min-h-9 text-gray-700 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300">
+            <div className="flex min-h-11 w-full items-center gap-2 rounded-lg border border-input bg-card px-3 py-1 text-sm sm:min-h-9 text-foreground/85 dark:bg-gray-800">
               <Switch
                 checked={untilSeasonEnd}
                 onCheckedChange={(checked) => {
@@ -684,11 +684,11 @@ export default function RecurringTrainingModal({ open, onClose, onGenerated, sel
         />
 
         {minParticipants && Number(minParticipants) > 0 && (
-          <div className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300">
+          <div className="flex items-start gap-2 text-sm text-foreground/85">
             <Switch checked={autoCancelOnMin} onCheckedChange={setAutoCancelOnMin} className="mt-0.5" />
             <div>
               <span>{t('autoCancelOnMin')}</span>
-              <p className="text-xs text-gray-500 dark:text-gray-400">{t('autoCancelOnMinHint')}</p>
+              <p className="text-xs text-muted-foreground">{t('autoCancelOnMinHint')}</p>
             </div>
           </div>
         )}
@@ -702,23 +702,23 @@ export default function RecurringTrainingModal({ open, onClose, onGenerated, sel
               onChange={(e) => setRespondByAmount(e.target.value)}
               min={0}
               placeholder="0"
-              className="appearance-none rounded-lg border px-3 py-2 text-sm [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+              className="appearance-none rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary/60 dark:bg-gray-800"
             />
             <select
               value={respondByUnit}
               onChange={(e) => setRespondByUnit(e.target.value as 'hours' | 'days' | 'weeks' | 'months')}
-              className="rounded-lg border px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500 focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+              className="rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary/60 dark:bg-gray-800"
             >
               <option value="hours">{t('respondByHours')}</option>
               <option value="days">{t('respondByDays')}</option>
               <option value="weeks">{t('respondByWeeks')}</option>
               <option value="months">{t('respondByMonths')}</option>
             </select>
-            <span className="flex items-center justify-center text-sm text-gray-500 dark:text-gray-400">{t('respondByBefore')}</span>
+            <span className="flex items-center justify-center text-sm text-muted-foreground">{t('respondByBefore')}</span>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+        <div className="flex items-center gap-2 text-sm text-foreground/85">
           <Switch checked={requireNoteIfAbsent} onCheckedChange={setRequireNoteIfAbsent} />
           <div>
             <span>{t('requireNoteIfAbsent', { ns: 'participation' })}</span>
@@ -738,18 +738,18 @@ export default function RecurringTrainingModal({ open, onClose, onGenerated, sel
 
         {previewDates.length > 0 && (
           <div>
-            <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+            <p className="text-sm font-medium text-foreground/85">
               {t('generatePreview')} ({previewDates.length})
             </p>
-            <div className="mt-2 max-h-40 overflow-y-auto rounded-lg border bg-gray-50 p-2 dark:border-gray-600 dark:bg-gray-800">
+            <div className="mt-2 max-h-40 overflow-y-auto rounded-xl border border-hairline bg-surface-sunken p-2">
               {previewDates.map((d) => (
-                <p key={d} className="py-0.5 text-sm text-gray-600 dark:text-gray-400">{formatDate(d)}</p>
+                <p key={d} className="py-0.5 text-sm text-muted-foreground">{formatDate(d)}</p>
               ))}
             </div>
           </div>
         )}
 
-        {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+        {error && <p className="text-sm font-medium text-destructive">{error}</p>}
 
         <div className="flex justify-end gap-3 pt-2">
           <Button

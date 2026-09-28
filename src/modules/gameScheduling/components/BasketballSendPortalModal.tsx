@@ -107,10 +107,10 @@ export default function BasketballSendPortalModal({ open, onOpenChange, ids, sen
           <DialogDescription>{t('portalPreviewDesc', { count: previews.length })}</DialogDescription>
         </DialogHeader>
 
-        <label className="flex min-h-11 items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
+        <label className="flex min-h-11 items-center gap-2 text-xs text-muted-foreground">
           <input
             type="checkbox"
-            className="h-4 w-4"
+            className="h-4 w-4 accent-primary"
             checked={reminder}
             disabled={sending}
             onChange={(e) => setReminder(e.target.checked)}
@@ -119,21 +119,21 @@ export default function BasketballSendPortalModal({ open, onOpenChange, ids, sen
         </label>
 
         {loading ? (
-          <div className="py-10 text-center text-sm text-gray-500">{t('portalPreviewLoading')}</div>
+          <div className="py-10 text-center text-sm text-muted-foreground">{t('portalPreviewLoading')}</div>
         ) : error ? (
-          <div className="rounded border border-red-300 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300">
+          <div className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300">
             {error}
           </div>
         ) : previews.length === 0 ? (
-          <div className="py-10 text-center text-sm text-gray-500">{t('portalNothingToSend')}</div>
+          <div className="py-10 text-center text-sm text-muted-foreground">{t('portalNothingToSend')}</div>
         ) : (
           <div className="flex min-h-0 flex-col gap-2">
-            <label className="text-xs font-medium text-gray-600 dark:text-gray-400">
+            <label className="text-xs font-medium text-muted-foreground">
               {t('portalPreviewRecipient')}
               <select
                 value={selected}
                 onChange={(e) => setSelected(Number(e.target.value))}
-                className="mt-1 block h-11 w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm sm:h-9 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+                className="mt-1 block h-11 w-full rounded-lg border border-input bg-card px-2 py-1.5 text-sm sm:h-9 text-foreground dark:bg-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 {previews.map((p, i) => {
                   const to = p.to || ''
@@ -148,16 +148,16 @@ export default function BasketballSendPortalModal({ open, onOpenChange, ids, sen
             </label>
 
             {current && (
-              <div className="min-h-0 overflow-y-auto rounded border border-gray-200 dark:border-gray-700">
-                <div className="space-y-0.5 border-b border-gray-200 bg-gray-50 px-3 py-2 text-xs dark:border-gray-700 dark:bg-gray-800/60">
-                  <div className="break-words text-gray-500 dark:text-gray-400">
+              <div className="min-h-0 overflow-y-auto rounded-lg border border-border">
+                <div className="space-y-0.5 border-b border-border bg-surface-sunken px-3 py-2 text-xs">
+                  <div className="break-words text-muted-foreground">
                     <span className="font-medium">{t('portalPreviewTo')}:</span>{' '}
                     {current.to || <span className="text-amber-600 dark:text-amber-400">{t('portalNoContact')}</span>}
                   </div>
-                  <div className="break-words text-gray-500 dark:text-gray-400">
+                  <div className="break-words text-muted-foreground">
                     <span className="font-medium">{t('portalPreviewSubject')}:</span> {current.subject}
                   </div>
-                  <div className="text-gray-500 dark:text-gray-400">
+                  <div className="text-muted-foreground">
                     <span className="font-medium">{t('portalPreviewGames')}:</span> {current.offers}
                   </div>
                 </div>
@@ -167,7 +167,7 @@ export default function BasketballSendPortalModal({ open, onOpenChange, ids, sen
             )}
 
             {sendable.length > 1 && (
-              <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+              <p className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
                 {t('portalSendOneFirst')}
               </p>
             )}

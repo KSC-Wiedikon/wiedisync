@@ -151,7 +151,7 @@ export default function MemberRow({ memberTeam, teamSlug, team, canEdit, isAdmin
   }
 
   return (
-    <tr className={cn('border-b last:border-0 hover:bg-gray-50 dark:hover:bg-gray-700', member.shell && 'border-l-2 border-l-amber-400 bg-amber-400/5')}>
+    <tr className={cn('border-b border-border/70 last:border-0 transition-colors hover:bg-muted/70', member.shell && 'border-l-2 border-l-amber-400 bg-amber-400/5')}>
       <td className="px-4 py-3">
         <div className="flex items-center gap-3">
           {member.photo ? (
@@ -179,13 +179,13 @@ export default function MemberRow({ memberTeam, teamSlug, team, canEdit, isAdmin
               />
             </>
           ) : (
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-200 text-xs font-medium text-gray-600 dark:text-gray-400">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-stone-200 text-xs font-medium text-muted-foreground dark:bg-gray-600">
               {initials}
             </div>
           )}
           <Link
             to={`/teams/player/${member.id}?from=${teamSlug}`}
-            className="text-sm font-medium text-gray-900 hover:text-brand-600 dark:text-gray-100"
+            className="text-sm font-medium text-foreground hover:text-primary dark:hover:text-brand-300"
           >
             {displayName}
           </Link>
@@ -228,10 +228,10 @@ export default function MemberRow({ memberTeam, teamSlug, team, canEdit, isAdmin
                 <DialogHeader>
                   <DialogTitle>{t('shellInfoTitle')}</DialogTitle>
                 </DialogHeader>
-                <div className="space-y-3 text-sm text-gray-600 dark:text-gray-300">
+                <div className="space-y-3 text-sm text-muted-foreground">
                   <p>{t('shellInfoWhat')}</p>
                   <p>{t('shellInfoExpiry')}</p>
-                  <p className="font-medium text-gray-900 dark:text-gray-100">{t('shellInfoActionTitle')}</p>
+                  <p className="font-medium text-foreground">{t('shellInfoActionTitle')}</p>
                   <p>{t('shellInfoAction')}</p>
                 </div>
               </DialogContent>
@@ -266,7 +266,7 @@ export default function MemberRow({ memberTeam, teamSlug, team, canEdit, isAdmin
       )}
 
       {/* Number — editable by coach, hidden for non-playing staff */}
-      <td className="px-4 py-3 text-center text-sm text-gray-500 dark:text-gray-400">
+      <td className="px-4 py-3 text-center text-sm text-muted-foreground">
         {nonPlaying ? (
           <span>—</span>
         ) : canEdit && editingField === 'number' ? (
@@ -276,7 +276,7 @@ export default function MemberRow({ memberTeam, teamSlug, team, canEdit, isAdmin
             onChange={(e) => setEditValue(e.target.value)}
             onKeyDown={(e) => handleKeyDown(e, 'number')}
             onBlur={() => saveField('number', editValue ? parseInt(editValue, 10) : 0)}
-            className="h-9 w-14 rounded-md border border-brand-400 bg-white px-1.5 text-center text-sm sm:h-8 font-medium text-gray-900 shadow-sm ring-1 ring-brand-400/30 focus:outline-none dark:border-brand-500 dark:bg-gray-700 dark:text-gray-100 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+            className="h-9 w-14 rounded-md border border-brand-400 bg-card px-1.5 text-center text-sm sm:h-8 font-medium text-foreground ring-1 ring-brand-400/30 focus:outline-none dark:border-brand-500 dark:bg-input/20 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
             autoFocus
           />
         ) : canEdit ? (
@@ -284,7 +284,7 @@ export default function MemberRow({ memberTeam, teamSlug, team, canEdit, isAdmin
             size="sm"
             variant="ghost"
             onClick={() => startEdit('number', member.number)}
-            className="w-10 border border-transparent px-0 text-sm hover:border-brand-400 hover:bg-transparent hover:text-brand-600 dark:hover:border-brand-500 dark:hover:text-brand-400"
+            className="w-10 border border-transparent px-0 text-sm hover:border-brand-400 hover:bg-transparent hover:text-primary dark:hover:border-brand-500 dark:hover:text-brand-300"
           >
             {member.number || '—'}
           </Button>
@@ -294,7 +294,7 @@ export default function MemberRow({ memberTeam, teamSlug, team, canEdit, isAdmin
       </td>
 
       {/* Position — editable by coach (checkbox dropdown) */}
-      <td className="hidden px-4 py-3 text-sm text-gray-500 sm:table-cell dark:text-gray-400">
+      <td className="hidden px-4 py-3 text-sm text-muted-foreground sm:table-cell">
         {canEdit ? (
           <div className="relative">
             <Button
@@ -302,7 +302,7 @@ export default function MemberRow({ memberTeam, teamSlug, team, canEdit, isAdmin
               size="sm"
               variant="ghost"
               onClick={() => setEditingField(editingField === 'position' ? null : 'position')}
-              className="h-auto min-h-9 justify-start whitespace-normal px-1.5 text-left font-normal hover:text-brand-600 sm:min-h-8"
+              className="h-auto min-h-9 justify-start whitespace-normal px-1.5 text-left font-normal hover:text-primary dark:hover:text-brand-300 sm:min-h-8"
             >
               {getPositionLabelList(memberPositions)}
             </Button>
@@ -319,9 +319,9 @@ export default function MemberRow({ memberTeam, teamSlug, team, canEdit, isAdmin
                             : [...memberPositions, p]
                           saveField('position', next.length > 0 ? next : ['other'])
                         }}
-                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700"
+                        className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-foreground/85 hover:bg-accent"
                       >
-                        <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${active ? 'border-brand-500 bg-brand-500 text-white' : 'border-gray-300 dark:border-gray-500'}`}>
+                        <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${active ? 'border-primary bg-primary text-primary-foreground' : 'border-input'}`}>
                           {active && (
                             <Check className="h-3 w-3" strokeWidth={3} aria-hidden />
                           )}
@@ -339,17 +339,17 @@ export default function MemberRow({ memberTeam, teamSlug, team, canEdit, isAdmin
       </td>
 
       {showContact && (
-        <td className="hidden px-4 py-3 text-sm text-gray-500 md:table-cell dark:text-gray-400">
+        <td className="hidden px-4 py-3 text-sm text-muted-foreground md:table-cell">
           {member.hide_email ? '—' : (member.email || '—')}
         </td>
       )}
       {showContact && (
-        <td className="hidden px-4 py-3 text-sm text-gray-500 md:table-cell dark:text-gray-400">
+        <td className="hidden px-4 py-3 text-sm text-muted-foreground md:table-cell">
           {member.hide_phone ? '—' : (member.phone || '—')}
         </td>
       )}
       {showContact && (
-        <td className="hidden px-4 py-3 text-sm text-gray-500 lg:table-cell dark:text-gray-400">
+        <td className="hidden px-4 py-3 text-sm text-muted-foreground lg:table-cell">
           {birthdateDisplay || '—'}
         </td>
       )}
@@ -366,7 +366,7 @@ export default function MemberRow({ memberTeam, teamSlug, team, canEdit, isAdmin
             </span>
           ) : (
             <span title={t('identityMissing')}>
-              <ShieldX className="mx-auto h-4 w-4 text-gray-400 dark:text-gray-500" aria-hidden="true" />
+              <ShieldX className="mx-auto h-4 w-4 text-muted-foreground/80" aria-hidden="true" />
               <span className="sr-only">{t('identityMissing')}</span>
             </span>
           )}
@@ -387,7 +387,7 @@ export default function MemberRow({ memberTeam, teamSlug, team, canEdit, isAdmin
               {role ? (
                 <StatusBadge status={role} />
               ) : (
-                <span className="text-gray-400 hover:text-brand-600">+</span>
+                <span className="text-muted-foreground/80 hover:text-primary dark:hover:text-brand-300">+</span>
               )}
             </Button>
             {editingField === 'role' && (
@@ -398,9 +398,9 @@ export default function MemberRow({ memberTeam, teamSlug, team, canEdit, isAdmin
                       <button
                         key={r}
                         onClick={() => toggleRole(r)}
-                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700"
+                        className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-foreground/85 hover:bg-accent"
                       >
-                        <span className={`flex h-4 w-4 items-center justify-center rounded border ${active ? 'border-brand-500 bg-brand-500 text-white' : 'border-gray-300 dark:border-gray-500'}`}>
+                        <span className={`flex h-4 w-4 items-center justify-center rounded border ${active ? 'border-primary bg-primary text-primary-foreground' : 'border-input'}`}>
                           {active && (
                             <Check className="h-3 w-3" strokeWidth={3} aria-hidden />
                           )}
@@ -474,7 +474,7 @@ function AnchoredMenu({
       {style && (
         <div
           style={style}
-          className="z-50 overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-600 dark:bg-gray-800"
+          className="z-50 overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-xl"
         >
           {children}
         </div>

@@ -83,12 +83,12 @@ export default function ClubBlockedDatesPanel() {
   }, [confirm, t, load])
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-4 sm:p-6 dark:border-gray-700 dark:bg-gray-800">
+    <div className="rounded-2xl border border-hairline bg-card shadow-card p-4 sm:p-6">
       <div className="mb-1 flex items-center gap-2">
-        <CalendarOff className="h-5 w-5 text-gray-500 dark:text-gray-400" />
-        <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{t('clubBlockTitle')}</h2>
+        <CalendarOff className="h-5 w-5 text-muted-foreground" />
+        <h2 className="text-base font-semibold tracking-tight text-foreground">{t('clubBlockTitle')}</h2>
       </div>
-      <p className="mb-4 text-xs text-gray-500 dark:text-gray-400">{t('clubBlockDescription')}</p>
+      <p className="mb-4 text-xs text-muted-foreground">{t('clubBlockDescription')}</p>
 
       {/* Add form — dates on one row, reason + button below (fits a half-width card) */}
       <div className="mb-4 space-y-2">
@@ -103,7 +103,7 @@ export default function ClubBlockedDatesPanel() {
         <div className="flex gap-2">
           <input type="text" value={reason} maxLength={120} placeholder={t('clubBlockReasonPlaceholder')}
             onChange={(e) => setReason(e.target.value)}
-            className="min-w-0 flex-1 rounded-md border border-gray-200 bg-white px-2 py-1.5 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100" />
+            className="min-w-0 flex-1 rounded-lg border border-input bg-card px-2 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/70 dark:bg-input/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" />
           <Button type="button" size="sm" onClick={add} disabled={!start || saving} className="shrink-0 gap-1.5">
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}{t('clubBlockAdd')}
           </Button>
@@ -112,9 +112,9 @@ export default function ClubBlockedDatesPanel() {
 
       {/* List */}
       {loading ? (
-        <div className="py-6 text-center text-sm text-gray-400"><Loader2 className="mx-auto h-4 w-4 animate-spin" /></div>
+        <div className="py-6 text-center text-sm text-muted-foreground/80"><Loader2 className="mx-auto h-4 w-4 animate-spin" /></div>
       ) : blocks.length === 0 ? (
-        <p className="py-4 text-center text-sm text-gray-400 dark:text-gray-500">{t('clubBlockEmpty')}</p>
+        <p className="py-4 text-center text-sm text-muted-foreground/80">{t('clubBlockEmpty')}</p>
       ) : (
         <Table>
           <TableHeader>
@@ -132,10 +132,10 @@ export default function ClubBlockedDatesPanel() {
                     ? formatDateZurich(b.start_date)
                     : `${formatDateZurich(b.start_date)} – ${formatDateZurich(b.end_date)}`}
                 </TableCell>
-                <TableCell className="whitespace-normal break-words text-gray-500 dark:text-gray-400">{b.reason || '–'}</TableCell>
+                <TableCell className="whitespace-normal break-words text-muted-foreground">{b.reason || '–'}</TableCell>
                 <TableCell>
                   <IconButton type="button" size="sm" onClick={() => remove(b)} label={t('clubBlockRemove')}
-                    className="text-gray-400 hover:text-red-600 dark:hover:text-red-400">
+                    className="text-muted-foreground/80 hover:text-red-600 dark:hover:text-red-400">
                     <Trash2 />
                   </IconButton>
                 </TableCell>

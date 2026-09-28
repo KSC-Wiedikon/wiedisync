@@ -565,7 +565,7 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
     <form onSubmit={handleSubmit} className="space-y-4">
       {/* Onboarding subtitle */}
       {onboarding && (
-        <p className="text-sm text-gray-500 dark:text-gray-400">
+        <p className="text-sm text-muted-foreground">
           {t('onboardingSubtitle')}
         </p>
       )}
@@ -574,7 +574,7 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
           to do about the fields the member cannot change themselves — without
           that second half the greyed-out fee category just reads as a bug. */}
       {verify && (
-        <div className="rounded-lg border border-brand-200 bg-brand-50 p-3 text-sm leading-relaxed text-brand-900 dark:border-brand-800 dark:bg-brand-900/30 dark:text-brand-100">
+        <div className="rounded-xl border border-brand-200 bg-brand-50 p-3 text-sm leading-relaxed text-brand-900 dark:border-brand-800 dark:bg-brand-900/30 dark:text-brand-100">
           <p className="font-medium">{t('verifyTitle')}</p>
           <p className="mt-1">{t('verifyBody')}</p>
           <p className="mt-1">{t('verifyReadOnly')}</p>
@@ -596,7 +596,7 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
             className="h-16 w-16 shrink-0 rounded-full object-cover"
           />
         ) : (
-          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-gray-200 text-lg font-bold text-gray-500 dark:bg-gray-700 dark:text-gray-400">
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-muted text-lg font-bold text-muted-foreground">
             {initials}
           </div>
         )}
@@ -625,7 +625,7 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
               onCheckedChange={setWebsiteVisible}
               id="website-visible"
             />
-            <label htmlFor="website-visible" className="cursor-pointer text-sm text-gray-700 dark:text-gray-300">
+            <label htmlFor="website-visible" className="cursor-pointer text-sm text-foreground/85">
               {t('websiteVisible')}
             </label>
             <IconButton
@@ -633,7 +633,7 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
               size="sm"
               label={t('websiteVisible')}
               onClick={() => setInfoOpen(true)}
-              className="shrink-0 rounded-full text-gray-500 dark:text-gray-400"
+              className="shrink-0 rounded-full text-muted-foreground"
             >
               <Info />
             </IconButton>
@@ -643,7 +643,7 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
 
       {/* Website visibility info modal */}
       <Modal open={infoOpen} onClose={() => setInfoOpen(false)} title={t('websiteVisible')} size="sm">
-        <p className="text-sm text-gray-600 dark:text-gray-400">{t('websiteVisibleInfo')}</p>
+        <p className="text-sm text-muted-foreground">{t('websiteVisibleInfo')}</p>
         <div className="mt-4 flex justify-end">
           <Button type="button" size="sm" onClick={() => setInfoOpen(false)}>OK</Button>
         </div>
@@ -725,14 +725,14 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
             aria-haspopup="listbox"
             aria-expanded={positionDropdownOpen}
             aria-label={t('position')}
-            className="flex min-h-11 w-full items-center justify-between gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-left text-sm sm:min-h-9 sm:py-1.5 text-gray-900 transition-colors hover:border-brand-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:hover:border-brand-500"
+            className="flex min-h-11 w-full items-center justify-between gap-2 rounded-lg border border-input bg-card px-3 py-2 text-left text-sm sm:min-h-9 sm:py-1.5 text-foreground transition-colors hover:border-primary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-input/20"
           >
-            <span className={`min-w-0 break-words ${selectedPositions.length === 0 ? 'text-gray-400' : ''}`}>
+            <span className={`min-w-0 break-words ${selectedPositions.length === 0 ? 'text-muted-foreground/70' : ''}`}>
               {selectedPositions.length > 0
                 ? selectedPositions.map((p) => (getPositionI18nKey(p) ? tt(getPositionI18nKey(p)!) : p)).join(', ')
                 : '—'}
             </span>
-            <ChevronDown className={`h-4 w-4 shrink-0 text-gray-400 transition-transform ${positionDropdownOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
+            <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground/80 transition-transform ${positionDropdownOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
           </button>
           {positionDropdownOpen && (
             <>
@@ -741,7 +741,7 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
                 role="listbox"
                 aria-multiselectable="true"
                 aria-label={t('position')}
-                className="absolute left-0 z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-600 dark:bg-gray-800"
+                className="absolute left-0 z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-xl"
               >
                 {getSelectablePositions(
                   primarySport === 'both' ? undefined : primarySport,
@@ -759,9 +759,9 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
                           active ? prev.filter((pos) => pos !== p) : [...prev, p],
                         )
                       }}
-                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700"
+                      className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-foreground/85 hover:bg-accent"
                     >
-                      <span className={`flex size-4 shrink-0 items-center justify-center rounded-[4px] border shadow-xs ${active ? 'border-primary bg-primary text-primary-foreground' : 'border-input bg-background dark:bg-input/30'}`}>
+                      <span className={`flex size-4 shrink-0 items-center justify-center rounded-[4px] border ${active ? 'border-primary bg-primary text-primary-foreground' : 'border-input bg-background dark:bg-input/30'}`}>
                         {active && <CheckIcon className="size-3.5" />}
                       </span>
                       {getPositionI18nKey(p) ? tt(getPositionI18nKey(p)!) : p}
@@ -777,19 +777,19 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
       {/* ClubDesk personal data — in onboarding the block is always expanded
           (not collapsible): address + nationality are part of the required
           core contact set, so hiding them would make the gate unpassable. */}
-      <div className="rounded-lg border border-gray-200 dark:border-gray-600">
+      <div className="rounded-xl border border-hairline">
         <button
           type="button"
           onClick={() => !onboarding && setClubdeskOpen(!clubdeskOpen)}
-          className="flex min-h-11 w-full items-center justify-between gap-2 px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100"
+          className="flex min-h-11 w-full items-center justify-between gap-2 px-4 py-3 text-left text-sm font-semibold text-foreground"
         >
           <span>{t('personalDataClubdesk')}</span>
           {!onboarding && (
-            <ChevronDown className={`h-4 w-4 shrink-0 text-gray-400 transition-transform ${clubdeskOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
+            <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground/80 transition-transform ${clubdeskOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
           )}
         </button>
         {(clubdeskOpen || onboarding) && (
-          <div className="space-y-4 border-t border-gray-200 px-4 py-4 dark:border-gray-600">
+          <div className="space-y-4 border-t border-border px-4 py-4">
             {/* Anrede + Geschlecht */}
             <div className="grid grid-cols-2 gap-4">
               <FormField label={t('anrede')}>
@@ -886,13 +886,13 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
                             : parseTrainerLicences([...prev, code].join(',')),
                         )
                       }}
-                      className={`flex h-11 items-center gap-2 rounded-md border px-3 text-sm transition-colors sm:h-9 ${
+                      className={`flex h-11 items-center gap-2 rounded-lg border px-3 text-sm transition-colors sm:h-9 ${
                         active
                           ? 'border-primary bg-primary/10 font-medium text-foreground'
-                          : 'border-gray-300 bg-white text-gray-700 hover:border-brand-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-brand-500'
+                          : 'border-input bg-card text-foreground/85 hover:bg-accent'
                       }`}
                     >
-                      <span className={`flex size-4 shrink-0 items-center justify-center rounded-[4px] border shadow-xs ${active ? 'border-primary bg-primary text-primary-foreground' : 'border-input bg-background dark:bg-input/30'}`}>
+                      <span className={`flex size-4 shrink-0 items-center justify-center rounded-[4px] border ${active ? 'border-primary bg-primary text-primary-foreground' : 'border-input bg-background dark:bg-input/30'}`}>
                         {active && <CheckIcon className="size-3.5" />}
                       </span>
                       {t(TRAINER_LICENCE_I18N_KEYS[code])}
@@ -940,23 +940,23 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
             {/* Read-only admin fields — noise for a first-run user, so
                 onboarding hides them */}
             {!onboarding && (
-              <div className="mt-2 space-y-2 rounded-md bg-gray-50 p-3 dark:bg-gray-800">
-                <p className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+              <div className="mt-2 space-y-2 rounded-xl border border-hairline bg-surface-sunken p-3">
+                <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   <Lock className="h-3.5 w-3.5" aria-hidden="true" />
                   {t('managedByAdmin')}
                 </p>
                 <div className="grid grid-cols-2 gap-2 text-sm">
                   <div>
-                    <span className="text-xs text-gray-500 dark:text-gray-400">{t('beitragskategorie')}</span>
-                    <p className="text-gray-700 dark:text-gray-300">{user.beitragskategorie || '—'}</p>
+                    <span className="text-xs text-muted-foreground">{t('beitragskategorie')}</span>
+                    <p className="text-foreground/85">{user.beitragskategorie || '—'}</p>
                   </div>
                   <div>
-                    <span className="text-xs text-gray-500 dark:text-gray-400">{tc('team')}</span>
-                    <p className="text-gray-700 dark:text-gray-300">{memberTeamNames?.join(', ') || '—'}</p>
+                    <span className="text-xs text-muted-foreground">{tc('team')}</span>
+                    <p className="text-foreground/85">{memberTeamNames?.join(', ') || '—'}</p>
                   </div>
                   <div>
-                    <span className="text-xs text-gray-500 dark:text-gray-400">{t('status')}</span>
-                    <p className="text-gray-700 dark:text-gray-300">{user.kscw_membership_active ? t('active') : t('passive')}</p>
+                    <span className="text-xs text-muted-foreground">{t('status')}</span>
+                    <p className="text-foreground/85">{user.kscw_membership_active ? t('active') : t('passive')}</p>
                   </div>
                 </div>
               </div>
@@ -967,23 +967,23 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
 
       {/* Privacy — hidden in onboarding */}
       {!onboarding && (
-        <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-600 dark:bg-gray-800">
-          <p className="mb-3 text-sm font-medium text-gray-700 dark:text-gray-300">
+        <div className="rounded-xl border border-hairline bg-surface-sunken p-4">
+          <p className="mb-3 text-sm font-medium text-foreground/85">
             {t('privacySection')}
           </p>
           <div className="space-y-3">
             <label className="flex items-center gap-3 cursor-pointer">
               <Switch checked={hidePhone} onCheckedChange={setHidePhone} />
               <div>
-                <span className="text-sm text-gray-700 dark:text-gray-300">{t('hidePhone')}</span>
-                <p className="text-xs text-gray-500 dark:text-gray-400">{t('hidePhoneHint')}</p>
+                <span className="text-sm text-foreground/85">{t('hidePhone')}</span>
+                <p className="text-xs text-muted-foreground">{t('hidePhoneHint')}</p>
               </div>
             </label>
             <label className="flex items-center gap-3 cursor-pointer">
               <Switch checked={hideEmail} onCheckedChange={setHideEmail} />
               <div>
-                <span className="text-sm text-gray-700 dark:text-gray-300">{t('hideEmail')}</span>
-                <p className="text-xs text-gray-500 dark:text-gray-400">{t('hideEmailHint')}</p>
+                <span className="text-sm text-foreground/85">{t('hideEmail')}</span>
+                <p className="text-xs text-muted-foreground">{t('hideEmailHint')}</p>
               </div>
             </label>
             <FormField label={t('birthdateVisibility')}>
@@ -1001,8 +1001,8 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
             <label className="flex items-center gap-3 cursor-pointer">
               <Switch checked={websiteNamePrivate} onCheckedChange={setWebsiteNamePrivate} />
               <div>
-                <span className="text-sm text-gray-700 dark:text-gray-300">{t('websiteNameOnly')}</span>
-                <p className="text-xs text-gray-500 dark:text-gray-400">{t('websiteNameOnlyHint')}</p>
+                <span className="text-sm text-foreground/85">{t('websiteNameOnly')}</span>
+                <p className="text-xs text-muted-foreground">{t('websiteNameOnlyHint')}</p>
               </div>
             </label>
           </div>
@@ -1015,9 +1015,9 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
           link is the fallback for someone who has actually forgotten it — and it DESTROYS
           the key, because nobody can re-wrap with a secret nobody has. */}
       {!onboarding && (
-        <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-600 dark:bg-gray-800">
+        <div className="space-y-2 rounded-xl border border-hairline bg-surface-sunken px-4 py-3">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+            <span className="text-sm font-medium text-foreground/85">
               {t('changePassword')}
             </span>
             <Button
@@ -1030,7 +1030,7 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
             </Button>
           </div>
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs text-gray-500 dark:text-gray-400">
+            <span className="text-xs text-muted-foreground">
               {t('forgotPassword')}
             </span>
             {resetSent ? (
@@ -1044,7 +1044,7 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
                 size="sm"
                 onClick={handlePasswordReset}
                 disabled={resetLoading}
-                className="shrink-0 px-0 text-gray-500 underline underline-offset-2 dark:text-gray-400"
+                className="shrink-0 px-0 text-muted-foreground underline underline-offset-2"
               >
                 {resetLoading ? tc('saving') : t('sendResetLink')}
               </Button>
@@ -1056,18 +1056,18 @@ export default function ProfileEditForm({ onSaved, onCancel, onboarding, verify,
 
       {/* Read-only fields — hidden in onboarding */}
       {!onboarding && user.license_nr && (
-        <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-3 dark:border-gray-600 dark:bg-gray-800">
-          <p className="mb-2 text-xs font-medium text-gray-500 dark:text-gray-400">
+        <div className="rounded-xl border border-dashed border-input bg-surface-sunken p-3">
+          <p className="mb-2 text-xs font-medium text-muted-foreground">
             {t('managedByCoach')}
           </p>
-          <div className="text-sm text-gray-600 dark:text-gray-400">
+          <div className="text-sm text-muted-foreground">
             <span>{t('licenseNr')}: {user.license_nr}</span>
           </div>
         </div>
       )}
 
       {error && (
-        <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+        <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">{error}</p>
       )}
 
       {beforeActions && <div className="pt-2">{beforeActions}</div>}
