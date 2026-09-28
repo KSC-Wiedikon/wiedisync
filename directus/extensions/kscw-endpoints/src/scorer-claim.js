@@ -50,6 +50,12 @@ export function registerScorerClaim(router, ctx) {
     try {
       const userId = req.accountability?.user
       if (!userId) return res.status(401).json({ error: 'Authentication required' })
+      // Scorer duty is personal — same rule as scorer-delegation accept/decline
+      // (index.js): a main account acting as a linked member must not sign them
+      // up for one. Refused before any DB read.
+      if (req.accountability?.kscwGuardian) {
+        return res.status(403).json({ error: 'Not available while using another account', code: 'acting_forbidden' })
+      }
 
       // Every column named in any CLAIM_DEFS.lic must be selected here — a
       // missing one reads as undefined and silently denies the claim.

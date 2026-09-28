@@ -180,9 +180,13 @@ export function registerDutyLate(router, ctx) {
     const m = userId ? await database('members').where('user', userId).first('id') : null
     let ledTeamIds = []
     if (m) {
+      // Active teams only: a coach/TR junction row on an archived season's team
+      // must not keep granting access to that lineage's games.
       const [coachRows, trRows] = await Promise.all([
-        database('teams_coaches').where('members_id', m.id).pluck('teams_id'),
-        database('teams_responsibles').where('members_id', m.id).pluck('teams_id'),
+        database('teams_coaches').join('teams', 'teams.id', 'teams_coaches.teams_id')
+          .where('teams_coaches.members_id', m.id).where('teams.active', true).pluck('teams_coaches.teams_id'),
+        database('teams_responsibles').join('teams', 'teams.id', 'teams_responsibles.teams_id')
+          .where('teams_responsibles.members_id', m.id).where('teams.active', true).pluck('teams_responsibles.teams_id'),
       ])
       ledTeamIds = [...new Set([...coachRows, ...trRows].filter((t) => t != null).map(Number))]
     }

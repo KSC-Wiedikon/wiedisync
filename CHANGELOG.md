@@ -2,6 +2,14 @@
 
 All notable changes to Wiedisync, the KSC Wiedikon members' platform. This file is the curated, user-facing release record (English, semver), mirrored in the in-app "What's New" (`src/modules/changelog/ChangelogPage.tsx`). For commit-level detail see `git log`; for the operator/deploy history see `docs/DEVLOG.md`.
 
+## v2.22.1 — 2026-09-28
+
+### Security
+
+- **Security fixes.** A deep security review closed several ways someone could have reached another person's account or data. Changing your email now moves your login only when you change it yourself (or an admin does), and board and admin accounts can only be edited by an admin. Your answers, absences and votes can no longer be moved onto someone else.
+- **Coaches manage only their own teams.** Forms, sponsors, event days, join requests, trainings and referee fees can now only be attached to or recorded for teams you coach or are responsible for. A referee fee must be for your own team's game and paid by someone on that team.
+- **Safer links and previews.** Event sign-up links must start with https://. Password-reset links no longer stay in the address bar or reach error reports.
+
 ## v2.22.0 — 2026-09-28
 
 ### Improved

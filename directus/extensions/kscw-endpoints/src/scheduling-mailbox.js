@@ -71,6 +71,7 @@ import {
   SCHEDULING_SIGNATURE_BASKETBALL_LIGHT_HTML, SCHEDULING_SIGNATURE_BASKETBALL_TEXT,
   ADMIN_SIGNATURE_LIGHT_HTML, ADMIN_SIGNATURE_TEXT,
 } from './scheduling-signature.js'
+import { sanitizeOutgoingHtml } from './mail-html-sanitize.js'
 
 // Same Migadu server for both mailboxes; only the credentials + From differ.
 const IMAP_HOST = process.env.SCHEDULING_IMAP_HOST || 'imap.migadu.com'
@@ -262,19 +263,9 @@ function parseMultipartReply(req) {
   })
 }
 
-/**
- * Defence-in-depth scrub of admin-authored reply HTML (the TipTap editor already
- * emits a constrained whitelist; this guards the raw endpoint). Drops scripts/
- * styles/frames, inline event handlers, and javascript:/data: URLs.
- */
-function sanitizeOutgoingHtml(html) {
-  if (!html) return ''
-  return String(html)
-    .replace(/<(script|style|iframe|object|embed|link|meta|base)\b[\s\S]*?<\/\1\s*>/gi, '')
-    .replace(/<(script|style|iframe|object|embed|link|meta|base)\b[^>]*\/?>/gi, '')
-    .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
-    .replace(/(href|src)\s*=\s*("|')\s*(?:javascript|data|vbscript):[^"']*\2/gi, '$1=$2#$2')
-}
+// sanitizeOutgoingHtml — admin-authored reply HTML and reposted inbound mail are
+// scrubbed by the allowlist tokeniser in mail-html-sanitize.js (the regex
+// blocklist that lived here was bypassable; 2026-09-28 audit).
 
 /** Best-effort HTML → plain text for the text/plain MIME part + search/storage. */
 function htmlToPlain(html) {

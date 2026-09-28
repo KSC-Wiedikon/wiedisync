@@ -1327,10 +1327,17 @@ export function registerRegistration(router, { database, logger, services, getSc
       for (const [k, v] of fileAttachIp) { if (now > v.resetAt) fileAttachIp.delete(k) }
     }
 
+    // Both halves in SQL, not `.first()` over every row with this reference: the
+    // reference is ~9000 values per year and NOT unique, so a collision made
+    // `.first()` pick an arbitrary row and 404 the legitimate family. Newest
+    // live registration wins if the pair is somehow still ambiguous.
     const reg = await database('registrations')
       .whereRaw('LOWER(reference_number) = ?', [reference.toLowerCase()])
+      .whereRaw('LOWER(TRIM(email)) = ?', [email])
+      .whereIn('status', ['pending', 'approved'])
+      .orderBy('id', 'desc')
       .first(...columns)
-    const emailOk = reg && String(reg.email || '').toLowerCase() === email
+    const emailOk = reg && String(reg.email || '').trim().toLowerCase() === email
     if (!reg || !emailOk || !['pending', 'approved'].includes(reg.status)) {
       const e = fileAttachIp.get(ip)
       if (e) e.mismatches = (e.mismatches || 0) + 1

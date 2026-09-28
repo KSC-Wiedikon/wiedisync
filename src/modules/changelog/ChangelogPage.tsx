@@ -4,7 +4,7 @@ import { Coffee, ScrollText } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { useDonateVisible } from '../support/donateConfig'
 
-const APP_VERSION = '2.22.0'
+const APP_VERSION = '2.22.1'
 
 interface ChangelogEntry {
   version: string
@@ -13,6 +13,20 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '2.22.1',
+    date: '28.09.2026',
+    sections: [
+      {
+        title: 'Security',
+        items: [
+          "Security fixes. A deep security review closed several ways someone could have reached another person's account or data. Changing your email now moves your login only when you change it yourself (or an admin does), and board and admin accounts can only be edited by an admin. Your answers, absences and votes can no longer be moved onto someone else.",
+          "Coaches manage only their own teams. Forms, sponsors, event days, join requests, trainings and referee fees can now only be attached to or recorded for teams you coach or are responsible for. A referee fee must be for your own team's game and paid by someone on that team.",
+          "Safer links and previews. Event sign-up links must start with https://. Password-reset links no longer stay in the address bar or reach error reports.",
+        ],
+      },
+    ],
+  },
   {
     version: '2.22.0',
     date: '28.09.2026',

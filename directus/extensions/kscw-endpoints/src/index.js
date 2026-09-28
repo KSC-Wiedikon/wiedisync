@@ -46,7 +46,7 @@ import { registerVolleyFeedback } from './volley-feedback.js'
 import { registerWebPush, sendPushToMember, sendPushToMembers } from './web-push.js'
 import { FRONTEND_URL } from './email-template.js'
 import { sendLocalizedPush, tPush, memberLangToCode } from './push-i18n.js'
-import { writeErrorLog, logErrorToFile, logAuthDenial, logWarning, cleanOldLogs, computeErrorHash, logCronRun } from './error-log.js'
+import { writeErrorLog, logErrorToFile, logAuthDenial, logWarning, cleanOldLogs, computeErrorHash, logCronRun, scrubPii } from './error-log.js'
 import { registerStats } from './stats.js'
 import { registerHallenfinder } from './hallenfinder.js'
 import { registerRegistration } from './registration.js'
@@ -187,8 +187,9 @@ function logEndpointError(log, endpoint, err, req) {
     status: err.status || 500,
     method: req?.method,
     body: req?.body ? scrubBody(req.body) : undefined,
-    params: req?.params || undefined,
-    query: req?.query || undefined,
+    // Path/query params carry bearer tokens on the public share routes.
+    params: req?.params ? scrubPii(req.params) : undefined,
+    query: req?.query ? scrubPii(req.query) : undefined,
     stack: err.stack,
   })
   // Also write to persistent file
@@ -1573,17 +1574,19 @@ export default {
           // (SHA-256 hash, 1h TTL, single-use) — NEVER against
           // directus_users.token, which is a full-privilege static API
           // credential (security audit 2026-05-31, migration 073).
-          const tokenHash = crypto.createHash('sha256').update(token).digest('hex')
-          const row = await database('password_reset_tokens')
+          const tokenHash = crypto.createHash('sha256').update(String(token)).digest('hex')
+          // Single-use, claimed ATOMICALLY: DELETE … RETURNING means two
+          // concurrent requests with the same token cannot both see the row
+          // (the old SELECT-then-DELETE let both pass the check). Deleted
+          // up-front so the link can't be replayed even if a later step fails;
+          // expired rows are consumed here too.
+          const [row] = await database('password_reset_tokens')
             .where('token_hash', tokenHash)
-            .select('id', 'user', 'expires_at')
-            .first()
+            .delete()
+            .returning(['id', 'user', 'expires_at'])
           if (!row) {
             return res.status(400).json({ error: 'Invalid or expired token' })
           }
-          // Single-use: delete up-front so the link can't be replayed even if a
-          // later step fails. (Expired rows are deleted here too.)
-          await database('password_reset_tokens').where('id', row.id).delete()
           if (row.expires_at && new Date() > new Date(row.expires_at)) {
             return res.status(400).json({ error: 'Invalid or expired token' })
           }

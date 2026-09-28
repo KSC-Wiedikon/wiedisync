@@ -98,6 +98,7 @@ export default {
   signupFormHint: 'For people without a Wiedisync account. Members sign up with the buttons above.',
   signupFormSaveFirst: 'Save the event first, then a signup form can be created for it.',
   signupFormUrl: 'Signup form link',
+  signupFormUrlInvalid: 'Enter a full link starting with https://',
   signupFormCreate: 'Create signup form',
   signupFormReplace: 'Create a new form',
   signupFormCopy: 'Copy link',

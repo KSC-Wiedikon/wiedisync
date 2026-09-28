@@ -108,6 +108,11 @@ export function sanitizeAnnouncementHtml(input) {
   // 1. Remove any remaining dangerous opener (with or without a closing `>`).
   //    `<script`, `<style data-x=">`, `<iframe` … all collapse to nothing.
   s = s.replace(/<\s*\/?\s*(script|style|iframe|svg|object|embed|form)\b[^>]*>?/gi, '')
+  // 1b. Any tag left UNCLOSED at the very end (`…<img src=https://tracker`) —
+  //     the tag passes above all need a closing `>`, and a layout that appends
+  //     markup after this body would close it into a live tracking pixel
+  //     (security audit 2026-09-28).
+  s = s.replace(/<\s*\/?\s*[a-zA-Z][^<>]*$/, '')
 
   // 2. Strip any leftover event-handler attribute (`onerror=...`, `ONLOAD = ...`).
   //    Covers quoted, single-quoted, and bare values.

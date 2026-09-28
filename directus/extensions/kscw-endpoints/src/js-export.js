@@ -170,6 +170,14 @@ export function registerJsExport(router, { database, logger }) {
       const isAppAdmin = isDirectusAdmin || ['admin', 'superuser', 'vb_admin', 'bb_admin', 'vorstand'].some((r) => roleArr.includes(r))
       if (!isAppAdmin) {
         if (!member) return res.status(403).json({ error: 'No member profile', code: 'no_member' })
+        // Leadership is checked on the ACTIVE row only. The export hops across the
+        // lineage below (rosterTeamId), so gating on an archived row let a FORMER
+        // coach pass the check on last season's id and export this season's roster
+        // of a team they no longer lead (2026-09-28 audit). The current coach may
+        // still export any past season of their own lineage — that is the feature.
+        if (team.active !== true) {
+          return res.status(403).json({ error: 'Only an active team can be exported', code: 'inactive_team' })
+        }
         const coach = await database('teams_coaches').where({ teams_id: teamId, members_id: member.id }).first('teams_id')
         const tr = coach ? null : await database('teams_responsibles').where({ teams_id: teamId, members_id: member.id }).first('teams_id')
         if (!coach && !tr) {

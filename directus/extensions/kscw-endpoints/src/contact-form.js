@@ -113,6 +113,34 @@ function contactRateLimit(req, maxAttempts, windowMs) {
   return true
 }
 
+// Per-ADDRESS cap on the acknowledgement. The per-IP limiter above does not stop
+// a rotating-IP sender from aiming many acks at one victim address; the team
+// mail still goes out, only the ack is skipped past this.
+const ackAddressAttempts = new Map()
+function ackAddressAllowed(address, maxAcks, windowMs) {
+  const key = String(address).trim().toLowerCase()
+  const now = Date.now()
+  const a = ackAddressAttempts.get(key)
+  if (a && now < a.resetAt) {
+    if (a.count >= maxAcks) return false
+    a.count++
+  } else {
+    ackAddressAttempts.set(key, { count: 1, resetAt: now + windowMs })
+  }
+  if (ackAddressAttempts.size > 1000) {
+    for (const [k, v] of ackAddressAttempts) { if (now > v.resetAt) ackAddressAttempts.delete(k) }
+  }
+  return true
+}
+
+// Input caps (2026-09-28 audit): `name` is the one sender-chosen string that
+// reaches the unverified ack recipient, so it is bounded, and a name that
+// carries a link is left out of the ack entirely (greeting falls back to "").
+const MAX_NAME = 100
+const MAX_SUBJECT = 200
+const MAX_MESSAGE = 5000
+const LINKISH = /(:\/\/|www\.|\.[a-z]{2,}\/|@)/i
+
 // Fixed sender-acknowledgement — never echo the sender-supplied message/subject
 // back to the UNVERIFIED, attacker-choosable recipient address. Echoing the
 // free-form message there made /contact an arbitrary-text-to-arbitrary-recipient
@@ -125,11 +153,11 @@ const ACK_SUBJECT = {
   it: 'Il tuo messaggio a KSC Wiedikon',
 }
 const ACK_CONFIRM = {
-  de: (name) => `Hallo ${name},\n\nDanke für deine Nachricht an den KSC Wiedikon. Wir melden uns so bald wie möglich bei dir.\n\nSportliche Grüsse\nKSC Wiedikon`,
-  gsw: (name) => `Sali ${name},\n\nDanke für dini Nachricht ans KSC Wiedikon. Mer mälde üs so schnell wie möglich.\n\nSportlechi Grüess\nKSC Wiedikon`,
-  en: (name) => `Hi ${name},\n\nThanks for reaching out to KSC Wiedikon. We'll get back to you as soon as possible.\n\nBest regards\nKSC Wiedikon`,
-  fr: (name) => `Bonjour ${name},\n\nMerci pour ton message au KSC Wiedikon. Nous te répondrons dès que possible.\n\nMeilleures salutations\nKSC Wiedikon`,
-  it: (name) => `Ciao ${name},\n\nGrazie per il tuo messaggio a KSC Wiedikon. Ti risponderemo il prima possibile.\n\nCordiali saluti\nKSC Wiedikon`,
+  de: (name) => `Hallo${name ? ` ${name}` : ''},\n\nDanke für deine Nachricht an den KSC Wiedikon. Wir melden uns so bald wie möglich bei dir.\n\nSportliche Grüsse\nKSC Wiedikon`,
+  gsw: (name) => `Sali${name ? ` ${name}` : ''},\n\nDanke für dini Nachricht ans KSC Wiedikon. Mer mälde üs so schnell wie möglich.\n\nSportlechi Grüess\nKSC Wiedikon`,
+  en: (name) => `Hi${name ? ` ${name}` : ''},\n\nThanks for reaching out to KSC Wiedikon. We'll get back to you as soon as possible.\n\nBest regards\nKSC Wiedikon`,
+  fr: (name) => `Bonjour${name ? ` ${name}` : ''},\n\nMerci pour ton message au KSC Wiedikon. Nous te répondrons dès que possible.\n\nMeilleures salutations\nKSC Wiedikon`,
+  it: (name) => `Ciao${name ? ` ${name}` : ''},\n\nGrazie per il tuo messaggio a KSC Wiedikon. Ti risponderemo il prima possibile.\n\nCordiali saluti\nKSC Wiedikon`,
 }
 
 export function registerContactForm(router, { database, logger, services, getSchema }) {
@@ -143,8 +171,11 @@ export function registerContactForm(router, { database, logger, services, getSch
         return res.status(400).json({ error: 'name, email, message required' })
       }
       // Strip control characters to prevent email header injection
-      const name = String(rawName).replace(/[\r\n\t]/g, '')
+      const name = String(rawName).replace(/[\r\n\t]/g, '').trim()
       const subject = rawSubject ? String(rawSubject).replace(/[\r\n\t]/g, '') : ''
+      if (!name || name.length > MAX_NAME || subject.length > MAX_SUBJECT || String(message).length > MAX_MESSAGE) {
+        return res.status(400).json({ error: 'Field too long', code: 'too_long' })
+      }
       // Validate email format (reject control characters)
       if (/[\r\n\t]/.test(email)) {
         return res.status(400).json({ error: 'Invalid email format' })
@@ -265,11 +296,15 @@ export function registerContactForm(router, { database, logger, services, getSch
       // recipient is the unverified, sender-supplied address, so we must NOT
       // echo the free-form message/subject back to it (audit INT-1).
       try {
-        await mail.send({
-          to: email,
-          subject: ACK_SUBJECT[senderLocale] || ACK_SUBJECT.de,
-          text: (ACK_CONFIRM[senderLocale] || ACK_CONFIRM.de)(name),
-        })
+        if (ackAddressAllowed(email, 3, 60 * 60 * 1000)) {
+          await mail.send({
+            to: email,
+            subject: ACK_SUBJECT[senderLocale] || ACK_SUBJECT.de,
+            text: (ACK_CONFIRM[senderLocale] || ACK_CONFIRM.de)(LINKISH.test(name) ? '' : name),
+          })
+        } else {
+          log.warn({ msg: 'contact: ack skipped — per-address limit reached' })
+        }
       } catch (ackErr) {
         // Confirmation failure shouldn't fail the whole request — the real
         // message already reached the team. Log and continue.

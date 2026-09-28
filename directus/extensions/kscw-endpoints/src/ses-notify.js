@@ -20,10 +20,11 @@
  *      Complaint destinations to that topic (Delivery is not needed)
  *   3. SNS → subscribe the topic, protocol HTTPS, endpoint
  *      https://directus.kscw.ch/kscw/ses/notify
- *   4. Optionally set SES_SNS_TOPIC_ARN in the container env to pin the topic —
- *      without it any *validly signed* Amazon topic is accepted, which is a much
- *      weaker guarantee than it sounds (anyone with an AWS account can sign).
- *      Set it.
+ *   4. Set SES_SNS_TOPIC_ARN in the container env to pin the topic. REQUIRED
+ *      since 2026-09-28: without it every message is rejected (503), because any
+ *      *validly signed* Amazon topic is a much weaker guarantee than it sounds
+ *      (anyone with an AWS account can sign). Messages whose Timestamp is more
+ *      than 1 h off are rejected as replays.
  */
 
 import crypto from 'crypto'
@@ -118,9 +119,17 @@ export function registerSesNotify(router, { database, logger }) {
 
   router.post('/ses/notify', async (req, res) => {
     try {
+      // Fail CLOSED without a pinned topic: a signature only proves the message
+      // came from SOME SNS topic — anyone can create one in their own AWS account
+      // and point it here to suppress arbitrary members' addresses.
+      if (!pinnedTopic) {
+        log.warn({ msg: '[ses-notify] SES_SNS_TOPIC_ARN is not set — rejecting every message' })
+        return res.status(503).json({ error: 'Not configured' })
+      }
+
       const msg = await readMessage(req)
 
-      if (pinnedTopic && msg.TopicArn !== pinnedTopic) {
+      if (msg.TopicArn !== pinnedTopic) {
         log.warn({ msg: `[ses-notify] rejected message from unexpected topic ${msg.TopicArn}` })
         return res.status(403).json({ error: 'Unexpected topic' })
       }
@@ -128,6 +137,15 @@ export function registerSesNotify(router, { database, logger }) {
       if (!(await verifySnsMessage(msg))) {
         log.warn({ msg: '[ses-notify] SNS signature verification FAILED — message discarded' })
         return res.status(403).json({ error: 'Invalid signature' })
+      }
+
+      // Replay window: a signed message stays valid for ever, so a captured
+      // Notification could be re-posted later. SNS delivers within seconds and
+      // retries for well under an hour; older than that is a replay.
+      const sentAt = Date.parse(String(msg.Timestamp || ''))
+      if (!Number.isFinite(sentAt) || Math.abs(Date.now() - sentAt) > 60 * 60 * 1000) {
+        log.warn({ msg: `[ses-notify] rejected stale/undated SNS message (Timestamp=${String(msg.Timestamp).slice(0, 40)})` })
+        return res.status(403).json({ error: 'Stale message' })
       }
 
       // Confirming the subscription is what makes SNS start delivering. It is

@@ -24,6 +24,7 @@ import MemberMultiSelect from '@/components/MemberMultiSelect'
 import { createRecord, deleteRecord, updateRecord, kscwApi, m2mUpdatePayload } from '../../lib/api'
 import { toast } from 'sonner'
 import { useConfirm } from '@/components/ConfirmProvider'
+import { sanitizeUrl } from '../../utils/sanitizeUrl'
 
 /**
  * Directus M2M aliases come back either as bare IDs or as expanded junction
@@ -153,6 +154,7 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
   const carpoolScopeValue = carpoolTeams.filter((id) => carpoolCandidates.some((c) => c.id === id))
   const [jsActivityType, setJsActivityType] = useState<'Training' | 'Wettkampf' | 'Trainingstag' | 'Lagertag'>('Training')
   const [signupUrl, setSignupUrl] = useState('')
+  const [signupUrlError, setSignupUrlError] = useState('')
   const [signupBusy, setSignupBusy] = useState(false)
   const [templateDraft, setTemplateDraft] = useState<string | null>(null)
   const [error, setError] = useState('')
@@ -463,6 +465,13 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
 
     if (!title || !startDate) {
       setError(tc('required'))
+      return
+    }
+    // Only https links may be stored — the detail modal renders this as a
+    // clickable href, and sanitizeUrl() would hide anything else anyway.
+    if (signupUrl.trim() && !sanitizeUrl(signupUrl.trim())) {
+      setSignupUrlError(t('signupFormUrlInvalid'))
+      setError(t('signupFormUrlInvalid'))
       return
     }
     if (submitting) return
@@ -777,7 +786,8 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
                   label={t('signupFormUrl')}
                   type="url"
                   value={signupUrl}
-                  onChange={(e) => setSignupUrl(e.target.value)}
+                  onChange={(e) => { setSignupUrl(e.target.value); setSignupUrlError('') }}
+                  error={signupUrlError || undefined}
                   placeholder="https://forms.kscw.ch/forms/..."
                 />
                 <div className="flex flex-col gap-2 sm:flex-row">

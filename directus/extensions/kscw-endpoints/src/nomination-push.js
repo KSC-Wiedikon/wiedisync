@@ -34,10 +34,31 @@ export function registerNominationPush(router, { database, logger }) {
       return res.status(503).json({ error: 'Volleymanager is not configured', code: 'vm_unconfigured' })
     }
 
-    const game = await database('games').where('id', gameId)
-      .first('id', 'game_id', 'kscw_team', 'status',
-        // Read as-found so a failed spawn can hand the claim straight back.
-        'vm_nomination_status', 'vm_nomination_error', 'vm_nomination_claimed_at')
+    // The reads below run before any claim is taken, so a DB error here has
+    // nothing to hand back — but it must become a 500, not an unhandled
+    // rejection that leaves the request hanging (Express 4 does not catch it).
+    let game
+    let allowed = !!req.accountability?.admin
+    try {
+      game = await database('games').where('id', gameId)
+        .first('id', 'game_id', 'kscw_team', 'status',
+          // Read as-found so a failed spawn can hand the claim straight back.
+          'vm_nomination_status', 'vm_nomination_error', 'vm_nomination_claimed_at')
+      if (game && game.kscw_team != null && !allowed && req.accountability?.user) {
+        // Authz: a sport admin, or a coach / team responsible of the playing team.
+        const me = await database('members').where({ user: req.accountability.user }).first('id')
+        if (me) {
+          const [coach, tr] = await Promise.all([
+            database('teams_coaches').where({ teams_id: game.kscw_team, members_id: me.id }).first('id'),
+            database('teams_responsibles').where({ teams_id: game.kscw_team, members_id: me.id }).first('id'),
+          ])
+          allowed = !!coach || !!tr
+        }
+      }
+    } catch (err) {
+      log.error?.({ msg: `[nomination-push] lookup failed: ${err.message}`, game: gameId, stack: err.stack })
+      return res.status(500).json({ error: 'Internal error' })
+    }
     if (!game) return res.status(404).json({ error: 'Game not found' })
     if (!String(game.game_id ?? '').startsWith('vb_')) {
       return res.status(422).json({ error: 'Only volleyball games have an Einsatzliste', code: 'not_volleyball' })
@@ -46,19 +67,6 @@ export function registerNominationPush(router, { database, logger }) {
       return res.status(422).json({ error: 'Game has no KSCW team', code: 'no_team' })
     }
 
-    // Authz: a sport admin, or a coach / team responsible of the playing team.
-    const admin = !!req.accountability?.admin
-    let allowed = admin
-    if (!allowed && req.accountability?.user) {
-      const me = await database('members').where({ user: req.accountability.user }).first('id')
-      if (me) {
-        const [coach, tr] = await Promise.all([
-          database('teams_coaches').where({ teams_id: game.kscw_team, members_id: me.id }).first('id'),
-          database('teams_responsibles').where({ teams_id: game.kscw_team, members_id: me.id }).first('id'),
-        ])
-        allowed = !!coach || !!tr
-      }
-    }
     if (!allowed) return res.status(403).json({ error: 'Not a coach of this team', code: 'forbidden' })
 
     // ── Claim the SHARED Volleymanager account, BEFORE the row ────────────────
@@ -111,17 +119,25 @@ export function registerNominationPush(router, { database, logger }) {
     // writes a terminal status, and anything not 'pending' is claimable again at
     // once. This also folds in the old post-spawn "clear the previous failure so
     // the UI shows in progress" write, which a fast worker could otherwise beat.
-    const claimed = await database('games').where('id', gameId)
-      .whereRaw(
-        "(COALESCE(vm_nomination_status, '') <> 'pending'"
-        + ' OR vm_nomination_claimed_at IS NULL'
-        + " OR vm_nomination_claimed_at < now() - interval '10 minutes')",
-      )
-      .update({
-        vm_nomination_status: 'pending',
-        vm_nomination_error: null,
-        vm_nomination_claimed_at: database.fn.now(),
-      })
+    let claimed
+    try {
+      claimed = await database('games').where('id', gameId)
+        .whereRaw(
+          "(COALESCE(vm_nomination_status, '') <> 'pending'"
+          + ' OR vm_nomination_claimed_at IS NULL'
+          + " OR vm_nomination_claimed_at < now() - interval '10 minutes')",
+        )
+        .update({
+          vm_nomination_status: 'pending',
+          vm_nomination_error: null,
+          vm_nomination_claimed_at: database.fn.now(),
+        })
+    } catch (err) {
+      // Nothing spawned — give the account back rather than holding it for the lease.
+      releaseVmAccount()
+      log.error?.({ msg: `[nomination-push] row claim failed: ${err.message}`, game: gameId })
+      return res.status(500).json({ error: 'Internal error' })
+    }
     if (!claimed) {
       // Nothing was spawned, so the account goes straight back — otherwise a
       // rejected button press would lock every VM job out for the lease.

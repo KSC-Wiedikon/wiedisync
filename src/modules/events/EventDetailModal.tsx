@@ -18,6 +18,7 @@ import { useMyCoveringAbsence } from '../../hooks/useMyCoveringAbsence'
 import { useAbsenceNoteText } from '../../hooks/useAbsenceNoteText'
 import { useCollection } from '../../lib/query'
 import { kscwApi } from '../../lib/api'
+import { sanitizeUrl } from '../../utils/sanitizeUrl'
 import { useMutation } from '../../hooks/useMutation'
 import { useConfirm } from '../../components/ConfirmProvider'
 import { formatDate, formatTime } from '../../utils/dateHelpers'
@@ -292,7 +293,7 @@ export default function EventDetailModal({ event, onClose, participations }: Eve
               account and so cannot RSVP). A member who followed it instead of
               using the RSVP buttons below would leave no participation row, and
               the event's own count and roster would silently under-report. */}
-          {event.signup_url && (
+          {event.signup_url && sanitizeUrl(event.signup_url) && (
             <div className="mt-3 flex flex-col gap-2 rounded-lg border border-border p-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex min-w-0 items-start gap-2 text-sm">
                 <Share2 className="mt-0.5 h-4 w-4 shrink-0 text-gray-500 dark:text-gray-400" />
@@ -307,7 +308,7 @@ export default function EventDetailModal({ event, onClose, participations }: Eve
                   variant="outline"
                   onClick={(e) => {
                     e.stopPropagation()
-                    navigator.clipboard.writeText(event.signup_url!)
+                    navigator.clipboard.writeText(sanitizeUrl(event.signup_url!))
                     toast.success(tc('copied'))
                   }}
                 >
@@ -315,7 +316,7 @@ export default function EventDetailModal({ event, onClose, participations }: Eve
                 </Button>
                 <Button asChild variant="outline">
                   <a
-                    href={event.signup_url}
+                    href={sanitizeUrl(event.signup_url)}
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={(e) => e.stopPropagation()}

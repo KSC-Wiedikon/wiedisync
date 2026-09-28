@@ -405,6 +405,25 @@ async function loadSavedOfficials(database, gameId) {
 }
 
 /** Is this member a coach or team responsible of the playing team? */
+/**
+ * Member ids a coach may add as a match-sheet official: the playing team's staff
+ * (coaches + TRs), its roster and this game's called-up guests. The GET already
+ * hands a coach every one of those people's DoB (bench / officials), so adding them
+ * reveals nothing new. It used to be ANY active club member — which turned
+ * "add as official, re-read the sheet" into a club-wide birthdate lookup
+ * (2026-09-28 audit).
+ */
+async function officialPoolIds(database, teamId, gameId) {
+  if (teamId == null) return new Set()
+  const [roster, guests, coaches, trs] = await Promise.all([
+    database('member_teams').where('team', teamId).pluck('member'),
+    database('game_guests').where('game', gameId).pluck('member'),
+    database('teams_coaches').where('teams_id', teamId).pluck('members_id'),
+    database('teams_responsibles').where('teams_id', teamId).pluck('members_id'),
+  ])
+  return new Set([...roster, ...guests, ...coaches, ...trs].filter((x) => x != null).map(Number))
+}
+
 async function isTeamLeader(database, memberId, teamId) {
   if (memberId == null || teamId == null) return false
   const [coach, tr] = await Promise.all([
@@ -849,9 +868,10 @@ export function registerScorerRoster(router, { database, logger }) {
 
       const teamRow = await database('teams').where('id', game.kscw_team).first('captain')
       const captainId = teamRow?.captain != null ? Number(teamRow.captain) : null
-      const [base, saved] = await Promise.all([
+      const [base, saved, pool] = await Promise.all([
         baseOfficials(game, captainId),
         loadSavedOfficials(database, gameId),
+        officialPoolIds(database, game.kscw_team, gameId),
       ])
       // Members already on the bench (VM / team / snapshot) may stay even if they are
       // not flagged club-active — dropping the team's own coach on a flag would be absurd.
@@ -886,7 +906,8 @@ export function registerScorerRoster(router, { database, logger }) {
         let identity = null
         if (mid) {
           const m = memberById.get(Number(mid))
-          if (m && (m.kscw_membership_active === true || known.has(ref))) {
+          // Known (VM / team / snapshot) always; otherwise only the team's own people.
+          if (m && (known.has(ref) || (m.kscw_membership_active === true && pool.has(Number(m.id))))) {
             identity = {
               member: Number(m.id),
               last_name: m.last_name || '',
@@ -963,6 +984,8 @@ export function registerScorerRoster(router, { database, logger }) {
   //
   // Names only — no DoB, no contact data. The DoB is attached server-side when the
   // coach saves, and only for the people who actually end up on the sheet.
+  // Scoped to officialPoolIds (team staff + roster + this game's guests) — the POST
+  // refuses anyone else, so offering them here would only produce a 400.
   router.get('/scorer/game/:gameId/official-candidates', async (req, res) => {
     try {
       const auth = await authorize(req, res)
@@ -973,7 +996,10 @@ export function registerScorerRoster(router, { database, logger }) {
       const q = String(req.query.q ?? '').trim()
       if (q.length < 2) return res.json({ data: [] })
       const like = `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`
+      const pool = [...await officialPoolIds(database, auth.game.kscw_team, auth.gameId)]
+      if (!pool.length) return res.json({ data: [] })
       const rows = await database('members')
+        .whereIn('id', pool)
         .where('kscw_membership_active', true)
         .where((qb) => qb
           .whereILike('first_name', like)

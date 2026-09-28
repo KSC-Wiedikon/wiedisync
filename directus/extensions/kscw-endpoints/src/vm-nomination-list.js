@@ -29,6 +29,8 @@
  * POST/PUT on `api\nominationlist` CREATE a list — never call those from here.
  */
 
+import { claimVmAccount, vmAccountHeldBy } from './vm-account-lock.js'
+
 // Absolute container path: `directus/scripts/` is a separate bind-mount, deployed
 // via `npm run scripts:deploy:*`, not by `ext:deploy`. Same import as game-scheduling.js.
 const VM_CLIENT = '/directus/scripts/vm-client.mjs'
@@ -128,6 +130,16 @@ export async function fetchOwnNominationList(gameUuid, log, { side = null } = {}
 
 async function readNominationList(gameUuid, log, side) {
   let body
+  // The shared VM account (CLAUDE.md → "The shared VolleyManager account"): a login
+  // or read here while vm_sync / svrz_sync / nomination-push holds it can run under
+  // their role. Never wait — the sheet is being opened at the table, and a busy
+  // account is exactly the "VM unusable" case the caller already falls back to
+  // RSVPs for. Released in `finally`: this is an in-process call, not a worker.
+  const release = claimVmAccount('vm-nomination:read')
+  if (!release) {
+    log.info(`[vm-nomination] ${gameUuid}: shared VM account busy (${vmAccountHeldBy()}) — RSVP fallback`)
+    return null
+  }
   try {
     const s = await openSession(log, false)
     if (!s) return null
@@ -145,6 +157,8 @@ async function readNominationList(gameUuid, log, side) {
     session = null
     log.warn(`[vm-nomination] ${gameUuid}: giving up (${err.message})`)
     return null
+  } finally {
+    release()
   }
 
   // Take whichever side is populated — that one is ours, and only ours ever is. The call

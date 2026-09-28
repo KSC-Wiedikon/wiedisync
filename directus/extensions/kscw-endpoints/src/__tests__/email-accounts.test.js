@@ -19,8 +19,24 @@
 import { describe, it, expect } from 'vitest'
 import crypto from 'crypto'
 import {
-  decryptSecret, encryptSecret, normalizeAddress, scopeForRoles, sportForAddress,
+  decryptSecret, encryptSecret, isGlobalOnlyAddress, normalizeAddress, scopeForRoles, sportForAddress,
 } from '../email-accounts.js'
+
+describe('isGlobalOnlyAddress', () => {
+  it('holds the club inbox and finance box back from sport admins', () => {
+    // Both are filed under 'club', which vb_admin/bb_admin scope includes —
+    // this tier is what keeps their passwords global-admin only.
+    for (const a of ['admin@wiedisync.kscw.ch', 'finance@mail.kscw.ch', 'Admin@kscw.ch']) {
+      expect(isGlobalOnlyAddress(a)).toBe(true)
+    }
+  })
+
+  it('leaves ordinary club and sport boxes alone', () => {
+    for (const a of ['kontakt@kscw.ch', 'spielplanung@volleyball.kscw.ch', 'administration@kscw.ch', '', null]) {
+      expect(isGlobalOnlyAddress(a)).toBe(false)
+    }
+  })
+})
 
 describe('scopeForRoles', () => {
   it('gives a global admin every section and the write bit', () => {

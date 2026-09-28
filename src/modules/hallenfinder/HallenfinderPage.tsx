@@ -11,6 +11,7 @@ import {
   Table, TableHeader, TableBody, TableHead, TableRow, TableCell,
 } from '../../components/ui/table'
 import ImageLightbox from '../../components/ImageLightbox'
+import { sanitizeUrl } from '../../utils/sanitizeUrl'
 import { formatRelativeTimeZurich, formatDateZurich, formatDateTimeCompact } from '../../utils/dateHelpers'
 import { useHallenfinder, type HallenfinderFilters, type HallResult } from './useHallenfinder'
 import {
@@ -280,14 +281,18 @@ export default function HallenfinderPage() {
                     <TableCell className="hidden md:table-cell">{r.address ?? '—'}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
-                        <a href={r.belegungsplanUrl} target="_blank" rel="noopener noreferrer"
-                          className="text-xs text-muted-foreground underline hover:text-foreground">
-                          {t('calendar')}
-                        </a>
-                        <a href={r.reservationUrl} target="_blank" rel="noopener noreferrer"
-                          className="text-xs font-medium text-primary underline">
-                          {t('book')}
-                        </a>
+                        {sanitizeUrl(r.belegungsplanUrl) && (
+                          <a href={sanitizeUrl(r.belegungsplanUrl)} target="_blank" rel="noopener noreferrer"
+                            className="text-xs text-muted-foreground underline hover:text-foreground">
+                            {t('calendar')}
+                          </a>
+                        )}
+                        {sanitizeUrl(r.reservationUrl) && (
+                          <a href={sanitizeUrl(r.reservationUrl)} target="_blank" rel="noopener noreferrer"
+                            className="text-xs font-medium text-primary underline">
+                            {t('book')}
+                          </a>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>

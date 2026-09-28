@@ -130,8 +130,10 @@ function rateLimitOk(key: string): boolean {
 // a caller-supplied URL; without this allowlist the worker is an arbitrary-host
 // fetch (SSRF-ish) relay. Matched against the endpoint URL host (exact or
 // dot-suffixed subdomain — anchored, not a substring match).
+// FCM is pinned to its own host: `googleapis.com` as a suffix admitted every
+// Google API (storage, sheets, …) as a fetch target (2026-09-28 audit).
 const ALLOWED_PUSH_HOSTS = [
-  'googleapis.com',
+  'fcm.googleapis.com',
   'push.services.mozilla.com',
   'push.apple.com',
   'notify.windows.com',

@@ -15,7 +15,30 @@
 
 import fs from 'fs'
 import path from 'path'
+import crypto from 'crypto'
 import { computeErrorHash } from './error-log.js'
+
+/**
+ * May this log entry feed the AI-fix pipeline? Server-side entries (no `source`,
+ * or anything but 'frontend') always; a FRONTEND report only when it carried an
+ * authenticated user. `/kscw/client-error` and the CSP report route are
+ * anonymous, so an unauthenticated entry is attacker-written text — it may be
+ * logged, but it must never become an LLM prompt that opens a PR (2026-09-28
+ * audit). Pure; exported for the unit test.
+ */
+export function isAiFixEligible(entry) {
+  if (!entry || typeof entry !== 'object') return false
+  if (entry.source !== 'frontend') return true
+  return typeof entry.userId === 'string' && entry.userId.length > 0
+}
+
+/** Constant-time bearer comparison (length checked first — timingSafeEqual throws on a mismatch). */
+function safeTokenEqual(given, expected) {
+  if (!expected || typeof given !== 'string') return false
+  const a = Buffer.from(given)
+  const b = Buffer.from(expected)
+  return a.length === b.length && crypto.timingSafeEqual(a, b)
+}
 
 const ERROR_LOG_DIR = process.env.ERROR_LOG_DIR || '/directus/logs'
 const GITHUB_PAT = process.env.GITHUB_PAT
@@ -147,6 +170,10 @@ export function registerBugfixes(router, ctx) {
           allEntries.push(entry)
         }
       }
+      const eligibleHashes = new Set()
+      for (const entry of allEntries) {
+        if (isAiFixEligible(entry)) eligibleHashes.add(entry._hash)
+      }
 
       // Deduplicate by hash — keep latest occurrence, sum counts
       const deduped = new Map()
@@ -195,6 +222,8 @@ export function registerBugfixes(router, ctx) {
         status: entry.status || null,
         collection: entry.collection || null,
         responseBody: entry.responseBody || null,
+        // False → every occurrence was an anonymous client report; POST /fix refuses it.
+        ai_fix_eligible: eligibleHashes.has(entry._hash),
         // Merged data
         job: jobMap[entry._hash] ? {
           status: jobMap[entry._hash].status,
@@ -242,8 +271,12 @@ export function registerBugfixes(router, ctx) {
       }
 
       // Find error details from JSONL logs (before transaction, read-only)
+      // Only an ELIGIBLE occurrence (isAiFixEligible) may become the prompt — the
+      // hash ignores userId, so an anonymous twin of a real error must not be the
+      // one whose free text is sent.
       let errorEntry = null
       let errorDate = null
+      let sawIneligible = false
       for (let i = 0; i < 7; i++) {
         const d = new Date()
         d.setDate(d.getDate() - i)
@@ -251,6 +284,7 @@ export function registerBugfixes(router, ctx) {
         const entries = readErrorLogForDate(dateStr)
         for (const entry of entries) {
           if (computeErrorHash(entry) === error_hash) {
+            if (!isAiFixEligible(entry)) { sawIneligible = true; continue }
             errorEntry = entry
             errorDate = dateStr
             break
@@ -260,6 +294,12 @@ export function registerBugfixes(router, ctx) {
       }
 
       if (!errorEntry) {
+        if (sawIneligible) {
+          return res.status(422).json({
+            error: 'Only anonymous client reports of this error exist — not eligible for an AI fix',
+            code: 'unauthenticated_source',
+          })
+        }
         return res.status(404).json({ error: 'Error not found in recent logs' })
       }
 
@@ -730,7 +770,7 @@ export function registerBugfixes(router, ctx) {
       const authHeader = req.headers.authorization || ''
       const token = authHeader.replace(/^Bearer\s+/i, '')
       const adminToken = process.env.DIRECTUS_ADMIN_TOKEN
-      if ((!GITHUB_PAT || token !== GITHUB_PAT) && (!adminToken || token !== adminToken)) {
+      if (!safeTokenEqual(token, GITHUB_PAT) && !safeTokenEqual(token, adminToken)) {
         return res.status(401).json({ error: 'Unauthorized' })
       }
 

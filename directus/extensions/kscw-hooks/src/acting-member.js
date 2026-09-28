@@ -153,6 +153,10 @@ export function createActingMemberMiddleware(database, logger) {
     if (hit && hit.expires > Date.now()) return hit.denied ? null : hit.bundle
 
     const deny = () => {
+      // Swept here too (security audit 2026-09-28): the success path was the
+      // only sweep, so spraying random acting ids grew the map without bound.
+      sweep(grantCache)
+      if (grantCache.size >= 5000) grantCache.clear()
       grantCache.set(key, { denied: true, expires: Date.now() + GRANT_TTL_MS })
       return null
     }

@@ -98,6 +98,7 @@ export default {
   signupFormHint: 'Für Personen ohne Wiedisync-Konto. Mitglieder melden sich mit den Schaltflächen oben an.',
   signupFormSaveFirst: 'Zuerst den Anlass speichern, danach kann ein Anmeldeformular erstellt werden.',
   signupFormUrl: 'Link zum Anmeldeformular',
+  signupFormUrlInvalid: 'Gib einen vollständigen Link ein, der mit https:// beginnt',
   signupFormCreate: 'Anmeldeformular erstellen',
   signupFormReplace: 'Neues Formular erstellen',
   signupFormCopy: 'Link kopieren',

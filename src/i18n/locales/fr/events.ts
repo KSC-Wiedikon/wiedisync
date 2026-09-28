@@ -100,6 +100,7 @@ export default {
   signupFormHint: 'Pour les personnes sans compte Wiedisync. Les membres s\'inscrivent avec les boutons ci-dessus.',
   signupFormSaveFirst: 'Enregistrez d\'abord l\'événement, un formulaire d\'inscription pourra ensuite être créé.',
   signupFormUrl: 'Lien du formulaire d\'inscription',
+  signupFormUrlInvalid: 'Veuillez saisir un lien complet commençant par https://',
   signupFormCreate: 'Créer un formulaire d\'inscription',
   signupFormReplace: 'Créer un nouveau formulaire',
   signupFormCopy: 'Copier le lien',

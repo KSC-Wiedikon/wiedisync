@@ -18,6 +18,7 @@
  */
 
 import { writeErrorLog } from './error-log.js'
+import { writeUserLog } from './activity-log.js'
 import { loadSchemaModel, invalidateSchemaCache } from './sql-schema.js'
 
 const STATEMENT_TIMEOUT_MS = 15000
@@ -76,83 +77,138 @@ export function pgTemporalToText(dataTypeID, value) {
   }
 }
 
-// Top-level DDL/DML keywords we consider "writes". Anything matching one of these
-// at the start of a statement is rejected when write_mode is false.
+// Top-level DDL/DML keywords we consider "writes" — used for the error message.
+// The GATE in read-only mode is the READ_KEYWORDS allowlist below, not this list:
+// a blocklist missed COMMIT/END/ROLLBACK/BEGIN…, and `COMMIT; WITH d AS (DELETE …)`
+// ended the READ ONLY transaction and ran the delete in autocommit (2026-09-28 audit).
 const WRITE_KEYWORDS = new Set([
   'INSERT', 'UPDATE', 'DELETE', 'MERGE', 'TRUNCATE', 'COPY',
   'CREATE', 'ALTER', 'DROP', 'RENAME', 'GRANT', 'REVOKE',
   'COMMENT', 'CLUSTER', 'REINDEX', 'VACUUM', 'ANALYZE',
   'SET', 'RESET', 'DISCARD', 'LISTEN', 'NOTIFY', 'UNLISTEN',
   'CALL', 'DO', 'PREPARE', 'DEALLOCATE', 'EXECUTE',
-  'LOCK', 'CHECKPOINT', 'IMPORT',
+  'LOCK', 'CHECKPOINT', 'IMPORT', 'LOAD', 'SECURITY', 'REFRESH',
+  // Transaction control — any of these escapes the READ ONLY transaction.
+  'BEGIN', 'START', 'COMMIT', 'END', 'ROLLBACK', 'ABORT', 'SAVEPOINT', 'RELEASE',
 ])
 
+/** The ONLY leading keywords accepted in read-only mode. EXPLAIN ANALYZE of a
+ *  write still hits the READ ONLY transaction; a data-modifying CTE likewise. */
+const READ_KEYWORDS = new Set(['SELECT', 'WITH', 'VALUES', 'SHOW', 'TABLE', 'EXPLAIN'])
+
+const IDENT_CHAR = /[A-Za-z0-9_$\u0080-￿]/
+
 /** Split SQL into statements at top-level `;`, ignoring those inside string
- *  literals, identifiers, line comments, and block comments. Returns trimmed
- *  non-empty statements. */
-function splitStatements(sql) {
+ *  literals (incl. E'…' backslash escapes and $tag$…$tag$ dollar quotes),
+ *  identifiers, line comments, and NESTED block comments — the same lexing
+ *  Postgres does. Any disagreement with Postgres is a way to hide a second
+ *  statement from the read-only check, so an unterminated literal/comment
+ *  throws instead of guessing. Returns trimmed non-empty statements. */
+export function splitStatements(sql) {
   const out = []
   let buf = ''
   let i = 0
   const n = sql.length
-  let inSingle = false
-  let inDouble = false
-  let inLineComment = false
-  let inBlockComment = false
+  const fail = () => {
+    const err = new Error('Unterminated string, identifier or comment')
+    err.status = 400
+    err.code = 'unterminated'
+    throw err
+  }
   while (i < n) {
     const c = sql[i]
     const next = sql[i + 1]
-    if (inLineComment) {
-      buf += c
-      if (c === '\n') inLineComment = false
-      i++
+    const prev = i > 0 ? sql[i - 1] : ''
+    // Line comment
+    if (c === '-' && next === '-') {
+      const nl = sql.indexOf('\n', i)
+      const end = nl === -1 ? n : nl + 1
+      buf += sql.slice(i, end)
+      i = end
       continue
     }
-    if (inBlockComment) {
-      buf += c
-      if (c === '*' && next === '/') {
-        buf += next
-        inBlockComment = false
-        i += 2
+    // Block comment — Postgres nests them.
+    if (c === '/' && next === '*') {
+      let depth = 0
+      let j = i
+      while (j < n) {
+        if (sql[j] === '/' && sql[j + 1] === '*') { depth++; j += 2; continue }
+        if (sql[j] === '*' && sql[j + 1] === '/') { depth--; j += 2; if (depth === 0) break; continue }
+        j++
+      }
+      if (depth !== 0) fail()
+      buf += sql.slice(i, j)
+      i = j
+      continue
+    }
+    // E'…' escape string: backslash escapes the next char ('' still works too).
+    if ((c === 'E' || c === 'e') && next === "'" && !IDENT_CHAR.test(prev)) {
+      let j = i + 2
+      let closed = false
+      while (j < n) {
+        if (sql[j] === '\\') { j += 2; continue }
+        if (sql[j] === "'") {
+          if (sql[j + 1] === "'") { j += 2; continue }
+          closed = true
+          j++
+          break
+        }
+        j++
+      }
+      if (!closed) fail()
+      buf += sql.slice(i, j)
+      i = j
+      continue
+    }
+    // Standard string (standard_conforming_strings = on: no backslash escapes).
+    if (c === "'") {
+      let j = i + 1
+      let closed = false
+      while (j < n) {
+        if (sql[j] === "'") {
+          if (sql[j + 1] === "'") { j += 2; continue }
+          closed = true
+          j++
+          break
+        }
+        j++
+      }
+      if (!closed) fail()
+      buf += sql.slice(i, j)
+      i = j
+      continue
+    }
+    // Quoted identifier
+    if (c === '"') {
+      let j = i + 1
+      let closed = false
+      while (j < n) {
+        if (sql[j] === '"') {
+          if (sql[j + 1] === '"') { j += 2; continue }
+          closed = true
+          j++
+          break
+        }
+        j++
+      }
+      if (!closed) fail()
+      buf += sql.slice(i, j)
+      i = j
+      continue
+    }
+    // Dollar quote $tag$…$tag$ (not $1 params, not mid-identifier like a$b).
+    if (c === '$' && !IDENT_CHAR.test(prev)) {
+      const m = /^\$([A-Za-z_\u0080-￿][A-Za-z0-9_\u0080-￿]*)?\$/.exec(sql.slice(i))
+      if (m) {
+        const tag = m[0]
+        const close = sql.indexOf(tag, i + tag.length)
+        if (close === -1) fail()
+        const end = close + tag.length
+        buf += sql.slice(i, end)
+        i = end
         continue
       }
-      i++
-      continue
     }
-    if (inSingle) {
-      buf += c
-      if (c === "'") {
-        // Escaped '' inside string literal
-        if (next === "'") {
-          buf += next
-          i += 2
-          continue
-        }
-        inSingle = false
-      }
-      i++
-      continue
-    }
-    if (inDouble) {
-      buf += c
-      if (c === '"') inDouble = false
-      i++
-      continue
-    }
-    if (c === '-' && next === '-') {
-      buf += '--'
-      inLineComment = true
-      i += 2
-      continue
-    }
-    if (c === '/' && next === '*') {
-      buf += '/*'
-      inBlockComment = true
-      i += 2
-      continue
-    }
-    if (c === "'") { inSingle = true; buf += c; i++; continue }
-    if (c === '"') { inDouble = true; buf += c; i++; continue }
     if (c === ';') {
       const trimmed = buf.trim()
       if (trimmed) out.push(trimmed)
@@ -165,14 +221,13 @@ function splitStatements(sql) {
   }
   const tail = buf.trim()
   if (tail) out.push(tail)
-  return out
+  // Comment-only chunks (`SELECT 1; -- note`) are not statements.
+  return out.filter((st) => stripLeadingComments(st) !== '')
 }
 
-/** Strip leading whitespace, line/block comments, then return the first keyword
- *  (uppercased), or '' if none. */
-function leadingKeyword(stmt) {
+/** Strip leading whitespace and line/block comments (nested). */
+function stripLeadingComments(stmt) {
   let s = stmt
-  // Strip leading block + line comments + whitespace
   while (true) {
     s = s.replace(/^\s+/, '')
     if (s.startsWith('--')) {
@@ -181,14 +236,24 @@ function leadingKeyword(stmt) {
       continue
     }
     if (s.startsWith('/*')) {
-      const end = s.indexOf('*/')
-      s = end === -1 ? '' : s.slice(end + 2)
+      let depth = 0
+      let j = 0
+      while (j < s.length) {
+        if (s[j] === '/' && s[j + 1] === '*') { depth++; j += 2; continue }
+        if (s[j] === '*' && s[j + 1] === '/') { depth--; j += 2; if (depth === 0) break; continue }
+        j++
+      }
+      s = depth === 0 ? s.slice(j) : ''
       continue
     }
-    break
+    return s
   }
+}
+
+/** First keyword after leading comments (uppercased), or '' if none. */
+export function leadingKeyword(stmt) {
   // Strip an opening parenthesis (e.g. `(SELECT ...)`)
-  s = s.replace(/^\(+/, '')
+  const s = stripLeadingComments(stmt).replace(/^\(+/, '')
   const m = s.match(/^([A-Za-z]+)/)
   return m ? m[1].toUpperCase() : ''
 }
@@ -273,8 +338,11 @@ export function registerSqlWorkspace(router, ctx) {
       if (!writeMode) {
         for (const stmt of statements) {
           const kw = leadingKeyword(stmt)
-          if (WRITE_KEYWORDS.has(kw)) {
-            const err = new Error(`Statement "${kw}" requires write mode`)
+          // Allowlist, not blocklist — anything that is not a plain read needs write mode.
+          if (!READ_KEYWORDS.has(kw)) {
+            const err = new Error(WRITE_KEYWORDS.has(kw)
+              ? `Statement "${kw}" requires write mode`
+              : `Only SELECT / WITH / VALUES / SHOW / TABLE / EXPLAIN run in read-only mode${kw ? ` (got "${kw}")` : ''}`)
             err.status = 400
             err.code = 'write_required'
             throw err
@@ -361,6 +429,21 @@ export function registerSqlWorkspace(router, ctx) {
         truncated,
         statementCount: statements.length,
         sqlPreview: sqlText.slice(0, SQL_PREVIEW_MAX),
+      })
+
+      // Superuser audit trail (/admin/audit-log). The JSONL entry above is the
+      // ops log; user_logs is where "who ran what" is reviewed. Never throws.
+      await writeUserLog(database, log, {
+        accountability: req.accountability,
+        action: writeMode ? 'sql_write' : 'sql_read',
+        collection: 'sql_workspace',
+        recordId: null,
+        data: {
+          sql: sqlText.slice(0, SQL_PREVIEW_MAX),
+          truncated_sql: sqlText.length > SQL_PREVIEW_MAX,
+          statements: statements.length,
+          row_count: totalRowCount,
+        },
       })
 
       res.json({

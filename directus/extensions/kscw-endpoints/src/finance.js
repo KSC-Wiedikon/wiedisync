@@ -639,6 +639,10 @@ export function registerFinance(router, { database, logger, services, getSchema 
   //              and drops it once ClubDesk reports the invoice settled.
   // Either way the member ends up in the same visible state — "pending
   // confirmation", out of their open balance — until finance confirms.
+  // The recipient may be a team captain/TR, so the reply must not echo the full
+  // row (recipient_email, address, …). The frontend ignores the body anyway and
+  // refetches (InvoiceTable.handlePaid) — this is just the state it changed.
+  const REPORT_PAID_FIELDS = ['id', 'source', 'status', 'reported_paid_at', 'reported_paid_method']
   router.post('/finance/invoices/:id/report-paid', async (req, res) => {
     try {
       const id = Number(req.params.id)
@@ -655,7 +659,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
           reported_paid_method: method,
           reported_paid_by: r.mem.id,
           date_updated: now,
-        }).returning('*')
+        }).returning(REPORT_PAID_FIELDS)
         await writeUserLog(database, log, { accountability: req.accountability, action: 'update', collection: 'finance_invoices', recordId: id, data: { kind: 'report_paid', method } })
         return res.json({ invoice: row })
       }
@@ -688,7 +692,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
         reported_paid_method: method,
         reported_paid_by: r.mem.id,
         date_updated: now,
-      }).returning('*')
+      }).returning(REPORT_PAID_FIELDS)
       await writeUserLog(database, log, { accountability: req.accountability, action: 'update', collection: 'finance_invoices', recordId: id, data: { kind: 'report_paid', source: 'clubdesk', clubdesk_id: cdId, method } })
       return res.json({ invoice: row })
     } catch (e) { return err(res, req, 'report-paid', e) }
@@ -1932,7 +1936,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
         await trx.raw('SELECT pg_advisory_xact_lock(?::int, ?::int)', [FISCAL_YEAR_LOCK_NS, fy.id])
         if (await fiscalYearClosed(trx, fy.id)) throw Object.assign(new Error(FY_CLOSED_MSG), { fyClosed: true })
         // FOR UPDATE OF re — lock the fee rows only (games/members are read).
-        const candidates = await trx('referee_expenses as re')
+        const locked = await trx('referee_expenses as re')
           .join('games as g', 'g.id', 're.game')
           .join('members as m', 'm.id', 're.paid_by_member')
           .whereNull('re.payout')
@@ -1944,9 +1948,21 @@ export function registerFinance(router, { database, logger, services, getSchema 
           .orderBy('re.id')
           .select(
             're.id as expense_id', 're.amount', 're.currency', 're.paid_by_member as member',
+            're.team as expense_team', 'g.kscw_team as game_team', 'g.id as game_id',
             'm.first_name', 'm.last_name', 'm.iban', 'm.adresse', 'm.plz', 'm.ort',
             'm.billing_different', 'm.billing_iban', 'm.billing_name', 'm.billing_address', 'm.billing_plz', 'm.billing_ort',
           )
+        // A fee is only reimbursed when it was filed by the team whose game it
+        // is. The row is written through the items API, where a leader may pick
+        // any game — without this a fee filed against ANOTHER team's game was
+        // paid out (2026-09-28 audit). Mismatches stay unstamped and are listed
+        // so finance can correct re.team (or the game) and re-run.
+        const sameTeam = (r) => r.expense_team != null && r.game_team != null && String(r.expense_team) === String(r.game_team)
+        const candidates = locked.filter(sameTeam)
+        const teamMismatches = locked.filter((r) => !sameTeam(r)).map((r) => ({
+          expense_id: Number(r.expense_id), game: Number(r.game_id), member: Number(r.member),
+          expense_team: r.expense_team ?? null, game_team: r.game_team ?? null, amount: r.amount,
+        }))
         const plan = planRefereePayouts(candidates)
         const rows = []
         const payoutIds = []
@@ -1979,7 +1995,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
           payoutIds.push(payoutId)
           rows.push({ ...row, payout_id: payoutId })
         }
-        return { rows, created, skipped, total, payoutIds }
+        return { rows, created, skipped, total, payoutIds, teamMismatches }
       }).catch((e) => {
         if (e?.fyClosed) return { fyClosed: true }
         throw e
@@ -1990,7 +2006,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
         await writeUserLog(database, log, {
           accountability: req.accountability, action: 'create', collection: 'finance_payouts',
           recordId: result.payoutIds[0] ?? season,
-          data: { kind: 'referee_payout_run', season, created: result.created, skipped: result.skipped, total: result.total, payout_ids: result.payoutIds },
+          data: { kind: 'referee_payout_run', season, created: result.created, skipped: result.skipped, total: result.total, payout_ids: result.payoutIds, team_mismatches: result.teamMismatches.length },
         })
       }
       return res.json({
@@ -2000,6 +2016,7 @@ export function registerFinance(router, { database, logger, services, getSchema 
         created: result.created,
         skipped: result.skipped,
         total: result.total,
+        team_mismatches: result.teamMismatches,
       })
     } catch (e) { return err(res, req, 'referee-payout-run', e) }
   })

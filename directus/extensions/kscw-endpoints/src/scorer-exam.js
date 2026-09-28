@@ -453,7 +453,12 @@ export function registerScorerExam(router, ctx) {
             first_name: m.first_name,
             course_date: m.course_date,
             uploaded_on: (row && row.exam_file) ? row.exam_date : null,
-            licence: normalizeLicence(row && row.sv_license) || m.form_licence || '',
+            // ⚠ Never the licence NUMBER: this answer goes to anyone who solves a
+            // Turnstile and knows an email (2026-09-28 audit). `licence` stays in
+            // the shape, always '', so an older page just shows an empty field;
+            // `licence_on_file` tells a newer page it may skip the field.
+            licence: '',
+            licence_on_file: !!(normalizeLicence(row && row.sv_license) || m.form_licence),
           }
         }),
       })
@@ -608,9 +613,11 @@ export function registerScorerExam(router, ctx) {
       // prints as Prüfungsdatum. Admins can still correct it in /admin.
       const prev = prevRow
       const patch = { exam_file: fileId, exam_date: zurichToday() }
-      // Only write a licence the uploader actually typed. Re-writing knownLicence would
-      // silently revert an admin's correction back to whatever the participant said.
-      if (licence) patch.sv_license = licence
+      // Only write a licence the uploader actually typed, and only when none is on file.
+      // Re-writing knownLicence would silently revert an admin's correction, and the
+      // upload ticket is obtainable by anyone who knows the participant's email — it
+      // must not be able to overwrite a licence already recorded (2026-09-28 audit).
+      if (licence && !knownLicence) patch.sv_license = licence
       if (prev) {
         await database('scorer_course_attendance').where('id', prev.id).update(patch)
       } else {
@@ -618,13 +625,12 @@ export function registerScorerExam(router, ctx) {
           sub_key: claim.k, form_slug: claim.s, submission_id: claim.i, ...patch,
         })
       }
-      // Re-upload replaces: drop the superseded bytes rather than orphaning them in the
-      // bucket forever. Best-effort — the new file is already linked, so a failure here
-      // costs disk, not correctness.
+      // Re-upload replaces the LINK but keeps the superseded bytes. The ticket is
+      // bound to this submission but obtainable by anyone who knows the email, so a
+      // replacement must never destroy the previous scoresheet (2026-09-28 audit) —
+      // the old file id is logged so an admin can restore it from the folder.
       if (prev?.exam_file && prev.exam_file !== fileId) {
-        try { await filesService.deleteOne(prev.exam_file) } catch (e) {
-          log.warn({ msg: 'could not delete superseded scoresheet', file: prev.exam_file, error: e.message })
-        }
+        log.info({ msg: 'scoresheet superseded (kept)', sub_key: claim.k, previous_file: prev.exam_file, file: fileId })
       }
 
       log.info({ msg: 'scoresheet uploaded', sub_key: claim.k, bytes, type: sniffed })
@@ -640,7 +646,7 @@ export function registerScorerExam(router, ctx) {
         type: sniffed,
         replaced: !!prev?.exam_file,
         uploadedOn: patch.exam_date,
-        licence: licence || knownLicence,
+        licence: knownLicence || licence,
       })
 
       res.json({ data: { ok: true, uploaded_on: patch.exam_date, replaced: !!prev?.exam_file } })

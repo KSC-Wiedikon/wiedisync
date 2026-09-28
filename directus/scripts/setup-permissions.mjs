@@ -2199,13 +2199,22 @@ async function main() {
   // members who requested a team they lead. Directus unions update rows, so a
   // pending signup matches THIS row's fields while real roster members match
   // the COACH_TEAM_MEMBERS row's fields. (requested_team is M2O members→teams.)
+  // Only a signup the coach has NOT yet approved (security audit 2026-09-28):
+  // without `coach_approved_team = false`, an established member who merely
+  // requested a team switch could be deactivated by that team's coach —
+  // starting the retention clock (migration 335).
   const COACH_REQUESTED_TEAM = {
-    requested_team: {
-      _or: [
-        { coach: { members_id: { user: { _eq: '$CURRENT_USER' } } } },
-        { team_responsible: { members_id: { user: { _eq: '$CURRENT_USER' } } } },
-      ],
-    },
+    _and: [
+      { coach_approved_team: { _eq: false } },
+      {
+        requested_team: {
+          _or: [
+            { coach: { members_id: { user: { _eq: '$CURRENT_USER' } } } },
+            { team_responsible: { members_id: { user: { _eq: '$CURRENT_USER' } } } },
+          ],
+        },
+      },
+    ],
   }
   await setPerm(LEADER_POLICY, 'members', 'update', COACH_REQUESTED_TEAM, ['kscw_membership_active', 'wiedisync_active', 'requested_team'])
 
@@ -2345,8 +2354,10 @@ async function main() {
       { teams: { teams_id: { team_responsible: { members_id: { user: { _eq: '$CURRENT_USER' } } } } } },
     ],
   })
+  // event_sessions — create gated by the kscw-hooks create guard (event you
+  // manage); update/delete scoped via EVENT_SESSIONS_LEADER_SCOPE below
+  // (security audit 2026-09-28: update was unfiltered).
   await setPerm(LEADER_POLICY, 'event_sessions', 'create')
-  await setPerm(LEADER_POLICY, 'event_sessions', 'update')
   // events_teams — create unfiltered (no row yet, gated by the create hook);
   // update/delete scoped so a leader cannot re-target another team's event.
   await setPerm(LEADER_POLICY, 'events_teams', 'create')
@@ -2371,9 +2382,13 @@ async function main() {
   await setPerm(LEADER_POLICY, 'forms', 'update', FORMS_LEADER_SCOPE)
   await setPerm(LEADER_POLICY, 'forms', 'delete', FORMS_LEADER_SCOPE)
   await setPermRead(LEADER_POLICY, 'forms_teams')
+  // forms_teams — create gated by the kscw-hooks guard (own team + a form you
+  // created or already manage); update/delete scoped to your own teams'
+  // links (security audit 2026-09-28: all three were unfiltered, so a coach
+  // could graft their team onto any form and read its submissions).
   await setPerm(LEADER_POLICY, 'forms_teams', 'create')
-  await setPerm(LEADER_POLICY, 'forms_teams', 'update')
-  await setPerm(LEADER_POLICY, 'forms_teams', 'delete')
+  await setPerm(LEADER_POLICY, 'forms_teams', 'update', JUNCTION_OF_TEAM_I_LEAD)
+  await setPerm(LEADER_POLICY, 'forms_teams', 'delete', JUNCTION_OF_TEAM_I_LEAD)
   await setPermRead(LEADER_POLICY, 'form_submissions', { form: FORMS_LEADER_SCOPE })
 
   // Sponsors — coach/TR manage sponsors of teams they coach/TR (the sponsor
@@ -2396,9 +2411,11 @@ async function main() {
   await setPerm(LEADER_POLICY, 'sponsors', 'update', SPONSORS_LEADER_SCOPE)
   await setPerm(LEADER_POLICY, 'sponsors', 'delete', SPONSORS_LEADER_SCOPE)
   await setPermRead(LEADER_POLICY, 'teams_sponsors')
+  // teams_sponsors — create gated by the kscw-hooks guard; update/delete
+  // scoped to your own teams' links (security audit 2026-09-28).
   await setPerm(LEADER_POLICY, 'teams_sponsors', 'create')
-  await setPerm(LEADER_POLICY, 'teams_sponsors', 'update')
-  await setPerm(LEADER_POLICY, 'teams_sponsors', 'delete')
+  await setPerm(LEADER_POLICY, 'teams_sponsors', 'update', JUNCTION_OF_TEAM_I_LEAD)
+  await setPerm(LEADER_POLICY, 'teams_sponsors', 'delete', JUNCTION_OF_TEAM_I_LEAD)
 
   // Participations — read + update scoped to members on teams I coach/TR
   // (plus own row). 2026-05-12 audit: was unfiltered full-club RSVP dump.
@@ -2567,6 +2584,9 @@ async function main() {
   await setPermRead(LEADER_POLICY, 'referee_expenses', {
     _or: [{ paid_by_member: { user: { _eq: '$CURRENT_USER' } } }, TEAM_FK_I_LEAD],
   })
+  // Create/update are additionally checked by the kscw-hooks referee_expenses
+  // guard (team you lead, that team's game, payer on the team, amount capped,
+  // `payout` finance-owned, `recorded_by` stamped) — security audit 2026-09-28.
   await setPerm(LEADER_POLICY, 'referee_expenses', 'create')
   await setPerm(LEADER_POLICY, 'referee_expenses', 'update', REFEREE_EXPENSE_I_LEAD_UNPAID)
 
@@ -2598,9 +2618,12 @@ async function main() {
     },
   })
 
-  // Team requests — read + update
-  await setPermRead(LEADER_POLICY, 'team_requests')
-  await setPerm(LEADER_POLICY, 'team_requests', 'update')
+  // Team requests — read + decide, for teams I lead only; the decision is the
+  // only writable field (security audit 2026-09-28: read/update were
+  // unfiltered with fields '*', so a coach could re-target other teams'
+  // requests).
+  await setPermRead(LEADER_POLICY, 'team_requests', TEAM_FK_I_LEAD)
+  await setPerm(LEADER_POLICY, 'team_requests', 'update', TEAM_FK_I_LEAD, ['status'])
 
   // Absences — read + CUD scoped to members on teams I coach/TR.
   // 2026-05-12 audit: read was unfiltered → full-club absence dump including
@@ -2633,8 +2656,9 @@ async function main() {
   await setPerm(LEADER_POLICY, 'absences', 'update', COACH_TEAM_ABSENCE_SCOPE)
   await setPerm(LEADER_POLICY, 'absences', 'delete', COACH_TEAM_ABSENCE_SCOPE)
 
-  // Notifications — create (coaches send notifications)
-  await setPerm(LEADER_POLICY, 'notifications', 'create')
+  // Notifications — NO items-API create (security audit 2026-09-28): it was
+  // unfiltered, letting a coach drop arbitrary in-app notifications on any
+  // member. Every notification is written server-side (hooks / endpoints).
 
   // Announcements — restricted to same filter as members (no draft access).
   // F6 audit fix: coaches don't need to see admin's pre-publication drafts.
@@ -2733,6 +2757,7 @@ async function main() {
     _or: [
       { event: { created_by: { user: { _eq: '$CURRENT_USER' } } } },
       { event: { teams: { teams_id: { coach: { members_id: { user: { _eq: '$CURRENT_USER' } } } } } } },
+      { event: { teams: { teams_id: { team_responsible: { members_id: { user: { _eq: '$CURRENT_USER' } } } } } } },
     ],
   }
   const EVENTS_MEMBERS_LEADER_SCOPE = {
@@ -2741,6 +2766,7 @@ async function main() {
       { events_id: { teams: { teams_id: { coach: { members_id: { user: { _eq: '$CURRENT_USER' } } } } } } },
     ],
   }
+  await setPerm(LEADER_POLICY, 'event_sessions', 'update', EVENT_SESSIONS_LEADER_SCOPE)
   await setPerm(LEADER_POLICY, 'event_sessions', 'delete', EVENT_SESSIONS_LEADER_SCOPE)
   await setPerm(LEADER_POLICY, 'events_members', 'create', EVENTS_MEMBERS_LEADER_SCOPE)
   await setPerm(LEADER_POLICY, 'events_members', 'update', EVENTS_MEMBERS_LEADER_SCOPE)

@@ -66,6 +66,17 @@ const REDACTED_FIELDS = {
     'iban',
     'billing_name', 'billing_email', 'billing_address', 'billing_plz',
     'billing_ort', 'billing_phone', 'billing_iban',
+    // Bearer token for the personal iCal feed.
+    'ical_token',
+  ]),
+  // Registration rows carry the same PII as members (security audit
+  // 2026-09-28): AnmeldungenPage PATCHes ahv_nummer / iban / address, which
+  // otherwise landed verbatim in user_logs for 90 days.
+  registrations: new Set([
+    'email', 'telefon_mobil', 'adresse', 'plz', 'ort', 'geburtsdatum',
+    'nationalitaet', 'nationalitaet_code', 'nationalitaet_codes', 'federation_of_origin',
+    'geschlecht', 'anrede', 'ahv_nummer', 'iban', 'bemerkungen',
+    'id_upload_front', 'id_upload_back',
   ]),
   directus_users: new Set([
     'email', 'password', 'token', 'tfa_secret',

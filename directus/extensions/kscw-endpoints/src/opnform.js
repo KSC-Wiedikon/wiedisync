@@ -6,6 +6,8 @@
  * OpnForm PAT is server-only (env OPNFORM_PAT). Slugs are non-secret (public URL).
  */
 
+import { writeUserLog } from './activity-log.js'
+
 const OPNFORM_BASE = (process.env.OPNFORM_BASE_URL || 'https://forms.kscw.ch').replace(/\/$/, '')
 const COUNT_CACHE_TTL_MS = 60_000
 const FORM_META_CACHE_TTL_MS = 5 * 60_000
@@ -398,7 +400,7 @@ export async function deleteSubmission(slug, id) {
   return { ok: true }
 }
 
-export function registerOpnform(router, { logger }) {
+export function registerOpnform(router, { logger, database }) {
   const log = logger.child({ endpoint: 'opnform' })
 
   // ── Public: submission count ────────────────────────────────────
@@ -449,6 +451,15 @@ export function registerOpnform(router, { logger }) {
 
     try {
       await deleteSubmission(slug, id)
+      // Actor capture — the delete happens in OpnForm, so nothing in Directus
+      // would otherwise record who removed a (possibly PII-bearing) submission.
+      await writeUserLog(database, log, {
+        accountability: req.accountability,
+        action: 'delete',
+        collection: 'opnform_submissions',
+        recordId: `${slug}/${id}`,
+        data: { slug, submission_id: String(id) },
+      })
       res.json({ ok: true })
     } catch (err) {
       if (err.status === 404) return res.status(404).json({ error: 'Submission not found' })

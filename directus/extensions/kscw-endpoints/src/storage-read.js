@@ -80,7 +80,18 @@ export async function streamManagedFile(fileId, { services, getSchema, database 
 
   const { stream, file } = await assets.getAsset(fileId, null)
 
-  res.setHeader('Content-Type', type || file.type || 'application/octet-stream')
+  const contentType = type || file.type || 'application/octet-stream'
+  res.setHeader('Content-Type', contentType)
+  // These are USER-uploaded files served inline on the API origin. nosniff stops a
+  // browser from upgrading a mislabelled upload to HTML/script; anything that is
+  // not a PDF or a raster image is additionally sandboxed (opaque origin, no
+  // script), so an uploaded SVG/HTML cannot run as directus.kscw.ch. PDFs and
+  // raster images are exempt: Chrome's PDF viewer refuses to render inside a
+  // CSP sandbox, and a raster image cannot execute anything.
+  res.setHeader('X-Content-Type-Options', 'nosniff')
+  if (!/^(application\/pdf|image\/(png|jpe?g|gif|webp|heic|heif|avif))\b/i.test(contentType)) {
+    res.setHeader('Content-Security-Policy', "sandbox; default-src 'none'")
+  }
   const safeName = String(filename || file.filename_download || 'file').replace(/[^\w.\- ]/g, '_')
   res.setHeader('Content-Disposition', `inline; filename="${safeName}"`)
 

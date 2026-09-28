@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useTheme } from '../../hooks/useTheme'
@@ -23,7 +23,20 @@ export default function SetPasswordPage() {
   // password form — the backend's token mode was unreachable from the app and
   // the tokens it issued were never consumed. With a token we skip straight to
   // the password step and let the token stand in for the OTP.
-  const resetToken = searchParams.get('token') ?? ''
+  //
+  // Captured ONCE into state, then stripped from the address bar (below) so the
+  // live reset credential does not linger in history, screenshots, Referer
+  // headers or error-tracker page URLs. Never re-read from the URL after that.
+  const [resetToken] = useState(() => searchParams.get('token') ?? '')
+  useEffect(() => {
+    try {
+      const url = new URL(window.location.href)
+      if (!url.searchParams.has('token')) return
+      url.searchParams.delete('token')
+      // Keep react-router's history state (key/idx) so back/forward still work.
+      window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash)
+    } catch { /* best effort */ }
+  }, [])
 
   // Token → password form directly. Everyone else starts on the emailed-link
   // request, which is the only reset that works for an account that already has

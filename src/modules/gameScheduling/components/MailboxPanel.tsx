@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import DOMPurify from 'dompurify'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { ArrowLeft, ChevronDown, ClipboardList, Paperclip, Users, X } from 'lucide-react'
@@ -1409,12 +1410,13 @@ export default function MailboxPanel({ mailbox, sport = 'volleyball', opponentCo
               <div key={i} className="rounded-md border border-gray-200 p-3 dark:border-gray-700">
                 <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{s.name}</p>
                 <p className="mt-1 text-sm font-medium text-gray-900 dark:text-gray-100">{s.subject}</p>
-                {/* Safe: this markup is the server's own sanitizeOutgoingHtml
-                    output with merge values HTML-escaped on the way in — the
-                    exact bytes the recipient's mail client will render. */}
+                {/* The server already runs sanitizeOutgoingHtml and escapes
+                    merge values, but this renders in the app's own origin —
+                    DOMPurify again client-side so a server-side regression
+                    cannot become XSS in a logged-in admin session. */}
                 <div
                   className="prose prose-sm mt-2 max-w-none dark:prose-invert"
-                  dangerouslySetInnerHTML={{ __html: s.html }}
+                  dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(s.html) }}
                 />
               </div>
             ))}

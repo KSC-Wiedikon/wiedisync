@@ -55,8 +55,13 @@ export async function onRequest(context) {
   // freshness directive, and subscribing calendar clients stopped re-polling for
   // up to 60 minutes after Directus was healthy again (audit 2026-08-08,
   // finding 36). Self-healing, but the wait is the deploy window multiplied.
+  //
+  // A token-bearing feed (?token=…, the personal duties feed) is one member's
+  // data behind a capability URL — `private` keeps it out of shared caches
+  // (CF edge, corporate proxies); only the token-less club feeds stay `public`.
   if (upstream.ok) {
-    headers.set('cache-control', 'public, max-age=3600')
+    headers.set('cache-control', url.searchParams.has('token') ? 'private, max-age=3600' : 'public, max-age=3600')
+    if (url.searchParams.has('token')) headers.set('referrer-policy', 'no-referrer')
   } else {
     headers.set('cache-control', 'no-store')
   }

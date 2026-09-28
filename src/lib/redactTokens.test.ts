@@ -33,6 +33,21 @@ describe('redactTokens', () => {
     expect(redactTokens('/kscw/games/1234567890abcde')).toBe('/kscw/games/1234567890abcde')
   })
 
+  it('redacts credential values in query strings (reset JWT, OAuth code, invite)', () => {
+    expect(redactTokens('https://wiedisync.kscw.ch/set-password?token=eyJhbGciOi.eyJpZCI6.sig-_x')) // gitleaks:allow — synthetic fixture
+      .toBe('https://wiedisync.kscw.ch/set-password?token=[redacted]') // gitleaks:allow — synthetic fixture
+    expect(redactTokens('/cb?state=abc&code=4/0AbC-xyz&scope=email#frag')) // gitleaks:allow — synthetic fixture
+      .toBe('/cb?state=abc&code=[redacted]&scope=email#frag') // gitleaks:allow — synthetic fixture
+    expect(redactTokens('/join?invite=Zz9&t=123&access_token=a.b.c&refresh_token=r&KEY=k')) // gitleaks:allow — synthetic fixture
+      .toBe('/join?invite=[redacted]&t=[redacted]&access_token=[redacted]&refresh_token=[redacted]&KEY=[redacted]')
+  })
+
+  it('leaves non-credential query params alone', () => {
+    for (const p of ['/calendar?view=month&team=3', '/games?tab=upcoming&sort=date', '/x?tokens=1&kind=2']) {
+      expect(redactTokens(p)).toBe(p)
+    }
+  })
+
   it('passes non-strings through untouched', () => {
     expect(redactTokens(null)).toBeNull()
     expect(redactTokens(42)).toBe(42)

@@ -65,9 +65,17 @@ const MAX_FILE_BYTES = 64 * 1024 * 1024
  */
 export function writeErrorLog(entry) {
   try {
+    // Bearer-in-the-URL tokens (public event shares, Terminplanung links, signup
+    // invites) must not land in the JSONL log — it is readable by every admin
+    // and shipped to the AI-bugfix pipeline. Redacted centrally so no caller
+    // can forget (2026-09-28 audit).
+    const redacted = { ...entry }
+    for (const k of URLISH_FIELDS) {
+      if (typeof redacted[k] === 'string') redacted[k] = redactUrlTokens(redacted[k])
+    }
     let line = JSON.stringify({
       ts: new Date().toISOString(),
-      ...entry,
+      ...redacted,
     }) + '\n'
 
     if (Buffer.byteLength(line) > MAX_LINE_BYTES) {
@@ -111,8 +119,8 @@ export function logErrorToFile(endpoint, err, req) {
     method: req?.method || null,
     status,
     body: req?.body ? scrubPii(req.body) : undefined,
-    params: req?.params || undefined,
-    query: req?.query || undefined,
+    params: req?.params ? scrubPii(req.params) : undefined,
+    query: req?.query ? scrubPii(req.query) : undefined,
     error: err.message,
     stack: err.stack,
   })
@@ -257,16 +265,33 @@ export function cleanOldLogs() {
 
 // ── PII scrubbing ──────────────────────────────────────────────
 
+const URLISH_FIELDS = ['endpoint', 'url', 'path', 'route', 'href', 'referrer', 'page']
+
+// Route families whose path segment AFTER the prefix is a bearer secret. Keep in
+// step with the routers: public-events.js, game-scheduling.js / basketball-portal.js
+// (terminplanung, slots), signup-invites.js.
+const TOKEN_PATH_RE = /(\/(?:public\/events|signup-invites\/info|slots|terminplanung(?:\/bb)?(?:\/club)?(?:\/(?:note|propose-away|propose-home|propose|respond|set-language|slots))?)\/)(?!:)([^/?#\s]+)/gi
+// Query-string secrets (`?token=…`, `?ticket=…`, `?reference=…&email=…`).
+const TOKEN_QUERY_RE = /([?&](?:token|ticket|share|key|secret|code|otp|reference|email)=)[^&#\s]*/gi
+
+/** Redact bearer tokens in a URL or path string. Route PATTERNS (`:token`) pass
+ *  through untouched. Pure; exported for the unit test. */
+export function redactUrlTokens(str) {
+  if (typeof str !== 'string' || !str) return str
+  return str.replace(TOKEN_PATH_RE, '$1[REDACTED]').replace(TOKEN_QUERY_RE, '$1[REDACTED]')
+}
+
 const PII_KEYS = new Set([
   'email', 'password', 'phone', 'birthdate', 'first_name', 'last_name',
   'token', 'otp', 'code', 'turnstile_token', 'access_token', 'refresh_token',
 ])
 
-function scrubPii(obj) {
+export function scrubPii(obj) {
   if (!obj || typeof obj !== 'object') return obj
   const safe = {}
   for (const [k, v] of Object.entries(obj)) {
-    if (PII_KEYS.has(k)) {
+    // Any *token* / *secret* / *password* key too (share_token, ticket_token …).
+    if (PII_KEYS.has(k) || /token|secret|password|ticket/i.test(k)) {
       safe[k] = '[REDACTED]'
     } else if (v && typeof v === 'object' && !Array.isArray(v)) {
       safe[k] = scrubPii(v)

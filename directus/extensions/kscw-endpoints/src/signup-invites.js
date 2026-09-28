@@ -329,15 +329,17 @@ export function registerSignupInvites(router, { database, logger, services, getS
       const pwError = validatePassword(password)
       if (pwError) return res.status(400).json(pwError)
 
-      const row = await database('signup_tokens')
+      // Single-use, claimed ATOMICALLY (DELETE … RETURNING): two concurrent
+      // redeems of one token cannot both see the row, which SELECT-then-DELETE
+      // allowed. Deleted up-front so the link can't be replayed even if a later
+      // step fails (password_reset_tokens discipline).
+      const [row] = await database('signup_tokens')
         .where('token_hash', hashSignupToken(String(token)))
-        .first()
+        .delete()
+        .returning(['id', 'member', 'expires_at'])
       if (!row) {
         return res.status(400).json({ error: 'Invalid or expired invite', code: 'invalid_token' })
       }
-      // Single-use: delete up-front so the link can't be replayed even if a
-      // later step fails (password_reset_tokens discipline).
-      await database('signup_tokens').where('id', row.id).delete()
       if (row.expires_at && new Date() > new Date(row.expires_at)) {
         return res.status(400).json({ error: 'Invalid or expired invite', code: 'invalid_token' })
       }
@@ -368,13 +370,34 @@ export function registerSignupInvites(router, { database, logger, services, getS
         .whereNotExists(function () {
           this.select(database.raw('1')).from('members').whereRaw('members."user" = directus_users.id')
         })
-        .first('id')
+        .first('id', 'password', 'role')
       const someoneElseHasIt = await database('directus_users')
         .whereRaw('LOWER(email) = ?', [email]).first('id')
+      const memberRole = await database('directus_roles').where('name', 'Member').first('id')
+      if (!memberRole) throw new Error('Member role not found in directus_roles')
       let userId
       if (sameEmailUser) {
+        // Adopting an orphan login is only safe for a leftover partial signup:
+        // one with NO password and at most the Member role. An orphan that
+        // already has a password — or an elevated role (a stray admin@ login) —
+        // must not be taken over by whoever holds an invite for that address.
+        // Mirrors /set-password mode 3's `password_already_set` guard.
+        if (sameEmailUser.password) {
+          return res.status(400).json({
+            error: 'This account already has a password — use "Forgot password" to reset it.',
+            code: 'password_already_set',
+          })
+        }
+        if (sameEmailUser.role != null && String(sameEmailUser.role) !== String(memberRole.id)) {
+          log.warn({ msg: 'signup-invites/redeem: refused to adopt a non-Member orphan login', member: member.id })
+          return res.status(400).json({
+            error: 'This email already has an account — ask an admin to set a personal email for you first.',
+            code: 'email_in_use',
+          })
+        }
         userId = sameEmailUser.id
-        await adminUsersService.updateOne(userId, { password })
+        // Force the Member role — a role-less adoptee would 403 on every request.
+        await adminUsersService.updateOne(userId, { password, role: memberRole.id })
       } else if (someoneElseHasIt) {
         // A same-email login exists but belongs to another member.
         return res.status(400).json({
@@ -382,8 +405,6 @@ export function registerSignupInvites(router, { database, logger, services, getS
           code: 'email_in_use',
         })
       } else {
-        const memberRole = await database('directus_roles').where('name', 'Member').first()
-        if (!memberRole) throw new Error('Member role not found in directus_roles')
         try {
           userId = await adminUsersService.createOne({
             email,

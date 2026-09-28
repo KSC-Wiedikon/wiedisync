@@ -72,9 +72,12 @@ export function registerGameRecordings(router, { database, logger }) {
     const teamId = game.kscw_team != null ? Number(game.kscw_team) : null
     if (teamId == null) return false
 
-    const team = await database('teams').where('id', teamId).first('sport')
+    const team = await database('teams').where('id', teamId).first('sport', 'active')
     if (team?.sport === 'volleyball' && roles.includes('vb_admin')) return true
     if (team?.sport === 'basketball' && roles.includes('bb_admin')) return true
+    // Coach/TR power follows the ACTIVE season only — a junction row left on an
+    // archived team must not keep edit rights over that lineage's old games.
+    if (team?.active !== true) return false
 
     const [coach, tr] = await Promise.all([
       database('teams_coaches').where({ teams_id: teamId, members_id: m.id }).first('id'),

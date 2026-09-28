@@ -57,6 +57,18 @@ export function initSentry() {
           /directus(?:-dev)?\.kscw\.ch/,
           /sentry-tunnel\.kscw\.ch/,
         ],
+        // Replay recordings carry their own copy of every navigation / fetch URL
+        // (breadcrumb + performance-span events), outside beforeSend's reach.
+        beforeAddRecordingEvent(recordingEvent) {
+          const payload = (recordingEvent as unknown as { data?: { payload?: Record<string, unknown> } }).data?.payload
+          if (payload && typeof payload === 'object') {
+            for (const k of ['description', 'message'] as const) {
+              if (typeof payload[k] === 'string') payload[k] = redactTokens(payload[k] as string)
+            }
+            redactBreadcrumbData(payload.data as Record<string, unknown> | undefined)
+          }
+          return recordingEvent
+        },
       }),
     ],
 
@@ -104,6 +116,7 @@ export function initSentry() {
               .replace(/[\w.+-]+@[\w.-]+\.\w+/g, '[REDACTED]')
             bc.message = redactTokens(bc.message)
           }
+          redactBreadcrumbData(bc.data)
         }
       }
 
@@ -119,6 +132,15 @@ export function initSentry() {
       if (typeof event.message === 'string') event.message = redactTokens(event.message)
       if (typeof event.transaction === 'string') event.transaction = redactTokens(event.transaction)
       if (event.request?.url) event.request.url = redactTokens(event.request.url)
+      if (event.request && typeof event.request.query_string === 'string') {
+        // query_string is the bare `a=1&b=2` form — prefix `?` so the param rule matches.
+        event.request.query_string = redactTokens(`?${event.request.query_string}`).slice(1)
+      }
+      if (event.request?.headers) {
+        for (const h of ['Referer', 'referer']) {
+          if (typeof event.request.headers[h] === 'string') event.request.headers[h] = redactTokens(event.request.headers[h])
+        }
+      }
       for (const ctx of Object.values(event.contexts ?? {})) {
         if (!ctx || typeof ctx !== 'object') continue
         for (const [k, v] of Object.entries(ctx)) {
@@ -142,6 +164,33 @@ export function initSentry() {
         })
       }
 
+      return event
+    },
+
+    // Breadcrumbs are recorded when they happen, and a navigation crumb to
+    // `/set-password?token=…` would otherwise sit in the buffer with the live
+    // reset token until the next error ships it.
+    beforeBreadcrumb(bc) {
+      if (typeof bc.message === 'string') bc.message = redactTokens(bc.message)
+      redactBreadcrumbData(bc.data)
+      return bc
+    },
+
+    // Transactions carry the page URL (request.url, transaction name, span
+    // descriptions for navigations) — same redaction as errors.
+    beforeSendTransaction(event) {
+      if (typeof event.transaction === 'string') event.transaction = redactTokens(event.transaction)
+      if (event.request?.url) event.request.url = redactTokens(event.request.url)
+      if (event.request && typeof event.request.query_string === 'string') {
+        event.request.query_string = redactTokens(`?${event.request.query_string}`).slice(1)
+      }
+      for (const span of event.spans ?? []) {
+        if (typeof span.description === 'string') span.description = redactTokens(span.description)
+        for (const k of ['url', 'http.url', 'url.full', 'http.query']) {
+          const v = span.data?.[k]
+          if (typeof v === 'string') span.data![k] = redactTokens(v)
+        }
+      }
       return event
     },
   })
@@ -606,16 +655,31 @@ const API_BASE = (typeof window !== 'undefined' && window.location.hostname === 
 // also appears mid-sentence in `API /team-invites/info/<token>: 400`, where the
 // next character is a colon. A `[/?#]|$` lookahead missed exactly that case.
 const TOKEN_IN_PATH = /\/([0-9a-f]{16,})(?![0-9a-f])/gi
+// Query-string credentials: the password-reset link is `/set-password?token=<jwt>`
+// (a JWT, not hex — TOKEN_IN_PATH never matched it), and OAuth / invite flows use
+// `code`, `key`, `invite`, `access_token`, `refresh_token`. Redact the VALUE of
+// those params wherever the URL lands (security audit 2026-09-28).
+const TOKEN_IN_QUERY = /([?&](?:token|t|code|key|invite|access_token|refresh_token)=)[^&#\s]+/gi
 export function redactTokens<T>(value: T): T {
   if (typeof value !== 'string') return value
-  return value.replace(TOKEN_IN_PATH, '/:token') as unknown as T
+  return value
+    .replace(TOKEN_IN_PATH, '/:token')
+    .replace(TOKEN_IN_QUERY, '$1[redacted]') as unknown as T
+}
+
+/** Redact token-bearing URL fields on a breadcrumb's `data` (navigation from/to, fetch/xhr url). */
+function redactBreadcrumbData(data: Record<string, unknown> | undefined) {
+  if (!data) return
+  for (const k of ['from', 'to', 'url'] as const) {
+    if (typeof data[k] === 'string') data[k] = redactTokens(data[k] as string)
+  }
 }
 
 function sendToErrorLog(entry: Record<string, unknown>) {
   try {
     // Central redaction: every caller below funnels through here, so the token
     // rule cannot be forgotten at one of the ~15 emission sites.
-    for (const k of ['endpoint', 'page', 'error', 'stack', 'responseBody'] as const) {
+    for (const k of ['endpoint', 'page', 'url', 'error', 'stack', 'responseBody'] as const) {
       if (typeof entry[k] === 'string') entry[k] = redactTokens(entry[k] as string)
     }
     // Skip in local dev

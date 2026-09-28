@@ -23,6 +23,18 @@ function userEventRateLimit(map, key, maxAttempts, windowMs) {
   return true
 }
 
+/**
+ * Email blast guard for NON-privileged callers (the event creator is `elevated`
+ * but may be any member — every member can create an event). Above this many
+ * resolved recipients the email is refused unless the caller is admin / vorstand /
+ * a sport admin; push + in-app still go out. 60 ≈ two full teams, which covers
+ * every legitimate team-scoped invite. Plus a per-USER cap across events, since
+ * the per-(user, event) limit above lets one member mail N audiences via N events.
+ */
+const NON_PRIVILEGED_EMAIL_MAX_RECIPIENTS = 60
+const NON_PRIVILEGED_EMAIL_MAX_PER_HOUR = 3
+const userEmailRateLimit = new Map() // `${user}` → { count, resetAt }
+
 export function registerEventNotify(router, { services, database, getSchema, logger }) {
   const { ItemsService, MailService } = services
 
@@ -60,6 +72,9 @@ export function registerEventNotify(router, { services, database, getSchema, log
       const isAdmin = req.accountability.admin === true
       let elevated = isAdmin
       let allowed = isAdmin
+      // May email any audience size (admin / vorstand / sport admin). The event
+      // creator is `elevated` but NOT privileged.
+      let privileged = isAdmin
       let caller = null
       const ledTeamIds = new Set() // event-team ids the caller leads as coach/TR
       if (!elevated) {
@@ -70,6 +85,7 @@ export function registerEventNotify(router, { services, database, getSchema, log
         const roles = Array.isArray(caller?.role)
           ? caller.role
           : (caller?.role ? (() => { try { return JSON.parse(caller.role) } catch { return [] } })() : [])
+        if (['admin', 'superuser', 'vb_admin', 'bb_admin', 'vorstand'].some((r) => roles.includes(r))) privileged = true
         if (roles.includes('admin') || roles.includes('superuser') || roles.includes('vb_admin') || roles.includes('bb_admin')) {
           elevated = true
           allowed = true
@@ -208,6 +224,23 @@ export function registerEventNotify(router, { services, database, getSchema, log
       const memberIdArray = [...memberIds].filter(id => id && !isNaN(Number(id)))
       if (memberIdArray.length === 0) return res.json({ notified: 0 })
 
+      // Email blast guard (see NON_PRIVILEGED_EMAIL_MAX_RECIPIENTS). Refused
+      // BEFORE anything is inserted or pushed, so the caller can retry without
+      // email instead of half-notifying the audience.
+      if (sendEmail && !privileged) {
+        // A refusal sent nothing — hand back the per-event slot taken above.
+        const refuse = (status, body) => { notifyRateLimit.delete(rateKey); return res.status(status).json(body) }
+        if (memberIdArray.length > NON_PRIVILEGED_EMAIL_MAX_RECIPIENTS) {
+          return refuse(403, {
+            error: `Email notification to more than ${NON_PRIVILEGED_EMAIL_MAX_RECIPIENTS} people needs an admin — notify without email instead`,
+            code: 'email_audience_too_large',
+          })
+        }
+        if (!userEventRateLimit(userEmailRateLimit, String(req.accountability.user), NON_PRIVILEGED_EMAIL_MAX_PER_HOUR, 60 * 60 * 1000)) {
+          return refuse(429, { error: 'Too many email notifications — please wait before sending another', code: 'email_rate_limited' })
+        }
+      }
+
       // Insert in-app notifications
       const notifRows = memberIdArray.map(mid => ({
         member: mid,
@@ -327,7 +360,7 @@ export function registerEventNotify(router, { services, database, getSchema, log
     } catch (err) {
       logger.error('Event notify error: ' + (err?.message || err))
       logger.error(err?.stack || '')
-      res.status(500).json({ error: 'Notification failed', message: err?.message })
+      res.status(500).json({ error: 'Notification failed' })
     }
   })
 }

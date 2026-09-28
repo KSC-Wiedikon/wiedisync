@@ -127,6 +127,24 @@ async function memberTeamIds(database, memberId) {
  * Bounded to `scheduled` games, mirroring `memberTeamIds`' bound to `teams.active` — a
  * guest slot for a game that already happened is a historical fact, not a standing grant.
  */
+/**
+ * Knex modifier for the individual-guest branch: count a `game_guests` row only once the
+ * guest has CONFIRMED that game. Any coach can put any member on their game's guest list
+ * with no acceptance step, so the bare row would let a coach make their own staff a
+ * standing recipient of a stranger's ID document (2026-09-28 audit). 'confirmed' only —
+ * the same bar the match sheet's RSVP fallback uses (scorer-roster.js); a maybe is not a
+ * player at the table. Expects the games alias `g` and guests alias `gg`.
+ */
+function guestHasConfirmed(database) {
+  return (qb) => qb.whereExists(function () {
+    this.select(database.raw('1')).from('participations as p')
+      .where('p.activity_type', 'game')
+      .whereRaw('p.activity_id = g.id::text')
+      .whereRaw('p.member = gg.member')
+      .where('p.status', 'confirmed')
+  })
+}
+
 async function sharedGameTeamIds(database, memberId, ownTeamIds) {
   const hostTeamOf = new Map() // gameId -> kscw_team, for every game worth considering
 
@@ -144,6 +162,7 @@ async function sharedGameTeamIds(database, memberId, ownTeamIds) {
   const guestOf = await database('games as g')
     .join('game_guests as gg', 'gg.game', 'g.id')
     .where('gg.member', memberId)
+    .modify(guestHasConfirmed(database))
     .where('g.status', 'scheduled')
     .select('g.id', 'g.kscw_team')
   for (const g of guestOf) hostTeamOf.set(Number(g.id), Number(g.kscw_team))
@@ -184,6 +203,7 @@ async function gamesLinkingTeams(database, memberId, ownTeamIds, otherTeamId) {
   const guestOf = await database('games as g')
     .join('game_guests as gg', 'gg.game', 'g.id')
     .where('gg.member', memberId)
+    .modify(guestHasConfirmed(database))
     .where('g.kscw_team', otherTeamId)
     .where('g.status', 'scheduled')
     .select('g.id', 'g.date', 'g.time')
@@ -250,13 +270,16 @@ function parseRoles(raw) {
 }
 
 /**
- * Directus admin session, or a member holding the app-level 'superuser' role. Mirrors
+ * A member holding the app-level 'superuser' role (a bare Directus admin session does NOT
+ * count — see mayRead). Mirrors
  * `season-health.js`'s `isSuperadmin()` and the frontend's `isSuperAdmin` (roles.includes
  * ('superuser')) — deliberately NOT `isAdmin`/`isGlobalAdmin`/`hasAdminAccessToTeam`, which
  * also grant vb_admin/bb_admin (sport admins). Sport admins get no standing decryption key.
  */
 async function isSuperadmin(database, accountability) {
-  if (accountability?.admin === true) return true
+  // No `accountability.admin` shortcut: mayRead()'s contract is that a bare Directus
+  // admin session without the 'superuser' role gets NO (it holds no envelope). The
+  // shortcut contradicted that — its only caller is mayRead().
   const userId = accountability?.user
   if (!userId) return false
   const caller = await database('members').where('user', userId).first('role')

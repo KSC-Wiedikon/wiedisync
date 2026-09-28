@@ -535,7 +535,36 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   //   role          → syncMemberRole (base Directus role, incl. Superuser)
   //   is_spielplaner → ensureTerminplanungAccess (club-wide scheduling policy)
   //   finance        → reconcileFinanceAccess (finance policy)
-  const PRIVILEGE_FLAGS = ['role', 'is_spielplaner', 'finance']
+  //   user          → re-pointing a login onto another member row inherits
+  //                   that row's role everywhere `members where user = …` is
+  //                   resolved (security audit 2026-09-28: Sport Admin could
+  //                   relink a superuser's row to their own login)
+  const PRIVILEGE_FLAGS = ['role', 'is_spielplaner', 'finance', 'user']
+
+  // Rank guard (security audit 2026-09-28): a non-full-admin (Sport Admin,
+  // Vorstand, coach) must not rewrite the contact / login identity of a staff
+  // member ranked admin / superuser / vorstand — the Sport Admin policy grants
+  // members update on every field, and `email` feeds the login + password
+  // reset. Self-edits pass (your own row is yours).
+  const STAFF_RANKS = ['admin', 'superuser', 'vorstand']
+  const IDENTITY_FIELDS = ['email', 'user']
+  filter('members.items.update', async (payload, meta, context) => {
+    if (!payload || !IDENTITY_FIELDS.some((f) => f in payload)) return payload
+    const acc = context?.accountability
+    if (!acc?.user || acc.admin) return payload
+    const me = await database('members').where('user', acc.user).first('id', 'role')
+    const myRoles = Array.isArray(me?.role) ? me.role : []
+    if (myRoles.includes('admin') || myRoles.includes('superuser')) return payload
+    const keys = (Array.isArray(meta?.keys) ? meta.keys : []).filter((k) => Number(k) !== Number(me?.id))
+    if (keys.length === 0) return payload
+    const rows = await database('members').whereIn('id', keys).select('id', 'role')
+    const hit = rows.find((r) => (Array.isArray(r.role) ? r.role : []).some((x) => STAFF_RANKS.includes(x)))
+    if (hit) {
+      throw kscwScopeError('Only an admin can change the email or login of a board member or admin', 403, 'STAFF_RANK')
+    }
+    return payload
+  })
+
   filter('members.items.update', async (payload, _meta, context) => {
     if (!payload || !PRIVILEGE_FLAGS.some((f) => f in payload)) return payload
     const userId = context?.accountability?.user
@@ -608,12 +637,16 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     return payload
   })
 
-  action('members.items.update', async ({ keys }) => {
+  action('members.items.update', async ({ keys, payload }) => {
     if (pendingLicenceNotifications.size === 0) return
     for (const id of (Array.isArray(keys) ? keys : [])) {
       const pending = pendingLicenceNotifications.get(String(id))
       if (!pending) continue
       pendingLicenceNotifications.delete(String(id))
+      // Filters run BEFORE Directus checks access, so a write that was then
+      // refused (403) still left an entry here. Only the write that actually
+      // committed THIS status may drain it (security audit 2026-09-28).
+      if (!payload || payload.licence_status !== pending.status) continue
       try {
         await notifyLicenceStatusChange(database, log, {
           memberId: id, status: pending.status, season: pending.season,
@@ -644,33 +677,62 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   // Skipped too: guardian-acting writes (the acting middleware already denies
   // /items/directus_users to them) and an address another login already owns
   // (directus_users.email is unique; members.email deliberately is not).
+  //
+  // ⚠⚠ Security audit 2026-09-28 (Critical): Directus runs `items.update`
+  // FILTERS BEFORE its access check, so a PATCH that is then refused with 403
+  // still reached this filter. The action used to drain the entry on the NEXT
+  // successful update of that member — any update, by anyone — which let a
+  // refused `{email: attacker}` PATCH move the victim's login and hand the
+  // attacker a password reset. Now:
+  //   • only the member themself (editing their own row) or a full admin
+  //     (Directus admin / members.role admin|superuser) moves a login — a
+  //     coach / sport admin changing a member's profile email never does;
+  //   • the action requires THAT committed write to have carried `email`, the
+  //     row to now hold exactly the queued address, and the same actor.
   const pendingLoginEmailSync = new Map()
+
+  async function mayMoveLoginEmail(accountability, memberIds) {
+    if (!accountability?.user) return false          // system writes: never move a login
+    if (accountability.admin) return true
+    const me = await database('members').where('user', accountability.user).first('id', 'role')
+    if (!me) return false
+    const roles = Array.isArray(me.role) ? me.role : []
+    if (roles.includes('admin') || roles.includes('superuser')) return true
+    return memberIds.length === 1 && Number(memberIds[0]) === Number(me.id)
+  }
 
   filter('members.items.update', async (payload, meta, context) => {
     if (!payload || !('email' in payload)) return payload
-    if (context?.accountability?.kscwGuardian) return payload
+    const accountability = context?.accountability
+    if (accountability?.kscwGuardian) return payload
     const next = String(payload.email || '').trim().toLowerCase()
     const keys = Array.isArray(meta?.keys) ? meta.keys : []
     if (!next || keys.length === 0) return payload
+    if (!(await mayMoveLoginEmail(accountability, keys))) return payload
     const rows = await database('members').whereIn('id', keys).select('id', 'email')
     for (const r of rows) {
       const prev = String(r.email || '').trim().toLowerCase()
       if (prev && prev !== next) {
-        pendingLoginEmailSync.set(String(r.id), { prev, next, accountability: context?.accountability })
+        pendingLoginEmailSync.set(String(r.id), { prev, next, actor: accountability.user, accountability })
       }
     }
     return payload
   })
 
-  action('members.items.update', async ({ keys }) => {
+  action('members.items.update', async ({ keys, payload }, context) => {
     if (pendingLoginEmailSync.size === 0) return
     for (const id of (Array.isArray(keys) ? keys : [])) {
       const pending = pendingLoginEmailSync.get(String(id))
       if (!pending) continue
       pendingLoginEmailSync.delete(String(id))
+      // The committed write must be the one that queued this entry.
+      if (!payload || !('email' in payload)) continue
+      if (String(payload.email || '').trim().toLowerCase() !== pending.next) continue
+      if (context?.accountability?.user !== pending.actor) continue
       try {
-        const m = await database('members').where('id', id).first('user')
+        const m = await database('members').where('id', id).first('user', 'email')
         if (!m?.user) continue
+        if (String(m.email || '').trim().toLowerCase() !== pending.next) continue
         const du = await database('directus_users').where('id', m.user).first('email')
         if (String(du?.email || '').trim().toLowerCase() !== pending.prev) continue
         const taken = await database('directus_users')
@@ -6282,7 +6344,11 @@ export default ({ action, filter, init, schedule }, { services, database, logger
   filter('scheduling_blocks.items.create', async (payload, _meta, { accountability, database: db }) => {
     if (!accountability?.user) return payload
     const member = await db('members').where('user', accountability.user).first('id', 'is_spielplaner')
-    const out = member?.id ? { ...payload, created_by: payload?.created_by ?? member.id } : payload
+    // Stamped from the caller, never client-supplied (security audit
+    // 2026-09-28) — only a full admin may record a block for someone else.
+    const out = member?.id
+      ? { ...payload, created_by: accountability.admin ? (payload?.created_by ?? member.id) : member.id }
+      : payload
     if (accountability.admin) return out            // full admin — any team
     if (!member) return out                         // not a member — Directus denies via policy
     if (member.is_spielplaner === true) return out  // club-wide Spielplaner — any team
@@ -6598,7 +6664,14 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     const editor = await db('members').where('user', accountability.user).select('id').first()
     if (editor && Number(editor.id) === Number(affectedMemberId)) return  // self
     if (allowLeader && editor) {
-      const teamIds = (await db('member_teams').where('member', affectedMemberId).select('team'))
+      // Active teams only (security audit 2026-09-28): the coach/TR junction
+      // lingers on an archived team after rollover, and the policy-side twin
+      // of this walk was already active-gated (SECURITY.md 2026-08-12).
+      const teamIds = (await db('member_teams')
+        .join('teams', 'teams.id', 'member_teams.team')
+        .where('member_teams.member', affectedMemberId)
+        .andWhere('teams.active', true)
+        .select('member_teams.team'))
         .map((r) => r.team).filter(Boolean)
       if (teamIds.length) {
         const isCoach = await db('teams_coaches').whereIn('teams_id', teamIds).andWhere('members_id', editor.id).first()
@@ -6647,6 +6720,47 @@ export default ({ action, filter, init, schedule }, { services, database, logger
         return payload
       })
     }
+  }
+
+  // ── Self-scoped UPDATE identity guard (security audit 2026-09-28, HIGH) ──
+  // The Member/LEADER update grants on these collections filter the row as it
+  // is BEFORE the write (`member.user = $CURRENT_USER`) with fields '*', and
+  // nothing validated the NEW values — so a member could PATCH their own
+  // absence `{member: <victim>}` (and the absences action then auto-declined
+  // the victim's RSVPs), re-point a push subscription to receive the victim's
+  // pushes, re-attribute a poll vote, or move an RSVP onto another activity
+  // past the guest gate. The owner / identity columns are immutable through
+  // the items API for everyone but admins and system writes (the member-merge
+  // and cascade code writes via knex, which never reaches these filters).
+  // System-owned bookkeeping columns are stripped for the same callers.
+  const IMMUTABLE_ON_UPDATE = {
+    participations: ['member', 'activity_type', 'activity_id'],
+    absences: ['member'],
+    push_subscriptions: ['member'],
+    poll_votes: ['member', 'poll'],
+    notifications: ['member'],
+  }
+  const SYSTEM_OWNED_ON_UPDATE = {
+    participations: ['waitlisted_at', 'auto_declined_by', 'auto_declined_by_game', 'auto_declined_deadline'],
+  }
+  for (const [coll, fields] of Object.entries(IMMUTABLE_ON_UPDATE)) {
+    filter(`${coll}.items.update`, async (payload, meta, { database: db, accountability }) => {
+      if (!payload || !accountability?.user || accountability.admin) return payload
+      for (const f of SYSTEM_OWNED_ON_UPDATE[coll] || []) delete payload[f]
+      const touched = fields.filter((f) => f in payload)
+      if (touched.length === 0) return payload
+      const keys = Array.isArray(meta?.keys) ? meta.keys : []
+      const rows = keys.length ? await db(coll).whereIn('id', keys).select(['id', ...touched]) : []
+      for (const f of touched) {
+        const next = payload[f] && typeof payload[f] === 'object' ? payload[f].id : payload[f]
+        // Unchanged values (a form re-sending the whole row) are fine.
+        if (rows.length === 0 || rows.some((r) => String(r[f]) !== String(next))) {
+          throw kscwScopeError('This field cannot be changed', 403, 'IMMUTABLE_FIELD')
+        }
+        delete payload[f]
+      }
+      return payload
+    })
   }
 
   // Audit-integrity (PERM-2): user_logs has a Member create grant (the FE
@@ -6851,6 +6965,130 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     if (teamId == null) throw kscwScopeError('A poll needs a team', 400, 'POLL_TEAM_REQUIRED')
     await assertLeadsTeamForCreate(db, accountability, teamId,
       'You can only create polls for teams you coach or are responsible for')
+    return payload
+  })
+
+  // ── More unscoped LEADER create grants (security audit 2026-09-28) ─────
+  // Same shape as the guards above: the policy grants CREATE unfiltered
+  // (Directus can't row-filter a create), so these filters are the scope gate.
+
+  // forms_teams / teams_sponsors: grafting your own team onto someone else's
+  // form / sponsor made FORMS_LEADER_SCOPE / SPONSORS_LEADER_SCOPE match it —
+  // i.e. read every submission, or edit / delete the sponsor.
+  filter('forms_teams.items.create', async (payload, _meta, { database: db, accountability }) => {
+    await assertLeadsTeamForCreate(db, accountability, toIdValue(payload?.teams_id),
+      'You can only attach forms to teams you coach or are responsible for')
+    if (accountability?.user && !accountability.admin) {
+      const formId = toIdValue(payload?.forms_id)
+      const form = formId != null ? await db('forms').where('id', formId).first('created_by') : null
+      const me = await db('members').where('user', accountability.user).first('id')
+      const ownForm = form && me && String(form.created_by) === String(me.id)
+      const leadsExisting = ownForm ? true : await (async () => {
+        const links = await db('forms_teams').where('forms_id', formId).select('teams_id')
+        for (const l of links) if (await actorLeadsTeam(db, accountability, l.teams_id)) return true
+        return false
+      })()
+      if (!leadsExisting) {
+        throw kscwScopeError('You can only attach your team to a form you created or already manage', 403, 'NOT_TEAM_LEADER')
+      }
+    }
+    return payload
+  })
+  filter('teams_sponsors.items.create', async (payload, _meta, { database: db, accountability }) => {
+    await assertLeadsTeamForCreate(db, accountability, toIdValue(payload?.teams_id),
+      'You can only attach sponsors to teams you coach or are responsible for')
+    if (accountability?.user && !accountability.admin) {
+      // An existing sponsor already attached to other teams belongs to them.
+      const sponsorId = toIdValue(payload?.sponsors_id)
+      const links = sponsorId != null ? await db('teams_sponsors').where('sponsors_id', sponsorId).select('teams_id') : []
+      for (const l of links) {
+        if (!(await actorLeadsTeam(db, accountability, l.teams_id))) {
+          throw kscwScopeError('This sponsor belongs to another team', 403, 'NOT_TEAM_LEADER')
+        }
+      }
+    }
+    return payload
+  })
+
+  // event_sessions: only for an event the caller created or whose team they lead.
+  async function actorManagesEvent(db, accountability, eventId) {
+    if (eventId == null) return false
+    const me = await db('members').where('user', accountability.user).first('id')
+    if (!me) return false
+    const ev = await db('events').where('id', eventId).first('created_by')
+    if (!ev) return false
+    if (String(ev.created_by) === String(me.id)) return true
+    const links = await db('events_teams').where('events_id', eventId).select('teams_id')
+    for (const l of links) if (await actorLeadsTeam(db, accountability, l.teams_id)) return true
+    return false
+  }
+  filter('event_sessions.items.create', async (payload, _meta, { database: db, accountability }) => {
+    if (!accountability?.user || accountability.admin) return payload
+    if (!(await actorManagesEvent(db, accountability, toIdValue(payload?.event)))) {
+      throw kscwScopeError('You can only add days to an event you manage', 403, 'NOT_TEAM_LEADER')
+    }
+    return payload
+  })
+
+  // trainings: create was unfiltered with no hook — a coach could put a
+  // training on any team's calendar (and trigger its RSVP / push fan-out).
+  filter('trainings.items.create', async (payload, _meta, { database: db, accountability }) => {
+    if (!accountability?.user || accountability.admin) return payload
+    const teamId = toIdValue(payload?.team)
+    if (teamId == null) throw kscwScopeError('A training needs a team', 400, 'TRAINING_TEAM_REQUIRED')
+    await assertLeadsTeamForCreate(db, accountability, teamId,
+      'You can only create trainings for teams you coach or are responsible for')
+    return payload
+  })
+
+  // referee_expenses feed the season-end payout run (finance.js), which
+  // reimburses every unpaid row it finds. A leader may only record a fee for a
+  // game of a team they lead, paid by someone on that team (roster or staff)
+  // or a named outsider; `payout` is finance-owned; `recorded_by` is stamped.
+  // Finance / admins keep full control.
+  const REFEREE_FEE_MAX = 1000
+  async function isFinanceOrAdmin(db, accountability) {
+    if (accountability.admin) return true
+    const me = await db('members').where('user', accountability.user).first('role')
+    const roles = Array.isArray(me?.role) ? me.role : []
+    return ['finance', 'admin', 'superuser'].some((r) => roles.includes(r))
+  }
+  async function guardRefereeExpense(db, accountability, row) {
+    const teamId = toIdValue(row.team)
+    if (!(await actorLeadsTeam(db, accountability, teamId))) {
+      throw kscwScopeError('You can only record referee fees for teams you coach or are responsible for', 403, 'NOT_TEAM_LEADER')
+    }
+    const game = row.game != null ? await db('games').where('id', toIdValue(row.game)).first('kscw_team') : null
+    if (!game || String(game.kscw_team) !== String(teamId)) {
+      throw kscwScopeError('This game does not belong to that team', 403, 'NOT_TEAM_LEADER')
+    }
+    const payer = toIdValue(row.paid_by_member)
+    if (payer != null && payer !== '') {
+      const onTeam = await db('member_teams').where({ member: payer, team: teamId }).first('id')
+        || await db('teams_coaches').where({ members_id: payer, teams_id: teamId }).first('id')
+        || await db('teams_responsibles').where({ members_id: payer, teams_id: teamId }).first('id')
+      if (!onTeam) throw kscwScopeError('The payer must be on this team', 403, 'NOT_TEAM_LEADER')
+    }
+    const amount = Number(row.amount ?? 0)
+    if (!Number.isFinite(amount) || amount < 0 || amount > REFEREE_FEE_MAX) {
+      throw kscwScopeError(`The amount must be between 0 and ${REFEREE_FEE_MAX}`, 400, 'INVALID_AMOUNT')
+    }
+  }
+  filter('referee_expenses.items.create', async (payload, _meta, { database: db, accountability }) => {
+    if (!payload || !accountability?.user || await isFinanceOrAdmin(db, accountability)) return payload
+    delete payload.payout
+    await guardRefereeExpense(db, accountability, payload)
+    const me = await db('members').where('user', accountability.user).first('id')
+    payload.recorded_by = me?.id ?? null
+    return payload
+  })
+  filter('referee_expenses.items.update', async (payload, meta, { database: db, accountability }) => {
+    if (!payload || !accountability?.user || await isFinanceOrAdmin(db, accountability)) return payload
+    delete payload.payout
+    delete payload.recorded_by
+    const keys = Array.isArray(meta?.keys) ? meta.keys : []
+    const rows = keys.length ? await db('referee_expenses').whereIn('id', keys).select('*') : []
+    for (const r of rows) await guardRefereeExpense(db, accountability, { ...r, ...payload })
     return payload
   })
 

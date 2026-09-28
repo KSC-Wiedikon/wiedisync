@@ -601,7 +601,10 @@ export default function ScorerRow({
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                   {t('confirmSelfAssignTitle')}
                 </h3>
-                {/* Hardcoded i18n string, DOMPurify-sanitized before injection */}
+                {/* i18n string with markup; the interpolated team names come from
+                    the federation sync, so they are HTML-escaped (escapeValue:
+                    true overrides the app-wide false) and DOMPurify is limited to
+                    the inline tags the translations actually use. */}
                 <p
                   className="mt-1.5 text-sm leading-relaxed text-gray-600 dark:text-gray-400 [&_strong]:font-semibold [&_strong]:text-gray-900 dark:[&_strong]:text-gray-100"
                   dangerouslySetInnerHTML={{
@@ -609,8 +612,8 @@ export default function ScorerRow({
                       role: roleLabel(confirmRole),
                       game: gameLabel,
                       date: dateStr,
-                      interpolation: { escapeValue: false },
-                    })),
+                      interpolation: { escapeValue: true },
+                    }), { ALLOWED_TAGS: ['strong', 'b', 'br', 'em'], ALLOWED_ATTR: [] }),
                   }}
                 />
               </div>

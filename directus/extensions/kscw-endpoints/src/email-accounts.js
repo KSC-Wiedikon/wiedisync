@@ -41,6 +41,16 @@ const GLOBAL_ROLES = ['admin', 'superuser']
 const SPORT_ROLES = { vb_admin: 'volleyball', bb_admin: 'basketball' }
 
 const SPORTS = ['volleyball', 'basketball', 'club']
+
+/**
+ * Local parts that are GLOBAL-admin only, whatever `sport` the row is filed
+ * under. admin@ is the club inbox (general correspondence — scheduling-mailbox.js
+ * gates it to admin/superuser) and finance@ is the treasurer's box; both sit in
+ * 'club', which a sport admin's scope includes. Without this tier a vb_admin
+ * could reveal either password (2026-09-28 audit). Matched on the local part so
+ * a new domain alias (admin@kscw.ch, finance@kscw.ch) is covered by default.
+ */
+const GLOBAL_ONLY_LOCAL_PARTS = ['admin', 'finance']
 const PROVIDERS = ['migadu', 'ses', 'clubdesk', 'google', 'other']
 
 /**
@@ -158,6 +168,18 @@ export function scopeForRoles(roles) {
   return sports.length === 1 ? null : { global: false, sports }
 }
 
+/** True when only a global admin may list/read/reveal this address. Pure. */
+export function isGlobalOnlyAddress(address) {
+  const local = String(address || '').split('@')[0].trim().toLowerCase()
+  return GLOBAL_ONLY_LOCAL_PARTS.includes(local)
+}
+
+/** Knex modifier: hide the global-only tier from a non-global caller. */
+function excludeGlobalOnly(qb, who) {
+  if (who.global) return qb
+  return qb.whereRaw("lower(split_part(address, '@', 1)) <> ALL(?)", [GLOBAL_ONLY_LOCAL_PARTS])
+}
+
 export function normalizeAddress(raw) {
   const address = String(raw || '').trim().toLowerCase()
   if (!address || address.length > MAX_LEN.address) return null
@@ -248,6 +270,7 @@ export function registerEmailAccounts(router, { database, logger }) {
     return database('email_accounts')
       .where('id', numeric)
       .whereIn('sport', who.sports)
+      .modify(excludeGlobalOnly, who)
       .first(columns)
   }
 
@@ -259,6 +282,7 @@ export function registerEmailAccounts(router, { database, logger }) {
 
       const rows = await database('email_accounts')
         .whereIn('sport', who.sports)
+        .modify(excludeGlobalOnly, who)
         .select([
           ...LIST_COLUMNS,
           // Presence, not content. The page needs to distinguish "no password on

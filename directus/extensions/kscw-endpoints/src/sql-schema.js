@@ -92,6 +92,20 @@ async function loadKeys(database, log) {
   return keys
 }
 
+/**
+ * Tables / columns whose sampled values must never leave the database. The value
+ * hints ride along in the /ask prompt to the Anthropic API, so "low-cardinality
+ * text" would otherwise ship real tokens, hashes, emails, addresses (2026-09-28
+ * audit). Enum labels are schema, not data, and are unaffected. Pure; exported
+ * for the unit test.
+ */
+const SENSITIVE_TABLE = /^(directus_|identity_|household)|^email_accounts$|token|secret|password/i
+const SENSITIVE_COLUMN = /token|password|passwd|secret|hash|iban|ahv|email|phone|mobile|birth|address|adresse|strasse|street|plz|zip|key|salt|otp|totp|recovery|ciphertext|_enc$/i
+
+export function isSensitiveForSampling(table, column) {
+  return SENSITIVE_TABLE.test(String(table)) || SENSITIVE_COLUMN.test(String(column))
+}
+
 /** `table.column` → string[] of the values that column actually holds. */
 async function loadValueHints(database, log) {
   const values = new Map()
@@ -136,6 +150,7 @@ async function loadValueHints(database, log) {
     for (const r of stats.rows) {
       const key = `${r.tablename}.${r.attname}`
       if (values.has(key)) continue // an enum list is authoritative — keep it
+      if (isSensitiveForSampling(r.tablename, r.attname)) continue
       const list = (r.vals ?? [])
         .filter((v) => typeof v === 'string' && v !== '' && v.length <= 60)
         .slice(0, VALUE_HINT_MAX)

@@ -9,6 +9,7 @@
  *   - delete-account                  — not an errand to run from inside someone else's session
  *   - the iCal token mint / rotate    — a bearer URL that outlives revocation
  *   - scorer-delegation accept/decline — scorer duty is personal
+ *   - games/:id/duty-claim             — likewise (self sign-up for a duty seat)
  * The DB fakes throw if touched: the refusal must come before any read or write.
  */
 import { describe, it, expect, vi } from 'vitest'
@@ -87,6 +88,7 @@ describe('refused while acting', () => {
       ['POST /delete-account', {}],
       ['POST /scorer-delegation/accept', { delegation_id: 1 }],
       ['POST /scorer-delegation/decline', { delegation_id: 1 }],
+      ['POST /games/:id/duty-claim', { role: 'scorer' }],
     ])('%s', async (key, body) => {
       expect(R.routes[key], key).toBeTypeOf('function')
       await expectRefused(R.routes[key], body)

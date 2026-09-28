@@ -213,10 +213,10 @@ export async function logout() {
   // ⚠ The key cleared here used to be 'wiedisync-sql-history', which NOTHING
   // writes — so the SQL workspace's real drafts and history survived logout on
   // a shared machine, while the cleanup read as if they did not (audit
-  // 2026-08-08, finding 37). These two are the keys SqlWorkspacePage actually
-  // sets; a raw SQL draft can embed member data pasted while debugging.
-  localStorage.removeItem('kscw-sql-workspace-recent')
-  localStorage.removeItem('kscw-sql-workspace-draft')
+  // 2026-08-08, finding 37). SqlWorkspacePage writes several keys (recent,
+  // draft, ai-memory, …) under one prefix — swept by prefix below so a key added
+  // later cannot be forgotten here again (ai-memory was, until 2026-09-28). A
+  // raw SQL draft can embed member data pasted while debugging.
 
   // Scorer-assignment drafts. The key is BUILT from sport + season
   // (`kscw:scorer-assign-draft:${sport}:${season}`, ScorerAssignPage.tsx), so a fixed
@@ -229,7 +229,7 @@ export async function logout() {
     const stale: string[] = []
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i)
-      if (key?.startsWith('kscw:scorer-assign-draft:')) stale.push(key)
+      if (key?.startsWith('kscw:scorer-assign-draft:') || key?.startsWith('kscw-sql-workspace-')) stale.push(key)
     }
     stale.forEach((key) => localStorage.removeItem(key))
   } catch { /* storage unavailable (private mode) — nothing to clear */ }

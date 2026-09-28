@@ -98,6 +98,7 @@ export default {
   signupFormHint: 'Für Lüt ohni Wiedisync-Konto. Mitglieder mäldid sich mit de Chnöpf obe aa.',
   signupFormSaveFirst: 'Zerscht de Aalass spichere, dänn cha es Aamäldeformular erstellt werde.',
   signupFormUrl: 'Link zum Aamäldeformular',
+  signupFormUrlInvalid: 'Gib en vollständige Link ii, wo mit https:// aafangt',
   signupFormCreate: 'Aamäldeformular erstelle',
   signupFormReplace: 'Nöis Formular erstelle',
   signupFormCopy: 'Link kopiere',
