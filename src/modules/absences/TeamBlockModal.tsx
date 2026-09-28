@@ -66,7 +66,7 @@ export default function TeamBlockModal({ open, onClose, onSaved, teamOptions }: 
   return (
     <Modal open={open} onClose={onClose} title={t('teamBlockTitle')} size="md">
       <form onSubmit={handleSubmit} className="space-y-4">
-        <p className="text-sm text-gray-500 dark:text-gray-400">{t('teamBlockHint')}</p>
+        <p className="text-sm text-muted-foreground">{t('teamBlockHint')}</p>
 
         <SearchableSelect
           label={t('blockTeam')}
@@ -100,7 +100,7 @@ export default function TeamBlockModal({ open, onClose, onSaved, teamOptions }: 
           placeholder={t('blockReasonPlaceholder')}
         />
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">{error}</p>}
 
         <div className="flex justify-end gap-3 pt-2">
           <Button variant="ghost" type="button" onClick={onClose}>

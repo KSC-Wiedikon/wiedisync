@@ -184,13 +184,13 @@ export default function AssignmentEditor({
     <div className="space-y-1.5">
       {(label || onHide) && (
       <div className="flex min-h-8 items-center gap-2">
-        <span className="min-w-0 break-words text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">{label}</span>
+        <span className="min-w-0 break-words text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{label}</span>
         {onHide && (
           <IconButton
             size="sm"
             label={t('hide')}
             onClick={onHide}
-            className="-my-1 ml-auto text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+            className="-my-1 ml-auto text-muted-foreground/80 hover:text-muted-foreground"
           >
             <X />
           </IconButton>
@@ -257,10 +257,10 @@ export default function AssignmentEditor({
               shrink-0 at the standard height, so a long name never pushes it
               off a phone. Only one of the two can show at a time. */}
           {personValue ? (
-            <div className="flex items-center gap-2 rounded-lg bg-gray-50 px-3 py-2 dark:bg-gray-700/60">
+            <div className="flex items-center gap-2 rounded-xl border border-hairline bg-surface-sunken px-3 py-2">
               <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
                 {teamName && <RowChip wrap>{teamName}</RowChip>}
-                <span className="inline-flex min-w-0 items-center gap-1.5 break-words text-sm font-medium leading-snug text-gray-900 dark:text-white">
+                <span className="inline-flex min-w-0 items-center gap-1.5 break-words text-sm font-medium leading-snug text-foreground">
                   <span className="min-w-0 break-words">{assignedName}</span>
                   {dutyConfirmed && (
                     <Check className="h-3.5 w-3.5 shrink-0 text-green-600 dark:text-green-400" aria-hidden />
@@ -274,10 +274,10 @@ export default function AssignmentEditor({
               )}
             </div>
           ) : (
-            <div className="flex items-center gap-2 rounded-lg bg-gray-50 px-3 py-2 text-sm dark:bg-gray-700/60">
+            <div className="flex items-center gap-2 rounded-xl border border-hairline bg-surface-sunken px-3 py-2 text-sm">
               <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
                 {teamName && <RowChip wrap>{teamName}</RowChip>}
-                <span className="text-gray-500 dark:text-gray-400">{t('unassigned')}</span>
+                <span className="text-muted-foreground">{t('unassigned')}</span>
               </div>
               {selfAssignButton && (
                 <Button
@@ -297,7 +297,7 @@ export default function AssignmentEditor({
 
       {/* Pending delegation indicator */}
       {pendingDelegationName && (
-        <div className="flex items-center gap-1.5 rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700 dark:bg-amber-900/20 dark:text-amber-400">
+        <div className="flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-300">
           <Clock className="h-3.5 w-3.5" />
           {t('delegatePendingOutgoing', { name: pendingDelegationName })}
         </div>
@@ -305,15 +305,15 @@ export default function AssignmentEditor({
 
       {/* Contact info */}
       {showContact && assignedPerson && ((!assignedPerson.hide_phone && assignedPerson.phone) || (!assignedPerson.hide_email && assignedPerson.email)) && (
-        <div className="flex flex-wrap gap-x-4 gap-y-1 rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600 dark:bg-gray-700 dark:text-gray-400">
+        <div className="flex flex-wrap gap-x-4 gap-y-1 rounded-xl border border-hairline bg-surface-sunken px-3 py-2 text-xs text-muted-foreground">
           {!assignedPerson.hide_phone && assignedPerson.phone && (
-            <a href={`tel:${assignedPerson.phone}`} className="flex items-center gap-1.5 transition-colors hover:text-brand-600 dark:hover:text-brand-400">
+            <a href={`tel:${assignedPerson.phone}`} className="flex items-center gap-1.5 transition-colors hover:text-primary dark:hover:text-brand-300">
               <Phone className="h-3 w-3" />
               {assignedPerson.phone}
             </a>
           )}
           {!assignedPerson.hide_email && assignedPerson.email && (
-            <a href={`mailto:${assignedPerson.email}`} className="flex items-center gap-1.5 transition-colors hover:text-brand-600 dark:hover:text-brand-400">
+            <a href={`mailto:${assignedPerson.email}`} className="flex items-center gap-1.5 transition-colors hover:text-primary dark:hover:text-brand-300">
               <Mail className="h-3 w-3" />
               {assignedPerson.email}
             </a>
@@ -323,7 +323,7 @@ export default function AssignmentEditor({
 
       {/* Who took this duty + when — admins only (migration 123) */}
       {showConfirmedBy && assignedPerson && (confirmedByName || confirmedAt) && (
-        <p className="text-xs text-gray-400 dark:text-gray-500">
+        <p className="text-xs text-muted-foreground/80">
           {t('confirmedBy')}: {[confirmedByName, confirmedAt ? formatDateTimeCompact(confirmedAt) : null].filter(Boolean).join(' · ')}
         </p>
       )}
@@ -331,10 +331,10 @@ export default function AssignmentEditor({
       {/* Multi-team picker: the chosen person is in >1 team of this sport — ask
           which one is the duty team for this game. */}
       {teamPrompt && (
-        <div role="dialog" aria-modal="true" aria-label={t('pickDutyTeamTitle')} className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setTeamPrompt(null)}>
-          <div className="mx-4 w-full max-w-sm rounded-xl bg-white p-5 shadow-2xl dark:bg-gray-800" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('pickDutyTeamTitle')}</h3>
-            <p className="mt-1.5 text-sm text-gray-600 dark:text-gray-400">{t('pickDutyTeamBody', { name: promptName })}</p>
+        <div role="dialog" aria-modal="true" aria-label={t('pickDutyTeamTitle')} className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/60 backdrop-blur-sm dark:bg-black/70" onClick={() => setTeamPrompt(null)}>
+          <div className="mx-4 w-full max-w-sm rounded-xl border border-hairline bg-card p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-bold tracking-tight text-foreground">{t('pickDutyTeamTitle')}</h3>
+            <p className="mt-1.5 text-sm text-muted-foreground">{t('pickDutyTeamBody', { name: promptName })}</p>
             <div className="mt-4 flex flex-wrap gap-2">
               {teamPrompt.teamIds.map((tid) => (
                 <Button

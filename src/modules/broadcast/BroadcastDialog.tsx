@@ -192,7 +192,7 @@ export default function BroadcastDialog({
 
           {/* 1. Channels */}
           <section>
-            <Label className="text-xs font-medium text-foreground">{t('channels.label')}</Label>
+            <Label className="text-xs font-medium text-muted-foreground">{t('channels.label')}</Label>
             <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-3">
               <label className="flex items-center gap-2 cursor-pointer min-h-11">
                 <Checkbox
@@ -218,7 +218,7 @@ export default function BroadcastDialog({
 
           {/* 2. Audience */}
           <section>
-            <Label className="text-xs font-medium text-foreground">{t('audience.label')}</Label>
+            <Label className="text-xs font-medium text-muted-foreground">{t('audience.label')}</Label>
             <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2">
               {ALL_STATUSES.map((status) => {
                 const checked = statuses.includes(status)
@@ -253,8 +253,8 @@ export default function BroadcastDialog({
           <section
             className={
               recipientCount === 0 && !previewLoading && !previewError
-                ? 'rounded-md border border-yellow-300 bg-yellow-50 px-3 py-2 dark:border-yellow-700 dark:bg-yellow-950/40'
-                : 'rounded-md border border-border bg-muted/40 px-3 py-2'
+                ? 'rounded-lg border border-yellow-300 bg-yellow-50 px-3 py-2 dark:border-yellow-700 dark:bg-yellow-950/40'
+                : 'rounded-xl border border-hairline bg-surface-sunken px-3 py-2'
             }
             aria-live="polite"
           >
@@ -269,7 +269,7 @@ export default function BroadcastDialog({
             )}
             {!previewLoading && !previewError && preview && recipientCount > 0 && (
               <div className="space-y-1">
-                <p className="text-xs font-medium text-foreground">
+                <p className="text-xs font-medium text-muted-foreground">
                   {t('preview.recipients', {
                     total: formatLocaleNumber(recipientCount, locale),
                     members: formatLocaleNumber(memberCount, locale),
@@ -290,7 +290,7 @@ export default function BroadcastDialog({
           {/* 4. Subject (only when email channel ON) */}
           {emailOn && (
             <section>
-              <Label htmlFor="broadcast-subject" className="text-xs font-medium text-foreground">
+              <Label htmlFor="broadcast-subject" className="text-xs font-medium text-muted-foreground">
                 {t('subject.label')}
               </Label>
               <Input
@@ -307,7 +307,7 @@ export default function BroadcastDialog({
 
           {/* 5. Message */}
           <section>
-            <Label htmlFor="broadcast-message" className="text-xs font-medium text-foreground">
+            <Label htmlFor="broadcast-message" className="text-xs font-medium text-muted-foreground">
               {t('message.label')}
             </Label>
             <Textarea

@@ -180,7 +180,7 @@ export default function CarpoolPanel({ type, id, standalone = false, suggestedTi
               className={`gap-1.5 px-2 ${
                 selected
                   ? 'border-sky-600 bg-sky-600 text-white hover:bg-sky-600 hover:text-white dark:border-sky-500 dark:bg-sky-600'
-                  : 'border-sky-200 bg-white text-gray-700 hover:bg-sky-50 dark:border-sky-900 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-sky-950/50'
+                  : 'border-sky-200 bg-card text-foreground/85 hover:bg-sky-50 dark:border-sky-900 dark:hover:bg-sky-950/50'
               }`}
             >
               <span>{t(`tab_${d}`)}</span>
@@ -251,7 +251,7 @@ export default function CarpoolPanel({ type, id, standalone = false, suggestedTi
                     entry={o}
                     tone={o.mine ? 'mine' : o.seats_free === 0 ? 'full' : 'open'}
                     status={o.seats_free > 0
-                      ? <span className="whitespace-nowrap text-sm font-semibold tabular-nums text-gray-900 dark:text-gray-100">{t('seatsFree', { free: o.seats_free, total: o.seats })}</span>
+                      ? <span className="whitespace-nowrap text-sm font-semibold tabular-nums text-foreground">{t('seatsFree', { free: o.seats_free, total: o.seats })}</span>
                       : <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700 dark:bg-red-900/40 dark:text-red-300">{t('full')}</span>}
                     chips={<>
                       {o.mine && <RowChip tone="sky">{t('youDrive')}</RowChip>}
@@ -283,12 +283,12 @@ export default function CarpoolPanel({ type, id, standalone = false, suggestedTi
                   >
                     {o.passengers.length > 0 && (
                       <div className="mt-1.5">
-                        <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('passengers')}</div>
+                        <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t('passengers')}</div>
                         <ul className="mt-0.5 flex flex-wrap gap-1.5">
                           {o.passengers.map((p) => {
                             const name = memberDisplayName(p.member)
                             return (
-                              <li key={p.id} className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-white py-0.5 pl-2.5 pr-1 text-xs text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
+                              <li key={p.id} className="inline-flex items-center gap-1 rounded-full border border-border bg-card py-0.5 pl-2.5 pr-1 text-xs text-foreground">
                                 <span>{name}{p.seats > 1 ? ` · ${t('seatsTaken', { count: p.seats })}` : ''}</span>
                                 {o.mine ? (
                                   // Sits inside a name pill, so it keeps the pill's 28px
@@ -299,7 +299,7 @@ export default function CarpoolPanel({ type, id, standalone = false, suggestedTi
                                     label={`${t('remove')} ${name}`}
                                     disabled={busy}
                                     onClick={() => dropPassenger(p.id, name)}
-                                    className="h-7 w-7 rounded-full text-gray-400 hover:bg-red-50 hover:text-red-600 sm:h-7 sm:w-7 dark:text-gray-500 dark:hover:bg-red-900/30 dark:hover:text-red-400 [&_svg]:size-3.5"
+                                    className="h-7 w-7 rounded-full text-muted-foreground/80 hover:bg-red-50 hover:text-red-600 sm:h-7 sm:w-7 dark:hover:bg-red-900/30 dark:hover:text-red-400 [&_svg]:size-3.5"
                                   >
                                     <X />
                                   </IconButton>
@@ -325,7 +325,7 @@ export default function CarpoolPanel({ type, id, standalone = false, suggestedTi
                     key={r.id}
                     entry={r}
                     tone={r.covered ? 'done' : r.mine ? 'mine' : 'waiting'}
-                    status={<span className="whitespace-nowrap text-sm font-semibold tabular-nums text-gray-900 dark:text-gray-100">{t('seatsTaken', { count: r.seats })}</span>}
+                    status={<span className="whitespace-nowrap text-sm font-semibold tabular-nums text-foreground">{t('seatsTaken', { count: r.seats })}</span>}
                     chips={<>
                       {r.mine && <RowChip tone="sky">{t('you')}</RowChip>}
                       {r.covered && <RowChip tone="green" wrap>{t('hasRide')} · {t('withDriver', { name: r.covered_by.map((d) => memberDisplayName(d)).join(', ') })}</RowChip>}
@@ -401,11 +401,11 @@ function RideRow({ entry, tone, status, chips, tools, children }: {
       }
       // The pickup point rides with the name (above the chips), as before.
       title={<>
-        <p className="text-sm font-semibold leading-snug text-gray-900 break-words dark:text-gray-100">
+        <p className="text-sm font-semibold leading-snug text-foreground break-words">
           {first} {person.last_name}
         </p>
         {entry.departure_location && (
-          <p className="mt-0.5 flex items-start gap-1 text-xs text-gray-600 dark:text-gray-400">
+          <p className="mt-0.5 flex items-start gap-1 text-xs text-muted-foreground">
             <MapPin className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
             <span className="break-words">{entry.departure_location}</span>
           </p>
@@ -415,7 +415,7 @@ function RideRow({ entry, tone, status, chips, tools, children }: {
       chips={chips}
       tools={tools}
     >
-      {entry.notes && <p className="mt-1 text-xs italic text-gray-500 dark:text-gray-400">{entry.notes}</p>}
+      {entry.notes && <p className="mt-1 text-xs italic text-muted-foreground">{entry.notes}</p>}
       {children}
     </ActivityRow>
   )

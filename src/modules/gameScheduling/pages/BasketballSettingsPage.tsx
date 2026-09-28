@@ -56,17 +56,17 @@ function ClubBlockedDatesReadOnly() {
   const blocks = data ?? []
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-4 sm:p-6 dark:border-gray-700 dark:bg-gray-800">
+    <div className="rounded-2xl border border-hairline bg-card p-4 shadow-card sm:p-6">
       <div className="mb-1 flex items-center gap-2">
-        <CalendarOff className="h-5 w-5 text-gray-500 dark:text-gray-400" />
-        <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">{t('blockedDates')}</h3>
+        <CalendarOff className="h-5 w-5 text-muted-foreground" />
+        <h3 className="text-base font-semibold text-foreground">{t('blockedDates')}</h3>
       </div>
-      <p className="mb-4 text-xs text-gray-500 dark:text-gray-400">{t('blockedDatesReadOnlyHint')}</p>
+      <p className="mb-4 text-xs text-muted-foreground">{t('blockedDatesReadOnlyHint')}</p>
 
       {isLoading ? (
-        <div className="py-6 text-center text-sm text-gray-400"><Loader2 className="mx-auto h-4 w-4 animate-spin" /></div>
+        <div className="py-6 text-center text-sm text-muted-foreground/80"><Loader2 className="mx-auto h-4 w-4 animate-spin" /></div>
       ) : blocks.length === 0 ? (
-        <p className="py-4 text-center text-sm text-gray-400 dark:text-gray-500">{t('blockedDatesEmpty')}</p>
+        <p className="py-4 text-center text-sm text-muted-foreground/80">{t('blockedDatesEmpty')}</p>
       ) : (
         <Table>
           <TableHeader>
@@ -83,7 +83,7 @@ function ClubBlockedDatesReadOnly() {
                     ? formatDateZurich(b.start_date)
                     : `${formatDateZurich(b.start_date)} – ${formatDateZurich(b.end_date)}`}
                 </TableCell>
-                <TableCell className="whitespace-normal break-words text-gray-500 dark:text-gray-400">{b.reason || '–'}</TableCell>
+                <TableCell className="whitespace-normal break-words text-muted-foreground">{b.reason || '–'}</TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -122,7 +122,7 @@ export default function BasketballSettingsPage() {
   // bookings, so this panel only reads.
   const datePrefs = useBasketballDatePrefs(season?.id)
 
-  const selectClass = 'h-11 rounded-md border border-border bg-transparent px-3 py-2 text-sm sm:h-9 dark:bg-gray-800'
+  const selectClass = 'h-11 rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-9 dark:bg-gray-800'
 
   /** basketplan_clubs.id → how many placed home games are addressed to it. */
   const gamesByClub = useMemo(() => {
@@ -140,7 +140,7 @@ export default function BasketballSettingsPage() {
     <div className="space-y-8">
       <header className="flex flex-wrap items-end gap-4">
         <div>
-          <h1 className="text-2xl font-bold">{t('settingsTitle')}</h1>
+          <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">{t('settingsTitle')}</h1>
           <p className="mt-1 max-w-3xl text-sm text-muted-foreground">{t('settingsSubtitle')}</p>
         </div>
         <label className="ml-auto flex flex-col gap-1 text-sm">
@@ -161,7 +161,7 @@ export default function BasketballSettingsPage() {
           basketball-slots endpoint. Until BOTH are deployed the panels below would look
           simply empty, which reads as "no rules configured" — say so instead. */}
       {(rulesError || slotsError) && (
-        <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+        <p className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-300">
           {t('backendUnavailable')}
         </p>
       )}
@@ -253,7 +253,7 @@ export default function BasketballSettingsPage() {
           read-only, because a basketball planner still has to know which days
           are blacked out. */}
       <section className="space-y-2">
-        <h2 className="text-lg font-semibold">{t('blockedDates')}</h2>
+        <h2 className="text-base font-semibold text-foreground">{t('blockedDates')}</h2>
         {isSuperAdmin ? <ClubBlockedDatesPanel /> : <ClubBlockedDatesReadOnly />}
       </section>
     </div>

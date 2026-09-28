@@ -30,7 +30,7 @@ export default function AnnouncementRow({ announcement, onClick }: Props) {
   return (
     <div
       onClick={onClick}
-      className="flex cursor-pointer items-center gap-3 border-b border-gray-100 px-4 py-2.5 last:border-b-0 hover:bg-gray-50 active:bg-gray-100 dark:border-gray-700 dark:hover:bg-gray-700/50 dark:active:bg-gray-700"
+      className="flex cursor-pointer items-center gap-3 border-b border-border/60 px-4 py-2.5 last:border-b-0 hover:bg-muted active:bg-muted"
     >
       {thumbUrl ? (
         <img
@@ -49,13 +49,13 @@ export default function AnnouncementRow({ announcement, onClick }: Props) {
           {announcement.pinned && (
             <Pin className="h-3 w-3 shrink-0 text-gold-500 dark:text-gold-400" aria-label="Pinned" />
           )}
-          <TruncatedText as="p" text={tr.title} className="text-sm font-medium text-gray-900 dark:text-gray-100" />
+          <TruncatedText as="p" text={tr.title} className="text-sm font-medium text-foreground" />
         </div>
         {excerpt && (
-          <TruncatedText as="p" text={excerpt} className="text-xs text-gray-500 dark:text-gray-400" />
+          <TruncatedText as="p" text={excerpt} className="text-xs text-muted-foreground" />
         )}
       </div>
-      <span className="shrink-0 text-xs text-gray-500 dark:text-gray-400">{timeAgo}</span>
+      <span className="shrink-0 text-xs text-muted-foreground">{timeAgo}</span>
     </div>
   )
 }

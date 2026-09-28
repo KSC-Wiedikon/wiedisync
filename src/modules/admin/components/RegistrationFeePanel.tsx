@@ -72,12 +72,12 @@ export default function RegistrationFeePanel({
 
   const live = liveFee(fee, { fee_discount: discountChf, fee_discount_pct: discountPct })
 
-  const inputClass = 'w-full rounded-md border border-gray-200 bg-transparent px-2.5 py-1.5 text-sm text-gray-900 disabled:opacity-50 dark:border-gray-600 dark:text-gray-100'
-  const labelClass = 'mb-0.5 block text-xs font-medium text-gray-500 dark:text-gray-400'
+  const inputClass = 'w-full rounded-lg border border-input bg-card px-2.5 py-1.5 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50'
+  const labelClass = 'mb-0.5 block text-xs font-medium text-muted-foreground'
 
   return (
-    <div className="sm:col-span-2 rounded-lg border border-gray-200 p-3 dark:border-gray-700">
-      <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+    <div className="sm:col-span-2 rounded-xl border border-hairline bg-surface-sunken p-3">
+      <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
         {t('anmeldungenFeeSectionTitle')}
       </h4>
       <div className="grid grid-cols-1 gap-x-6 gap-y-2.5 sm:grid-cols-3">
@@ -123,7 +123,7 @@ export default function RegistrationFeePanel({
         </div>
       </div>
 
-      <div className="mt-3 border-t border-gray-100 pt-2 dark:border-gray-800">
+      <div className="mt-3 border-t border-border/60 pt-2">
         {loading ? (
           <span className="text-xs text-muted-foreground">{t('anmeldungenFeeLoading')}</span>
         ) : error ? (
@@ -134,8 +134,8 @@ export default function RegistrationFeePanel({
           </span>
         ) : (
           <div className="flex flex-col gap-1">
-            <span className="text-base font-semibold text-gray-900 dark:text-gray-100">{chf(live.amount)}</span>
-            <dl className="flex flex-col gap-0.5 text-xs text-gray-500 dark:text-gray-400">
+            <span className="text-base font-semibold text-foreground">{chf(live.amount)}</span>
+            <dl className="flex flex-col gap-0.5 text-xs text-muted-foreground">
               <div className="flex items-baseline justify-between gap-3">
                 <dt>{t('anmeldungenFeeBase')}</dt>
                 <dd>{chf(live.base)}</dd>

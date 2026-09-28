@@ -287,10 +287,10 @@ export default function SpielplanungPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold text-gray-900 sm:text-2xl dark:text-gray-100">{t('title')}</h1>
+            <h1 className="text-xl font-bold text-foreground sm:text-2xl">{t('title')}</h1>
             <GuideHelpButton />
           </div>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+          <p className="mt-1 text-sm text-muted-foreground">
             {t('subtitleSeason', { season: currentSeasonLabel })}
           </p>
         </div>
@@ -335,7 +335,7 @@ export default function SpielplanungPage() {
       {/* Bulk import (only when the caller can create manual games) */}
       {canCreateManualGames && (
         <Collapsible>
-          <CollapsibleTrigger className="group inline-flex items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">
+          <CollapsibleTrigger className="group inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground/85 hover:bg-accent">
             <FileSpreadsheet className="h-4 w-4" aria-hidden />
             {t('import.title')}
             <ChevronDown className="h-4 w-4 transition-transform group-data-[state=open]:rotate-180" aria-hidden />
@@ -350,7 +350,7 @@ export default function SpielplanungPage() {
       {isLoading && <LoadingSpinner />}
 
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">
           {t('common:errorLoading')} {error.message}
         </div>
       )}

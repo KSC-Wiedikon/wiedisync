@@ -15,7 +15,7 @@ import type { TableColumns, TableMode, TransferDerivations, TransferMember, Tran
 function DetailBlock({ label, className, children }: { label: string; className?: string; children: ReactNode }) {
   return (
     <div className={`min-w-0 space-y-1${className ? ` ${className}` : ''}`}>
-      <span className="block text-xs font-medium text-gray-500 dark:text-gray-400">{label}</span>
+      <span className="block text-xs font-medium text-muted-foreground">{label}</span>
       {children}
     </div>
   )
@@ -76,10 +76,10 @@ export function TransferRowDetail({
 
   return (
     <TableRow>
-      <TableCell colSpan={colSpan} className="bg-gray-50/60 px-3 py-3 align-top dark:bg-gray-900/20">
+      <TableCell colSpan={colSpan} className="bg-surface-sunken px-3 py-3 align-top">
         <div className="grid gap-3 sm:grid-cols-2">
           <DetailBlock label={t('trColNationality')}>
-            <p className="text-xs whitespace-normal text-gray-600 dark:text-gray-300">
+            <p className="text-xs whitespace-normal text-muted-foreground">
               {/* The flag is decoration on top of the name that follows it —
                   announced, it reads "flag of Italy, Italy", and on Windows the
                   glyph is missing and the literal letters render instead. */}
@@ -93,11 +93,11 @@ export function TransferRowDetail({
           {/* Licence number + category together: two facets of the same fact,
               and each alone was a near-empty column. */}
           <DetailBlock label={t('trColLicence')}>
-            <span className="block font-mono text-xs text-gray-600 dark:text-gray-300" title={t('trColLicenceNr')}>
+            <span className="block font-mono text-xs text-muted-foreground" title={t('trColLicenceNr')}>
               {member.license_nr || '—'}
             </span>
             {member.licence_category && (
-              <span className="block text-xs text-gray-400 dark:text-gray-500" title={t('trColCategory')}>
+              <span className="block text-xs text-muted-foreground/80" title={t('trColCategory')}>
                 {member.licence_category}
               </span>
             )}
@@ -170,7 +170,7 @@ export function TransferRowDetail({
               disabled={saving}
               placeholder={t('trNotePlaceholder')}
               aria-label={t('trColNote')}
-              className="min-h-[44px] w-full rounded-md border border-gray-200 bg-transparent px-2 py-1 text-xs text-gray-700 placeholder:text-gray-400 focus:border-brand-500 focus:outline-none disabled:opacity-50 sm:min-h-0 dark:border-gray-600 dark:text-gray-200 dark:placeholder:text-gray-500"
+              className="min-h-[44px] w-full rounded-lg border border-input bg-card px-2 py-1 text-xs text-foreground/85 placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 sm:min-h-0 dark:bg-input/20"
             />
           </DetailBlock>
         </div>

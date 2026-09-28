@@ -103,14 +103,14 @@ export default function RankingsTable({ league, rankings, compact }: RankingsTab
 
   return (
     <>
-      <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-card overflow-hidden">
-        <div className="border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-4 py-3">
-          <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200">{league}</h3>
+      <div className="rounded-2xl border border-hairline bg-card shadow-card overflow-hidden">
+        <div className="border-b border-border/60 bg-surface-sunken px-4 py-3">
+          <h3 className="text-sm font-semibold text-foreground">{league}</h3>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm tabular-nums">
             <thead>
-              <tr className="border-b dark:border-gray-700 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+              <tr className="border-b text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                 <th className={`${compact ? 'w-10 px-3' : 'w-8 px-2'} py-2.5 text-center`}>{t('rank')}</th>
                 <th className={`${compact ? 'w-12 px-3' : 'w-10 px-2'} py-2.5 text-center`}>{t('points')}</th>
                 <th className={`${compact ? 'px-3' : 'px-2'} py-2.5`}>{t('teamCol')}</th>
@@ -131,7 +131,7 @@ export default function RankingsTable({ league, rankings, compact }: RankingsTab
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+            <tbody className="divide-y divide-border/60">
               {sorted.map((row) => {
                 const kscwTeam = teamIds[row.team_id]
                 const isKscw = !!kscwTeam
@@ -144,11 +144,11 @@ export default function RankingsTable({ league, rankings, compact }: RankingsTab
                 return (
                   <Fragment key={row.id}>
                     <tr
-                      className={`cursor-pointer select-none transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/30 ${isKscw ? 'bg-brand-50 dark:bg-brand-900/20 font-semibold' : ''} ${promoBorder}`}
+                      className={`cursor-pointer select-none transition-colors hover:bg-muted/70 ${isKscw ? 'bg-brand-50 dark:bg-brand-900/20 font-semibold' : ''} ${promoBorder}`}
                       onClick={() => compact ? navigate('/games?tab=rankings') : toggleExpanded(row.team_id)}
                     >
-                      <td className={`${compact ? 'px-3 py-3' : 'px-2 py-2'} text-center text-gray-500 dark:text-gray-400`}>{row.rank}</td>
-                      <td className={`${compact ? 'px-3 py-3' : 'px-2 py-2'} text-center font-bold text-gray-900 dark:text-gray-100`}>{row.points}</td>
+                      <td className={`${compact ? 'px-3 py-3' : 'px-2 py-2'} text-center text-muted-foreground`}>{row.rank}</td>
+                      <td className={`${compact ? 'px-3 py-3' : 'px-2 py-2'} text-center font-bold text-foreground`}>{row.points}</td>
                       <td className={`${compact ? 'px-3 py-3' : 'max-w-0 px-2 py-2'}`}>
                         <div className="flex items-center gap-1.5 min-w-0">
                           {isKscw ? (
@@ -156,15 +156,15 @@ export default function RankingsTable({ league, rankings, compact }: RankingsTab
                           ) : (
                             <span
                               title={row.team_name || `Team ${row.team_id}`}
-                              className={`${compact ? 'whitespace-nowrap' : 'truncate'} text-gray-700 dark:text-gray-300`}
+                              className={`${compact ? 'whitespace-nowrap' : 'truncate'} text-foreground/85`}
                             >
                               {row.team_name || `Team ${row.team_id}`}
                             </span>
                           )}
-                          {!compact && <ChevronDown className={`ml-auto h-3.5 w-3.5 shrink-0 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />}
+                          {!compact && <ChevronDown className={`ml-auto h-3.5 w-3.5 shrink-0 text-muted-foreground/80 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />}
                         </div>
                       </td>
-                      <td className={`${compact ? 'px-3 py-3' : 'px-2 py-2'} text-center text-gray-700 dark:text-gray-300`}>{row.played}</td>
+                      <td className={`${compact ? 'px-3 py-3' : 'px-2 py-2'} text-center text-foreground/85`}>{row.played}</td>
                       <td className={`${compact ? 'px-3 py-3' : 'px-2 py-2'} text-center text-green-600 dark:text-green-400 ${isBasketball ? 'hidden sm:table-cell' : ''}`}>
                         {canShowBreakdown ? (
                           <>
@@ -180,7 +180,7 @@ export default function RankingsTable({ league, rankings, compact }: RankingsTab
                             </Button>
                             <div className="hidden flex-col items-center leading-tight sm:flex">
                               <span>{row.won}</span>
-                              <span className="text-[10px] font-normal text-gray-500 dark:text-gray-400">
+                              <span className="text-[10px] font-normal text-muted-foreground">
                                 {`${row.wins_clear ?? 0}/${row.wins_narrow ?? 0}`}
                               </span>
                             </div>
@@ -202,7 +202,7 @@ export default function RankingsTable({ league, rankings, compact }: RankingsTab
                             </Button>
                             <div className="hidden flex-col items-center leading-tight sm:flex">
                               <span>{row.lost}</span>
-                              <span className="text-[10px] font-normal text-gray-500 dark:text-gray-400">
+                              <span className="text-[10px] font-normal text-muted-foreground">
                                 {`${row.defeats_clear ?? 0}/${row.defeats_narrow ?? 0}`}
                               </span>
                             </div>
@@ -211,22 +211,22 @@ export default function RankingsTable({ league, rankings, compact }: RankingsTab
                       </td>
                       {!compact && (isBasketball ? (
                         <>
-                          <td className="px-2 py-2 text-center text-gray-700 dark:text-gray-300">
+                          <td className="px-2 py-2 text-center text-foreground/85">
                             {formatNumberSwiss(row.points_won)}&nbsp;:&nbsp;{formatNumberSwiss(row.points_lost)}
                           </td>
                         </>
                       ) : (
                         <>
-                          <td className="hidden px-2 py-2 text-center text-gray-700 dark:text-gray-300 sm:table-cell">
+                          <td className="hidden px-2 py-2 text-center text-foreground/85 sm:table-cell">
                             {row.sets_won}&nbsp;:&nbsp;{row.sets_lost}
                           </td>
-                          <td className="hidden px-2 py-2 text-center tabular-nums text-gray-500 dark:text-gray-400 sm:table-cell">
+                          <td className="hidden px-2 py-2 text-center tabular-nums text-muted-foreground sm:table-cell">
                             {row.sets_lost > 0 ? (row.sets_won / row.sets_lost).toFixed(2) : row.sets_won > 0 ? '∞' : '–'}
                           </td>
-                          <td className="hidden px-2 py-2 text-center text-gray-700 dark:text-gray-300 lg:table-cell">
+                          <td className="hidden px-2 py-2 text-center text-foreground/85 lg:table-cell">
                             {formatNumberSwiss(row.points_won)}&nbsp;:&nbsp;{formatNumberSwiss(row.points_lost)}
                           </td>
-                          <td className="hidden px-2 py-2 text-center tabular-nums text-gray-500 dark:text-gray-400 lg:table-cell">
+                          <td className="hidden px-2 py-2 text-center tabular-nums text-muted-foreground lg:table-cell">
                             {row.points_lost > 0 ? (row.points_won / row.points_lost).toFixed(2) : row.points_won > 0 ? '∞' : '–'}
                           </td>
                         </>
@@ -235,7 +235,7 @@ export default function RankingsTable({ league, rankings, compact }: RankingsTab
                     {isExpanded && (
                       <tr key={`${row.id}-games`}>
                         <td colSpan={colCount} className="p-0">
-                          <div className="bg-gray-50 dark:bg-gray-900/50 px-3 py-2">
+                          <div className="bg-surface-sunken px-3 py-2">
                             {/* `rowGames` is empty both while the deferred games query is
                                 in flight and when the team really has no fixtures. The query
                                 only starts on this tap (`enabled` above), so without this gate
@@ -243,11 +243,11 @@ export default function RankingsTable({ league, rankings, compact }: RankingsTab
                             {leagueGamesLoading ? (
                               <div className="space-y-1" aria-busy="true">
                                 {[0, 1, 2].map((i) => (
-                                  <div key={i} className="h-8 animate-pulse rounded bg-gray-200 dark:bg-gray-700" />
+                                  <div key={i} className="h-8 animate-pulse rounded bg-stone-200/80 dark:bg-muted" />
                                 ))}
                               </div>
                             ) : rowGames.length === 0 ? (
-                              <p className="py-2 text-center text-xs text-gray-400">{t('common:noData')}</p>
+                              <p className="py-2 text-center text-xs text-muted-foreground/80">{t('common:noData')}</p>
                             ) : (
                               <div className="space-y-1">
                                 {rowGames.map((g) => {
@@ -273,25 +273,25 @@ export default function RankingsTable({ league, rankings, compact }: RankingsTab
                                       key={g.id}
                                       className="flex items-center gap-2 rounded px-2 py-1 text-xs"
                                     >
-                                      <div className="w-16 shrink-0 text-gray-500 dark:text-gray-400">
+                                      <div className="w-16 shrink-0 text-muted-foreground">
                                         <div>{g.date ? formatDateCompact(g.date) : ''}</div>
                                         {g.time && <div>{formatTime(g.time)}</div>}
                                       </div>
-                                      <span className="w-4 shrink-0 text-center text-[10px] text-gray-400">
+                                      <span className="w-4 shrink-0 text-center text-[10px] text-muted-foreground/80">
                                         {isHome ? 'H' : 'A'}
                                       </span>
-                                      <span title={opponent} className="min-w-0 flex-1 truncate text-gray-700 dark:text-gray-300">
+                                      <span title={opponent} className="min-w-0 flex-1 truncate text-foreground/85">
                                         {opponent}
                                       </span>
                                       {isFuture ? (
-                                        <span className="shrink-0 text-[10px] font-bold text-brand-600 dark:text-brand-400">
+                                        <span className="shrink-0 text-[10px] font-bold text-primary dark:text-brand-300">
                                           {t('comeAndSupport')}
                                         </span>
                                       ) : (
                                         <span className={`shrink-0 font-mono font-semibold ${
                                           isWin ? 'text-green-600 dark:text-green-400'
                                             : isLoss ? 'text-red-500 dark:text-red-400'
-                                            : 'text-gray-500 dark:text-gray-400'
+                                            : 'text-muted-foreground'
                                         }`}>
                                           {score}
                                         </span>
@@ -319,37 +319,37 @@ export default function RankingsTable({ league, rankings, compact }: RankingsTab
         size="sm"
       >
         {!breakdown ? null : !hasBreakdownData(breakdown.row) ? (
-          <p className="text-sm text-gray-600 dark:text-gray-300">{t('breakdownUnavailable')}</p>
+          <p className="text-sm text-muted-foreground">{t('breakdownUnavailable')}</p>
         ) : (
           <div className="space-y-3">
             {breakdown.mode === 'win' ? (
               <>
-                <div className="flex items-center justify-between rounded-lg border border-gray-200 px-3 py-2 text-sm dark:border-gray-700">
-                  <span className="text-gray-700 dark:text-gray-200">{t('winsClear')}</span>
-                  <strong className="text-gray-900 dark:text-gray-100">{winsClear}</strong>
+                <div className="flex items-center justify-between rounded-xl border border-hairline px-3 py-2 text-sm">
+                  <span className="text-foreground/85">{t('winsClear')}</span>
+                  <strong className="tabular-nums text-foreground">{winsClear}</strong>
                 </div>
-                <div className="flex items-center justify-between rounded-lg border border-gray-200 px-3 py-2 text-sm dark:border-gray-700">
-                  <span className="text-gray-700 dark:text-gray-200">{t('winsNarrow')}</span>
-                  <strong className="text-gray-900 dark:text-gray-100">{winsNarrow}</strong>
+                <div className="flex items-center justify-between rounded-xl border border-hairline px-3 py-2 text-sm">
+                  <span className="text-foreground/85">{t('winsNarrow')}</span>
+                  <strong className="tabular-nums text-foreground">{winsNarrow}</strong>
                 </div>
-                <div className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2 text-sm dark:bg-gray-700/40">
-                  <span className="text-gray-700 dark:text-gray-200">{t('breakdownTotal')}</span>
-                  <strong className="text-gray-900 dark:text-gray-100">{breakdown.row.won}</strong>
+                <div className="flex items-center justify-between rounded-xl bg-surface-sunken px-3 py-2 text-sm">
+                  <span className="text-foreground/85">{t('breakdownTotal')}</span>
+                  <strong className="tabular-nums text-foreground">{breakdown.row.won}</strong>
                 </div>
               </>
             ) : (
               <>
-                <div className="flex items-center justify-between rounded-lg border border-gray-200 px-3 py-2 text-sm dark:border-gray-700">
-                  <span className="text-gray-700 dark:text-gray-200">{t('lossesClear')}</span>
-                  <strong className="text-gray-900 dark:text-gray-100">{lossesClear}</strong>
+                <div className="flex items-center justify-between rounded-xl border border-hairline px-3 py-2 text-sm">
+                  <span className="text-foreground/85">{t('lossesClear')}</span>
+                  <strong className="tabular-nums text-foreground">{lossesClear}</strong>
                 </div>
-                <div className="flex items-center justify-between rounded-lg border border-gray-200 px-3 py-2 text-sm dark:border-gray-700">
-                  <span className="text-gray-700 dark:text-gray-200">{t('lossesNarrow')}</span>
-                  <strong className="text-gray-900 dark:text-gray-100">{lossesNarrow}</strong>
+                <div className="flex items-center justify-between rounded-xl border border-hairline px-3 py-2 text-sm">
+                  <span className="text-foreground/85">{t('lossesNarrow')}</span>
+                  <strong className="tabular-nums text-foreground">{lossesNarrow}</strong>
                 </div>
-                <div className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2 text-sm dark:bg-gray-700/40">
-                  <span className="text-gray-700 dark:text-gray-200">{t('breakdownTotal')}</span>
-                  <strong className="text-gray-900 dark:text-gray-100">{breakdown.row.lost}</strong>
+                <div className="flex items-center justify-between rounded-xl bg-surface-sunken px-3 py-2 text-sm">
+                  <span className="text-foreground/85">{t('breakdownTotal')}</span>
+                  <strong className="tabular-nums text-foreground">{breakdown.row.lost}</strong>
                 </div>
               </>
             )}

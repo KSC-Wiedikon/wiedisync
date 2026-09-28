@@ -125,8 +125,8 @@ function DetailLine({ label, value }: { label: string; value: React.ReactNode })
   if (value == null || value === '') return null
   return (
     <div className="text-[11px]">
-      <span className="font-medium text-gray-500 dark:text-gray-400">{label}:</span>
-      <span className="ml-2 break-all text-gray-700 dark:text-gray-300">{value}</span>
+      <span className="font-medium text-muted-foreground">{label}:</span>
+      <span className="ml-2 break-all text-foreground/85">{value}</span>
     </div>
   )
 }
@@ -139,7 +139,7 @@ function ActionButton({ onClick, icon, label, tone = 'neutral' }: {
   tone?: 'neutral' | 'amber' | 'green'
 }) {
   const tones = {
-    neutral: 'text-gray-600 dark:text-gray-300',
+    neutral: 'text-muted-foreground',
     amber: 'border-amber-200 text-amber-700 hover:bg-amber-50 hover:text-amber-800 dark:border-amber-800/50 dark:text-amber-400 dark:hover:bg-amber-900/20 dark:hover:text-amber-300',
     green: 'border-green-200 text-green-700 hover:bg-green-50 hover:text-green-800 dark:border-green-800/50 dark:text-green-400 dark:hover:bg-green-900/20 dark:hover:text-green-300',
   }
@@ -189,7 +189,7 @@ function ErrorRow({ entry, selected, onToggleSelect, onFilterEvent, onAnnotate, 
     <>
       <TableRow
         onClick={() => setExpanded(!expanded)}
-        className="cursor-pointer border-gray-100 dark:border-gray-700/50"
+        className="cursor-pointer border-border/60"
       >
         <TableCell className="w-6 px-1">
           <input
@@ -197,14 +197,14 @@ function ErrorRow({ entry, selected, onToggleSelect, onFilterEvent, onAnnotate, 
             checked={selected}
             onClick={(ev) => ev.stopPropagation()}
             onChange={() => onToggleSelect(entry._hash)}
-            className="h-3.5 w-3.5"
+            className="h-4 w-4 accent-[var(--primary)]"
             aria-label={t('errorLogsSelect')}
           />
         </TableCell>
         <TableCell className="w-6 px-1">
-          {expanded ? <ChevronDown className="h-3 w-3 text-gray-400" /> : <ChevronRight className="h-3 w-3 text-gray-400" />}
+          {expanded ? <ChevronDown className="h-3 w-3 text-muted-foreground/80" /> : <ChevronRight className="h-3 w-3 text-muted-foreground/80" />}
         </TableCell>
-        <TableCell className="hidden sm:table-cell whitespace-nowrap font-mono text-[10px] text-gray-400 dark:text-gray-500">
+        <TableCell className="hidden sm:table-cell whitespace-nowrap font-mono text-[10px] text-muted-foreground/80">
           {formatTs(entry.ts)}
         </TableCell>
         <TableCell className="w-6 px-1">
@@ -213,7 +213,7 @@ function ErrorRow({ entry, selected, onToggleSelect, onFilterEvent, onAnnotate, 
             : important
               ? <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-500" />
               : entry._muted
-                ? <BellOff className="h-3.5 w-3.5 text-gray-400" />
+                ? <BellOff className="h-3.5 w-3.5 text-muted-foreground/80" />
                 : levelIcon(entry.level)}
         </TableCell>
         <TableCell>
@@ -224,20 +224,20 @@ function ErrorRow({ entry, selected, onToggleSelect, onFilterEvent, onAnnotate, 
         <TableCell>
           <button
             onClick={(ev) => { ev.stopPropagation(); onFilterEvent(entry.event) }}
-            className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+            className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground hover:bg-stone-200 dark:hover:bg-gray-600"
           >
             {entry.event}
           </button>
         </TableCell>
-        <TableCell className="hidden md:table-cell max-w-[180px] truncate font-mono text-[10px] text-gray-400" title={where || ''}>
+        <TableCell className="hidden md:table-cell max-w-[180px] truncate font-mono text-[10px] text-muted-foreground/80" title={where || ''}>
           {where}
         </TableCell>
-        <TableCell className="max-w-[280px] truncate text-xs text-gray-700 dark:text-gray-300" title={entry.error || ''}>
+        <TableCell className="max-w-[280px] truncate text-xs text-foreground/85" title={entry.error || ''}>
           {entry.error}
         </TableCell>
       </TableRow>
       {expanded && (
-        <TableRow className="border-gray-100 bg-gray-50/50 hover:bg-gray-50/50 dark:border-gray-700/50 dark:bg-gray-900/30 dark:hover:bg-gray-900/30">
+        <TableRow className="border-border/60 bg-surface-sunken hover:bg-surface-sunken">
           <TableCell colSpan={8} className="whitespace-normal px-8 py-3">
             <div className="space-y-1">
               <DetailLine label="Error" value={entry.error} />
@@ -256,14 +256,14 @@ function ErrorRow({ entry, selected, onToggleSelect, onFilterEvent, onAnnotate, 
               <DetailLine label="User agent" value={entry.userAgent} />
               {(entry.body != null && fmtVal(entry.body)) ? (
                 <div className="text-[11px]">
-                  <span className="font-medium text-gray-500 dark:text-gray-400">Body:</span>
-                  <pre className="mt-0.5 max-h-40 overflow-auto whitespace-pre-wrap rounded bg-gray-100 p-1.5 text-[10px] text-gray-600 dark:bg-gray-800 dark:text-gray-400">{fmtVal(entry.body)}</pre>
+                  <span className="font-medium text-muted-foreground">Body:</span>
+                  <pre className="mt-0.5 max-h-40 overflow-auto whitespace-pre-wrap rounded bg-muted p-1.5 text-[10px] text-muted-foreground">{fmtVal(entry.body)}</pre>
                 </div>
               ) : null}
               {entry.stack && (
                 <div className="text-[11px]">
-                  <span className="font-medium text-gray-500 dark:text-gray-400">Stack:</span>
-                  <pre className="mt-0.5 max-h-52 overflow-auto whitespace-pre-wrap rounded bg-gray-100 p-1.5 text-[10px] text-gray-600 dark:bg-gray-800 dark:text-gray-400">{entry.stack}</pre>
+                  <span className="font-medium text-muted-foreground">Stack:</span>
+                  <pre className="mt-0.5 max-h-52 overflow-auto whitespace-pre-wrap rounded bg-muted p-1.5 text-[10px] text-muted-foreground">{entry.stack}</pre>
                 </div>
               )}
               {entry._annotation && (
@@ -310,40 +310,40 @@ function ErrorRow({ entry, selected, onToggleSelect, onFilterEvent, onAnnotate, 
               {muteOpen && (
                 <div
                   onClick={(ev) => ev.stopPropagation()}
-                  className="mt-2 space-y-2 rounded-md border border-gray-200 bg-white p-2.5 dark:border-gray-700 dark:bg-gray-800"
+                  className="mt-2 space-y-2 rounded-xl border border-hairline bg-card p-2.5"
                 >
                   <div className="grid gap-2 sm:grid-cols-2">
-                    <label className="text-[10px] text-gray-500 dark:text-gray-400">
+                    <label className="text-[10px] text-muted-foreground">
                       {t('errorLogsMuteEvent')}
                       <select
                         value={muteEvent}
                         onChange={(ev) => setMuteEvent(ev.target.value)}
-                        className="mt-0.5 w-full rounded border border-gray-200 bg-white px-2 py-1 text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+                        className="mt-0.5 w-full rounded-lg border border-input bg-card px-2 py-1 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-gray-800"
                       >
                         <option value="">{t('errorLogsMuteAnyEvent')}</option>
                         {EVENTS.map((e) => <option key={e} value={e}>{e}</option>)}
                       </select>
                     </label>
-                    <label className="text-[10px] text-gray-500 dark:text-gray-400">
+                    <label className="text-[10px] text-muted-foreground">
                       {t('errorLogsMuteMatch')}
                       <input
                         type="text"
                         value={muteMatch}
                         onChange={(ev) => setMuteMatch(ev.target.value)}
-                        className="mt-0.5 w-full rounded border border-gray-200 bg-white px-2 py-1 text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+                        className="mt-0.5 w-full rounded-lg border border-input bg-card px-2 py-1 text-xs text-foreground placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-input/20"
                       />
                     </label>
                   </div>
-                  <label className="block text-[10px] text-gray-500 dark:text-gray-400">
+                  <label className="block text-[10px] text-muted-foreground">
                     {t('errorLogsMuteNote')}
                     <input
                       type="text"
                       value={muteNote}
                       onChange={(ev) => setMuteNote(ev.target.value)}
-                      className="mt-0.5 w-full rounded border border-gray-200 bg-white px-2 py-1 text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+                      className="mt-0.5 w-full rounded-lg border border-input bg-card px-2 py-1 text-xs text-foreground placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-input/20"
                     />
                   </label>
-                  <p className="text-[10px] text-gray-400">{t('errorLogsMuteHint')}</p>
+                  <p className="text-[10px] text-muted-foreground/80">{t('errorLogsMuteHint')}</p>
                   <div className="flex items-center gap-2">
                     <Button
                       onClick={saveMute}
@@ -544,11 +544,11 @@ export default function ErrorLogsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="flex items-center gap-2 text-lg font-bold text-gray-900 dark:text-white">
+          <h1 className="flex items-center gap-2 text-xl font-bold tracking-tight text-foreground sm:text-2xl">
             <FileWarning className="h-5 w-5" />
             {t('errorLogsTitle')}
           </h1>
-          <p className="text-xs text-gray-500 dark:text-gray-400">{t('errorLogsDescription')}</p>
+          <p className="text-xs text-muted-foreground">{t('errorLogsDescription')}</p>
         </div>
         <Button
           onClick={() => { fetchLogs(); fetchDates(); fetchMuteRules() }}
@@ -561,33 +561,33 @@ export default function ErrorLogsPage() {
       </div>
 
       {/* Mute rules */}
-      <div className="rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800/50">
+      <div className="rounded-2xl border border-hairline bg-card shadow-card">
         <button
           onClick={() => setRulesOpen((o) => !o)}
           className="flex w-full items-center gap-2 px-3 py-2 text-left"
         >
-          {rulesOpen ? <ChevronDown className="h-3.5 w-3.5 text-gray-400" /> : <ChevronRight className="h-3.5 w-3.5 text-gray-400" />}
-          <BellOff className="h-3.5 w-3.5 text-gray-400" />
-          <span className="text-xs font-semibold text-gray-700 dark:text-gray-200">{t('errorLogsMuteRules')}</span>
-          <span className="rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500 dark:bg-gray-700 dark:text-gray-400">
+          {rulesOpen ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground/80" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/80" />}
+          <BellOff className="h-3.5 w-3.5 text-muted-foreground/80" />
+          <span className="text-xs font-semibold text-foreground/85">{t('errorLogsMuteRules')}</span>
+          <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
             {muteRules.filter((r) => r.enabled).length}
           </span>
         </button>
         {rulesOpen && (
-          <div className="border-t border-gray-100 px-3 py-2 dark:border-gray-700/50">
-            <p className="mb-2 text-[11px] text-gray-500 dark:text-gray-400">{t('errorLogsMuteRulesDesc')}</p>
+          <div className="border-t border-border/60 px-3 py-2">
+            <p className="mb-2 text-[11px] text-muted-foreground">{t('errorLogsMuteRulesDesc')}</p>
             {muteRules.length === 0 ? (
-              <p className="py-1 text-[11px] text-gray-400">{t('errorLogsNoMuteRules')}</p>
+              <p className="py-1 text-[11px] text-muted-foreground/80">{t('errorLogsNoMuteRules')}</p>
             ) : (
               <div className="space-y-1">
                 {muteRules.map((r) => (
-                  <div key={r.id} className="flex items-center gap-2 rounded-md border border-gray-100 px-2 py-1.5 dark:border-gray-700/50">
-                    <span className={`rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium dark:bg-gray-700 ${r.enabled ? 'text-gray-600 dark:text-gray-300' : 'text-gray-400 line-through'}`}>
+                  <div key={r.id} className="flex items-center gap-2 rounded-md border border-border/60 px-2 py-1.5">
+                    <span className={`rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium ${r.enabled ? 'text-muted-foreground' : 'text-muted-foreground/60 line-through'}`}>
                       {r.event || t('errorLogsMuteAnyEvent')}
                     </span>
-                    <span className={`min-w-0 flex-1 truncate text-[11px] ${r.enabled ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 line-through'}`} title={r.error_match || t('errorLogsMuteAnyMessage')}>
-                      {r.error_match || <span className="italic text-gray-400">{t('errorLogsMuteAnyMessage')}</span>}
-                      {r.note ? <span className="ml-1 text-gray-400">— {r.note}</span> : null}
+                    <span className={`min-w-0 flex-1 truncate text-[11px] ${r.enabled ? 'text-foreground/85' : 'text-muted-foreground/60 line-through'}`} title={r.error_match || t('errorLogsMuteAnyMessage')}>
+                      {r.error_match || <span className="italic text-muted-foreground/80">{t('errorLogsMuteAnyMessage')}</span>}
+                      {r.note ? <span className="ml-1 text-muted-foreground/80">— {r.note}</span> : null}
                     </span>
                     <Button size="sm" variant="outline"
                       onClick={() => toggleMuteRule(r)}
@@ -596,7 +596,7 @@ export default function ErrorLogsPage() {
                     </Button>
                     <IconButton size="sm" variant="outline"
                       onClick={() => deleteMuteRule(r.id)}
-                      className="text-gray-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20"
+                      className="text-muted-foreground/80 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20"
                       label={t('errorLogsDelete')}
                     >
                       <Trash2 className="h-3 w-3" />
@@ -610,12 +610,12 @@ export default function ErrorLogsPage() {
       </div>
 
       {/* Filters */}
-      <div className="rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800/50">
+      <div className="rounded-2xl border border-hairline bg-card p-3 shadow-card">
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           <select
             value={project}
             onChange={(ev) => setProject(ev.target.value)}
-            className="h-11 min-w-0 rounded-md border border-gray-200 bg-white px-2 text-sm sm:h-9 sm:text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+            className="h-11 min-w-0 rounded-lg border border-input bg-card px-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-9 sm:text-xs dark:bg-gray-800"
           >
             <option value="">{t('errorLogsAllProjects')}</option>
             {PROJECTS.map((p) => <option key={p} value={p}>{p === 'kscw-website' ? 'website' : p}</option>)}
@@ -624,7 +624,7 @@ export default function ErrorLogsPage() {
           <select
             value={level}
             onChange={(ev) => setLevel(ev.target.value)}
-            className="h-11 min-w-0 rounded-md border border-gray-200 bg-white px-2 text-sm sm:h-9 sm:text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+            className="h-11 min-w-0 rounded-lg border border-input bg-card px-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-9 sm:text-xs dark:bg-gray-800"
           >
             <option value="">{t('errorLogsAllLevels')}</option>
             {LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
@@ -633,7 +633,7 @@ export default function ErrorLogsPage() {
           <select
             value={event}
             onChange={(ev) => setEvent(ev.target.value)}
-            className="h-11 min-w-0 rounded-md border border-gray-200 bg-white px-2 text-sm sm:h-9 sm:text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+            className="h-11 min-w-0 rounded-lg border border-input bg-card px-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-9 sm:text-xs dark:bg-gray-800"
           >
             <option value="">{t('errorLogsAllEvents')}</option>
             {EVENTS.map((e) => <option key={e} value={e}>{e}</option>)}
@@ -642,7 +642,7 @@ export default function ErrorLogsPage() {
           <select
             value={date}
             onChange={(ev) => setDate(ev.target.value)}
-            className="h-11 min-w-0 rounded-md border border-gray-200 bg-white px-2 text-sm sm:h-9 sm:text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+            className="h-11 min-w-0 rounded-lg border border-input bg-card px-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-9 sm:text-xs dark:bg-gray-800"
           >
             <option value="">{t('errorLogsToday')}</option>
             {dates.map((d) => <option key={d} value={d}>{d}</option>)}
@@ -654,19 +654,19 @@ export default function ErrorLogsPage() {
             value={search}
             onChange={(ev) => setSearch(ev.target.value)}
             onKeyDown={(ev) => { if (ev.key === 'Enter') fetchLogs() }}
-            className="col-span-2 h-11 min-w-0 rounded-md border border-gray-200 bg-white px-2 text-sm sm:h-9 sm:text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+            className="col-span-2 h-11 min-w-0 rounded-lg border border-input bg-card px-2 text-sm text-foreground placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-9 sm:text-xs dark:bg-input/20"
           />
 
           <select
             value={limit}
             onChange={(ev) => setLimit(Number(ev.target.value))}
-            className="h-11 min-w-0 rounded-md border border-gray-200 bg-white px-2 text-sm sm:h-9 sm:text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+            className="h-11 min-w-0 rounded-lg border border-input bg-card px-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-9 sm:text-xs dark:bg-gray-800"
           >
             {[200, 500, 1000].map((n) => <option key={n} value={n}>{t('errorLogsLimit', { count: n })}</option>)}
           </select>
 
-          <label className="flex items-center gap-1.5 px-1 text-xs text-gray-600 dark:text-gray-300">
-            <input type="checkbox" checked={showSolved} onChange={(ev) => setShowSolved(ev.target.checked)} className="h-3.5 w-3.5" />
+          <label className="flex items-center gap-1.5 px-1 text-xs text-muted-foreground">
+            <input type="checkbox" checked={showSolved} onChange={(ev) => setShowSolved(ev.target.checked)} className="h-4 w-4 accent-[var(--primary)]" />
             {t('errorLogsShowArchived')}
           </label>
         </div>
@@ -688,7 +688,7 @@ export default function ErrorLogsPage() {
             </Button>
           )}
           {entries && (
-            <span className="ml-auto text-[10px] text-gray-400">
+            <span className="ml-auto text-[10px] text-muted-foreground/80">
               {entries.length} {t('errorLogsResults')}
             </span>
           )}
@@ -726,13 +726,13 @@ export default function ErrorLogsPage() {
       )}
 
       {/* Results */}
-      <div className="rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800/50">
+      <div className="overflow-hidden rounded-2xl border border-hairline bg-card shadow-card">
         {loading && !entries && (
-          <div className="p-8 text-center text-sm text-gray-400">{t('errorLogsLoading')}</div>
+          <div className="p-8 text-center text-sm text-muted-foreground/80">{t('errorLogsLoading')}</div>
         )}
 
         {entries && entries.length === 0 && (
-          <div className="p-8 text-center text-sm text-gray-400">{t('errorLogsNoResults')}</div>
+          <div className="p-8 text-center text-sm text-muted-foreground/80">{t('errorLogsNoResults')}</div>
         )}
 
         {entries && entries.length > 0 && (
@@ -742,12 +742,12 @@ export default function ErrorLogsPage() {
                 <TableRow>
                   <TableHead className="w-6 px-1" />
                   <TableHead className="w-6 px-1" />
-                  <TableHead className="hidden sm:table-cell text-[10px] uppercase text-gray-400">{t('errorLogsWhen')}</TableHead>
+                  <TableHead className="hidden sm:table-cell">{t('errorLogsWhen')}</TableHead>
                   <TableHead className="w-6 px-1" />
-                  <TableHead className="text-[10px] uppercase text-gray-400">{t('errorLogsProject')}</TableHead>
-                  <TableHead className="text-[10px] uppercase text-gray-400">{t('errorLogsEvent')}</TableHead>
-                  <TableHead className="hidden md:table-cell text-[10px] uppercase text-gray-400">{t('errorLogsWhere')}</TableHead>
-                  <TableHead className="text-[10px] uppercase text-gray-400">{t('errorLogsMessage')}</TableHead>
+                  <TableHead>{t('errorLogsProject')}</TableHead>
+                  <TableHead>{t('errorLogsEvent')}</TableHead>
+                  <TableHead className="hidden md:table-cell">{t('errorLogsWhere')}</TableHead>
+                  <TableHead>{t('errorLogsMessage')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

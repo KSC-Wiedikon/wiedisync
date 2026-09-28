@@ -462,7 +462,7 @@ export const AsciiArt: React.FC<AsciiArtProps> = ({
     return (
       <div
         className={cn(
-          "flex items-center justify-center text-neutral-500 text-sm font-mono animate-pulse",
+          "flex items-center justify-center text-stone-500 text-sm font-mono animate-pulse",
           className
         )}
         style={{ backgroundColor }}

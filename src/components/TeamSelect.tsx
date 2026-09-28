@@ -41,7 +41,7 @@ export default function TeamSelect({
   const selectedColor = selected ? getTeamColor(selected.name) : null
 
   const btnBase = compact
-    ? 'flex h-9 w-full items-center gap-1.5 rounded border px-1.5 text-xs sm:h-8'
+    ? 'flex h-9 w-full items-center gap-1.5 rounded-lg border px-1.5 text-xs sm:h-8'
     : 'flex h-11 w-full items-center gap-2 rounded-lg border px-3 text-sm sm:h-9'
 
   // Keyboard support for the custom listbox: Escape closes, arrows open + move
@@ -80,9 +80,9 @@ export default function TeamSelect({
         aria-label={ariaLabel}
         aria-haspopup="listbox"
         aria-expanded={open}
-        className={`${btnBase} border-gray-300 bg-white text-left transition-colors dark:border-gray-600 dark:bg-gray-700 ${
-          disabled ? 'cursor-not-allowed opacity-60' : 'hover:border-gray-400 dark:hover:border-gray-500'
-        } ${open ? 'border-brand-500 ring-1 ring-brand-500' : ''}`}
+        className={`${btnBase} border-input bg-card text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-input/20 ${
+          disabled ? 'cursor-not-allowed opacity-60' : 'hover:border-stone-400 dark:hover:border-gray-500'
+        } ${open ? 'border-primary/60 ring-2 ring-ring' : ''}`}
       >
         {selectedColor ? (
           <>
@@ -90,23 +90,23 @@ export default function TeamSelect({
               className="inline-block h-3 w-3 shrink-0 rounded-full border"
               style={{ backgroundColor: selectedColor.bg, borderColor: selectedColor.border }}
             />
-            <span className="truncate text-gray-900 dark:text-gray-100" title={selected!.name}>{selected!.name}</span>
+            <span className="truncate text-foreground" title={selected!.name}>{selected!.name}</span>
           </>
         ) : (
-          <span className="truncate text-gray-400 dark:text-gray-500" title={placeholder}>{placeholder}</span>
+          <span className="truncate text-muted-foreground/80" title={placeholder}>{placeholder}</span>
         )}
-        <ChevronDown className="ml-auto h-4 w-4 shrink-0 text-gray-400" />
+        <ChevronDown className="ml-auto h-4 w-4 shrink-0 text-muted-foreground/80" />
       </button>
 
       {open && (
-        <div role="listbox" aria-label={ariaLabel} className="absolute z-50 mt-1 max-h-60 w-full min-w-[140px] overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-600 dark:bg-gray-800">
+        <div role="listbox" aria-label={ariaLabel} className="absolute z-50 mt-1 max-h-60 w-full min-w-[140px] overflow-y-auto rounded-lg border bg-popover p-1 text-popover-foreground shadow-xl">
           {/* Empty option */}
           <button
             type="button"
             role="option"
             aria-selected={!value}
             onClick={() => { onChange(''); setOpen(false) }}
-            className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-400 hover:bg-gray-50 dark:text-gray-500 dark:hover:bg-gray-700"
+            className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground/80 hover:bg-accent"
           >
             {placeholder}
           </button>
@@ -120,10 +120,10 @@ export default function TeamSelect({
                 role="option"
                 aria-selected={isSelected}
                 onClick={() => { onChange(team.id); setOpen(false) }}
-                className={`flex w-full items-center gap-2 px-3 py-2 text-sm transition-colors ${
+                className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors ${
                   isSelected
-                    ? 'bg-brand-50 font-medium text-brand-700 dark:bg-brand-900/20 dark:text-brand-300'
-                    : 'text-gray-900 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-700'
+                    ? 'bg-primary/10 font-semibold text-primary dark:bg-primary/25 dark:text-brand-200'
+                    : 'text-foreground hover:bg-accent'
                 }`}
               >
                 <span

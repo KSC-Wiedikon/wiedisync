@@ -26,12 +26,12 @@ export default function PollsSection({ teamId, canManage }: PollsSectionProps) {
       {/* Section header */}
       <div className="mb-4 flex items-center justify-between">
         <div className="flex min-w-0 items-center gap-2">
-          <BarChart3 className="h-5 w-5 text-gray-600 dark:text-gray-400" />
-          <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+          <BarChart3 className="h-5 w-5 text-muted-foreground" />
+          <h3 className="text-base font-semibold text-foreground">
             {t('title')}
           </h3>
           {openPolls.length > 0 && (
-            <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800 dark:bg-blue-900 dark:text-blue-300">
+            <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
               {openPolls.length}
             </span>
           )}
@@ -48,9 +48,9 @@ export default function PollsSection({ teamId, canManage }: PollsSectionProps) {
 
       {/* Empty state */}
       {!isLoading && polls.length === 0 && (
-        <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 py-8 text-center dark:border-gray-600 dark:bg-gray-800/50">
-          <p className="text-sm font-medium text-gray-500 dark:text-gray-400">{t('noPolls')}</p>
-          <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">{t('noPollsDescription')}</p>
+        <div className="rounded-2xl border border-dashed border-input bg-surface-sunken py-8 text-center">
+          <p className="text-sm font-medium text-muted-foreground">{t('noPolls')}</p>
+          <p className="mt-1 text-xs text-muted-foreground/80">{t('noPollsDescription')}</p>
         </div>
       )}
 
@@ -79,7 +79,7 @@ export default function PollsSection({ teamId, canManage }: PollsSectionProps) {
             onClick={() => setShowClosed(!showClosed)}
             icon={showClosed ? <ChevronDown /> : <ChevronRight />}
             aria-expanded={showClosed}
-            className="-ml-3 gap-1.5 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+            className="-ml-3 gap-1.5 text-sm text-muted-foreground hover:text-foreground/85"
           >
             {t('closedPolls')} ({closedPolls.length})
           </Button>

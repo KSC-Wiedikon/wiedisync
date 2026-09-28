@@ -141,7 +141,7 @@ export default function ClubdeskRegistrationZone({ registrationId }: { registrat
   let content
   if (loading) {
     content = (
-      <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <Loader2 className="h-4 w-4 animate-spin" />
         {t('cdRegChecking')}
       </div>
@@ -163,7 +163,7 @@ export default function ClubdeskRegistrationZone({ registrationId }: { registrat
         <CheckCircle2 className="h-4 w-4 shrink-0" />
         {t('cdRegLinked')}
         {status.clubdesk_id && (
-          <span className="text-xs text-gray-500 dark:text-gray-400">({status.clubdesk_id})</span>
+          <span className="text-xs text-muted-foreground">({status.clubdesk_id})</span>
         )}
       </div>
     )
@@ -178,7 +178,7 @@ export default function ClubdeskRegistrationZone({ registrationId }: { registrat
         <span>
           {busy === 'push' ? t('clubdeskUpPushing') : t('cdRegLinkedPending')}
           {status.clubdesk_id && (
-            <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">({status.clubdesk_id})</span>
+            <span className="ml-1 text-xs text-muted-foreground">({status.clubdesk_id})</span>
           )}
         </span>
         <Button type="button" variant="outline" size="sm" onClick={push} disabled={!!busy} className="ml-auto gap-1.5">
@@ -205,7 +205,7 @@ export default function ClubdeskRegistrationZone({ registrationId }: { registrat
         <span>
           {t('cdRegMatchUnlinked')}
           {contactHint && (
-            <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">({contactHint})</span>
+            <span className="ml-1 text-xs text-muted-foreground">({contactHint})</span>
           )}
         </span>
         <Button type="button" variant="outline" size="sm" onClick={link} disabled={!!busy} className="ml-auto gap-1.5">
@@ -223,7 +223,7 @@ export default function ClubdeskRegistrationZone({ registrationId }: { registrat
     )
   } else if (status.status === 'no_member') {
     content = (
-      <div className="flex flex-wrap items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+      <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
         <CircleAlert className="h-4 w-4 shrink-0" />
         {t('cdRegNoMember')}
       </div>
@@ -231,7 +231,7 @@ export default function ClubdeskRegistrationZone({ registrationId }: { registrat
   } else {
     // not_in_clubdesk
     content = (
-      <div className="flex flex-wrap items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+      <div className="flex flex-wrap items-center gap-2 text-sm text-foreground/85">
         <CircleAlert className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
         {busy === 'push' ? t('clubdeskUpPushing') : t('cdRegNotIn')}
         <Button type="button" variant="outline" size="sm" onClick={push} disabled={!!busy} className="ml-auto gap-1.5">
@@ -244,10 +244,10 @@ export default function ClubdeskRegistrationZone({ registrationId }: { registrat
 
   return (
     <div className="mt-4">
-      <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+      <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
         {t('cdRegZoneTitle')}
       </h4>
-      <div className="rounded-md border border-gray-200 px-3 py-2.5 dark:border-gray-700">{content}</div>
+      <div className="rounded-xl border border-hairline bg-surface-sunken px-3 py-2.5">{content}</div>
     </div>
   )
 }

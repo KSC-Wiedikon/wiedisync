@@ -192,7 +192,7 @@ export default function BasketballPrepPage() {
     }
   }
 
-  const selectClass = 'h-11 rounded-md border border-border bg-transparent px-3 py-2 text-sm sm:h-9 dark:bg-gray-800'
+  const selectClass = 'h-11 rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-9 dark:bg-gray-800'
 
   /**
    * Human reason a whole date cannot host a game, named so the planner can act on it.
@@ -228,12 +228,12 @@ export default function BasketballPrepPage() {
   return (
     <div className="space-y-6">
       <header className="space-y-1">
-        <h1 className="text-2xl font-bold">{t('prepTitle')}</h1>
+        <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">{t('prepTitle')}</h1>
         <p className="max-w-3xl text-sm text-muted-foreground">{t('subtitle')}</p>
       </header>
 
       {/* The 17-Aug submission deadline + where the workbook goes (document D). */}
-      <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+      <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-300">
         {t('availabilityDue', {
           date: formatDateZurich(PROBASKET_KEY_DATES.availabilityDue),
           email: PROBASKET_CONTACT_EMAIL,
@@ -327,7 +327,7 @@ export default function BasketballPrepPage() {
         <span className="rounded px-2 py-0.5 bg-indigo-100 text-indigo-900 dark:bg-indigo-900/40 dark:text-indigo-200">{t('statusSuggested')}</span>
         <span className="rounded px-2 py-0.5 bg-brand-100 text-brand-800 dark:bg-brand-900/40 dark:text-brand-200">{t('statusGame')}</span>
         <span className="rounded px-2 py-0.5 bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">{t('statusVbUsing')}</span>
-        <span className="rounded px-2 py-0.5 bg-gray-200 text-gray-700 dark:bg-gray-800 dark:text-gray-300">{t('statusUnavailable')}</span>
+        <span className="rounded px-2 py-0.5 bg-stone-200 text-foreground/85 dark:bg-gray-800">{t('statusUnavailable')}</span>
       </div>
 
       <p className="text-xs text-amber-700 dark:text-amber-400">⚠ {t('provisional')}</p>
@@ -415,9 +415,9 @@ export default function BasketballPrepPage() {
 
             if (ownBlock || !anyPlaceable) {
               return (
-                <div key={cd.date} className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm opacity-70">
+                <div key={cd.date} className="flex flex-wrap items-center gap-3 rounded-xl border border-hairline bg-muted/30 px-3 py-2 text-sm opacity-70">
                   <span className="font-medium">{weekday(cd.date, i18n.language)} {formatDateZurich(cd.date)}</span>
-                  <span className="rounded px-2 py-0.5 text-xs bg-gray-200 text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                  <span className="rounded px-2 py-0.5 text-xs bg-stone-200 text-foreground/85 dark:bg-gray-800">
                     {t('statusUnavailable')} — {dateBlockedLabel(cd.date)}
                   </span>
                   {blockToggle}
@@ -425,7 +425,7 @@ export default function BasketballPrepPage() {
               )
             }
             return (
-              <div key={cd.date} className="rounded-lg border border-border">
+              <div key={cd.date} className="rounded-xl border border-hairline bg-card">
                 <div className="flex flex-wrap items-center gap-3 border-b border-border px-3 py-2 text-sm font-semibold">
                   <span>{weekday(cd.date, i18n.language)} {formatDateZurich(cd.date)}</span>
                   {restGap && (
@@ -467,7 +467,7 @@ export default function BasketballPrepPage() {
                         </span>
                         <div className="flex flex-1 flex-wrap gap-2">
                           {cells.map((cell) => {
-                            const base = 'min-h-[44px] min-w-[9rem] flex-1 rounded-md border px-2 py-1 text-left text-xs'
+                            const base = 'min-h-[44px] min-w-[9rem] flex-1 rounded-lg border px-2 py-1 text-left text-xs'
                             if (cell.status === 'game' && cell.placement) {
                               const p = cell.placement
                               return (
@@ -528,7 +528,7 @@ export default function BasketballPrepPage() {
                                   key={cell.hall}
                                   title={dateBlockedLabel(cd.date)}
                                   aria-disabled="true"
-                                  className={`${base} cursor-not-allowed border-gray-300 bg-gray-100 text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400`}
+                                  className={`${base} cursor-not-allowed border-input bg-muted text-muted-foreground`}
                                 >
                                   <div className="font-medium">{cell.hall}</div>
                                   <div className="truncate" title={t('statusUnavailable')}>{t('statusUnavailable')}</div>

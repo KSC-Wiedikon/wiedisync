@@ -211,7 +211,7 @@ export function BasketballCalendarPanel({
         )}
       </div>
 
-      <div className="rounded-lg border border-border bg-white p-2 sm:p-4 dark:bg-gray-800">
+      <div className="rounded-2xl border border-hairline bg-card p-2 shadow-card sm:p-4">
         {/* The month grid is 7 columns wide — let it scroll inside its own box on a
             narrow phone instead of widening the page. */}
         <div className="overflow-x-auto">
@@ -265,7 +265,7 @@ export function BasketballCalendarPanel({
                     </span>
                   ))}
                   {items.length > 3 && (
-                    <span className="text-[10px] text-gray-500 dark:text-gray-400">+{items.length - 3}</span>
+                    <span className="text-[10px] text-muted-foreground">+{items.length - 3}</span>
                   )}
                 </div>
               )}
@@ -451,12 +451,12 @@ export default function BasketballCalendarPage() {
     teams, placements, vbGames, fixtures, closureEntries, blockedDayReasons, placeGame, removeGame,
   } = useBasketballPlan(season)
 
-  const selectClass = 'h-11 rounded-md border border-border bg-transparent px-3 py-2 text-sm sm:h-9 dark:bg-gray-800'
+  const selectClass = 'h-11 rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-9 dark:bg-gray-800'
 
   return (
     <div className="space-y-6">
       <header className="flex flex-wrap items-end gap-4">
-        <h1 className="text-2xl font-bold">{t('calendarTitle')}</h1>
+        <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">{t('calendarTitle')}</h1>
         <label className="ml-auto flex flex-col gap-1 text-sm">
           <span className="font-medium text-muted-foreground">{t('season')}</span>
           <select

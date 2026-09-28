@@ -47,11 +47,11 @@ export default function AnnouncementDetailModal({ announcement, onClose }: Props
             alt=""
             loading="lazy"
             decoding="async"
-            className="w-full rounded-lg"
+            className="w-full rounded-xl"
           />
         )}
 
-        <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           {announcement.pinned && (
             <span className="inline-flex items-center gap-1 rounded-full bg-gold-50 px-2 py-0.5 text-gold-700 dark:bg-gold-900/40 dark:text-gold-300">
               <Pin className="h-3 w-3" />
@@ -65,14 +65,14 @@ export default function AnnouncementDetailModal({ announcement, onClose }: Props
 
         {safeLink && (
           <div className="space-y-2">
-            <p className="text-sm text-gray-600 dark:text-gray-300">
+            <p className="text-sm text-muted-foreground">
               {t('linkHint')}
             </p>
             <a
               href={safeLink}
               target={safeLink.startsWith('http') ? '_blank' : undefined}
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-700"
+              className="inline-flex h-11 items-center gap-1.5 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-9"
             >
               {linkLabel}
               <ExternalLink className="h-3.5 w-3.5" />

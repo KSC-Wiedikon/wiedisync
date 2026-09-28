@@ -107,7 +107,7 @@ export default function AbsenceImportModal({ open, onClose, onComplete }: Absenc
   return (
     <Modal open={open} onClose={handleClose} title={t('importTitle')} size="lg">
       <div className="space-y-4">
-        <p className="text-sm text-gray-500 dark:text-gray-400">{t('importDescription')}</p>
+        <p className="text-sm text-muted-foreground">{t('importDescription')}</p>
 
         {/* File input + template download */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -116,7 +116,7 @@ export default function AbsenceImportModal({ open, onClose, onComplete }: Absenc
             type="file"
             accept=".csv,.xlsx,.xls"
             onChange={handleFileChange}
-            className="text-sm text-gray-700 dark:text-gray-300 file:mr-3 file:rounded-md file:border-0 file:bg-gray-100 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-gray-700 dark:file:bg-gray-700 dark:file:text-gray-300"
+            className="text-sm text-foreground/85 file:mr-3 file:rounded-lg file:border-0 file:bg-muted file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-foreground/85"
           />
           <Button
             type="button"
@@ -130,7 +130,7 @@ export default function AbsenceImportModal({ open, onClose, onComplete }: Absenc
         </div>
 
         {parseError && (
-          <div className="flex items-center gap-2 rounded-md bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-400">
+          <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">
             <AlertCircle className="h-4 w-4 shrink-0" />
             {parseError}
           </div>
@@ -139,20 +139,20 @@ export default function AbsenceImportModal({ open, onClose, onComplete }: Absenc
         {/* Preview table */}
         {rows.length > 0 && (
           <>
-            <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
+            <div className="text-sm font-semibold text-foreground">
               {t('importPreview')} — {t('importValidRows', { valid: String(validRows.length), total: String(rows.length) })}
             </div>
 
-            <div className="max-h-64 overflow-auto rounded-md border border-gray-200 dark:border-gray-700">
+            <div className="max-h-64 overflow-auto rounded-xl border border-border">
               <Table>
-                <TableHeader className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800">
+                <TableHeader className="sticky top-0 z-10 bg-surface-sunken">
                   <TableRow>
-                    <TableHead className="text-gray-600 dark:text-gray-400">#</TableHead>
-                    <TableHead className="text-gray-600 dark:text-gray-400">{t('startDate')}</TableHead>
-                    <TableHead className="text-gray-600 dark:text-gray-400">{t('endDate')}</TableHead>
-                    <TableHead className="text-gray-600 dark:text-gray-400">{t('reason')}</TableHead>
-                    <TableHead className="text-gray-600 dark:text-gray-400">{t('detailsOptional')}</TableHead>
-                    <TableHead className="text-gray-600 dark:text-gray-400">{t('affects')}</TableHead>
+                    <TableHead className="text-muted-foreground">#</TableHead>
+                    <TableHead className="text-muted-foreground">{t('startDate')}</TableHead>
+                    <TableHead className="text-muted-foreground">{t('endDate')}</TableHead>
+                    <TableHead className="text-muted-foreground">{t('reason')}</TableHead>
+                    <TableHead className="text-muted-foreground">{t('detailsOptional')}</TableHead>
+                    <TableHead className="text-muted-foreground">{t('affects')}</TableHead>
                     <TableHead className="w-8"></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -165,12 +165,12 @@ export default function AbsenceImportModal({ open, onClose, onComplete }: Absenc
                         className={hasErrors ? 'bg-red-50/50 dark:bg-red-900/10' : ''}
                         title={hasErrors ? row.errors.join('\n') : undefined}
                       >
-                        <TableCell className="text-gray-400">{i + 1}</TableCell>
-                        <TableCell className="whitespace-nowrap text-gray-900 dark:text-gray-100">{row.start_date || '—'}</TableCell>
-                        <TableCell className="whitespace-nowrap text-gray-900 dark:text-gray-100">{row.end_date || '—'}</TableCell>
-                        <TableCell className="text-gray-900 dark:text-gray-100">{row.reason || '—'}</TableCell>
-                        <TableCell className="text-gray-500 dark:text-gray-400">{row.reason_detail || ''}</TableCell>
-                        <TableCell className="text-gray-500 dark:text-gray-400">{row.affects || 'all'}</TableCell>
+                        <TableCell className="text-muted-foreground/80">{i + 1}</TableCell>
+                        <TableCell className="whitespace-nowrap text-foreground">{row.start_date || '—'}</TableCell>
+                        <TableCell className="whitespace-nowrap text-foreground">{row.end_date || '—'}</TableCell>
+                        <TableCell className="text-foreground">{row.reason || '—'}</TableCell>
+                        <TableCell className="text-muted-foreground">{row.reason_detail || ''}</TableCell>
+                        <TableCell className="text-muted-foreground">{row.affects || 'all'}</TableCell>
                         <TableCell>
                           {hasErrors ? (
                             <AlertCircle className="h-4 w-4 text-red-500" />
@@ -205,10 +205,10 @@ export default function AbsenceImportModal({ open, onClose, onComplete }: Absenc
         {/* Result banner */}
         {result && (
           <div
-            className={`flex items-center gap-2 rounded-md p-3 text-sm ${
+            className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium ${
               result.failed === 0
-                ? 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400'
-                : 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400'
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-300'
+                : 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-300'
             }`}
           >
             {result.failed === 0 ? (

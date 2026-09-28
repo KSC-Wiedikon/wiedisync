@@ -82,10 +82,10 @@ export default function OpponentFlowPage() {
 
   if (error || !opponent) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 dark:bg-gray-900">
+      <div className="flex min-h-screen items-center justify-center bg-background px-4">
         <div className="text-center">
-          <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">{t('invalidLink')}</h1>
-          <p className="mt-2 text-gray-600 dark:text-gray-400">{error || t('tokenNotFound')}</p>
+          <h1 className="text-xl font-bold tracking-tight text-foreground">{t('invalidLink')}</h1>
+          <p className="mt-2 text-muted-foreground">{error || t('tokenNotFound')}</p>
         </div>
       </div>
     )
@@ -254,25 +254,25 @@ export default function OpponentFlowPage() {
   // One opponent card (home or away). Confirmed cards render read-only; open
   // cards render the proposal form (submitted by the section's button below).
   const renderCard = (card: LegCard) => (
-    <div key={card.key} className="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-800">
+    <div key={card.key} className="rounded-2xl border border-hairline bg-card shadow-card p-6">
       <div className="mb-1 flex items-start justify-between gap-2">
-        <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+        <h2 className="text-base font-semibold text-foreground">
           {cardTitle(card)}
           {card.number != null && (
-            <span className="ml-2 text-sm font-normal text-gray-400 dark:text-gray-500">#{card.number}</span>
+            <span className="ml-2 text-sm font-normal text-muted-foreground/80">#{card.number}</span>
           )}
         </h2>
         {statusBadge(legStatus(card))}
       </div>
-      <p className="mb-4 text-xs text-gray-500 dark:text-gray-400">
+      <p className="mb-4 text-xs text-muted-foreground">
         {card.isHome ? t('homeGameDesc') : t('awayGameDesc')}
       </p>
 
       {card.isHome ? (
         card.booking?.status === 'confirmed' ? (
-          <div className="rounded-md bg-green-50 p-4 dark:bg-green-900/20">
+          <div className="rounded-xl border border-green-200 bg-green-50 p-4 dark:border-green-900/60 dark:bg-green-900/20">
             <p className="text-sm font-medium text-green-800 dark:text-green-300">{t('slotBooked')}</p>
-            <p className="mt-1 text-sm text-gray-700 dark:text-gray-300">
+            <p className="mt-1 text-sm text-foreground/85">
               {fmtDate(card.booking.slot_date)} · {gameStartForDate(card.booking.slot_date, card.booking.slot_start)}
               {card.booking.slot_hall_name ? ` · ${card.booking.slot_hall_name}` : ''}
             </p>
@@ -280,11 +280,11 @@ export default function OpponentFlowPage() {
         ) : (
           <>
             {card.booking?.status === 'pending' && card.booking.proposed_slots && (
-              <div className="mb-4 rounded-md bg-yellow-50 p-3 dark:bg-yellow-900/20">
+              <div className="mb-4 rounded-xl border border-yellow-200 bg-yellow-50 p-3 dark:border-yellow-900/60 dark:bg-yellow-900/20">
                 <p className="text-sm font-medium text-yellow-800 dark:text-yellow-300">{t('homeProposalsPending')}</p>
                 <ul className="mt-1 space-y-0.5">
                   {card.booking.proposed_slots.map((p, idx) => (
-                    <li key={idx} className="text-sm text-gray-700 dark:text-gray-300">
+                    <li key={idx} className="text-sm text-foreground/85">
                       {p.date ? `${fmtDate(p.date)} · ${gameStartForDate(p.date, p.start)}${p.hall_name ? ` · ${p.hall_name}` : ''}` : t('slotN', { number: idx + 1 })}
                       {!p.available && <span className="ml-2 text-xs text-red-600 dark:text-red-400">⚠ {t('slotMaybeTaken')}</span>}
                     </li>
@@ -303,9 +303,9 @@ export default function OpponentFlowPage() {
           </>
         )
       ) : card.booking?.status === 'confirmed' ? (
-        <div className="rounded-md bg-green-50 p-4 dark:bg-green-900/20">
+        <div className="rounded-xl border border-green-200 bg-green-50 p-4 dark:border-green-900/60 dark:bg-green-900/20">
           <p className="text-sm font-medium text-green-800 dark:text-green-300">{t('confirmed')}</p>
-          <p className="mt-1 text-sm text-gray-700 dark:text-gray-300">{fmtDateTime(decidedAway(card.booking))}</p>
+          <p className="mt-1 text-sm text-foreground/85">{fmtDateTime(decidedAway(card.booking))}</p>
         </div>
       ) : (
         <AwayProposalFormForCard
@@ -325,25 +325,25 @@ export default function OpponentFlowPage() {
     'mt-4 w-full sm:w-auto sm:px-8'
 
   return (
-    <div className="min-h-screen bg-gray-50 px-4 py-8 dark:bg-gray-900">
+    <div className="min-h-screen bg-background px-4 py-8">
       <div className="mx-auto max-w-4xl">
         <div className="mb-2 flex justify-end">
           <LanguageDropdown size="sm" />
         </div>
         {/* Header */}
         <div className="mb-6 text-center">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{t('publicTitle')}</h1>
-          <p className="mt-2 text-gray-600 dark:text-gray-400">
+          <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">{t('publicTitle')}</h1>
+          <p className="mt-2 text-muted-foreground">
             {oppName} · KSCW {opponent.kscw_team_name}
           </p>
         </div>
 
         {/* Invite welcome (admin-issued invites only) */}
         {isInvited && (
-          <div className="mb-6 rounded-xl border border-brand-200 bg-brand-50 p-5 dark:border-brand-900 dark:bg-brand-900/20">
-            <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{greeting}</p>
-            <p className="mt-1 text-sm text-gray-700 dark:text-gray-300">{t('inviteWelcome', { club: oppName, team: opponent.kscw_team_name })}</p>
-            <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+          <div className="mb-6 rounded-2xl border border-brand-200 bg-brand-50 p-5 dark:border-brand-900 dark:bg-brand-900/20">
+            <p className="text-sm font-medium text-foreground">{greeting}</p>
+            <p className="mt-1 text-sm text-foreground/85">{t('inviteWelcome', { club: oppName, team: opponent.kscw_team_name })}</p>
+            <p className="mt-2 text-xs text-muted-foreground">
               {t('inviteContactHint', { email: opponent.contact_email })}
             </p>
           </div>
@@ -353,15 +353,15 @@ export default function OpponentFlowPage() {
         {opponent.kscw_note && (
           <div className="mb-6 rounded-xl border border-gold-300 bg-gold-50 p-4 dark:border-gold-700 dark:bg-gold-900/20">
             <p className="text-xs font-semibold uppercase tracking-wide text-gold-700 dark:text-gold-300">{t('noteFromKscw')}</p>
-            <p className="mt-1 whitespace-pre-wrap text-sm text-gray-800 dark:text-gray-200">{opponent.kscw_note}</p>
+            <p className="mt-1 whitespace-pre-wrap text-sm text-foreground">{opponent.kscw_note}</p>
           </div>
         )}
 
         {bookingError && (
-          <div className="mb-4 rounded-md bg-red-50 p-4 text-sm text-red-800 dark:bg-red-900/30 dark:text-red-300">{bookingError}</div>
+          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">{bookingError}</div>
         )}
         {bookingSuccess && (
-          <div className="mb-4 rounded-md bg-green-50 p-4 text-sm text-green-800 dark:bg-green-900/30 dark:text-green-300">{bookingSuccess}</div>
+          <div className="mb-4 rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-700 dark:border-green-900/60 dark:bg-green-950/40 dark:text-green-300">{bookingSuccess}</div>
         )}
 
         {/* Home and away as two columns (side by side on lg, stacked on mobile).
@@ -369,7 +369,7 @@ export default function OpponentFlowPage() {
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           {homeCards.length > 0 && (
             <section className="mb-2">
-              <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('homeGamesTitle')}</h2>
+              <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{t('homeGamesTitle')}</h2>
               <div className="space-y-6">{homeCards.map(renderCard)}</div>
               {shownHome.length > 0 && (
                 <Button
@@ -387,7 +387,7 @@ export default function OpponentFlowPage() {
 
           {awayCards.length > 0 && (
             <section className="mb-2">
-              <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('awayGamesTitle')}</h2>
+              <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{t('awayGamesTitle')}</h2>
               <div className="space-y-6">{awayCards.map(renderCard)}</div>
               {shownAway.length > 0 && (
                 <Button
@@ -409,27 +409,27 @@ export default function OpponentFlowPage() {
         {/* Slot-availability explainer — why only certain dates are offered.
             Sits right above the remarks box so the opponent understands the
             constraints before leaving a note. */}
-        <div className="mb-6 rounded-xl border border-gray-200 bg-gray-50 p-6 dark:border-gray-700 dark:bg-gray-800/50">
-          <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{t('slotRulesTitle')}</h2>
-          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">{t('slotRulesIntro')}</p>
-          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-gray-600 dark:text-gray-400">
+        <div className="mb-6 rounded-2xl border border-hairline bg-surface-sunken p-6">
+          <h2 className="text-base font-semibold text-foreground">{t('slotRulesTitle')}</h2>
+          <p className="mt-2 text-sm text-muted-foreground">{t('slotRulesIntro')}</p>
+          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
             <li>{t('slotRulesHall')}</li>
             <li>{t('slotRulesSaturday')}</li>
             <li>{t('slotRulesGap')}</li>
             <li>{t('slotRulesVenue')}</li>
             <li>{t('slotRulesSunday')}</li>
           </ul>
-          <p className="mt-3 text-sm text-gray-600 dark:text-gray-400">{t('slotRulesAway')}</p>
-          <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">{t('slotRulesOutro')}</p>
+          <p className="mt-3 text-sm text-muted-foreground">{t('slotRulesAway')}</p>
+          <p className="mt-3 text-xs text-muted-foreground">{t('slotRulesOutro')}</p>
         </div>
 
         {/* Opponent's remark to KSCW (free text, independent of proposing) — its
             own save button so a note-only update doesn't ride a game submit. */}
-        <div className="mb-6 rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-800">
-          <label htmlFor="opp-remark" className="block text-base font-semibold text-gray-900 dark:text-gray-100">
+        <div className="mb-6 rounded-2xl border border-hairline bg-card shadow-card p-6">
+          <label htmlFor="opp-remark" className="block text-base font-semibold text-foreground">
             {t('yourRemarks')}
           </label>
-          <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">{t('yourRemarksHint')}</p>
+          <p className="mb-2 text-xs text-muted-foreground">{t('yourRemarksHint')}</p>
           <textarea
             id="opp-remark"
             value={remark}
@@ -437,7 +437,7 @@ export default function OpponentFlowPage() {
             rows={3}
             maxLength={2000}
             placeholder={t('yourRemarksPlaceholder')}
-            className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+            className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground focus-visible:border-primary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-input/20"
           />
           {remarkChanged && (
             <Button
@@ -460,11 +460,11 @@ export default function OpponentFlowPage() {
           size="sm"
         >
           <div className="space-y-3">
-            <p className="text-sm text-gray-600 dark:text-gray-400">
+            <p className="text-sm text-muted-foreground">
               {confirmerSide === 'home' ? t('confirmerHintHome') : t('confirmerHintAway')}
             </p>
             <div>
-              <label htmlFor="confirmer-name" className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">
+              <label htmlFor="confirmer-name" className="mb-1 block text-xs font-medium text-muted-foreground">
                 {t('confirmerName')}
               </label>
               <input
@@ -473,11 +473,11 @@ export default function OpponentFlowPage() {
                 value={confirmerName}
                 onChange={(e) => setConfirmerName(e.target.value)}
                 autoComplete="name"
-                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+                className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground focus-visible:border-primary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-input/20"
               />
             </div>
             <div>
-              <label htmlFor="confirmer-email" className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">
+              <label htmlFor="confirmer-email" className="mb-1 block text-xs font-medium text-muted-foreground">
                 {t('confirmerEmail')}
               </label>
               <input
@@ -486,7 +486,7 @@ export default function OpponentFlowPage() {
                 value={confirmerEmail}
                 onChange={(e) => setConfirmerEmail(e.target.value)}
                 autoComplete="email"
-                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+                className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground focus-visible:border-primary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-input/20"
               />
             </div>
             {confirmerError && (
@@ -512,9 +512,9 @@ export default function OpponentFlowPage() {
         </Modal>
 
         {/* Help line — for anything else, the club's scheduling mailbox. */}
-        <p className="mt-8 text-center text-xs text-gray-400 dark:text-gray-500">
+        <p className="mt-8 text-center text-xs text-muted-foreground/80">
           {t('inviteHelpHint')}{' '}
-          <a href={`mailto:${SUPPORT_EMAIL}`} className="underline hover:text-gray-600 dark:hover:text-gray-300">
+          <a href={`mailto:${SUPPORT_EMAIL}`} className="underline hover:text-foreground">
             {SUPPORT_EMAIL}
           </a>
           .

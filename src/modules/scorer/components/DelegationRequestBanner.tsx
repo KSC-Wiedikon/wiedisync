@@ -56,15 +56,15 @@ export default function DelegationRequestBanner({
         return (
           <div
             key={d.id}
-            className="rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-900/20"
+            className="rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/60 dark:bg-amber-950/40"
           >
             <div className="flex items-start gap-3">
               <ArrowRightLeft className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                <p className="text-sm font-medium text-foreground">
                   {t('delegateRequestTitle')}
                 </p>
-                <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                <p className="mt-1 text-sm text-muted-foreground">
                   {t('delegateRequestMessage', {
                     from: fromName,
                     role: t(roleKey),
@@ -73,7 +73,7 @@ export default function DelegationRequestBanner({
                   })}
                 </p>
                 {game && (
-                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-500">
+                  <p className="mt-1 text-xs text-muted-foreground">
                     {dateStr} · {game.time ? formatTime(game.time) : ''} · {game.league}
                   </p>
                 )}

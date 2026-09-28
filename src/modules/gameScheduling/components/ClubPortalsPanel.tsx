@@ -103,17 +103,17 @@ export default function ClubPortalsPanel({ season, onUpdateSeason }: Props) {
         )}
       </CardHeader>
       <CardContent className="space-y-4">
-        <p className="text-xs text-gray-500 dark:text-gray-400">{t('clubPortalsIntro')}</p>
+        <p className="text-xs text-muted-foreground">{t('clubPortalsIntro')}</p>
 
         {!enabled ? (
-          <div className="rounded border border-dashed border-gray-300 p-4 text-center dark:border-gray-700">
-            <p className="mb-3 text-sm text-gray-600 dark:text-gray-400">{t('clubPortalsEnableHint')}</p>
+          <div className="rounded-lg border border-dashed border-input p-4 text-center">
+            <p className="mb-3 text-sm text-muted-foreground">{t('clubPortalsEnableHint')}</p>
             <Button onClick={enable} disabled={busy}>{t('clubPortalsEnable')}</Button>
           </div>
         ) : loading ? (
-          <div className="py-6 text-center text-sm text-gray-500">Laden…</div>
+          <div className="py-6 text-center text-sm text-muted-foreground">Laden…</div>
         ) : portals.length === 0 ? (
-          <div className="rounded border border-dashed border-gray-300 py-6 text-center text-sm text-gray-500 dark:border-gray-700">
+          <div className="rounded-lg border border-dashed border-input py-6 text-center text-sm text-muted-foreground">
             {t('clubPortalsEmpty')}
           </div>
         ) : (
@@ -133,9 +133,9 @@ export default function ClubPortalsPanel({ season, onUpdateSeason }: Props) {
                     <TableCell className="whitespace-normal break-words font-medium">{p.club_name || p.club_id}</TableCell>
                     <TableCell>
                       <Badge variant={STATUS_VARIANT[p.status] || 'neutral'} size="sm">{p.status}</Badge>
-                      {p.email_sent_at && <span className="ml-2 text-xs text-gray-400">✓</span>}
+                      {p.email_sent_at && <span className="ml-2 text-xs text-muted-foreground/80">✓</span>}
                     </TableCell>
-                    <TableCell className="hidden whitespace-normal break-words text-xs text-gray-500 sm:table-cell dark:text-gray-400">{p.contact_email || '—'}</TableCell>
+                    <TableCell className="hidden whitespace-normal break-words text-xs text-muted-foreground sm:table-cell">{p.contact_email || '—'}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
                         <Button variant="ghost" size="sm" onClick={() => copyLink(p.token)}>{t('clubPortalCopyLink')}</Button>

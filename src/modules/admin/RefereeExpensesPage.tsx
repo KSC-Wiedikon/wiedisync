@@ -100,8 +100,8 @@ export default function RefereeExpensesPage() {
   return (
     <div className="mx-auto max-w-5xl space-y-6 p-4 sm:p-6">
       <div>
-        <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">{t('refereeExpensesTitle')}</h1>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t('refereeExpensesDescription')}</p>
+        <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">{t('refereeExpensesTitle')}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{t('refereeExpensesDescription')}</p>
       </div>
 
       {/* Filters */}
@@ -109,7 +109,7 @@ export default function RefereeExpensesPage() {
         <select
           value={teamFilter}
           onChange={(e) => setTeamFilter(e.target.value)}
-          className="h-11 rounded-md border border-gray-200 bg-transparent px-3 text-sm sm:h-9 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+          className="h-11 rounded-lg border border-input bg-card px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-9 dark:bg-gray-800"
         >
           <option value="">{t('refereeExpensesAllTeams')}</option>
           {vbTeams.map((team) => (
@@ -122,7 +122,7 @@ export default function RefereeExpensesPage() {
         <select
           value={seasonFilter}
           onChange={(e) => setSeasonFilter(e.target.value)}
-          className="h-11 rounded-md border border-gray-200 bg-transparent px-3 text-sm sm:h-9 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+          className="h-11 rounded-lg border border-input bg-card px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-9 dark:bg-gray-800"
         >
           <option value="">{t('refereeExpensesAllSeasons')}</option>
           {seasons.map((s) => (
@@ -144,20 +144,20 @@ export default function RefereeExpensesPage() {
 
       {/* Table */}
       {isLoading ? (
-        <div className="py-12 text-center text-sm text-gray-500 dark:text-gray-400">…</div>
+        <div className="py-12 text-center text-sm text-muted-foreground">…</div>
       ) : expenses.length === 0 ? (
-        <div className="py-12 text-center text-sm text-gray-500 dark:text-gray-400">{t('refereeExpensesNoRecords')}</div>
+        <div className="py-12 text-center text-sm text-muted-foreground">{t('refereeExpensesNoRecords')}</div>
       ) : (
-        <div className="rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+        <div className="overflow-hidden rounded-2xl border border-hairline bg-card shadow-card">
           <Table>
             <TableHeader>
-              <TableRow className="border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/40">
-                <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('refereeExpensesDate')}</TableHead>
-                <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('refereeExpensesGame')}</TableHead>
-                <TableHead className="hidden sm:table-cell text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('refereeExpensesTeam')}</TableHead>
-                <TableHead className="hidden md:table-cell text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('refereeExpensesPaidBy')}</TableHead>
-                <TableHead className="text-right text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('refereeExpensesAmount')}</TableHead>
-                <TableHead className="hidden lg:table-cell text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('refereeExpensesNotes')}</TableHead>
+              <TableRow className="border-border">
+                <TableHead>{t('refereeExpensesDate')}</TableHead>
+                <TableHead>{t('refereeExpensesGame')}</TableHead>
+                <TableHead className="hidden sm:table-cell">{t('refereeExpensesTeam')}</TableHead>
+                <TableHead className="hidden md:table-cell">{t('refereeExpensesPaidBy')}</TableHead>
+                <TableHead className="text-right">{t('refereeExpensesAmount')}</TableHead>
+                <TableHead className="hidden lg:table-cell">{t('refereeExpensesNotes')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -173,22 +173,22 @@ export default function RefereeExpensesPage() {
                   : expense.paid_by_other || '–'
 
                 return (
-                  <TableRow key={expense.id} className="border-gray-200 dark:border-gray-700">
-                    <TableCell className="text-gray-900 dark:text-gray-100">
+                  <TableRow key={expense.id} className="border-border">
+                    <TableCell className="text-foreground">
                       {game?.date ? formatDate(game.date) : '–'}
                     </TableCell>
-                    <TableCell className="whitespace-normal text-gray-700 dark:text-gray-300">
+                    <TableCell className="whitespace-normal text-foreground/85">
                       <span className="block sm:inline">{game ? `${game.home_team} vs ${game.away_team}` : '–'}</span>
-                      <span className="block sm:hidden text-xs text-gray-500 mt-0.5">{paidBy}</span>
+                      <span className="block sm:hidden text-xs text-muted-foreground mt-0.5">{paidBy}</span>
                     </TableCell>
                     <TableCell className="hidden sm:table-cell">
                       {teamKey && <TeamChip team={teamKey} size="xs" />}
                     </TableCell>
-                    <TableCell className="hidden md:table-cell text-gray-900 dark:text-gray-100">{paidBy}</TableCell>
-                    <TableCell className="text-right text-gray-900 dark:text-gray-100">
+                    <TableCell className="hidden md:table-cell text-foreground">{paidBy}</TableCell>
+                    <TableCell className="text-right tabular-nums text-foreground">
                       {toNum(expense.amount) > 0 ? formatChf(expense.amount) : '–'}
                     </TableCell>
-                    <TableCell className="hidden lg:table-cell whitespace-normal text-gray-500 dark:text-gray-400">{expense.notes || '–'}</TableCell>
+                    <TableCell className="hidden lg:table-cell whitespace-normal text-muted-foreground">{expense.notes || '–'}</TableCell>
                   </TableRow>
                 )
               })}

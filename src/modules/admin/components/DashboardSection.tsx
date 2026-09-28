@@ -35,10 +35,10 @@ export default function DashboardSection({
   useEffect(() => { toggleSection(id, open) }, [id, open])
 
   return (
-    <div className="rounded-lg border border-border">
+    <div className="rounded-2xl border border-hairline bg-card shadow-card">
       <button
         onClick={() => setOpen(!open)}
-        className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-semibold hover:bg-muted/50 transition-colors"
+        className="flex w-full items-center justify-between rounded-2xl px-4 py-3 text-left text-sm font-semibold hover:bg-muted/50 transition-colors"
       >
         <span className="flex items-center gap-2">{icon}{title}</span>
         <span className="text-muted-foreground">{open ? '▼' : '▶'}</span>

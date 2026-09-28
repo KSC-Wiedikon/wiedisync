@@ -18,9 +18,9 @@ type Candidate = { id: string; label: string; date?: string | null }
 const STYLES: Record<string, string> = {
   pushed: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
   pushed_no_hall: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200',
-  queued: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300',
+  queued: 'bg-muted text-muted-foreground',
   needs_pick: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200',
-  no_fixture: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300',
+  no_fixture: 'bg-muted text-muted-foreground',
   failed: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
 }
 
@@ -49,7 +49,7 @@ export default function VmPushStatus({ booking, onPush }: Props) {
 
   return (
     <div className="flex flex-wrap items-center gap-1.5">
-      <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${STYLES[status || ''] || 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300'}`}
+      <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${STYLES[status || ''] || 'bg-muted text-muted-foreground'}`}
         title={status === 'failed' ? (booking.vm_push_error || undefined) : undefined}>
         {label}
       </span>
@@ -77,13 +77,13 @@ export default function VmPushStatus({ booking, onPush }: Props) {
                 key={c.id}
                 disabled={busy}
                 onClick={() => push(c.id)}
-                className="min-h-11 rounded-md border border-gray-200 px-3 py-2 text-left text-sm hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:hover:bg-gray-800"
+                className="min-h-11 rounded-lg border border-border bg-card px-3 py-2 text-left text-sm hover:bg-accent disabled:opacity-50"
               >
                 <span className="font-medium">{c.label}</span>
-                {c.date && <span className="ml-2 text-gray-500">{formatDateCompactZurich(c.date)}</span>}
+                {c.date && <span className="ml-2 text-muted-foreground">{formatDateCompactZurich(c.date)}</span>}
               </button>
             ))}
-            {candidates.length === 0 && <p className="text-sm text-gray-500">{t('vmPickNone')}</p>}
+            {candidates.length === 0 && <p className="text-sm text-muted-foreground">{t('vmPickNone')}</p>}
           </div>
         </DialogContent>
       </Dialog>

@@ -225,7 +225,7 @@ export default function ClubdeskProposals({ onDone, onCountChange, reloadKey = 0
 
   if (loading && !data) {
     return (
-      <div className="flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-6 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+      <div className="flex items-center gap-2 rounded-xl border border-hairline bg-surface-sunken px-4 py-6 text-sm text-muted-foreground">
         <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
         {t('dhProposalLoading')}
       </div>
@@ -234,7 +234,7 @@ export default function ClubdeskProposals({ onDone, onCountChange, reloadKey = 0
 
   if (error) {
     return (
-      <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-900/20 dark:text-red-400">
+      <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">
         <AlertTriangle className="h-4 w-4" aria-hidden="true" />
         {error}
       </div>
@@ -243,23 +243,23 @@ export default function ClubdeskProposals({ onDone, onCountChange, reloadKey = 0
 
   if (!rows.length) {
     return (
-      <div className="rounded-lg border border-gray-200 px-4 py-6 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+      <div className="rounded-xl border border-hairline bg-surface-sunken px-4 py-6 text-center text-sm text-muted-foreground">
         {t('dhProposalNone')}
       </div>
     )
   }
 
   return (
-    <div className={embedded ? '' : 'rounded-lg border border-gray-200 dark:border-gray-700'}>
+    <div className={embedded ? '' : 'rounded-2xl border border-hairline bg-card shadow-card'}>
       <div className={`flex flex-wrap items-center justify-between gap-2 ${
-        embedded ? 'pb-2' : 'border-b border-gray-200 px-4 py-3 dark:border-gray-700'
+        embedded ? 'pb-2' : 'border-b border-border px-4 py-3'
       }`}>
         {embedded ? <span /> : (
           <div>
-            <h3 className="text-sm font-medium text-gray-900 dark:text-white">
+            <h3 className="text-sm font-medium text-foreground">
               {t('dhProposalTitle', { count: rows.length })}
             </h3>
-            <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+            <p className="mt-0.5 text-xs text-muted-foreground">
               {t('dhProposalHint')}
             </p>
           </div>
@@ -323,7 +323,7 @@ export default function ClubdeskProposals({ onDone, onCountChange, reloadKey = 0
                 <TableCell className="whitespace-normal break-words font-medium">
                   {p.member_name || '—'}
                   {p.rule === 'create' && p.email && (
-                    <span className="block text-xs font-normal text-gray-500 dark:text-gray-400">{p.email}</span>
+                    <span className="block text-xs font-normal text-muted-foreground">{p.email}</span>
                   )}
                 </TableCell>
                 <TableCell className="whitespace-normal break-words">
@@ -334,11 +334,11 @@ export default function ClubdeskProposals({ onDone, onCountChange, reloadKey = 0
                     </span>
                   )}
                 </TableCell>
-                <TableCell className="hidden whitespace-normal break-words text-gray-500 sm:table-cell dark:text-gray-400">
+                <TableCell className="hidden whitespace-normal break-words text-muted-foreground sm:table-cell">
                   {display(p.current_value, t)}
                 </TableCell>
                 <TableCell className="whitespace-normal break-words">{display(p.proposed_value, t)}</TableCell>
-                <TableCell className="hidden text-xs text-gray-500 md:table-cell dark:text-gray-400">
+                <TableCell className="hidden text-xs text-muted-foreground md:table-cell">
                   {ruleLabel[p.rule]}
                 </TableCell>
                 <TableCell className="text-right">

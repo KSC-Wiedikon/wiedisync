@@ -40,7 +40,7 @@ export default function TeamSummaryTable({ teams }: { teams: TeamSummaryRow[] })
   const tdc = `${td} text-center tabular-nums`
 
   return (
-    <section className="rounded-xl border border-border bg-card" aria-labelledby="sh-teams-title">
+    <section className="rounded-2xl border border-hairline bg-card shadow-card" aria-labelledby="sh-teams-title">
       <h2 id="sh-teams-title" className="px-4 pt-3 text-sm font-semibold text-foreground">
         {t('teamsTitle')} <span className="font-normal text-muted-foreground">({rows.length})</span>
       </h2>

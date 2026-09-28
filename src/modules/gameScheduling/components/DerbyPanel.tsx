@@ -85,10 +85,10 @@ export default function DerbyPanel({ seasonId }: Props) {
   // admin knows the rule is being watched and there's simply no pair this season.
   const body = () => {
     if (isLoading && derbies.length === 0) {
-      return <p className="text-sm text-gray-500 dark:text-gray-400">…</p>
+      return <p className="text-sm text-muted-foreground">…</p>
     }
     if (derbies.length === 0) {
-      return <p className="text-sm text-gray-500 dark:text-gray-400">{t('derbyEmpty')}</p>
+      return <p className="text-sm text-muted-foreground">{t('derbyEmpty')}</p>
     }
     return (
       <div className="space-y-4">
@@ -96,9 +96,9 @@ export default function DerbyPanel({ seasonId }: Props) {
           const key = keyOf(d)
           const saving = savingKey === key
           return (
-            <div key={key} className="rounded-lg border border-gray-200 p-3 dark:border-gray-700">
+            <div key={key} className="rounded-xl border border-hairline bg-surface-sunken p-3">
               <div className="mb-2 flex flex-wrap items-center gap-2">
-                <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                <span className="text-sm font-semibold text-foreground">
                   {d.team_a.name} ↔ {d.team_b.name}
                 </span>
                 {d.confirmed && (
@@ -114,7 +114,7 @@ export default function DerbyPanel({ seasonId }: Props) {
                   return (
                     <div key={lg.svrz_id} className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
                       <div className="min-w-0">
-                        <div className="text-sm text-gray-900 dark:text-gray-100">
+                        <div className="text-sm text-foreground">
                           {t('derbyHosts', { home: lg.home_team.name, away: lg.away_team.name })}
                         </div>
                         {lg.round && (
@@ -125,7 +125,7 @@ export default function DerbyPanel({ seasonId }: Props) {
                       </div>
                       <div className="flex shrink-0 items-center gap-2">
                         {half && (
-                          <span className="text-xs text-gray-500 dark:text-gray-400">
+                          <span className="text-xs text-muted-foreground">
                             {half === 'vorrunde' ? t('derbyVorrunde') : t('derbyRueckrunde')}
                           </span>
                         )}
@@ -150,7 +150,7 @@ export default function DerbyPanel({ seasonId }: Props) {
                   disabled={saving}
                   variant="link"
                   size="sm"
-                  className="px-2 text-xs text-gray-500 dark:text-gray-400"
+                  className="px-2 text-xs text-muted-foreground"
                 >
                   {t('derbySaveDraftAction')}
                 </Button>
@@ -163,11 +163,11 @@ export default function DerbyPanel({ seasonId }: Props) {
   }
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
-      <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('derbyTitle')}</h2>
-      <p className="mt-1 mb-1 text-xs text-gray-500 dark:text-gray-400">{t('derbyHint')}</p>
+    <div className="rounded-2xl border border-hairline bg-card shadow-card p-4">
+      <h2 className="text-base font-semibold tracking-tight text-foreground">{t('derbyTitle')}</h2>
+      <p className="mt-1 mb-1 text-xs text-muted-foreground">{t('derbyHint')}</p>
       {boundary && (
-        <p className="mb-4 text-xs text-gray-500 dark:text-gray-400">
+        <p className="mb-4 text-xs text-muted-foreground">
           {t('derbyBoundaryHint', { date: ddmmyyyy(boundary) })}
         </p>
       )}

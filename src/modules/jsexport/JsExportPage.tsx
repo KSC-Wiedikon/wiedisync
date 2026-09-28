@@ -134,11 +134,11 @@ export default function JsExportPage() {
   return (
     <div className="mx-auto w-full max-w-4xl px-4 py-6 space-y-6">
       <header className="space-y-1">
-        <h1 className="text-2xl font-bold text-foreground">{t('title')}</h1>
+        <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">{t('title')}</h1>
         <p className="text-sm text-muted-foreground">{t('intro')}</p>
       </header>
 
-      <div className="rounded-lg border border-border bg-muted/40 p-4 text-sm text-muted-foreground space-y-2">
+      <div className="rounded-xl border border-hairline bg-surface-sunken p-4 text-sm text-muted-foreground space-y-2">
         <p className="font-medium text-foreground">{t('howtoTitle')}</p>
         <ol className="list-decimal space-y-1 pl-5">
           <li>{t('howto1')}</li>
@@ -150,12 +150,12 @@ export default function JsExportPage() {
 
       <div className="flex flex-wrap items-end gap-4">
         <div className="flex flex-col gap-1">
-          <label htmlFor="js-season" className="text-sm font-medium text-foreground">{t('season')}</label>
+          <label htmlFor="js-season" className="text-xs font-medium text-muted-foreground">{t('season')}</label>
           <select
             id="js-season"
             value={season}
             onChange={(e) => handleSeasonChange(e.target.value)}
-            className="rounded-md border border-border bg-background px-3 py-2 text-sm dark:bg-gray-800"
+            className="h-11 rounded-lg border border-input bg-card px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-9 dark:bg-gray-800"
           >
             {seasons.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>

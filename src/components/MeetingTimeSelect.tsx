@@ -73,7 +73,7 @@ export function MeetingTimeSelect({
           </SelectContent>
         </Select>
         {preview && (
-          <span className="shrink-0 text-sm tabular-nums text-gray-600 dark:text-gray-300" aria-hidden="true">
+          <span className="shrink-0 text-sm tabular-nums text-muted-foreground" aria-hidden="true">
             → {preview}
           </span>
         )}

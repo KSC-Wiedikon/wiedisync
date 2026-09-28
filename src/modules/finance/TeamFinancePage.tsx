@@ -21,15 +21,14 @@ import { RefereeStatusPill } from './MyRefereeExpensesCard'
 
 // h-11 at every width (not the usual sm:h-9): it shares a row with TeamPickerSingle,
 // whose trigger is a fixed 44px.
-const selectCls = 'h-11 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100'
-const labelCls = 'block text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400'
-const tileCls = 'rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800'
-const tileLabelCls = 'text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400'
-const sectionTitleCls = 'text-sm font-semibold text-gray-900 dark:text-gray-100'
-const tableWrapCls = 'rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800'
-const thCls = 'text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400'
-const noticeCls = 'rounded-lg border border-dashed border-gray-300 py-10 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400'
-const errNoticeCls = 'rounded-lg border border-dashed border-red-300 py-10 text-center text-sm text-red-600 dark:border-red-800 dark:text-red-400'
+const selectCls = 'h-11 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary/60 dark:bg-gray-800'
+const labelCls = 'block text-[11px] font-semibold uppercase tracking-wide text-muted-foreground'
+const tileCls = 'rounded-2xl border border-hairline bg-card shadow-card p-4'
+const tileLabelCls = 'text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground'
+const sectionTitleCls = 'text-sm font-semibold text-foreground'
+const tableWrapCls = 'overflow-hidden rounded-2xl border border-hairline bg-card shadow-card'
+const noticeCls = 'rounded-xl border border-dashed border-border py-10 text-center text-sm text-muted-foreground'
+const errNoticeCls = 'rounded-xl border border-dashed border-red-300 py-10 text-center text-sm text-red-600 dark:border-red-800 dark:text-red-400'
 const netCls = (n: number) => (n >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400')
 
 /** Current season + the previous one — the two the club still looks at. */
@@ -129,11 +128,11 @@ export default function TeamFinancePage() {
   return (
     <div className="mx-auto max-w-3xl space-y-6 p-4 sm:p-6">
       <div>
-        <h1 className="flex items-center gap-2 text-xl font-bold text-gray-900 dark:text-gray-100">
-          <Users className="h-5 w-5 text-brand-600 dark:text-brand-400" />
+        <h1 className="flex items-center gap-2 text-xl font-bold tracking-tight text-foreground sm:text-2xl">
+          <Users className="h-5 w-5 text-primary dark:text-brand-300" />
           {t('teamFinanceTitle')}
         </h1>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t('teamFinanceSubtitle')}</p>
+        <p className="mt-1 text-sm text-muted-foreground">{t('teamFinanceSubtitle')}</p>
       </div>
 
       {noTeams ? (
@@ -152,7 +151,7 @@ export default function TeamFinancePage() {
                 onChange={(id) => { if (id) setParam('team', id) }}
                 teams={teamOptions}
                 allowEmpty={false}
-                className="mt-1 bg-white dark:bg-gray-800"
+                className="mt-1"
               />
             </div>
             <div>
@@ -166,13 +165,13 @@ export default function TeamFinancePage() {
           {isError ? (
             <p className={errNoticeCls}>{t('common:error')}</p>
           ) : !data ? (
-            <div className="py-12 text-center text-sm text-gray-500 dark:text-gray-400">…</div>
+            <div className="py-12 text-center text-sm text-muted-foreground">…</div>
           ) : (
             // Previous team/season stays on screen while the new one loads
             // (placeholderData: keepPreviousData) — dim it so it never reads as final.
             <div className={`space-y-6 transition-opacity ${isPlaceholderData ? 'opacity-50' : ''}`} aria-busy={isPlaceholderData}>
               {data.fiscal_year == null && (
-                <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-200">
+                <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-300">
                   {t('teamFinanceNoFiscalYear')}
                 </p>
               )}
@@ -182,30 +181,30 @@ export default function TeamFinancePage() {
                 <div className={tileCls}>
                   <div className={tileLabelCls}>{t('teamFinanceNet')}</div>
                   <div className={`mt-1.5 text-2xl font-bold tabular-nums ${netCls(toNum(data.totals.net))}`}>{formatChf(data.totals.net)}</div>
-                  <div className="mt-1 space-y-0.5 text-xs text-gray-500 dark:text-gray-400">
+                  <div className="mt-1 space-y-0.5 text-xs text-muted-foreground">
                     <div className="flex justify-between gap-x-2 tabular-nums"><span className="min-w-0">{t('teamFinanceIncome')}</span><span className="whitespace-nowrap text-green-600 dark:text-green-400">{formatChf(data.totals.income)}</span></div>
                     <div className="flex justify-between gap-x-2 tabular-nums"><span className="min-w-0">{t('teamFinanceExpense')}</span><span className="whitespace-nowrap text-red-600 dark:text-red-400">{formatChf(data.totals.expense)}</span></div>
                   </div>
                 </div>
                 <div className={tileCls}>
                   <div className={tileLabelCls}>{t('teamFinanceOpenBills')}</div>
-                  <div className={`mt-1.5 text-2xl font-bold tabular-nums ${toNum(data.totals.invoice_open) > 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-gray-100'}`}>
+                  <div className={`mt-1.5 text-2xl font-bold tabular-nums ${toNum(data.totals.invoice_open) > 0 ? 'text-red-600 dark:text-red-400' : 'text-foreground'}`}>
                     {formatChf(data.totals.invoice_open)}
                   </div>
-                  <div className="mt-1 flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+                  <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
                     <Receipt className="h-3.5 w-3.5" /> {formatChf(data.totals.invoice_total)}
                   </div>
                 </div>
                 <div className={tileCls}>
                   <div className={tileLabelCls}>{t('teamFinanceRefereeTotal')}</div>
-                  <div className="mt-1.5 text-2xl font-bold tabular-nums text-gray-500 dark:text-gray-400">{formatChf(data.totals.referee_total)}</div>
-                  <div className="mt-1 flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+                  <div className="mt-1.5 text-2xl font-bold tabular-nums text-muted-foreground">{formatChf(data.totals.referee_total)}</div>
+                  <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
                     <HandCoins className="h-3.5 w-3.5" /> {t('myRefereeSubtitle')}
                   </div>
                 </div>
-                <Link to="/fines?scope=team" className={`${tileCls} block transition-colors hover:border-brand-300 dark:hover:border-brand-700`}>
+                <Link to="/fines?scope=team" className={`${tileCls} block transition-colors hover:border-brand-300 hover:shadow-card-lg dark:hover:border-brand-700`}>
                   <div className={tileLabelCls}>{t('teamFinanceOpenFines')}</div>
-                  <div className={`mt-1.5 text-2xl font-bold tabular-nums ${toNum(data.totals.team_fines_open) > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-gray-900 dark:text-gray-100'}`}>
+                  <div className={`mt-1.5 text-2xl font-bold tabular-nums ${toNum(data.totals.team_fines_open) > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-foreground'}`}>
                     {formatChf(data.totals.team_fines_open)}
                   </div>
                   <div className="mt-1 flex items-center gap-1 text-xs text-brand-700 dark:text-brand-300">
@@ -233,11 +232,11 @@ export default function TeamFinancePage() {
                   <div className={tableWrapCls}>
                     <Table>
                       <TableHeader>
-                        <TableRow className="border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/40">
-                          <TableHead className={thCls}>{t('colDate')}</TableHead>
-                          <TableHead className={thCls}>{t('colGame')}</TableHead>
-                          <TableHead className={`text-right ${thCls}`}>{t('colAmount')}</TableHead>
-                          {data.can_record_referee && <TableHead className={`w-px ${thCls}`}><span className="sr-only">{t('refereeRecord')}</span></TableHead>}
+                        <TableRow>
+                          <TableHead>{t('colDate')}</TableHead>
+                          <TableHead>{t('colGame')}</TableHead>
+                          <TableHead className={"text-right"}>{t('colAmount')}</TableHead>
+                          {data.can_record_referee && <TableHead className={"w-px"}><span className="sr-only">{t('refereeRecord')}</span></TableHead>}
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -248,15 +247,15 @@ export default function TeamFinancePage() {
                           return (
                             <Fragment key={g.id}>
                             <TableRow
-                              className={`min-h-[44px] border-gray-200 dark:border-gray-700 ${editable ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/40' : ''}`}
+                              className={`min-h-[44px] ${editable ? 'cursor-pointer hover:bg-muted' : ''}`}
                               onClick={editable ? () => toggleGame(g) : undefined}
                             >
-                              <TableCell className="whitespace-nowrap align-middle text-xs text-gray-500 dark:text-gray-400">
+                              <TableCell className="whitespace-nowrap align-middle text-xs text-muted-foreground">
                                 {g.date ? formatDateCompactZurich(g.date) : '–'}
                               </TableCell>
-                              <TableCell className="whitespace-normal break-words text-gray-900 dark:text-gray-100">
+                              <TableCell className="whitespace-normal break-words text-foreground">
                                 {g.home_team ?? '?'} – {g.away_team ?? '?'}
-                                <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+                                <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
                                   {fee ? (
                                     <>
                                       {fee.paid_by && <span>{t('refereePaidBy', { name: fee.paid_by })}</span>}
@@ -267,8 +266,8 @@ export default function TeamFinancePage() {
                                   )}
                                 </span>
                               </TableCell>
-                              <TableCell className="whitespace-nowrap text-right align-middle tabular-nums text-gray-700 dark:text-gray-300">
-                                {fee ? formatChf(toNum(fee.amount)) : <span className="text-gray-400 dark:text-gray-500">–</span>}
+                              <TableCell className="whitespace-nowrap text-right align-middle tabular-nums text-foreground/85">
+                                {fee ? formatChf(toNum(fee.amount)) : <span className="text-muted-foreground/80">–</span>}
                               </TableCell>
                               {data.can_record_referee && (
                                 <TableCell className="w-px whitespace-nowrap pl-2 text-right align-middle">
@@ -279,7 +278,7 @@ export default function TeamFinancePage() {
                                       variant={expanded || fee ? 'ghost' : 'default'}
                                       onClick={(e) => { e.stopPropagation(); toggleGame(g) }}
                                       aria-expanded={expanded}
-                                      className={`gap-1 px-2.5 ${expanded ? 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700' : fee ? 'text-brand-700 hover:bg-brand-50 hover:text-brand-700 dark:text-brand-300 dark:hover:bg-brand-900/30 dark:hover:text-brand-300' : ''}`}
+                                      className={`gap-1 px-2.5 ${expanded ? 'text-muted-foreground hover:bg-accent hover:text-foreground' : fee ? 'text-primary hover:bg-primary/10 hover:text-primary dark:text-brand-300 dark:hover:bg-primary/20 dark:hover:text-brand-300' : ''}`}
                                     >
                                       {expanded ? <ChevronDown className="rotate-180" /> : fee ? <Pencil /> : <Plus />}
                                       {expanded ? t('common:close') : fee ? t('refereeEdit') : t('refereeRecord')}
@@ -289,9 +288,9 @@ export default function TeamFinancePage() {
                               )}
                             </TableRow>
                             {expanded && teamId && (
-                              <TableRow className="border-gray-200 dark:border-gray-700">
+                              <TableRow>
                                 {/* The game modal's own editor, inline under the game's row. */}
-                                <TableCell colSpan={data.can_record_referee ? 4 : 3} className="bg-gray-50/60 px-4 py-3 dark:bg-gray-900/30">
+                                <TableCell colSpan={data.can_record_referee ? 4 : 3} className="bg-surface-sunken px-4 py-3">
                                   <RefereeExpenseSection
                                     gameId={String(g.id)}
                                     teamId={String(teamId)}
@@ -320,21 +319,21 @@ export default function TeamFinancePage() {
                   <div className={tableWrapCls}>
                     <Table>
                       <TableHeader>
-                        <TableRow className="border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/40">
-                          <TableHead className={thCls}>{t('colDate')}</TableHead>
-                          <TableHead className={thCls}>{t('teamFinanceEntriesTitle')}</TableHead>
-                          <TableHead className={`text-right ${thCls}`}>{t('colAmount')}</TableHead>
+                        <TableRow>
+                          <TableHead>{t('colDate')}</TableHead>
+                          <TableHead>{t('teamFinanceEntriesTitle')}</TableHead>
+                          <TableHead className={"text-right"}>{t('colAmount')}</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {rows.map((row) => (
-                          <TableRow key={row.key} className="min-h-[44px] border-gray-200 dark:border-gray-700">
-                            <TableCell className="whitespace-nowrap align-top text-xs text-gray-500 dark:text-gray-400">
+                          <TableRow key={row.key} className="min-h-[44px]">
+                            <TableCell className="whitespace-nowrap align-top text-xs text-muted-foreground">
                               {row.date ? formatDateCompactZurich(row.date) : '–'}
                             </TableCell>
                             {row.kind === 'entry' ? (
                               <>
-                                <TableCell className="whitespace-normal break-words text-gray-900 dark:text-gray-100">
+                                <TableCell className="whitespace-normal break-words text-foreground">
                                   {kindLabel(row.entry.kind)}
                                   {row.entry.label ? ` · ${row.entry.label}` : ''}
                                   {row.entry.sponsor ? ` · ${row.entry.sponsor}` : ''}
@@ -345,16 +344,16 @@ export default function TeamFinancePage() {
                               </>
                             ) : (
                               <>
-                                <TableCell className="whitespace-normal break-words text-gray-700 dark:text-gray-300">
-                                  <span className="text-gray-500 dark:text-gray-400">{t('teamKindReferee')}</span>
+                                <TableCell className="whitespace-normal break-words text-foreground/85">
+                                  <span className="text-muted-foreground">{t('teamKindReferee')}</span>
                                   {row.ref.game && ` · ${row.ref.game.home_team ?? '?'} – ${row.ref.game.away_team ?? '?'}`}
-                                  <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+                                  <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
                                     {row.ref.paid_by && <span>{t('refereePaidBy', { name: row.ref.paid_by })}</span>}
                                     <RefereeStatusPill row={row.ref} />
                                   </span>
                                 </TableCell>
                                 {/* Club-reimbursed — shown for the record, NOT part of the team's net. */}
-                                <TableCell className="text-right align-top tabular-nums text-gray-400 dark:text-gray-500">
+                                <TableCell className="text-right align-top tabular-nums text-muted-foreground/80">
                                   {formatChf(toNum(row.ref.amount))}
                                 </TableCell>
                               </>
@@ -366,7 +365,7 @@ export default function TeamFinancePage() {
                   </div>
                 )}
                 {data.home_games.length === 0 && (
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                  <p className="text-xs text-muted-foreground">
                     {t('teamFinanceRecordHint')}{' '}
                     <Link to="/games" className="font-medium text-brand-700 hover:underline dark:text-brand-300">{t('nav:games')} →</Link>
                   </p>

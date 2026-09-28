@@ -12,8 +12,8 @@ import {
   type DuesRun, type FinanceEmailSettings,
 } from '../../hooks/useFinance'
 
-const labelCls = 'block text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400'
-const inputCls = 'mt-1 h-11 w-full rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm sm:h-9 outline-none focus:border-brand-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100'
+const labelCls = 'block text-[11px] font-semibold uppercase tracking-wide text-muted-foreground'
+const inputCls = 'mt-1 h-11 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm sm:h-9 dark:bg-gray-800 text-foreground placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
 const apiErr = (e: unknown, fallback: string) => (e as { body?: { error?: string } })?.body?.error || fallback
 
 /** The global TEST MODE switch — default on; while on, no member is ever emailed.
@@ -45,20 +45,20 @@ function DuesEmailForm({ initial, onSaved }: { initial: FinanceEmailSettings; on
   }
 
   return (
-    <section className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+    <section className="rounded-2xl border border-hairline bg-card shadow-card p-4">
       <div className="flex items-center gap-2">
-        <Mail className="h-4 w-4 text-gray-400" />
-        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t('duesEmailTitle')}</h2>
+        <Mail className="h-4 w-4 text-muted-foreground/80" />
+        <h2 className="text-sm font-semibold text-foreground">{t('duesEmailTitle')}</h2>
       </div>
 
       {/* Status banner — green = safe (test mode), red = live */}
       {testMode ? (
-        <div className="mt-3 flex items-start gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-800 dark:border-green-900/50 dark:bg-green-900/20 dark:text-green-300">
+        <div className="mt-3 flex items-start gap-2 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-800 dark:border-green-900/50 dark:bg-green-900/20 dark:text-green-300">
           <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
           <span>{t('duesEmailTestOn', { recipient: recipient || t('duesEmailNoRecipient') })}</span>
         </div>
       ) : (
-        <div className="mt-3 flex items-start gap-2 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-xs font-medium text-red-800 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300">
+        <div className="mt-3 flex items-start gap-2 rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-xs font-medium text-red-800 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300">
           <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
           <span>{t('duesEmailLiveOn')}</span>
         </div>
@@ -84,7 +84,7 @@ function DuesEmailForm({ initial, onSaved }: { initial: FinanceEmailSettings; on
           </Button>
         )}
       </div>
-      {msg && <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{msg}</p>}
+      {msg && <p className="mt-2 text-xs text-muted-foreground">{msg}</p>}
     </section>
   )
 }
@@ -133,13 +133,13 @@ export function SendDuesEmailModal({ run, onClose }: { run: DuesRun | null; onCl
       <Modal open={!!run} onClose={onClose} title={t('duesEmailSendTitle')}>
         <div className="space-y-3">
           {(!job || job.status === 'running') && (
-            <div className="flex items-center gap-3 text-sm text-gray-700 dark:text-gray-300">
-              <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+            <div className="flex items-center gap-3 text-sm text-foreground/85">
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground/80" />
               {t('duesEmailSending', { sent: job?.sent ?? 0, total: job?.total ?? preview?.would_send ?? 0 })}
             </div>
           )}
           {job?.status === 'done' && (
-            <p className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800 dark:border-green-900/50 dark:bg-green-900/20 dark:text-green-300">
+            <p className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800 dark:border-green-900/50 dark:bg-green-900/20 dark:text-green-300">
               {job.test_mode
                 ? t('duesEmailSentTest', { count: job.sent, recipient: preview?.test_recipient || '' })
                 : t('duesEmailSentLive', { count: job.sent, failed: job.failed })}
@@ -158,40 +158,40 @@ export function SendDuesEmailModal({ run, onClose }: { run: DuesRun | null; onCl
 
   return (
     <Modal open={!!run} onClose={onClose} title={t('duesEmailSendTitle')}>
-      {loading && <div className="flex justify-center py-6"><Loader2 className="h-5 w-5 animate-spin text-gray-400" /></div>}
+      {loading && <div className="flex justify-center py-6"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground/80" /></div>}
 
       {preview && (
         <div className="space-y-4">
           {preview.test_mode ? (
-            <div className="flex items-start gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-800 dark:border-green-900/50 dark:bg-green-900/20 dark:text-green-300">
+            <div className="flex items-start gap-2 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-800 dark:border-green-900/50 dark:bg-green-900/20 dark:text-green-300">
               <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
               <span>{t('duesEmailModalTest', { recipient: preview.test_recipient || t('duesEmailNoRecipient') })}</span>
             </div>
           ) : (
-            <div className="flex items-start gap-2 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-xs font-medium text-red-800 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300">
+            <div className="flex items-start gap-2 rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-xs font-medium text-red-800 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300">
               <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
               <span>{t('duesEmailModalLive', { count: preview.would_send })}</span>
             </div>
           )}
 
-          <p className="text-sm text-gray-700 dark:text-gray-300">
+          <p className="text-sm text-foreground/85">
             {t('duesEmailPreviewSummary', { send: preview.would_send, noEmail: preview.no_email })}
           </p>
 
           {preview.recipients.length > 0 && (
-            <div className="max-h-56 overflow-y-auto rounded-lg border border-gray-200 dark:border-gray-700">
+            <div className="max-h-56 overflow-y-auto rounded-xl border border-hairline">
               <Table>
                 <TableHeader>
-                  <TableRow className="border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/40">
-                    <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('duesColMember')}</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('fieldEmail')}</TableHead>
+                  <TableRow>
+                    <TableHead>{t('duesColMember')}</TableHead>
+                    <TableHead>{t('fieldEmail')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {preview.recipients.map((r, i) => (
-                    <TableRow key={i} className="border-gray-200 dark:border-gray-700">
-                      <TableCell className="whitespace-normal break-words text-gray-900 dark:text-gray-100">{r.name || '–'}</TableCell>
-                      <TableCell className="whitespace-normal break-words text-xs text-gray-500 dark:text-gray-400">{r.email}</TableCell>
+                    <TableRow key={i}>
+                      <TableCell className="whitespace-normal break-words text-foreground">{r.name || '–'}</TableCell>
+                      <TableCell className="whitespace-normal break-words text-xs text-muted-foreground">{r.email}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

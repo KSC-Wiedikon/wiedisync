@@ -22,8 +22,9 @@ export default function TeamChip({ team, label, icon, size = 'md', className = '
       // narrow rail; if the track really is too narrow the label ellipsizes
       // and the full name stays in `title`.
       title={text}
-      className={`inline-flex max-w-full items-center gap-1 whitespace-nowrap rounded-full font-semibold dark:ring-1 dark:ring-inset dark:ring-white/20 ${
-        size === 'xs' ? 'px-2 py-0.5 text-[10px]' : size === 'sm' ? 'px-2 py-0.5 text-xs' : 'px-3 py-1 text-sm'
+      // xs = inline meta chip (svrz 4px corner); sm/md stay standalone pills.
+      className={`inline-flex max-w-full items-center gap-1 whitespace-nowrap font-semibold dark:ring-1 dark:ring-inset dark:ring-white/20 ${
+        size === 'xs' ? 'rounded px-1.5 py-0.5 text-[10px]' : size === 'sm' ? 'rounded-full px-2 py-0.5 text-xs' : 'rounded-full px-3 py-1 text-sm'
       } ${className}`}
       style={{
         backgroundColor: color.bg,

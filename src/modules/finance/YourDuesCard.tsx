@@ -34,7 +34,7 @@ export default function YourDuesCard() {
 
   return (
     <div className="mb-6 lg:flex lg:flex-col lg:items-center">
-      <div className="w-full overflow-hidden rounded-xl border border-amber-200 bg-amber-50/60 lg:max-w-2xl dark:border-amber-800/50 dark:bg-amber-900/20">
+      <div className="w-full overflow-hidden rounded-2xl border border-amber-200 bg-amber-50/60 lg:max-w-2xl dark:border-amber-800/50 dark:bg-amber-900/20">
         {stats.count > 0 && (
           <Link
             to="/finance/dues"

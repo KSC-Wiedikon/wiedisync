@@ -23,15 +23,15 @@ export default function GameTabs({ activeTab, onChange, tabs = DEFAULT_TABS }: G
   const { t } = useTranslation('games')
 
   return (
-    <div className="flex gap-1 overflow-x-auto border-b border-gray-200 dark:border-gray-700">
+    <div className="flex gap-1 overflow-x-auto border-b border-border">
       {tabs.map((tab) => (
         <button
           key={tab}
           onClick={() => onChange(tab)}
-          className={`shrink-0 border-b-2 px-4 py-3 text-sm font-medium transition-colors sm:py-2.5 ${
+          className={`shrink-0 border-b-2 px-4 py-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:py-2.5 ${
             activeTab === tab
-              ? 'border-gold-400 text-brand-700 dark:text-gold-400'
-              : 'border-transparent text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-600 hover:text-gray-700 dark:hover:text-gray-300'
+              ? 'border-foreground font-semibold text-foreground'
+              : 'border-transparent text-muted-foreground hover:border-input hover:text-foreground'
           }`}
         >
           {t(TAB_LABELS[tab])}

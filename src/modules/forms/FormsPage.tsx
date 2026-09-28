@@ -37,7 +37,7 @@ function StatusBadge({ status }: { status: FormStatus }) {
     status === 'open'
       ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
       : status === 'closed'
-        ? 'bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
+        ? 'bg-muted text-muted-foreground'
         : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
   return <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${cls}`}>{t(`status${status[0].toUpperCase()}${status.slice(1)}`)}</span>
 }
@@ -123,7 +123,7 @@ export default function FormsPage() {
     <div className="mx-auto max-w-5xl space-y-8 px-4 py-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <h1 className="text-2xl font-bold">{t('title')}</h1>
+          <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">{t('title')}</h1>
           <GuideHelpButton />
         </div>
         {canManageForms && (
@@ -135,92 +135,96 @@ export default function FormsPage() {
 
       {/* Open for you */}
       <section className="space-y-3">
-        <h2 className="text-lg font-semibold">{t('openForYou')}</h2>
+        <h2 className="text-base font-semibold text-foreground">{t('openForYou')}</h2>
         {fillable.length === 0 ? (
           <p className="text-sm text-muted-foreground">{t('noOpenForms')}</p>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t('formTitle')}</TableHead>
-                <TableHead className="hidden sm:table-cell">{t('closesAt')}</TableHead>
-                <TableHead className="text-right">{t('actions')}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {fillable.map((item) => (
-                <TableRow key={item.form.id}>
-                  <TableCell className="font-medium">{item.form.title}</TableCell>
-                  <TableCell className="hidden text-sm text-muted-foreground sm:table-cell">
-                    {item.form.closes_at ? formatDateTimeCompactZurich(item.form.closes_at) : '—'}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button size="sm" variant={item.submission ? 'outline' : 'default'} onClick={() => setFillItem(item)}>
-                      {item.submission ? t('edit') : t('fill')}
-                    </Button>
-                  </TableCell>
+          <div className="overflow-hidden rounded-2xl border border-hairline bg-card shadow-card">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t('formTitle')}</TableHead>
+                  <TableHead className="hidden sm:table-cell">{t('closesAt')}</TableHead>
+                  <TableHead className="text-right">{t('actions')}</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {fillable.map((item) => (
+                  <TableRow key={item.form.id}>
+                    <TableCell className="font-medium">{item.form.title}</TableCell>
+                    <TableCell className="hidden text-sm text-muted-foreground sm:table-cell">
+                      {item.form.closes_at ? formatDateTimeCompactZurich(item.form.closes_at) : '—'}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button size="sm" variant={item.submission ? 'outline' : 'default'} onClick={() => setFillItem(item)}>
+                        {item.submission ? t('edit') : t('fill')}
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         )}
       </section>
 
       {/* Manage */}
       {canManageForms && (
         <section className="space-y-3">
-          <h2 className="text-lg font-semibold">{t('manageForms')}</h2>
+          <h2 className="text-base font-semibold text-foreground">{t('manageForms')}</h2>
           {managedForms.length === 0 ? (
             <p className="text-sm text-muted-foreground">{t('noManagedForms')}</p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t('formTitle')}</TableHead>
-                  <TableHead>{t('status')}</TableHead>
-                  <TableHead className="hidden sm:table-cell">{t('audience')}</TableHead>
-                  <TableHead className="text-right">{t('actions')}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {managedForms.map((f) => {
-                  const teams = teamRefs(f)
-                  return (
-                    <TableRow key={f.id}>
-                      <TableCell className="font-medium">
-                        <span className="flex items-center gap-1.5">
-                          {f.title}
-                          {f.is_public && (
-                            <span className="inline-flex items-center gap-0.5 rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-900/40 dark:text-blue-300" title={t('isPublicHint')}>
-                              <Globe size={10} /> {t('publicBadge')}
-                            </span>
-                          )}
-                        </span>
-                      </TableCell>
-                      <TableCell><StatusBadge status={f.status} /></TableCell>
-                      <TableCell className="hidden text-sm text-muted-foreground sm:table-cell">
-                        {f.audience === 'club_wide' ? t('audienceClub') : teams.map((tr) => tr.name).join(', ') || t('audienceTeams')}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-col justify-end gap-1 sm:flex-row">
-                          {f.is_public && f.slug && (
-                            <Button variant="ghost" size="sm" onClick={() => copyPublicLink(f)} title={t('copyLink')}>
-                              <LinkIcon size={15} className={copiedId === String(f.id) ? 'text-green-600 dark:text-green-400' : ''} />
+            <div className="overflow-hidden rounded-2xl border border-hairline bg-card shadow-card">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t('formTitle')}</TableHead>
+                    <TableHead>{t('status')}</TableHead>
+                    <TableHead className="hidden sm:table-cell">{t('audience')}</TableHead>
+                    <TableHead className="text-right">{t('actions')}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {managedForms.map((f) => {
+                    const teams = teamRefs(f)
+                    return (
+                      <TableRow key={f.id}>
+                        <TableCell className="font-medium">
+                          <span className="flex items-center gap-1.5">
+                            {f.title}
+                            {f.is_public && (
+                              <span className="inline-flex items-center gap-0.5 rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-900/40 dark:text-blue-300" title={t('isPublicHint')}>
+                                <Globe size={10} /> {t('publicBadge')}
+                              </span>
+                            )}
+                          </span>
+                        </TableCell>
+                        <TableCell><StatusBadge status={f.status} /></TableCell>
+                        <TableCell className="hidden text-sm text-muted-foreground sm:table-cell">
+                          {f.audience === 'club_wide' ? t('audienceClub') : teams.map((tr) => tr.name).join(', ') || t('audienceTeams')}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-col justify-end gap-1 sm:flex-row">
+                            {f.is_public && f.slug && (
+                              <Button variant="ghost" size="sm" onClick={() => copyPublicLink(f)} title={t('copyLink')}>
+                                <LinkIcon size={15} className={copiedId === String(f.id) ? 'text-green-600 dark:text-green-400' : ''} />
+                              </Button>
+                            )}
+                            <Button variant="ghost" size="sm" onClick={() => setResponsesForm(f)} title={t('responses')}><BarChart3 size={15} /></Button>
+                            <Button variant="ghost" size="sm" onClick={() => navigate(`/forms/${f.id}/edit`)} title={tc('edit')}><Pencil size={15} /></Button>
+                            <Button variant="ghost" size="sm" onClick={() => toggleStatus(f)} title={f.status === 'open' ? t('close') : t('open')}>
+                              {f.status === 'open' ? <Lock size={15} /> : <Unlock size={15} />}
                             </Button>
-                          )}
-                          <Button variant="ghost" size="sm" onClick={() => setResponsesForm(f)} title={t('responses')}><BarChart3 size={15} /></Button>
-                          <Button variant="ghost" size="sm" onClick={() => navigate(`/forms/${f.id}/edit`)} title={tc('edit')}><Pencil size={15} /></Button>
-                          <Button variant="ghost" size="sm" onClick={() => toggleStatus(f)} title={f.status === 'open' ? t('close') : t('open')}>
-                            {f.status === 'open' ? <Lock size={15} /> : <Unlock size={15} />}
-                          </Button>
-                          <Button variant="ghost" size="sm" onClick={() => remove(f)} title={tc('delete')} className="text-red-500"><Trash2 size={15} /></Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  )
-                })}
-              </TableBody>
-            </Table>
+                            <Button variant="ghost" size="sm" onClick={() => remove(f)} title={tc('delete')} className="text-red-500 dark:text-red-400"><Trash2 size={15} /></Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </section>
       )}

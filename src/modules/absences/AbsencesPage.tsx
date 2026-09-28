@@ -184,7 +184,7 @@ export default function AbsencesPage() {
       <div className="flex flex-wrap items-start gap-4">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold text-gray-900 sm:text-2xl dark:text-gray-100">{t('title')}</h1>
+            <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">{t('title')}</h1>
             <GuideHelpButton />
           </div>
         </div>
@@ -242,13 +242,13 @@ export default function AbsencesPage() {
           ) : (
             <div className="space-y-3">
               {upcomingAbsences.length > 0 && (
-                <div className="rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+                <div className="overflow-hidden rounded-2xl border border-hairline bg-card shadow-card">
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="text-gray-500 dark:text-gray-400">{t('colReason')}</TableHead>
-                        <TableHead className="hidden md:table-cell text-gray-500 dark:text-gray-400">{t('colWhen')}</TableHead>
-                        <TableHead className="hidden sm:table-cell text-gray-500 dark:text-gray-400">{t('colAffects')}</TableHead>
+                        <TableHead className="text-muted-foreground">{t('colReason')}</TableHead>
+                        <TableHead className="hidden md:table-cell text-muted-foreground">{t('colWhen')}</TableHead>
+                        <TableHead className="hidden sm:table-cell text-muted-foreground">{t('colAffects')}</TableHead>
                         <TableHead className="w-32 text-right" />
                       </TableRow>
                     </TableHeader>
@@ -276,13 +276,13 @@ export default function AbsencesPage() {
                     {t('showOlderAbsences', { count: pastAbsences.length })}
                   </Button>
                   {showOlder && (
-                    <div className="rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800 mt-2">
+                    <div className="mt-2 overflow-hidden rounded-2xl border border-hairline bg-card shadow-card">
                       <Table>
                         <TableHeader>
                           <TableRow>
-                            <TableHead className="text-gray-500 dark:text-gray-400">{t('colReason')}</TableHead>
-                            <TableHead className="hidden md:table-cell text-gray-500 dark:text-gray-400">{t('colWhen')}</TableHead>
-                            <TableHead className="hidden sm:table-cell text-gray-500 dark:text-gray-400">{t('colAffects')}</TableHead>
+                            <TableHead className="text-muted-foreground">{t('colReason')}</TableHead>
+                            <TableHead className="hidden md:table-cell text-muted-foreground">{t('colWhen')}</TableHead>
+                            <TableHead className="hidden sm:table-cell text-muted-foreground">{t('colAffects')}</TableHead>
                             <TableHead className="w-32 text-right" />
                           </TableRow>
                         </TableHeader>
@@ -310,13 +310,13 @@ export default function AbsencesPage() {
               description={t('noWeeklyAbsencesDescription')}
             />
           ) : (
-            <div className="rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+            <div className="overflow-hidden rounded-2xl border border-hairline bg-card shadow-card">
               <Table>
                 <TableHeader>
                   <TableRow>
                     <WeeklyDayHeaderCells />
-                    <TableHead className="hidden md:table-cell text-gray-500 dark:text-gray-400">{t('colWhen')}</TableHead>
-                    <TableHead className="hidden sm:table-cell text-gray-500 dark:text-gray-400">{t('colAffects')}</TableHead>
+                    <TableHead className="hidden md:table-cell text-muted-foreground">{t('colWhen')}</TableHead>
+                    <TableHead className="hidden sm:table-cell text-muted-foreground">{t('colAffects')}</TableHead>
                     <TableHead className="w-32 text-right" />
                   </TableRow>
                 </TableHeader>
@@ -483,14 +483,14 @@ function TeamWeeklySection({
       {weeklies.length === 0 ? (
         <p className="text-sm text-muted-foreground">{t('noMembersMatchFilter')}</p>
       ) : (
-    <div className="rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+    <div className="overflow-hidden rounded-2xl border border-hairline bg-card shadow-card">
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="text-gray-500 dark:text-gray-400">{t('colMember')}</TableHead>
+            <TableHead className="text-muted-foreground">{t('colMember')}</TableHead>
             <WeeklyDayHeaderCells />
-            <TableHead className="hidden md:table-cell text-gray-500 dark:text-gray-400">{t('colWhen')}</TableHead>
-            <TableHead className="hidden sm:table-cell text-gray-500 dark:text-gray-400">{t('colAffects')}</TableHead>
+            <TableHead className="hidden md:table-cell text-muted-foreground">{t('colWhen')}</TableHead>
+            <TableHead className="hidden sm:table-cell text-muted-foreground">{t('colAffects')}</TableHead>
             <TableHead className="w-32 text-right" />
           </TableRow>
         </TableHeader>

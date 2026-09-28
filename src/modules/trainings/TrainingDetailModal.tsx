@@ -58,7 +58,7 @@ export default function TrainingDetailModal({ training, onClose, participations 
   const coach = asObj<Member>(training.coach)
 
   const rosterButton = (
-    <IconButton label={t('participation')} onClick={() => setRosterOpen(true)} className="text-brand-600 hover:bg-brand-50 dark:text-brand-400 dark:hover:bg-brand-900/20">
+    <IconButton label={t('participation')} onClick={() => setRosterOpen(true)} className="text-primary hover:bg-brand-50 dark:text-brand-300 dark:hover:bg-brand-900/20">
       <Users className="!size-5" />
     </IconButton>
   )
@@ -129,18 +129,18 @@ export default function TrainingDetailModal({ training, onClose, participations 
           </div>
 
           {/* Details */}
-          <div className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
+          <div className="space-y-2 text-sm text-foreground/85">
             <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 shrink-0 text-gray-500 dark:text-gray-400" />
+              <Calendar className="h-4 w-4 shrink-0 text-muted-foreground" />
               <span>{formatWeekday(training.date)}, {formatDate(training.date)}</span>
             </div>
             <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 shrink-0 text-gray-500 dark:text-gray-400" />
+              <Clock className="h-4 w-4 shrink-0 text-muted-foreground" />
               <span>{formatTime(training.start_time)} – {formatTime(training.end_time)}</span>
             </div>
             {meetingTimeFromOffset(training.start_time, training.meeting_offset_minutes) && (
               <div className="flex items-center gap-2">
-                <AlarmClock className="h-4 w-4 shrink-0 text-gray-500 dark:text-gray-400" />
+                <AlarmClock className="h-4 w-4 shrink-0 text-muted-foreground" />
                 <span>
                   {tc('meetingTime')}: {meetingTimeFromOffset(training.start_time, training.meeting_offset_minutes)}
                 </span>
@@ -148,13 +148,13 @@ export default function TrainingDetailModal({ training, onClose, participations 
             )}
             {(hall || training.hall_name) && (
               <div className="flex items-center gap-2">
-                <MapPin className="h-4 w-4 shrink-0 text-gray-500 dark:text-gray-400" />
+                <MapPin className="h-4 w-4 shrink-0 text-muted-foreground" />
                 {hall?.maps_url && sanitizeUrl(hall.maps_url) ? (
                   <a
                     href={sanitizeUrl(hall.maps_url)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-brand-600 hover:underline dark:text-brand-400"
+                    className="text-primary hover:underline dark:text-brand-300"
                     onClick={(e) => e.stopPropagation()}
                   >
                     {hall.name} ↗
@@ -164,7 +164,7 @@ export default function TrainingDetailModal({ training, onClose, participations 
                     href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([hall.address, hall.city].filter(Boolean).join(', '))}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-brand-600 hover:underline dark:text-brand-400"
+                    className="text-primary hover:underline dark:text-brand-300"
                     onClick={(e) => e.stopPropagation()}
                   >
                     {hall.name} ↗
@@ -177,7 +177,7 @@ export default function TrainingDetailModal({ training, onClose, participations 
             )}
             {coach && (
               <div className="flex items-center gap-2">
-                <User className="h-4 w-4 shrink-0 text-gray-500 dark:text-gray-400" />
+                <User className="h-4 w-4 shrink-0 text-muted-foreground" />
                 <span>{memberDisplayName(coach)}</span>
               </div>
             )}
@@ -185,26 +185,26 @@ export default function TrainingDetailModal({ training, onClose, participations 
 
           {/* Cancellation reason */}
           {training.cancelled && training.cancel_reason && (
-            <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-400">
+            <p className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">
               {training.cancel_reason}
             </p>
           )}
 
           {/* Auto-shortened by home game */}
           {!training.cancelled && training.auto_shortened_by_game != null && (
-            <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
+            <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-300">
               {t('shortenedHint')}
             </p>
           )}
 
           {/* Notes */}
           {training.notes && !training.cancelled && (
-            <p className="text-sm text-gray-500 dark:text-gray-400">{training.notes}</p>
+            <p className="text-sm text-muted-foreground">{training.notes}</p>
           )}
 
           {/* Participation section */}
           {!training.cancelled && (
-            <div className="space-y-3 border-t border-gray-200 pt-3 dark:border-gray-700">
+            <div className="space-y-3 border-t border-border pt-3">
               {canParticipate ? (
                 // Answer buttons carry the totals (RsvpAnswerButtons) — no separate counters row.
                 <TrainingParticipation
@@ -229,7 +229,7 @@ export default function TrainingDetailModal({ training, onClose, participations 
           />
 
           {/* Actions — kept at the bottom so they never overlap the title */}
-          <div className="flex flex-wrap items-center gap-2 border-t border-gray-200 pt-3 dark:border-gray-700">
+          <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
             {actionRow}
           </div>
         </div>
@@ -347,7 +347,7 @@ function TrainingParticipation({ training, isStaff, isStaffParticipant, particip
   if (guestExcluded) {
     return (
       <div className="space-y-2">
-        <p className="text-sm italic text-gray-500 dark:text-gray-400">{tTrainings('guestExcluded')}</p>
+        <p className="text-sm italic text-muted-foreground">{tTrainings('guestExcluded')}</p>
         <ParticipationCountsRow training={training} participations={participations} coachMemberIds={coachMemberIds} rosterButton={rosterButton} />
       </div>
     )
@@ -356,7 +356,7 @@ function TrainingParticipation({ training, isStaff, isStaffParticipant, particip
   return (
     <div className="space-y-2">
       {hasAbsence && (
-        <p className="text-xs italic text-gray-500 dark:text-gray-400">{t(absenceLabel)}</p>
+        <p className="text-xs italic text-muted-foreground">{t(absenceLabel)}</p>
       )}
       <RsvpAnswerButtons
         activityType="training"
@@ -380,7 +380,7 @@ function TrainingParticipation({ training, isStaff, isStaffParticipant, particip
       {/* Deadline info */}
       {/* Deadline info — "Deadline passed" is shown by RsvpAnswerButtons itself. */}
       {training.respond_by && !deadlinePassed && (
-        <p className="text-xs text-gray-500 dark:text-gray-400">
+        <p className="text-xs text-muted-foreground">
           {tTrainings('respondBy')}: {formatDate(training.respond_by)}, {formatTime(training.respond_by) || formatTime(training.start_time)}
         </p>
       )}
@@ -388,7 +388,7 @@ function TrainingParticipation({ training, isStaff, isStaffParticipant, particip
       {(effectiveStatus || requireNote) && (
         <div className="relative">
           <div className="flex items-center gap-2">
-            <MessageSquare className="h-4 w-4 shrink-0 text-gray-400" />
+            <MessageSquare className="h-4 w-4 shrink-0 text-muted-foreground/80" />
             <input
               type="text"
               value={noteText}
@@ -397,14 +397,14 @@ function TrainingParticipation({ training, isStaff, isStaffParticipant, particip
                 if (e.key === 'Enter') saveNote()
               }}
               placeholder={requireNote ? t('noteRequiredError') : t('notePlaceholder')}
-              className={`min-w-0 flex-1 rounded-md border bg-transparent px-2.5 py-1 text-sm text-gray-700 placeholder:text-gray-400 focus:border-brand-400 focus:outline-none dark:text-gray-300 dark:placeholder:text-gray-500 dark:focus:border-brand-500 ${
-                noteRequiredError ? 'border-red-400 dark:border-red-500' : 'border-gray-200 dark:border-gray-600'
+              className={`min-w-0 flex-1 rounded-md border bg-transparent px-2.5 py-1 text-sm text-foreground/85 placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                noteRequiredError ? 'border-red-400 dark:border-red-500' : 'border-border'
               }`}
             />
             <button
               onClick={saveNote}
               disabled={noteText === savedNote}
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-green-600 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-green-400"
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground/80 transition-colors hover:bg-muted hover:text-green-600 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-muted-foreground/80 dark:hover:text-green-400"
             >
               <Check className="h-4 w-4" />
             </button>
@@ -417,22 +417,22 @@ function TrainingParticipation({ training, isStaff, isStaffParticipant, particip
       {/* Guest counter — coaches/TR only */}
       {effectiveStatus && isStaff && (
         <div className="flex items-center gap-2">
-          <UserPlus className="h-4 w-4 shrink-0 text-gray-400" />
-          <span className="text-sm text-gray-500 dark:text-gray-400">{t('guests')}</span>
+          <UserPlus className="h-4 w-4 shrink-0 text-muted-foreground/80" />
+          <span className="text-sm text-muted-foreground">{t('guests')}</span>
           <div className="flex items-center gap-1.5">
             <button
               onClick={() => handleGuestChange(-1)}
               disabled={guestCount <= 0}
-              className="flex h-7 w-7 items-center justify-center rounded-md bg-gray-100 text-sm font-medium text-gray-700 hover:bg-gray-200 disabled:opacity-30 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+              className="flex h-7 w-7 items-center justify-center rounded-md bg-muted text-sm font-medium text-foreground/85 hover:bg-stone-200 disabled:opacity-30 dark:hover:bg-gray-600"
             >
               −
             </button>
-            <span className="min-w-[1.5rem] text-center text-sm font-medium text-gray-900 dark:text-gray-100">
+            <span className="min-w-[1.5rem] text-center text-sm font-medium text-foreground">
               {guestCount}
             </span>
             <button
               onClick={() => handleGuestChange(1)}
-              className="flex h-7 w-7 items-center justify-center rounded-md bg-gray-100 text-sm font-medium text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+              className="flex h-7 w-7 items-center justify-center rounded-md bg-muted text-sm font-medium text-foreground/85 hover:bg-stone-200 dark:hover:bg-gray-600"
             >
               +
             </button>

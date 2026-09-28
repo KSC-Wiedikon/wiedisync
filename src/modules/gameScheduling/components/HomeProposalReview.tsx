@@ -90,14 +90,14 @@ export default function HomeProposalReview({ booking, slotsById, hallsById, also
 
   // Who at the opponent club submitted this proposal (captured at confirm time).
   const proposedBy = (booking.proposed_by_name || booking.proposed_by_email) ? (
-    <p className="text-xs text-gray-500 dark:text-gray-400">
+    <p className="text-xs text-muted-foreground">
       {t('proposedBy')}: {[booking.proposed_by_name, booking.proposed_by_email].filter(Boolean).join(' · ')}
     </p>
   ) : null
 
   // Who on the KSCW side confirmed / manually entered this game, and when.
   const confirmedBy = (booking.confirmed_by_name || booking.confirmed_by_email || booking.confirmed_at) ? (
-    <p className="text-xs text-gray-500 dark:text-gray-400">
+    <p className="text-xs text-muted-foreground">
       {t('confirmedBy')}: {[booking.confirmed_by_name, booking.confirmed_by_email, booking.confirmed_at ? formatDateTimeCompact(booking.confirmed_at) : null].filter(Boolean).join(' · ')}
     </p>
   ) : null
@@ -119,7 +119,7 @@ export default function HomeProposalReview({ booking, slotsById, hallsById, also
       <div className="flex flex-1 flex-col gap-1.5">
         <div className="flex min-h-7 items-center gap-2">
           <BookingStatusBadge status="confirmed" />
-          {info && <span className="text-sm text-gray-600 dark:text-gray-400">{info.label}</span>}
+          {info && <span className="text-sm text-muted-foreground">{info.label}</span>}
         </div>
         {proposedBy}
         {confirmedBy}
@@ -161,7 +161,7 @@ export default function HomeProposalReview({ booking, slotsById, hallsById, also
       {proposedBy}
 
       {allDead && (
-        <div className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-xs dark:border-red-800 dark:bg-red-900/30">
+        <div className="rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-xs dark:border-red-800 dark:bg-red-900/30">
           <p className="font-medium text-red-700 dark:text-red-300">{t('allProposalsDead')}</p>
           {onRequestNewSlots && (
             askRequest ? (
@@ -212,14 +212,14 @@ export default function HomeProposalReview({ booking, slotsById, hallsById, also
         return (
           <div
             key={p.num}
-            className="flex items-center justify-between gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 dark:border-gray-600 dark:bg-gray-800"
+            className="flex items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2"
           >
             <div className="min-w-0">
-              <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+              <span className="text-xs font-medium text-muted-foreground">
                 {t('proposalNumber', { number: p.num })}
                 {p.num === 1 && valid && <span className="ml-1 text-green-700 dark:text-green-300">· {t('slotReserved')}</span>}
               </span>
-              <p className={`text-sm ${valid ? 'text-gray-900 dark:text-gray-100' : 'text-gray-400 line-through dark:text-gray-500'}`}>
+              <p className={`text-sm ${valid ? 'text-foreground' : 'text-muted-foreground/80 line-through'}`}>
                 {info ? info.label : t('slotMaybeTaken')}
               </p>
               {!valid && (

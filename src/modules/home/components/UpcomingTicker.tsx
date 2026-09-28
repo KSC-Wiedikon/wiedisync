@@ -38,7 +38,7 @@ function TickerIcon({ entry }: { entry: CalendarEntry }) {
 /** Shared by the real pill and its skeleton so the two are the same height —
  *  the whole point of the skeleton is that nothing moves when it's replaced. */
 const PILL_CLASS =
-  'flex items-center gap-2 whitespace-nowrap rounded-full border border-gray-200 bg-white px-3 py-1.5 text-sm shadow-sm dark:border-gray-700 dark:bg-gray-800'
+  'flex items-center gap-2 whitespace-nowrap rounded-full border border-border bg-card px-3 py-1.5 text-sm'
 
 function TickerPill({ entry, todayKey }: { entry: CalendarEntry; todayKey: string }) {
   const { t } = useTranslation('home')
@@ -67,8 +67,8 @@ function TickerPill({ entry, todayKey }: { entry: CalendarEntry; todayKey: strin
       <TickerIcon entry={entry} />
       {/* Struck through when called off — a cancelled training in the "next 7
           days" strip would otherwise read as one that's still happening. */}
-      <span className={`font-semibold text-gray-900 dark:text-gray-100 ${cancelledClasses(entry)}`}>{when}{time}</span>
-      <span className={`text-gray-600 dark:text-gray-300 ${cancelledClasses(entry)}`}>{main}</span>
+      <span className={`font-semibold text-foreground ${cancelledClasses(entry)}`}>{when}{time}</span>
+      <span className={`text-muted-foreground ${cancelledClasses(entry)}`}>{main}</span>
     </div>
   )
 }
@@ -82,7 +82,7 @@ const SKELETON_WIDTHS = [11, 8, 13, 9, 12, 10]
 function TickerSkeleton({ label }: { label: string }) {
   return (
     <div className="mb-6" aria-hidden>
-      <div className="mb-1.5 flex items-center justify-center gap-1.5 text-xs font-medium text-gray-500 dark:text-gray-400">
+      <div className="mb-1.5 flex items-center justify-center gap-1.5 text-xs font-medium text-muted-foreground">
         <CalendarClock className="h-3.5 w-3.5" />
         {label}
       </div>
@@ -90,11 +90,11 @@ function TickerSkeleton({ label }: { label: string }) {
         <div className="flex gap-3 overflow-hidden py-1 [mask-image:linear-gradient(to_right,transparent,black_4%,black_96%,transparent)]">
           {SKELETON_WIDTHS.map((w, i) => (
             <div key={i} className={`${PILL_CLASS} shrink-0 animate-pulse`}>
-              <div className="h-4 w-4 shrink-0 rounded-full bg-gray-200 dark:bg-gray-700" />
+              <div className="h-4 w-4 shrink-0 rounded-full bg-stone-200/80 dark:bg-muted" />
               {/* h-5 matches text-sm's 20px line box — without it the skeleton
                   pill is 4px shorter than the real one and the page still jumps. */}
               <div className="flex h-5 items-center">
-                <div className="h-3 rounded bg-gray-200 dark:bg-gray-700" style={{ width: `${w}rem` }} />
+                <div className="h-3 rounded bg-stone-200/80 dark:bg-muted" style={{ width: `${w}rem` }} />
               </div>
             </div>
           ))}
@@ -158,7 +158,7 @@ export default function UpcomingTicker({
 
   return (
     <div className="mb-6">
-      <div className="mb-1.5 flex items-center justify-center gap-1.5 text-xs font-medium text-gray-500 dark:text-gray-400">
+      <div className="mb-1.5 flex items-center justify-center gap-1.5 text-xs font-medium text-muted-foreground">
         <CalendarClock className="h-3.5 w-3.5" />
         {t('next7Days')}
       </div>

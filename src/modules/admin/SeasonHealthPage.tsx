@@ -81,7 +81,7 @@ function FindingSections({ report, tab, showClean }: {
     [report.checks, tab, showClean])
   if (groups.length === 0) {
     return (
-      <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-4" role="status">
+      <div className="flex items-center gap-3 rounded-2xl border border-hairline bg-card px-4 py-4 shadow-card" role="status">
         <CheckCircle2 className="h-5 w-5 shrink-0 text-green-500" aria-hidden="true" />
         <span className="text-sm text-green-700 dark:text-green-400">{t('allClean')}</span>
       </div>
@@ -167,7 +167,7 @@ export default function SeasonHealthPage() {
   const header = (
     <div className="mb-4 flex flex-wrap items-start gap-3">
       <div className="min-w-0 flex-1">
-        <h1 className="text-2xl font-bold text-foreground">{t('title')}</h1>
+        <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">{t('title')}</h1>
         <p className="mt-1 text-sm text-muted-foreground">{t('subtitle')}</p>
         {report && (
           <p className="mt-1 text-xs text-muted-foreground">
@@ -193,9 +193,9 @@ export default function SeasonHealthPage() {
     return (
       <div className="mx-auto max-w-6xl px-4 py-4">
         {header}
-        <div className={`flex flex-wrap items-center gap-3 rounded-xl border px-4 py-4 text-sm ${
+        <div className={`flex flex-wrap items-center gap-3 rounded-2xl border px-4 py-4 text-sm ${
           notDeployed
-            ? 'border-border bg-muted/40 text-muted-foreground'
+            ? 'border-hairline bg-surface-sunken text-muted-foreground'
             : 'border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400'
         }`} role="status">
           {!notDeployed && <AlertTriangle className="h-5 w-5 shrink-0" aria-hidden="true" />}

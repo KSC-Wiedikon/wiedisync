@@ -180,22 +180,22 @@ export default function ICalModal({ open, mode, onClose, entries }: ICalModalPro
       <div className="space-y-5">
         {/* Category selection (checkboxes) */}
         <div>
-          <p className="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+          <p className="mb-2 text-sm font-medium text-foreground/85">
             {t('icalFilterLabel')}
           </p>
           <div className="space-y-1">
             {categoryOptions.map((opt) => (
               <label
                 key={opt.value}
-                className="flex min-h-[44px] cursor-pointer items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-gray-50 sm:min-h-0 dark:hover:bg-gray-700"
+                className="flex min-h-[44px] cursor-pointer items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-accent sm:min-h-0"
               >
                 <input
                   type="checkbox"
                   checked={selectedCategories.includes(opt.value)}
                   onChange={() => toggleCategory(opt.value)}
-                  className="h-4 w-4 rounded text-brand-600 focus:ring-brand-500"
+                  className="h-4 w-4 rounded border-input accent-[var(--primary)] focus-visible:ring-2 focus-visible:ring-ring"
                 />
-                <span className="text-sm text-gray-900 dark:text-gray-100">{opt.label}</span>
+                <span className="text-sm text-foreground">{opt.label}</span>
               </label>
             ))}
           </div>
@@ -204,7 +204,7 @@ export default function ICalModal({ open, mode, onClose, entries }: ICalModalPro
         {/* Team filter — only user's own teams (admins see all) */}
         {visibleTeams.length > 0 && (
           <div>
-            <p className="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+            <p className="mb-2 text-sm font-medium text-foreground/85">
               {t('icalTeamFilter')}
             </p>
             {(() => {
@@ -232,13 +232,13 @@ export default function ICalModal({ open, mode, onClose, entries }: ICalModalPro
                 />
               )
             })()}
-            <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">{t('icalTeamHint')}</p>
+            <p className="mt-1 text-xs text-muted-foreground/80">{t('icalTeamHint')}</p>
           </div>
         )}
 
         {/* Duty note — the feed always carries the member's own duties. */}
         {mode === 'subscribe' && (
-          <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-900/20 dark:text-amber-200/90">
+          <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-300">
             {t('icalDutiesIncludedHint')}
           </p>
         )}
@@ -255,8 +255,8 @@ export default function ICalModal({ open, mode, onClose, entries }: ICalModalPro
 
         {/* Subscription link — revealed after "Generate link" */}
         {mode === 'subscribe' && linkShown && (
-          <div className="space-y-3 rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800/50">
-            <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+          <div className="space-y-3 rounded-xl border border-hairline bg-surface-sunken p-3">
+            <p className="text-sm font-medium text-foreground/85">
               {t('icalLinkReadyLabel')}
             </p>
             <div className="flex items-center gap-2">
@@ -264,7 +264,7 @@ export default function ICalModal({ open, mode, onClose, entries }: ICalModalPro
                 readOnly
                 value={subscribeUrl}
                 onFocus={(e) => e.currentTarget.select()}
-                className="h-11 min-w-0 flex-1 rounded-md border border-gray-300 bg-white px-3 text-xs text-gray-700 sm:h-9 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200"
+                className="h-11 min-w-0 flex-1 rounded-lg border border-input bg-card px-3 text-xs text-foreground/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-9 dark:bg-input/20"
               />
               <Button
                 type="button"
@@ -277,14 +277,14 @@ export default function ICalModal({ open, mode, onClose, entries }: ICalModalPro
             </div>
             <a
               href={webcalUrl}
-              className="inline-block text-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
+              className="inline-block text-xs font-medium text-primary hover:underline dark:text-brand-300"
             >
               {t('icalOpenInApp')}
             </a>
             {personalToken ? (
-              <p className="text-xs text-gray-400 dark:text-gray-500">{t('icalDutiesPrivacyHint')}</p>
+              <p className="text-xs text-muted-foreground/80">{t('icalDutiesPrivacyHint')}</p>
             ) : (
-              <p className="text-xs text-gray-400 dark:text-gray-500">{t('icalSubscribeHint')}</p>
+              <p className="text-xs text-muted-foreground/80">{t('icalSubscribeHint')}</p>
             )}
           </div>
         )}

@@ -384,24 +384,24 @@ export default function SignUpPage() {
   })()
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 dark:bg-gray-900">
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-stone-100 via-stone-50 to-stone-100 p-4 dark:from-background dark:via-background dark:to-card/40">
       <div className="w-full max-w-sm">
-        <div className="mb-8 flex justify-center">
-          <img
-            src={theme === 'light' ? '/wiedisync_blau.png' : '/wiedisync_weiss.png'}
-            alt="KSC Wiedikon"
-            className="h-16 w-auto"
-          />
-        </div>
-
-        <div className="rounded-xl bg-white p-6 shadow-lg sm:p-8 dark:bg-gray-800">
-          <h1 className="mb-6 text-center text-xl font-bold text-gray-900 dark:text-gray-100">
+        <div className="relative w-full overflow-hidden rounded-3xl border border-hairline bg-card p-6 shadow-card-lg sm:p-8">
+          <div aria-hidden="true" className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-brand-600 to-brand-400" />
+          <div className="mb-6 flex justify-center">
+            <img
+              src={theme === 'light' ? '/wiedisync_blau.png' : '/wiedisync_weiss.png'}
+              alt="KSC Wiedikon"
+              className="h-11 w-auto"
+            />
+          </div>
+          <h1 className="mb-6 text-center text-xl font-bold tracking-tight text-foreground">
             {title}
           </h1>
 
           {/* Invite flow: resolving the token */}
           {step === 'invite-loading' && (
-            <p className="py-4 text-center text-sm text-gray-500 dark:text-gray-400">
+            <p className="py-4 text-center text-sm text-muted-foreground">
               {t('inviteLoading')}
             </p>
           )}
@@ -409,20 +409,20 @@ export default function SignUpPage() {
           {/* Invite flow: set password + activate */}
           {step === 'invite' && inviteInfo && (
             <form onSubmit={handleInviteRedeem} className="space-y-4">
-              <p className="text-center text-base font-medium text-gray-900 dark:text-gray-100">
+              <p className="text-center text-base font-medium text-foreground">
                 {t('inviteGreeting', { name: inviteInfo.first_name })}
               </p>
-              <p className="text-center text-sm text-gray-500 dark:text-gray-400">
+              <p className="text-center text-sm text-muted-foreground">
                 {t('inviteIntro')}
               </p>
 
               {/* What happens next: 3 quick steps (unobtrusive) */}
-              <div className="rounded-lg bg-gray-50 px-3 py-2 dark:bg-gray-700/40">
-                <p className="flex flex-wrap items-center justify-center gap-x-1.5 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+              <div className="rounded-xl border border-hairline bg-surface-sunken px-3 py-2">
+                <p className="flex flex-wrap items-center justify-center gap-x-1.5 gap-y-1 text-xs text-muted-foreground">
                   <span>{t('inviteStepPassword')}</span>
-                  <span aria-hidden="true" className="text-gray-300 dark:text-gray-600">&rarr;</span>
+                  <span aria-hidden="true" className="text-muted-foreground/50">&rarr;</span>
                   <span>{t('inviteStepConfirm')}</span>
-                  <span aria-hidden="true" className="text-gray-300 dark:text-gray-600">&rarr;</span>
+                  <span aria-hidden="true" className="text-muted-foreground/50">&rarr;</span>
                   <span>{t('inviteStepDone')}</span>
                 </p>
               </div>
@@ -433,7 +433,7 @@ export default function SignUpPage() {
                 label={t('email')}
                 value={inviteInfo.email}
                 readOnly
-                className="bg-gray-50 dark:bg-gray-600"
+                className="bg-muted dark:bg-muted"
               />
 
               {/* Language */}
@@ -462,22 +462,22 @@ export default function SignUpPage() {
                 autoComplete="new-password"
               />
 
-              <p className="text-center text-xs text-gray-500 dark:text-gray-400">
+              <p className="text-center text-xs text-muted-foreground">
                 {t('privacyConsent')}{' '}
                 <button
                   type="button"
                   onClick={() => setShowPrivacy(true)}
-                  className="font-medium text-brand-600 underline hover:text-brand-500 dark:text-brand-400"
+                  className="font-medium text-primary underline hover:text-primary/80 dark:text-brand-300 dark:hover:text-brand-200"
                 >
                   {t('privacyPolicy')}
                 </button>.
               </p>
 
               {error && (
-                <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+                <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">{error}</p>
               )}
 
-              <Button type="submit" loading={loading} className="w-full">
+              <Button type="submit" loading={loading} className="h-12 w-full rounded-xl font-semibold shadow-sm shadow-primary/20 sm:h-12">
                 {loading ? t('settingPassword') : t('activateAccount')}
               </Button>
             </form>
@@ -486,13 +486,13 @@ export default function SignUpPage() {
           {/* Invite flow: invalid / expired / already used token */}
           {step === 'invite-error' && (
             <div className="space-y-4">
-              <p className="text-center text-sm text-gray-500 dark:text-gray-400">
+              <p className="text-center text-sm text-muted-foreground">
                 {t(inviteErrorCode === 'already_claimed' ? 'inviteClaimedDescription' : 'inviteInvalidDescription')}
               </p>
 
-              <p className="text-center text-sm text-gray-500 dark:text-gray-400">
+              <p className="text-center text-sm text-muted-foreground">
                 {t('alreadyHaveAccount')}{' '}
-                <Link to="/login" className="font-medium text-brand-600 hover:text-brand-500 dark:text-brand-400">
+                <Link to="/login" className="font-medium text-primary hover:text-primary/80 dark:text-brand-300 dark:hover:text-brand-200">
                   {t('signIn')}
                 </Link>
               </p>
@@ -503,7 +503,7 @@ export default function SignUpPage() {
               429 / 500) — retryable, deliberately NOT the "invite dead" panel */}
           {step === 'invite-fetch-error' && (
             <div className="space-y-4">
-              <p className="text-center text-sm text-gray-500 dark:text-gray-400">
+              <p className="text-center text-sm text-muted-foreground">
                 {t('inviteFetchErrorDescription')}
               </p>
 
@@ -522,7 +522,7 @@ export default function SignUpPage() {
           {/* Registration closed: unknown email, self-signup no longer possible */}
           {step === 'registration-closed' && (
             <div className="space-y-4">
-              <p className="text-center text-sm text-gray-500 dark:text-gray-400">
+              <p className="text-center text-sm text-muted-foreground">
                 {t('registrationClosedDescription')}
               </p>
 
@@ -537,9 +537,9 @@ export default function SignUpPage() {
                 {t('tryDifferentEmail')}
               </Button>
 
-              <p className="text-center text-sm text-gray-500 dark:text-gray-400">
+              <p className="text-center text-sm text-muted-foreground">
                 {t('alreadyHaveAccount')}{' '}
-                <Link to="/login" className="font-medium text-brand-600 hover:text-brand-500 dark:text-brand-400">
+                <Link to="/login" className="font-medium text-primary hover:text-primary/80 dark:text-brand-300 dark:hover:text-brand-200">
                   {t('signIn')}
                 </Link>
               </p>
@@ -567,10 +567,10 @@ export default function SignUpPage() {
               {turnstileWidget}
 
               {error && (
-                <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+                <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">{error}</p>
               )}
 
-              <Button type="submit" loading={loading} disabled={!turnstileReady} className="w-full">
+              <Button type="submit" loading={loading} disabled={!turnstileReady} className="h-12 w-full rounded-xl font-semibold shadow-sm shadow-primary/20 sm:h-12">
                 {loading ? t('checkingEmail') : t('continue')}
               </Button>
 
@@ -580,20 +580,20 @@ export default function SignUpPage() {
                 </p>
               )}
 
-              <p className="text-center text-xs text-gray-500 dark:text-gray-400">
+              <p className="text-center text-xs text-muted-foreground">
                 {t('privacyConsent')}{' '}
                 <button
                   type="button"
                   onClick={() => setShowPrivacy(true)}
-                  className="font-medium text-brand-600 underline hover:text-brand-500 dark:text-brand-400"
+                  className="font-medium text-primary underline hover:text-primary/80 dark:text-brand-300 dark:hover:text-brand-200"
                 >
                   {t('privacyPolicy')}
                 </button>.
               </p>
 
-              <p className="text-center text-sm text-gray-500 dark:text-gray-400">
+              <p className="text-center text-sm text-muted-foreground">
                 {t('alreadyHaveAccount')}{' '}
-                <Link to="/login" className="font-medium text-brand-600 hover:text-brand-500 dark:text-brand-400">
+                <Link to="/login" className="font-medium text-primary hover:text-primary/80 dark:text-brand-300 dark:hover:text-brand-200">
                   {t('signIn')}
                 </Link>
               </p>
@@ -603,7 +603,7 @@ export default function SignUpPage() {
           {/* Step 2: OTP claim for existing members */}
           {step === 'otp-claim' && (
             <div className="space-y-4">
-              <p className="text-center text-sm text-gray-500 dark:text-gray-400">
+              <p className="text-center text-sm text-muted-foreground">
                 {t('activateAccountDescription')}
               </p>
 
@@ -630,7 +630,7 @@ export default function SignUpPage() {
           {/* Step 3: Complete profile after OTP claim (ClubDesk imports) */}
           {step === 'complete-profile' && (
             <form onSubmit={handleCompleteProfile} className="space-y-4">
-              <p className="text-center text-sm text-gray-500 dark:text-gray-400">
+              <p className="text-center text-sm text-muted-foreground">
                 {t('activateAccountDescription')}
               </p>
 
@@ -640,7 +640,7 @@ export default function SignUpPage() {
                 label={t('email')}
                 value={email}
                 readOnly
-                className="bg-gray-50 dark:bg-gray-600"
+                className="bg-muted dark:bg-muted"
               />
 
               <div className="grid grid-cols-2 gap-3">
@@ -665,7 +665,7 @@ export default function SignUpPage() {
               {/* Existing teams (pre-assigned from ClubDesk) */}
               {hasExistingTeams && (
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
                     {t('yourTeams')}
                   </label>
                   <div className="flex flex-wrap gap-2">
@@ -684,7 +684,7 @@ export default function SignUpPage() {
 
               {/* Additional team selection */}
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
                   {hasExistingTeams ? t('joinAdditionalTeams') : t('selectTeam')}
                 </label>
 
@@ -697,8 +697,8 @@ export default function SignUpPage() {
                       onClick={() => setSelectedSport(sport)}
                       className={`h-11 rounded-lg border px-3 text-sm font-medium transition-colors sm:h-9 ${
                         selectedSport === sport
-                          ? 'border-gold-400 bg-gold-100 text-gold-900 dark:border-gold-400/50 dark:bg-gold-400/20 dark:text-gold-300'
-                          : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
+                          ? 'border-selected bg-selected text-selected-foreground'
+                          : 'border-border bg-card text-muted-foreground hover:bg-accent'
                       }`}
                     >
                       {tc(sport)}
@@ -707,20 +707,20 @@ export default function SignUpPage() {
                 </div>
 
                 {/* Team checkboxes */}
-                <div className="max-h-40 space-y-1 overflow-y-auto rounded-lg border border-gray-200 p-2 dark:border-gray-600">
+                <div className="max-h-40 space-y-1 overflow-y-auto rounded-lg border border-border p-2">
                   {availableTeams.length === 0 ? (
-                    <p className="py-2 text-center text-sm text-gray-400">{t('noTeamsForSport')}</p>
+                    <p className="py-2 text-center text-sm text-muted-foreground/80">{t('noTeamsForSport')}</p>
                   ) : (
                     availableTeams.map((team) => (
                       <label
                         key={team.id}
-                        className="flex min-h-[36px] cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-gray-50 dark:hover:bg-gray-700"
+                        className="flex min-h-[36px] cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted"
                       >
                         <Checkbox
                           checked={additionalTeamIds.includes(team.id)}
                           onCheckedChange={() => toggleAdditionalTeam(team.id)}
                         />
-                        <span className="text-gray-900 dark:text-gray-100">
+                        <span className="text-foreground">
                           {team.name}{team.league ? ` — ${team.league}` : ''}
                         </span>
                       </label>
@@ -728,7 +728,7 @@ export default function SignUpPage() {
                   )}
                 </div>
                 {hasExistingTeams && (
-                  <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                  <p className="mt-1 text-xs text-muted-foreground/80">
                     {t('additionalTeamsNote')}
                   </p>
                 )}
@@ -756,10 +756,10 @@ export default function SignUpPage() {
               />
 
               {error && (
-                <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+                <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">{error}</p>
               )}
 
-              <Button type="submit" loading={loading} className="w-full">
+              <Button type="submit" loading={loading} className="h-12 w-full rounded-xl font-semibold shadow-sm shadow-primary/20 sm:h-12">
                 {loading ? t('settingPassword') : t('activateAccount')}
               </Button>
             </form>

@@ -161,7 +161,7 @@ export default function CalendarPage() {
     <div className="flex min-h-[calc(100vh-8rem)] flex-col gap-4">
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-xl font-bold text-gray-900 sm:text-2xl dark:text-gray-100">{t('title')}</h1>
+        <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">{t('title')}</h1>
         <div className="flex items-center gap-2">
           {needsData && (
             <>
@@ -174,7 +174,7 @@ export default function CalendarPage() {
               >
                 <span className="hidden sm:inline">{t('filterTitle')}</span>
                 {getActiveFilterCount(filters, allowedSources.length) > 0 && (
-                  <span className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-brand-500 text-[10px] font-bold text-white">
+                  <span className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold tabular-nums text-primary-foreground">
                     {getActiveFilterCount(filters, allowedSources.length)}
                   </span>
                 )}

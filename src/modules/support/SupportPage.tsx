@@ -36,8 +36,8 @@ export default function SupportPage() {
     <div className="mx-auto w-full max-w-2xl px-4 py-6">
       <header className="mb-6">
         <div className="flex items-center gap-3">
-          <Coffee className="h-6 w-6 text-brand-600 dark:text-gold-400" />
-          <h1 className="text-2xl font-bold text-foreground">{t('title')}</h1>
+          <Coffee className="h-6 w-6 text-primary dark:text-gold-400" />
+          <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">{t('title')}</h1>
         </div>
         <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{t('lead')}</p>
         <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{t('leadTwo')}</p>
@@ -92,7 +92,7 @@ export default function SupportPage() {
       </div>
 
       <p className="mt-6 text-sm text-muted-foreground">{t('thanks')}</p>
-      <p className="mt-4 rounded-lg border border-border bg-muted/40 p-3 text-xs leading-relaxed text-muted-foreground">
+      <p className="mt-4 rounded-xl border border-hairline bg-surface-sunken p-3 text-xs leading-relaxed text-muted-foreground">
         {t('disclaimer')}
       </p>
     </div>

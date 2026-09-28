@@ -25,9 +25,9 @@ export function StatusBadge({ inv }: { inv: FinanceInvoice }) {
       partial: ['bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300', t('statusPartial')],
       pending_confirmation: ['bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300', t('statusPendingConfirmation')],
       paid: ['bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300', t('statusPaid')],
-      cancelled: ['bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400', t('statusCancelled')],
+      cancelled: ['bg-muted text-muted-foreground', t('statusCancelled')],
     }
-    const [cls, label] = map[s] ?? ['bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300', s]
+    const [cls, label] = map[s] ?? ['bg-muted text-muted-foreground', s]
     return <span className={`${base} ${cls}`}>{label}</span>
   }
   if (!inv.status) return null
@@ -77,13 +77,13 @@ export default function InvoiceTable({ invoices, canPay = true, onPaid }: Invoic
   return (
     <Table>
       <TableHeader>
-        <TableRow className="border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/40">
-          <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colSubject')}</TableHead>
-          <TableHead className="hidden sm:table-cell text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colDate')}</TableHead>
-          <TableHead className="hidden sm:table-cell text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colDue')}</TableHead>
-          <TableHead className="text-right text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colAmount')}</TableHead>
-          <TableHead className="text-right text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colOpen')}</TableHead>
-          <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colStatus')}</TableHead>
+        <TableRow>
+          <TableHead>{t('colSubject')}</TableHead>
+          <TableHead className="hidden sm:table-cell">{t('colDate')}</TableHead>
+          <TableHead className="hidden sm:table-cell">{t('colDue')}</TableHead>
+          <TableHead className="text-right">{t('colAmount')}</TableHead>
+          <TableHead className="text-right">{t('colOpen')}</TableHead>
+          <TableHead>{t('colStatus')}</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -97,17 +97,17 @@ export default function InvoiceTable({ invoices, canPay = true, onPaid }: Invoic
           return (
             <Fragment key={inv.id}>
               <TableRow
-                className={`border-gray-200 dark:border-gray-700 ${expandable ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/40' : ''}`}
+                className={`${expandable ? 'cursor-pointer hover:bg-muted' : ''}`}
                 onClick={expandable ? () => setPayRow((p) => (p === inv.id ? null : inv.id)) : undefined}
               >
-                <TableCell className="whitespace-normal break-words text-gray-900 dark:text-gray-100">
+                <TableCell className="whitespace-normal break-words text-foreground">
                   {expandable && (
                     <span className="mr-1 inline-block align-middle text-amber-500">
                       {expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
                     </span>
                   )}
                   {inv.subject || inv.number || '–'}
-                  <span className="mt-0.5 block text-xs text-gray-400 sm:hidden">
+                  <span className="mt-0.5 block text-xs text-muted-foreground/80 sm:hidden">
                     {inv.invoice_date ? formatDateCompactZurich(inv.invoice_date) : ''}
                   </span>
                   {/* A CHF 0 invoice's total tells the member nothing — the
@@ -115,7 +115,7 @@ export default function InvoiceTable({ invoices, canPay = true, onPaid }: Invoic
                       free membership is never emailed, so this page is the
                       only place the member ever sees why it came to nothing. */}
                   {toNum(inv.amount) === 0 && (inv.lines?.length ?? 0) > 1 && (
-                    <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">
+                    <span className="mt-1 block text-xs text-muted-foreground">
                       {inv.lines!.map((l, i) => (
                         <span key={i} className="flex justify-between gap-3 tabular-nums">
                           <span className="whitespace-normal break-words">{l.label}</span>
@@ -125,20 +125,20 @@ export default function InvoiceTable({ invoices, canPay = true, onPaid }: Invoic
                     </span>
                   )}
                 </TableCell>
-                <TableCell className="hidden sm:table-cell whitespace-nowrap text-gray-600 dark:text-gray-400">
+                <TableCell className="hidden sm:table-cell whitespace-nowrap text-muted-foreground">
                   {inv.invoice_date ? formatDateCompactZurich(inv.invoice_date) : '–'}
                 </TableCell>
-                <TableCell className="hidden sm:table-cell whitespace-nowrap text-gray-600 dark:text-gray-400">
+                <TableCell className="hidden sm:table-cell whitespace-nowrap text-muted-foreground">
                   {inv.due_date ? formatDateCompactZurich(inv.due_date) : '–'}
                 </TableCell>
-                <TableCell className="text-right tabular-nums text-gray-900 dark:text-gray-100">{formatChf(inv.amount)}</TableCell>
-                <TableCell className={`text-right tabular-nums ${open > 0 && !pending ? 'text-red-600 dark:text-red-400' : 'text-gray-400'}`}>
+                <TableCell className="text-right tabular-nums text-foreground">{formatChf(inv.amount)}</TableCell>
+                <TableCell className={`text-right tabular-nums ${open > 0 && !pending ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground/80'}`}>
                   {open > 0 && payable ? formatChf(open) : '–'}
                 </TableCell>
                 <TableCell><StatusBadge inv={inv} /></TableCell>
               </TableRow>
               {expanded && expandable && (
-                <TableRow className="border-gray-200 dark:border-gray-700">
+                <TableRow>
                   <TableCell colSpan={6} className="bg-amber-50/40 dark:bg-amber-900/10">
                     <InvoiceQrBill invoice={inv} />
                     {/* Offered for ClubDesk mirror rows too — the report is kept
@@ -153,13 +153,13 @@ export default function InvoiceTable({ invoices, canPay = true, onPaid }: Invoic
                         <Check className="h-4 w-4" />
                         {t('setAsPaid')}
                       </Button>
-                      <p className="max-w-sm text-center text-xs text-gray-500 dark:text-gray-400">{t('iPaidHint')}</p>
+                      <p className="max-w-sm text-center text-xs text-muted-foreground">{t('iPaidHint')}</p>
                     </div>
                   </TableCell>
                 </TableRow>
               )}
               {pending && (
-                <TableRow className="border-gray-200 dark:border-gray-700">
+                <TableRow>
                   <TableCell colSpan={6} className="bg-blue-50/40 py-2 dark:bg-blue-900/10">
                     <p className="flex items-center justify-center gap-1.5 text-xs text-blue-700 dark:text-blue-300">
                       <Clock className="h-3.5 w-3.5" /> {t('pendingConfirmationHint')}

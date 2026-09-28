@@ -123,11 +123,11 @@ export default function MemberPayoutQrBill({ member }: { member: FinanceMember }
   if (!iban && payouts.length === 0) return null
 
   return (
-    <section className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
-      <h3 className="mb-1 flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+    <section className="rounded-2xl border border-hairline bg-card shadow-card p-4">
+      <h3 className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
         <QrCode className="h-4 w-4" /> {t('payoutQrTitle')}
       </h3>
-      {iban && <p className="font-mono text-sm text-gray-900 dark:text-gray-100">{fmtIban(iban)}</p>}
+      {iban && <p className="font-mono text-sm text-foreground">{fmtIban(iban)}</p>}
       {useBilling && <p className="mt-0.5 text-xs font-medium text-brand-600 dark:text-brand-300">{t('payoutToBilling', { name })}</p>}
       {unconfirmed && (
         <p className="mt-0.5 flex items-center gap-1 text-xs text-amber-700 dark:text-amber-400">
@@ -143,14 +143,14 @@ export default function MemberPayoutQrBill({ member }: { member: FinanceMember }
         <>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <label className="block">
-              <span className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">{t('payoutAmount')}</span>
+              <span className="mb-1 block text-xs font-medium text-muted-foreground">{t('payoutAmount')}</span>
               <input inputMode="decimal" value={amountStr} onChange={(e) => setAmountStr(e.target.value)} placeholder={t('payoutAmountPlaceholder')}
-                className="h-11 w-full rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm sm:h-9 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />
+                className="h-11 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm sm:h-9 dark:bg-gray-800 text-foreground placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" />
             </label>
             <label className="block">
-              <span className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">{t('payoutMessage')}</span>
+              <span className="mb-1 block text-xs font-medium text-muted-foreground">{t('payoutMessage')}</span>
               <input value={message} onChange={(e) => setMessage(e.target.value)} maxLength={140}
-                className="h-11 w-full rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm sm:h-9 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />
+                className="h-11 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm sm:h-9 dark:bg-gray-800 text-foreground placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" />
             </label>
           </div>
 
@@ -169,7 +169,7 @@ export default function MemberPayoutQrBill({ member }: { member: FinanceMember }
               <div className="flex justify-center">
                 <div className="w-fit rounded-lg bg-white p-4 text-black" dangerouslySetInnerHTML={{ __html: svg }} />
               </div>
-              <p className="mt-2 text-center text-xs text-gray-400 dark:text-gray-500">
+              <p className="mt-2 text-center text-xs text-muted-foreground/80">
                 {amount ? t('payoutQrHintAmount', { amount: formatChf(amount) }) : t('payoutQrHint')}
               </p>
             </div>
@@ -180,20 +180,20 @@ export default function MemberPayoutQrBill({ member }: { member: FinanceMember }
 
       {payouts.length > 0 && (
         <div className="mt-4">
-          <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('payoutsSaved')}</h4>
-          <div className="divide-y divide-gray-200 rounded-lg border border-gray-200 dark:divide-gray-700 dark:border-gray-700">
+          <h4 className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{t('payoutsSaved')}</h4>
+          <div className="divide-y divide-border rounded-xl border border-hairline">
             {payouts.map((p) => (
               <div key={p.id} className="flex items-center gap-3 p-2.5">
                 <div className="min-w-0 flex-1">
-                  <span className="font-medium tabular-nums text-gray-900 dark:text-gray-100">{p.amount != null ? formatChf(p.amount) : '—'}</span>
-                  {p.message && <span className="ml-2 text-sm text-gray-500 dark:text-gray-400">{p.message}</span>}
-                  <span className="mt-0.5 block text-xs text-gray-400">{p.date_created ? formatDateCompactZurich(p.date_created) : ''}{p.created_by_name ? ` · ${p.created_by_name}` : ''}</span>
+                  <span className="font-medium tabular-nums text-foreground">{p.amount != null ? formatChf(p.amount) : '—'}</span>
+                  {p.message && <span className="ml-2 text-sm text-muted-foreground">{p.message}</span>}
+                  <span className="mt-0.5 block text-xs text-muted-foreground/80">{p.date_created ? formatDateCompactZurich(p.date_created) : ''}{p.created_by_name ? ` · ${p.created_by_name}` : ''}</span>
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
-                  <IconButton size="sm" onClick={() => downloadSaved(p)} label={t('payoutDownloadPdf')} className="text-gray-500 hover:text-brand-600 dark:text-gray-400 dark:hover:text-brand-300">
+                  <IconButton size="sm" onClick={() => downloadSaved(p)} label={t('payoutDownloadPdf')} className="text-muted-foreground hover:text-brand-600 dark:hover:text-brand-300">
                     <Download />
                   </IconButton>
-                  <IconButton size="sm" onClick={() => removeSaved(p)} label={t('payoutDelete')} className="text-gray-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400">
+                  <IconButton size="sm" onClick={() => removeSaved(p)} label={t('payoutDelete')} className="text-muted-foreground/80 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400">
                     <Trash2 />
                   </IconButton>
                 </div>

@@ -84,7 +84,7 @@ export default function ChangePasswordModal({ onClose }: ChangePasswordModalProp
     <Modal open onClose={onClose} title={t('changePassword')} size="sm">
       <div className="space-y-3">
         {hasKeys && (
-          <p className="rounded-md bg-accent p-2.5 text-xs leading-relaxed text-muted-foreground">
+          <p className="rounded-xl border border-hairline bg-surface-sunken p-2.5 text-xs leading-relaxed text-muted-foreground">
             {t('pwKeyNotice')}
           </p>
         )}
@@ -95,7 +95,7 @@ export default function ChangePasswordModal({ onClose }: ChangePasswordModalProp
           ['confirm', confirm, setConfirm, t('confirmPassword'), 'new-password'],
         ] as const).map(([key, value, set, label, autoComplete]) => (
           <div key={key}>
-            <label className="mb-1 block text-xs font-medium text-foreground" htmlFor={`pw-${key}`}>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground" htmlFor={`pw-${key}`}>
               {label}
             </label>
             <input
@@ -104,7 +104,7 @@ export default function ChangePasswordModal({ onClose }: ChangePasswordModalProp
               autoComplete={autoComplete}
               value={value}
               onChange={(e) => set(e.target.value)}
-              className="h-11 w-full rounded-md border bg-background px-3 text-sm dark:bg-gray-800"
+              className="h-11 w-full rounded-lg border border-input bg-card px-3 text-sm text-foreground placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-input/20"
             />
           </div>
         ))}

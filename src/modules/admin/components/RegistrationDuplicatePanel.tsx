@@ -165,7 +165,7 @@ export default function RegistrationDuplicatePanel({
 
   if (loading) {
     return (
-      <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
+      <div className="flex items-center gap-2 rounded-xl border border-hairline bg-surface-sunken p-3 text-sm text-muted-foreground">
         <Loader2 className="h-4 w-4 animate-spin" />
         {t('anmeldungenDupChecking')}
       </div>
@@ -175,7 +175,7 @@ export default function RegistrationDuplicatePanel({
     return (
       <button
         onClick={refetch}
-        className="flex w-full items-center gap-2 rounded-lg border border-gray-200 bg-white p-3 text-left text-sm text-gray-500 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"
+        className="flex w-full items-center gap-2 rounded-xl border border-hairline bg-surface-sunken p-3 text-left text-sm text-muted-foreground hover:bg-accent"
       >
         <CircleAlert className="h-4 w-4" />
         {t('anmeldungenDupCheckFailed')}
@@ -186,7 +186,7 @@ export default function RegistrationDuplicatePanel({
   if (!data || data.level === 'none') {
     if (data?.linked_member) {
       return (
-        <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
+        <div className="flex items-center gap-2 rounded-xl border border-hairline bg-surface-sunken p-3 text-sm text-muted-foreground">
           <UserCheck className="h-4 w-4 text-green-600 dark:text-green-400" />
           {t('anmeldungenDupLinked', { id: data.linked_member })}
         </div>
@@ -210,19 +210,19 @@ export default function RegistrationDuplicatePanel({
     : data.level === 'returning' ? 'anmeldungenDupReturningHint' : 'anmeldungenDupPossibleHint'
 
   return (
-    <div className={`rounded-lg border p-3 ${tone}`}>
+    <div className={`rounded-xl border p-3 ${tone}`}>
       <div className="flex items-start gap-2">
         <CircleAlert className={`mt-0.5 h-4 w-4 shrink-0 ${
           data.level === 'blocked' ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-400'
         }`} />
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{t(titleKey)}</p>
-          <p className="mt-0.5 text-xs text-gray-600 dark:text-gray-300">{t(hintKey)}</p>
+          <p className="text-sm font-medium text-foreground">{t(titleKey)}</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">{t(hintKey)}</p>
         </div>
       </div>
 
       {data.linked_member != null && (
-        <p className="mt-2 rounded-md border border-red-300 bg-red-50 px-2 py-1.5 text-xs text-red-800 dark:border-red-700 dark:bg-red-900/20 dark:text-red-300">
+        <p className="mt-2 rounded-lg border border-red-300 bg-red-50 px-2 py-1.5 text-xs text-red-800 dark:border-red-700 dark:bg-red-900/20 dark:text-red-300">
           {t('anmeldungenDupAlreadyLinked', {
             name: data.linked_member_name || `#${data.linked_member}`,
             id: data.linked_member,
@@ -233,25 +233,25 @@ export default function RegistrationDuplicatePanel({
       {/* Candidates */}
       <div className="mt-3 space-y-2">
         {data.candidates.map((c) => (
-          <div key={c.member_id} className="rounded-md border border-gray-200 bg-white p-2 dark:border-gray-700 dark:bg-gray-800">
+          <div key={c.member_id} className="rounded-lg border border-border bg-card p-2">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{c.name}</span>
-                  <span className="text-xs text-gray-500 dark:text-gray-400">#{c.member_id}</span>
+                  <span className="text-sm font-medium text-foreground">{c.name}</span>
+                  <span className="text-xs text-muted-foreground">#{c.member_id}</span>
                   <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${
                     c.active
                       ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
-                      : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
+                      : 'bg-muted text-muted-foreground'
                   }`}>
                     {c.active ? t('anmeldungenDupActive') : t('anmeldungenDupFormer')}
                   </span>
                   {c.clubdesk_id && (
-                    <span className="text-[11px] text-gray-500 dark:text-gray-400">CD {c.clubdesk_id}</span>
+                    <span className="text-[11px] text-muted-foreground">CD {c.clubdesk_id}</span>
                   )}
                 </div>
-                <div className="mt-0.5 break-all text-xs text-gray-500 dark:text-gray-400">{c.email || '—'}</div>
-                <div className="mt-0.5 text-[11px] text-gray-500 dark:text-gray-400">
+                <div className="mt-0.5 break-all text-xs text-muted-foreground">{c.email || '—'}</div>
+                <div className="mt-0.5 text-[11px] text-muted-foreground">
                   {t('anmeldungenDupMatchedOn')}{' '}
                   {c.reasons.map((r) => t(`anmeldungenDupReason_${r}`, { defaultValue: r })).join(', ')}
                 </div>
@@ -261,7 +261,7 @@ export default function RegistrationDuplicatePanel({
                   href={`/admin/explore?t=members&id=${c.member_id}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-xs text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+                  className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:bg-accent"
                 >
                   <ExternalLink className="h-3.5 w-3.5" />
                   {t('anmeldungenDupOpenMember')}
@@ -278,9 +278,9 @@ export default function RegistrationDuplicatePanel({
             </div>
 
             {openId === c.member_id && (
-              <div className="mt-3 border-t border-gray-200 pt-3 dark:border-gray-700">
+              <div className="mt-3 border-t border-border pt-3">
                 {c.diff.filter((d) => d.differs).length === 0 ? (
-                  <p className="text-xs text-gray-500 dark:text-gray-400">{t('anmeldungenDupNoDiff')}</p>
+                  <p className="text-xs text-muted-foreground">{t('anmeldungenDupNoDiff')}</p>
                 ) : (
                   <>
                     <div className="overflow-x-auto">
@@ -288,9 +288,9 @@ export default function RegistrationDuplicatePanel({
                         <TableHeader>
                           <TableRow>
                             <TableHead className="w-10" />
-                            <TableHead className="text-gray-500 dark:text-gray-400">{t('anmeldungenDupColField')}</TableHead>
-                            <TableHead className="text-gray-500 dark:text-gray-400">{t('anmeldungenDupColMember')}</TableHead>
-                            <TableHead className="text-gray-500 dark:text-gray-400">{t('anmeldungenDupColRegistration')}</TableHead>
+                            <TableHead className="text-muted-foreground">{t('anmeldungenDupColField')}</TableHead>
+                            <TableHead className="text-muted-foreground">{t('anmeldungenDupColMember')}</TableHead>
+                            <TableHead className="text-muted-foreground">{t('anmeldungenDupColRegistration')}</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -301,10 +301,10 @@ export default function RegistrationDuplicatePanel({
                                   type="checkbox"
                                   checked={!!picked[d.key]}
                                   onChange={() => setPicked((p) => ({ ...p, [d.key]: !p[d.key] }))}
-                                  className="h-4 w-4 rounded border-gray-300 text-blue-600 dark:border-gray-600"
+                                  className="h-4 w-4 rounded border-input accent-[var(--primary)]"
                                 />
                               </TableCell>
-                              <TableCell className="whitespace-normal break-words text-xs text-gray-700 dark:text-gray-200">
+                              <TableCell className="whitespace-normal break-words text-xs text-foreground/85">
                                 {d.label}
                                 {!d.member_empty && (
                                   <span className="ml-1 text-[10px] font-medium uppercase text-amber-600 dark:text-amber-400">
@@ -312,10 +312,10 @@ export default function RegistrationDuplicatePanel({
                                   </span>
                                 )}
                               </TableCell>
-                              <TableCell className="whitespace-normal break-words text-xs text-gray-500 dark:text-gray-400">
+                              <TableCell className="whitespace-normal break-words text-xs text-muted-foreground">
                                 {d.member_value ?? '—'}
                               </TableCell>
-                              <TableCell className="whitespace-normal break-words text-xs font-medium text-gray-900 dark:text-gray-100">
+                              <TableCell className="whitespace-normal break-words text-xs font-medium text-foreground">
                                 {d.registration_value}
                               </TableCell>
                             </TableRow>
@@ -324,7 +324,7 @@ export default function RegistrationDuplicatePanel({
                       </Table>
                     </div>
                     <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
-                      <span className="mr-auto text-[11px] text-gray-500 dark:text-gray-400">
+                      <span className="mr-auto text-[11px] text-muted-foreground">
                         {t('anmeldungenDupMergeNote')}
                       </span>
                       <Button size="sm" variant="outline" onClick={() => setOpenId(null)} disabled={merging}>

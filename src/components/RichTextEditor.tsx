@@ -87,22 +87,22 @@ export default function RichTextEditor({ value, onChange, placeholder, minHeight
   // Toolbar toggles on the dense icon tier (36px phone / 32px sm+).
   const btn = (active: boolean) =>
     active
-      ? 'bg-brand-100 text-brand-700 hover:bg-brand-100 hover:text-brand-700 dark:bg-brand-900/40 dark:text-brand-300 dark:hover:bg-brand-900/40 dark:hover:text-brand-300'
-      : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
+      ? 'bg-selected text-selected-foreground hover:bg-selected/90 hover:text-selected-foreground'
+      : 'text-muted-foreground hover:bg-accent'
 
   return (
-    <div className="overflow-hidden rounded-md border border-gray-300 bg-white dark:border-gray-600 dark:bg-gray-900">
-      <div className="flex flex-wrap items-center gap-0.5 border-b border-gray-200 bg-gray-50 px-1 py-1 dark:border-gray-700 dark:bg-gray-800">
+    <div className="overflow-hidden rounded-lg border border-input bg-card focus-within:ring-2 focus-within:ring-ring dark:bg-input/20">
+      <div className="flex flex-wrap items-center gap-0.5 border-b border-border bg-surface-sunken px-1 py-1">
         <IconButton type="button" size="sm" onClick={() => editor.chain().focus().toggleBold().run()} className={btn(editor.isActive('bold'))} aria-pressed={editor.isActive('bold')} label={t('editor.bold')}><Bold /></IconButton>
         <IconButton type="button" size="sm" onClick={() => editor.chain().focus().toggleItalic().run()} className={btn(editor.isActive('italic'))} aria-pressed={editor.isActive('italic')} label={t('editor.italic')}><Italic /></IconButton>
-        <span className="mx-1 h-5 w-px bg-gray-300 dark:bg-gray-600" />
+        <span className="mx-1 h-5 w-px bg-border" />
         <IconButton type="button" size="sm" onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} className={btn(editor.isActive('heading', { level: 2 }))} aria-pressed={editor.isActive('heading', { level: 2 })} label={t('editor.heading2')}><Heading2 /></IconButton>
         <IconButton type="button" size="sm" onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} className={btn(editor.isActive('heading', { level: 3 }))} aria-pressed={editor.isActive('heading', { level: 3 })} label={t('editor.heading3')}><Heading3 /></IconButton>
-        <span className="mx-1 h-5 w-px bg-gray-300 dark:bg-gray-600" />
+        <span className="mx-1 h-5 w-px bg-border" />
         <IconButton type="button" size="sm" onClick={() => editor.chain().focus().toggleBulletList().run()} className={btn(editor.isActive('bulletList'))} aria-pressed={editor.isActive('bulletList')} label={t('editor.bulletList')}><List /></IconButton>
         <IconButton type="button" size="sm" onClick={() => editor.chain().focus().toggleOrderedList().run()} className={btn(editor.isActive('orderedList'))} aria-pressed={editor.isActive('orderedList')} label={t('editor.numberedList')}><ListOrdered /></IconButton>
         <IconButton type="button" size="sm" onClick={() => editor.chain().focus().toggleBlockquote().run()} className={btn(editor.isActive('blockquote'))} aria-pressed={editor.isActive('blockquote')} label={t('editor.quote')}><Quote /></IconButton>
-        <span className="mx-1 h-5 w-px bg-gray-300 dark:bg-gray-600" />
+        <span className="mx-1 h-5 w-px bg-border" />
         <IconButton type="button" size="sm" onClick={setLink} className={btn(editor.isActive('link'))} aria-pressed={editor.isActive('link')} label={t('editor.link')}><LinkIcon /></IconButton>
       </div>
       <EditorContent editor={editor} />

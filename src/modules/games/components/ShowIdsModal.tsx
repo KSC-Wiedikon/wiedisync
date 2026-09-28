@@ -308,7 +308,7 @@ export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModa
 
       {!loading && (
         <div className="space-y-4">
-          <div className="flex items-start gap-2.5 rounded-lg bg-accent p-3">
+          <div className="flex items-start gap-2.5 rounded-xl border border-hairline bg-surface-sunken p-3">
             <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
             <p className="text-xs leading-relaxed text-muted-foreground">
               {kickoffMs != null
@@ -332,7 +332,7 @@ export default function ShowIdsModal({ gameId, kickoffMs, onClose }: ShowIdsModa
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder={t('idsPasswordPlaceholder')}
                     aria-label={t('idsPasswordPlaceholder')}
-                    className="h-11 flex-1 rounded-md border bg-background px-3 text-sm dark:bg-gray-800"
+                    className="h-11 flex-1 rounded-lg border border-input bg-card px-3 text-sm placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-input/20"
                   />
                   <Button
                     loading={busy}

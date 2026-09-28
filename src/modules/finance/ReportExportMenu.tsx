@@ -28,10 +28,10 @@ export default function ReportExportMenu({ build, filename }: { build: () => Fin
       {open && (
         <>
           <button type="button" aria-hidden className="fixed inset-0 z-10 cursor-default" onClick={() => setOpen(false)} />
-          <div role="menu" className="absolute right-0 z-20 mt-1 w-40 rounded-md border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800">
+          <div role="menu" className="absolute right-0 z-20 mt-1 w-40 rounded-lg border bg-popover p-1 text-popover-foreground shadow-xl">
             {opts.map((o) => (
               <button key={o.fmt} type="button" role="menuitem" onClick={() => go(o.fmt)}
-                className="block w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700">{o.label}</button>
+                className="flex min-h-10 w-full items-center rounded-md px-2.5 py-1.5 text-left text-sm outline-none hover:bg-accent focus-visible:bg-accent sm:min-h-8">{o.label}</button>
             ))}
           </div>
         </>

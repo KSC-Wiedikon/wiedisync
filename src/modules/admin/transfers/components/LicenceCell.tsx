@@ -79,14 +79,14 @@ export function LicenceCell({
         <HintPopover text={t('trLicenceHint')} />
       </div>
       {state === 'validated' && validatedAt && (
-        <span className="block text-xs text-gray-400 dark:text-gray-500">
+        <span className="block text-xs text-muted-foreground/80">
           {formatDateZurich(validatedAt)}
         </span>
       )}
       {(vmNationality || vmPlaysAs) && (
         <div className="flex flex-wrap items-start gap-1">
           <span
-            className="text-xs whitespace-normal text-gray-400 dark:text-gray-500"
+            className="text-xs whitespace-normal text-muted-foreground/80"
             title={t('trVmOriginHint')}
           >
             {vmNationality && vmPlaysAs

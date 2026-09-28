@@ -174,7 +174,7 @@ export function TransferRow({ member, mode, columns, derivations, actions }: {
               // unconditional 128px floor on the LAST column is a min-content
               // contribution that scrolls a 320px phone sideways. `w-full`
               // already fills the column; the floor is a desktop-only concern.
-              className="min-h-[44px] w-full rounded-md border border-gray-200 bg-transparent px-2 py-1 text-xs text-gray-700 placeholder:text-gray-400 focus:border-brand-500 focus:outline-none disabled:opacity-50 sm:min-h-0 sm:min-w-[8rem] dark:border-gray-600 dark:text-gray-200 dark:placeholder:text-gray-500"
+              className="min-h-[44px] w-full rounded-lg border border-input bg-card px-2 py-1 text-xs text-foreground/85 placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 sm:min-h-0 sm:min-w-[8rem] dark:bg-input/20"
             />
           </TableCell>
         )}
@@ -240,13 +240,13 @@ function RuledOutByCell({ member, vmSaysSwiss, saving, onSetStatus }: {
   if (member.transfer_status === 'not_needed') {
     return (
       <div className="space-y-1">
-        <p className="text-xs whitespace-normal text-gray-600 dark:text-gray-300">
+        <p className="text-xs whitespace-normal text-muted-foreground">
           {t('trRuledOutByHand')}
         </p>
         {/* Same attribution line a completed transfer carries — the ruling has
             an author too. */}
         {member.transfer_done_at && (
-          <p className="text-xs whitespace-normal text-gray-400 dark:text-gray-500">
+          <p className="text-xs whitespace-normal text-muted-foreground/80">
             {member.transfer_done_by_name
               ? t('trDoneByOn', {
                   date: formatDateTimeCompact(member.transfer_done_at),
@@ -268,12 +268,12 @@ function RuledOutByCell({ member, vmSaysSwiss, saving, onSetStatus }: {
     )
   }
 
-  if (!derived) return <span className="text-xs text-gray-400 dark:text-gray-500">—</span>
+  if (!derived) return <span className="text-xs text-muted-foreground/80">—</span>
 
   return (
     <div className="flex flex-wrap items-start gap-1">
       <p
-        className="flex items-start gap-1 text-xs whitespace-normal text-gray-500 dark:text-gray-400"
+        className="flex items-start gap-1 text-xs whitespace-normal text-muted-foreground"
         title={derivedHint}
       >
         <Ban className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />

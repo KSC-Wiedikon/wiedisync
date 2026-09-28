@@ -23,10 +23,10 @@ export default function HomeCarpoolCard() {
 
   return (
     <div className="mb-6 lg:flex lg:flex-col lg:items-center">
-      <div className="w-full overflow-hidden rounded-xl border border-sky-200 bg-white lg:max-w-2xl dark:border-sky-900 dark:bg-gray-800">
+      <div className="w-full overflow-hidden rounded-2xl border border-sky-200 bg-card shadow-card lg:max-w-2xl dark:border-sky-900">
         <div className="flex items-center gap-2 border-b border-sky-200 bg-sky-50/70 px-4 py-2.5 dark:border-sky-900 dark:bg-sky-950/30">
           <Car className="h-4 w-4 shrink-0 text-sky-700 dark:text-sky-300" />
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t('homeTitle')}</h2>
+          <h2 className="text-sm font-semibold text-foreground">{t('homeTitle')}</h2>
           <span className="ml-auto rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-800 dark:bg-sky-900/60 dark:text-sky-200">
             {rows.length}
           </span>
@@ -50,8 +50,8 @@ export default function HomeCarpoolCard() {
                 className="cursor-pointer"
               >
                 <TableCell className="min-h-[44px] whitespace-normal py-2.5">
-                  <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{r.label || typeLabel(r)}</div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400">
+                  <div className="text-sm font-medium text-foreground">{r.label || typeLabel(r)}</div>
+                  <div className="text-xs text-muted-foreground">
                     {[
                       typeLabel(r),
                       r.type === 'game' && r.team ? r.team : null,
@@ -66,10 +66,10 @@ export default function HomeCarpoolCard() {
                   )}
                 </TableCell>
                 <TableCell className="py-2.5 text-center">
-                  <div className="text-sm font-semibold tabular-nums text-gray-900 dark:text-gray-100">{r.offers}</div>
-                  <div className="text-[11px] text-gray-500 dark:text-gray-400">{t('freeSeats', { count: r.seats_free })}</div>
+                  <div className="text-sm font-semibold tabular-nums text-foreground">{r.offers}</div>
+                  <div className="text-[11px] text-muted-foreground">{t('freeSeats', { count: r.seats_free })}</div>
                 </TableCell>
-                <TableCell className={`py-2.5 text-center text-sm font-semibold tabular-nums ${r.requests_open > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-gray-500 dark:text-gray-400'}`}>
+                <TableCell className={`py-2.5 text-center text-sm font-semibold tabular-nums ${r.requests_open > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-muted-foreground'}`}>
                   {r.requests_open}
                 </TableCell>
               </TableRow>

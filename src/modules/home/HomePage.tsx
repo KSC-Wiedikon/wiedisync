@@ -77,7 +77,7 @@ type TrainingExpanded = Training & {
 type MemberTeamExpanded = MemberTeam & { team?: Team | string }
 
 /** Amber nudge-banner buttons — the Button scale, the banner's own colour. */
-const AMBER_CTA = 'bg-amber-600 text-white shadow-sm hover:bg-amber-700 dark:bg-amber-500 dark:text-amber-950 dark:hover:bg-amber-400'
+const AMBER_CTA = 'bg-amber-600 text-white hover:bg-amber-700 dark:bg-amber-500 dark:text-amber-950 dark:hover:bg-amber-400'
 const AMBER_GHOST = 'text-amber-700 hover:bg-amber-100 hover:text-amber-800 dark:text-amber-300 dark:hover:bg-amber-900/40 dark:hover:text-amber-200'
 
 // Cut-off for the Spielplanung absences reminder banner (volleyball players).
@@ -542,12 +542,12 @@ export default function HomePage() {
           )}
         </div>
         <div className="relative mt-3 flex items-center justify-center gap-2">
-          <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl dark:text-gray-100">
+          <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
             KSC Wiedikon
           </h1>
           <GuideHelpButton />
         </div>
-        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+        <p className="mt-1 text-sm text-muted-foreground">
           {t('subtitle')}
         </p>
       </div>
@@ -575,7 +575,7 @@ export default function HomePage() {
       {/* Spielplanung absences reminder — volleyball players, until 2026-06-01 */}
       {user && isApproved && (primarySport === 'volleyball' || primarySport === 'both') && beforeAbsencesDeadline && (
         <div className="mb-6 lg:flex lg:flex-col lg:items-center">
-          <div className="w-full rounded-xl border border-amber-300 bg-amber-50 p-4 lg:max-w-2xl dark:border-amber-700/60 dark:bg-amber-900/20">
+          <div className="w-full rounded-2xl border border-amber-300 bg-amber-50 p-4 shadow-card lg:max-w-2xl dark:border-amber-700/60 dark:bg-amber-950/40">
             <div className="flex items-start gap-3">
               <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
               <div className="min-w-0 flex-1">
@@ -597,7 +597,7 @@ export default function HomePage() {
       {/* IBAN nudge — finance needs everyone's up-to-date IBAN for reimbursements */}
       {user && isApproved && (!user.iban || user.iban_confirmed === false) && !ibanNudgeDismissed && (
         <div className="mb-6 lg:flex lg:flex-col lg:items-center">
-          <div className="w-full rounded-xl border border-amber-300 bg-amber-50 p-4 lg:max-w-2xl dark:border-amber-700/60 dark:bg-amber-900/20">
+          <div className="w-full rounded-2xl border border-amber-300 bg-amber-50 p-4 shadow-card lg:max-w-2xl dark:border-amber-700/60 dark:bg-amber-950/40">
             <div className="flex items-start gap-3">
               <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
               <div className="min-w-0 flex-1">
@@ -630,7 +630,7 @@ export default function HomePage() {
             linkLabel={tn('showAll')}
             className="w-full lg:max-w-2xl"
           />
-          <div className="w-full overflow-hidden rounded-xl border border-gray-200 bg-white lg:max-w-2xl dark:border-gray-700 dark:bg-gray-800">
+          <div className="w-full overflow-hidden rounded-2xl border border-hairline bg-card shadow-card lg:max-w-2xl">
             {duesNews && <DuesNewsRow news={duesNews} />}
             {feedItems.map((item) =>
               item.kind === 'announcement' ? (
@@ -674,7 +674,7 @@ export default function HomePage() {
           would cause the very layout shift the gate exists to avoid. */}
       {user && isApproved && !fillableFormsLoading && fillableForms.length > 0 && (
         <div className="mb-6 lg:flex lg:flex-col lg:items-center">
-          <div className="w-full overflow-hidden rounded-xl border border-blue-200 bg-blue-50/60 lg:max-w-2xl dark:border-blue-800/50 dark:bg-blue-900/20">
+          <div className="w-full overflow-hidden rounded-2xl border border-blue-200 bg-blue-50/60 shadow-card lg:max-w-2xl dark:border-blue-800/50 dark:bg-blue-900/20">
             <div className="flex items-center gap-2 border-b border-blue-200 px-4 py-2.5 dark:border-blue-800/50">
               <ScrollText className="h-4 w-4 shrink-0 text-blue-600 dark:text-blue-400" />
               <h2 className="text-sm font-semibold text-blue-900 dark:text-blue-100">{tf('formsToFill')}</h2>
@@ -683,9 +683,9 @@ export default function HomePage() {
               {fillableForms.map((item) => (
                 <li key={item.form.id} className="flex items-center justify-between gap-3 px-4 py-3">
                   <div className="min-w-0">
-                    <TruncatedText as="p" text={item.form.title} className="text-sm font-medium text-gray-900 dark:text-gray-100" />
+                    <TruncatedText as="p" text={item.form.title} className="text-sm font-medium text-foreground" />
                     {item.form.closes_at && (
-                      <p className="text-xs text-gray-500 dark:text-gray-400">{tf('closesAt')}: {formatDateTimeCompactZurich(item.form.closes_at)}</p>
+                      <p className="text-xs text-muted-foreground">{tf('closesAt')}: {formatDateTimeCompactZurich(item.form.closes_at)}</p>
                     )}
                   </div>
                   <Button onClick={() => setFillItem(item)} className="shrink-0">
@@ -721,7 +721,7 @@ export default function HomePage() {
             variant="ghost"
             onClick={() => setShowCategorized((v) => !v)}
             icon={showCategorized ? <List /> : <LayoutGrid />}
-            className="gap-1.5 px-3 font-normal text-gray-600 dark:text-gray-400"
+            className="gap-1.5 px-3 font-normal text-muted-foreground"
           >
             {showCategorized ? t('showAppointments') : t('showCategories')}
           </Button>
@@ -771,10 +771,10 @@ export default function HomePage() {
                   ))}
                 </div>
               ) : (
-                <div className="rounded-lg border border-dashed border-gray-300 px-6 py-10 text-center dark:border-gray-700">
-                  <Trophy className="mx-auto mb-3 h-8 w-8 text-gray-300 dark:text-gray-600" />
-                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300">{formatSeasonLong(selectedHomeSeason)}</p>
-                  <p className="mx-auto mt-1 max-w-xs text-sm text-gray-500 dark:text-gray-400">{tg('rankingsUpcoming')}</p>
+                <div className="rounded-2xl border border-dashed border-input px-6 py-10 text-center">
+                  <Trophy className="mx-auto mb-3 h-8 w-8 text-muted-foreground/50" />
+                  <p className="text-sm font-medium text-foreground/85">{formatSeasonLong(selectedHomeSeason)}</p>
+                  <p className="mx-auto mt-1 max-w-xs text-sm text-muted-foreground">{tg('rankingsUpcoming')}</p>
                 </div>
               )}
             </div>
@@ -945,14 +945,14 @@ function SectionHeader({
               className={cn(
                 'rounded-full px-2.5',
                 filterToggle.active
-                  ? 'bg-brand-100 text-brand-700 hover:bg-brand-200 hover:text-brand-800 dark:bg-brand-900/40 dark:text-brand-300 dark:hover:bg-brand-900/60'
-                  : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400',
+                  ? 'border border-transparent bg-selected text-selected-foreground hover:bg-selected/90 hover:text-selected-foreground'
+                  : 'border border-border bg-card text-muted-foreground hover:bg-accent hover:text-foreground',
               )}
             >
               {filterToggle.label}
             </Button>
           )}
-          <Button asChild size="sm" variant="link" className="px-1 text-brand-600 dark:text-brand-400">
+          <Button asChild size="sm" variant="link" className="px-1 text-primary dark:text-brand-300">
             <Link to={linkTo} onClick={onLinkClick}>{linkLabel} →</Link>
           </Button>
         </>
@@ -963,7 +963,7 @@ function SectionHeader({
 
 /** Card shell the home lists sit in — the page keeps its card hierarchy; the
  *  rows inside are flat (RowList owns the hairlines). */
-const LIST_SHELL = 'overflow-hidden rounded-xl border border-gray-200 bg-white px-1 dark:border-gray-700 dark:bg-gray-800'
+const LIST_SHELL = 'overflow-hidden rounded-2xl border border-hairline bg-card shadow-card px-1'
 
 /** RSVP status → row tone (stripe + rail text). No answer = neutral. */
 const RSVP_TONE: Record<string, RowTone> = {
@@ -1075,15 +1075,15 @@ function NewsRow({ notification, onMarkAsRead }: { notification: Notification; o
 
   return (
     <div
-      className="flex cursor-pointer items-center gap-3 border-b border-gray-100 px-4 py-2.5 last:border-b-0 hover:bg-gray-50 active:bg-gray-100 dark:border-gray-700 dark:hover:bg-gray-700/50 dark:active:bg-gray-700"
+      className="flex cursor-pointer items-center gap-3 border-b border-border/60 px-4 py-2.5 last:border-b-0 hover:bg-muted active:bg-muted"
       onClick={() => {
         if (!notification.read) onMarkAsRead(notification.id)
         navigate(getNotificationPath(notification))
       }}
     >
-      <span className="shrink-0 text-gray-500 dark:text-gray-400">{newsTypeIcons[notification.type] ?? <Bell className="h-4 w-4" />}</span>
-      <TruncatedText text={message} as="p" className="flex-1 text-sm text-gray-900 dark:text-gray-100" />
-      <span className="shrink-0 text-xs text-gray-500 dark:text-gray-400">{timeAgo}</span>
+      <span className="shrink-0 text-muted-foreground">{newsTypeIcons[notification.type] ?? <Bell className="h-4 w-4" />}</span>
+      <TruncatedText text={message} as="p" className="flex-1 text-sm text-foreground" />
+      <span className="shrink-0 text-xs text-muted-foreground">{timeAgo}</span>
     </div>
   )
 }
@@ -1098,8 +1098,8 @@ function CompactGameRow({ game, showScore, onClick, participationStatus, partici
 
   // KSCW line coloured by the outcome, opponent neutral.
   const scoreClass = (side: 'home' | 'away') => game.type === side
-    ? `font-bold ${kscwWon ? 'text-green-600 dark:text-green-400' : kscwLost ? 'text-red-500 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'}`
-    : 'font-medium text-gray-500 dark:text-gray-400'
+    ? `font-bold ${kscwWon ? 'text-green-600 dark:text-green-400' : kscwLost ? 'text-red-500 dark:text-red-400' : 'text-muted-foreground'}`
+    : 'font-medium text-muted-foreground'
 
   const isBasketball = asObj<Team & BaseRecord>(game.kscw_team)?.sport === 'basketball' || game.source === 'basketplan'
 
@@ -1151,7 +1151,7 @@ function CompactTrainingRow({ training, onClick, participationStatus, participat
       title={team ? <TeamChip team={team.name} size="sm" /> : null}
     >
       {hall && (
-        <TruncatedText text={hall.name} className="mt-1 text-sm text-gray-700 dark:text-gray-300">
+        <TruncatedText text={hall.name} className="mt-1 text-sm text-foreground/85">
           {hall.name}<ExtraHallsSuffix extraHalls={training.extra_halls} />
         </TruncatedText>
       )}
@@ -1186,8 +1186,8 @@ function AppointmentRow({ appointment, onClick, participationStatus, participati
   const { user } = useAuth()
   const { t: tCal } = useTranslation('calendar')
   const tone: RowTone = appointment.type === 'duty' ? 'amber' : user ? rsvpTone(participationStatus) : 'gray'
-  const iconClass = 'h-4 w-4 shrink-0 text-gray-400 dark:text-gray-500'
-  const titleClass = 'break-words text-sm font-semibold leading-snug text-gray-900 sm:text-[15px] dark:text-gray-100'
+  const iconClass = 'h-4 w-4 shrink-0 text-muted-foreground/80'
+  const titleClass = 'break-words text-sm font-semibold leading-snug text-foreground sm:text-[15px]'
 
   let time = ''
   let railExtra: React.ReactNode
@@ -1216,7 +1216,7 @@ function AppointmentRow({ appointment, onClick, participationStatus, participati
     coachIds = teamCoachIds(team)
     title = team ? <p className={titleClass}>{team.name}</p> : null
     body = hall && (
-      <TruncatedText text={hall.name} className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+      <TruncatedText text={hall.name} className="mt-0.5 text-xs text-muted-foreground">
         {hall.name}<ExtraHallsSuffix extraHalls={tr.extra_halls} />
       </TruncatedText>
     )
@@ -1343,7 +1343,7 @@ function NextAppointments({
       </div>
 
       {hasMore && (
-        <Button variant="ghost" onClick={() => setVisibleCount((v) => v + 10)} className="mt-2 w-full text-gray-500 dark:text-gray-400">
+        <Button variant="ghost" onClick={() => setVisibleCount((v) => v + 10)} className="mt-2 w-full text-muted-foreground">
           {t('showMore')}
         </Button>
       )}
@@ -1412,7 +1412,7 @@ function EventRow({ event, onClick, participationStatus, participations }: { eve
       rail={dayRail(date, !event.all_day && event.start_date ? formatTime(event.start_date) : '', tone, eventEndExtra(event))}
       tone={tone}
       onClick={onClick}
-      title={<p className="break-words text-sm font-semibold leading-snug text-gray-900 dark:text-gray-100">{event.title}</p>}
+      title={<p className="break-words text-sm font-semibold leading-snug text-foreground">{event.title}</p>}
       chips={
         <>
           <StatusBadge status={event.event_type} />
@@ -1423,10 +1423,10 @@ function EventRow({ event, onClick, participationStatus, participations }: { eve
       }
     >
       {event.location && (
-        <TruncatedText text={event.location} className="mt-1 text-xs text-gray-500 dark:text-gray-400" />
+        <TruncatedText text={event.location} className="mt-1 text-xs text-muted-foreground" />
       )}
       {event.description && (
-        <TruncatedText text={stripHtml(event.description)} as="p" lines={2} className="mt-1 text-xs text-gray-500 dark:text-gray-400" />
+        <TruncatedText text={stripHtml(event.description)} as="p" lines={2} className="mt-1 text-xs text-muted-foreground" />
       )}
       {participationStatus && (
         <RowCounters activityType="event" activityId={event.id} bars hideExtras participations={participations} />

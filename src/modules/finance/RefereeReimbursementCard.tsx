@@ -9,7 +9,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { runRefereePayout, formatChf } from '../../hooks/useFinance'
 import type { RefereePayoutRunResponse, RefereePayoutPlanRow } from './types'
 
-const thCls = 'text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400'
 const apiErr = (e: unknown, fb: string) => (e as { body?: { error?: string } })?.body?.error || fb
 
 /** Skip codes the run reports → short labels. Unknown codes fall through verbatim. */
@@ -62,10 +61,10 @@ export default function RefereeReimbursementCard({ season }: { season: string })
   const rows = preview?.rows ?? []
 
   return (
-    <section className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+    <section className="rounded-2xl border border-hairline bg-card shadow-card p-4">
       <div className="flex flex-wrap items-center gap-2">
-        <h2 className="flex min-w-0 items-center gap-1.5 text-sm font-semibold text-gray-900 dark:text-gray-100">
-          <HandCoins className="h-4 w-4 shrink-0 text-brand-600 dark:text-brand-400" /> {t('refereeReimbTitle', { season })}
+        <h2 className="flex min-w-0 items-center gap-1.5 text-sm font-semibold text-foreground">
+          <HandCoins className="h-4 w-4 shrink-0 text-primary dark:text-brand-300" /> {t('refereeReimbTitle', { season })}
         </h2>
         <div className="ml-auto flex flex-wrap items-center gap-2">
           {/* The filled primary leads (/kscw-ui → Action placement); it only appears once a preview exists. */}
@@ -81,30 +80,30 @@ export default function RefereeReimbursementCard({ season }: { season: string })
           </Button>
         </div>
       </div>
-      <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{t('myRefereeSubtitle')}</p>
+      <p className="mt-0.5 text-xs text-muted-foreground">{t('myRefereeSubtitle')}</p>
 
       {error && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
 
       {preview && (
         rows.length === 0 ? (
-          <p className="mt-3 rounded-lg border border-dashed border-gray-300 py-6 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+          <p className="mt-3 rounded-xl border border-dashed border-border py-6 text-center text-sm text-muted-foreground">
             {t('refereeReimbEmpty', { season })}
           </p>
         ) : (
-          <div className="-mx-4 mt-3 border-t border-gray-200 dark:border-gray-700">
+          <div className="-mx-4 mt-3 border-t border-border">
             <Table>
               <TableHeader>
-                <TableRow className="border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/40">
-                  <TableHead className={thCls}>{t('colMember')}</TableHead>
-                  <TableHead className={`text-right ${thCls}`}>{t('refereeReimbColGames')}</TableHead>
-                  <TableHead className={`text-right ${thCls}`}>{t('colAmount')}</TableHead>
-                  <TableHead className={`hidden sm:table-cell ${thCls}`}>IBAN</TableHead>
+                <TableRow>
+                  <TableHead>{t('colMember')}</TableHead>
+                  <TableHead className={"text-right"}>{t('refereeReimbColGames')}</TableHead>
+                  <TableHead className={"text-right"}>{t('colAmount')}</TableHead>
+                  <TableHead className={"hidden sm:table-cell"}>IBAN</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {rows.map((r) => (
-                  <TableRow key={r.member} className={`min-h-[44px] border-gray-200 dark:border-gray-700 ${r.skip ? 'opacity-70' : ''}`}>
-                    <TableCell className="whitespace-normal break-words text-gray-900 dark:text-gray-100">
+                  <TableRow key={r.member} className={`min-h-[44px] ${r.skip ? 'opacity-70' : ''}`}>
+                    <TableCell className="whitespace-normal break-words text-foreground">
                       {r.member_name}
                       {r.skip && (
                         <span className="ml-1 inline-block whitespace-nowrap rounded-full bg-red-100 px-1.5 py-0.5 align-middle text-[10px] font-medium text-red-700 dark:bg-red-900/40 dark:text-red-300">
@@ -112,15 +111,15 @@ export default function RefereeReimbursementCard({ season }: { season: string })
                         </span>
                       )}
                     </TableCell>
-                    <TableCell className="text-right tabular-nums text-gray-700 dark:text-gray-300">{r.games}</TableCell>
-                    <TableCell className="text-right font-medium tabular-nums text-gray-900 dark:text-gray-100">{formatChf(r.total)}</TableCell>
-                    <TableCell className="hidden sm:table-cell font-mono text-xs text-gray-500 dark:text-gray-400">{r.iban ?? '–'}</TableCell>
+                    <TableCell className="text-right tabular-nums text-foreground/85">{r.games}</TableCell>
+                    <TableCell className="text-right font-medium tabular-nums text-foreground">{formatChf(r.total)}</TableCell>
+                    <TableCell className="hidden sm:table-cell font-mono text-xs text-muted-foreground">{r.iban ?? '–'}</TableCell>
                   </TableRow>
                 ))}
-                <TableRow className="border-t-2 border-gray-300 font-semibold dark:border-gray-600">
-                  <TableCell className="text-gray-900 dark:text-gray-100">{t('teamColTotal')}</TableCell>
-                  <TableCell className="text-right tabular-nums text-gray-700 dark:text-gray-300">{payable.reduce((a, r) => a + r.games, 0)}</TableCell>
-                  <TableCell className="text-right tabular-nums text-gray-900 dark:text-gray-100">{formatChf(payable.reduce((a, r) => a + r.total, 0))}</TableCell>
+                <TableRow className="border-t-2 border-border font-semibold">
+                  <TableCell className="text-foreground">{t('teamColTotal')}</TableCell>
+                  <TableCell className="text-right tabular-nums text-foreground/85">{payable.reduce((a, r) => a + r.games, 0)}</TableCell>
+                  <TableCell className="text-right tabular-nums text-foreground">{formatChf(payable.reduce((a, r) => a + r.total, 0))}</TableCell>
                   <TableCell className="hidden sm:table-cell" />
                 </TableRow>
               </TableBody>

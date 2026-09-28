@@ -33,17 +33,19 @@ export default function ProfileEditPage() {
         <IconButton
           label={tc('back')}
           onClick={goBack}
-          className="shrink-0 text-gray-600 dark:text-gray-300"
+          className="shrink-0 text-muted-foreground"
         >
           <ArrowLeft className="!size-5" />
         </IconButton>
-        <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{t('editProfile')}</h1>
+        <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">{t('editProfile')}</h1>
       </div>
 
       {/* Identity document (E2EE) rides the beforeActions slot so it sits ABOVE
           the Cancel/Save row — appended after the form it landed below the
           buttons, which read as outside the page (moved 2026-07-28). */}
-      <ProfileEditForm onSaved={goBack} onCancel={goBack} beforeActions={<IdentityDocumentSection />} />
+      <div className="rounded-2xl border border-hairline bg-card p-4 shadow-card sm:p-5">
+        <ProfileEditForm onSaved={goBack} onCancel={goBack} beforeActions={<IdentityDocumentSection />} />
+      </div>
     </div>
   )
 }

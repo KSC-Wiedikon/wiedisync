@@ -63,7 +63,7 @@ export default function VolleyballBoard({ state }: { state: BoardState }) {
   const isBeach = state.sport === 'beach'
 
   return (
-    <div className="rounded-xl border bg-card p-4 shadow-sm sm:p-6">
+    <div className="rounded-2xl border border-hairline bg-card p-4 shadow-card sm:p-6">
       {/* Completed sets */}
       {results.length > 0 && (
         <div className="mb-4 flex flex-wrap items-center justify-center gap-1.5">

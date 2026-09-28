@@ -443,7 +443,7 @@ export default function ExplorerBulkEditModal({
     >
       <div className="space-y-4">
         {/* Who is selected */}
-        <div className="rounded-lg border border-border bg-muted/40 p-3">
+        <div className="rounded-xl border border-hairline bg-surface-sunken p-3">
           <p className="text-xs font-medium text-muted-foreground">
             {t('explorerBulkSelected', { count: members.length })}
           </p>
@@ -516,7 +516,7 @@ export default function ExplorerBulkEditModal({
 
         {/* Preview / result */}
         {changes.length > 0 && (
-          <div className="rounded-lg border border-border bg-card p-3 text-sm">
+          <div className="rounded-xl border border-hairline bg-surface-sunken p-3 text-sm">
             {running ? (
               <p className="flex items-center gap-2 text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -544,7 +544,7 @@ export default function ExplorerBulkEditModal({
         )}
 
         {summary && summary.failed.length > 0 && (
-          <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3">
+          <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-3">
             <p className="flex items-center gap-2 text-sm font-medium text-destructive">
               <AlertTriangle className="h-4 w-4" />
               {t('explorerBulkFailed', { count: summary.failed.length })}
@@ -593,7 +593,7 @@ function ChangeCard({
   const listValue = Array.isArray(change.value) ? (change.value as string[]) : []
 
   return (
-    <div className="rounded-lg border border-border bg-card p-3">
+    <div className="rounded-xl border border-hairline bg-surface-sunken p-3">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="text-sm font-medium text-foreground">{def.label}</p>

@@ -917,7 +917,7 @@ export default function ExplorerMemberFields({
   if (error || !record) {
     return (
       <>
-        <div className="mb-4 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+        <div className="mb-4 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
           {error ?? t('explorerMemberFieldsError')}
         </div>
         {children}
@@ -1006,7 +1006,7 @@ export default function ExplorerMemberFields({
       </header>
 
       {focusing && (
-        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-md border border-primary/40 bg-primary/5 px-3 py-2">
+        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-primary/40 bg-primary/5 px-3 py-2">
           <Crosshair className="h-3.5 w-3.5 shrink-0 text-primary" />
           <span className="text-xs font-medium text-primary">
             {t('explorerDatapointFocused', { count: focusSet.size })}
@@ -1995,7 +1995,7 @@ export function FieldEditor({
           rows={3}
           disabled={ctx.disabled}
           onChange={(e) => onChange(e.target.value === '' ? null : e.target.value)}
-          className="min-h-[44px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm text-foreground shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+          className="min-h-[44px] w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         />
       )
 
@@ -2055,7 +2055,7 @@ function JsonEditor({ value, onChange }: { value: unknown; onChange: (v: unknown
         // operator can still fix it, and a hard block loses their work.
         try { onChange(JSON.parse(raw)) } catch { onChange(raw) }
       }}
-      className="min-h-[44px] w-full rounded-md border border-input bg-transparent px-3 py-2 font-mono text-xs text-foreground shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+      className="min-h-[44px] w-full rounded-lg border border-input bg-transparent px-3 py-2 font-mono text-xs text-foreground placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     />
   )
 }
@@ -2102,7 +2102,7 @@ function OptionChips({
             className={
               'gap-1.5 rounded-full px-3 font-normal '
               + (active
-                ? 'border-primary bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground'
+                ? 'border-transparent bg-selected text-selected-foreground hover:bg-selected/90 hover:text-selected-foreground'
                 : 'text-foreground hover:border-primary/50 hover:bg-muted')
             }
           >

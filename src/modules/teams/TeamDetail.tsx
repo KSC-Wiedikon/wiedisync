@@ -442,17 +442,17 @@ export default function TeamDetail() {
 
   return (
     <div>
-      <div className="mb-6 flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-        <Link to="/teams" className="hover:text-gray-700 dark:text-gray-300">{t('title')}</Link>
+      <div className="mb-6 flex items-center gap-2 text-sm text-muted-foreground">
+        <Link to="/teams" className="transition-colors hover:text-foreground">{t('title')}</Link>
         <span>/</span>
-        <span className="text-gray-900 dark:text-gray-100">{team.full_name}</span>
+        <span className="text-foreground">{team.full_name}</span>
       </div>
 
       {team.team_picture && (
         <>
           <div
             ref={cropContainerRef}
-            className="group relative mb-6 overflow-hidden rounded-lg"
+            className="group relative mb-6 overflow-hidden rounded-2xl"
             onPointerDown={handleCropPointerDown}
             onPointerMove={handleCropPointerMove}
             onPointerUp={handleCropPointerUp}
@@ -476,7 +476,7 @@ export default function TeamDetail() {
             {adjustingCrop && (
               <div className="absolute inset-0 border-2 border-dashed border-white/60 bg-black/10">
                 <div
-                  className="absolute h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-brand-500 shadow"
+                  className="absolute h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-primary shadow"
                   style={{ left: `${cropPos.x}%`, top: `${cropPos.y}%` }}
                 />
               </div>
@@ -542,7 +542,7 @@ export default function TeamDetail() {
                     size="sm"
                     icon={<XIcon />}
                     onClick={cancelCropAdjust}
-                    className="bg-gray-600 text-white hover:bg-gray-700"
+                    className="bg-stone-600 text-white hover:bg-stone-700 dark:bg-gray-600 dark:hover:bg-gray-700"
                   >
                     {t('common:cancel')}
                   </Button>
@@ -563,13 +563,13 @@ export default function TeamDetail() {
         <div className="min-w-0">
           <div className="flex items-center gap-3">
             <TeamChip team={team.name} />
-            <h1 className="text-xl font-bold text-gray-900 sm:text-2xl dark:text-gray-100">{team.full_name}</h1>
+            <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">{team.full_name}</h1>
             {team.social_url && sanitizeUrl(team.social_url) && (
               <a
                 href={sanitizeUrl(team.social_url)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-gray-400 transition-colors hover:text-brand-500"
+                className="text-muted-foreground/80 transition-colors hover:text-primary dark:hover:text-brand-300"
                 title="Social"
               >
                 <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
@@ -578,7 +578,7 @@ export default function TeamDetail() {
               </a>
             )}
           </div>
-          <div className="mt-2 flex gap-4 text-sm text-gray-500 dark:text-gray-400">
+          <div className="mt-2 flex gap-4 text-sm text-muted-foreground">
             <span>{team.league}</span>
             <span>{team.season}</span>
             <span className="inline-flex items-center gap-1">
@@ -602,18 +602,18 @@ export default function TeamDetail() {
 
       {/* Pending member requests (signup + team join requests) */}
       {canManage && (pendingMembers.length > 0 || teamRequests.length > 0) && (
-        <div className="mt-6 rounded-lg border-2 border-amber-300 bg-amber-50 p-4 dark:border-amber-600 dark:bg-amber-900/20">
+        <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/60 dark:bg-amber-950/40">
           <h3 className="text-sm font-semibold text-amber-800 dark:text-amber-300">
             {t('pendingRequests', { count: pendingMembers.length + teamRequests.length })}
           </h3>
           <div className="mt-3 space-y-3">
             {/* Signup requests */}
             {pendingMembers.map((member) => (
-              <div key={member.id} className="rounded-lg bg-white p-3 dark:bg-gray-800">
-                <p className="font-medium text-gray-900 dark:text-gray-100">
+              <div key={member.id} className="rounded-xl border border-hairline bg-card p-3">
+                <p className="font-medium text-foreground">
                   {memberDisplayName(member)}
                 </p>
-                <p className="break-all text-sm text-gray-500 dark:text-gray-400">{member.email}</p>
+                <p className="break-all text-sm text-muted-foreground">{member.email}</p>
                 <div className="mt-2 grid grid-cols-2 gap-2">
                   <Button
                     size="sm"
@@ -638,11 +638,11 @@ export default function TeamDetail() {
               const member = asObj<Member>(req.member)
               const selectedLevel = requestGuestLevels[req.id] ?? 0
               return (
-                <div key={req.id} className="rounded-lg bg-white p-3 dark:bg-gray-800">
-                  <p className="font-medium text-gray-900 dark:text-gray-100">
+                <div key={req.id} className="rounded-xl border border-hairline bg-card p-3">
+                  <p className="font-medium text-foreground">
                     {memberDisplayName(member)}
                   </p>
-                  <p className="break-all text-sm text-gray-500 dark:text-gray-400">
+                  <p className="break-all text-sm text-muted-foreground">
                     {member?.email} · {t('teamJoinRequest')}
                   </p>
                   <div className="mt-2 grid grid-cols-2 gap-2">
@@ -663,7 +663,7 @@ export default function TeamDetail() {
                     </Button>
                   </div>
                   <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                    <span className="text-xs text-gray-500 dark:text-gray-400">{t('joinAs')}</span>
+                    <span className="text-xs text-muted-foreground">{t('joinAs')}</span>
                     {[0, 1, 2, 3].map((level) => (
                       <Button
                         key={level}
@@ -672,8 +672,8 @@ export default function TeamDetail() {
                         aria-pressed={selectedLevel === level}
                         onClick={() => setRequestGuestLevel(req.id, level)}
                         className={cn(selectedLevel === level
-                          ? 'border-brand-500 bg-brand-500 text-white hover:bg-brand-500 hover:text-white'
-                          : 'border-gray-300 text-gray-600 hover:border-brand-400 dark:border-gray-600 dark:text-gray-400 dark:hover:border-brand-500')}
+                          ? 'border-transparent bg-selected text-selected-foreground hover:bg-selected hover:text-selected-foreground dark:bg-selected'
+                          : 'border-input text-muted-foreground hover:bg-accent hover:text-foreground')}
                       >
                         {level === 0 ? t('rolePlayer') : `${t('positionGuest')} L${level}`}
                       </Button>
@@ -690,7 +690,7 @@ export default function TeamDetail() {
       {(coachMembers.length > 0 || (effectiveIsAdmin && hasAdminAccessToTeam(team.id))) && (
         <div className="mt-8">
           <div className="flex items-center justify-between gap-2">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('staff')} ({coachMembers.length})</h2>
+            <h2 className="text-lg font-semibold tracking-tight text-foreground">{t('staff')} ({coachMembers.length})</h2>
             {effectiveIsAdmin && hasAdminAccessToTeam(team.id) && (
               <Button variant="outline" size="sm" onClick={() => setManageStaffOpen(true)}>
                 {t('manageStaff')}
@@ -720,7 +720,7 @@ export default function TeamDetail() {
 
       <div className="mt-8">
         <div className="flex items-center gap-2">
-          <h2 className="min-w-0 flex-1 break-words text-lg font-semibold text-gray-900 dark:text-gray-100">{t('currentRoster', { count: rosterMembers.length })}</h2>
+          <h2 className="min-w-0 flex-1 break-words text-lg font-semibold tracking-tight text-foreground">{t('currentRoster', { count: rosterMembers.length })}</h2>
           {/* Staff-only, and only once the identity column has an answer — same gate as the
               column itself, so the button never offers a view the server will refuse. */}
           {canManage && identityDocs !== null && identityDocs.size > 0 && (
@@ -739,7 +739,7 @@ export default function TeamDetail() {
               canManageTeam(teamId ?? '') ? (
                 <Link
                   to={`/teams/${teamSlug}/roster/edit`}
-                  className="text-sm text-brand-600 hover:text-brand-700"
+                  className="text-sm text-primary hover:text-primary/80 dark:text-brand-300"
                 >
                   {t('addPlayer')}
                 </Link>
@@ -764,7 +764,7 @@ export default function TeamDetail() {
       {/* Guests */}
       {guestMembers.length > 0 && (
         <div className="mt-6">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('participation:guests')} ({guestMembers.length})</h2>
+          <h2 className="text-lg font-semibold tracking-tight text-foreground">{t('participation:guests')} ({guestMembers.length})</h2>
           <RosterTable
             members={guestMembers}
             team={team}
@@ -801,7 +801,7 @@ export default function TeamDetail() {
       {/* Sponsors */}
       {teamSponsors.length > 0 && (
         <div className="mt-8">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('sponsors')}</h2>
+          <h2 className="text-lg font-semibold tracking-tight text-foreground">{t('sponsors')}</h2>
           <div className="mt-3 flex flex-wrap items-center gap-6">
             {teamSponsors.map((sp) => (
               <div key={sp.id} className="flex flex-col items-center gap-2">
@@ -812,7 +812,7 @@ export default function TeamDetail() {
                     className="h-12 w-auto object-contain"
                   />
                 )}
-                <span className="text-sm text-gray-500 dark:text-gray-400">{sp.name}</span>
+                <span className="text-sm text-muted-foreground">{sp.name}</span>
               </div>
             ))}
           </div>
@@ -868,13 +868,13 @@ function RosterTable({
   // Staff-only, and only once we actually have an answer — see useTeamIdentityDocs.
   const showIdentity = canManage && identityDocs !== null
   return (
-    <div className="mt-4 rounded-lg border bg-white dark:bg-gray-800">
+    <div className="mt-4 overflow-hidden rounded-2xl border border-hairline bg-card shadow-card">
       <Table>
         <TableHeader>
-          <TableRow className="bg-gray-50 dark:bg-gray-900 text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">
+          <TableRow className="bg-surface-sunken">
             <SortHeader label={t('playerCol')} sortKey="name" current={sortKey} dir={sortDir} onClick={onSort} />
             {showGuestColumn && (
-              <TableHead className="px-4 py-3 text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('guestCol')}</TableHead>
+              <TableHead className="px-4 py-3">{t('guestCol')}</TableHead>
             )}
             <SortHeader label={t('numberCol')} sortKey="number" current={sortKey} dir={sortDir} onClick={onSort} className="text-center" />
             <SortHeader label={t('positionCol')} sortKey="position" current={sortKey} dir={sortDir} onClick={onSort} className="hidden sm:table-cell" />
@@ -920,7 +920,7 @@ function SortHeader({ label, sortKey: key, current, dir, onClick, className = ''
   const active = current === key
   return (
     <TableHead
-      className={`px-4 py-3 text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 cursor-pointer select-none hover:text-gray-700 dark:hover:text-gray-200 ${className}`}
+      className={`px-4 py-3 cursor-pointer select-none hover:text-foreground ${className}`}
       onClick={() => onClick(key)}
     >
       <span className="inline-flex items-center gap-1">

@@ -51,8 +51,8 @@ export default function GapConfigPanel({ gapConfig, onUpdate }: Props) {
   const field = (label: string, hint: string, value: number, set: (n: number) => void) => (
     <div className="flex items-center justify-between gap-3">
       <div className="min-w-0">
-        <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{label}</div>
-        <div className="text-xs text-gray-500 dark:text-gray-400">{hint}</div>
+        <div className="text-sm font-medium text-foreground">{label}</div>
+        <div className="text-xs text-muted-foreground">{hint}</div>
       </div>
       <input
         type="number"
@@ -60,15 +60,15 @@ export default function GapConfigPanel({ gapConfig, onUpdate }: Props) {
         max={30}
         value={value}
         onChange={(e) => set(Number(e.target.value))}
-        className="w-20 shrink-0 rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+        className="w-20 shrink-0 rounded-lg border border-input bg-card px-2 py-1.5 text-sm text-foreground tabular-nums dark:bg-input/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       />
     </div>
   )
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
-      <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('gapTitle')}</h2>
-      <p className="mt-1 mb-4 text-xs text-gray-500 dark:text-gray-400">{t('gapHint')}</p>
+    <div className="rounded-2xl border border-hairline bg-card shadow-card p-4">
+      <h2 className="text-base font-semibold tracking-tight text-foreground">{t('gapTitle')}</h2>
+      <p className="mt-1 mb-4 text-xs text-muted-foreground">{t('gapHint')}</p>
       <div className="space-y-3">
         {field(t('gapHome'), t('gapHomeHint'), home, setHome)}
         {field(t('gapProposal'), t('gapProposalHint'), proposal, setProposal)}

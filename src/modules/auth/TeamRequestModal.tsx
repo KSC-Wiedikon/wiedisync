@@ -195,14 +195,14 @@ export default function TeamRequestModal({
             so the join controls start at roughly their final Y. */}
         {myTeamsPending && (
           <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
               {t('yourTeams')}
             </p>
-            <div className="divide-y divide-gray-100 rounded-lg border dark:divide-gray-700 dark:border-gray-700">
+            <div className="divide-y divide-border/60 rounded-xl border border-hairline">
               <div className="px-3 py-2.5">
                 <div className="flex items-center gap-2.5">
-                  <span aria-hidden="true" className="inline-block h-[22px] w-24 animate-pulse rounded-full bg-gray-200 dark:bg-gray-700" />
-                  <span aria-hidden="true" className="ml-auto inline-block h-4 w-16 animate-pulse rounded bg-gray-200 dark:bg-gray-700" />
+                  <span aria-hidden="true" className="inline-block h-[22px] w-24 animate-pulse rounded-full bg-stone-200/80 dark:bg-muted" />
+                  <span aria-hidden="true" className="ml-auto inline-block h-4 w-16 animate-pulse rounded bg-stone-200/80 dark:bg-muted" />
                 </div>
               </div>
             </div>
@@ -212,10 +212,10 @@ export default function TeamRequestModal({
         {/* Leave a team */}
         {showLeaveSection && (
           <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
               {t('yourTeams')}
             </p>
-            <div className="divide-y divide-gray-100 rounded-lg border dark:divide-gray-700 dark:border-gray-700">
+            <div className="divide-y divide-border/60 rounded-xl border border-hairline">
               {myTeams.map((mt) => {
                 const team = asObj<Team>(mt.team)
                 const name = team?.name ?? String(mt.team)
@@ -234,8 +234,8 @@ export default function TeamRequestModal({
                       </Button>
                     </div>
                     {confirming && (
-                      <div className="mt-2.5 rounded-md bg-red-50 p-3 dark:bg-red-950/20">
-                        <p className="text-xs text-gray-600 dark:text-gray-400">
+                      <div className="mt-2.5 rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-900/60 dark:bg-red-950/40">
+                        <p className="text-xs text-muted-foreground">
                           {t('leaveTeamConfirm', { team: name })}
                         </p>
                         <div className="mt-2 flex justify-end gap-2">
@@ -264,19 +264,19 @@ export default function TeamRequestModal({
         {/* Join a team */}
         <div className="space-y-3">
           {(showLeaveSection || myTeamsPending) && (
-            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
               {t('addTeamTitle')}
             </p>
           )}
-          <p className="text-sm text-gray-500 dark:text-gray-400">{t('addTeamDescription')}</p>
+          <p className="text-sm text-muted-foreground">{t('addTeamDescription')}</p>
 
           {availableTeams.length === 0 ? (
-            <p className="text-sm text-gray-500 dark:text-gray-400">{t('noTeamsAvailable')}</p>
+            <p className="text-sm text-muted-foreground">{t('noTeamsAvailable')}</p>
           ) : (
             <>
               {sports.length > 1 && (
                 <div>
-                  <p className="mb-1.5 text-sm font-medium text-gray-700 dark:text-gray-300">{t('selectSport')}</p>
+                  <p className="mb-1.5 text-xs font-medium text-muted-foreground">{t('selectSport')}</p>
                   <div className="flex gap-2">
                     {sports.map((s) => (
                       <button
@@ -286,8 +286,8 @@ export default function TeamRequestModal({
                         className={
                           'min-h-11 flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ' +
                           (effectiveSport === s
-                            ? 'border-brand-600 bg-brand-50 text-brand-700 dark:border-brand-400 dark:bg-brand-900/30 dark:text-brand-300'
-                            : 'border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800')
+                            ? 'border-selected bg-selected text-selected-foreground'
+                            : 'border-border bg-card text-muted-foreground hover:bg-accent')
                         }
                       >
                         {t(`common:${s}`)}
@@ -298,7 +298,7 @@ export default function TeamRequestModal({
               )}
               {effectiveSport && (
                 sportTeams.length === 0 ? (
-                  <p className="text-sm text-gray-500 dark:text-gray-400">{t('noTeamsAvailable')}</p>
+                  <p className="text-sm text-muted-foreground">{t('noTeamsAvailable')}</p>
                 ) : (
                   <SearchableSelect
                     label={t('selectTeam')}
@@ -315,7 +315,7 @@ export default function TeamRequestModal({
             </>
           )}
 
-          {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+          {error && <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">{error}</p>}
         </div>
 
         <div className="flex justify-end gap-3 pt-1">

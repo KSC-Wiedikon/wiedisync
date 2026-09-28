@@ -67,7 +67,7 @@ function useStatusPill() {
     const blue = 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
     const green = 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
     const red = 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
-    const gray = 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
+    const gray = 'bg-muted text-muted-foreground'
     if (inv.source === 'native') {
       const s = inv.status ?? ''
       if (s === 'open') return { label: t('statusOpen'), cls: amber }
@@ -91,9 +91,9 @@ function InfoRow({ icon, label, value, always }: { icon?: React.ReactNode; label
   if (!value && !always) return null
   return (
     <div className="flex items-start gap-2 py-1 text-sm">
-      {icon && <span className="mt-0.5 shrink-0 text-gray-400">{icon}</span>}
-      <span className="w-28 shrink-0 text-gray-500 dark:text-gray-400">{label}</span>
-      <span className={`min-w-0 break-words ${value ? 'font-medium text-gray-900 dark:text-gray-100' : 'text-gray-400 dark:text-gray-500'}`}>{value || '—'}</span>
+      {icon && <span className="mt-0.5 shrink-0 text-muted-foreground/80">{icon}</span>}
+      <span className="w-28 shrink-0 text-muted-foreground">{label}</span>
+      <span className={`min-w-0 break-words ${value ? 'font-medium text-foreground' : 'text-muted-foreground/80'}`}>{value || '—'}</span>
     </div>
   )
 }
@@ -102,7 +102,7 @@ function fieldInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
       {...props}
-      className="w-full rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+      className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm dark:bg-gray-800 text-foreground placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     />
   )
 }
@@ -233,20 +233,20 @@ function MemberDetail({ member, invoices, documents, canEdit, onBack, onSaved, o
       {canEdit && (
         <input ref={fileRef} type="file" accept=".pdf,image/*,application/pdf" className="hidden" onChange={onFilePicked} />
       )}
-      <Button type="button" variant="ghost" onClick={onBack} className="-ml-2 px-2 text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200">
+      <Button type="button" variant="ghost" onClick={onBack} className="-ml-2 px-2 text-muted-foreground hover:text-foreground">
         <ArrowLeft className="h-4 w-4" /> {t('back')}
       </Button>
 
       {/* Header */}
       <div className="flex flex-wrap items-center gap-2">
-        <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">{fullName(member)}</h2>
+        <h2 className="text-lg font-bold tracking-tight text-foreground">{fullName(member)}</h2>
         {member.sektion && (
           <span className="rounded-full bg-brand-100 px-2 py-0.5 text-xs font-medium text-brand-700 dark:bg-brand-900/40 dark:text-brand-300">{member.sektion}</span>
         )}
         {member.beitragskategorie && (
-          <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300">{member.beitragskategorie}</span>
+          <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">{member.beitragskategorie}</span>
         )}
-        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${member.kscw_membership_active ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'}`}>
+        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${member.kscw_membership_active ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' : 'bg-muted text-muted-foreground'}`}>
           {member.kscw_membership_active ? t('membershipActive') : t('membershipInactive')}
         </span>
         {isMinor && (
@@ -257,8 +257,8 @@ function MemberDetail({ member, invoices, documents, canEdit, onBack, onSaved, o
       </div>
 
       {/* Contact */}
-      <section className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
-        <h3 className="mb-2 text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('contactSection')}</h3>
+      <section className="rounded-2xl border border-hairline bg-card shadow-card p-4">
+        <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{t('contactSection')}</h3>
         <div className="grid gap-x-6 sm:grid-cols-2">
           <div>
             <InfoRow always icon={<User2 className="h-3.5 w-3.5" />} label={t('fieldName')} value={fullName(member)} />
@@ -279,35 +279,35 @@ function MemberDetail({ member, invoices, documents, canEdit, onBack, onSaved, o
       <MemberPayoutQrBill member={member} />
 
       {/* Billing contact */}
-      <section className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
-        <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('billingSection')}</h3>
+      <section className="rounded-2xl border border-hairline bg-card shadow-card p-4">
+        <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{t('billingSection')}</h3>
 
         {canEdit ? (
           <div className="space-y-3">
             <label className="flex items-start justify-between gap-3">
               <span>
-                <span className="block text-sm font-medium text-gray-900 dark:text-gray-100">{t('billingDifferentToggle')}</span>
-                <span className="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">{t('billingDifferentHint')}</span>
+                <span className="block text-sm font-medium text-foreground">{t('billingDifferentToggle')}</span>
+                <span className="mt-0.5 block text-xs text-muted-foreground">{t('billingDifferentHint')}</span>
               </span>
               <Switch checked={draft.billing_different} onCheckedChange={(v) => set('billing_different', v)} />
             </label>
 
             {draft.billing_different && (
               <div className="grid gap-3 sm:grid-cols-2">
-                <label className="block sm:col-span-2"><span className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">{t('fieldName')}</span>{fieldInput({ value: draft.billing_name, onChange: (e) => set('billing_name', e.target.value), placeholder: t('billingNamePlaceholder') })}</label>
-                <label className="block"><span className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">{t('fieldEmail')}</span>{fieldInput({ type: 'email', value: draft.billing_email, onChange: (e) => set('billing_email', e.target.value) })}</label>
-                <label className="block"><span className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">{t('fieldPhone')}</span>{fieldInput({ value: draft.billing_phone, onChange: (e) => set('billing_phone', e.target.value) })}</label>
-                <label className="block sm:col-span-2"><span className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">{t('fieldAddress')}</span>{fieldInput({ value: draft.billing_address, onChange: (e) => set('billing_address', e.target.value) })}</label>
-                <label className="block"><span className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">{t('fieldPlz')}</span>{fieldInput({ value: draft.billing_plz, onChange: (e) => set('billing_plz', e.target.value) })}</label>
-                <label className="block"><span className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">{t('fieldOrt')}</span>{fieldInput({ value: draft.billing_ort, onChange: (e) => set('billing_ort', e.target.value) })}</label>
+                <label className="block sm:col-span-2"><span className="mb-1 block text-xs font-medium text-muted-foreground">{t('fieldName')}</span>{fieldInput({ value: draft.billing_name, onChange: (e) => set('billing_name', e.target.value), placeholder: t('billingNamePlaceholder') })}</label>
+                <label className="block"><span className="mb-1 block text-xs font-medium text-muted-foreground">{t('fieldEmail')}</span>{fieldInput({ type: 'email', value: draft.billing_email, onChange: (e) => set('billing_email', e.target.value) })}</label>
+                <label className="block"><span className="mb-1 block text-xs font-medium text-muted-foreground">{t('fieldPhone')}</span>{fieldInput({ value: draft.billing_phone, onChange: (e) => set('billing_phone', e.target.value) })}</label>
+                <label className="block sm:col-span-2"><span className="mb-1 block text-xs font-medium text-muted-foreground">{t('fieldAddress')}</span>{fieldInput({ value: draft.billing_address, onChange: (e) => set('billing_address', e.target.value) })}</label>
+                <label className="block"><span className="mb-1 block text-xs font-medium text-muted-foreground">{t('fieldPlz')}</span>{fieldInput({ value: draft.billing_plz, onChange: (e) => set('billing_plz', e.target.value) })}</label>
+                <label className="block"><span className="mb-1 block text-xs font-medium text-muted-foreground">{t('fieldOrt')}</span>{fieldInput({ value: draft.billing_ort, onChange: (e) => set('billing_ort', e.target.value) })}</label>
                 <label className="block sm:col-span-2">
-                  <span className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">{t('fieldBillingIban')}</span>
+                  <span className="mb-1 block text-xs font-medium text-muted-foreground">{t('fieldBillingIban')}</span>
                   {fieldInput({ value: draft.billing_iban, onChange: (e) => set('billing_iban', e.target.value), placeholder: 'CH..' })}
-                  <span className="mt-1 block text-xs text-gray-400 dark:text-gray-500">{t('billingIbanHint')}</span>
+                  <span className="mt-1 block text-xs text-muted-foreground/80">{t('billingIbanHint')}</span>
                 </label>
               </div>
             )}
-            {!draft.billing_different && <p className="text-sm text-gray-500 dark:text-gray-400">{t('billsToSelf')}</p>}
+            {!draft.billing_different && <p className="text-sm text-muted-foreground">{t('billsToSelf')}</p>}
 
             <div className="flex justify-end">
               <Button onClick={save} disabled={!dirty || saving} size="sm">
@@ -324,47 +324,47 @@ function MemberDetail({ member, invoices, documents, canEdit, onBack, onSaved, o
             <InfoRow icon={<MapPin className="h-3.5 w-3.5" />} label={t('fieldAddress')} value={[member.billing_address, [member.billing_plz, member.billing_ort].filter(Boolean).join(' ')].filter(Boolean).join(', ') || null} />
           </div>
         ) : (
-          <p className="text-sm text-gray-500 dark:text-gray-400">{t('billsToSelf')}</p>
+          <p className="text-sm text-muted-foreground">{t('billsToSelf')}</p>
         )}
       </section>
 
       {/* Invoices */}
       <section>
         <div className="mb-2 flex items-baseline justify-between">
-          <h3 className="text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('invoicesSection')}</h3>
+          <h3 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{t('invoicesSection')}</h3>
           {totalOpen > 0.005 && <span className="text-sm font-semibold text-amber-700 dark:text-amber-400">{t('totalOpen')}: {formatChf(totalOpen)}</span>}
         </div>
         {myInvoices.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-gray-300 py-8 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">{t('noMemberInvoices')}</div>
+          <div className="rounded-2xl border border-dashed border-border py-8 text-center text-sm text-muted-foreground">{t('noMemberInvoices')}</div>
         ) : (
-          <div className="rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+          <div className="rounded-2xl border border-hairline bg-card shadow-card overflow-hidden">
             <Table>
               <TableHeader>
-                <TableRow className="border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/40">
-                  <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colInvoice')}</TableHead>
-                  <TableHead className="hidden sm:table-cell text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colSubject')}</TableHead>
-                  <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colStatus')}</TableHead>
-                  <TableHead className="text-right text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colAmount')}</TableHead>
-                  <TableHead className="text-right text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colOpen')}</TableHead>
+                <TableRow>
+                  <TableHead>{t('colInvoice')}</TableHead>
+                  <TableHead className="hidden sm:table-cell">{t('colSubject')}</TableHead>
+                  <TableHead>{t('colStatus')}</TableHead>
+                  <TableHead className="text-right">{t('colAmount')}</TableHead>
+                  <TableHead className="text-right">{t('colOpen')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {myInvoices.map((inv) => {
                   const pill = statusPill(inv)
                   return (
-                    <TableRow key={inv.id} className="border-gray-200 dark:border-gray-700">
-                      <TableCell className="whitespace-normal break-words text-gray-900 dark:text-gray-100">
+                    <TableRow key={inv.id}>
+                      <TableCell className="whitespace-normal break-words text-foreground">
                         <span className="font-medium">{inv.number || '—'}</span>
-                        <span className="mt-0.5 block text-xs text-gray-400">{inv.invoice_date ? formatDateCompactZurich(inv.invoice_date) : ''}</span>
-                        <span className="mt-0.5 block text-xs text-gray-500 sm:hidden">{inv.subject}</span>
+                        <span className="mt-0.5 block text-xs text-muted-foreground/80">{inv.invoice_date ? formatDateCompactZurich(inv.invoice_date) : ''}</span>
+                        <span className="mt-0.5 block text-xs text-muted-foreground sm:hidden">{inv.subject}</span>
                         <span className="mt-1 flex flex-wrap items-center gap-1.5">
                           {docsFor(inv).map((d) => (
-                            <span key={d.id} className="inline-flex items-center rounded-md bg-gray-100 dark:bg-gray-700">
+                            <span key={d.id} className="inline-flex items-center rounded-md bg-muted">
                               <Button type="button" variant="link" size="sm" onClick={() => setPreviewDoc(d)} title={d.label ?? t('viewPdf')} className="px-2 dark:text-brand-300">
                                 <FileText />{t('viewPdf')}
                               </Button>
                               {canEdit && (
-                                <IconButton size="sm" onClick={() => removeDoc(d)} label={t('docDelete')} className="text-gray-400 hover:text-red-600 dark:hover:text-red-400">
+                                <IconButton size="sm" onClick={() => removeDoc(d)} label={t('docDelete')} className="text-muted-foreground/80 hover:text-red-600 dark:hover:text-red-400">
                                   <X />
                                 </IconButton>
                               )}
@@ -377,7 +377,7 @@ function MemberDetail({ member, invoices, documents, canEdit, onBack, onSaved, o
                               size="sm"
                               onClick={() => pickFile(inv)}
                               disabled={busyInvoice === String(inv.id)}
-                              className="border-dashed px-2 text-gray-500 hover:border-brand-400 hover:text-brand-600 dark:text-gray-400 dark:hover:text-brand-300"
+                              className="border-dashed px-2 text-muted-foreground hover:border-brand-400 hover:text-brand-600 dark:hover:text-brand-300"
                             >
                               {busyInvoice === String(inv.id) ? <Loader2 className="animate-spin" /> : <Paperclip />}
                               {t('attachPdf')}
@@ -385,10 +385,10 @@ function MemberDetail({ member, invoices, documents, canEdit, onBack, onSaved, o
                           )}
                         </span>
                       </TableCell>
-                      <TableCell className="hidden sm:table-cell whitespace-normal break-words text-gray-600 dark:text-gray-400">{inv.subject || '—'}</TableCell>
+                      <TableCell className="hidden sm:table-cell whitespace-normal break-words text-muted-foreground">{inv.subject || '—'}</TableCell>
                       <TableCell><span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${pill.cls}`}>{pill.label}</span></TableCell>
-                      <TableCell className="text-right tabular-nums text-gray-900 dark:text-gray-100">{formatChf(inv.amount)}</TableCell>
-                      <TableCell className="text-right tabular-nums text-gray-700 dark:text-gray-300">{toNum(inv.open_amount) > 0.005 ? formatChf(inv.open_amount) : '—'}</TableCell>
+                      <TableCell className="text-right tabular-nums text-foreground">{formatChf(inv.amount)}</TableCell>
+                      <TableCell className="text-right tabular-nums text-foreground/85">{toNum(inv.open_amount) > 0.005 ? formatChf(inv.open_amount) : '—'}</TableCell>
                     </TableRow>
                   )
                 })}
@@ -489,12 +489,12 @@ export default function FinanceMemberExplorer() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-0 flex-1">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/80" />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={t('memberExplorerSearch')}
-            className="h-11 w-full rounded-md border border-gray-200 bg-transparent py-2 pl-8 pr-3 text-sm sm:h-9 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+            className="h-11 w-full rounded-lg border border-input bg-card py-2 pl-8 pr-3 text-sm sm:h-9 dark:bg-gray-800 text-foreground placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
         </div>
         <Button
@@ -502,14 +502,14 @@ export default function FinanceMemberExplorer() {
           variant="ghost"
           aria-pressed={onlyActive}
           onClick={() => setOnlyActive((v) => !v)}
-          className={`rounded-full px-3 ${onlyActive ? 'bg-brand-100 text-brand-700 hover:bg-brand-100 dark:bg-brand-900/40 dark:text-brand-300 dark:hover:bg-brand-900/40' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300'}`}
+          className={`rounded-full px-3 ${onlyActive ? 'bg-selected text-selected-foreground hover:bg-selected/90 hover:text-selected-foreground' : 'bg-muted text-muted-foreground'}`}
         >{t('filterActive')}</Button>
         <Button
           type="button"
           variant="ghost"
           aria-pressed={onlyOpen}
           onClick={() => setOnlyOpen((v) => !v)}
-          className={`rounded-full px-3 ${onlyOpen ? 'bg-amber-100 text-amber-800 hover:bg-amber-100 dark:bg-amber-900/40 dark:text-amber-300 dark:hover:bg-amber-900/40' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300'}`}
+          className={`rounded-full px-3 ${onlyOpen ? 'bg-amber-100 text-amber-800 hover:bg-amber-100 dark:bg-amber-900/40 dark:text-amber-300 dark:hover:bg-amber-900/40' : 'bg-muted text-muted-foreground'}`}
         >{t('filterWithOpen')}</Button>
         {(['volleyball', 'basketball'] as const).map((s) => (
           <Button
@@ -518,26 +518,26 @@ export default function FinanceMemberExplorer() {
             variant="ghost"
             aria-pressed={sport === s}
             onClick={() => setSport((v) => (v === s ? 'all' : s))}
-            className={`rounded-full px-3 ${sport === s ? 'bg-brand-100 text-brand-700 hover:bg-brand-100 dark:bg-brand-900/40 dark:text-brand-300 dark:hover:bg-brand-900/40' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300'}`}
+            className={`rounded-full px-3 ${sport === s ? 'bg-selected text-selected-foreground hover:bg-selected/90 hover:text-selected-foreground' : 'bg-muted text-muted-foreground'}`}
           >{s === 'volleyball' ? t('divVb') : t('divBb')}</Button>
         ))}
       </div>
 
       {isLoading ? (
-        <div className="py-12 text-center text-sm text-gray-500 dark:text-gray-400"><Loader2 className="mx-auto h-5 w-5 animate-spin" /></div>
+        <div className="py-12 text-center text-sm text-muted-foreground"><Loader2 className="mx-auto h-5 w-5 animate-spin" /></div>
       ) : filtered.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-gray-300 py-12 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">{t('noMembers')}</div>
+        <div className="rounded-2xl border border-dashed border-border py-12 text-center text-sm text-muted-foreground">{t('noMembers')}</div>
       ) : (
         <>
-          <p className="text-xs text-gray-400 dark:text-gray-500">{t('memberCount', { count: filtered.length })}</p>
-          <div className="rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+          <p className="text-xs text-muted-foreground/80">{t('memberCount', { count: filtered.length })}</p>
+          <div className="rounded-2xl border border-hairline bg-card shadow-card overflow-hidden">
             <Table>
               <TableHeader>
-                <TableRow className="border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/40">
-                  <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colMember')}</TableHead>
-                  <TableHead className="hidden sm:table-cell text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colSport')}</TableHead>
-                  <TableHead className="hidden sm:table-cell text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colCategory')}</TableHead>
-                  <TableHead className="text-right text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colOpen')}</TableHead>
+                <TableRow>
+                  <TableHead>{t('colMember')}</TableHead>
+                  <TableHead className="hidden sm:table-cell">{t('colSport')}</TableHead>
+                  <TableHead className="hidden sm:table-cell">{t('colCategory')}</TableHead>
+                  <TableHead className="text-right">{t('colOpen')}</TableHead>
                   <TableHead className="w-8" />
                 </TableRow>
               </TableHeader>
@@ -548,19 +548,19 @@ export default function FinanceMemberExplorer() {
                     <TableRow
                       key={m.id}
                       onClick={() => setSelectedId(String(m.id))}
-                      className="cursor-pointer border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-700/40"
+                      className="cursor-pointer hover:bg-muted"
                     >
                       <TableCell className="min-h-[44px] whitespace-normal break-words">
-                        <span className="font-medium text-gray-900 dark:text-gray-100">{fullName(m)}</span>
-                        {m.billing_different && <span className="ml-1.5 align-middle text-xs text-gray-400" title={t('billingSeparate')}>·  {t('billingSeparate')}</span>}
-                        <span className="mt-0.5 block text-xs text-gray-400 sm:hidden">{[m.sektion, m.beitragskategorie].filter(Boolean).join(' · ')}{m.kscw_membership_active ? '' : ` · ${t('membershipInactive')}`}</span>
+                        <span className="font-medium text-foreground">{fullName(m)}</span>
+                        {m.billing_different && <span className="ml-1.5 align-middle text-xs text-muted-foreground/80" title={t('billingSeparate')}>·  {t('billingSeparate')}</span>}
+                        <span className="mt-0.5 block text-xs text-muted-foreground/80 sm:hidden">{[m.sektion, m.beitragskategorie].filter(Boolean).join(' · ')}{m.kscw_membership_active ? '' : ` · ${t('membershipInactive')}`}</span>
                       </TableCell>
-                      <TableCell className="hidden sm:table-cell text-gray-600 dark:text-gray-400">{m.sektion || '—'}</TableCell>
-                      <TableCell className="hidden sm:table-cell text-gray-600 dark:text-gray-400">{m.beitragskategorie || '—'}</TableCell>
+                      <TableCell className="hidden sm:table-cell text-muted-foreground">{m.sektion || '—'}</TableCell>
+                      <TableCell className="hidden sm:table-cell text-muted-foreground">{m.beitragskategorie || '—'}</TableCell>
                       <TableCell className="text-right tabular-nums">
-                        {open > 0.005 ? <span className="font-semibold text-amber-700 dark:text-amber-400">{formatChf(open)}</span> : <span className="text-gray-400">—</span>}
+                        {open > 0.005 ? <span className="font-semibold text-amber-700 dark:text-amber-400">{formatChf(open)}</span> : <span className="text-muted-foreground/80">—</span>}
                       </TableCell>
-                      <TableCell className="text-gray-300 dark:text-gray-600"><ChevronRight className="h-4 w-4" /></TableCell>
+                      <TableCell className="text-muted-foreground/50"><ChevronRight className="h-4 w-4" /></TableCell>
                     </TableRow>
                   )
                 })}

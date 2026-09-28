@@ -78,7 +78,7 @@ function DutyBannerCard({ duty, now }: { duty: MyDuty; now: number }) {
   }
 
   return (
-    <div className="w-full rounded-xl border border-amber-300 bg-amber-50 p-4 lg:max-w-2xl dark:border-amber-700/60 dark:bg-amber-900/20">
+    <div className="w-full rounded-2xl border border-amber-300 bg-amber-50 p-4 shadow-card lg:max-w-2xl dark:border-amber-700/60 dark:bg-amber-950/40">
       <div className="flex items-start gap-3">
         <ClipboardList className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
         <div className="min-w-0 flex-1">
@@ -102,28 +102,28 @@ function DutyBannerCard({ duty, now }: { duty: MyDuty; now: number }) {
           )}
 
           {revealed !== null && (
-            <div className="mt-3 rounded-lg border border-red-300 bg-red-50 p-3 dark:border-red-800 dark:bg-red-900/20">
+            <div className="mt-3 rounded-xl border border-red-300 bg-red-50 p-3 dark:border-red-900/60 dark:bg-red-950/40">
               <p className="mb-2 text-xs font-semibold text-red-700 dark:text-red-300">{t('dutyEmergencyRevealed')}</p>
               {revealed.length === 0 ? (
-                <p className="text-sm text-gray-600 dark:text-gray-400">{t('dutyEmergencyNoLeaders')}</p>
+                <p className="text-sm text-muted-foreground">{t('dutyEmergencyNoLeaders')}</p>
               ) : (
                 <ul className="space-y-2">
                   {revealed.map((l) => (
                     <li key={l.id} className="flex flex-col gap-0.5">
-                      <span className="flex items-center gap-1.5 text-sm font-medium text-gray-900 dark:text-gray-100">
+                      <span className="flex items-center gap-1.5 text-sm font-medium text-foreground">
                         {l.name}
-                        <span className="rounded bg-gray-200 px-1.5 py-0.5 text-[10px] font-medium uppercase text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+                        <span className="rounded border border-border bg-surface-sunken px-1.5 py-0.5 text-[10px] font-medium uppercase text-muted-foreground">
                           {l.role === 'coach' ? t('roleCoach') : t('roleResponsible')}
                         </span>
                       </span>
-                      <span className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-gray-600 dark:text-gray-400">
+                      <span className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
                         {l.phone && (
-                          <a href={`tel:${l.phone}`} className="flex items-center gap-1 font-medium hover:text-brand-600 dark:hover:text-brand-400">
+                          <a href={`tel:${l.phone}`} className="flex items-center gap-1 font-medium hover:text-primary dark:hover:text-brand-300">
                             <Phone className="h-3 w-3" />{l.phone}
                           </a>
                         )}
                         {l.email && (
-                          <a href={`mailto:${l.email}`} className="font-medium hover:text-brand-600 dark:hover:text-brand-400">{l.email}</a>
+                          <a href={`mailto:${l.email}`} className="font-medium hover:text-primary dark:hover:text-brand-300">{l.email}</a>
                         )}
                       </span>
                     </li>

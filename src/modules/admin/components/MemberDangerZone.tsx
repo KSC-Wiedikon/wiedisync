@@ -284,7 +284,7 @@ export default function MemberDangerZone({
   ]
 
   return (
-    <section className="mt-8 rounded-lg border border-destructive/40 bg-destructive/5 p-4">
+    <section className="mt-8 rounded-2xl border border-destructive/40 bg-destructive/5 p-4">
       <h2 className="text-base font-semibold text-destructive">{t('explorerDangerTitle')}</h2>
       <p className="mb-3 text-xs text-muted-foreground">{t('explorerDangerDescription')}</p>
 

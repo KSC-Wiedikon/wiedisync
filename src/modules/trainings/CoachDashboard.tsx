@@ -108,7 +108,7 @@ export default function CoachDashboard({ teamId }: CoachDashboardProps) {
           {t('resetRange')}
         </Button>
         {rangeError && (
-          <p className="w-full text-xs text-red-500">{rangeError}</p>
+          <p className="w-full text-xs font-medium text-destructive">{rangeError}</p>
         )}
       </div>
 

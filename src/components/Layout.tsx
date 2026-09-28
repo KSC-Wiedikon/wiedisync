@@ -68,7 +68,7 @@ export default function Layout() {
 
   return (
     <HouseholdSwitcherProvider>
-    <div className={`flex h-screen flex-col bg-gray-50 dark:bg-gray-900 ${bannerOnTop ? '' : 'pt-safe'}`}>
+    <div className={`flex h-screen flex-col bg-background ${bannerOnTop ? '' : 'pt-safe'}`}>
       {/* Chrome + page mount only once auth/team context is ready; while the
           page's own data loads they render underneath <BootOverlay/> (masked). */}
       {!authBooting && (<>
@@ -102,12 +102,12 @@ export default function Layout() {
         <main className={
           isDesktop && location.pathname.startsWith('/admin/explore')
             ? 'relative flex min-h-0 flex-1 flex-col overflow-hidden'
-            : `relative flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 lg:p-8 ${!isDesktop ? 'pb-24' : ''}`
+            : `relative flex-1 overflow-y-auto overflow-x-hidden bg-gradient-to-b from-stone-50 to-background p-4 sm:p-6 lg:p-8 dark:from-background ${!isDesktop ? 'pb-28' : ''}`
         }>
           {isAdminMode && !onScheduling && (
             <div
               className={
-                'border-x border-b border-t-2 border-gold-400 bg-gold-50 px-4 py-1 text-center text-xs font-semibold uppercase tracking-wider text-gold-700 dark:bg-brand-900/50 dark:text-gold-300 ' +
+                'border-b border-gold-300 bg-gold-50 px-4 py-1 text-center text-[11px] font-semibold uppercase tracking-[0.12em] text-gold-800 dark:border-gold-700/50 dark:bg-brand-900/50 dark:text-gold-300 ' +
                 (isDesktop && location.pathname.startsWith('/admin/explore')
                   ? 'shrink-0'
                   : '-mx-4 -mt-4 mb-4 sm:-mx-6 sm:-mt-6 lg:-mx-8 lg:-mt-8')

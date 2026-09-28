@@ -28,7 +28,7 @@ const TYPE_CONFIG = {
 const STATUS_COLORS: Record<string, string> = {
   new: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
   github: 'bg-brand-100 text-brand-800 dark:bg-brand-900/30 dark:text-brand-300',
-  closed: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400',
+  closed: 'bg-muted text-muted-foreground',
 }
 
 interface FeedbackRecord {
@@ -236,8 +236,8 @@ export default function FeedbackPage() {
     <div className="mx-auto max-w-2xl">
       <div className="mb-6 flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('title')}</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400">{t('subtitle')}</p>
+          <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">{t('title')}</h1>
+          <p className="text-sm text-muted-foreground">{t('subtitle')}</p>
         </div>
         {!showForm && (
           <Button className="shrink-0" onClick={() => setShowForm(true)}>
@@ -248,8 +248,8 @@ export default function FeedbackPage() {
 
       {/* New feedback form */}
       {showForm && (
-        <form onSubmit={handleSubmit} className="mb-8 rounded-xl border border-brand-200 bg-white p-5 shadow-sm dark:border-brand-800 dark:bg-gray-800">
-          <h2 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">{t('newFeedback')}</h2>
+        <form onSubmit={handleSubmit} className="mb-8 rounded-2xl border border-brand-200 bg-card p-5 shadow-card dark:border-brand-800">
+          <h2 className="mb-4 text-base font-semibold tracking-tight text-foreground">{t('newFeedback')}</h2>
 
           {/* Type pills */}
           <div className="mb-4 flex flex-wrap gap-2">
@@ -265,7 +265,7 @@ export default function FeedbackPage() {
                   aria-pressed={isActive}
                   onClick={() => setSelectedType(type)}
                   className={`gap-1.5 rounded-full px-3 ${
-                    isActive ? config.color : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
+                    isActive ? config.color : 'bg-muted text-muted-foreground hover:bg-stone-200 dark:hover:bg-gray-600'
                   }`}
                 >
                   <Icon className="h-4 w-4" />
@@ -277,7 +277,7 @@ export default function FeedbackPage() {
 
           {/* Title */}
           <div className="mb-3">
-            <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">
               {t('fieldTitle')} *
             </label>
             <Input
@@ -290,7 +290,7 @@ export default function FeedbackPage() {
 
           {/* Description */}
           <div className="mb-3">
-            <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">
               {t('fieldDescription')} *
             </label>
             <Textarea
@@ -304,7 +304,7 @@ export default function FeedbackPage() {
 
           {/* Screenshots (up to 5) */}
           <div className="mb-4">
-            <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">
               {t('fieldScreenshot')} ({files.length}/5)
             </label>
             {files.length < 5 && (
@@ -312,7 +312,7 @@ export default function FeedbackPage() {
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={handleDrop}
                 onClick={() => document.getElementById('feedback-file')?.click()}
-                className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 p-4 text-sm text-gray-500 transition-colors hover:border-brand-400 dark:border-gray-600 dark:text-gray-400 dark:hover:border-brand-500"
+                className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-input p-4 text-sm text-muted-foreground transition-colors hover:border-primary/60 hover:bg-accent"
               >
                 <Paperclip className="h-4 w-4" />
                 {t('fieldScreenshotHint')}
@@ -329,9 +329,9 @@ export default function FeedbackPage() {
             {files.length > 0 && (
               <div className="mt-2 space-y-1">
                 {files.map((f, i) => (
-                  <div key={`${f.name}-${i}`} className="flex items-center gap-2 rounded-lg bg-gray-50 py-0.5 pl-3 pr-0.5 text-sm dark:bg-gray-700">
+                  <div key={`${f.name}-${i}`} className="flex items-center gap-2 rounded-lg border border-hairline bg-surface-sunken py-0.5 pl-3 pr-0.5 text-sm">
                     <span className="min-w-0 flex-1 truncate" title={f.name}>{f.name}</span>
-                    <IconButton size="sm" label={t('common:remove')} onClick={() => setFiles((prev) => prev.filter((_, j) => j !== i))} className="shrink-0 text-gray-400 hover:text-red-500 dark:hover:text-red-400">
+                    <IconButton size="sm" label={t('common:remove')} onClick={() => setFiles((prev) => prev.filter((_, j) => j !== i))} className="shrink-0 text-muted-foreground/80 hover:text-red-500 dark:hover:text-red-400">
                       <X />
                     </IconButton>
                   </div>
@@ -354,16 +354,16 @@ export default function FeedbackPage() {
 
       {/* GitHub Issues — public tracker */}
       <div className="mb-8">
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+        <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
           {t('issueTracker')}
         </h2>
 
         {issuesLoading ? (
-          <div className="py-4 text-center text-sm text-gray-400">{t('loadingIssues')}</div>
+          <div className="py-4 text-center text-sm text-muted-foreground/80">{t('loadingIssues')}</div>
         ) : issuesError ? (
-          <p className="text-sm text-red-500 dark:text-red-400">{t('error')}</p>
+          <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">{t('error')}</p>
         ) : issues.length === 0 ? (
-          <p className="text-sm text-gray-400 dark:text-gray-500">{t('noIssues')}</p>
+          <p className="text-sm text-muted-foreground/80">{t('noIssues')}</p>
         ) : (
           <div className="space-y-4">
             {/* Open issues */}
@@ -371,7 +371,7 @@ export default function FeedbackPage() {
               <div>
                 <div className="mb-2 flex items-center gap-2">
                   <AlertCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
-                  <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                  <span className="text-sm font-medium text-foreground">
                     {t('openIssues')} ({openIssues.length})
                   </span>
                 </div>
@@ -391,7 +391,7 @@ export default function FeedbackPage() {
                   variant="ghost"
                   aria-expanded={showClosed}
                   onClick={() => setShowClosed((v) => !v)}
-                  className="-ml-2 mb-2 px-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+                  className="-ml-2 mb-2 px-2 text-muted-foreground hover:text-foreground/85"
                 >
                   {showClosed ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                   <CheckCircle2 className="h-4 w-4 text-purple-500 dark:text-purple-400" />
@@ -413,7 +413,7 @@ export default function FeedbackPage() {
       {/* My submissions */}
       {user && (
         <div>
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+          <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
             {t('mySubmissions')}
           </h2>
           {submissionsPending ? (
@@ -421,40 +421,40 @@ export default function FeedbackPage() {
               {[0, 1].map((i) => (
                 <div
                   key={i}
-                  className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-800"
+                  className="flex items-center gap-3 rounded-xl border border-hairline bg-card px-4 py-3 shadow-card"
                 >
-                  <div className="h-5 w-16 animate-pulse rounded bg-gray-200 dark:bg-gray-700" />
+                  <div className="h-5 w-16 animate-pulse rounded bg-stone-200/80 dark:bg-muted" />
                   <div className="min-w-0 flex-1 space-y-1.5">
-                    <div className="h-4 w-2/5 animate-pulse rounded bg-gray-200 dark:bg-gray-700" />
-                    <div className="h-3 w-24 animate-pulse rounded bg-gray-200 dark:bg-gray-700" />
+                    <div className="h-4 w-2/5 animate-pulse rounded bg-stone-200/80 dark:bg-muted" />
+                    <div className="h-3 w-24 animate-pulse rounded bg-stone-200/80 dark:bg-muted" />
                   </div>
-                  <div className="h-5 w-14 animate-pulse rounded-full bg-gray-200 dark:bg-gray-700" />
+                  <div className="h-5 w-14 animate-pulse rounded-full bg-stone-200/80 dark:bg-muted" />
                 </div>
               ))}
             </div>
           ) : submissionsError ? (
-            <p className="text-sm text-red-500 dark:text-red-400">{t('error')}</p>
+            <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">{t('error')}</p>
           ) : submissions.length === 0 ? (
-            <p className="text-sm text-gray-400 dark:text-gray-500">{t('noSubmissions')}</p>
+            <p className="text-sm text-muted-foreground/80">{t('noSubmissions')}</p>
           ) : (
             <div className="space-y-2">
               {submissions.map((item) => {
                 const config = TYPE_CONFIG[item.type] || TYPE_CONFIG.feedback
                 return (
-                  <div key={item.id} className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-800">
+                  <div key={item.id} className="flex items-center gap-3 rounded-xl border border-hairline bg-card px-4 py-3 shadow-card">
                     <Badge variant={config.badgeVariant} className="text-xs uppercase">
                       {item.type}
                     </Badge>
                     <div className="min-w-0 flex-1">
-                      <div className="break-words text-sm font-medium leading-snug text-gray-900 dark:text-white">{item.title}</div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400">{formatDate(item.date_created)}</div>
+                      <div className="break-words text-sm font-medium leading-snug text-foreground">{item.title}</div>
+                      <div className="text-xs text-muted-foreground">{formatDate(item.date_created)}</div>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
                       <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[item.status] || ''}`}>
                         {t(`status${item.status.charAt(0).toUpperCase() + item.status.slice(1)}`)}
                       </span>
                       {item.github_issue && sanitizeUrl(item.github_issue) && (
-                        <a href={sanitizeUrl(item.github_issue)} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-brand-600">
+                        <a href={sanitizeUrl(item.github_issue)} target="_blank" rel="noopener noreferrer" className="text-muted-foreground/80 hover:text-primary dark:hover:text-brand-300">
                           <ExternalLink className="h-4 w-4" />
                         </a>
                       )}
@@ -481,11 +481,11 @@ function IssueRow({ issue, formatDate, closed }: { issue: GitHubIssue; formatDat
     a2eeef: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-300',
     e4e669: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
     d876e3: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300',
-    ededed: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
+    ededed: 'bg-muted text-foreground/85',
   }
 
   return (
-    <div className={`rounded-lg border bg-white dark:bg-gray-800 ${closed ? 'border-gray-100 dark:border-gray-700/50 opacity-70' : 'border-gray-200 dark:border-gray-700'}`}>
+    <div className={`rounded-xl border bg-card shadow-card ${closed ? 'border-border/60 opacity-70' : 'border-hairline'}`}>
       <button
         onClick={() => setExpanded((v) => !v)}
         className="flex w-full items-center gap-3 px-4 py-2.5 text-left"
@@ -494,28 +494,28 @@ function IssueRow({ issue, formatDate, closed }: { issue: GitHubIssue; formatDat
           ? <CheckCircle2 className="h-4 w-4 shrink-0 text-purple-500 dark:text-purple-400" />
           : <AlertCircle className="h-4 w-4 shrink-0 text-green-600 dark:text-green-400" />
         }
-        <span className="text-xs font-medium text-gray-400 dark:text-gray-500">#{issue.number}</span>
-        <span title={issue.title} className={`min-w-0 flex-1 truncate text-sm font-medium ${closed ? 'text-gray-500 line-through dark:text-gray-400' : 'text-gray-900 dark:text-gray-100'}`}>
+        <span className="text-xs font-medium text-muted-foreground/80">#{issue.number}</span>
+        <span title={issue.title} className={`min-w-0 flex-1 truncate text-sm font-medium ${closed ? 'text-muted-foreground line-through' : 'text-foreground'}`}>
           {issue.title}
         </span>
         <div className="flex shrink-0 items-center gap-2">
           {issue.labels.filter(l => l.name !== 'user-reported').map((label) => (
             <span
               key={label.name}
-              className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${labelColorMap[label.color] ?? 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'}`}
+              className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${labelColorMap[label.color] ?? 'bg-muted text-foreground/85'}`}
             >
               {label.name}
             </span>
           ))}
-          <span className="text-xs text-gray-400 dark:text-gray-500">{formatDate(issue.createdAt)}</span>
-          {expanded ? <ChevronDown className="h-3.5 w-3.5 text-gray-400" /> : <ChevronRight className="h-3.5 w-3.5 text-gray-400" />}
+          <span className="text-xs text-muted-foreground/80">{formatDate(issue.createdAt)}</span>
+          {expanded ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground/80" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/80" />}
         </div>
       </button>
 
       {expanded && (
-        <div className="border-t border-gray-100 px-4 py-3 dark:border-gray-700">
+        <div className="border-t border-border/60 px-4 py-3">
           {issue.body && (
-            <p className="mb-3 whitespace-pre-wrap text-sm text-gray-600 dark:text-gray-400">{issue.body}</p>
+            <p className="mb-3 whitespace-pre-wrap text-sm text-muted-foreground">{issue.body}</p>
           )}
           {closed && issue.closedAt && (
             <p className="mb-2 text-xs text-purple-600 dark:text-purple-400">
@@ -526,7 +526,7 @@ function IssueRow({ issue, formatDate, closed }: { issue: GitHubIssue; formatDat
             href={sanitizeUrl(issue.url)}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-xs font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300"
+            className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:text-primary/80 dark:text-brand-300 dark:hover:text-brand-200"
           >
             <ExternalLink className="h-3 w-3" />
             {t('viewOnGithub')}

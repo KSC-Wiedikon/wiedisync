@@ -156,23 +156,23 @@ export default function DaySlotView({
   const inactiveBottomH = Math.max(0, gridHeight - inactiveBottomTop)
 
   return (
-    <div className="overflow-y-auto rounded-lg bg-white shadow-card dark:bg-gray-800">
+    <div className="overflow-y-auto rounded-2xl border border-hairline bg-card shadow-card">
       {/* Hall sub-headers (multi-hall, or a single hall whose overlaps need the swap control) */}
       {(multiHall || (!allHallsClosed && overlapGroupsByHall.size > 0)) && (
         <div
-          className="grid border-b border-gray-200 dark:border-gray-700"
+          className="grid border-b border-border"
           style={{ gridTemplateColumns: allHallsClosed ? '40px 1fr' : `40px repeat(${visibleHalls.length}, 1fr)` }}
         >
-          <div className="border-r border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900" />
+          <div className="border-r border-border bg-surface-sunken" />
           {allHallsClosed ? (
-            <div className="border-r border-gray-100 px-1 py-1.5 text-center text-xs font-medium text-gray-600 last:border-r-0 dark:border-gray-800 dark:text-gray-400">
+            <div className="border-r border-border/60 px-1 py-1.5 text-center text-xs font-medium text-muted-foreground last:border-r-0">
               {t('allHalls')}
             </div>
           ) : (
             visibleHalls.map((hall) => (
               <div
                 key={hall.id}
-                className="flex min-w-0 items-center justify-center gap-1 border-r border-gray-100 px-1 py-1.5 text-center text-xs font-medium text-gray-600 last:border-r-0 dark:border-gray-800 dark:text-gray-400"
+                className="flex min-w-0 items-center justify-center gap-1 border-r border-border/60 px-1 py-1.5 text-center text-xs font-medium text-muted-foreground last:border-r-0"
               >
                 <span className="min-w-0 break-words">{hall.name}</span>
                 {overlapGroupsByHall.has(hall.id) && (
@@ -197,7 +197,7 @@ export default function DaySlotView({
         style={{ gridTemplateColumns: allHallsClosed ? '40px 1fr' : (multiHall ? `40px repeat(${visibleHalls.length}, 1fr)` : '40px 1fr') }}
       >
         {/* Time labels column */}
-        <div className="border-r border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900">
+        <div className="border-r border-border bg-surface-sunken">
           {timeLabels.map((row) => (
             row.isBreak ? (
               <button
@@ -205,7 +205,7 @@ export default function DaySlotView({
                 type="button"
                 onClick={() => row.breakKey && toggleBreak(row.breakKey)}
                 title={t('breakExpand', { from: row.time, to: row.breakEndTime })}
-                className="flex w-full items-center justify-end pr-1 text-[9px] tabular-nums text-gray-400 dark:text-gray-500"
+                className="flex w-full items-center justify-end pr-1 text-[9px] tabular-nums text-muted-foreground/80"
                 style={{ height: row.height }}
               >
                 {row.time}–{row.breakEndTime}
@@ -215,8 +215,8 @@ export default function DaySlotView({
                 key={row.time}
                 className={`flex items-start justify-end pr-1 text-[10px] ${
                   row.isFullHour
-                    ? 'font-medium text-gray-500 dark:text-gray-400'
-                    : 'text-gray-300 dark:text-gray-600'
+                    ? 'font-medium text-muted-foreground'
+                    : 'text-muted-foreground/50'
                 }`}
                 style={{ height: row.height }}
               >
@@ -236,7 +236,7 @@ export default function DaySlotView({
               row.isBreak ? (
                 <div
                   key={row.time}
-                  className="absolute inset-x-0 z-10 border-y border-dashed border-gray-300 bg-[repeating-linear-gradient(45deg,transparent,transparent_4px,rgba(148,163,184,0.18)_4px,rgba(148,163,184,0.18)_8px)] dark:border-gray-600"
+                  className="absolute inset-x-0 z-10 border-y border-dashed border-input bg-[repeating-linear-gradient(45deg,transparent,transparent_4px,rgba(148,163,184,0.18)_4px,rgba(148,163,184,0.18)_8px)]"
                   style={{ top: row.top, height: row.height }}
                 />
               ) : (
@@ -244,8 +244,8 @@ export default function DaySlotView({
                   key={row.time}
                   className={`absolute inset-x-0 ${
                     row.isFullHour
-                      ? 'border-b border-gray-200 dark:border-gray-700'
-                      : 'border-b border-dashed border-gray-100 dark:border-gray-800'
+                      ? 'border-b border-border'
+                      : 'border-b border-dashed border-border/60'
                   }`}
                   style={{ top: row.top, height: row.height }}
                 />
@@ -260,22 +260,22 @@ export default function DaySlotView({
           return (
             <div
               key={hall.id}
-              className={`relative overflow-visible border-r border-gray-100 last:border-r-0 dark:border-gray-800 ${(isAdmin || isCoach) ? 'cursor-cell' : ''}`}
+              className={`relative overflow-visible border-r border-border/60 last:border-r-0 ${(isAdmin || isCoach) ? 'cursor-cell' : ''}`}
               style={{ height: gridHeight }}
               onClick={(e) => handleCellClick(hall.id, e)}
             >
               {inactiveTopH > 0 && (
-                <div className="absolute inset-x-0 top-0 z-10 bg-gray-100/60 dark:bg-gray-900/40" style={{ height: inactiveTopH }} />
+                <div className="absolute inset-x-0 top-0 z-10 bg-stone-100/60 dark:bg-gray-900/40" style={{ height: inactiveTopH }} />
               )}
               {inactiveBottomH > 0 && (
-                <div className="absolute inset-x-0 bottom-0 z-10 bg-gray-100/60 dark:bg-gray-900/40" style={{ height: inactiveBottomH }} />
+                <div className="absolute inset-x-0 bottom-0 z-10 bg-stone-100/60 dark:bg-gray-900/40" style={{ height: inactiveBottomH }} />
               )}
 
               {timeLabels.map((row) => (
                 row.isBreak ? (
                   <div
                     key={row.time}
-                    className="absolute inset-x-0 z-10 border-y border-dashed border-gray-300 bg-[repeating-linear-gradient(45deg,transparent,transparent_4px,rgba(148,163,184,0.18)_4px,rgba(148,163,184,0.18)_8px)] dark:border-gray-600"
+                    className="absolute inset-x-0 z-10 border-y border-dashed border-input bg-[repeating-linear-gradient(45deg,transparent,transparent_4px,rgba(148,163,184,0.18)_4px,rgba(148,163,184,0.18)_8px)]"
                     style={{ top: row.top, height: row.height }}
                   />
                 ) : (
@@ -283,8 +283,8 @@ export default function DaySlotView({
                     key={row.time}
                     className={`absolute inset-x-0 ${
                       row.isFullHour
-                        ? 'border-b border-gray-200 dark:border-gray-700'
-                        : 'border-b border-dashed border-gray-100 dark:border-gray-800'
+                        ? 'border-b border-border'
+                        : 'border-b border-dashed border-border/60'
                     }`}
                     style={{ top: row.top, height: row.height }}
                   />

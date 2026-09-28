@@ -20,7 +20,7 @@ export default function DutyEventCard({ duty }: { duty: MyDuty }) {
   const roleLabel = t(DUTY_ROLE_LABEL_KEYS[duty.role] ?? 'scorer')
 
   return (
-    <div className="flex flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-card dark:border-gray-700 dark:bg-gray-800">
+    <div className="flex flex-col overflow-hidden rounded-2xl border border-hairline bg-card shadow-card">
       <div className="flex flex-1 items-stretch gap-2.5 p-3 sm:gap-3">
         <DateRail
           eyebrow={g.date ? formatWeekday(g.date) : undefined}
@@ -29,7 +29,7 @@ export default function DutyEventCard({ duty }: { duty: MyDuty }) {
         />
         <RowStripe tone="amber" />
         <div className="min-w-0 flex-1">
-          <p className="break-words text-sm font-semibold leading-snug text-gray-900 sm:text-[15px] dark:text-gray-100">
+          <p className="break-words text-sm font-semibold leading-snug text-foreground sm:text-[15px]">
             {g.home_team} – {g.away_team}
           </p>
           <div className="mt-1.5 flex flex-wrap items-stretch gap-1.5">

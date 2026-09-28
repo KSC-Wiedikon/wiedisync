@@ -283,7 +283,7 @@ function downloadCSV(items: Registration[]) {
 const SPORT_STYLES = {
   volleyball: { accent: 'border-l-yellow-400', Icon: VolleyballIcon, label: 'Volleyball' },
   basketball: { accent: 'border-l-orange-400', Icon: BasketballIcon, label: 'Basketball' },
-  passive: { accent: 'border-l-gray-400', Icon: User, label: 'Passiv' },
+  passive: { accent: 'border-l-stone-400 dark:border-l-gray-400', Icon: User, label: 'Passiv' },
 } as const
 
 export default function AnmeldungenPage() {
@@ -422,7 +422,7 @@ export default function AnmeldungenPage() {
       match_unlinked: { icon: Link2, cls: 'text-amber-600 dark:text-amber-400', label: t('cdRegMatchUnlinked') },
       pushed_pending: { icon: Clock, cls: 'text-blue-600 dark:text-blue-400', label: t('cdRegPushedPending') },
       not_in_clubdesk: { icon: CircleAlert, cls: 'text-amber-600 dark:text-amber-400', label: t('cdRegNotIn') },
-      no_member: { icon: CircleAlert, cls: 'text-gray-400 dark:text-gray-500', label: t('cdRegNoMember') },
+      no_member: { icon: CircleAlert, cls: 'text-muted-foreground/80', label: t('cdRegNoMember') },
     }
     const m = map[st.status]
     if (!m) return null
@@ -647,8 +647,8 @@ export default function AnmeldungenPage() {
           ClubdeskRegistrationZone below STAYS — it answers "did THIS applicant
           reach the register", which is registration context, not a sync control. */}
       <div>
-        <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">{t('anmeldungenTitle')}</h1>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t('anmeldungenDescription')}</p>
+        <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">{t('anmeldungenTitle')}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{t('anmeldungenDescription')}</p>
       </div>
 
       {/* Filters */}
@@ -656,7 +656,7 @@ export default function AnmeldungenPage() {
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
-          className="h-11 rounded-md border border-gray-200 bg-white px-3 text-sm sm:h-9 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+          className="h-11 rounded-lg border border-input bg-card px-3 text-sm sm:h-9 text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-gray-800"
         >
           <option value="all">{t('anmeldungenAllStatuses')}</option>
           <option value="pending">{t('anmeldungenPending')}</option>
@@ -664,7 +664,7 @@ export default function AnmeldungenPage() {
           <option value="rejected">{t('anmeldungenRejected')}</option>
         </select>
 
-        <span className="ml-auto text-sm text-gray-500 dark:text-gray-400">
+        <span className="ml-auto text-sm text-muted-foreground">
           {registrations.length} {t('anmeldungenCount')}
         </span>
       </div>
@@ -697,9 +697,9 @@ export default function AnmeldungenPage() {
 
       {/* Content */}
       {isLoading ? (
-        <div className="py-12 text-center text-sm text-gray-500 dark:text-gray-400">…</div>
+        <div className="py-12 text-center text-sm text-muted-foreground">…</div>
       ) : registrations.length === 0 ? (
-        <div className="py-12 text-center text-sm text-gray-500 dark:text-gray-400">{t('anmeldungenNoRecords')}</div>
+        <div className="py-12 text-center text-sm text-muted-foreground">{t('anmeldungenNoRecords')}</div>
       ) : (
         <div className="space-y-8">
           {/* Select all */}
@@ -708,9 +708,9 @@ export default function AnmeldungenPage() {
               type="checkbox"
               checked={selectedIds.size === registrations.length && registrations.length > 0}
               onChange={toggleSelectAll}
-              className="h-4 w-4 rounded border-gray-300 text-blue-600 dark:border-gray-600"
+              className="h-4 w-4 rounded border-input accent-[var(--primary)]"
             />
-            <span className="text-xs text-gray-500 dark:text-gray-400">{t('anmeldungenSelectAll')}</span>
+            <span className="text-xs text-muted-foreground">{t('anmeldungenSelectAll')}</span>
           </div>
 
           {sections.map((sport) => {
@@ -722,24 +722,24 @@ export default function AnmeldungenPage() {
               <div key={sport} className={`border-l-4 ${style.accent} pl-0`}>
                 {/* Section header */}
                 <div className="mb-3 flex items-center gap-2 pl-4">
-                  <style.Icon className="h-5 w-5 text-gray-600 dark:text-gray-300" />
-                  <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+                  <style.Icon className="h-5 w-5 text-muted-foreground" />
+                  <h2 className="text-base font-semibold text-foreground">
                     {sport === 'passive' ? t('anmeldungenPassive') : style.label}
                   </h2>
-                  <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+                  <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium tabular-nums text-muted-foreground">
                     {items.length}
                   </span>
                 </div>
 
-                <div className="rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+                <div className="overflow-hidden rounded-2xl border border-hairline bg-card shadow-card">
                   <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead className="w-10" />
-                        <TableHead className="text-gray-500 dark:text-gray-400">{t('anmeldungenColName')}</TableHead>
-                        <TableHead className="hidden sm:table-cell text-gray-500 dark:text-gray-400">{t('anmeldungenColStatus')}</TableHead>
-                        <TableHead className="hidden md:table-cell text-gray-500 dark:text-gray-400">{t('anmeldungenColTeam')}</TableHead>
-                        <TableHead className="hidden lg:table-cell text-gray-500 dark:text-gray-400">{t('anmeldungenColSubmitted')}</TableHead>
+                        <TableHead>{t('anmeldungenColName')}</TableHead>
+                        <TableHead className="hidden sm:table-cell">{t('anmeldungenColStatus')}</TableHead>
+                        <TableHead className="hidden md:table-cell">{t('anmeldungenColTeam')}</TableHead>
+                        <TableHead className="hidden lg:table-cell">{t('anmeldungenColSubmitted')}</TableHead>
                         <TableHead className="w-10" />
                       </TableRow>
                     </TableHeader>
@@ -754,18 +754,18 @@ export default function AnmeldungenPage() {
                                   type="checkbox"
                                   checked={selectedIds.has(reg.id)}
                                   onChange={() => toggleSelect(reg.id)}
-                                  className="h-4 w-4 rounded border-gray-300 text-blue-600 dark:border-gray-600"
+                                  className="h-4 w-4 rounded border-input accent-[var(--primary)]"
                                 />
                               </TableCell>
                               <TableCell className="whitespace-normal">
                                 <div className="flex flex-wrap items-center gap-x-1 gap-y-0.5">
-                                  <span className="block sm:inline font-medium text-gray-900 dark:text-gray-100">{reg.nachname}{reg.vorname ? ',' : ''}</span>
-                                  <span className="block sm:inline text-gray-600 dark:text-gray-400 sm:text-gray-900 sm:dark:text-gray-100">{reg.vorname}</span>
+                                  <span className="block sm:inline font-medium text-foreground">{reg.nachname}{reg.vorname ? ',' : ''}</span>
+                                  <span className="block sm:inline text-muted-foreground sm:text-foreground">{reg.vorname}</span>
                                   <span className="sm:hidden">{statusBadge(reg.status)}</span>
                                   {dupBadge(reg)}
                                 </div>
-                                <div className="mt-0.5 text-xs text-gray-500 dark:text-gray-400 break-all">{reg.email}</div>
-                                <div className="md:hidden mt-1 flex flex-wrap items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+                                <div className="mt-0.5 text-xs text-muted-foreground break-all">{reg.email}</div>
+                                <div className="md:hidden mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                                   {reg.team && reg.team.split(',').map((tm) => {
                                     const name = tm.trim()
                                     const tObj = teamByName[name]
@@ -783,7 +783,7 @@ export default function AnmeldungenPage() {
                                   )}
                                   {cdBadge(reg)}
                                 </div>
-                                <div className="lg:hidden mt-0.5 text-[11px] text-gray-400">{formatDate(reg.submitted_at)}</div>
+                                <div className="lg:hidden mt-0.5 text-[11px] text-muted-foreground/80">{formatDate(reg.submitted_at)}</div>
                               </TableCell>
                               <TableCell className="hidden sm:table-cell">{statusBadge(reg.status)}</TableCell>
                               <TableCell className="hidden md:table-cell">
@@ -806,12 +806,12 @@ export default function AnmeldungenPage() {
                                   {cdBadge(reg)}
                                 </div>
                               </TableCell>
-                              <TableCell className="hidden lg:table-cell text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">{formatDate(reg.submitted_at)}</TableCell>
+                              <TableCell className="hidden lg:table-cell text-xs text-muted-foreground whitespace-nowrap">{formatDate(reg.submitted_at)}</TableCell>
                               <TableCell className="text-right">
                                 <IconButton
                                   size="sm"
                                   onClick={() => setExpandedId(isExpanded ? null : reg.id)}
-                                  className="text-gray-400"
+                                  className="text-muted-foreground/80"
                                   label={t('anmeldungenDetails')}
                                   aria-expanded={isExpanded}
                                 >
@@ -820,7 +820,7 @@ export default function AnmeldungenPage() {
                               </TableCell>
                             </TableRow>
                             {isExpanded && (
-                              <TableRow className="bg-gray-50/50 dark:bg-gray-900/30 hover:bg-gray-50/50 dark:hover:bg-gray-900/30">
+                              <TableRow className="bg-surface-sunken/50 hover:bg-surface-sunken/50">
                                 <TableCell colSpan={6} className="whitespace-normal p-0">
                                   <ExpandedDetails
                                     reg={reg}
@@ -863,14 +863,14 @@ export default function AnmeldungenPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label className="text-xs font-medium text-muted-foreground">
               {t('anmeldungenRejectReasonLabel')} *
             </label>
             <textarea
               value={rejectReason}
               onChange={(e) => setRejectReason(e.target.value)}
               rows={3}
-              className="w-full rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm dark:border-gray-600 dark:text-gray-100"
+              className="w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring placeholder:text-muted-foreground/70"
               placeholder={t('anmeldungenRejectReasonPlaceholder')}
               autoFocus
             />
@@ -900,7 +900,7 @@ export default function AnmeldungenPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
-            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-800 dark:bg-amber-950">
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-800 dark:bg-amber-950">
               <div className="text-xs font-medium text-amber-800 dark:text-amber-300">
                 {t('anmeldungenDocsWaiveIntro')}
               </div>
@@ -910,14 +910,14 @@ export default function AnmeldungenPage() {
                 ))}
               </ul>
             </div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label className="block text-xs font-medium text-muted-foreground">
               {t('anmeldungenDocsWaiveReasonLabel')} *
             </label>
             <textarea
               value={waiveReason}
               onChange={(e) => setWaiveReason(e.target.value)}
               rows={3}
-              className="w-full rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm dark:border-gray-600 dark:text-gray-100"
+              className="w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring placeholder:text-muted-foreground/70"
               placeholder={t('anmeldungenDocsWaiveReasonPlaceholder')}
               autoFocus
             />
@@ -994,16 +994,16 @@ function LicenceStatusButtons({ memberId, t }: { memberId: string; t: (key: stri
   })
 
   return (
-    <div className="mt-3 rounded-md border border-gray-200 px-3 py-2.5 dark:border-gray-700">
+    <div className="mt-3 rounded-xl border border-hairline bg-surface-sunken px-3 py-2.5">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+        <span className="text-xs font-medium text-muted-foreground">
           {t('anmeldungenLicenceStatus')}
         </span>
-        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+        <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
           {currentSeasonShort()}
         </span>
         {member?.licence_status_by_name && (
-          <span className="text-[11px] text-gray-400 dark:text-gray-500">{member.licence_status_by_name}</span>
+          <span className="text-[11px] text-muted-foreground/80">{member.licence_status_by_name}</span>
         )}
       </div>
       <div className="mt-2 flex flex-wrap gap-1.5">
@@ -1024,7 +1024,7 @@ function LicenceStatusButtons({ memberId, t }: { memberId: string; t: (key: stri
           )
         })}
       </div>
-      <p className="mt-1.5 text-[11px] text-gray-400 dark:text-gray-500">
+      <p className="mt-1.5 text-[11px] text-muted-foreground/80">
         {t('anmeldungenLicenceStatusHint')}
       </p>
     </div>
@@ -1114,19 +1114,19 @@ function ExpandedDetails({
 
     return (
       <div className={opts?.full ? 'sm:col-span-2' : ''}>
-        <label className="mb-0.5 block text-xs font-medium text-gray-500 dark:text-gray-400">{label}</label>
+        <label className="mb-0.5 block text-xs font-medium text-muted-foreground">{label}</label>
         <input
           type={opts?.type ?? 'text'}
           value={value}
           onChange={(e) => commit(e.target.value)}
-          className="w-full rounded-md border border-gray-200 bg-transparent px-2.5 py-1.5 text-sm text-gray-900 dark:border-gray-600 dark:text-gray-100"
+          className="w-full rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring placeholder:text-muted-foreground/70"
         />
       </div>
     )
   }
 
   const codedLabel = (label: string) => (
-    <label className="mb-0.5 block text-xs font-medium text-gray-500 dark:text-gray-400">{label}</label>
+    <label className="mb-0.5 block text-xs font-medium text-muted-foreground">{label}</label>
   )
 
   // Shared onChange for the coded pickers below. Tracks the same "back to the
@@ -1168,7 +1168,7 @@ function ExpandedDetails({
         {/* A legacy row with only free text has nothing to preselect — show what
             it says so the editor knows what they are replacing. */}
         {!value && reg.nationalitaet && (
-          <div className="mb-1 text-xs text-gray-500 dark:text-gray-400">{localizeCountryName(reg.nationalitaet)}</div>
+          <div className="mb-1 text-xs text-muted-foreground">{localizeCountryName(reg.nationalitaet)}</div>
         )}
         <CountryMultiSelect
           selected={parseCountryCodes(value)}
@@ -1206,7 +1206,7 @@ function ExpandedDetails({
     const value = edits[key] ?? original
     return (
       <div>
-        <label className="mb-0.5 block text-xs font-medium text-gray-500 dark:text-gray-400">{label}</label>
+        <label className="mb-0.5 block text-xs font-medium text-muted-foreground">{label}</label>
         <select
           value={value}
           onChange={(e) => {
@@ -1216,7 +1216,7 @@ function ExpandedDetails({
             else next[key] = v
             setEdits(next)
           }}
-          className="w-full rounded-md border border-gray-200 bg-transparent px-2.5 py-1.5 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+          className="w-full rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-sm text-foreground dark:bg-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <option value="">—</option>
           {choices.map((c) => <option key={c} value={c}>{labels?.[c] ?? c}</option>)}
@@ -1333,7 +1333,7 @@ function ExpandedDetails({
 
     if (!fileId) {
       return (
-        <div key={key} className="flex min-h-11 items-center gap-2 rounded-md border border-dashed border-gray-300 px-3 py-2 text-sm text-gray-400 dark:border-gray-600">
+        <div key={key} className="flex min-h-11 items-center gap-2 rounded-lg border border-dashed border-input px-3 py-2 text-sm text-muted-foreground/80">
           <FileText className="h-4 w-4 shrink-0" />
           <span className="truncate" title={label}>{label}</span>
           {picker(
@@ -1348,7 +1348,7 @@ function ExpandedDetails({
     }
 
     return (
-      <div key={key} className="flex min-h-11 items-center gap-2 rounded-md border border-orange-200 bg-orange-50 pr-2 text-sm text-orange-700 dark:border-orange-800 dark:bg-orange-950 dark:text-orange-300">
+      <div key={key} className="flex min-h-11 items-center gap-2 rounded-lg border border-orange-200 bg-orange-50 pr-2 text-sm text-orange-700 dark:border-orange-800 dark:bg-orange-950 dark:text-orange-300">
         <button
           onClick={() => onPreviewFile({ fileId, label })}
           className="flex min-w-0 flex-1 items-center gap-2 px-3 py-2 text-left hover:underline"
@@ -1358,7 +1358,7 @@ function ExpandedDetails({
           <ExternalLink className="h-3.5 w-3.5 shrink-0" />
         </button>
         {picker(
-          <span className="flex items-center gap-1 whitespace-nowrap rounded px-1.5 py-1 text-xs font-medium hover:bg-orange-100 dark:hover:bg-orange-900">
+          <span className="flex items-center gap-1 whitespace-nowrap rounded-md px-1.5 py-1 text-xs font-medium hover:bg-orange-100 dark:hover:bg-orange-900">
             <Upload className="h-3.5 w-3.5" />
             {busy ? t('anmeldungenDocUploading') : t('anmeldungenDocReplace')}
           </span>,
@@ -1369,7 +1369,7 @@ function ExpandedDetails({
   }
 
   return (
-    <div className="border-t border-gray-200 px-4 py-3 dark:border-gray-700">
+    <div className="border-t border-border px-4 py-3">
       {/* Possible duplicate — first thing in the details, because it changes
           what approving this row will DO. The form hard-blocks an active member
           re-registering as themselves, so what lands here is a returning
@@ -1405,8 +1405,8 @@ function ExpandedDetails({
         {field('bemerkungen', t('anmeldungenNotes'), { full: true })}
         {reg.membership_type === 'basketball' && (
           <div>
-            <label className="mb-0.5 block text-xs font-medium text-gray-500 dark:text-gray-400">{t('anmeldungenSituation')}</label>
-            <div className="px-2.5 py-1.5 text-sm text-gray-900 dark:text-gray-100">
+            <label className="mb-0.5 block text-xs font-medium text-muted-foreground">{t('anmeldungenSituation')}</label>
+            <div className="px-2.5 py-1.5 text-sm text-foreground">
               {(
                 {
                   neu: t('anmeldungenSituationNew'),
@@ -1429,15 +1429,15 @@ function ExpandedDetails({
             nein: t('anmeldungenRecentLicenceNo'),
           })}
         <div>
-          <label className="mb-0.5 block text-xs font-medium text-gray-500 dark:text-gray-400">{t('anmeldungenRef')}</label>
-          <div className="px-2.5 py-1.5 text-sm text-gray-500 dark:text-gray-400">{reg.reference_number}</div>
+          <label className="mb-0.5 block text-xs font-medium text-muted-foreground">{t('anmeldungenRef')}</label>
+          <div className="px-2.5 py-1.5 text-sm text-muted-foreground">{reg.reference_number}</div>
         </div>
       </div>
 
       {/* BB document previews */}
       {reg.membership_type === 'basketball' && (
         <div className="mt-4">
-          <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+          <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
             {t('anmeldungenDocuments')}
           </h4>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
@@ -1463,7 +1463,7 @@ function ExpandedDetails({
       {/* A waiver is the one thing that let this dossier through incomplete, so
           it is stated on the row rather than buried in Data Studio. */}
       {waivedDocs(reg).length > 0 && (
-        <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-800 dark:bg-amber-950">
+        <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-800 dark:bg-amber-950">
           <div className="text-xs font-medium text-amber-800 dark:text-amber-300">
             {t('anmeldungenDocsWaivedLabel')}: {waivedDocs(reg).map((k) => t(DOC_LABEL_KEYS[k] ?? String(k))).join(', ')}
           </div>
@@ -1481,7 +1481,7 @@ function ExpandedDetails({
 
       {/* Rejection reason display */}
       {reg.status === 'rejected' && reg.rejection_reason && (
-        <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 dark:border-red-800 dark:bg-red-950">
+        <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 dark:border-red-800 dark:bg-red-950">
           <div className="text-xs font-medium text-red-700 dark:text-red-300">{t('anmeldungenRejectionReason')}</div>
           <div className="mt-0.5 text-sm text-red-600 dark:text-red-400">{reg.rejection_reason}</div>
         </div>

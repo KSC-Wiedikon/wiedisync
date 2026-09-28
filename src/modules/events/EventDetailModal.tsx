@@ -139,13 +139,13 @@ export default function EventDetailModal({ event, onClose, participations }: Eve
 
   const rosterTools = (
     <>
-      <IconButton label={tP('participation')} onClick={() => setRosterOpen(true)} className="text-brand-600 hover:bg-brand-50 dark:text-brand-400 dark:hover:bg-brand-900/20">
+      <IconButton label={tP('participation')} onClick={() => setRosterOpen(true)} className="text-primary hover:bg-primary/10 dark:text-brand-300 dark:hover:bg-primary/25">
         <Users className="!size-5" />
       </IconButton>
       {/* Admin-only: the merged view, which is the only place the guest
           (OpnForm) half of the signups is visible at all. */}
       {effectiveIsAdmin && (
-        <IconButton label={t('signupsTitle')} onClick={() => setSignupsOpen(true)} className="text-brand-600 hover:bg-brand-50 dark:text-brand-400 dark:hover:bg-brand-900/20">
+        <IconButton label={t('signupsTitle')} onClick={() => setSignupsOpen(true)} className="text-primary hover:bg-primary/10 dark:text-brand-300 dark:hover:bg-primary/25">
           <ClipboardList className="!size-5" />
         </IconButton>
       )}
@@ -224,23 +224,23 @@ export default function EventDetailModal({ event, onClose, participations }: Eve
               // block of noise rather than "who is invited". `trimBBTeamName`
               // is the same shortener TeamChip applies, so the names match the
               // chips used elsewhere (Herren 3 → H3, BB- prefix dropped).
-              <p className="text-sm text-gray-700 dark:text-gray-300">
-                <span className="font-medium text-gray-500 dark:text-gray-400">{t('teamsLabel')}</span>{' '}
+              <p className="text-sm text-foreground/85">
+                <span className="font-medium text-muted-foreground">{t('teamsLabel')}</span>{' '}
                 {teams.map((tm) => trimBBTeamName(tm.name)).join(', ')}
               </p>
             )}
           </div>
 
           {event.cancelled && event.cancel_reason && (
-            <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-400">
+            <p className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">
               {event.cancel_reason}
             </p>
           )}
 
           {/* Details */}
-          <div className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
+          <div className="space-y-2 text-sm text-foreground/85">
             <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 shrink-0 text-gray-500 dark:text-gray-400" />
+              <Calendar className="h-4 w-4 shrink-0 text-muted-foreground" />
               <span>
                 {formatDate(event.start_date)}
                 {!isSameDay(event.start_date, event.end_date) && ` — ${formatDate(event.end_date)}`}
@@ -249,7 +249,7 @@ export default function EventDetailModal({ event, onClose, participations }: Eve
             </div>
             {!event.all_day && event.start_date && (
               <div className="flex items-center gap-2">
-                <Clock className="h-4 w-4 shrink-0 text-gray-500 dark:text-gray-400" />
+                <Clock className="h-4 w-4 shrink-0 text-muted-foreground" />
                 <span>
                   {formatTime(event.start_date)}
                   {event.end_date && ` – ${formatTime(event.end_date)}`}
@@ -258,18 +258,18 @@ export default function EventDetailModal({ event, onClose, participations }: Eve
             )}
             {event.meeting_time && (
               <div className="flex items-center gap-2">
-                <AlarmClock className="h-4 w-4 shrink-0 text-gray-500 dark:text-gray-400" />
+                <AlarmClock className="h-4 w-4 shrink-0 text-muted-foreground" />
                 <span>{tc('meetingTime')}: {formatTime(event.meeting_time)}</span>
               </div>
             )}
             {event.location && (
               <div className="flex items-center gap-2">
-                <MapPin className="h-4 w-4 shrink-0 text-gray-500 dark:text-gray-400" />
+                <MapPin className="h-4 w-4 shrink-0 text-muted-foreground" />
                 <a
                   href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.location)}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-brand-600 hover:underline dark:text-brand-400"
+                  className="text-primary underline decoration-primary/40 hover:decoration-primary dark:text-brand-300"
                   onClick={(e) => e.stopPropagation()}
                 >
                   {event.location} ↗
@@ -280,7 +280,7 @@ export default function EventDetailModal({ event, onClose, participations }: Eve
 
           {/* Description */}
           {event.description && (
-            <div className="text-sm text-gray-500 dark:text-gray-400">
+            <div className="text-sm text-muted-foreground">
               {isHtml(event.description)
                 ? <RichText html={event.description} />
                 : <p>{event.description}</p>
@@ -294,9 +294,9 @@ export default function EventDetailModal({ event, onClose, participations }: Eve
               using the RSVP buttons below would leave no participation row, and
               the event's own count and roster would silently under-report. */}
           {event.signup_url && sanitizeUrl(event.signup_url) && (
-            <div className="mt-3 flex flex-col gap-2 rounded-lg border border-border p-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="mt-3 flex flex-col gap-2 rounded-xl border border-hairline bg-surface-sunken p-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex min-w-0 items-start gap-2 text-sm">
-                <Share2 className="mt-0.5 h-4 w-4 shrink-0 text-gray-500 dark:text-gray-400" />
+                <Share2 className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
                 <div className="min-w-0">
                   <span className="font-medium">{t('signupLinkTitle')}</span>
                   <p className="text-xs text-muted-foreground">{t('signupLinkHint')}</p>
@@ -333,9 +333,9 @@ export default function EventDetailModal({ event, onClose, participations }: Eve
               club. Distinct from the members' share button in the header, and
               from `signup_url` above (the OpnForm door). */}
           {canManageShare && (
-            <div className="mt-3 rounded-lg border border-border p-3">
+            <div className="mt-3 rounded-xl border border-hairline bg-surface-sunken p-3">
               <div className="flex items-start gap-2 text-sm">
-                <Link2 className="mt-0.5 h-4 w-4 shrink-0 text-gray-500 dark:text-gray-400" />
+                <Link2 className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
                 <div className="min-w-0">
                   <span className="font-medium">{t('shareTokenTitle')}</span>
                   <p className="text-xs text-muted-foreground">{t('shareTokenHint')}</p>
@@ -344,7 +344,7 @@ export default function EventDetailModal({ event, onClose, participations }: Eve
 
               {shareToken ? (
                 <>
-                  <p className="mt-2 truncate rounded bg-muted px-2 py-1 font-mono text-xs" title={publicSignupUrl}>
+                  <p className="mt-2 truncate rounded border border-border bg-card px-2 py-1 font-mono text-xs" title={publicSignupUrl}>
                     {publicSignupUrl}
                   </p>
                   <div className="mt-2 flex flex-wrap gap-2">
@@ -408,10 +408,10 @@ export default function EventDetailModal({ event, onClose, participations }: Eve
 
           {/* Participation section */}
           {!event.cancelled && (
-          <div className="space-y-3 border-t border-gray-200 pt-3 dark:border-gray-700">
+          <div className="space-y-3 border-t border-border pt-3">
             {guestExcluded ? (
               <>
-                <p className="text-sm italic text-gray-500 dark:text-gray-400">{t('guestNotInvited')}</p>
+                <p className="text-sm italic text-muted-foreground">{t('guestNotInvited')}</p>
                 {countsRow}
               </>
             ) : hasSessionMode && sessions.length > 0 ? (
@@ -589,7 +589,7 @@ function EventParticipation({ event, isStaff, isStaffParticipant, participations
   return (
     <div className="space-y-2">
       {hasAbsence && (
-        <p className="text-xs italic text-gray-500 dark:text-gray-400">{t(absenceLabel)}</p>
+        <p className="text-xs italic text-muted-foreground">{t(absenceLabel)}</p>
       )}
       {/* Waitlist / max_players is decided server side: a full event answers a
           Yes with `waitlisted`, which selects no button here and shows up as the
@@ -623,22 +623,22 @@ function EventParticipation({ event, isStaff, isStaffParticipant, participations
       {(effectiveStatus || requireNote) && (
         <div className="relative">
           <div className="flex items-center gap-2">
-            <MessageSquare className="h-4 w-4 shrink-0 text-gray-400" />
+            <MessageSquare className="h-4 w-4 shrink-0 text-muted-foreground/80" />
             <input
               type="text"
               value={noteText}
               onChange={(e) => { setNoteText(e.target.value); setNoteRequiredError(false) }}
               onKeyDown={(e) => { if (e.key === 'Enter') saveNote() }}
               placeholder={requireNote ? t('noteRequiredError') : t('notePlaceholder')}
-              className={`min-w-0 flex-1 rounded-md border bg-transparent px-2.5 py-1 text-sm text-gray-700 placeholder:text-gray-400 focus:border-brand-400 focus:outline-none dark:text-gray-300 dark:placeholder:text-gray-500 dark:focus:border-brand-500 ${
-                noteRequiredError ? 'border-red-400 dark:border-red-500' : 'border-gray-200 dark:border-gray-600'
+              className={`min-w-0 flex-1 rounded-lg border bg-card px-2.5 py-1 text-sm text-foreground placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-input/20 ${
+                noteRequiredError ? 'border-red-400 dark:border-red-500' : 'border-input'
               }`}
             />
             <IconButton
               label={tc('save')}
               onClick={saveNote}
               disabled={noteText === savedNote}
-              className="shrink-0 text-gray-400 hover:text-green-600 disabled:opacity-30 dark:hover:text-green-400"
+              className="shrink-0 text-muted-foreground/80 hover:text-green-600 disabled:opacity-30 dark:hover:text-green-400"
             >
               <Check />
             </IconButton>
@@ -652,7 +652,7 @@ function EventParticipation({ event, isStaff, isStaffParticipant, participations
       {/* Position preferences — only when feature enabled and user confirmed */}
       {showPositions && effectiveStatus === 'confirmed' && (
         <div className="space-y-1.5">
-          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('positions', 'Position Preferences')}</span>
+          <span className="text-sm font-medium text-foreground/85">{t('positions', 'Position Preferences')}</span>
           {([
             { label: '1.', value: pos1, set: setPos1 },
             { label: '2.', value: pos2, set: setPos2 },
@@ -661,7 +661,7 @@ function EventParticipation({ event, isStaff, isStaffParticipant, participations
             const others = [pos1, pos2, pos3].filter((_, j) => j !== i).filter(Boolean)
             return (
               <div key={label} className="flex items-center gap-2">
-                <span className="w-5 text-right text-xs font-medium text-gray-400">{label}</span>
+                <span className="w-5 text-right text-xs font-medium text-muted-foreground/80">{label}</span>
                 <select
                   value={value}
                   onChange={(e) => {
@@ -671,7 +671,7 @@ function EventParticipation({ event, isStaff, isStaffParticipant, participations
                     newPos[i] = v
                     savePositions(newPos[0], newPos[1], newPos[2])
                   }}
-                  className="flex-1 rounded-md border border-gray-200 bg-transparent px-2.5 py-1 text-sm text-gray-700 focus:border-brand-400 focus:outline-none dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:focus:border-brand-500"
+                  className="flex-1 rounded-lg border border-input bg-card px-2.5 py-1 text-sm text-foreground dark:bg-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <option value="">{t('positionRequired', 'Select position...')}</option>
                   {VOLLEY_POSITIONS.map((pos) => (
@@ -690,8 +690,8 @@ function EventParticipation({ event, isStaff, isStaffParticipant, participations
       {/* Guest counter — staff only */}
       {effectiveStatus && isStaff && (
         <div className="flex items-center gap-2">
-          <UserPlus className="h-4 w-4 shrink-0 text-gray-400" />
-          <span className="text-sm text-gray-500 dark:text-gray-400">{t('guests')}</span>
+          <UserPlus className="h-4 w-4 shrink-0 text-muted-foreground/80" />
+          <span className="text-sm text-muted-foreground">{t('guests')}</span>
           <div className="flex items-center gap-1.5">
             <IconButton
               label={t('decreaseGuests', { defaultValue: 'Remove guest' })}
@@ -701,7 +701,7 @@ function EventParticipation({ event, isStaff, isStaffParticipant, participations
             >
               <Minus />
             </IconButton>
-            <span className="min-w-[1.5rem] text-center text-sm font-medium tabular-nums text-gray-900 dark:text-gray-100" aria-live="polite">
+            <span className="min-w-[1.5rem] text-center text-sm font-medium tabular-nums text-foreground" aria-live="polite">
               {guestCount}
             </span>
             <IconButton
@@ -767,7 +767,7 @@ function EventSessionNote({ eventId, sessions }: { eventId: string; sessions: Ev
   return (
     <div className="relative">
       <div className="flex items-center gap-2">
-        <MessageSquare className="h-4 w-4 shrink-0 text-gray-400" />
+        <MessageSquare className="h-4 w-4 shrink-0 text-muted-foreground/80" />
         <input
           type="text"
           value={noteText}
@@ -775,13 +775,13 @@ function EventSessionNote({ eventId, sessions }: { eventId: string; sessions: Ev
           onKeyDown={(e) => { if (e.key === 'Enter') saveNote() }}
           onBlur={saveNote}
           placeholder={t('notePlaceholder')}
-          className="min-w-0 flex-1 rounded-md border border-gray-200 bg-transparent px-2.5 py-1 text-sm text-gray-700 placeholder:text-gray-400 focus:border-brand-400 focus:outline-none dark:border-gray-600 dark:text-gray-300 dark:placeholder:text-gray-500 dark:focus:border-brand-500"
+          className="min-w-0 flex-1 rounded-lg border border-input bg-card px-2.5 py-1 text-sm text-foreground placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-input/20"
         />
         <IconButton
           label={t('save', { ns: 'common' })}
           onClick={saveNote}
           disabled={noteText === savedNote}
-          className="shrink-0 text-gray-400 hover:text-green-600 disabled:opacity-30 dark:hover:text-green-400"
+          className="shrink-0 text-muted-foreground/80 hover:text-green-600 disabled:opacity-30 dark:hover:text-green-400"
         >
           <Check />
         </IconButton>

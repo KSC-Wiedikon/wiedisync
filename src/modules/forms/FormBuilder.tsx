@@ -275,11 +275,11 @@ export default function FormBuilder({ form, onSave, onCancel }: Props) {
           helperText={t('closesAtHint')}
         />
 
-        <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+        <div className="flex items-center gap-2 text-sm text-foreground/85">
           <Switch checked={anonymous} onCheckedChange={setAnonymous} />
           <div><span>{t('anonymous')}</span><p className="text-xs text-muted-foreground">{t('anonymousHint')}</p></div>
         </div>
-        <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+        <div className="flex items-center gap-2 text-sm text-foreground/85">
           <Switch checked={allowMultiple} onCheckedChange={setAllowMultiple} />
           <div><span>{t('allowMultiple')}</span><p className="text-xs text-muted-foreground">{t('allowMultipleHint')}</p></div>
         </div>
@@ -293,8 +293,8 @@ export default function FormBuilder({ form, onSave, onCancel }: Props) {
         />
 
         {canPublic && (
-          <div className="space-y-3 rounded-lg border border-gray-200 p-3 dark:border-gray-700">
-            <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+          <div className="space-y-3 rounded-xl border border-hairline bg-surface-sunken p-3">
+            <div className="flex items-center gap-2 text-sm text-foreground/85">
               <Switch
                 checked={isPublic}
                 onCheckedChange={(v) => {
@@ -313,7 +313,7 @@ export default function FormBuilder({ form, onSave, onCancel }: Props) {
                     value={slug}
                     onChange={(e) => setSlug(slugify(e.target.value))}
                     placeholder={slugify(title) || 'mein-formular'}
-                    className="h-11 min-w-0 flex-1 rounded border border-gray-200 bg-transparent px-2 py-1 text-sm dark:border-gray-600 dark:text-gray-100 sm:h-9"
+                    className="h-11 min-w-0 flex-1 rounded-lg border border-input bg-card px-2 py-1 text-sm text-foreground dark:bg-input/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-9"
                   />
                 </div>
                 {(slug.trim() || title.trim()) && (
@@ -327,11 +327,11 @@ export default function FormBuilder({ form, onSave, onCancel }: Props) {
         )}
 
         {/* Field editor */}
-        <div className="rounded-lg border border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between border-b border-gray-200 px-3 py-2 dark:border-gray-700">
+        <div className="overflow-hidden rounded-xl border border-hairline">
+          <div className="flex items-center justify-between border-b border-border px-3 py-2">
             <span className="text-sm font-medium">{t('fields')} ({fields.length})</span>
             <div className="flex gap-2">
-              <Button type="button" variant="link" size="sm" onClick={() => setShowPreview((v) => !v)} className="px-0 text-brand-600 dark:text-brand-400">
+              <Button type="button" variant="link" size="sm" onClick={() => setShowPreview((v) => !v)} className="px-0 text-primary dark:text-brand-300">
                 {showPreview ? t('hidePreview') : t('showPreview')}
               </Button>
             </div>
@@ -350,7 +350,7 @@ export default function FormBuilder({ form, onSave, onCancel }: Props) {
               ))}
             </div>
           ) : (
-            <div className="divide-y divide-gray-100 dark:divide-gray-700">
+            <div className="divide-y divide-border/60">
               {fields.map((f, i) => (
                 <div key={f.id} className="space-y-2 p-3">
                   <div className="flex items-start gap-2">
@@ -359,11 +359,11 @@ export default function FormBuilder({ form, onSave, onCancel }: Props) {
                       value={f.label}
                       onChange={(e) => updateField(f.id, { label: e.target.value })}
                       placeholder={t('fieldLabelPlaceholder')}
-                      className="h-11 min-w-0 flex-1 rounded border border-gray-200 bg-transparent px-2 py-1 text-sm dark:border-gray-600 dark:text-gray-100 sm:h-9"
+                      className="h-11 min-w-0 flex-1 rounded-lg border border-input bg-card px-2 py-1 text-sm text-foreground dark:bg-input/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-9"
                     />
                     <div className="flex shrink-0 flex-col gap-1 sm:flex-row">
-                      <IconButton type="button" size="sm" label={t('moveUp')} onClick={() => moveField(i, -1)} disabled={i === 0} className="text-gray-500 dark:text-gray-400"><ChevronUp /></IconButton>
-                      <IconButton type="button" size="sm" label={t('moveDown')} onClick={() => moveField(i, 1)} disabled={i === fields.length - 1} className="text-gray-500 dark:text-gray-400"><ChevronDown /></IconButton>
+                      <IconButton type="button" size="sm" label={t('moveUp')} onClick={() => moveField(i, -1)} disabled={i === 0} className="text-muted-foreground"><ChevronUp /></IconButton>
+                      <IconButton type="button" size="sm" label={t('moveDown')} onClick={() => moveField(i, 1)} disabled={i === fields.length - 1} className="text-muted-foreground"><ChevronDown /></IconButton>
                       <IconButton type="button" size="sm" label={tc('delete')} onClick={() => removeField(f.id)} className="text-red-500 hover:bg-red-50 hover:text-red-600 dark:text-red-400 dark:hover:bg-red-900/30"><Trash2 /></IconButton>
                     </div>
                   </div>
@@ -387,7 +387,7 @@ export default function FormBuilder({ form, onSave, onCancel }: Props) {
                       icon={<Languages />}
                       className={`gap-1 px-2 text-xs ${
                         transOpen.has(f.id) || f.label_i18n
-                          ? 'text-brand-600 dark:text-brand-400'
+                          ? 'text-primary dark:text-brand-300'
                           : 'text-muted-foreground hover:text-foreground'
                       }`}
                       title={t('translateLabel')}
@@ -401,11 +401,11 @@ export default function FormBuilder({ form, onSave, onCancel }: Props) {
                       onChange={(e) => updateField(f.id, { options: e.target.value.split('\n').map((s) => s.trim()).filter(Boolean) })}
                       placeholder={t('optionsPlaceholder')}
                       rows={3}
-                      className="w-full rounded border border-gray-200 bg-transparent px-2 py-1 text-sm dark:border-gray-600 dark:text-gray-100"
+                      className="w-full rounded-lg border border-input bg-card px-2 py-1 text-sm text-foreground dark:bg-input/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     />
                   )}
                   {transOpen.has(f.id) && (
-                    <div className="space-y-1.5 rounded-md bg-muted/50 p-2">
+                    <div className="space-y-1.5 rounded-lg border border-hairline bg-surface-sunken p-2">
                       <p className="text-xs text-muted-foreground">{t('translateHint')}</p>
                       {FORM_LOCALES.map((loc) => (
                         <div key={loc} className="flex items-center gap-2">
@@ -415,7 +415,7 @@ export default function FormBuilder({ form, onSave, onCancel }: Props) {
                             value={f.label_i18n?.[loc] ?? ''}
                             onChange={(e) => setFieldLabelI18n(f.id, loc, e.target.value)}
                             placeholder={f.label}
-                            className="h-11 min-w-0 flex-1 rounded border border-gray-200 bg-transparent px-2 py-1 text-sm dark:border-gray-600 dark:text-gray-100 sm:h-9"
+                            className="h-11 min-w-0 flex-1 rounded-lg border border-input bg-card px-2 py-1 text-sm text-foreground dark:bg-input/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-9"
                           />
                         </div>
                       ))}

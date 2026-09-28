@@ -63,7 +63,7 @@ export default function ResultsTable({ columns, rows, maxHeight = 'max-h-[60vh]'
     // hidden overflow then clipped the last rows — scrolled to the end, the
     // last two rows were simply gone. Keeping the card at its natural height
     // lets the pane scroll instead of the card clipping.
-    <div className="shrink-0 overflow-hidden rounded-lg border border-border bg-card">
+    <div className="shrink-0 overflow-hidden rounded-2xl border border-hairline bg-card shadow-card">
       <div className="border-b border-border bg-muted/50 px-3 py-1.5 text-xs text-muted-foreground">
         {t('resultsSummary', { rows: rows.length, cols: columns.length })}
       </div>

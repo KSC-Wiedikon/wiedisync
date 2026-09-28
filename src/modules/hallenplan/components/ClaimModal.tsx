@@ -25,8 +25,8 @@ function DetailRow({ label, value }: { label: string; value: string }) {
   if (!value) return null
   return (
     <div className="flex gap-3 py-1.5">
-      <span className="w-28 shrink-0 text-sm font-medium text-gray-500 dark:text-gray-400">{label}</span>
-      <span className="text-sm text-gray-900 dark:text-gray-100">{value}</span>
+      <span className="w-28 shrink-0 text-sm font-medium text-muted-foreground">{label}</span>
+      <span className="text-sm text-foreground">{value}</span>
     </div>
   )
 }
@@ -144,7 +144,7 @@ export default function ClaimModal({ slot, halls, teams, rawSlots, weekDays, onC
         )}
         {originalTeams.length > 0 && (
           <div className="flex gap-3 py-1.5">
-            <span className="w-28 shrink-0 text-sm font-medium text-gray-500 dark:text-gray-400">
+            <span className="w-28 shrink-0 text-sm font-medium text-muted-foreground">
               {t('claimOriginalTeam')}
             </span>
             <span className="flex flex-wrap items-center gap-1">
@@ -159,13 +159,13 @@ export default function ClaimModal({ slot, halls, teams, rawSlots, weekDays, onC
         )}
       </div>
 
-      <div className="mt-4 space-y-3 border-t border-gray-200 pt-4 dark:border-gray-700">
+      <div className="mt-4 space-y-3 border-t border-border pt-4">
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+          <label className="mb-1 block text-xs font-medium text-muted-foreground">
             {t('claimTeamLabel')}
           </label>
           <select
-            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+            className="h-11 w-full rounded-lg border border-input bg-card px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-9 dark:bg-gray-800"
             value={selectedTeamId}
             onChange={(e) => setSelectedTeamId(e.target.value)}
           >
@@ -178,11 +178,11 @@ export default function ClaimModal({ slot, halls, teams, rawSlots, weekDays, onC
         </div>
 
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+          <label className="mb-1 block text-xs font-medium text-muted-foreground">
             {t('claimNotes')}
           </label>
           <textarea
-            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+            className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm leading-relaxed text-foreground placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-input/20"
             rows={2}
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
@@ -192,13 +192,13 @@ export default function ClaimModal({ slot, halls, teams, rawSlots, weekDays, onC
       </div>
 
       {error && (
-        <div className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800 dark:bg-red-900/30 dark:text-red-300">
+        <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">
           {error}
         </div>
       )}
 
       {isPast && (
-        <div className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+        <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-300">
           {t('claimPastDate')}
         </div>
       )}

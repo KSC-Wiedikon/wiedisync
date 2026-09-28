@@ -432,7 +432,7 @@ function TriRow({
       <span className="min-w-0 flex-1 truncate text-xs text-foreground" title={label}>
         {label}
       </span>
-      <div className="inline-flex shrink-0 overflow-hidden rounded-md border border-border text-[11px]">
+      <div className="inline-flex shrink-0 overflow-hidden rounded-lg border border-border text-[11px]">
         {(['any', 'yes', 'no'] as Tri[]).map((opt) => (
           <Button
             key={opt}

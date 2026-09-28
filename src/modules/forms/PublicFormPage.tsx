@@ -126,11 +126,11 @@ export default function PublicFormPage() {
   return (
     <div className="min-h-screen bg-background px-4 py-10">
       <div className="mx-auto max-w-xl">
-        <p className="mb-6 text-center text-sm font-semibold tracking-wide text-brand-600 dark:text-brand-400">
+        <p className="mb-6 text-center text-[11px] font-semibold uppercase tracking-[0.14em] text-primary dark:text-brand-300">
           KSC Wiedikon
         </p>
 
-        <div className="rounded-xl border border-gray-200 bg-card p-6 shadow-sm dark:border-gray-700">
+        <div className="rounded-3xl border border-hairline bg-card p-6 shadow-card-lg">
           {status === 'notfound' && (
             <p className="py-8 text-center text-sm text-muted-foreground">{t('publicNotFound')}</p>
           )}
@@ -149,7 +149,7 @@ export default function PublicFormPage() {
 
           {status === 'ready' && form && !done && (
             <form onSubmit={handleSubmit} className="space-y-4">
-              <h1 className="text-xl font-bold">{form.title}</h1>
+              <h1 className="text-xl font-bold tracking-tight text-foreground">{form.title}</h1>
               {form.description && (
                 <p className="whitespace-pre-line text-sm text-muted-foreground">{form.description}</p>
               )}

@@ -678,7 +678,7 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
           helperText={t('meetingTimeHint')}
         />
 
-        <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+        <div className="flex items-center gap-2 text-sm text-foreground/85">
           <Switch
             checked={allDay}
             onCheckedChange={(checked) => {
@@ -728,7 +728,7 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
           )}
         </div>
 
-        <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+        <div className="flex items-center gap-2 text-sm text-foreground/85">
           <Switch checked={requireNoteIfAbsent} onCheckedChange={setRequireNoteIfAbsent} />
           <div>
             <span>{t('requireNoteIfAbsent', { ns: 'participation' })}</span>
@@ -736,7 +736,7 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
           </div>
         </div>
 
-        <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+        <div className="flex items-center gap-2 text-sm text-foreground/85">
           <Switch checked={allowMaybe} onCheckedChange={setAllowMaybe} />
           <div>
             <span>{t('allowMaybe')}</span>
@@ -744,7 +744,7 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
           </div>
         </div>
 
-        <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+        <div className="flex items-center gap-2 text-sm text-foreground/85">
           <Switch checked={carpoolEnabled} onCheckedChange={setCarpoolEnabled} />
           <div>
             <span>{t('toggleLabel', { ns: 'carpool' })}</span>
@@ -757,7 +757,7 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
 
         {/* J+S export opt-in — flags the event as a J+S activity and picks its NDS type. */}
         <div className="space-y-2">
-          <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+          <div className="flex items-center gap-2 text-sm text-foreground/85">
             <Switch checked={jsRelevant} onCheckedChange={setJsRelevant} />
             <div>
               <span>{t('eventJsInScope', { ns: 'jsExport' })}</span>
@@ -783,7 +783,7 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
             natively above, which is what drives counts and rosters. On a
             club-wide event kscw.ch renders this URL as its "Anmelden" button. */}
         {effectiveIsAdmin && (
-          <div className="space-y-2 rounded-lg border border-border p-3">
+          <div className="space-y-2 rounded-xl border border-hairline bg-surface-sunken p-3">
             <div>
               <span className="text-sm font-medium">{t('signupForm')}</span>
               <p className="text-xs text-muted-foreground">{t('signupFormHint')}</p>
@@ -886,7 +886,7 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
               />
             </div>
 
-            <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+            <div className="flex items-center gap-2 text-sm text-foreground/85">
               <Switch checked={enablePositions} onCheckedChange={setEnablePositions} />
               <div>
                 <span>{t('enablePositions')}</span>
@@ -897,7 +897,7 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
         )}
 
         <FormField label={t('teamsInvolved')} helperText={t('teamsInvolvedHint')}>
-          <div className="mb-2 flex gap-1 rounded-lg border border-gray-200 bg-gray-50 p-1 dark:border-gray-600 dark:bg-gray-800">
+          <div className="mb-2 flex gap-1 rounded-xl bg-muted p-1">
             {(['all', 'volleyball', 'basketball'] as const).map((sport) => (
               <button
                 key={sport}
@@ -910,10 +910,10 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
                     setSelectedTeams(prev => prev.filter(id => validIds.has(id)))
                   }
                 }}
-                className={`flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                className={`flex-1 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
                   sportFilter === sport
-                    ? 'bg-brand-500 text-white shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
+                    ? 'bg-selected text-selected-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
                 {sport === 'all' ? tc('all') : sport === 'volleyball' ? tc('volleyball') : tc('basketball')}
@@ -932,7 +932,7 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
             team is invited — a club-wide event has no roster to read a guest
             level from. */}
         {selectedTeams.length > 0 && (
-          <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+          <div className="flex items-center gap-2 text-sm text-foreground/85">
             <Switch checked={inviteGuests} onCheckedChange={setInviteGuests} />
             <div>
               <span>{t('inviteGuests')}</span>
@@ -952,7 +952,7 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
         </FormField>
 
         {/* Email invite toggle */}
-        <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+        <div className="flex items-center gap-2 text-sm text-foreground/85">
           <Switch checked={sendEmailInvite} onCheckedChange={setSendEmailInvite} />
           <div>
             <span>{t('sendEmailInvite', { ns: 'invitations' })}</span>
@@ -963,17 +963,17 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
         {/* Participation mode selector — only for multi-day events */}
         {isMultiDay && (
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">{t('participationMode')}</label>
-            <div className="mt-2 flex gap-1 rounded-lg border border-gray-200 bg-gray-50 p-1 dark:border-gray-600 dark:bg-gray-800">
+            <label className="block text-xs font-medium text-muted-foreground">{t('participationMode')}</label>
+            <div className="mt-2 flex gap-1 rounded-xl bg-muted p-1">
               {(['whole', 'per_day', 'per_session'] as const).map((mode) => (
                 <button
                   key={mode}
                   type="button"
                   onClick={() => handleModeChange(mode)}
-                  className={`flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                  className={`flex-1 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
                     participationMode === mode
-                      ? 'bg-brand-500 text-white shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
+                      ? 'bg-selected text-selected-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
                   }`}
                 >
                   {t(mode === 'whole' ? 'modeWhole' : mode === 'per_day' ? 'modePerDay' : 'modePerSession')}
@@ -985,14 +985,14 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
 
         {/* Session list for per_day mode */}
         {isMultiDay && participationMode === 'per_day' && sessions.length > 0 && (
-          <div className="rounded-lg border border-gray-200 dark:border-gray-700">
-            <div className="border-b border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 dark:border-gray-700 dark:text-gray-300">
+          <div className="rounded-xl border border-hairline bg-surface-sunken">
+            <div className="border-b border-border px-3 py-2 text-sm font-medium text-foreground/85">
               {t('sessions')} ({sessions.length})
             </div>
-            <div className="divide-y divide-gray-100 dark:divide-gray-700">
+            <div className="divide-y divide-border/60">
               {sessions.map((s, i) => (
                 <div key={`${s.date}-${i}`} className="flex items-center gap-3 px-3 py-2">
-                  <span className="min-w-[100px] text-sm font-medium text-gray-700 dark:text-gray-300">
+                  <span className="min-w-[100px] text-sm font-medium text-foreground/85">
                     {formatDateShort(s.date)}
                   </span>
                   <label className="flex-1">
@@ -1002,7 +1002,7 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
                       value={s.label}
                       onChange={(e) => updateSession(i, 'label', e.target.value)}
                       placeholder={t('sessionLabel')}
-                      className="w-full rounded border border-gray-200 bg-transparent px-2 py-1 text-sm dark:border-gray-600 dark:text-gray-100"
+                      className="w-full rounded-lg border border-input bg-card px-2 py-1 text-sm text-foreground dark:bg-input/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     />
                   </label>
                 </div>
@@ -1015,23 +1015,23 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
         {isMultiDay && participationMode === 'per_session' && (
           <div className="space-y-3">
             {Array.from(sessionsByDate.entries()).map(([date, dateSessions]) => (
-              <div key={date} className="rounded-lg border border-gray-200 dark:border-gray-700">
-                <div className="flex items-center justify-between border-b border-gray-200 px-3 py-2 dark:border-gray-700">
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              <div key={date} className="rounded-xl border border-hairline bg-surface-sunken">
+                <div className="flex items-center justify-between border-b border-border px-3 py-2">
+                  <span className="text-sm font-medium text-foreground/85">
                     {formatDateShort(date)}
                   </span>
                   <button
                     type="button"
                     onClick={() => addSessionForDate(date)}
-                    className="rounded px-2 py-0.5 text-xs font-medium text-brand-600 hover:bg-brand-50 dark:text-brand-400 dark:hover:bg-brand-900/30"
+                    className="rounded-md px-2 py-0.5 text-xs font-medium text-primary hover:bg-primary/10 dark:text-brand-300 dark:hover:bg-primary/25"
                   >
                     + {t('addTimeBlock')}
                   </button>
                 </div>
                 {dateSessions.length === 0 ? (
-                  <div className="px-3 py-2 text-xs text-gray-400">{t('addTimeBlock')}</div>
+                  <div className="px-3 py-2 text-xs text-muted-foreground/80">{t('addTimeBlock')}</div>
                 ) : (
-                  <div className="divide-y divide-gray-100 dark:divide-gray-700">
+                  <div className="divide-y divide-border/60">
                     {dateSessions.map((s) => {
                       const idx = sessions.indexOf(s)
                       return (
@@ -1040,26 +1040,26 @@ export default function EventForm({ open, event, onSave, onCancel, onDelete }: E
                             type="time"
                             value={s.start_time}
                             onChange={(e) => updateSession(idx, 'start_time', e.target.value)}
-                            className="w-24 rounded border border-gray-200 bg-transparent px-2 py-1 text-sm dark:border-gray-600 dark:text-gray-100"
+                            className="w-24 rounded-lg border border-input bg-card px-2 py-1 text-sm text-foreground dark:bg-input/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                           />
-                          <span className="text-gray-400">–</span>
+                          <span className="text-muted-foreground/80">–</span>
                           <input
                             type="time"
                             value={s.end_time}
                             onChange={(e) => updateSession(idx, 'end_time', e.target.value)}
-                            className="w-24 rounded border border-gray-200 bg-transparent px-2 py-1 text-sm dark:border-gray-600 dark:text-gray-100"
+                            className="w-24 rounded-lg border border-input bg-card px-2 py-1 text-sm text-foreground dark:bg-input/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                           />
                           <input
                             type="text"
                             value={s.label}
                             onChange={(e) => updateSession(idx, 'label', e.target.value)}
                             placeholder={t('sessionLabel')}
-                            className="flex-1 rounded border border-gray-200 bg-transparent px-2 py-1 text-sm dark:border-gray-600 dark:text-gray-100"
+                            className="flex-1 rounded-lg border border-input bg-card px-2 py-1 text-sm text-foreground dark:bg-input/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                           />
                           <button
                             type="button"
                             onClick={() => removeSession(idx)}
-                            className="text-red-400 hover:text-red-600"
+                            className="text-red-400 hover:text-red-600 dark:hover:text-red-300"
                             title={t('removeSession')}
                           >
                             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

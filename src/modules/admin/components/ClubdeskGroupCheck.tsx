@@ -82,7 +82,7 @@ function Section({
   const [open, setOpen] = useState(false)
   if (count === 0) return null
   return (
-    <section className="rounded-md border border-border">
+    <section className="overflow-hidden rounded-xl border border-hairline">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -257,7 +257,7 @@ export default function ClubdeskGroupCheck({ data, loading, error, onRefresh, ta
 
       <CardContent className="space-y-2">
         {error && (
-          <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>
+          <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>
         )}
 
         {!error && loading && (
@@ -322,7 +322,7 @@ export default function ClubdeskGroupCheck({ data, loading, error, onRefresh, ta
                       <TableCell className="whitespace-normal break-words">
                         {r.kind === 'fee' ? t('clubdeskHonoraryFee') : t('clubdeskHonoraryStatusOnly')}
                       </TableCell>
-                      <TableCell className="hidden whitespace-normal break-words text-gray-500 sm:table-cell dark:text-gray-400">
+                      <TableCell className="hidden whitespace-normal break-words text-muted-foreground sm:table-cell">
                         {r.kat || '—'}
                       </TableCell>
                     </TableRow>

@@ -113,7 +113,7 @@ export default function TeamCalendar({ team }: { team: Team }) {
   return (
     <div className="mt-8">
       <div className="mb-3 flex items-center justify-between gap-2">
-        <h2 className="min-w-0 text-lg font-semibold text-gray-900 dark:text-gray-100">{t('title')}</h2>
+        <h2 className="min-w-0 text-lg font-semibold tracking-tight text-foreground">{t('title')}</h2>
         <Button
           type="button"
           variant="outline"
@@ -124,7 +124,7 @@ export default function TeamCalendar({ team }: { team: Team }) {
         >
           <span className="hidden sm:inline">{t('filterTitle')}</span>
           {activeFilterCount > 0 && (
-            <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-brand-500 px-1.5 text-xs font-semibold text-white">
+            <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-semibold tabular-nums text-primary-foreground">
               {activeFilterCount}
             </span>
           )}
@@ -142,7 +142,7 @@ export default function TeamCalendar({ team }: { team: Team }) {
 
       {/* No card chrome on phones: MobileMonthView draws its own bordered card, and
           wrapping it in another produces a border inside a border. */}
-      <div className="flex flex-col sm:min-h-[30rem] sm:rounded-lg sm:border sm:border-gray-200 sm:bg-white sm:p-4 sm:dark:border-gray-700 sm:dark:bg-gray-800">
+      <div className="flex flex-col sm:min-h-[30rem] sm:rounded-2xl sm:border sm:border-hairline sm:bg-card sm:p-4 sm:shadow-card">
         <MonthSurface
           entries={entries}
           closedDates={closedDates}
@@ -152,7 +152,7 @@ export default function TeamCalendar({ team }: { team: Team }) {
           onOverflowClick={(items, date) => setDayOverflow({ entries: items, date })}
         />
         {hasLoadedOnce && !isLoading && entries.length === 0 && (
-          <p className="py-6 text-center text-sm text-gray-500 dark:text-gray-400">
+          <p className="py-6 text-center text-sm text-muted-foreground">
             {t('noEntries')}
           </p>
         )}

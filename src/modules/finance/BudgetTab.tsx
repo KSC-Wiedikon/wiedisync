@@ -85,34 +85,34 @@ export default function BudgetTab({ rows, fiscalYearId, fiscalYearLabel }: {
   const section = (title: string, list: BudgetRow[]) => (
     <section>
       <div className="mb-2 flex items-center justify-between">
-        <h3 className="text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{title}</h3>
+        <h3 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{title}</h3>
       </div>
-      <div className="rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+      <div className="rounded-2xl border border-hairline bg-card shadow-card overflow-hidden">
         <Table>
           <TableHeader>
-            <TableRow className="border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/40">
-              <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colAccount')}</TableHead>
-              <TableHead className="text-right text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('budgetColBudget')}</TableHead>
-              <TableHead className="text-right text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('budgetColActual')}</TableHead>
-              <TableHead className="hidden sm:table-cell text-right text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('budgetColVariance')}</TableHead>
+            <TableRow>
+              <TableHead>{t('colAccount')}</TableHead>
+              <TableHead className="text-right">{t('budgetColBudget')}</TableHead>
+              <TableHead className="text-right">{t('budgetColActual')}</TableHead>
+              <TableHead className="hidden sm:table-cell text-right">{t('budgetColVariance')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {list.map((r) => {
               const v = variance(r)
               return (
-                <TableRow key={r.id} className="border-gray-200 dark:border-gray-700">
-                  <TableCell className="whitespace-normal break-words text-gray-700 dark:text-gray-300">
-                    <span className="tabular-nums text-gray-400">{r.number}</span> {r.name}
+                <TableRow key={r.id}>
+                  <TableCell className="whitespace-normal break-words text-foreground/85">
+                    <span className="tabular-nums text-muted-foreground/80">{r.number}</span> {r.name}
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
-                      {savingId === String(r.id) && <Loader2 className="h-3 w-3 animate-spin text-gray-400" />}
+                      {savingId === String(r.id) && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground/80" />}
                       {budgetPending ? (
                         // Not rendering the input is the point: an element that does not
                         // exist cannot be focused, typed into, or blur-commit a figure the
                         // treasurer only typed because the cell looked empty.
-                        <div aria-hidden className="h-9 w-24 animate-pulse rounded-md bg-gray-200 sm:h-8 dark:bg-gray-700" />
+                        <div aria-hidden className="h-9 w-24 animate-pulse rounded-md bg-stone-200/80 sm:h-8 dark:bg-muted" />
                       ) : (
                         <input
                           inputMode="decimal"
@@ -120,15 +120,15 @@ export default function BudgetTab({ rows, fiscalYearId, fiscalYearLabel }: {
                           onChange={(e) => setEdit((p) => ({ ...p, [editKey(r.id)]: e.target.value }))}
                           onBlur={(e) => save(r, e.target.value)}
                           placeholder="0.00"
-                          className="h-9 w-24 rounded-md border border-gray-200 bg-transparent px-2 text-right text-sm tabular-nums sm:h-8 outline-none focus:border-brand-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                          className="h-9 w-24 rounded-lg border border-input bg-card px-2 text-right text-sm tabular-nums sm:h-8 dark:bg-gray-800 text-foreground placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         />
                       )}
                     </div>
                   </TableCell>
-                  <TableCell className="text-right tabular-nums text-gray-900 dark:text-gray-100">{formatChf(r.bal)}</TableCell>
+                  <TableCell className="text-right tabular-nums text-foreground">{formatChf(r.bal)}</TableCell>
                   <TableCell className="hidden sm:table-cell text-right tabular-nums">
                     {budgetPending
-                      ? <div aria-hidden className="ml-auto h-4 w-20 animate-pulse rounded bg-gray-200 dark:bg-gray-700" />
+                      ? <div aria-hidden className="ml-auto h-4 w-20 animate-pulse rounded bg-stone-200/80 dark:bg-muted" />
                       : <span className={v >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>{formatChf(v)}</span>}
                   </TableCell>
                 </TableRow>
@@ -143,7 +143,7 @@ export default function BudgetTab({ rows, fiscalYearId, fiscalYearLabel }: {
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center gap-2">
-        <p className="min-w-0 text-xs text-gray-500 dark:text-gray-400">{t('budgetHint', { year: fiscalYearLabel })}</p>
+        <p className="min-w-0 text-xs text-muted-foreground">{t('budgetHint', { year: fiscalYearLabel })}</p>
         <div className="ml-auto flex shrink-0 items-center gap-2">
           <Button type="button" variant="outline" onClick={exportCsv} disabled={budgetPending}>
             <Download className="h-4 w-4" />{t('exportCsv')}
@@ -162,9 +162,9 @@ export default function BudgetTab({ rows, fiscalYearId, fiscalYearLabel }: {
       {income.length > 0 && section(t('income'), income)}
       {expense.length > 0 && section(t('expense'), expense)}
       {income.length === 0 && expense.length === 0 && (
-        <p className="rounded-lg border border-dashed border-gray-300 py-10 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">{t('noData')}</p>
+        <p className="rounded-2xl border border-dashed border-border py-10 text-center text-sm text-muted-foreground">{t('noData')}</p>
       )}
-      <p className="text-xs text-gray-400 dark:text-gray-500">{t('budgetVarianceNote')}</p>
+      <p className="text-xs text-muted-foreground/80">{t('budgetVarianceNote')}</p>
     </div>
   )
 }

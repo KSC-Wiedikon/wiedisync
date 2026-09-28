@@ -47,7 +47,7 @@ export function VisTransferLine({
   const ruledOut = isDisputed(member, transfer)
 
   return (
-    <div className="mt-1.5 space-y-1 border-t border-gray-100 pt-1.5 dark:border-gray-700">
+    <div className="mt-1.5 space-y-1 border-t border-border/60 pt-1.5">
       <div className="flex flex-wrap items-center gap-1">
         <Badge
           variant={state === 'complete' ? 'success' : state === 'dead' ? 'neutral' : 'info'}
@@ -62,7 +62,7 @@ export function VisTransferLine({
               : t('trVisTransferProgress', { percent: pct })}
         </Badge>
         <HintPopover text={t('trVisTransferHint')} />
-        <span className="font-mono text-xs text-gray-400 dark:text-gray-500" title={t('trVisTransferNo')}>
+        <span className="font-mono text-xs text-muted-foreground/80" title={t('trVisTransferNo')}>
           #{ref}
         </span>
       </div>
@@ -71,7 +71,7 @@ export function VisTransferLine({
           start date", and reading it off two digits per row is slower. */}
       {state === 'in_progress' && (
         <span
-          className="block h-1 w-full max-w-[7rem] overflow-hidden rounded-full bg-gray-200 dark:bg-gray-600"
+          className="block h-1 w-full max-w-[7rem] overflow-hidden rounded-full bg-stone-200/80 dark:bg-muted"
           role="img"
           aria-label={t('trVisTransferProgress', { percent: pct })}
         >
@@ -82,7 +82,7 @@ export function VisTransferLine({
         </span>
       )}
       {state !== 'dead' && (phase || transfer.start_on) && (
-        <span className="block text-xs whitespace-normal text-gray-400 dark:text-gray-500">
+        <span className="block text-xs whitespace-normal text-muted-foreground/80">
           {[phase, transfer.start_on ? t('trVisTransferFrom', { date: formatDateZurich(transfer.start_on) }) : null]
             .filter(Boolean).join(' · ')}
         </span>

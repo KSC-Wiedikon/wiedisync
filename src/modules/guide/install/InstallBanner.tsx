@@ -23,7 +23,7 @@ export default function InstallBanner() {
 
   return (
     <>
-      <div className="mb-4 rounded-xl border border-border bg-muted/40 p-4">
+      <div className="mb-4 rounded-2xl border border-hairline bg-card p-4 shadow-card">
         <div className="flex items-start gap-3">
           <Download className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
           <div className="min-w-0 flex-1">

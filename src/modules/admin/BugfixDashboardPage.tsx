@@ -76,14 +76,14 @@ function parseFileLine(stack: string): string | null {
 // ── Status badge ─────────────────────────────────────────────────────
 
 const STATUS_COLORS: Record<string, string> = {
-  new: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
+  new: 'bg-muted text-foreground/85',
   fixing: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 animate-pulse',
   pr_ready: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
   deployed_dev: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300',
   deployed_prod: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300',
   failed: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
   reverted: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
-  dismissed: 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400',
+  dismissed: 'bg-muted text-muted-foreground',
 }
 
 function StatusBadge({ status, t }: { status: string; t: (k: string) => string }) {
@@ -228,12 +228,12 @@ function IssueRow({ issue, t, lang }: { issue: BugfixIssue; t: (k: string, opts?
       >
         <TableCell className="w-6 pr-0">
           {expanded
-            ? <ChevronDown className="h-3 w-3 shrink-0 text-gray-400" />
-            : <ChevronRight className="h-3 w-3 shrink-0 text-gray-400" />
+            ? <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground/80" />
+            : <ChevronRight className="h-3 w-3 shrink-0 text-muted-foreground/80" />
           }
         </TableCell>
         <TableCell><StatusBadge status={status} t={t} /></TableCell>
-        <TableCell className="whitespace-normal break-words text-gray-900 dark:text-gray-100" title={issue.message}>
+        <TableCell className="whitespace-normal break-words text-foreground" title={issue.message}>
           {issue.message.length > 80 ? issue.message.slice(0, 80) + '...' : issue.message}
         </TableCell>
         <TableCell className="hidden sm:table-cell">
@@ -245,11 +245,11 @@ function IssueRow({ issue, t, lang }: { issue: BugfixIssue; t: (k: string, opts?
             {issue.source === 'frontend' ? 'FE' : 'BE'}
           </span>
         </TableCell>
-        <TableCell className="hidden sm:table-cell text-gray-400 font-mono">{issue.count}x</TableCell>
-        <TableCell className="hidden sm:table-cell text-gray-400" title={absoluteTime(issue.first_seen)}>
+        <TableCell className="hidden sm:table-cell font-mono tabular-nums text-muted-foreground/80">{issue.count}x</TableCell>
+        <TableCell className="hidden sm:table-cell text-muted-foreground/80" title={absoluteTime(issue.first_seen)}>
           {relativeTime(issue.first_seen, lang)}
         </TableCell>
-        <TableCell className="text-right text-gray-400" title={absoluteTime(issue.last_seen)}>
+        <TableCell className="text-right text-muted-foreground/80" title={absoluteTime(issue.last_seen)}>
           {relativeTime(issue.last_seen, lang)}
         </TableCell>
       </TableRow>
@@ -353,12 +353,12 @@ function IssueRow({ issue, t, lang }: { issue: BugfixIssue; t: (k: string, opts?
       {/* Expanded detail */}
       {expanded && (
         <TableRow className="hover:bg-transparent">
-          <TableCell colSpan={7} className="bg-gray-50/50 px-8 py-3 dark:bg-gray-900/30">
+          <TableCell colSpan={7} className="bg-surface-sunken/50 px-8 py-3">
             <div className="space-y-3">
           {/* When */}
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-0.5">{t('when')}</p>
-            <p className="text-xs text-gray-700 dark:text-gray-300">
+            <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{t('when')}</p>
+            <p className="text-xs text-foreground/85">
               {t('firstSeen')}: {relativeTime(issue.first_seen, lang)} ({absoluteTime(issue.first_seen)})
               <br />
               {t('lastSeen')}: {relativeTime(issue.last_seen, lang)} ({absoluteTime(issue.last_seen)})
@@ -367,18 +367,18 @@ function IssueRow({ issue, t, lang }: { issue: BugfixIssue; t: (k: string, opts?
 
           {/* Where */}
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-0.5">{t('where')}</p>
-            <p className="text-xs text-gray-700 dark:text-gray-300">
+            <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{t('where')}</p>
+            <p className="text-xs text-foreground/85">
               {issue.expanded?.page || '—'}
-              {fileLine && <span className="ml-2 font-mono text-[10px] text-gray-400">{fileLine}</span>}
+              {fileLine && <span className="ml-2 font-mono text-[10px] text-muted-foreground/80">{fileLine}</span>}
             </p>
           </div>
 
           {/* Who */}
           {issue.expanded?.user && (
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-0.5">{t('who')}</p>
-              <p className="text-xs text-gray-700 dark:text-gray-300">
+              <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{t('who')}</p>
+              <p className="text-xs text-foreground/85">
                 {t('detailRole')}: {issue.expanded.user.role} | {t('detailSport')}: {issue.expanded.user.sport}
               </p>
             </div>
@@ -387,8 +387,8 @@ function IssueRow({ issue, t, lang }: { issue: BugfixIssue; t: (k: string, opts?
           {/* What tried (breadcrumbs) */}
           {issue.expanded?.breadcrumbs?.length > 0 && (
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-0.5">{t('whatTried')}</p>
-              <ol className="list-decimal list-inside text-xs text-gray-700 dark:text-gray-300 space-y-0.5">
+              <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{t('whatTried')}</p>
+              <ol className="list-decimal list-inside text-xs text-foreground/85 space-y-0.5">
                 {issue.expanded.breadcrumbs.map((b, i) => <li key={i}>{b}</li>)}
               </ol>
             </div>
@@ -396,11 +396,11 @@ function IssueRow({ issue, t, lang }: { issue: BugfixIssue; t: (k: string, opts?
 
           {/* What went wrong */}
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-0.5">{t('whatFailed')}</p>
+            <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{t('whatFailed')}</p>
             {issue.expanded?.status && (
-              <p className="text-xs text-gray-500 mb-1">HTTP {issue.expanded.status} {issue.expanded.collection && `on ${issue.expanded.collection}`}</p>
+              <p className="text-xs text-muted-foreground mb-1">HTTP {issue.expanded.status} {issue.expanded.collection && `on ${issue.expanded.collection}`}</p>
             )}
-            <pre className="text-xs font-mono max-h-48 overflow-auto bg-muted p-2 rounded">
+            <pre className="max-h-48 overflow-auto rounded-lg border border-hairline bg-surface-sunken p-2 font-mono text-xs text-foreground/85">
               {issue.expanded?.stack || issue.message}
             </pre>
           </div>
@@ -408,16 +408,16 @@ function IssueRow({ issue, t, lang }: { issue: BugfixIssue; t: (k: string, opts?
           {/* Device */}
           {issue.expanded?.userAgent && (
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-0.5">{t('device')}</p>
-              <p className="text-xs text-gray-700 dark:text-gray-300">{parseUserAgent(issue.expanded.userAgent)}</p>
+              <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{t('device')}</p>
+              <p className="text-xs text-foreground/85">{parseUserAgent(issue.expanded.userAgent)}</p>
             </div>
           )}
 
           {/* Fix history */}
           {issue.fix_status && (
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-0.5">{t('fixHistory')}</p>
-              <p className="text-xs text-gray-700 dark:text-gray-300">
+              <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{t('fixHistory')}</p>
+              <p className="text-xs text-foreground/85">
                 Status: <StatusBadge status={issue.fix_status} t={t} />
                 {(() => {
                   const safe = sanitizeUrl(issue.pr_url || '')
@@ -510,7 +510,7 @@ export default function BugfixDashboardPage() {
       {/* Header */}
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="flex items-center gap-2 text-lg font-bold text-gray-900 dark:text-white">
+          <h1 className="flex items-center gap-2 text-xl font-bold tracking-tight text-foreground sm:text-2xl">
             <Bug className="h-5 w-5" />
             {t('title')}
           </h1>
@@ -526,20 +526,20 @@ export default function BugfixDashboardPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 border-b border-gray-200 dark:border-gray-700">
+      <div className="flex gap-1 border-b border-border">
         {tabs.map(({ key, label }) => (
           <button
             key={key}
             onClick={() => setTab(key)}
             className={`px-3 py-1.5 text-xs font-medium border-b-2 transition-colors ${
               tab === key
-                ? 'border-brand-600 text-brand-600 dark:text-brand-400'
-                : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+                ? 'border-foreground font-semibold text-foreground'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
             }`}
           >
             {label}
             {issues && (
-              <span className="ml-1.5 rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] dark:bg-gray-700">
+              <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-[10px] tabular-nums">
                 {tabCounts[key]}
               </span>
             )}
@@ -548,11 +548,11 @@ export default function BugfixDashboardPage() {
       </div>
 
       {/* Table */}
-      <div className="rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800/50">
+      <div className="overflow-hidden rounded-2xl border border-hairline bg-card shadow-card">
         {isLoading && !issues && <LoadingSpinner size="sm" />}
 
         {issues && filtered.length === 0 && (
-          <div className="p-8 text-center text-sm text-gray-400">{t('noIssues')}</div>
+          <div className="p-8 text-center text-sm text-muted-foreground/80">{t('noIssues')}</div>
         )}
 
         {filtered.length > 0 && (

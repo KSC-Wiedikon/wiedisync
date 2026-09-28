@@ -93,8 +93,8 @@ export default function EventCard({ event, onClick, onEdit, onOpenRoster, partic
   return (
     <div
       className={cn(
-        'flex flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-card dark:border-gray-700 dark:bg-gray-800',
-        onClick && 'cursor-pointer transition-shadow hover:shadow-card-hover',
+        'flex flex-col overflow-hidden rounded-2xl border border-hairline bg-card shadow-card',
+        onClick && 'cursor-pointer transition-shadow hover:shadow-card-lg',
         cancelled && 'opacity-60',
       )}
       onClick={onClick}
@@ -120,7 +120,7 @@ export default function EventCard({ event, onClick, onEdit, onOpenRoster, partic
         <div className="min-w-0 flex-1">
           <div className="flex items-start gap-2">
             {/* Primary text WRAPS — a truncated title hid the part that tells two events apart. */}
-            <h2 className="min-w-0 flex-1 break-words text-sm font-semibold leading-snug text-gray-900 sm:text-[15px] dark:text-gray-100">{event.title}</h2>
+            <h2 className="min-w-0 flex-1 break-words text-sm font-semibold leading-snug text-foreground sm:text-[15px]">{event.title}</h2>
             {cancelled && (
               <span className="mt-0.5 flex shrink-0 items-center">
                 <RowChip tone="red">{t('cancelled')}</RowChip>
@@ -137,12 +137,12 @@ export default function EventCard({ event, onClick, onEdit, onOpenRoster, partic
           </div>
 
           {event.location && (
-            <p className="mt-1.5 flex min-w-0 text-sm text-gray-500 dark:text-gray-400">
+            <p className="mt-1.5 flex min-w-0 text-sm text-muted-foreground">
               <a
                 href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.location)}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex min-w-0 items-center gap-1 hover:text-brand-600 hover:underline dark:hover:text-brand-400"
+                className="flex min-w-0 items-center gap-1 hover:text-primary hover:underline dark:hover:text-brand-300"
                 onClick={(e) => e.stopPropagation()}
               >
                 <TruncatedText text={event.location} />
@@ -152,8 +152,8 @@ export default function EventCard({ event, onClick, onEdit, onOpenRoster, partic
           )}
           {event.description && (
             isHtml(event.description)
-              ? <RichText html={event.description} className="mt-1 text-sm text-gray-500 dark:text-gray-400" />
-              : <p className="mt-1 break-words text-sm text-gray-500 dark:text-gray-400">{event.description}</p>
+              ? <RichText html={event.description} className="mt-1 text-sm text-muted-foreground" />
+              : <p className="mt-1 break-words text-sm text-muted-foreground">{event.description}</p>
           )}
           {cancelled && event.cancel_reason && (
             <p className="mt-1 text-xs text-red-600 dark:text-red-400">{event.cancel_reason}</p>
@@ -182,7 +182,7 @@ export default function EventCard({ event, onClick, onEdit, onOpenRoster, partic
             </div>
           )}
           {guestExcluded && !cancelled && (
-            <p className="mt-2 text-xs italic text-gray-500 dark:text-gray-400">{t('guestNotInvited')}</p>
+            <p className="mt-2 text-xs italic text-muted-foreground">{t('guestNotInvited')}</p>
           )}
 
           {/* Counters in the body, under the RSVP. */}
@@ -199,7 +199,7 @@ export default function EventCard({ event, onClick, onEdit, onOpenRoster, partic
           also opens the detail modal; `empty:hidden` drops the hairline when
           the viewer has nothing to do here. */}
       <div
-        className="flex flex-wrap items-center gap-1.5 border-t border-gray-100 px-3 py-2 empty:hidden dark:border-gray-700"
+        className="flex flex-wrap items-center gap-1.5 border-t border-border/60 px-3 py-2 empty:hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Car pooling (migration 378) — straight to the rides board. */}
@@ -321,7 +321,7 @@ function EventCardParticipation({ event, existingParticipation, participations, 
   return (
     <div className="space-y-1.5">
       {hasAbsence && (
-        <p className="text-xs italic text-gray-500 dark:text-gray-400">{t(absenceLabel)}</p>
+        <p className="text-xs italic text-muted-foreground">{t(absenceLabel)}</p>
       )}
       {/* Totals inside the buttons (compact card mode); the household caption,
           "Deadline passed" and the waitlist count come from the component. */}
@@ -339,7 +339,7 @@ function EventCardParticipation({ event, existingParticipation, participations, 
       />
 
       {event.respond_by && !deadlinePassed && (
-        <p className="text-[10px] leading-tight text-gray-400 dark:text-gray-500">
+        <p className="text-[10px] leading-tight text-muted-foreground/80">
           {t('respondBy', { ns: 'events' })}: {formatDate(event.respond_by)}, {formatTime(event.respond_by) || (event.start_date ? formatTime(event.start_date) : '')}
         </p>
       )}
@@ -347,7 +347,7 @@ function EventCardParticipation({ event, existingParticipation, participations, 
       {/* Note input — always visible once a status is set; required for declined/tentative when event.require_note_if_absent is on */}
       {displayStatus && (
         <div className="flex items-center gap-1.5">
-          <MessageSquare className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+          <MessageSquare className="h-3.5 w-3.5 shrink-0 text-muted-foreground/80" />
           <input
             ref={noteInputRef}
             type="text"
@@ -356,8 +356,8 @@ function EventCardParticipation({ event, existingParticipation, participations, 
             onKeyDown={(e) => { if (e.key === 'Enter') saveNote() }}
             onBlur={saveNote}
             placeholder={t('notePlaceholder')}
-            className={`h-9 min-w-0 flex-1 rounded-md border bg-transparent px-2 text-xs text-gray-700 sm:h-8 placeholder:text-gray-400 focus:outline-none dark:text-gray-300 dark:placeholder:text-gray-500 ${
-              noteError ? 'border-red-400 dark:border-red-500' : 'border-gray-200 focus:border-brand-400 dark:border-gray-600 dark:focus:border-brand-500'
+            className={`h-9 min-w-0 flex-1 rounded-lg border bg-card px-2 text-xs text-foreground sm:h-8 placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-input/20 ${
+              noteError ? 'border-red-400 dark:border-red-500' : 'border-input'
             }`}
           />
         </div>
@@ -510,7 +510,7 @@ function EventCardSessionParticipation({ event, participations, onSaved, onStatu
             size="tool"
             variant="outline"
             onClick={() => setSheetOpen(true)}
-            className="text-brand-700 dark:text-brand-400"
+            className="text-primary dark:text-brand-300"
           >
             <CalendarDays aria-hidden />
             {te('perDay', { defaultValue: 'Per day' })}
@@ -518,12 +518,12 @@ function EventCardSessionParticipation({ event, participations, onSaved, onStatu
         ) : undefined}
       />
       {mixed && (
-        <p className="text-[10px] leading-tight text-gray-400 dark:text-gray-500">
+        <p className="text-[10px] leading-tight text-muted-foreground/80">
           {te('sessionsConfirmed', { confirmed: confirmedCount, total })}
         </p>
       )}
       {event.respond_by && !deadlinePassed && (
-        <p className="text-[10px] leading-tight text-gray-400 dark:text-gray-500">
+        <p className="text-[10px] leading-tight text-muted-foreground/80">
           {te('respondBy')}: {formatDate(event.respond_by)}, {formatTime(event.respond_by) || (event.start_date ? formatTime(event.start_date) : '')}
         </p>
       )}

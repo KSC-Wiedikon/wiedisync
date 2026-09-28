@@ -116,7 +116,7 @@ export default function InvitesPanel({ teams, seasonId, seasonName }: Props) {
               the panel never states "not synced yet" about a season it has not
               asked about. A season that synced but returned zero games is synced,
               so `last_synced_at` alone decides it. */}
-          <p className="text-xs text-gray-500 dark:text-gray-400">
+          <p className="text-xs text-muted-foreground">
             {svrz && svrz.total > 0 && svrz.last_synced_at ? (
               t('svrzSynced', {
                 date: formatDateTimeCompact(svrz.last_synced_at),
@@ -125,7 +125,7 @@ export default function InvitesPanel({ teams, seasonId, seasonName }: Props) {
                 away: svrz.away,
               })
             ) : svrzState === 'loading' ? (
-              <span className="inline-block h-3 w-56 max-w-full animate-pulse rounded bg-gray-200 align-middle dark:bg-gray-700" aria-hidden />
+              <span className="inline-block h-3 w-56 max-w-full animate-pulse rounded bg-stone-200/80 align-middle dark:bg-muted" aria-hidden />
             ) : svrzState === 'failed' ? (
               // The status call itself failed — say nothing rather than guess. An em
               // dash is the same "unknown" marker this panel already uses for a
@@ -140,7 +140,7 @@ export default function InvitesPanel({ teams, seasonId, seasonName }: Props) {
           <div className="flex flex-wrap gap-1">
             {teamsPending
               ? [0, 1, 2].map((i) => (
-                  <div key={i} className="h-8 w-32 animate-pulse rounded-md bg-gray-200 dark:bg-gray-700" aria-hidden />
+                  <div key={i} className="h-8 w-32 animate-pulse rounded-md bg-stone-200/80 dark:bg-muted" aria-hidden />
                 ))
               : teams.map((tm) => (
                   <Button
@@ -155,14 +155,14 @@ export default function InvitesPanel({ teams, seasonId, seasonName }: Props) {
           </div>
 
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <span className="min-w-0 break-words text-sm text-gray-600 dark:text-gray-400">
+            <span className="min-w-0 break-words text-sm text-muted-foreground">
               {teamsPending ? (
-                <span className="inline-block h-4 w-52 max-w-full animate-pulse rounded bg-gray-200 align-middle dark:bg-gray-700" aria-hidden />
+                <span className="inline-block h-4 w-52 max-w-full animate-pulse rounded bg-stone-200/80 align-middle dark:bg-muted" aria-hidden />
               ) : (
                 <>
                   {selectedTeam ? `${selectedTeam.name} (${selectedTeam.league || '—'})` : '—'}{' · '}
                   {api.isLoading ? (
-                    <span className="inline-block h-3 w-16 animate-pulse rounded bg-gray-200 align-middle dark:bg-gray-700" aria-hidden />
+                    <span className="inline-block h-3 w-16 animate-pulse rounded bg-stone-200/80 align-middle dark:bg-muted" aria-hidden />
                   ) : (
                     `${api.invites.length} ${t('invites')}`
                   )}
@@ -188,11 +188,11 @@ export default function InvitesPanel({ teams, seasonId, seasonName }: Props) {
             // claim, and it used to paint before a team had even been selected.
             <div className="grid grid-cols-1 gap-3 xl:grid-cols-2" aria-hidden="true">
               {[0, 1, 2, 3].map((i) => (
-                <div key={i} className="h-24 animate-pulse rounded border border-gray-200 bg-gray-100 dark:border-gray-700 dark:bg-gray-700/50" />
+                <div key={i} className="h-24 animate-pulse rounded-xl border border-hairline bg-muted" />
               ))}
             </div>
           ) : api.invites.length === 0 ? (
-            <div className="rounded border border-dashed border-gray-300 py-6 text-center text-sm text-gray-500 dark:border-gray-700">
+            <div className="rounded-xl border border-dashed border-input py-6 text-center text-sm text-muted-foreground">
               {t('noInvitesYet')}
             </div>
           ) : (

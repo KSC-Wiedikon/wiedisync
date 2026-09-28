@@ -19,7 +19,7 @@ export default function CarpoolScopePicker({ candidates, value, onChange, disabl
   if (candidates.length < 2) return null
   const ids = new Set(candidates.map((c) => c.id))
   return (
-    <div className="space-y-1.5 pl-11 text-sm text-gray-700 dark:text-gray-300">
+    <div className="space-y-1.5 pl-11 text-sm text-foreground/85">
       <div>
         <span className="font-medium">{t('scopeLabel')}</span>
         <p className="text-xs text-muted-foreground">{t('scopeHint')}</p>

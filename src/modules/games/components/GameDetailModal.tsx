@@ -125,10 +125,10 @@ const NOMINATION_STATUS_KEY: Record<NominationStatus, string> = {
 }
 
 const NOMINATION_STATUS_TONE: Record<NominationStatus, string> = {
-  pending: 'border-gray-200 bg-gray-50 text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300',
+  pending: 'border-border bg-surface-sunken text-foreground/85',
   filled: 'border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200',
   closed: 'border-green-300 bg-green-50 text-green-800 dark:border-green-900 dark:bg-green-950 dark:text-green-200',
-  skipped: 'border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400',
+  skipped: 'border-border bg-surface-sunken text-muted-foreground',
   failed: 'border-red-300 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200',
 }
 
@@ -171,8 +171,8 @@ function gameNeedsExpand(game: Game): boolean {
 function DutyRowSkeleton() {
   return (
     <div className="flex items-center justify-between gap-3 py-1" aria-hidden="true">
-      <div className="h-3 w-20 animate-pulse rounded bg-gray-200 dark:bg-gray-700" />
-      <div className="h-3 w-32 animate-pulse rounded bg-gray-200 dark:bg-gray-700" />
+      <div className="h-3 w-20 animate-pulse rounded bg-stone-200/80 dark:bg-muted" />
+      <div className="h-3 w-32 animate-pulse rounded bg-stone-200/80 dark:bg-muted" />
     </div>
   )
 }
@@ -546,24 +546,24 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
   const awayWon = Number(game.away_score) > Number(game.home_score)
   const kscwWon = game.type === 'home' ? homeWon : awayWon
   const kscwLost = game.type === 'home' ? awayWon : homeWon
-  const scoreColor = kscwWon ? 'text-green-600 dark:text-green-400' : kscwLost ? 'text-red-500 dark:text-red-400' : 'text-gray-900 dark:text-gray-100'
+  const scoreColor = kscwWon ? 'text-green-600 dark:text-green-400' : kscwLost ? 'text-red-500 dark:text-red-400' : 'text-foreground'
 
   return (
     <>
     <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/60 backdrop-blur-sm dark:bg-black/70 p-4"
       onClick={onClose}
     >
       <div
         ref={dialogRef}
-        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-t-2xl bg-white shadow-xl sm:rounded-2xl dark:bg-gray-800"
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-t-2xl border border-hairline bg-card shadow-2xl sm:rounded-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header — meta on row 1, actions on their own row so the top never
             smushes on mobile (league name + chip + actions used to fight for space). */}
-        <div className="border-b dark:border-gray-700 px-6 py-4">
+        <div className="border-b border-hairline px-6 py-4">
           <div className="flex items-start justify-between gap-3">
             <div className="flex flex-wrap items-center gap-2">
               {kscwTeam && <TeamChip team={kscwTeam} size="sm" />}
@@ -571,7 +571,7 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
             <IconButton
               label={t('common:close', 'Close')}
               onClick={onClose}
-              className="-mr-2 shrink-0 text-gray-400 sm:-mr-1"
+              className="-mr-2 shrink-0 text-muted-foreground/80 sm:-mr-1"
             >
               <X className="!size-5" />
             </IconButton>
@@ -631,7 +631,7 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
         <div className="px-6 py-6">
           <div className="flex items-center justify-between gap-4">
             <div className="min-w-0 flex-1 text-right">
-              <p className={`break-words leading-snug text-base text-gray-900 dark:text-gray-100 ${game.type === 'home' ? 'font-semibold' : ''}`}>
+              <p className={`break-words leading-snug text-base text-foreground ${game.type === 'home' ? 'font-semibold' : ''}`}>
                 {homeLabel}
               </p>
             </div>
@@ -639,17 +639,17 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
             <div className="shrink-0 text-center">
               {game.status === 'completed' || game.status === 'live' ? (
                 <div className="font-mono text-3xl font-bold">
-                  <span className={game.type === 'home' ? scoreColor : 'text-gray-500 dark:text-gray-400'}>{game.home_score}</span>
-                  <span className="mx-1 text-gray-400 dark:text-gray-500">:</span>
-                  <span className={game.type === 'away' ? scoreColor : 'text-gray-500 dark:text-gray-400'}>{game.away_score}</span>
+                  <span className={game.type === 'home' ? scoreColor : 'text-muted-foreground'}>{game.home_score}</span>
+                  <span className="mx-1 text-muted-foreground/80">:</span>
+                  <span className={game.type === 'away' ? scoreColor : 'text-muted-foreground'}>{game.away_score}</span>
                 </div>
               ) : (
-                <div className="text-base font-light text-gray-400 dark:text-gray-500">vs</div>
+                <div className="text-base font-normal text-muted-foreground/80">vs</div>
               )}
             </div>
 
             <div className="min-w-0 flex-1">
-              <p className={`break-words leading-snug text-base text-gray-900 dark:text-gray-100 ${game.type === 'away' ? 'font-semibold' : ''}`}>
+              <p className={`break-words leading-snug text-base text-foreground ${game.type === 'away' ? 'font-semibold' : ''}`}>
                 {awayLabel}
               </p>
             </div>
@@ -657,10 +657,10 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
 
           {/* Sets breakdown */}
           {sets.length > 0 && (
-            <div className="mt-4 overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
+            <div className="mt-4 overflow-hidden rounded-xl border border-hairline">
               <table className="w-full text-center text-sm tabular-nums" style={{ tableLayout: 'fixed' }}>
                 <thead>
-                  <tr className="bg-gray-50 dark:bg-gray-900 text-xs text-gray-500 dark:text-gray-400">
+                  <tr className="bg-surface-sunken text-xs text-muted-foreground">
                     <th className="px-3 py-2 w-20 text-left"></th>
                     {sets.map((_, i) => (
                       <th key={i} className="px-3 py-2">
@@ -670,8 +670,8 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
                   </tr>
                 </thead>
                 <tbody>
-                  <tr className="border-t dark:border-gray-700">
-                    <td className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">{t('home')}</td>
+                  <tr className="border-t">
+                    <td className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">{t('home')}</td>
                     {sets.map((s, i) => {
                       const kscwWonSet = (s.home > s.away) === (game.type === 'home')
                       return (
@@ -684,8 +684,8 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
                       )
                     })}
                   </tr>
-                  <tr className="border-t dark:border-gray-700">
-                    <td className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">{t('away')}</td>
+                  <tr className="border-t">
+                    <td className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">{t('away')}</td>
                     {sets.map((s, i) => {
                       const kscwWonSet = (s.home > s.away) === (game.type === 'home')
                       return (
@@ -707,15 +707,15 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
         {/* Participation — only for own team's scheduled games */}
         {game.status === 'scheduled' && canParticipate && (
           isGuestIn(kscwTeamId) ? (
-            <div className="border-t dark:border-gray-700 px-6 py-3">
+            <div className="border-t border-hairline px-6 py-3">
               <p className="text-sm text-muted-foreground py-4 text-center">
                 {t('games:guestsCannotParticipate')}
               </p>
             </div>
           ) : (
-          <div className="space-y-2 border-t dark:border-gray-700 px-6 py-3">
+          <div className="space-y-2 border-t border-hairline px-6 py-3">
             {hasAbsence && (
-              <p className="text-xs italic text-gray-500 dark:text-gray-400">{t(absenceLabel)}</p>
+              <p className="text-xs italic text-muted-foreground">{t(absenceLabel)}</p>
             )}
             {/* Answer buttons carry the team totals (RsvpAnswerButtons) — no
                 separate counters row. No `locked`: this modal has never gated
@@ -736,7 +736,7 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
             {/* Participation note */}
             {effectiveStatus && (
               <div className="flex w-full items-center gap-2 pt-1">
-                <MessageSquare className="h-4 w-4 shrink-0 text-gray-400" />
+                <MessageSquare className="h-4 w-4 shrink-0 text-muted-foreground/80" />
                 <input
                   type="text"
                   value={noteText}
@@ -745,13 +745,13 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
                     if (e.key === 'Enter') saveNote()
                   }}
                   placeholder={t('participation:notePlaceholder')}
-                  className="min-w-0 flex-1 rounded-md border border-gray-200 bg-transparent px-2.5 py-1 text-sm text-gray-700 placeholder:text-gray-400 focus:border-brand-400 focus:outline-none dark:border-gray-600 dark:text-gray-300 dark:placeholder:text-gray-500 dark:focus:border-brand-500"
+                  className="min-w-0 flex-1 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm text-foreground/85 placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 />
                 <IconButton
                   label={tc('save')}
                   onClick={saveNote}
                   disabled={noteText === savedNote}
-                  className="shrink-0 text-gray-400 hover:text-green-600 disabled:opacity-30 dark:hover:text-green-400"
+                  className="shrink-0 text-muted-foreground/80 hover:text-green-600 disabled:opacity-30 dark:hover:text-green-400"
                 >
                   <Check />
                 </IconButton>
@@ -772,7 +772,7 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
             RSVP list to the match sheet and inserts two more above the fold —
             so a thumb already on its way down lands on Show IDs. */}
         {game.status === 'scheduled' && !teamsLoading && (
-          <div className="border-t dark:border-gray-700 px-6 py-3">
+          <div className="border-t border-hairline px-6 py-3">
             <Button
               variant="outline"
               onClick={() => (rosterIsMatchSheet ? setRosterOpen(true) : setParticipationListOpen(true))}
@@ -814,12 +814,12 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
 
         {/* Phone live scoring (migration 394) — renders nothing outside the scoring
             window, for basketball, or for someone who may neither score nor watch. */}
-        <div className="border-t px-6 py-3 empty:hidden dark:border-gray-700">
+        <div className="border-t border-hairline px-6 py-3 empty:hidden">
           <LiveScoringEntry gameId={String(game.id)} date={game.date} time={game.time} sport={kscwSport} />
         </div>
 
         {/* Car pooling banner (migration 378) — renders nothing unless switched on. */}
-        <div className="border-t px-6 py-3 empty:hidden dark:border-gray-700">
+        <div className="border-t border-hairline px-6 py-3 empty:hidden">
           <CarpoolPanel
             type="game"
             id={game.id}
@@ -829,8 +829,8 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
         </div>
 
         {/* Game info */}
-        <div className="space-y-3 border-t dark:border-gray-700 px-6 py-4">
-          <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+        <div className="space-y-3 border-t border-hairline px-6 py-4">
+          <h4 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
             {t('gameInfo')}
           </h4>
           {game.league && <DetailRow label={t('league')} value={game.league} />}
@@ -849,8 +849,8 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
 
         {/* Venue */}
         {hall && (
-          <div className="space-y-3 border-t dark:border-gray-700 px-6 py-4">
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+          <div className="space-y-3 border-t border-hairline px-6 py-4">
+            <h4 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
               {t('venue')}
             </h4>
             <DetailRow label={t('hallLabel')} value={hall.name} />
@@ -859,12 +859,12 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
                 || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([hall.address, hall.city].filter(Boolean).join(', '))}`
               return (
                 <div className="flex items-start gap-3 text-sm">
-                  <span className="w-28 shrink-0 text-gray-500 dark:text-gray-400">{t('address')}</span>
+                  <span className="w-28 shrink-0 text-muted-foreground">{t('address')}</span>
                   <a
                     href={mapsUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="min-w-0 flex-1 break-words text-brand-600 hover:underline dark:text-brand-400"
+                    className="min-w-0 flex-1 break-words text-primary hover:underline dark:text-brand-300"
                   >
                     {[hall.address, hall.city].filter(Boolean).join(', ')} ↗
                   </a>
@@ -876,8 +876,8 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
 
         {/* Referees */}
         {game.referees_json && game.referees_json.length > 0 && (
-          <div className="space-y-3 border-t dark:border-gray-700 px-6 py-4">
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+          <div className="space-y-3 border-t border-hairline px-6 py-4">
+            <h4 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
               {t('referees')}
             </h4>
             {game.referees_json.map((ref, i) => (
@@ -891,7 +891,7 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
 
         {/* Referee expenses — volleyball home games, staff only (coach/TR/admin) */}
         {kscwSport === 'volleyball' && game.type === 'home' && isTeamStaff && (
-          <div className="border-t dark:border-gray-700 px-6 py-4">
+          <div className="border-t border-hairline px-6 py-4">
             <RefereeExpenseSection
               gameId={game.id}
               teamId={kscwTeamId}
@@ -904,8 +904,8 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
         {/* Scorer duties — Volleyball */}
         {kscwSport !== 'basketball' &&
         (game.scorer_member || game.scoreboard_member || game.scorer_scoreboard_member || game.referee_member) && (
-          <div className="space-y-3 border-t dark:border-gray-700 px-6 py-4">
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+          <div className="space-y-3 border-t border-hairline px-6 py-4">
+            <h4 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
               {t('scorerDuties')}
             </h4>
             {awaitingExpand ? (
@@ -958,8 +958,8 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
         {/* Scorer duties — Basketball */}
         {kscwSport === 'basketball' &&
         (game.bb_scorer_member || game.bb_timekeeper_member || game.bb_24s_official || game.bb_duty_team || game.bb_scorer_duty_team || game.bb_timekeeper_duty_team || game.bb_24s_duty_team) && (
-          <div className="space-y-3 border-t dark:border-gray-700 px-6 py-4">
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+          <div className="space-y-3 border-t border-hairline px-6 py-4">
+            <h4 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
               {t('officialsDuties')}
             </h4>
             {(asObj<Member & BaseRecord>(expanded.bb_scorer_member) || game.bb_scorer_member) && (
@@ -992,15 +992,15 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
         {/* Einsatzliste — volleyball only (no Volleymanager for basketball), coach only.
             The override drives the T-60 auto-push; the box below is the push journal. */}
         {showNomination && (
-          <div className="space-y-3 border-t dark:border-gray-700 px-6 py-4">
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+          <div className="space-y-3 border-t border-hairline px-6 py-4">
+            <h4 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
               {t('nominationStatusLabel')}
             </h4>
 
             {game.status === 'scheduled' && !readOnly && (
               <div className="space-y-1.5">
-                <p className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('autoNomination')}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
+                <p className="text-sm font-medium text-foreground/85">{t('autoNomination')}</p>
+                <p className="text-xs text-muted-foreground">
                   {t('autoNominationHint', {
                     def: teamNominationDefault ? t('autoNominationOn') : t('autoNominationOff'),
                   })}
@@ -1022,8 +1022,8 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
                         onClick={() => saveNominationOverride(opt.value)}
                         className={`rounded-full ${
                           active
-                            ? 'border-brand-500 bg-brand-100 text-brand-700 hover:bg-brand-100 hover:text-brand-700 dark:border-brand-600 dark:bg-brand-900/30 dark:text-brand-300 dark:hover:bg-brand-900/30'
-                            : 'text-gray-600 dark:text-gray-400'
+                            ? 'border-transparent bg-selected text-selected-foreground hover:bg-selected hover:text-selected-foreground'
+                            : 'text-muted-foreground'
                         }`}
                       >
                         {opt.label}
@@ -1036,7 +1036,7 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
 
             {/* Push journal — read-only. `filled` is a warning, not an error. */}
             {nominationStatus && (
-              <div className={`space-y-1.5 rounded-md border p-3 text-sm ${NOMINATION_STATUS_TONE[nominationStatus]}`}>
+              <div className={`space-y-1.5 rounded-lg border p-3 text-sm ${NOMINATION_STATUS_TONE[nominationStatus]}`}>
                 <p className="flex items-start gap-2">
                   {nominationStatus === 'filled' && <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />}
                   <span>{t(NOMINATION_STATUS_KEY[nominationStatus])}</span>
@@ -1079,7 +1079,7 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
             only when it has content (a deadline to show, or a coach who can
             set one) so it never leaves an empty bordered strip. */}
         {game.status === 'scheduled' && (game.respond_by || (!readOnly && canEditAsCoach)) && (
-          <div className="space-y-3 border-t dark:border-gray-700 px-6 py-4">
+          <div className="space-y-3 border-t border-hairline px-6 py-4">
             {/* Besammlung (migration 340). Stored as minutes before kickoff, so
                 it stays right when Swiss Volley moves the fixture — the coach
                 picks the gap once and never revisits it after a reschedule. */}
@@ -1091,7 +1091,7 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
               />
             )}
             {!readOnly && canEditAsCoach && (
-              <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+              <div className="flex items-center gap-2 text-sm text-foreground/85">
                 <Switch
                   checked={carpoolOn}
                   onCheckedChange={async (on) => {
@@ -1142,7 +1142,7 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
                     type="time"
                     value={deadlineTime || game?.time?.slice(0, 5) || ''}
                     onChange={(e) => setDeadlineTime(e.target.value)}
-                    className="h-11 w-24 rounded-lg border px-2 text-sm sm:h-9 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+                    className="h-11 w-24 rounded-lg border border-input bg-card px-2 text-sm text-foreground sm:h-9 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-input/20"
                   />
                   <Button
                     onClick={async () => {
@@ -1155,7 +1155,7 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
                   <IconButton
                     label={tc('cancel')}
                     onClick={() => setEditingDeadline(false)}
-                    className="text-gray-500 dark:text-gray-400"
+                    className="text-muted-foreground"
                   >
                     <X />
                   </IconButton>
@@ -1171,7 +1171,7 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
                     setDeadlineTime(parsed?.time ?? '')
                     setEditingDeadline(true)
                   }}
-                  className="px-0 text-brand-600 dark:text-brand-400"
+                  className="px-0 text-primary dark:text-brand-300"
                 >
                   {t('setDeadline')}
                 </Button>
@@ -1193,12 +1193,12 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
 
         {/* Footer: Delete on the left (mr-auto), in a non-wrapping row. */}
         {!readOnly && onDelete && (
-          <div className="flex items-center gap-3 border-t px-6 py-4 dark:border-gray-700">
+          <div className="flex items-center gap-3 border-t border-hairline px-6 py-4">
             <Button
               type="button"
               variant="outline"
               onClick={onDelete}
-              className="mr-auto border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/20 dark:hover:text-red-300"
+              className="mr-auto border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 dark:border-red-900/60 dark:text-red-400 dark:hover:bg-red-950/40 dark:hover:text-red-300"
             >
               <Trash2 aria-hidden />
               {t('common:delete')}
@@ -1247,8 +1247,8 @@ export default function GameDetailModal({ game, onClose, readOnly, participation
 function DetailRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-start gap-3 text-sm">
-      <span className="w-28 shrink-0 text-gray-500 dark:text-gray-400">{label}</span>
-      <span className="min-w-0 flex-1 break-words text-gray-900 dark:text-gray-100">{value}</span>
+      <span className="w-28 shrink-0 text-muted-foreground">{label}</span>
+      <span className="min-w-0 flex-1 break-words text-foreground">{value}</span>
     </div>
   )
 }
@@ -1303,10 +1303,10 @@ function DutyPersonRow({
 
   return (
     <div className="flex items-start gap-3 text-sm">
-      <span className="w-28 shrink-0 text-gray-500 dark:text-gray-400">{wrappableLabel}</span>
+      <span className="w-28 shrink-0 text-muted-foreground">{wrappableLabel}</span>
       <div className="min-w-0 flex-1">
         {/* Name wraps; the chip follows it and drops to its own line when both don't fit. */}
-        <span className="flex flex-wrap items-center gap-1.5 text-gray-900 dark:text-gray-100">
+        <span className="flex flex-wrap items-center gap-1.5 text-foreground">
           <span className="break-words leading-snug">{name}</span>
           {teamName && <TeamChip team={teamName} size="xs" />}
         </span>
@@ -1315,7 +1315,7 @@ function DutyPersonRow({
           // Same height/rounding as the button below, so nothing jumps when the
           // real answer (alarm, or banner + contacts) replaces it. Neutral on
           // purpose — a red placeholder would still read as "not reported".
-          <div className="mt-1.5 h-11 w-full animate-pulse rounded-md bg-gray-200 sm:h-9 dark:bg-gray-700" aria-hidden="true" />
+          <div className="mt-1.5 h-11 w-full animate-pulse rounded-lg bg-stone-200/80 sm:h-9 dark:bg-muted" aria-hidden="true" />
         )}
 
         {showAlarm && (
@@ -1330,18 +1330,18 @@ function DutyPersonRow({
         )}
 
         {!adminSeesContact && reported && (
-          <div className="mt-1.5 rounded-lg border border-red-300 bg-red-50 px-2.5 py-1.5 text-xs font-medium text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300">
+          <div className="mt-1.5 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs font-medium text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">
             {t('dutyLateBanner', { time: reportedTime, name: reported.by_name })}
           </div>
         )}
 
         {(showPhone || showEmail) && (
-          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-gray-500 dark:text-gray-400">
+          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
             {showPhone && (
-              <a href={`tel:${contact!.phone}`} className="font-medium hover:text-brand-600 dark:hover:text-brand-400">{contact!.phone}</a>
+              <a href={`tel:${contact!.phone}`} className="font-medium hover:text-primary dark:hover:text-brand-300">{contact!.phone}</a>
             )}
             {showEmail && (
-              <a href={`mailto:${contact!.email}`} className="font-medium hover:text-brand-600 dark:hover:text-brand-400">{contact!.email}</a>
+              <a href={`mailto:${contact!.email}`} className="font-medium hover:text-primary dark:hover:text-brand-300">{contact!.email}</a>
             )}
           </div>
         )}

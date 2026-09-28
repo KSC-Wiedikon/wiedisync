@@ -107,26 +107,26 @@ export default function InviteRow({ invite, kscwTeam, season, frontendUrl, onRei
   const createdDate = invite.date_created ? new Date(invite.date_created).toLocaleDateString('de-CH') : ''
 
   return (
-    <div className="rounded-md border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800/60">
+    <div className="rounded-xl border border-hairline bg-surface-sunken p-3">
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="break-words font-medium text-gray-900 dark:text-gray-100">{invite.team_name}</span>
+            <span className="break-words font-medium text-foreground">{invite.team_name}</span>
             <Badge variant={displayVariant}>{t(displayStatusKey)}</Badge>
-            <span className="text-xs text-gray-500 dark:text-gray-400">{t(sourceKey(invite.source))}</span>
+            <span className="text-xs text-muted-foreground">{t(sourceKey(invite.source))}</span>
           </div>
           {invite.contact_name && (
-            <div className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{invite.contact_name}</div>
+            <div className="mt-0.5 text-xs text-muted-foreground">{invite.contact_name}</div>
           )}
           <a
             href={buildMailtoHref(invite.contact_email)}
-            className="mt-0.5 block break-all text-sm text-gray-700 hover:underline dark:text-gray-300"
+            className="mt-0.5 block break-all text-sm text-foreground/85 hover:underline"
           >
             {invite.contact_email}
           </a>
         </div>
         {createdDate && (
-          <span className="shrink-0 whitespace-nowrap text-xs text-gray-400 dark:text-gray-500">{createdDate}</span>
+          <span className="shrink-0 whitespace-nowrap text-xs text-muted-foreground/80">{createdDate}</span>
         )}
       </div>
 

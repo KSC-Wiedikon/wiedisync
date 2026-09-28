@@ -30,7 +30,7 @@ interface RecordEditModalProps {
 }
 
 const inputClass =
-  'mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500 focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100'
+  'mt-1 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-gray-800'
 
 export default function RecordEditModal({
   open,
@@ -223,7 +223,7 @@ export default function RecordEditModal({
         return (
           <div className="mt-1 flex items-center gap-2">
             <Switch checked={Boolean(value)} onCheckedChange={(checked) => setField(field.name, checked)} />
-            <span className="text-sm text-gray-600 dark:text-gray-400">
+            <span className="text-sm text-muted-foreground">
               {value ? 'true' : 'false'}
             </span>
           </div>
@@ -263,7 +263,7 @@ export default function RecordEditModal({
                       setField(field.name, next)
                     }}
                   />
-                  <span className="text-gray-700 dark:text-gray-300">{opt}</span>
+                  <span className="text-foreground/85">{opt}</span>
                 </label>
               ))}
             </div>
@@ -323,7 +323,7 @@ export default function RecordEditModal({
         return (
           <div className="mt-1">
             {isEdit && !!record?.[field.name] && (
-              <p className="mb-1 text-xs text-gray-500 dark:text-gray-400">
+              <p className="mb-1 text-xs text-muted-foreground">
                 {Array.isArray(record[field.name])
                   ? (record[field.name] as string[]).join(', ')
                   : String(record[field.name])}
@@ -334,7 +334,7 @@ export default function RecordEditModal({
               onChange={(e) =>
                 setFileFields((prev) => ({ ...prev, [field.name]: e.target.files?.[0] ?? null }))
               }
-              className="text-sm text-gray-700 dark:text-gray-300"
+              className="text-sm text-foreground/85"
             />
           </div>
         )
@@ -360,7 +360,7 @@ export default function RecordEditModal({
       >
         <div className="space-y-4">
           {isEdit && record && (
-            <div className="flex flex-wrap gap-x-6 gap-y-1 rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+            <div className="flex flex-wrap gap-x-6 gap-y-1 rounded-xl border border-hairline bg-surface-sunken px-3 py-2 text-xs text-muted-foreground">
               <span>ID: <code className="font-mono">{String(record.id)}</code></span>
               <span>Created: {formatDateTimeCompactZurich(String(record.date_created ?? record.created ?? ''))}</span>
               <span>Updated: {formatDateTimeCompactZurich(String(record.date_updated ?? record.updated ?? ''))}</span>
@@ -369,10 +369,10 @@ export default function RecordEditModal({
 
           {schema.map((field) => (
             <div key={field.id}>
-              <label className="block text-xs font-semibold tracking-wide text-gray-500 dark:text-gray-400">
+              <label className="block text-xs font-semibold tracking-wide text-muted-foreground">
                 {field.name}
                 {field.required && <span className="ml-1 text-red-500">*</span>}
-                <span className="ml-2 font-normal text-gray-400">{field.type}</span>
+                <span className="ml-2 font-normal text-muted-foreground/80">{field.type}</span>
               </label>
               {renderField(field)}
             </div>
@@ -380,7 +380,7 @@ export default function RecordEditModal({
 
           {/* Error */}
           {error && (
-            <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400">
+            <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">
               {error}
             </div>
           )}

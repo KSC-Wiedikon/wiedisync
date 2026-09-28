@@ -44,14 +44,14 @@ export default function WeekNavigation({
   const { t } = useTranslation('hallenplan')
 
   return (
-    <div className="mb-4 space-y-3 rounded-xl bg-white p-4 shadow-card dark:bg-gray-800">
+    <div className="mb-4 space-y-3 rounded-2xl border border-hairline bg-card p-4 shadow-card">
       {/* Top row: week nav + actions */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex min-w-0 items-center gap-2">
           <IconButton label={t('prevWeek')} onClick={onPrev} className="shrink-0">
             <ChevronLeft className="!size-5" />
           </IconButton>
-          <span className="min-w-0 text-center text-sm font-semibold text-gray-900 dark:text-gray-100 sm:min-w-[220px] lg:text-base">
+          <span className="min-w-0 text-center text-sm font-semibold text-foreground sm:min-w-[220px] lg:text-base">
             {weekLabel}
           </span>
           <IconButton label={t('nextWeek')} onClick={onNext} className="shrink-0">

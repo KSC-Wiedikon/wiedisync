@@ -32,7 +32,7 @@ function StatusBadge({ status }: { status: FineStatus }) {
   const cls =
     status === 'open' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300'
     : status === 'paid' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300'
-    : 'bg-gray-200 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
+    : 'bg-muted text-muted-foreground'
   const { t } = useTranslation('fines')
   const label =
     status === 'open' ? t('statusOpen')
@@ -189,11 +189,11 @@ export default function FinesPage() {
     <div className="mx-auto max-w-6xl space-y-4 px-4 py-6">
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
-          <h1 className="flex items-center gap-2 text-2xl font-bold text-gray-900 dark:text-gray-100">
+          <h1 className="flex items-center gap-2 text-xl font-bold tracking-tight text-foreground sm:text-2xl">
             <Gavel className="h-6 w-6 shrink-0 text-amber-600 dark:text-amber-500" />
             {t('fines:title')}
           </h1>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t('fines:subtitle')}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{t('fines:subtitle')}</p>
         </div>
         {isLeader && (
           <Button onClick={() => setPickerOpen(true)} className="shrink-0 gap-1.5">
@@ -205,7 +205,7 @@ export default function FinesPage() {
 
       {/* Member outstanding strip */}
       {scope === 'mine' && openOnly.length > 0 && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm dark:border-amber-900/40 dark:bg-amber-900/20">
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm dark:border-amber-900/60 dark:bg-amber-950/40">
           <div className="font-medium text-amber-900 dark:text-amber-200">
             {t('fines:outstanding', { amount: formatFineAmount(openTotal) })}
           </div>
@@ -227,7 +227,7 @@ export default function FinesPage() {
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value as FineStatus | 'all')}
-          className="h-11 rounded-md border border-gray-300 bg-white px-2 text-sm sm:h-9 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+          className="h-11 sm:h-9 rounded-lg border border-input bg-card px-3 text-sm text-foreground dark:bg-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           {STATUSES.map((s) => (
             <option key={s.key} value={s.key}>{t(`fines:${s.tKey}`)}</option>
@@ -238,7 +238,7 @@ export default function FinesPage() {
           <select
             value={teamFilter}
             onChange={(e) => setTeamFilter(e.target.value)}
-            className="h-11 rounded-md border border-gray-300 bg-white px-2 text-sm sm:h-9 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+            className="h-11 sm:h-9 rounded-lg border border-input bg-card px-3 text-sm text-foreground dark:bg-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <option value="all">{t('fines:filterAll')}</option>
             {/* Grouped by sport (CLAUDE.md → team pickers): someone coaching in both
@@ -256,13 +256,13 @@ export default function FinesPage() {
           </select>
         )}
 
-        <div className="ml-auto shrink-0 text-xs tabular-nums text-gray-500 dark:text-gray-400">
+        <div className="ml-auto shrink-0 text-xs tabular-nums text-muted-foreground">
           {fines.length > 0 ? `${fines.length} · ${formatFineAmount(total)}` : null}
         </div>
       </div>
 
       {/* Loading spinner, then table or empty state */}
-      <div>
+      <div className={!pageLoading && fines.length > 0 ? 'overflow-hidden rounded-2xl border border-hairline bg-card shadow-card' : undefined}>
       {pageLoading ? null : fines.length === 0 ? (
         <EmptyState
           icon={<Gavel className="h-10 w-10" />}
@@ -296,10 +296,10 @@ export default function FinesPage() {
                     <TableCell className={`font-medium whitespace-normal break-words ${f.member == null ? 'italic text-amber-700 dark:text-amber-400' : ''}`}>
                       {memberName}
                       {/* The team column is hidden on phones — a Teamkasse row still has to say WHICH team. */}
-                      <span className="block text-xs font-normal not-italic text-gray-500 sm:hidden dark:text-gray-400">{teamName}</span>
+                      <span className="block text-xs font-normal not-italic text-muted-foreground sm:hidden">{teamName}</span>
                     </TableCell>
                   )}
-                  <TableCell className={`text-xs text-gray-600 dark:text-gray-400 ${scope === 'team' ? 'hidden sm:table-cell' : ''}`}>
+                  <TableCell className={`text-xs text-muted-foreground ${scope === 'team' ? 'hidden sm:table-cell' : ''}`}>
                     {teamName}
                     {scope === 'mine' && f.member == null && (
                       <span className="ml-1 inline-block whitespace-nowrap rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
@@ -310,10 +310,10 @@ export default function FinesPage() {
                   <TableCell className="text-sm">{t(`fines:${categoryLabelKey(f.category)}`)}</TableCell>
                   <TableCell className="text-right font-medium tabular-nums">{formatFineAmount(f.amount, f.currency)}</TableCell>
                   <TableCell><StatusBadge status={f.status} /></TableCell>
-                  <TableCell className="hidden md:table-cell text-xs text-gray-500 dark:text-gray-400">
+                  <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
                     {formatDateCompactZurich(f.issued_at)}
                   </TableCell>
-                  <TableCell className="hidden lg:table-cell text-xs text-gray-600 dark:text-gray-400 max-w-xs truncate" title={f.reason ?? undefined}>
+                  <TableCell className="hidden lg:table-cell text-xs text-muted-foreground max-w-xs truncate" title={f.reason ?? undefined}>
                     {f.reason ?? '—'}
                   </TableCell>
                   {isLeader && (

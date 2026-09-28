@@ -66,7 +66,7 @@ const GRID: { dow: number; time: string }[] = [
 const DAY_KEY: Record<number, string> = { 5: 'day_fri_long', 6: 'day_sat_long', 0: 'day_sun_long' }
 
 const selectClass =
-  'h-11 rounded-md border border-border bg-transparent px-2 py-1 text-xs sm:h-9 dark:bg-gray-800'
+  'h-11 rounded-lg border border-input bg-card px-2 py-1 text-xs sm:h-9 dark:bg-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
 
 /** allow → tolerate → off → allow. One button per (pitch, category). */
 function nextState(state: CellState): CellState {
@@ -134,14 +134,14 @@ export default function BasketballTimeslotMatrixPanel({ config, onUpdate }: Prop
       ? 'bg-emerald-100 text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-200'
       : state === 'tolerate'
         ? 'bg-amber-100 text-amber-900 dark:bg-amber-900/30 dark:text-amber-200'
-        : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
+        : 'bg-muted text-muted-foreground'
 
   return (
-    <div className="space-y-6 rounded-lg border border-gray-200 bg-white p-4 sm:p-6 dark:border-gray-700 dark:bg-gray-800">
+    <div className="space-y-6 rounded-2xl border border-hairline bg-card shadow-card p-4 sm:p-6">
       {/* ── Timeslot → category matrix ── */}
       <section>
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('timeslotMatrix')}</h2>
-        <p className="mt-1 mb-4 max-w-3xl text-xs text-gray-500 dark:text-gray-400">{t('timeslotMatrixHint')}</p>
+        <h2 className="text-base font-semibold tracking-tight text-foreground">{t('timeslotMatrix')}</h2>
+        <p className="mt-1 mb-4 max-w-3xl text-xs text-muted-foreground">{t('timeslotMatrixHint')}</p>
 
         <Table>
           <TableHeader>
@@ -157,7 +157,7 @@ export default function BasketballTimeslotMatrixPanel({ config, onUpdate }: Prop
               <TableRow key={`${dow}|${time}`}>
                 <TableCell className="whitespace-normal break-words font-medium">
                   <span className="block">{t(DAY_KEY[dow])}</span>
-                  <span className="tabular-nums text-gray-500 dark:text-gray-400">{time}</span>
+                  <span className="tabular-nums text-muted-foreground">{time}</span>
                 </TableCell>
                 {CATEGORIES.map((c) => {
                   const state = stateOf(dow, time, c)
@@ -183,11 +183,11 @@ export default function BasketballTimeslotMatrixPanel({ config, onUpdate }: Prop
 
       {/* ── Spielsamstage ── */}
       <section>
-        <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">{t('spielsamstage')}</h3>
-        <p className="mt-1 mb-3 max-w-3xl text-xs text-gray-500 dark:text-gray-400">{t('spielsamstageHint')}</p>
+        <h3 className="text-base font-semibold text-foreground">{t('spielsamstage')}</h3>
+        <p className="mt-1 mb-3 max-w-3xl text-xs text-muted-foreground">{t('spielsamstageHint')}</p>
 
         {spielsamstage.length === 0 ? (
-          <p className="py-2 text-sm text-gray-400 dark:text-gray-500">{t('spielsamstageEmpty')}</p>
+          <p className="py-2 text-sm text-muted-foreground/80">{t('spielsamstageEmpty')}</p>
         ) : (
           <Table>
             <TableHeader>
@@ -225,7 +225,7 @@ export default function BasketballTimeslotMatrixPanel({ config, onUpdate }: Prop
                       ))}
                     </select>
                   </TableCell>
-                  <TableCell className="hidden whitespace-normal break-words text-xs text-gray-500 sm:table-cell dark:text-gray-400">
+                  <TableCell className="hidden whitespace-normal break-words text-xs text-muted-foreground sm:table-cell">
                     {s.note || '–'}
                   </TableCell>
                   <TableCell>
@@ -249,11 +249,11 @@ export default function BasketballTimeslotMatrixPanel({ config, onUpdate }: Prop
         <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end">
           {/* DatePicker, not a native date input — the native one draws in the
               browser's locale (mm/dd/yyyy on an English machine). */}
-          <div className="flex flex-col gap-1 text-[11px] text-gray-500 dark:text-gray-400">
+          <div className="flex flex-col gap-1 text-[11px] text-muted-foreground">
             {t('colDate')}
             <DatePicker value={newDate} onChange={setNewDate} disabled={busy} />
           </div>
-          <label className="flex flex-col gap-1 text-[11px] text-gray-500 dark:text-gray-400">
+          <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
             {t('colStatus')}
             <select
               className={selectClass}

@@ -4,11 +4,11 @@ export default function DatenschutzPage() {
   const { t } = useTranslation('legal')
 
   return (
-    <div className="mx-auto max-w-3xl" role="region" aria-label={t('privacyTitle')} tabIndex={0}>
-      <h1 className="mb-2 text-2xl font-bold text-gray-900 dark:text-white">
+    <div className="mx-auto max-w-3xl rounded-2xl border border-hairline bg-card p-5 shadow-card sm:p-8" role="region" aria-label={t('privacyTitle')} tabIndex={0}>
+      <h1 className="mb-2 text-xl font-bold tracking-tight text-foreground sm:text-2xl">
         {t('privacyTitle')}
       </h1>
-      <p className="mb-8 text-sm text-gray-500 dark:text-gray-400">
+      <p className="mb-8 text-sm text-muted-foreground">
         {t('lastUpdated')}
       </p>
 
@@ -17,7 +17,7 @@ export default function DatenschutzPage() {
       </Section>
 
       <Section title={t('dataCollectedTitle')}>
-        <h3 className="mb-1 font-semibold text-gray-800 dark:text-gray-200">
+        <h3 className="mb-1 text-sm font-semibold text-foreground">
           {t('dataAccountTitle')}
         </h3>
         <p className="mb-4">{t('dataAccountText')}</p>
@@ -28,34 +28,34 @@ export default function DatenschutzPage() {
             J+S id, and identity documents are stored too. This component is rendered
             inside the signup flow (SignUpPage), so the incomplete list WAS the Art. 19
             notice shown at account creation. */}
-        <h3 className="mb-1 font-semibold text-gray-800 dark:text-gray-200">
+        <h3 className="mb-1 text-sm font-semibold text-foreground">
           {t('dataRegisterTitle')}
         </h3>
         <p className="mb-4">{t('dataRegisterText')}</p>
 
-        <h3 className="mb-1 font-semibold text-gray-800 dark:text-gray-200">
+        <h3 className="mb-1 text-sm font-semibold text-foreground">
           {t('dataFinanceTitle')}
         </h3>
         <p className="mb-4">{t('dataFinanceText')}</p>
 
         {/* The end-to-end encryption reads as a strength once it is written down: the
             document is ciphertext before it leaves the member's browser. */}
-        <h3 className="mb-1 font-semibold text-gray-800 dark:text-gray-200">
+        <h3 className="mb-1 text-sm font-semibold text-foreground">
           {t('dataIdentityTitle')}
         </h3>
         <p className="mb-4">{t('dataIdentityText')}</p>
 
-        <h3 className="mb-1 font-semibold text-gray-800 dark:text-gray-200">
+        <h3 className="mb-1 text-sm font-semibold text-foreground">
           {t('dataRosterTitle')}
         </h3>
         <p className="mb-4">{t('dataRosterText')}</p>
 
-        <h3 className="mb-1 font-semibold text-gray-800 dark:text-gray-200">
+        <h3 className="mb-1 text-sm font-semibold text-foreground">
           {t('dataInternalTitle')}
         </h3>
         <p className="mb-4">{t('dataInternalText')}</p>
 
-        <h3 className="mb-1 font-semibold text-gray-800 dark:text-gray-200">
+        <h3 className="mb-1 text-sm font-semibold text-foreground">
           {t('dataTechnicalTitle')}
         </h3>
         <p>{t('dataTechnicalText')}</p>
@@ -126,10 +126,10 @@ export default function DatenschutzPage() {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="mb-8 scroll-mt-20">
-      <h2 className="mb-3 text-lg font-semibold text-gray-900 dark:text-white">
+      <h2 className="mb-3 text-base font-semibold tracking-tight text-foreground">
         {title}
       </h2>
-      <div className="text-sm leading-relaxed text-gray-700 dark:text-gray-300">
+      <div className="text-sm leading-relaxed text-foreground/85">
         {children}
       </div>
     </section>

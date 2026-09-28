@@ -102,7 +102,7 @@ export const ProductItem = ({
         <h4 className="text-xl font-bold mb-1 text-black dark:text-white">
           {title}
         </h4>
-        <p className="text-neutral-700 text-sm max-w-[10rem] dark:text-neutral-300">
+        <p className="text-foreground/85 text-sm max-w-[10rem]">
           {description}
         </p>
       </div>
@@ -114,7 +114,7 @@ export const HoveredLink = ({ children, ...rest }: any) => {
   return (
     <a
       {...rest}
-      className="text-neutral-700 dark:text-neutral-200 hover:text-black "
+      className="text-foreground/85 hover:text-black "
     >
       {children}
     </a>

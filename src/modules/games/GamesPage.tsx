@@ -453,8 +453,8 @@ export default function GamesPage() {
       <div key={section.key} className="mb-6 last:mb-0">
         {showHeadings && (
           <h2 className={variant === 'compact'
-            ? 'mb-2 text-sm font-semibold uppercase tracking-wide text-gray-500 md:text-center dark:text-gray-400'
-            : 'mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400'}>
+            ? 'mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground md:text-center'
+            : 'mb-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground'}>
             {section.label}
           </h2>
         )}
@@ -463,7 +463,7 @@ export default function GamesPage() {
           // names column sized to the longest team name, so names never
           // truncated/wrapped and the list outgrew the page. Rows now align on
           // the fixed rail and a minmax(0,1fr) names track (TeamPair).
-          <RowList className="rounded-lg border border-gray-200 bg-white px-1 md:mx-auto md:max-w-3xl dark:border-gray-700 dark:bg-gray-800">
+          <RowList className="rounded-2xl border border-hairline bg-card px-1 shadow-card md:mx-auto md:max-w-3xl">
             {section.items.map((g) => (
               <GameCard
                 key={g.id}
@@ -502,7 +502,7 @@ export default function GamesPage() {
   return (
     <div className="min-w-0">
       <div className="flex items-center gap-2">
-        <h1 className="text-xl font-bold text-gray-900 sm:text-2xl dark:text-gray-100">{t('title')}</h1>
+        <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">{t('title')}</h1>
         <GuideHelpButton />
       </div>
 
@@ -546,8 +546,8 @@ export default function GamesPage() {
             {pastGames.length > 0 && (
               <div className="mt-10">
                 <div className="mb-3 flex items-center gap-3">
-                  <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('sectionPast')}</h2>
-                  <div className="h-px flex-1 bg-gray-200 dark:bg-gray-700" />
+                  <h2 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{t('sectionPast')}</h2>
+                  <div className="h-px flex-1 bg-border" />
                 </div>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {pastGames.map((g) => (
@@ -586,7 +586,7 @@ export default function GamesPage() {
         {activeTab === 'rankings' && !rankingsLoading && (
           <>
             <div className="mb-4 flex items-center gap-2">
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('season')}</span>
+              <span className="text-sm font-medium text-foreground/85">{t('season')}</span>
               <Select value={selectedRankSeason} onValueChange={setRankSeason}>
                 <SelectTrigger className="min-h-[44px] w-[160px]" aria-label={t('season')}>
                   <SelectValue />
@@ -600,10 +600,10 @@ export default function GamesPage() {
             </div>
 
             {allRankings.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-gray-300 px-6 py-12 text-center dark:border-gray-700">
-                <Trophy className="mx-auto mb-3 h-10 w-10 text-gray-300 dark:text-gray-600" />
-                <p className="text-sm font-medium text-gray-700 dark:text-gray-300">{formatSeasonLong(selectedRankSeason)}</p>
-                <p className="mx-auto mt-1 max-w-xs text-sm text-gray-500 dark:text-gray-400">{t('rankingsUpcoming')}</p>
+              <div className="rounded-2xl border border-dashed border-input px-6 py-12 text-center">
+                <Trophy className="mx-auto mb-3 h-10 w-10 text-muted-foreground/50" />
+                <p className="text-sm font-medium text-foreground/85">{formatSeasonLong(selectedRankSeason)}</p>
+                <p className="mx-auto mt-1 max-w-xs text-sm text-muted-foreground">{t('rankingsUpcoming')}</p>
               </div>
             ) : leagueGroups.size === 0 ? (
               <EmptyState tab="rankings" />

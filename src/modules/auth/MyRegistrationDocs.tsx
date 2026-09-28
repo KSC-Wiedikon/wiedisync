@@ -55,9 +55,9 @@ export default function MyRegistrationDocs() {
   if (!docs || docs.length === 0) return null
 
   return (
-    <div className="mt-6 rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-800">
-      <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('auth:myDocsTitle')}</h2>
-      <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+    <div className="mt-6 rounded-2xl border border-hairline bg-card p-5 shadow-card">
+      <h2 className="text-base font-semibold tracking-tight text-foreground">{t('auth:myDocsTitle')}</h2>
+      <p className="mt-1 text-sm text-muted-foreground">
         {t('auth:myDocsSubtitle')}{reference ? ` · ${reference}` : ''}
       </p>
       <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -68,9 +68,9 @@ export default function MyRegistrationDocs() {
               key={d.field}
               type="button"
               onClick={() => setPreview({ doc: d, label })}
-              className="flex min-h-11 items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-700"
+              className="flex min-h-11 items-center gap-2 rounded-xl border border-hairline bg-surface-sunken px-3 py-2 text-left text-sm text-foreground/85 hover:bg-muted"
             >
-              <FileText className="h-4 w-4 shrink-0 text-gray-400" />
+              <FileText className="h-4 w-4 shrink-0 text-muted-foreground/80" />
               <span className="min-w-0 truncate" title={label}>{label}</span>
             </button>
           )

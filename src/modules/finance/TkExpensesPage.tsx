@@ -156,19 +156,19 @@ function TkRow({ e, onSaved }: { e: FinanceExpense; onSaved: (patch: Partial<Fin
 
   return (
     <TableRow className="min-h-[44px] align-top">
-      <TableCell className="text-sm text-gray-500 dark:text-gray-400">
+      <TableCell className="text-sm tabular-nums text-muted-foreground">
         {e.date_created ? formatDateCompactZurich(e.date_created) : '—'}
       </TableCell>
-      <TableCell className="whitespace-normal break-words text-sm font-medium text-gray-900 dark:text-gray-100">
+      <TableCell className="whitespace-normal break-words text-sm font-medium text-foreground">
         {memberName(e)}
       </TableCell>
-      <TableCell className="text-right text-sm font-medium tabular-nums text-gray-900 dark:text-gray-100">
+      <TableCell className="text-right text-sm font-medium tabular-nums text-foreground">
         {formatExpenseAmount(e)}
       </TableCell>
-      <TableCell className="hidden sm:table-cell whitespace-normal break-words text-sm text-gray-700 dark:text-gray-300">
+      <TableCell className="hidden sm:table-cell whitespace-normal break-words text-sm text-foreground/85">
         {e.vendor || '—'}
-        {e.description && <span className="block text-xs text-gray-400 dark:text-gray-500">{e.description}</span>}
-        {e.member_already_paid && <span className="mt-0.5 block text-[11px] italic text-gray-400 dark:text-gray-500">{t('expenseMemberAlreadyPaid')}</span>}
+        {e.description && <span className="block text-xs text-muted-foreground/80">{e.description}</span>}
+        {e.member_already_paid && <span className="mt-0.5 block text-[11px] italic text-muted-foreground/80">{t('expenseMemberAlreadyPaid')}</span>}
       </TableCell>
       <TableCell>
         <ExpenseStatusBadge status={e.status} />
@@ -186,7 +186,7 @@ function TkRow({ e, onSaved }: { e: FinanceExpense; onSaved: (patch: Partial<Fin
                 : t('expenseTkConfirmed')}
             </span>
           )}
-          <label className="flex items-center gap-2 text-xs text-gray-700 dark:text-gray-300">
+          <label className="flex items-center gap-2 text-xs text-foreground/85">
             <Checkbox checked={alreadyPaid} onCheckedChange={(v) => toggleAlreadyPaid(v === true)} disabled={busy} />
             {t('expenseTkAlreadyPaidLabel')}
           </label>
@@ -198,10 +198,10 @@ function TkRow({ e, onSaved }: { e: FinanceExpense; onSaved: (patch: Partial<Fin
             maxLength={1000}
             disabled={busy}
             placeholder={t('expenseTkNotePlaceholder')}
-            className="w-full rounded-md border border-gray-300 bg-transparent px-2 py-1 text-xs text-gray-700 placeholder:text-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+            className="w-full rounded-lg border border-input bg-card px-2 py-1 text-xs text-foreground/85 placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-input/20"
           />
           <div>
-            <label className="mb-0.5 block text-[11px] font-medium text-gray-500 dark:text-gray-400">{t('expenseInternalNote')}</label>
+            <label className="mb-0.5 block text-[11px] font-medium text-muted-foreground">{t('expenseInternalNote')}</label>
             <textarea
               value={internal}
               onChange={(ev) => typeNote('internal', ev.target.value)}
@@ -210,9 +210,9 @@ function TkRow({ e, onSaved }: { e: FinanceExpense; onSaved: (patch: Partial<Fin
               maxLength={1000}
               disabled={busy}
               placeholder={t('expenseInternalNotePlaceholder')}
-              className="w-full rounded-md border border-amber-300 bg-amber-50/40 px-2 py-1 text-xs text-gray-700 placeholder:text-gray-400 dark:border-amber-700/60 dark:bg-amber-900/10 dark:text-gray-200"
+              className="w-full rounded-lg border border-amber-300 bg-amber-50/40 px-2 py-1 text-xs text-foreground/85 placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:border-amber-700/60 dark:bg-amber-900/10"
             />
-            <p className="mt-0.5 text-[11px] text-gray-400 dark:text-gray-500">{t('expenseInternalNoteHint')}</p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground/80">{t('expenseInternalNoteHint')}</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Button size="sm" disabled={busy} onMouseDown={keepFocus} onClick={() => void send(true)}>
@@ -245,26 +245,26 @@ export default function TkExpensesPage() {
   return (
     <div className="mx-auto max-w-5xl space-y-6 p-4 sm:p-6">
       <div>
-        <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">{t('tkExpensesTitle')}</h1>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t('tkExpensesSubtitle')}</p>
+        <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">{t('tkExpensesTitle')}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{t('tkExpensesSubtitle')}</p>
       </div>
 
-      <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+      <div className="rounded-2xl border border-hairline bg-card shadow-card p-4">
         {isLoading ? (
-          <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-gray-400" /></div>
+          <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground/80" /></div>
         ) : rows.length === 0 ? (
-          <p className="py-6 text-center text-sm text-gray-400 dark:text-gray-500">{t('tkExpensesEmpty')}</p>
+          <p className="py-6 text-center text-sm text-muted-foreground/80">{t('tkExpensesEmpty')}</p>
         ) : (
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colDate')}</TableHead>
-                  <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('expenseMember')}</TableHead>
-                  <TableHead className="text-right text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('expenseAmount')}</TableHead>
-                  <TableHead className="hidden sm:table-cell text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('expenseVendor')}</TableHead>
-                  <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('expenseStatusCol')}</TableHead>
-                  <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('expenseTkActionCol')}</TableHead>
+                  <TableHead>{t('colDate')}</TableHead>
+                  <TableHead>{t('expenseMember')}</TableHead>
+                  <TableHead className="text-right">{t('expenseAmount')}</TableHead>
+                  <TableHead className="hidden sm:table-cell">{t('expenseVendor')}</TableHead>
+                  <TableHead>{t('expenseStatusCol')}</TableHead>
+                  <TableHead>{t('expenseTkActionCol')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

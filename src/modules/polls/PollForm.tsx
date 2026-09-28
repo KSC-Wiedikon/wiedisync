@@ -93,7 +93,7 @@ export default function PollForm({ open, onClose, onSubmit }: PollFormProps) {
           <div>
             <label
               htmlFor="poll-question"
-              className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300"
+              className="mb-1.5 block text-xs font-medium text-muted-foreground"
             >
               {t('question')}
             </label>
@@ -103,14 +103,14 @@ export default function PollForm({ open, onClose, onSubmit }: PollFormProps) {
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
               placeholder={t('questionPlaceholder')}
-              className="h-11 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm sm:h-9 text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500 dark:focus:border-blue-400 dark:focus:ring-blue-400"
+              className="h-11 w-full sm:h-9 rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/70 dark:bg-input/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               autoFocus
             />
           </div>
 
           {/* Options */}
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
               {t('options')}
             </label>
             <div className="space-y-2">
@@ -122,14 +122,14 @@ export default function PollForm({ open, onClose, onSubmit }: PollFormProps) {
                     onChange={(e) => updateOption(idx, e.target.value)}
                     placeholder={t('optionPlaceholder', { number: idx + 1 })}
                     aria-label={t('optionPlaceholder', { number: idx + 1 })}
-                    className="h-11 min-w-0 flex-1 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm sm:h-9 text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500 dark:focus:border-blue-400 dark:focus:ring-blue-400"
+                    className="h-11 min-w-0 flex-1 sm:h-9 rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/70 dark:bg-input/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   />
                   {options.length > 2 && (
                     <IconButton
                       type="button"
                       label={t('removeOption')}
                       onClick={() => removeOption(idx)}
-                      className="shrink-0 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:text-gray-500 dark:hover:bg-gray-700 dark:hover:text-gray-300"
+                      className="shrink-0 text-muted-foreground/80 hover:bg-accent hover:text-foreground"
                     >
                       <X />
                     </IconButton>
@@ -143,7 +143,7 @@ export default function PollForm({ open, onClose, onSubmit }: PollFormProps) {
               size="sm"
               onClick={addOption}
               icon={<Plus />}
-              className="mt-2 -ml-3 gap-1 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+              className="mt-2 -ml-3 gap-1 text-sm text-primary hover:text-primary/90 dark:text-brand-300 dark:hover:text-brand-200"
             >
               {t('addOption')}
             </Button>
@@ -151,7 +151,7 @@ export default function PollForm({ open, onClose, onSubmit }: PollFormProps) {
 
           {/* Mode toggle */}
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
               {t('mode')}
             </label>
             <div className="flex gap-2">
@@ -161,8 +161,8 @@ export default function PollForm({ open, onClose, onSubmit }: PollFormProps) {
                 onClick={() => setMode('single')}
                 className={`px-3 ${
                   mode === 'single'
-                    ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600'
+                    ? 'border border-transparent bg-selected text-selected-foreground hover:bg-selected/90 hover:text-selected-foreground'
+                    : 'border border-border bg-card text-muted-foreground hover:bg-accent hover:text-foreground'
                 }`}
               >
                 {t('singleChoice')}
@@ -173,8 +173,8 @@ export default function PollForm({ open, onClose, onSubmit }: PollFormProps) {
                 onClick={() => setMode('multi')}
                 className={`px-3 ${
                   mode === 'multi'
-                    ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600'
+                    ? 'border border-transparent bg-selected text-selected-foreground hover:bg-selected/90 hover:text-selected-foreground'
+                    : 'border border-border bg-card text-muted-foreground hover:bg-accent hover:text-foreground'
                 }`}
               >
                 {t('multiChoice')}
@@ -191,7 +191,7 @@ export default function PollForm({ open, onClose, onSubmit }: PollFormProps) {
               onChange={setDeadline}
             />
             {!deadline && (
-              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('noDeadline')}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{t('noDeadline')}</p>
             )}
           </div>
 
@@ -202,16 +202,16 @@ export default function PollForm({ open, onClose, onSubmit }: PollFormProps) {
               type="checkbox"
               checked={anonymous}
               onChange={(e) => setAnonymous(e.target.checked)}
-              className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800"
+              className="mt-0.5 h-4 w-4 rounded border-input accent-[var(--primary)] focus-visible:ring-2 focus-visible:ring-ring"
             />
             <div>
               <label
                 htmlFor="poll-anonymous"
-                className="text-sm font-medium text-gray-700 dark:text-gray-300"
+                className="text-sm font-medium text-foreground/85"
               >
                 {t('anonymous')}
               </label>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
+              <p className="text-xs text-muted-foreground">
                 {t('anonymousDescription')}
               </p>
             </div>
@@ -224,16 +224,16 @@ export default function PollForm({ open, onClose, onSubmit }: PollFormProps) {
               type="checkbox"
               checked={resultsVisible}
               onChange={(e) => setResultsVisible(e.target.checked)}
-              className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800"
+              className="mt-0.5 h-4 w-4 rounded border-input accent-[var(--primary)] focus-visible:ring-2 focus-visible:ring-ring"
             />
             <div>
               <label
                 htmlFor="poll-results-visible"
-                className="text-sm font-medium text-gray-700 dark:text-gray-300"
+                className="text-sm font-medium text-foreground/85"
               >
                 {t('resultsVisible')}
               </label>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
+              <p className="text-xs text-muted-foreground">
                 {t('resultsVisibleDescription')}
               </p>
             </div>

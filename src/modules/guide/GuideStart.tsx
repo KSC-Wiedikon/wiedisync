@@ -76,14 +76,14 @@ export default function GuideStart({ onInstall }: { onInstall: () => void }) {
   const done = items.filter((i) => i.done).length
 
   return (
-    <section className="rounded-xl border border-border p-4 space-y-4">
+    <section className="rounded-2xl border border-hairline bg-card p-4 shadow-card space-y-4">
       <div className="flex items-center gap-2">
         <Sparkles className="h-5 w-5 text-primary shrink-0" />
         <h2 className="text-sm font-semibold text-foreground">{t('start.title')}</h2>
       </div>
 
       <div>
-        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">{t('start.rolesTitle')}</p>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground mb-1.5">{t('start.rolesTitle')}</p>
         <div className="flex flex-wrap gap-1.5">
           {roles.map((r, i) => <Badge key={i} variant="secondary" className="text-xs font-medium">{r}</Badge>)}
         </div>
@@ -91,10 +91,10 @@ export default function GuideStart({ onInstall }: { onInstall: () => void }) {
 
       <div>
         <div className="flex items-baseline justify-between mb-1.5">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t('start.checklistTitle')}</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{t('start.checklistTitle')}</p>
           <p className="text-xs text-muted-foreground">{t('start.progress', { done, total: items.length })}</p>
         </div>
-        <ul className="divide-y divide-border rounded-lg border border-border">
+        <ul className="divide-y divide-border rounded-xl border border-hairline bg-surface-sunken">
           {items.map((item) => (
             <li key={item.key} className="flex min-h-11 items-center gap-3 px-3 py-2.5">
               {item.pending

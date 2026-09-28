@@ -42,10 +42,10 @@ interface ModalProps {
 }
 
 const sizeClasses = {
-  sm: 'sm:max-w-sm',
-  md: 'sm:max-w-lg',
-  lg: 'sm:max-w-2xl',
-  full: 'max-w-[calc(100vw-1rem)] max-h-[calc(100dvh-1rem)] rounded-lg p-4 sm:max-w-[calc(100vw-2rem)] sm:max-h-[calc(100vh-2rem)] sm:p-6',
+  sm: 'sm:max-w-sm rounded-xl',
+  md: 'sm:max-w-lg rounded-2xl',
+  lg: 'sm:max-w-2xl rounded-2xl',
+  full: 'max-w-[calc(100vw-1rem)] max-h-[calc(100dvh-1rem)] rounded-2xl p-4 sm:max-w-[calc(100vw-2rem)] sm:max-h-[calc(100vh-2rem)] sm:p-6',
 }
 
 export default function Modal({ open, onClose, title, children, size = 'md', hideClose, headerAction, disableAutoFocus }: ModalProps) {

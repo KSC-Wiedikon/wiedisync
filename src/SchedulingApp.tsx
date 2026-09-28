@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { Toaster } from 'sonner'
+import { Toaster } from './components/ui/sonner'
 import { QueryProvider } from './lib/QueryProvider'
 import { AuthProvider } from './hooks/AuthProvider'
 import { ThemeProvider } from './hooks/ThemeProvider'
@@ -41,10 +41,10 @@ function SchedulingFallback() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background text-foreground">
       <div className="space-y-4 p-8 text-center">
-        <h1 className="text-2xl font-bold">Something went wrong</h1>
+        <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Something went wrong</h1>
         <p className="text-muted-foreground">An unexpected error occurred. Etwas ist schiefgelaufen.</p>
         <button
-          className="rounded-md bg-brand-600 px-4 py-2 text-white hover:bg-brand-700"
+          className="inline-flex h-11 items-center gap-1.5 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-9"
           onClick={() => reloadNow()}
         >
           Reload page
@@ -171,7 +171,7 @@ export default function SchedulingApp() {
                     </Routes>
                   </PageReadyProvider>
                 </BrowserRouter>
-                <Toaster richColors position="top-center" />
+                <Toaster mobileOffset={{ bottom: '16px' }} />
               </ConfirmProvider>
             </AdminModeProvider>
           </AuthProvider>

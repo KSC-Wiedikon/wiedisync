@@ -23,7 +23,7 @@ export default function CarpoolDialog({ type, id, open, onOpenChange }: CarpoolD
   const typeLabel = t(type === 'game' ? 'typeGame' : type === 'training' ? 'typeTraining' : 'typeEvent')
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90dvh] w-[calc(100vw-1rem)] max-w-2xl overflow-y-auto rounded-lg p-4 sm:p-6">
+      <DialogContent className="max-h-[90dvh] w-[calc(100vw-1rem)] max-w-2xl overflow-y-auto rounded-2xl p-4 sm:p-6">
         <DialogHeader>
           <DialogTitle>{t('title')}</DialogTitle>
           <DialogDescription>

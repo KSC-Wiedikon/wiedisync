@@ -576,7 +576,7 @@ export default function ScorerPage() {
   // are a secondary, user-triggered load and keep their own section spinner.
   useReportPageLoading(upcomingLoading)
 
-  const filterLabelClass = 'mb-1 block text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-400'
+  const filterLabelClass = 'mb-1 block text-[11px] font-semibold uppercase tracking-wide text-muted-foreground'
 
   const renderScorerRow = (g: Game) => (
     <ScorerRow
@@ -606,10 +606,10 @@ export default function ScorerPage() {
   return (
     <div>
       <div className="flex items-center gap-2">
-        <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100 sm:text-2xl">{t('title')}</h1>
+        <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">{t('title')}</h1>
         <GuideHelpButton />
       </div>
-      <p className="mt-1 text-gray-600 dark:text-gray-400">{t(sportTab === 'basketball' ? 'subtitleBb' : 'subtitle')}</p>
+      <p className="mt-1 text-muted-foreground">{t(sportTab === 'basketball' ? 'subtitleBb' : 'subtitle')}</p>
 
       {/* Expandable info panel (volleyball only) */}
       {sportTab === 'volleyball' && (
@@ -623,11 +623,11 @@ export default function ScorerPage() {
           </span>
           <ChevronDown className="h-4 w-4" />
         </summary>
-        <div className="space-y-4 border-t border-brand-200 px-4 py-4 text-sm text-gray-700 dark:border-brand-800 dark:text-gray-300">
+        <div className="space-y-4 border-t border-brand-200 px-4 py-4 text-sm text-foreground/85 dark:border-brand-800">
           <div className="flex gap-3">
             <Clock className="mt-0.5 h-4 w-4 shrink-0 text-brand-500 dark:text-brand-400" />
             <div>
-              <h3 className="font-semibold text-gray-900 dark:text-gray-100">{t('infoArrivalTitle')}</h3>
+              <h3 className="font-semibold text-foreground">{t('infoArrivalTitle')}</h3>
               {/* Hardcoded i18n strings, DOMPurify-sanitized before injection */}
               <p className="mt-1 [&_strong]:font-semibold" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(t('infoArrivalScorer')) }} />
               <p className="mt-1 [&_strong]:font-semibold" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(t('infoArrivalTaefeler')) }} />
@@ -646,7 +646,7 @@ export default function ScorerPage() {
           <div className="flex gap-3">
             <ClipboardList className="mt-0.5 h-4 w-4 shrink-0 text-brand-500 dark:text-brand-400" />
             <div>
-              <h3 className="font-semibold text-gray-900 dark:text-gray-100">{t('infoRequirementsTitle')}</h3>
+              <h3 className="font-semibold text-foreground">{t('infoRequirementsTitle')}</h3>
               <p className="mt-1">{t('infoRequirements')}</p>
               {/* Hardcoded i18n string, DOMPurify-sanitized before injection */}
               <p className="mt-1 [&_strong]:font-semibold" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(t('infoRequirementsArrival')) }} />
@@ -655,7 +655,7 @@ export default function ScorerPage() {
           <div className="flex gap-3">
             <Lightbulb className="mt-0.5 h-4 w-4 shrink-0 text-brand-500 dark:text-brand-400" />
             <div>
-              <h3 className="font-semibold text-gray-900 dark:text-gray-100">{t('infoHowToTitle')}</h3>
+              <h3 className="font-semibold text-foreground">{t('infoHowToTitle')}</h3>
               <p className="mt-1">{t('infoHowTo')}</p>
             </div>
           </div>
@@ -675,11 +675,11 @@ export default function ScorerPage() {
           </span>
           <ChevronDown className="h-4 w-4" />
         </summary>
-        <div className="space-y-4 border-t border-brand-200 px-4 py-4 text-sm text-gray-700 dark:border-brand-800 dark:text-gray-300">
+        <div className="space-y-4 border-t border-brand-200 px-4 py-4 text-sm text-foreground/85 dark:border-brand-800">
           <div className="flex gap-3">
             <Clock className="mt-0.5 h-4 w-4 shrink-0 text-brand-500 dark:text-brand-400" />
             <div>
-              <h3 className="font-semibold text-gray-900 dark:text-gray-100">{t('infoArrivalTitle')}</h3>
+              <h3 className="font-semibold text-foreground">{t('infoArrivalTitle')}</h3>
               {/* Hardcoded i18n string, DOMPurify-sanitized before injection */}
               <p className="mt-1 [&_strong]:font-semibold" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(t('infoArrivalBb')) }} />
             </div>
@@ -687,14 +687,14 @@ export default function ScorerPage() {
           <div className="flex gap-3">
             <ClipboardList className="mt-0.5 h-4 w-4 shrink-0 text-brand-500 dark:text-brand-400" />
             <div>
-              <h3 className="font-semibold text-gray-900 dark:text-gray-100">{t('infoLicencesTitleBb')}</h3>
+              <h3 className="font-semibold text-foreground">{t('infoLicencesTitleBb')}</h3>
               <p className="mt-1">{t('infoLicencesBb')}</p>
             </div>
           </div>
           <div className="flex gap-3">
             <Lightbulb className="mt-0.5 h-4 w-4 shrink-0 text-brand-500 dark:text-brand-400" />
             <div>
-              <h3 className="font-semibold text-gray-900 dark:text-gray-100">{t('infoHowToTitle')}</h3>
+              <h3 className="font-semibold text-foreground">{t('infoHowToTitle')}</h3>
               <p className="mt-1">{t('infoHowToBb')}</p>
               {/* Hardcoded i18n string, DOMPurify-sanitized before injection */}
               <p className="mt-1 [&_strong]:font-semibold" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(t('confirmSelfAssignWarning')) }} />
@@ -716,7 +716,7 @@ export default function ScorerPage() {
           className={`mt-3 ${
             remindersEnabled
               ? 'border-green-300 bg-green-50 text-green-700 hover:bg-green-100 hover:text-green-800 dark:border-green-700 dark:bg-green-900/30 dark:text-green-400 dark:hover:bg-green-900/50'
-              : 'border-gray-300 bg-gray-50 text-gray-500 hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700'
+              : 'border-input bg-surface-sunken text-muted-foreground hover:bg-accent'
           }`}
         >
           {t('reminderEmails')}: {remindersEnabled ? t('reminderEmailsOn') : t('reminderEmailsOff')}
@@ -735,15 +735,15 @@ export default function ScorerPage() {
             showAll={false}
           />
         ) : <div />}
-        <div className="flex gap-1 border-b border-gray-200 dark:border-gray-700">
+        <div className="flex gap-1 border-b border-border">
           {(['games', 'overview'] as Tab[]).map((key) => (
             <button
               key={key}
               onClick={() => setTab(key)}
-              className={`px-4 py-3 text-sm font-medium transition-colors ${
+              className={`px-4 py-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                 tab === key
-                  ? 'border-b-2 border-brand-600 text-brand-700 dark:text-brand-400'
-                  : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+                  ? 'border-b-2 border-foreground font-semibold text-foreground'
+                  : 'text-muted-foreground hover:text-foreground'
               }`}
             >
               {key === 'games' ? t('tabGames') : t('tabOverview')}
@@ -758,7 +758,7 @@ export default function ScorerPage() {
               can't edit just sees controls missing with no explanation — the string
               existed in all 5 locales but had never been rendered anywhere. */}
           {!canEdit && (
-            <p className="mt-4 rounded-md bg-gray-50 px-3 py-2 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-400">
+            <p className="mt-4 rounded-lg border border-hairline bg-surface-sunken px-3 py-2 text-xs text-muted-foreground">
               {t('permissionsNotice')}
             </p>
           )}
@@ -789,22 +789,22 @@ export default function ScorerPage() {
           )}
 
           {/* Filters */}
-          <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800">
+          <div className="mt-4 rounded-2xl border border-hairline bg-card shadow-card">
             <button
               onClick={() => setFiltersOpen(!filtersOpen)}
-              className="flex w-full items-center justify-between px-4 py-3.5 text-sm font-medium text-gray-700 dark:text-gray-300"
+              className="flex w-full items-center justify-between px-4 py-3.5 text-sm font-medium text-foreground/85"
             >
               <span className="flex items-center gap-2">
                 <Filter className="h-4 w-4" />
                 {t('filters')}
                 {hasActiveFilters && (
-                  <span className="rounded-full bg-brand-500 px-1.5 py-0.5 text-[10px] font-bold text-white">!</span>
+                  <span className="rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-bold text-primary-foreground">!</span>
                 )}
               </span>
               {filtersOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
             </button>
             {filtersOpen && (
-              <div className="border-t border-gray-200 p-4 dark:border-gray-700">
+              <div className="border-t border-hairline p-4">
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   <div>
                     <label htmlFor="scorer-date" className={filterLabelClass}>{t('filterDate')}</label>
@@ -879,7 +879,7 @@ export default function ScorerPage() {
           <div className="mt-6">
             {upcomingLoading && <LoadingSpinner />}
             {!upcomingLoading && filteredGames.length === 0 && (
-              <div className="py-12 text-center text-gray-500 dark:text-gray-400">
+              <div className="py-12 text-center text-muted-foreground">
                 <p>{t('noGames')}</p>
                 <p className="mt-1 text-sm">{t('noGamesDescription')}</p>
               </div>

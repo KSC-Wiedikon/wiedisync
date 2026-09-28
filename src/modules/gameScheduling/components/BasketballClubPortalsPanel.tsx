@@ -161,11 +161,11 @@ export default function BasketballClubPortalsPanel({
   )
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-4 sm:p-6 dark:border-gray-700 dark:bg-gray-800">
+    <div className="rounded-2xl border border-hairline bg-card shadow-card p-4 sm:p-6">
       <div className="flex flex-wrap items-start gap-3">
         <div className="min-w-0 flex-1">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('opponentClubs')}</h2>
-          <p className="mt-1 max-w-3xl text-xs text-gray-500 dark:text-gray-400">{t('opponentClubsHint')}</p>
+          <h2 className="text-base font-semibold tracking-tight text-foreground">{t('opponentClubs')}</h2>
+          <p className="mt-1 max-w-3xl text-xs text-muted-foreground">{t('opponentClubsHint')}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" disabled={busy} onClick={() => handleEnsure()}>
@@ -181,21 +181,21 @@ export default function BasketballClubPortalsPanel({
       </div>
 
       {hasError && (
-        <p className="mt-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+        <p className="mt-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
           {t('portalBackendUnavailable')}
         </p>
       )}
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
         <label className="relative flex-1 sm:max-w-xs">
-          <Search className="pointer-events-none absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" aria-hidden />
+          <Search className="pointer-events-none absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/80" aria-hidden />
           <input
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={t('opponentClubsSearch')}
             aria-label={t('opponentClubsSearch')}
-            className="h-11 w-full rounded-md sm:h-9 border border-gray-300 bg-white pl-8 pr-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+            className="h-11 w-full rounded-lg sm:h-9 border border-input bg-card pl-8 pr-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/70 dark:bg-input/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
         </label>
         <Button variant="outline" onClick={() => setShowAll((v) => !v)}>
@@ -204,15 +204,15 @@ export default function BasketballClubPortalsPanel({
       </div>
 
       {withoutContact > 0 && (
-        <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">{t('opponentClubsNoContactHint', { count: withoutContact })}</p>
+        <p className="mt-3 text-xs text-muted-foreground">{t('opponentClubsNoContactHint', { count: withoutContact })}</p>
       )}
 
       {isLoading ? (
-        <div className="py-8 text-center text-sm text-gray-400">
+        <div className="py-8 text-center text-sm text-muted-foreground/80">
           <Loader2 className="mx-auto h-4 w-4 animate-spin" aria-hidden />
         </div>
       ) : rows.length === 0 ? (
-        <p className="py-6 text-center text-sm text-gray-400 dark:text-gray-500">{t('opponentClubsEmpty')}</p>
+        <p className="py-6 text-center text-sm text-muted-foreground/80">{t('opponentClubsEmpty')}</p>
       ) : (
         <div className="mt-4">
           <Table>
@@ -234,15 +234,15 @@ export default function BasketballClubPortalsPanel({
                     <TableCell className="whitespace-normal break-words font-medium">
                       {club.name}
                       {!email && (
-                        <span className="ml-2 rounded bg-gray-100 px-1.5 py-0.5 text-[11px] text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+                        <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
                           {t('portalNoContact')}
                         </span>
                       )}
                     </TableCell>
-                    <TableCell className="hidden whitespace-normal break-words text-xs text-gray-500 sm:table-cell dark:text-gray-400">
+                    <TableCell className="hidden whitespace-normal break-words text-xs text-muted-foreground sm:table-cell">
                       {email ? (
                         <>
-                          {club.contact_name && <div className="text-gray-700 dark:text-gray-300">{club.contact_name}</div>}
+                          {club.contact_name && <div className="text-foreground/85">{club.contact_name}</div>}
                           <div>{email}</div>
                           {secondary && <div>{secondary}</div>}
                         </>
@@ -265,7 +265,7 @@ export default function BasketballClubPortalsPanel({
                           )}
                         </span>
                       ) : (
-                        <span className="text-gray-400 dark:text-gray-500">{games || 0}</span>
+                        <span className="text-muted-foreground/80">{games || 0}</span>
                       )}
                     </TableCell>
                     <TableCell className="hidden whitespace-normal break-words md:table-cell">
@@ -274,14 +274,14 @@ export default function BasketballClubPortalsPanel({
                           <Badge variant={STATUS_VARIANT[portal.status] || 'neutral'} size="sm">
                             {t(`portalStatus_${portal.status}`)}
                           </Badge>
-                          <span className="text-[11px] text-gray-500 dark:text-gray-400">
+                          <span className="text-[11px] text-muted-foreground">
                             {portal.email_sent_at
                               ? t('portalSentOn', { date: formatDateZurich(portal.email_sent_at) })
                               : t('portalNotSentYet')}
                           </span>
                         </span>
                       ) : (
-                        <span className="text-xs text-gray-400 dark:text-gray-500">{t('portalNoLinkYet')}</span>
+                        <span className="text-xs text-muted-foreground/80">{t('portalNoLinkYet')}</span>
                       )}
                     </TableCell>
                     <TableCell className="text-right">
@@ -401,7 +401,7 @@ function ClubContactDialog({
   }
 
   const inputClass =
-    'h-11 sm:h-9 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100'
+    'h-11 sm:h-9 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground dark:bg-input/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
 
   const handleSave = async () => {
     if (!club) return
@@ -443,23 +443,23 @@ function ClubContactDialog({
           <DialogDescription>{t('portalContactHint')}</DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
-          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400">
+          <label className="block text-xs font-medium text-muted-foreground">
             {t('portalContactName')}
             <input className={`mt-1 ${inputClass}`} value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
           </label>
-          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400">
+          <label className="block text-xs font-medium text-muted-foreground">
             {t('portalContactEmail')}
             <input type="email" className={`mt-1 ${inputClass}`} value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
           </label>
-          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400">
+          <label className="block text-xs font-medium text-muted-foreground">
             {t('portalContactEmail2')}
             <input type="email" className={`mt-1 ${inputClass}`} value={form.email2} onChange={(e) => setForm((f) => ({ ...f, email2: e.target.value }))} />
           </label>
-          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400">
+          <label className="block text-xs font-medium text-muted-foreground">
             {t('portalContactPhone')}
             <input className={`mt-1 ${inputClass}`} value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} />
           </label>
-          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400">
+          <label className="block text-xs font-medium text-muted-foreground">
             {t('portalContactRole')}
             <input className={`mt-1 ${inputClass}`} value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))} />
           </label>

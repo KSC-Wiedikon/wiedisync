@@ -81,10 +81,10 @@ export default function ClubFlowPage() {
 
   if (error || !portal) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 dark:bg-gray-900">
+      <div className="flex min-h-screen items-center justify-center bg-background px-4">
         <div className="text-center">
-          <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">{t('invalidLink')}</h1>
-          <p className="mt-2 text-gray-600 dark:text-gray-400">{error || t('tokenNotFound')}</p>
+          <h1 className="text-xl font-bold tracking-tight text-foreground">{t('invalidLink')}</h1>
+          <p className="mt-2 text-muted-foreground">{error || t('tokenNotFound')}</p>
         </div>
       </div>
     )
@@ -151,25 +151,25 @@ export default function ClubFlowPage() {
     const match = card.isHome ? `${kscwName} – ${oppTeam}` : `${oppTeam} – ${kscwName}`
     const title = card.sideCount > 1 ? `${match} · ${t('gameN', { number: card.seq })}` : match
     return (
-      <div key={card.key} className="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-800">
+      <div key={card.key} className="rounded-xl border border-hairline bg-surface-sunken p-6">
         <div className="mb-1 flex items-start justify-between gap-2">
-          <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+          <h3 className="text-base font-semibold text-foreground">
             {title}
             {card.number != null && (
-              <span className="ml-2 text-sm font-normal text-gray-400 dark:text-gray-500">#{card.number}</span>
+              <span className="ml-2 text-sm font-normal text-muted-foreground/80">#{card.number}</span>
             )}
           </h3>
           {statusBadge(legStatus(card))}
         </div>
-        <p className="mb-4 text-xs text-gray-500 dark:text-gray-400">
+        <p className="mb-4 text-xs text-muted-foreground">
           {card.isHome ? t('homeGameDesc') : t('awayGameDesc')}
         </p>
 
         {card.isHome ? (
           card.booking?.status === 'confirmed' ? (
-            <div className="rounded-md bg-green-50 p-4 dark:bg-green-900/20">
+            <div className="rounded-xl border border-green-200 bg-green-50 p-4 dark:border-green-900/60 dark:bg-green-900/20">
               <p className="text-sm font-medium text-green-800 dark:text-green-300">{t('slotBooked')}</p>
-              <p className="mt-1 text-sm text-gray-700 dark:text-gray-300">
+              <p className="mt-1 text-sm text-foreground/85">
                 {fmtDate(card.booking.slot_date)} · {gameStartForDate(card.booking.slot_date, card.booking.slot_start)}
                 {card.booking.slot_hall_name ? ` · ${card.booking.slot_hall_name}` : ''}
               </p>
@@ -177,11 +177,11 @@ export default function ClubFlowPage() {
           ) : (
             <>
               {card.booking?.status === 'pending' && card.booking.proposed_slots && (
-                <div className="mb-4 rounded-md bg-yellow-50 p-3 dark:bg-yellow-900/20">
+                <div className="mb-4 rounded-xl border border-yellow-200 bg-yellow-50 p-3 dark:border-yellow-900/60 dark:bg-yellow-900/20">
                   <p className="text-sm font-medium text-yellow-800 dark:text-yellow-300">{t('homeProposalsPending')}</p>
                   <ul className="mt-1 space-y-0.5">
                     {card.booking.proposed_slots.map((p, idx) => (
-                      <li key={idx} className="text-sm text-gray-700 dark:text-gray-300">
+                      <li key={idx} className="text-sm text-foreground/85">
                         {p.date ? `${fmtDate(p.date)} · ${gameStartForDate(p.date, p.start)}${p.hall_name ? ` · ${p.hall_name}` : ''}` : t('slotN', { number: idx + 1 })}
                         {!p.available && <span className="ml-2 text-xs text-red-600 dark:text-red-400">⚠ {t('slotMaybeTaken')}</span>}
                       </li>
@@ -200,9 +200,9 @@ export default function ClubFlowPage() {
             </>
           )
         ) : card.booking?.status === 'confirmed' ? (
-          <div className="rounded-md bg-green-50 p-4 dark:bg-green-900/20">
+          <div className="rounded-xl border border-green-200 bg-green-50 p-4 dark:border-green-900/60 dark:bg-green-900/20">
             <p className="text-sm font-medium text-green-800 dark:text-green-300">{t('confirmed')}</p>
-            <p className="mt-1 text-sm text-gray-700 dark:text-gray-300">{fmtDateTime(decidedAway(card.booking))}</p>
+            <p className="mt-1 text-sm text-foreground/85">{fmtDateTime(decidedAway(card.booking))}</p>
           </div>
         ) : (
           <AwayProposalFormForCard
@@ -317,18 +317,18 @@ export default function ClubFlowPage() {
     const allCards = [...homeCards, ...awayCards]
     const todo = allCards.filter((c) => legStatus(c) !== 'confirmed').length
     return (
-      <div key={id} className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+      <div key={id} className="overflow-hidden rounded-2xl border border-hairline bg-card shadow-card">
         <button
           type="button"
           onClick={() => toggleExpanded(id)}
           aria-expanded={isOpen}
-          className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700/40"
+          className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-accent"
         >
           <span className="flex min-w-0 items-center gap-2">
-            <ChevronRight className={`h-4 w-4 flex-none text-gray-400 transition-transform ${isOpen ? 'rotate-90' : ''}`} aria-hidden="true" />
+            <ChevronRight className={`h-4 w-4 flex-none text-muted-foreground/80 transition-transform ${isOpen ? 'rotate-90' : ''}`} aria-hidden="true" />
             <span className="min-w-0 text-sm sm:text-base">
-              <span className="font-semibold text-gray-900 dark:text-gray-100">KSCW {pairing.opponent.kscw_team_name} <span className="font-normal text-gray-400">·</span> {pairing.opponent.team_name}</span>
-              {league && <span className="ml-2 text-xs font-medium text-gray-400">{league}</span>}
+              <span className="font-semibold text-foreground">KSCW {pairing.opponent.kscw_team_name} <span className="font-normal text-muted-foreground/80">·</span> {pairing.opponent.team_name}</span>
+              {league && <span className="ml-2 text-xs font-medium text-muted-foreground/80">{league}</span>}
             </span>
           </span>
           {todo === 0
@@ -336,11 +336,11 @@ export default function ClubFlowPage() {
             : <Badge variant="warning" size="sm">{t('pairingOpenBadge', { count: todo })}</Badge>}
         </button>
         {isOpen && (
-          <div className="border-t border-gray-100 p-4 dark:border-gray-700">
+          <div className="border-t border-border/60 p-4">
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
               {homeCards.length > 0 && (
                 <div>
-                  <h4 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('homeGamesTitle')}</h4>
+                  <h4 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{t('homeGamesTitle')}</h4>
                   <div className="space-y-6">{homeCards.map((c) => renderCard(pairing, c))}</div>
                   {shownHome.length > 0 && (
                     <Button type="button" onClick={() => openConfirmer(pairing, 'home', homeCards, awayCards)} disabled={busy} size="lg" className={sideButtonClass}>
@@ -351,7 +351,7 @@ export default function ClubFlowPage() {
               )}
               {awayCards.length > 0 && (
                 <div>
-                  <h4 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('awayGamesTitle')}</h4>
+                  <h4 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{t('awayGamesTitle')}</h4>
                   <div className="space-y-6">{awayCards.map((c) => renderCard(pairing, c))}</div>
                   {shownAway.length > 0 && (
                     <Button type="button" onClick={() => openConfirmer(pairing, 'away', homeCards, awayCards)} disabled={busy} size="lg" className={sideButtonClass}>
@@ -368,35 +368,35 @@ export default function ClubFlowPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 px-4 py-8 dark:bg-gray-900">
+    <div className="min-h-screen bg-background px-4 py-8">
       <div className="mx-auto max-w-4xl">
         <div className="mb-2 flex justify-end">
           <LanguageDropdown size="sm" />
         </div>
         {/* Header */}
         <div className="mb-6 text-center">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{t('publicTitle')}</h1>
-          <p className="mt-2 text-gray-600 dark:text-gray-400">
+          <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">{t('publicTitle')}</h1>
+          <p className="mt-2 text-muted-foreground">
             {clubName} · KSC Wiedikon
           </p>
         </div>
 
         {/* Club welcome — one link covers every one of the club's teams. */}
-        <div className="mb-6 rounded-xl border border-brand-200 bg-brand-50 p-5 dark:border-brand-900 dark:bg-brand-900/20">
-          <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{t('inviteGreetingNoName')}</p>
-          <p className="mt-1 text-sm text-gray-700 dark:text-gray-300">{t('clubInviteWelcome', { club: clubName })}</p>
-          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{t('clubAllTeamsHint', { club: clubName })}</p>
+        <div className="mb-6 rounded-2xl border border-brand-200 bg-brand-50 p-5 dark:border-brand-900 dark:bg-brand-900/20">
+          <p className="text-sm font-medium text-foreground">{t('inviteGreetingNoName')}</p>
+          <p className="mt-1 text-sm text-foreground/85">{t('clubInviteWelcome', { club: clubName })}</p>
+          <p className="mt-2 text-xs text-muted-foreground">{t('clubAllTeamsHint', { club: clubName })}</p>
         </div>
 
         {bookingError && (
-          <div className="mb-4 rounded-md bg-red-50 p-4 text-sm text-red-800 dark:bg-red-900/30 dark:text-red-300">{bookingError}</div>
+          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">{bookingError}</div>
         )}
         {bookingSuccess && (
-          <div className="mb-4 rounded-md bg-green-50 p-4 text-sm text-green-800 dark:bg-green-900/30 dark:text-green-300">{bookingSuccess}</div>
+          <div className="mb-4 rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-700 dark:border-green-900/60 dark:bg-green-950/40 dark:text-green-300">{bookingSuccess}</div>
         )}
 
         {pairings.length === 0 && (
-          <div className="mb-6 rounded-xl border border-gray-200 bg-white p-6 text-center text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
+          <div className="mb-6 rounded-2xl border border-hairline bg-card shadow-card p-6 text-center text-sm text-muted-foreground">
             {t('clubNoFixtures')}
           </div>
         )}
@@ -404,7 +404,7 @@ export default function ClubFlowPage() {
         {/* Teams grouped by gender; each pairing collapsed by default. */}
         {genderGroups.map((grp) => (
           <div key={grp.gender || 'other'} className="mb-8">
-            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+            <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
               {grp.gender ? genderLabel(grp.gender) : t('otherTeams')}
             </h2>
             <div className="space-y-2">
@@ -414,26 +414,26 @@ export default function ClubFlowPage() {
         ))}
 
         {/* Slot-availability explainer. */}
-        <div className="mb-6 rounded-xl border border-gray-200 bg-gray-50 p-6 dark:border-gray-700 dark:bg-gray-800/50">
-          <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{t('slotRulesTitle')}</h2>
-          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">{t('slotRulesIntro')}</p>
-          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-gray-600 dark:text-gray-400">
+        <div className="mb-6 rounded-2xl border border-hairline bg-surface-sunken p-6">
+          <h2 className="text-base font-semibold text-foreground">{t('slotRulesTitle')}</h2>
+          <p className="mt-2 text-sm text-muted-foreground">{t('slotRulesIntro')}</p>
+          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
             <li>{t('slotRulesHall')}</li>
             <li>{t('slotRulesSaturday')}</li>
             <li>{t('slotRulesGap')}</li>
             <li>{t('slotRulesVenue')}</li>
             <li>{t('slotRulesSunday')}</li>
           </ul>
-          <p className="mt-3 text-sm text-gray-600 dark:text-gray-400">{t('slotRulesAway')}</p>
-          <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">{t('slotRulesOutro')}</p>
+          <p className="mt-3 text-sm text-muted-foreground">{t('slotRulesAway')}</p>
+          <p className="mt-3 text-xs text-muted-foreground">{t('slotRulesOutro')}</p>
         </div>
 
         {/* Shared remark to KSCW (one note for the whole club). */}
-        <div className="mb-6 rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-800">
-          <label htmlFor="club-remark" className="block text-base font-semibold text-gray-900 dark:text-gray-100">
+        <div className="mb-6 rounded-2xl border border-hairline bg-card shadow-card p-6">
+          <label htmlFor="club-remark" className="block text-base font-semibold text-foreground">
             {t('yourRemarks')}
           </label>
-          <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">{t('yourRemarksHint')}</p>
+          <p className="mb-2 text-xs text-muted-foreground">{t('yourRemarksHint')}</p>
           <textarea
             id="club-remark"
             value={remark}
@@ -441,7 +441,7 @@ export default function ClubFlowPage() {
             rows={3}
             maxLength={2000}
             placeholder={t('yourRemarksPlaceholder')}
-            className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+            className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground focus-visible:border-primary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-input/20"
           />
           {remarkChanged && (
             <Button type="button" onClick={handleSaveRemark} disabled={busy} variant="outline" className="mt-3 w-full sm:w-auto">
@@ -453,18 +453,18 @@ export default function ClubFlowPage() {
         {/* "Who is confirming" modal — shared across pairings. */}
         <Modal open={confirmTarget !== null} onClose={() => setConfirmTarget(null)} title={t('confirmerTitle')} size="sm">
           <div className="space-y-3">
-            <p className="text-sm text-gray-600 dark:text-gray-400">
+            <p className="text-sm text-muted-foreground">
               {confirmTarget?.side === 'home' ? t('confirmerHintHome') : t('confirmerHintAway')}
             </p>
             <div>
-              <label htmlFor="club-confirmer-name" className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">{t('confirmerName')}</label>
+              <label htmlFor="club-confirmer-name" className="mb-1 block text-xs font-medium text-muted-foreground">{t('confirmerName')}</label>
               <input id="club-confirmer-name" type="text" value={confirmerName} onChange={(e) => setConfirmerName(e.target.value)} autoComplete="name"
-                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100" />
+                className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground focus-visible:border-primary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-input/20" />
             </div>
             <div>
-              <label htmlFor="club-confirmer-email" className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">{t('confirmerEmail')}</label>
+              <label htmlFor="club-confirmer-email" className="mb-1 block text-xs font-medium text-muted-foreground">{t('confirmerEmail')}</label>
               <input id="club-confirmer-email" type="email" value={confirmerEmail} onChange={(e) => setConfirmerEmail(e.target.value)} autoComplete="email"
-                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100" />
+                className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground focus-visible:border-primary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-input/20" />
             </div>
             {confirmerError && <p className="text-sm text-red-600 dark:text-red-400">{confirmerError}</p>}
             <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-end">
@@ -478,9 +478,9 @@ export default function ClubFlowPage() {
           </div>
         </Modal>
 
-        <p className="mt-8 text-center text-xs text-gray-400 dark:text-gray-500">
+        <p className="mt-8 text-center text-xs text-muted-foreground/80">
           {t('inviteHelpHint')}{' '}
-          <a href={`mailto:${SUPPORT_EMAIL}`} className="underline hover:text-gray-600 dark:hover:text-gray-300">{SUPPORT_EMAIL}</a>.
+          <a href={`mailto:${SUPPORT_EMAIL}`} className="underline hover:text-foreground">{SUPPORT_EMAIL}</a>.
         </p>
       </div>
     </div>

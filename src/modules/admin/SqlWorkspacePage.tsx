@@ -422,7 +422,7 @@ export default function SqlWorkspacePage() {
           honest: long identifiers (`svrz_spielplaner_contacts`) otherwise widen
           the table past the pane, and everything right-aligned — the column
           count, the type, the SELECT button — scrolls out of sight. */}
-      <div className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-border bg-card [&>div]:overflow-visible">
+      <div className="min-h-0 flex-1 overflow-y-auto rounded-xl border border-hairline bg-card [&>div]:overflow-visible">
         <Table className="table-fixed">
           <TableBody>
             {filteredTables.map((tb) => {
@@ -461,7 +461,7 @@ export default function SqlWorkspacePage() {
                   </TableRow>
                   {open &&
                     tb.columns.map((c) => (
-                      <TableRow key={c.name} className="bg-muted/30">
+                      <TableRow key={c.name} className="bg-surface-sunken">
                         <TableCell colSpan={2} className="py-1 pl-6 pr-2 text-[11px]">
                           <div className="flex items-baseline gap-1.5">
                             <span className="min-w-0 flex-1 truncate font-mono text-foreground" title={c.name}>{c.name}</span>
@@ -566,7 +566,7 @@ export default function SqlWorkspacePage() {
               </div>
 
               {aiMemory.length > 0 && (
-                <div className="mb-2 rounded-md border border-border bg-muted/40 p-2">
+                <div className="mb-2 rounded-xl border border-hairline bg-surface-sunken p-2">
                   <div className="mb-1 flex items-center gap-1.5">
                     <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                       {t('sqlWorkspaceAiMemory')}
@@ -618,7 +618,7 @@ export default function SqlWorkspacePage() {
                 </Button>
               </div>
               {aiError && (
-                <div className="mt-2 rounded-md border border-destructive bg-destructive/10 p-2 text-[11px] text-destructive">
+                <div className="mt-2 rounded-lg border border-destructive bg-destructive/10 p-2 text-[11px] text-destructive">
                   {aiError}
                 </div>
               )}
@@ -627,10 +627,10 @@ export default function SqlWorkspacePage() {
 
           <label
             htmlFor="sql-write-mode"
-            className={`inline-flex min-h-11 w-full cursor-pointer select-none items-center justify-center gap-1.5 whitespace-nowrap rounded-md border px-2 text-xs font-medium transition-colors sm:min-h-9 md:w-auto md:gap-2 md:px-2.5 ${
+            className={`inline-flex min-h-11 w-full cursor-pointer select-none items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border px-2 text-xs font-medium transition-colors sm:min-h-9 md:w-auto md:gap-2 md:px-2.5 ${
               writeMode
                 ? 'border-destructive bg-destructive/10 text-destructive'
-                : 'border-border bg-background text-muted-foreground'
+                : 'border-border bg-card text-muted-foreground'
             }`}
             title={t('sqlWorkspaceWriteMode')}
           >
@@ -765,7 +765,7 @@ export default function SqlWorkspacePage() {
           )}
 
           {error && (
-            <div className="flex items-start gap-2 rounded-md border border-destructive bg-destructive/10 p-2.5 text-xs text-destructive">
+            <div className="flex items-start gap-2 rounded-lg border border-destructive bg-destructive/10 p-2.5 text-xs text-destructive">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
               <div className="min-w-0 flex-1 break-words">
                 <div className="font-semibold">
@@ -776,7 +776,7 @@ export default function SqlWorkspacePage() {
 
                 {/* Did you mean… — one tap rewrites the identifier in place */}
                 {fix && (
-                  <div className="mt-2 rounded-md border border-border bg-card p-2 text-foreground">
+                  <div className="mt-2 rounded-lg border border-border bg-card p-2 text-foreground">
                     <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold">
                       <Wand2 className="h-3.5 w-3.5 text-primary" />
                       {t('sqlWorkspaceDidYouMean')}

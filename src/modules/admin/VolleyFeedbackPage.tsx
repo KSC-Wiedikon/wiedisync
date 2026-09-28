@@ -140,24 +140,24 @@ export default function VolleyFeedbackPage() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-4 p-4">
-      <h1 className="text-xl font-bold">Volley Feedback</h1>
+      <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">Volley Feedback</h1>
 
       {/* Summary + rating cards */}
       <DashboardSection id="vf-summary" title={t('vfOverview')} icon={<BarChart3 className="h-4 w-4" aria-hidden="true" />} isLoading={isLoading} error={error?.message}>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <div className="rounded-lg bg-primary/5 p-3 text-center">
-            <div className="text-2xl font-bold text-primary">{items.length}</div>
+          <div className="rounded-xl bg-primary/5 p-3 text-center">
+            <div className="text-2xl font-bold tabular-nums text-primary">{items.length}</div>
             <div className="text-xs text-muted-foreground">{t('vfResponses')}</div>
           </div>
-          <div className="rounded-lg bg-primary/5 p-3 text-center">
-            <div className="text-2xl font-bold text-primary">{anonCount}</div>
+          <div className="rounded-xl bg-primary/5 p-3 text-center">
+            <div className="text-2xl font-bold tabular-nums text-primary">{anonCount}</div>
             <div className="text-xs text-muted-foreground">{t('vfAnonymous')}</div>
           </div>
           {RATING_KEYS.map(key => {
             const avg = averages[key] || 0
             return (
-              <div key={key} className="rounded-lg bg-primary/5 p-3 text-center">
-                <div className="text-2xl font-bold text-primary">{avg ? avg.toFixed(1) : '–'}</div>
+              <div key={key} className="rounded-xl bg-primary/5 p-3 text-center">
+                <div className="text-2xl font-bold tabular-nums text-primary">{avg ? avg.toFixed(1) : '–'}</div>
                 <div className="text-xs text-muted-foreground">⌀ {t(RATING_I18N_KEYS[key])}</div>
               </div>
             )
@@ -171,7 +171,7 @@ export default function VolleyFeedbackPage() {
           <select
             value={teamFilter}
             onChange={e => setTeamFilter(e.target.value)}
-            className="h-11 rounded-md border border-input bg-background px-2 text-sm sm:h-9 dark:bg-gray-800"
+            className="h-11 rounded-lg border border-input bg-card px-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-9 dark:bg-gray-800"
           >
             <option value="">{t('vfAllTeams')}</option>
             {allTeams.map(team => <option key={team} value={team}>{team}</option>)}
@@ -235,15 +235,15 @@ export default function VolleyFeedbackPage() {
       {/* Text detail modal */}
       {selectedItem && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/60 p-4 backdrop-blur-sm dark:bg-black/70"
           onClick={() => setSelectedItem(null)}
         >
           <div
-            className="max-h-[80vh] w-full max-w-lg overflow-y-auto rounded-lg bg-card p-6 shadow-lg"
+            className="max-h-[80vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-hairline bg-card p-6 shadow-2xl"
             onClick={e => e.stopPropagation()}
           >
             <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-lg font-semibold">{t('vfFeedbackDetails')}</h3>
+              <h3 className="text-lg font-bold tracking-tight">{t('vfFeedbackDetails')}</h3>
               <IconButton
                 onClick={() => setSelectedItem(null)}
                 className="text-muted-foreground"

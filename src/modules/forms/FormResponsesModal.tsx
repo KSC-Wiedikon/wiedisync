@@ -186,7 +186,7 @@ export default function FormResponsesModal({ open, form, onClose }: Props) {
       <div className="space-y-4">
         {/* Roster-aware progress + reminder (member-scoped forms only) */}
         {trackable && stats && stats.targeted > 0 && (
-          <div className="rounded-lg border border-gray-200 p-3 dark:border-gray-700">
+          <div className="rounded-xl border border-hairline bg-surface-sunken p-3">
             <div className="flex flex-wrap items-center gap-2">
               <div className="flex min-w-0 items-center gap-2 text-sm">
                 <Users size={15} className="text-muted-foreground" />
@@ -200,7 +200,7 @@ export default function FormResponsesModal({ open, form, onClose }: Props) {
             </div>
             <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted">
               <div
-                className="h-full rounded-full bg-brand-500 transition-all"
+                className="h-full rounded-full bg-primary transition-all"
                 style={{ width: `${stats.targeted ? Math.round((stats.responded / stats.targeted) * 100) : 0}%` }}
               />
             </div>
@@ -211,7 +211,7 @@ export default function FormResponsesModal({ open, form, onClose }: Props) {
                 variant="link"
                 size="sm"
                 onClick={() => setShowMissing((v) => !v)}
-                className="mt-1 px-0 text-brand-600 dark:text-brand-400"
+                className="mt-1 px-0 text-primary dark:text-brand-300"
               >
                 {showMissing ? t('hideMissing') : t('showMissing', { count: stats.nonResponders.length })}
               </Button>
@@ -239,7 +239,7 @@ export default function FormResponsesModal({ open, form, onClose }: Props) {
         ) : !hasRows ? (
           <p className="py-8 text-center text-sm text-muted-foreground">{t('noResponses')}</p>
         ) : (
-          <div ref={tableRef} className="overflow-x-auto bg-background">
+          <div ref={tableRef} className="overflow-x-auto rounded-xl border border-hairline bg-card">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -257,7 +257,7 @@ export default function FormResponsesModal({ open, form, onClose }: Props) {
                           <button
                             type="button"
                             onClick={() => setPreview(cell)}
-                            className="text-left text-brand-600 hover:underline dark:text-brand-400"
+                            className="text-left text-primary hover:underline dark:text-brand-300"
                           >
                             {cell.name || t('download')}
                           </button>

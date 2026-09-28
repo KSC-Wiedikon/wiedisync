@@ -96,7 +96,7 @@ export default function LoadingSpinner({
     <div
       role="status"
       aria-live="polite"
-      className={`flex flex-col items-center justify-center ${isSmall ? 'py-8' : 'min-h-[60vh]'}`}
+      className={`flex flex-col items-center justify-center ${isSmall ? 'py-10' : 'min-h-[60vh]'}`}
     >
       <img
         src="/wiedisync_logo.svg"
@@ -108,7 +108,7 @@ export default function LoadingSpinner({
       {caption && (
         <p
           key={caption}
-          className="mt-4 animate-fade-in text-sm text-gray-500 dark:text-gray-400"
+          className="mt-4 animate-fade-in text-xs font-medium text-muted-foreground"
         >
           {caption}
         </p>

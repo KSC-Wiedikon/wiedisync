@@ -9,5 +9,5 @@ import { formatWeekdayZurich } from '../../../utils/dateHelpers'
 export default function WeekdayHint({ date, className = '' }: { date: string | null | undefined; className?: string }) {
   const wd = formatWeekdayZurich(date)
   if (!wd) return null
-  return <span className={`text-xs font-medium text-gray-400 dark:text-gray-500 ${className}`}>{wd}</span>
+  return <span className={`text-xs font-medium text-muted-foreground/80 ${className}`}>{wd}</span>
 }

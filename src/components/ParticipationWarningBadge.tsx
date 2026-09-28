@@ -34,7 +34,7 @@ export default function ParticipationWarningBadge({ warnings, namespace = 'parti
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="inline-flex items-center gap-0.5 rounded p-0.5 hover:bg-muted/50 focus:outline-none"
+          className="inline-flex items-center gap-0.5 rounded p-0.5 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           aria-label={t('warnings')}
         >
           <AlertTriangle

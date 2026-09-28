@@ -43,7 +43,7 @@ function typeLabelKey(t: FineActivityType): string {
   }
 }
 
-const inputClass = 'h-9 rounded-md border border-gray-300 bg-white px-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100'
+const inputClass = 'h-9 rounded-lg border border-input bg-card px-2 text-sm text-foreground dark:bg-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
 
 /**
  * Numeric tier field that can be emptied and retyped. A controlled
@@ -149,20 +149,20 @@ export default function FinesSettings({ teamId, teamName, season }: FinesSetting
   }
 
   return (
-    <div className="rounded-lg border border-gray-200 dark:border-gray-700">
+    <div className="overflow-hidden rounded-2xl border border-hairline bg-card shadow-card">
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="flex w-full items-center justify-between px-4 py-3 text-sm font-semibold text-gray-900 dark:text-gray-100"
+        className="flex w-full items-center justify-between px-4 py-3 text-sm font-semibold text-foreground"
         style={{ minHeight: 44 }}
       >
         <span>{t('fines:settingsTitle')}</span>
-        <span className="text-gray-400 dark:text-gray-500">{open ? '▼' : '▶'}</span>
+        <span className="text-muted-foreground/80">{open ? '▼' : '▶'}</span>
       </button>
       {open && (
-        <div className="divide-y divide-gray-100 border-t border-gray-200 dark:divide-gray-700 dark:border-gray-700">
+        <div className="divide-y divide-border/60 border-t border-border">
           <div className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-            <p className="text-xs italic text-gray-500 dark:text-gray-400">
+            <p className="text-xs italic text-muted-foreground">
               {t('fines:settingsDescription')}
             </p>
             <Button
@@ -190,10 +190,10 @@ export default function FinesSettings({ teamId, teamName, season }: FinesSetting
           {!isError && (isLoading || !rulesRaw) ? (
             CATEGORIES.map((cat) => (
               <div key={cat} className="flex min-h-[52px] items-center justify-between gap-3 px-4 py-3">
-                <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                <div className="text-sm font-medium text-foreground">
                   {t(`fines:${categoryLabelKey(cat)}`)}
                 </div>
-                <div className="h-5 w-24 animate-pulse rounded bg-gray-100 dark:bg-gray-800" />
+                <div className="h-5 w-24 animate-pulse rounded bg-muted" />
               </div>
             ))
           ) : (
@@ -273,7 +273,7 @@ function CategorySection({ teamId, category, rules, onChange }: CategorySectionP
   return (
     <div className="space-y-4 px-4 py-3">
       {perType ? (
-        <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+        <div className="text-sm font-semibold text-foreground">
           {t(`fines:${categoryLabelKey(category)}`)}
         </div>
       ) : (
@@ -287,17 +287,17 @@ function CategorySection({ teamId, category, rules, onChange }: CategorySectionP
       )}
 
       {showModeSwitch && (
-        <div className={`flex items-center justify-between gap-3 ${perType ? '' : 'border-t border-dashed border-gray-200 pt-3 dark:border-gray-700'}`}>
+        <div className={`flex items-center justify-between gap-3 ${perType ? '' : 'border-t border-dashed border-border pt-3'}`}>
           <div className="min-w-0">
-            <label htmlFor={modeSwitchId} className="cursor-pointer text-xs font-medium text-gray-700 dark:text-gray-300">{t('fines:settingsPerType')}</label>
-            <div className="text-xs italic text-gray-500 dark:text-gray-400">{t('fines:settingsPerTypeHint')}</div>
+            <label htmlFor={modeSwitchId} className="cursor-pointer text-xs font-medium text-foreground/85">{t('fines:settingsPerType')}</label>
+            <div className="text-xs italic text-muted-foreground">{t('fines:settingsPerTypeHint')}</div>
           </div>
           <Switch id={modeSwitchId} checked={perType} disabled={switching} onCheckedChange={setPerType} />
         </div>
       )}
 
       {perType && (
-        <div className="divide-y divide-gray-100 rounded-lg border border-gray-200 dark:divide-gray-700 dark:border-gray-700">
+        <div className="divide-y divide-border/60 rounded-xl border border-hairline">
           {ACTIVITY_TYPES.map((type) => (
             <div key={type} className="px-3 py-3">
               <RuleEditor
@@ -449,16 +449,16 @@ function RuleEditor({ teamId, category, activityType, rule, seed, onChange }: Ru
     <div className="space-y-3">
       <div className="flex min-h-[36px] items-center justify-between gap-3">
         <div className="min-w-0">
-          <div className={isOverride ? 'text-sm font-medium text-gray-900 dark:text-gray-100' : 'text-sm font-semibold text-gray-900 dark:text-gray-100'}>
+          <div className={isOverride ? 'text-sm font-medium text-foreground' : 'text-sm font-semibold text-foreground'}>
             {title}
           </div>
           {/* In per-type mode the general ladder is off, so a type whose own row
               is off is not fined at all. Say so next to the switch. */}
           {isOverride && rule && !enabled && (
-            <div className="text-xs italic text-gray-500 dark:text-gray-400">{t('fines:settingsOverrideOff')}</div>
+            <div className="text-xs italic text-muted-foreground">{t('fines:settingsOverrideOff')}</div>
           )}
         </div>
-        <label htmlFor={enabledId} className="inline-flex shrink-0 cursor-pointer items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
+        <label htmlFor={enabledId} className="inline-flex shrink-0 cursor-pointer items-center gap-2 text-xs text-muted-foreground">
           <Switch id={enabledId} checked={enabled} disabled={saving} onCheckedChange={handleToggleEnabled} />
           {t('fines:settingsEnabled')}
         </label>
@@ -469,7 +469,7 @@ function RuleEditor({ teamId, category, activityType, rule, seed, onChange }: Ru
           A coach flipping a switch called "Enabled" deserves to be told that
           here, not to discover it from a member asking why they owe CHF 20. */}
       {category === 'late_signin' && activityType !== 'event' && enabled && (
-        <p className="text-xs italic text-gray-500 dark:text-gray-400">
+        <p className="text-xs italic text-muted-foreground">
           {t('fines:settingsLateSigninSweep')}
         </p>
       )}
@@ -478,7 +478,7 @@ function RuleEditor({ teamId, category, activityType, rule, seed, onChange }: Ru
         <>
           {/* Reset window */}
           <div className="flex items-center gap-3">
-            <label htmlFor={`${enabledId}-window`} className="w-28 shrink-0 text-xs text-gray-600 dark:text-gray-400">
+            <label htmlFor={`${enabledId}-window`} className="w-28 shrink-0 text-xs text-muted-foreground">
               {t('fines:settingsResetWindow')}
             </label>
             <select
@@ -497,11 +497,11 @@ function RuleEditor({ teamId, category, activityType, rule, seed, onChange }: Ru
               instead of by a label that changes width ("Offense #" vs "From
               offense #"). The "and above" toggle is what used to be that label. */}
           <div className="space-y-2">
-            <div className="text-xs font-medium text-gray-700 dark:text-gray-300">{t('fines:settingsTiers')}</div>
+            <div className="text-xs font-medium text-foreground/85">{t('fines:settingsTiers')}</div>
             {tiers.length === 0 ? (
-              <div className="text-xs italic text-gray-500 dark:text-gray-400">{t('fines:settingsNoTiers')}</div>
+              <div className="text-xs italic text-muted-foreground">{t('fines:settingsNoTiers')}</div>
             ) : (
-              <div className="rounded-lg border border-gray-200 bg-card dark:border-gray-700">
+              <div className="overflow-hidden rounded-xl border border-hairline bg-card">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -537,12 +537,12 @@ function RuleEditor({ teamId, category, activityType, rule, seed, onChange }: Ru
                                 onBlur={() => save({ tiers })}
                                 className={`${inputClass} w-14 text-right sm:w-16`}
                               />
-                              <span className={`w-3 text-sm text-gray-500 dark:text-gray-400 ${isMin ? '' : 'invisible'}`} aria-hidden>+</span>
+                              <span className={`w-3 text-sm text-muted-foreground ${isMin ? '' : 'invisible'}`} aria-hidden>+</span>
                             </div>
                           </TableCell>
                           <TableCell className="py-1.5">
                             <div className="flex items-center gap-1.5">
-                              <span className="hidden text-xs text-gray-500 sm:inline dark:text-gray-400">{t('fines:settingsTierAmount')}</span>
+                              <span className="hidden text-xs text-muted-foreground sm:inline">{t('fines:settingsTierAmount')}</span>
                               <TierNumberInput
                                 min="0"
                                 step="0.05"
@@ -571,7 +571,7 @@ function RuleEditor({ teamId, category, activityType, rule, seed, onChange }: Ru
                               size="icon"
                               onClick={() => removeTier(idx)}
                               aria-label={t('fines:settingsRemoveTier')}
-                              className="text-gray-400 hover:text-red-600 dark:hover:text-red-400"
+                              className="text-muted-foreground/80 hover:text-red-600 dark:hover:text-red-400"
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -590,14 +590,14 @@ function RuleEditor({ teamId, category, activityType, rule, seed, onChange }: Ru
           </div>
 
           {/* Preview */}
-          <div className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-300">
             <span className="font-medium">{t('fines:settingsPreview')}: </span>
             {previewLine}
           </div>
 
           {rule && (!isOverride || saving || savedAt) && (
             <div className="flex min-h-[36px] items-center justify-between gap-3">
-              <span className="text-xs text-gray-500 dark:text-gray-400" aria-live="polite">
+              <span className="text-xs text-muted-foreground" aria-live="polite">
                 {saving ? t('common:loading') : savedAt ? t('fines:settingsSaved') : ''}
               </span>
               {/* Per-type rows live and die with the mode switch — no per-row delete. */}

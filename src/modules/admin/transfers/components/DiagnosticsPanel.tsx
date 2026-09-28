@@ -77,7 +77,7 @@ export function DiagnosticsPanel({
               <TableBody>
                 {hiddenRows.map((row) => (
                   <TableRow key={row.key}>
-                    <TableCell className="text-xs text-gray-600 dark:text-gray-300">
+                    <TableCell className="text-xs text-muted-foreground">
                       {row.text}
                     </TableCell>
                     <TableCell className="w-16 text-right text-sm font-medium tabular-nums">
@@ -102,11 +102,11 @@ export function DiagnosticsPanel({
               transfer", and dropping the Swiss ones because they are also listed
               elsewhere would make it false. This is where that apparent
               double-count is finally explained, next to the number it explains. */}
-          <p className="flex items-center gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-200">
+          <p className="flex items-center gap-1.5 text-sm font-medium text-foreground/85">
             <ShieldCheck className="h-4 w-4 shrink-0 text-green-600 dark:text-green-400" aria-hidden="true" />
             {t('trSettledCount', { count: settledCount + swissCount })}
           </p>
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          <p className="mt-1 text-xs text-muted-foreground">
             {t('trSettledDescription')}
           </p>
         </CardContent>
@@ -122,7 +122,7 @@ export function DiagnosticsPanel({
               of every 31 this page was frozen and the header's Refresh — a plain
               refetch of `members` — could not move it however often it was
               pressed. */}
-          <p className="text-xs text-gray-500 dark:text-gray-400">
+          <p className="text-xs text-muted-foreground">
             {lastVisCheck
               ? t('trVisLastChecked', { date: formatDateTimeCompact(lastVisCheck) })
               : t('trVisNeverChecked')}
@@ -146,7 +146,7 @@ export function DiagnosticsPanel({
               {/* Visible text, not a `title=`: it is the sentence that says this
                   button asks FIVB while Refresh only re-reads the database, and a
                   `title=` is unreachable on touch. */}
-              <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+              <p className="mt-1.5 text-xs text-muted-foreground">
                 {t('trVisCheckHint')}
               </p>
             </>

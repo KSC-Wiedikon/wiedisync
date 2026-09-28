@@ -90,7 +90,7 @@ export function FooConflictTable({ conflicts, savingId, onSetStatus, onShowInWor
                         `<td>`: min-height on a `display: table-cell` box is
                         unreliable — the row box governs the height. */}
                     <div className="flex min-h-[44px] min-w-0 flex-col justify-center whitespace-normal break-words">
-                      <span className="text-sm font-medium text-gray-900 dark:text-white">
+                      <span className="text-sm font-medium text-foreground">
                         {memberName(c.m)}
                       </span>
                       {/* From the disagreement back to the row that is being
@@ -117,7 +117,7 @@ export function FooConflictTable({ conflicts, savingId, onSetStatus, onShowInWor
                   <TableCell className="align-top">
                     <span aria-hidden="true" className="mr-1">{countryFlag(c.vmIso)}</span>
                     {countryLabel(c.vmIso) || c.vmIso}
-                    <span className="ml-1 font-mono text-xs text-gray-500 dark:text-gray-400">
+                    <span className="ml-1 font-mono text-xs text-muted-foreground">
                       ({c.vmCode})
                     </span>
                   </TableCell>

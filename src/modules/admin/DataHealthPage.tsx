@@ -368,14 +368,14 @@ function CollectionCard({
     <>
       {hasIssues
         ? (expanded
-          ? <ChevronDown className="h-4 w-4 shrink-0 text-gray-400" aria-hidden="true" />
-          : <ChevronRight className="h-4 w-4 shrink-0 text-gray-400" aria-hidden="true" />)
+          ? <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground/80" aria-hidden="true" />
+          : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/80" aria-hidden="true" />)
         : <span className="h-4 w-4 shrink-0" />
       }
-      <span className="text-sm font-semibold text-gray-900 dark:text-white">
+      <span className="text-sm font-semibold text-foreground">
         {health.collection}
       </span>
-      <span className="text-xs text-gray-400 dark:text-gray-500">
+      <span className="text-xs text-muted-foreground/80">
         ({health.total} {t('dhRecords')})
       </span>
       <div className="ml-auto flex items-center gap-2">
@@ -403,7 +403,7 @@ function CollectionCard({
   )
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800/50">
+    <div className="overflow-hidden rounded-2xl border border-hairline bg-card shadow-card">
       {/* Header — interactive disclosure only when there are issues to reveal */}
       {hasIssues ? (
         <button
@@ -422,11 +422,11 @@ function CollectionCard({
 
       {/* Issues */}
       {expanded && hasIssues && (
-        <div id={panelId} className="border-t border-gray-100 dark:border-gray-700">
+        <div id={panelId} className="border-t border-border/60">
           {/* Fix all (auto-fixable only) */}
           {fixableCount > 0 && (
-            <div className="flex items-center justify-between gap-3 border-b border-gray-100 px-4 py-2 dark:border-gray-700">
-              <span className="text-xs text-gray-500 dark:text-gray-400">
+            <div className="flex items-center justify-between gap-3 border-b border-border/60 px-4 py-2">
+              <span className="text-xs text-muted-foreground">
                 {fixableCount} {t('dhAutoFixable')}
               </span>
               <Button size="sm"
@@ -444,8 +444,8 @@ function CollectionCard({
           {/* Bulk "Mark for sync-up" — select-all + a single flag POST for the
               selection. Only shows when the collection has markable drift rows. */}
           {markable.length > 0 && (
-            <div className="flex flex-wrap items-center gap-3 border-b border-gray-100 px-4 py-2 dark:border-gray-700">
-              <label className="inline-flex min-h-[44px] cursor-pointer items-center gap-2 text-xs text-gray-500 sm:min-h-0 dark:text-gray-400">
+            <div className="flex flex-wrap items-center gap-3 border-b border-border/60 px-4 py-2">
+              <label className="inline-flex min-h-[44px] cursor-pointer items-center gap-2 text-xs text-muted-foreground sm:min-h-0">
                 <Checkbox
                   checked={
                     selected.size === 0 ? false
@@ -497,22 +497,22 @@ function CollectionCard({
                         />
                       )}
                       {severityIcon(issue.severity)}
-                      <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                      <span className="text-xs font-medium text-foreground/85">
                         {t(ISSUE_LABEL_KEY[issue.issueKey])}
                       </span>
                     </span>
                   </TableCell>
                   <TableCell className="align-top whitespace-normal break-words">
-                    <p className="text-xs text-gray-600 dark:text-gray-300">
+                    <p className="text-xs text-muted-foreground">
                       {issue.detail}
                     </p>
-                    <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-gray-400 dark:text-gray-500">
+                    <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground/80">
                       <span>ID: {issue.id}</span>
                       <span aria-hidden="true">&middot;</span>
                       <span>{t('dhField')}: {issue.field}</span>
                       <Link
                         to={`/admin/audit-log?collection=${health.collection}&record_id=${issue.id}`}
-                        className="inline-flex items-center gap-0.5 text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300"
+                        className="inline-flex items-center gap-0.5 text-primary hover:text-primary/80 dark:text-brand-300 dark:hover:text-brand-200"
                         aria-label={`${t('dhViewHistory')} — ${issue.detail}`}
                       >
                         <ScrollText className="h-3 w-3" aria-hidden="true" />
@@ -830,16 +830,16 @@ export default function DataHealthPage() {
       {/* Header */}
       <div className="mb-4 flex flex-wrap items-start gap-3">
         <div className="min-w-0 flex-1">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+          <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">
             {t('dhTitle')}
           </h1>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+          <p className="mt-1 text-sm text-muted-foreground">
             {t('dhDescription')}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {lastCheck && (
-            <span className="hidden text-xs text-gray-400 sm:inline dark:text-gray-500">
+            <span className="hidden text-xs text-muted-foreground/80 sm:inline">
               {lastCheck}
             </span>
           )}
@@ -862,7 +862,7 @@ export default function DataHealthPage() {
             <div
               role="status"
               aria-live="polite"
-              className="mb-4 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-800/30"
+              className="mb-4 rounded-2xl border border-hairline bg-card px-4 py-3 shadow-card"
             >
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                 {totalIssues === 0 ? (
@@ -876,7 +876,7 @@ export default function DataHealthPage() {
                   <>
                     <span className="flex items-center gap-3">
                       <AlertTriangle className="h-5 w-5 text-amber-500" aria-hidden="true" />
-                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      <span className="text-sm font-medium text-foreground/85">
                         {t('dhIssuesFound', { count: totalIssues })}
                       </span>
                     </span>
@@ -957,7 +957,7 @@ export default function DataHealthPage() {
               />
 
               <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-500 dark:text-gray-400">{t('dhSportFilter')}</span>
+                <span className="text-xs text-muted-foreground">{t('dhSportFilter')}</span>
                 <Select value={tab} onValueChange={(v) => setTab(v as SportTab)}>
                   <SelectTrigger className="h-9 w-48">
                     <SelectValue />
@@ -1000,13 +1000,13 @@ export default function DataHealthPage() {
               <div className={`space-y-4 transition-opacity ${loading ? 'pointer-events-none opacity-60' : ''}`}>
                 {!loading && results.length === 0 && (
                   <div className="flex flex-col items-center justify-center py-20 text-center">
-                    <div className="mb-4 rounded-full bg-gray-100 p-4 dark:bg-gray-800">
-                      <AlertTriangle className="h-8 w-8 text-gray-400" aria-hidden="true" />
+                    <div className="mb-4 rounded-full bg-muted p-4">
+                      <AlertTriangle className="h-8 w-8 text-muted-foreground/80" aria-hidden="true" />
                     </div>
-                    <p className="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                    <p className="mb-2 text-sm font-medium text-foreground/85">
                       {t('dhEmptyTitle')}
                     </p>
-                    <p className="mb-6 text-xs text-gray-500 dark:text-gray-400">
+                    <p className="mb-6 text-xs text-muted-foreground">
                       {t('dhEmptyDescription')}
                     </p>
                     <Button type="button" onClick={runChecks} disabled={loading}>

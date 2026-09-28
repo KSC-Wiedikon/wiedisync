@@ -31,7 +31,7 @@ export default function AdminMailboxPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-bold text-gray-900 sm:text-2xl dark:text-gray-100">
+      <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">
         {t('mailboxAdminPageTitle')}
       </h1>
 

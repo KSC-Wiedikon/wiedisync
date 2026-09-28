@@ -54,7 +54,7 @@ export default function InvoiceQrBill({ invoice }: { invoice: FinanceInvoice }) 
 
   return (
     <div className="py-2 text-center">
-      <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{t('qrScanHint', { amount: formatChf(amount) })}</p>
+      <p className="text-sm font-medium text-foreground">{t('qrScanHint', { amount: formatChf(amount) })}</p>
       {/* The QR is drawn as black modules on a TRANSPARENT ground, so in dark mode
           it sat black-on-near-black — unreadable to the eye and to a scanner, which
           needs the light/dark contrast to find the finder patterns. The white plate
@@ -66,7 +66,7 @@ export default function InvoiceQrBill({ invoice }: { invoice: FinanceInvoice }) 
           <div className="flex justify-center" dangerouslySetInnerHTML={{ __html: svg }} />
         </div>
       </div>
-      <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">{t('payTwintNote')}</p>
+      <p className="mt-1 text-xs text-muted-foreground/80">{t('payTwintNote')}</p>
     </div>
   )
 }

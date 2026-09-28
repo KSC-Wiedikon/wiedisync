@@ -38,9 +38,9 @@ interface TopNavProps {
   memberTeams: ExpandedMemberTeam[]
 }
 
-const TRIGGER_ACTIVE = 'bg-brand-50 text-brand-700 dark:bg-brand-800 dark:text-gold-400'
-const SECTION_LABEL = 'text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500'
-const TRIGGER_IDLE = 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-brand-800 dark:hover:text-white'
+const TRIGGER_ACTIVE = 'bg-selected text-selected-foreground'
+const SECTION_LABEL = 'text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground'
+const TRIGGER_IDLE = 'text-muted-foreground hover:bg-accent hover:text-foreground'
 
 /** A grouped top-nav category that opens a dropdown of its items. */
 function NavCategory({
@@ -87,14 +87,14 @@ function NavCategory({
         key={item.to}
         onSelect={() => go(item)}
         // Hover/keyboard focus stays NEUTRAL: the shadcn focus style is
-        // `accent-foreground`, which is gold in dark mode — the same colour as
-        // "you are here", so the item under the pointer read as a second
-        // selected page. Current page = brand wash + gold + a left bar.
+        // `accent-foreground`, which is gold in dark mode, so the item under
+        // the pointer would read as a second selected page. Current page =
+        // the inverted-neutral `selected` fill (selection is never primary).
         className={cn(
           'relative min-h-10 cursor-pointer gap-2.5 rounded-md px-2.5',
           active
-            ? 'bg-brand-50 font-medium text-brand-700 before:absolute before:inset-y-1.5 before:left-0 before:w-[3px] before:rounded-full before:bg-brand-500 focus:bg-brand-100 focus:text-brand-800 dark:bg-brand-800 dark:text-gold-400 dark:before:bg-gold-400 dark:focus:bg-brand-800 dark:focus:text-gold-300'
-            : 'text-gray-700 focus:bg-gray-100 focus:text-gray-900 dark:text-gray-200 dark:focus:bg-white/5 dark:focus:text-white',
+            ? 'bg-selected font-medium text-selected-foreground focus:bg-selected/90 focus:text-selected-foreground [&>svg]:text-selected-foreground/80'
+            : 'text-foreground/85 focus:bg-accent focus:text-foreground',
         )}
       >
         {item.icon}
@@ -107,7 +107,7 @@ function NavCategory({
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
         <button
-          className={`relative flex items-center gap-1 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition-colors ${isActive ? TRIGGER_ACTIVE : TRIGGER_IDLE}`}
+          className={`relative flex h-9 items-center gap-1 whitespace-nowrap rounded-xl px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${isActive ? TRIGGER_ACTIVE : TRIGGER_IDLE}`}
         >
           {label}
           <ChevronDown className="h-3.5 w-3.5 opacity-60" />
@@ -162,7 +162,7 @@ function NavCategory({
             <DropdownMenuSeparator />
             <DropdownMenuItem
               onSelect={() => go(footerItem)}
-              className="cursor-pointer justify-center gap-2 text-sm font-medium text-brand-700 dark:text-gold-400"
+              className="cursor-pointer justify-center gap-2 text-sm font-medium text-primary focus:text-primary dark:text-gold-400 dark:focus:text-gold-300 [&>svg]:text-current"
             >
               {footerItem.icon}
               {footerItem.label}
@@ -197,7 +197,7 @@ export default function TopNav({ unreadCount, onOpenNotifications, memberTeams }
   // Games, Trainings, Events) live under the "Activities" dropdown.
   const activityItems = navItems.slice(1)
 
-  const iconBtn = 'rounded-lg p-2 text-gray-600 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-brand-800'
+  const iconBtn = 'rounded-xl p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
   const closeOptions = () => setOptionsOpen(false)
 
   const optLink = (to: string, icon: React.ReactNode, label: string) => (
@@ -205,10 +205,10 @@ export default function TopNav({ unreadCount, onOpenNotifications, memberTeams }
       to={to}
       onClick={closeOptions}
       className={({ isActive }) =>
-        `flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+        `flex min-h-10 items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
           isActive
-            ? 'bg-brand-50 text-brand-700 dark:bg-brand-800 dark:text-gold-400'
-            : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-brand-800'
+            ? 'bg-selected text-selected-foreground'
+            : 'text-muted-foreground hover:bg-accent hover:text-foreground'
         }`
       }
     >
@@ -218,12 +218,12 @@ export default function TopNav({ unreadCount, onOpenNotifications, memberTeams }
   )
 
   return (
-    <header className="z-30 flex h-14 shrink-0 items-center gap-1 border-b border-gray-200 bg-white px-3 dark:border-brand-800 dark:bg-brand-950">
+    <header className="z-30 flex h-14 shrink-0 items-center gap-1 border-b border-hairline bg-card/95 px-3 backdrop-blur">
       {/* Logo → home */}
       <NavLink
         to="/"
         end
-        className="mr-1 flex shrink-0 items-center rounded-lg p-1 transition-colors hover:bg-gray-100 dark:hover:bg-brand-800"
+        className="mr-1 flex shrink-0 items-center rounded-xl p-1 transition-colors hover:bg-accent"
         aria-label="Wiedisync"
       >
         <img
@@ -239,7 +239,7 @@ export default function TopNav({ unreadCount, onOpenNotifications, memberTeams }
           to="/"
           end
           className={({ isActive }) =>
-            `whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition-colors ${isActive ? TRIGGER_ACTIVE : TRIGGER_IDLE}`
+            `inline-flex h-9 items-center whitespace-nowrap rounded-xl px-3 text-sm font-medium transition-colors ${isActive ? TRIGGER_ACTIVE : TRIGGER_IDLE}`
           }
         >
           {t('home')}
@@ -263,7 +263,7 @@ export default function TopNav({ unreadCount, onOpenNotifications, memberTeams }
             <a
               href={schedulingItem.href}
               onClick={(e) => handlePWAExternalClick(e, schedulingItem.href!)}
-              className={`whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition-colors ${TRIGGER_IDLE}`}
+              className={`inline-flex h-9 items-center whitespace-nowrap rounded-xl px-3 text-sm font-medium transition-colors ${TRIGGER_IDLE}`}
             >
               {schedulingItem.label}
             </a>
@@ -271,7 +271,7 @@ export default function TopNav({ unreadCount, onOpenNotifications, memberTeams }
             <NavLink
               to={schedulingItem.to}
               className={({ isActive }) =>
-                `whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition-colors ${isActive ? TRIGGER_ACTIVE : TRIGGER_IDLE}`
+                `inline-flex h-9 items-center whitespace-nowrap rounded-xl px-3 text-sm font-medium transition-colors ${isActive ? TRIGGER_ACTIVE : TRIGGER_IDLE}`
               }
             >
               {schedulingItem.label}
@@ -304,7 +304,7 @@ export default function TopNav({ unreadCount, onOpenNotifications, memberTeams }
           to="/guide"
           aria-label={t('guide')}
           title={t('guide')}
-          className={({ isActive }) => `${iconBtn} ${isActive ? 'bg-brand-50 !text-brand-700 dark:bg-brand-800 dark:!text-gold-400' : ''}`}
+          className={({ isActive }) => `${iconBtn} ${isActive ? 'bg-selected !text-selected-foreground hover:bg-selected/90' : ''}`}
         >
           <GraduationCap className="h-5 w-5" />
         </NavLink>
@@ -313,13 +313,13 @@ export default function TopNav({ unreadCount, onOpenNotifications, memberTeams }
             dropdown work without auto-closing on interaction. */}
         <Popover open={optionsOpen} onOpenChange={setOptionsOpen}>
           <PopoverTrigger asChild>
-            <IconButton label={t('options', 'Options')} className="text-gray-600 dark:text-gray-300 dark:hover:bg-brand-800">
+            <IconButton label={t('options', 'Options')} className="rounded-xl">
               <Settings className="!size-5" />
             </IconButton>
           </PopoverTrigger>
           <PopoverContent align="end" className="w-72 p-1.5">
             <div className="flex items-center justify-between rounded-lg px-3 py-2 text-sm">
-              <span className="font-medium text-gray-600 dark:text-gray-300">{t('darkMode', 'Dark mode')}</span>
+              <span className="font-medium text-foreground/85">{t('darkMode', 'Dark mode')}</span>
               <SwitchToggle
                 enabled={theme === 'dark'}
                 onChange={toggleTheme}
@@ -337,12 +337,12 @@ export default function TopNav({ unreadCount, onOpenNotifications, memberTeams }
               />
             </div>
             <div className="flex items-center justify-between rounded-lg px-3 py-2 text-sm">
-              <span className="font-medium text-gray-600 dark:text-gray-300">{t('language', 'Language')}</span>
+              <span className="font-medium text-foreground/85">{t('language', 'Language')}</span>
               <LanguageDropdown />
             </div>
             {isAdmin && (
               <div className="flex items-center justify-between rounded-lg px-3 py-2 text-sm">
-                <span className="font-medium text-gray-600 dark:text-gray-300">{t('adminMode', 'Admin mode')}</span>
+                <span className="font-medium text-foreground/85">{t('adminMode', 'Admin mode')}</span>
                 <AdminToggle />
               </div>
             )}
@@ -350,25 +350,25 @@ export default function TopNav({ unreadCount, onOpenNotifications, memberTeams }
               <button
                 type="button"
                 onClick={() => { closeOptions(); openSwitcher() }}
-                className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-brand-800"
+                className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
               >
                 <ArrowLeftRight className="h-4 w-4" />
                 {tCommon('switchAccount')}
               </button>
             )}
-            <div className="my-1 h-px bg-gray-200 dark:bg-brand-800" />
+            <div className="-mx-1.5 my-1 h-px bg-border" />
             {optLink('/feedback', <MessageSquare className="h-4 w-4" />, t('feedback'))}
             {optLink('/status', <Activity className="h-4 w-4" />, t('status', 'Status'))}
             <NavLink
               to="/changelog"
               onClick={closeOptions}
-              className="flex items-center justify-between rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-brand-800"
+              className="flex min-h-10 items-center justify-between rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
             >
               <span className="flex items-center gap-3">
                 <ScrollText className="h-4 w-4" />
                 {t('whatsNew', "What's New")}
               </span>
-              <span className="font-mono text-xs text-gray-400 dark:text-gray-500">v{APP_VERSION}</span>
+              <span className="font-mono text-xs tabular-nums text-muted-foreground/80">v{APP_VERSION}</span>
             </NavLink>
           </PopoverContent>
         </Popover>
@@ -379,7 +379,7 @@ export default function TopNav({ unreadCount, onOpenNotifications, memberTeams }
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
-                className="gap-1 px-1 dark:hover:bg-brand-800"
+                className="gap-1 rounded-xl px-1"
                 aria-label={t('myProfile')}
                 title={t('myProfile')}
               >
@@ -387,16 +387,16 @@ export default function TopNav({ unreadCount, onOpenNotifications, memberTeams }
                   <img src={getFileUrl('members', user.id, user.photo)} alt=""
                     className={cn('h-8 w-8 shrink-0 rounded-full object-cover', actingAccent && ['ring-2 ring-offset-2 ring-offset-background', actingAccent.ring])} />
                 ) : (
-                  <div className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-200 text-xs font-bold text-gray-500 dark:bg-brand-800 dark:text-gray-300', actingAccent && ['ring-2 ring-offset-2 ring-offset-background', actingAccent.ring])}>
+                  <div className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-bold text-muted-foreground', actingAccent && ['ring-2 ring-offset-2 ring-offset-background', actingAccent.ring])}>
                     {`${memberFirstName(user)[0] ?? ''}${user.last_name?.[0] ?? ''}`.toUpperCase()}
                   </div>
                 )}
-                <ChevronDown className="h-4 w-4 text-gray-400" />
+                <ChevronDown className="h-4 w-4 text-muted-foreground/80" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-60">
               <div className="px-2 py-1.5">
-                <div className="break-words text-sm font-semibold leading-snug text-gray-900 dark:text-white">
+                <div className="break-words text-sm font-semibold leading-snug text-foreground">
                   {memberDisplayName(user)}
                 </div>
                 {memberTeams.length > 0 && (
@@ -454,7 +454,7 @@ export default function TopNav({ unreadCount, onOpenNotifications, memberTeams }
                   {tSupport('menuLabel')}
                 </DropdownMenuItem>
               )}
-              <DropdownMenuItem onSelect={() => logout()} className="cursor-pointer gap-2.5 text-gray-700 dark:text-gray-200">
+              <DropdownMenuItem onSelect={() => logout()} className="cursor-pointer gap-2.5 text-foreground/85">
                 <LogOut className="h-4 w-4" />
                 {t('logout')}
               </DropdownMenuItem>
@@ -463,7 +463,7 @@ export default function TopNav({ unreadCount, onOpenNotifications, memberTeams }
         ) : (
           <NavLink
             to="/login"
-            className="rounded-lg px-3 py-2 text-sm font-medium text-brand-600 transition-colors hover:bg-gray-100 dark:text-gold-400 dark:hover:bg-brand-800"
+            className="inline-flex h-9 items-center rounded-xl px-3 text-sm font-medium text-primary transition-colors hover:bg-accent dark:text-gold-400"
           >
             {t('signIn')}
           </NavLink>

@@ -38,7 +38,7 @@ export default function ExplorerSectionCard({
   }
 
   return (
-    <section className="mb-2 rounded-lg border border-border bg-muted">
+    <section className="mb-2 rounded-xl border border-hairline bg-surface-sunken">
       <button
         type="button"
         onClick={handleToggle}
@@ -47,7 +47,7 @@ export default function ExplorerSectionCard({
         {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
         <span>{title}</span>
         {typeof count === 'number' && (
-          <span className="ml-1 rounded bg-border px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+          <span className="ml-1 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-muted-foreground">
             {count}
           </span>
         )}

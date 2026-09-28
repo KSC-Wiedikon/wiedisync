@@ -96,9 +96,9 @@ export default function GameRecordingsSection({ gameId, canManage, upcoming = fa
   }
 
   return (
-    <div className="space-y-3 border-t dark:border-gray-700 px-6 py-4">
+    <div className="space-y-3 border-t border-hairline px-6 py-4">
       <div className="flex items-center justify-between gap-2">
-        <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+        <h4 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
           {upcoming ? t('recordingsLivestream') : t('recordings')}
         </h4>
         {canEdit && !editing && (
@@ -142,7 +142,7 @@ export default function GameRecordingsSection({ gameId, canManage, upcoming = fa
       {editing && (
         <div className="space-y-3">
           {draft.map((r, i) => (
-            <div key={i} className="space-y-2 rounded-md border p-3 dark:border-gray-700">
+            <div key={i} className="space-y-2 rounded-xl border border-hairline bg-surface-sunken p-3">
               <div className="flex items-start gap-2">
                 <div className="min-w-0 flex-1 space-y-2">
                   <Input

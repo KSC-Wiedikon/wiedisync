@@ -22,15 +22,15 @@ export default function HomePollsCard({ teamIds, canManage }: HomePollsCardProps
 
   return (
     <div className="mb-6 lg:flex lg:flex-col lg:items-center">
-      <div className="w-full overflow-hidden rounded-xl border border-gray-200 bg-white lg:max-w-2xl dark:border-gray-700 dark:bg-gray-800">
-        <div className="flex items-center gap-2 border-b border-gray-200 px-4 py-2.5 dark:border-gray-700">
-          <BarChart3 className="h-4 w-4 shrink-0 text-brand-600 dark:text-brand-400" />
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t('activePolls')}</h2>
+      <div className="w-full overflow-hidden rounded-2xl border border-hairline bg-card shadow-card lg:max-w-2xl">
+        <div className="flex items-center gap-2 border-b border-border px-4 py-2.5">
+          <BarChart3 className="h-4 w-4 shrink-0 text-primary dark:text-brand-300" />
+          <h2 className="text-sm font-semibold text-foreground">{t('activePolls')}</h2>
           <span className="ml-auto rounded-full bg-brand-100 px-2 py-0.5 text-xs font-medium text-brand-700 dark:bg-brand-900/40 dark:text-brand-300">
             {polls.length}
           </span>
         </div>
-        <div className="space-y-3 p-4">
+        <div className="space-y-3 p-4 [&>div]:rounded-xl [&>div]:bg-surface-sunken [&>div]:shadow-none">
           {polls.map((poll) => (
             <PollCard
               key={poll.id}

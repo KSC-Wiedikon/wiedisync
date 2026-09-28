@@ -143,7 +143,7 @@ export default function TeamSponsorsEditor({ team }: { team: Team }) {
   return (
     <div className="mt-8">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('teamSponsors')}</h2>
+        <h2 className="text-lg font-semibold tracking-tight text-foreground">{t('teamSponsors')}</h2>
         {!showForm && (
           <Button variant="outline" size="sm" onClick={() => setShowForm(true)}>
             <Plus className="mr-1 h-4 w-4" />
@@ -154,12 +154,12 @@ export default function TeamSponsorsEditor({ team }: { team: Team }) {
 
       {/* Add/Edit form */}
       {showForm && (
-        <div className="mt-3 space-y-3 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+        <div className="mt-3 space-y-3 rounded-2xl border border-hairline bg-card p-4 shadow-card">
           <div className="flex items-center gap-2">
-            <span className="min-w-0 flex-1 text-sm font-medium text-gray-900 dark:text-gray-100">
+            <span className="min-w-0 flex-1 text-sm font-medium text-foreground">
               {editingId ? t('editSponsor') : t('addSponsor')}
             </span>
-            <IconButton size="sm" type="button" onClick={resetForm} label={t('common:close')} className="shrink-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+            <IconButton size="sm" type="button" onClick={resetForm} label={t('common:close')} className="shrink-0 text-muted-foreground/80 hover:text-foreground">
               <X />
             </IconButton>
           </div>
@@ -178,7 +178,7 @@ export default function TeamSponsorsEditor({ team }: { team: Team }) {
               <div className="flex items-center gap-2">
                 <label
                   htmlFor="sponsor-logo"
-                  className="flex cursor-pointer items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+                  className="flex cursor-pointer items-center gap-2 rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground/85 transition-colors hover:bg-accent dark:bg-transparent"
                 >
                   <Upload className="h-4 w-4" />
                   {logoFile ? logoFile.name : t('sponsorLogo')}
@@ -190,7 +190,7 @@ export default function TeamSponsorsEditor({ team }: { team: Team }) {
               <Switch id="sponsor-team-page-only" checked={teamPageOnly} onCheckedChange={setTeamPageOnly} />
               <div>
                 <Label htmlFor="sponsor-team-page-only">{t('teamPageOnly')}</Label>
-                <p className="text-xs text-gray-500 dark:text-gray-400">{t('teamPageOnlyHint')}</p>
+                <p className="text-xs text-muted-foreground">{t('teamPageOnlyHint')}</p>
               </div>
             </div>
           </div>
@@ -212,13 +212,13 @@ export default function TeamSponsorsEditor({ team }: { team: Team }) {
           <EmptyState title={t('teamSponsors')} description={t('addSponsor')} />
         </div>
       ) : (
-        <div className="mt-3 rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+        <div className="mt-3 overflow-hidden rounded-2xl border border-hairline bg-card shadow-card">
           <Table>
             <TableHeader>
-              <TableRow className="border-gray-200 dark:border-gray-700">
+              <TableRow className="border-border">
                 <TableHead className="w-14 hidden sm:table-cell" />
-                <TableHead className="text-gray-500 dark:text-gray-400">{t('sponsorName')}</TableHead>
-                <TableHead className="text-center text-gray-500 dark:text-gray-400">{t('teamPageOnly')}</TableHead>
+                <TableHead className="text-muted-foreground">{t('sponsorName')}</TableHead>
+                <TableHead className="text-center text-muted-foreground">{t('teamPageOnly')}</TableHead>
                 <TableHead className="w-8" />
               </TableRow>
             </TableHeader>
@@ -226,20 +226,20 @@ export default function TeamSponsorsEditor({ team }: { team: Team }) {
               {sponsors.map((sp) => {
                 const safeUrl = sanitizeUrl(sp.website_url || '')
                 return (
-                  <TableRow key={sp.id} className="border-gray-200 dark:border-gray-700">
+                  <TableRow key={sp.id} className="border-border">
                     <TableCell className="hidden sm:table-cell">
                       {sp.logo ? (
                         <img src={getFileUrl('sponsors', sp.id, sp.logo)} alt={sp.name} className="h-12 w-12 shrink-0 rounded object-contain" />
                       ) : (
-                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded bg-gray-100 text-gray-400 dark:bg-gray-700">
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded bg-muted text-muted-foreground/80">
                           <Upload className="h-5 w-5" />
                         </div>
                       )}
                     </TableCell>
                     <TableCell>
-                      <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{sp.name}</p>
+                      <p className="text-sm font-medium text-foreground">{sp.name}</p>
                       {safeUrl ? (
-                        <a href={safeUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-brand-600 hover:underline dark:text-brand-400">
+                        <a href={safeUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-primary hover:underline dark:text-brand-300">
                           <Globe className="h-3 w-3" />
                           {safeUrl.replace(/^https?:\/\//, '').replace(/\/$/, '')}
                         </a>
@@ -250,10 +250,10 @@ export default function TeamSponsorsEditor({ team }: { team: Team }) {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex flex-col items-end gap-1 sm:flex-row sm:items-center sm:justify-end">
-                        <IconButton size="sm" type="button" onClick={() => openEditForm(sp)} label={t('common:edit')} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                        <IconButton size="sm" type="button" onClick={() => openEditForm(sp)} label={t('common:edit')} className="text-muted-foreground/80 hover:text-foreground">
                           <Pencil />
                         </IconButton>
-                        <IconButton size="sm" type="button" onClick={() => setDeleteTarget(sp)} label={t('common:delete')} className="text-gray-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400">
+                        <IconButton size="sm" type="button" onClick={() => setDeleteTarget(sp)} label={t('common:delete')} className="text-muted-foreground/80 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400">
                           <Trash2 />
                         </IconButton>
                       </div>

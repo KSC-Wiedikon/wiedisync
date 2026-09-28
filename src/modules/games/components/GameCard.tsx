@@ -62,26 +62,26 @@ function StatusBadge({ status }: { status: Game['status'] }) {
   switch (status) {
     case 'live':
       return (
-        <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700 dark:bg-red-900/30 dark:text-red-400">
+        <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[11px] font-semibold text-red-700 dark:border-red-800/60 dark:bg-red-900/30 dark:text-red-300">
           <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-500" />
           {t('statusLive')}
         </span>
       )
     case 'postponed':
       return (
-        <span className="whitespace-nowrap rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+        <span className="whitespace-nowrap rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700 dark:border-amber-800/60 dark:bg-amber-900/30 dark:text-amber-300">
           {t('statusPostponed')}
         </span>
       )
     case 'completed':
       return (
-        <span className="whitespace-nowrap rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700 dark:bg-green-900/30 dark:text-green-400">
+        <span className="whitespace-nowrap rounded-full border border-green-200 bg-green-50 px-2 py-0.5 text-[11px] font-semibold text-green-700 dark:border-green-800/60 dark:bg-green-900/30 dark:text-green-300">
           {t('statusCompleted')}
         </span>
       )
     case 'cancelled':
       return (
-        <span className="whitespace-nowrap rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700 dark:bg-red-900/30 dark:text-red-400">
+        <span className="whitespace-nowrap rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[11px] font-semibold text-red-700 dark:border-red-800/60 dark:bg-red-900/30 dark:text-red-300">
           {t('statusCancelled')}
         </span>
       )
@@ -124,7 +124,7 @@ function ScoreAside({ side, game, sets, kscwWon, kscwLost }: {
       })}
       <span className={cn(
         'w-6 text-right font-mono text-sm font-bold tabular-nums',
-        ours ? (kscwWon ? 'text-green-500' : kscwLost ? 'text-red-500' : 'text-gray-400') : 'text-gray-400',
+        ours ? (kscwWon ? 'text-green-500' : kscwLost ? 'text-red-500' : 'text-muted-foreground/80') : 'text-muted-foreground/80',
       )}>
         {total}
       </span>
@@ -249,8 +249,8 @@ export default function GameCard({ game, onClick, variant = 'card', participatio
     <div className={cn(
       // flex-col + flex-1 row: in the equal-height card grid the tools line
       // sits on the card's bottom edge instead of floating mid-card.
-      'flex flex-col rounded-xl border border-gray-200 bg-white px-1 shadow-card transition-shadow dark:border-gray-700 dark:bg-gray-800',
-      onClick && 'hover:shadow-card-hover',
+      'flex flex-col rounded-2xl border border-hairline bg-card px-1 shadow-card transition-shadow',
+      onClick && 'hover:shadow-card-lg',
     )}>
       <ActivityRow
         rail={railFor(game.status === 'cancelled' ? 'red' : 'gray')}
@@ -272,10 +272,10 @@ export default function GameCard({ game, onClick, variant = 'card', participatio
             {!past && game.status === 'scheduled' && warnings && warnings.length > 0 && (
               <ParticipationWarningBadge warnings={warnings} namespace="participation" />
             )}
-            <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold leading-none ${
+            <span className={`rounded border px-1.5 py-0.5 text-[10px] font-bold leading-none ${
               game.type === 'home'
-                ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'
-                : 'bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300'
+                ? 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800/60 dark:bg-blue-900/40 dark:text-blue-300'
+                : 'border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-800/60 dark:bg-orange-900/40 dark:text-orange-300'
             }`}>
               {game.type === 'home' ? t('typeHomeShort') : t('typeAwayShort')}
             </span>
@@ -322,7 +322,7 @@ export default function GameCard({ game, onClick, variant = 'card', participatio
           EventCard (an indented ActivityRow `tools` line is too narrow in the
           2–3 column card grid). */}
       {hasTools && (
-        <div className="-mx-1 flex flex-wrap items-center gap-1.5 border-t border-gray-100 px-3 py-2 dark:border-gray-700">
+        <div className="-mx-1 flex flex-wrap items-center gap-1.5 border-t border-border/60 px-3 py-2">
           {showRoster && (
             <Button
               type="button"

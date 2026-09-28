@@ -334,7 +334,7 @@ export default function IdentityDocumentSection() {
   // and reflow in stages as each fetch landed.
   if (state === 'loading') {
     return (
-      <div className="space-y-4 rounded-lg border bg-card p-4">
+      <div className="space-y-4 rounded-xl border border-hairline bg-surface-sunken p-4">
         {header}
         <div className="flex justify-center py-4"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
       </div>
@@ -342,7 +342,7 @@ export default function IdentityDocumentSection() {
   }
 
   return (
-    <div className="space-y-4 rounded-lg border bg-card p-4">
+    <div className="space-y-4 rounded-xl border border-hairline bg-surface-sunken p-4">
       {header}
 
       {(state === 'none' || state === 'locked') && (
@@ -359,7 +359,7 @@ export default function IdentityDocumentSection() {
               onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void handleKeyAction() } }}
               placeholder={t('idPasswordPlaceholder')}
               aria-label={t('idPasswordPlaceholder')}
-              className="h-11 flex-1 rounded-md border bg-background px-3 text-sm dark:bg-gray-800"
+              className="h-11 flex-1 rounded-lg border border-input bg-card px-3 text-sm text-foreground placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-input/20"
             />
             <Button type="button" onClick={() => void handleKeyAction()} loading={busy} disabled={!password}>
               <Lock className="mr-1.5 h-4 w-4" aria-hidden="true" />
@@ -382,7 +382,7 @@ export default function IdentityDocumentSection() {
         <div className="space-y-3">
           {doc ? (
             <>
-              <div className="rounded-md border bg-background p-3 text-xs text-muted-foreground">
+              <div className="rounded-lg border border-hairline bg-card p-3 text-xs text-muted-foreground">
                 {t('idStored', { date: formatDateZurich(doc.uploaded_at) })}
                 {!doc.uploaded_by_self && <> · {t('idUploadedByAdmin')}</>}
               </div>
@@ -392,7 +392,7 @@ export default function IdentityDocumentSection() {
                   the server filters them out, because no re-wrap can help until they
                   make a key. */}
               {gaps.length > 0 && (
-                <div className="space-y-2 rounded-md border border-amber-300 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950/40">
+                <div className="space-y-2 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950/40">
                   <p className="text-xs font-medium text-amber-900 dark:text-amber-200">
                     {t('idGapTitle', { count: gaps.length })}
                   </p>
@@ -416,13 +416,13 @@ export default function IdentityDocumentSection() {
                 <iframe
                   src={preview}
                   title={t('idTitle')}
-                  className="h-96 w-full rounded-md border bg-white"
+                  className="h-96 w-full rounded-lg border border-border bg-card"
                 />
               ) : (
                 <img
                   src={preview}
                   alt={t('idTitle')}
-                  className="max-h-80 w-full rounded-md border object-contain"
+                  className="max-h-80 w-full rounded-lg border border-border object-contain"
                 />
               ))}
 

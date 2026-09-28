@@ -193,17 +193,17 @@ export default function HomeProposalForm({ slots, existing, onSubmit, onChange, 
           onClick={() => { setActiveRow(null); setModalDate(null) }}
           variant="ghost"
           size="sm"
-          className="-ml-2 gap-1 text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
+          className="-ml-2 gap-1 text-sm text-muted-foreground hover:text-foreground"
         >
           <span aria-hidden>←</span> {t('slotN', { number: activeRow + 1 })}
         </Button>
 
         {sortedDates.length === 0 ? (
-          <p className="text-sm text-gray-500 dark:text-gray-400">{t('noSlotsAvailable')}</p>
+          <p className="text-sm text-muted-foreground">{t('noSlotsAvailable')}</p>
         ) : (
           <>
             {spielsamstagDates.length > 0 && (
-              <div className="rounded-md border border-amber-200 bg-amber-50 p-3 dark:border-amber-900 dark:bg-amber-900/20">
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-900 dark:bg-amber-900/20">
                 <p className="mb-2 text-xs font-medium text-amber-800 dark:text-amber-200">
                   {t('spielsamstagPickFirst')}
                 </p>
@@ -214,7 +214,7 @@ export default function HomeProposalForm({ slots, existing, onSubmit, onChange, 
                       type="button"
                       onClick={() => setModalDate(dk)}
                       variant="outline"
-                      className="border-amber-300 text-gray-900 hover:bg-amber-100 dark:border-amber-700 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-amber-900/40"
+                      className="border-amber-300 text-foreground hover:bg-amber-100 dark:border-amber-700 dark:hover:bg-amber-900/40"
                     >
                       {formatDateLocale(parseISO(dk), 'EEE d. MMM', i18n.language)}
                     </Button>
@@ -256,7 +256,7 @@ export default function HomeProposalForm({ slots, existing, onSubmit, onChange, 
                   }}
                 />
                 {seasonWindow && (
-                  <p className="flex items-center gap-1.5 text-[11px] text-gray-500 dark:text-gray-400">
+                  <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                     <span className="inline-block h-3 w-3 rounded-sm bg-black" />
                     {t('outsideSeasonLabel')}
                   </p>
@@ -271,9 +271,9 @@ export default function HomeProposalForm({ slots, existing, onSubmit, onChange, 
                       key={dk}
                       type="button"
                       onClick={() => setModalDate(dk)}
-                      className="flex w-full items-center justify-between rounded-md border border-gray-200 bg-white px-3 py-2.5 text-left text-sm hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:hover:bg-gray-600"
+                      className="flex w-full items-center justify-between rounded-lg border border-border bg-card px-3 py-2.5 text-left text-sm hover:bg-accent"
                     >
-                      <span className="flex items-center gap-2 font-medium text-gray-900 dark:text-gray-100">
+                      <span className="flex items-center gap-2 font-medium text-foreground">
                         {formatDateLocale(parseISO(dk), 'EEE d. MMM yyyy', i18n.language)}
                         {spielsamstagSet.has(dk) && (
                           <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/40 dark:text-amber-200">
@@ -281,7 +281,7 @@ export default function HomeProposalForm({ slots, existing, onSubmit, onChange, 
                           </span>
                         )}
                       </span>
-                      <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
+                      <span className="ml-2 text-xs text-muted-foreground">
                         {opts.length === 1
                           ? `${gameStartForDate(dk, opts[0].start_time)} · ${opts[0].hallLabel}`
                           : t('nTimeOptions', { count: opts.length })}
@@ -301,18 +301,18 @@ export default function HomeProposalForm({ slots, existing, onSubmit, onChange, 
           size="sm"
         >
           <div className="space-y-2">
-            <p className="text-xs text-gray-500 dark:text-gray-400">{t('pickTimeProposalHint')}</p>
+            <p className="text-xs text-muted-foreground">{t('pickTimeProposalHint')}</p>
             {modalOptions.map((o) => (
               <button
                 key={o.slotId}
                 type="button"
                 onClick={() => assign(o.slotId)}
-                className="flex w-full items-center justify-between rounded-md border border-gray-200 px-3 py-3 text-sm hover:border-blue-500 hover:bg-blue-50 dark:border-gray-600 dark:hover:bg-blue-900/30"
+                className="flex w-full items-center justify-between rounded-lg border border-border px-3 py-3 text-sm hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30"
               >
-                <span className="font-medium text-gray-900 dark:text-gray-100">
+                <span className="font-medium text-foreground">
                   {gameStartForDate(modalDate, o.start_time)}
                 </span>
-                <span className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                <span className="flex items-center gap-2 text-xs text-muted-foreground">
                   {!o.strict && (
                     <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-medium text-orange-700 dark:bg-orange-900/40 dark:text-orange-200">
                       {t('tightOption')}
@@ -331,26 +331,26 @@ export default function HomeProposalForm({ slots, existing, onSubmit, onChange, 
   // ── Main view: 3 ordered slot rows + submit ──────────────────────────────
   return (
     <div className="space-y-3">
-      <p className="text-xs text-gray-500 dark:text-gray-400">{t('homeProposalDesc')}</p>
+      <p className="text-xs text-muted-foreground">{t('homeProposalDesc')}</p>
       {[0, 1, 2].map((i) => (
         <button
           key={i}
           type="button"
           onClick={() => { setActiveRow(i); setView('calendar'); setModalDate(null) }}
-          className="flex w-full items-center justify-between gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-3 text-left dark:border-gray-600 dark:bg-gray-700"
+          className="flex w-full items-center justify-between gap-2 rounded-lg border border-border bg-surface-sunken px-3 py-3 text-left"
         >
-          <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+          <span className="text-xs font-medium text-muted-foreground">
             {t('slotN', { number: i + 1 })}
             {i === 0 && <span className="ml-1 text-green-700 dark:text-green-300">· {t('slotReserved')}</span>}
             {i === 2 && <span className="ml-1 text-orange-600 dark:text-orange-300">· {t('slotLenientHint')}</span>}
           </span>
-          <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+          <span className="text-sm font-medium text-foreground">
             {picks[i] ? slotLabel(picks[i]!) : t('pickSlot')}
           </span>
         </button>
       ))}
 
-      <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+      <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900/60 dark:bg-amber-900/20 dark:text-amber-200">
         {t('firstChoiceReservedNote')}
       </p>
       {existing?.status === 'pending' && (

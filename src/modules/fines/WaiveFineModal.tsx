@@ -47,19 +47,19 @@ export default function WaiveFineModal({ open, onClose, fine, onSuccess }: Waive
   return (
     <Modal open={open} onClose={onClose} title={t('fines:waiveTitle')}>
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="rounded-md bg-gray-50 px-3 py-2 text-sm text-gray-700 dark:bg-gray-800/60 dark:text-gray-300">
+        <div className="rounded-xl border border-hairline bg-surface-sunken px-3 py-2 text-sm tabular-nums text-foreground/85">
           {formatFineAmount(fine.amount, fine.currency)}
           {fine.reason ? ` — ${fine.reason}` : ''}
         </div>
 
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+        <label className="block text-xs font-medium text-muted-foreground">
           {t('fines:waiveReasonLabel')}
           <textarea
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             rows={3}
             required
-            className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+            className="mt-1 w-full leading-relaxed rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/70 dark:bg-input/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
         </label>
 

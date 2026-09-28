@@ -520,7 +520,7 @@ export default function TrainingForm({ open, training, editScope = 'this', defau
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         {training && editScope !== 'this' && (
-          <div className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-300">
             {scopeLabel}
           </div>
         )}
@@ -550,17 +550,17 @@ export default function TrainingForm({ open, training, editScope = 'this', defau
             picker or the time fields below. */}
         {teamId && (slotsLoading || teamSlots.length > 0) && (
           <div
-            className={`inline-flex w-full rounded-lg bg-gray-100 p-1 dark:bg-gray-800 ${slotsLoading ? 'opacity-60' : ''}`}
+            className={`inline-flex w-full rounded-xl bg-muted p-1 ${slotsLoading ? 'opacity-60' : ''}`}
             aria-busy={slotsLoading}
           >
             <button
               type="button"
               onClick={switchToAuto}
               disabled={slotsLoading}
-              className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors disabled:cursor-not-allowed ${
+              className={`flex-1 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed ${
                 slotMode === 'auto'
-                  ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-gray-100'
-                  : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
+                  ? 'bg-card text-foreground shadow-sm dark:bg-input'
+                  : 'text-muted-foreground hover:text-foreground'
               }`}
             >
               {t('slotModeAuto')}
@@ -569,10 +569,10 @@ export default function TrainingForm({ open, training, editScope = 'this', defau
               type="button"
               onClick={switchToManual}
               disabled={slotsLoading}
-              className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors disabled:cursor-not-allowed ${
+              className={`flex-1 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed ${
                 slotMode === 'manual'
-                  ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-gray-100'
-                  : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
+                  ? 'bg-card text-foreground shadow-sm dark:bg-input'
+                  : 'text-muted-foreground hover:text-foreground'
               }`}
             >
               {t('slotModeManual')}
@@ -586,26 +586,26 @@ export default function TrainingForm({ open, training, editScope = 'this', defau
             {/* `slotOptions.length === 0` only means "no slot on this weekday"
                 once the team's slots and claims have actually been fetched. */}
             {slotsLoading ? (
-              <div className="h-9 animate-pulse rounded-lg bg-gray-100 dark:bg-gray-800" aria-hidden="true" />
+              <div className="h-9 animate-pulse rounded-lg bg-muted" aria-hidden="true" />
             ) : slotOptions.length === 0 ? (
-              <div className="rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-600 dark:bg-gray-800 dark:text-gray-400">
+              <div className="rounded-lg border border-hairline bg-surface-sunken px-3 py-2 text-sm text-muted-foreground">
                 {t('noSlotForDay')}
               </div>
             ) : slotOptions.length === 1 ? (
-              <div className="rounded-lg bg-green-50 px-3 py-2 text-sm text-green-800 dark:bg-green-900/20 dark:text-green-300">
+              <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800 dark:border-green-900/60 dark:bg-green-950/40 dark:text-green-300">
                 {slotOptions[0].type === 'claimed' ? t('claimedSlot') : t('slotDetected')}: {slotOptions[0].label}
               </div>
             ) : (
-              <div className="space-y-2 rounded-lg bg-green-50 px-3 py-2 dark:bg-green-900/20">
+              <div className="space-y-2 rounded-lg border border-green-200 bg-green-50 px-3 py-2 dark:border-green-900/60 dark:bg-green-950/40">
                 <div className="text-sm text-green-800 dark:text-green-300">{t('slotDetected')}</div>
                 {slotOptions.map((opt) => (
-                  <label key={opt.key} className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                  <label key={opt.key} className="flex items-center gap-2 text-sm text-foreground/85">
                     <input
                       type="radio"
                       name="slotOption"
                       checked={selectedSlotKey === opt.key}
                       onChange={() => applySlot(opt)}
-                      className="text-brand-500"
+                      className="accent-[var(--primary)]"
                     />
                     <span>
                       {opt.type === 'claimed' ? `${t('claimedSlot')}: ` : `${t('regularSlot')}: `}
@@ -683,7 +683,7 @@ export default function TrainingForm({ open, training, editScope = 'this', defau
               Max participants has no team default, so it is never gated. */}
           {policyDefaultsLoading ? (
             <FormField label={t('minParticipants')}>
-              <div className="h-11 animate-pulse rounded-lg bg-gray-100 dark:bg-gray-800" aria-hidden="true" />
+              <div className="h-11 animate-pulse rounded-lg bg-muted" aria-hidden="true" />
             </FormField>
           ) : (
             <FormInput
@@ -725,17 +725,17 @@ export default function TrainingForm({ open, training, editScope = 'this', defau
             already in motion. */}
         {(policyDefaultsLoading || (!!minParticipants && Number(minParticipants) > 0)) && (
           <div
-            className={`flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300 ${policyDefaultsLoading ? 'opacity-60' : ''}`}
+            className={`flex items-start gap-2 text-sm text-foreground/85 ${policyDefaultsLoading ? 'opacity-60' : ''}`}
             aria-busy={policyDefaultsLoading}
           >
             {policyDefaultsLoading ? (
-              <div className="mt-0.5 h-5 w-9 shrink-0 animate-pulse rounded-full bg-gray-200 dark:bg-gray-700" aria-hidden="true" />
+              <div className="mt-0.5 h-5 w-9 shrink-0 animate-pulse rounded-full bg-stone-200/80 dark:bg-muted" aria-hidden="true" />
             ) : (
               <Switch checked={autoCancelOnMin} onCheckedChange={setAutoCancelOnMin} className="mt-0.5" />
             )}
             <div>
               <span>{t('autoCancelOnMin')}</span>
-              <p className="text-xs text-gray-500 dark:text-gray-400">{t('autoCancelOnMinHint')}</p>
+              <p className="text-xs text-muted-foreground">{t('autoCancelOnMinHint')}</p>
             </div>
           </div>
         )}
@@ -769,14 +769,14 @@ export default function TrainingForm({ open, training, editScope = 'this', defau
         </div>
 
         <div
-          className={`flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 ${policyDefaultsLoading ? 'opacity-60' : ''}`}
+          className={`flex items-center gap-2 text-sm text-foreground/85 ${policyDefaultsLoading ? 'opacity-60' : ''}`}
           aria-busy={policyDefaultsLoading}
         >
           {/* An off switch reads as "no note required" — a rule, not a blank. Its
               own footprint stands in until the team's rule is known, so nothing
               moves when the real value arrives. */}
           {policyDefaultsLoading ? (
-            <div className="h-5 w-9 shrink-0 animate-pulse rounded-full bg-gray-200 dark:bg-gray-700" aria-hidden="true" />
+            <div className="h-5 w-9 shrink-0 animate-pulse rounded-full bg-stone-200/80 dark:bg-muted" aria-hidden="true" />
           ) : (
             <Switch checked={requireNoteIfAbsent} onCheckedChange={setRequireNoteIfAbsent} />
           )}
@@ -786,7 +786,7 @@ export default function TrainingForm({ open, training, editScope = 'this', defau
           </div>
         </div>
 
-        <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+        <div className="flex items-center gap-2 text-sm text-foreground/85">
           <Switch checked={isTrial} onCheckedChange={setIsTrial} />
           <div>
             <span>{t('isTrialTraining')}</span>
@@ -794,7 +794,7 @@ export default function TrainingForm({ open, training, editScope = 'this', defau
           </div>
         </div>
 
-        <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+        <div className="flex items-center gap-2 text-sm text-foreground/85">
           <Switch checked={carpoolEnabled} onCheckedChange={setCarpoolEnabled} />
           <div>
             <span>{t('toggleLabel', { ns: 'carpool' })}</span>
@@ -802,7 +802,7 @@ export default function TrainingForm({ open, training, editScope = 'this', defau
           </div>
         </div>
 
-        <div className="space-y-1.5 text-sm text-gray-700 dark:text-gray-300">
+        <div className="space-y-1.5 text-sm text-foreground/85">
           <div>
             <span className="font-medium">{t('excludedGuestLevels')}</span>
             <p className="text-xs text-muted-foreground">{t('excludedGuestLevelsHint')}</p>
@@ -811,10 +811,10 @@ export default function TrainingForm({ open, training, editScope = 'this', defau
             <button
               type="button"
               onClick={() => setExcludedGuestLevels((prev) => prev.length === 3 ? [] : [1, 2, 3])}
-              className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+              className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                 excludedGuestLevels.length === 3
                   ? 'border-orange-500 bg-orange-100 text-orange-700 dark:border-orange-600 dark:bg-orange-900/30 dark:text-orange-300'
-                  : 'border-gray-300 bg-transparent text-gray-600 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-800'
+                  : 'border-input bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground'
               }`}
             >
               {t('excludeAllGuests')}
@@ -826,10 +826,10 @@ export default function TrainingForm({ open, training, editScope = 'this', defau
                   key={lvl}
                   type="button"
                   onClick={() => setExcludedGuestLevels((prev) => active ? prev.filter((l) => l !== lvl) : [...prev, lvl].sort())}
-                  className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                  className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                     active
                       ? 'border-orange-500 bg-orange-100 text-orange-700 dark:border-orange-600 dark:bg-orange-900/30 dark:text-orange-300'
-                      : 'border-gray-300 bg-transparent text-gray-600 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-800'
+                      : 'border-input bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground'
                   }`}
                 >
                   G{lvl}
@@ -839,7 +839,7 @@ export default function TrainingForm({ open, training, editScope = 'this', defau
           </div>
         </div>
 
-        <div className="space-y-1.5 text-sm text-gray-700 dark:text-gray-300">
+        <div className="space-y-1.5 text-sm text-foreground/85">
           <div>
             <span className="font-medium">{t('autoConfirmRsvp')}</span>
             <p className="text-xs text-muted-foreground">
@@ -864,10 +864,10 @@ export default function TrainingForm({ open, training, editScope = 'this', defau
                   key={String(opt.value)}
                   type="button"
                   onClick={() => setAutoConfirmRsvp(opt.value)}
-                  className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                  className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                     active
-                      ? 'border-brand-500 bg-brand-100 text-brand-700 dark:border-brand-600 dark:bg-brand-900/30 dark:text-brand-300'
-                      : 'border-gray-300 bg-transparent text-gray-600 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-800'
+                      ? 'border-transparent bg-selected text-selected-foreground'
+                      : 'border-input bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground'
                   }`}
                 >
                   {opt.label}
@@ -899,7 +899,7 @@ export default function TrainingForm({ open, training, editScope = 'this', defau
           </div>
         )}
 
-        {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+        {error && <p className="text-sm font-medium text-destructive">{error}</p>}
 
         {/* Delete sits LEFT (mr-auto), Cancel/Save stay right — one non-wrapping row. */}
         <div className="flex items-center justify-end gap-3 pt-2">

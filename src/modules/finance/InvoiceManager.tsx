@@ -40,27 +40,27 @@ function MemberPicker({ value, onChange }: { value: Member | null; onChange: (m:
 
   if (value) {
     return (
-      <div className="flex items-center justify-between gap-2 rounded-md border border-gray-200 py-1 pl-3 pr-1 dark:border-gray-600">
-        <span className="min-w-0 break-words text-sm dark:text-gray-100">{memberDisplayName(value)}</span>
+      <div className="flex items-center justify-between gap-2 rounded-lg border border-input bg-card py-1 pl-3 pr-1">
+        <span className="min-w-0 break-words text-sm text-foreground">{memberDisplayName(value)}</span>
         <IconButton size="sm" label={t('common:clear')} onClick={() => onChange(null)} className="shrink-0 text-muted-foreground hover:text-foreground"><X /></IconButton>
       </div>
     )
   }
   return (
     <div className="relative">
-      <div className="flex items-center gap-2 rounded-md border border-gray-200 bg-transparent px-3 py-2 dark:border-gray-600">
+      <div className="flex items-center gap-2 rounded-lg border border-input bg-card px-3 py-2 focus-within:ring-2 focus-within:ring-ring">
         <Search className="h-4 w-4 text-muted-foreground" />
         <input
           type="text" value={search} onChange={(e) => { setSearch(e.target.value); setOpen(true) }} onFocus={() => setOpen(true)}
-          placeholder={t('selectMember')} className="flex-1 bg-transparent text-sm outline-none dark:text-gray-100"
+          placeholder={t('selectMember')} className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/70 outline-none"
         />
       </div>
       {open && filtered.length > 0 && (
-        <div className="absolute z-50 mt-1 max-h-48 w-full overflow-y-auto rounded-md border border-gray-200 bg-white shadow-lg dark:border-gray-600 dark:bg-gray-800">
+        <div className="absolute z-50 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border bg-popover shadow-xl">
           {filtered.slice(0, 50).map((m) => (
             <button key={m.id} type="button" onClick={() => { onChange(m); setOpen(false); setSearch('') }}
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700">
-              <span className="dark:text-gray-100">{memberDisplayName(m)}</span>
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-accent">
+              <span className="text-foreground">{memberDisplayName(m)}</span>
               <span className="ml-auto text-xs text-muted-foreground">{m.email}</span>
             </button>
           ))}
@@ -71,8 +71,8 @@ function MemberPicker({ value, onChange }: { value: Member | null; onChange: (m:
   )
 }
 
-const labelCls = 'block text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400'
-const inputCls = 'mt-1 h-11 w-full rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm sm:h-9 outline-none focus:border-brand-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100'
+const labelCls = 'block text-[11px] font-semibold uppercase tracking-wide text-muted-foreground'
+const inputCls = 'mt-1 h-11 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm sm:h-9 dark:bg-gray-800 text-foreground placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
 
 function CreateInvoiceModal({ open, onClose, onDone }: { open: boolean; onClose: () => void; onDone: () => void }) {
   const { t } = useTranslation('finance')
@@ -145,7 +145,7 @@ function CreateInvoiceModal({ open, onClose, onDone }: { open: boolean; onClose:
           <div role="group" aria-labelledby="inv-recipient-type-label" className="mt-1 flex gap-2">
             {(['member', 'team', 'contact'] as const).map((rt) => (
               <Button key={rt} type="button" variant="outline" onClick={() => setRecipientType(rt)} aria-pressed={recipientType === rt}
-                className={`min-w-0 flex-1 px-2 ${recipientType === rt ? 'border-brand-500 bg-brand-50 font-medium text-brand-700 hover:bg-brand-50 dark:border-brand-400 dark:bg-brand-900/30 dark:text-brand-300 dark:hover:bg-brand-900/30' : 'text-gray-600 dark:text-gray-300'}`}>
+                className={`min-w-0 flex-1 px-2 ${recipientType === rt ? 'border-selected font-medium bg-selected text-selected-foreground hover:bg-selected/90 hover:text-selected-foreground' : 'text-muted-foreground'}`}>
                 {rt === 'member' ? t('recipientMember') : rt === 'team' ? t('recipientTeam') : t('recipientContact')}
               </Button>
             ))}
@@ -162,7 +162,7 @@ function CreateInvoiceModal({ open, onClose, onDone }: { open: boolean; onClose:
               <option value="">{t('selectTeam')}</option>
               {teams.map((tm) => <option key={tm.id} value={tm.id}>{tm.name}</option>)}
             </select>
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('teamInvoiceHint')}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{t('teamInvoiceHint')}</p>
           </div>
         )}
         {recipientType === 'contact' && (
@@ -177,16 +177,16 @@ function CreateInvoiceModal({ open, onClose, onDone }: { open: boolean; onClose:
                 <Button type="button" variant="link" size="sm" onClick={() => setNewContact(true)} className="px-0 dark:text-brand-400">{t('contactNew')}</Button>
               </>
             ) : (
-              <div className="space-y-2 rounded-md border border-gray-200 p-2 dark:border-gray-700">
+              <div className="space-y-2 rounded-xl border border-hairline bg-surface-sunken p-2">
                 <input value={cName} onChange={(e) => setCName(e.target.value)} placeholder={t('contactName')} aria-label={t('contactName')} className={inputCls} />
                 <input value={cEmail} onChange={(e) => setCEmail(e.target.value)} type="email" placeholder={t('contactEmail')} aria-label={t('contactEmail')} className={inputCls} />
                 <select value={cKind} onChange={(e) => setCKind(e.target.value)} className={`${inputCls} dark:bg-gray-800`}>
                   {['sponsor', 'parent', 'company', 'ex_member', 'other'].map((k) => <option key={k} value={k}>{t(`contactKind_${k}`)}</option>)}
                 </select>
-                <Button type="button" variant="link" size="sm" onClick={() => setNewContact(false)} className="px-0 text-gray-500 dark:text-gray-400">{t('contactPickExisting')}</Button>
+                <Button type="button" variant="link" size="sm" onClick={() => setNewContact(false)} className="px-0 text-muted-foreground">{t('contactPickExisting')}</Button>
               </div>
             )}
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('contactInvoiceHint')}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{t('contactInvoiceHint')}</p>
           </div>
         )}
 
@@ -217,7 +217,7 @@ function CreateInvoiceModal({ open, onClose, onDone }: { open: boolean; onClose:
         </div>
         {discount.trim() !== '' && (
           discValid
-            ? <p className="text-xs text-gray-600 dark:text-gray-400">{t('invoiceDiscountNet', { gross: formatChf(amt), net: formatChf(net) })}</p>
+            ? <p className="text-xs text-muted-foreground">{t('invoiceDiscountNet', { gross: formatChf(amt), net: formatChf(net) })}</p>
             : <p className="text-xs text-red-600 dark:text-red-400">{t('invoiceDiscountTooBig')}</p>
         )}
         <div>
@@ -260,15 +260,15 @@ function LinkMemberModal({ invoice, onClose, onDone }: { invoice: FinanceInvoice
     <Modal open={!!invoice} onClose={onClose} title={t('linkMemberTitle')}>
       {invoice && (
         <div className="space-y-4">
-          <div className="rounded-md bg-gray-50 p-3 text-sm dark:bg-gray-800">
-            <div className="font-medium text-gray-900 dark:text-gray-100">{invoice.recipient_name || '–'}</div>
-            <div className="text-xs text-gray-500 dark:text-gray-400">{invoice.recipient_email || t('noEmail')} · {invoice.subject} · {formatChf(invoice.amount)}</div>
+          <div className="rounded-xl border border-hairline bg-surface-sunken p-3 text-sm">
+            <div className="font-medium text-foreground">{invoice.recipient_name || '–'}</div>
+            <div className="text-xs text-muted-foreground">{invoice.recipient_email || t('noEmail')} · {invoice.subject} · {formatChf(invoice.amount)}</div>
           </div>
           <div><span className={labelCls}>{t('linkMemberPick')}</span><div className="mt-1"><MemberPicker value={member} onChange={setMember} /></div></div>
           {hasEmail && (
             <div className="space-y-1.5">
               {(['email', 'invoice'] as const).map((s) => (
-                <label key={s} className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                <label key={s} className="flex items-center gap-2 text-sm text-foreground/85">
                   <input type="radio" checked={scope === s} onChange={() => setScope(s)} />
                   {s === 'email' ? t('linkScopeEmail') : t('linkScopeInvoice')}
                 </label>
@@ -292,10 +292,10 @@ const STATUS_TONE: Record<string, string> = {
   auto_confirmed: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300',
   clubdesk_match: 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300',
   clubdesk_guess: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
-  unmatched: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300',
+  unmatched: 'bg-muted text-foreground/85',
   native_partial: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
   native_already_settled: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
-  skipped: 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400',
+  skipped: 'bg-muted text-muted-foreground',
 }
 
 /** Bank reconciliation — upload a camt.053/.054 export → native invoices auto-confirm, ClubDesk credits are cross-checked. */
@@ -331,9 +331,9 @@ function CamtReconcile({ onImported }: { onImported: () => void }) {
 
   return (
     <section>
-      <h2 className="mb-1 text-sm font-semibold text-gray-900 dark:text-gray-100">{t('reconcileTitle')}</h2>
-      <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">{t('reconcileHint')}</p>
-      <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">
+      <h2 className="mb-1 text-sm font-semibold text-foreground">{t('reconcileTitle')}</h2>
+      <p className="mb-3 text-xs text-muted-foreground">{t('reconcileHint')}</p>
+      <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-sm text-foreground/80 hover:bg-accent">
         {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
         {busy ? t('camtImporting') : t('camtChoose')}
         <input type="file" accept=".xml,text/xml,application/xml" className="hidden" onChange={onFile} disabled={busy} />
@@ -341,27 +341,27 @@ function CamtReconcile({ onImported }: { onImported: () => void }) {
       {error && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
       {result && (
         <div className="mt-3">
-          <p className="mb-2 text-sm text-gray-700 dark:text-gray-300">
+          <p className="mb-2 text-sm text-foreground/85">
             {t('camtSummary', { auto: result.summary.auto_confirmed, guess: result.summary.clubdesk_guesses, unmatched: result.summary.unmatched, dup: result.summary.duplicates })}
           </p>
           {result.details.length > 0 && (
-            <div className="rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+            <div className="rounded-2xl border border-hairline bg-card shadow-card overflow-hidden">
               <Table>
                 <TableHeader>
-                  <TableRow className="border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/40">
-                    <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colStatus')}</TableHead>
-                    <TableHead className="text-right text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colAmount')}</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colPayer')}</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colDetail')}</TableHead>
+                  <TableRow>
+                    <TableHead>{t('colStatus')}</TableHead>
+                    <TableHead className="text-right">{t('colAmount')}</TableHead>
+                    <TableHead>{t('colPayer')}</TableHead>
+                    <TableHead>{t('colDetail')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {result.details.map((d, i) => (
-                    <TableRow key={i} className="border-gray-200 dark:border-gray-700">
+                    <TableRow key={i}>
                       <TableCell><span className={`inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_TONE[d.status] ?? STATUS_TONE.unmatched}`}>{statusLabel(d.status)}</span></TableCell>
-                      <TableCell className="text-right tabular-nums text-gray-900 dark:text-gray-100">{d.amount != null ? formatChf(d.amount) : '–'}</TableCell>
-                      <TableCell className="whitespace-normal break-words text-gray-600 dark:text-gray-400">{d.debtor || '–'}</TableCell>
-                      <TableCell className="whitespace-normal break-words text-gray-600 dark:text-gray-400">
+                      <TableCell className="text-right tabular-nums text-foreground">{d.amount != null ? formatChf(d.amount) : '–'}</TableCell>
+                      <TableCell className="whitespace-normal break-words text-muted-foreground">{d.debtor || '–'}</TableCell>
+                      <TableCell className="whitespace-normal break-words text-muted-foreground">
                         {d.invoice ? `${d.invoice}${d.recipient ? ` · ${d.recipient}` : ''}${d.invoiceStatus ? ` (${d.invoiceStatus})` : ''}` : (d.reference || d.reason || '–')}
                       </TableCell>
                     </TableRow>
@@ -459,11 +459,11 @@ export default function InvoiceManager({ fiscalYearId, fiscalYearLabel }: { fisc
       {/* ── All invoices in the selected fiscal year (native + ClubDesk mirror) ── */}
       <section>
         <div className="mb-1 flex flex-wrap items-center gap-2">
-          <h2 className="min-w-0 text-sm font-semibold text-gray-900 dark:text-gray-100">
+          <h2 className="min-w-0 text-sm font-semibold text-foreground">
             {fiscalYearLabel ? t('allInvoicesYear', { year: fiscalYearLabel }) : t('allInvoices')}
           </h2>
           <div className="ml-auto flex shrink-0 items-center gap-3">
-            <span className="text-xs tabular-nums text-gray-400">
+            <span className="text-xs tabular-nums text-muted-foreground/80">
               {filteredAll.length}{filteredAll.length !== inYear.length ? `/${inYear.length}` : ''}
               {/* The key interpolates {{n}}, so it must be passed as `n` — passing
                   `count` printed the literal "{{n}} from Wiedisync" in the header. */}
@@ -474,30 +474,30 @@ export default function InvoiceManager({ fiscalYearId, fiscalYearLabel }: { fisc
             </Button>
           </div>
         </div>
-        <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">{t('allInvoicesHint')}</p>
+        <p className="mb-3 text-xs text-muted-foreground">{t('allInvoicesHint')}</p>
         {inYear.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-gray-300 py-8 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+          <p className="rounded-2xl border border-dashed border-border py-8 text-center text-sm text-muted-foreground">
             {fiscalYearLabel ? t('noInvoicesInYear', { year: fiscalYearLabel }) : t('noNativeInvoices')}
           </p>
         ) : (
           <>
-            <div className="mb-2 flex items-center gap-2 rounded-md border border-gray-200 bg-transparent px-3 py-2 dark:border-gray-600">
+            <div className="mb-2 flex items-center gap-2 rounded-lg border border-input bg-card px-3 py-2 focus-within:ring-2 focus-within:ring-ring">
               <Search className="h-4 w-4 text-muted-foreground" />
               <input value={allSearch} onChange={(e) => setAllSearch(e.target.value)} placeholder={t('invoiceSearchPlaceholder')}
-                className="flex-1 bg-transparent text-sm outline-none dark:text-gray-100" />
+                className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/70 outline-none" />
             </div>
-            <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+            <div className="overflow-x-auto rounded-2xl border border-hairline bg-card shadow-card">
               <Table>
                 <TableHeader>
-                  <TableRow className="border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/40">
-                    <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colNumber')}</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colRecipient')}</TableHead>
-                    <TableHead className="hidden md:table-cell text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colSubject')}</TableHead>
-                    <TableHead className="hidden sm:table-cell text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colDate')}</TableHead>
-                    <TableHead className="text-right text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colAmount')}</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colStatus')}</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colCreatedBy')}</TableHead>
-                    <TableHead className="text-right text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400"></TableHead>
+                  <TableRow>
+                    <TableHead>{t('colNumber')}</TableHead>
+                    <TableHead>{t('colRecipient')}</TableHead>
+                    <TableHead className="hidden md:table-cell">{t('colSubject')}</TableHead>
+                    <TableHead className="hidden sm:table-cell">{t('colDate')}</TableHead>
+                    <TableHead className="text-right">{t('colAmount')}</TableHead>
+                    <TableHead>{t('colStatus')}</TableHead>
+                    <TableHead>{t('colCreatedBy')}</TableHead>
+                    <TableHead className="text-right"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -506,24 +506,24 @@ export default function InvoiceManager({ fiscalYearId, fiscalYearLabel }: { fisc
                     const author = createdBy(inv)
                     const created = createdOn(inv)
                     return (
-                      <TableRow key={inv.id} className="border-gray-200 dark:border-gray-700">
-                        <TableCell className="whitespace-nowrap text-xs text-gray-500 dark:text-gray-400">{inv.number || '–'}</TableCell>
-                        <TableCell className="whitespace-normal break-words text-gray-900 dark:text-gray-100">
+                      <TableRow key={inv.id}>
+                        <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{inv.number || '–'}</TableCell>
+                        <TableCell className="whitespace-normal break-words text-foreground">
                           {inv.team ? t('billedToTeam', { team: teamNameById.get(String(inv.team)) ?? `#${inv.team}` }) : inv.recipient_name || '–'}
                           {!nativeRow && !inv.member && <span className="mt-0.5 block text-xs text-amber-600 dark:text-amber-400">{t('notLinked')}</span>}
                         </TableCell>
-                        <TableCell className="hidden md:table-cell whitespace-normal break-words text-gray-600 dark:text-gray-400">{inv.subject}</TableCell>
-                        <TableCell className="hidden sm:table-cell whitespace-nowrap text-gray-600 dark:text-gray-400">{inv.invoice_date ? formatDateCompactZurich(inv.invoice_date) : '–'}</TableCell>
-                        <TableCell className="text-right tabular-nums text-gray-900 dark:text-gray-100">{formatChf(inv.amount)}</TableCell>
-                        <TableCell className="whitespace-nowrap text-xs text-gray-600 dark:text-gray-300">{statusLabel(inv.status)}</TableCell>
+                        <TableCell className="hidden md:table-cell whitespace-normal break-words text-muted-foreground">{inv.subject}</TableCell>
+                        <TableCell className="hidden sm:table-cell whitespace-nowrap text-muted-foreground">{inv.invoice_date ? formatDateCompactZurich(inv.invoice_date) : '–'}</TableCell>
+                        <TableCell className="text-right tabular-nums text-foreground">{formatChf(inv.amount)}</TableCell>
+                        <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{statusLabel(inv.status)}</TableCell>
                         <TableCell className="whitespace-normal break-words text-xs">
                           <span className={`inline-block rounded px-1.5 py-0.5 font-medium ${nativeRow
                             ? 'bg-brand-50 text-brand-700 dark:bg-brand-900/40 dark:text-brand-300'
-                            : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'}`}>
+                            : 'bg-muted text-muted-foreground'}`}>
                             {nativeRow ? t('sourceNative') : t('sourceClubdesk')}
                           </span>
                           {/* ClubDesk exports no author, so a mirror row shows only its creation date. */}
-                          <span className="mt-0.5 block text-gray-500 dark:text-gray-400" title={nativeRow ? undefined : t('clubdeskNoAuthor')}>
+                          <span className="mt-0.5 block text-muted-foreground" title={nativeRow ? undefined : t('clubdeskNoAuthor')}>
                             {[author ?? (nativeRow ? '–' : null), created ? formatDateCompactZurich(created) : null].filter(Boolean).join(' · ')}
                           </span>
                         </TableCell>
@@ -559,7 +559,7 @@ export default function InvoiceManager({ fiscalYearId, fiscalYearLabel }: { fisc
               </Table>
             </div>
             {filteredAll.length > LIST_CAP && (
-              <p className="mt-2 text-center text-xs text-gray-400">{t('invoiceShowingCap', { shown: LIST_CAP, total: filteredAll.length })}</p>
+              <p className="mt-2 text-center text-xs text-muted-foreground/80">{t('invoiceShowingCap', { shown: LIST_CAP, total: filteredAll.length })}</p>
             )}
           </>
         )}
@@ -571,52 +571,52 @@ export default function InvoiceManager({ fiscalYearId, fiscalYearLabel }: { fisc
       {/* ── Unmatched ClubDesk invoices ──────────────────────────── */}
       <section>
         <div className="mb-1 flex flex-wrap items-center gap-2">
-          <h2 className="min-w-0 text-sm font-semibold text-gray-900 dark:text-gray-100">
+          <h2 className="min-w-0 text-sm font-semibold text-foreground">
             {orphansAllYears || !fiscalYearLabel ? t('orphanedInvoices') : t('orphanedInvoicesYear', { year: fiscalYearLabel })}
           </h2>
           <div className="ml-auto flex shrink-0 items-center gap-3">
-            <span className="text-xs tabular-nums text-gray-400">{orphans.length}{orphans.length !== orphansAll.length ? `/${orphansAll.length}` : ''}</span>
+            <span className="text-xs tabular-nums text-muted-foreground/80">{orphans.length}{orphans.length !== orphansAll.length ? `/${orphansAll.length}` : ''}</span>
             {fiscalYearLabel && (
-              <label className="flex cursor-pointer items-center gap-1.5 text-xs text-gray-600 dark:text-gray-300">
-                <input type="checkbox" checked={orphansAllYears} onChange={(e) => setOrphansAllYears(e.target.checked)} className="h-4 w-4 rounded border-gray-300 dark:border-gray-600" />
+              <label className="flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
+                <input type="checkbox" checked={orphansAllYears} onChange={(e) => setOrphansAllYears(e.target.checked)} className="h-4 w-4 rounded border-input accent-[var(--primary)]" />
                 {t('showAllYears')}
               </label>
             )}
           </div>
         </div>
-        <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">{t('orphanedHint')}</p>
+        <p className="mb-3 text-xs text-muted-foreground">{t('orphanedHint')}</p>
         {orphansAll.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-gray-300 py-8 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+          <p className="rounded-2xl border border-dashed border-border py-8 text-center text-sm text-muted-foreground">
             {orphansAllYears || !fiscalYearLabel ? t('noOrphans') : t('noOrphansInYear', { year: fiscalYearLabel })}
           </p>
         ) : (
           <>
-            <div className="mb-2 flex items-center gap-2 rounded-md border border-gray-200 bg-transparent px-3 py-2 dark:border-gray-600">
+            <div className="mb-2 flex items-center gap-2 rounded-lg border border-input bg-card px-3 py-2 focus-within:ring-2 focus-within:ring-ring">
               <Search className="h-4 w-4 text-muted-foreground" />
               <input value={orphanSearch} onChange={(e) => setOrphanSearch(e.target.value)} placeholder={t('orphanSearchPlaceholder')}
-                className="flex-1 bg-transparent text-sm outline-none dark:text-gray-100" />
+                className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/70 outline-none" />
             </div>
-            <div className="rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+            <div className="rounded-2xl border border-hairline bg-card shadow-card overflow-hidden">
               <Table>
                 <TableHeader>
-                  <TableRow className="border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/40">
-                    <TableHead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colRecipient')}</TableHead>
-                    <TableHead className="hidden sm:table-cell text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colSubject')}</TableHead>
-                    <TableHead className="hidden sm:table-cell text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colDate')}</TableHead>
-                    <TableHead className="text-right text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('colAmount')}</TableHead>
-                    <TableHead className="text-right text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400"></TableHead>
+                  <TableRow>
+                    <TableHead>{t('colRecipient')}</TableHead>
+                    <TableHead className="hidden sm:table-cell">{t('colSubject')}</TableHead>
+                    <TableHead className="hidden sm:table-cell">{t('colDate')}</TableHead>
+                    <TableHead className="text-right">{t('colAmount')}</TableHead>
+                    <TableHead className="text-right"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {orphans.slice(0, ORPHAN_CAP).map((inv) => (
-                    <TableRow key={inv.id} className="border-gray-200 dark:border-gray-700">
-                      <TableCell className="whitespace-normal break-words text-gray-900 dark:text-gray-100">
+                    <TableRow key={inv.id}>
+                      <TableCell className="whitespace-normal break-words text-foreground">
                         {inv.recipient_name || '–'}
-                        <span className="mt-0.5 block text-xs text-gray-400">{inv.recipient_email}</span>
+                        <span className="mt-0.5 block text-xs text-muted-foreground/80">{inv.recipient_email}</span>
                       </TableCell>
-                      <TableCell className="hidden sm:table-cell whitespace-normal break-words text-gray-600 dark:text-gray-400">{inv.subject}</TableCell>
-                      <TableCell className="hidden sm:table-cell whitespace-nowrap text-gray-600 dark:text-gray-400">{inv.invoice_date ? formatDateCompactZurich(inv.invoice_date) : '–'}</TableCell>
-                      <TableCell className="text-right tabular-nums text-gray-900 dark:text-gray-100">{formatChf(inv.amount)}</TableCell>
+                      <TableCell className="hidden sm:table-cell whitespace-normal break-words text-muted-foreground">{inv.subject}</TableCell>
+                      <TableCell className="hidden sm:table-cell whitespace-nowrap text-muted-foreground">{inv.invoice_date ? formatDateCompactZurich(inv.invoice_date) : '–'}</TableCell>
+                      <TableCell className="text-right tabular-nums text-foreground">{formatChf(inv.amount)}</TableCell>
                       <TableCell className="text-right">
                         <Button type="button" size="sm" variant="outline" onClick={() => setLinkTarget(inv)}>
                           <Link2 />{t('linkToMember')}
@@ -628,7 +628,7 @@ export default function InvoiceManager({ fiscalYearId, fiscalYearLabel }: { fisc
               </Table>
             </div>
             {orphans.length > ORPHAN_CAP && (
-              <p className="mt-2 text-center text-xs text-gray-400">{t('orphanShowingCap', { shown: ORPHAN_CAP, total: orphans.length })}</p>
+              <p className="mt-2 text-center text-xs text-muted-foreground/80">{t('orphanShowingCap', { shown: ORPHAN_CAP, total: orphans.length })}</p>
             )}
           </>
         )}

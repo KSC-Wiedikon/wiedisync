@@ -234,7 +234,7 @@ export default function TableBrowser({ collections, loadingCollections }: TableB
       <div className="shrink-0 sm:w-48">
         {/* Mobile: select dropdown */}
         <select
-          className="h-11 w-full rounded-lg border border-gray-300 px-3 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 sm:hidden"
+          className="h-11 w-full rounded-lg border border-input bg-card px-3 text-sm text-foreground dark:bg-gray-800 sm:hidden"
           value={selected}
           onChange={(e) => handleSelectCollection(e.target.value)}
         >
@@ -247,15 +247,15 @@ export default function TableBrowser({ collections, loadingCollections }: TableB
         </select>
 
         {/* Desktop: sidebar */}
-        <div className="hidden max-h-[calc(100vh-14rem)] overflow-y-auto rounded-lg border border-gray-200 dark:border-gray-700 sm:block">
+        <div className="hidden max-h-[calc(100vh-14rem)] overflow-y-auto rounded-2xl border border-hairline bg-card shadow-card sm:block">
           {loadingCollections ? (
-            <p className="p-3 text-sm text-gray-500">...</p>
+            <p className="p-3 text-sm text-muted-foreground">...</p>
           ) : (
             Object.entries(grouped).map(
               ([type, cols]) =>
                 cols.length > 0 && (
                   <div key={COLLECTION_TYPE_LABEL[type] ?? type}>
-                    <p className="sticky top-0 bg-gray-50 px-3 py-1.5 text-[10px] font-bold tracking-wide text-gray-400 dark:bg-gray-800 dark:text-gray-500">
+                    <p className="sticky top-0 border-b border-border/60 bg-surface-sunken px-3 py-1.5 text-[11px] font-semibold tracking-wide text-muted-foreground">
                       {type}
                     </p>
                     {cols.map((c) => (
@@ -265,8 +265,8 @@ export default function TableBrowser({ collections, loadingCollections }: TableB
                         title={c.name}
                         className={`block w-full truncate px-3 py-1.5 text-left text-xs ${
                           selected === c.name
-                            ? 'bg-brand-50 font-medium text-brand-700 dark:bg-brand-900/30 dark:text-brand-400'
-                            : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'
+                            ? 'bg-selected font-medium text-selected-foreground'
+                            : 'text-foreground/85 hover:bg-accent'
                         }`}
                       >
                         {c.name}
@@ -282,14 +282,14 @@ export default function TableBrowser({ collections, loadingCollections }: TableB
       {/* ── Main content area ── */}
       <div className="min-w-0 flex-1">
         {!selected ? (
-          <p className="py-12 text-center text-sm text-gray-500 dark:text-gray-400">
+          <p className="py-12 text-center text-sm text-muted-foreground">
             {t('selectTable')}
           </p>
         ) : (
           <div className="space-y-3">
             {/* Header */}
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white min-w-0 flex-1">{selected}</h2>
+              <h2 className="text-base font-semibold tracking-tight text-foreground min-w-0 flex-1">{selected}</h2>
               <div className="flex gap-2">
                 <Button size="sm" variant="ghost"
                   onClick={() => setShowSchema(!showSchema)}
@@ -319,7 +319,7 @@ export default function TableBrowser({ collections, loadingCollections }: TableB
                   if (e.key === 'Enter') handleApplyFilter()
                 }}
                 placeholder={t('filterPlaceholder')}
-                className="h-11 min-w-0 flex-1 rounded-lg border border-gray-300 px-3 text-sm sm:h-9 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+                className="h-11 min-w-0 flex-1 rounded-lg border border-input bg-card px-3 text-sm text-foreground placeholder:text-muted-foreground/70 sm:h-9 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               />
               <Button variant="outline"
                 onClick={handleApplyFilter}
@@ -341,8 +341,8 @@ export default function TableBrowser({ collections, loadingCollections }: TableB
                     onClick={() => handleSort(col)}
                     className={
                       sortField === col
-                        ? 'border-brand-200 bg-brand-100 text-brand-700 hover:bg-brand-100 hover:text-brand-700 dark:border-brand-800 dark:bg-brand-900/30 dark:text-brand-400'
-                        : 'text-gray-600 dark:text-gray-400'
+                        ? 'border-selected bg-selected text-selected-foreground hover:bg-selected/90 hover:text-selected-foreground'
+                        : 'text-muted-foreground'
                     }
                   >
                     {col}
@@ -354,9 +354,9 @@ export default function TableBrowser({ collections, loadingCollections }: TableB
 
             {/* Data */}
             {isLoading ? (
-              <p className="py-4 text-center text-sm text-gray-500">...</p>
+              <p className="py-4 text-center text-sm text-muted-foreground">...</p>
             ) : records.length === 0 ? (
-              <p className="py-4 text-center text-sm text-gray-500 dark:text-gray-400">
+              <p className="py-4 text-center text-sm text-muted-foreground">
                 {t('noRecords')}
               </p>
             ) : (
@@ -383,18 +383,18 @@ export default function TableBrowser({ collections, loadingCollections }: TableB
                 <IconButton
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                   disabled={page <= 1}
-                  className="text-gray-600 disabled:opacity-40 dark:text-gray-400"
+                  className="text-muted-foreground disabled:opacity-40"
                   label={t('previousPage')}
                 >
                   <ChevronLeft />
                 </IconButton>
-                <span className="text-xs text-gray-500 dark:text-gray-400">
+                <span className="text-xs text-muted-foreground">
                   {page} / {totalPages} ({total})
                 </span>
                 <IconButton
                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                   disabled={page >= totalPages}
-                  className="text-gray-600 disabled:opacity-40 dark:text-gray-400"
+                  className="text-muted-foreground disabled:opacity-40"
                   label={t('nextPage')}
                 >
                   <ChevronRight />

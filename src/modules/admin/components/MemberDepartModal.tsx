@@ -182,7 +182,7 @@ export default function MemberDepartModal({
       size="md"
     >
       <div className="space-y-4">
-        <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3">
+        <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-3">
           <p className="flex items-start gap-2 text-sm text-destructive">
             <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
             {t('explorerDepartWarning')}
@@ -209,7 +209,7 @@ export default function MemberDepartModal({
           <p className="text-xs text-muted-foreground">{t('explorerBulkDepartDateHint')}</p>
         </div>
 
-        <div className="rounded-lg border border-border bg-card p-3 text-sm">
+        <div className="rounded-xl border border-hairline bg-surface-sunken p-3 text-sm">
           {rosterError ? (
             <p className="text-muted-foreground">{t('explorerDepartRostersUnavailable')}</p>
           ) : rosters === null ? (

@@ -54,16 +54,16 @@ function SessionRow({
   return (
     <div className="flex items-center gap-3 px-4 py-3">
       <div className="flex-1">
-        <div className="text-sm font-medium text-gray-800 dark:text-gray-200">
+        <div className="text-sm font-medium text-foreground">
           {session.label || formatDateShort(dateStr)}
         </div>
         {session.start_time && (
-          <div className="text-xs text-gray-500 dark:text-gray-400">
+          <div className="text-xs text-muted-foreground">
             {session.start_time}{session.end_time ? `–${session.end_time}` : ''}
           </div>
         )}
         {!session.start_time && session.label && (
-          <div className="text-xs text-gray-500 dark:text-gray-400">
+          <div className="text-xs text-muted-foreground">
             {formatDateShort(dateStr)}
           </div>
         )}
@@ -78,11 +78,11 @@ function SessionRow({
             className={`flex h-9 w-9 items-center justify-center rounded-full text-sm font-bold transition-colors sm:h-8 sm:w-8 ${
               loading
                 // A shade off the unselected pill in BOTH themes (it is
-                // gray-100 / dark:gray-700), plus a pulse and no glyph at all.
-                ? 'animate-pulse cursor-default bg-gray-200 text-transparent dark:bg-gray-800'
+                // stone-100 / dark:gray-700), plus a pulse and no glyph at all.
+                ? 'animate-pulse cursor-default bg-stone-200/80 text-transparent dark:bg-gray-800'
                 : status === btnStatus
                   ? activeClass
-                  : 'bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600'
+                  : 'bg-stone-100 text-muted-foreground hover:bg-stone-200 dark:bg-gray-700 dark:hover:bg-gray-600'
             }`}
             title={loading ? undefined : statusLabels[btnStatus as 'confirmed' | 'declined']}
             aria-label={statusLabels[btnStatus as 'confirmed' | 'declined']}
@@ -195,9 +195,9 @@ export default function SessionParticipationSheet({ activityId, sessions, onClos
   return (
     <Modal open onClose={onClose} title={t('sessionParticipation')} size="sm">
       {answeringFor && (
-        <p className="px-4 pb-1 pt-2 text-sm font-medium text-gray-600 dark:text-gray-300">{answeringFor}</p>
+        <p className="px-4 pb-1 pt-2 text-sm font-medium text-muted-foreground">{answeringFor}</p>
       )}
-      <div className="divide-y divide-gray-100 dark:divide-gray-700">
+      <div className="divide-y divide-border/60">
         {sessions.map((session) => {
           const sid = String(session.id)
           const status = optimistic[sid] ?? bySession.get(sid)?.status ?? null

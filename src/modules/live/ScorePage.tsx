@@ -83,7 +83,7 @@ function TeamPanel({
         style={{ backgroundColor: color }}
       >
         {serving && (
-          <span className="absolute left-2 top-2 rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-bold uppercase text-gray-900">
+          <span className="absolute left-2 top-2 rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-bold uppercase text-stone-900">
             {t('serving')}
           </span>
         )}
@@ -142,7 +142,7 @@ export default function ScorePage() {
   if (meta && !canScore) {
     return (
       <div className="mx-auto w-full max-w-md p-4">
-        <div className="rounded-xl border border-dashed bg-card p-8 text-center">
+        <div className="rounded-2xl border border-dashed bg-card p-8 text-center">
           <p className="text-base font-semibold text-foreground">{t('cannotScoreTitle')}</p>
           <p className="mt-1 text-sm text-muted-foreground">{t(`cannotScore_${meta.code ?? 'not_participant'}`, t('cannotScore_not_participant'))}</p>
           <Button asChild variant="outline" className="mt-4">
@@ -160,7 +160,7 @@ export default function ScorePage() {
           <Link to={gameId ? `/games/${gameId}` : '/games'} aria-label={t('backToGame')}><ArrowLeft /></Link>
         </Button>
         <div className="min-w-0 flex-1">
-          <h1 className="text-lg font-bold leading-tight text-foreground">{t('scoringTitle')}</h1>
+          <h1 className="text-lg font-bold leading-tight tracking-tight text-foreground">{t('scoringTitle')}</h1>
           {game && (
             <TruncatedText
               className="block text-xs text-muted-foreground"

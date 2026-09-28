@@ -185,17 +185,17 @@ export default function HallsPage() {
           variant="ghost"
           icon={<ArrowLeft />}
           onClick={() => navigate(-1)}
-          className="-ml-3 mb-2 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
+          className="-ml-3 mb-2 text-muted-foreground hover:text-foreground"
         >
           {t('common:back')}
         </Button>
-        <h1 className="text-xl font-bold text-gray-900 sm:text-2xl dark:text-gray-100">{t('hallsTitle')}</h1>
-        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{t('hallsSubtitle')}</p>
+        <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">{t('hallsTitle')}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{t('hallsSubtitle')}</p>
       </div>
 
       {/* Add / edit form */}
-      <div ref={formRef} className="mb-6 space-y-4 rounded-lg border border-gray-200 bg-white p-4 sm:p-6 dark:border-gray-700 dark:bg-gray-800">
-        <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+      <div ref={formRef} className="mb-6 space-y-4 rounded-2xl border border-hairline bg-card p-4 shadow-card sm:p-6">
+        <h2 className="text-sm font-semibold text-foreground">
           {editingId ? t('editHall') : t('addNewHall')}
         </h2>
 
@@ -245,7 +245,7 @@ export default function HallsPage() {
           />
         </div>
 
-        <div className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300">
+        <div className="flex items-start gap-2 text-sm text-foreground/85">
           <Switch
             checked={form.homologation}
             onCheckedChange={(checked) => update('homologation', checked)}
@@ -277,11 +277,11 @@ export default function HallsPage() {
       </div>
 
       {/* List */}
-      <div className="rounded-lg border border-gray-200 bg-white p-4 sm:p-6 dark:border-gray-700 dark:bg-gray-800">
+      <div className="rounded-2xl border border-hairline bg-card p-4 shadow-card sm:p-6">
         {isLoading ? (
-          <p className="py-6 text-center text-sm text-gray-400 dark:text-gray-500">{t('common:loading')}</p>
+          <p className="py-6 text-center text-sm text-muted-foreground/80">{t('common:loading')}</p>
         ) : halls.length === 0 ? (
-          <p className="py-6 text-center text-sm text-gray-500 dark:text-gray-400">{t('hallsEmpty')}</p>
+          <p className="py-6 text-center text-sm text-muted-foreground">{t('hallsEmpty')}</p>
         ) : (
           <Table>
             <TableHeader>
@@ -304,11 +304,11 @@ export default function HallsPage() {
                 >
                   <TableCell className="whitespace-normal break-words font-medium">
                     {hall.name}
-                    <span className="block text-xs text-gray-500 sm:hidden dark:text-gray-400">
+                    <span className="block text-xs text-muted-foreground sm:hidden">
                       {[hall.address, hall.city].filter(Boolean).join(', ')}
                     </span>
                   </TableCell>
-                  <TableCell className="hidden whitespace-normal break-words text-gray-500 sm:table-cell dark:text-gray-400">
+                  <TableCell className="hidden whitespace-normal break-words text-muted-foreground sm:table-cell">
                     {[hall.address, hall.city].filter(Boolean).join(', ')}
                   </TableCell>
                   <TableCell className="hidden tabular-nums md:table-cell">{hall.courts ?? '—'}</TableCell>
@@ -318,7 +318,7 @@ export default function HallsPage() {
                         'inline-flex rounded-full px-2 py-0.5 text-xs',
                         hall.homologation
                           ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
-                          : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300',
+                          : 'bg-muted text-muted-foreground',
                       )}
                     >
                       {hall.homologation ? t('common:yes') : t('common:no')}
@@ -330,7 +330,7 @@ export default function HallsPage() {
                         variant="ghost"
                         size="sm"
                         onClick={() => startEdit(hall)}
-                        className="text-brand-600 hover:bg-brand-50 hover:text-brand-700 dark:hover:bg-gray-800"
+                        className="text-primary hover:bg-primary/10 hover:text-primary dark:text-brand-300 dark:hover:text-brand-200"
                       >
                         {t('common:edit')}
                       </Button>
@@ -340,7 +340,7 @@ export default function HallsPage() {
                         disabled={countingId === hall.id}
                         loading={countingId === hall.id}
                         onClick={() => { void handleDelete(hall) }}
-                        className="text-red-600 hover:bg-red-50 hover:text-red-800 dark:hover:bg-gray-800"
+                        className="text-red-600 hover:bg-red-50 hover:text-red-800 dark:text-red-400 dark:hover:bg-red-950/40 dark:hover:text-red-300"
                       >
                         {t('common:delete')}
                       </Button>

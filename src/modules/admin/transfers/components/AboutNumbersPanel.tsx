@@ -33,33 +33,33 @@ export function AboutNumbersPanel() {
         </Button>
       </CollapsibleTrigger>
       <CollapsibleContent>
-        <div className="mt-2 space-y-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-xs text-gray-500 dark:border-gray-700 dark:bg-gray-800/30 dark:text-gray-400">
+        <div className="mt-2 space-y-3 rounded-xl border border-hairline bg-surface-sunken px-4 py-3 text-xs text-muted-foreground">
           <section>
-            <h3 className="text-xs font-semibold text-gray-700 dark:text-gray-200">
+            <h3 className="text-xs font-semibold text-foreground/85">
               {t('trVisSummaryTitle')}
             </h3>
             <p className="mt-0.5">{t('trVisSummaryHint')}</p>
           </section>
           <section>
-            <h3 className="text-xs font-semibold text-gray-700 dark:text-gray-200">
+            <h3 className="text-xs font-semibold text-foreground/85">
               {t('trColLicenceValidated')}
             </h3>
             <p className="mt-0.5">{t('trLicenceHint')}</p>
           </section>
           <section>
-            <h3 className="text-xs font-semibold text-gray-700 dark:text-gray-200">
+            <h3 className="text-xs font-semibold text-foreground/85">
               {t('trDiagSettledTitle')}
             </h3>
             <p className="mt-0.5">{t('trSettledDescription')}</p>
           </section>
           <section>
-            <h3 className="text-xs font-semibold text-gray-700 dark:text-gray-200">
+            <h3 className="text-xs font-semibold text-foreground/85">
               {t('trDerivedOurs')}
             </h3>
             <p className="mt-0.5">{t('trDerivedOursHint')}</p>
           </section>
           <section>
-            <h3 className="text-xs font-semibold text-gray-700 dark:text-gray-200">
+            <h3 className="text-xs font-semibold text-foreground/85">
               {t('trDerivedVm')}
             </h3>
             <p className="mt-0.5">{t('trDerivedVmHint')}</p>

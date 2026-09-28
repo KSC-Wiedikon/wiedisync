@@ -19,7 +19,7 @@ export const barColors: Record<string, { bg: string; text: string; darkBg: strin
   closure:     { bg: 'bg-red-200', text: 'text-red-900', darkBg: 'dark:bg-red-800', darkText: 'dark:text-red-100' },
   event:       { bg: 'bg-purple-200', text: 'text-purple-900', darkBg: 'dark:bg-purple-800', darkText: 'dark:text-purple-100' },
   hall:        { bg: 'bg-cyan-200', text: 'text-cyan-900', darkBg: 'dark:bg-cyan-800', darkText: 'dark:text-cyan-100' },
-  absence:     { bg: 'bg-gray-900', text: 'text-white', darkBg: 'dark:bg-gray-100', darkText: 'dark:text-gray-900' },
+  absence:     { bg: 'bg-selected', text: 'text-selected-foreground', darkBg: '', darkText: '' },
   'scorer-duty': { bg: 'bg-indigo-200', text: 'text-indigo-900', darkBg: 'dark:bg-indigo-800', darkText: 'dark:text-indigo-100' },
   birthday:    { bg: 'bg-pink-200', text: 'text-pink-900', darkBg: 'dark:bg-pink-800', darkText: 'dark:text-pink-100' },
   blue:        { bg: 'bg-blue-200', text: 'text-blue-900', darkBg: 'dark:bg-blue-800', darkText: 'dark:text-blue-100' },
@@ -37,7 +37,7 @@ export const monthTints: Record<string, string> = {
   closure:     'bg-red-500/12 text-red-800 border-red-500 dark:bg-red-400/15 dark:text-red-100 dark:border-red-400',
   event:       'bg-purple-500/12 text-purple-900 border-purple-500 dark:bg-purple-400/15 dark:text-purple-100 dark:border-purple-400',
   hall:        'bg-cyan-500/12 text-cyan-900 border-cyan-500 dark:bg-cyan-400/15 dark:text-cyan-100 dark:border-cyan-400',
-  absence:     'bg-gray-500/10 text-gray-700 border-gray-400 dark:bg-gray-400/10 dark:text-gray-300 dark:border-gray-500',
+  absence:     'bg-muted text-muted-foreground border-muted-foreground/50',
   'scorer-duty': 'bg-indigo-500/12 text-indigo-900 border-indigo-500 dark:bg-indigo-400/15 dark:text-indigo-100 dark:border-indigo-400',
   birthday:    'bg-pink-500/12 text-pink-900 border-pink-500 dark:bg-pink-400/15 dark:text-pink-100 dark:border-pink-400',
   blue:        'bg-blue-500/12 text-blue-900 border-blue-500 dark:bg-blue-400/15 dark:text-blue-100 dark:border-blue-400',
@@ -53,7 +53,7 @@ export const dotColors: Record<string, string> = {
   closure: 'bg-red-500',
   event: 'bg-purple-500',
   hall: 'bg-cyan-500',
-  absence: 'bg-gray-900 dark:bg-gray-100',
+  absence: 'bg-selected',
   'scorer-duty': 'bg-indigo-500',
   birthday: 'bg-pink-500',
   blue: 'bg-blue-500',
@@ -69,7 +69,7 @@ export const iconColors: Record<string, string> = {
   closure: 'text-red-500',
   event: 'text-purple-500',
   hall: 'text-cyan-500',
-  absence: 'text-gray-900 dark:text-gray-100',
+  absence: 'text-foreground',
   'scorer-duty': 'text-indigo-500',
   birthday: 'text-pink-500',
 }
@@ -84,7 +84,7 @@ export const sourceColors: Record<string, { bg: string; text: string; border: st
   event: { bg: '#7e22ce', text: '#ffffff', border: '#6b21a8' },
   hall: { bg: '#0891b2', text: '#ffffff', border: '#0e7490' },
   closure: { bg: '#dc2626', text: '#ffffff', border: '#b91c1c' },
-  absence: { bg: '#374151', text: '#ffffff', border: '#1f2937' },
+  absence: { bg: '#44403c', text: '#ffffff', border: '#292524' },
   birthday: { bg: '#ec4899', text: '#ffffff', border: '#db2777' },
 }
 
@@ -105,7 +105,7 @@ export function paintKey(e: CalendarEntry): string {
 /** `text-*` icon colour for the overflow modal. */
 export function entryIconColor(entry: CalendarEntry): string {
   if (entry.type === 'game' && entry.gameType) return iconColors[`game-${entry.gameType}`] || 'text-brand-500'
-  return iconColors[entry.type] || 'text-gray-500'
+  return iconColors[entry.type] || 'text-muted-foreground'
 }
 
 /** Chip class string for week/day time blocks. */

@@ -175,15 +175,15 @@ export default function ImportPanel({ editableTeamIds, onImported }: ImportPanel
   }
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+    <div className="rounded-2xl border border-hairline bg-card p-4 shadow-card">
       <div className="mb-3 flex items-center gap-2">
-        <FileSpreadsheet className="h-5 w-5 text-gray-500 dark:text-gray-400" aria-hidden />
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+        <FileSpreadsheet className="h-5 w-5 text-muted-foreground" aria-hidden />
+        <h2 className="text-base font-semibold text-foreground">
           {t('import.title')}
         </h2>
       </div>
 
-      <p className="mb-3 text-sm text-gray-600 dark:text-gray-400">
+      <p className="mb-3 text-sm text-muted-foreground">
         {t('import.hint')}
       </p>
 
@@ -193,7 +193,7 @@ export default function ImportPanel({ editableTeamIds, onImported }: ImportPanel
           type="file"
           accept=".xlsx,.xls"
           onChange={handleFileChange}
-          className="text-sm text-gray-700 dark:text-gray-300 file:mr-3 file:rounded-md file:border-0 file:bg-gray-100 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-gray-700 dark:file:bg-gray-700 dark:file:text-gray-300"
+          className="text-sm text-foreground/85 file:mr-3 file:rounded-lg file:border-0 file:bg-muted file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-foreground/85"
         />
         <Button
           type="button"
@@ -208,28 +208,28 @@ export default function ImportPanel({ editableTeamIds, onImported }: ImportPanel
 
       {preview.length > 0 && (
         <>
-          <div className="mb-3 max-h-80 overflow-auto rounded-md border border-gray-200 dark:border-gray-600">
+          <div className="mb-3 max-h-80 overflow-auto rounded-xl border border-hairline">
             <Table className="text-xs">
-              <TableHeader className="bg-gray-50 dark:bg-gray-700">
+              <TableHeader>
                 <TableRow>
-                  <TableHead className="text-gray-700 dark:text-gray-300">{t('import.col.team')}</TableHead>
-                  <TableHead className="text-gray-700 dark:text-gray-300">{t('import.col.type')}</TableHead>
-                  <TableHead className="text-gray-700 dark:text-gray-300">{t('import.col.opponent')}</TableHead>
-                  <TableHead className="text-gray-700 dark:text-gray-300">{t('import.col.date')}</TableHead>
-                  <TableHead className="text-gray-700 dark:text-gray-300">{t('import.col.time')}</TableHead>
-                  <TableHead className="text-gray-700 dark:text-gray-300">{t('import.col.hall')}</TableHead>
-                  <TableHead className="text-gray-700 dark:text-gray-300">{t('import.col.status')}</TableHead>
+                  <TableHead>{t('import.col.team')}</TableHead>
+                  <TableHead>{t('import.col.type')}</TableHead>
+                  <TableHead>{t('import.col.opponent')}</TableHead>
+                  <TableHead>{t('import.col.date')}</TableHead>
+                  <TableHead>{t('import.col.time')}</TableHead>
+                  <TableHead>{t('import.col.hall')}</TableHead>
+                  <TableHead>{t('import.col.status')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {preview.map((p, i) => (
                   <TableRow key={i} className={p.error ? 'bg-red-50 dark:bg-red-950/30' : ''}>
-                    <TableCell className="p-1 text-gray-900 dark:text-gray-100">{p.raw.Team}</TableCell>
-                    <TableCell className="p-1 text-gray-900 dark:text-gray-100">{p.raw.HomeAway}</TableCell>
-                    <TableCell className="p-1 text-gray-900 dark:text-gray-100">{p.raw.Opponent}</TableCell>
-                    <TableCell className="p-1 text-gray-900 dark:text-gray-100">{p.raw.Date}</TableCell>
-                    <TableCell className="p-1 text-gray-900 dark:text-gray-100">{p.raw.Time}</TableCell>
-                    <TableCell className="p-1 text-gray-900 dark:text-gray-100">{p.raw.Hall}</TableCell>
+                    <TableCell className="p-1 text-foreground">{p.raw.Team}</TableCell>
+                    <TableCell className="p-1 text-foreground">{p.raw.HomeAway}</TableCell>
+                    <TableCell className="p-1 text-foreground">{p.raw.Opponent}</TableCell>
+                    <TableCell className="p-1 text-foreground">{p.raw.Date}</TableCell>
+                    <TableCell className="p-1 text-foreground">{p.raw.Time}</TableCell>
+                    <TableCell className="p-1 text-foreground">{p.raw.Hall}</TableCell>
                     <TableCell className={`p-1 ${p.error ? 'font-medium text-red-700 dark:text-red-300' : 'text-emerald-600 dark:text-emerald-400'}`}>
                       {p.error ? t(`import.error.${p.error}`) : t('import.ok')}
                     </TableCell>
@@ -261,7 +261,7 @@ export default function ImportPanel({ editableTeamIds, onImported }: ImportPanel
       )}
 
       {result && (
-        <div className="mt-3 rounded-md bg-green-50 p-3 text-sm text-green-800 dark:bg-green-900/30 dark:text-green-300">
+        <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-300">
           {result}
         </div>
       )}

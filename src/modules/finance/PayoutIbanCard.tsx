@@ -74,14 +74,14 @@ export default function PayoutIbanCard() {
   }
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+    <div className="rounded-2xl border border-hairline bg-card shadow-card p-4">
       <div className="flex items-start gap-3">
-        <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-600 dark:bg-brand-900/30 dark:text-brand-300">
+        <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-50 text-primary dark:bg-brand-900/30 dark:text-brand-300">
           <Landmark className="h-5 w-5" />
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-2">
-            <h2 className="min-w-0 text-sm font-semibold text-gray-900 dark:text-gray-100">{t('ibanCardTitle')}</h2>
+            <h2 className="min-w-0 text-sm font-semibold text-foreground">{t('ibanCardTitle')}</h2>
             {!editing && (
               <Button type="button" variant="ghost" size="sm" onClick={startEdit} className="shrink-0 gap-1.5 px-2">
                 <Pencil />
@@ -89,7 +89,7 @@ export default function PayoutIbanCard() {
               </Button>
             )}
           </div>
-          <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{t('ibanCardSubtitle')}</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">{t('ibanCardSubtitle')}</p>
 
           {editing ? (
             <div className="mt-3 space-y-2">
@@ -117,9 +117,9 @@ export default function PayoutIbanCard() {
             <div className="mt-2.5">
               {current ? (
                 <>
-                  <p className="font-mono text-sm tabular-nums text-gray-900 dark:text-gray-100">{current}</p>
+                  <p className="font-mono text-sm tabular-nums text-foreground">{current}</p>
                   {user.iban_confirmed === false && (
-                    <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 p-2.5 dark:border-amber-900/40 dark:bg-amber-900/20">
+                    <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-2.5 dark:border-amber-900/60 dark:bg-amber-950/40">
                       <p className="text-xs text-amber-800 dark:text-amber-300">{t('ibanConfirmPrompt')}</p>
                       <div className="mt-2 flex flex-wrap gap-2">
                         <Button type="button" size="sm" onClick={confirmIban} loading={saving}>
@@ -136,7 +136,7 @@ export default function PayoutIbanCard() {
             </div>
           )}
 
-          <p className="mt-2.5 flex items-center gap-1.5 text-[11px] text-gray-400 dark:text-gray-500">
+          <p className="mt-2.5 flex items-center gap-1.5 text-[11px] text-muted-foreground/80">
             <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
             {t('ibanCardPrivacy')}
           </p>

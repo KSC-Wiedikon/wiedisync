@@ -70,7 +70,7 @@ function actionBadge(action: string) {
     update: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
     delete: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
     auth: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
-    system: 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400',
+    system: 'bg-muted text-foreground/85',
     error: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
   }
   return colors[action] || colors.system
@@ -96,7 +96,7 @@ function DiffView({ changes }: { changes: Record<string, { old: unknown; new: un
     <div className="space-y-1">
       {Object.entries(changes).map(([field, { old: oldVal, new: newVal }]) => (
         <div key={field} className="text-xs">
-          <span className="font-medium text-gray-500 dark:text-gray-400">{field}:</span>
+          <span className="font-medium text-muted-foreground">{field}:</span>
           <span className="ml-2 text-red-500 line-through">{JSON.stringify(oldVal)}</span>
           <span className="ml-2 text-green-600">{JSON.stringify(newVal)}</span>
         </div>
@@ -118,16 +118,16 @@ function AuditRow({ entry, onFilterCollection, onFilterActor, onFilterRecord }: 
     <>
       <TableRow
         onClick={() => hasDetails && setExpanded(!expanded)}
-        className={`border-gray-100 dark:border-gray-700/50 ${hasDetails ? 'cursor-pointer' : 'cursor-default'}`}
+        className={`border-border/60 ${hasDetails ? 'cursor-pointer' : 'cursor-default'}`}
       >
         <TableCell className="w-6 px-1">
           {hasDetails
             ? expanded
-              ? <ChevronDown className="h-3 w-3 text-gray-400" />
-              : <ChevronRight className="h-3 w-3 text-gray-400" />
+              ? <ChevronDown className="h-3 w-3 text-muted-foreground/80" />
+              : <ChevronRight className="h-3 w-3 text-muted-foreground/80" />
             : null}
         </TableCell>
-        <TableCell className="hidden sm:table-cell font-mono text-[10px] text-gray-400 dark:text-gray-500">
+        <TableCell className="hidden sm:table-cell font-mono text-[10px] text-muted-foreground/80">
           {formatTs(entry.ts)}
         </TableCell>
         <TableCell className="w-6 px-1">{levelIcon(entry.level)}</TableCell>
@@ -139,7 +139,7 @@ function AuditRow({ entry, onFilterCollection, onFilterActor, onFilterRecord }: 
         <TableCell>
           <button
             onClick={(ev) => { ev.stopPropagation(); onFilterCollection(entry.collection) }}
-            className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+            className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground hover:bg-stone-200 dark:hover:bg-gray-600"
           >
             {entry.collection}
           </button>
@@ -148,7 +148,7 @@ function AuditRow({ entry, onFilterCollection, onFilterActor, onFilterRecord }: 
           {entry.record_id && (
             <button
               onClick={(ev) => { ev.stopPropagation(); onFilterRecord(entry.record_id) }}
-              className="font-mono text-[10px] text-gray-400 hover:text-brand-600 dark:hover:text-brand-400"
+              className="font-mono text-[10px] text-muted-foreground/80 hover:text-primary dark:hover:text-brand-300"
               title={entry.record_id}
             >
               {entry.record_id.substring(0, 12)}…
@@ -159,23 +159,23 @@ function AuditRow({ entry, onFilterCollection, onFilterActor, onFilterRecord }: 
           {entry.actor && entry.actor !== 'system' ? (
             <button
               onClick={(ev) => { ev.stopPropagation(); onFilterActor(entry.actor) }}
-              className="text-xs text-gray-500 hover:text-brand-600 dark:text-gray-400 dark:hover:text-brand-400"
+              className="text-xs text-muted-foreground hover:text-primary dark:hover:text-brand-300"
               title={entry.actor}
             >
               {entry.actor}
             </button>
           ) : (
-            <span className="text-[10px] text-gray-400">system</span>
+            <span className="text-[10px] text-muted-foreground/80">system</span>
           )}
         </TableCell>
       </TableRow>
       {expanded && hasDetails && (
-        <TableRow className="border-gray-100 dark:border-gray-700/50 bg-gray-50/50 dark:bg-gray-900/30 hover:bg-gray-50/50 dark:hover:bg-gray-900/30">
+        <TableRow className="border-border/60 bg-surface-sunken/50 hover:bg-surface-sunken/50">
           <TableCell colSpan={7} className="whitespace-normal px-8 py-2">
             {entry.details.changes ? (
               <DiffView changes={entry.details.changes as Record<string, { old: unknown; new: unknown }>} />
             ) : (
-              <pre className="whitespace-pre-wrap text-[10px] text-gray-500 dark:text-gray-400">
+              <pre className="whitespace-pre-wrap text-[10px] text-muted-foreground">
                 {JSON.stringify(entry.details, null, 2)}
               </pre>
             )}
@@ -313,11 +313,11 @@ export default function AuditLogPage() {
       {/* Header */}
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="flex items-center gap-2 text-lg font-bold text-gray-900 dark:text-white">
+          <h1 className="flex items-center gap-2 text-xl font-bold tracking-tight text-foreground sm:text-2xl">
             <ScrollText className="h-5 w-5" />
             {t('auditTitle')}
           </h1>
-          <p className="text-xs text-gray-500 dark:text-gray-400">{t('auditDescription')}</p>
+          <p className="text-xs text-muted-foreground">{t('auditDescription')}</p>
         </div>
         <Button
           onClick={() => { fetchLogs(page); fetchStats() }}
@@ -332,30 +332,30 @@ export default function AuditLogPage() {
       {/* Stats cards */}
       {stats && (
         <div className="grid grid-cols-3 gap-3">
-          <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 dark:border-gray-700 dark:bg-gray-800/50">
-            <p className="text-[10px] uppercase tracking-wider text-gray-400">{t('auditToday')}</p>
-            <p className="text-lg font-bold text-gray-900 dark:text-white">{stats.today_events}</p>
+          <div className="min-w-0 rounded-2xl border border-hairline bg-card px-3 py-2.5 shadow-card">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{t('auditToday')}</p>
+            <p className="text-lg font-bold tabular-nums text-foreground">{stats.today_events}</p>
           </div>
-          <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 dark:border-gray-700 dark:bg-gray-800/50">
-            <p className="text-[10px] uppercase tracking-wider text-gray-400">{t('auditTodayErrors')}</p>
-            <p className={`text-lg font-bold ${stats.today_errors > 0 ? 'text-red-500' : 'text-gray-900 dark:text-white'}`}>
+          <div className="min-w-0 rounded-2xl border border-hairline bg-card px-3 py-2.5 shadow-card">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{t('auditTodayErrors')}</p>
+            <p className={`text-lg font-bold tabular-nums ${stats.today_errors > 0 ? 'text-red-500' : 'text-foreground'}`}>
               {stats.today_errors}
             </p>
           </div>
-          <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 dark:border-gray-700 dark:bg-gray-800/50">
-            <p className="text-[10px] uppercase tracking-wider text-gray-400">{t('auditArchiveDays')}</p>
-            <p className="text-lg font-bold text-gray-900 dark:text-white">{stats.archive_days}</p>
+          <div className="min-w-0 rounded-2xl border border-hairline bg-card px-3 py-2.5 shadow-card">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{t('auditArchiveDays')}</p>
+            <p className="text-lg font-bold tabular-nums text-foreground">{stats.archive_days}</p>
           </div>
         </div>
       )}
 
       {/* Filters */}
-      <div className="rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800/50">
+      <div className="rounded-2xl border border-hairline bg-card p-3 shadow-card sm:p-4">
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           <select
             value={collection}
             onChange={(ev) => setCollection(ev.target.value)}
-            className="h-11 min-w-0 rounded-md border border-gray-200 bg-white px-2 text-sm sm:h-9 sm:text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+            className="h-11 min-w-0 rounded-lg border border-input bg-card px-2 text-sm sm:h-9 sm:text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-gray-800"
           >
             <option value="">{t('auditAllCollections')}</option>
             {availableCollections.map((c) => <option key={c} value={c}>{c}</option>)}
@@ -364,7 +364,7 @@ export default function AuditLogPage() {
           <select
             value={action}
             onChange={(ev) => setAction(ev.target.value)}
-            className="h-11 min-w-0 rounded-md border border-gray-200 bg-white px-2 text-sm sm:h-9 sm:text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+            className="h-11 min-w-0 rounded-lg border border-input bg-card px-2 text-sm sm:h-9 sm:text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-gray-800"
           >
             <option value="">{t('auditAllActions')}</option>
             {ACTIONS.map((a) => <option key={a} value={a}>{a}</option>)}
@@ -373,7 +373,7 @@ export default function AuditLogPage() {
           <select
             value={level}
             onChange={(ev) => setLevel(ev.target.value)}
-            className="h-11 min-w-0 rounded-md border border-gray-200 bg-white px-2 text-sm sm:h-9 sm:text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+            className="h-11 min-w-0 rounded-lg border border-input bg-card px-2 text-sm sm:h-9 sm:text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-gray-800"
           >
             <option value="">{t('auditAllLevels')}</option>
             {LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
@@ -384,7 +384,7 @@ export default function AuditLogPage() {
             placeholder={t('auditRecordId')}
             value={recordId}
             onChange={(ev) => setRecordId(ev.target.value)}
-            className="h-11 min-w-0 rounded-md border border-gray-200 bg-white px-2 text-sm sm:h-9 sm:text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+            className="h-11 min-w-0 rounded-lg border border-input bg-card px-2 text-sm sm:h-9 sm:text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-input/20 placeholder:text-muted-foreground/70"
           />
 
           <input
@@ -392,7 +392,7 @@ export default function AuditLogPage() {
             placeholder={t('auditActorId')}
             value={actor}
             onChange={(ev) => setActor(ev.target.value)}
-            className="h-11 min-w-0 rounded-md border border-gray-200 bg-white px-2 text-sm sm:h-9 sm:text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+            className="h-11 min-w-0 rounded-lg border border-input bg-card px-2 text-sm sm:h-9 sm:text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-input/20 placeholder:text-muted-foreground/70"
           />
 
           <input
@@ -400,7 +400,7 @@ export default function AuditLogPage() {
             placeholder={t('auditSearchDetails')}
             value={search}
             onChange={(ev) => setSearch(ev.target.value)}
-            className="h-11 min-w-0 rounded-md border border-gray-200 bg-white px-2 text-sm sm:h-9 sm:text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+            className="h-11 min-w-0 rounded-lg border border-input bg-card px-2 text-sm sm:h-9 sm:text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-input/20 placeholder:text-muted-foreground/70"
           />
 
           <DatePicker
@@ -424,7 +424,7 @@ export default function AuditLogPage() {
             </Button>
           )}
           {result && (
-            <span className="ml-auto text-[10px] text-gray-400">
+            <span className="ml-auto text-[10px] text-muted-foreground/80">
               {result.total} {t('auditResults')}
             </span>
           )}
@@ -432,13 +432,13 @@ export default function AuditLogPage() {
       </div>
 
       {/* Results */}
-      <div className="rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800/50">
+      <div className="overflow-hidden rounded-2xl border border-hairline bg-card shadow-card">
         {loading && !result && (
-          <div className="p-8 text-center text-sm text-gray-400">{t('auditLoading')}</div>
+          <div className="p-8 text-center text-sm text-muted-foreground/80">{t('auditLoading')}</div>
         )}
 
         {result && result.items.length === 0 && (
-          <div className="p-8 text-center text-sm text-gray-400">{t('auditNoResults')}</div>
+          <div className="p-8 text-center text-sm text-muted-foreground/80">{t('auditNoResults')}</div>
         )}
 
         {result && result.items.length > 0 && (
@@ -448,12 +448,12 @@ export default function AuditLogPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-6 px-1" />
-                    <TableHead className="hidden sm:table-cell text-[10px] uppercase text-gray-400">{t('auditWhen')}</TableHead>
+                    <TableHead className="hidden sm:table-cell">{t('auditWhen')}</TableHead>
                     <TableHead className="w-6 px-1" />
-                    <TableHead className="text-[10px] uppercase text-gray-400">{t('auditAction')}</TableHead>
-                    <TableHead className="text-[10px] uppercase text-gray-400">{t('auditCollection')}</TableHead>
-                    <TableHead className="hidden md:table-cell text-[10px] uppercase text-gray-400">{t('auditRecord')}</TableHead>
-                    <TableHead className="hidden lg:table-cell text-right text-[10px] uppercase text-gray-400">{t('auditActor')}</TableHead>
+                    <TableHead>{t('auditAction')}</TableHead>
+                    <TableHead>{t('auditCollection')}</TableHead>
+                    <TableHead className="hidden md:table-cell">{t('auditRecord')}</TableHead>
+                    <TableHead className="hidden lg:table-cell text-right">{t('auditActor')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -472,12 +472,12 @@ export default function AuditLogPage() {
 
             {/* Pagination */}
             {result.totalPages > 1 && (
-              <div className="flex items-center justify-center gap-1 border-t border-gray-100 px-3 py-2 dark:border-gray-700">
+              <div className="flex items-center justify-center gap-1 border-t border-border/60 px-3 py-2">
                 <IconButton
                   size="sm"
                   onClick={() => fetchLogs(1)}
                   disabled={page === 1}
-                  className="text-gray-400 disabled:opacity-30"
+                  className="text-muted-foreground/80 disabled:opacity-30"
                   label={t('auditFirstPage')}
                 >
                   <ChevronsLeft />
@@ -486,19 +486,19 @@ export default function AuditLogPage() {
                   size="sm"
                   onClick={() => fetchLogs(page - 1)}
                   disabled={page === 1}
-                  className="text-gray-400 disabled:opacity-30"
+                  className="text-muted-foreground/80 disabled:opacity-30"
                   label={t('auditPrevPage')}
                 >
                   <ChevronLeft />
                 </IconButton>
-                <span className="px-2 text-xs text-gray-500">
+                <span className="px-2 text-xs tabular-nums text-muted-foreground">
                   {page} / {result.totalPages}
                 </span>
                 <IconButton
                   size="sm"
                   onClick={() => fetchLogs(page + 1)}
                   disabled={page >= result.totalPages}
-                  className="text-gray-400 disabled:opacity-30"
+                  className="text-muted-foreground/80 disabled:opacity-30"
                   label={t('auditNextPage')}
                 >
                   <ChevronRight />
@@ -507,7 +507,7 @@ export default function AuditLogPage() {
                   size="sm"
                   onClick={() => fetchLogs(result.totalPages)}
                   disabled={page >= result.totalPages}
-                  className="text-gray-400 disabled:opacity-30"
+                  className="text-muted-foreground/80 disabled:opacity-30"
                   label={t('auditLastPage')}
                 >
                   <ChevronsRight />

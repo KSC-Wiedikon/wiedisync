@@ -157,11 +157,11 @@ export default function EventSignupsModal({ open, onClose, event }: EventSignups
 
             {/* Members — the authoritative side; always rendered, even at zero. */}
             <section className="space-y-2">
-              <h3 className="text-sm font-medium">{t('signupsMembers')}</h3>
+              <h3 className="text-sm font-semibold text-foreground">{t('signupsMembers')}</h3>
               {internal.length === 0 ? (
                 <p className="text-sm text-muted-foreground">{t('signupsNoMembers')}</p>
               ) : (
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto rounded-xl border border-hairline">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -192,7 +192,7 @@ export default function EventSignupsModal({ open, onClose, event }: EventSignups
 
             {/* Guests — only meaningful once a signup form is linked. */}
             <section className="space-y-2">
-              <h3 className="text-sm font-medium">{t('signupsGuestsSection')}</h3>
+              <h3 className="text-sm font-semibold text-foreground">{t('signupsGuestsSection')}</h3>
               {data.external_error === 'form_not_found' && (
                 <p className="text-sm text-amber-600 dark:text-amber-400">{t('signupsFormMissing')}</p>
               )}
@@ -206,7 +206,7 @@ export default function EventSignupsModal({ open, onClose, event }: EventSignups
                 <p className="text-sm text-muted-foreground">{t('signupsNoGuests')}</p>
               )}
               {externalRows.length > 0 && (
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto rounded-xl border border-hairline">
                   <Table>
                     <TableHeader>
                       <TableRow>

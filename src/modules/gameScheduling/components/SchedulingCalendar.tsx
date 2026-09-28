@@ -148,7 +148,7 @@ const CHIP: Record<EntryKind, string> = {
   away_confirmed: 'bg-blue-600 text-white',
   home_proposed: 'border border-dashed border-amber-500 bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200',
   away_proposed: 'border border-dashed border-orange-500 bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-200',
-  blocked: 'bg-gray-300 text-gray-600 line-through dark:bg-gray-600 dark:text-gray-300',
+  blocked: 'bg-stone-300 text-muted-foreground line-through dark:bg-gray-600',
   team_block: 'bg-rose-200 text-rose-800 dark:bg-rose-900/50 dark:text-rose-200',
   club_block: 'bg-red-300 text-red-900 dark:bg-red-950/70 dark:text-red-100',
   team_event: 'bg-purple-200 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200',
@@ -204,26 +204,26 @@ function CalendarGridSkeleton({ label }: { label: string }) {
     <div className="flex flex-1 flex-col" role="status" aria-busy="true" aria-label={label}>
       {/* Month header */}
       <div className="mb-4 flex items-center justify-between">
-        <div className="h-10 w-10 animate-pulse rounded-lg bg-gray-200 sm:h-9 sm:w-9 dark:bg-gray-700" />
-        <div className="h-6 w-36 animate-pulse rounded bg-gray-200 dark:bg-gray-700" />
-        <div className="h-10 w-10 animate-pulse rounded-lg bg-gray-200 sm:h-9 sm:w-9 dark:bg-gray-700" />
+        <div className="h-10 w-10 animate-pulse rounded-lg bg-stone-200/80 sm:h-9 sm:w-9 dark:bg-muted" />
+        <div className="h-6 w-36 animate-pulse rounded bg-stone-200/80 dark:bg-muted" />
+        <div className="h-10 w-10 animate-pulse rounded-lg bg-stone-200/80 sm:h-9 sm:w-9 dark:bg-muted" />
       </div>
       {/* Day-of-week headers */}
-      <div className="grid grid-cols-7 border-b border-gray-200 dark:border-gray-700">
+      <div className="grid grid-cols-7 border-b border-border">
         {Array.from({ length: 7 }, (_, i) => (
           <div key={`h${i}`} className="flex justify-center py-2">
-            <div className="h-4 w-7 animate-pulse rounded bg-gray-200 sm:h-5 dark:bg-gray-700" />
+            <div className="h-4 w-7 animate-pulse rounded bg-stone-200/80 sm:h-5 dark:bg-muted" />
           </div>
         ))}
       </div>
       {/* Day grid */}
-      <div className="grid flex-1 grid-cols-7 border-l border-gray-200 dark:border-gray-700" style={{ gridAutoRows: '1fr' }}>
+      <div className="grid flex-1 grid-cols-7 border-l border-border" style={{ gridAutoRows: '1fr' }}>
         {Array.from({ length: 42 }, (_, i) => (
           <div
             key={`d${i}`}
-            className="min-h-[3rem] border-b border-r border-gray-200 bg-white p-0.5 sm:min-h-[5rem] sm:p-1 lg:min-h-[6.5rem] lg:p-2 dark:border-gray-700 dark:bg-gray-800"
+            className="min-h-[3rem] border-b border-r border-border bg-card p-0.5 sm:min-h-[5rem] sm:p-1 lg:min-h-[6.5rem] lg:p-2"
           >
-            <div className="h-3 w-4 animate-pulse rounded bg-gray-200 sm:h-3.5 dark:bg-gray-700" />
+            <div className="h-3 w-4 animate-pulse rounded bg-stone-200/80 sm:h-3.5 dark:bg-muted" />
           </div>
         ))}
       </div>
@@ -1010,11 +1010,11 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
   }, [dayDetail, slots, teamFilter, teamName, hallName, absencesByDate, KIND_LABEL, bbTakesSlot])
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
-      <h2 className="mb-3 text-lg font-semibold text-gray-900 dark:text-gray-100">{title ?? t('overviewTitle')}</h2>
+    <div className="rounded-2xl border border-hairline bg-card shadow-card p-4">
+      <h2 className="mb-3 text-base font-semibold tracking-tight text-foreground">{title ?? t('overviewTitle')}</h2>
 
       {/* Legend */}
-      <div className="mb-3 flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-gray-600 dark:text-gray-300">
+      <div className="mb-3 flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
         {legend.map((l) => (
           <span key={l.kind} className="inline-flex items-center gap-1.5">
             <span className={`inline-block h-3 w-3 rounded ${CHIP[l.kind]}`} />
@@ -1022,7 +1022,7 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
           </span>
         ))}
         <span className="inline-flex items-center gap-1.5">
-          <span className="inline-block h-3 w-3 rounded bg-gray-100 ring-1 ring-gray-300 dark:bg-gray-700 dark:ring-gray-500" />
+          <span className="inline-block h-3 w-3 rounded bg-muted ring-1 ring-stone-300 dark:ring-gray-500" />
           {t('legendOpen')}
         </span>
         <span className="inline-flex items-center gap-1.5">
@@ -1050,8 +1050,8 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
             size="sm"
             className={`px-2 ${
               teamFilter.size === 0
-                ? 'bg-gold-400 text-brand-900 hover:bg-gold-400 hover:text-brand-900'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
+                ? 'bg-selected text-selected-foreground hover:bg-selected/90 hover:text-selected-foreground'
+                : 'bg-muted text-muted-foreground hover:bg-accent'
             }`}
           >
             {t('allTeams')}
@@ -1074,8 +1074,8 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
                 size="sm"
                 className={`px-2 ${
                   on
-                    ? 'bg-gold-400 text-brand-900 hover:bg-gold-400 hover:text-brand-900'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
+                    ? 'bg-selected text-selected-foreground hover:bg-selected/90 hover:text-selected-foreground'
+                    : 'bg-muted text-muted-foreground hover:bg-accent'
                 }`}
               >
                 {tm.name}
@@ -1097,8 +1097,8 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
               size="sm"
               className={`px-2.5 sm:px-2 ${
                 isActive
-                  ? 'bg-gold-400 text-brand-900 hover:bg-gold-400 hover:text-brand-900'
-                  : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-300 dark:hover:bg-gray-700'
+                  ? 'bg-selected text-selected-foreground hover:bg-selected/90 hover:text-selected-foreground'
+                  : 'text-muted-foreground hover:bg-accent hover:text-foreground'
               }`}
             >
               {formatDate(m, 'MMM')}
@@ -1179,10 +1179,10 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
                 )
               })}
               {hidden > 0 && (
-                <span className="text-[10px] text-gray-500 dark:text-gray-400">+{hidden}</span>
+                <span className="text-[10px] text-muted-foreground">+{hidden}</span>
               )}
               {open > 0 && (
-                <span className="text-[10px] text-gray-400 dark:text-gray-500" title={t('legendOpen')}>
+                <span className="text-[10px] text-muted-foreground/80" title={t('legendOpen')}>
                   {t('openCount', { count: open })}
                 </span>
               )}
@@ -1277,12 +1277,12 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
                 </TableBody>
               </Table>
             ) : (
-              <p className="text-sm text-gray-500 dark:text-gray-400">{t('dayNoGames')}</p>
+              <p className="text-sm text-muted-foreground">{t('dayNoGames')}</p>
             )}
 
             {/* Anything that blocks a game that day: reserved courts, team blocks, events. */}
             {dayRows.blockers.length > 0 && (
-              <div className="rounded-md border border-rose-200 bg-rose-50 p-3 dark:border-rose-900 dark:bg-rose-900/20">
+              <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 dark:border-rose-900 dark:bg-rose-900/20">
                 <p className="text-xs font-semibold text-rose-700 dark:text-rose-300">{t('blockedHeading')}</p>
                 <ul className="mt-1.5 space-y-1">
                   {dayRows.blockers.map((b) => (
@@ -1300,7 +1300,7 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
                 pulsing line — a day opened from a pending cell must not look like
                 a day with nobody away. */}
             {absencesPending ? (
-              <div className="rounded-md border border-rose-200 bg-rose-50 p-3 dark:border-rose-900 dark:bg-rose-900/20">
+              <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 dark:border-rose-900 dark:bg-rose-900/20">
                 <span
                   role="img"
                   aria-label={t('common:loading')}
@@ -1308,7 +1308,7 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
                 />
               </div>
             ) : dayRows.absent.length > 0 && (
-              <div className="rounded-md border border-rose-200 bg-rose-50 p-3 dark:border-rose-900 dark:bg-rose-900/20">
+              <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 dark:border-rose-900 dark:bg-rose-900/20">
                 <p className="text-xs font-medium text-rose-700 dark:text-rose-300">{t('absentPlayers', { names: dayRows.absent.join(', ') })}</p>
               </div>
             )}
@@ -1318,7 +1318,7 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
               const warns = linkWarningsByDate.get(toDateKey(dayDetail.date)) || []
               if (warns.length === 0) return null
               return (
-                <div className="rounded-md border border-amber-300 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/20">
+                <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/20">
                   <p className="flex items-center gap-1 text-xs font-semibold text-amber-800 dark:text-amber-300"><Link2 className="h-3.5 w-3.5" aria-hidden="true" />{t('linkWarnHeading')}</p>
                   <ul className="mt-1.5 space-y-1">
                     {warns.map((w) => (
@@ -1339,7 +1339,7 @@ export default function SchedulingCalendar({ slots, bookings, teams, season, gam
 
             {dayRows.open.length > 0 && (
               <details className="group">
-                <summary className="cursor-pointer text-sm font-medium text-gray-700 dark:text-gray-300">
+                <summary className="cursor-pointer text-sm font-medium text-foreground/85">
                   {t('openSlotsHeading', { count: dayRows.open.length })}
                 </summary>
                 <div className="mt-2 max-h-72 overflow-y-auto">

@@ -99,12 +99,12 @@ export default function HomeDelegationCard() {
             {pendingIncoming.map((d) => (
               <div
                 key={d.id}
-                className="rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-900/20"
+                className="rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-card dark:border-amber-800 dark:bg-amber-950/40"
               >
                 <div className="flex items-start gap-3">
                   <ArrowRightLeft className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                    <p className="text-sm font-medium text-foreground">
                       {t('delegateRequestTitle')}
                     </p>
                     {/* The request sentence usually wraps to two lines. */}

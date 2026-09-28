@@ -17,25 +17,26 @@ import {
 import type { Team } from '../../types'
 import RefereeReimbursementCard from './RefereeReimbursementCard'
 
-const labelCls = 'block text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400'
-const inputCls = 'mt-1 h-11 w-full rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm sm:h-9 outline-none focus:border-brand-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100'
+const labelCls = 'block text-[11px] font-semibold uppercase tracking-wide text-muted-foreground'
+const inputCls = 'mt-1 h-11 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground sm:h-9 outline-none placeholder:text-muted-foreground/70 focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary/60 dark:bg-input/20'
+// Native <select>: dark:bg-gray-800 is mandatory so the <option> list is dark too.
+const selectCls = 'mt-1 h-11 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground sm:h-9 outline-none placeholder:text-muted-foreground/70 focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary/60 dark:bg-gray-800'
 const apiErr = (e: unknown, fb: string) => (e as { body?: { error?: string } })?.body?.error || fb
 const KINDS: TeamEntryKind[] = ['sponsoring', 'income', 'expense']
 const netCls = (n: number) => (n >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400')
-const tableWrapCls = 'rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800'
-const thCls = 'text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400'
-const barCls = 'block h-3 animate-pulse rounded bg-gray-200 dark:bg-gray-700'
-const noticeCls = 'rounded-lg border border-dashed border-gray-300 py-10 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400'
-const errNoticeCls = 'rounded-lg border border-dashed border-red-300 py-10 text-center text-sm text-red-600 dark:border-red-800 dark:text-red-400'
+const tableWrapCls = 'overflow-hidden rounded-2xl border border-hairline bg-card shadow-card'
+const barCls = 'block h-3 animate-pulse rounded bg-stone-200/80 dark:bg-muted'
+const noticeCls = 'rounded-xl border border-dashed border-border py-10 text-center text-sm text-muted-foreground'
+const errNoticeCls = 'rounded-xl border border-dashed border-red-300 py-10 text-center text-sm text-red-600 dark:border-red-800 dark:text-red-400'
 
 /** Placeholder rows while a team's entries are in flight — never a verdict. */
 function TeamEntriesSkeleton() {
   return (
-    <div className="rounded-md border border-gray-200 dark:border-gray-700" aria-busy="true">
+    <div className="overflow-hidden rounded-xl border border-hairline bg-card" aria-busy="true">
       <Table>
         <TableBody>
           {[0, 1, 2].map((i) => (
-            <TableRow key={i} className="border-gray-200 dark:border-gray-700">
+            <TableRow key={i}>
               <TableCell><span className={`${barCls} w-16`} aria-hidden="true" /></TableCell>
               <TableCell><span className={`${barCls} w-40 max-w-full`} aria-hidden="true" /></TableCell>
               <TableCell><span className={`${barCls} ml-auto w-16`} aria-hidden="true" /></TableCell>
@@ -74,16 +75,16 @@ function TeamEntries({ teamId, fiscalYearId, onChanged }: { teamId: number; fisc
   const pending = !isError && (isLoading || entriesStale || entries === undefined)
   if (pending) return <TeamEntriesSkeleton />
   if (isError) return <p className="py-3 text-center text-xs text-red-600 dark:text-red-400">{t('common:error')}</p>
-  if (rows.length === 0) return <p className="py-3 text-center text-xs text-gray-400">{t('teamNoEntries')}</p>
+  if (rows.length === 0) return <p className="py-3 text-center text-xs text-muted-foreground/80">{t('teamNoEntries')}</p>
   return (
     <>
-    <div className="rounded-md border border-gray-200 dark:border-gray-700">
+    <div className="overflow-hidden rounded-xl border border-hairline bg-card">
       <Table>
         <TableBody>
           {rows.map((e) => (
-            <TableRow key={e.id} className="border-gray-200 dark:border-gray-700">
-              <TableCell className="whitespace-nowrap text-xs text-gray-500 dark:text-gray-400">{e.entry_date ? formatDateCompactZurich(e.entry_date) : '–'}</TableCell>
-              <TableCell className="whitespace-normal break-words text-gray-700 dark:text-gray-300">
+            <TableRow key={e.id}>
+              <TableCell className="whitespace-nowrap text-xs tabular-nums text-muted-foreground">{e.entry_date ? formatDateCompactZurich(e.entry_date) : '–'}</TableCell>
+              <TableCell className="whitespace-normal break-words text-foreground/85">
                 {kindLabel(e.kind)}{e.label ? ` · ${e.label}` : ''}{e.sponsor ? ` · ${e.sponsor}` : ''}
               </TableCell>
               <TableCell className={`text-right tabular-nums ${e.kind === 'expense' ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
@@ -91,7 +92,7 @@ function TeamEntries({ teamId, fiscalYearId, onChanged }: { teamId: number; fisc
               </TableCell>
               <TableCell className="text-right">
                 <IconButton size="sm" variant="outline" disabled={busyDel === e.id} onClick={() => remove(e.id)} label={t('teamEntryDelete')}
-                  className="text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400">
+                  className="text-muted-foreground hover:text-red-600 dark:hover:text-red-400">
                   {busyDel === e.id ? <Loader2 className="animate-spin" /> : <Trash2 />}
                 </IconButton>
               </TableCell>
@@ -159,14 +160,14 @@ function AddTeamEntryModal({ open, onClose, fiscalYearId, presetTeam, onDone }: 
               teams={teamOptions}
               allowEmpty={false}
               placeholder={t('selectTeam')}
-              className="mt-1 dark:bg-gray-800"
+              className="mt-1"
             />
           </div>
         )}
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label htmlFor="tf-kind" className={labelCls}>{t('teamEntryKind')}</label>
-            <select id="tf-kind" value={kind} onChange={(e) => setKind(e.target.value as TeamEntryKind)} className={`${inputCls} dark:bg-gray-800`}>
+            <select id="tf-kind" value={kind} onChange={(e) => setKind(e.target.value as TeamEntryKind)} className={selectCls}>
               {KINDS.map((k) => <option key={k} value={k}>{t(`teamKind${k.charAt(0).toUpperCase()}${k.slice(1)}`)}</option>)}
             </select>
           </div>
@@ -207,14 +208,14 @@ function TeamsHead() {
   const { t } = useTranslation('finance')
   return (
     <TableHeader>
-      <TableRow className="border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/40">
-        <TableHead className={thCls}>{t('teamLabel')}</TableHead>
-        <TableHead className={`text-right ${thCls}`}>{t('teamColIncome')}</TableHead>
-        <TableHead className={`hidden sm:table-cell text-right ${thCls}`}>{t('teamColExpense')}</TableHead>
-        <TableHead className={`text-right ${thCls}`}>{t('teamColNet')}</TableHead>
-        <TableHead className={`hidden sm:table-cell text-right ${thCls}`}>{t('teamColOpenBills')}</TableHead>
+      <TableRow>
+        <TableHead>{t('teamLabel')}</TableHead>
+        <TableHead className={"text-right"}>{t('teamColIncome')}</TableHead>
+        <TableHead className={"hidden sm:table-cell text-right"}>{t('teamColExpense')}</TableHead>
+        <TableHead className={"text-right"}>{t('teamColNet')}</TableHead>
+        <TableHead className={"hidden sm:table-cell text-right"}>{t('teamColOpenBills')}</TableHead>
         {/* Club-reimbursed referee fees — informational, never part of net. */}
-        <TableHead className={`hidden sm:table-cell text-right ${thCls}`}>{t('teamColReferee')}</TableHead>
+        <TableHead className={"hidden sm:table-cell text-right"}>{t('teamColReferee')}</TableHead>
       </TableRow>
     </TableHeader>
   )
@@ -228,7 +229,7 @@ function TeamsSkeleton() {
         <TeamsHead />
         <TableBody>
           {[0, 1, 2, 3, 4].map((i) => (
-            <TableRow key={i} className="border-gray-200 dark:border-gray-700">
+            <TableRow key={i}>
               <TableCell><span className={`${barCls} w-28 max-w-full`} aria-hidden="true" /></TableCell>
               <TableCell><span className={`${barCls} ml-auto w-16`} aria-hidden="true" /></TableCell>
               <TableCell className="hidden sm:table-cell"><span className={`${barCls} ml-auto w-16`} aria-hidden="true" /></TableCell>
@@ -269,7 +270,7 @@ export default function TeamFinance({ fiscalYearId, fiscalYearLabel }: { fiscalY
       {fiscalYearLabel && <RefereeReimbursementCard season={fiscalYearLabel} />}
 
       <div className="flex items-center gap-3">
-        <p className="min-w-0 flex-1 text-xs text-gray-500 dark:text-gray-400">{t('teamFinanceHint', { year: fiscalYearLabel })}</p>
+        <p className="min-w-0 flex-1 text-xs text-muted-foreground">{t('teamFinanceHint', { year: fiscalYearLabel })}</p>
         <Button type="button" className="shrink-0" onClick={() => setShowAdd(true)}>
           <Plus className="h-4 w-4" />{t('teamAddEntry')}
         </Button>
@@ -288,9 +289,9 @@ export default function TeamFinance({ fiscalYearId, fiscalYearLabel }: { fiscalY
             <TableBody>
               {teams.map((r) => (
                 <Fragment key={r.team}>
-                  <TableRow className="cursor-pointer border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-700/40" onClick={() => setExpanded((p) => (p === r.team ? null : r.team))}>
-                    <TableCell className="whitespace-normal break-words text-gray-900 dark:text-gray-100">
-                      <span className="mr-1 inline-block align-middle text-gray-400">
+                  <TableRow className="cursor-pointer hover:bg-muted" onClick={() => setExpanded((p) => (p === r.team ? null : r.team))}>
+                    <TableCell className="whitespace-normal break-words text-foreground">
+                      <span className="mr-1 inline-block align-middle text-muted-foreground/80">
                         {expanded === r.team ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
                       </span>
                       {r.team_name}
@@ -298,25 +299,25 @@ export default function TeamFinance({ fiscalYearId, fiscalYearLabel }: { fiscalY
                     <TableCell className="text-right tabular-nums text-green-600 dark:text-green-400">{formatChf(r.income)}</TableCell>
                     <TableCell className="hidden sm:table-cell text-right tabular-nums text-red-600 dark:text-red-400">{formatChf(r.expense)}</TableCell>
                     <TableCell className={`text-right tabular-nums font-semibold ${netCls(r.net)}`}>{formatChf(r.net)}</TableCell>
-                    <TableCell className="hidden sm:table-cell text-right tabular-nums text-gray-600 dark:text-gray-300">{formatChf(r.invoice_open)}</TableCell>
-                    <TableCell className="hidden sm:table-cell text-right tabular-nums text-gray-400 dark:text-gray-500">{formatChf(toNum(r.referee_total))}</TableCell>
+                    <TableCell className="hidden sm:table-cell text-right tabular-nums text-muted-foreground">{formatChf(r.invoice_open)}</TableCell>
+                    <TableCell className="hidden sm:table-cell text-right tabular-nums text-muted-foreground/80">{formatChf(toNum(r.referee_total))}</TableCell>
                   </TableRow>
                   {expanded === r.team && (
-                    <TableRow className="border-gray-200 dark:border-gray-700">
-                      <TableCell colSpan={6} className="bg-gray-50/60 p-2 dark:bg-gray-900/20">
+                    <TableRow>
+                      <TableCell colSpan={6} className="bg-surface-sunken p-2">
                         <TeamEntries teamId={r.team} fiscalYearId={fiscalYearId} onChanged={refetch} />
                       </TableCell>
                     </TableRow>
                   )}
                 </Fragment>
               ))}
-              <TableRow className="border-t-2 border-gray-300 font-semibold dark:border-gray-600">
-                <TableCell className="text-gray-900 dark:text-gray-100">{t('teamColTotal')}</TableCell>
+              <TableRow className="border-t-2 border-border font-semibold">
+                <TableCell className="text-foreground">{t('teamColTotal')}</TableCell>
                 <TableCell className="text-right tabular-nums text-green-600 dark:text-green-400">{formatChf(totals.income)}</TableCell>
                 <TableCell className="hidden sm:table-cell text-right tabular-nums text-red-600 dark:text-red-400">{formatChf(totals.expense)}</TableCell>
                 <TableCell className={`text-right tabular-nums ${netCls(totals.net)}`}>{formatChf(totals.net)}</TableCell>
-                <TableCell className="hidden sm:table-cell text-right tabular-nums text-gray-600 dark:text-gray-300">{formatChf(totals.open)}</TableCell>
-                <TableCell className="hidden sm:table-cell text-right tabular-nums text-gray-400 dark:text-gray-500">{formatChf(totals.referee)}</TableCell>
+                <TableCell className="hidden sm:table-cell text-right tabular-nums text-muted-foreground">{formatChf(totals.open)}</TableCell>
+                <TableCell className="hidden sm:table-cell text-right tabular-nums text-muted-foreground/80">{formatChf(totals.referee)}</TableCell>
               </TableRow>
             </TableBody>
           </Table>

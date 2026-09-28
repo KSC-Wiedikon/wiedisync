@@ -118,18 +118,18 @@ export default function PublicTerminplanungPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 dark:bg-gray-900">
-      <div className="w-full max-w-md rounded-xl bg-white p-8 shadow-lg dark:bg-gray-800">
+    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+      <div className="w-full max-w-md rounded-3xl border border-hairline bg-card p-8 shadow-card-lg">
         {/* Logo / Header */}
         <div className="mb-6 text-center">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{t('publicTitle')}</h1>
-          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">{t('publicSubtitle')}</p>
+          <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">{t('publicTitle')}</h1>
+          <p className="mt-2 text-sm text-muted-foreground">{t('publicSubtitle')}</p>
         </div>
 
         {sentTo ? (
           <div role="status" className="space-y-4 text-center">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('registrationCheckEmailTitle')}</h2>
-            <p className="break-words text-sm text-gray-600 dark:text-gray-400">{t('registrationCheckEmail', { email: sentTo })}</p>
+            <h2 className="text-lg font-semibold text-foreground">{t('registrationCheckEmailTitle')}</h2>
+            <p className="break-words text-sm text-muted-foreground">{t('registrationCheckEmail', { email: sentTo })}</p>
             <Button
               type="button"
               variant="outline"
@@ -141,7 +141,7 @@ export default function PublicTerminplanungPage() {
           </div>
         ) : (<>
         {seasonOpen === false && (
-          <div className="mb-4 rounded-md bg-yellow-50 p-4 text-sm text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300">
+          <div className="mb-4 rounded-lg border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-800 dark:border-yellow-900/60 dark:bg-yellow-950/40 dark:text-yellow-300">
             {t('seasonNotOpen')}
           </div>
         )}
@@ -149,7 +149,7 @@ export default function PublicTerminplanungPage() {
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Gender toggle */}
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label className="mb-1 block text-sm font-medium text-foreground/85">
               {t('selectGender')}
             </label>
             <div className="flex gap-2">
@@ -170,7 +170,7 @@ export default function PublicTerminplanungPage() {
           {/* Team selection */}
           {gender && (
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+              <label className="mb-1 block text-sm font-medium text-foreground/85">
                 {t('matchingTeam')}
               </label>
               <div className="flex flex-wrap gap-2">

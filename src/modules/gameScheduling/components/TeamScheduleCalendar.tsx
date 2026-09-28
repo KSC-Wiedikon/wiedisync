@@ -140,13 +140,13 @@ export default function TeamScheduleCalendar({ team, hideWhenEmpty = true, varia
     return (
       <div className="mt-8">
         <div
-          className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800"
+          className="rounded-2xl border border-hairline bg-card shadow-card p-4"
           aria-hidden="true"
         >
-          <div className="h-6 w-40 animate-pulse rounded bg-gray-200 dark:bg-gray-700" />
+          <div className="h-6 w-40 animate-pulse rounded bg-stone-200/80 dark:bg-muted" />
           <div className="mt-3 space-y-2">
             {[0, 1, 2].map((i) => (
-              <div key={i} className="h-11 animate-pulse rounded bg-gray-100 dark:bg-gray-700/50" />
+              <div key={i} className="h-11 animate-pulse rounded bg-muted" />
             ))}
           </div>
         </div>
@@ -159,8 +159,8 @@ export default function TeamScheduleCalendar({ team, hideWhenEmpty = true, varia
   if (gamesError) {
     return (
       <div className="mt-8">
-        <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
-          <p className="text-sm text-gray-500 dark:text-gray-400">{t('common:error')}</p>
+        <div className="rounded-2xl border border-hairline bg-card shadow-card p-4">
+          <p className="text-sm text-muted-foreground">{t('common:error')}</p>
           <Button
             type="button"
             onClick={() => { setGamesError(false); setGamesKey(null); setGamesReload((n) => n + 1) }}

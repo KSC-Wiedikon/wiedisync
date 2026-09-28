@@ -24,7 +24,7 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
 const HALL_CHIP_ON = 'border-gold-400 bg-gold-100 text-gold-900 hover:bg-gold-100 hover:text-gold-900 dark:border-gold-400/50 dark:bg-gold-400/20 dark:text-gold-300 dark:hover:bg-gold-400/20 dark:hover:text-gold-300'
-const HALL_CHIP_OFF = 'border-gray-200 bg-gray-50 text-gray-600 hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
+const HALL_CHIP_OFF = 'border-border bg-surface-sunken text-muted-foreground hover:bg-muted'
 
 function getTodayDayIndex(): number {
   const dow = new Date().getDay()
@@ -319,7 +319,7 @@ export default function HallenplanView() {
 
       {/* Hall filter chips — below content, compact */}
       {halls.length > 0 && (
-        <div className="mt-3 border-t border-gray-200 pt-3 dark:border-gray-700">
+        <div className="mt-3 border-t border-border pt-3">
           <div className="flex flex-wrap gap-1.5">
             <Button
               size="sm"

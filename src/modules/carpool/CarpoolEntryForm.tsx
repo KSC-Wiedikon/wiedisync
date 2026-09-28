@@ -67,10 +67,10 @@ export default function CarpoolEntryForm({ kind, direction, defaultDate, initial
   const seatOptions = Array.from({ length: CARPOOL_MAX_SEATS }, (_, i) => i + 1).filter((n) => n >= minSeats)
 
   return (
-    <form onSubmit={submit} className="space-y-3 rounded-lg border border-sky-200 bg-white p-3 dark:border-sky-800 dark:bg-gray-900">
-      <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+    <form onSubmit={submit} className="space-y-3 rounded-xl border border-sky-200 bg-card p-3.5 dark:border-sky-800">
+      <p className="text-sm font-semibold text-foreground">
         {editing ? t(kind === 'offer' ? 'editOffer' : 'editRequest') : t(kind === 'offer' ? 'offerRide' : 'requestRide')}
-        <span className="font-normal text-gray-500 dark:text-gray-400"> · {t(`tab_${direction}`)}</span>
+        <span className="font-normal text-muted-foreground"> · {t(`tab_${direction}`)}</span>
       </p>
 
       {/* The day + clock of this way (Going or Return) — a return can be on
@@ -90,7 +90,7 @@ export default function CarpoolEntryForm({ kind, direction, defaultDate, initial
             id={`${idp}-seats`}
             value={seats}
             onChange={(e) => setSeats(Number(e.target.value))}
-            className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm sm:h-9 dark:bg-gray-800"
+            className="h-11 w-full rounded-lg border border-input bg-card px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-9 dark:bg-gray-800"
           >
             {seatOptions.map((n) => <option key={n} value={n}>{n}</option>)}
           </select>
@@ -100,7 +100,7 @@ export default function CarpoolEntryForm({ kind, direction, defaultDate, initial
       {/* Which of the invited teams this ride is for (offers only). */}
       {kind === 'offer' && teamOptions.length >= 2 && (
         <div className="space-y-1.5">
-          <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{t('forTeams')}</span>
+          <span className="text-sm font-medium text-foreground">{t('forTeams')}</span>
           <p className="text-xs text-muted-foreground">{t('forTeamsHint')}</p>
           <TeamPickerMulti teams={teamOptions} value={teams} onChange={setTeams} placeholder={t('addTeam')} />
         </div>

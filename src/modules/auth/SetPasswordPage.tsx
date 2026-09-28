@@ -201,31 +201,31 @@ export default function SetPasswordPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 dark:bg-gray-900">
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-stone-100 via-stone-50 to-stone-100 p-4 dark:from-background dark:via-background dark:to-card/40">
       <div className="w-full max-w-sm">
-        <div className="mb-8 flex justify-center">
-          <img
-            src={theme === 'light' ? '/wiedisync_blau.png' : '/wiedisync_weiss.png'}
-            alt="KSC Wiedikon"
-            className="h-16 w-auto"
-          />
-        </div>
-
-        <div className="rounded-xl bg-white p-6 shadow-lg sm:p-8 dark:bg-gray-800">
+        <div className="relative w-full overflow-hidden rounded-3xl border border-hairline bg-card p-6 shadow-card-lg sm:p-8">
+          <div aria-hidden="true" className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-brand-600 to-brand-400" />
+          <div className="mb-6 flex justify-center">
+            <img
+              src={theme === 'light' ? '/wiedisync_blau.png' : '/wiedisync_weiss.png'}
+              alt="KSC Wiedikon"
+              className="h-11 w-auto"
+            />
+          </div>
           {phase === 'success' ? (
             <div className="text-center space-y-4">
-              <p className="text-sm text-green-600 dark:text-green-400">{t('resetSuccess')}</p>
-              <Link to="/login" className="inline-block text-sm text-brand-600 hover:text-brand-500 dark:text-brand-400">
+              <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-300">{t('resetSuccess')}</p>
+              <Link to="/login" className="inline-block text-sm text-primary hover:text-primary/80 dark:text-brand-300 dark:hover:text-brand-200">
                 {t('backToLogin')}
               </Link>
             </div>
           ) : (
             <>
-              <h1 className="text-center text-xl font-bold text-gray-900 dark:text-gray-100">
+              <h1 className="text-center text-xl font-bold tracking-tight text-foreground">
                 {phaseTitle[phase]}
               </h1>
               {phaseDescription[phase] && (
-                <p className="mt-1 mb-5 text-center text-sm text-gray-500 dark:text-gray-400">
+                <p className="mt-1 mb-5 text-center text-sm text-muted-foreground">
                   {phaseDescription[phase]}
                 </p>
               )}
@@ -243,9 +243,9 @@ export default function SetPasswordPage() {
                     autoFocus
                   />
 
-                  {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+                  {error && <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">{error}</p>}
 
-                  <Button type="submit" loading={loading} className="w-full">
+                  <Button type="submit" loading={loading} className="h-12 w-full rounded-xl font-semibold shadow-sm shadow-primary/20 sm:h-12">
                     {loading ? t('resetLinkSending') : t('resetLinkButton')}
                   </Button>
 
@@ -256,7 +256,7 @@ export default function SetPasswordPage() {
                     type="button"
                     variant="link"
                     onClick={() => { setError(null); setPhase('email') }}
-                    className="w-full whitespace-normal font-normal text-brand-600 no-underline hover:text-brand-500 hover:no-underline dark:text-brand-400"
+                    className="w-full whitespace-normal font-normal text-primary no-underline hover:text-primary/80 hover:no-underline dark:text-brand-300 dark:hover:text-brand-200"
                   >
                     {t('resetUseCodeInstead')}
                   </Button>
@@ -265,14 +265,14 @@ export default function SetPasswordPage() {
 
               {phase === 'link-sent' && (
                 <div className="space-y-4 text-center">
-                  <p className="text-sm text-gray-600 dark:text-gray-300">
+                  <p className="text-sm text-muted-foreground">
                     {t('resetLinkSentInfo', { email: email.trim().toLowerCase() })}
                   </p>
                   <Button
                     type="button"
                     variant="link"
                     onClick={() => { setError(null); setPhase('email') }}
-                    className="w-full whitespace-normal font-normal text-brand-600 no-underline hover:text-brand-500 hover:no-underline dark:text-brand-400"
+                    className="w-full whitespace-normal font-normal text-primary no-underline hover:text-primary/80 hover:no-underline dark:text-brand-300 dark:hover:text-brand-200"
                   >
                     {t('resetUseCodeInstead')}
                   </Button>
@@ -292,9 +292,9 @@ export default function SetPasswordPage() {
                     autoFocus
                   />
 
-                  {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+                  {error && <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">{error}</p>}
 
-                  <Button type="submit" loading={loading} disabled={!turnstileReady} className="w-full">
+                  <Button type="submit" loading={loading} disabled={!turnstileReady} className="h-12 w-full rounded-xl font-semibold shadow-sm shadow-primary/20 sm:h-12">
                     {loading ? t('sendingOtp') : t('sendOtp')}
                   </Button>
                 </form>
@@ -342,10 +342,10 @@ export default function SetPasswordPage() {
 
                   {/* State the rules up front — they used to be discoverable
                       only by tripping over a 400 that named the wrong cause. */}
-                  <p className="text-xs text-gray-500 dark:text-gray-400">{t('passwordRequirements')}</p>
+                  <p className="text-xs text-muted-foreground">{t('passwordRequirements')}</p>
 
                   {error && (
-                    <div className="text-sm text-red-600 dark:text-red-400">
+                    <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">
                       <p>{error}</p>
                       {noAccount && (
                         <>
@@ -353,9 +353,9 @@ export default function SetPasswordPage() {
                               they typed land here (a personal Gmail vs. the
                               address on file). Signing up would create a
                               duplicate, so offer that second. */}
-                          <p className="mt-2 text-gray-500 dark:text-gray-400">{t('noAccountFoundHint')}</p>
+                          <p className="mt-2 text-muted-foreground">{t('noAccountFoundHint')}</p>
                           <p className="mt-2">
-                            <Link to="/signup" className="font-medium text-brand-600 hover:text-brand-500 dark:text-brand-400">
+                            <Link to="/signup" className="font-medium text-primary hover:text-primary/80 dark:text-brand-300 dark:hover:text-brand-200">
                               {t('signUp')} →
                             </Link>
                           </p>
@@ -364,14 +364,14 @@ export default function SetPasswordPage() {
                     </div>
                   )}
 
-                  <Button type="submit" loading={loading} className="w-full">
+                  <Button type="submit" loading={loading} className="h-12 w-full rounded-xl font-semibold shadow-sm shadow-primary/20 sm:h-12">
                     {loading ? t('resettingPassword') : t('resetPasswordButton')}
                   </Button>
                 </form>
               )}
 
               <div className="mt-4 text-center">
-                <Link to="/login" className="text-sm text-brand-600 hover:text-brand-500 dark:text-brand-400">
+                <Link to="/login" className="text-sm text-primary hover:text-primary/80 dark:text-brand-300 dark:hover:text-brand-200">
                   {t('backToLogin')}
                 </Link>
               </div>

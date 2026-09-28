@@ -247,7 +247,7 @@ export default function SlotEditor({
           </FormField>
           <FormField label={t('team')}>
             <div className="space-y-2">
-              <label className="flex cursor-pointer items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+              <label className="flex cursor-pointer items-center gap-2 text-sm text-foreground/85">
                 <Switch
                   checked={form.team.length === 0}
                   onCheckedChange={(checked) => {
@@ -357,9 +357,9 @@ export default function SlotEditor({
 
         {/* Row 3b: Additional halls (migration 370) */}
         <div className="space-y-2">
-          <div className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('extraHalls')}</div>
+          <div className="text-sm font-medium text-foreground/85">{t('extraHalls')}</div>
           {form.extra_halls.map((e, i) => (
-            <div key={i} className="space-y-2 rounded-md border border-gray-200 p-2 dark:border-gray-700">
+            <div key={i} className="space-y-2 rounded-xl border border-hairline bg-surface-sunken p-2">
               <div className="flex items-center gap-2">
                 <div className="min-w-0 flex-1">
                   <Select value={e.hall} onValueChange={(v) => updateExtraHall(i, { hall: v })}>
@@ -417,14 +417,14 @@ export default function SlotEditor({
         {/* Row 4: Recurring */}
         <div className="flex items-center gap-2">
           <Switch checked={form.recurring} onCheckedChange={(checked) => update('recurring', checked)} />
-          <span className="text-sm text-gray-700 dark:text-gray-300">{t('recurring')}</span>
+          <span className="text-sm text-foreground/85">{t('recurring')}</span>
         </div>
 
         {/* Row 5: Validity dates (only if recurring) */}
         {form.recurring && (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+              <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
                 {t('validFrom')}
               </label>
               <div className="flex items-stretch gap-2">
@@ -435,7 +435,7 @@ export default function SlotEditor({
                     fromYear={new Date().getFullYear()}
                   />
                 </div>
-                <div className={`flex shrink-0 items-center gap-1.5 rounded-md border px-2 text-xs font-medium ${indefinitely ? 'border-brand-500 bg-brand-50 text-brand-700 dark:bg-brand-900/30 dark:text-brand-300 dark:border-brand-600' : 'border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700'}`}>
+                <div className={`flex shrink-0 items-center gap-1.5 rounded-lg border px-2 text-xs font-medium ${indefinitely ? 'border-brand-500 bg-brand-50 text-brand-700 dark:bg-brand-900/30 dark:text-brand-300 dark:border-brand-600' : 'border-input text-foreground/85 hover:bg-accent'}`}>
                   <Switch
                     checked={indefinitely}
                     onCheckedChange={(checked) => {
@@ -460,7 +460,7 @@ export default function SlotEditor({
 
         {/* Row 6: Label — auto-derived by default, custom free-text on demand */}
         <div className="space-y-2">
-          <label className="flex cursor-pointer items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-foreground/85">
             <Switch
               checked={autoLabelMode}
               onCheckedChange={(checked) => {
@@ -470,7 +470,7 @@ export default function SlotEditor({
             />
             <span>{t('autoLabel')}</span>
             {autoLabelMode && (
-              <span title={form.label || undefined} className="ml-2 truncate text-xs italic text-gray-500 dark:text-gray-400">
+              <span title={form.label || undefined} className="ml-2 truncate text-xs italic text-muted-foreground">
                 {form.label || '—'}
               </span>
             )}
@@ -496,7 +496,7 @@ export default function SlotEditor({
 
         {/* Conflict warning */}
         {conflicts.length > 0 && (
-          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/30">
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-900/60 dark:bg-amber-950/40">
             <p className="font-medium text-amber-800 dark:text-amber-300">{t('common:overlapDetected')}</p>
             <ul className="mt-1 list-inside list-disc text-sm text-amber-700 dark:text-amber-400">
               {conflicts.map((c) => (
@@ -511,7 +511,7 @@ export default function SlotEditor({
 
         {/* Error */}
         {error && (
-          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-300">
+          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">
             {error}
           </div>
         )}

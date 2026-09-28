@@ -32,7 +32,7 @@ function statusDot(status: ServiceStatus) {
     case 'ok': return <span className="h-2.5 w-2.5 rounded-full bg-green-500 shadow-sm shadow-green-500/40" />
     case 'warn': return <span className="h-2.5 w-2.5 rounded-full bg-amber-500 shadow-sm shadow-amber-500/40" />
     case 'down': return <span className="h-2.5 w-2.5 rounded-full bg-red-500 shadow-sm shadow-red-500/40" />
-    default: return <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-gray-400" />
+    default: return <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-stone-400 dark:bg-gray-500" />
   }
 }
 
@@ -109,11 +109,11 @@ export default function StatusPage() {
       ? 'border-amber-200 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-900/20'
       : overall === 'down'
         ? 'border-red-200 bg-red-50 dark:border-red-900/50 dark:bg-red-900/20'
-        : 'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800/50'
+        : 'border-hairline bg-surface-sunken'
   const bannerIcon = overall === 'ok'
     ? <CheckCircle2 className="h-8 w-8 text-green-600 dark:text-green-400" />
     : overall === 'loading'
-      ? <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+      ? <Loader2 className="h-8 w-8 animate-spin text-muted-foreground/80" />
       : <AlertTriangle className={`h-8 w-8 ${overall === 'down' ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-400'}`} />
   const bannerTitle = overall === 'ok'
     ? t('statusAllOk')
@@ -129,25 +129,25 @@ export default function StatusPage() {
   return (
     <div className="mx-auto max-w-2xl space-y-4 p-4">
       <div>
-        <h1 className="text-lg font-bold text-gray-900 dark:text-white">{t('statusTitle')}</h1>
+        <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">{t('statusTitle')}</h1>
       </div>
 
-      <div className={`flex items-center gap-4 rounded-lg border p-4 ${bannerClass}`}>
+      <div className={`flex items-center gap-4 rounded-2xl border p-4 ${bannerClass}`}>
         {bannerIcon}
         <div className="min-w-0 flex-1">
-          <p className="text-base font-semibold text-gray-900 dark:text-gray-100">{bannerTitle}</p>
-          <p className="mt-0.5 text-sm text-gray-600 dark:text-gray-400">{bannerSubtitle}</p>
+          <p className="text-base font-semibold text-foreground">{bannerTitle}</p>
+          <p className="mt-0.5 text-sm text-muted-foreground">{bannerSubtitle}</p>
         </div>
       </div>
 
-      <div className="rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800/50">
-        <ul className="divide-y divide-gray-100 dark:divide-gray-700">
+      <div className="overflow-hidden rounded-2xl border border-hairline bg-card shadow-card">
+        <ul className="divide-y divide-border/60">
           {rows.map(row => (
             <li key={row.key} className="flex items-center gap-3 px-4 py-3">
-              <span className="text-gray-400 dark:text-gray-500">{row.icon}</span>
-              <span className="flex-1 text-sm font-medium text-gray-800 dark:text-gray-200">{row.label}</span>
+              <span className="text-muted-foreground/80">{row.icon}</span>
+              <span className="flex-1 text-sm font-medium text-foreground">{row.label}</span>
               {row.detail && (
-                <span className="text-xs text-gray-400 dark:text-gray-500">{row.detail}</span>
+                <span className="text-xs text-muted-foreground/80">{row.detail}</span>
               )}
               {statusDot(row.status)}
             </li>
@@ -156,24 +156,24 @@ export default function StatusPage() {
       </div>
 
       <div className="pt-4">
-        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('recentFixes')}</h2>
+        <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{t('recentFixes')}</h2>
       </div>
 
       {fixesLoading && (
         <div className="p-8 text-center">
-          <Loader2 className="mx-auto h-5 w-5 animate-spin text-gray-400" />
+          <Loader2 className="mx-auto h-5 w-5 animate-spin text-muted-foreground/80" />
         </div>
       )}
 
       {!fixesLoading && fixes.length === 0 && (
-        <div className="rounded-lg border border-gray-200 bg-white p-8 text-center text-sm text-gray-400 dark:border-gray-700 dark:bg-gray-800/50">
+        <div className="rounded-2xl border border-hairline bg-card p-8 text-center shadow-card text-sm text-muted-foreground/80">
           {t('noIssues')}
         </div>
       )}
 
       {fixes.length > 0 && (
         <>
-          <p className="text-xs text-gray-500 dark:text-gray-400">
+          <p className="text-xs text-muted-foreground">
             {t('resolvedThisWeek', { count: resolvedCount })}
           </p>
 
@@ -181,14 +181,14 @@ export default function StatusPage() {
             {fixes.map((item, i) => (
               <div
                 key={i}
-                className="flex items-start gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-800/50"
+                className="flex items-start gap-3 rounded-2xl border border-hairline bg-card px-4 py-3 shadow-card"
               >
                 <span className="mt-0.5 text-base">
                   {item.status === 'deployed_dev' || item.status === 'deployed_prod' ? '\u2705' : '\uD83D\uDD27'}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm text-gray-900 dark:text-gray-100">{item.summary}</p>
-                  <p className="mt-0.5 text-[10px] text-gray-400">{formatDateCompact(item.date)}</p>
+                  <p className="text-sm text-foreground">{item.summary}</p>
+                  <p className="mt-0.5 text-[10px] text-muted-foreground/80">{formatDateCompact(item.date)}</p>
                 </div>
               </div>
             ))}
@@ -197,7 +197,7 @@ export default function StatusPage() {
       )}
 
       {healthLoading && !anyDown && (
-        <p className="text-center text-[10px] text-gray-400">{t('statusChecking')}</p>
+        <p className="text-center text-[10px] text-muted-foreground/80">{t('statusChecking')}</p>
       )}
     </div>
   )

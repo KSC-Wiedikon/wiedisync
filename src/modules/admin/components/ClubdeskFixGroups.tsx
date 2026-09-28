@@ -301,7 +301,7 @@ export default function ClubdeskFixGroups({
               "Step 5 of 5" — that is where you are in the PATH, not where you are
               inside this job, and the two were being confused. */}
           {stage !== 'done' && (
-            <p className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+            <p className="rounded-xl border border-hairline bg-surface-sunken px-3 py-2 text-xs text-muted-foreground">
               <span className="font-medium text-foreground">
                 {stage === 'review' ? t('cdFixStage2Title') : t('cdFixStage1Title')}
               </span>
@@ -313,7 +313,7 @@ export default function ClubdeskFixGroups({
           {/* What to act on. Counts come from the findings already on screen; the
               server recomputes the actual rows, so these are an estimate, not the
               payload. */}
-          <fieldset className="space-y-2 rounded-md border border-border p-3">
+          <fieldset className="space-y-2 rounded-xl border border-hairline p-3">
             <legend className="px-1 text-xs font-medium text-muted-foreground">
               {t('cdFixClassesLegend')}
             </legend>
@@ -336,7 +336,7 @@ export default function ClubdeskFixGroups({
 
           {/* The safety note is not decoration: this dialog writes to the club's
               legal member register. */}
-          <p className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+          <p className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
             {stage === 'review' ? t('cdFixRegisterWarningReview') : t('cdFixRegisterWarning')}
           </p>
@@ -359,7 +359,7 @@ export default function ClubdeskFixGroups({
           )}
 
           {committed && (
-            <p className="flex items-start gap-2 rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200">
+            <p className="flex items-start gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200">
               <Check className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
               <span>
                 {t('cdFixCommitted', { count: okRows.length })}
@@ -383,7 +383,7 @@ export default function ClubdeskFixGroups({
                   </span>
                 )}
               </p>
-              <div className="max-h-72 overflow-y-auto rounded-md border border-border">
+              <div className="max-h-72 overflow-y-auto rounded-xl border border-hairline">
                 <Table>
                   <TableHeader>
                     <TableRow className="hover:bg-transparent">

@@ -21,7 +21,7 @@ export default function ViewToggle({ options, value, onChange }: ViewToggleProps
         value={value}
         onChange={(e) => onChange(e.target.value)}
         aria-label={t('view')}
-        className="h-11 rounded-full border border-gray-200/80 bg-gray-100/80 px-4 text-sm font-semibold text-gray-900 shadow-inner focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-400/60 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 sm:hidden"
+        className="h-11 rounded-lg border border-input bg-card px-3 text-sm font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-gray-800 sm:hidden"
       >
         {options.map((option) => (
           <option key={option.value} value={option.value}>{option.label}</option>
@@ -29,7 +29,7 @@ export default function ViewToggle({ options, value, onChange }: ViewToggleProps
       </select>
 
       {/* Desktop: segmented control */}
-      <div className="hidden items-center gap-0.5 rounded-full border border-gray-200/80 bg-gray-100/80 p-1 shadow-inner sm:inline-flex dark:border-gray-700 dark:bg-gray-800/70">
+      <div className="hidden h-8 items-center gap-0.5 rounded-lg border border-border bg-card p-0.5 sm:inline-flex">
         {options.map((option) => {
           const active = value === option.value
           return (
@@ -39,10 +39,10 @@ export default function ViewToggle({ options, value, onChange }: ViewToggleProps
               onClick={() => onChange(option.value)}
               aria-pressed={active}
               className={cn(
-                'rounded-full px-3.5 py-1.5 text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-400/60',
+                'h-full rounded-md px-2.5 text-xs font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                 active
-                  ? 'bg-gold-400 font-semibold text-brand-950 shadow-sm'
-                  : 'text-gray-500 hover:bg-white hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white',
+                  ? 'bg-selected text-selected-foreground'
+                  : 'text-muted-foreground hover:text-foreground',
               )}
             >
               {option.label}

@@ -32,9 +32,9 @@ export default function CarpoolPage() {
         <ArrowLeft className="h-4 w-4" /> {t('back')}
       </Button>
       <div>
-        <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{t('title')}</h1>
+        <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">{t('title')}</h1>
         {a && (
-          <p className="mt-0.5 text-sm text-gray-600 dark:text-gray-400">
+          <p className="mt-0.5 text-sm text-muted-foreground">
             {type ? (
               <Link to={`/${ACTIVITY_PATH[type]}/${a.id}`} className="hover:underline">
                 {[typeLabel, a.label, a.date ? formatDate(a.date) : null, a.time].filter(Boolean).join(' · ')}
@@ -44,17 +44,17 @@ export default function CarpoolPage() {
         )}
       </div>
       {(!type || !id || isError) && !isLoading && (
-        <p className="rounded-lg border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+        <p className="rounded-2xl border border-dashed border-input p-6 text-center text-sm text-muted-foreground">
           {t('notAvailable')}
         </p>
       )}
       {data && data.in_scope === false && (
-        <p className="rounded-lg border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+        <p className="rounded-2xl border border-dashed border-input p-6 text-center text-sm text-muted-foreground">
           {t('errorNotInScope')}
         </p>
       )}
       {a && data.in_scope !== false && !a.enabled && entryCount(data.data) === 0 && (
-        <p className="rounded-lg border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+        <p className="rounded-2xl border border-dashed border-input p-6 text-center text-sm text-muted-foreground">
           {t('errorDisabled')}
         </p>
       )}

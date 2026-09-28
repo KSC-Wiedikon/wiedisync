@@ -203,10 +203,10 @@ export default function RefereeExpenseSection({ gameId, teamId, canEdit, default
         onClick={() => setOpen((v) => !v)}
         className="flex w-full items-center justify-between"
       >
-        <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+        <h4 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
           {t('refereeExpenses')}
           {existing && !effectiveOpen && (
-            <span className="ml-2 normal-case font-normal text-gray-400 dark:text-gray-500">— {paidByName}</span>
+            <span className="ml-2 normal-case font-normal text-muted-foreground/80">— {paidByName}</span>
           )}
         </h4>
         <div className="flex items-center gap-2">
@@ -216,7 +216,7 @@ export default function RefereeExpenseSection({ gameId, teamId, canEdit, default
               {t('refereeExpensesSaved')}
             </span>
           )}
-          <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform ${effectiveOpen ? 'rotate-180' : ''}`} />
+          <ChevronDown className={`h-4 w-4 text-muted-foreground/80 transition-transform ${effectiveOpen ? 'rotate-180' : ''}`} />
         </div>
       </button>
 
@@ -236,12 +236,12 @@ export default function RefereeExpenseSection({ gameId, teamId, canEdit, default
               value={otherName}
               onChange={(e) => setOtherName(e.target.value)}
               placeholder={t('refereeExpensesOtherName')}
-              className="h-11 w-full rounded-md border border-gray-200 bg-transparent px-3 text-sm sm:h-9 placeholder:text-gray-400 focus:border-brand-400 focus:outline-none dark:border-gray-600 dark:text-gray-100 dark:placeholder:text-gray-500 dark:focus:border-brand-500"
+              className="h-11 w-full rounded-lg border border-input bg-card px-3 text-sm text-foreground sm:h-9 placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary/60 dark:bg-input/20"
             />
           )}
 
           <div>
-            <label className="mb-1.5 block text-sm font-medium">{t('refereeExpensesAmount')}</label>
+            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">{t('refereeExpensesAmount')}</label>
             <input
               type="number"
               min="0"
@@ -249,18 +249,18 @@ export default function RefereeExpenseSection({ gameId, teamId, canEdit, default
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               placeholder="0.00"
-              className="h-11 w-full rounded-md border border-gray-200 bg-transparent px-3 text-sm sm:h-9 placeholder:text-gray-400 focus:border-brand-400 focus:outline-none dark:border-gray-600 dark:text-gray-100 dark:placeholder:text-gray-500 dark:focus:border-brand-500"
+              className="h-11 w-full rounded-lg border border-input bg-card px-3 text-sm text-foreground sm:h-9 placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary/60 dark:bg-input/20"
             />
           </div>
 
           <div>
-            <label className="mb-1.5 block text-sm font-medium">{t('refereeExpensesNotes')}</label>
+            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">{t('refereeExpensesNotes')}</label>
             <input
               type="text"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder={t('refereeExpensesNotes')}
-              className="h-11 w-full rounded-md border border-gray-200 bg-transparent px-3 text-sm sm:h-9 placeholder:text-gray-400 focus:border-brand-400 focus:outline-none dark:border-gray-600 dark:text-gray-100 dark:placeholder:text-gray-500 dark:focus:border-brand-500"
+              className="h-11 w-full rounded-lg border border-input bg-card px-3 text-sm text-foreground sm:h-9 placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary/60 dark:bg-input/20"
             />
           </div>
 
@@ -285,7 +285,7 @@ export default function RefereeExpenseSection({ gameId, teamId, canEdit, default
                     setNotes(existing.notes || '')
                   }
                 }}
-                className="text-gray-500 dark:text-gray-400"
+                className="text-muted-foreground"
               >
                 <X />
               </IconButton>
@@ -295,23 +295,23 @@ export default function RefereeExpenseSection({ gameId, teamId, canEdit, default
       ) : existing ? (
         <div className="space-y-2">
           <div className="flex items-start gap-3 text-sm">
-            <span className="w-28 shrink-0 text-gray-500 dark:text-gray-400">{t('refereeExpensesPaidBy')}</span>
-            <span className="text-gray-900 dark:text-gray-100">{paidByName}</span>
+            <span className="w-28 shrink-0 text-muted-foreground">{t('refereeExpensesPaidBy')}</span>
+            <span className="text-foreground">{paidByName}</span>
           </div>
           {toNum(existing.amount) > 0 && (
             <div className="flex items-start gap-3 text-sm">
-              <span className="w-28 shrink-0 text-gray-500 dark:text-gray-400">{t('refereeExpensesAmount')}</span>
-              <span className="text-gray-900 dark:text-gray-100">{formatChf(existing.amount)}</span>
+              <span className="w-28 shrink-0 text-muted-foreground">{t('refereeExpensesAmount')}</span>
+              <span className="tabular-nums text-foreground">{formatChf(existing.amount)}</span>
             </div>
           )}
           {existing.notes && (
             <div className="flex items-start gap-3 text-sm">
-              <span className="w-28 shrink-0 text-gray-500 dark:text-gray-400">{t('refereeExpensesNotes')}</span>
-              <span className="text-gray-900 dark:text-gray-100">{existing.notes}</span>
+              <span className="w-28 shrink-0 text-muted-foreground">{t('refereeExpensesNotes')}</span>
+              <span className="text-foreground">{existing.notes}</span>
             </div>
           )}
           {reimbursed ? (
-            <p className="text-xs text-gray-500 dark:text-gray-400">{t('refereeExpensesReimbursed')}</p>
+            <p className="text-xs text-muted-foreground">{t('refereeExpensesReimbursed')}</p>
           ) : canEdit && (
             <Button
               variant="outline"
@@ -324,7 +324,7 @@ export default function RefereeExpenseSection({ gameId, teamId, canEdit, default
           )}
         </div>
       ) : (
-        <p className="text-sm text-gray-500 dark:text-gray-400">{t('refereeExpensesNotRecorded')}</p>
+        <p className="text-sm text-muted-foreground">{t('refereeExpensesNotRecorded')}</p>
       )}
     </div>
   )

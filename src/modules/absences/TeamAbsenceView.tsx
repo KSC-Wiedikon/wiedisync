@@ -31,8 +31,8 @@ import { relId, asObj, memberDisplayName } from '../../utils/relations'
 import IconButton from '@/components/IconButton'
 import TruncatedText from '@/components/TruncatedText'
 
-const VIEW_TOGGLE_ON = 'bg-white text-gray-900 shadow-sm hover:bg-white dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-800'
-const VIEW_TOGGLE_OFF = 'text-gray-500 hover:bg-transparent hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+const VIEW_TOGGLE_ON = 'bg-card text-foreground shadow-sm hover:bg-card dark:bg-input dark:hover:bg-input'
+const VIEW_TOGGLE_OFF = 'text-muted-foreground hover:bg-transparent hover:text-foreground/85'
 
 interface TeamAbsenceViewProps {
   teamIds: string[]
@@ -433,7 +433,7 @@ export default function TeamAbsenceView({ teamIds, onEdit, onDelete, canEdit, re
       ? 'text-blue-500'
       : g.kind === 'closure'
         ? 'text-red-500'
-        : 'text-gray-700 dark:text-gray-300'
+        : 'text-foreground/85'
     return (
       <button
         key={`${keyPrefix}:${g.id}`}
@@ -442,12 +442,12 @@ export default function TeamAbsenceView({ teamIds, onEdit, onDelete, canEdit, re
           setDayOverflow(null)
           setSelectedEntry(g.entry)
         }}
-        className="flex w-full items-center gap-3 rounded-lg p-3 text-left transition-colors hover:bg-gray-50 active:bg-gray-100 dark:hover:bg-gray-700 dark:active:bg-gray-600"
+        className="flex w-full items-center gap-3 rounded-lg p-3 text-left transition-colors hover:bg-muted active:bg-muted"
       >
         <Icon className={`h-4 w-4 shrink-0 ${iconClass}`} strokeWidth={2.5} {...(g.kind === 'event' ? { fill: 'currentColor' } : {})} />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
-            <p className="min-w-0 break-words text-sm font-medium text-gray-900 dark:text-gray-100">
+            <p className="min-w-0 break-words text-sm font-medium text-foreground">
               {g.name || t('common:unknown')}
             </p>
             {g.kind === 'absence'
@@ -458,7 +458,7 @@ export default function TeamAbsenceView({ teamIds, onEdit, onDelete, canEdit, re
               </span>
             )}
           </div>
-          {g.detail && <TruncatedText as="p" text={g.detail} className="text-xs text-gray-500 dark:text-gray-400" />}
+          {g.detail && <TruncatedText as="p" text={g.detail} className="text-xs text-muted-foreground" />}
         </div>
       </button>
     )
@@ -483,7 +483,7 @@ export default function TeamAbsenceView({ teamIds, onEdit, onDelete, canEdit, re
           />
         </div>
         {/* View toggle */}
-        <div className="ml-auto flex shrink-0 gap-1 rounded-lg bg-gray-100 p-1 dark:bg-gray-700">
+        <div className="ml-auto flex shrink-0 gap-1 rounded-lg bg-muted p-1">
           <IconButton
             size="sm"
             label={t('common:list')}
@@ -508,13 +508,13 @@ export default function TeamAbsenceView({ teamIds, onEdit, onDelete, canEdit, re
       <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
         <div className="flex items-center gap-2">
           <Switch id="abs-hide-unavailabilities" checked={hideUnavailabilities} onCheckedChange={setHideUnavailabilities} />
-          <label htmlFor="abs-hide-unavailabilities" className="cursor-pointer text-sm font-medium text-gray-700 dark:text-gray-300">
+          <label htmlFor="abs-hide-unavailabilities" className="cursor-pointer text-sm font-medium text-foreground/85">
             {t('hideUnavailabilities')}
           </label>
         </div>
         <div className="flex items-center gap-2">
           <Switch id="abs-hide-nonblocking" checked={hideNonBlocking} onCheckedChange={setHideNonBlocking} />
-          <label htmlFor="abs-hide-nonblocking" className="cursor-pointer text-sm font-medium text-gray-700 dark:text-gray-300">
+          <label htmlFor="abs-hide-nonblocking" className="cursor-pointer text-sm font-medium text-foreground/85">
             {t('hideNonBlocking')}
           </label>
         </div>
@@ -523,19 +523,19 @@ export default function TeamAbsenceView({ teamIds, onEdit, onDelete, canEdit, re
 
       {/* ── Team blocks (coach/TR only) — hard scheduling blackouts ── */}
       {showBlockManager && (
-        <div className="mb-4 rounded-lg border border-red-200 bg-red-50/40 p-3 dark:border-red-900/40 dark:bg-red-950/20">
+        <div className="mb-4 rounded-xl border border-red-200 bg-red-50/40 p-3 dark:border-red-900/40 dark:bg-red-950/20">
           <div className="mb-1.5 flex items-center justify-between gap-2">
             <div className="flex min-w-0 items-center gap-2">
               <Ban className="h-4 w-4 shrink-0 text-red-600 dark:text-red-400" />
-              <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200">{t('teamBlocks')}</h3>
+              <h3 className="text-sm font-semibold text-foreground">{t('teamBlocks')}</h3>
             </div>
             <Button size="sm" variant="outline" icon={<Plus />} className="shrink-0" onClick={() => setBlockModalOpen(true)}>
               {t('addTeamBlock')}
             </Button>
           </div>
-          <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">{t('teamBlocksHint')}</p>
+          <p className="mb-2 text-xs text-muted-foreground">{t('teamBlocksHint')}</p>
           {upcomingBlocks.length === 0 ? (
-            <p className="text-sm text-gray-500 dark:text-gray-400">{t('noTeamBlocks')}</p>
+            <p className="text-sm text-muted-foreground">{t('noTeamBlocks')}</p>
           ) : (
             <ul className="space-y-1.5">
               {upcomingBlocks.map((b) => {
@@ -544,16 +544,16 @@ export default function TeamAbsenceView({ teamIds, onEdit, onDelete, canEdit, re
                   ? formatDateZurich(b.start_date)
                   : `${formatDateZurich(b.start_date)} – ${formatDateZurich(b.end_date)}`
                 return (
-                  <li key={b.id} className="flex items-center gap-2 rounded-md bg-white px-2.5 py-1.5 text-sm dark:bg-gray-800">
+                  <li key={b.id} className="flex items-center gap-2 rounded-md bg-card px-2.5 py-1.5 text-sm">
                     {tm?.name && <TeamChip team={teamNameToColorKey(tm.name, tm.sport)} label={tm.name} size="xs" />}
-                    <span className="shrink-0 font-medium text-gray-700 dark:text-gray-200">{range}</span>
-                    {b.reason && <TruncatedText text={`— ${b.reason}`} className="text-gray-500 dark:text-gray-400" />}
+                    <span className="shrink-0 font-medium text-foreground/85">{range}</span>
+                    {b.reason && <TruncatedText text={`— ${b.reason}`} className="text-muted-foreground" />}
                     <IconButton
                       size="sm"
                       type="button"
                       onClick={() => setDeletingBlockId(String(b.id))}
                       label={t('common:delete')}
-                      className="ml-auto shrink-0 text-gray-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400"
+                      className="ml-auto shrink-0 text-muted-foreground/80 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400"
                     >
                       <Trash2 />
                     </IconButton>
@@ -574,14 +574,14 @@ export default function TeamAbsenceView({ teamIds, onEdit, onDelete, canEdit, re
             description={t('noTeamAbsencesDescription')}
           />
         ) : (
-          <div className="rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+          <div className="overflow-hidden rounded-2xl border border-hairline bg-card shadow-card">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="text-gray-500 dark:text-gray-400">{t('colMember')}</TableHead>
-                  <TableHead className="text-gray-500 dark:text-gray-400">{t('colReason')}</TableHead>
-                  <TableHead className="hidden md:table-cell text-gray-500 dark:text-gray-400">{t('colWhen')}</TableHead>
-                  <TableHead className="hidden sm:table-cell text-gray-500 dark:text-gray-400">{t('colAffects')}</TableHead>
+                  <TableHead className="text-muted-foreground">{t('colMember')}</TableHead>
+                  <TableHead className="text-muted-foreground">{t('colReason')}</TableHead>
+                  <TableHead className="hidden md:table-cell text-muted-foreground">{t('colWhen')}</TableHead>
+                  <TableHead className="hidden sm:table-cell text-muted-foreground">{t('colAffects')}</TableHead>
                   <TableHead className="w-32 text-right" />
                 </TableRow>
               </TableHeader>

@@ -24,7 +24,7 @@ import { RAIL_WIDTH, ROW_TONE_STRIPE, ROW_TONE_TEXT, type RowTone } from './acti
 
 /** A list of rows. Owns the hairlines between them. */
 export function RowList({ className, children }: { className?: string; children: ReactNode }) {
-  return <div className={cn('divide-y divide-gray-200 dark:divide-gray-700/70', className)}>{children}</div>
+  return <div className={cn('divide-y divide-border', className)}>{children}</div>
 }
 
 /** Fixed-width, right-aligned left column: weekday / main line / sub lines. */
@@ -44,10 +44,10 @@ export function DateRail({
 }) {
   return (
     <div className={cn(RAIL_WIDTH, 'shrink-0 text-right leading-tight', className)}>
-      {eyebrow && <div className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">{eyebrow}</div>}
+      {eyebrow && <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/80">{eyebrow}</div>}
       <div className={cn('text-sm font-bold tabular-nums tracking-tight sm:text-[15px]', ROW_TONE_TEXT[tone])}>{main}</div>
-      {sub && <div className="text-[11px] tabular-nums text-gray-500 dark:text-gray-400">{sub}</div>}
-      {extra && <div className="mt-0.5 break-words text-[10.5px] font-medium leading-snug text-gray-500 dark:text-gray-400 sm:text-[11px]">{extra}</div>}
+      {sub && <div className="text-[11px] tabular-nums text-muted-foreground">{sub}</div>}
+      {extra && <div className="mt-0.5 break-words text-[10.5px] font-medium leading-snug text-muted-foreground sm:text-[11px]">{extra}</div>}
     </div>
   )
 }
@@ -102,7 +102,7 @@ export function ActivityRow({
         onKeyDown={interactive ? onKeyDown : undefined}
         className={cn(
           'flex min-w-0 flex-1 basis-0 items-stretch gap-2.5 px-1.5 py-2.5 text-left sm:gap-3 sm:px-2',
-          interactive && 'cursor-pointer rounded-md transition-colors hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:hover:bg-gray-800/60',
+          interactive && 'cursor-pointer rounded-md transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:hover:bg-white/5',
         )}
       >
         {rail}
@@ -149,8 +149,8 @@ export function TeamPair({
   emphasis?: 'home' | 'away' | 'both'
   className?: string
 }) {
-  const strong = 'font-semibold text-gray-900 dark:text-gray-100'
-  const weak = 'text-gray-600 dark:text-gray-400'
+  const strong = 'font-semibold text-foreground'
+  const weak = 'text-muted-foreground'
   const hasAside = homeAside != null || awayAside != null
   return (
     <div className={cn('grid min-w-0 items-baseline gap-x-2', hasAside ? 'grid-cols-[minmax(0,1fr)_auto]' : 'grid-cols-1', className)}>
@@ -165,14 +165,14 @@ export function TeamPair({
 export type ChipTone = 'gray' | 'brand' | 'green' | 'amber' | 'red' | 'sky' | 'violet' | 'solid'
 
 const CHIP_TONE: Record<ChipTone, string> = {
-  gray: 'border-gray-200 bg-gray-50 text-gray-700 dark:border-gray-700 dark:bg-gray-800/60 dark:text-gray-300',
-  brand: 'border-brand-200 bg-brand-50 text-brand-800 dark:border-brand-800 dark:bg-brand-950/50 dark:text-brand-200',
-  green: 'border-green-200 bg-green-50 text-green-800 dark:border-green-800 dark:bg-green-950/50 dark:text-green-300',
-  amber: 'border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300',
+  gray: 'border-border bg-surface-sunken text-muted-foreground',
+  brand: 'border-brand-200 bg-brand-50 text-brand-700 dark:border-brand-800 dark:bg-brand-950/50 dark:text-brand-200',
+  green: 'border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-950/50 dark:text-green-300',
+  amber: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300',
   red: 'border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300',
-  sky: 'border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-800 dark:bg-sky-950/60 dark:text-sky-200',
-  violet: 'border-violet-200 bg-violet-50 text-violet-800 dark:border-violet-800 dark:bg-violet-950/50 dark:text-violet-200',
-  solid: 'border-gray-900 bg-gray-900 text-white dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900',
+  sky: 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-800 dark:bg-sky-950/60 dark:text-sky-200',
+  violet: 'border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-800 dark:bg-violet-950/50 dark:text-violet-200',
+  solid: 'border-selected bg-selected text-selected-foreground',
 }
 
 /**
@@ -212,14 +212,14 @@ export function SectionHead({
   as?: 'h2' | 'h3' | 'h4'
 }) {
   return (
-    <div className={cn('flex items-center justify-between gap-2 border-b-[1.5px] border-gray-800 pb-1.5 dark:border-gray-300', className)}>
-      <Tag className="flex min-w-0 items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-gray-800 dark:text-gray-200 [&_svg]:size-3.5 [&_svg]:shrink-0">
+    <div className={cn('flex items-center justify-between gap-2 border-b-[1.5px] border-foreground/85 pb-1.5', className)}>
+      <Tag className="flex min-w-0 items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-foreground [&_svg]:size-3.5 [&_svg]:shrink-0">
         {icon}
         <span className="min-w-0 break-words">{title}</span>
       </Tag>
       {(count != null || right) && (
         <span className="flex shrink-0 items-center gap-2">
-          {count != null && <span className="text-[11px] font-semibold tabular-nums text-gray-500 dark:text-gray-400">{count}</span>}
+          {count != null && <span className="text-[11px] font-semibold tabular-nums text-muted-foreground">{count}</span>}
           {right}
         </span>
       )}

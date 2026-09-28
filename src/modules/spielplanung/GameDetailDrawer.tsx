@@ -245,7 +245,7 @@ export default function GameDetailDrawer({
               type="button"
               onClick={() => setConfirmingDelete(true)}
               variant="outline"
-              className="border-red-300 text-red-600 hover:bg-red-50 hover:text-red-600 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950 dark:hover:text-red-400"
+              className="border-red-300 text-red-600 hover:bg-red-50 hover:text-red-600 dark:border-red-900/60 dark:text-red-400 dark:hover:bg-red-950/40 dark:hover:text-red-400"
             >
               <Trash2 className="h-4 w-4" aria-hidden />
               {t('spielplanung:drawer.delete', 'Delete')}

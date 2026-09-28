@@ -141,10 +141,10 @@ export default function TeamsPage() {
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold text-gray-900 sm:text-2xl dark:text-gray-100">{t('title')}</h1>
+            <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">{t('title')}</h1>
             <GuideHelpButton />
           </div>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t('subtitleSeason', { season })}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{t('subtitleSeason', { season })}</p>
         </div>
         {!hasElevatedAccess && (
           <Button variant="outline" size="sm" onClick={() => setJoinOpen(true)} className="shrink-0">
@@ -157,7 +157,7 @@ export default function TeamsPage() {
       {vbTeams.length > 0 && (
         <>
           {bbTeams.length > 0 && (
-            <h2 className="mt-6 text-lg font-semibold text-gray-900 dark:text-gray-100">Volleyball</h2>
+            <h2 className="mt-6 text-lg font-semibold tracking-tight text-foreground">Volleyball</h2>
           )}
           <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {vbTeams.map((team) => (
@@ -169,7 +169,7 @@ export default function TeamsPage() {
 
       {bbTeams.length > 0 && (
         <>
-          <h2 className="mt-8 text-lg font-semibold text-gray-900 dark:text-gray-100">Basketball</h2>
+          <h2 className="mt-8 text-lg font-semibold tracking-tight text-foreground">Basketball</h2>
           <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {bbTeams.map((team) => (
               <TeamCard key={team.id} team={team} playerCount={playersByTeam[team.id] ?? 0} guestCount={guestsByTeam[team.id] ?? 0} />
