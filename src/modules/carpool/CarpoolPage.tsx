@@ -4,6 +4,7 @@ import { ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { formatDate } from '../../utils/dateHelpers'
 import { useCarpoolBoard, type CarpoolActivityType } from './carpoolApi'
+import { entryCount } from './carpoolFormat'
 import CarpoolPanel from './CarpoolPanel'
 
 const TYPES: CarpoolActivityType[] = ['game', 'training', 'event']
@@ -52,7 +53,7 @@ export default function CarpoolPage() {
           {t('errorNotInScope')}
         </p>
       )}
-      {a && data.in_scope !== false && !a.enabled && data.data.offers.length + data.data.requests.length === 0 && (
+      {a && data.in_scope !== false && !a.enabled && entryCount(data.data) === 0 && (
         <p className="rounded-lg border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
           {t('errorDisabled')}
         </p>

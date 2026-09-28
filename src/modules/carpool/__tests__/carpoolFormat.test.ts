@@ -1,22 +1,22 @@
 import { describe, it, expect } from 'vitest'
-import type { CarpoolBoard, CarpoolOffer, CarpoolRequest } from '../carpoolApi'
-import { canJoin, canOffer, canRequest, canTake, inCarpoolScope, myRole, seatsINeed } from '../carpoolFormat'
+import type { CarpoolLeg, CarpoolOffer, CarpoolRequest } from '../carpoolApi'
+import { canJoin, canOffer, canRequest, canTake, entryCount, inCarpoolScope, myRole, seatsINeed } from '../carpoolFormat'
 
 const person = (id: number) => ({ id, first_name: `F${id}`, last_name: `L${id}`, nickname: null })
 
 function offer(id: number, driver: number, seats: number, taken: number, extra: Partial<CarpoolOffer> = {}): CarpoolOffer {
   return {
-    id, kind: 'offer', member: person(driver), direction: 'both', seats, departure_time: '16:45', return_time: null, teams: [], departure_location: 'HB',
+    id, kind: 'offer', member: person(driver), direction: 'there', seats, departure_date: '2026-10-03', departure_time: '16:45', teams: [], departure_location: 'HB',
     notes: null, mine: false, seats_taken: taken, seats_free: seats - taken, i_am_passenger: false, passengers: [], ...extra,
   }
 }
 function request(id: number, who: number, seats: number, extra: Partial<CarpoolRequest> = {}): CarpoolRequest {
   return {
-    id, kind: 'request', member: person(who), direction: 'there', seats, departure_time: null, return_time: null, teams: [], departure_location: null,
+    id, kind: 'request', member: person(who), direction: 'there', seats, departure_date: null, departure_time: null, teams: [], departure_location: null,
     notes: null, mine: false, covered: false, covered_by: [], ...extra,
   }
 }
-function board(offers: CarpoolOffer[], requests: CarpoolRequest[]): CarpoolBoard {
+function board(offers: CarpoolOffer[], requests: CarpoolRequest[]): CarpoolLeg {
   return {
     offers, requests,
     totals: { offers: offers.length, seats_free: offers.reduce((s, o) => s + o.seats_free, 0), requests_open: requests.filter((r) => !r.covered).length },
@@ -70,6 +70,20 @@ describe('car pooling viewer rules', () => {
     expect(canRequest(b, true)).toBe(false)
     expect(canJoin(b, b.offers[0], true)).toBe(false)
     expect(canJoin(b, b.offers[1], true)).toBe(true) // may still switch cars
+  })
+})
+
+describe('Going + Return (migration 393)', () => {
+  it('the role and ride count span both legs', () => {
+    const there = board([], [])
+    const back = board([offer(1, 5, 2, 0, { mine: true, direction: 'back' })], [request(2, 11, 1, { direction: 'back' })])
+    const pool = { there, back, totals: { offers: 1, seats_free: 2, requests_open: 1 } }
+    expect(myRole(pool)).toBe('driver')
+    expect(myRole(there)).toBeNull()
+    expect(entryCount(pool)).toBe(2)
+    // Driving back does not stop me from riding or asking on the way there.
+    expect(canRequest(there, true)).toBe(true)
+    expect(canOffer(there, true)).toBe(true)
   })
 })
 

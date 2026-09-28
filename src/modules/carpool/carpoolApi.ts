@@ -12,7 +12,8 @@ import { useAuth } from '../../hooks/useAuth'
 
 export type CarpoolActivityType = 'game' | 'training' | 'event'
 export type CarpoolKind = 'offer' | 'request'
-export type CarpoolDirection = 'there' | 'back' | 'both'
+/** One way per ride (migration 393): the Going board or the Return board. */
+export type CarpoolDirection = 'there' | 'back'
 
 export interface CarpoolPerson {
   id: number
@@ -27,9 +28,9 @@ interface CarpoolEntryBase {
   member: CarpoolPerson
   direction: CarpoolDirection
   seats: number
+  /** YYYY-MM-DD (migration 393). */
+  departure_date: string | null
   departure_time: string | null
-  /** Way back, for a there-and-back ride (migration 380). */
-  return_time: string | null
   /** Offer only: team ids the ride is for (migration 380). Empty = all. */
   teams: number[]
   departure_location: string | null
@@ -51,11 +52,21 @@ export interface CarpoolRequest extends CarpoolEntryBase {
   covered_by: CarpoolPerson[]
 }
 
-export interface CarpoolBoard {
+export interface CarpoolTotals { offers: number; seats_free: number; requests_open: number }
+
+/** One way's board — Going (`there`) or Return (`back`). */
+export interface CarpoolLeg {
   offers: CarpoolOffer[]
   requests: CarpoolRequest[]
-  totals: { offers: number; seats_free: number; requests_open: number }
+  totals: CarpoolTotals
   mine: { offer: number | null; request: number | null; riding_in: number[] }
+}
+
+/** Two separate car pools per activity (migration 393); `totals` sums both. */
+export interface CarpoolBoard {
+  there: CarpoolLeg
+  back: CarpoolLeg
+  totals: CarpoolTotals
 }
 
 export interface CarpoolActivityInfo {
@@ -64,6 +75,8 @@ export interface CarpoolActivityInfo {
   label: string
   team: string | null
   date: string | null
+  /** Last day (multi-day events; else = date) — the Return board's default day. */
+  last_date?: string | null
   time: string | null
   enabled: boolean
   cancelled: boolean
@@ -96,8 +109,8 @@ export interface CarpoolEntryInput {
   kind?: CarpoolKind
   direction: CarpoolDirection
   seats: number
+  departure_date: string | null
   departure_time: string | null
-  return_time?: string | null
   teams?: number[]
   departure_location: string | null
   notes: string | null
@@ -180,4 +193,5 @@ export const CARPOOL_ERROR_KEYS: Record<string, string> = {
   carpool_not_in_scope: 'errorNotInScope',
   carpool_offer_other_teams: 'errorOfferOtherTeams',
   carpool_invalid_teams: 'errorInvalidTeams',
+  carpool_invalid_date: 'errorInvalidDate',
 }

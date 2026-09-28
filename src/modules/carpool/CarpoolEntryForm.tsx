@@ -4,12 +4,17 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import DatePicker from '@/components/ui/DatePicker'
 import { TeamPickerMulti, type TeamPickerOption } from '@/components/ui/TeamPicker'
 import type { CarpoolDirection, CarpoolEntryInput, CarpoolKind } from './carpoolApi'
-import { CARPOOL_DIRECTIONS, CARPOOL_MAX_SEATS } from './carpoolFormat'
+import { CARPOOL_MAX_SEATS } from './carpoolFormat'
 
 interface CarpoolEntryFormProps {
   kind: CarpoolKind
+  /** The board the ride goes on — Going or Return (migration 393). Fixed. */
+  direction: CarpoolDirection
+  /** Pre-fill for a new ride's day: the activity's first (Going) or last (Return) day. */
+  defaultDate?: string | null
   /** Present when editing an existing entry. */
   initial?: Partial<CarpoolEntryInput>
   /** Pre-fill for a new offer's time (e.g. the activity's meeting time). */
@@ -27,19 +32,18 @@ interface CarpoolEntryFormProps {
  * dialog: the banner itself lives inside the game/training/event modals, and a
  * dialog on top of those fights their focus traps.
  */
-export default function CarpoolEntryForm({ kind, initial, suggestedTime, minSeats = 1, teamOptions = [], onSubmit, onCancel }: CarpoolEntryFormProps) {
+export default function CarpoolEntryForm({ kind, direction, defaultDate, initial, suggestedTime, minSeats = 1, teamOptions = [], onSubmit, onCancel }: CarpoolEntryFormProps) {
   const { t } = useTranslation('carpool')
   const { t: tc } = useTranslation('common')
   const editing = !!initial
-  const [direction, setDirection] = useState<CarpoolDirection>(initial?.direction ?? 'both')
   const [seats, setSeats] = useState<number>(initial?.seats ?? (kind === 'offer' ? 3 : 1))
-  const [time, setTime] = useState<string>(initial?.departure_time ?? suggestedTime ?? '')
-  const [returnTime, setReturnTime] = useState<string>(initial?.return_time ?? '')
+  const [date, setDate] = useState<string>(initial?.departure_date ?? defaultDate ?? '')
+  const [time, setTime] = useState<string>(initial?.departure_time ?? (editing ? '' : suggestedTime ?? ''))
   const [teams, setTeams] = useState<string[]>((initial?.teams ?? []).map(String))
   const [location, setLocation] = useState<string>(initial?.departure_location ?? '')
   const [notes, setNotes] = useState<string>(initial?.notes ?? '')
   const [saving, setSaving] = useState(false)
-  const idp = `carpool-${kind}`
+  const idp = `carpool-${kind}-${direction}`
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -49,8 +53,8 @@ export default function CarpoolEntryForm({ kind, initial, suggestedTime, minSeat
       await onSubmit({
         direction,
         seats,
+        departure_date: date || null,
         departure_time: time || null,
-        return_time: direction === 'both' ? (returnTime || null) : null,
         teams: kind === 'offer' ? teams.filter((id) => teamOptions.some((o) => o.id === id)).map(Number) : [],
         departure_location: location.trim() || null,
         notes: notes.trim() || null,
@@ -66,28 +70,16 @@ export default function CarpoolEntryForm({ kind, initial, suggestedTime, minSeat
     <form onSubmit={submit} className="space-y-3 rounded-lg border border-sky-200 bg-white p-3 dark:border-sky-800 dark:bg-gray-900">
       <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
         {editing ? t(kind === 'offer' ? 'editOffer' : 'editRequest') : t(kind === 'offer' ? 'offerRide' : 'requestRide')}
+        <span className="font-normal text-gray-500 dark:text-gray-400"> · {t(`tab_${direction}`)}</span>
       </p>
 
-      <div className="space-y-1.5">
-        <span className="text-xs font-medium text-gray-600 dark:text-gray-400">{t('directionLabel')}</span>
-        <div role="radiogroup" aria-label={t('directionLabel')} className="grid grid-cols-3 gap-1.5">
-          {CARPOOL_DIRECTIONS.map((d) => (
-            <Button
-              key={d}
-              type="button"
-              role="radio"
-              aria-checked={direction === d}
-              variant="outline"
-              onClick={() => setDirection(d)}
-              className={`px-2 ${
-                direction === d
-                  ? 'border-sky-600 bg-sky-600 text-white hover:bg-sky-600 hover:text-white dark:border-sky-500 dark:bg-sky-600'
-                  : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700'
-              }`}
-            >
-              {t(`direction_${d}`)}
-            </Button>
-          ))}
+      {/* The day + clock of this way (Going or Return) — a return can be on
+          another day than the way there (multi-day events). */}
+      <div className="grid grid-cols-2 gap-3">
+        <DatePicker id={`${idp}-date`} label={t('departureDate')} value={date} onChange={setDate} />
+        <div className="space-y-1.5">
+          <Label htmlFor={`${idp}-time`}>{t('departureTime')}</Label>
+          <Input id={`${idp}-time`} type="time" step={300} value={time} onChange={(e) => setTime(e.target.value)} />
         </div>
       </div>
 
@@ -103,22 +95,7 @@ export default function CarpoolEntryForm({ kind, initial, suggestedTime, minSeat
             {seatOptions.map((n) => <option key={n} value={n}>{n}</option>)}
           </select>
         </div>
-        <div className="space-y-1.5">
-          <Label htmlFor={`${idp}-time`}>{t(direction === 'both' ? 'departureThere' : direction === 'back' ? 'departureBack' : 'departureTime')}</Label>
-          <Input id={`${idp}-time`} type="time" step={300} value={time} onChange={(e) => setTime(e.target.value)} />
-        </div>
       </div>
-
-      {/* There & back: the way home gets its own clock — people may leave at
-          different times (per-day participation). */}
-      {direction === 'both' && (
-        <div className="grid grid-cols-2 gap-3">
-          <div className="col-start-2 space-y-1.5">
-            <Label htmlFor={`${idp}-return`}>{t('departureBack')}</Label>
-            <Input id={`${idp}-return`} type="time" step={300} value={returnTime} onChange={(e) => setReturnTime(e.target.value)} />
-          </div>
-        </div>
-      )}
 
       {/* Which of the invited teams this ride is for (offers only). */}
       {kind === 'offer' && teamOptions.length >= 2 && (

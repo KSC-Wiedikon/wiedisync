@@ -40,8 +40,14 @@
  * PER-OFFER TEAMS + RETURN TIME (migration 380): a driver can offer a ride to
  * some of the invited teams only (`carpools.teams`, empty = all). Such an offer
  * is hidden from members outside those teams (unless they sit in it) and a
- * join / take across teams is refused. A there-and-back ride carries its own
- * `return_time` for the way home.
+ * join / take across teams is refused.
+ *
+ * GOING + RETURN (migration 393): every ride is for ONE way — `direction`
+ * 'there' (the Going board) or 'back' (the Return board) — with its own
+ * departure date + time and its own passengers. A driver doing both ways posts
+ * two rides. Direction is immutable (a PATCH cannot move a car and its
+ * passengers to the other board); a driver takes a request only into their car
+ * for the same way, and a request is covered per way.
  *
  * New entries and seats need `carpool_enabled` and an activity that is neither
  * cancelled nor over; withdrawing and leaving are always allowed, so switching
@@ -73,7 +79,9 @@ export const ACTIVITY = {
 }
 
 export const KINDS = ['offer', 'request']
-export const DIRECTIONS = ['there', 'back', 'both']
+export const DIRECTIONS = ['there', 'back']
+/** Days a ride may leave before the activity's first / after its last day. */
+export const DATE_SLACK_DAYS = 7
 export const MAX_SEATS = 8
 const MAX_LOCATION = 200
 const MAX_NOTES = 500
@@ -87,6 +95,37 @@ export function normalizeTime(raw) {
   const s = String(raw ?? '').trim()
   const m = /^([01]\d|2[0-3]):([0-5]\d)(?::[0-5]\d)?$/.exec(s)
   return m ? `${m[1]}:${m[2]}` : null
+}
+
+/** 'YYYY-MM-DD' (a real calendar day) → itself, else null. */
+export function normalizeDate(raw) {
+  const s = String(raw ?? '').trim().slice(0, 10)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null
+  const d = new Date(`${s}T12:00:00Z`)
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s ? s : null
+}
+
+const addDays = (ymdStr, n) => new Date(Date.parse(`${ymdStr}T12:00:00Z`) + n * 86400000).toISOString().slice(0, 10)
+
+/**
+ * The departure day a ride gets when none is sent: Going leaves on the
+ * activity's first day, Return on its last.
+ */
+export function defaultRideDate(info, direction) {
+  return (direction === 'back' ? info.last_date || info.date : info.date) ?? null
+}
+
+/**
+ * Is `date` a sensible day for this way? Going: not after the activity's last
+ * day, at most DATE_SLACK_DAYS before its first. Return: not before its first
+ * day, at most DATE_SLACK_DAYS after its last.
+ */
+export function rideDateAllowed(info, direction, date) {
+  if (!date || !info.date) return true
+  const first = info.date
+  const last = info.last_date || first
+  if (direction === 'back') return date >= first && date <= addDays(last, DATE_SLACK_DAYS)
+  return date <= last && date >= addDays(first, -DATE_SLACK_DAYS)
 }
 
 function seatsParam(raw, field = 'seats') {
@@ -105,7 +144,8 @@ function optionalText(raw, max) {
 
 /**
  * Validate an offer/request body. `partial` (PATCH) validates only the keys
- * present and never accepts `kind` — an offer does not turn into a request.
+ * present and never accepts `kind` or `direction` — an offer does not turn into
+ * a request, and a Going ride does not move to the Return board.
  */
 export function parseEntryInput(body, { partial = false } = {}) {
   const b = body && typeof body === 'object' ? body : {}
@@ -114,9 +154,9 @@ export function parseEntryInput(body, { partial = false } = {}) {
     if (!KINDS.includes(b.kind)) throw httpError(400, 'kind must be offer or request', 'invalid_kind')
     out.kind = b.kind
   }
-  if (!partial || 'direction' in b) {
-    const d = b.direction ?? 'both'
-    if (!DIRECTIONS.includes(d)) throw httpError(400, 'direction must be there, back or both', 'invalid_direction')
+  if (!partial) {
+    const d = b.direction ?? 'there'
+    if (!DIRECTIONS.includes(d)) throw httpError(400, 'direction must be there or back', 'invalid_direction')
     out.direction = d
   }
   if (!partial || 'seats' in b) out.seats = seatsParam(b.seats ?? 1)
@@ -128,16 +168,14 @@ export function parseEntryInput(body, { partial = false } = {}) {
       out.departure_time = t
     }
   }
-  if (!partial || 'return_time' in b) {
-    if (b.return_time == null || b.return_time === '') out.return_time = null
+  if (!partial || 'departure_date' in b) {
+    if (b.departure_date == null || b.departure_date === '') out.departure_date = null
     else {
-      const t = normalizeTime(b.return_time)
-      if (!t) throw httpError(400, 'return_time must be HH:MM', 'invalid_time')
-      out.return_time = t
+      const d = normalizeDate(b.departure_date)
+      if (!d) throw httpError(400, 'departure_date must be YYYY-MM-DD', 'invalid_date')
+      out.departure_date = d
     }
   }
-  // A return time only means something on a there-and-back ride.
-  if (out.direction && out.direction !== 'both') out.return_time = null
   if (!partial || 'teams' in b) {
     const teams = parseScope(b.teams)
     out.teams = teams.length ? JSON.stringify(teams) : null
@@ -242,6 +280,7 @@ export function describeActivity(type, row, { teamName = null, today = zurichTod
     label,
     team: teamName,
     date,
+    last_date: lastDate,
     time,
     enabled: row.carpool_enabled === true,
     scope: parseScope(row.carpool_teams),
@@ -252,14 +291,32 @@ export function describeActivity(type, row, { teamName = null, today = zurichTod
 }
 
 /**
- * Build the board from raw rows. Pure — unit-tested.
+ * Build the board from raw rows: one leg per way (393). Pure — unit-tested.
+ * `totals` sums both legs, for the banner.
+ */
+export function buildBoard(entries, passengers, me, opts = {}) {
+  const there = buildLeg(entries.filter((e) => e.direction !== 'back'), passengers, me, opts)
+  const back = buildLeg(entries.filter((e) => e.direction === 'back'), passengers, me, opts)
+  return {
+    there,
+    back,
+    totals: {
+      offers: there.totals.offers + back.totals.offers,
+      seats_free: there.totals.seats_free + back.totals.seats_free,
+      requests_open: there.totals.requests_open + back.totals.requests_open,
+    },
+  }
+}
+
+/**
+ * One way's board (Going or Return) from raw rows. Pure — unit-tested.
  *   entries:    carpools rows joined with the member's name
  *   passengers: carpool_passengers rows joined with the passenger's name
  *   me:         the acting member id (or null)
  * Offers carry seats_taken / seats_free / passengers; a request is `covered`
  * once its requester sits in any offered car of the activity.
  */
-export function buildBoard(entries, passengers, me, { myTeams = [], admin = false } = {}) {
+export function buildLeg(entries, passengers, me, { myTeams = [], admin = false } = {}) {
   const meId = me != null ? Number(me) : null
   const person = (r, prefix) => ({
     id: Number(r[`${prefix}id`]),
@@ -303,8 +360,8 @@ export function buildBoard(entries, passengers, me, { myTeams = [], admin = fals
       member: owner,
       direction: e.direction,
       seats: Number(e.seats),
+      departure_date: ymd(e.departure_date),
       departure_time: e.departure_time ? String(e.departure_time).slice(0, 5) : null,
-      return_time: e.return_time ? String(e.return_time).slice(0, 5) : null,
       teams,
       departure_location: e.departure_location ?? null,
       notes: e.notes ?? null,
@@ -333,7 +390,8 @@ export function buildBoard(entries, passengers, me, { myTeams = [], admin = fals
     }
   }
 
-  const byTime = (a, b) => String(a.departure_time ?? '99').localeCompare(String(b.departure_time ?? '99')) || a.id - b.id
+  const byTime = (a, b) => String(a.departure_date ?? '9999').localeCompare(String(b.departure_date ?? '9999'))
+    || String(a.departure_time ?? '99').localeCompare(String(b.departure_time ?? '99')) || a.id - b.id
   offers.sort(byTime)
   requests.sort((a, b) => Number(a.covered) - Number(b.covered) || byTime(a, b))
 
@@ -504,6 +562,12 @@ export function registerCarpools(router, { services, database, logger, getSchema
     const id = Number(entry[ACTIVITY[type].fk])
     await assertVisible(req, type, id)
     return { entry, type, id, ...(await loadActivity(type, id)) }
+  }
+
+  const assertRideDate = (info, direction, date) => {
+    if (!rideDateAllowed(info, direction, date)) {
+      throw httpError(400, 'That day does not fit this activity', 'carpool_invalid_date')
+    }
   }
 
   const assertOpen = (info) => {
@@ -678,6 +742,8 @@ export function registerCarpools(router, { services, database, logger, getSchema
       // Totals for every listed activity in two queries.
       const counts = new Map()
       const keyOf = (r) => (r.game != null ? `game:${r.game}` : r.training != null ? `training:${r.training}` : `event:${r.event}`)
+      // Riders per activity AND way (393): a Going seat does not cover a Return request.
+      const legKey = (r) => `${keyOf(r)}:${r.direction === 'back' ? 'back' : 'there'}`
       const byType = { game: [], training: [], event: [] }
       for (const a of acts) byType[a.type].push(a.id)
       if (acts.length) {
@@ -691,7 +757,7 @@ export function registerCarpools(router, { services, database, logger, getSchema
         const offerIds = rows.filter((r) => r.kind === 'offer').map((r) => r.id)
         const pax = offerIds.length ? await database('carpool_passengers').whereIn('carpool', offerIds).select('carpool', 'passenger', 'seats') : []
         const taken = new Map(); const ridersByAct = new Map()
-        const offerAct = new Map(rows.filter((r) => r.kind === 'offer').map((r) => [Number(r.id), keyOf(r)]))
+        const offerAct = new Map(rows.filter((r) => r.kind === 'offer').map((r) => [Number(r.id), legKey(r)]))
         for (const p of pax) {
           taken.set(Number(p.carpool), (taken.get(Number(p.carpool)) ?? 0) + Number(p.seats || 1))
           const k = offerAct.get(Number(p.carpool))
@@ -701,7 +767,7 @@ export function registerCarpools(router, { services, database, logger, getSchema
         for (const r of rows) {
           const k = keyOf(r)
           const c = counts.get(k) ?? { offers: 0, seats_free: 0, requests_open: 0, my_role: null }
-          const riders = ridersByAct.get(k) ?? new Set()
+          const riders = ridersByAct.get(legKey(r)) ?? new Set()
           // Offers for other teams (380) are not this member's to count.
           const forMe = r.kind !== 'offer' || Number(r.member) === Number(me.id)
             || scopeAllows(parseScope(r.teams), teamIds) || riders.has(Number(me.id))
@@ -743,8 +809,10 @@ export function registerCarpools(router, { services, database, logger, getSchema
       }
       if (act.entry.kind === 'request') delete patch.teams
       else if ('teams' in patch) await assertOfferTeams(act, patch.teams)
-      // Switching away from there-and-back drops the return time.
-      if (patch.direction && patch.direction !== 'both') patch.return_time = null
+      if ('departure_date' in patch) {
+        patch.departure_date ??= defaultRideDate(act.info, act.entry.direction)
+        assertRideDate(act.info, act.entry.direction, patch.departure_date)
+      }
       await database('carpools').where('id', act.entry.id).update(patch)
       await writeUserLog(database, log, {
         accountability: req.accountability, action: 'update', collection: 'carpools',
@@ -832,7 +900,8 @@ export function registerCarpools(router, { services, database, logger, getSchema
       assertOpen(act.info)
       await assertInScope(req, act, me)
       const fk = ACTIVITY[act.type].fk
-      const offer = await database('carpools').where({ [fk]: act.id, kind: 'offer', member: me.id }).first()
+      // Only into my car for the same way (393): a Going request is not a Return seat.
+      const offer = await database('carpools').where({ [fk]: act.id, kind: 'offer', member: me.id, direction: act.entry.direction }).first()
       if (!offer) throw httpError(409, 'Offer a ride first, then take requests into your car', 'carpool_no_offer')
       if (!(await offerAllows(offer, act.entry.member))) {
         throw httpError(409, 'Your ride is offered to other teams than this person\'s', 'carpool_offer_other_teams')
@@ -899,6 +968,8 @@ export function registerCarpools(router, { services, database, logger, getSchema
       await assertInScope(req, act, me)
       const input = parseEntryInput(req.body)
       if (input.kind === 'offer') await assertOfferTeams(act, input.teams)
+      input.departure_date ??= defaultRideDate(act.info, input.direction)
+      assertRideDate(act.info, input.direction, input.departure_date)
       const [row] = await database('carpools')
         .insert({ ...input, member: me.id, [ACTIVITY[act.type].fk]: act.id })
         .returning('id')

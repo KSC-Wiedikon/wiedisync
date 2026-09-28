@@ -1,49 +1,58 @@
-import type { CarpoolBoard, CarpoolDirection, CarpoolOffer, CarpoolRequest } from './carpoolApi'
+import type { CarpoolBoard, CarpoolDirection, CarpoolLeg, CarpoolOffer, CarpoolRequest } from './carpoolApi'
 
 /**
  * Pure helpers for the car pooling UI — kept apart from the components so the
- * rules about what a viewer may do are unit-tested without rendering.
+ * rules about what a viewer may do are unit-tested without rendering. The
+ * Going and Return boards are separate car pools (migration 393): every rule
+ * below except `myRole` is per leg.
  */
 
-export const CARPOOL_DIRECTIONS: CarpoolDirection[] = ['both', 'there', 'back']
+export const CARPOOL_DIRECTIONS: CarpoolDirection[] = ['there', 'back']
 export const CARPOOL_MAX_SEATS = 8
 
 /** Seats the viewer would take when joining: what they asked for, else one. */
-export function seatsINeed(board: CarpoolBoard): number {
+export function seatsINeed(board: CarpoolLeg): number {
   const mine = board.requests.find((r) => r.mine)
   return mine ? mine.seats : 1
 }
 
 /** Can the viewer take seat(s) in this offered car? */
-export function canJoin(board: CarpoolBoard, offer: CarpoolOffer, open: boolean): boolean {
+export function canJoin(board: CarpoolLeg, offer: CarpoolOffer, open: boolean): boolean {
   if (!open || offer.mine || offer.i_am_passenger) return false
   if (board.mine.offer != null) return false // drivers drive, they do not ride
   return offer.seats_free >= seatsINeed(board)
 }
 
 /** Can the viewer (a driver) take this request into their car? */
-export function canTake(board: CarpoolBoard, request: CarpoolRequest, open: boolean): boolean {
+export function canTake(board: CarpoolLeg, request: CarpoolRequest, open: boolean): boolean {
   if (!open || request.mine || request.covered) return false
   const myOffer = board.offers.find((o) => o.mine)
   return !!myOffer && myOffer.seats_free >= request.seats
 }
 
 /** Can the viewer post a request? Not while already riding or driving. */
-export function canRequest(board: CarpoolBoard, open: boolean): boolean {
+export function canRequest(board: CarpoolLeg, open: boolean): boolean {
   return open && board.mine.request == null && board.mine.offer == null && board.mine.riding_in.length === 0
 }
 
 /** Can the viewer offer a ride? Not while riding in someone else's car. */
-export function canOffer(board: CarpoolBoard, open: boolean): boolean {
+export function canOffer(board: CarpoolLeg, open: boolean): boolean {
   return open && board.mine.offer == null && board.mine.riding_in.length === 0
 }
 
-/** The viewer's role on this board, for the banner badge. */
-export function myRole(board: CarpoolBoard): 'driver' | 'passenger' | 'requester' | null {
-  if (board.mine.offer != null) return 'driver'
-  if (board.mine.riding_in.length > 0) return 'passenger'
-  if (board.mine.request != null) return 'requester'
+/** The viewer's role on one leg (or across both), for the badges. */
+export function myRole(board: CarpoolLeg | CarpoolBoard): 'driver' | 'passenger' | 'requester' | null {
+  const legs = 'there' in board ? [board.there, board.back] : [board]
+  if (legs.some((l) => l.mine.offer != null)) return 'driver'
+  if (legs.some((l) => l.mine.riding_in.length > 0)) return 'passenger'
+  if (legs.some((l) => l.mine.request != null)) return 'requester'
   return null
+}
+
+/** Rides (offers + requests) on a leg, or on both. */
+export function entryCount(board: CarpoolLeg | CarpoolBoard): number {
+  const legs = 'there' in board ? [board.there, board.back] : [board]
+  return legs.reduce((n, l) => n + l.offers.length + l.requests.length, 0)
 }
 
 /**

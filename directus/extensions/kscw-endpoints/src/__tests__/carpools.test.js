@@ -4,7 +4,7 @@
  * builder (seat maths, request coverage, and that no phone number ever leaves).
  */
 import { describe, it, expect } from 'vitest'
-import { parseEntryInput, normalizeTime, mapCarpoolError, describeActivity, buildBoard, zurichToday, parseScope, scopeAllows, effectiveScope } from '../carpools.js'
+import { parseEntryInput, normalizeTime, normalizeDate, defaultRideDate, rideDateAllowed, mapCarpoolError, describeActivity, buildBoard, zurichToday, parseScope, scopeAllows, effectiveScope } from '../carpools.js'
 
 describe('normalizeTime', () => {
   it('accepts 24h clocks and drops seconds', () => {
@@ -19,11 +19,11 @@ describe('normalizeTime', () => {
 describe('parseEntryInput', () => {
   it('cleans a full offer', () => {
     expect(parseEntryInput({ kind: 'offer', seats: '3', direction: 'there', departure_time: '16:45:00', departure_location: '  Bhf   Wiedikon ', notes: '' }))
-      .toEqual({ kind: 'offer', seats: 3, direction: 'there', departure_time: '16:45', return_time: null, teams: null, departure_location: 'Bhf Wiedikon', notes: null })
+      .toEqual({ kind: 'offer', seats: 3, direction: 'there', departure_time: '16:45', departure_date: null, teams: null, departure_location: 'Bhf Wiedikon', notes: null })
   })
-  it('defaults a request to one seat, both ways, no time', () => {
+  it('defaults a request to one seat, going, no day or time', () => {
     expect(parseEntryInput({ kind: 'request' }))
-      .toEqual({ kind: 'request', seats: 1, direction: 'both', departure_time: null, return_time: null, teams: null, departure_location: null, notes: null })
+      .toEqual({ kind: 'request', seats: 1, direction: 'there', departure_time: null, departure_date: null, teams: null, departure_location: null, notes: null })
   })
   it('refuses bad kinds, seats, directions and times with a 400', () => {
     for (const body of [
@@ -33,6 +33,8 @@ describe('parseEntryInput', () => {
       { kind: 'request', seats: 1.5 },
       { kind: 'request', direction: 'sideways' },
       { kind: 'request', departure_time: '25:00' },
+      { kind: 'request', direction: 'both' },
+      { kind: 'request', departure_date: '2026-02-30' },
     ]) {
       expect(() => parseEntryInput(body)).toThrow()
       try { parseEntryInput(body) } catch (e) { expect(e.status).toBe(400) }
@@ -44,6 +46,7 @@ describe('parseEntryInput', () => {
   it('PATCH validates only what is sent and never changes the kind', () => {
     expect(parseEntryInput({ seats: 4, kind: 'request' }, { partial: true })).toEqual({ seats: 4 })
     expect(parseEntryInput({ departure_time: '' }, { partial: true })).toEqual({ departure_time: null })
+    expect(parseEntryInput({ direction: 'back', departure_date: '2026-10-04' }, { partial: true })).toEqual({ departure_date: '2026-10-04' })
   })
 })
 
@@ -99,15 +102,15 @@ describe('buildBoard', () => {
   const m = (id, extra = {}) => ({ m_id: id, m_first_name: `F${id}`, m_last_name: `L${id}`, m_nickname: null, m_phone: `+41 79 ${id}`, m_hide_phone: false, ...extra })
   const pax = (id, carpool, passenger, seats = 1, extra = {}) => ({ id, carpool, passenger, seats, p_id: passenger, p_first_name: `F${passenger}`, p_last_name: `L${passenger}`, p_nickname: null, p_phone: `+41 79 ${passenger}`, p_hide_phone: false, ...extra })
   const entries = [
-    { id: 10, kind: 'offer', member: 1, seats: 3, direction: 'both', departure_time: '16:45:00', departure_location: 'HB', ...m(1) },
+    { id: 10, kind: 'offer', member: 1, seats: 3, direction: 'there', departure_time: '16:45:00', departure_location: 'HB', ...m(1) },
     { id: 11, kind: 'offer', member: 2, seats: 2, direction: 'there', departure_time: '16:30:00', departure_location: 'Wiedikon', ...m(2, { m_hide_phone: true }) },
     { id: 12, kind: 'request', member: 3, seats: 2, direction: 'there', ...m(3) },
-    { id: 13, kind: 'request', member: 4, seats: 1, direction: 'both', ...m(4) },
+    { id: 13, kind: 'request', member: 4, seats: 1, direction: 'there', ...m(4) },
   ]
   const passengers = [pax(100, 10, 3, 2), pax(101, 11, 5, 1, { p_hide_phone: true })]
 
   it('computes seats and marks covered requests', () => {
-    const b = buildBoard(entries, passengers, null)
+    const b = buildBoard(entries, passengers, null).there
     const o10 = b.offers.find((o) => o.id === 10)
     expect(o10).toMatchObject({ seats_taken: 2, seats_free: 1 })
     expect(b.offers.map((o) => o.id)).toEqual([11, 10]) // by departure time
@@ -117,10 +120,10 @@ describe('buildBoard', () => {
   })
 
   it('tracks my own role: driver, rider, requester', () => {
-    const driver = buildBoard(entries, passengers, 1)
+    const driver = buildBoard(entries, passengers, 1).there
     expect(driver.offers.find((o) => o.id === 10).mine).toBe(true)
     expect(driver.mine).toEqual({ offer: 10, request: null, riding_in: [] })
-    const rider = buildBoard(entries, passengers, 3)
+    const rider = buildBoard(entries, passengers, 3).there
     expect(rider.mine.riding_in).toEqual([10])
     expect(rider.mine.request).toBe(12)
   })
@@ -155,13 +158,43 @@ describe('scope (migration 379)', () => {
   })
 })
 
-describe('per-offer teams + return time (migration 380)', () => {
-  it('keeps a return time only on a there-and-back ride', () => {
-    expect(parseEntryInput({ kind: 'offer', direction: 'both', departure_time: '08:00', return_time: '18:30:00', departure_location: 'HB' }).return_time).toBe('18:30')
-    expect(parseEntryInput({ kind: 'offer', direction: 'there', return_time: '18:30', departure_location: 'HB' }).return_time).toBeNull()
-    expect(() => parseEntryInput({ kind: 'offer', direction: 'both', return_time: '25:00', departure_location: 'HB' })).toThrow(/return_time/)
-    expect(parseEntryInput({ direction: 'back' }, { partial: true })).toEqual({ direction: 'back', return_time: null })
+describe('Going + Return boards (migration 393)', () => {
+  const m = (id) => ({ m_id: id, m_first_name: 'F', m_last_name: 'L', m_nickname: null })
+  const pax = (id, carpool, passenger) => ({ id, carpool, passenger, seats: 1, p_id: passenger, p_first_name: 'P', p_last_name: 'Q', p_nickname: null })
+  const entries = [
+    { id: 1, kind: 'offer', member: 1, seats: 2, direction: 'there', departure_date: '2026-10-03', departure_time: '08:00:00', ...m(1) },
+    { id: 2, kind: 'offer', member: 1, seats: 3, direction: 'back', departure_date: '2026-10-04', departure_time: '18:00:00', ...m(1) },
+    { id: 3, kind: 'request', member: 7, seats: 1, direction: 'there', ...m(7) },
+    { id: 4, kind: 'request', member: 7, seats: 1, direction: 'back', ...m(7) },
+  ]
+  it('splits rides by way; passengers and coverage are per way', () => {
+    const b = buildBoard(entries, [pax(10, 1, 7), pax(11, 2, 8)], 7)
+    expect(b.there.offers.map((o) => o.id)).toEqual([1])
+    expect(b.back.offers.map((o) => o.id)).toEqual([2])
+    expect(b.there.offers[0]).toMatchObject({ departure_date: '2026-10-03', departure_time: '08:00', seats_free: 1 })
+    expect(b.there.requests[0].covered).toBe(true) // rides there with driver 1
+    expect(b.back.requests[0].covered).toBe(false) // 8 rides back, not 7
+    expect(b.there.mine).toEqual({ offer: null, request: 3, riding_in: [1] })
+    expect(b.back.mine).toEqual({ offer: null, request: 4, riding_in: [] })
+    expect(b.totals).toEqual({ offers: 2, seats_free: 3, requests_open: 1 })
   })
+  it('validates calendar days', () => {
+    expect(normalizeDate('2026-10-03')).toBe('2026-10-03')
+    for (const bad of ['2026-02-30', '03.10.2026', '', null]) expect(normalizeDate(bad)).toBeNull()
+  })
+  it('defaults Going to the first day and Return to the last, within a slack window', () => {
+    const info = { date: '2026-10-03', last_date: '2026-10-05' }
+    expect(defaultRideDate(info, 'there')).toBe('2026-10-03')
+    expect(defaultRideDate(info, 'back')).toBe('2026-10-05')
+    expect(rideDateAllowed(info, 'there', '2026-10-02')).toBe(true)
+    expect(rideDateAllowed(info, 'there', '2026-10-06')).toBe(false)
+    expect(rideDateAllowed(info, 'back', '2026-10-02')).toBe(false)
+    expect(rideDateAllowed(info, 'back', '2026-10-06')).toBe(true)
+    expect(rideDateAllowed(info, 'back', '2026-10-20')).toBe(false)
+  })
+})
+
+describe('per-offer teams (migration 380)', () => {
   it('stores an offer\'s teams as a JSON list, never on a request', () => {
     expect(parseEntryInput({ kind: 'offer', teams: [3, '9', 3], departure_location: 'HB' }).teams).toBe('[3,9]')
     expect(parseEntryInput({ kind: 'offer', teams: [], departure_location: 'HB' }).teams).toBeNull()
@@ -170,17 +203,17 @@ describe('per-offer teams + return time (migration 380)', () => {
   it('hides an offer for other teams unless it is mine, I ride in it, or I am admin', () => {
     const m = (id) => ({ m_id: id, m_first_name: 'F', m_last_name: 'L', m_nickname: null, m_phone: null, m_hide_phone: false })
     const entries = [
-      { id: 1, kind: 'offer', member: 1, seats: 3, direction: 'both', departure_time: '08:00:00', return_time: '18:00:00', teams: [3], ...m(1) },
+      { id: 1, kind: 'offer', member: 1, seats: 3, direction: 'there', departure_time: '08:00:00', teams: [3], ...m(1) },
       { id: 2, kind: 'offer', member: 2, seats: 2, direction: 'there', teams: null, ...m(2) },
     ]
     const pax = [{ id: 10, carpool: 1, passenger: 7, seats: 1, p_id: 7, p_first_name: 'P', p_last_name: 'Q', p_nickname: null, p_phone: null, p_hide_phone: false }]
-    expect(buildBoard(entries, pax, 5, { myTeams: [9] }).offers.map((o) => o.id)).toEqual([2])
-    expect(buildBoard(entries, pax, 5, { myTeams: [3] }).offers.map((o) => o.id)).toEqual([1, 2])
-    expect(buildBoard(entries, pax, 1, { myTeams: [] }).offers.map((o) => o.id)).toEqual([1, 2])
-    expect(buildBoard(entries, pax, 7, { myTeams: [] }).offers.map((o) => o.id)).toEqual([1, 2])
-    expect(buildBoard(entries, pax, null, { admin: true }).offers.length).toBe(2)
-    const o = buildBoard(entries, pax, 1).offers.find((x) => x.id === 1)
-    expect(o).toMatchObject({ return_time: '18:00', teams: [3] })
+    expect(buildBoard(entries, pax, 5, { myTeams: [9] }).there.offers.map((o) => o.id)).toEqual([2])
+    expect(buildBoard(entries, pax, 5, { myTeams: [3] }).there.offers.map((o) => o.id)).toEqual([1, 2])
+    expect(buildBoard(entries, pax, 1, { myTeams: [] }).there.offers.map((o) => o.id)).toEqual([1, 2])
+    expect(buildBoard(entries, pax, 7, { myTeams: [] }).there.offers.map((o) => o.id)).toEqual([1, 2])
+    expect(buildBoard(entries, pax, null, { admin: true }).there.offers.length).toBe(2)
+    const o = buildBoard(entries, pax, 1).there.offers.find((x) => x.id === 1)
+    expect(o).toMatchObject({ teams: [3] })
     expect(buildBoard(entries, pax, 5, { myTeams: [9] }).totals.seats_free).toBe(2)
   })
 })

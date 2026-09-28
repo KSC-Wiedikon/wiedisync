@@ -8,11 +8,12 @@ import { ActivityRow, DateRail, RowChip, SectionHead } from '@/components/Activi
 import type { RowTone } from '@/components/activityRowTokens'
 import { useConfirm } from '../../components/ConfirmProvider'
 import { memberDisplayName } from '../../utils/relations'
+import { formatDayMonthZurich, formatWeekdayZurich } from '../../utils/dateHelpers'
 import {
   CARPOOL_ERROR_KEYS, useCarpoolActions, useCarpoolBoard,
-  type CarpoolActivityType, type CarpoolEntryInput, type CarpoolKind, type CarpoolOffer, type CarpoolRequest,
+  type CarpoolActivityType, type CarpoolDirection, type CarpoolEntryInput, type CarpoolKind, type CarpoolOffer, type CarpoolRequest,
 } from './carpoolApi'
-import { canJoin, canOffer, canRequest, canTake, myRole, seatsINeed } from './carpoolFormat'
+import { CARPOOL_DIRECTIONS, canJoin, canOffer, canRequest, canTake, entryCount, myRole, seatsINeed } from './carpoolFormat'
 import CarpoolEntryForm from './CarpoolEntryForm'
 
 interface CarpoolPanelProps {
@@ -28,6 +29,10 @@ interface CarpoolPanelProps {
 
 type Composer = { kind: CarpoolKind; editId?: number } | null
 
+/* Going and Return are two separate car pools (migration 393): each has its
+ * own rides, passengers and requests; the tab strip picks which one the
+ * buttons and the list act on. */
+
 /**
  * Car pooling banner + board for one game, training or event (migration 378).
  * Renders nothing unless the activity has car pooling switched on (or still
@@ -41,13 +46,15 @@ export default function CarpoolPanel({ type, id, standalone = false, suggestedTi
   const actions = useCarpoolActions(type, id)
   const [expanded, setExpanded] = useState(defaultExpanded)
   const [composer, setComposer] = useState<Composer>(null)
+  const [leg, setLeg] = useState<CarpoolDirection>('there')
   const [busy, setBusy] = useState(false)
 
   if (isLoading || !res) return null
-  const { activity, data: board } = res
+  const { activity, data: pool } = res
   // Scoped to teams the viewer is not in (migration 379) — not their board.
   if (res.in_scope === false) return null
-  const hasEntries = board.offers.length + board.requests.length > 0
+  const hasEntries = entryCount(pool) > 0
+  const board = pool[leg]
   if (!activity.enabled && !hasEntries) return null
 
   const open = activity.open
@@ -55,7 +62,12 @@ export default function CarpoolPanel({ type, id, standalone = false, suggestedTi
   const teamOptions = (res.activity_teams ?? []).map((tm) => ({ id: String(tm.id), label: tm.name, sport: tm.sport }))
   const teamName = new Map((res.activity_teams ?? []).map((tm) => [tm.id, tm.name]))
   const showBody = standalone || expanded || composer != null
-  const role = myRole(board)
+  const role = myRole(pool)
+  const switchLeg = (d: CarpoolDirection) => {
+    setLeg(d)
+    setComposer(null)
+    if (hasEntries) setExpanded(true)
+  }
 
   const act = async (fn: () => Promise<unknown>, okKey?: string, vars?: Record<string, unknown>) => {
     if (busy) return
@@ -126,9 +138,9 @@ export default function CarpoolPanel({ type, id, standalone = false, suggestedTi
           <p className="mt-0.5 text-xs text-sky-900/80 dark:text-sky-200/80">
             {hasEntries
               ? [
-                  t('rides', { count: board.totals.offers }),
-                  t('freeSeats', { count: board.totals.seats_free }),
-                  board.totals.requests_open > 0 ? t('looking', { count: board.totals.requests_open }) : null,
+                  t('rides', { count: pool.totals.offers }),
+                  t('freeSeats', { count: pool.totals.seats_free }),
+                  pool.totals.requests_open > 0 ? t('looking', { count: pool.totals.requests_open }) : null,
                 ].filter(Boolean).join(' · ')
               : t('emptyHint')}
           </p>
@@ -151,6 +163,39 @@ export default function CarpoolPanel({ type, id, standalone = false, suggestedTi
         )}
       </div>
 
+      {/* Going | Return — two car pools, side by side at equal width. */}
+      <div role="tablist" aria-label={t('title')} className="grid grid-cols-2 gap-1.5 px-3 pb-3">
+        {CARPOOL_DIRECTIONS.map((d) => {
+          const selected = leg === d
+          const l = pool[d]
+          const legRole = myRole(l)
+          return (
+            <Button
+              key={d}
+              type="button"
+              role="tab"
+              aria-selected={selected}
+              variant="outline"
+              onClick={() => switchLeg(d)}
+              className={`gap-1.5 px-2 ${
+                selected
+                  ? 'border-sky-600 bg-sky-600 text-white hover:bg-sky-600 hover:text-white dark:border-sky-500 dark:bg-sky-600'
+                  : 'border-sky-200 bg-white text-gray-700 hover:bg-sky-50 dark:border-sky-900 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-sky-950/50'
+              }`}
+            >
+              <span>{t(`tab_${d}`)}</span>
+              {l.offers.length + l.requests.length > 0 && (
+                <span className={`rounded-full px-1.5 text-[11px] font-semibold tabular-nums ${selected ? 'bg-white/25' : 'bg-sky-100 text-sky-800 dark:bg-sky-900/60 dark:text-sky-200'}`}>
+                  {l.offers.length}
+                </span>
+              )}
+              {legRole && <span className="sr-only">{t(`role_${legRole}`)}</span>}
+              {legRole && <span aria-hidden className={`h-1.5 w-1.5 rounded-full ${selected ? 'bg-white' : 'bg-sky-600 dark:bg-sky-400'}`} />}
+            </Button>
+          )
+        })}
+      </div>
+
       {/* The two ways in, side by side at equal width — never stacked. */}
       {open && composer == null && (canOffer(board, open) || canRequest(board, open)) && (
         <div className="flex gap-2 px-3 pb-3">
@@ -171,23 +216,29 @@ export default function CarpoolPanel({ type, id, standalone = false, suggestedTi
         <div className="space-y-4 border-t border-sky-200 p-3 dark:border-sky-900">
           {composer && (
             <CarpoolEntryForm
-              key={`${composer.kind}-${composer.editId ?? 'new'}`}
+              key={`${leg}-${composer.kind}-${composer.editId ?? 'new'}`}
               kind={composer.kind}
+              direction={leg}
+              defaultDate={leg === 'back' ? (activity.last_date ?? activity.date) : activity.date}
               initial={editing ? {
                 direction: editing.direction,
                 seats: editing.seats,
+                departure_date: editing.departure_date,
                 departure_time: editing.departure_time,
-                return_time: editing.return_time,
                 teams: editing.teams,
                 departure_location: editing.departure_location,
                 notes: editing.notes,
               } : undefined}
               minSeats={editing?.kind === 'offer' ? Math.max(1, editing.seats_taken) : 1}
-              suggestedTime={suggestedTime}
+              suggestedTime={leg === 'there' ? suggestedTime : null}
               teamOptions={teamOptions}
               onSubmit={submitComposer}
               onCancel={() => setComposer(null)}
             />
+          )}
+
+          {board.offers.length + board.requests.length === 0 && composer == null && (
+            <p className="text-center text-xs text-sky-900/70 dark:text-sky-200/70">{t(`emptyLeg_${leg}`)}</p>
           )}
 
           {board.offers.length > 0 && (
@@ -334,7 +385,6 @@ function RideRow({ entry, tone, status, chips, tools, children }: {
   tools?: ReactNode
   children?: ReactNode
 }) {
-  const { t } = useTranslation('carpool')
   const person = entry.member
   const first = (person.nickname && person.nickname.trim()) || person.first_name
   return (
@@ -344,9 +394,9 @@ function RideRow({ entry, tone, status, chips, tools, children }: {
       rail={
         <DateRail
           tone={RIDE_TONE[tone]}
+          eyebrow={entry.departure_date ? formatWeekdayZurich(entry.departure_date) : undefined}
           main={entry.departure_time ?? '–'}
-          sub={t(`direction_${entry.direction}`)}
-          extra={entry.direction === 'both' && entry.return_time ? <span className="tabular-nums">↩ {entry.return_time}</span> : undefined}
+          sub={entry.departure_date ? formatDayMonthZurich(entry.departure_date) : undefined}
         />
       }
       // The pickup point rides with the name (above the chips), as before.
