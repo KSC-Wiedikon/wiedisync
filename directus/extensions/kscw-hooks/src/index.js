@@ -557,8 +557,13 @@ export default ({ action, filter, init, schedule }, { services, database, logger
     if (myRoles.includes('admin') || myRoles.includes('superuser')) return payload
     const keys = (Array.isArray(meta?.keys) ? meta.keys : []).filter((k) => Number(k) !== Number(me?.id))
     if (keys.length === 0) return payload
-    const rows = await database('members').whereIn('id', keys).select('id', 'role')
-    const hit = rows.find((r) => (Array.isArray(r.role) ? r.role : []).some((x) => STAFF_RANKS.includes(x)))
+    const rows = await database('members').whereIn('id', keys).select('id', 'role', 'email', 'user')
+    const norm = (v) => String(v ?? '').trim().toLowerCase()
+    // Only an actual change counts — a form re-sending the unchanged value passes.
+    const changes = (r) => ('email' in payload && norm(payload.email) !== norm(r.email))
+      || ('user' in payload && norm(payload.user) !== norm(r.user))
+    const hit = rows.find((r) => changes(r)
+      && (Array.isArray(r.role) ? r.role : []).some((x) => STAFF_RANKS.includes(x)))
     if (hit) {
       throw kscwScopeError('Only an admin can change the email or login of a board member or admin', 403, 'STAFF_RANK')
     }
